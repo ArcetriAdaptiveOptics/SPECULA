@@ -277,7 +277,7 @@ class Simul():
                     data_source_outputs[output_name] = 'data_source.' + input_name # 'source.' + output_obj + '-' + output_name_small                    
                     obj_to_remove.append(output_obj)
 
-        for obj_name in obj_to_remove:
+        for obj_name in set(obj_to_remove):
             del self.replay_params[obj_name]
         
         for key, pars in self.replay_params.items():            
