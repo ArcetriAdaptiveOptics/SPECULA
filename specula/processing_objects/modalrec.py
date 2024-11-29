@@ -260,6 +260,7 @@ class Modalrec(BaseProcessingObj):
         if intmat:
             m = slope_ptr @ intmat
         else:
+            print(f'{slope_ptr.shape=}, {matrix.recmat.T.shape=}')
             m = slope_ptr @ self.xp.transpose(matrix.recmat)
 
         return m

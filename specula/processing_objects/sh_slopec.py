@@ -313,6 +313,8 @@ class ShSlopec(Slopec):
 
         n_subaps = self.subapdata.n_subaps
         np_sub = self.subapdata.np_sub
+        #import code
+        #code.interact(local=dict(locals(),**globals()))
         orig_pixels = self.accumulated_pixels.pixels if accumulated else in_pixels
 
         if self.thr_value > 0 and self.thr_ratio_value > 0:

@@ -43,8 +43,10 @@ class AtmoPropagation(BaseProcessingObj):
         for name, source in source_dict.items():
             ef = ElectricField(self.pixel_pupil_size, self.pixel_pupil_size, self.pixel_pitch, target_device_idx=self.target_device_idx)
             ef.S0 = source.phot_density()
-            self.outputs['out_'+name+'_ef'] = ef            
-            
+            self.outputs['out_'+name+'_ef'] = ef
+                       
+        self.outputs['ef_list'] = list(self.outputs.values())
+        
         self.inputs['layer_list'] = InputList(type=Layer)
 
     def doFresnel_setup(self):

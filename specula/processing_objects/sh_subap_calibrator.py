@@ -1,7 +1,7 @@
 import os
 
 from specula.base_processing_obj import BaseProcessingObj
-from specula.data_objects.intensity import Intensity
+from specula.data_objects.pixels import Pixels
 from specula.data_objects.lenslet import Lenslet
 from specula.connections import InputValue
 from specula.data_objects.subap_data import SubapData
@@ -29,11 +29,11 @@ class ShSubapCalibrator(BaseProcessingObj):
             self._filename = tag_template
         else:
             self._filename = output_tag
-        self.inputs['in_i'] = InputValue(type=Intensity)
+        self.inputs['in_pixels'] = InputValue(type=Pixels)
 
     def trigger_code(self):
         
-        image = self.local_inputs['in_i'].i
+        image = self.local_inputs['in_pixels'].pixels
         subaps = self._detect_subaps(image, self._energy_th)
         filename = self._filename
         if not filename.endswith('.fits'):

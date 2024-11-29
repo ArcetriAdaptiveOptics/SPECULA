@@ -66,3 +66,18 @@ class SubapData(BaseDataObj):
             map = hdul[2].data
         return SubapData(idxs=idxs, map=map, nx=nx, ny=ny, energy_th=energy_th,
                          target_device_idx=target_device_idx)
+
+
+    @classmethod
+    def restore_from_bronte(cls, filename, target_device_idx=None):
+        """Restores the subaperture data from a file."""
+        with fits.open(filename) as hdul:
+            px = hdul[1].data
+            det_shape = hdul[2].data
+
+            nx, ny = det_shape[:,0]
+            idxs = px.T
+            map = np.arange(len(px))
+            energy_th= 0.0
+        return SubapData(idxs=idxs, map=map, nx=nx, ny=ny, energy_th=energy_th,
+                         target_device_idx=target_device_idx)

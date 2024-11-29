@@ -52,7 +52,7 @@ class InputList():
     def set(self, new_list):
         for value in new_list:
             if not isinstance(value, self.wrapped_type):
-                raise ValueError(f'List element must be of type {self.wrapped_type}')
+                raise ValueError(f'List element must be of type {self.wrapped_type} instead of {type(value)}')
         self.wrapped_list = new_list
 
     def type(self):

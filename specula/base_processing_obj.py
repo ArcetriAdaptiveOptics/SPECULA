@@ -51,7 +51,7 @@ class BaseProcessingObj(BaseTimeObj):
         else:
             return nullcontext()
 
-    def checkInputTimes(self):        
+    def checkInputTimes(self):
         if len(self.inputs)==0:
             return True
         for input_name, input_obj in self.inputs.items():
@@ -67,9 +67,11 @@ class BaseProcessingObj(BaseTimeObj):
                             return True
 #                if input_name not in self.last_seen and input_obj.get_time() >= 0:  # First time
 #                    return True
-                for tt, last in zip(input_obj.get_time(), self.last_seen[input_name]):
-                    if tt > last:
-                        return True
+                else:
+                    for tt, last in zip(input_obj.get_time(), self.last_seen[input_name]):
+                        if tt > last:
+                            return True
+        print('No inputs ready')
         return False
 
     def prepare_trigger(self, t):

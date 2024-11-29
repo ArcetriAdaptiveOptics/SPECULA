@@ -273,6 +273,7 @@ class IIRControl(BaseProcessingObj):
                                                        self._state, self._total_length)
 
         self._out_comm.generation_time = self.current_time
+        print('Commands: ', self._out_comm.value)
 
 #        if self._verbose:
 #            print(f"first {min(6, len(self._out_comm.value))} output comm values: {self._out_comm.value[:min(6, len(self._out_comm.value))]}")
