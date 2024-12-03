@@ -78,6 +78,6 @@ class SubapData(BaseDataObj):
             nx, ny = det_shape[:,0]
             idxs = px.T
             map = np.arange(len(px))
-            energy_th= 0.0
+            energy_th= hdul[5].data.max() # TODO 
         return SubapData(idxs=idxs, map=map, nx=nx, ny=ny, energy_th=energy_th,
                          target_device_idx=target_device_idx)
