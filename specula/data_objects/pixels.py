@@ -8,16 +8,15 @@ class Pixels(BaseDataObj):
 
     def __init__(self, dimx, dimy, bits=16, signed=0, target_device_idx=None, precision=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-        self._validate_bits(bits)
-        self._signed = signed
-        self._type = self._get_type(bits, signed)
-        self._pixels = self.xp.zeros((dimx, dimy), dtype=self.dtype)
-        self._bpp = bits
-        self._bytespp = (bits + 7) // 8  # bits self.xp.arounded to the next multiple of 8
 
-    def _validate_bits(self, bits):
         if bits > 64:
             raise ValueError("Cannot create pixel object with more than 64 bits per pixel")
+
+        self.signed = signed
+        self.type = self._get_type(bits, signed)
+        self.pixels = self.xp.zeros((dimx, dimy), dtype=self.dtype)
+        self.bpp = bits
+        self.bytespp = (bits + 7) // 8  # bits self.xp.arounded to the next multiple of 8
 
     def _get_type(self, bits, signed):
         type_matrix = [
@@ -36,38 +35,14 @@ class Pixels(BaseDataObj):
         self._pixels = v
 
     @property
-    def pixels(self):
-        return self._pixels
-
-    @pixels.setter
-    def pixels(self, value):
-        self._pixels = value
-
-    @property
-    def type(self):
-        return self._type
-
-    @property
-    def bpp(self):
-        return self._bpp
-
-    @property
-    def bytespp(self):
-        return self._bytespp
-
-    @property
-    def signed(self):
-        return self._signed
-
-    @property
     def size(self):
-        return self._pixels.shape
+        return self.pixels.shape
 
     def multiply(self, factor):
-        self._pixels *= factor
+        self.pixels *= factor
 
     def set_size(self, size):
-        self._pixels = self.xp.zeros(size, dtype=self.dtype)
+        self.pixels = self.xp.zeros(size, dtype=self.dtype)
 
     def get_fits_header(self):
         hdr = fits.Header()
@@ -84,11 +59,11 @@ class Pixels(BaseDataObj):
     def save(self, filename):
         hdr = self.get_fits_header()            
         super().save(filename, hdr)
-        fits.append(filename, self._pixels, hdr)
+        fits.append(filename, self.pixels, hdr)
 
     def read(self, filename, hdr=None, exten=0):
         super().read(filename, hdr, exten)
-        self._pixels = fits.getdata(filename, ext=exten)
+        self.pixels = fits.getdata(filename, ext=exten)
 
 
     @staticmethod

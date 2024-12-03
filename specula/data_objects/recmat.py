@@ -17,17 +17,18 @@ class Recmat(BaseDataObj):
         self.recmat = self.xp.array(recmat)
         self.norm_factor = norm_factor
         self.proj_list = []
-        self.set_modes2recLayer(modes2recLayer)
+#        self.set_modes2recLayer(modes2recLayer) # TODO
 
     def set_modes2recLayer(self, modes2recLayer):
-        self.modes2recLayer = modes2recLayer
         if modes2recLayer is not None:
+            modes2recLayer = self.xp.array(modes2recLayer)
             n = modes2recLayer.shape
             for i in range(n[0]):
                 idx = self.xp.where(modes2recLayer[i, :] > 0)[0]
                 proj = self.xp.zeros((n[1], len(idx)), dtype=self.dtype)
                 proj[idx, :] = self.xp.identity(len(idx))
                 self.proj_list.append(proj)
+            self.modes2recLayer = modes2recLayer
             
     def reduce_size(self, nModesToBeDiscarded):
         nmodes = self.recmat.shape[1]

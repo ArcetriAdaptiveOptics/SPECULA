@@ -10,15 +10,21 @@ from specula.base_data_obj import BaseDataObj
 class SubapData(BaseDataObj):
     def __init__(self,
                  idxs,
-                 map,
+                 display_map,
                  nx: int,
                  ny: int,
                  energy_th: float = 0,
                  target_device_idx=None,
                  precision=None):
+        '''
+        idxs: np.array[n_subaps, n_pixels] of pixel indices in a flattened pixel array for each subaperture
+        display_map: np.array[n_subaps] of subaperture indices on a flattened nx * ny array, used for display only
+        nx: number of subapertures in the X (horizontal) direction
+        ny: number of subapertures in the Y (vertical) direction
+        '''
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         self.idxs = idxs.astype(int)
-        self.map = map.astype(int)
+        self.display_map = display_map.astype(int)
         self.nx = int(nx)
         self.ny = int(ny)
         self.energy_th = float(energy_th)
@@ -31,13 +37,18 @@ class SubapData(BaseDataObj):
     def np_sub(self):
         return int(math.sqrt(self.idxs.shape[1]))
 
+    def single_mask(self):
+        f = self.xp.zeros((self.nx, self.ny), dtype=self.dtype)
+        f.flat[self.display_map] = 1
+        return f
+
     def subap_idx(self, n):
         """Returns the indices of subaperture `n`."""
         return self.idxs[n, :]
 
-    def map_idx(self, n):
+    def display_map_idx(self, n):
         """Returns the position of subaperture `n`."""
-        return self.map[n]
+        return self.display_map[n]
 
     def save(self, filename):
         """Saves the subaperture data to a file."""
@@ -49,7 +60,7 @@ class SubapData(BaseDataObj):
         hdr['NY'] = self.ny
         fits.writeto(filename, np.zeros(2), hdr)
         fits.append(filename, cpuArray(self.idxs.T))  # Transposed for IDL-saved data compatibility
-        fits.append(filename, cpuArray(self.map))
+        fits.append(filename, cpuArray(self.display_map))
 
     @classmethod
     def restore(cls, filename, target_device_idx=None):
@@ -63,6 +74,6 @@ class SubapData(BaseDataObj):
             nx = hdr.get('NX')
             ny = hdr.get('NY')
             idxs = hdul[1].data.T     # Transposed for IDL-saved compatibility
-            map = hdul[2].data
-        return SubapData(idxs=idxs, map=map, nx=nx, ny=ny, energy_th=energy_th,
+            display_map = hdul[2].data
+        return SubapData(idxs=idxs, display_map=display_map, nx=nx, ny=ny, energy_th=energy_th,
                          target_device_idx=target_device_idx)

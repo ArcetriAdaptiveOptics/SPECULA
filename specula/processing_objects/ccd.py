@@ -256,7 +256,7 @@ class CCD(BaseProcessingObj):
         self._pixels.pixels = ccd_frame
 
     def apply_binning(self):
-        in_dim = self._integrated_i.ptr_i.shape
+        in_dim = self._integrated_i.i.shape
         out_dim = self._pixels.size
 
         if in_dim[0] != out_dim[0] * self._binning:

@@ -1,0 +1,51 @@
+
+
+pushpull:
+  class:     'FuncGenerator'
+  func_type: 'PUSHPULL'
+  nmodes:     2000
+  vect_amplitude_data:  'pushpull_4519modes_amp50'
+  outputs: ['output']
+
+main_override:
+  total_time:  8.0000 # 18.076
+
+prop_override:
+  inputs:
+    layer_list: ['pupilstop',
+                  'dm.out_layer']
+
+dm_override:
+  sign: 1
+  inputs:
+      in_command: 'pushpull.output'
+
+detector1_override:
+  photon_noise:      False
+  readout_noise:     False
+  
+calibrator:
+  class: 'ImRecCalibrator'
+  nmodes: 4519
+  im_tag:     'test_morfeo_scao_im_2000modes'
+  rec_tag:     'test_morfeo_scao_rec_2000modes'
+  pupdata_tag: 'morfeo_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.25'
+  data_dir: '/tmp'
+  inputs:
+    in_slopes: 'slopec1.out_slopes'
+    in_commands: 'pushpull.output'
+
+# pixels_disp:
+#   class:            'PixelsDisplay'
+#   inputs:
+#     pixels:      "detector1.out_pixels"
+#   window:           15
+#   title:            "Pixels"
+#   disp_factor:      1
+#   sh_as_pyr:        true
+#   subapdata_object:  'morfeo_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.25'
+
+remove: ['atmo', 'rec']
+ 
+
+

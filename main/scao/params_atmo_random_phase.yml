@@ -97,14 +97,12 @@ test_disp:
      modes:       "modal_analysis.out_modes"
    window:           15
    title:            'test'
-   disp_factor:      2
 
 sc_disp:
    class:            'SlopecDisplay'
    inputs:
      slopes:       'slopec.out_slopes'
      pupdata:      'slopec.out_pupdata'
-     pixels:       'detector.out_pixels'
    window:           16
    disp_factor:      4
 

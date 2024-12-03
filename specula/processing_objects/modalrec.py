@@ -73,7 +73,6 @@ class Modalrec(BaseProcessingObj):
         self._polc = polc
 
         self._layer_modes_list = None
-        self.set_layer_modes_list()
         self._control_list = []
         self._past_step_list = []
 
@@ -86,16 +85,6 @@ class Modalrec(BaseProcessingObj):
         self.outputs['out_modes'] = self.out_modes
         self.outputs['out_pseudo_ol_modes'] = self.pseudo_ol_modes
         self.outputs['out_modes_first_step'] = self.modes_first_step
-
-
-    def set_layer_modes_list(self):
-        if self._recmat.modes2recLayer is not None:
-            self._layer_modes_list = []
-            self._layer_idx_list = []
-            n = self._recmat.modes2recLayer.shape[0]
-            for i in range(n):
-                self._layer_modes_list.append(BaseValue(f'output modes for layer no {i + 1}'))
-                self._layer_idx_list.append(self.xp.where(self._recmat.modes2recLayer[i, :] > 0)[0])
 
     @property
     def recmat(self):
@@ -125,10 +114,6 @@ class Modalrec(BaseProcessingObj):
     @projmat.setter
     def projmat(self, value):
         self._projmat = value
-
-    @property
-    def modes2rec_layer(self):
-        return self._recmat.modes2rec_layer
 
     @property
     def out_layer_modes_list(self):
@@ -191,7 +176,7 @@ class Modalrec(BaseProcessingObj):
         if self._modes_first_step.generation_time != self.current_time:
             if self._polc:
                 self.compute_pseudo_ol_slopes(self.current_time)
-                m = self.compute_modes(self._recmat, self._pseudo_ol_slopes.ptr_slopes)
+                m = self.compute_modes(self._recmat, self._pseudo_ol_slopes.slopes)
                 self._pseudo_ol_modes.value = m
                 self._pseudo_ol_modes.generation_time = self.current_time
 
@@ -244,23 +229,27 @@ class Modalrec(BaseProcessingObj):
         self._pseudo_ol_slopes.slopes += comm_slopes
         self._pseudo_ol_slopes.generation_time = t
 
-    def compute_modes(self, matrix, slope_ptr, intmat=False):
+    def compute_modes(self, matrix, slopes_vector=None, intmat=False):
 
-        if slope_ptr is None:
+        if slopes_vector is None:
             if isinstance(self._slopes, Slopes):
-                slope_ptr = self._slopes.ptr_slopes
+                slopes_vector = self._slopes.slopes
                 if self._verbose:
                     print('Slopes')
                     print(f"modalrec.compute_modes slope RMS: {self.xp.sqrt(self.xp.mean(slope_ptr**2))}")
             elif isinstance(self._slopes, BaseValue):
-                slope_ptr = self._slopes.ptr_value
+                slopes_vector = self._slopes.ptr_value
                 if self._verbose:
                     print(f"modalrec.compute_modes base_value RMS: {self.xp.sqrt(self.xp.mean(slope_ptr**2))}")
+            else:
+                raise TypeError('Unsupported self._slopes type:', type(self._slopes))
 
         if intmat:
-            m = slope_ptr @ intmat
+            m = slopes_vector @ intmat
         else:
-            m = slope_ptr @ self.xp.transpose(matrix.recmat)
+            if len(slopes_vector) != matrix.recmat.shape[1]:
+                raise ValueError(f'Cannot multiply slopes vector of length {len(slopes_vector)} with rec. matrix of shape {matrix.recmat.T.shape}')
+            m = slopes_vector @ matrix.recmat.T
 
         return m
 

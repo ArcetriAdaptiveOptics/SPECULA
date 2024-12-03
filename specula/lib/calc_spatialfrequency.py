@@ -1,11 +1,7 @@
-import numpy as np
 
-from specula import xp
-from specula import global_precision
 from specula import float_dtype_list
-from specula import complex_dtype_list
 
-def calc_spatialfrequency(dimension, target_device_idx=None, precision=None):
+def calc_spatialfrequency(dimension, xp, precision):
     """
     This function returns a square matrix of size [dimension X dimension]
     with the spatial frequencies calculated as row^2 + column^2.
@@ -19,12 +15,7 @@ def calc_spatialfrequency(dimension, target_device_idx=None, precision=None):
     - matrix: A square matrix of size [dimension X dimension].
     """
 
-    if precision is None:
-        _precision = global_precision
-    else:
-        _precision = precision
-    dtype = float_dtype_list[_precision]
-    complex_dtype = complex_dtype_list[_precision]
+    dtype = float_dtype_list[precision]
 
     half_dim = dimension // 2
 

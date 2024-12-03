@@ -1,7 +1,6 @@
-from specula import np, cp, xp, global_precision, default_target_device, default_target_device_idx
+from specula import np, cp, global_precision, default_target_device, default_target_device_idx
 from specula import cpu_float_dtype_list, gpu_float_dtype_list
 from specula import cpu_complex_dtype_list, gpu_complex_dtype_list
-from copy import copy, deepcopy
 
 
 class BaseTimeObj:
@@ -15,17 +14,11 @@ class BaseTimeObj:
 
         """
         self._time_resolution = int(1e9)        
-
-        #print(self.__class__.__name__)
-        #print('target_device_idx', target_device_idx)
-        #print('precision', precision)
-        
-        self.cuda_graph = None
         
         if precision is None:
-            self._precision = global_precision
+            self.precision = global_precision
         else:
-            self._precision = precision
+            self.precision = precision
 
         if target_device_idx is None:
             self.target_device_idx = default_target_device_idx
@@ -34,39 +27,13 @@ class BaseTimeObj:
 
         if self.target_device_idx>=0:
             self._target_device = cp.cuda.Device(self.target_device_idx)      # GPU case
-            self.dtype = gpu_float_dtype_list[self._precision]
-            self.complex_dtype = gpu_complex_dtype_list[self._precision]
+            self.dtype = gpu_float_dtype_list[self.precision]
+            self.complex_dtype = gpu_complex_dtype_list[self.precision]
             self.xp = cp
         else:
             self._target_device = default_target_device                # CPU case
-            self.dtype = cpu_float_dtype_list[self._precision]
-            self.complex_dtype = cpu_complex_dtype_list[self._precision]
-            self.xp = np
-
-    @property
-    def time_resolution(self):
-        return self._time_resolution
-
-    @time_resolution.setter
-    def time_resolution(self, value):
-        self._time_resolution = value
-
-    @property
-    def precision(self):
-        return self._precision
-
-    @precision.setter
-    def precision(self, value):
-        self._precision = value
-        if not self.target_device_idx==-1:
-            self._target_device = cp.cuda.Device(self.target_device_idx)      # GPU case
-            self.dtype = gpu_float_dtype_list[self._precision]
-            self.complex_dtype = gpu_complex_dtype_list[self._precision]
-            self.xp = cp
-        else:
-            self._target_device = default_target_device                # CPU case
-            self.dtype = cpu_float_dtype_list[self._precision]
-            self.complex_dtype = cpu_complex_dtype_list[self._precision]
+            self.dtype = cpu_float_dtype_list[self.precision]
+            self.complex_dtype = cpu_complex_dtype_list[self.precision]
             self.xp = np
 
     def t_to_seconds(self, t):

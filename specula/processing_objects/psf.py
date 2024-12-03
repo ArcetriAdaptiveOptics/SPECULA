@@ -121,6 +121,7 @@ class PSF(BaseProcessingObj):
     def trigger_code(self):
         self.psf.value = self.calc_psf(self.in_ef.phi_at_lambda(self.wavelengthInNm), self.in_ef.A, imwidth=self.out_size[0], normalize=True)
         self.sr.value = self.psf.value[self.out_size[0] // 2, self.out_size[1] // 2] / self.ref.i[self.out_size[0] // 2, self.out_size[1] // 2]
+        print('SR:', self.sr.value)
 
     def post_trigger(self):
         super().post_trigger()

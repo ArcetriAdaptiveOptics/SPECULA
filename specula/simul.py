@@ -20,13 +20,17 @@ class Simul():
     '''
     Simulation organizer
     '''
-    def __init__(self, *param_files):
+    def __init__(self, *param_files, overrides=None):
         if len(param_files) < 1:
             raise ValueError('At least one Yaml parameter file must be present')
         self.param_files = param_files
         self.objs = {}
         self.verbose = False  #TODO
         self.isReplay = False
+        if overrides is None:
+            self.overrides = []
+        else:
+            self.overrides = overrides
 
     def _camelcase_to_snakecase(self, s):
         tokens = re.findall('[A-Z]+[0-9a-z]*', s)
@@ -200,7 +204,7 @@ class Simul():
 
             # Add global and class-specific params if needed
             my_params = {k: main[k] for k in args if k in main}
-            if 'data_dir' in args:  # TODO special case
+            if 'data_dir' in args and 'data_dir' not in my_params:  # TODO special case
                 my_params['data_dir'] = cm.root_subdir(classname)
 
             my_params.update(pars2)
@@ -226,7 +230,6 @@ class Simul():
                     inputs = [x.split('-')[0] for x in output_name]
                     outputs = [self.output_ref(x.split('-')[1]) for x in output_name]
                     for ii, oo in zip(inputs, outputs):
-                        print(oo)
                         self.objs[dest_object].inputs[ii] = InputValue(type = type(oo) )
                         self.objs[dest_object].inputs[ii].set(oo)
                         self.objs[dest_object].add(oo, name=ii)
@@ -299,10 +302,6 @@ class Simul():
                     self.replay_params[key]['outputs'].append(kk)
                 del self.replay_params[key]['inputs']
 
-        print(self.replay_params)
-
-        skip_pars = 'class inputs outputs'.split()
-
         for key, pars in params.items():
             if key == 'main':
                 continue
@@ -365,7 +364,15 @@ class Simul():
                 if name in params:
                     raise ValueError(f'Parameter file already has an object named {name}')
                 params[name] = values
-        
+    
+    def apply_overrides(self, params):
+        print('overrides:', self.overrides)
+        if len(self.overrides) > 0:
+            for k, v in yaml.full_load(self.overrides).items():
+                obj_name, param_name = k.split('.')
+                params[obj_name][param_name] = v
+                print(obj_name, param_name, v)
+
     def run(self):
         params = {}
         # Read YAML file(s)
@@ -383,13 +390,8 @@ class Simul():
         loop = LoopControl(run_time=params['main']['total_time'], dt=params['main']['time_step'])        
 
         # Actual creation code
+        self.apply_overrides(params)
         self.build_objects(params)
-
-
-        # TODO temporary hack, locals() does not work
-        for name, obj in self.objs.items():
-            globals()[name] = obj
-                        
         self.connect_objects(params)                
         
         if not self.isReplay:
