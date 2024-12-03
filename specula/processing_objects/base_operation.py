@@ -62,17 +62,17 @@ class BaseOperation(BaseProcessingObj):
     def out_value(self):
         return self._out_value
 
-    def trigger(self, t):
+    def trigger_code(self):
         value1 = self.inputs['in_value1'].get(self.target_device_idx)
         value2 = self.inputs['in_value2'].get(self.target_device_idx)
-        if value1 and value1.generation_time == t:
+        if value1 and value1.generation_time == self.current_time:
             if self._constant_mult is not None:
                 self._out_value.value = value1.value * self._constant_mult
             if self._constant_sum is not None:
                 self._out_value.value = value1.value + self._constant_sum
-            self._out_value.generation_time = t
+            self._out_value.generation_time = self.current_time
 
-        if value1 and value2 and (value1.generation_time == t or value2.generation_time == t):
+        if value1 and value2 and (value1.generation_time == self.current_time or value2.generation_time ==  self.current_time):
             temp = 0
             if self._mult:
                 if value1.value is not None: temp = value1.value.copy()
@@ -87,7 +87,7 @@ class BaseOperation(BaseProcessingObj):
                 if value1.value is not None: temp = value1.value.copy()
                 if value2.value is not None: temp -= value2.value.copy()
             self._out_value.value = temp
-            self._out_value.generation_time = t
+            self._out_value.generation_time = self.current_time
 
     def run_check(self, time_step, errmsg=None):
         """

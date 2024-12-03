@@ -96,7 +96,8 @@ class FuncGenerator(BaseProcessingObj):
 
     def trigger_code(self):
         if self.type == 'SIN':
-            self.output_value = self.amp * self.xp.sin(self.freq*2 * self.xp.pi*self.current_time_seconds + self.offset) + self.constant
+            phase = self.freq*2 * self.xp.pi*self.current_time_seconds + self.offset
+            self.output_value = self.amp * self.xp.sin(phase, dtype=self.dtype) + self.constant
         elif self.type == 'LINEAR':
             self.output_value = self.slope * self.current_time_seconds + self.constant
 

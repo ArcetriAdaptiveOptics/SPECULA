@@ -4,10 +4,10 @@ main:
   root_dir:          '/raid1/guido/PASSATA/MAORYC'         # Root directory for calibration manager
   store_dir:         './output'             # Data result directory: 'store_dir'/TN/
   pixel_pupil:       480                    # Linear dimension of pupil phase array
-  pixel_pitch:       0.0802                 # [m] Pitch of the pupil phase array2
-  total_time:        0.100                  # [s] Total simulation running time
+  pixel_pitch:       0.0802                 # [m] Pitch of the pupil phase array
+  total_time:        4.040                  # [s] Total simulation running time
   time_step:         0.002                  # [s] Simulation time step
-#  store:                                  # Dict of data products to store, 'name': 'output'
+#  store:                                    # Dict of data products to store, 'name': 'output'
 #    sr: 'psf.out_sr'
 #    res_ef: 'prop.out_on_axis_source_ef'
 
@@ -322,11 +322,12 @@ slopec6:
 
 rec:
   class:              'Modalrec'
-#  recmat_object:      'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_mn1000_ce'         # reconstruction matrix tag£
+  recmat_object:      'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_mn1000_ce'         # reconstruction matrix tag
 #  recmat_object:      'MORFEO_LTAO'         # reconstruction matrix tag
-  recmat_object: '/raid1/guido/PASSATA/MAORYC/rec/20241127_110943.0/recmat'
+#  recmat_object:      '/tmp/ltao_full_rec'         # reconstruction matrix tag
+  recmat_object:      '/tmp/ltao_rec0'         # reconstruction matrix tag
   inputs:
-    in_slopes_list:        ['slopec1.out_slopes','slopec2.out_slopes','slopec3.out_slopes','slopec4.out_slopes','slopec5.out_slopes','slopec6.out_slopes']
+    in_slopes_list:        ['slopec1.out_slopes']#,'slopec2.out_slopes','slopec3.out_slopes','slopec4.out_slopes','slopec5.out_slopes','slopec6.out_slopes']
   outputs:  ['out_modes', 'out_pseudo_ol_modes', 'out_modes_first_step']
 
 
@@ -358,12 +359,21 @@ psf:
       in_ef:  'prop.out_on_axis_source_ef'
   outputs:  ['out_psf', 'out_sr']
 
+
 # sc1_disp:
 #  class:            'SlopecDisplay'
 #  inputs:
 #    slopes:       'slopec1.out_slopes'
 #    subapdata:    'slopec1.out_subapdata'
 #  disp_factor:      1
+
+# sc3_disp:
+#  class:            'SlopecDisplay'
+#  inputs:
+#    slopes:       'slopec3.out_slopes'
+#    subapdata:    'slopec3.out_subapdata'
+#  disp_factor:      1
+#  window:           12
 
 # psf_disp:
 #  class:            'PsfDisplay'
@@ -373,19 +383,12 @@ psf:
 #  title:            'PSF'
 #  disp_factor:      1
 
-# sr_disp:
-#   class:            'PlotDisplay'
-#   inputs:
-#     value:       'psf.out_sr'
-#   window:           11
-#   title:            'SR'
-
-# cmd_disp:
-#   class:            'ModesDisplay'
-#   inputs:
-#     modes:       "rec.out_modes"
-#   window:           16
-#   title:            'rec.out_modes'
+sr_disp:
+  class:            'PlotDisplay'
+  inputs:
+    value:       'psf.out_sr'
+  window:           11
+  title:            'SR'
 
 # dm_disp:
 #   class:            'PhaseDisplay'
@@ -403,12 +406,17 @@ psf:
 #   title:            'PHASE ON AXIS'
 #   disp_factor:      2
 
-# pixels_disp:
-#   class:            'PixelsDisplay'
+# ph2_disp:
+#   class:            'PhaseDisplay'
 #   inputs:
-#     pixels:      "detector1.out_pixels"
-#   window:           25
-#   title:            "Pixels"
-#   disp_factor:      1
-#   sh_as_pyr:        true
-#   subapdata_object:  'morfeo_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.25'
+#     phase:       "prop.out_ngs1_source_ef"
+#   window:           14
+#   title:            'PHASE OFF AXIS'
+#   disp_factor:      2
+
+# cmd_disp:
+#   class:            'ModesDisplay'
+#   inputs:
+#     modes:       "rec.out_modes"
+#   window:           16
+#   title:            'rec.out_modes'

@@ -67,7 +67,7 @@ class GaussianConvolutionKernel(ConvolutionKernel):
             kk = lgs_map_sh(
                 dimx, pupil_size_m, 0, 90e3, [0], oversampling=1, zprofile=[1.0],
                 spotsize=self._spotsize, pxscale=self._pxscale, dimension=self._dimension,
-                lgs_tt=lgs_tt, cube=True, progress=True, precision=self._precision
+                lgs_tt=lgs_tt, cube=True, progress=True, precision=self.precision
             )
             if obj_valid(self._cm):
                 self._cm.write_kernel(sha1, kk)

@@ -1,9 +1,8 @@
-import numpy as np
 from specula import fuse
 from specula.processing_objects.slopec import Slopec
-from specula.data_objects.slopes import Slopes
-from  specula.base_value import BaseValue
+from specula.base_value import BaseValue
 from specula.data_objects.pupdata import PupData
+
 
 @fuse(kernel_name='clamp_generic_less')
 def clamp_generic_less(x, c, y, xp):
@@ -23,8 +22,9 @@ def clamp_generic_more(x, c, y, xp):
 def clamp_generic_more1(x, c, y, xp):
     y = xp.where(y > x, c, y)
 
+
 class PyrSlopec(Slopec):
-    def __init__(self, pupdata: PupData=None, shlike=False, norm_factor=None, thr_value=0, slopes_from_intensity=False, filtmat_tag='', 
+    def __init__(self, pupdata: PupData=None, shlike=False, norm_factor=None, thr_value=0, slopes_from_intensity=False, 
                  target_device_idx=None, 
                  precision=None,
                 **kwargs):
@@ -43,9 +43,6 @@ class PyrSlopec(Slopec):
             self.pup_idx3 = self.pupdata.ind_pup[:, 3]
             self.n_pup = self.pupdata.ind_pup.shape[1]
             self.n_subap = self.pupdata.ind_pup.shape[0]
-
-        if filtmat_tag:
-            self.set_filtmat(self.cm.read_data(filtmat_tag))   # TODO
 
         self.total_counts = BaseValue()
         self.subap_counts = BaseValue()
@@ -108,10 +105,10 @@ class PyrSlopec(Slopec):
             self.flat_pixels -= self.threshold
 
         clamp_generic_less(0,0,self.flat_pixels, xp=self.xp)
-        A = self.flat_pixels[self.pup_idx0]
-        B = self.flat_pixels[self.pup_idx1]
-        C = self.flat_pixels[self.pup_idx2]
-        D = self.flat_pixels[self.pup_idx3]
+        A = self.flat_pixels[self.pup_idx0].astype(self.xp.float32)
+        B = self.flat_pixels[self.pup_idx1].astype(self.xp.float32)
+        C = self.flat_pixels[self.pup_idx2].astype(self.xp.float32)
+        D = self.flat_pixels[self.pup_idx3].astype(self.xp.float32)
 
         # Compute total intensity
         self.total_intensity = self.xp.sum(self.flat_pixels[self.pup_idx])
@@ -135,8 +132,6 @@ class PyrSlopec(Slopec):
                 inv_factor[0] = self.xp.sum(self.flat_pixels[self.pup_idx])
                 factor = 1.0 / inv_factor[0]
 
-            # self.sx = (A+B-C-D).astype(self.dtype) * factor
-            # self.sy = (B+C-A-D).astype(self.dtype) * factor
             self.sx = (A+B-C-D) * factor
             self.sy = (B+C-A-D) * factor
 

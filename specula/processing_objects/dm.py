@@ -65,7 +65,7 @@ class DM(BaseProcessingObj):
         input_commands = self.local_inputs['in_command'].value
         if self.m2c is not None:
             self.m2c_commands[:len(input_commands)] = input_commands
-            cmd = self.if_commands @ self.m2c
+            cmd = self.m2c @ self.m2c_commands
         else:
             cmd = input_commands
             

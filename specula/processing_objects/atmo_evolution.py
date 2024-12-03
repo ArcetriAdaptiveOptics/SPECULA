@@ -43,11 +43,11 @@ class AtmoEvolution(BaseProcessingObj):
             pupil_position = [0, 0]
         
         if zenithAngleInDeg is not None:
-            self.airmass = 1.0 / np.cos(np.radians(zenithAngleInDeg))
+            self.airmass = 1.0 / np.cos(np.radians(zenithAngleInDeg), dtype=self.dtype)
             print(f'Atmo_Evolution: zenith angle is defined as: {zenithAngleInDeg} deg')
             print(f'Atmo_Evolution: airmass is: {self.airmass}')
         else:
-            self.airmass = 1.0
+            self.airmass = np.array(1.0, dtype=self.dtype)
         heights = np.array(heights, dtype=self.dtype) * self.airmass
 
         # Conversion coefficient from arcseconds to radians
@@ -58,9 +58,9 @@ class AtmoEvolution(BaseProcessingObj):
             alpha_fov = mcao_fov / 2.0
         else:
             alpha_fov = 0.0
-            for element in source_dict.values():
-                alpha_fov = max(alpha_fov, *abs(cv_coord(from_polar=[element.polar_coordinate[1], element.polar_coordinate[0]],
-                                                       to_rect=True, degrees=True, xp=np)))
+            for source in source_dict.values():
+                alpha_fov = max(alpha_fov, *abs(cv_coord(from_polar=[source.phi, source.r_arcsec],
+                                                       to_rect=True, degrees=False, xp=np)))
             if mcao_fov is not None:
                 alpha_fov = max(alpha_fov, mcao_fov / 2.0)
         
@@ -71,7 +71,7 @@ class AtmoEvolution(BaseProcessingObj):
         self.pixel_layer = np.ceil((pixel_pupil + 2 * np.sqrt(np.sum(np.array(pupil_position, dtype=self.dtype) * 2)) / pixel_pitch + 
                                2.0 * abs(heights) / pixel_pitch * rad_alpha_fov) / 2.0) * 2.0
         if fov_in_m is not None:
-            self.pixel_layer = np.full_like(heights, long(fov_in_m / pixel_pitch / 2.0) * 2)
+            self.pixel_layer = np.full_like(heights, int(fov_in_m / pixel_pitch / 2.0) * 2)
         
         self.L0 = L0
         self.heights = heights
@@ -248,7 +248,7 @@ class AtmoEvolution(BaseProcessingObj):
         new_position = self.last_position + delta_position
         # Get quotient and remainder
         new_position_quo = np.floor(new_position).astype(np.int64)
-        new_position_rem = new_position - new_position_quo
+        new_position_rem = (new_position - new_position_quo).astype(self.dtype)
         wdf, wdi = np.modf(wind_direction/90.0)
         wdf_full, wdi_full = np.modf(wind_direction)
         # Check if we need to cycle the screens

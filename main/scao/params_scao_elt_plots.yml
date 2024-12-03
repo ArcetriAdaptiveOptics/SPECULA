@@ -137,7 +137,6 @@ sc_disp:
   inputs:
     slopes:       'slopec.out_slopes'
     pupdata:      'slopec.out_pupdata'
-    pixels:       'detector.out_pixels'
   disp_factor:      4
 sr_disp:
   class:            'PlotDisplay'
@@ -172,7 +171,6 @@ test_disp:
     modes:       "rec.out_modes"
   window:           15
   title:            'test'
-  disp_factor:      2
 
 
 data_store:

@@ -28,6 +28,7 @@ class CalibManager():
             'rec': 'rec/',
             'recmat': 'rec/',
             'ImRecCalibrator': 'rec/',
+            'MultiImRecCalibrator': 'rec/',
             'im': 'im/',
             'ifunc': 'ifunc/',
             'm2c': 'm2c/',

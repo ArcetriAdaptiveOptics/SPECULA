@@ -138,48 +138,55 @@ psf:
   outputs:  ['out_psf', 'out_sr']
 
 
-sc_disp:
-  class:            'SlopecDisplay'
+# sc_disp:
+#   class:            'SlopecDisplay'
+#   inputs:
+#   inputs:
+#     slopes:       'slopec.out_slopes'
+#     subapdata:    'slopec.out_subapdata'
+#   disp_factor:      4
+# sr_disp:
+#   class:            'PlotDisplay'
+#   inputs:
+#     value:       'psf.out_sr'
+#   window:           11
+#   title:            'SR'
+# ph_disp:
+#   class:            'PhaseDisplay'
+#   inputs:
+#     phase:       "prop.out_on_axis_source_ef"
+#   window:           12
+#   title:            'PUPIL PHASE'
+#   disp_factor:      2
+# dm_disp:
+#   class:            'PhaseDisplay'
+#   inputs:
+#     phase:       "dm.out_layer"
+#   window:           13
+#   title:            'DM'
+#   disp_factor:      2
+# psf_disp:
+#   class:            'PsfDisplay'
+#   inputs:
+#     psf:       "psf.out_psf"
+#   window:           14
+#   title:            'PSF'
+#   disp_factor:      2
+# cmd_disp:
+#   class:            'ModesDisplay'
+#   inputs:
+#     modes:       "rec.out_modes"
+#   window:           16
+#   title:            'rec.out_modes'
+pixels_disp:
+  class:            'PixelsDisplay'
   inputs:
-  inputs:
-    slopes:       'slopec.out_slopes'
-    subapdata:    'slopec.out_subapdata'
-    pixels:       'detector.out_pixels'
-  disp_factor:      4
-sr_disp:
-  class:            'PlotDisplay'
-  inputs:
-    value:       'psf.out_sr'
-  window:           11
-  title:            'SR'
-ph_disp:
-  class:            'PhaseDisplay'
-  inputs:
-    phase:       "prop.out_on_axis_source_ef"
-  window:           12
-  title:            'PUPIL PHASE'
-  disp_factor:      2
-dm_disp:
-  class:            'PhaseDisplay'
-  inputs:
-    phase:       "dm.out_layer"
-  window:           13
-  title:            'DM'
-  disp_factor:      2
-psf_disp:
-  class:            'PsfDisplay'
-  inputs:
-    psf:       "psf.out_psf"
-  window:           14
-  title:            'PSF'
-  disp_factor:      2
-cmd_disp:
-  class:            'ModesDisplay'
-  inputs:
-    modes:       "rec.out_modes"
-  window:           16
-  title:            'rec.out_modes'
-  disp_factor:      2
+    pixels:      "detector.out_pixels"
+  window:           15
+  title:            "Pixels"
+  disp_factor:      1
+  sh_as_pyr:        true
+  subapdata_object:  'scao_subaps_n20_th0.5'
 
 data_store:
   class:             'DataStore'

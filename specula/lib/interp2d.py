@@ -53,8 +53,10 @@ class Interp2D():
 
         if xx is None or yy is None:
             yy, xx = map(self.dtype, np.mgrid[0:output_shape[0], 0:output_shape[1]])
-            yy *= input_shape[0] / output_shape[0]
-            xx *= input_shape[1] / output_shape[1]
+            # This -1 appears to be correct by comparing with IDL code
+            # It is not used in propagation, where xx and yy are set from the caller code
+            yy *= (input_shape[0]-1) / output_shape[0]
+            xx *= (input_shape[1]-1) / output_shape[1]
         else:
             if yy.shape != output_shape or xx.shape != output_shape:
                 raise ValueError(f'yy and xx must have shape {output_shape}')

@@ -25,7 +25,6 @@ class BaseProcessingObj(BaseTimeObj):
             from scipy.interpolate import RegularGridInterpolator
             get_fft_plan = None
 
-
         self.rotate = rotate        
         self.RegularGridInterpolator = RegularGridInterpolator
         self._get_fft_plan = get_fft_plan
@@ -37,13 +36,16 @@ class BaseProcessingObj(BaseTimeObj):
         self._loop_dt = int(0)
         self._loop_niters = 0
         
+        # Stream/input management
+        self.stream  = None
+        self.ready = False
+        self.cuda_graph = None
+
         # Will be populated by derived class
         self.inputs = {}
         self.local_inputs = {}
         self.last_seen = {}
         self.outputs = {}
-        self.stream  = None
-        self.ready = False
 
     def get_fft_plan(self, a, shape=None, axes=None, value_type='C2C'):
         if self._get_fft_plan:
@@ -71,7 +73,6 @@ class BaseProcessingObj(BaseTimeObj):
                     for tt, last in zip(input_obj.get_time(), self.last_seen[input_name]):
                         if tt > last:
                             return True
-        print('No inputs ready')
         return False
 
     def prepare_trigger(self, t):

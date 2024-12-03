@@ -284,6 +284,8 @@ class ShSlopec(Slopec):
 
             self.slopes.xslopes = sx
             self.slopes.yslopes = sy
+            if self.slopes.pupdata_tag != self.subapdata.tag:
+                self.slopes.pupdata_tag = self.subapdata.tag
             self.slopes.generation_time = self.current_time
 
             self.flux_per_subaperture_vector.value = flux_per_subaperture
