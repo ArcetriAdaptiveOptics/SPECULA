@@ -22,7 +22,8 @@ class Modalrec(BaseProcessingObj):
                  dmNumber: int=0,
                  noProj: bool=False,
                  target_device_idx=None, 
-                 precision=None
+                 precision=None,
+                 modal_offset=None
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
@@ -86,7 +87,11 @@ class Modalrec(BaseProcessingObj):
         self.outputs['out_modes'] = self.out_modes
         self.outputs['out_pseudo_ol_modes'] = self.pseudo_ol_modes
         self.outputs['out_modes_first_step'] = self.modes_first_step
-
+        
+        if modal_offset is not None:
+            self._modal_offset=modal_offset
+        else: 
+            self._modal_offset = self.xp.zeros(nmodes, dtype = self.xp.float32)
 
     def set_layer_modes_list(self):
         if self._recmat.modes2recLayer is not None:
@@ -214,7 +219,7 @@ class Modalrec(BaseProcessingObj):
             if self._verbose:
                 n = len(self._modes_first_step.value)
                 print(f"(no projmat) first {min(6, n)} residual values: {self._modes_first_step.value[:min(5, n)]}")
-            self._modes.value = self._modes_first_step.value
+            self._modes.value = self._modes_first_step.value - self._modal_offset
             self._modes.generation_time = self._modes_first_step.generation_time
         else:
             mp = self.compute_modes(self._projmat, self._modes_first_step.ptr_value)
