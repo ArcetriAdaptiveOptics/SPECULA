@@ -22,7 +22,8 @@ class AtmoPropagation(BaseProcessingObj):
                  precision=None,
                  doFresnel: bool=False,
                  wavelengthInNm: float=500.0,
-                 pupil_position=None):
+                 pupil_position=None,
+                 mergeLayersContrib=True):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         if doFresnel and wavelengthInNm is None:
@@ -35,6 +36,7 @@ class AtmoPropagation(BaseProcessingObj):
             raise ValueError('Pixel pupil must be >0')
         
         
+        self. mergeLayersContrib = mergeLayersContrib
         self.pixel_pupil_size = pixel_pupil
         self.pixel_pitch = pixel_pitch
         self.source_dict = source_dict
@@ -49,11 +51,12 @@ class AtmoPropagation(BaseProcessingObj):
         self.wavelengthInNm = wavelengthInNm
         self.propagators = None
 
-        for name, source in source_dict.items():
-            ef = ElectricField(self.pixel_pupil_size, self.pixel_pupil_size, self.pixel_pitch, target_device_idx=self.target_device_idx)
-            ef.S0 = source.phot_density()
-            self.outputs['out_'+name+'_ef'] = ef            
-            
+        if self.mergeLayersContrib:
+            for name, source in self.source_dict.items():
+                ef = ElectricField(self.pixel_pupil_size, self.pixel_pupil_size, self.pixel_pitch, target_device_idx=self.target_device_idx)
+                ef.S0 = source.phot_density()
+                self.outputs['out_'+name+'_ef'] = ef
+                
         self.inputs['layer_list'] = InputList(type=Layer)
 
     def doFresnel_setup(self):
@@ -95,10 +98,17 @@ class AtmoPropagation(BaseProcessingObj):
         layer_list = self.local_inputs['layer_list']
         for source_name, source in self.source_dict.items():
 
-            output_ef = self.outputs['out_'+source_name+'_ef']
-            output_ef.reset()
+            if self.mergeLayersContrib:
+                output_ef = self.outputs['out_'+source_name+'_ef']
+                output_ef.reset()
+            else:
+                output_ef_list = self.outputs['out_'+source_name+'_ef']
 
-            for layer in layer_list:
+            for li, layer in enumerate(layer_list):
+
+                if not self.mergeLayersContrib:
+                    output_ef = output_ef_list[li]
+                    output_ef.reset()
 
                 interpolator = self.interpolators[source][layer]
                 
@@ -126,11 +136,6 @@ class AtmoPropagation(BaseProcessingObj):
         for source_name in self.source_dict.keys():
             self.outputs['out_'+source_name+'_ef'].generation_time = self.current_time
 
-        # import matplotlib.pyplot as plt
-        # plt.imshow(self.outputs['out_ngs1_source_ef'].A.get())
-        # plt.show()
-        # import code
-        # code.interact(local=dict(locals(), **globals()))
     
     def setup_interpolators(self):
         
@@ -189,8 +194,17 @@ class AtmoPropagation(BaseProcessingObj):
         super().setup(loop_dt, loop_niters)
 
         self.layer_list = self.inputs['layer_list'].get(self.target_device_idx)
-        if len(self.layer_list) < 1:
+        self.nInputLayers = len(self.layer_list)
+        if self.nInputLayers < 1:
             raise ValueError('At least one layer must be set')
+
+        if not self.mergeLayersContrib:
+            for name, source in self.source_dict.items():
+                self.outputs['out_'+name+'_ef'] = []
+                for n in range(self.nInputLayers):
+                    ef = ElectricField(self.pixel_pupil_size, self.pixel_pupil_size, self.pixel_pitch, target_device_idx=self.target_device_idx)
+                    ef.S0 = source.phot_density()
+                    self.outputs['out_'+name+'_ef'].append(ef)
 
         self.shiftXY_cond = {layer: np.any(layer.shiftXYinPixel) for layer in self.layer_list}
         self.magnification_list = {layer: max(layer.magnification, 1.0) for layer in self.layer_list}
