@@ -1,0 +1,97 @@
+---
+
+main:
+  root_dir:          '.\calib'         # Root directory for calibration manager
+  pixel_pupil:       80                    # Linear dimension of pupil phase array
+  pixel_pitch:       0.0001                # [m] Pitch of the pupil phase array
+  total_time:        20.0                  # [s] Total simulation running time
+  time_step:         1.0                  # [s] Simulation time step
+  display_server:    false                   # Display server on auto-selected port
+
+on_axis_source:
+  class:             'Source'
+  polar_coordinate:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  magnitude:         8                    # source magnitude
+  wavelengthInNm:    500                   # [nm] wavelength
+
+
+pupilstop:                                 # Default parameters (circular pupil)
+  class: 'Pupilstop'
+  input_mask_data: 'mymask'
+
+
+prop:
+  class:                'AtmoPropagation'
+  source_dict_ref:      ['on_axis_source']
+  inputs:
+    layer_list: ['pupilstop', 
+                  'dm.out_layer']
+  outputs: ['out_on_axis_source_ef']
+
+
+ramp:
+  class: 'FuncGenerator'
+  func_type: 'LINEAR'
+  slope: [25]
+  constant: [-250]
+
+ifunc:
+  class: 'IFunc'
+  ifunc_data:      'ifunc_piston'
+  mask_data:       'mask_piston'
+
+dm:
+  class:             'DM'
+  ifunc_ref:         'ifunc'
+  height:            0                      # DM height [m]
+  inputs:
+      in_command: 'ramp.output'
+  outputs:  ['out_layer']
+
+psf_i:
+  class:             'PSF'
+  wavelengthInNm:    500                 # [nm] Imaging wavelength
+  nd:                10                    # padding coefficient for PSF computation
+  start_time:        0.                # PSF integration start time
+  inputs:
+      in_ef:  'prop.out_on_axis_source_ef'
+  outputs:  ['out_psf']
+
+psf_o:
+  class:             'PSF'
+  wavelengthInNm:    510                 # [nm] Imaging wavelength
+  nd:                10                    # padding coefficient for PSF computation
+  start_time:        0.                # PSF integration start time
+  inputs:
+      in_ef:  'prop.out_on_axis_source_ef'
+  outputs:  ['out_psf']
+
+data_store:
+  class:             'DataStore'
+  store_dir:         '.\output'             # Data result directory: 'store_dir'/TN/
+  inputs:    
+    # input_list: ['psf_i-psf_i.out_psf', 'psf_o-psf_o.out_psf']
+    input_list: ['ef-prop.out_on_axis_source_ef']
+
+psf_i_disp:
+  class:            'PsfDisplay'
+  inputs:
+    psf:       "psf_i.out_psf"
+  window:           1
+  title:            'PSF'
+  disp_factor:      2
+
+psf_o_disp:
+  class:            'PsfDisplay'
+  inputs:
+    psf:       "psf_o.out_psf"
+  window:           2
+  title:            'PSF'
+  disp_factor:      1
+
+plot_displ:
+  class:            'PlotDisplay'
+  inputs:
+    value:       'ramp.output'
+  window:           3
+  title:            'RAMP'

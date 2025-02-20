@@ -1,4 +1,3 @@
-
 import inspect
 from copy import deepcopy
 from specula.base_processing_obj import BaseProcessingObj
@@ -150,7 +149,7 @@ class Simul():
                 filename = cm.filename(classname, pars['tag'])
                 self.objs[key] = klass.restore(filename, target_device_idx=target_device_idx)
                 continue
-                
+
             pars2 = {}
             for name, value in pars.items():
                 if key == 'data_source':
@@ -158,13 +157,17 @@ class Simul():
 
                 if key != 'data_source' and name in skip_pars:
                     continue
-                
-                if key == 'data_source' and name in ['class']:                    
+
+                if key == 'data_source' and name in ['class']:
                     continue
-                
+
                 # dict_ref field contains a dictionary of names and associated data objects (defined in the same yml file)
                 elif name.endswith('_dict_ref'):
                     data = {x : self.output_ref(x) for x in value}
+                    pars2[name[:-4]] = data
+
+                elif name.endswith('_ref'):
+                    data = self.output_ref(value)
                     pars2[name[:-4]] = data
 
                 # data fields are read from a fits file
@@ -173,8 +176,8 @@ class Simul():
                     pars2[name[:-5]] = data
 
                 # object fields are data objects which are loaded from a fits file
-                # the name of the object is the string preceeding th e_, 
-                # while its type is infered from the constructor of the current class                
+                # the name of the object is the string preceding the _, 
+                # while its type is inferred from the constructor of the current class
                 elif name.endswith('_object'):
                     parname = name[:-7]
                     if value is None:
@@ -194,10 +197,10 @@ class Simul():
             my_params = {k: main[k] for k in args if k in main}
             if 'data_dir' in args and 'data_dir' not in my_params:  # TODO special case
                 my_params['data_dir'] = cm.root_subdir(classname)
-                
+
             if 'params_dict' in args:
                 my_params['params_dict'] = params
-                
+
             if 'input_ref_getter' in args:
                 my_params['input_ref_getter'] = self.input_ref
 

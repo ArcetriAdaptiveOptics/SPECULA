@@ -13,7 +13,7 @@ class Vibrations():
 
 class FuncGenerator(BaseProcessingObj):
     def __init__(self, func_type='SIN', nmodes=None, time_hist=None, psd=None, fr_psd=None, continuous_psd=None, 
-                constant=None, amp=None, freq=None, offset=None, vect_amplitude=None, 
+                constant=None, amp=None, freq=None, offset=None, vect_amplitude=None, slope=None,
                 seed=None, ncycles=1,
                 vsize=1,
                 target_device_idx=None, 
@@ -52,7 +52,7 @@ class FuncGenerator(BaseProcessingObj):
             pass
 
         elif self.type == 'LINEAR':
-            self.slope = 0.0
+            self.slope = self.xp.array(slope, dtype=self.dtype) if slope is not None else 0.0
 
         elif self.type == 'RANDOM' or self.type == 'RANDOM_UNIFORM':
             pass

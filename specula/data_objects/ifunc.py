@@ -145,4 +145,5 @@ class IFunc(BaseDataObj):
             mask = hdul[exten+1].data
         return IFunc(ifunc, mask=mask, target_device_idx=target_device_idx)
 
-
+    def finalize(self):
+        pass
