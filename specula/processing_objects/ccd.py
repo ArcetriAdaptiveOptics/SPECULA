@@ -118,6 +118,7 @@ class CCD(BaseProcessingObj):
         self._qe = quantum_eff
 
         self._pixels = Pixels(size[0] // binning, size[1] // binning, target_device_idx=target_device_idx)
+        self._output_pixels = Pixels(2048, 2048, target_device_idx=target_device_idx)
         s = self._pixels.size * self._binning
         self._integrated_i = Intensity(s[0], s[1], target_device_idx=target_device_idx, precision=precision)
         self._photon_seed = photon_seed
@@ -148,7 +149,7 @@ class CCD(BaseProcessingObj):
         self._readout_rng = self.xp.random.default_rng(self._readout_seed)
 
         self.inputs['in_i'] = InputValue(type=Intensity)
-        self.outputs['out_pixels'] = self._pixels
+        self.outputs['out_pixels'] = self._output_pixels
         self.outputs['integrated_i'] = self._integrated_i
 
 
@@ -203,7 +204,10 @@ class CCD(BaseProcessingObj):
                     self.apply_qe()
                     self.apply_noise()
 
-                self._pixels.generation_time = self.current_time
+                dims = self._pixels.size
+                origin = 276, 453
+                self._output_pixels.pixels[origin[0]:origin[0]+dims[0], origin[1]:origin[1]+dims[1]] = self._pixels.pixels
+                self._output_pixels.generation_time = self.current_time
                 self._integrated_i.i *= 0.0
 
     def apply_noise(self):

@@ -45,7 +45,7 @@ class ImRecCalibrator(BaseProcessingObj):
 
         idx = self.xp.nonzero(commands)
         print(idx)
-        if len(idx)>0:
+        if len(idx[0])>0:
             mode = idx[0]
             self._im[mode] += slopes / commands[idx]
             

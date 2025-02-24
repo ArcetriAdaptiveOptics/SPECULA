@@ -97,6 +97,19 @@ def cpuArray(v):
         return np.array(v)
 
 
+class DummyDecoratorAndContextManager():
+    def __init__(self):
+        pass
+    def __enter__(self):
+        pass
+    def __exit__(self, *args):
+        pass
+    def __call__(self, f):
+        def caller(*args, **kwargs):
+            return f(*args, **kwargs)
+        return caller
+
+
 def show_in_profiler(message=None, color_id=None, argb_color=None, sync=False):
     '''
     Decorator to allow using cupy's TimeRangeDecorator
@@ -112,9 +125,7 @@ def show_in_profiler(message=None, color_id=None, argb_color=None, sync=False):
                           sync=sync)
 
     except ImportError:
-        def decorator(f):
-            return f
-        return decorator
+        return DummyDecoratorAndContextManager()
 
 
 def fuse(kernel_name=None):

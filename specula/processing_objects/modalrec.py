@@ -262,7 +262,7 @@ class Modalrec(BaseProcessingObj):
         if intmat:
             m = slopes_vector @ intmat
         else:
-            print(f'{slope_ptr.shape=}, {matrix.recmat.T.shape=}')
+            print(f'{slopes_vector.shape=}, {matrix.recmat.T.shape=}')
             if len(slopes_vector) != matrix.recmat.shape[1]:
                 raise ValueError(f'Cannot multiply slopes vector of length {len(slopes_vector)} with rec. matrix of shape {matrix.recmat.T.shape}')
             m = slopes_vector @ matrix.recmat.T

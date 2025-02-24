@@ -85,10 +85,19 @@ class SubapData(BaseDataObj):
         with fits.open(filename) as hdul:
             px = hdul[1].data
             det_shape = hdul[2].data
+            suba_size = hdul[3].data
 
             nx, ny = det_shape[:,0]
+            np_sub = suba_size[0]
             idxs = px.T
-            map = np.arange(len(px))
+            nsubap = len(suba_size)
+            display_map = np.zeros(nsubap)
+            for i in range(nsubap):
+                ycoord, xcoord = np.unravel_index(px[0,i], (nx, ny))
+                ycoord = ycoord // np_sub
+                xcoord = xcoord // np_sub
+                map_index = np.ravel_multi_index((ycoord, xcoord), (nx // np_sub, ny // np_sub))
+                display_map[i] = map_index
             energy_th= hdul[5].data.max() # TODO 
-        return SubapData(idxs=idxs, map=map, nx=nx, ny=ny, energy_th=energy_th,
+        return SubapData(idxs=idxs, display_map=display_map, nx=nx// np_sub, ny=ny// np_sub, energy_th=energy_th,
                          target_device_idx=target_device_idx)

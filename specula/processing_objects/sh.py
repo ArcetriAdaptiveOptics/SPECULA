@@ -11,6 +11,7 @@ from specula.data_objects.ef import ElectricField
 from specula.data_objects.intensity import Intensity
 from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.lenslet import Lenslet
+from setuptools._vendor.importlib_resources._common import _temp_path
 
 
 # TODO
@@ -265,9 +266,9 @@ class SH(BaseProcessingObj):
         elif not self._noprints:
             print(f'GOOD: interpolated input phase size {ef_size} * {round(self._fov_ovs)} is divisible by {self._lenslet.n_lenses} subapertures.')
     
-    def calc_trigger_geometry(self):
+    def calc_trigger_geometry(self, in_ef):
         
-        in_ef = self.inputs['in_ef'].get(self.target_device_idx)
+        #in_ef = self.inputs['in_ef'].get(self.target_device_idx)
         s = in_ef.size
 
         # Calculate subap chunks
@@ -345,14 +346,19 @@ class SH(BaseProcessingObj):
 
     def trigger(self):
         
-        in_ef = self.local_inputs['in_ef']
-
+        temp_in_ef = self.local_inputs['in_ef']
+        newpitch = temp_in_ef.pixel_pitch * temp_in_ef.size[0] / self._out_i.size[0]
+        in_ef = ElectricField(self._out_i.size[0], self._out_i.size[1], newpitch, temp_in_ef.S0)
+        in_ef.phaseInNm = toccd(temp_in_ef.phaseInNm, self._out_i.size, xp=self.xp)
+        in_ef.A = toccd(temp_in_ef.A, self._out_i.size, xp=self.xp)
+       
+        print(temp_in_ef.size, self._out_i.size, in_ef.size)
         if not self._input_ef_set:
             self.set_in_ef(in_ef)
             self._input_ef_set = True
 
         if not self._trigger_geometry_calculated:
-            self.calc_trigger_geometry()
+            self.calc_trigger_geometry(in_ef)
             self._trigger_geometry_calculated = True
 
         if self._kernelobj is not None:
