@@ -48,7 +48,7 @@ class Recmat(BaseDataObj):
         hdr['NORMFACT'] = self.norm_factor
 
         fits.writeto(filename, np.zeros(2), hdr)
-        fits.append(filename, cpuArray(self.recmat.T))
+        fits.append(filename, cpuArray(self.recmat))
         if self.modes2recLayer is not None:
             fits.append(filename, cpuArray(self.modes2recLayer))
 
