@@ -1,7 +1,7 @@
-from specula.base_data_obj import BaseDataObj
-
 from astropy.io import fits
 
+from specula import cpuArray
+from specula.base_data_obj import BaseDataObj
 from specula.lib.compute_zern_ifunc import compute_zern_ifunc
 
 def compute_kl_ifunc(*args, **kwargs):
@@ -46,8 +46,8 @@ class IFunc(BaseDataObj):
             else:
                 raise ValueError(f'Invalid ifunc type {type_str}')
         
-        ifunc = self.xp.array(ifunc)
-        mask = self.xp.array(mask)
+        ifunc = self.xp.array(ifunc, dtype=self.dtype)
+        mask = self.xp.array(mask, dtype=self.dtype)
 
         self._influence_function = ifunc
         self._mask_inf_func = mask
@@ -107,8 +107,8 @@ class IFunc(BaseDataObj):
 
         hdu = fits.PrimaryHDU(header=hdr)
         hdul = fits.HDUList([hdu])
-        hdul.append(fits.ImageHDU(data=self._influence_function, name='INFLUENCE_FUNCTION'))
-        hdul.append(fits.ImageHDU(data=self._mask_inf_func, name='MASK_INF_FUNC'))
+        hdul.append(fits.ImageHDU(data=cpuArray(self._influence_function).T))
+        hdul.append(fits.ImageHDU(data=cpuArray(self._mask_inf_func)))
         hdul.writeto(filename, overwrite=True)
 
     def cut(self, start_mode=None, nmodes=None, idx_modes=None):
