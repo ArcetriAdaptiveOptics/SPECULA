@@ -144,10 +144,11 @@ class LoopControl:
         return int(seconds * self._time_resolution)
 
     def start_profiling(self):
-        # Placeholder for profiling start
-        pass
+        import cProfile
+        self._pr = cProfile.Profile()
+        self._pr.enable()
 
     def stop_profiling(self):
-        # Placeholder for profiling end and report
-        pass
+        self._pr.disable()
+        self._pr.print_stats(sort='cumtime')
 

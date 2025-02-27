@@ -92,6 +92,12 @@ class Modalrec(BaseProcessingObj):
             self.inputs['in_commands_list'] = InputList(type=BaseValue, optional=True)            
             # TODO complete static allocation above
             raise NotImplementedError
+         
+        dims = self.recmat.recmat.shape
+        print(f'Modalrec: recmat={dims[0]} x {dims[1]}')
+        if self.intmat:
+            dims = self.intmat._intmat.shape
+            print(f'Modalrec: polc intmat={dims[0]} x {dims[1]}')
 
     def trigger_code(self):
         if self.recmat.recmat is None:
@@ -133,6 +139,7 @@ class Modalrec(BaseProcessingObj):
             self.modes.value -= commands
             
         else:
+#            print(f'Performing {self.recmat.recmat.shape} @ {slopes.shape}')
             self.modes.value = self.recmat.recmat @ slopes
 
         self.modes.generation_time = self.current_time

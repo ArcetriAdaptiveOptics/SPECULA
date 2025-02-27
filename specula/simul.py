@@ -504,7 +504,7 @@ class Simul():
             self.loop.add(disp, idx+1)
 
         # Run simulation loop
-        self.loop.run(run_time=params['main']['total_time'], dt=params['main']['time_step'], speed_report=True)
+        self.loop.run(run_time=params['main']['total_time'], dt=params['main']['time_step'], speed_report=True, profiling=True)
 
 #        if data_store.has_key('sr'):
 #            print(f"Mean Strehl Ratio (@{params['psf']['wavelengthInNm']}nm) : {store.mean('sr', init=min([50, 0.1 * params['main']['total_time'] / params['main']['time_step']])) * 100.}")

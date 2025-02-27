@@ -56,6 +56,8 @@ class PyrSlopec(Slopec):
         self.outputs['total_counts'] = self.total_counts
         self.outputs['subap_counts'] = self.subap_counts
 
+        dims = self.pupdata.ind_pup.shape
+        print(f'Slope computer: indpup = {dims[0]} x {dims[1]}')
 
 
     @property

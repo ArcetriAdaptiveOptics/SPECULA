@@ -61,6 +61,9 @@ class DM(BaseProcessingObj):
         self.inputs['in_command'] = InputValue(type=BaseValue)
         self.outputs['out_layer'] = self.layer
 
+        dims = self._ifunc.size
+        print(f'DM: ifunc = {dims[0]} x {dims[1]}')
+        
     def trigger_code(self):
         input_commands = self.local_inputs['in_command'].value
         if self.m2c is not None:
