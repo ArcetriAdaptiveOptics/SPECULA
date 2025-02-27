@@ -72,6 +72,7 @@ dm:
 cascading:
   class:             'Cascading'
   size:              [240,240]
+  nmodes:            400
   inputs:
     in_ef: 'prop.out_on_axis_source_ef'
   outputs: ['out_pixels']  
