@@ -1,0 +1,104 @@
+---
+
+main:
+  root_dir:          './calib/SCAO_ELT'         # Root directory for calibration manager  
+  pixel_pupil:       128                    # Linear dimension of pupil phase array
+  pixel_pitch:       0.0762                 # [m] Pitch of the pupil phase array
+  total_time:        20.000                  # [s] Total simulation running time
+  time_step:         0.001                  # [s] Simulation time step
+
+
+seeing:
+  class:             'FuncGenerator'
+  constant:          0.8                  # ["] seeing value
+  func_type:         'SIN'                 # TODO necessary for factory.py line 217
+  outputs: ['output']
+
+
+wind_speed:
+  class:             'FuncGenerator'
+  constant:          [20.]                #,10.,20.,10.]      # [m/s] Wind speed value
+  outputs: ['output']
+
+
+wind_direction:
+  class:             'FuncGenerator'
+  constant:          [0.]                 #,270.,270.,90.]   # [degrees] Wind direction value
+  outputs: ['output']
+
+
+on_axis_source:
+  class:             'Source'
+  polar_coordinate:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  magnitude:         8                    # source magnitude
+  wavelengthInNm:    750                   # [nm] wavelength
+
+
+pupilstop:                                 # Default parameters (circular pupil)
+  class: 'Pupilstop'
+
+
+atmo:
+  class:                'AtmoEvolution'
+  L0:                   40                   # [m] Outer scale
+  heights:              [119.] #,837,3045,12780]), # [m] layer heights at 0 zenith angle
+  Cn2:                  [1.00] #,0.06,0.14,0.10]), # Cn2 weights (total must be eq 1)
+  source_dict_ref:      ['on_axis_source']
+  inputs:
+    seeing: 'seeing.output'
+    wind_speed: 'wind_speed.output'
+    wind_direction: 'wind_direction.output'
+  outputs: ['layer_list']
+
+
+prop:
+  class:                'AtmoPropagation'
+  source_dict_ref:      ['on_axis_source']
+  inputs:
+    layer_list: ['atmo.layer_list',
+                  'pupilstop',
+                  'dm.out_layer']
+  outputs: ['out_on_axis_source_ef']
+
+dm:
+  class:             'DM'
+  ifunc_object:      'cascading_ifunc128_400modes'
+  height:            0                      # DM height [m]
+  inputs:
+    in_command: 'control.out_comm:-1'
+  outputs:  ['out_layer']
+
+
+cascading:
+  class:             'Cascading'
+  size:              [240,240]
+  nmodes:            400
+  inputs:
+    in_ef: 'prop.out_on_axis_source_ef'
+  outputs: ['out_pixels']  
+
+slopec:
+  class:             'PyrSlopec'
+  pupdata_object:    'cascading_pupils'            # tag of the pyramid WFS pupils
+  sn_object:         'cascading_sn'             # tag of the slope reference vector
+  inputs:
+    in_pixels:        'cascading.out_pixels'
+  outputs:  ['out_slopes', 'out_pupdata', 'total_counts', 'subap_counts']
+
+
+rec:
+  class:              'Modalrec'
+  recmat_object:      'cascading_modalrec_400modes'         # reconstruction matrix tag
+  inputs:
+    in_slopes:        'slopec.out_slopes'
+  outputs:  ['out_modes']
+
+
+control:
+  class:             'Integrator'
+  delay:             2                      # Total temporal delay in time steps
+  int_gain_data:    'g0.50_400'
+  inputs:
+      delta_comm: 'rec.out_modes'     
+  outputs:  ['out_comm']
+
