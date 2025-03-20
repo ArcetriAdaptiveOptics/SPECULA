@@ -34,7 +34,7 @@ class ELTM1IFuncCalculator:
                             np.linspace(-1,1,segm.shape[1]))
 
         M1Base=[]
-        for s in range(int(np.max(segmentation)/3)):
+        for s in range(int(np.max(segmentation))):
             #generate the piston
             pist_s = segm==(s+1)
             idx_s = np.where(pist_s)
