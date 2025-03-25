@@ -3,9 +3,10 @@ from astropy.io import fits
 from specula.base_time_obj import BaseTimeObj
 from copy import copy
 from specula import cp, np
-from functools import cache
+from functools import lru_cache
 
-@cache
+# We use lru_cache() instead of cache() for python 3.8 compatibility
+@lru_cache(maxsize=None)
 def get_properties(cls):
     result = []
     classlist = cls.__mro__
@@ -72,12 +73,12 @@ class BaseDataObj(BaseTimeObj):
                 elif self.target_device_idx==-1:
                     if aType==np.ndarray:
                         #print(f'transferDataTo: {attr} to GPU')
-                        setattr(destobj, attr, cp.asarray( concrete_attr ) )                            
+                        setattr(destobj, attr, cp.asarray( concrete_attr ) )
+        destobj.generation_time = self.generation_time
         return destobj
 
 
     def copyTo(self, target_device_idx):
-        cloned = self
         excluded = ['_tag']
         if target_device_idx==self.target_device_idx:
             return self

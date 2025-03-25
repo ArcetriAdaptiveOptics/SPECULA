@@ -7,6 +7,10 @@ main:
   total_time:        0.050                  # [s] Total simulation running time
   time_step:         0.001                  # [s] Simulation time step
 
+server:
+  class:             'DisplayServer'
+  host:              '0.0.0.0'              # Listen on all interfaces
+  port:              3000                   # Use zero for auto-selection
 
 seeing:
   class:             'FuncGenerator'
@@ -26,7 +30,7 @@ wind_direction:
 
 on_axis_source:
   class:             'Source'
-  polar_coordinate:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  polar_coordinates:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
   magnitude:         8                    # source magnitude
   wavelengthInNm:    750                   # [nm] wavelength
 
@@ -39,7 +43,7 @@ atmo:
   class:                'AtmoEvolution'
   L0:                   40                   # [m] Outer scale
   heights:              [119.] #,837,3045,12780]), # [m] layer heights at 0 zenith angle
-  Cn2:                  [0.70] #,0.06,0.14,0.10]), # Cn2 weights (total must be eq 1)
+  Cn2:                  [1.00] #,0.06,0.14,0.10]), # Cn2 weights (total must be eq 1)
   source_dict_ref:      ['on_axis_source']
   inputs:
     seeing: 'seeing.output'
@@ -52,8 +56,8 @@ prop:
   class:                'AtmoPropagation'
   source_dict_ref:      ['on_axis_source']
   inputs:
-    layer_list: ['atmo.layer_list',
-                  'pupilstop',
+    atmo_layer_list: 'atmo.layer_list'
+    common_layer_list: ['pupilstop',
                   'dm.out_layer:-1']
   
 pyramid:
@@ -97,8 +101,7 @@ rec:
 
 
 control:
-  target_device_idx: -1
-  class:             'IntControl'
+  class:             'Integrator'
   delay:             2                      # Total temporal delay in time steps
   int_gain:          [0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5, # Integrator gain (for 'INT' control)
                       0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,

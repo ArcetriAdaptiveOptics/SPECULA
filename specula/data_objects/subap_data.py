@@ -38,9 +38,9 @@ class SubapData(BaseDataObj):
         return int(math.sqrt(self.idxs.shape[1]))
 
     def single_mask(self):
-        f = self.xp.zeros((self.nx, self.ny), dtype=self.dtype)
-        f.flat[self.display_map] = 1
-        return f
+        f = self.xp.zeros(self.nx * self.ny, dtype=self.dtype)
+        self.xp.put(f, self.display_map, 1)
+        return f.reshape((self.nx, self.ny))
 
     def subap_idx(self, n):
         """Returns the indices of subaperture `n`."""

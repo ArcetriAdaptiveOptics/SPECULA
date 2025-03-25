@@ -12,7 +12,7 @@ from specula.data_objects.pixels import Pixels
 from specula.data_objects.pupdata import PupData
 from specula.processing_objects.pyr_slopec import PyrSlopec
 
-from specula_testlib import cpu_and_gpu
+from test.specula_testlib import cpu_and_gpu
 
 class TestSlopec(unittest.TestCase):
    
@@ -23,7 +23,8 @@ class TestSlopec(unittest.TestCase):
         pixels.generation_time = 1
         pupdata = PupData(target_device_idx=target_device_idx)
         pupdata.ind_pup = xp.array([[1,3,6,8], [15,16,21,24]], dtype=int)
-        slopec = PyrSlopec(pupdata, target_device_idx=target_device_idx)
+        pupdata.framesize = (4,4)
+        slopec = PyrSlopec(pupdata, norm_factor=None, target_device_idx=target_device_idx)
         slopec.inputs['in_pixels'].set(pixels)
         slopec.check_ready(1)
         slopec.trigger()

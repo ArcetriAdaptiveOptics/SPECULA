@@ -1,0 +1,168 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Plot</title>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>Specula display</h1>
+    <div id="Connection">Not connected</div>
+    <div id="simulation_speed">0</div>
+    <div id="display_speed">0</div>
+    <div id="params">params</div>
+
+    <script>
+        var socket = io(); 
+
+        socket.on('connect', function () {
+            document.getElementById('Connection').innerHTML='connected';
+        });
+
+        socket.on('plot', function (data) {
+            name = data['name']
+            imgdata = data['imgdata']
+            prefix = 'image-'
+                const img = document.getElementById(prefix.concat(name));
+                img.src = 'data:image/png;base64,' + imgdata;
+        });
+
+        socket.on('done', function(data) {
+            document.getElementById('display_speed').innerHTML=data;
+            askForImages();
+        });
+
+        socket.on('params', function(data) {
+            createTableWithLinks(data, 'params'); 
+            askForImages();
+        });
+
+        socket.on('speed_report', function(data) {
+            document.getElementById('simulation_speed').innerHTML=data;
+        });
+    
+        function getImageNames() {
+            // Mostly written by ChatGPT
+            const images = Array.from(document.querySelectorAll('[id^="image-"]'));
+            const names = images.map(image => image.id.replace(/^image-/, ""));
+            return names; // Return the list of names
+        }
+
+        function askForImages() {
+            imgList= getImageNames()
+            socket.emit('newdata', imgList);
+        }
+
+        function createTableWithLinks(data, targetDivId) {
+            // Mostly written by ChatGPT
+
+            // Find the target div
+            const targetDiv = document.getElementById(targetDivId);
+            if (!targetDiv) {
+                console.error(`Div with id "${targetDivId}" not found.`);
+                return;
+            }
+
+            // Clear the div in case it already contains content
+            targetDiv.innerHTML = "";
+
+            // Create a table element
+            const table = document.createElement("table");
+            table.border = "1"; // Optional: Add a border
+            table.style.borderCollapse = "collapse"; // For a cleaner look
+
+            // Create table header
+            const headerRow = document.createElement("tr");
+            const headers = ["Description", "Type", "Link"]; // Define the columns
+            headers.forEach(header => {
+                const th = document.createElement("th");
+                th.textContent = header;
+                headerRow.appendChild(th);
+            });
+            table.appendChild(headerRow);
+
+            // Populate table rows
+            Object.entries(data).forEach(([rowKey, rowValue]) => {
+                const links = [];
+
+                // Collect input links
+                if (rowValue.inputs) {
+                    Object.keys(rowValue.inputs).forEach(inputKey => {
+                        links.push({ type: "Input", link: inputKey });
+                    });
+                }
+
+                // Collect output links
+                if (rowValue.outputs) {
+                    rowValue.outputs.forEach(output => {
+                        links.push({ type: "Output", link: output });
+                    });
+                }
+
+                // Add rows for this entry
+                links.forEach((link, index) => {
+                    const row = document.createElement("tr");
+
+                    // Add description only for the first row of this group
+                    if (index === 0) {
+                        const descriptionCell = document.createElement("td");
+                        descriptionCell.textContent = rowKey;
+                        descriptionCell.rowSpan = links.length; // Span the description cell
+                        row.appendChild(descriptionCell);
+                    }
+
+                    // Add type (Input/Output)
+                    const typeCell = document.createElement("td");
+                    typeCell.textContent = link.type;
+                    row.appendChild(typeCell);
+
+                    // Add the clickable link
+                    const linkCell = document.createElement("td");
+                    const linkElement = document.createElement("a");
+                    linkElement.href = "#";
+                    linkElement.textContent = link.link;
+                    const prefix = rowKey
+                const fullName = prefix.concat(".", link.link);
+                    linkElement.onclick = function(event) {
+                    handleLinkClick(event, fullName);
+                    };
+                    linkCell.appendChild(linkElement);
+                    row.appendChild(linkCell);
+
+                    // Append the row to the table
+                    table.appendChild(row);
+                });
+            });
+
+            // Append the table to the target div
+            targetDiv.appendChild(table);
+        }
+
+        function handleLinkClick(event, linkName) {
+            // Also written by ChatGPT
+
+            event.preventDefault(); // Prevent default link behavior
+
+            const imageId = `image-${linkName}`; // Create a unique ID for the image
+            let imageElement = document.getElementById(imageId); // Check if the image exists
+
+            if (imageElement) {
+                // If the image already exists, remove it
+                imageElement.remove();
+            } else {
+                // Otherwise, create and insert a new image
+                imageElement = document.createElement("img");
+                imageElement.id = imageId; // Assign the unique ID
+                imageElement.src = `${linkName}.png`; // Use the linkName as the image filename
+                imageElement.alt = linkName;
+                imageElement.style.display = "block";
+                imageElement.style.marginTop = "5px"; // Add spacing
+
+                const linkElement = event.target; // Get the clicked link
+                linkElement.parentNode.appendChild(imageElement); // Append the image after the link
+            }
+        }
+
+    </script>
+</body>
+</html>

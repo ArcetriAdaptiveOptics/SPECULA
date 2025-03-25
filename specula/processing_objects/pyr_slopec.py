@@ -24,10 +24,15 @@ def clamp_generic_more1(x, c, y, xp):
 
 
 class PyrSlopec(Slopec):
-    def __init__(self, pupdata: PupData, shlike=False, norm_factor=None, thr_value=0, slopes_from_intensity=False, 
-                 target_device_idx=None, 
-                 precision=None,
-                **kwargs):
+    def __init__(self, 
+                 pupdata: PupData, 
+                 shlike: bool=False, 
+                 norm_factor: float=1.0, 
+                 thr_value: float=0.0, 
+                 slopes_from_intensity: bool=False, 
+                 target_device_idx: int=None, 
+                 precision: int=None,
+                **kwargs): # is this needed??
         super().__init__(target_device_idx=target_device_idx, precision=precision, **kwargs)
 
         if shlike and slopes_from_intensity:
@@ -145,6 +150,8 @@ class PyrSlopec(Slopec):
         self.subap_counts.value = self.total_counts.value / self.pupdata.n_subap
         self.total_counts.generation_time = self.current_time
         self.subap_counts.generation_time = self.current_time
+        self.slopes.single_mask = self.pupdata.single_mask()
+        self.slopes.display_map = self.pupdata.display_map
         self.slopes.generation_time = self.current_time
 
 

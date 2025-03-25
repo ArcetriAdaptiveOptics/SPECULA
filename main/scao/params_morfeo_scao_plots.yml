@@ -43,14 +43,14 @@ wind_direction:
 
 on_axis_source:
   class:             'Source'
-  polar_coordinate:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  polar_coordinates:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
   magnitude:         8                    # source magnitude
   wavelengthInNm:    750                   # [nm] wavelength
 
 
 lgs1_source:
   class:             'Source'
-  polar_coordinate:  [45.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  polar_coordinates:  [45.0, 0.0]           # [arcsec, degrees] source polar coordinates
   height:            90000                # Source height [m]
   magnitude:         5                    # source magnitude
   wavelengthInNm:    589                  # [nm] wavelength
@@ -85,8 +85,8 @@ prop:
   class:                'AtmoPropagation'
   source_dict_ref:      ['on_axis_source', 'lgs1_source']
   inputs:
-    layer_list: ['atmo.layer_list',
-                  'pupilstop',
+    atmo_layer_list: 'atmo.layer_list'
+    common_layer_list: ['pupilstop',
                   'dm.out_layer:-1']
   outputs: ['out_on_axis_source_ef', 'out_lgs1_source_ef']
 
@@ -133,10 +133,10 @@ rec:
   recmat_object:      '/tmp/test_morfeo_scao_rec_2000modes'         # reconstruction matrix tag
   inputs:
     in_slopes_list:        ['slopec1.out_slopes']
-  outputs:  ['out_modes', 'out_pseudo_ol_modes', 'out_modes_first_step']
+  outputs:  ['out_modes', 'out_pseudo_ol_modes']
 
 control:
-  class:             'IntControl'
+  class:             'Integrator'
   delay:             2                      # Total temporal delay in time steps
   int_gain_data:     'g0.40_4519'  
   inputs:

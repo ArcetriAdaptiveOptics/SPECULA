@@ -43,10 +43,15 @@ class InputList():
         self.optional = optional
 
     def get_time(self):
-        if not self.wrapped_type is None:
+        if not self.wrapped_list is None:
             return [x.generation_time for x in self.wrapped_list]
+        else:
+            return []
 
     def get(self, target_device_idx):
+        '''Copy all values in the list to the specified target
+
+        TODO this should use transferTo() when possible like InputValue'''
         if not self.wrapped_list is None:            
             return [x.copyTo(target_device_idx) for x in self.wrapped_list]
 

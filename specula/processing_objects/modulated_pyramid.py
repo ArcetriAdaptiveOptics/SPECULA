@@ -1,9 +1,9 @@
-from specula import fuse, show_in_profiler
+from specula import fuse, show_in_profiler, RAD2ASEC
 
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_value import BaseValue
 from specula.connections import InputValue
-from specula.data_objects.ef import ElectricField
+from specula.data_objects.electric_field import ElectricField
 from specula.lib.make_xy import make_xy
 from specula.data_objects.intensity import Intensity
 from specula.lib.make_mask import make_mask
@@ -26,12 +26,12 @@ def pyr1_abs2(v, norm, ffv, xp):
 
 class ModulatedPyramid(BaseProcessingObj):
     def __init__(self,
-                 pixel_pupil: int,
-                 pixel_pitch: float,
-                 wavelengthInNm: float,
-                 fov: float,
-                 pup_diam: int,
-                 output_resolution: int,
+                 pixel_pupil: int=160,
+                 pixel_pitch: float=0.05,
+                 wavelengthInNm: float=750,
+                 fov: float=2.0,
+                 pup_diam: int=30,
+                 output_resolution: int=80,
                  mod_amp: float = 3.0,
                  mod_step: int = None,
                  fov_errinf: float = 0.5,
@@ -133,7 +133,6 @@ class ModulatedPyramid(BaseProcessingObj):
         self.ttexp_shape = None
         self.cache_ttexp()
         self.u_tlt = self.xp.zeros((self.mod_steps, self.fft_totsize, self.fft_totsize), dtype=self.complex_dtype)
-        self.plan1 = self.get_fft_plan(self.u_tlt[0], axes=(-2, -1), value_type='C2C')
         self.roll_array = [self.fft_padding//2, self.fft_padding//2]
         self.roll_axis = [0,1]
         self.ifft_norm = 1.0 / (self.fft_totsize * self.fft_totsize)
@@ -174,9 +173,8 @@ class ModulatedPyramid(BaseProcessingObj):
             print(f"Error: ccd_side (px) = {ccd_side} is not enough to hold the pupil geometry. Minimum allowed side is {min_ccd_side}")
             return 0
 
-        RAD2ARCSEC = 206265
         D = DpupPix * pixel_pitch
-        Fov_internal = lambda_ * 1e-9 / D * (D / pixel_pitch) * RAD2ARCSEC
+        Fov_internal = lambda_ * 1e-9 / D * (D / pixel_pitch) * RAD2ASEC
 
         minfov = FoV * (1 - fov_errinf)
         maxfov = FoV * (1 + fov_errsup)
@@ -270,18 +268,21 @@ class ModulatedPyramid(BaseProcessingObj):
     def get_pyr_tlt(self, p, c):
         A = int((p + c) // 2)
         pyr_tlt = self.xp.zeros((2 * A, 2 * A), dtype=self.dtype)
-        #tlt_basis = self.xp.tile(self.xp.arange(A), (A, 1))
         y, x = self.xp.mgrid[0:A,0:A]
 
         if self.pyr_tlt_coeff is not None:
+            raise NotImplementedError('pyr_tlt_coeff is not tested yet')
+
             k = self.pyr_tlt_coeff
 
+            tlt_basis = y
             tlt_basis -= self.xp.mean(tlt_basis)
 
             pyr_tlt[0:A, 0:A] = k[0, 0] * tlt_basis + k[1, 0] * tlt_basis.T
             pyr_tlt[A:2*A, 0:A] = k[0, 1] * tlt_basis + k[1, 1] * tlt_basis.T
             pyr_tlt[A:2*A, A:2*A] = k[0, 2] * tlt_basis + k[1, 2] * tlt_basis.T
             pyr_tlt[0:A, A:2*A] = k[0, 3] * tlt_basis + k[1, 3] * tlt_basis.T
+
             pyr_tlt[0:A, 0:A] -= self.xp.min(pyr_tlt[0:A, 0:A])
             pyr_tlt[A:2*A, 0:A] -= self.xp.min(pyr_tlt[A:2*A, 0:A])
             pyr_tlt[A:2*A, A:2*A] -= self.xp.min(pyr_tlt[A:2*A, A:2*A])
@@ -390,9 +391,8 @@ class ModulatedPyramid(BaseProcessingObj):
         #                        self.xp.rebin(self.in_ef.phi_at_lambda(self.wavelength_in_nm), (self.ef_size[0] * self.fov_res, self.ef_size[1] * self.fov_res)) * 1j)
         #else:
 
-        self.ef[:] = self.in_ef.ef_at_lambda(self.wavelength_in_nm)
+        self.in_ef.ef_at_lambda(self.wavelength_in_nm, out=self.ef)
 
-    @show_in_profiler('pyramid.trigger_code')
     def trigger_code(self):
         u_tlt_const = self.ef * self.tlt_f
         tmp = u_tlt_const[self.xp.newaxis, :, :] * self.ttexp
@@ -400,14 +400,13 @@ class ModulatedPyramid(BaseProcessingObj):
         self.pyr_image *=0
         self.fpsf *=0
 
-        with self.plan1:
-            for i in range(0, self.mod_steps):
-                u_fp = self.xp.fft.fft2(self.u_tlt[i], axes=(-2, -1))
-                u_fp_pyr = pyr1_fused(u_fp, self.ffv[i], self.fpsf, self.shifted_masked_exp, xp=self.xp)
+        for i in range(0, self.mod_steps):
+            u_fp = self.xp.fft.fft2(self.u_tlt[i], axes=(-2, -1))
+            u_fp_pyr = pyr1_fused(u_fp, self.ffv[i], self.fpsf, self.shifted_masked_exp, xp=self.xp)
 
-                # 'forward' normalization is faster and we normalize correctly later in pyr1_abs2()
-                pyr_ef = self.xp.fft.ifft2(u_fp_pyr, axes=(-2, -1), norm='forward')
-                self.pyr_image += pyr1_abs2(pyr_ef, self.ifft_norm , self.ffv[i], xp=self.xp)
+            # 'forward' normalization is faster and we normalize correctly later in pyr1_abs2()
+            pyr_ef = self.xp.fft.ifft2(u_fp_pyr, axes=(-2, -1), norm='forward')
+            self.pyr_image += pyr1_abs2(pyr_ef, self.ifft_norm , self.ffv[i], xp=self.xp)
 
         self.psf_bfm_arr[:] = self.xp.fft.fftshift(self.fpsf)
         self.psf_tot_arr[:] = self.psf_bfm_arr * self.fp_mask

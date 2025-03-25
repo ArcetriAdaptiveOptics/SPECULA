@@ -15,12 +15,23 @@ class ElectricField(BaseDataObj):
         self.phaseInNm = self.xp.zeros((dimx, dimy), dtype=self.dtype)
 
     def set_value(self, v):
-        self.A = v[0]
-        self.phaseInNm = v[1]
+        '''
+        Set new values for phase and amplitude
+        
+        Arrays are not reallocated
+        '''
+        self.A[:]= self.xp.array(v[0], dtype=self.dtype)
+        self.phaseInNm[:] = self.xp.array(v[1], dtype=self.dtype)
 
     def reset(self):
-        self.A = self.xp.ones_like(self.A)
-        self.phaseInNm = self.xp.zeros_like(self.phaseInNm)
+        '''
+        Reset to zero phase and unitary amplitude
+        
+        Arrays are not reallocated
+        '''
+        self.A *= 0
+        self.A += 1
+        self.phaseInNm *= 0
 
     @property
     def size(self):
@@ -40,16 +51,18 @@ class ElectricField(BaseDataObj):
     def phi_at_lambda(self, wavelengthInNm):
         return self.phaseInNm * ((2 * self.xp.pi) / wavelengthInNm)
 
-    def ef_at_lambda(self, wavelengthInNm):
+    def ef_at_lambda(self, wavelengthInNm, out=None):
         phi = self.phi_at_lambda(wavelengthInNm)
-        return self.A * self.xp.exp(1j * phi, dtype=self.complex_dtype)
+        ef = self.xp.exp(1j * phi, dtype=self.complex_dtype, out=out)
+        ef *= self.A
+        return ef
 
     def product(self, ef2, subrect=None):
 #        subrect = self.checkOther(ef2, subrect=subrect)    # TODO check subrect from atmo_propagation, even in PASSATA it does not seem right
         x2 = subrect[0] + self.size[0]
         y2 = subrect[1] + self.size[1]
         self.A *= ef2.A[subrect[0] : x2, subrect[1] : y2]
-        self.phaseInNm += ef2.phaseInNm[subrect[0] : x2, subrect[1] : y2]
+        self.phaseInNm += self.xp.asarray(ef2.phaseInNm[subrect[0] : x2, subrect[1] : y2])
 
     def area(self):
         return self.A.size * (self.pixel_pitch ** 2)
@@ -60,7 +73,7 @@ class ElectricField(BaseDataObj):
 
     def square_modulus(self, wavelengthInNm):
         ef = self.ef_at_lambda(wavelengthInNm)
-        return self.xp.real( ef *xp.conj(ef) )
+        return self.xp.real( ef * self.xp.conj(ef) )
 
     def sub_ef(self, xfrom=None, xto=None, yfrom=None, yto=None, idx=None):
         if idx is not None:
@@ -90,7 +103,7 @@ class ElectricField(BaseDataObj):
         hdr = self.get_fits_header()
         A = self.A        
         hdu_A = fits.PrimaryHDU(A, header=hdr)
-        hdu_phase = fits.ImageHDU(phaseInNm)
+        hdu_phase = fits.ImageHDU(self.phaseInNm)
         hdul = fits.HDUList([hdu_A, hdu_phase])
         hdul.writeto(filename, overwrite=True)
 
@@ -98,7 +111,7 @@ class ElectricField(BaseDataObj):
     def from_header(hdr):    
         version = hdr['VERSION']
         if version != 1:
-            raise ValueError(f"Error: unknown version {version} in file {filename}")
+            raise ValueError(f"Error: unknown version {version} in header")
         dimx = hdr['DIMX']
         dimy = hdr['DIMY']
         pitch = hdr['PIXPITCH']
@@ -123,3 +136,9 @@ class ElectricField(BaseDataObj):
             ef.set_property(A=hdul[0].data, phaseInNm=hdul[1].data, S0=S0)
             return ef
 
+    def array_for_display(self):
+        frame = self.phaseInNm * (self.A > 0).astype(float)
+        idx = self.xp.where(self.A > 0)[0]
+        # Remove average phase
+        frame[idx] -= self.xp.mean(frame[idx])
+        return frame

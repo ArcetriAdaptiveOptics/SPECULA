@@ -8,14 +8,14 @@ class ShShift(BaseProcessingObj):
                  target_device_idx=None, 
                  precision=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-        rad2arcsec = 180 / self.xp.pi * 3600.0
+
+        raise NotImplementedError
 
         self._params_sh = params_sh
         self._shift_wavelength_in_nm = self.xp.array(shift_wavelength_in_nm)
         self._xy_shift = self.xp.array(xy_shift)
         self._qe_factor = self.xp.array(qe_factor)
         self._resize_fact = resize_fact
-        self._GPU = GPU
 
         self._n_shift = self._xy_shift.shape[1]
         self._ccd_side = self._params_sh.subap_on_diameter * self._params_sh.sensor_npx

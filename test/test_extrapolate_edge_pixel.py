@@ -11,7 +11,7 @@ from astropy.io import fits
 from specula import cpuArray
 from specula.lib.extrapolate_edge_pixel import extrapolate_edge_pixel
 
-from specula_testlib import cpu_and_gpu
+from test.specula_testlib import cpu_and_gpu
 
 class TestExtrapolateEdgePixel(unittest.TestCase):
 
@@ -24,7 +24,13 @@ class TestExtrapolateEdgePixel(unittest.TestCase):
         mat1 = fits.getdata(os.path.join(datadir, 'extrapol_array_doExt2PixFalse.fits'), ext=0).astype(int)
         mat2 = fits.getdata(os.path.join(datadir, 'extrapol_array_doExt2PixFalse.fits'), ext=1).astype(int)
         
-        test = extrapolate_edge_pixel(xp.array(phase), xp.array(mat1), xp.array(mat2), xp=xp)
+        idx_1pix = np.where(mat1 >= 0)
+        idx_2pix = np.where(mat2[idx_1pix] >= 0)
+    
+        xp_idx_1pix = tuple(map(xp.array, idx_1pix))
+        xp_idx_2pix = tuple(map(xp.array, idx_2pix))
+    
+        test = extrapolate_edge_pixel(xp.array(phase), xp.array(mat1), xp.array(mat2), xp_idx_1pix, xp_idx_2pix, xp=xp)
         np.testing.assert_array_almost_equal(cpuArray(test), ref)
 
     @cpu_and_gpu
@@ -35,7 +41,13 @@ class TestExtrapolateEdgePixel(unittest.TestCase):
         ref = fits.getdata(os.path.join(datadir, 'extrapolated2.fits'))
         mat1 = fits.getdata(os.path.join(datadir, 'extrapol_array_doExt2PixTrue.fits'), ext=0).astype(int)
         mat2 = fits.getdata(os.path.join(datadir, 'extrapol_array_doExt2PixTrue.fits'), ext=1).astype(int)
+
+        idx_1pix = np.where(mat1 >= 0)
+        idx_2pix = np.where(mat2[idx_1pix] >= 0)
+    
+        xp_idx_1pix = tuple(map(xp.array, idx_1pix))
+        xp_idx_2pix = tuple(map(xp.array, idx_2pix))
         
-        test = extrapolate_edge_pixel(xp.array(phase), xp.array(mat1), xp.array(mat2), xp=xp)
+        test = extrapolate_edge_pixel(xp.array(phase), xp.array(mat1), xp.array(mat2), xp_idx_1pix, xp_idx_2pix, xp=xp)
         np.testing.assert_array_almost_equal(cpuArray(test), ref)
 

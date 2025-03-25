@@ -2,7 +2,7 @@
 from specula import fuse, show_in_profiler
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_value import BaseValue
-from specula.data_objects.ef import ElectricField
+from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.intensity import Intensity
 from specula.connections import InputValue
 
@@ -16,8 +16,8 @@ def psf_abs2(v, xp):
 
 class PSF(BaseProcessingObj):
     def __init__(self,
-                 wavelengthInNm: float,
-                 nd: int=1,
+                 wavelengthInNm: float=500.0,
+                 nd: float=1,
                  start_time: float=0.0,
                  target_device_idx: int = None, 
                  precision: int = None
@@ -104,21 +104,20 @@ class PSF(BaseProcessingObj):
         super().prepare_trigger(t)
         self.in_ef = self.local_inputs['in_ef']
         if self.psf.value is None:
-            s = [dim * self.nd for dim in self.in_ef.size]
+            s = [int(np.around(dim * self.nd/2)*2) for dim in self.in_ef.size]
             self.int_psf.value = self.xp.zeros(s, dtype=self.dtype)
             self.intsr = 0
         if self.current_time_seconds >= self.start_time:
             self.count += 1
-        self.out_size = [np.around(dim * self.nd) for dim in self.in_ef.size]
+        self.out_size = [int(np.around(dim * self.nd/2)*2) for dim in self.in_ef.size]
         if not self.ref:
             self.ref = Intensity(self.out_size[0], self.out_size[1])
             self.ref.i = self.calc_psf(self.in_ef.A * 0.0, self.in_ef.A, imwidth=self.out_size[0], normalize=True)
 
-    @show_in_profiler('psf.trigger')
     def trigger_code(self):
         self.psf.value = self.calc_psf(self.in_ef.phi_at_lambda(self.wavelengthInNm), self.in_ef.A, imwidth=self.out_size[0], normalize=True)
         self.sr.value = self.psf.value[self.out_size[0] // 2, self.out_size[1] // 2] / self.ref.i[self.out_size[0] // 2, self.out_size[1] // 2]
-        print('SR:', self.sr.value)
+#        print('SR:', self.sr.value)
 
     def post_trigger(self):
         super().post_trigger()

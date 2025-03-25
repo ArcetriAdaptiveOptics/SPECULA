@@ -1,3 +1,4 @@
+import numpy as np
 from astropy.io import fits
 
 from specula.base_data_obj import BaseDataObj
@@ -6,6 +7,10 @@ class PupData(BaseDataObj):
     '''
     TODO change to have the pupil index in the second index
     (for compatibility with existing PASSATA data)
+
+    TODO change by passing all the initializing arguments as __init__ parameters,
+    to avoid the later initialization (see test/test_slopec.py for an example),
+    where things can be forgotten easily
     '''
     def __init__(self, target_device_idx=None, precision=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
@@ -13,7 +18,7 @@ class PupData(BaseDataObj):
         self.cx = self.xp.zeros(4, dtype=self.dtype)
         self.cy = self.xp.zeros(4, dtype=self.dtype)
         self.ind_pup = self.xp.empty((0, 4), dtype=int)
-        self.framesize = self.xp.zeros(2, dtype=int)
+        self.framesize = np.zeros(2, dtype=int)
         
     @property
     def n_subap(self):
@@ -24,10 +29,16 @@ class PupData(BaseDataObj):
         tmp[:, 2], tmp[:, 3] = indpup[:, 3], indpup[:, 2]
         return tmp
 
+    @property
+    def display_map(self):
+        mask = self.single_mask()
+        return self.xp.ravel_multi_index(self.xp.where(mask), mask.shape)
+
     def single_mask(self):
-        f = self.xp.zeros(self.framesize, dtype=self.dtype)
-        f.flat[self.ind_pup[:, 0]] = 1
-        return f[:self.framesize[0]//2, self.framesize[1]//2:]
+        f = self.xp.zeros(self.framesize[0]*self.framesize[1], dtype=self.dtype)
+        self.xp.put(f, self.ind_pup[:, 0], 1)
+        f2d = f.reshape(self.framesize)
+        return f2d[:self.framesize[0]//2, self.framesize[1]//2:]
 
     def complete_mask(self):
         f = self.xp.zeros(self.framesize, dtype=self.dtype)

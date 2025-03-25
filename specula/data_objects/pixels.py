@@ -70,7 +70,7 @@ class Pixels(BaseDataObj):
     def from_header(hdr):    
         version = hdr['VERSION']
         if version != 1:
-            raise ValueError(f"Error: unknown version {version} in file {filename}")
+            raise ValueError(f"Error: unknown version {version} in header")
         dimx = hdr['DIMX']
         dimy = hdr['DIMY']
         bits = hdr['BPP']
@@ -96,4 +96,5 @@ class Pixels(BaseDataObj):
         pixels.read(filename, hdr)
         return pixels
 
-
+    def array_for_display(self):
+        return self.pixels

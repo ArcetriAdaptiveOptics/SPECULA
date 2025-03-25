@@ -11,7 +11,7 @@ from specula import cpuArray
 from specula.lib.make_xy import make_xy
 from specula.lib.interp2d import Interp2D
 
-from specula_testlib import cpu_and_gpu
+from test.specula_testlib import cpu_and_gpu
 
 class TestInterp2D(unittest.TestCase):
 

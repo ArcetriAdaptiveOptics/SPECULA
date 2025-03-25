@@ -1,7 +1,7 @@
 from astropy.io import fits
 from specula import cpuArray
 
-from specula.data_objects.ef import ElectricField
+from specula.data_objects.electric_field import ElectricField
 
 class Layer(ElectricField):
     '''Layer'''

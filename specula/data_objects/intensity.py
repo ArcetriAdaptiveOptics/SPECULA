@@ -27,3 +27,6 @@ class Intensity(BaseDataObj):
         hdr = fits.getheader(filename)
         super().read(filename, hdr)
         self.i = fits.getdata(filename)
+
+    def array_for_display(self):
+        return self.i

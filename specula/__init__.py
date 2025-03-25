@@ -2,7 +2,7 @@ import numpy as np
 import os
 import functools
 from functools import wraps
-from numba import jit as numbajit
+#from numba import jit as numbajit # Not used at the moment
 
 cpu_float_dtype_list = [np.float64, np.float32]
 cpu_complex_dtype_list = [np.complex128, np.complex64]
@@ -19,6 +19,8 @@ float_dtype = None
 complex_dtype = None
 default_target_device_idx = None
 default_target_device = None
+ASEC2RAD = np.pi / (3600 * 180)
+RAD2ASEC = 1.0 / ASEC2RAD
 
 # precision = 0 -> double precision
 # precision = 1 -> single precision
@@ -97,6 +99,19 @@ def cpuArray(v):
         return np.array(v)
 
 
+class DummyDecoratorAndContextManager():
+    def __init__(self):
+        pass
+    def __enter__(self):
+        pass
+    def __exit__(self, *args):
+        pass
+    def __call__(self, f):
+        def caller(*args, **kwargs):
+            return f(*args, **kwargs)
+        return caller
+
+
 def show_in_profiler(message=None, color_id=None, argb_color=None, sync=False):
     '''
     Decorator to allow using cupy's TimeRangeDecorator
@@ -112,9 +127,7 @@ def show_in_profiler(message=None, color_id=None, argb_color=None, sync=False):
                           sync=sync)
 
     except ImportError:
-        def decorator(f):
-            return f
-        return decorator
+        return DummyDecoratorAndContextManager()
 
 
 def fuse(kernel_name=None):
@@ -146,7 +159,7 @@ def fuse(kernel_name=None):
         return wrapper
     return decorator
 
-cpujit = numbajit
+# cpujit = numbajit # Not used at the moment
 
 #def cpujit(nopython=True):
 #    def decorator(f):

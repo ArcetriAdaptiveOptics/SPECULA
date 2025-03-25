@@ -17,6 +17,7 @@ class Recmat(BaseDataObj):
         self.recmat = self.xp.array(recmat)
         self.norm_factor = norm_factor
         self.proj_list = []
+        self.modes2recLayer = None
 #        self.set_modes2recLayer(modes2recLayer) # TODO
 
     def set_modes2recLayer(self, modes2recLayer):

@@ -2,7 +2,7 @@ from specula.base_data_obj import BaseDataObj
 
 from astropy.io import fits
 
-from specula import cpuArray
+from specula import cpuArray, ASEC2RAD
 
 import numpy as np
 
@@ -18,24 +18,22 @@ def lgs_map_sh(nsh, diam, rl, zb, dz, profz, fwhmb, ps, ssp,
     else:
         from cupyx.scipy.ndimage import zoom
 
-    # Convert constants for arcseconds to radians
-    asec2rad = xp.pi / (180.0 * 60.0 * 60.0)   
     # Oversampling and lenslet grid setup
     ossp = ssp * overs
     xsh, ysh = xp.meshgrid(xp.linspace(-diam / 2, diam / 2, nsh), xp.linspace(-diam / 2, diam / 2, nsh))
     xfov, yfov = xp.meshgrid(xp.linspace(-ssp * ps / 2, ssp * ps / 2, ossp), xp.linspace(-ssp * ps / 2, ssp * ps / 2, ossp))   
     # Gaussian parameters for the sodium layer
-    sigma = (fwhmb * asec2rad * zb) / (2 * xp.sqrt(2 * xp.log(2)))
+    sigma = (fwhmb * ASEC2RAD * zb) / (2 * xp.sqrt(2 * xp.log(2)))
     one_over_sigma2 = 1.0 / sigma**2
     exp_sigma = -0.5 * one_over_sigma2   
-    rb = xp.array([theta[0] * asec2rad * zb, theta[1] * asec2rad * zb, 0])
+    rb = xp.array([theta[0] * ASEC2RAD * zb, theta[1] * ASEC2RAD * zb, 0])
     kv = xp.array([0, 0, 1])
     BL = zb * kv + rb - xp.array(rl)
     el = BL / BL[2]
     # Create the focal plane field positions (rf) and the sub-aperture positions (rs)
     rs_x, rs_y, rs_z = xsh, ysh, xp.zeros((nsh, nsh))
-    rf_x = xp.tile(xfov * asec2rad * zb, (nsh, nsh)).reshape(ossp * nsh, ossp * nsh)
-    rf_y = xp.tile(yfov * asec2rad * zb, (nsh, nsh)).reshape(ossp * nsh, ossp * nsh)
+    rf_x = xp.tile(xfov * ASEC2RAD * zb, (nsh, nsh)).reshape(ossp * nsh, ossp * nsh)
+    rf_y = xp.tile(yfov * ASEC2RAD * zb, (nsh, nsh)).reshape(ossp * nsh, ossp * nsh)
     rf_z = xp.zeros((ossp * nsh, ossp * nsh))
     # Distance and direction vectors for calculating intensity maps
     FS_x = rf_x - xp.repeat(rs_x, ossp**2).reshape(ossp * nsh, ossp * nsh)
@@ -51,7 +49,7 @@ def lgs_map_sh(nsh, diam, rl, zb, dz, profz, fwhmb, ps, ssp,
     if rprof_type == 0:
         gnorm = 1.0 / (sigma * xp.pi * xp.sqrt(2.0))  # Gaussian
     elif rprof_type == 1:
-        gnorm = 1.0 / (xp.pi / 4 * (fwhmb * asec2rad * zb)**2)  # Top-hat
+        gnorm = 1.0 / (xp.pi / 4 * (fwhmb * ASEC2RAD * zb)**2)  # Top-hat
     else:
         raise ValueError("Unsupported radial profile type")
    

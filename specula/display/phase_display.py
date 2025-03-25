@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 from specula.base_processing_obj import BaseProcessingObj
 from specula.connections import InputValue
-from specula.data_objects.ef import ElectricField
+from specula.data_objects.electric_field import ElectricField
 
 
 class PhaseDisplay(BaseProcessingObj):

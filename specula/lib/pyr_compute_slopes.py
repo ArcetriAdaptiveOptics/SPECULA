@@ -61,6 +61,7 @@ def pyr_compute_slopes(frame, ind_pup, SHLIKE=False, INTENSITY_BASED=False, norm
     if norm_fact is not None:
         factor = 1.0 / norm_fact
     elif INTENSITY_BASED:
+        n_subap = ind_pup.shape[0]
         factor = 4 * n_subap / total_intensity
         sx = factor * xp.concatenate([A, B])
         sy = factor * xp.concatenate([C, D])

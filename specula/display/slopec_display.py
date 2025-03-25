@@ -21,8 +21,8 @@ class SlopecDisplay(BaseProcessingObj):
         self._first = True
         self.fig = self.ax = None
         self.inputs['slopes'] = InputValue(type=Slopes)
-        self.inputs['pupdata'] = InputValue(type=PupData)
-        self.inputs['subapdata'] = InputValue(type=SubapData)
+        self.inputs['pupdata'] = InputValue(type=PupData, optional=True)
+        self.inputs['subapdata'] = InputValue(type=SubapData, optional=True)
 
     def set_w(self, size_frame):
         self.fig = plt.figure(self._window, figsize=(size_frame[0] * self._disp_factor / 100, size_frame[1] * self._disp_factor / 100))

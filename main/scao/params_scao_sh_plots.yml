@@ -29,7 +29,7 @@ wind_direction:
 
 on_axis_source:
   class:             'Source'
-  polar_coordinate:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  polar_coordinates:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
   magnitude:         8                    # source magnitude
   wavelengthInNm:    750                   # [nm] wavelength
 
@@ -55,8 +55,8 @@ prop:
   class:                'AtmoPropagation'
   source_dict_ref:      ['on_axis_source']
   inputs:
-    layer_list: ['atmo.layer_list',
-                  'pupilstop',
+    atmo_layer_list: 'atmo.layer_list'
+    common_layer_list: ['pupilstop',
                   'dm.out_layer:-1']
   outputs: ['out_on_axis_source_ef']
   
@@ -67,7 +67,7 @@ sh:
   subap_npx:         6                       # Output sampling [usually corresponding to CCD pixels]
   subap_on_diameter: 20                      # Number of subapertures in diameter
   wavelengthInNm:    750                     # [nm] Pyramid wavelength
-  convolGaussSpotSize: 1
+  convolGaussSpotSize: 0.5
   inputs:
     in_ef: 'prop.out_on_axis_source_ef'
   outputs:  ['out_i']
@@ -100,11 +100,11 @@ rec:
   recmat_object:      'scao_sh_rec5'         # reconstruction matrix tag
   inputs:
     in_slopes:        'slopec.out_slopes'
-  outputs:  ['out_modes', 'out_pseudo_ol_modes', 'out_modes_first_step']
+  outputs:  ['out_modes', 'out_pseudo_ol_modes']
 
 
 control:
-  class:             'IntControl'
+  class:             'Integrator'
   delay:             2                      # Total temporal delay in time steps
   int_gain:          [0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5, # Integrator gain (for 'INT' control)
                       0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,

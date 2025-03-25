@@ -17,7 +17,7 @@ main_override:
 
 prop_override:
   inputs:
-    layer_list: ['pupilstop',
+    common_layer_list: ['pupilstop',
                   'dm.out_layer']
 
 dm_override:
@@ -33,7 +33,7 @@ detector_override:
 calibrator:
   class: 'ImRecCalibrator'
   nmodes: 54
-  output_tag:     'scao_sh_rec5'
+  rec_tag:     'scao_sh_rec5'
   #tag_template:    'subap_{main.tag}_n{modes}'
   inputs:
     in_slopes: 'slopec.out_slopes'
@@ -49,7 +49,7 @@ pixels_disp:
   sh_as_pyr:        true
   subapdata_object:  'scao_subaps_n20_th0.5'
 
-remove: ['atmo'] #, 'rec']
+remove: ['atmo', 'rec','control']
  
 
 

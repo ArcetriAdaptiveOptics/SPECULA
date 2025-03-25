@@ -1,0 +1,67 @@
+---
+
+main:
+  root_dir:          './calib/SCAO'         # Root directory for calibration manager
+  pixel_pupil:       160                    # Linear dimension of pupil phase array
+  pixel_pitch:       0.05                   # [m] Pitch of the pupil phase array
+  total_time:        1.000                  # [s] Total simulation running time
+  time_step:         0.001                  # [s] Simulation time step
+
+vector1:
+  class:             'FuncGenerator'
+  vsize:              5994
+  constant:          [100]
+  outputs: ['output']
+
+vector2:
+  class:             'FuncGenerator'
+  vsize:              5
+  constant:          [400]
+  outputs: ['output']
+
+vector3:
+  class:             'FuncGenerator'
+  vsize:              1
+  constant:          [1000]
+  outputs: ['output']
+
+vector4:
+  class:             'FuncGenerator'
+  vsize:              6
+  constant:          [8000]
+  outputs: ['output']
+
+combinator:
+  class:              'MirrorCommandsCombinator'
+  recmat_object:      '/raid1/guido/PASSATA/MAORYC/rec/pist2modes'
+  k_vector:           [0.5, 0.5, 0.5]
+  dims_LO:            [2, 0, 3]
+  dims_P:             6
+  out_dims:           [4000, 1000, 1000]
+  inputs:
+    in_commandsHO: 'vector1.output'
+    in_commandsLO: 'vector2.output'
+    in_commandsF: 'vector3.output'
+    in_commandsP: 'vector4.output'
+  outputs: ['out_result_commands1', 'out_result_commands2', 'out_result_commands3']
+
+test_disp1:
+   class:            'ModesDisplay'
+   inputs:
+     modes:       "combinator.out_result_commands1"
+   window:           11
+   title:            'test'
+
+test_disp2:
+   class:            'ModesDisplay'
+   inputs:
+     modes:       "combinator.out_result_commands2"
+   window:           12
+   title:            'test'
+
+test_disp3:
+   class:            'ModesDisplay'
+   inputs:
+     modes:       "combinator.out_result_commands3"
+   window:           13
+   title:            'test'

@@ -12,7 +12,7 @@ main_override:
 
 prop_override:
   inputs:
-    layer_list: ['pupilstop',
+    common_layer_list: ['pupilstop',
                   'dm.out_layer']
 
 dm_override:
@@ -20,10 +20,16 @@ dm_override:
   inputs:
       in_command: 'pushpull.output'
 
+sh_lgs1_override:
+  convolGaussSpotSize: 1.8
+
 detector1_override:
   photon_noise:      False
   readout_noise:     False
-  
+
+sh_lgs1_override:
+  convolGaussSpotSize: 1.8
+
 calibrator:
   class: 'ImRecCalibrator'
   nmodes: 4519
@@ -45,7 +51,7 @@ calibrator:
 #   sh_as_pyr:        true
 #   subapdata_object:  'morfeo_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.25'
 
-remove: ['atmo', 'rec']
+remove: ['atmo', 'rec', 'control']
  
 
 

@@ -28,15 +28,15 @@
 # MODIFICATION HISTORY:
 #   Created 12-SEP-2014 by Guido Agapito guido.agapito@inaf.it
 #-
-
 import numpy as np
+from specula.lib.zernike_generator import ZernikeGenerator
 
 def modal_pushpull_signal(n_modes, amplitude=None, vect_amplitude=None,
                                 linear=None, min_amplitude=None, only_push=False,
                                 ncycles=1, repeat_ncycles=False, xp=np):
 
     if vect_amplitude is None:
-        radorder = zern_degree(lindgen(n_modes)+2, radorder)
+        radorder = xp.array([ZernikeGenerator.degree(x)[0] for x in xp.arange(n_modes)+2])
         if linear:
             vect_amplitude = amplitude/radorder
         else:

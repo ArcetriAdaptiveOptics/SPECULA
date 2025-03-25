@@ -1,25 +1,22 @@
 import numpy as np
-from specula import xp
-
 from astropy.io import fits
 
 from specula.base_processing_obj import BaseProcessingObj
-from specula.data_objects.ef import ElectricField
+from specula.data_objects.electric_field import ElectricField
 from specula.base_value import BaseValue
-from specula.base_list import BaseList
 from specula.data_objects.layer import Layer
 from specula.data_objects.pupilstop import Pupilstop
 from specula.lib.phasescreen_manager import phasescreens_manager
 from specula.connections import InputValue
-from specula import cpuArray
+
 
 class AtmoRandomPhase(BaseProcessingObj):
     def __init__(self,
-                 L0,
-                 pixel_pitch,
-                 pixel_pupil,
-                 data_dir, 
-                 source_dict,
+                 L0: float=1.0,
+                 pixel_pitch: float=0.05,
+                 pixel_pupil: int=160,
+                 data_dir: str="", 
+                 source_dict: dict={},
                  wavelengthInNm: float=500.0,
                  zenithAngleInDeg=None,
                  pixel_phasescreens=None,
@@ -37,6 +34,7 @@ class AtmoRandomPhase(BaseProcessingObj):
         self.airmass = 1
         self.wavelengthInNm = wavelengthInNm
         self.pixel_pitch = pixel_pitch         
+        self.seed = seed
         
         self.inputs['seeing'] = InputValue(type=BaseValue)
         
@@ -48,7 +46,7 @@ class AtmoRandomPhase(BaseProcessingObj):
             self.airmass = 1.0
 
         # Compute layers dimension in pixels
-        self.pixel_layer = pixel_pupil
+        self.pixel_layer_size = pixel_pupil
 
         self.L0 = L0
         self.pixel_pupil = pixel_pupil
@@ -61,13 +59,13 @@ class AtmoRandomPhase(BaseProcessingObj):
             self.pixel_square_phasescreens = pixel_phasescreens
 
         # Error if phase-screens dimension is smaller than maximum layer dimension
-        if self.pixel_square_phasescreens < self.pixel_layer:
+        if self.pixel_square_phasescreens < self.pixel_layer_size:
             raise ValueError('Error: phase-screens dimension must be greater than layer dimension!')
         
         self.verbose = verbose if verbose is not None else False
         
         # Initialize layer list with correct heights
-        self.layer_list = BaseList(target_device_idx=self.target_device_idx)
+        self.layer_list = []
         layer = Layer(self.pixel_pupil, self.pixel_pupil, pixel_pitch, 0, precision=self.precision, target_device_idx=self.target_device_idx)
         self.layer_list.append(layer)
         
@@ -76,33 +74,22 @@ class AtmoRandomPhase(BaseProcessingObj):
             ef.S0 = source.phot_density()
             self.outputs['out_'+name+'_ef'] = ef
 
-        if seed < 1:
+        if self.seed < 1:
             raise ValueError('Seed must be >1')
-        self.seed = seed
+
+        self.initScreens()
 
         self.inputs['pupilstop'] = InputValue(type=Pupilstop)
     
-    @property
-    def seed(self):
-        return self._seed
 
-    @seed.setter
-    def seed(self, value):
-        self._seed = value
-        self.compute()
-
-
-    def compute(self):
-
+    def initScreens(self):
         # Seed
-        seed = np.array([self.seed])
-
+        self.seed = np.array([self.seed])
         # Square phasescreens
         square_phasescreens = phasescreens_manager(np.array([self.L0]), self.pixel_square_phasescreens,
                                                     self.pixel_pitch, self.data_dir,
-                                                    seed=seed, precision=self.precision,
+                                                    seed=self.seed, precision=self.precision,
                                                     verbose=self.verbose, xp=self.xp)
-
         # number of slices to be cut from the 2D array
         num_slices = (self.pixel_square_phasescreens // self.pixel_pupil)
 
@@ -131,7 +118,7 @@ class AtmoRandomPhase(BaseProcessingObj):
         new_position = self.last_position
         if new_position+1 > self.phasescreens.shape[0]:
             self.seed += 1
-            self.compute()
+            self.initScreens()
             new_position = 0
 
         for name, source in self.source_dict.items():

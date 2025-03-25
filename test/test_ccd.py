@@ -7,7 +7,7 @@ import unittest
 from specula.processing_objects.ccd import CCD
 from specula.data_objects.intensity import Intensity
 
-from specula_testlib import cpu_and_gpu
+from test.specula_testlib import cpu_and_gpu
 
 class TestCCD(unittest.TestCase):
 
