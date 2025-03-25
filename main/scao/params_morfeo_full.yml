@@ -97,11 +97,8 @@ atmo:
                          0.0161969, 0.0260951, 0.0155971, 0.0103980, 0.00999811, 0.0119977, 0.00400924, 0.0139974, 0.0129975, 0.00700868,
                          0.0159970, 0.0258951, 0.0190964, 0.00986813, 0.00616883, 0.00400924, 0.00246953, 0.00215959, 0.00184965, 0.00135974,
                          0.00110979, 0.000616883, 0.000925825, 0.000493907, 0.000431918] # Cn2 weights (total must be eq 1)
-  source_dict_ref:      &ALL_SOURCES 
-                        ['source_on_axis',
-                         'source_lgs1','source_lgs2','source_lgs3','source_lgs4','source_lgs5','source_lgs6',
-                         'source_ngs1', 'source_ngs2', 'source_ngs3',
-                         'source_ref1', 'source_ref2', 'source_ref3']
+  fov:      300.0     # TODO the FoV check in AtmoPropagation does not work at all (try setting this to 120)
+
   inputs:
     seeing: 'seeing.output'
     wind_speed: 'wind_speed.output'
@@ -111,9 +108,12 @@ atmo:
 
 prop:
   class:                'AtmoPropagation'
-  source_dict_ref:      *ALL_SOURCES 
+  source_dict_ref:      ['source_on_axis',
+                         'source_lgs1','source_lgs2','source_lgs3','source_lgs4','source_lgs5','source_lgs6',
+                         'source_ngs1', 'source_ngs2', 'source_ngs3',
+                         'source_ref1', 'source_ref2', 'source_ref3']
   inputs:
-    atmo_layer_list: 'atmo.layer_list'
+    atmo_layer_list: ['atmo.layer_list']
     common_layer_list: [ 'pupilstop',
                   'dm1.out_layer:-1',
                   'dm2.out_layer:-1',
@@ -135,7 +135,7 @@ sh_lgs1: &LGS_SH
   subap_npx:         14                      # Output sampling [usually corresponding to CCD pixels]
   subap_on_diameter: 68                      # Number of subapertures in diameter
   wavelengthInNm:    589                     # [nm] Pyramid wavelength
-  fov_ovs_coeff:     1.52                     # Force phase interpolation to a multiple of 68
+  fov_ovs_coeff:     1.6                     # Force phase interpolation to a multiple of 68
   convolGaussSpotSize: 1.8
   inputs:
     in_ef: 'prop.out_source_lgs1_ef'
@@ -280,7 +280,7 @@ slopec_ref3: { <<: *REF_SLOPEC, inputs: {in_pixels: 'detector_ref3.out_pixels' }
 
 lift:
   class:             'FuncGenerator'
-  constant:          [0, 0, 0, 0, 0, 0]        # Piston estimates
+  constant:          [0, 0, 0, 0, 0]        # Piston estimates
   outputs: ['output']
 
 
@@ -304,13 +304,28 @@ subtract_ref:
     in_value2: 'control_ref.out_comm'
   outputs: ['out_value']
 
+#iir_lgs_data:
+#  class:        'IirFilterData'
+#  ordnum:        !!python/object/apply:numpy.full
+#  - [4519]  # Shape of the array
+#  - 5        # Fill value
+#  ordden:        !!python/object/apply:numpy.full
+#  - [4519]  # Shape of the array
+#  - 5        # Fill value
+#  num:        !!python/object/apply:numpy.full
+#  - [4519, 5]  # Shape of the array
+#  - 0.0        # Fill value
+#  den:        !!python/object/apply:numpy.full
+#  - [4519, 5]  # Shape of the array
+#  - 0.0        # Fill value
+
 iir_lgs:
   class:             'IirFilter'
-  num_coeffs:        [0, 0, 0, 0, 0]
-  den_coeffs:        [0, 0, 0, 0, 0]
+  iir_filter_data_object: 'IIR_test_500Hz_d4ms_2modes_INT_g0.25_4517modes'
   inputs:
       delta_comm: 'subtract_ref.out_value'     
   outputs:  ['out_comm']
+
 
 avc_lgs:
   class:             'AVC'
@@ -337,13 +352,22 @@ modal_integrator:
       delta_comm: 'modal_combination.out_vector'     
   outputs:  ['out_comm']
 
-sum_lo_avc:
+combine_avc:
+  class:             'BaseOperation'
+  sum: true
+  inputs:
+    in_value1: 'avc_lgs.out_comm'
+    in_value2: 'avc_ngs.out_comm'
+  outputs: ['out_value']
+
+sum_avc:
   class:             'BaseOperation'
   sum: true
   inputs:
     in_value1: 'modal_integrator.out_comm'
-    in_value2: 'avc_ngs.out_comm'
+    in_value2: 'combine_avc.out_value'
   outputs: ['out_value']
+
 
 dm1:
   class:             'DM'
@@ -353,7 +377,7 @@ dm1:
   nmodes:            4519
   height:            600                      # DM height [m]
   inputs:
-      in_command: 'sum_lo_avc.out_value'
+      in_command: 'sum_avc.out_value'
   outputs:  ['out_layer']
 
 dm2:
@@ -365,7 +389,7 @@ dm2:
   input_offset:      4519                      # Offset into input command vector
   height:            6500                      # DM height [m]
   inputs:
-      in_command: 'sum_lo_avc.out_value'
+      in_command: 'sum_avc.out_value'
   outputs:  ['out_layer']
 
 dm3:
@@ -377,7 +401,7 @@ dm3:
   input_offset:      5239  #  4519+720          # Offset into input command vector
   height:            17500                      # DM height [m]
   inputs:
-      in_command: 'sum_lo_avc.out_value'
+      in_command: 'sum_avc.out_value'
   outputs:  ['out_layer']
 
 # ----------------
@@ -394,8 +418,7 @@ tomo_polc_ngs:
 
 iir_ngs:
   class:             'IirFilter'
-  num_coeffs:        [0, 0, 0, 0, 0]
-  den_coeffs:        [0, 0, 0, 0, 0]
+  iir_filter_data_object: 'iir_test_LO_5modes_500Hz_d4ms.fits'
   inputs:
       delta_comm: 'tomo_polc_ngs.out_modes'     
   outputs:  ['out_comm']
@@ -419,8 +442,7 @@ rec_focus:
 
 iir_focus:
   class:             'IirFilter'
-  num_coeffs:        [0, 0, 0, 0, 0]
-  den_coeffs:        [0, 0, 0, 0, 0]
+  iir_filter_data_object: 'IIR_test_250Hz_d8ms_2modes_INT_g0.25_4517modes.fits'   # TODO should be 1 mode
   inputs:
       delta_comm: 'rec_focus.out_modes'     
   outputs:  ['out_comm']
@@ -440,8 +462,7 @@ tomo_polc_ref:
 
 iir_ref:
   class:             'IirFilter'
-  num_coeffs:        [0, 0, 0, 0, 0]
-  den_coeffs:        [0, 0, 0, 0, 0]
+  iir_filter_data_object: 'iir_test_TTF_40modes_10Hz_d100ms.fits'
   inputs:
       delta_comm: 'tomo_polc_ref.out_modes'     
   outputs:  ['out_comm']
@@ -460,8 +481,7 @@ control_ref:
 
 iir_lift:
   class:             'IirFilter'
-  num_coeffs:        [0, 0, 0, 0, 0]
-  den_coeffs:        [0, 0, 0, 0, 0]
+  iir_filter_data_object: 'iir_test_LO_5modes_500Hz_d4ms.fits'   # TODO should be 6 modes
   inputs:
       delta_comm: 'lift.output'
   outputs:  ['out_comm']
