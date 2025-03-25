@@ -143,7 +143,12 @@ class AtmoPropagation(BaseProcessingObj):
                     self.interpolators[source][layer] = None
 
                 elif diff_height > 0:
-                    self.interpolators[source][layer] = self.layer_interpolator(source, layer)
+                    li = self.layer_interpolator(source, layer)                    
+                    if li is None:
+                        raise ValueError('FATAL ERROR, the source is not inside the selected FoV for atmosphere layers generation.')
+                    else:
+                        self.interpolators[source][layer] = self.layer_interpolator(source, layer)
+
                 else:
                     raise ValueError('Invalid layer/source geometry')
  
@@ -189,8 +194,8 @@ class AtmoPropagation(BaseProcessingObj):
         if len(self.atmo_layer_list) < 1:
             raise ValueError('At least one layer must be set')
 
-        self.shiftXY_cond = {layer: np.any(layer.shiftXYinPixel) for layer in self.atmo_layer_list}
-        self.magnification_list = {layer: max(layer.magnification, 1.0) for layer in self.atmo_layer_list}
+        self.shiftXY_cond = {layer: np.any(layer.shiftXYinPixel) for layer in self.atmo_layer_list + self.common_layer_list}
+        self.magnification_list = {layer: max(layer.magnification, 1.0) for layer in self.atmo_layer_list + self.common_layer_list}
 
         self.setup_interpolators()
 
