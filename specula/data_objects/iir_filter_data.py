@@ -13,8 +13,8 @@ class IirFilterData(BaseDataObj):
         self.zeros = None
         self.poles = None
         self.gain = None
-        self.set_num(num)
-        self.set_den(den)
+        self.set_num(self.xp.array(num, dtype=self.dtype))
+        self.set_den(self.xp.array(den, dtype=self.dtype))
 
     @property
     def nfilter(self):
