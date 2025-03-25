@@ -26,6 +26,7 @@ class CalibManager():
             'pupdata': 'pupils',
             'subapdata': 'subapdata/',
             'ShSubapCalibrator': 'subapdata/',
+            'iir_filter_data': 'filter/',
             'rec': 'rec/',
             'recmat': 'rec/',
             'intmat': 'im/',
@@ -84,7 +85,10 @@ class CalibManager():
         """
         Build the filename for a given subdir and name.
         """
-        return self.joinpath(self._root_dir, self._subdirs[subdir], name + '.fits')
+        fname = self.joinpath(self._root_dir, self._subdirs[subdir], name)
+        if not fname.endswith('.fits'):
+            fname += '.fits'
+        return fname
 
     def writefits(self, subdir, name, data):
         """
