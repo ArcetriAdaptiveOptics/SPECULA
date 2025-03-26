@@ -63,23 +63,23 @@ source_lgs6: { <<: *LGS_SOURCE, polar_coordinates: [45.0, 300.0] }
 
 source_ngs1: &NGS_SOURCE
   class:             'Source'
-  polar_coordinates:  [55.0, 0.0]         # [arcsec, degrees] source polar coordinates
+  polar_coordinates:  [46.2,303.5]         # [arcsec, degrees] source polar coordinates
   height:            .inf                # Source height [m]
   magnitude:         10.0                # source magnitude
   wavelengthInNm:    1650                # [nm] wavelength
 
-source_ngs2: { <<: *NGS_SOURCE, polar_coordinates: [55.0, 120.0] }
-source_ngs3: { <<: *NGS_SOURCE, polar_coordinates: [55.0, 240.0] }
+source_ngs2: { <<: *NGS_SOURCE, polar_coordinates: [42.5, 78.9] }
+source_ngs3: { <<: *NGS_SOURCE, polar_coordinates: [42.7,197.0] }
 
 source_ref1: &REF_SOURCE
   class:             'Source'
-  polar_coordinates:  [55.0, 0.0]         # [arcsec, degrees] source polar coordinates
+  polar_coordinates:  [46.2,303.5]         # [arcsec, degrees] source polar coordinates
   height:            .inf                # Source height [m]
   magnitude:         10.0                # source magnitude
   wavelengthInNm:    750                # [nm] wavelength
 
-source_ref2: { <<: *REF_SOURCE, polar_coordinates: [55.0, 120.0] }
-source_ref3: { <<: *REF_SOURCE, polar_coordinates: [55.0, 240.0] }
+source_ref2: { <<: *REF_SOURCE, polar_coordinates: [42.5, 78.9] }
+source_ref3: { <<: *REF_SOURCE, polar_coordinates: [42.7, 197.0] }
 
 
 pupilstop:                                 # Default parameters (circular pupil)
@@ -97,7 +97,7 @@ atmo:
                          0.0161969, 0.0260951, 0.0155971, 0.0103980, 0.00999811, 0.0119977, 0.00400924, 0.0139974, 0.0129975, 0.00700868,
                          0.0159970, 0.0258951, 0.0190964, 0.00986813, 0.00616883, 0.00400924, 0.00246953, 0.00215959, 0.00184965, 0.00135974,
                          0.00110979, 0.000616883, 0.000925825, 0.000493907, 0.000431918] # Cn2 weights (total must be eq 1)
-  fov:      300.0     # TODO the FoV check in AtmoPropagation does not work at all (try setting this to 120)
+  fov:      303.5     # TODO the FoV check in AtmoPropagation does not work at all (try setting this to 120)
 
   inputs:
     seeing: 'seeing.output'
@@ -137,15 +137,16 @@ sh_lgs1: &LGS_SH
   wavelengthInNm:    589                     # [nm] Pyramid wavelength
   fov_ovs_coeff:     1.6                     # Force phase interpolation to a multiple of 68
   convolGaussSpotSize: 1.8
+  rotAnglePhInDeg:   6.2
   inputs:
     in_ef: 'prop.out_source_lgs1_ef'
   outputs:  ['out_i']
 
-sh_lgs2: { <<: *LGS_SH, inputs: {in_ef: 'prop.out_source_lgs2_ef' }}
-sh_lgs3: { <<: *LGS_SH, inputs: {in_ef: 'prop.out_source_lgs3_ef' }}
-sh_lgs4: { <<: *LGS_SH, inputs: {in_ef: 'prop.out_source_lgs4_ef' }}
-sh_lgs5: { <<: *LGS_SH, inputs: {in_ef: 'prop.out_source_lgs5_ef' }}
-sh_lgs6: { <<: *LGS_SH, inputs: {in_ef: 'prop.out_source_lgs6_ef' }}
+sh_lgs2: { <<: *LGS_SH, rotAnglePhInDeg: 14.2, inputs: {in_ef: 'prop.out_source_lgs2_ef' }}
+sh_lgs3: { <<: *LGS_SH, rotAnglePhInDeg: -6.2, inputs: {in_ef: 'prop.out_source_lgs3_ef' }}
+sh_lgs4: { <<: *LGS_SH, rotAnglePhInDeg:  6.2, inputs: {in_ef: 'prop.out_source_lgs4_ef' }}
+sh_lgs5: { <<: *LGS_SH, rotAnglePhInDeg: 14.2, inputs: {in_ef: 'prop.out_source_lgs5_ef' }}
+sh_lgs6: { <<: *LGS_SH, rotAnglePhInDeg: -6.2, inputs: {in_ef: 'prop.out_source_lgs6_ef' }}
 
 detector_lgs1: &LGS_DETECTOR
   class:             'CCD'
@@ -169,17 +170,46 @@ detector_lgs6: { <<: *LGS_DETECTOR, inputs: {in_i: 'sh_lgs6.out_i' }}
 slopec_lgs1: &LGS_SLOPEC
   class:             'ShSlopec'
   thr_value:         10
-  subapdata_object:  'morfeo_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.25'  # tag of the pyramid WFS pupils
-  sn_object:         'morfeo_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.25_ce'  # tag of the slope reference vector
+  subapdata_object:  'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_rot6.2'  # tag of the pyramid WFS pupils
+  sn_object:         'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_ce_rot6.2'  # tag of the slope reference vector
+  filtmat_data:      'maory_np_filtmat_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_mn1000_3_ce_rot6.2'
   inputs:
     in_pixels:        'detector_lgs1.out_pixels'
   outputs:  ['out_slopes', 'out_subapdata']
 
-slopec_lgs2: { <<: *LGS_SLOPEC, inputs: {in_pixels: 'detector_lgs2.out_pixels' }}
-slopec_lgs3: { <<: *LGS_SLOPEC, inputs: {in_pixels: 'detector_lgs3.out_pixels' }}
-slopec_lgs4: { <<: *LGS_SLOPEC, inputs: {in_pixels: 'detector_lgs4.out_pixels' }}
-slopec_lgs5: { <<: *LGS_SLOPEC, inputs: {in_pixels: 'detector_lgs5.out_pixels' }}
-slopec_lgs6: { <<: *LGS_SLOPEC, inputs: {in_pixels: 'detector_lgs6.out_pixels' }}
+slopec_lgs2: { <<: *LGS_SLOPEC,
+    inputs: {in_pixels: 'detector_lgs2.out_pixels' },
+    subapdata_object:  'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_rot14.2',
+    sn_object:         'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_ce_rot14.2',
+    filtmat_data:      'maory_np_filtmat_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_mn1000_3_ce_rot14.2'
+    }
+
+slopec_lgs3: { <<: *LGS_SLOPEC,
+    inputs: {in_pixels: 'detector_lgs3.out_pixels' },
+    subapdata_object:  'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_rot-6.2',
+    sn_object:         'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_ce_rot-6.2',
+    filtmat_data:      'maory_np_filtmat_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_mn1000_3_ce_rot-6.2'
+    }
+
+slopec_lgs4: { <<: *LGS_SLOPEC,
+    inputs: {in_pixels: 'detector_lgs4.out_pixels' },
+    subapdata_object:  'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_rot6.2',
+    sn_object:         'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_ce_rot6.2',
+    filtmat_data:      'maory_np_filtmat_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_mn1000_3_ce_rot6.2'
+    }
+slopec_lgs5: { <<: *LGS_SLOPEC,
+    inputs: {in_pixels: 'detector_lgs5.out_pixels' },
+    subapdata_object:  'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_rot14.2',
+    sn_object:         'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_ce_rot14.2',
+    filtmat_data:      'maory_np_filtmat_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_mn1000_3_ce_rot14.2'
+    }
+
+slopec_lgs6: { <<: *LGS_SLOPEC,
+    inputs: {in_pixels: 'detector_lgs6.out_pixels' },
+    subapdata_object:  'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_rot-6.2',
+    sn_object:         'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_ce_rot-6.2',
+    filtmat_data:      'maory_np_filtmat_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_mn1000_3_ce_rot-6.2'
+    }
 
 # ---------------------------------------
 # LO WFS simulation and slope processing
@@ -218,8 +248,8 @@ detector_ngs3: { <<: *NGS_DETECTOR, inputs: {in_i: 'sh_ngs3.out_i' }}
 slopec_ngs1: &NGS_SLOPEC
   class:             'ShSlopec'
   thr_value:         10
-  subapdata_object:  'morfeo_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.25' #'auto'  # subaperture data tag
-  sn_object:         null  # 'auto'         #  slope reference vector
+  subapdata_object:  'maory_ps480p0.080_shs1x1_wl1650_fv1.8_np240_th0.50_stopTEELT480pp0.0803m_obs0.283_spider2023'
+  sn_object:         'maory_ps480p0.080_shs1x1_wl1650_fv1.8_np240_th0.50_ce_stopTEELT480pp0.0803m_obs0.283_spider2023'
   inputs:
     in_pixels:        'detector_ngs1.out_pixels'
   outputs:  ['out_slopes', 'out_subapdata']
@@ -265,8 +295,8 @@ detector_ref3: { <<: *REF_DETECTOR, inputs: {in_i: 'sh_ref3.out_i' }}
 slopec_ref1: &REF_SLOPEC
   class:             'ShSlopec'
   thr_value:         10
-  subapdata_object:  'morfeo_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.25' # 'auto'         #  subaperture data
-  sn_object:         null  # 'auto'         #  slope reference vector
+  subapdata_object:  'maory_ps480p0.080_shs8x8_wl750_fv4.6_np30_th0.50_stopTEELT480pp0.0813spiderRoundObsCentered'
+  sn_object:         'maory_ps480p0.080_shs8x8_wl750_fv4.6_np30_th0.50_ce_stopTEELT480pp0.0813spiderRoundObsCentered'
   inputs:
     in_pixels:        'detector_ref1.out_pixels'
   outputs:  ['out_slopes', 'out_subapdata']
@@ -290,7 +320,9 @@ lift:
 
 tomo_polc_lgs:
   class:              'Modalrec'
-  recmat_object:      'MORFEO_LTAO'
+  recmat_object:      '20240606_200110.0/recmat'
+  projmat_object:     'p20240717_194929.0/projmat1'
+#  recmat_object:      'MORFEO_LTAO'
 #  polc:   true
   inputs:
     in_slopes_list:        ['slopec_lgs1.out_slopes','slopec_lgs2.out_slopes','slopec_lgs3.out_slopes','slopec_lgs4.out_slopes','slopec_lgs5.out_slopes','slopec_lgs6.out_slopes']
@@ -410,7 +442,8 @@ dm3:
 
 tomo_polc_ngs:
   class:              'Modalrec'
-  recmat_object:      'MORFEO_LTAO'         # TODO
+  recmat_object:      '20240614_073541.0/recmat'
+  projmat_object:     'p20230222_104426.0/projmat1'
 #  polc:   true
   inputs:
     in_slopes_list:        ['slopec_ngs1.out_slopes','slopec_ngs2.out_slopes','slopec_ngs3.out_slopes']
@@ -435,7 +468,7 @@ avc_ngs:
 
 rec_focus:
   class:              'Modalrec'
-  recmat_object:      'MORFEO_LTAO'         # TODO
+  recmat_object:      '20240530_101618.0/recmat'
   inputs:
     in_slopes_list:        ['slopec_ref1.out_slopes','slopec_ref2.out_slopes','slopec_ref3.out_slopes']
   outputs:  ['out_modes', 'out_pseudo_ol_modes']
@@ -454,7 +487,8 @@ iir_focus:
 
 tomo_polc_ref:
   class:              'Modalrec'
-  recmat_object:      'MORFEO_LTAO'         # TODO
+  recmat_object:      '20240614_194901.0/recmat'         # TODO
+  projmat_object:     'p20240526_141118.0/projmat1'
 #  polc:   true
   inputs:
     in_slopes_list:        ['slopec_ref1.out_slopes','slopec_ref2.out_slopes','slopec_ref3.out_slopes']
