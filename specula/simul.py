@@ -12,6 +12,16 @@ from specula.connections import InputValue
 
 import yaml
 
+doBlockDiagram = False
+
+try:
+    import orthogram
+    doBlockDiagram = True
+    from orthogram import Color, DiagramDef, write_png, Side, FontWeight, TextOrientation
+    from collections import Counter
+except ImportError as e:
+    print('Optional package orthogram not installed, block diagram of the simulation will not be produced.')
+
 
 class Simul():
     '''
@@ -213,6 +223,7 @@ class Simul():
                 self.objs[key].setParams(params)
 
     def connect_objects(self, params):
+        self.connections = []
         for dest_object, pars in params.items():
 
             if 'outputs' in pars:
@@ -233,6 +244,25 @@ class Simul():
                         self.objs[dest_object].inputs[ii] = InputValue(type = type(oo) )
                         self.objs[dest_object].inputs[ii].set(oo)
                         self.objs[dest_object].add(oo, name=ii)
+
+                        if not type(output_name) is list:
+                            a_connection = {}
+                            a_connection['start'] = output_name.split('.')[0].split('-')[-1]
+                            a_connection['end'] = dest_object
+                            a_connection['start_label'] = ii
+                            a_connection['middle_label'] = self.objs[dest_object].inputs[ii]
+                            a_connection['end_label'] = oo
+                            self.connections.append(a_connection)
+                        else:
+                            for oo in output_name:
+                                a_connection = {}
+                                a_connection['start'] = oo.split('.')[0].split('-')[-1]
+                                a_connection['end'] = dest_object
+                                a_connection['start_label'] = ii
+                                a_connection['middle_label'] = self.objs[dest_object].inputs[ii]
+                                a_connection['end_label'] = oo
+                                self.connections.append(a_connection)
+
                     continue
 
                 if not input_name in self.objs[dest_object].inputs:
@@ -255,6 +285,29 @@ class Simul():
                             raise ValueError(f'Input {input_name}: output {output} is not of type {wanted_type}')
 
                 self.objs[dest_object].inputs[input_name].set(output_ref)
+
+                
+                if not type(output_name) is list:
+                    a_connection = {}
+                    a_connection['start'] = output_name.split('.')[0].split('-')[-1]
+                    a_connection['end'] = dest_object
+                    a_connection['start_label'] = output_name.split('.')[-1]
+                    a_connection['middle_label'] = self.objs[dest_object].inputs[input_name]
+                    a_connection['end_label'] = self.objs[dest_object].inputs[input_name]
+
+                    self.connections.append(a_connection)
+                else:
+                    for oo in output_name:
+                        a_connection = {}
+                        a_connection['start'] = oo.split('.')[0].split('-')[-1]
+                        a_connection['end'] = dest_object
+                        a_connection['start_label'] = oo.split('.')[-1]
+                        a_connection['middle_label'] = self.objs[dest_object].inputs[input_name]
+                        a_connection['end_label'] = self.objs[dest_object].inputs[input_name]
+                        self.connections.append(a_connection)
+
+
+                
 
 
     def build_replay(self, params):
@@ -372,6 +425,48 @@ class Simul():
                 params[obj_name][param_name] = v
                 print(obj_name, param_name, v)
 
+
+    def arrangeInGrid(self, trigger_order, trigger_order_idx):
+        rows = []
+        n_cols = max(trigger_order_idx) + 1                
+        n_rows = max( list(dict(Counter(trigger_order_idx)).values()))        
+        # names_to_orders = dict(zip(trigger_order, trigger_order_idx))
+        print('n_cols', n_cols)
+        print('n_rows', n_rows)
+        orders_to_namelists = {}
+        for order in range(n_cols):
+            orders_to_namelists[order] = []
+        for name, order in zip(trigger_order, trigger_order_idx):
+            orders_to_namelists[order].append(name)
+
+        for ri in range(n_rows):
+            r = []
+            for ci in range(n_cols):
+                col_elements = len(orders_to_namelists[ci])
+                if ri<col_elements:
+                    block_name = orders_to_namelists[ci][ri]
+                else:
+                    block_name = ""                
+                r.append(block_name)
+            rows.append(r)
+        return rows
+        
+    def buildDiagram(self):
+        d = DiagramDef(label="First SPECULA diagram", text_fill=Color(0, 0, 1), scale=2.0, collapse_connections=True)
+        rows = self.arrangeInGrid(self.trigger_order, self.trigger_order_idx)
+        # a row is a list of strings, which are labels for the cells
+        for r in rows:
+            d.add_row(r)        
+        for c in self.connections:
+            print('connection', c)
+            aconn = d.add_connection(c['start'], c['end'], buffer_fill=Color(1.0,1.0,1.0), buffer_width=1, 
+                             exits=[Side.RIGHT], entrances=[Side.LEFT, Side.BOTTOM, Side.TOP])
+            aconn.set_start_label(c['middle_label'],font_weight=FontWeight.BOLD, text_fill=Color(0, 0.5, 0), text_orientation=TextOrientation.HORIZONTAL)
+#            aconn.set_middle_label(c['middle_label'])
+#            aconn.set_end_label(c['end_label'])
+        write_png(d, self.param_files[0].split('.')[0] + ".png")
+
+        
     def run(self):
         params = {}
         # Read YAML file(s)
@@ -396,15 +491,19 @@ class Simul():
         if not self.isReplay:
             self.build_replay(params)
 
-        trigger_order, trigger_order_idx = self.trigger_order(params)
-        print(f'{trigger_order=}')
-        print(f'{trigger_order_idx=}')
+        self.trigger_order, self.trigger_order_idx = self.trigger_order(params)
+        print(f'{self.trigger_order=}')
+        print(f'{self.trigger_order_idx=}')
+
+        if doBlockDiagram:
+            self.buildDiagram()
 
         # Build loop
-        for name, idx in zip(trigger_order, trigger_order_idx):
+        for name, idx in zip(self.trigger_order, self.trigger_order_idx):
             obj = self.objs[name]
             if isinstance(obj, BaseProcessingObj):
                 self.loop.add(obj, idx)
+
 
         # Default display web server
         if 'display_server' in params['main'] and params['main']['display_server']:

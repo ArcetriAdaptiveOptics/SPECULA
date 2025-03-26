@@ -9,8 +9,8 @@ from specula.base_processing_obj import BaseProcessingObj
 
 class DM(BaseProcessingObj):
     def __init__(self,
-                 pixel_pitch: float,
-                 height: float,
+                 pixel_pitch: float=0.05,
+                 height: float=0.0,
                  ifunc: IFunc=None,
                  m2c: M2C=None,
                  type_str: str=None,

@@ -226,10 +226,22 @@ class InfinitePhaseScreen(BaseDataObj):
 
 
 class AtmoInfiniteEvolution(BaseProcessingObj):
-    def __init__(self, L0, pixel_pitch, heights, Cn2, pixel_pupil, data_dir, source_dict,
-                 zenithAngleInDeg=None, mcao_fov=None, seed: int=1, target_device_idx=None, precision=None,
-                 verbose=None, force_mcao_fov=False, make_cycle=None,
-                 fov_in_m=None, pupil_position=None):
+    def __init__(self,
+                 L0: list=[1.0],
+                 pixel_pitch: float=0.05,
+                 heights: list=[0.0],
+                 Cn2: list=[1.0],
+                 pixel_pupil: int=160,
+                 data_dir: str="",
+                 wavelengthInNm: float=500.0,
+                 zenithAngleInDeg: float=0.0,
+                 fov: float=0.0,
+                 seed: int=1,
+                 verbose: bool=False,
+                 fov_in_m: float=None,
+                 pupil_position:list =[0,0],
+                 target_device_idx: int=None,
+                 precision: int=None):
 
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         
@@ -261,16 +273,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
             self.airmass = np.array(1.0, dtype=self.dtype)
         self.heights = np.array(heights, dtype=self.dtype) * self.airmass
 
-        if force_mcao_fov:
-            print(f'\nATTENTION: MCAO FoV is forced to diameter={mcao_fov} arcsec\n')
-            alpha_fov = mcao_fov / 2.0
-        else:
-            alpha_fov = 0.0
-            for source in source_dict.values():
-                alpha_fov = max(alpha_fov, *abs(cv_coord(from_polar=[source.phi, source.r_arcsec],
-                                                       to_rect=True, degrees=False, xp=np)))
-            if mcao_fov is not None:
-                alpha_fov = max(alpha_fov, mcao_fov / 2.0)
+        alpha_fov = fov / 2.0
         
         # Max star angle from arcseconds to radians
         rad_alpha_fov = alpha_fov * ASEC2RAD

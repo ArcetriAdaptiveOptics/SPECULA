@@ -50,6 +50,9 @@ class FuncGenerator(BaseProcessingObj):
         # Initialize attributes based on the type
         if self.type == 'SIN':
             pass
+        
+        elif self.type == 'SQUARE_WAVE':
+            pass
 
         elif self.type == 'LINEAR':
             self.slope = 0.0
@@ -110,6 +113,9 @@ class FuncGenerator(BaseProcessingObj):
         if self.type == 'SIN':
             phase = self.freq*2 * self.xp.pi*self.current_time_seconds + self.offset
             self.output_value = self.amp * self.xp.sin(phase, dtype=self.dtype) + self.constant
+        elif self.type == 'SQUARE_WAVE':
+            phase = self.freq*2 * self.xp.pi*self.current_time_seconds + self.offset
+            self.output_value = self.amp * self.xp.sign(self.xp.sin(phase, dtype=self.dtype)) + self.constant
         elif self.type == 'LINEAR':
             self.output_value = self.slope * self.current_time_seconds + self.constant
 

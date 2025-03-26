@@ -16,8 +16,8 @@ class TestAtmo(unittest.TestCase):
     @cpu_and_gpu
     def test_output_ef_have_the_correct_names(self, target_device_idx, xp):
         data_dir = os.path.join(os.path.dirname(__file__), 'data')
-        on_axis_source = Source(polar_coordinate=[0.0, 0.0], magnitude=8, wavelengthInNm=750)
-        lgs1_source = Source( polar_coordinate=[45.0, 0.0], height=90000, magnitude=5, wavelengthInNm=589)
+        on_axis_source = Source(polar_coordinates=[0.0, 0.0], magnitude=8, wavelengthInNm=750)
+        lgs1_source = Source( polar_coordinates=[45.0, 0.0], height=90000, magnitude=5, wavelengthInNm=589)
 
         atmo = AtmoRandomPhase(L0=23,  # [m] Outer scale
                             pixel_pupil=160,

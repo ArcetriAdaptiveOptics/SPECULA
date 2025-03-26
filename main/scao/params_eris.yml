@@ -37,21 +37,21 @@ wind_direction:
 
 source_on_axis:
   class:             'Source'
-  polar_coordinate:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  polar_coordinates:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
   magnitude:         8                    # source magnitude
   wavelengthInNm:    750                  # [nm] wavelength
 
 
 source_lgs:
   class:             'Source'
-  polar_coordinate:  [0.0, 0.0]            # [arcsec, degrees] source polar coordinates
+  polar_coordinates:  [0.0, 0.0]            # [arcsec, degrees] source polar coordinates
   height:            90000                 # Source height [m]
   magnitude:         5.0                   # source magnitude
   wavelengthInNm:    589                   # [nm] wavelength
 
 source_ngs:
   class:             'Source'
-  polar_coordinate:  [5.0, 0.0]         # [arcsec, degrees] source polar coordinates
+  polar_coordinates:  [5.0, 0.0]         # [arcsec, degrees] source polar coordinates
   height:            .inf                # Source height [m]
   magnitude:         14.0                # source magnitude
   wavelengthInNm:    700                # [nm] wavelength
@@ -86,10 +86,9 @@ prop:
   class:                'AtmoPropagation'
   source_dict_ref:      *ALL_SOURCES 
   inputs:
-    layer_list: ['atmo.layer_list',
-                  'pupilstop',
-                  'dm.out_layer:-1',
-                  ]
+    atmo_layer_list: 'atmo.layer_list'
+    common_layer_list: ['pupilstop', 'dm.out_layer:-1']
+
   outputs: ['out_source_on_axis_ef','out_source_lgs_ef', 'out_source_ngs_ef']
 
 # -------
@@ -174,13 +173,6 @@ slopec_lo:
     in_pixels:        'detector_lo.out_pixels'
   outputs:  ['out_slopes']
 
-modalrec_lo:
-  class:              'Modalrec'
-  recmat_object:      'eris_rec_lo'              # reconstruction matrix tag
-  inputs:
-    in_slopes:        'slopec_lo.out_slopes'
-  outputs:  ['out_modes']
-
 # ------------------------------
 # Truth sensing (without average)
 
@@ -190,6 +182,14 @@ modalrec_truth:
   inputs:
     in_slopes:        'slopec_lo.out_slopes'
   outputs:  ['out_modes']
+
+modalrec_lo:
+  class:              'Modalrec'
+  recmat_object:      'eris_rec_lo'              # reconstruction matrix tag
+  inputs:
+    in_slopes:        'slopec_lo.out_slopes'
+  outputs:  ['out_modes']
+
 
 integrator_truth:
   class:        'Integrator'

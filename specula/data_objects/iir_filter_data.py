@@ -5,7 +5,7 @@ from specula.base_data_obj import BaseDataObj
 from astropy.io import fits
 
 
-class IIRFilterData(BaseDataObj):
+class IirFilterData(BaseDataObj):
     def __init__(self, ordnum, ordden, num, den, target_device_idx=None, precision=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         self.ordnum = self.xp.array(ordnum, dtype=int)
@@ -126,12 +126,12 @@ class IIRFilterData(BaseDataObj):
             wTf = self.discrete_delay_tf(delay)
         nw = wTf[:, 0]
         dw = wTf[:, 1]
-        complex_yt_tf = self.plot_iirfilter_tf(self.num[mode, :], self.den[mode, :], fs, dm=dm, nw=nw, dw=dw, freq=freq, noplot=True, verbose=verbose)
+        complex_yt_tf = self.plot_IirFilter_tf(self.num[mode, :], self.den[mode, :], fs, dm=dm, nw=nw, dw=dw, freq=freq, noplot=True, verbose=verbose)
         return complex_yt_tf
 
     def RTF(self, mode, fs, freq=None, tf=None, dm=None, nw=None, dw=None, verbose=False, title=None, overplot=False, **extra):
         plotTitle = title if title else '!17Rejection Transfer Function'
-        tf = self.plot_iirfilter_tf(self._num[mode, :], self._den[mode, :], fs, dm=dm, nw=nw, dw=dw, freq=freq, noplot=True, verbose=verbose)
+        tf = self.plot_IirFilter_tf(self._num[mode, :], self._den[mode, :], fs, dm=dm, nw=nw, dw=dw, freq=freq, noplot=True, verbose=verbose)
         import matplotlib.pyplot as plt
         if overplot:
             color = extra.get('color', 255)
@@ -145,7 +145,7 @@ class IIRFilterData(BaseDataObj):
 
     def NTF(self, mode, fs, freq=None, tf=None, dm=None, nw=None, dw=None, verbose=False, title=None, overplot=False, **extra):
         plotTitle = title if title else '!17Noise Transfer Function'
-        tf = self.plot_iirfilter_tf(self.num[mode, :], self.den[mode, :], fs, dm=dm, nw=nw, dw=dw, freq=freq, noplot=True, verbose=verbose)
+        tf = self.plot_IirFilter_tf(self.num[mode, :], self.den[mode, :], fs, dm=dm, nw=nw, dw=dw, freq=freq, noplot=True, verbose=verbose)
         import matplotlib.pyplot as plt
         if overplot:
             color = extra.get('color', 255)
@@ -212,7 +212,7 @@ class IIRFilterData(BaseDataObj):
             ordden = hdul['ORDDEN'].data
             num = hdul['NUM'].data
             den = hdul['DEN'].data
-            return IIRFilterData(ordnum, ordden, num, den, target_device_idx=target_device_idx)
+            return IirFilterData(ordnum, ordden, num, den, target_device_idx=target_device_idx)
 
     def get_fits_header(self):
         # TODO
@@ -244,7 +244,7 @@ class IIRFilterData(BaseDataObj):
 
         return num, den
 
-    def plot_iirfilter_tf(self, num, den, fs, dm, nw, dw, freq, noplot, verbose):
+    def plot_IirFilter_tf(self, num, den, fs, dm, nw, dw, freq, noplot, verbose):
         # Placeholder for the actual plotting of IIR filter transfer function
         pass
 
@@ -254,7 +254,7 @@ class IIRFilterData(BaseDataObj):
 
     @staticmethod
     def from_gain_and_ff(gain, ff=None, target_device_idx=None):
-        '''Build an IIRFilterData object from a gain value/vector
+        '''Build an IirFilterData object from a gain value/vector
         and an optional forgetting factor value/vector'''
 
         gain = np.array(gain)
@@ -281,6 +281,120 @@ class IIRFilterData(BaseDataObj):
             den[i, 1] = 1
             ord_den[i] = 2
         
-        return IIRFilterData(ord_num, ord_den, num, den, target_device_idx=target_device_idx)
+        return IirFilterData(ord_num, ord_den, num, den, target_device_idx=target_device_idx)
 
+    @staticmethod
+    def lpf_from_fc(fc, fs, n_ord=2, target_device_idx=None):
+        '''Build an IirFilterData object from a cut off frequency value/vector
+        and a filter order value (must be even)'''
 
+        if n_ord != 1 and (n_ord % 2) != 0:
+            raise ValueError('Filter order must be 1 or even')
+
+        fc = np.array(fc)
+        n = len(fc)
+        
+        if n_ord == 1:
+            n_coeff = 2
+        else:
+            n_coeff = 2*n_ord + 1
+        
+        # Filter initialization
+        num = np.zeros((n, n_coeff))
+        ord_num = np.zeros(n)
+        den = np.zeros((n, n_coeff))
+        ord_den = np.zeros(n)
+
+        for i in range(n):
+            if fc[i] >= fs / 2:
+                raise ValueError('Cut-off frequency must be less than half the sampling frequency')
+            fr = fc[i] / fs  # Normalized frequency
+            omega = np.tan(np.pi * fr)
+        
+            if n_ord == 1:
+                # Butterworth filter of order 1
+                a0 = omega / (1 + omega)
+                b1 = -(1 - a0)
+
+                num_total = np.asarray([0, a0.item()], dtype=float)
+                den_total = np.asarray([b1.item(), 1], dtype=float)
+            else:
+                #Butterworth filter of order >=2
+                num_total = np.array([1.0])
+                den_total = np.array([1.0])
+                
+                for k in range(n_ord // 2):  # Iterations on poles
+                    ck = 1 + 2 * np.cos(np.pi * (2*k+1) / (2*n_ord)) * omega + omega**2
+                    
+                    a0 = omega**2 / ck
+                    a1 = 2 * a0
+                    a2 = a0
+                    
+                    b1 = 2 * (omega**2 - 1) / ck
+                    b2 = (1 - 2 * np.cos(np.pi * (2*k+1) / (2*n_ord)) * omega + omega**2) / ck
+                    
+                    # coefficients of the single filter of order 2
+                    num_k = np.asarray([a2.item(), a1.item(), a0.item()], dtype=float)
+                    den_k = np.asarray([b2.item(), b1.item(), 1], dtype=float)
+                    
+                    # ploynomials convolution to get total filter
+                    num_total = np.convolve(num_total, num_k)
+                    den_total = np.convolve(den_total, den_k)
+                    
+            num[i, :] = num_total
+            den[i, :] = den_total
+            ord_num[i] = len(num_total)
+            ord_den[i] = len(den_total)
+
+        return IirFilterData(ord_num, ord_den, num, den, target_device_idx=target_device_idx)
+
+    @staticmethod
+    def lpf_from_fc_and_ampl(fc, ampl, fs, target_device_idx=None):
+        '''Build an IirFilterData object from a cut off frequency value/vector
+        and amplification    value/vector'''
+
+        fc = np.array(fc)
+        n = len(fc)
+
+        if len(ampl) != n:
+            ampl = np.full(n, ampl)
+        else:
+            ampl = np.array(ampl)
+
+        n_coeff = 3
+        
+        # Filter initialization
+        num = np.zeros((n, n_coeff))
+        ord_num = np.zeros(n)
+        den = np.zeros((n, n_coeff))
+        ord_den = np.zeros(n)
+
+        for i in range(n):
+            if fc[i] >= fs / 2:
+                raise ValueError('Cut-off frequency must be less than half the sampling frequency')
+            fr = fc[i] / fs
+            omega = 2 * np.pi * fr
+            alpha = np.sin(omega) / (2 * ampl[i])
+
+            a0 = (1 - np.cos(omega)) / 2
+            a1 = 1 - np.cos(omega)
+            a2 = (1 - np.cos(omega)) / 2
+            b0 = 1 + alpha
+            b1 = -2 * np.cos(omega)
+            b2 = 1 - alpha
+
+            a0 /= b0
+            a1 /= b0
+            a2 /= b0
+            b1 /= b0
+            b2 /= b0
+            
+            num_total = np.asarray([a2.item(), a1.item(), a0.item()], dtype=float)
+            den_total = np.asarray([b2.item(), b1.item(), 1], dtype=float)
+            
+            num[i, :] = num_total
+            den[i, :] = den_total
+            ord_num[i] = len(num_total)
+            ord_den[i] = len(den_total)
+
+        return IirFilterData(ord_num, ord_den, num, den, target_device_idx=target_device_idx)

@@ -26,12 +26,12 @@ def pyr1_abs2(v, norm, ffv, xp):
 
 class ModulatedPyramid(BaseProcessingObj):
     def __init__(self,
-                 pixel_pupil: int,
-                 pixel_pitch: float,
-                 wavelengthInNm: float,
-                 fov: float,
-                 pup_diam: int,
-                 output_resolution: int,
+                 pixel_pupil: int=160,
+                 pixel_pitch: float=0.05,
+                 wavelengthInNm: float=750,
+                 fov: float=2.0,
+                 pup_diam: int=30,
+                 output_resolution: int=80,
                  mod_amp: float = 3.0,
                  mod_step: int = None,
                  fov_errinf: float = 0.5,

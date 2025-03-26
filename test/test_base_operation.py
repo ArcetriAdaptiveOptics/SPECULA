@@ -212,5 +212,49 @@ class TestBaseOperation(unittest.TestCase):
             # Does not raise
             op.setup(1, 1)  
 
+
+    @cpu_and_gpu
+    def test_that_value1_is_not_overwritten(self, target_device_idx, xp):
+        '''Test that value1 is not overwritten'''
+
+        value1 = BaseValue(value=1.0, target_device_idx=target_device_idx)
+        value1.generation_time = 1
+        value2 = BaseValue(value=2.0, target_device_idx=target_device_idx)
+        value2.generation_time = 1
+        
+        ops = []
+        ops.append(BaseOperation(sum=True, target_device_idx=target_device_idx))
+        ops.append(BaseOperation(sub=True, target_device_idx=target_device_idx))
+        ops.append(BaseOperation(mul=True, target_device_idx=target_device_idx))
+        ops.append(BaseOperation(div=True, target_device_idx=target_device_idx))
+        ops.append(BaseOperation(constant_mul=2, target_device_idx=target_device_idx))
+        ops.append(BaseOperation(constant_div=3, target_device_idx=target_device_idx))
+        
+        for op in ops:
+            op.inputs['in_value1'].set(value1)
+            op.inputs['in_value2'].set(value2)
+            op.setup(1, 1)
+            op.check_ready(1)
+            op.prepare_trigger(1)
+            op.trigger()
+            op.post_trigger()
+            assert op.inputs['in_value1'].get(target_device_idx=target_device_idx).value == 1.0
+
+        value1 = BaseValue(value=xp.array([1.0]), target_device_idx=target_device_idx)
+        value1.generation_time = 1
+        value2 = BaseValue(value=xp.array([2.0]), target_device_idx=target_device_idx)
+        value2.generation_time = 1
+        
+        op = BaseOperation(concat=True, target_device_idx=target_device_idx)
+        
+        op.inputs['in_value1'].set(value1)
+        op.inputs['in_value2'].set(value2)
+        op.setup(1, 1)
+        op.check_ready(1)
+        op.prepare_trigger(1)
+        op.trigger()
+        op.post_trigger()
+        assert op.inputs['in_value1'].get(target_device_idx=target_device_idx).value == 1.0
+
 if __name__ == '__main__':
     unittest.main()

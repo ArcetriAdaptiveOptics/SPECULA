@@ -24,7 +24,7 @@ class TestSlopec(unittest.TestCase):
         pupdata = PupData(target_device_idx=target_device_idx)
         pupdata.ind_pup = xp.array([[1,3,6,8], [15,16,21,24]], dtype=int)
         pupdata.framesize = (4,4)
-        slopec = PyrSlopec(pupdata, target_device_idx=target_device_idx)
+        slopec = PyrSlopec(pupdata, norm_factor=None, target_device_idx=target_device_idx)
         slopec.inputs['in_pixels'].set(pixels)
         slopec.check_ready(1)
         slopec.trigger()

@@ -10,7 +10,7 @@ class Modalrec(BaseProcessingObj):
     '''Modal reconstructor'''
 
     def __init__(self,
-                 nmodes: int=None,
+                 nmodes: int=0,
                  recmat: Recmat=None,
                  projmat: Recmat=None,
                  intmat: Intmat=None,
@@ -34,7 +34,7 @@ class Modalrec(BaseProcessingObj):
         else:
             if recmat is None:
                 if identity:
-                    if nmodes is None:
+                    if nmodes<=0:
                         raise ValueError('modalrec nmodes key must be set!')
                     recmat = Recmat(self.xp.identity(nmodes),
                                     target_device_idx=target_device_idx, precision=precision)

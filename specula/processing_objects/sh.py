@@ -50,7 +50,7 @@ class SH(BaseProcessingObj):
                  aRotAnglePhInDeg: float = 0,
                  do_not_double_fov_ovs: bool = False,
                  set_fov_res_to_turbpxsc: bool = False,
-                 convolGaussSpotSize: float = 0,
+                 convolGaussSpotSize: float = 0.0,
                  target_device_idx: int = None, 
                  precision: int = None,
         ):

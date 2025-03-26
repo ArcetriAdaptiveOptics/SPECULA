@@ -12,11 +12,11 @@ from specula.connections import InputValue
 
 class AtmoRandomPhase(BaseProcessingObj):
     def __init__(self,
-                 L0,
-                 pixel_pitch,
-                 pixel_pupil,
-                 data_dir, 
-                 source_dict,
+                 L0: float=1.0,
+                 pixel_pitch: float=0.05,
+                 pixel_pupil: int=160,
+                 data_dir: str="", 
+                 source_dict: dict={},
                  wavelengthInNm: float=500.0,
                  zenithAngleInDeg=None,
                  pixel_phasescreens=None,

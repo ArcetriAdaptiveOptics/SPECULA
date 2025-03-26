@@ -39,6 +39,8 @@ class ShSubapCalibrator(BaseProcessingObj):
         filename = self._filename
         if not filename.endswith('.fits'):
             filename += '.fits'
+        file_path = os.path.join(self._data_dir, filename)
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
         self.subaps.save(os.path.join(self._data_dir, filename))
         
     def _detect_subaps(self, image, energy_th):
@@ -59,8 +61,8 @@ class ShSubapCalibrator(BaseProcessingObj):
                 np_sub = round(np / 2.0 * lens[2])
 
                 mask_subap *= 0
-                mask_subap[self.xp.round(x[i, j] - np_sub / 2):self.xp.round(x[i, j] + np_sub / 2),
-                           self.xp.round(y[i, j] - np_sub / 2):self.xp.round(y[i, j] + np_sub / 2)] = 1
+                mask_subap[int(self.xp.round(x[i, j] - np_sub / 2)):int(self.xp.round(x[i, j] + np_sub / 2)),
+                    int(self.xp.round(y[i, j] - np_sub / 2)):int(self.xp.round(y[i, j] + np_sub / 2))] = 1
 
                 spot_intensity[i, j] = self.xp.sum(image * mask_subap)
 
@@ -69,8 +71,8 @@ class ShSubapCalibrator(BaseProcessingObj):
             for j in range(self._lenslet.dimy):
                 if spot_intensity[i, j] > energy_th * self.xp.max(spot_intensity):
                     mask_subap *= 0
-                    mask_subap[self.xp.round(x[i, j] - np_sub / 2):self.xp.round(x[i, j] + np_sub / 2),
-                               self.xp.round(y[i, j] - np_sub / 2):self.xp.round(y[i, j] + np_sub / 2)] = 1
+                    mask_subap[int(self.xp.round(x[i, j] - np_sub / 2)):int(self.xp.round(x[i, j] + np_sub / 2)),
+                        int(self.xp.round(y[i, j] - np_sub / 2)):int(self.xp.round(y[i, j] + np_sub / 2))] = 1
                     idxs[count] = self.xp.where(mask_subap == 1)
                     map[count] = j * self._lenslet.dimx + i
                     count += 1

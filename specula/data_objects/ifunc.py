@@ -2,6 +2,8 @@ from specula.base_data_obj import BaseDataObj
 
 from astropy.io import fits
 
+from specula.lib.compute_zonal_ifunc import compute_zonal_ifunc
+
 from specula.lib.compute_zern_ifunc import compute_zern_ifunc
 
 def compute_kl_ifunc(*args, **kwargs):
@@ -22,6 +24,11 @@ class IFunc(BaseDataObj):
                  diaratio: float=None,
                  start_mode: int=None,
                  nmodes: int=None,
+                 n_act: int=None,
+                 circ_geom: bool=True,
+                 angle_offset: float=0,
+                 do_mech_coupling: bool=False,
+                 coupling_coeffs: list=[0.31, 0.05],
                  idx_modes=None,
                  target_device_idx=None, precision=None
                 ):
@@ -38,11 +45,18 @@ class IFunc(BaseDataObj):
             
             type_lower = type_str.lower()
             if type_lower == 'kl':
-                ifunc, mask = compute_kl_ifunc(npixels, nmodes=nmodes, obsratio=obsratio, diaratio=diaratio, mask=mask, xp=self.xp, dtype=self.dtype)
+                ifunc, mask = compute_kl_ifunc(npixels, nmodes=nmodes, obsratio=obsratio, diaratio=diaratio, mask=mask,
+                                               xp=self.xp, dtype=self.dtype)
             elif type_lower in ['zern', 'zernike']:
-                ifunc, mask = compute_zern_ifunc(npixels, nzern=nmodes, obsratio=obsratio, diaratio=diaratio, mask=mask, xp=self.xp, dtype=self.dtype)
+                ifunc, mask = compute_zern_ifunc(npixels, nzern=nmodes, obsratio=obsratio, diaratio=diaratio, mask=mask,
+                                                 xp=self.xp, dtype=self.dtype)
             elif type_lower == 'mixed':
-                ifunc, mask = compute_mixed_ifunc(npixels, nzern=nzern, nmodes=nmodes, obsratio=obsratio, diaratio=diaratio, mask=mask, xp=self.xp, dtype=self.dtype)
+                ifunc, mask = compute_mixed_ifunc(npixels, nzern=nzern, nmodes=nmodes, obsratio=obsratio, diaratio=diaratio, mask=mask,
+                                                  xp=self.xp, dtype=self.dtype)
+            elif type_lower == 'zonal':
+                ifunc, mask = compute_zonal_ifunc(npixels, n_act, circ_geom=circ_geom, angle_offset=angle_offset, do_mech_coupling=do_mech_coupling,
+                                                  coupling_coeffs=coupling_coeffs, obsratio=obsratio, diaratio=diaratio, mask=mask,
+                                                  xp=self.xp, dtype=self.dtype)
             else:
                 raise ValueError(f'Invalid ifunc type {type_str}')
         
@@ -84,7 +98,7 @@ class IFunc(BaseDataObj):
     @mask_inf_func.setter
     def mask_inf_func(self, mask_inf_func):
         self._mask_inf_func = self.xp.array(mask_inf_func, dtype=self.dtype)
-        self._idx_inf_func = self.xp.where(mask_inf_func)
+        self._idx_inf_func = self.xp.where(self._mask_inf_func)
 
     @property
     def idx_inf_func(self):

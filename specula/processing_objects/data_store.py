@@ -20,8 +20,8 @@ class DataStore(BaseProcessingObj):
     '''Data storage object'''
 
     def __init__(self,
-                store_dir: str,
-                data_format: str = 'fits'):
+                store_dir: str="",
+                data_format: str='fits'):
         super().__init__()
         self.items = {}
         self.storage = {}

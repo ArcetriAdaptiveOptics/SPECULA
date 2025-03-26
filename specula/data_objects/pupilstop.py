@@ -9,8 +9,8 @@ class Pupilstop(Layer):
     '''Pupil stop'''
 
     def __init__(self,
-                 pixel_pupil: int,
-                 pixel_pitch: float,
+                 pixel_pupil: int=160.0,
+                 pixel_pitch: float=0.05,
                  input_mask = None,
                  mask_diam: float=1.0,
                  obs_diam: float=None,
