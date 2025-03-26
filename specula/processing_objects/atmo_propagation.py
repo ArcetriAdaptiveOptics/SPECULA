@@ -102,7 +102,7 @@ class AtmoPropagation(BaseProcessingObj):
             else:
                 output_ef_list = self.outputs['out_'+source_name+'_ef']
 
-            for layer in self.local_inputs['atmo_layer_list'] + self.local_inputs['common_layer_list']:
+            for li, layer in enumerate(self.local_inputs['atmo_layer_list'] + self.local_inputs['common_layer_list']):
 
                 if not self.mergeLayersContrib:
                     output_ef = output_ef_list[li]
