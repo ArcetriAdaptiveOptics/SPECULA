@@ -94,10 +94,10 @@ class Slopec(BaseProcessingObj):
         
         if self.filt_intmat and self.filt_recmat:
             m = self.slopes.slopes @ self.filt_recmat.recmat
-            sl0 = m @ self.filt_intmat.intmat
+            sl0 = m @ self.filt_intmat._intmat.T
             self.slopes.slopes -= sl0
             rms = self.xp.sqrt(self.xp.mean(self.slopes.slopes**2))
-            print('Slopes have been filtered. '
-                  'New slopes min, max and rms: '
-                  f'{self.slopes.slopes.min()}, {self.slopes.slopes.max()}, {rms}')
+            #print('Slopes have been filtered. '
+            #      'New slopes min, max and rms: '
+            #      f'{self.slopes.slopes.min()}, {self.slopes.slopes.max()}, {rms}')
 
