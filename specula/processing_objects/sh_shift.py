@@ -104,29 +104,6 @@ class ShShift(BaseProcessingObj):
         self._ef_resize = None
         self._sh = None
 
-# Helper classes for the functionality (e.g., `Factory`, `BaseProcessingObj`)
-class Factory:
-    def __init__(self, params_main, GPU):
-        # Assume this initializes a factory for SH, EF objects
-        pass
 
-    def get_sh(self, params_sh, GPU):
-        # Return an SH object based on params_sh and GPU
-        pass
 
-    def get_ef_shift(self, params_ef_shift):
-        # Return an EF shift object
-        pass
 
-    def get_ef_resize(self, params_ef_resize):
-        # Return an EF resize object
-        pass
-
-class BaseProcessingObj:
-    def __init__(self, name, description):
-        self.name = name
-        self.description = description
-
-    def cleanup(self):
-        # Basic cleanup functionality
-        pass
