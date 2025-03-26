@@ -4,14 +4,18 @@ from specula.base_value import BaseValue
 from specula.connections import InputValue
 from specula.data_objects.pixels import Pixels
 from specula.data_objects.slopes import Slopes
+from specula.data_objects.intmat import Intmat
+from specula.data_objects.recmat import Recmat
 
 
 class Slopec(BaseProcessingObj):
     def __init__(self, sn: Slopes=None, cm=None, 
                  use_sn=False, accumulate=False, weight_from_accumulated=False, 
-                 do_rec=False, 
-                 intmat=None, 
-                 recmat=None, accumulation_dt=0, 
+                 recmat: Recmat=None,
+                 filt_intmat: Intmat=None, 
+                 filt_recmat: Recmat=None,
+                 filtmat=None,
+                 accumulation_dt=0, 
                  accumulated_pixels=(0,0),
                  target_device_idx=None, 
                  precision=None
@@ -34,10 +38,21 @@ class Slopec(BaseProcessingObj):
         self.use_sn = use_sn
         self.accumulate = accumulate
         self.weight_from_accumulated = weight_from_accumulated
-        self.do_rec = do_rec
-        self.intmat = intmat
         self.recmat = recmat
-        self._accumulation_dt = accumulation_dt
+        if filtmat is not None:
+            if filt_intmat:
+                raise ValueError('filt_intmat must not be set if "filtmat" is set')
+            if filt_recmat:
+                raise ValueError('filt_recmat must not be set if "filtmat" is set')
+            self.filt_intmat = Intmat(filtmat[0], target_device_idx=target_device_idx)
+            self.filt_recmat = Recmat(filtmat[1], target_device_idx=target_device_idx)
+        else:
+            if bool(filt_intmat) != bool(filt_recmat):
+                raise ValueError('Both filt_intmat and filt_recmat must be set for slopes filtering')
+            self.filt_intmat = filt_intmat
+            self.filt_recmat = filt_recmat
+
+        self.accumulation_dt = self.seconds_to_t(accumulation_dt)
         self.accumulated_pixels = self.xp.array(accumulated_pixels, dtype=self.dtype)
         self.accumulated_slopes = Slopes(2)   # TODO resized in derived class.
 
@@ -51,14 +66,6 @@ class Slopec(BaseProcessingObj):
     @sn_tag.setter
     def sn_tag(self, value):
         self.load_sn(value)
-
-    @property
-    def accumulation_dt(self):
-        return self._accumulation_dt
-
-    @accumulation_dt.setter
-    def accumulation_dt(self, value):
-        self._accumulation_dt = self.seconds_to_t(value)
 
     def build_and_save_filtmat(self, intmat, recmat, nmodes, filename):
         im = intmat[:nmodes, :]
@@ -81,9 +88,16 @@ class Slopec(BaseProcessingObj):
         raise NotImplementedError(f'{self.__class__.__name__}: please implement trigger_code() in your derived class!')
         
     def post_trigger(self):
-        # super().post_trigger()
-        if self.do_rec:
+        if self.recmat:
             m = self.xp.dot(self.slopes.slopes, self.recmat.recmat)
             self.slopes.slopes = m
-
+        
+        if self.filt_intmat and self.filt_recmat:
+            m = self.slopes.slopes @ self.filt_recmat.recmat
+            sl0 = m @ self.filt_intmat.intmat
+            self.slopes.slopes -= sl0
+            rms = self.xp.sqrt(self.xp.mean(self.slopes.slopes**2))
+            print('Slopes have been filtered. '
+                  'New slopes min, max and rms: '
+                  f'{self.slopes.slopes.min()}, {self.slopes.slopes.max()}, {rms}')
 
