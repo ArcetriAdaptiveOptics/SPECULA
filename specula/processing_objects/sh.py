@@ -346,8 +346,10 @@ class SH(BaseProcessingObj):
 
     def trigger(self):
         
+        SLM_PUPIL_DIAMETER = 2*568*9.2e-6
         temp_in_ef = self.local_inputs['in_ef']
-        newpitch = temp_in_ef.pixel_pitch * temp_in_ef.size[0] / self._out_i.size[0]
+        #newpitch = temp_in_ef.pixel_pitch * temp_in_ef.size[0] / self._out_i.size[0]
+        newpitch = SLM_PUPIL_DIAMETER / self._out_i.size[0]
         in_ef = ElectricField(self._out_i.size[0], self._out_i.size[1], newpitch, temp_in_ef.S0)
         in_ef.phaseInNm = toccd(temp_in_ef.phaseInNm, self._out_i.size, xp=self.xp)
         in_ef.A = toccd(temp_in_ef.A, self._out_i.size, xp=self.xp)
