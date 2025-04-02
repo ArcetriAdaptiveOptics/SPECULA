@@ -97,11 +97,7 @@ atmo:
                          0.0161969, 0.0260951, 0.0155971, 0.0103980, 0.00999811, 0.0119977, 0.00400924, 0.0139974, 0.0129975, 0.00700868,
                          0.0159970, 0.0258951, 0.0190964, 0.00986813, 0.00616883, 0.00400924, 0.00246953, 0.00215959, 0.00184965, 0.00135974,
                          0.00110979, 0.000616883, 0.000925825, 0.000493907, 0.000431918] # Cn2 weights (total must be eq 1)
-  source_dict_ref:      &ALL_SOURCES 
-                        ['source_on_axis',
-                         'source_lgs1','source_lgs2','source_lgs3','source_lgs4','source_lgs5','source_lgs6',
-                         'source_ngs1', 'source_ngs2', 'source_ngs3',
-                         'source_ref1', 'source_ref2', 'source_ref3']
+  fov:                  160 # fov diameter in arcsec of the system
   inputs:
     seeing: 'seeing.output'
     wind_speed: 'wind_speed.output'
@@ -113,7 +109,7 @@ prop:
   class:                'AtmoPropagation'
   source_dict_ref:      *ALL_SOURCES 
   inputs:
-    atmo_layer_list: 'atmo.layer_list'
+    atmo_layer_list: ['atmo.layer_list']
     common_layer_list: [ 'pupilstop',
                   'dm1.out_layer:-1',
                   'dm2.out_layer:-1',
