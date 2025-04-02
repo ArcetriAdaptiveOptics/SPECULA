@@ -43,7 +43,7 @@ atmo:
   L0:                   [40, 20, 30, 10]                   # [m] Outer scale
   heights:              [119., 180, 300, 500] #,837,3045,12780]), # [m] layer heights at 0 zenith angle
   Cn2:                  [0.4, 0.3, 0.1, 0.2] #,0.06,0.14,0.10]), # Cn2 weights (total must be eq 1)
-  source_dict_ref:      ['on_axis_source']
+  fov:                  0 # fov diameter in arcsec of the system
   inputs:
     seeing: 'seeing.output'
     wind_speed: 'wind_speed.output'
@@ -55,7 +55,7 @@ prop:
   class:                'AtmoPropagation'
   source_dict_ref:      ['on_axis_source']
   inputs:
-    atmo_layer_list: 'atmo.layer_list'
+    atmo_layer_list: ['atmo.layer_list']
     common_layer_list: ['pupilstop',
                   'dm.out_layer:-1']
   outputs: ['out_on_axis_source_ef']
