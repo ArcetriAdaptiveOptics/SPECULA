@@ -217,6 +217,7 @@ class Simul():
 
             my_params.update(pars2)
             self.objs[key] = klass(**my_params)
+            self.objs[key].name = key
 
             # TODO this could be more general like the getters above
             if type(self.objs[key]) is DataStore:

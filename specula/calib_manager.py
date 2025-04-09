@@ -30,7 +30,7 @@ class CalibManager():
             'rec': 'rec/',
             'recmat': 'rec/',
             'intmat': 'im/',
-            'projmat': 'proj/',
+            'projmat': 'rec/',
             'ImRecCalibrator': 'rec/',
             'MultiImRecCalibrator': 'rec/',
             'im': 'im/',

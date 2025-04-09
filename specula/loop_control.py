@@ -107,7 +107,11 @@ class LoopControl:
                 element.check_ready(self._t)
 
             for element in self._ordered_lists[i]:
-                element.trigger()
+                try:
+                    element.trigger()
+                except:
+                    print('Exception in', element.name)
+                    raise
 
             for element in self._ordered_lists[i]:
                 element.post_trigger()

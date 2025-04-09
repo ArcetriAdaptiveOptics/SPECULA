@@ -321,11 +321,12 @@ lift:
 tomo_polc_lgs:
   class:              'Modalrec'
   recmat_object:      '20240606_200110.0/recmat'
-  projmat_object:     'p20240717_194929.0/projmat1'
-#  recmat_object:      'MORFEO_LTAO'
-#  polc:   true
+  projmat_object:     'p20240717_194929.0/projmatAll'
+  intmat_object:      '20250326_000000.0/intmat'
+  polc:   true
   inputs:
     in_slopes_list:        ['slopec_lgs1.out_slopes','slopec_lgs2.out_slopes','slopec_lgs3.out_slopes','slopec_lgs4.out_slopes','slopec_lgs5.out_slopes','slopec_lgs6.out_slopes']
+    in_commands:            'modal_integrator.out_comm:-1'
   outputs:  ['out_modes', 'out_pseudo_ol_modes']
 
 subtract_ref:
@@ -353,17 +354,17 @@ subtract_ref:
 
 iir_lgs:
   class:             'IirFilter'
-  iir_filter_data_object: 'IIR_test_500Hz_d4ms_2modes_INT_g0.25_4517modes'
+  iir_filter_data_object: '/tmp/iirfilter6564'
   inputs:
       delta_comm: 'subtract_ref.out_value'     
   outputs:  ['out_comm']
 
 
-avc_lgs:
-  class:             'AVC'
-  inputs:
-      in_measurement: 'tomo_polc_lgs.out_pseudo_ol_modes'     
-  outputs:  ['out_comm']
+# avc_lgs:
+#   class:             'AVC'
+#   inputs:
+#       in_measurement: 'tomo_polc_lgs.out_pseudo_ol_modes'     
+#   outputs:  ['out_comm']
 
 # ----------------------------------------
 # Common DM control
@@ -379,26 +380,26 @@ modal_combination:
 modal_integrator:
   class:        'Integrator'
   delay:             2                      # Total temporal delay in time steps
-  int_gain_data:     'g0.40_4519'            # TODO  
+  int_gain_data:     'g0.40_6564'
   inputs:
       delta_comm: 'modal_combination.out_vector'     
   outputs:  ['out_comm']
 
-combine_avc:
-  class:             'BaseOperation'
-  sum: true
-  inputs:
-    in_value1: 'avc_lgs.out_comm'
-    in_value2: 'avc_ngs.out_comm'
-  outputs: ['out_value']
+#combine_avc:
+#  class:             'BaseOperation'
+#  sum: true
+#  inputs:
+#    in_value1: 'avc_lgs.out_comm'
+#    in_value2: 'avc_ngs.out_comm'
+#  outputs: ['out_value']
 
-sum_avc:
-  class:             'BaseOperation'
-  sum: true
-  inputs:
-    in_value1: 'modal_integrator.out_comm'
-    in_value2: 'combine_avc.out_value'
-  outputs: ['out_value']
+#sum_avc:
+#  class:             'BaseOperation'
+#  sum: true
+#  inputs:
+#    in_value1: 'modal_integrator.out_comm'
+#    in_value2: 'combine_avc.out_value'
+#s  outputs: ['out_value']
 
 
 dm1:
@@ -409,7 +410,7 @@ dm1:
   nmodes:            4519
   height:            600                      # DM height [m]
   inputs:
-      in_command: 'sum_avc.out_value'
+      in_command: 'modal_integrator.out_comm'
   outputs:  ['out_layer']
 
 dm2:
@@ -421,7 +422,7 @@ dm2:
   input_offset:      4519                      # Offset into input command vector
   height:            6500                      # DM height [m]
   inputs:
-      in_command: 'sum_avc.out_value'
+      in_command: 'modal_integrator.out_comm'
   outputs:  ['out_layer']
 
 dm3:
@@ -433,18 +434,17 @@ dm3:
   input_offset:      5239  #  4519+720          # Offset into input command vector
   height:            17500                      # DM height [m]
   inputs:
-      in_command: 'sum_avc.out_value'
+      in_command: 'modal_integrator.out_comm'
   outputs:  ['out_layer']
 
 # ----------------
 # LO pipeline
 # ----------------
 
-tomo_polc_ngs:
+tomo_ngs:
   class:              'Modalrec'
   recmat_object:      '20240614_073541.0/recmat'
-  projmat_object:     'p20230222_104426.0/projmat1'
-#  polc:   true
+  projmat_object:     'p20230222_104426.0/projmatAll'
   inputs:
     in_slopes_list:        ['slopec_ngs1.out_slopes','slopec_ngs2.out_slopes','slopec_ngs3.out_slopes']
   outputs:  ['out_modes', 'out_pseudo_ol_modes']
@@ -453,14 +453,14 @@ iir_ngs:
   class:             'IirFilter'
   iir_filter_data_object: 'iir_test_LO_5modes_500Hz_d4ms.fits'
   inputs:
-      delta_comm: 'tomo_polc_ngs.out_modes'     
+      delta_comm: 'tomo_ngs.out_modes'     
   outputs:  ['out_comm']
 
-avc_ngs:
-  class:             'AVC'
-  inputs:
-      in_measurement: 'tomo_polc_ngs.out_pseudo_ol_modes'     
-  outputs:  ['out_comm']
+# avc_ngs:
+#   class:             'AVC'
+#   inputs:
+#       in_measurement: 'tomo_ngs.out_pseudo_ol_modes'     
+#   outputs:  ['out_comm']
 
 # --------------
 # Focus pipeline
@@ -469,13 +469,14 @@ avc_ngs:
 rec_focus:
   class:              'Modalrec'
   recmat_object:      '20240530_101618.0/recmat'
+  output_slice:       [2, 3]
   inputs:
     in_slopes_list:        ['slopec_ref1.out_slopes','slopec_ref2.out_slopes','slopec_ref3.out_slopes']
   outputs:  ['out_modes', 'out_pseudo_ol_modes']
 
 iir_focus:
   class:             'IirFilter'
-  iir_filter_data_object: 'IIR_test_250Hz_d8ms_2modes_INT_g0.25_4517modes.fits'   # TODO should be 1 mode
+  iir_filter_data_object: '/tmp/iirfilter1'
   inputs:
       delta_comm: 'rec_focus.out_modes'     
   outputs:  ['out_comm']
@@ -487,16 +488,18 @@ iir_focus:
 
 tomo_polc_ref:
   class:              'Modalrec'
-  recmat_object:      '20240614_194901.0/recmat'         # TODO
-  projmat_object:     'p20240526_141118.0/projmat1'
-#  polc:   true
+  recmat_object:      '20240614_194901.0/recmat'
+  projmat_object:     'p20240526_141118.0/projmatAll'
+  intmat_object:      '20250326_000001.0/intmat'
+  polc:   true
   inputs:
     in_slopes_list:        ['slopec_ref1.out_slopes','slopec_ref2.out_slopes','slopec_ref3.out_slopes']
+    in_commands:            'modal_integrator.out_comm:-1'
   outputs:  ['out_modes', 'out_pseudo_ol_modes']
 
 iir_ref:
   class:             'IirFilter'
-  iir_filter_data_object: 'iir_test_TTF_40modes_10Hz_d100ms.fits'
+  iir_filter_data_object: '/tmp/iirfilter293'
   inputs:
       delta_comm: 'tomo_polc_ref.out_modes'     
   outputs:  ['out_comm']
