@@ -5,22 +5,18 @@ from astropy.io import fits
 import specula
 specula.init(0)  # Default target device
 
-from specula import cp, np
+from specula import np
 from specula import cpuArray
 
 from specula.lib.make_xy import make_xy
 from specula.lib.interp2d import Interp2D
 
+from test.specula_testlib import cpu_and_gpu
+
 class TestInterp2D(unittest.TestCase):
 
-    @unittest.skipIf(cp is None, 'Cupy not found')
-    def test_interp2d_gpu(self):
-        self._test_interp2d(xp=cp)
-
-    def test_interp2d_cpu(self):
-        self._test_interp2d(xp=np)
-        
-    def _test_interp2d(self, xp):
+    @cpu_and_gpu
+    def test_interp2d(self, target_device_idx, xp):
         
         datadir = os.path.join(os.path.dirname(__file__), 'data')
         phase = fits.getdata(os.path.join(datadir, 'input_phase.fits'))
@@ -45,6 +41,3 @@ class TestInterp2D(unittest.TestCase):
         test_phase[394,365] = ref_phase[394,365]
         # Then a few pixels with 3%
         np.testing.assert_allclose(test_phase, ref_phase, rtol=4e-2)
-
-if __name__ == '__main__':
-    unittest.main()

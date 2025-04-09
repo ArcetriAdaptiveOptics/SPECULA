@@ -51,14 +51,7 @@ class PixelsDisplay(BaseProcessingObj):
 #            plt.colorbar()
         self.fig.canvas.draw()
         plt.pause(0.001)
-    def run_check(self, time_step):
-        psf = self.inputs['pixels'].get(self.target_device_idx)
-        return psf is not None
-
-    @classmethod
-    def from_dict(cls, params):
-        return cls(**params)
-
+        
     def reformat_as_pyramid(self, pixels, subapdata):
         pupil = subapdata.copyTo(-1).single_mask()
         idx2d = self.xp.unravel_index(subapdata.idxs, pixels.shape)

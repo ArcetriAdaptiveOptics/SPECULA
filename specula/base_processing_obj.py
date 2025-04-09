@@ -2,10 +2,13 @@ from astropy.io import fits
 
 from specula.base_time_obj import BaseTimeObj
 from specula import default_target_device, cp
+from specula import show_in_profiler
 from specula.connections import InputValue, InputList
-from contextlib import nullcontext
 
 class BaseProcessingObj(BaseTimeObj):
+    
+    _streams = {}
+    
     def __init__(self, target_device_idx=None, precision=None):
         """
         Initialize the base processing object.
@@ -16,25 +19,12 @@ class BaseProcessingObj(BaseTimeObj):
         """
         BaseTimeObj.__init__(self, target_device_idx=target_device_idx, precision=precision)
 
-        if self.target_device_idx>=0:
-            from cupyx.scipy.ndimage import rotate
-            from cupyx.scipy.interpolate import RegularGridInterpolator
-            from cupyx.scipy.fft import get_fft_plan
-        else:
-            from scipy.ndimage import rotate
-            from scipy.interpolate import RegularGridInterpolator
-            get_fft_plan = None
-
-        self.rotate = rotate        
-        self.RegularGridInterpolator = RegularGridInterpolator
-        self._get_fft_plan = get_fft_plan
-
         self.current_time = 0
         self.current_time_seconds = 0
 
         self._verbose = 0
-        self._loop_dt = int(0)
-        self._loop_niters = 0
+        self._loop_dt = None
+        self._loop_niters = None
         
         # Stream/input management
         self.stream  = None
@@ -47,13 +37,7 @@ class BaseProcessingObj(BaseTimeObj):
         self.last_seen = {}
         self.outputs = {}
 
-    def get_fft_plan(self, a, shape=None, axes=None, value_type='C2C'):
-        if self._get_fft_plan:
-            return self._get_fft_plan(a, shape, axes, value_type)
-        else:
-            return nullcontext()
-
-    def checkInputTimes(self):
+    def checkInputTimes(self):        
         if len(self.inputs)==0:
             return True
         for input_name, input_obj in self.inputs.items():
@@ -79,7 +63,7 @@ class BaseProcessingObj(BaseTimeObj):
         self.current_time_seconds = self.t_to_seconds(self.current_time)
         for input_name, input_obj in self.inputs.items():
             if type(input_obj) is InputValue:
-                self.local_inputs[input_name] =  input_obj.get(self.target_device_idx)
+                self.local_inputs[input_name] = input_obj.get(self.target_device_idx)
                 if self.local_inputs[input_name] is not None:
                     self.last_seen[input_name] = self.local_inputs[input_name].generation_time
             elif type(input_obj) is InputList:
@@ -94,7 +78,7 @@ class BaseProcessingObj(BaseTimeObj):
 
     def trigger_code(self):
         '''
-        Any code implemented by derived classed must:
+        Any code implemented by derived classes must:
         1) only perform GPU operations using the xp module
            on arrays allocated with self.xp
         2) avoid any explicity numpy or normal python operation.
@@ -110,6 +94,7 @@ class BaseProcessingObj(BaseTimeObj):
 
     def post_trigger(self):
         if self.target_device_idx>=0 and self.cuda_graph:
+            self._target_device.use()
             self.stream.synchronize()
 
 #        if self.checkInputTimes():
@@ -122,15 +107,27 @@ class BaseProcessingObj(BaseTimeObj):
 #            self.xp.cuda.runtime.deviceSynchronize()                
 #            cp.cuda.Stream.null.synchronize()
 
-    def build_stream(self):
+    @classmethod
+    def device_stream(cls, target_device_idx):
+        if not target_device_idx in cls._streams:
+            cls._streams[target_device_idx] = cp.cuda.Stream(non_blocking=False)
+        return cls._streams[target_device_idx]
+        
+    def build_stream(self, allow_parallel=True):
         if self.target_device_idx>=0:
             self._target_device.use()
-            self.stream = cp.cuda.Stream(non_blocking=False)
+            if allow_parallel:
+                self.stream = cp.cuda.Stream(non_blocking=False)
+            else:
+                self.stream = self.device_stream(self.target_device_idx)
             self.capture_stream()
             default_target_device.use()
 
     def capture_stream(self):
         with self.stream:
+            # First execution is needed to build the FFT plan cache
+            # See for example https://github.com/cupy/cupy/issues/7559
+            self.trigger_code()
             self.stream.begin_capture()
             self.trigger_code()
             self.cuda_graph = self.stream.end_capture()
@@ -149,10 +146,13 @@ class BaseProcessingObj(BaseTimeObj):
     
     def trigger(self):        
         if self.ready:
-            if self.target_device_idx>=0 and self.cuda_graph:
-                self.cuda_graph.launch(stream=self.stream)
-            else:
-                self.trigger_code()
+            with show_in_profiler(self.__class__.__name__+'.trigger'):
+                if self.target_device_idx>=0:
+                    self._target_device.use()
+                if self.target_device_idx>=0 and self.cuda_graph:
+                    self.cuda_graph.launch(stream=self.stream)
+                else:
+                    self.trigger_code()
             self.ready = False
                     
     @property
@@ -163,33 +163,25 @@ class BaseProcessingObj(BaseTimeObj):
     def verbose(self, value):
         self._verbose = value
 
-    @property
-    def loop_dt(self):
-        return self._loop_dt
-
-    @loop_dt.setter
-    def loop_dt(self, value):
-        self._loop_dt = value
-
-    @property
-    def loop_niters(self):
-        return self._loop_niters
-
-    @loop_niters.setter
-    def loop_niters(self, value):
-        self._loop_niters = value
-
-
-    def run_check(self, time_step, errmsg=None):
+    def setup(self, loop_dt, loop_niters):
         """
-        Must be implemented by derived classes.
+        Override this method to perform any setup
+        just before the simulation is started.
 
+        The base class implementation also checks that
+        all non-optional inputs have been set.
+        
         Parameters:
-        time_step (int): The time step for the simulation
-        errmsg (str, optional): Error message
+        loop_dt (int): Simulation time step (in units of self._time_resolution)
+        loop_niters (int): Total number of loop iterations that will be performed
         """
-        print(f"Problem with {self}: please implement run_check() in your derived class!")
-        return 1
+        self._loop_dt = loop_dt
+        self._loop_niters = loop_niters
+        if self.target_device_idx >= 0:
+            self._target_device.use()
+        for name, input in self.inputs.items():
+            if input.get(self.target_device_idx) is None and not input.optional:
+                raise ValueError(f'Input {name} for object {self} has not been set')
 
     def finalize(self):
         '''
@@ -199,10 +191,6 @@ class BaseProcessingObj(BaseTimeObj):
         pass
 
     def save(self, filename):
-        hdr = fits.Header()
-        hdr['VERBOSE'] = self._verbose
-        hdr['LOOP_DT'] = self._loop_dt
-        hdr['LOOP_NITERS'] = self._loop_niters        
         with fits.open(filename, mode='update') as hdul:
             hdr = hdul[0].header
             hdr['VERBOSE'] = self._verbose

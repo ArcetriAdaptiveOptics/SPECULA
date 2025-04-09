@@ -24,31 +24,44 @@ def clamp_generic_more1(x, c, y, xp):
 
 
 class PyrSlopec(Slopec):
-    def __init__(self, pupdata: PupData=None, shlike=False, norm_factor=None, thr_value=0, slopes_from_intensity=False, 
-                 target_device_idx=None, 
-                 precision=None,
-                **kwargs):
+    def __init__(self, 
+                 pupdata: PupData, 
+                 shlike: bool=False, 
+                 norm_factor: float=None,   # TODO =1.0, 
+                 thr_value: float=0.0, 
+                 slopes_from_intensity: bool=False, 
+                 target_device_idx: int=None, 
+                 precision: int=None,
+                **kwargs): # is this needed??
         super().__init__(target_device_idx=target_device_idx, precision=precision, **kwargs)
+
+        if shlike and slopes_from_intensity:
+            raise ValueError('Both SHLIKE and SLOPES_FROM_INTENSITY parameters are set. Only one of these should be used.')
+
+        if shlike and self.norm_factor != 0:
+            raise ValueError('Both SHLIKE and NORM_FACTOR parameters are set. Only one of these should be used.')
+
         self.shlike = shlike
         self.norm_factor = norm_factor
         self.thr_value = int(thr_value)
         self.threshold = self.thr_value if self.thr_value != -1 else None
         self.slopes_from_intensity = slopes_from_intensity
-        if pupdata is not None:
-            self.pupdata = pupdata  # Property set
-            self.pup_idx  = self.pupdata.ind_pup.flatten().astype(self.xp.int64)
-            self.pup_idx0 = self.pupdata.ind_pup[:, 0]
-            self.pup_idx1 = self.pupdata.ind_pup[:, 1]
-            self.pup_idx2 = self.pupdata.ind_pup[:, 2]
-            self.pup_idx3 = self.pupdata.ind_pup[:, 3]
-            self.n_pup = self.pupdata.ind_pup.shape[1]
-            self.n_subap = self.pupdata.ind_pup.shape[0]
+        self.pupdata = pupdata  # Property set
+        self.pup_idx  = self.pupdata.ind_pup.flatten().astype(self.xp.int64)
+        self.pup_idx0 = self.pupdata.ind_pup[:, 0]
+        self.pup_idx1 = self.pupdata.ind_pup[:, 1]
+        self.pup_idx2 = self.pupdata.ind_pup[:, 2]
+        self.pup_idx3 = self.pupdata.ind_pup[:, 3]
+        self.n_pup = self.pupdata.ind_pup.shape[1]
+        self.n_subap = self.pupdata.ind_pup.shape[0]
 
         self.total_counts = BaseValue()
         self.subap_counts = BaseValue()
         self.outputs['out_pupdata'] = self.pupdata
         self.outputs['total_counts'] = self.total_counts
         self.outputs['subap_counts'] = self.subap_counts
+
+
 
     @property
     def thr_value(self):
@@ -72,17 +85,6 @@ class PyrSlopec(Slopec):
             else:
                 self.slopes.resize(len(self.pupdata.ind_pup) * 2)
             self.accumulated_slopes.resize(len(self.pupdata.ind_pup) * 2)
-
-    def run_check(self, time_step, errmsg=''):
-        self.prepare_trigger(0)
-        #super().build_stream()
-        if self.use_sn and not self.sn:
-            errmsg += 'Slopes null are not valid'
-        if self.weight_from_accumulated and self.accumulate:
-            errmsg += 'weightFromAccumulated and accumulate must not be set together'
-        if errmsg != '':
-            print(errmsg)
-        return not (self.weight_from_accumulated and self.accumulate) and self.local_inputs['in_pixels'] and self.slopes and ((not self.use_sn) or (self.use_sn and self.sn))
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
@@ -148,21 +150,11 @@ class PyrSlopec(Slopec):
         self.subap_counts.value = self.total_counts.value / self.pupdata.n_subap
         self.total_counts.generation_time = self.current_time
         self.subap_counts.generation_time = self.current_time
+        self.slopes.single_mask = self.pupdata.single_mask()
+        self.slopes.display_map = self.pupdata.display_map
         self.slopes.generation_time = self.current_time
 
 
-    def run_check(self, time_step, errmsg=''):
-        if self.shlike and self.slopes_from_intensity:
-            errmsg += 'Both SHLIKE and SLOPES_FROM_INTENSITY parameters are set. Only one of these should be used.'
-            return False
+ 
 
-        if self.shlike and self.norm_factor != 0:
-            errmsg += 'Both SHLIKE and NORM_FACTOR parameters are set. Only one of these should be used.'
-            return False
-
-        if not self.pupdata:
-            errmsg += 'Pupil data is not valid'
-            return False
-
-        return super().run_check(time_step, errmsg=errmsg)
 

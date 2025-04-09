@@ -6,7 +6,13 @@ from specula.base_data_obj import BaseDataObj
 class Pixels(BaseDataObj):
     '''Pixels'''
 
-    def __init__(self, dimx, dimy, bits=16, signed=0, target_device_idx=None, precision=None):
+    def __init__(self, 
+                 dimx: int,
+                 dimy: int,
+                 bits: int=16,
+                 signed: int=0,
+                 target_device_idx: int=None,
+                 precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         if bits > 64:
@@ -70,7 +76,7 @@ class Pixels(BaseDataObj):
     def from_header(hdr):    
         version = hdr['VERSION']
         if version != 1:
-            raise ValueError(f"Error: unknown version {version} in file {filename}")
+            raise ValueError(f"Error: unknown version {version} in header")
         dimx = hdr['DIMX']
         dimy = hdr['DIMY']
         bits = hdr['BPP']
@@ -96,4 +102,5 @@ class Pixels(BaseDataObj):
         pixels.read(filename, hdr)
         return pixels
 
-
+    def array_for_display(self):
+        return self.pixels

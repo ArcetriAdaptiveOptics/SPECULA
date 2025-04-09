@@ -1,12 +1,21 @@
 from astropy.io import fits
 from specula import cpuArray
 
-from specula.data_objects.ef import ElectricField
+from specula.data_objects.electric_field import ElectricField
 
 class Layer(ElectricField):
     '''Layer'''
 
-    def __init__(self, dimx, dimy, pixel_pitch, height, target_device_idx=None, precision=None, shiftXYinPixel=(0.0, 0.0), rotInDeg=0.0, magnification=1.0):
+    def __init__(self, 
+                 dimx: int,
+                 dimy: int,
+                 pixel_pitch: float,
+                 height: float,
+                 shiftXYinPixel: tuple=(0.0, 0.0),
+                 rotInDeg: float=0.0, 
+                 magnification: float=1.0,
+                 target_device_idx: int=None, 
+                 precision: int=None):
         super().__init__(dimx, dimy, pixel_pitch, target_device_idx=target_device_idx, precision=precision)
         self.height = height
         self.shiftXYinPixel = cpuArray(shiftXYinPixel).astype(self.dtype)

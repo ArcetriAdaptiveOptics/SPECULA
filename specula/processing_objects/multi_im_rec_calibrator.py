@@ -102,7 +102,9 @@ class MultiImRecCalibrator(BaseProcessingObj):
                 fullrec = full_intmat.generate_rec(self._nmodes)
                 fullrec.save(os.path.join(self._data_dir, full_rec_path))
 
-    def run_check(self, time_step):
+    def setup(self, loop_dt, loop_niters):
+        super().setup(loop_dt, loop_niters)
+
         for i in range(len(self.inputs['in_slopes_list'].get(self.target_device_idx))):
             im_path = self.im_path(i)
             rec_path = self.rec_path(i)
@@ -116,5 +118,3 @@ class MultiImRecCalibrator(BaseProcessingObj):
                 raise FileExistsError(f'IM file {full_im_path} already exists, please remove it')
             if full_rec_path and os.path.exists(full_rec_path):
                 raise FileExistsError(f'Rec file {full_rec_path} already exists, please remove it')
-
-        return True

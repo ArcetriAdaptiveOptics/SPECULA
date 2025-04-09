@@ -2,14 +2,13 @@ import numbers
 import numpy as np
 
 from specula import cpuArray
-from specula import float_dtype
 
-from functools import cache
+from functools import lru_cache
 from scipy.special import factorial
 from specula.lib.mask import CircularMask
 
 
-class ZernikeGenerator(object):
+class ZernikeGenerator():
     '''
     Generator of Zernike polynomials and their derivatives
 
@@ -419,8 +418,9 @@ class ZernikeGenerator(object):
         '''
         return np.ceil(0.5 * (np.sqrt(8 * np.array(j) + 1) - 3)).astype(int)
 
+    # We use lru_cache() instead of cache() for python 3.8 compatibility
     @classmethod
-    @cache
+    @lru_cache(maxsize=None)
     def index_to_name_dict(cls):
         '''
         Zernike index to zernike name mapping
@@ -435,8 +435,9 @@ class ZernikeGenerator(object):
                 3:'tilt',
                 4:'focus'}
 
+    # We use lru_cache() instead of cache() for python 3.8 compatibility
     @classmethod
-    @cache
+    @lru_cache(maxsize=None)
     def name_to_index_dict(cls):
         '''
         Zernike name to zernike index mapping

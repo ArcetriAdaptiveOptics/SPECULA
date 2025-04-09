@@ -39,10 +39,3 @@ class ModesDisplay(BaseProcessingObj):
             self._line[0].set_ydata(m.value)
         plt.draw()
         plt.pause(0.01)
-
-    def run_check(self, time_step):
-        return self.inputs['modes'].get(self.target_device_idx) is not None
-
-    @classmethod
-    def from_dict(cls, params):
-        return cls(**params)

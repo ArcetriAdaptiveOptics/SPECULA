@@ -8,14 +8,20 @@ from specula.base_value import BaseValue
 
 
 class Slopes(BaseDataObj):
-    def __init__(self, length=None, slopes=None, interleave=False, target_device_idx=None, precision=None):
+    def __init__(self, 
+                 length: int=None, 
+                 slopes=None, 
+                 interleave: bool=False, 
+                 target_device_idx: int=None, 
+                 precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         if slopes is not None:
             self.slopes = slopes
         else:
             self.slopes = self.xp.zeros(length, dtype=self.dtype)
         self.interleave = interleave
-        self.pupdata_tag = ''
+        self.single_mask = None
+        self.display_map = None
 
         if self.interleave:
             self.indicesX = self.xp.arange(0, self.size // 2) * 2
@@ -92,11 +98,13 @@ class Slopes(BaseDataObj):
         else:
             raise ValueError('Frame index must be either 1d for flattened indexes or 2d')
 
-    def get2d(self, cm, pupdata=None):
-        if pupdata is None:
-            pupdata = cm.read_pupils(self.pupdata_tag)
-        mask = pupdata.single_mask()
-        idx = pupdata.display_map
+    def get2d(self):
+        if self.single_mask is None:
+            raise ValueError('Slopes single_mask has not been set')
+        if self.display_map is None:
+            raise ValueError('Slopes display_map has not been set')
+        mask = self.single_mask
+        idx = self.display_map
         fx = self.xp.zeros_like(mask, dtype=self.dtype)
         fy = self.xp.zeros_like(mask, dtype=self.dtype)
         self.x_remap2d(fx, idx)
@@ -143,3 +151,6 @@ class Slopes(BaseDataObj):
             s.pupdata_tag = str(hdr['PUPD_TAG']).strip()
         s.read(filename, hdr)
         return s
+
+    def array_for_display(self):
+        return self.xp.hstack(self.get2d())

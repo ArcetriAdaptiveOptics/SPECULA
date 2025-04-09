@@ -9,19 +9,20 @@ class Pupilstop(Layer):
     '''Pupil stop'''
 
     def __init__(self,
-                 pixel_pupil: int,
-                 pixel_pitch: float,
+                 pixel_pupil: int,   # TODO =160.0,
+                 pixel_pitch: float, # TODO =0.05,
                  input_mask = None,
                  mask_diam: float=1.0,
                  obs_diam: float=None,
-                 shiftXYinPixel=(0.0, 0.0),
+                 shiftXYinPixel: tuple=(0.0, 0.0),
                  rotInDeg: float=0.0,
                  magnification: float=1.0,
                  target_device_idx: int=None,
                  precision: int=None):
 
-        super().__init__(pixel_pupil, pixel_pupil, pixel_pitch, height=0, target_device_idx=target_device_idx, precision=precision,
-                         shiftXYinPixel=shiftXYinPixel, rotInDeg=rotInDeg, magnification=magnification)
+        super().__init__(pixel_pupil, pixel_pupil, pixel_pitch, height=0,
+                        shiftXYinPixel=shiftXYinPixel, rotInDeg=rotInDeg, magnification=magnification,
+                        target_device_idx=target_device_idx, precision=precision)
 
         self._input_mask = input_mask
         self._mask_diam = mask_diam

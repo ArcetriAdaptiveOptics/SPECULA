@@ -9,12 +9,12 @@ from specula.data_objects.recmat import Recmat
 class Intmat(BaseDataObj):
     def __init__(self,
                  intmat,
-                 slope_mm = None,
-                 slope_rms = None,
+                 slope_mm: list = None,
+                 slope_rms: list = None,
                  pupdata_tag: str = '',
                  norm_factor: float= 0.0,
-                 target_device_idx=None,
-                 precision=None):
+                 target_device_idx: int=None,
+                 precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         self._intmat = self.xp.array(intmat)
         self._slope_mm = slope_mm
@@ -56,7 +56,7 @@ class Intmat(BaseDataObj):
             fits.append(filename, self._slope_rms)
 
     @staticmethod
-    def restore(filename, hdr=None, exten=0):
+    def restore(filename, hdr=None, exten=0, target_device_idx=None):
         intmat = fits.getdata(filename, ext=exten)
         hdr = fits.getheader(filename, ext=exten)
         norm_factor = float(hdr.get('NORMFACT', 0.0))
@@ -68,7 +68,7 @@ class Intmat(BaseDataObj):
             slope_rms = fits.getdata(filename, ext=exten + 2)
         else:
             slope_mm = slope_rms = None
-        return Intmat(intmat, slope_mm, slope_rms, pupdata_tag, norm_factor)
+        return Intmat(intmat, slope_mm, slope_rms, pupdata_tag, norm_factor, target_device_idx=target_device_idx)
 
     def generate_rec(self, nmodes=None, cut_modes=0, w_vec=None, interactive=False):
         if nmodes is not None:

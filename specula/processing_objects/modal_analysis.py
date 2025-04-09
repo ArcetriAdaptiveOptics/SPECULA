@@ -1,19 +1,19 @@
-from specula import fuse, show_in_profiler
+from specula import fuse
 
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_value import BaseValue
 from specula.connections import InputValue
-from specula.data_objects.ef import ElectricField
+from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.ifunc import IFunc
 
 class ModalAnalysis(BaseProcessingObj):
 
     def __init__(self, 
-                ifunc: IFunc = None,
-                wavelengthInNm: float = 0,
-                dorms: bool = False,
-                target_device_idx: int = None,
-                precision: int = None):
+                ifunc: IFunc,
+                wavelengthInNm: float=0.0,
+                dorms: bool=False,
+                target_device_idx: int=None,
+                precision: int=None):
 
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
@@ -44,7 +44,7 @@ class ModalAnalysis(BaseProcessingObj):
 
 
     def trigger_code(self):
-        if self.ifunc.zeroPad:
+        if self.ifunc._doZeroPad:
             m = self.xp.dot(self.in_ef.phaseInNm, self.phase2modes)
         else:
             if self.wavelengthInNm > 0:
@@ -70,12 +70,4 @@ class ModalAnalysis(BaseProcessingObj):
             if self.dorms:
                 print(f"Phase RMS: {self.rms.value}")
 
-    # TODO
-    def run_check(self, time_step):
-        errmsg = ""
-        #if self.in_ef is None:
-        #    errmsg += "EF is not valid. "
-        #if self.ifunc is None:
-        #    errmsg += "ifunc is not valid. "
-        return 1
 

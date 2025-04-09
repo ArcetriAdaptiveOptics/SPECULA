@@ -5,29 +5,17 @@ specula.init(0)  # Default target device
 
 import unittest
 
-from specula import cp, np
+from specula import np
 from specula import cpuArray
 
 from specula.processing_objects.func_generator import FuncGenerator
 
+from test.specula_testlib import cpu_and_gpu
 
 class TestFuncGenerator(unittest.TestCase):
 
-    @unittest.skipIf(cp is None, 'Cupy not found')
-    def test_func_generator_constant_gpu(self):
-        self._test_func_generator_constant(target_device_idx=0)
-
-    def test_func_generator_constant_cpu(self):
-        self._test_func_generator_constant(target_device_idx=-1)
-
-    @unittest.skipIf(cp is None, 'Cupy not found')
-    def test_func_generator_sin_gpu(self):
-        self._test_func_generator_sin(target_device_idx=0)
-
-    def test_func_generator_sin_cpu(self):
-        self._test_func_generator_sin(target_device_idx=-1)
-
-    def _test_func_generator_constant(self, target_device_idx):
+    @cpu_and_gpu
+    def test_func_generator_constant(self, target_device_idx, xp):
         constant = 4
         f = FuncGenerator('SIN', target_device_idx=target_device_idx, constant=constant)
         f.check_ready(1)
@@ -36,13 +24,14 @@ class TestFuncGenerator(unittest.TestCase):
         value = cpuArray(f.outputs['output'].value)
         np.testing.assert_almost_equal(value, constant)
 
-    def _test_func_generator_sin(self, target_device_idx):
+    @cpu_and_gpu
+    def test_func_generator_sin(self, target_device_idx, xp):
         amp = 1
         freq = 2
         offset = 3
         constant = 4
         f = FuncGenerator('SIN', target_device_idx=target_device_idx, amp=amp, freq=freq, offset=offset, constant=constant)
-        f.run_check(self)
+        f.setup(0.1, 3)
 
         # Test twice in order to test streams capture, if enabled
         for t in [f.seconds_to_t(x) for x in [0.1, 0.2, 0.3]]:

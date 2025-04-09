@@ -11,8 +11,8 @@ class M2C(BaseDataObj):
                  m2c,
                  nmodes: int=None,
                  norm_factor: float=None,
-                 target_device_idx=None,
-                 precision=None):
+                 target_device_idx: int=None,
+                 precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         self.m2c = self.xp.array(m2c, dtype=self.dtype)
         if nmodes is not None:

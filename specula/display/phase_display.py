@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 from specula.base_processing_obj import BaseProcessingObj
 from specula.connections import InputValue
-from specula.data_objects.ef import ElectricField
+from specula.data_objects.electric_field import ElectricField
 
 
 class PhaseDisplay(BaseProcessingObj):
@@ -67,10 +67,3 @@ class PhaseDisplay(BaseProcessingObj):
         # plt.draw()
         # plt.pause(0.01)
 
-    def run_check(self, time_step):
-        phase = self.inputs['phase'].get(self.target_device_idx)
-        return phase is not None
-
-    @classmethod
-    def from_dict(cls, params):
-        return cls(**params)

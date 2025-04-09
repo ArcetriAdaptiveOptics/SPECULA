@@ -1,8 +1,9 @@
-from specula import float_dtype_list
+from specula import cpuArray, float_dtype_list
 from specula import complex_dtype_list
 from specula.lib.calc_spatialfrequency import calc_spatialfrequency
 
-def calc_phasescreen(L0, dimension, pixel_pitch, xp, precision, seed=0,verbose=False):
+
+def calc_phasescreen(L0, dimension, pixel_pitch, xp, precision, seed=0, verbose=False):
     if verbose:
         print("Phase-screen computation")
 
@@ -27,7 +28,9 @@ def calc_phasescreen(L0, dimension, pixel_pitch, xp, precision, seed=0,verbose=F
     if verbose:
         print("Compute random matrices")
 
-    xp.random.seed(seed)
+    # "seed" must be a numpy array even when using CuPY
+    xp.random.seed(cpuArray(seed))
+    
     re_gauss = xp.random.standard_normal((half_dim + 1, 2 * half_dim + 1))
     im_gauss = xp.random.standard_normal((half_dim + 1, 2 * half_dim + 1))
 

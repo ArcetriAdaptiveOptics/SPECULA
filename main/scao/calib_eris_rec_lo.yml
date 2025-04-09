@@ -1,0 +1,74 @@
+
+
+pushpull:
+  class:     'FuncGenerator'
+  func_type: 'PUSHPULLREPEAT'
+  ncycles:    2
+  nmodes:     10
+  vect_amplitude_data:  'data50_1127'
+  outputs: ['output']
+
+main_override:
+  total_time:  0.040
+
+prop_override:
+  inputs:
+    common_layer_list: ['pupilstop',
+                  'dm.out_layer']
+
+source_on_axis_override:
+  polar_coordinates:  [0.0, 0.0]         # [arcsec, degrees] source polar coordinates
+  magnitude:         7.0  
+
+dm_override:
+  sign: 1
+  inputs:
+      in_command: 'pushpull.output'
+
+detector_lgs_override:
+  photon_noise:      False
+  readout_noise:     False
+
+detector_lo_override:
+  photon_noise:      False
+  readout_noise:     False
+
+
+calibrator_lo:
+  class: 'ImRecCalibrator'
+  nmodes: 2
+  rec_tag:     'eris_rec_lo'
+  im_tag:  'eris_im_lo'
+  #tag_template:    'subap_{main.tag}_n{modes}'
+  inputs:
+    in_slopes: 'slopec_lo.out_slopes'
+    in_commands: 'pushpull.output'
+  outputs: ['out_im']
+
+calibrator_truth:
+  class: 'ImRecCalibrator'
+  nmodes: 8
+  first_mode: 2
+  rec_tag:     'eris_rec_truth'
+  im_tag:  'eris_im_truth'
+  #tag_template:    'subap_{main.tag}_n{modes}'
+  inputs:
+    in_slopes: 'slopec_lo.out_slopes'
+    in_commands: 'pushpull.output'
+  outputs: ['out_im']
+
+
+remove: ['atmo',
+'sh_lgs',
+'detector_lgs',
+'slopec_lgs',
+'modalrec_lgs',
+'modalrec_lo',
+'modalrec_truth',
+'integrator_truth',
+'subtract_truth',
+'integrator_lgs',
+'integrator_lo',
+'modal_combination',
+'psf',
+  ]

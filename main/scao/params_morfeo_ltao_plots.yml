@@ -38,48 +38,48 @@ wind_direction:
 
 on_axis_source:
   class:             'Source'
-  polar_coordinate:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  polar_coordinates:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
   magnitude:         8                    # source magnitude
   wavelengthInNm:    750                   # [nm] wavelength
 
 ngs1_source:
   class:             'Source'
-  polar_coordinate:  [45.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  polar_coordinates:  [45.0, 0.0]           # [arcsec, degrees] source polar coordinates
   height:            90000                 # Source height [m]
   magnitude:         5.0                   # source magnitude
   wavelengthInNm:    589                   # [nm] wavelength
 
 ngs2_source:
   class:             'Source'
-  polar_coordinate:  [45.0, 60.0]          # [arcsec, degrees] source polar coordinates
+  polar_coordinates:  [45.0, 60.0]          # [arcsec, degrees] source polar coordinates
   height:            90000                 # Source height [m]
   magnitude:         5.0                   # source magnitude
   wavelengthInNm:    589                   # [nm] wavelength
 
 ngs3_source:
   class:             'Source'
-  polar_coordinate:  [45.0, 120.0]         # [arcsec, degrees] source polar coordinates
+  polar_coordinates:  [45.0, 120.0]         # [arcsec, degrees] source polar coordinates
   height:            90000                 # Source height [m]
   magnitude:         5.0                   # source magnitude
   wavelengthInNm:    589                   # [nm] wavelength
 
 ngs4_source:
   class:             'Source'
-  polar_coordinate:  [45.0, 180.0]         # [arcsec, degrees] source polar coordinates
+  polar_coordinates:  [45.0, 180.0]         # [arcsec, degrees] source polar coordinates
   height:            90000                 # Source height [m]
   magnitude:         5.0                   # source magnitude
   wavelengthInNm:    589                   # [nm] wavelength
 
 ngs5_source:
   class:             'Source'
-  polar_coordinate:  [45.0, 240.0]         # [arcsec, degrees] source polar coordinates
+  polar_coordinates:  [45.0, 240.0]         # [arcsec, degrees] source polar coordinates
   height:            90000                 # Source height [m]
   magnitude:         5.0                   # source magnitude
   wavelengthInNm:    589                   # [nm] wavelength
 
 ngs6_source:
   class:             'Source'
-  polar_coordinate:  [45.0, 300.0]         # [arcsec, degrees] source polar coordinates
+  polar_coordinates:  [45.0, 300.0]         # [arcsec, degrees] source polar coordinates
   height:            90000                 # Source height [m]
   magnitude:         5.0                   # source magnitude
   wavelengthInNm:    589                   # [nm] wavelength
@@ -99,7 +99,7 @@ atmo:
                          0.0161969, 0.0260951, 0.0155971, 0.0103980, 0.00999811, 0.0119977, 0.00400924, 0.0139974, 0.0129975, 0.00700868,
                          0.0159970, 0.0258951, 0.0190964, 0.00986813, 0.00616883, 0.00400924, 0.00246953, 0.00215959, 0.00184965, 0.00135974,
                          0.00110979, 0.000616883, 0.000925825, 0.000493907, 0.000431918] # Cn2 weights (total must be eq 1)
-  source_dict_ref:      ['on_axis_source','ngs1_source','ngs2_source','ngs3_source','ngs4_source','ngs5_source','ngs6_source']
+  fov:                  160.0  
   inputs:
     seeing: 'seeing.output'
     wind_speed: 'wind_speed.output'
@@ -111,8 +111,8 @@ prop:
   class:                'AtmoPropagation'
   source_dict_ref:      ['on_axis_source', 'ngs1_source', 'ngs2_source', 'ngs3_source', 'ngs4_source', 'ngs5_source', 'ngs6_source' ]
   inputs:
-    layer_list: ['atmo.layer_list',
-                  'pupilstop',
+    atmo_layer_list: 'atmo.layer_list'
+    common_layer_list: ['pupilstop',
                   'dm.out_layer:-1']
   outputs: ['out_on_axis_source_ef','out_ngs1_source_ef','out_ngs2_source_ef','out_ngs3_source_ef','out_ngs4_source_ef','out_ngs5_source_ef','out_ngs6_source_ef']
 
@@ -328,11 +328,11 @@ rec:
   recmat_object:      '/tmp/ltao_rec0'         # reconstruction matrix tag
   inputs:
     in_slopes_list:        ['slopec1.out_slopes']#,'slopec2.out_slopes','slopec3.out_slopes','slopec4.out_slopes','slopec5.out_slopes','slopec6.out_slopes']
-  outputs:  ['out_modes', 'out_pseudo_ol_modes', 'out_modes_first_step']
+  outputs:  ['out_modes', 'out_pseudo_ol_modes']
 
 
 control:
-  class:             'IntControl'
+  class:             'Integrator'
   delay:             2                      # Total temporal delay in time steps
   int_gain_data:     'g0.40_4519'  
   inputs:

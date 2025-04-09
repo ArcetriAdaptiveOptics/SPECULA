@@ -1,0 +1,15 @@
+
+
+
+integrator_lgs_override:
+  inputs:
+      delta_comm: 'modalrec_lgs.out_modes'     
+
+
+dm_override:
+  nmodes:            700
+  inputs:
+      in_command: 'integrator_lgs.out_comm'
+
+
+

@@ -2,7 +2,8 @@
 import numpy as np
 
 from specula import fuse
-from specula.lib import make_mask
+from specula.lib.make_mask import make_mask
+from specula.lib.utils import unravel_index_2d
 from specula.data_objects.slopes import Slopes
 from specula.data_objects.subap_data import SubapData
 from specula.base_value import BaseValue
@@ -144,6 +145,8 @@ class ShSlopec(Slopec):
 
     def calc_slopes_for(self, accumulated=False):
         """
+        TODO Obsoleted by calc_slopes_nofor(). Remove this method?
+
         Calculate slopes using a for loop over subapertures.
 
         Parameters:
@@ -185,7 +188,7 @@ class ShSlopec(Slopec):
             idx = self.subap_idx[i, :]
             subap = pixels[idx].reshape(np_sub, np_sub)
 
-            if self.weight_from_accumulated and self.accumulated_pixels is not None and t >= self.accumulation_dt:
+            if self.weight_from_accumulated and self.accumulated_pixels is not None and self.current_time >= self.accumulation_dt:
                 accumulated_pixels_weight = self.accumulated_pixels[idx].reshape(np_sub, np_sub)
                 accumulated_pixels_weight -= self.xp.min(accumulated_pixels_weight)
                 max_temp = self.xp.max(accumulated_pixels_weight)
@@ -284,8 +287,8 @@ class ShSlopec(Slopec):
 
             self.slopes.xslopes = sx
             self.slopes.yslopes = sy
-            if self.slopes.pupdata_tag != self.subapdata.tag:
-                self.slopes.pupdata_tag = self.subapdata.tag
+            self.slopes.single_mask = self.subapdata.single_mask()
+            self.slopes.display_map = self.subapdata.display_map
             self.slopes.generation_time = self.current_time
 
             self.flux_per_subaperture_vector.value = flux_per_subaperture
@@ -298,7 +301,6 @@ class ShSlopec(Slopec):
         if self.verbose:
             print(f"Slopes min, max and rms : {self.xp.min(sx)}, {self.xp.max(sx)}, {self.xp.sqrt(self.xp.mean(sx ** 2))}")
 
-    
     def calc_slopes_nofor(self, accumulated=False):
         """
         Calculate slopes without a for-loop over subapertures.
@@ -323,14 +325,14 @@ class ShSlopec(Slopec):
             raise ValueError("Only one between _thr_value and _thr_ratio_value can be set.")
 
         # Reform pixels based on the subaperture index
-        idx2d = self.xp.unravel_index(self.subap_idx, orig_pixels.shape)
+        idx2d = unravel_index_2d(self.subap_idx, orig_pixels.shape, self.xp)
         pixels = orig_pixels[idx2d].T
         
         if self.weight_from_accumulated:
             raise NotImplementedError('weight_from_accumulated is not implemented')
         
             n_weight_applied = 0
-            if self.accumulated_pixels is not None and t >= self.accumulation_dt:
+            if self.accumulated_pixels is not None and self.current_time >= self.accumulation_dt:
                 accumulated_pixels_weight = self.accumulated_pixels[self.subap_idx].T
                 accumulated_pixels_weight -= self.xp.min(accumulated_pixels_weight, axis=1, keepdims=True)
                 max_temp = self.xp.max(accumulated_pixels_weight, axis=1)
@@ -354,6 +356,8 @@ class ShSlopec(Slopec):
                     n_weight_applied += self.xp.sum(self.xp.any(accumulated_pixels_weight > 0, axis=1))
 
                 pixels *= accumulated_pixels_weight
+
+                print(f"Weights mask has been applied to {n_weight_applied} sub-apertures")
 
         # Calculate flux and max flux per subaperture
         flux_per_subaperture_vector = self.xp.sum(pixels, axis=0)
@@ -397,6 +401,7 @@ class ShSlopec(Slopec):
         sx = self.xp.sum(pixels * self.xweights.reshape(np_sub * np_sub, 1) * factor[self.xp.newaxis, :], axis=0)
         sy = self.xp.sum(pixels * self.yweights.reshape(np_sub * np_sub, 1) * factor[self.xp.newaxis, :], axis=0)
 
+        # TODO old code?
         if self.weight_from_accumulated:
             print(f"Weights mask has been applied to {n_weight_applied} sub-apertures")
 
@@ -416,6 +421,8 @@ class ShSlopec(Slopec):
 
             self.slopes.xslopes = sx
             self.slopes.yslopes = sy
+            self.slopes.single_mask = self.subapdata.single_mask()
+            self.slopes.display_map = self.subapdata.display_map
             self.slopes.generation_time = self.current_time
 
             self.flux_per_subaperture_vector.value = flux_per_subaperture_vector

@@ -29,7 +29,7 @@ wind_direction:
 
 on_axis_source:
   class:             'Source'
-  polar_coordinate:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  polar_coordinates:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
   magnitude:         8                    # source magnitude
   wavelengthInNm:    750                   # [nm] wavelength
 
@@ -42,8 +42,8 @@ atmo:
   class:                'AtmoEvolution'
   L0:                   40                   # [m] Outer scale
   heights:              [119.] #,837,3045,12780]), # [m] layer heights at 0 zenith angle
-  Cn2:                  [0.70] #,0.06,0.14,0.10]), # Cn2 weights (total must be eq 1)
-  source_dict_ref:      ['on_axis_source']
+  Cn2:                  [1.00] #,0.06,0.14,0.10]), # Cn2 weights (total must be eq 1)
+  fov:                  0.0
   inputs:
     seeing: 'seeing.output'
     wind_speed: 'wind_speed.output'
@@ -55,8 +55,8 @@ prop:
   class:                'AtmoPropagation'
   source_dict_ref:      ['on_axis_source']
   inputs:
-    layer_list: ['atmo.layer_list',
-                  'pupilstop',
+    atmo_layer_list: 'atmo.layer_list'
+    common_layer_list: ['pupilstop',
                   'dm.out_layer:-1']
   outputs: ['out_on_axis_source_ef']
 
@@ -102,11 +102,11 @@ rec:
   recmat_object:      'hiresA_ps512p0.076_pyr90x90_wl798_fv2.1_ft3.0_ma4_bn1_th0.30a0.30b_mn4094'         # reconstruction matrix tag
   inputs:
     in_slopes:        'slopec.out_slopes'
-  outputs:  ['out_modes', 'out_pseudo_ol_modes', 'out_modes_first_step']
+  outputs:  ['out_modes', 'out_pseudo_ol_modes']
 
 
 control:
-  class:             'IntControl'
+  class:             'Integrator'
   delay:             2                      # Total temporal delay in time steps
   int_gain_data:    'g0.50_4094'
   inputs:

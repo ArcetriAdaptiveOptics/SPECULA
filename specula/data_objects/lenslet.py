@@ -4,7 +4,10 @@ from specula.base_data_obj import BaseDataObj
 
 
 class Lenslet(BaseDataObj):
-    def __init__(self, n_lenses=1, target_device_idx=None, precision=None):
+    def __init__(self,
+                 n_lenses: int=1,
+                 target_device_idx:int =None,
+                 precision:int =None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         self.n_lenses = n_lenses
         self._lenses = []
@@ -36,24 +39,26 @@ class Lenslet(BaseDataObj):
         return self._lenses[x][y]
 
     def save(self, filename, hdr):
-        """Saves the lenslet data to a file with the header information"""
+        """TODO Invalid code. To be updated.
+
+        Saves the lenslet data to a file with the header information"""
         hdr['VERSION'] = 1
         super().save(filename, hdr)
         self.xp.save(filename, self.xp.array(self._lenses))
 
     def read(self, filename, hdr, exten=0):
-        """Reads lenslet data from a file and updates object state"""
+        """TODO Invalid code. To be updated.
+
+        Reads lenslet data from a file and updates object state"""
         super().read(filename, hdr, exten)
         self._lenses = self.xp.load(filename, allow_pickle=True).tolist()
         exten += 1
 
     @classmethod
     def restore(cls, filename):
-        """Restores a lenslet object from a file"""
-        data = self.xp.load(filename, allow_pickle=True)
-        version = int(data['VERSION'])
-        if version != 1:
-            raise ValueError(f"Error: unknown version {version} in file {filename}")
+        """TODO Invalid code. To be updated.
+
+        Restores a lenslet object from a file"""
 
         p = cls()
         p.read(filename, hdr={})

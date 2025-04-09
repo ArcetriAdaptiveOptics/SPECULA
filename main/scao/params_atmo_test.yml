@@ -1,0 +1,90 @@
+---
+
+main:
+  root_dir:          './calib/SCAO'         # Root directory for calibration manager
+  pixel_pupil:       256                    # Linear dimension of pupil phase array
+  pixel_pitch:       0.03                   # [m] Pitch of the pupil phase array
+  total_time:        80.0                  # [s] Total simulation running time
+  time_step:         0.001                  # [s] Simulation time step
+
+
+seeing:
+  class:             'FuncGenerator'
+  constant:          0.8                  # ["] seeing value
+  func_type:         'SIN'                 # TODO necessary for factory.py line 217
+  outputs: ['output']
+
+
+wind_speed:
+  class:             'FuncGenerator'
+  constant:          [1000] #, 10, 5, 30]                #,10.,20.,10.]      # [m/s] Wind speed value
+  outputs: ['output']
+
+
+wind_direction:
+  class:             'FuncGenerator'
+  constant:          [0.] #,270.,180.,90.]   # [degrees] Wind direction value
+  outputs: ['output']
+
+
+on_axis_source:
+  class:             'Source'
+  polar_coordinates:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  magnitude:         8                    # source magnitude
+  wavelengthInNm:    750                   # [nm] wavelength
+
+atmoF:
+  class:                'AtmoEvolution'
+  L0:                   [8] #, 20, 30, 10]                   # [m] Outer scale
+  heights:              [119.] #, 180, 300, 500] #,837,3045,12780]), # [m] layer heights at 0 zenith angle
+  Cn2:                  [1.0] #, 0.3, 0.1, 0.2] #,0.06,0.14,0.10]), # Cn2 weights (total must be eq 1)
+  fov:                  0.0
+  inputs:
+    seeing: 'seeing.output'
+    wind_speed: 'wind_speed.output'
+    wind_direction: 'wind_direction.output'
+  outputs: ['layer_list']
+
+atmoI:
+  class:                'AtmoInfiniteEvolution'
+  L0:                   [8] #, 20, 30, 10]                   # [m] Outer scale
+  heights:              [119.] #, 180, 300, 500] #,837,3045,12780]), # [m] layer heights at 0 zenith angle
+  Cn2:                  [1] #, 0.3, 0.1, 0.2] #,0.06,0.14,0.10]), # Cn2 weights (total must be eq 1)
+  fov:                  0.0
+  inputs:
+    seeing: 'seeing.output'
+    wind_speed: 'wind_speed.output'
+    wind_direction: 'wind_direction.output'
+  outputs: ['layer_list']
+
+propF:
+  class:                'AtmoPropagation'
+  source_dict_ref:      ['on_axis_source']
+  inputs:
+    atmo_layer_list: 'atmoF.layer_list'
+  outputs: ['out_on_axis_source_ef']
+
+propI:
+  class:                'AtmoPropagation'
+  source_dict_ref:      ['on_axis_source']
+  inputs:
+    atmo_layer_list: 'atmoI.layer_list'
+  outputs: ['out_on_axis_source_ef']
+
+ph_disp:
+  class:            'DoublePhaseDisplay'
+  inputs:
+    phase1:       "propF.out_on_axis_source_ef"
+    phase2:       "propI.out_on_axis_source_ef"
+  window:           12
+  title:            'PUPIL PHASE COMPARE'
+  disp_factor:      2
+
+#ph_dispI:
+#  class:            'PhaseDisplay'
+#  inputs:
+#    phase:       "propI.out_on_axis_source_ef"
+#  window:           13
+#  title:            'PUPIL PHASE INFINITE'
+#  disp_factor:      2
+

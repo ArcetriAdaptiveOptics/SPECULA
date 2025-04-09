@@ -30,14 +30,40 @@ class ModalAnalysisWFS:
 
 class CCD(BaseProcessingObj):
     '''Simple CCD from intensity field'''
-    def __init__(self, size, dt, bandw, name=None, binning=1, photon_noise=False, readout_noise=False, excess_noise=False,
-                 darkcurrent_noise=False, background_noise=False, cic_noise=False, cte_noise=False,
-                 readout_level=0, darkcurrent_level=0, background_level=0, cic_level=0, cte_mat=None,
-                 quantum_eff=1.0, pixelGains=None, charge_diffusion=False, charge_diffusion_fwhm=None,
-                 wfs=None, pixel_pupil=None, pixel_pitch=None, sky_bg_norm=None, photon_seed=1,
-                 readout_seed=2, excess_seed=3, cic_seed=4, excess_delta=1.0, start_time=0,
-                 ADU_gain=None, ADU_bias=400, emccd_gain=None,
-                 target_device_idx=None, precision=None):
+    def __init__(self, 
+                 size: int,           # TODO list=[80,80],
+                 dt: float,           # TODO =0.001,
+                 bandw: float,        # TODO =300.0,
+                 name: str='',        # TODO ='OCAM2k',
+                 binning: int=1,
+                 photon_noise: bool=False,
+                 readout_noise: bool=False,
+                 excess_noise: bool=False,
+                 darkcurrent_noise: bool=False,
+                 background_noise: bool=False,
+                 cic_noise: bool=False,
+                 cte_noise: bool=False,
+                 readout_level: str='', # check this is ok
+                 darkcurrent_level: str='', # check this is ok
+                 background_level: str='', # check this is ok
+                 cic_level: float=0,
+                 cte_mat=None, # ??
+                 quantum_eff: float=1.0,
+                 pixelGains=None,                 
+                 wfs=None,
+                 pixel_pupil: int=None,
+                 pixel_pitch: float=None,
+                 sky_bg_norm: float=None,
+                 photon_seed: int=1,
+                 readout_seed: int=2,
+                 excess_seed: int=3,
+                 excess_delta: float=1.0,
+                 start_time: int=0,
+                 ADU_gain: int=8,
+                 ADU_bias: int=400,
+                 emccd_gain: int=1,
+                 target_device_idx: int=None,
+                 precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         if wfs:
@@ -90,11 +116,18 @@ class CCD(BaseProcessingObj):
                         background_level = 0
 
         # Adjust ADU / EM gain values
-        if emccd_gain is None:
-            emccd_gain = 400 if excess_noise else 1
+        
+        # TODO old code
+        if excess_noise:
+            emccd_gain = 400         
+            ADU_gain = 1 / 20
 
-        if ADU_gain is None:
-            ADU_gain = 1 / 20 if excess_noise else 8
+        # TODO new code to be tested
+        # if emccd_gain is None:
+        #     emccd_gain = 400 if excess_noise else 1
+
+        # if ADU_gain is None:
+        #     ADU_gain = 1 / 20 if excess_noise else 8
 
         if ADU_gain <= 1 and (not excess_noise or emccd_gain <= 1):
             print('ATTENTION: ADU gain is less than 1 and there is no electronic multiplication.')
@@ -124,12 +157,8 @@ class CCD(BaseProcessingObj):
         self._photon_seed = photon_seed
         self._readout_seed = readout_seed
         self._excess_seed = excess_seed
-        self._cic_seed = cic_seed
 
         self._excess_delta = excess_delta
-
-        self._charge_diffusion = charge_diffusion
-        self._charge_diffusion_fwhm = charge_diffusion_fwhm
         self._keep_ADU_bias = False
         self._doNotChangeI = False
         self._bg_remove_average = False
@@ -189,8 +218,6 @@ class CCD(BaseProcessingObj):
         if self._start_time <= 0 or self.current_time >= self._start_time:
             in_i = self.local_inputs['in_i']
             if in_i.generation_time == self.current_time:
-                if self._loop_dt == 0:
-                    raise ValueError('ccd object loop_dt property must be set.')
                 if self._doNotChangeI:
                     self._integrated_i.sum(in_i, factor=self._loop_dt / self._dt)
                 else:
@@ -220,10 +247,7 @@ class CCD(BaseProcessingObj):
 
         if self._cic_noise:
             ccd_frame += self.xp.random.binomial(1, self._cic_level, ccd_frame.shape)
-
-        if self._charge_diffusion:
-            ccd_frame = convolve(ccd_frame, self._chDiffKernel, mode='constant', cval=0.0)
-
+        
         if self._photon_noise:
             ccd_frame = self._photon_rng.poisson(ccd_frame)
 
@@ -293,27 +317,15 @@ class CCD(BaseProcessingObj):
                            (dim2d[1] // self._binning // 2) * j:(dim2d[1] // self._binning // 2) * (j + 1)] = quadrantsGains[j * 2 + i]
         self._pixelGains = pixelGains
 
-    def run_check(self, time_step, errmsg=''):
-        self.prepare_trigger(0)
+    def setup(self, loop_dt, loop_niters):
+        super().setup(loop_dt, loop_niters)
         in_i = self.inputs['in_i'].get(self.target_device_idx)
-        if self._loop_dt == 0:
-            self._loop_dt = time_step
         if in_i is None:
-            errmsg = 'Input intensity object has not been set'
-        if self._pixels is None:
-            errmsg = 'Pixel object has not been set'
-        if self._dt % time_step != 0:
-            errmsg = f'integration time dt={self._dt} must be a multiple of the basic simulation time_step={time_step}'
+            raise ValueError('Input intensity object has not been set')
         if self._dt <= 0:
-            errmsg = f'dt (integration time) is {self._dt} and must be greater than zero'
+            raise ValueError(f'dt (integration time) is {self._dt} and must be greater than zero')
+        if self._dt % loop_dt != 0:
+            raise ValueError(f'integration time dt={self._dt} must be a multiple of the basic simulation time_step={loop_dt}')
         if self._cte_noise and self._cte_mat is None:
-            errmsg = 'CTE matrix must be set!'
-
-
-        is_check_ok = (in_i is not None and self._pixels is not None and
-                       (self._dt > 0) and (self._dt % time_step == 0) and
-                       (not self._cte_noise or self._cte_mat is not None))
-        print(errmsg)
-        # super().build_stream()
-        return is_check_ok
+            raise ValueError('CTE matrix must be set if CTE noise is activated')
 

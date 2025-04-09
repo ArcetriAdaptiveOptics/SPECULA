@@ -43,14 +43,14 @@ wind_direction:
 
 on_axis_source:
   class:             'Source'
-  polar_coordinate:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  polar_coordinates:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
   magnitude:         8                    # source magnitude
   wavelengthInNm:    750                   # [nm] wavelength
 
 
 lgs1_source:
   class:             'Source'
-  polar_coordinate:  [45.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  polar_coordinates:  [45.0, 0.0]           # [arcsec, degrees] source polar coordinates
   height:            90000                # Source height [m]
   magnitude:         5                    # source magnitude
   wavelengthInNm:    589                  # [nm] wavelength
@@ -72,8 +72,7 @@ atmo:
                          0.0161969, 0.0260951, 0.0155971, 0.0103980, 0.00999811, 0.0119977, 0.00400924, 0.0139974, 0.0129975, 0.00700868,
                          0.0159970, 0.0258951, 0.0190964, 0.00986813, 0.00616883, 0.00400924, 0.00246953, 0.00215959, 0.00184965, 0.00135974,
                          0.00110979, 0.000616883, 0.000925825, 0.000493907, 0.000431918] # Cn2 weights (total must be eq 1)
-  mcao_fov:             180.0               # MCAO fov in arcsec (?)
-  source_dict_ref:      ['on_axis_source', 'lgs1_source']
+  fov:                  180.0               # MCAO fov in arcsec (?)
   inputs:
     seeing: 'seeing.output'
     wind_speed: 'wind_speed.output'
@@ -85,8 +84,8 @@ prop:
   class:                'AtmoPropagation'
   source_dict_ref:      ['on_axis_source', 'lgs1_source']
   inputs:
-    layer_list: ['atmo.layer_list',
-                  'pupilstop',
+    atmo_layer_list: 'atmo.layer_list'
+    common_layer_list: ['pupilstop',
                   'dm.out_layer:-1']
   outputs: ['out_on_axis_source_ef', 'out_lgs1_source_ef']
 
@@ -133,10 +132,10 @@ rec:
   recmat_object:      '/tmp/test_morfeo_scao_rec_2000modes'         # reconstruction matrix tag
   inputs:
     in_slopes_list:        ['slopec1.out_slopes']
-  outputs:  ['out_modes', 'out_pseudo_ol_modes', 'out_modes_first_step']
+  outputs:  ['out_modes', 'out_pseudo_ol_modes']
 
 control:
-  class:             'IntControl'
+  class:             'Integrator'
   delay:             2                      # Total temporal delay in time steps
   int_gain_data:     'g0.40_4519'  
   inputs:

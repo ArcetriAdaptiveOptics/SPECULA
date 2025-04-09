@@ -26,7 +26,7 @@ seeing:
 
 on_axis_source:
   class:             'Source'
-  polar_coordinate:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  polar_coordinates:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
   magnitude:         8                    # source magnitude
   wavelengthInNm:    750                  # [nm] wavelength
 
@@ -36,7 +36,7 @@ pupilstop:                                # Default parameters (circular pupil)
 atmo:
   class:                'AtmoRandomPhase'
   L0:                   40                   # [m] Outer scale
-  source_dict_ref:      ['on_axis_source']
+  fov:                  0.0
   inputs:
     seeing: 'seeing.output'
     pupilstop: 'pupilstop'
@@ -98,13 +98,13 @@ test_disp:
    window:           15
    title:            'test'
 
-sc_disp:
-   class:            'SlopecDisplay'
-   inputs:
-     slopes:       'slopec.out_slopes'
-     pupdata:      'slopec.out_pupdata'
-   window:           16
-   disp_factor:      4
+#sc_disp:
+#   class:            'SlopecDisplay'
+#   inputs:
+#     slopes:       'slopec.out_slopes'
+#     pupdata:      'slopec.out_pupdata'
+#   window:           16
+#   disp_factor:      4
 
 
 data_store:

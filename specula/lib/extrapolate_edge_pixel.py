@@ -1,7 +1,7 @@
 
 import numpy as np
 
-def extrapolate_edge_pixel(phase, sum_1pix_extra, sum_2pix_extra, out=None, xp=np):
+def extrapolate_edge_pixel(phase, sum_1pix_extra, sum_2pix_extra, idx_1pix, idxExtraPol2, out=None, xp=np):
     """
     Extrapolates the phase array at the edges based on neighboring pixel values.
 
@@ -15,16 +15,10 @@ def extrapolate_edge_pixel(phase, sum_1pix_extra, sum_2pix_extra, out=None, xp=n
     if out is None:
         out = phase.copy()
     
-    # Find indices where extrapolation is needed (for 1-pixel extrapolation)
-    idx_1pix = xp.where(sum_1pix_extra >= 0)
-    
     # Extract extrapolated values from the phase array using indices
     # Use ravel() instead of .flat for cupy compatibility
     vectExtraPol = phase.ravel()[sum_1pix_extra[idx_1pix]]
     vectExtraPol2 = phase.ravel()[sum_2pix_extra[idx_1pix]]
-    
-    # Find indices for 2-pixel extrapolation where value is defined
-    idxExtraPol2 = xp.where(sum_2pix_extra[idx_1pix] >= 0)
     
     # Update vectExtraPol based on 2-pixel extrapolation conditions
     vectExtraPol[idxExtraPol2] = 2 * vectExtraPol[idxExtraPol2] - vectExtraPol2[idxExtraPol2]

@@ -2,22 +2,22 @@ import numpy as np
 
 from specula.base_data_obj import BaseDataObj
 from specula.lib.n_phot import n_phot
+from specula import ASEC2RAD
 
-sec2rad = 4.848e-6
 degree2rad = np.pi / 180.
 
 class Source(BaseDataObj):
     '''source'''
 
     def __init__(self,
-                 polar_coordinate,
-                 magnitude: float,
-                 wavelengthInNm: float,
+                 polar_coordinates: list, # TODO =[0.0,0.0],
+                 magnitude: float,        # TODO =10.0,
+                 wavelengthInNm: float,   # TODO =500.0,
                  height: float=float('inf'),
                  band: str='',
                  zeroPoint: float=0,
-                 zenithAngleInDeg: float=None,
-                 error_coord=(0., 0.),
+                 zenithAngleInDeg: float=None,  # TODO =0.0,
+                 error_coord: tuple=(0., 0.),
                  verbose: bool=False):
         super().__init__()
         
@@ -25,13 +25,18 @@ class Source(BaseDataObj):
             airmass = 1. / np.cos(np.radians(zenithAngleInDeg), dtype=self.dtype)
             height *= airmass
             print(f'get_source: changing source height by airmass value ({airmass})')
+ 
+        # TODO new code to test
+        #airmass = 1. / np.cos(np.radians(zenithAngleInDeg), dtype=self.dtype)
+        #height *= airmass
+        #print(f'get_source: changing source height by airmass value ({airmass})')
 
-        polar_coordinate = np.array(polar_coordinate, dtype=self.dtype) + np.array(error_coord, dtype=self.dtype)
+        polar_coordinates = np.array(polar_coordinates, dtype=self.dtype) + np.array(error_coord, dtype=self.dtype)
         if any(error_coord):
             print(f'there is a desired error ({error_coord[0]},{error_coord[1]}) on source coordinates.')
-            print(f'final coordinates are: {polar_coordinate[0]},{polar_coordinate[1]}')
+            print(f'final coordinates are: {polar_coordinates[0]},{polar_coordinates[1]}')
         
-        self.polar_coordinate = polar_coordinate
+        self.polar_coordinates = polar_coordinates
         self.height = height
         self.magnitude = magnitude
         self.wavelengthInNm = wavelengthInNm
@@ -40,40 +45,40 @@ class Source(BaseDataObj):
         self.verbose = verbose
 
     @property
-    def polar_coordinate(self):
-        return self._polar_coordinate
+    def polar_coordinates(self):
+        return self._polar_coordinates
 
-    @polar_coordinate.setter
-    def polar_coordinate(self, value):
-        self._polar_coordinate = np.array(value, dtype=self.dtype)
+    @polar_coordinates.setter
+    def polar_coordinates(self, value):
+        self._polar_coordinates = np.array(value, dtype=self.dtype)
 
     @property
     def r(self):
-        return self._polar_coordinate[0] * sec2rad
+        return self._polar_coordinates[0] * ASEC2RAD
 
     @property
     def r_arcsec(self):
-        return self._polar_coordinate[0]
+        return self._polar_coordinates[0]
 
     @property
     def phi(self):
-        return self._polar_coordinate[1] * degree2rad
+        return self._polar_coordinates[1] * degree2rad
 
     @property
     def phi_deg(self):
-        return self._polar_coordinate[1]
+        return self._polar_coordinates[1]
 
     @property
     def x_coord(self):
-        alpha = self._polar_coordinate[0] * 4.848e-6
+        alpha = self._polar_coordinates[0] * ASEC2RAD
         d = self.height * np.sin(alpha)
-        return np.cos(np.radians(self._polar_coordinate[1])) * d
+        return np.cos(np.radians(self._polar_coordinates[1])) * d
 
     @property
     def y_coord(self):
-        alpha = self._polar_coordinate[0] * 4.848e-6
+        alpha = self._polar_coordinates[0] * ASEC2RAD
         d = self.height * np.sin(alpha)
-        return np.sin(np.radians(self._polar_coordinate[1])) * d
+        return np.sin(np.radians(self._polar_coordinates[1])) * d
 
     def phot_density(self):
         if self.zeroPoint > 0:

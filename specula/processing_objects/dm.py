@@ -9,22 +9,22 @@ from specula.base_processing_obj import BaseProcessingObj
 
 class DM(BaseProcessingObj):
     def __init__(self,
-                 pixel_pitch: float,
-                 height: float,
+                 pixel_pitch: float,     # TODO =0.05,
+                 height: float,          # TODO =0.0,
                  ifunc: IFunc=None,
                  m2c: M2C=None,
                  type_str: str=None,
                  nmodes: int=None,
                  nzern: int=None,
                  start_mode: int=None,
-                 idx_modes = None,
+                 idx_modes: list = None,
                  npixels: int=None,
                  obsratio: float=None,
                  diaratio: float=None,
                  pupilstop: Pupilstop=None,
                  sign: int=-1,
-                 target_device_idx=None, 
-                 precision=None
+                 target_device_idx: int=None, 
+                 precision: int=None
                  ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
@@ -82,9 +82,4 @@ class DM(BaseProcessingObj):
     def ifunc(self, value):
         self._ifunc.influence_function = value
     
-    def run_check(self, time_step, errmsg=""):
-        commands_input = self.inputs['in_command'].get(self.target_device_idx)
-        if commands_input is None:
-            errmsg += f"{self.repr()} No input command defined"
-        
-        return commands_input is not None and self.layer is not None and self.ifunc is not None
+       

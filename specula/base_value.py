@@ -53,3 +53,6 @@ class BaseValue(BaseDataObj):
             value_str = hdr.get('VALUE', None)
             if value_str is not None:
                 self._value = eval(value_str)  # Convert back from string to original type
+
+    def array_for_display(self):
+        return self._value

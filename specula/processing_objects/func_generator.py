@@ -5,12 +5,30 @@ from specula.base_value import BaseValue
 from specula.base_processing_obj import BaseProcessingObj
 from specula.lib.modal_pushpull_signal import modal_pushpull_signal
 
+
+# TODO
+class Vibrations():
+    pass
+
+
 class FuncGenerator(BaseProcessingObj):
-    def __init__(self, func_type='SIN', nmodes=None, time_hist=None, psd=None, fr_psd=None, continuous_psd=None, 
-                constant=None, amp=None, freq=None, offset=None, vect_amplitude=None, 
-                seed=None, ncycles=1,
-                target_device_idx=None, 
-                precision=None
+    def __init__(self, 
+                 func_type='SIN', 
+                 nmodes: int=None, 
+                 time_hist=None, 
+                 psd=None, 
+                 fr_psd=None, 
+                 continuous_psd=None, 
+                 constant: list=None, 
+                 amp: list=None, 
+                 freq: list=None, 
+                 offset: list=None, 
+                 vect_amplitude: list=None, 
+                 seed: int=None, 
+                 ncycles: int=1,
+                 vsize: int=1,
+                 target_device_idx: int=None, 
+                 precision: int=None
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
@@ -28,12 +46,13 @@ class FuncGenerator(BaseProcessingObj):
         else:
             self.seed = 0
 
+        self.vsize = vsize
         self.constant = self.xp.array(constant, dtype=self.dtype) if constant is not None else 0.0
         self.amp = self.xp.array(amp, dtype=self.dtype) if amp is not None else 0.0
         self.freq = self.xp.array(freq, dtype=self.dtype) if freq is not None else 0.0
         self.offset = self.xp.array(offset, dtype=self.dtype) if offset is not None else 0.0
         self.vect_amplitude = self.xp.array(vect_amplitude, dtype=self.dtype) if vect_amplitude is not None else 0.0
-        self.output = BaseValue(target_device_idx=target_device_idx, value=self.xp.array(0))
+        self.output = BaseValue(target_device_idx=target_device_idx, value=self.xp.zeros(self.vsize, dtype=self.dtype))
         self.vib = None
 
         if seed is not None:
@@ -41,6 +60,9 @@ class FuncGenerator(BaseProcessingObj):
 
         # Initialize attributes based on the type
         if self.type == 'SIN':
+            pass
+        
+        elif self.type == 'SQUARE_WAVE':
             pass
 
         elif self.type == 'LINEAR':
@@ -50,6 +72,8 @@ class FuncGenerator(BaseProcessingObj):
             pass
 
         elif self.type == 'VIB_HIST':
+            raise NotImplementedError('VIB_HIST type is not implemented')
+        
             if nmodes is None:
                 raise ValueError('NMODES keyword is mandatory for type VIB_HIST')
             if time_hist is None:
@@ -57,6 +81,8 @@ class FuncGenerator(BaseProcessingObj):
             self.vib = Vibrations(nmodes, time_hist=time_hist)
 
         elif self.type == 'VIB_PSD':
+            raise NotImplementedError('VIB_PSD type is not implemented')
+
             if nmodes is None:
                 raise ValueError('NMODES keyword is mandatory for type VIB_PSD')
             if psd is None and continuous_psd is None:
@@ -98,6 +124,9 @@ class FuncGenerator(BaseProcessingObj):
         if self.type == 'SIN':
             phase = self.freq*2 * self.xp.pi*self.current_time_seconds + self.offset
             self.output_value = self.amp * self.xp.sin(phase, dtype=self.dtype) + self.constant
+        elif self.type == 'SQUARE_WAVE':
+            phase = self.freq*2 * self.xp.pi*self.current_time_seconds + self.offset
+            self.output_value = self.amp * self.xp.sign(self.xp.sin(phase, dtype=self.dtype)) + self.constant
         elif self.type == 'LINEAR':
             self.output_value = self.slope * self.current_time_seconds + self.constant
 
@@ -116,22 +145,27 @@ class FuncGenerator(BaseProcessingObj):
             raise ValueError(f'Unknown function generator type: {self.type}')
 
     def post_trigger(self):
-        self.output.value = self.output_value
+        
+        if self.vsize>1:
+            self.output.value[:] = self.output_value * self.xp.ones(self.vsize, dtype=self.dtype)
+        else:
+            self.output.value = self.output_value
+
         self.output.generation_time = self.current_time
 
     def get_time_hist_at_current_time(self):
         t = self.current_time
-        i = int(np.round(t / self.loop_dt))
+        i = int(np.round(t / self._loop_dt))
         return self.xp.array(self.time_hist[i])
 
-    def run_check(self, time_step, errmsg=""):
+    def setup(self, loop_dt, loop_niters):
+        super().setup(loop_dt, loop_niters)
         if self.vib:
-            self.vib.set_niters(self.loop_niters + 1)
-            self.vib.set_samp_freq(1.0 / self.t_to_self.current_time_seconds(self.loop_dt))
+            self.vib.set_niters(loop_niters + 1)
+            self.vib.set_samp_freq(1.0 / self.t_to_seconds(loop_dt))
             self.vib.compute()
             self.time_hist = self.vib.get_time_hist()
 
 #        if self.type in ['SIN', 'LINEAR', 'RANDOM']:
 #            self.build_stream()
-        return True
 

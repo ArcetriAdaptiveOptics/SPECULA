@@ -44,16 +44,6 @@ class LoopControl:
         self._list.clear()
         self._ordered_lists.clear()
 
-    def run_check(self, dt):
-        for element in self._list:
-            errmsg = ''
-            if self._verbose:
-                print(f'Checking {repr(element)}')
-            if not element.run_check(dt):
-                raise ValueError(f'Run check failed for object {repr(element)}: {errmsg}')
-        if self._verbose:
-            print('All checks OK')
-
     def niters(self):
         return (self._run_time + self._t0) / self._dt if self._dt != 0 else 0
 
@@ -67,15 +57,15 @@ class LoopControl:
         self._dt = dt
 
     def run(self, run_time=None, t0=None, dt=None, stop_on_data=None, stop_at_time=None,
-            NOCHECK=False, profiling=False, quiet=False, speed_report=False):
+            profiling=False, quiet=False, speed_report=False):
         self.start(run_time=run_time, t0=t0, dt=dt, stop_on_data=stop_on_data, stop_at_time=stop_at_time,
-                   NOCHECK=NOCHECK, profiling=profiling, quiet=quiet, speed_report=speed_report)
+                   profiling=profiling, quiet=quiet, speed_report=speed_report)
         while self._t < self._t0 + self._run_time:
             self.iter()
         self.finish()
 
     def start(self, run_time=None, t0=None, dt=None, stop_on_data=None, stop_at_time=None,
-              NOCHECK=False, profiling=False, quiet=False, speed_report=False):
+              profiling=False, quiet=False, speed_report=False):
         if run_time is not None:
             self._init_run_time = run_time
         if dt is not None:
@@ -95,11 +85,7 @@ class LoopControl:
         self._t0 = self.seconds_to_t(self._init_t0)
 
         for element in self._list:
-            element.loop_dt = self._dt
-            element.loop_niters = self.niters()
-
-        if not NOCHECK:
-            self.run_check(self._dt)
+            element.setup(self._dt, self.niters())
 
         self._t = self._t0
 

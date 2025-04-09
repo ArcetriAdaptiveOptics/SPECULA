@@ -11,12 +11,12 @@ from specula.connections import InputValue
 
 
 class PsfDisplay(BaseProcessingObj):
-    def __init__(self, disp_factor=1, wsize=[600, 600], window=25, title='PSF'):
+    def __init__(self, disp_factor=1, wsize=[600, 600], window=25, title='PSF', log10=False):
         super().__init__()
         self._psf = None
         self._wsize = wsize
         self._window = window
-        self._log = False
+        self._log = log10
         self._image_p2v = 0.0
         self._title = title
         self._opened = False
@@ -35,10 +35,11 @@ class PsfDisplay(BaseProcessingObj):
         image = cpuArray(psf.value)
 
         if self._image_p2v > 0:
-            image = xp.maximum(image, self._image_p2v**(-1.) * xp.max(image))
+            image = np.maximum(image, self._image_p2v**(-1.) * np.max(image))
         
         if self._log:
-            image = xp.log10(image)
+             image = np.log10(image)
+
 
         if not self._opened:
             self.set_w()
@@ -53,10 +54,3 @@ class PsfDisplay(BaseProcessingObj):
         self.fig.canvas.draw()
         plt.pause(0.001)
 
-    def run_check(self, time_step):
-        psf = self.inputs['psf'].get(self.target_device_idx)
-        return psf is not None
-
-    @classmethod
-    def from_dict(cls, params):
-        return cls(**params)

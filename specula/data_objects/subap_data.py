@@ -13,9 +13,9 @@ class SubapData(BaseDataObj):
                  display_map,
                  nx: int,
                  ny: int,
-                 energy_th: float = 0,
-                 target_device_idx=None,
-                 precision=None):
+                 energy_th: float=0,
+                 target_device_idx: int=None,
+                 precision: int=None):
         '''
         idxs: np.array[n_subaps, n_pixels] of pixel indices in a flattened pixel array for each subaperture
         display_map: np.array[n_subaps] of subaperture indices on a flattened nx * ny array, used for display only
@@ -38,9 +38,9 @@ class SubapData(BaseDataObj):
         return int(math.sqrt(self.idxs.shape[1]))
 
     def single_mask(self):
-        f = self.xp.zeros((self.nx, self.ny), dtype=self.dtype)
-        f.flat[self.display_map] = 1
-        return f
+        f = self.xp.zeros(self.nx * self.ny, dtype=self.dtype)
+        self.xp.put(f, self.display_map, 1)
+        return f.reshape((self.nx, self.ny))
 
     def subap_idx(self, n):
         """Returns the indices of subaperture `n`."""

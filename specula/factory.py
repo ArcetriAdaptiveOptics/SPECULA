@@ -1,19 +1,40 @@
 import numpy as np
+from specula.lib.make_mask import make_mask
+from specula.lib.make_xy import make_xy
+from specula.lib.modal_pushpull_signal import modal_pushpull_signal
 
-from specula.loop_control import LoopControl
 from specula.calib_manager import CalibManager
 from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.ifunc import IFunc
+from specula.data_objects.m2c import M2C
+from specula.data_objects.lenslet import Lenslet
 
 from specula.processing_objects.modulated_pyramid import ModulatedPyramid
 from specula.processing_objects.processing_container import ProcessingContainer
-from specula.processing_objects.int_control import IntControl
+from specula.processing_objects.int_control import Integrator
 from specula.processing_objects.func_generator import FuncGenerator
+from specula.processing_objects.base_operation import BaseOperation
 
 from specula import xp
 from specula import global_precision
 from specula import float_dtype_list
 from specula import complex_dtype_list
+
+
+# Definitions intended to remove warnings
+
+AveSlopes = AtmoReadCube = Ch2ndControl = Demodulate = DerPreControl = DisturbanceM1Elt = DisturbanceMap = object
+Disturbance = DM_M2C = EFGenerator = EFProduct = EFResize = EFShift = EFSpatialFilter = EFVariance = EFZoom = object
+ExtendedSource = IdealWFS = IdealWFSSlopec = IntegratorOpt = IntegratorAutoGain = IntegratorState = IIRControl = object
+LUTControl = MatFilter = Kernel = LIFT = ModalAnalysisWFS = ModalRecNN = ModalRecNNMulti = object
+IIRControlState = IntegratorMat = LIFT_SH_Slopec = M2CRec = ModalAnalysis = ModalAnalysisSlopec = AVC = object
+ModalRecNNPython = ModalRecCured = ModalRecDisplay = ShShift = ShTilt = PyrTilt = OptGainControl = object
+IirFilter = IirFilterState = object
+
+def zern2phi(*args, **kwargs):
+    pass
+
+verbose = False
 
 
 class Factory:
@@ -626,6 +647,7 @@ class Factory:
         carrierAmplitude = self.extract(params, 'carrierAmplitudeInNm', default=0.0)
         carrierFrequency = self.extract(params, 'carrierFrequency', default=0.0)
 
+        phase2modes_tag = self.extract(params, 'phase2modes_tag', default=None)
         mask = None
         if pupil_mask_tag:
             if phase2modes_tag:
@@ -692,7 +714,7 @@ class Factory:
                 modal_pushpull_signal(nmodes, amplitude=amp, vect_amplitude=vect_amplitude, linear=linear, 
                                     min_amplitude=min_amplitude, ncycles=ncycles)
                 vect_amplitude0 = vect_amplitude[:repeat_amp_mode]
-                for i in range(ceil(nmodes / repeat_amp_mode)):
+                for i in range(np.ceil(nmodes / repeat_amp_mode)):
                     vect_amplitude[i*repeat_amp_mode:min((i+1)*repeat_amp_mode, nmodes)] = vect_amplitude0[:min(repeat_amp_mode, nmodes - i*repeat_amp_mode)]
                 amp = None
 
@@ -738,6 +760,7 @@ class Factory:
 
         doNotBuildRecProp = self.extract(params, 'doNotBuildRecProp', default=None)
         notSeenByLgs = self.extract(params, 'notSeenByLgs', default=None)
+        phase2modes_tag = self.extract(params, 'phase2modes_tag', default=None)
 
         mask = None
         if pupil_mask_tag:
@@ -933,7 +956,7 @@ class Factory:
         """
         params = self.ensure_dictionary(params)
 
-        polar_coordinate = params.pop('polar_coordinate')
+        polar_coordinates = params.pop('polar_coordinates')
         height = params.pop('height')
         magnitude = params.pop('magnitude')
         wavelengthInNm = params.pop('wavelengthInNm')
@@ -967,7 +990,7 @@ class Factory:
         if kernel4PSF_conv_tag and kernel4PSF_conv is None:
             kernel4PSF_conv = self._cm.read_data(kernel4PSF_conv_tag)
 
-        polar_coordinate += error_coord
+        polar_coordinates += error_coord
 
         if 'zenithAngleInDeg' in self._main:
             airmass = 1.0 / xp.cos(xp.radians(self._main['zenithAngleInDeg']))
@@ -979,7 +1002,7 @@ class Factory:
         if focusHeight is not None:
             focusHeight *= airmass
 
-        extended_source = ExtendedSource(polar_coordinate, height, magnitude, wavelengthInNm, multiples_fwhm, d_tel, source_type, 
+        extended_source = ExtendedSource(polar_coordinates, height, magnitude, wavelengthInNm, multiples_fwhm, d_tel, source_type, 
                                         band=band, zeroPoint=zeroPoint, size_obj=size_obj, xy_array=xy_array, 
                                         sampling_type=sampling_type, layerHeight=layerHeight, intensityProfile=intensityProfile, 
                                         ttProfile=ttProfile, focusHeight=focusHeight, n_rings=n_rings, show_source=show_source, 
@@ -1069,7 +1092,7 @@ class Factory:
         offset: Offset value
 
         Returns:
-        IntControl: Int Control processing object
+        Integrator: Int Control processing object
         """
         params = self.ensure_dictionary(params)
 
@@ -1080,9 +1103,9 @@ class Factory:
         og_shaper = self._cm.read_data(og_shaper_tag) if og_shaper_tag else None
 
         if params.get('opt_dt', 0) == 1:
-            intc = IntControlOpt(gain, ff=ff, delay=delay)
+            intc = IntegratorOpt(gain, ff=ff, delay=delay)
         else:
-            intc = IntControl(gain, ff=ff, delay=delay)
+            intc = Integrator(gain, ff=ff, delay=delay)
 
         if offset is not None:
             intc.offset = offset
@@ -1103,7 +1126,7 @@ class Factory:
         offset: Offset value
 
         Returns:
-        IntControlAutoGain: Int Control AutoGain processing object
+        IntegratorAutoGain: Int Control AutoGain processing object
         """
         params = self.ensure_dictionary(params)
 
@@ -1115,7 +1138,7 @@ class Factory:
         stepsBeforeChange = self.extract(params, 'stepsBeforeChange', default=None)
         gainLength = self.extract(params, 'gainLength', default=None)
 
-        intc = IntControlAutoGain(gain_vect, gainLength, stepsBeforeChange, ff=ff, delay=delay)
+        intc = IntegratorAutoGain(gain_vect, gainLength, stepsBeforeChange, ff=ff, delay=delay)
 
         if offset is not None:
             intc.offset = offset
@@ -1136,7 +1159,7 @@ class Factory:
         offset: Offset value
 
         Returns:
-        IntControlState: Int Control State processing object
+        IntegratorState: Int Control State processing object
         """
         params = self.ensure_dictionary(params)
 
@@ -1146,7 +1169,7 @@ class Factory:
         og_shaper_tag = self.extract(params, 'og_shaper_tag', default=None)
         og_shaper = self._cm.read_data(og_shaper_tag) if og_shaper_tag else None
 
-        intc = IntControlState(gain, ff=ff, delay=delay)
+        intc = IntegratorState(gain, ff=ff, delay=delay)
 
         if offset is not None:
             intc.offset = offset
@@ -1167,7 +1190,7 @@ class Factory:
         offset: Offset value
 
         Returns:
-        IIRControl: IIR Control processing object
+        IirFilter: IIR Control processing object
         """
         params = self.ensure_dictionary(params)
 
@@ -1175,9 +1198,9 @@ class Factory:
         og_shaper_tag = self.extract(params, 'og_shaper_tag', default=None)
         og_shaper = self._cm.read_data(og_shaper_tag) if og_shaper_tag else None
         iir_tag = params.pop('iir_tag')
-        iirfilter = self._cm.read_iirfilter(iir_tag)
+        iir_filter_data = self._cm.read_iir_filter_data(iir_tag)
 
-        iirc = IIRControl(iirfilter, delay=delay)
+        iirc = IirFilter(iir_filter_data, delay=delay)
 
         if offset is not None:
             iirc.offset = offset
@@ -1198,7 +1221,7 @@ class Factory:
         offset: Offset value
 
         Returns:
-        IIRControlState: IIR Control State processing object
+        IirFilterState: IIR Control State processing object
         """
         params = self.ensure_dictionary(params)
 
@@ -1206,9 +1229,9 @@ class Factory:
         og_shaper_tag = self.extract(params, 'og_shaper_tag', default=None)
         og_shaper = self._cm.read_data(og_shaper_tag) if og_shaper_tag else None
         iir_tag = params.pop('iir_tag')
-        iirfilter = self._cm.read_iirfilter(iir_tag)
+        iir_filter_data = self._cm.read_iir_filter_data(iir_tag)
 
-        iirc = IIRControlState(iirfilter, delay=delay)
+        iirc = IirFilterState(iir_filter_data, delay=delay)
 
         if offset is not None:
             iirc.offset = offset
@@ -1266,7 +1289,7 @@ class Factory:
         offset: Offset value
 
         Returns:
-        IntControlMat: Int Control Mat processing object
+        IntegratorMat: Int Control Mat processing object
         """
         params = self.ensure_dictionary(params)
 
@@ -1288,7 +1311,7 @@ class Factory:
         if B is None and gain is not None:
             B = xp.diag(gain)
 
-        intc = IntControlMat(A, B, delay=delay)
+        intc = IntegratorMat(A, B, delay=delay)
 
         if offset is not None:
             intc.offset = offset
@@ -1494,12 +1517,12 @@ class Factory:
             chrom_photo = chrom_photo[0]
         chrom = {'_lambdas': chrom_lambdas, '_lambda0': chrom_lambda0, '_photo': chrom_photo}
 
-        rad2asec = 3600.0 * 360.0 / (2 * xp.pi)
+        RAD2ASEC = 3600.0 * 360.0 / (2 * xp.pi)
         wavelengthInM = params_lens['wavelengthInNm'] * 1e-9
         if isinstance(wavelengthInM, (list, xp.ndarray)) and len(wavelengthInM) == 1:
             wavelengthInM = wavelengthInM[0]
         diameterInM = self._main['pixel_pupil'] * self._main['pixel_pitch'] / params_lens['subap_on_diameter']
-        oversamp = (wavelengthInM / diameterInM * rad2asec) / (2 * params_lens['sensor_fov'] / params_lens['sensor_npx'])
+        oversamp = (wavelengthInM / diameterInM * RAD2ASEC) / (2 * params_lens['sensor_fov'] / params_lens['sensor_npx'])
         nmodes_mb = max(nmodes_est, len(params_ref['constant']))
 
         if pup_mask is None:
@@ -1628,7 +1651,8 @@ class Factory:
             map_aberr = xp.zeros(sMaskAber, dtype=aberr_coeff.dtype)
             map_aberr[ifuncIdx_aberr] = map_aberr_2d
 
-        subapdata = self._cm.read_subaps(params['subapdata_tag'])
+        subapdata_tag = params['subapdata_tag']
+        subapdata = self._cm.read_subaps(subapdata_tag)
         if subapdata is None:
             print(f'subapdata_tag: {subapdata_tag} is not valid in factory.get_lift.')
 
@@ -2086,42 +2110,6 @@ class Factory:
         modalrec_cured.apply_properties(params)
         return modalrec_cured
 
-    def get_modalrec_display(self, modalrec, window=None):
-        """
-        Create a modalrec_display processing object.
-
-        Parameters:
-        modalrec (objref): `modalrec` object to display
-        window (int, optional): Window number to use, will be incremented in output
-
-        Returns:
-        ModalRecDisplay: modalrec_display object
-        """
-        disp = ModalRecDisplay(modalrec=modalrec)
-        if window is not None:
-            disp.window = window
-            window += 1
-        self.apply_global_params(disp)
-        return disp
-
-    def get_modes_display(self, modes, window=None):
-        """
-        Create a modes_display processing object.
-
-        Parameters:
-        modes (objref): A `base_value` object with the mode vector
-        window (int, optional): Window number to use, will be incremented in output
-
-        Returns:
-        ModesDisplay: modes_display object
-        """
-        disp = ModesDisplay(modes=modes)
-        if window is not None:
-            disp.window = window
-            window += 1
-        self.apply_global_params(disp)
-        return disp
-
     def get_removes_highfreq(self, pupil, mod_params, dm_params, phase2modes=None, ifunc=None):
         """
         Gets a processing container which removes high spatial frequency
@@ -2268,7 +2256,7 @@ class Factory:
         optgaincontrol.apply_properties(params)
         return optgaincontrol
 
-     def get_source_field(self, params):
+    def get_source_field(self, params):
         """
         Builds a list of `source` objects arranged on a regular grid.
 
@@ -2286,7 +2274,7 @@ class Factory:
 
         height = self.extract(params, 'height', default=float('inf'))
         if hasattr(self._main, 'zenithAngleInDeg'):
-            airmass = 1. / cos(self._main.zenithAngleInDeg / 180. * pi)
+            airmass = 1. / np.cos(self._main.zenithAngleInDeg / 180. * np.pi)
         else:
             airmass = 1.
         height *= airmass
@@ -2307,7 +2295,7 @@ class Factory:
 
         for i in range(len(x)):
             p = {
-                'polar_coordinate': [r[i], phi[i]],
+                'polar_coordinates': [r[i], phi[i]],
                 'height': height,
                 'magnitude': magnitude,
                 'wavelengthInNm': wavelengthInNm
