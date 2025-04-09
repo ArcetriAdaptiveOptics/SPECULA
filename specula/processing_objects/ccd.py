@@ -31,10 +31,10 @@ class ModalAnalysisWFS:
 class CCD(BaseProcessingObj):
     '''Simple CCD from intensity field'''
     def __init__(self, 
-                 size: list=[80,80],
-                 dt: float=0.001,
-                 bandw: float=300.0,
-                 name: str='OCAM2k',
+                 size: int,           # TODO list=[80,80],
+                 dt: float,           # TODO =0.001,
+                 bandw: float,        # TODO =300.0,
+                 name: str='',        # TODO ='OCAM2k',
                  binning: int=1,
                  photon_noise: bool=False,
                  readout_noise: bool=False,
@@ -116,11 +116,18 @@ class CCD(BaseProcessingObj):
                         background_level = 0
 
         # Adjust ADU / EM gain values
-        if emccd_gain is None:
-            emccd_gain = 400 if excess_noise else 1
+        
+        # TODO old code
+        if excess_noise:
+            emccd_gain = 400         
+            ADU_gain = 1 / 20
 
-        if ADU_gain is None:
-            ADU_gain = 1 / 20 if excess_noise else 8
+        # TODO new code to be tested
+        # if emccd_gain is None:
+        #     emccd_gain = 400 if excess_noise else 1
+
+        # if ADU_gain is None:
+        #     ADU_gain = 1 / 20 if excess_noise else 8
 
         if ADU_gain <= 1 and (not excess_noise or emccd_gain <= 1):
             print('ATTENTION: ADU gain is less than 1 and there is no electronic multiplication.')
@@ -150,7 +157,7 @@ class CCD(BaseProcessingObj):
         self._readout_seed = readout_seed
         self._excess_seed = excess_seed
 
-        self._excess_delta = excess_delta                
+        self._excess_delta = excess_delta
         self._keep_ADU_bias = False
         self._doNotChangeI = False
         self._bg_remove_average = False

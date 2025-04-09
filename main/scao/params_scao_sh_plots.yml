@@ -43,7 +43,7 @@ atmo:
   L0:                   40                   # [m] Outer scale
   heights:              [119.] #,837,3045,12780]), # [m] layer heights at 0 zenith angle
   Cn2:                  [1.0] #,0.06,0.14,0.10]), # Cn2 weights (total must be eq 1)
-  source_dict_ref:      ['on_axis_source']
+  fov:                  0.0
   inputs:
     seeing: 'seeing.output'
     wind_speed: 'wind_speed.output'

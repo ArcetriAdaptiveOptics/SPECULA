@@ -12,7 +12,9 @@ class PupData(BaseDataObj):
     to avoid the later initialization (see test/test_slopec.py for an example),
     where things can be forgotten easily
     '''
-    def __init__(self, target_device_idx=None, precision=None):
+    def __init__(self,
+                 target_device_idx: int=None,
+                 precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         self.radius = self.xp.zeros(4, dtype=self.dtype)
         self.cx = self.xp.zeros(4, dtype=self.dtype)

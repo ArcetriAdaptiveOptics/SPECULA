@@ -10,9 +10,9 @@ class Recmat(BaseDataObj):
     def __init__(self,
                  recmat,
                  modes2recLayer=None,
-                 norm_factor: float = 0,
-                 target_device_idx=None,
-                 precision=None):
+                 norm_factor: float=0,
+                 target_device_idx: int=None,
+                 precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         self.recmat = self.xp.array(recmat)
         self.norm_factor = norm_factor

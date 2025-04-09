@@ -29,8 +29,11 @@ class IFunc(BaseDataObj):
                  angle_offset: float=0,
                  do_mech_coupling: bool=False,
                  coupling_coeffs: list=[0.31, 0.05],
+                 do_slaving: bool=False,
+                 slaving_thr: float=0.1,
                  idx_modes=None,
-                 target_device_idx=None, precision=None
+                 target_device_idx=None,
+                 precision=None
                 ):
         super().__init__(precision=precision, target_device_idx=target_device_idx)
         self._doZeroPad = False
@@ -55,8 +58,9 @@ class IFunc(BaseDataObj):
                                                   xp=self.xp, dtype=self.dtype)
             elif type_lower == 'zonal':
                 ifunc, mask = compute_zonal_ifunc(npixels, n_act, circ_geom=circ_geom, angle_offset=angle_offset, do_mech_coupling=do_mech_coupling,
-                                                  coupling_coeffs=coupling_coeffs, obsratio=obsratio, diaratio=diaratio, mask=mask,
-                                                  xp=self.xp, dtype=self.dtype)
+                                                  coupling_coeffs=coupling_coeffs, do_slaving=do_slaving, slaving_thr=slaving_thr,
+                                                  obsratio=obsratio, diaratio=diaratio, mask=mask, xp=self.xp, dtype=self.dtype,
+                                                  return_coordinates=False)
             else:
                 raise ValueError(f'Invalid ifunc type {type_str}')
         

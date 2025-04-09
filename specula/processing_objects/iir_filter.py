@@ -104,13 +104,14 @@ class IirFilter(BaseProcessingObj):
     Set *integration* to False to disable integration, regardless
     of wha the input IirFilter object contains
     '''
-    def __init__(self, iir_filter_data: IirFilterData,
+    def __init__(self,
+                 iir_filter_data: IirFilterData,
                  delay: int=0,
                  integration: bool=True,
-                 offset: int=None,
+                 offset: float=None,
                  og_shaper=None,
-                 target_device_idx=None,
-                 precision=None
+                 target_device_idx: int=None,
+                 precision: int=None
                  ):
         global gxp, gdtype    
 

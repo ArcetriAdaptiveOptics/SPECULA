@@ -12,8 +12,8 @@ class DataSource(BaseProcessingObj):
     '''Data source object'''
 
     def __init__(self,
-                outputs: list=[],
-                store_dir: str="",
+                outputs: list,         # TODO =[],
+                store_dir: str,        # TODO ="",
                 data_format: str='fits'):
         super().__init__()
         self.items = {}

@@ -5,9 +5,9 @@ from specula.data_objects.iir_filter_data import IirFilterData
     
 class Integrator(IirFilter):
     def __init__(self, 
-                 int_gain: float=1.0,
+                 int_gain: float, #  TODO =1.0,
                  ff: list=None, 
-                 delay: float=0.0, 
+                 delay: float=0,    #  TODO =0.0, 
                  offset: float=None, 
                  og_shaper=None,                 
                  target_device_idx: int=None, 

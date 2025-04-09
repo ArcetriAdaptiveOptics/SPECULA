@@ -12,12 +12,23 @@ class Vibrations():
 
 
 class FuncGenerator(BaseProcessingObj):
-    def __init__(self, func_type='SIN', nmodes=None, time_hist=None, psd=None, fr_psd=None, continuous_psd=None, 
-                constant=None, amp=None, freq=None, offset=None, vect_amplitude=None, 
-                seed=None, ncycles=1,
-                vsize=1,
-                target_device_idx=None, 
-                precision=None
+    def __init__(self, 
+                 func_type='SIN', 
+                 nmodes: int=None, 
+                 time_hist=None, 
+                 psd=None, 
+                 fr_psd=None, 
+                 continuous_psd=None, 
+                 constant: list=None, 
+                 amp: list=None, 
+                 freq: list=None, 
+                 offset: list=None, 
+                 vect_amplitude: list=None, 
+                 seed: int=None, 
+                 ncycles: int=1,
+                 vsize: int=1,
+                 target_device_idx: int=None, 
+                 precision: int=None
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 

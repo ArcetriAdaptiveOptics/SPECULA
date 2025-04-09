@@ -6,8 +6,11 @@ from specula.base_value import BaseValue
 
 class WindowedIntegration(BaseProcessingObj):
     '''Simple windowed integration of a signal'''
-    def __init__(self, n_elem, dt,
-                 target_device_idx=None, precision=None):
+    def __init__(self, 
+                 n_elem: int, 
+                 dt: float,
+                 target_device_idx: int=None, 
+                 precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self._dt = self.seconds_to_t(dt)

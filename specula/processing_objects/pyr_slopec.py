@@ -27,7 +27,7 @@ class PyrSlopec(Slopec):
     def __init__(self, 
                  pupdata: PupData, 
                  shlike: bool=False, 
-                 norm_factor: float=1.0, 
+                 norm_factor: float=None,   # TODO =1.0, 
                  thr_value: float=0.0, 
                  slopes_from_intensity: bool=False, 
                  target_device_idx: int=None, 

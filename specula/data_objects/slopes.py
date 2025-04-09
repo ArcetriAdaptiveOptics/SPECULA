@@ -8,7 +8,12 @@ from specula.base_value import BaseValue
 
 
 class Slopes(BaseDataObj):
-    def __init__(self, length=None, slopes=None, interleave=False, target_device_idx=None, precision=None):
+    def __init__(self, 
+                 length: int=None, 
+                 slopes=None, 
+                 interleave: bool=False, 
+                 target_device_idx: int=None, 
+                 precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         if slopes is not None:
             self.slopes = slopes

@@ -9,12 +9,12 @@ from specula.data_objects.recmat import Recmat
 class Intmat(BaseDataObj):
     def __init__(self,
                  intmat,
-                 slope_mm = None,
-                 slope_rms = None,
+                 slope_mm: list = None,
+                 slope_rms: list = None,
                  pupdata_tag: str = '',
                  norm_factor: float= 0.0,
-                 target_device_idx=None,
-                 precision=None):
+                 target_device_idx: int=None,
+                 precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         self._intmat = self.xp.array(intmat)
         self._slope_mm = slope_mm

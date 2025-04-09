@@ -9,14 +9,14 @@ from specula.base_processing_obj import BaseProcessingObj
 
 class DM(BaseProcessingObj):
     def __init__(self,
-                 pixel_pitch: float=0.05,
-                 height: float=0.0,
+                 pixel_pitch: float,     # TODO =0.05,
+                 height: float,          # TODO =0.0,
                  ifunc: IFunc=None,
                  m2c: M2C=None,
                  type_str: str=None,
                  nmodes: int=None,
                  nzern: int=None,
-                 start_mode: int=0,
+                 start_mode: int=None,
                  input_offset: int=0,
                  idx_modes = None,
                  npixels: int=None,
@@ -24,8 +24,8 @@ class DM(BaseProcessingObj):
                  diaratio: float=None,
                  pupilstop: Pupilstop=None,
                  sign: int=-1,
-                 target_device_idx=None, 
-                 precision=None
+                 target_device_idx: int=None, 
+                 precision: int=None
                  ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 

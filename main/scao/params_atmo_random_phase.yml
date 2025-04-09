@@ -36,7 +36,7 @@ pupilstop:                                # Default parameters (circular pupil)
 atmo:
   class:                'AtmoRandomPhase'
   L0:                   40                   # [m] Outer scale
-  source_dict_ref:      ['on_axis_source']
+  fov:                  0.0
   inputs:
     seeing: 'seeing.output'
     pupilstop: 'pupilstop'

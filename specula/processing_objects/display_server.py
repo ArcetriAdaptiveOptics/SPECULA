@@ -33,7 +33,8 @@ class DisplayServer(BaseProcessingObj):
     because it can in some cases temporarily modify the data objects (removing references
     to the xp module to allow pickling)
     '''
-    def __init__(self, params_dict: dict,
+    def __init__(self,
+                 params_dict: dict,
                  input_ref_getter: typing.Callable,
                  output_ref_getter: typing.Callable,
                  info_getter: typing.Callable,
