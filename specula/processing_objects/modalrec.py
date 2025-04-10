@@ -21,6 +21,7 @@ class Modalrec(BaseProcessingObj):
                  nSlopesToBeDiscarded: int=None,
                  dmNumber: int=0,
                  noProj: bool=False,
+                 input_modes_index: list=None,
                  output_slice: list=None,
                  target_device_idx: int=None,
                  precision: int=None
@@ -74,7 +75,8 @@ class Modalrec(BaseProcessingObj):
         self.intmat = intmat
         self.polc = polc
         # self.layer_modes_list = None
-        self.past_step_list = []
+        self.input_modes_index = input_modes_index
+
         if output_slice is not None:
             self.output_slice = slice(*output_slice)
             start = self.output_slice.start if self.output_slice.start is not None else 0
@@ -126,39 +128,34 @@ class Modalrec(BaseProcessingObj):
 
             # this is true on the first step only
             if commandsobj is None or commands.shape == ():
-                comm_slopes = self.xp.zeros_like(slopes)
                 if self.projmat is None:
                     commands = self.xp.zeros(self.recmat.recmat.shape[0])
                 else:
                     commands = self.xp.zeros(self.projmat.recmat.shape[0])
-            else:
-                print(f'{self.recmat.recmat.shape=}')
-                print(f'{self.projmat.recmat.shape=}')
-                print(f'{self.intmat._intmat.shape=}')
-                print(f'{commands.shape=}')
-                comm_slopes = self.intmat._intmat @ commands
+            
+            if self.input_modes_index is not None:
+                commands = commands[self.input_modes_index]
+
+            comm_slopes = self.intmat._intmat @ commands
             slopes += comm_slopes
             self.pseudo_ol_modes.value = self.recmat.recmat @ slopes
             self.pseudo_ol_modes.generation_time = self.current_time
             if self.projmat is None:
-                self.modes.value = self.pseudo_ol_modes.value[self.output_slice]
+                output_modes = self.pseudo_ol_modes.value
             else:
-                self.modes.value = (self.projmat.recmat @ self.pseudo_ol_modes.value)[self.output_slice]
-            self.modes.value -= commands
+                output_modes = self.projmat.recmat @ self.pseudo_ol_modes.value
+            output_modes -= commands
             
         else:
-            self.modes.value = (self.recmat.recmat @ slopes)[self.output_slice]
+            output_modes = self.recmat.recmat @ slopes
 
+        self.modes.value = output_modes[self.output_slice]
         self.modes.generation_time = self.current_time
 
         #if self.layer_modes_list is not None:
         #    for i, idx_list in enumerate(self.layer_idx_list):
         #        self.layer_modes_list[i].value = self.modes_first_step.value[idx_list]
         #        self.layer_modes_list[i].generation_time = self.current_time
-
-
-        #if self.polc and not commands is None:
-        #    self.modes.value -= commands
 
     def setup(self, loop_dt, loop_niters):
         super().setup(loop_dt, loop_niters)
@@ -174,5 +171,7 @@ class Modalrec(BaseProcessingObj):
             if not self.intmat:
                 raise ValueError("Intmat object not valid")
 
-
-
+                commands = self.inputs['in_commands'].get(self.target_device_idx)
+                commands_list = self.inputs['in_commands_list'].get(self.target_device_idx)
+                if not commands and (not commands_list or not all(commands_list)):
+                    raise ValueError("When POLC is used, either 'commands' or 'commands_list' must be given as an input")

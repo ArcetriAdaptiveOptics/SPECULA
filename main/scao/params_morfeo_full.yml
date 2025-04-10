@@ -332,6 +332,7 @@ tomo_polc_lgs:
 subtract_ref:
   class:            'BaseOperation'
   sub: true
+  value2_remap_data:   '/tmp/ref_input_index.fits'     # Map from 6564 to 293
   inputs:
     in_value1: 'tomo_polc_lgs.out_modes'
     in_value2: 'control_ref.out_comm'
@@ -492,6 +493,7 @@ tomo_polc_ref:
   projmat_object:     'p20240526_141118.0/projmatAll'
   intmat_object:      '20250326_000001.0/intmat'
   polc:   true
+  input_modes_index_data:  '/tmp/ref_input_index.fits'     # Map from 6564 to 293
   inputs:
     in_slopes_list:        ['slopec_ref1.out_slopes','slopec_ref2.out_slopes','slopec_ref3.out_slopes']
     in_commands:            'modal_integrator.out_comm:-1'
@@ -507,7 +509,7 @@ iir_ref:
 control_ref: 
   class:             'Integrator'
   delay:             2                      # Total temporal delay in time steps
-  int_gain_data:     'g0.40_4519'  # 'g0.01_100'   # TODO
+  int_gain_data:     'g0.40_293'
   inputs:
       delta_comm: 'iir_ref.out_comm'     
   outputs:  ['out_comm']
