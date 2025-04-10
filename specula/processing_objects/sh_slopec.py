@@ -28,8 +28,6 @@ class ShSlopec(Slopec):
                  sn: Slopes=None,
                  thr_value: float = -1,
                  exp_weight: float = 1.0,
-#                 filt_intmat: Intmat=None,
-#                 filt_recmat: Recmat=None,
                  filtmat=None,
                  corr_template = None,                
                  target_device_idx: int = None, 

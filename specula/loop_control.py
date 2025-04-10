@@ -85,8 +85,11 @@ class LoopControl:
         self._t0 = self.seconds_to_t(self._init_t0)
 
         for element in self._list:
-            element.setup(self._dt, self.niters())
-
+            try:
+                element.setup(self._dt, self.niters())
+            except:
+                print('Exception in', element.name)
+                raise
         self._t = self._t0
 
         self._cur_time = -1
