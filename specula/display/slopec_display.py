@@ -35,9 +35,9 @@ class SlopecDisplay(BaseProcessingObj):
         subapdata = self.local_inputs['subapdata']
 
         if pupdata:
-            frame3d = slopes_obj.get2d(cm=None, pupdata=pupdata)
+            frame3d = slopes_obj.get2d()#cm=None, pupdata=pupdata)
         else:
-            frame3d = slopes_obj.get2d(cm=None, pupdata=subapdata)
+            frame3d = slopes_obj.get2d()#cm=None, pupdata=subapdata)
 
         frame2d = np.hstack(cpuArray(frame3d))
         title = self._title if self._title else 'Slope Display'

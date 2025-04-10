@@ -84,7 +84,7 @@ class Modalrec(BaseProcessingObj):
         self.inputs['in_slopes_list'] = InputList(type=Slopes, optional=True)
         self.outputs['out_modes'] = self.modes
         self.outputs['out_pseudo_ol_modes'] = self.pseudo_ol_modes
-        self.outputs['out_modes_first_step'] = self.modes_first_step
+        #self.outputs['out_modes_first_step'] = self.modes_first_step
         
         if modal_offset is not None:
             self._modal_offset=modal_offset
