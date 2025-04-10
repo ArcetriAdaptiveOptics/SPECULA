@@ -23,7 +23,7 @@ class CalibManager():
             'sn': 'slopenulls/',
             'background': 'backgrounds/',
             'pupils': 'pupils/',
-            'pupdata': 'pupils',
+            'pupdata': 'pupils/',
             'subapdata': 'subapdata/',
             'ShSubapCalibrator': 'subapdata/',
             'rec': 'rec/',
