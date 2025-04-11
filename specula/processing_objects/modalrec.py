@@ -171,7 +171,7 @@ class Modalrec(BaseProcessingObj):
             if not self.intmat:
                 raise ValueError("Intmat object not valid")
 
-                commands = self.inputs['in_commands'].get(self.target_device_idx)
-                commands_list = self.inputs['in_commands_list'].get(self.target_device_idx)
-                if not commands and (not commands_list or not all(commands_list)):
-                    raise ValueError("When POLC is used, either 'commands' or 'commands_list' must be given as an input")
+            commands = self.inputs['in_commands'].get(self.target_device_idx)
+            commands_list = self.inputs['in_commands_list'].get(self.target_device_idx)
+            if not commands and (not commands_list or not all(commands_list)):
+                raise ValueError("When POLC is used, either 'commands' or 'commands_list' must be given as an input")
