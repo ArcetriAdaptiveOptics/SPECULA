@@ -36,7 +36,7 @@ class ShShift(BaseProcessingObj):
 
     def do_factory(self, params_main):
         # Build the objects in function of the shift
-        factory = Factory(params_main, GPU=self._GPU)
+        factory = object() # Factory(params_main, GPU=self._GPU)
 
         self._ef_shift = self.xp.empty(self._n_shift, dtype=object)
         self._ef_resize = self.xp.empty(self._n_shift, dtype=object)
