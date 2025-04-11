@@ -289,8 +289,11 @@ class Simul():
                         if not isinstance(output, wanted_type):
                             raise ValueError(f'Input {input_name}: output {output} is not of type {wanted_type}')
 
-                self.objs[dest_object].inputs[input_name].set(output_ref)
-
+                try:
+                    self.objs[dest_object].inputs[input_name].set(output_ref)
+                except ValueError:
+                    print(f'Connecting {output_name} to {dest_object}.{input_name}')
+                    raise
                 
                 if not type(output_name) is list:
                     a_connection = {}
