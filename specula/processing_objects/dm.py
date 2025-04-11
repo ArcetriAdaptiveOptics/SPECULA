@@ -57,7 +57,8 @@ class DM(BaseProcessingObj):
             self.m2c = None
             self.m2c_commands = None
 
-        self.input_offset = input_offset # TODO not implemented
+        self.input_offset = input_offset
+        self.nmodes = nmodes
 
         # Default sign is -1 to take into account the reflection in the propagation
         self.sign = sign
@@ -66,6 +67,10 @@ class DM(BaseProcessingObj):
         
     def trigger_code(self):
         input_commands = self.local_inputs['in_command'].value
+        
+        if self.nmodes is not None:
+            input_commands = input_commands[self.input_offset: self.input_offset + self.nmodes]
+
         if self.m2c is not None:
             self.m2c_commands[:len(input_commands)] = input_commands
             cmd = self.m2c @ self.m2c_commands
