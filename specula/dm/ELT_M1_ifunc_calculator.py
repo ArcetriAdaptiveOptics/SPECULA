@@ -18,7 +18,7 @@ class ELTM1IFuncCalculator:
 
     def M1_modal_base(self):
         #TODO: update filepath
-        segmentation = fits.open(os.path.join(DATA_ROOT_DIR, 'M1SegmentsMapping.fits'))[0].data.copy()
+        segmentation = fits.open(os.path.join(DATA_ROOT_DIR, 'M1SegmentsMapping1015.fits'))[0].data.copy()
 
         rescalingFactor = segmentation.shape[0]/self.dim
         coord = np.round(np.arange(self.dim)*rescalingFactor).astype(int)
