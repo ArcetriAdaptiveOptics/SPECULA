@@ -175,6 +175,10 @@ class Simul():
                     data = {x : self.output_ref(x) for x in value}
                     pars2[name[:-4]] = data
 
+                elif name.endswith('_ref'):
+                    data = self.output_ref(value)
+                    pars2[name[:-4]] = data
+
                 # data fields are read from a fits file
                 elif name.endswith('_data'):
                     data = cm.read_data(value)
