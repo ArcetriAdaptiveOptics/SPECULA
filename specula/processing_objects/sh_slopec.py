@@ -387,6 +387,7 @@ class ShSlopec(Slopec):
             thr_mask_cube = thr.reshape(np_sub, np_sub, n_subaps)
 
         # Compute denominator for slopes
+        #print(f'{pixels.sum()=}')
         subap_tot = self.xp.sum(pixels * self.mask_weighted.reshape(np_sub * np_sub, 1), axis=0)
         mean_subap_tot = self.xp.mean(subap_tot)
         factor = 1.0 / subap_tot
