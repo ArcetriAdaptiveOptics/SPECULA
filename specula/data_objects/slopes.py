@@ -126,8 +126,10 @@ class Slopes(BaseDataObj):
             hdr = fits.Header()
         hdr['VERSION'] = 2
         hdr['INTRLVD'] = int(self.interleave)
-        hdr['PUPD_TAG'] = self.pupdata_tag
-
+        if hasattr(self, 'pupdata_tag') and self.pupdata_tag is not None:
+            hdr['PUPD_TAG'] = self.pupdata_tag
+        if hasattr(self, 'subapdata_tag') and self.subapdata_tag is not None:
+            hdr['SUBAP_TAG'] = self.subapdata_tag
         fits.writeto(filename, np.zeros(2), hdr)
         fits.append(filename, self.slopes)
 
@@ -148,6 +150,8 @@ class Slopes(BaseDataObj):
         s = Slopes(length=1, target_device_idx=target_device_idx)
         s.interleave = bool(hdr['INTRLVD'])
         if version >= 2:
+            # TODO pupdata_tag is present only in pyramid slopes
+            # and not in SH slopes
             s.pupdata_tag = str(hdr['PUPD_TAG']).strip()
         s.read(filename, hdr)
         return s
