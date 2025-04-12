@@ -54,8 +54,8 @@ class AtmoPropagation(BaseProcessingObj):
             ef.S0 = source.phot_density()
             self.outputs['out_'+name+'_ef'] = ef            
             
-        self.inputs['atmo_layer_list'] = InputList(type=Layer)
-        self.inputs['common_layer_list'] = InputList(type=Layer)
+        self.inputs['atmo_layer_list'] = InputList(type=Layer,optional=True)
+        self.inputs['common_layer_list'] = InputList(type=Layer,optional=True)
 
     def doFresnel_setup(self):
    
@@ -198,6 +198,10 @@ class AtmoPropagation(BaseProcessingObj):
 
         self.atmo_layer_list = self.inputs['atmo_layer_list'].get(self.target_device_idx)
         self.common_layer_list = self.inputs['common_layer_list'].get(self.target_device_idx)
+        if self.atmo_layer_list is None:
+            self.atmo_layer_list = []
+        if self.common_layer_list is None:
+            self.common_layer_list = []
         if len(self.atmo_layer_list) + len(self.common_layer_list) < 1:
             raise ValueError('At least one layer must be set')
 
