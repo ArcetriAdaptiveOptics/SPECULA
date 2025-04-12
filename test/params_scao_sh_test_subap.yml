@@ -1,0 +1,16 @@
+sh_subaps:
+  class: 'ShSubapCalibrator'
+  subap_on_diameter: 8
+  output_tag:        'scao_subaps_n8_th0.5'
+  energy_th:         0.5
+  inputs:
+    in_i: 'sh.out_i'
+
+prop_override:
+  inputs:
+    common_layer_list: ['pupilstop']
+
+main_override:
+  total_time:  0.001
+
+remove: ['atmo', 'slopec', 'rec', 'control', 'dm']
