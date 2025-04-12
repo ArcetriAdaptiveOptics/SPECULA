@@ -25,7 +25,14 @@ class SnCalibrator(BaseProcessingObj):
         self.inputs['in_slopes'] = InputValue(type=Slopes)
 
     def trigger_code(self):
-        
-        slopes = self.local_inputs['in_slopes'].slopes
-        slopes.save(os.path.join(self._data_dir, self._filename))
+        self.slopes = Slopes(slopes=self.local_inputs['in_slopes'].slopes)
+        self.slopes.generation_time = self.local_inputs['in_slopes'].generation_time
+
+    def finalize(self):
+        filename = self._filename
+        if not filename.endswith('.fits'):
+            filename += '.fits'
+        file_path = os.path.join(self._data_dir, filename)
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        self.slopes.save(os.path.join(self._data_dir, filename))
         
