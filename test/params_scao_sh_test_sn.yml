@@ -1,0 +1,15 @@
+sncalib:
+  class: 'SnCalibrator'
+  inputs:
+    in_slopes: 'slopec.out_slopes'
+  output_tag: 'scao_sn_n8_th0.5'
+
+main_override:
+  total_time: 0.002
+
+prop_override:
+  inputs:
+    atmo_layer_list: ['atmo.layer_list']
+    common_layer_list: ['pupilstop']
+
+remove: ['atmo', 'rec', 'control', 'dm']
