@@ -6,9 +6,10 @@ import sys
 import glob
 import time
 import specula
-specula.init(0)  # Default target device
+specula.init(-1,precision=1)  # Default target device
 
 from specula import np
+from specula.simul import Simul
 from astropy.io import fits
 
 class TestShSimulation(unittest.TestCase):
@@ -58,13 +59,9 @@ class TestShSimulation(unittest.TestCase):
         try:
             # Run the simulation
             print("Running SH SCAO simulation...")
-            result = subprocess.run(
-                [sys.executable, os.path.join('..', 'main', 'scao', 'main_simul.py'), 
-                 'params_scao_sh_test.yml'],
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
-                universal_newlines=True
-            )
-            self.assertEqual(result.returncode, 0, f"Simulation failed: {result.stderr}")
+            yml_files = ['params_scao_sh_test.yml']
+            simul = Simul(*yml_files)
+            simul.run()
             
             # Find the most recent data directory (with timestamp)
             data_dirs = sorted(glob.glob('data/2*'))
