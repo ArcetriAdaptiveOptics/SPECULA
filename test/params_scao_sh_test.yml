@@ -42,6 +42,7 @@ atmo:
   heights:              [0.]               # [m] layer heights at 0 zenith angle
   Cn2:                  [1.00]             # Cn2 weights (total must be eq 1)
   fov:                  0.0
+  pixel_phasescreens:   1024               # number of pixels in the phase screens
   inputs:
     seeing: 'seeing.output'
     wind_speed: 'wind_speed.output'
