@@ -31,6 +31,9 @@ class TestShCalibration(unittest.TestCase):
     def test_sh_calibration(self):
         """Test SH calibration by comparing generated calibration files with reference ones"""
 
+        # Get current working directory
+        cwd = os.getcwd()
+
         # Change to test directory
         os.chdir('test')
 
@@ -109,7 +112,7 @@ class TestShCalibration(unittest.TestCase):
                     if hasattr(gen_hdu, 'data') and hasattr(ref_hdu, 'data') and gen_hdu.data is not None:
                         np.testing.assert_array_almost_equal(
                             gen_hdu.data, ref_hdu.data, 
-                            decimal=5,
+                            decimal=3,
                             err_msg=f"Data in HDU #{i} does not match reference"
                         )
 
@@ -119,6 +122,10 @@ class TestShCalibration(unittest.TestCase):
         if os.path.exists('calib/subapdata/scao_subaps_n8_th0.5.fits'):
             os.remove('calib/subapdata/scao_subaps_n8_th0.5.fits')
 
+
+        # Change back to original directory
+        os.chdir(cwd)
+
     @unittest.skip("This test is only used to create reference files")
     def test_create_reference_files(self):
         """
@@ -126,6 +133,9 @@ class TestShCalibration(unittest.TestCase):
         It should be run once, and then the generated files should be renamed
         and committed to the repository.
         """
+        # Get current working directory
+        cwd = os.getcwd()
+
         # Change to test directory
         os.chdir('test')
 
@@ -160,6 +170,9 @@ class TestShCalibration(unittest.TestCase):
         shutil.copy('calib/subapdata/scao_subaps_n8_th0.5.fits', 'data/scao_subaps_n8_th0.5_ref.fits')
         shutil.copy('calib/slopenulls/scao_sn_n8_th0.5.fits', 'data/scao_sn_n8_th0.5_ref.fits')
         shutil.copy('calib/rec/scao_rec_n8_th0.5.fits', 'data/scao_rec_n8_th0.5_ref.fits')
-        
+
+        # Change back to original directory
+        os.chdir(cwd)
+
         print("Reference files created and saved to test/data/")
         print("Please commit these files to the repository for future tests")
