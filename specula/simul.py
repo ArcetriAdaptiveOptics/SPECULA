@@ -1,5 +1,6 @@
 
 import inspect
+import typing
 from copy import deepcopy
 from specula.base_processing_obj import BaseProcessingObj
 
@@ -189,6 +190,16 @@ class Simul():
                         pars2[parname] = None
                     elif parname in hints:
                         partype = hints[parname]
+                        
+                        # Handle Optional and Union types
+                        if hasattr(partype, "__origin__") and partype.__origin__ is typing.Union:
+                            # Extract actual class type from Optional/Union
+                            # (first non-None type argument)
+                            for arg in partype.__args__:
+                                if arg is not type(None):  # Skip NoneType
+                                    partype = arg
+                                    break
+                        
                         filename = cm.filename(parname, value)  # TODO use partype instead of parname?
                         parobj = partype.restore(filename, target_device_idx=target_device_idx)
                         pars2[parname] = parobj
