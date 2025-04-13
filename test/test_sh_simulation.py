@@ -47,6 +47,8 @@ class TestShSimulation(unittest.TestCase):
             os.remove('test/calib/subapdata/scao_subaps_n8_th0.5.fits')
         if os.path.exists('test/calib/rec/scao_rec_n8_th0.5.fits'):
             os.remove('test/calib/rec/scao_rec_n8_th0.5.fits')
+        if os.path.exists('test/calib/phasescreens/ps_seed1_dim8192_pixpit0.016_L025.0000_single.fits'):
+            os.remove('test/calib/phasescreens/ps_seed1_dim8192_pixpit0.016_L025.0000_single.fits')
     
     def test_sh_simulation(self):
         """Run the simulation and check the results"""
