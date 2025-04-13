@@ -13,4 +13,8 @@ prop_override:
 main_override:
   total_time:  0.001
 
-remove: ['atmo', 'slopec', 'rec', 'control', 'dm']
+detector_override:
+  photon_noise:      False
+  readout_noise:     False
+
+remove: ['atmo', 'slopec', 'rec', 'control', 'dm', 'data_store']
