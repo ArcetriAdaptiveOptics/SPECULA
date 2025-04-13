@@ -33,4 +33,4 @@ calibrator:
     in_slopes: 'slopec.out_slopes'
     in_commands: 'pushpull.output'
 
-remove: ['atmo', 'rec','control']
+remove: ['atmo', 'rec', 'control', 'data_store']
