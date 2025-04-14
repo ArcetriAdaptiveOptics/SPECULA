@@ -94,6 +94,10 @@ class IirFilter(BaseProcessingObj):
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
         self.delta_comm = self.local_inputs['delta_comm'].value
+        
+        # Update the state
+        if self.delay > 0:
+            self.state[:, 1:self._total_length] = self.state[:, 0:self._total_length-1]
 
         return
 
@@ -159,30 +163,34 @@ class IirFilter(BaseProcessingObj):
             self.delta_comm[:self._offset.shape[0]] += self._offset
 
     def trigger_code(self):
-
         sden = self.iir_filter_data.den.shape
         snum = self.iir_filter_data.num.shape
         no = sden[1]
         ni = snum[1]
 
         # Delay the vectors
-        ost = self.xp.concatenate((self._ost[:, 1:], self.xp.zeros((sden[0], 1), dtype=self.dtype)), axis=1)
-        ist = self.xp.concatenate((self._ist[:, 1:], self.xp.zeros((sden[0], 1), dtype=self.dtype)), axis=1)
+        self._ost[:, :-1] = self._ost[:, 1:]
+        self._ost[:, -1] = 0  # Reset the last column
+
+        self._ist[:, :-1] = self._ist[:, 1:]
+        self._ist[:, -1] = 0  # Reset the last column
 
         # New input
-        ist[:, ni - 1] = self.delta_comm
+        self._ist[:, ni - 1] = self.delta_comm
 
-        # New output
-        factor = 1/self.iir_filter_data.den[:, no - 1]
-        ost[:, no - 1] = factor * self.xp.sum(self.iir_filter_data.num * ist, axis=1)
-        ost[:, no - 1] -= factor * self.xp.sum(self.iir_filter_data.den[:, :no - 1] * ost[:, :no - 1], axis=1)
-        output = ost[:, no - 1]
+        # Precompute the reciprocal of the denominator
+        factor = 1 / self.iir_filter_data.den[:, no - 1]
+
+        # Compute new output
+        num_contrib = self.xp.sum(self.iir_filter_data.num * self._ist, axis=1)
+        den_contrib = self.xp.sum(self.iir_filter_data.den[:, :no - 1] * self._ost[:, :no - 1], axis=1)
+        self._ost[:, no - 1] = factor * (num_contrib - den_contrib)
+        output = self._ost[:, no - 1]
 
         # Update the state
-        if self.delay > 0:
-            self.state[:, 1:self._total_length] = self.state[:, 0:self._total_length-1]
         self.state[:, 0] = output
 
+    def post_trigger(self):
         # Calculate output from the state considering the delay
         remainder_delay = self.delay % 1
         if remainder_delay == 0:
@@ -194,7 +202,5 @@ class IirFilter(BaseProcessingObj):
         if self._offset is not None and self.xp.all(output == 0):
             output[:self._offset.shape[0]] += self._offset
 
-        self._ost = ost
-        self._ist = ist
         self.out_comm.value = output
         self.out_comm.generation_time = self.current_time
