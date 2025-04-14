@@ -20,6 +20,7 @@ class CalibManager():
             'AtmoEvolution': 'phasescreens/',
             'AtmoInfiniteEvolution': 'phasescreens/',
             'slopenull': 'slopenulls/',
+            'SnCalibrator': 'slopenulls/',
             'sn': 'slopenulls/',
             'background': 'backgrounds/',
             'pupils': 'pupils/',

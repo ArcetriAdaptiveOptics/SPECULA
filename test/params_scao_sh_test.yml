@@ -1,0 +1,143 @@
+---
+
+main:
+  root_dir:          './calib/'             # Root directory for calibration manager
+  pixel_pupil:       64                     # Linear dimension of pupil phase array
+  pixel_pitch:       0.015625               # [m] Pitch of the pupil phase array
+  total_time:        0.010                  # [s] Total simulation running time
+  time_step:         0.001                  # [s] Simulation time step
+
+seeing:
+  class:             'FuncGenerator'
+  constant:          0.6                   # ["] seeing value
+  func_type:         'SIN'
+  outputs: ['output']
+
+wind_speed:
+  class:             'FuncGenerator'
+  constant:          [5.]                  # [m/s] Wind speed value
+  outputs: ['output']
+
+
+wind_direction:
+  class:             'FuncGenerator'
+  constant:          [0.]                  # [degrees] Wind direction value
+  outputs: ['output']
+
+
+on_axis_source:
+  class:             'Source'
+  polar_coordinates:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  magnitude:         5                     # source magnitude
+  wavelengthInNm:    600                   # [nm] wavelength
+
+
+pupilstop:                                 # Default parameters (circular pupil)
+  class: 'Pupilstop'
+
+
+atmo:
+  class:                'AtmoEvolution'
+  L0:                   25                 # [m] Outer scale
+  heights:              [0.]               # [m] layer heights at 0 zenith angle
+  Cn2:                  [1.00]             # Cn2 weights (total must be eq 1)
+  fov:                  0.0
+  pixel_phasescreens:   1024               # number of pixels in the phase screens
+  inputs:
+    seeing: 'seeing.output'
+    wind_speed: 'wind_speed.output'
+    wind_direction: 'wind_direction.output'
+  outputs: ['layer_list']
+
+
+prop:
+  class:                'AtmoPropagation'
+  source_dict_ref:      ['on_axis_source']
+  inputs:
+    atmo_layer_list: ['atmo.layer_list']
+    common_layer_list: ['pupilstop',
+                  'dm.out_layer:-1']
+  outputs: ['out_on_axis_source_ef']
+
+sh:
+  class:             'SH'
+  subap_wanted_fov:  4.0                     # Requested field-of-view [arcsec]
+  sensor_pxscale:    0.5                     # Pixel scale in arcsec/pix
+  subap_npx:         8                       # Output sampling [usually corresponding to CCD pixels]
+  subap_on_diameter: 8                      # Number of subapertures in diameter
+  wavelengthInNm:    600                     # [nm] Pyramid wavelength
+  convolGaussSpotSize: 0
+  inputs:
+    in_ef: 'prop.out_on_axis_source_ef'
+  outputs:  ['out_i']
+
+
+detector:
+  class:             'CCD'
+  size:              [64,64]                 # Detector size in pixels
+  dt:                0.001                   # [s] Detector integration time
+  bandw:             300                     # [nm] Sensor bandwidth
+  photon_noise:      True                    # activate photon noise
+  readout_noise:     True                    # activate readout noise
+  readout_level:     1.0                     # readout noise in [e-/pix/frame]
+  quantum_eff:       0.3                    # quantum efficiency * total transmission
+  inputs:
+    in_i: 'sh.out_i'
+  outputs:  ['out_pixels']
+
+
+slopec:
+  class:             'ShSlopec'
+  subapdata_object:  'scao_subaps_n8_th0.5'   # tag of the pyramid WFS pupils
+  inputs:
+    in_pixels:        'detector.out_pixels'
+  outputs:  ['out_slopes', 'out_subapdata']
+
+
+rec:
+  class:              'Modalrec'
+  recmat_object:      'scao_rec_n8_th0.5'         # reconstruction matrix tag
+  inputs:
+    in_slopes:        'slopec.out_slopes'
+  outputs:  ['out_modes', 'out_pseudo_ol_modes']
+
+
+control:
+  class:             'Integrator'
+  delay:             2                      # Total temporal delay in time steps
+  int_gain:          [0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5, # Integrator gain (for 'INT' control)
+                      0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,
+                      0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,
+                      0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5]  
+  inputs:
+      delta_comm: 'rec.out_modes'     
+  outputs:  ['out_comm']
+
+
+dm:
+  class:             'DM'
+  type_str:          'zernike'              # modes type
+  nmodes:            40                     # number of modes
+  npixels:           64                    # linear dimension of DM phase array
+  obsratio:          0.1                    # obstruction dimension ratio w.r.t. diameter
+  height:            0                      # DM height [m]
+  inputs:
+      in_command: 'control.out_comm'
+  outputs:  ['out_layer']
+
+
+psf:
+  class:             'PSF'
+  wavelengthInNm:    1650                 # [nm] Imaging wavelength
+  nd:                8                    # padding coefficient for PSF computation
+  start_time:        0.005                # PSF integration start time
+  inputs:
+      in_ef:  'prop.out_on_axis_source_ef'
+  outputs:  ['out_psf', 'out_sr']
+
+
+data_store:
+  class:             'DataStore'
+  store_dir:         './data'             # Data result directory: 'store_dir'/TN/
+  inputs:    
+    input_list: ['res_sr-psf.out_sr']
