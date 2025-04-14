@@ -3,6 +3,7 @@
 import numpy as np
 from astropy.io import fits
 
+from specula import cpuArray
 from specula.base_data_obj import BaseDataObj
 from specula.base_value import BaseValue
 
@@ -131,7 +132,7 @@ class Slopes(BaseDataObj):
         if hasattr(self, 'subapdata_tag') and self.subapdata_tag is not None:
             hdr['SUBAP_TAG'] = self.subapdata_tag
         fits.writeto(filename, np.zeros(2), hdr)
-        fits.append(filename, self.slopes)
+        fits.append(filename, cpuArray(self.slopes))
 
     def read(self, filename, hdr=None, exten=0):
         super().read(filename)

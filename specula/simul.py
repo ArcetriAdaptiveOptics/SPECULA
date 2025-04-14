@@ -191,7 +191,7 @@ class Simul():
                     elif parname in hints:
                         partype = hints[parname]
                         
-                        # Handle Optional and Union types
+                        # Handle Optional and Union types (for python <3.11)
                         if hasattr(partype, "__origin__") and partype.__origin__ is typing.Union:
                             # Extract actual class type from Optional/Union
                             # (first non-None type argument)
