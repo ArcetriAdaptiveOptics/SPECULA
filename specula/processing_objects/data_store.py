@@ -28,6 +28,7 @@ class DataStore(BaseProcessingObj):
         self.data_filename = ''
         self.tn_dir = store_dir
         self.data_format = data_format
+        self.replay_params = None
         
     def setParams(self, params):
         self.params = params
@@ -54,7 +55,13 @@ class DataStore(BaseProcessingObj):
                 pickle.dump(data_to_save, handle, protocol=pickle.HIGHEST_PROTOCOL)
         
     def save_params(self):
+        if self.replay_params is None:
+            return
+
         filename = os.path.join(self.tn_dir, 'params.yml')
+        if os.path.exists(filename):
+            raise FileExistsError('File params.yml already exists. Cannot overwrite an existing TN')
+
         with open(filename, 'w') as outfile:
             yaml.dump(self.params, outfile,  default_flow_style=False, sort_keys=False)
 

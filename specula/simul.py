@@ -28,13 +28,14 @@ class Simul():
     '''
     Simulation organizer
     '''
-    def __init__(self, *param_files, overrides=None):
+    def __init__(self, *param_files, overrides=None, nested_TN=False):
         if len(param_files) < 1:
             raise ValueError('At least one Yaml parameter file must be present')
         self.param_files = param_files
         self.objs = {}
         self.verbose = False  #TODO
         self.isReplay = False
+        self.nested_TN = nested_TN
         if overrides is None:
             self.overrides = []
         else:
@@ -226,6 +227,11 @@ class Simul():
             if 'info_getter' in args:
                 my_params['info_getter'] = self.get_info
 
+            if self.nested_TN and klass is DataStore:
+                if 'data_source' not in params:
+                    raise ValueError('nested TN option must be used with a replay YAML file')
+                pars2['store_dir'] = params['data_source']['store_dir']
+
             my_params.update(pars2)
             self.objs[key] = klass(**my_params)
 
@@ -317,10 +323,6 @@ class Simul():
                         a_connection['end_label'] = self.objs[dest_object].inputs[input_name]
                         self.connections.append(a_connection)
 
-
-                
-
-
     def build_replay(self, params):
         self.replay_params = deepcopy(params)
         obj_to_remove = []
@@ -336,7 +338,7 @@ class Simul():
             if classname=='DataStore':
                 self.replay_params['data_source'] = self.replay_params[key]
                 self.replay_params['data_source']['class'] = 'DataSource'
-                del self.replay_params['data_store']
+                del self.replay_params[key]
                 for output_name_full in pars['inputs']['input_list']:
                     input_name, output_name = output_name_full.split('-')
                     output_obj, output_name_small = output_name.split('.')                     
@@ -358,7 +360,7 @@ class Simul():
                         if output_name_full in data_source_outputs.keys():
                             self.replay_params[key]['inputs'][input_name] = data_source_outputs[output_name_full]
 
-            if key=='data_source':
+            if pars['class']=='data_source':
                 self.replay_params[key]['outputs'] = []
                 for v in self.replay_params[key]['inputs']['input_list']:
                     kk, vv = v.split('-')
@@ -499,8 +501,7 @@ class Simul():
         self.build_objects(params)
         self.connect_objects(params)                
         
-        if not self.isReplay:
-            self.build_replay(params)
+        self.build_replay(params)
 
         self.trigger_order, self.trigger_order_idx = self.trigger_order(params)
         print(f'{self.trigger_order=}')
