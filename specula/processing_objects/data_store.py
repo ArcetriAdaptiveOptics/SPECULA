@@ -21,11 +21,13 @@ class DataStore(BaseProcessingObj):
 
     def __init__(self,
                 store_dir: str,         # TODO ="",
+                starting_time: float=0, 
                 data_format: str='fits'):
         super().__init__()
         self.items = {}
         self.storage = {}
         self.data_filename = ''
+        self.starting_time = starting_time
         self.tn_dir = store_dir
         self.data_format = data_format
         
@@ -89,6 +91,9 @@ class DataStore(BaseProcessingObj):
         self.tn_dir = prefix        
 
     def trigger_code(self):
+        if self.current_time_seconds < self.starting_time:
+            return
+
         for k, item in self.items.items():
             if item is not None and item.generation_time == self.current_time:
                 if isinstance(item, BaseValue):
