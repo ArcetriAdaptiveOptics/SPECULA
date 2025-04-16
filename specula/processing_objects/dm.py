@@ -6,6 +6,7 @@ from specula.data_objects.ifunc import IFunc
 from specula.data_objects.layer import Layer
 from specula.data_objects.pupilstop import Pupilstop
 from specula.base_processing_obj import BaseProcessingObj
+import numpy as np
 
 class DM(BaseProcessingObj):
     def __init__(self,
@@ -40,6 +41,7 @@ class DM(BaseProcessingObj):
                            nmodes=nmodes, start_mode=start_mode, idx_modes=idx_modes,
                            target_device_idx=target_device_idx, precision=precision)
         self._ifunc = ifunc
+        #print(f'{self._ifunc.influence_function.shape=}')
         
         s = self._ifunc.mask_inf_func.shape
         nmodes_if = self._ifunc.size[0]
@@ -62,6 +64,7 @@ class DM(BaseProcessingObj):
         self.outputs['out_layer'] = self.layer
 
     def trigger_code(self):
+        #print(f'{self._ifunc.influence_function.shape=}')
         input_commands = self.local_inputs['in_command'].value
         if self.m2c is not None:
             self.m2c_commands[:len(input_commands)] = input_commands
@@ -70,6 +73,12 @@ class DM(BaseProcessingObj):
             cmd = input_commands
             
         self.if_commands[:len(cmd)] = self.sign * cmd
+        # print(f'{self.if_commands.shape=}')
+        # print(f'{self._ifunc.influence_function.shape=}')
+        # print(f'{self._ifunc.idx_inf_func[0].shape=}')
+        # print(f'{self._ifunc.idx_inf_func[1].shape=}')
+        # print(f'{self.layer.phaseInNm.shape=}')
+        #self.layer.phaseInNm[self._ifunc.idx_inf_func] = np.dot(self.if_commands, self._ifunc.influence_function)
         self.layer.phaseInNm[self._ifunc.idx_inf_func] = self.if_commands @ self._ifunc.influence_function
         self.layer.generation_time = self.current_time
     
