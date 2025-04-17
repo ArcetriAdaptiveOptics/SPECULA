@@ -32,15 +32,9 @@ class ModalAnalysis(BaseProcessingObj):
                 raise ValueError("If ifunc is not set, then npixels must be set!")
             
             type_lower = type_str.lower()
-            if type_lower == 'kl':
-                ifunc, mask = compute_kl_ifunc(npixels, nmodes=nmodes, obsratio=obsratio, diaratio=diaratio, mask=mask,
-                                               xp=self.xp, dtype=self.dtype)
-            elif type_lower in ['zern', 'zernike']:
+            if type_lower in ['zern', 'zernike']:
                 ifunc, mask = compute_zern_ifunc(npixels, nzern=nmodes, obsratio=obsratio, diaratio=diaratio, mask=mask,
                                                  xp=self.xp, dtype=self.dtype)
-            elif type_lower == 'mixed':
-                ifunc, mask = compute_mixed_ifunc(npixels, nzern=nzern, nmodes=nmodes, obsratio=obsratio, diaratio=diaratio, mask=mask,
-                                                  xp=self.xp, dtype=self.dtype)
             else:
                 raise ValueError(f'Invalid ifunc type {type_str}')
             
