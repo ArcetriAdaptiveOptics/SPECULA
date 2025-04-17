@@ -94,4 +94,7 @@ def calc_phasescreen(L0, dimension, pixel_pitch, xp, precision, seed=0, verbose=
     phasescreen = xp.fft.ifft2(phasescreen, norm='forward')
     phasescreen = xp.fft.fftshift(phasescreen)
 
-    return xp.real(phasescreen)
+    # Multiply by sqrt of 2 to get the correct amplitude
+    phasescreen = xp.sqrt(2) * xp.real(phasescreen)
+
+    return phasescreen
