@@ -45,7 +45,7 @@ class InfinitePhaseScreen(BaseDataObj):
         
         self.random_data_col = None
         self.random_data_row = None
-        self.requested_mx_size = mx_size
+        self.requested_mx_size = int(mx_size)
         self.mx_size = 2 ** (int( np.ceil(np.log2(mx_size)))) + 1
         self.pixel_scale = pixel_scale
         self.r0 = r0
@@ -214,7 +214,7 @@ class InfinitePhaseScreen(BaseDataObj):
 
     @property
     def scrn(self):
-        return self.full_scrn[:self.requested_mx_size, :self.requested_mx_size].get()
+        return cpuArray(self.full_scrn[:self.requested_mx_size, :self.requested_mx_size])
 
     @property
     def scrnRaw(self):
