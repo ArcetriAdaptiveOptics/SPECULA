@@ -1,9 +1,9 @@
 ---
 
 main:
-  root_dir:          './calib/SCAO'         # Root directory for calibration manager
-  pixel_pupil:       160                    # Linear dimension of pupil phase array
-  pixel_pitch:       0.05                   # [m] Pitch of the pupil phase array
+  root_dir:          './calib'         # Root directory for calibration manager
+  pixel_pupil:       80                    # Linear dimension of pupil phase array
+  pixel_pitch:       0.1                   # [m] Pitch of the pupil phase array
   total_time:        30.0                  # [s] Total simulation running time
   time_step:         0.01                  # [s] Simulation time step
 
@@ -15,7 +15,7 @@ seeing:
 
 wind_speed:
   class:             'FuncGenerator'
-  constant:          [20.]                # [m/s] Wind speed value
+  constant:          [25.]                # [m/s] Wind speed value
   outputs: ['output']
 
 
@@ -42,7 +42,6 @@ atmo1:
   heights:              [0.]                 # [m] layer heights at 0 zenith angle
   Cn2:                  [1.00]               # Cn2 weights (total must be eq 1)
   fov:                  0.0
-  pixel_phasescreens:   16384                # Number of pixels in the phase screen
   inputs:
     seeing: 'seeing.output'
     wind_speed: 'wind_speed.output'
@@ -62,7 +61,7 @@ prop1:
 modal_analysis1:
   class:            'ModalAnalysis'
   type_str:         'zernike'
-  npixels:          160
+  npixels:          80
   nmodes:           100
   dorms:            True
   inputs:
@@ -95,7 +94,7 @@ prop2:
 modal_analysis2:
   class:            'ModalAnalysis'
   type_str:         'zernike'
-  npixels:          160
+  npixels:          80
   nmodes:           100
   dorms:            True
   inputs:

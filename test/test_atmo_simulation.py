@@ -1,10 +1,7 @@
 import unittest
 import os
 import shutil
-import subprocess
-import sys
 import glob
-import time
 import specula
 specula.init(-1,precision=1)  # Default target device
 
@@ -12,8 +9,8 @@ from specula import np
 from specula.simul import Simul
 from astropy.io import fits
 
-class TestShSimulation(unittest.TestCase):
-    """Test SH SCAO simulation by running a full simulation and checking the results"""
+class TestAtmoSimulation(unittest.TestCase):
+    """Test AtmoEvolution and AtmoInfiniteEvolution by running a full simulation and checking the results"""
     
     def setUp(self):
         """Set up test by ensuring calibration directory exists"""
@@ -22,7 +19,7 @@ class TestShSimulation(unittest.TestCase):
         self.calibdir = os.path.join(os.path.dirname(__file__), 'calib')
 
         self.phasescreen_path = os.path.join(self.calibdir, 'phasescreens',
-                                   'ps_seed1_dim16384_pixpit0.05_L010.0000_single.fits')
+                                   'ps_seed1_dim8192_pixpit0.100_L010.0000_single.fits')
 
         self.turb_rms_path = os.path.join(self.datadir, 'atmo_s0.8asec_L010m_D8m_100modes_rms.fits')
         
@@ -41,6 +38,7 @@ class TestShSimulation(unittest.TestCase):
                 shutil.rmtree(output_dir)
         
         # Clean up copied calibration files
+        print(self.phasescreen_path)
         if os.path.exists(self.phasescreen_path):
             os.remove(self.phasescreen_path)
 
@@ -52,7 +50,6 @@ class TestShSimulation(unittest.TestCase):
         
         # Change to test directory
         os.chdir(os.path.dirname(__file__))
-        print(os.getcwd())
         
         # Run the simulation
         print("Running ATMO simulation...")
@@ -100,12 +97,12 @@ class TestShSimulation(unittest.TestCase):
                            "No data found in first HDU of turbulence RMS fits file")
             turb_rms = hdul[0].data
         
-            # Compare the sqrt of the covariance, check if the diagonal elements are similar       
-            verbose = False
-            if verbose:
-                print(f"Empirical RMS from modes1: {rms_modes1[0:9]}")
-                print(f"Empirical RMS from modes2: {rms_modes2[0:9]}")
-                print(f"Theoretical RMS: {turb_rms[0:9]}")
+            # Compare the sqrt of the covariance, check if the diagonal elements are similar          
+            # Check if the ratio is within a reasonable range (may need adjustment)
+            tolerance = 0.15
+            diff1 = abs(rms_modes1 - turb_rms)
+            diff2 = abs(rms_modes2 - turb_rms)
+
             display = False
             if display:
                 import matplotlib.pyplot as plt
@@ -122,14 +119,9 @@ class TestShSimulation(unittest.TestCase):
                 plt.title('RMS Comparison')
                 plt.legend()
                 plt.show()
-            
-            # Check if the ratio is within a reasonable range (may need adjustment)
-            tolerance = 0.25
-            diff1 = abs(rms_modes1 - turb_rms)
-            diff2 = abs(rms_modes2 - turb_rms)
-            
+
             self.assertTrue(np.all((diff1 / turb_rms) < tolerance),
-                            "Empirical RMS from modes1 does not match theoretical RMS")
+                            "Turbulence RMS from AtmoEvolution does not match theoretical RMS")
             self.assertTrue(np.all((diff2 / turb_rms) < tolerance),
-                            "Empirical RMS from modes2 does not match theoretical RMS")
+                            "Turbulence RMS from AtmoInfiniteEvolution does not match theoretical RMS")
             print("Turbulence RMS match within tolerance.")
