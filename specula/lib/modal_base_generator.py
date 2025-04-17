@@ -1,4 +1,5 @@
 import numpy as np
+from specula.lib.utils import make_orto_modes
 from specula.lib.zernike_generator import ZernikeGenerator
 
 def generate_phase_spectrum(f, r0, L0, xp=np, dtype=np.float32):
@@ -73,41 +74,6 @@ def generate_distance_grid(N, M=None, xp=np, dtype=np.float32):
             R[y, x] = xp.sqrt(f + g)
   
     return R
-
-def make_orto_modes(array, xp=np, dtype=np.float32):
-    """
-    Return an orthogonal 2D array
-    
-    Parameters:
-    -----------
-    array : 2D array
-        Input array
-    xp : module, optional
-        Array processing module (numpy or cupy)
-    dtype : data type, optional
-        Data type for arrays
-        
-    Returns:
-    --------
-    Q : 2D array
-        Orthogonal matrix
-    """
-    # return an othogonal 2D array
-    
-    size_array = xp.shape(array)
-
-    if len(size_array) != 2:
-        raise ValueError('Error in input data, the input array must have two dimensions.')
-    
-    if size_array[1] > size_array[0]:
-        Q, R = xp.linalg.qr(array.T)
-        Q = Q.T
-    else:
-        Q, R = xp.linalg.qr(array)
-    
-    Q = xp.asarray(Q, dtype=dtype)
-    
-    return Q
 
 def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0, oversampling=2, verbose=False, xp=np, dtype=np.float32):
     """"
