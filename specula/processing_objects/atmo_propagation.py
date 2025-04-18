@@ -53,8 +53,10 @@ class AtmoPropagation(BaseProcessingObj):
             ef = ElectricField(self.pixel_pupil_size, self.pixel_pupil_size, self.pixel_pitch, target_device_idx=self.target_device_idx)
             ef.S0 = source.phot_density()
             self.outputs['out_'+name+'_ef'] = ef            
-            
-        self.inputs['atmo_layer_list'] = InputList(type=Layer)
+        
+        # atmo_layer_list is optional because it can be empty during calibration of an AO system while
+        # the common_layer_list is not optional because at least a pupilstop is needed       
+        self.inputs['atmo_layer_list'] = InputList(type=Layer,optional=True)
         self.inputs['common_layer_list'] = InputList(type=Layer)
 
     def doFresnel_setup(self):
@@ -198,6 +200,8 @@ class AtmoPropagation(BaseProcessingObj):
 
         self.atmo_layer_list = self.inputs['atmo_layer_list'].get(self.target_device_idx)
         self.common_layer_list = self.inputs['common_layer_list'].get(self.target_device_idx)
+        if self.atmo_layer_list is None:
+            self.atmo_layer_list = []
         if len(self.atmo_layer_list) + len(self.common_layer_list) < 1:
             raise ValueError('At least one layer must be set')
 
