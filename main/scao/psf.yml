@@ -1,0 +1,19 @@
+
+# Example:
+# python main_simul.py output/20250414_155037/replay_params.yml psf.yml --nested-TN
+
+ 
+psf2200:
+  class:             'PSF'
+  wavelengthInNm:    2200                 # [nm] Imaging wavelength
+  nd:                8                    # padding coefficient for PSF computation
+  start_time:        0.05                # PSF integration start time
+  inputs:
+      in_ef:  'data_source.res_ef'
+  outputs: ['out_sr']
+
+
+data_store:
+  class:             'DataStore'
+  inputs:    
+    input_list: [ 'psf2200-psf2200.out_sr']

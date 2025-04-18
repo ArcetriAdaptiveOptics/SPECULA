@@ -94,7 +94,7 @@ class PSF(BaseProcessingObj):
 
         return psf
 
-    def setup(self, loop_dt, loop_iters):
+    def setup(self, loop_dt, loop_niters):
         super().setup(loop_dt, loop_niters)
 
         self.in_ef = self.inputs['in_ef'].get(target_device_idx=self.target_device_idx)
@@ -103,8 +103,8 @@ class PSF(BaseProcessingObj):
         self.out_size = s[0]
         npsf = len(self.wavelengthInNm_list)
 
-        self.out_psf.value = self.xp.zeros((npsf,) + s, dtype=self.dtype)
-        self.out_int_psf.value = self.xp.zeros((npsf,) + s, dtype=self.dtype)
+        self.out_psf.value = self.xp.zeros([npsf] + s, dtype=self.dtype)
+        self.out_int_psf.value = self.xp.zeros([npsf] + s, dtype=self.dtype)
         self.out_sr.value = self.xp.zeros(npsf, dtype=self.dtype)
         self.out_int_sr.value = self.xp.zeros(npsf, dtype=self.dtype)
 
@@ -115,7 +115,7 @@ class PSF(BaseProcessingObj):
         for i, wavelength in enumerate(self.wavelengthInNm_list):
             self.out_psf.value[i] = self.calc_psf(self.in_ef.phi_at_lambda(wavelength), self.in_ef.A, imwidth=self.out_size, normalize=True)
             self.out_sr.value[i] = self.out_psf.value[i, *self.center_coord] / self.ref_psf.i[*self.center_coord]
-            print(f'SR @{wavelength} nm: {self.out_sr[i]}')
+            print(f'SR @{wavelength} nm: {self.out_sr.value[i]}')
 
     def post_trigger(self):
         super().post_trigger()

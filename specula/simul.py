@@ -351,7 +351,7 @@ class Simul():
         for key, pars in self.replay_params.items():            
             if key == 'main':
                 continue
-            if not key=='data_source':
+            if not pars['class']=='DataSource':
                 if 'inputs' in pars.keys():
                     for input_name, output_name_full in pars['inputs'].items():
                         if type(output_name_full) is list:
@@ -360,7 +360,7 @@ class Simul():
                         if output_name_full in data_source_outputs.keys():
                             self.replay_params[key]['inputs'][input_name] = data_source_outputs[output_name_full]
 
-            if pars['class']=='data_source':
+            if pars['class']=='DataSource':
                 self.replay_params[key]['outputs'] = []
                 for v in self.replay_params[key]['inputs']['input_list']:
                     kk, vv = v.split('-')

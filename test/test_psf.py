@@ -34,9 +34,9 @@ class TestPSF(unittest.TestCase):
         psf.check_ready(t)
         psf.trigger()
         psf.post_trigger()
-        sr = sh.outputs['out_sr'].get(target_device_idx=target_device_idx)
+        sr = psf.outputs['out_sr'].value
         
-        self.assertAlmostEqual(sr.value, 1.0)
+        self.assertAlmostEqual(sr, 1.0)
 
     @cpu_and_gpu
     def test_psf_multiwavelength(self, target_device_idx, xp):
@@ -57,7 +57,7 @@ class TestPSF(unittest.TestCase):
         psf.check_ready(t)
         psf.trigger()
         psf.post_trigger()
-        sr = sh.outputs['out_sr'].get(target_device_idx=target_device_idx)
+        sr = psf.outputs['out_sr'].value
         
         assert len(sr) == 3
-        np.testing.assert_almost_equal(sr.value, [1.0, 1.0, 1.0])
+        np.testing.assert_array_almost_equal(cpuArray(sr), [1.0, 1.0, 1.0])
