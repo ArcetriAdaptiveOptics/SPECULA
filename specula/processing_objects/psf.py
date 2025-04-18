@@ -121,7 +121,9 @@ class PSF(BaseProcessingObj):
 
         for i, wavelength in enumerate(self.wavelengthInNm_list):
             self.out_psf.value[i] = self.calc_psf(self.in_ef.phi_at_lambda(wavelength), self.in_ef.A, imwidth=self.out_shape[0], normalize=True)
-            self.out_sr.value[i] = self.out_psf.value[i, *self.center_coord] / self.ref_psf.i[*self.center_coord]
+            psf_peak = self.out_psf.value[i, self.center_coord[0], self.center_coord[1]]
+            ref_peak = self.ref_psf.i[self.center_coord[0], self.center_coord[1]]
+            self.out_sr.value[i] = psf_peak / ref_peak
             print(f'SR @{wavelength} nm: {self.out_sr.value[i]:.3f}')
 
     def post_trigger(self):
