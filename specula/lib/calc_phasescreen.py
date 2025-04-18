@@ -28,11 +28,16 @@ def calc_phasescreen(L0, dimension, pixel_pitch, xp, precision, seed=0, verbose=
     if verbose:
         print("Compute random matrices")
 
-    # "seed" must be a numpy array even when using CuPY
-    xp.random.seed(cpuArray(seed))
-    
-    re_gauss = xp.random.standard_normal((half_dim + 1, 2 * half_dim + 1))
-    im_gauss = xp.random.standard_normal((half_dim + 1, 2 * half_dim + 1))
+    # "seed" must be a numpy array even when using CuPY   
+    rng = xp.random.RandomState(cpuArray(seed))
+    u1 = rng.random((half_dim + 1, 2 * half_dim + 1))
+    v1 = rng.random((half_dim + 1, 2 * half_dim + 1))
+    # Box-Muller transform method
+    re_gauss = (xp.sqrt(-2.0 * xp.log(u1)) * xp.cos(2.0 * xp.pi * v1)).astype(dtype=dtype)
+    u2 = rng.random((half_dim + 1, 2 * half_dim + 1))
+    v2 = rng.random((half_dim + 1, 2 * half_dim + 1))
+    # Box-Muller transform method
+    im_gauss = (xp.sqrt(-2.0 * xp.log(u2)) * xp.cos(2.0 * xp.pi * v2)).astype(dtype=dtype)
 
     # Check for non-finite elements and handle them
     if not xp.isfinite(re_gauss).all():
@@ -63,9 +68,11 @@ def calc_phasescreen(L0, dimension, pixel_pitch, xp, precision, seed=0, verbose=
 
     # Fill in the noise matrix
     phasescreen[half_dim:2 * half_dim, 0:2 * half_dim] = re_gauss[1:half_dim + 1, 1:2 * half_dim + 1] + 1j * im_gauss[1:half_dim + 1, 1:2 * half_dim + 1]
-    phasescreen[0:half_dim, 0:2 * half_dim] = xp.flipud(re_gauss[1:half_dim + 1, 1:2 * half_dim + 1]) - 1j * xp.flipud(im_gauss[1:half_dim + 1, 1:2 * half_dim + 1])
+    phasescreen[0:half_dim-1, 0:2 * half_dim] = xp.rot90(re_gauss,2)[1:half_dim, 1:2 * half_dim + 1] - 1j * xp.rot90(im_gauss,2)[1:half_dim, 1:2 * half_dim + 1]
     phasescreen[half_dim, 0:half_dim] = re_gauss[0, 1:half_dim+1] + 1j * im_gauss[0, 1:half_dim+1]
-    phasescreen[half_dim, half_dim:2 * half_dim] = xp.flipud(re_gauss[0, 0:half_dim]) - 1j * xp.flipud(im_gauss[0, 0:half_dim])
+    phasescreen[half_dim, half_dim:2 * half_dim] = xp.flipud(re_gauss)[0, 0:half_dim] - 1j * xp.flipud(im_gauss)[0, 0:half_dim]
+    phasescreen[2*half_dim-1, :] = 0
+    phasescreen[:, 2*half_dim-1] = 0
 
     if verbose:
         print("Compute spatial frequency matrix")
@@ -89,12 +96,10 @@ def calc_phasescreen(L0, dimension, pixel_pitch, xp, precision, seed=0, verbose=
     phasescreen *= (spatial_frequency + 1. / L0**2)**(-11./12.)
     phasescreen *= xp.sqrt(0.033/2./m_dimension**2) * (2 * xp.pi)**(2./3.) * xp.sqrt(0.06) * (1 / pixel_pitch)**(5./6.)
 
-    # Perform the inverse FFT
-    phasescreen = xp.fft.ifftshift(phasescreen)
+    phasescreen = xp.roll(phasescreen, (-half_dim+1, -half_dim+1), axis=(0, 1))
     phasescreen = xp.fft.ifft2(phasescreen, norm='forward')
-    phasescreen = xp.fft.fftshift(phasescreen)
+    phasescreen = xp.roll(phasescreen, (half_dim-1, half_dim-1), axis=(0, 1))
 
-    # Multiply by sqrt of 2 to get the correct amplitude
-    phasescreen = xp.sqrt(2) * xp.real(phasescreen)
+    phasescreen = xp.real(phasescreen)
 
     return phasescreen
