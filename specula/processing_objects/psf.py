@@ -98,24 +98,31 @@ class PSF(BaseProcessingObj):
         super().setup(loop_dt, loop_niters)
 
         self.in_ef = self.inputs['in_ef'].get(target_device_idx=self.target_device_idx)
-        s = [int(np.around(dim * self.nd/2)*2) for dim in self.in_ef.size]
-        self.center_coord = s[0] // 2, s[1] // 2
-        self.out_size = s[0]
+        self.out_shape = [int(np.around(dim * self.nd/2)*2) for dim in self.in_ef.size]
+        self.center_coord = self.out_shape[0] // 2, self.out_shape[1] // 2
         npsf = len(self.wavelengthInNm_list)
 
-        self.out_psf.value = self.xp.zeros([npsf] + s, dtype=self.dtype)
-        self.out_int_psf.value = self.xp.zeros([npsf] + s, dtype=self.dtype)
+        self.out_psf.value = self.xp.zeros([npsf] + self.out_shape, dtype=self.dtype)
+        self.out_int_psf.value = self.xp.zeros([npsf] + self.out_shape, dtype=self.dtype)
         self.out_sr.value = self.xp.zeros(npsf, dtype=self.dtype)
         self.out_int_sr.value = self.xp.zeros(npsf, dtype=self.dtype)
-
-        self.ref_psf = Intensity(s[0], s[1])
-        self.ref_psf.i = self.calc_psf(self.in_ef.A * 0.0, self.in_ef.A, imwidth=s[0], normalize=True)
+        self.ref_psf = None
 
     def trigger_code(self):
+
+        # We have to wait until the first trigger to generate
+        # the reference PSF, because we need the correct amplitude mask.
+        # This conditional instruction prevents us from
+        # building a CUDA stream for now.
+        
+        if self.ref_psf is None:
+            self.ref_psf = Intensity(*self.out_shape)
+            self.ref_psf.i = self.calc_psf(self.in_ef.A * 0.0, self.in_ef.A, imwidth=self.out_shape[0], normalize=True)
+
         for i, wavelength in enumerate(self.wavelengthInNm_list):
-            self.out_psf.value[i] = self.calc_psf(self.in_ef.phi_at_lambda(wavelength), self.in_ef.A, imwidth=self.out_size, normalize=True)
+            self.out_psf.value[i] = self.calc_psf(self.in_ef.phi_at_lambda(wavelength), self.in_ef.A, imwidth=self.out_shape[0], normalize=True)
             self.out_sr.value[i] = self.out_psf.value[i, *self.center_coord] / self.ref_psf.i[*self.center_coord]
-            print(f'SR @{wavelength} nm: {self.out_sr.value[i]}')
+            print(f'SR @{wavelength} nm: {self.out_sr.value[i]:.3f}')
 
     def post_trigger(self):
         super().post_trigger()
