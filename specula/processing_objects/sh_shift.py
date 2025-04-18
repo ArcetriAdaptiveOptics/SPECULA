@@ -4,9 +4,15 @@ class ShShift(BaseProcessingObj):
     '''
     TODO not yet working
     '''
-    def __init__(self, params_sh, params_main, shift_wavelength_in_nm, xy_shift, qe_factor, resize_fact, 
-                 target_device_idx=None, 
-                 precision=None):
+    def __init__(self, 
+                 params_sh, 
+                 params_main, 
+                 shift_wavelength_in_nm, 
+                 xy_shift, 
+                 qe_factor, 
+                 resize_fact, 
+                 target_device_idx: int=None, 
+                 precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         raise NotImplementedError

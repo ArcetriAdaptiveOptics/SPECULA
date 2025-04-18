@@ -99,7 +99,7 @@ atmo:
                          0.0161969, 0.0260951, 0.0155971, 0.0103980, 0.00999811, 0.0119977, 0.00400924, 0.0139974, 0.0129975, 0.00700868,
                          0.0159970, 0.0258951, 0.0190964, 0.00986813, 0.00616883, 0.00400924, 0.00246953, 0.00215959, 0.00184965, 0.00135974,
                          0.00110979, 0.000616883, 0.000925825, 0.000493907, 0.000431918] # Cn2 weights (total must be eq 1)
-  source_dict_ref:      ['on_axis_source','ngs1_source','ngs2_source','ngs3_source','ngs4_source','ngs5_source','ngs6_source']
+  fov:                  160.0  
   inputs:
     seeing: 'seeing.output'
     wind_speed: 'wind_speed.output'

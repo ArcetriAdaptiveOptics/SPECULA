@@ -5,8 +5,8 @@ from specula.data_objects.iir_filter_data import IirFilterData
     
 class LowPassFilter(IirFilter):
     def __init__(self,
-                 cutoff_freq: float=1.0,
-                 time_step: int=100,
+                 cutoff_freq: float,    # TODO =1.0,
+                 time_step: int,        # TODO =100,
                  amplif_fact: float=None,
                  n_ord: int=None,
                  delay: float=0,

@@ -79,7 +79,12 @@ def lgs_map_sh(nsh, diam, rl, zb, dz, profz, fwhmb, ps, ssp,
     return ccd
 
 class ConvolutionKernel(BaseDataObj):
-    def __init__(self, dimx, dimy, cm=None, airmass=1.0, target_device_idx=None, precision=None):
+    def __init__(self,
+                 dimx: int,
+                 dimy: int,
+                 airmass: float=1.0,
+                 target_device_idx: int=None,
+                 precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         
         self.kernels = None

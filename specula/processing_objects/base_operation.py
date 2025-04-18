@@ -19,9 +19,19 @@ def convert_to_xp_array(obj, xp, dtype):
 
 class BaseOperation(BaseProcessingObj):
     ''''Simple operations with base value(s)'''
-
-    def __init__(self, constant_mul=None, constant_div=None, constant_sum=None, constant_sub=None, mul=False, div=False, sum=False, sub=False,
-                 concat=False, value2_is_shorter=False, target_device_idx=None, precision=None):
+    def __init__(self, 
+                 constant_mul: float=None,
+                 constant_div: float=None,
+                 constant_sum: float=None,
+                 constant_sub: float=None,
+                 mul: bool=False,
+                 div: bool=False,
+                 sum: bool=False,
+                 sub: bool=False,
+                 concat: bool=False,
+                 value2_is_shorter: bool=False,
+                 target_device_idx: int=None,
+                 precision:int =None):
         """
         Initialize the base operation object.
 

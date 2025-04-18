@@ -10,7 +10,7 @@ class Modalrec(BaseProcessingObj):
     '''Modal reconstructor'''
 
     def __init__(self,
-                 nmodes: int=0,
+                 nmodes: int=None,      # TODO =0,
                  recmat: Recmat=None,
                  projmat: Recmat=None,
                  intmat: Intmat=None,
@@ -21,8 +21,8 @@ class Modalrec(BaseProcessingObj):
                  nSlopesToBeDiscarded: int=None,
                  dmNumber: int=0,
                  noProj: bool=False,
-                 target_device_idx=None, 
-                 precision=None
+                 target_device_idx: int=None,
+                 precision: int=None
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
@@ -34,7 +34,8 @@ class Modalrec(BaseProcessingObj):
         else:
             if recmat is None:
                 if identity:
-                    if nmodes<=0:
+#                    if nmodes<=0:  # TODO new code to be tested
+                    if nmodes is None:
                         raise ValueError('modalrec nmodes key must be set!')
                     recmat = Recmat(self.xp.identity(nmodes),
                                     target_device_idx=target_device_idx, precision=precision)

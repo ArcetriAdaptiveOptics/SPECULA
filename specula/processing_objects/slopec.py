@@ -7,14 +7,18 @@ from specula.data_objects.slopes import Slopes
 
 
 class Slopec(BaseProcessingObj):
-    def __init__(self, sn: Slopes=None, cm=None, 
-                 use_sn=False, accumulate=False, weight_from_accumulated=False, 
-                 do_rec=False, 
-                 intmat=None, 
-                 recmat=None, accumulation_dt=0, 
-                 accumulated_pixels=(0,0),
-                 target_device_idx=None, 
-                 precision=None
+    def __init__(self, 
+                 sn: Slopes=None,
+                 use_sn: bool=False, 
+                 accumulate: bool=False, 
+                 weight_from_accumulated: bool=False, 
+                 do_rec: bool=False, 
+                 intmat=None,
+                 recmat=None, 
+                 accumulation_dt: float=0, 
+                 accumulated_pixels: tuple=(0,0),
+                 target_device_idx: int=None, 
+                 precision: int=None
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
@@ -28,7 +32,6 @@ class Slopec(BaseProcessingObj):
 
         self.slopes = Slopes(2)  # TODO resized in derived class
         self.sn = sn
-        self.cm = cm
         self.flux_per_subaperture_vector = BaseValue()
         self.max_flux_per_subaperture_vector = BaseValue()
         self.use_sn = use_sn

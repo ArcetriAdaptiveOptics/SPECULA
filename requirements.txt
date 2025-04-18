@@ -2,7 +2,6 @@ numpy
 scipy
 astropy
 matplotlib
-numba; python_version < "3.13"
 symao >= 1.0.1
 astro-seeing>=1.1
 flask-socketio

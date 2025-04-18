@@ -11,7 +11,12 @@ class GaussianConvolutionKernel(ConvolutionKernel):
     Kernel processing object for Gaussian kernels.
     """
     
-    def __init__(self, convolGaussSpotSize, dimx, dimy, target_device_idx=None, precision=None):
+    def __init__(self,
+                 convolGaussSpotSize :int,
+                 dimx: int,
+                 dimy: int,
+                 target_device_idx: int=None,
+                 precision: int=None):
         super().__init__(dimx, dimy, target_device_idx=target_device_idx, precision=precision)        
         self.spotsize = convolGaussSpotSize
 

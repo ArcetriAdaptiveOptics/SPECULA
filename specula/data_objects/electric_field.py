@@ -5,7 +5,13 @@ from specula.base_data_obj import BaseDataObj
 class ElectricField(BaseDataObj):
     '''Electric field'''
 
-    def __init__(self, dimx, dimy, pixel_pitch, S0=0.0, target_device_idx=None, precision=None):
+    def __init__(self,
+                 dimx: int,
+                 dimy: int,
+                 pixel_pitch: float,
+                 S0: float=0.0,
+                 target_device_idx: int=None,
+                 precision: int=None):
         super().__init__(precision=precision, target_device_idx=target_device_idx)
         dimx = int(dimx)
         dimy = int(dimy)

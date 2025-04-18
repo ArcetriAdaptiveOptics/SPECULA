@@ -1,15 +1,21 @@
-from specula import fuse
-
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_value import BaseValue
 from specula.connections import InputValue, InputList
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.ifunc import IFunc
+from specula.lib.compute_zern_ifunc import compute_zern_ifunc
 
 class ModalAnalysis(BaseProcessingObj):
 
     def __init__(self, 
-                ifunc: IFunc,
+                ifunc=None,
+                type_str: str=None,
+                mask=None,
+                npixels: int=None,
+                nzern: int=None,
+                obsratio: float=None,
+                diaratio: float=None,
+                nmodes: int=None,
                 wavelengthInNm: float=0.0,
                 dorms: bool=False,
                 target_device_idx: int=None,
@@ -17,8 +23,26 @@ class ModalAnalysis(BaseProcessingObj):
 
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        self.ifunc = ifunc
-        self.phase2modes = self.xp.asanyarray(ifunc.inverse(), dtype=self.dtype)
+        if ifunc is None:
+            if type_str is None:
+                raise ValueError('At least one of ifunc and type must be set')
+            if mask is not None:
+                mask = (self.xp.array(mask) > 0).astype(self.dtype)
+            if npixels is None:
+                raise ValueError("If ifunc is not set, then npixels must be set!")
+            
+            type_lower = type_str.lower()
+            if type_lower in ['zern', 'zernike']:
+                ifunc, mask = compute_zern_ifunc(npixels, nzern=nmodes, obsratio=obsratio, diaratio=diaratio, mask=mask,
+                                                 xp=self.xp, dtype=self.dtype)
+            else:
+                raise ValueError(f'Invalid ifunc type {type_str}')
+            
+            self.ifunc = IFunc(ifunc, mask=mask, nmodes=nmodes)
+        else:
+            self.ifunc = ifunc
+
+        self.phase2modes = self.xp.asanyarray(self.ifunc.inverse(), dtype=self.dtype)
         self.rms = BaseValue('modes', 'output RMS of modes from modal reconstructor')        
         self.dorms = dorms
         self.wavelengthInNm = wavelengthInNm

@@ -6,7 +6,13 @@ from astropy.io import fits
 
 
 class IirFilterData(BaseDataObj):
-    def __init__(self, ordnum, ordden, num, den, target_device_idx=None, precision=None):
+    def __init__(self,
+                 ordnum: list,
+                 ordden: list, 
+                 num, 
+                 den, 
+                 target_device_idx: int=None, 
+                 precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         self.ordnum = self.xp.array(ordnum, dtype=int)
         self.ordden = self.xp.array(ordden, dtype=int) 
@@ -126,12 +132,12 @@ class IirFilterData(BaseDataObj):
             wTf = self.discrete_delay_tf(delay)
         nw = wTf[:, 0]
         dw = wTf[:, 1]
-        complex_yt_tf = self.plot_IirFilter_tf(self.num[mode, :], self.den[mode, :], fs, dm=dm, nw=nw, dw=dw, freq=freq, noplot=True, verbose=verbose)
+        complex_yt_tf = self.plot_iirfilter_tf(self.num[mode, :], self.den[mode, :], fs, dm=dm, nw=nw, dw=dw, freq=freq, noplot=True, verbose=verbose)
         return complex_yt_tf
 
     def RTF(self, mode, fs, freq=None, tf=None, dm=None, nw=None, dw=None, verbose=False, title=None, overplot=False, **extra):
         plotTitle = title if title else '!17Rejection Transfer Function'
-        tf = self.plot_IirFilter_tf(self._num[mode, :], self._den[mode, :], fs, dm=dm, nw=nw, dw=dw, freq=freq, noplot=True, verbose=verbose)
+        tf = self.plot_iirfilter_tf(self._num[mode, :], self._den[mode, :], fs, dm=dm, nw=nw, dw=dw, freq=freq, noplot=True, verbose=verbose)
         import matplotlib.pyplot as plt
         if overplot:
             color = extra.get('color', 255)
@@ -145,7 +151,7 @@ class IirFilterData(BaseDataObj):
 
     def NTF(self, mode, fs, freq=None, tf=None, dm=None, nw=None, dw=None, verbose=False, title=None, overplot=False, **extra):
         plotTitle = title if title else '!17Noise Transfer Function'
-        tf = self.plot_IirFilter_tf(self.num[mode, :], self.den[mode, :], fs, dm=dm, nw=nw, dw=dw, freq=freq, noplot=True, verbose=verbose)
+        tf = self.plot_iirfilter_tf(self.num[mode, :], self.den[mode, :], fs, dm=dm, nw=nw, dw=dw, freq=freq, noplot=True, verbose=verbose)
         import matplotlib.pyplot as plt
         if overplot:
             color = extra.get('color', 255)
@@ -244,7 +250,7 @@ class IirFilterData(BaseDataObj):
 
         return num, den
 
-    def plot_IirFilter_tf(self, num, den, fs, dm, nw, dw, freq, noplot, verbose):
+    def plot_iirfilter_tf(self, num, den, fs, dm, nw, dw, freq, noplot, verbose):
         # Placeholder for the actual plotting of IIR filter transfer function
         pass
 

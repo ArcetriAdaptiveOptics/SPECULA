@@ -47,3 +47,38 @@ def unravel_index_2d(idxs, shape, xp):
     row_idx = idxs // ncols
     col_idx = idxs - (row_idx * ncols)
     return row_idx, col_idx
+
+def make_orto_modes(array, xp, dtype):
+    """
+    Return an orthogonal 2D array
+    
+    Parameters:
+    -----------
+    array : 2D array
+        Input array
+    xp : module
+        Array processing module (numpy or cupy)
+    dtype : data type, optional
+        Data type for arrays
+        
+    Returns:
+    --------
+    Q : 2D array
+        Orthogonal matrix
+    """
+    # return an othogonal 2D array
+    
+    size_array = xp.shape(array)
+
+    if len(size_array) != 2:
+        raise ValueError('Error in input data, the input array must have two dimensions.')
+
+    if size_array[1] > size_array[0]:
+        Q, R = xp.linalg.qr(array.T)
+        Q = Q.T
+    else:
+        Q, R = xp.linalg.qr(array)
+
+    Q = xp.asarray(Q, dtype=dtype)
+
+    return Q

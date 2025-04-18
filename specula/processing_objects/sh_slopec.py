@@ -354,7 +354,7 @@ class ShSlopec(Slopec):
                     n_weight_applied += self.xp.sum(self.xp.any(accumulated_pixels_weight > 0, axis=1))
 
                 pixels *= accumulated_pixels_weight
-                
+
                 print(f"Weights mask has been applied to {n_weight_applied} sub-apertures")
 
         # Calculate flux and max flux per subaperture
@@ -398,6 +398,10 @@ class ShSlopec(Slopec):
         # Compute slopes
         sx = self.xp.sum(pixels * self.xweights.reshape(np_sub * np_sub, 1) * factor[self.xp.newaxis, :], axis=0)
         sy = self.xp.sum(pixels * self.yweights.reshape(np_sub * np_sub, 1) * factor[self.xp.newaxis, :], axis=0)
+
+        # TODO old code?
+        if self.weight_from_accumulated:
+            print(f"Weights mask has been applied to {n_weight_applied} sub-apertures")
 
         if self.mult_factor != 0:
             sx *= self.mult_factor

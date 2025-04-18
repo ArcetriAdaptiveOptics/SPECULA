@@ -3,12 +3,18 @@
 import numpy as np
 from astropy.io import fits
 
+from specula import cpuArray
 from specula.base_data_obj import BaseDataObj
 from specula.base_value import BaseValue
 
 
 class Slopes(BaseDataObj):
-    def __init__(self, length=None, slopes=None, interleave=False, target_device_idx=None, precision=None):
+    def __init__(self, 
+                 length: int=None, 
+                 slopes=None, 
+                 interleave: bool=False, 
+                 target_device_idx: int=None, 
+                 precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         if slopes is not None:
             self.slopes = slopes
@@ -121,10 +127,12 @@ class Slopes(BaseDataObj):
             hdr = fits.Header()
         hdr['VERSION'] = 2
         hdr['INTRLVD'] = int(self.interleave)
-        hdr['PUPD_TAG'] = self.pupdata_tag
-
+        if hasattr(self, 'pupdata_tag') and self.pupdata_tag is not None:
+            hdr['PUPD_TAG'] = self.pupdata_tag
+        if hasattr(self, 'subapdata_tag') and self.subapdata_tag is not None:
+            hdr['SUBAP_TAG'] = self.subapdata_tag
         fits.writeto(filename, np.zeros(2), hdr)
-        fits.append(filename, self.slopes)
+        fits.append(filename, cpuArray(self.slopes))
 
     def read(self, filename, hdr=None, exten=0):
         super().read(filename)
@@ -143,6 +151,8 @@ class Slopes(BaseDataObj):
         s = Slopes(length=1, target_device_idx=target_device_idx)
         s.interleave = bool(hdr['INTRLVD'])
         if version >= 2:
+            # TODO pupdata_tag is present only in pyramid slopes
+            # and not in SH slopes
             s.pupdata_tag = str(hdr['PUPD_TAG']).strip()
         s.read(filename, hdr)
         return s
