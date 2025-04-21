@@ -8,7 +8,7 @@ from specula.lib.compute_zern_ifunc import compute_zern_ifunc
 class ModalAnalysis(BaseProcessingObj):
 
     def __init__(self, 
-                ifunc=None,
+                ifunc: IFunc=None,
                 type_str: str=None,
                 mask=None,
                 npixels: int=None,
@@ -42,7 +42,12 @@ class ModalAnalysis(BaseProcessingObj):
         else:
             self.ifunc = ifunc
 
-        self.phase2modes = self.xp.asanyarray(self.ifunc.inverse(), dtype=self.dtype)
+        # check if the ifunc is alrady inverted by comparing the size of the ifunc and the index of valid pixel
+        idx_mask = self.ifunc.idx_inf_func
+        if idx_mask[0].size != self.ifunc.influence_function.shape[0]:
+            self.phase2modes = self.xp.asanyarray(self.ifunc.inverse(), dtype=self.dtype)
+        else:
+            self.phase2modes = self.xp.asanyarray(self.ifunc.influence_function, dtype=self.dtype)
         self.rms = BaseValue('modes', 'output RMS of modes from modal reconstructor')        
         self.dorms = dorms
         self.wavelengthInNm = wavelengthInNm
