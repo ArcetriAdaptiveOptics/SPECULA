@@ -23,8 +23,6 @@ class DataStore(BaseProcessingObj):
                 store_dir: str,         # TODO ="",
                 data_format: str='fits'):
         super().__init__()
-        self.items = {}
-        self.storage = {}
         self.data_filename = ''
         self.tn_dir = store_dir
         self.data_format = data_format
