@@ -182,8 +182,8 @@ class Simul():
                     pars2[name[:-5]] = data
 
                 # object fields are data objects which are loaded from a fits file
-                # the name of the object is the string preceeding th e_, 
-                # while its type is infered from the constructor of the current class                
+                # the name of the object is the string preceeding the "_object" suffix, 
+                # while its type is inferred from the constructor of the current class                
                 elif name.endswith('_object'):
                     parname = name[:-7]
                     if value is None:
@@ -240,7 +240,7 @@ class Simul():
             if 'outputs' in pars:
                 for output_name in pars['outputs']:
                     if not output_name in self.objs[dest_object].outputs:
-                        raise ValueError(f'Object {dest_object} does does not have an output called {output_name}')
+                        raise ValueError(f'Object {dest_object} does not have an output called {output_name}')
 
             if 'inputs' not in pars:
                 continue
@@ -254,25 +254,15 @@ class Simul():
                     for ii, oo in zip(inputs, outputs):
                         self.objs[dest_object].inputs[ii] = InputValue(type = type(oo) )
                         self.objs[dest_object].inputs[ii].set(oo)
-                        self.objs[dest_object].add(oo, name=ii)
 
-                        if not type(output_name) is list:
+                        for oo in output_name:
                             a_connection = {}
-                            a_connection['start'] = output_name.split('.')[0].split('-')[-1]
+                            a_connection['start'] = oo.split('.')[0].split('-')[-1]
                             a_connection['end'] = dest_object
                             a_connection['start_label'] = ii
                             a_connection['middle_label'] = self.objs[dest_object].inputs[ii]
                             a_connection['end_label'] = oo
                             self.connections.append(a_connection)
-                        else:
-                            for oo in output_name:
-                                a_connection = {}
-                                a_connection['start'] = oo.split('.')[0].split('-')[-1]
-                                a_connection['end'] = dest_object
-                                a_connection['start_label'] = ii
-                                a_connection['middle_label'] = self.objs[dest_object].inputs[ii]
-                                a_connection['end_label'] = oo
-                                self.connections.append(a_connection)
 
                     continue
 
@@ -296,7 +286,6 @@ class Simul():
                             raise ValueError(f'Input {input_name}: output {output} is not of type {wanted_type}')
 
                 self.objs[dest_object].inputs[input_name].set(output_ref)
-
                 
                 if not type(output_name) is list:
                     a_connection = {}
@@ -316,10 +305,6 @@ class Simul():
                         a_connection['middle_label'] = self.objs[dest_object].inputs[input_name]
                         a_connection['end_label'] = self.objs[dest_object].inputs[input_name]
                         self.connections.append(a_connection)
-
-
-                
-
 
     def build_replay(self, params):
         self.replay_params = deepcopy(params)
