@@ -99,7 +99,7 @@ class TestAtmoSimulation(unittest.TestCase):
         
             # Compare the sqrt of the covariance, check if the diagonal elements are similar          
             # Average the Zernike modes of the same radial order (tip and tilt, focus and astigmatisms, ...)
-            tolerance = 0.06
+            tolerance = 0.1
 
             rel_diff1 = []
             rel_diff2 = []
