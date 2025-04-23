@@ -45,7 +45,7 @@ class TestAtmoSimulation(unittest.TestCase):
         # Change back to original directory
         os.chdir(self.cwd)
     
-    def test_sh_simulation(self):
+    def test_atmo_simulation(self):
         """Run the simulation and check the results"""
         
         # Change to test directory
@@ -98,10 +98,19 @@ class TestAtmoSimulation(unittest.TestCase):
             turb_rms = hdul[0].data
         
             # Compare the sqrt of the covariance, check if the diagonal elements are similar          
-            # Check if the ratio is within a reasonable range (may need adjustment)
-            tolerance = 0.15
-            diff1 = abs(rms_modes1 - turb_rms)
-            diff2 = abs(rms_modes2 - turb_rms)
+            # Average the Zernike modes of the same radial order (tip and tilt, focus and astigmatisms, ...)
+            tolerance = 0.06
+
+            rel_diff1 = []
+            rel_diff2 = []
+            for n in range(2, len(rms_modes1)+1):
+                mean1 = np.mean(rms_modes1[:n])
+                mean2 = np.mean(rms_modes2[:n])
+                meant = np.mean(turb_rms[:n])
+                rel_diff1.append((mean1 - meant) / meant)
+                rel_diff2.append((mean2 - meant) / meant)
+            rel_diff1 = np.array(rel_diff1)
+            rel_diff2 = np.array(rel_diff2)
 
             display = False
             if display:
@@ -120,8 +129,8 @@ class TestAtmoSimulation(unittest.TestCase):
                 plt.legend()
                 plt.show()
 
-            self.assertTrue(np.all((diff1 / turb_rms) < tolerance),
+            self.assertTrue(np.all(rel_diff1 < tolerance),
                             "Turbulence RMS from AtmoEvolution does not match theoretical RMS")
-            self.assertTrue(np.all((diff2 / turb_rms) < tolerance),
+            self.assertTrue(np.all(rel_diff2 < tolerance),
                             "Turbulence RMS from AtmoInfiniteEvolution does not match theoretical RMS")
             print("Turbulence RMS match within tolerance.")
