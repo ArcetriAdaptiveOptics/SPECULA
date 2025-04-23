@@ -1,5 +1,5 @@
 from specula.base_data_obj import BaseDataObj
-
+from specula.data_objects.ifunc_inv import IFuncInv
 from astropy.io import fits
 
 from specula.lib.compute_zonal_ifunc import compute_zonal_ifunc
@@ -69,7 +69,7 @@ class IFunc(BaseDataObj):
 
         self._influence_function = ifunc
         self._mask_inf_func = mask
-        self._idx_inf_func = self.xp.where(mask)
+        self._idx_inf_func = self.xp.where(self._mask_inf_func)
         self.cut(start_mode=start_mode, nmodes=nmodes, idx_modes=idx_modes)
 
     @property
@@ -117,7 +117,8 @@ class IFunc(BaseDataObj):
         return self._influence_function.dtype
 
     def inverse(self):
-        return self.xp.linalg.pinv(self._influence_function)
+        inv = self.xp.linalg.pinv(self._influence_function)
+        return IFuncInv(inv, mask=self._mask_inf_func, precision=self.precision, target_device_idx=self.target_device_idx)
         
     def save(self, filename, hdr=None):
         hdr = hdr if hdr is not None else fits.Header()
