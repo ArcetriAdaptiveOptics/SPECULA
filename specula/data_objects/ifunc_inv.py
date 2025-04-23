@@ -29,6 +29,6 @@ class IFuncInv(BaseDataObj):
 
     def restore(filename, target_device_idx=None, exten=1):
         with fits.open(filename) as hdul:
-            ifunc_inv = hdul[exten].data
+            ifunc_inv = hdul[exten].data.T
             mask = hdul[exten+1].data
         return IFuncInv(ifunc_inv, mask, target_device_idx=target_device_idx)
