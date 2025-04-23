@@ -11,6 +11,7 @@ class IFuncInv(BaseDataObj):
                  precision=None
                 ):
         super().__init__(precision=precision, target_device_idx=target_device_idx)
+        self._doZeroPad = False
         
         self.ifunc_inv = self.xp.array(ifunc_inv)
         self.mask_inf_func = self.xp.array(mask)
@@ -31,5 +32,3 @@ class IFuncInv(BaseDataObj):
             ifunc_inv = hdul[exten].data
             mask = hdul[exten+1].data
         return IFuncInv(ifunc_inv, mask, target_device_idx=target_device_idx)
-
-
