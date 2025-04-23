@@ -35,6 +35,7 @@ class CalibManager():
             'MultiImRecCalibrator': 'rec/',
             'im': 'im/',
             'ifunc': 'ifunc/',
+            'ifunc_inv': 'ifunc/',
             'm2c': 'm2c/',
             'filter': 'filter/',
             'kernel': 'kernels/',
