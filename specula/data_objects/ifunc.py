@@ -126,7 +126,7 @@ class IFunc(BaseDataObj):
 
         hdu = fits.PrimaryHDU(header=hdr)
         hdul = fits.HDUList([hdu])
-        hdul.append(fits.ImageHDU(data=self._influence_function, name='INFLUENCE_FUNCTION'))
+        hdul.append(fits.ImageHDU(data=self._influence_function.T, name='INFLUENCE_FUNCTION'))
         hdul.append(fits.ImageHDU(data=self._mask_inf_func, name='MASK_INF_FUNC'))
         hdul.writeto(filename, overwrite=True)
 

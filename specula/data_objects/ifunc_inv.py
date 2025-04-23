@@ -23,7 +23,7 @@ class IFuncInv(BaseDataObj):
 
         hdu = fits.PrimaryHDU(header=hdr)
         hdul = fits.HDUList([hdu])
-        hdul.append(fits.ImageHDU(data=cpuArray(self.ifunc_inv), name='INFLUENCE_FUNCTION_INV'))
+        hdul.append(fits.ImageHDU(data=cpuArray(self.ifunc_inv.T), name='INFLUENCE_FUNCTION_INV'))
         hdul.append(fits.ImageHDU(data=cpuArray(self.mask_inf_func), name='MASK_INF_FUNC'))
         hdul.writeto(filename, overwrite=True)
 
