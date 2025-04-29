@@ -43,7 +43,6 @@ class PSF(BaseProcessingObj):
         self.inputs['in_ef'] = InputValue(type=ElectricField)
         self.outputs['out_sr'] = self.sr
         self.outputs['out_psf'] = self.psf
-#        self.reset_integration()
 
     def calc_psf(self, phase, amp, imwidth=None, normalize=False, nocenter=False):
         """

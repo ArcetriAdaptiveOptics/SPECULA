@@ -350,17 +350,9 @@ class Simul():
                     self.replay_params[key]['outputs'].append(kk)
                 del self.replay_params[key]['inputs']
 
-        for key, pars in params.items():
-            if key == 'main':
-                continue
-            try:
-                classname = pars['class']
-            except KeyError:
-                raise KeyError(f'Object {key} does not define the "class" parameter')
-
-            if type(self.objs[key]) is DataStore:
-                self.objs[key].setReplayParams(self.replay_params)
-
+        for obj in self.objs.values():
+            if type(obj) is DataStore:
+                obj.setReplayParams(self.replay_params)
 
     def remove_inputs(self, params, obj_to_remove):
         '''
