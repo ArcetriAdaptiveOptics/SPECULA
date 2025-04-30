@@ -76,9 +76,6 @@ class TestShSimulation(unittest.TestCase):
         # Change to test directory
         os.chdir(os.path.dirname(__file__))
 
-        print(os.path.exists(self.rec_path))
-        print(os.getcwd())
-        
         # Run the simulation
         print("Running SH SCAO simulation...")
         yml_files = ['params_scao_sh_test.yml']
@@ -104,7 +101,7 @@ class TestShSimulation(unittest.TestCase):
                 
             # For this test, we'll check that the SR values are reasonable 
             # (typically between 0.0 and 1.0, with higher values indicating better correction)
-            sr_values = hdul[0].data
+            sr_values = np.squeeze(hdul[0].data)
             self.assertTrue(np.all(sr_values >= 0.0) and np.all(sr_values <= 1.0),
                            f"SR values outside expected range [0,1]: min={np.min(sr_values)}, max={np.max(sr_values)}")
             

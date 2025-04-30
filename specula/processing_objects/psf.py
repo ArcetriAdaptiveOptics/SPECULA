@@ -8,7 +8,6 @@ from specula.connections import InputValue
 
 import numpy as np
 
-
 @fuse(kernel_name='psf_abs2')
 def psf_abs2(v, xp):
     return xp.real(v * xp.conj(v))
@@ -16,7 +15,8 @@ def psf_abs2(v, xp):
 
 class PSF(BaseProcessingObj):
     def __init__(self,
-                 wavelengthInNm: float,    # TODO =500.0,
+                 wavelengthInNm: float=None,    # TODO =500.0,
+                 wavelengthInNm_list: list = None,
                  nd: float=1,
                  start_time: float=0.0,
                  target_device_idx: int = None, 
@@ -24,26 +24,33 @@ class PSF(BaseProcessingObj):
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)       
 
-        if wavelengthInNm <= 0:
-            raise ValueError('PSF wavelength must be >0')
+        if wavelengthInNm is not None:
+            if wavelengthInNm_list is not None:
+                raise ValueError('Only one of wavelengthInNm and wavelengthInNm_list can be specified')
+            self.wavelengthInNm_list = [wavelengthInNm]
+            self.single_wavelength = True
+        else:
+            if wavelengthInNm_list is None:
+                raise ValueError('One of wavelengthInNm and wavelengthInNm_list must be specified')
+            self.wavelengthInNm_list = wavelengthInNm_list
+            self.single_wavelength = False
  
         self.nd = nd
         self.start_time = start_time
-        self.wavelengthInNm = wavelengthInNm
 
-        self.sr = BaseValue()
-        self.int_sr = BaseValue()
-        self.psf = BaseValue()
-        self.int_psf = BaseValue()
+        self.out_sr = BaseValue()
+        self.out_int_sr = BaseValue()
+        self.out_psf = BaseValue()
+        self.out_int_psf = BaseValue()
+        self.intsr = [0.0] * len(self.wavelengthInNm_list)
         self.in_ef = None
-        self.ref = None
-        self.intsr = 0.0
         self.count = 0
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
-        self.outputs['out_sr'] = self.sr
-        self.outputs['out_psf'] = self.psf
-#        self.reset_integration()
+        self.outputs['out_sr'] = self.out_sr
+        self.outputs['out_psf'] = self.out_psf
+        self.outputs['out_int_sr'] = self.out_int_sr
+        self.outputs['out_int_psf'] = self.out_int_psf
 
     def calc_psf(self, phase, amp, imwidth=None, normalize=False, nocenter=False):
         """
@@ -87,46 +94,48 @@ class PSF(BaseProcessingObj):
 
         return psf
 
-    @property
-    def size(self):
-        in_ef = self.inputs['in_ef'].get(self.target_device_idx)
-        return in_ef.size if in_ef else None
+    def setup(self, loop_dt, loop_niters):
+        super().setup(loop_dt, loop_niters)
 
+        self.in_ef = self.inputs['in_ef'].get(target_device_idx=self.target_device_idx)
+        self.out_shape = [int(np.around(dim * self.nd/2)*2) for dim in self.in_ef.size]
+        self.center_coord = self.out_shape[0] // 2, self.out_shape[1] // 2
+        npsf = len(self.wavelengthInNm_list)
 
-    def reset_integration(self):
-        self.count = 0
-        in_ef = self.local_inputs['in_ef']
-        if in_ef:
-            self.int_psf.value *= 0
-        self.intsr = 0
-
-    def prepare_trigger(self, t):
-        super().prepare_trigger(t)
-        self.in_ef = self.local_inputs['in_ef']
-        if self.psf.value is None:
-            s = [int(np.around(dim * self.nd/2)*2) for dim in self.in_ef.size]
-            self.int_psf.value = self.xp.zeros(s, dtype=self.dtype)
-            self.intsr = 0
-        if self.current_time_seconds >= self.start_time:
-            self.count += 1
-        self.out_size = [int(np.around(dim * self.nd/2)*2) for dim in self.in_ef.size]
-        if not self.ref:
-            self.ref = Intensity(self.out_size[0], self.out_size[1])
-            self.ref.i = self.calc_psf(self.in_ef.A * 0.0, self.in_ef.A, imwidth=self.out_size[0], normalize=True)
+        self.out_psf.value = self.xp.zeros([npsf] + self.out_shape, dtype=self.dtype)
+        self.out_int_psf.value = self.xp.zeros([npsf] + self.out_shape, dtype=self.dtype)
+        self.out_sr.value = self.xp.zeros(npsf, dtype=self.dtype)
+        self.out_int_sr.value = self.xp.zeros(npsf, dtype=self.dtype)
+        self.ref_psf = None
 
     def trigger_code(self):
-        self.psf.value = self.calc_psf(self.in_ef.phi_at_lambda(self.wavelengthInNm), self.in_ef.A, imwidth=self.out_size[0], normalize=True)
-        self.sr.value = self.psf.value[self.out_size[0] // 2, self.out_size[1] // 2] / self.ref.i[self.out_size[0] // 2, self.out_size[1] // 2]
-        print('SR:', self.sr.value)
+
+        # We have to wait until the first trigger to generate
+        # the reference PSF, because we need the correct amplitude mask.
+        # This conditional instruction prevents us from
+        # building a CUDA stream for now.
+        
+        if self.ref_psf is None:
+            self.ref_psf = Intensity(*self.out_shape)
+            self.ref_psf.i = self.calc_psf(self.in_ef.A * 0.0, self.in_ef.A, imwidth=self.out_shape[0], normalize=True)
+
+        for i, wavelength in enumerate(self.wavelengthInNm_list):
+            self.out_psf.value[i] = self.calc_psf(self.in_ef.phi_at_lambda(wavelength), self.in_ef.A, imwidth=self.out_shape[0], normalize=True)
+            psf_peak = self.out_psf.value[i, self.center_coord[0], self.center_coord[1]]
+            ref_peak = self.ref_psf.i[self.center_coord[0], self.center_coord[1]]
+            self.out_sr.value[i] = psf_peak / ref_peak
+            print(f'SR @{wavelength} nm: {self.out_sr.value[i]:.3f}')
 
     def post_trigger(self):
         super().post_trigger()
+        self.out_psf.generation_time = self.current_time
+        self.out_sr.generation_time = self.current_time
         if self.current_time_seconds >= self.start_time:
-            self.intsr += self.sr.value
-            self.int_psf.value += self.psf.value
-            self.int_sr.value = self.intsr / self.count
-            self.int_psf.generation_time = self.current_time
-            self.int_sr.generation_time = self.current_time
-        self.psf.generation_time = self.current_time
-        self.sr.generation_time = self.current_time
+            self.count += 1
+            for i in range(len(self.wavelengthInNm_list)):
+                self.out_int_psf.value[i] += self.out_psf.value[i]
+                self.intsr[i] += self.out_sr.value[i]
+                self.out_int_sr.value[i] = self.intsr[i] / self.count
+            self.out_int_psf.generation_time = self.current_time
+            self.out_int_sr.generation_time = self.current_time
 

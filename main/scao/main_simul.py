@@ -5,6 +5,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--cpu', action='store_true')
 parser.add_argument('--overrides', type=str)
 parser.add_argument('--target', type=int, default=0)
+parser.add_argument('--nested-TN', action='store_true')
 parser.add_argument('yml_file', nargs='+', type=str, help='YAML parameter files')
 
 if __name__ == '__main__':
@@ -17,7 +18,7 @@ if __name__ == '__main__':
     import specula
     specula.init(target_device_idx, precision=1)
 
-    print(args)    
     from specula.simul import Simul
-    simul = Simul(*args.yml_file, overrides=args.overrides)
+#    simul = Simul(*args.yml_file, overrides=args.overrides)
+    simul = Simul(*args.yml_file, overrides=args.overrides, nested_TN=args.nested_TN)
     simul.run()
