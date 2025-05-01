@@ -26,8 +26,8 @@ class GaussianConvolutionKernel(ConvolutionKernel):
         """
         self.orig_dimx = self.dimx
         self.dimx = max(self.dimx, 2)        
-        self.lgs_tt = [-0.5, -0.5] if not self.positiveShiftTT else [0.5, 0.5]
-        self.lgs_tt = [x * self.pxscale for x in self.lgs_tt]        
+        self.lgs_tt = [-0.5, -0.5] if not self.positive_shift_tt else [0.5, 0.5]
+        self.lgs_tt = [x * self.pxscale for x in self.lgs_tt]
         self.hash_arr = [
             self.dimx, self.pupil_size_m, 90e3, self.spotsize,
             self.pxscale, self.dimension, 3, self.lgs_tt, [0, 0, 0], [90e3], [1.0]
@@ -38,13 +38,18 @@ class GaussianConvolutionKernel(ConvolutionKernel):
         real_kernels = lgs_map_sh(
             self.dimx, self.pupil_size_m, 0, 90e3, [0], profz=[1.0], fwhmb=self.spotsize, ps=self.pxscale,
             ssp=self.dimension, overs=1, theta=self.lgs_tt, xp=self.xp )
-        self.kernels = self.xp.zeros_like(real_kernels, dtype=self.complex_dtype)
+
+        dtype = self.complex_dtype if self.return_fft else self.dtype
+        self.kernels = self.xp.zeros_like(real_kernels, dtype=dtype)
         for i in range(self.dimx):
             for j in range(self.dimy):
                 subap_kern = self.xp.array(real_kernels[j * self.dimx + i, :, :])
                 subap_kern /= self.xp.sum(subap_kern)
-                subap_kern_fft = self.xp.fft.ifft2(subap_kern)
-                self.kernels[j * self.dimx + i, :, :] = subap_kern_fft
+                if self.return_fft:
+                    subap_kern_fft = self.xp.fft.ifft2(subap_kern)
+                    self.kernels[j * self.dimx + i, :, :] = subap_kern_fft
+                else:
+                    self.kernels[j * self.dimx + i, :, :] = subap_kern
         
     def save(self, filename, hdr=None):
         if hdr is None:
@@ -56,7 +61,7 @@ class GaussianConvolutionKernel(ConvolutionKernel):
         hdr['PXSCALE'] = self.pxscale
         hdr['DIMENSION'] = self.dimension
         hdr['OVERSAMPLING'] = self.oversampling
-        hdr['POSITIVESHIFTTT'] = self.positiveShiftTT
+        hdr['POSITIVESHIFTTT'] = self.positive_shift_tt
         hdu1 = fits.PrimaryHDU(np.real(cpuArray(self.kernels)), header=hdr)
         hdu2 = fits.ImageHDU(np.imag(cpuArray(self.kernels)), header=hdr)
         hdul = fits.HDUList([hdu1, hdu2])
@@ -73,7 +78,7 @@ class GaussianConvolutionKernel(ConvolutionKernel):
             c.pxscale = hdr['PXSCALE']
             c.dimension = hdr['DIMENSION']
             c.oversampling = hdr['OVERSAMPLING']
-            c.positiveShiftTT = hdr['POSITIVESHIFTTT']
+            c.positive_shift_tt = hdr['POSITIVESHIFTTT']
             dr = c.xp.asarray(hdul[0].data)
             dc = c.xp.asarray(hdul[1].data)
             c.kernels = c.xp.empty_like(dr, dtype=c.complex_dtype)
