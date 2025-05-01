@@ -7,11 +7,13 @@ from specula.lib.toccd import toccd
 from specula.lib.interp2d import Interp2D
 from specula.lib.make_mask import make_mask
 from specula.connections import InputValue
+from specula.base_value import BaseValue
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.intensity import Intensity
 from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.lenslet import Lenslet
 from specula.data_objects.gaussian_convolution_kernel import GaussianConvolutionKernel
+from specula.data_objects.convolution_kernel import ConvolutionKernel
 
 import os       
 
@@ -51,6 +53,9 @@ class SH(BaseProcessingObj):
                  do_not_double_fov_ovs: bool = False,
                  set_fov_res_to_turbpxsc: bool = False,
                  convolGaussSpotSize: float = 0.0,
+                 laser_launcher_pos: list = [],
+                 laser_beacon_focus: float = 90e3,
+                 laser_beacon_tt: list = [],
                  target_device_idx: int = None, 
                  precision: int = None,
         ):
@@ -81,20 +86,25 @@ class SH(BaseProcessingObj):
         self._extrapol_mat2 = None
         self._idx_1pix = None
         self._idx_2pix = None
-        self._do_interpolation = None 
+        self._do_interpolation = None
+        self.kernel_fn = None
 
         # TODO these are fixed but should become parameters 
         self._fov_ovs = 1
         self._floatShifts = False
         self._convolGaussSpotSize = convolGaussSpotSize
+        self._laser_launcher_pos = laser_launcher_pos
+        self._laser_beacon_focus = laser_beacon_focus
+        self._laser_beacon_tt = laser_beacon_tt
 
 
-        if self._convolGaussSpotSize != 0:                        
+        if len(self._laser_launcher_pos) == 0:                        
             self._kernelobj = GaussianConvolutionKernel(self._convolGaussSpotSize,
                                                         self._lenslet.dimx, self._lenslet.dimy,
                                                         target_device_idx=self.target_device_idx)
         else:
-            self._kernelobj = None
+            self._kernelobj = ConvolutionKernel(self._lenslet.dimx, self._lenslet.dimy,
+                                                target_device_idx=self.target_device_idx)
             
         self._ccd_side = self._subap_npx * self._lenslet.n_lenses
         self._out_i = Intensity(self._ccd_side, self._ccd_side, precision=self.precision, target_device_idx=self.target_device_idx)
@@ -102,6 +112,8 @@ class SH(BaseProcessingObj):
         self.interp = None
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
+        self.inputs['sodium_altitude'] = InputValue(type=BaseValue, optional=True)
+        self.inputs['sodium_intensity'] = InputValue(type=BaseValue, optional=True)
         self.outputs['out_i'] = self._out_i
 
     def set_in_ef(self, in_ef):
@@ -284,18 +296,57 @@ class SH(BaseProcessingObj):
             self._kernelobj.oversampling = 1
             self._kernelobj.return_fft = True
             self._kernelobj.positive_shift_tt = True
-            kernel_fn = self._kernelobj.build()
-
-            if os.path.exists(kernel_fn):
-                self._kernelobj = GaussianConvolutionKernel.restore(kernel_fn, target_device_idx=self.target_device_idx)
+            if len(self._laser_beacon_tt) != 0:
+                self._kernelobj.lgs_tt = self._laser_beacon_tt
+            if len(self._laser_launcher_pos) != 0:
+                self._kernelobj.launcher_pos = self._laser_launcher_pos
+                self._kernelobj.seeing = 0.0
+                self._kernelobj.launcher_size = self._convolGaussSpotSize
+                self._kernelobj.zfocus = self._laser_beacon_focus
             else:
-                print('Calculating kernel...')
-                self._kernelobj.calculate_lgs_map()
-                self._kernelobj.save(kernel_fn)
-                print('Done')
+                kernel_fn = self._kernelobj.build()
+                if os.path.exists(kernel_fn):
+                    self._kernelobj = GaussianConvolutionKernel.restore(kernel_fn, target_device_idx=self.target_device_idx)
+                else:
+                    print('Calculating kernel...')
+                    self._kernelobj.calculate_lgs_map()
+                    self._kernelobj.save(kernel_fn)
+                    print('Done')
+
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
+        
+        # update kernel parameters
+        if self._kernelobj is not None and len(self._laser_launcher_pos) != 0:
+            sodium_altitude = self.local_inputs['sodium_altitude']
+            sodium_intensity = self.local_inputs['sodium_intensity']
+            if sodium_altitude is None or sodium_intensity is None:
+                raise ValueError('sodium_altitude and sodium_intensity must be provided')
+            self._kernelobj.zlayer = sodium_altitude.value
+            self._kernelobj.zprofile = sodium_intensity.value
+
+        # Get the kernel filename hash based on current parameters
+        new_kernel_fn = self._kernelobj.build()
+        
+        # Only reload or recalculate if the kernel has changed
+        if new_kernel_fn != self.kernel_fn:
+            self.kernel_fn = new_kernel_fn  # Update the stored kernel filename
+            
+            if os.path.exists(self.kernel_fn):
+                print(f"Loading kernel from {self.kernel_fn}")
+                self._kernelobj = ConvolutionKernel.restore(self.kernel_fn, 
+                                                        target_device_idx=self.target_device_idx, 
+                                                        return_fft=True)
+            else:
+                print('Calculating kernel...')
+                self._kernelobj.calculate_lgs_map()
+                self._kernelobj.save(self.kernel_fn)
+                print('Done')
+        else:
+            # Kernel hasn't changed, no need to reload or recalculate
+            print("Kernel unchanged, using cached version")
+
 
     def trigger_code(self):
 
@@ -378,6 +429,15 @@ class SH(BaseProcessingObj):
         phot = in_ef.S0 * in_ef.masked_area()
         self._out_i.i *= (phot / self._out_i.i.sum())
         self._out_i.generation_time = self.current_time
+
+        debug_figures = False
+        if debug_figures:
+            import matplotlib.pyplot as plt
+            plt.figure()
+            plt.imshow(self._out_i.i, cmap='viridis', origin='lower')
+            plt.colorbar()
+            plt.title('Intensity')
+            plt.show()
 
     def setup(self, loop_dt, loop_niters):
         super().setup(loop_dt, loop_niters)
