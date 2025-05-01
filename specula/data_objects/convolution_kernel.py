@@ -116,6 +116,7 @@ class ConvolutionKernel(BaseDataObj):
                  precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         
+        self.real_kernels = None
         self.kernels = None
         self.seeing = None
         self.zlayer = None
@@ -155,13 +156,14 @@ class ConvolutionKernel(BaseDataObj):
             raise ValueError("Number of elements of zlayer and zprofile must be the same")
 
         zfocus = self.zfocus if self.zfocus != -1 else self.calculate_focus()
-        layHeights = self.xp.array(self.zlayer) * self.airmass
+        lay_heights = self.xp.array(self.zlayer) * self.airmass
         zfocus *= self.airmass
 
         self.spotsize = self.xp.sqrt(self.seeing**2 + self.launcher_size**2)
         lgs_tt = (self.xp.array([-0.5, -0.5]) if not self.positive_shift_tt else self.xp.array([0.5, 0.5])) * self.pxscale + self.theta
 
-        self.hash_arr = [self.dimx, self.pupil_size_m, zfocus, self.spotsize, self.pxscale, self.dimension, self.oversampling, lgs_tt]
+        self.hash_arr = [self.dimx, self.pupil_size_m, zfocus, lay_heights, self.zprofile, self.spotsize,
+                         self.pxscale, self.dimension, self.oversampling, lgs_tt]
         return 'ConvolutionKernel' + self.generate_hash()
 
     def calculate_focus(self):
@@ -174,12 +176,15 @@ class ConvolutionKernel(BaseDataObj):
         """
         if len(self.zlayer) != len(self.zprofile):
             raise ValueError("Number of elements of zlayer and zprofile must be the same")
+        
+        if self.spotsize <= 0:
+            raise ValueError("Spot size must be greater than zero")
 
         # Determine focus distance - use calculated focus if zfocus is -1
         zfocus = self.zfocus if self.zfocus != -1 else self.calculate_focus()
 
         # Apply airmass to heights
-        layHeights = self.xp.array(self.zlayer) * self.airmass
+        lay_heights = self.xp.array(self.zlayer) * self.airmass
         zfocus *= self.airmass
 
         # Calculate the spot size (combination of seeing and laser launcher size)
@@ -193,33 +198,17 @@ class ConvolutionKernel(BaseDataObj):
         lgs_tt += self.theta
 
         # Calculate normalized layer heights and profiles
-        layer_offsets = layHeights - zfocus
+        layer_offsets = lay_heights - zfocus
 
         # Call the LGS map calculation function
-        real_kernels = lgs_map_sh(
-            self.dimx, self.pupil_size_m, self.launcher_pos, zfocus, layer_offsets, 
-            self.zprofile, self.spotsize, self.pxscale, self.dimension, 
+        self.real_kernels = lgs_map_sh(
+            self.dimx, self.pupil_size_m, self.launcher_pos, zfocus, layer_offsets,
+            self.zprofile, self.spotsize, self.pxscale, self.dimension,
             overs=self.oversampling, theta=lgs_tt, doCube=True, xp=self.xp
         )
 
-        # Check for non-finite values
-        if self.xp.any(~self.xp.isfinite(real_kernels)):
-            raise ValueError("Kernel contains non-finite values!")
-
         # Process the kernels - apply FFT if needed
-        dtype = self.complex_dtype if self.return_fft else self.dtype
-        self.kernels = self.xp.zeros_like(real_kernels, dtype=dtype)
-        for i in range(self.dimx):
-            for j in range(self.dimy):
-                subap_kern = self.xp.array(real_kernels[j * self.dimx + i, :, :])
-                total = self.xp.sum(subap_kern)
-                if total > 0:  # Avoid division by zero
-                    subap_kern /= total
-                if self.return_fft:
-                    subap_kern_fft = self.xp.fft.ifft2(subap_kern)
-                    self.kernels[j * self.dimx + i, :, :] = subap_kern_fft
-                else:
-                    self.kernels[j * self.dimx + i, :, :] = subap_kern
+        self.process_kernels(return_fft=self.return_fft)
 
         # Save current parameters to avoid unnecessary recalculation
         self.last_zfocus = self.zfocus
@@ -236,7 +225,22 @@ class ConvolutionKernel(BaseDataObj):
         Returns:
             str: A hash string representing the current kernel settings.
         """
-        # Placeholder function to compute SHA1 hash        
+        # Convert all numpy arrays and values to native Python types
+        hash_arr = []
+        for item in self.hash_arr:
+            if isinstance(item, self.xp.ndarray):
+                # Convert array to list of native Python types
+                hash_arr.append(item.tolist())
+            elif isinstance(item, tuple):
+                # Convert tuple elements to native Python types
+                hash_arr.append([float(x) for x in item])
+            elif hasattr(item, 'dtype') and hasattr(item, 'item'):
+                # Convert numpy scalars to Python types
+                hash_arr.append(item.item())
+            else:
+                hash_arr.append(item)
+        
+        # Placeholder function to compute SHA1 hash
         sha1 = hashlib.sha1()
         # converts all numpy arrays to list
         for i, hash_elem in enumerate(self.hash_arr):
@@ -245,33 +249,84 @@ class ConvolutionKernel(BaseDataObj):
         sha1.update(json.dumps(self.hash_arr).encode('utf-8'))
         return sha1.hexdigest()
 
+    def process_kernels(self, return_fft=False):
+        # Check for non-finite values
+        if self.xp.any(~self.xp.isfinite(self.real_kernels)):
+            raise ValueError("Kernel contains non-finite values!")
+
+        # Process the kernels - apply FFT if needed
+        dtype = self.complex_dtype if return_fft else self.dtype
+        print("dtype", dtype)
+        self.kernels = self.xp.zeros_like(self.real_kernels, dtype=dtype)
+        for i in range(self.dimx):
+            for j in range(self.dimy):
+                subap_kern = self.xp.array(self.real_kernels[i * self.dimx + j, :, :])
+                total = self.xp.sum(subap_kern)
+                if total > 0:  # Avoid division by zero
+                    subap_kern /= total
+                if return_fft:
+                    subap_kern_fft = self.xp.fft.ifft2(subap_kern)
+                    self.kernels[j * self.dimx + i, :, :] = subap_kern_fft
+                else:
+                    self.kernels[j * self.dimx + i, :, :] = subap_kern
+
     def save(self, filename, hdr=None):
+        """
+        Save the kernel to a FITS file.
+        
+        Parameters:
+            filename (str): Path to save the FITS file
+            hdr (fits.Header, optional): Additional header information
+        """
         if hdr is None:
             hdr = fits.Header()
+
         hdr['VERSION'] = 1
         hdr['PXSCALE'] = self.pxscale
-        hdr['DIMENSION'] = self.dimension
-        hdr['OVERSAMPLING'] = self.oversampling
-        hdr['POSITIVESHIFTTT'] = self.positive_shift_tt
+        hdr['DIM'] = self.dimension
+        hdr['OVERSAMP'] = self.oversampling
+        hdr['POSTT'] = self.positive_shift_tt
         hdr['SPOTSIZE'] = self.spotsize
         hdr['DIMX'] = self.dimx
-        hdr['DIMY'] = self.dimy        
-        fits.append(filename, cpuArray(self.kernels) )        
+        hdr['DIMY'] = self.dimy
+        
+        # Create a primary HDU with just the header
+        primary_hdu = fits.PrimaryHDU(header=hdr)
+        
+        # Create an HDU with the kernel data
+        kernel_data = cpuArray(self.real_kernels)
+        kernel_hdu = fits.ImageHDU(data=kernel_data)
+        
+        # Create an HDUList and write to file
+        hdul = fits.HDUList([primary_hdu, kernel_hdu])
+        hdul.writeto(filename, overwrite=True)   
 
-    def read(self, filename, hdr=None, exten=1):        
-        self.kernels = self.xp.array(fits.getdata(filename, ext=exten))
-            
     @staticmethod
-    def restore(filename, target_device_idx=None):
-        hdr = fits.getheader(filename)
+    def restore(filename, target_device_idx=None, return_fft=False):
+        """
+        Restore a ConvolutionKernel object from a FITS file.
+
+        Parameters:
+            filename (str): Path to the FITS file
+            target_device_idx (int, optional): Target device index for GPU processing
+            return_fft (bool, optional): Whether to return FFT of the kernel
+    
+        Returns:
+            ConvolutionKernel: The restored ConvolutionKernel object
+        """
+        hdr = fits.getheader(filename, ext=0)  # Get header from primary HDU
+        
         version = int(hdr['VERSION'])
-        c = ConvolutionKernel(target_device_idx=target_device_idx)
-        c.pxscale = hdr['PXSCALE']
-        c.dimension = hdr['DIMENSION']
-        c.oversampling = hdr['OVERSAMPLING']
-        c.positive_shift_tt = hdr['POSITIVESHIFTTT']
-        c.spotsize = hdr['SPOTSIZE']
-        c.dimx = hdr['DIMX']
-        c.dimy = hdr['DIMY']
-        c.read(filename, hdr)
-        return c
+        kernel_obj = ConvolutionKernel(dimx=hdr['DIMX'], dimy=hdr['DIMY'], target_device_idx=target_device_idx)
+        
+        # Read properties from header
+        kernel_obj.pxscale = hdr['PXSCALE']
+        kernel_obj.dimension = hdr['DIM']
+        kernel_obj.oversampling = hdr['OVERSAMP']
+        kernel_obj.positive_shift_tt = hdr['POSTT']
+        kernel_obj.spotsize = hdr['SPOTSIZE']
+        
+        # Read the kernel data from extension 1
+        kernel_obj.real_kernels = kernel_obj.xp.array(fits.getdata(filename, ext=1))       
+        kernel_obj.process_kernels(return_fft=return_fft)
+        return kernel_obj
