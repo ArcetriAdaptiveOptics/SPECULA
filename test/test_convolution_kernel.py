@@ -185,16 +185,16 @@ class TestKernel(unittest.TestCase):
         zprofile = np.exp(-0.5 * ((zlayer - center) / sigma) ** 2)
         zfocus = 90e3  # m
         launcher_pos = [5, 5, 0]  # m
-        
+
         # Normalize the profile
         zprofile /= np.sum(zprofile)
         layer_offsets = zlayer - zfocus
-        
+
         map = lgs_map_sh(
             nsh=dimx, diam=pupil_size_m, rl=launcher_pos, zb=zfocus,
             dz=layer_offsets, profz=zprofile, fwhmb=spotsize, ps=pixel_scale,
             ssp=dimension, overs=1, theta=[0.0, 0.0], xp=xp)
-        
+
         # Create a 2D grid to display all kernels in their spatial positions
         kernel2d = xp.zeros((dimy * dimension, dimx * dimension))
 
@@ -214,7 +214,7 @@ class TestKernel(unittest.TestCase):
 
         # Check that all values are finite
         self.assertTrue(xp.all(xp.isfinite(map)))
-        
+
         # Add reference file comparison
         with fits.open(self.map_ref_path) as ref_hdul:
             if hasattr(ref_hdul[0], 'data') and ref_hdul[0].data is not None:
@@ -252,10 +252,109 @@ class TestKernel(unittest.TestCase):
                     plt.xlabel('X pixel')
                     plt.ylabel('Y pixel')
                     plt.show()
-                
+
                 np.testing.assert_allclose(
                     kernel2d_cpu, ref_kernel2d, 
                     rtol=1e-5, atol=1e-5,
                     err_msg="LGS map kernel2d does not match reference values"
                 )
                 print("LGS map kernel2d matches reference values")
+
+    @cpu_and_gpu
+    def test_save_restore(self, target_device_idx, xp):
+        """
+        Test saving and restoring a ConvolutionKernel to/from a FITS file.
+        """
+        # Create a temporary file for saving and restoring
+        import tempfile
+        temp_file = tempfile.NamedTemporaryFile(suffix='.fits', delete=False)
+        temp_filename = temp_file.name
+        temp_file.close()
+        
+        try:
+            # Create a kernel with test parameters (using smaller dimensions for faster test)
+            dimx = dimy = 5
+            spotsize = 1.0  # arcsec
+            pixel_scale = 0.1  # arcsec
+            pupil_size_m = 8.0  # m
+            dimension = 32  # Size of kernel in pixels
+            
+            # Create simple sodium layer profile (fewer points for faster test)
+            num_points = 5
+            zlayer = np.linspace(80e3, 100e3, num_points)  # m
+            
+            # Create Gaussian intensity profile
+            center = 90e3  # m
+            fwhm = 10e3  # m
+            sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
+            zprofile = np.exp(-0.5 * ((zlayer - center) / sigma) ** 2)
+            zfocus = 90e3  # m
+            launcher_pos = [5, 5, 0]  # m
+            zprofile /= np.sum(zprofile)  # Normalize
+            
+            # Create the original kernel
+            original_kernel = ConvolutionKernel(
+                dimx=dimx, dimy=dimy, target_device_idx=target_device_idx
+            )
+            
+            # Set parameters
+            original_kernel.pxscale = pixel_scale
+            original_kernel.pupil_size_m = pupil_size_m
+            original_kernel.dimension = dimension
+            original_kernel.seeing = spotsize
+            original_kernel.zlayer = zlayer.tolist()
+            original_kernel.zprofile = zprofile.tolist()
+            original_kernel.zfocus = zfocus
+            original_kernel.launcher_pos = launcher_pos
+            original_kernel.return_fft = False
+            
+            # Calculate kernels
+            original_kernel.build()
+            original_kernel.calculate_lgs_map()
+            
+            # Save the kernel to the temporary file
+            original_kernel.save(temp_filename)
+            
+            # Restore the kernel from the file
+            restored_kernel = ConvolutionKernel.restore(
+                temp_filename, target_device_idx=target_device_idx, return_fft=False
+            )
+            
+            # Compare attributes between original and restored kernels
+            self.assertEqual(original_kernel.dimx, restored_kernel.dimx)
+            self.assertEqual(original_kernel.dimy, restored_kernel.dimy)
+            self.assertEqual(original_kernel.dimension, restored_kernel.dimension)
+            self.assertEqual(original_kernel.pxscale, restored_kernel.pxscale)
+            self.assertEqual(original_kernel.oversampling, restored_kernel.oversampling)
+            self.assertEqual(original_kernel.positive_shift_tt, restored_kernel.positive_shift_tt)
+            self.assertEqual(original_kernel.spotsize, restored_kernel.spotsize)
+            
+            # Compare kernel data
+            original_data = cpuArray(original_kernel.real_kernels)
+            restored_data = cpuArray(restored_kernel.real_kernels)
+            
+            np.testing.assert_allclose(
+                original_data, restored_data,
+                rtol=1e-5, atol=1e-5,
+                err_msg="Restored kernel data does not match original"
+            )
+            
+            # Test with return_fft=True
+            restored_fft_kernel = ConvolutionKernel.restore(
+                temp_filename, target_device_idx=target_device_idx, return_fft=True
+            )
+            
+            # Verify the restored kernel has complex type when return_fft=True
+            self.assertEqual(restored_fft_kernel.kernels.dtype, restored_fft_kernel.complex_dtype)
+            
+            # Check that data is correct even with FFT transformation
+            for i in range(dimx*dimy):
+                self.assertTrue(float(cpuArray(xp.abs(restored_fft_kernel.kernels[i]).sum())) > 0)
+            
+            print("Kernel save and restore test passed")
+            
+        finally:
+            # Clean up the temporary file
+            import os
+            if os.path.exists(temp_filename):
+                os.remove(temp_filename)
