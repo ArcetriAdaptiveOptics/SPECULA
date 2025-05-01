@@ -40,38 +40,32 @@ class GaussianConvolutionKernel(ConvolutionKernel):
             ssp=self.dimension, overs=1, theta=self.lgs_tt, xp=self.xp )
 
         self.process_kernels(return_fft=self.return_fft)
-        
-    def save(self, filename, hdr=None):
-        if hdr is None:
-            hdr = fits.Header()
-        hdr['VERSION'] = 1
-        hdr['SPOTSIZE'] = self.spotsize
-        hdr['DIMX'] = self.dimx
-        hdr['DIMY'] = self.dimy
-        hdr['PXSCALE'] = self.pxscale
-        hdr['DIMENSION'] = self.dimension
-        hdr['OVERSAMPLING'] = self.oversampling
-        hdr['POSITIVESHIFTTT'] = self.positive_shift_tt
-        hdu1 = fits.PrimaryHDU(np.real(cpuArray(self.kernels)), header=hdr)
-        hdu2 = fits.ImageHDU(np.imag(cpuArray(self.kernels)), header=hdr)
-        hdul = fits.HDUList([hdu1, hdu2])
-        hdul.writeto(filename, overwrite=True)
-                        
 
     @staticmethod
-    def restore(filename, target_device_idx=None):
+    def restore(filename, target_device_idx=None, return_fft=False):
+        """
+        Restore a ConvolutionKernel object from a FITS file.
 
-        with fits.open(filename) as hdul:
-            hdr = hdul[0].header
-            version = int(hdr['VERSION'])
-            c = GaussianConvolutionKernel(hdr['SPOTSIZE'], hdr['DIMX'], hdr['DIMY'], target_device_idx=target_device_idx)
-            c.pxscale = hdr['PXSCALE']
-            c.dimension = hdr['DIMENSION']
-            c.oversampling = hdr['OVERSAMPLING']
-            c.positive_shift_tt = hdr['POSITIVESHIFTTT']
-            dr = c.xp.asarray(hdul[0].data)
-            dc = c.xp.asarray(hdul[1].data)
-            c.kernels = c.xp.empty_like(dr, dtype=c.complex_dtype)
-            c.kernels.real = dr
-            c.kernels.imag = dc
-            return c
+        Parameters:
+            filename (str): Path to the FITS file
+            target_device_idx (int, optional): Target device index for GPU processing
+            return_fft (bool, optional): Whether to return FFT of the kernel
+    
+        Returns:
+            ConvolutionKernel: The restored ConvolutionKernel object
+        """
+        hdr = fits.getheader(filename, ext=0)  # Get header from primary HDU
+        
+        version = int(hdr['VERSION'])
+        kernel_obj = GaussianConvolutionKernel(hdr['SPOTSIZE'], dimx=hdr['DIMX'], dimy=hdr['DIMY'], target_device_idx=target_device_idx)
+        
+        # Read properties from header
+        kernel_obj.pxscale = hdr['PXSCALE']
+        kernel_obj.dimension = hdr['DIM']
+        kernel_obj.oversampling = hdr['OVERSAMP']
+        kernel_obj.positive_shift_tt = hdr['POSTT']
+        
+        # Read the kernel data from extension 1
+        kernel_obj.real_kernels = kernel_obj.xp.array(fits.getdata(filename, ext=1))       
+        kernel_obj.process_kernels(return_fft=return_fft)
+        return kernel_obj
