@@ -326,26 +326,26 @@ class SH(BaseProcessingObj):
             self._kernelobj.zlayer = sodium_altitude.value
             self._kernelobj.zprofile = sodium_intensity.value
 
-        # Get the kernel filename hash based on current parameters
-        new_kernel_fn = self._kernelobj.build()
-        
-        # Only reload or recalculate if the kernel has changed
-        if new_kernel_fn != self.kernel_fn:
-            self.kernel_fn = new_kernel_fn  # Update the stored kernel filename
+            # Get the kernel filename hash based on current parameters
+            new_kernel_fn = self._kernelobj.build()
             
-            if os.path.exists(self.kernel_fn):
-                print(f"Loading kernel from {self.kernel_fn}")
-                self._kernelobj = ConvolutionKernel.restore(self.kernel_fn, 
-                                                        target_device_idx=self.target_device_idx, 
-                                                        return_fft=True)
+            # Only reload or recalculate if the kernel has changed
+            if new_kernel_fn != self.kernel_fn:
+                self.kernel_fn = new_kernel_fn  # Update the stored kernel filename
+                
+                if os.path.exists(self.kernel_fn):
+                    print(f"Loading kernel from {self.kernel_fn}")
+                    self._kernelobj = ConvolutionKernel.restore(self.kernel_fn, 
+                                                            target_device_idx=self.target_device_idx, 
+                                                            return_fft=True)
+                else:
+                    print('Calculating kernel...')
+                    self._kernelobj.calculate_lgs_map()
+                    self._kernelobj.save(self.kernel_fn)
+                    print('Done')
             else:
-                print('Calculating kernel...')
-                self._kernelobj.calculate_lgs_map()
-                self._kernelobj.save(self.kernel_fn)
-                print('Done')
-        else:
-            # Kernel hasn't changed, no need to reload or recalculate
-            print("Kernel unchanged, using cached version")
+                # Kernel hasn't changed, no need to reload or recalculate
+                print("Kernel unchanged, using cached version")
 
 
     def trigger_code(self):
