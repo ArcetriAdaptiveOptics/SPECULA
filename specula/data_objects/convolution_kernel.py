@@ -281,7 +281,7 @@ class ConvolutionKernel(BaseDataObj):
         if hdr is None:
             hdr = fits.Header()
 
-        hdr['VERSION'] = 1
+        hdr['VERSION'] = 1.1
         hdr['PXSCALE'] = self.pxscale
         hdr['DIM'] = self.dimension
         hdr['OVERSAMP'] = self.oversampling
