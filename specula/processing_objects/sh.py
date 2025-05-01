@@ -282,7 +282,8 @@ class SH(BaseProcessingObj):
             self._kernelobj.pupil_size_m = in_ef.pixel_pitch * in_ef.size[0]
             self._kernelobj.dimension = self._fft_size
             self._kernelobj.oversampling = 1
-            self._kernelobj.positiveShiftTT = True
+            self._kernelobj.return_fft = True
+            self._kernelobj.positive_shift_tt = True
             kernel_fn = self._kernelobj.build()
 
             if os.path.exists(kernel_fn):
