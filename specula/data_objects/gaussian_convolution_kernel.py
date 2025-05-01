@@ -35,21 +35,11 @@ class GaussianConvolutionKernel(ConvolutionKernel):
         return 'ConvolutionKernel' + self.generate_hash()        
 
     def calculate_lgs_map(self):
-        real_kernels = lgs_map_sh(
+        self.real_kernels = lgs_map_sh(
             self.dimx, self.pupil_size_m, 0, 90e3, [0], profz=[1.0], fwhmb=self.spotsize, ps=self.pxscale,
             ssp=self.dimension, overs=1, theta=self.lgs_tt, xp=self.xp )
 
-        dtype = self.complex_dtype if self.return_fft else self.dtype
-        self.kernels = self.xp.zeros_like(real_kernels, dtype=dtype)
-        for i in range(self.dimx):
-            for j in range(self.dimy):
-                subap_kern = self.xp.array(real_kernels[j * self.dimx + i, :, :])
-                subap_kern /= self.xp.sum(subap_kern)
-                if self.return_fft:
-                    subap_kern_fft = self.xp.fft.ifft2(subap_kern)
-                    self.kernels[j * self.dimx + i, :, :] = subap_kern_fft
-                else:
-                    self.kernels[j * self.dimx + i, :, :] = subap_kern
+        self.process_kernels(return_fft=self.return_fft)
         
     def save(self, filename, hdr=None):
         if hdr is None:
