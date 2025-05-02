@@ -53,17 +53,16 @@ class ShKernel(BaseProcessingObj):
         self.outputs['out_kernels'] = self._kernelobj
 
     def trigger(self):
-        print('ShKernel trigger')
-        sodium_altitude = self.local_inputs['sodium_altitude']
-        sodium_intensity = self.local_inputs['sodium_intensity']
-        if sodium_altitude is None or sodium_intensity is None:
-            raise ValueError('sodium_altitude and sodium_intensity must be provided')
-        self._kernelobj.zlayer = sodium_altitude.value
-        self._kernelobj.zprofile = sodium_intensity.value
+        if len(self._laser_launcher_pos) != 0:
+            sodium_altitude = self.local_inputs['sodium_altitude']
+            sodium_intensity = self.local_inputs['sodium_intensity']
+            if sodium_altitude is None or sodium_intensity is None:
+                raise ValueError('sodium_altitude and sodium_intensity must be provided')
+            self._kernelobj.zlayer = sodium_altitude.value
+            self._kernelobj.zprofile = sodium_intensity.value
 
         # Get the kernel filename hash based on current parameters
         new_kernel_fn = self._kernelobj.build()
-        print('Kernel filename:', new_kernel_fn)
 
         # Only reload or recalculate if the kernel has changed
         if new_kernel_fn != self._kernel_fn:
@@ -74,7 +73,8 @@ class ShKernel(BaseProcessingObj):
                 if len(self._laser_launcher_pos) == 0:
                     self._kernelobj = GaussianConvolutionKernel.restore(self._kernel_fn,
                                                                         kernel_obj=self._kernelobj,
-                                                                        target_device_idx=self.target_device_idx)
+                                                                        target_device_idx=self.target_device_idx,
+                                                                        return_fft=True)
                 else:
                     self._kernelobj = ConvolutionKernel.restore(self._kernel_fn, 
                                                                 kernel_obj=self._kernelobj,
