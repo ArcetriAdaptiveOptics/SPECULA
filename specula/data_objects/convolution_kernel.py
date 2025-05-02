@@ -56,23 +56,23 @@ def lgs_map_sh(nsh, diam, rl, zb, dz, profz, fwhmb, ps, ssp,
     el = BL / BL[2]
     # Create the focal plane field positions (rf) and the sub-aperture positions (rs)
     rs_x, rs_y, rs_z = xsh, ysh, xp.zeros((nsh, nsh))
-    
+
     rf_x = xp.tile(xfov * ASEC2RAD * zb, (nsh, nsh)).reshape(ossp * nsh, ossp * nsh)
     rf_y = xp.tile(yfov * ASEC2RAD * zb, (nsh, nsh)).reshape(ossp * nsh, ossp * nsh)
     rf_z = xp.zeros((ossp * nsh, ossp * nsh))
-    
+
     # Distance and direction vectors for calculating intensity maps
     fs_x = rf_x - xp.repeat(xp.repeat(rs_x, ossp, axis=0), ossp, axis=1)
     fs_y = rf_y - xp.repeat(xp.repeat(rs_y, ossp, axis=0), ossp, axis=1)
     fs_z = zb + rf_z - xp.repeat(xp.repeat(rs_z, ossp, axis=0), ossp, axis=1)
-    
+
     es_x = fs_x / fs_z
     es_y = fs_y / fs_z
     es_z = fs_z / fs_z
 
     # Initialize the field map (fmap) for LGS patterns
     fmap = xp.zeros((nsh * ossp, nsh * ossp))
-    nz = len(dz)   
+    nz = len(dz)
     # Gaussian or top-hat profile choice for LGS beam
     if rprof_type == 0:
         gnorm = 1.0 / (sigma * xp.pi * xp.sqrt(2.0))  # Gaussian
@@ -80,14 +80,14 @@ def lgs_map_sh(nsh, diam, rl, zb, dz, profz, fwhmb, ps, ssp,
         gnorm = 1.0 / (xp.pi / 4 * (fwhmb * ASEC2RAD * zb)**2)  # Top-hat
     else:
         raise ValueError("Unsupported radial profile type")
-   
+
     # Loop through layers for the sodium layer thickness
     for iz in range(nz):
         if profz[iz] > 0:
             d2 = ((rf_x + dz[iz] * es_x - (rb[0] + dz[iz] * el[0]))**2 +
                   (rf_y + dz[iz] * es_y - (rb[1] + dz[iz] * el[1]))**2 +
                   (rf_z + dz[iz] * es_z - (rb[2] + dz[iz] * el[2]))**2)
-           
+
             if rprof_type == 0:
                 fmap += (gnorm * profz[iz]) * xp.exp(d2 * exp_sigma)
             elif rprof_type == 1:
@@ -115,7 +115,7 @@ class ConvolutionKernel(BaseDataObj):
                  target_device_idx: int=None,
                  precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-        
+
         self.real_kernels = None
         self.kernels = None
         self.seeing = None
@@ -148,10 +148,10 @@ class ConvolutionKernel(BaseDataObj):
 #        self.dimx = max(self.dimx, 2)
 #        self.pixel_pitch = self.ef_pixel_pitch * (self.ef_size / 2.0)
 #        x = self.xp.linspace(-self.pixel_pitch, self.pixel_pitch, self.dimx)
-#        y = self.xp.linspace(-self.pixel_pitch, self.pixel_pitch, self.dimx)        
+#        y = self.xp.linspace(-self.pixel_pitch, self.pixel_pitch, self.dimx)
 #        self.xgrid, self.ygrid = self.xp.meshgrid(x, y)
 
-    def build(self):        
+    def build(self):
         if len(self.zlayer) != len(self.zprofile):
             raise ValueError("Number of elements of zlayer and zprofile must be the same")
 
@@ -176,7 +176,7 @@ class ConvolutionKernel(BaseDataObj):
         """
         if len(self.zlayer) != len(self.zprofile):
             raise ValueError("Number of elements of zlayer and zprofile must be the same")
-        
+
         if self.spotsize <= 0:
             raise ValueError("Spot size must be greater than zero")
 
@@ -239,7 +239,7 @@ class ConvolutionKernel(BaseDataObj):
                 hash_arr.append(item.item())
             else:
                 hash_arr.append(item)
-        
+
         # Placeholder function to compute SHA1 hash
         sha1 = hashlib.sha1()
         # converts all numpy arrays to list
@@ -256,7 +256,7 @@ class ConvolutionKernel(BaseDataObj):
 
         # Process the kernels - apply FFT if needed
         dtype = self.complex_dtype if return_fft else self.dtype
-        print("dtype", dtype)
+
         self.kernels = self.xp.zeros_like(self.real_kernels, dtype=dtype)
         for i in range(self.dimx):
             for j in range(self.dimy):
@@ -289,20 +289,20 @@ class ConvolutionKernel(BaseDataObj):
         hdr['SPOTSIZE'] = self.spotsize
         hdr['DIMX'] = self.dimx
         hdr['DIMY'] = self.dimy
-        
+
         # Create a primary HDU with just the header
         primary_hdu = fits.PrimaryHDU(header=hdr)
-        
+
         # Create an HDU with the kernel data
         kernel_data = cpuArray(self.real_kernels)
         kernel_hdu = fits.ImageHDU(data=kernel_data)
-        
+
         # Create an HDUList and write to file
         hdul = fits.HDUList([primary_hdu, kernel_hdu])
         hdul.writeto(filename, overwrite=True)   
 
     @staticmethod
-    def restore(filename, target_device_idx=None, return_fft=False):
+    def restore(filename, target_device_idx=None, kernel_obj=None, return_fft=False):
         """
         Restore a ConvolutionKernel object from a FITS file.
 
@@ -315,17 +315,23 @@ class ConvolutionKernel(BaseDataObj):
             ConvolutionKernel: The restored ConvolutionKernel object
         """
         hdr = fits.getheader(filename, ext=0)  # Get header from primary HDU
-        
+
         version = int(hdr['VERSION'])
-        kernel_obj = ConvolutionKernel(dimx=hdr['DIMX'], dimy=hdr['DIMY'], target_device_idx=target_device_idx)
-        
+        if kernel_obj is None:
+            kernel_obj = ConvolutionKernel(dimx=hdr['DIMX'], dimy=hdr['DIMY'], target_device_idx=target_device_idx)
+        else:
+            # If a kernel object is provided, use it
+            # check if the dimensions match
+            if kernel_obj.dimx != hdr['DIMX'] or kernel_obj.dimy != hdr['DIMY']:
+                raise ValueError("Provided kernel object dimensions do not match the FITS file dimensions")
+
         # Read properties from header
         kernel_obj.pxscale = hdr['PXSCALE']
         kernel_obj.dimension = hdr['DIM']
         kernel_obj.oversampling = hdr['OVERSAMP']
         kernel_obj.positive_shift_tt = hdr['POSTT']
         kernel_obj.spotsize = hdr['SPOTSIZE']
-        
+
         # Read the kernel data from extension 1
         kernel_obj.real_kernels = kernel_obj.xp.array(fits.getdata(filename, ext=1))       
         kernel_obj.process_kernels(return_fft=return_fft)

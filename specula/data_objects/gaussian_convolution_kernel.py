@@ -10,14 +10,14 @@ class GaussianConvolutionKernel(ConvolutionKernel):
     """
     Kernel processing object for Gaussian kernels.
     """
-    
+
     def __init__(self,
                  convolGaussSpotSize :int,
                  dimx: int,
                  dimy: int,
                  target_device_idx: int=None,
                  precision: int=None):
-        super().__init__(dimx, dimy, target_device_idx=target_device_idx, precision=precision)        
+        super().__init__(dimx, dimy, target_device_idx=target_device_idx, precision=precision)
         self.spotsize = convolGaussSpotSize
 
     def build(self):
@@ -42,7 +42,7 @@ class GaussianConvolutionKernel(ConvolutionKernel):
         self.process_kernels(return_fft=self.return_fft)
 
     @staticmethod
-    def restore(filename, target_device_idx=None, return_fft=False):
+    def restore(filename, target_device_idx=None, kernel_obj=None, return_fft=False):
         """
         Restore a ConvolutionKernel object from a FITS file.
 
@@ -55,16 +55,25 @@ class GaussianConvolutionKernel(ConvolutionKernel):
             ConvolutionKernel: The restored ConvolutionKernel object
         """
         hdr = fits.getheader(filename, ext=0)  # Get header from primary HDU
-        
+
         version = int(hdr['VERSION'])
-        kernel_obj = GaussianConvolutionKernel(hdr['SPOTSIZE'], dimx=hdr['DIMX'], dimy=hdr['DIMY'], target_device_idx=target_device_idx)
-        
+        if kernel_obj is None:
+            kernel_obj = ConvolutionKernel(hdr['SPOTSIZE'], dimx=hdr['DIMX'], dimy=hdr['DIMY'], target_device_idx=target_device_idx)
+        else:
+            # If a kernel object is provided, use it
+            # check if the spot size matches
+            if kernel_obj.spotsize != hdr['SPOTSIZE']:
+                raise ValueError("Provided kernel object spot size does not match the FITS file spot size")
+            # check if the dimensions match
+            if kernel_obj.dimx != hdr['DIMX'] or kernel_obj.dimy != hdr['DIMY']:
+                raise ValueError("Provided kernel object dimensions do not match the FITS file dimensions")
+
         # Read properties from header
         kernel_obj.pxscale = hdr['PXSCALE']
         kernel_obj.dimension = hdr['DIM']
         kernel_obj.oversampling = hdr['OVERSAMP']
         kernel_obj.positive_shift_tt = hdr['POSTT']
-        
+
         # Read the kernel data from extension 1
         kernel_obj.real_kernels = kernel_obj.xp.array(fits.getdata(filename, ext=1))       
         kernel_obj.process_kernels(return_fft=return_fft)
