@@ -94,6 +94,12 @@ prop:
 # LGS WFS 
 # -------
 
+sodium_kernels:
+  class:             'ShKernel'
+  subap_on_diameter:  40                      # Number of subapertures in diameter
+  spot_size:          1.8
+  outputs:  ['out_kernels']
+
 sh_lgs:
   class:             'SH'
   subap_wanted_fov:  5                       # Requested field-of-view [arcsec]
@@ -101,9 +107,9 @@ sh_lgs:
   subap_npx:         6                       # Output sampling [usually corresponding to CCD pixels]
   subap_on_diameter: 40                      # Number of subapertures in diameter
   wavelengthInNm:    589                     # [nm] Sensor wavelength
-  convolGaussSpotSize: 1.8
   inputs:
     in_ef: 'prop.out_source_lgs_ef'
+    in_kernels: 'sodium_kernels.out_kernels'
   outputs:  ['out_i']
 
 detector_lgs:

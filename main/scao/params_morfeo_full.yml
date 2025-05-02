@@ -127,6 +127,12 @@ prop:
 # LGS WFS simulation and slope processing
 # ---------------------------------------
 
+sodium_kernels:
+  class:             'ShKernel'
+  subap_on_diameter:  68                      # Number of subapertures in diameter
+  spot_size:          1.8
+  outputs:  ['out_kernels']
+
 sh_lgs1: &LGS_SH
   class:             'SH'
   subap_wanted_fov:  16.1                    # Requested field-of-view [arcsec]
@@ -135,9 +141,9 @@ sh_lgs1: &LGS_SH
   subap_on_diameter: 68                      # Number of subapertures in diameter
   wavelengthInNm:    589                     # [nm] Pyramid wavelength
   fov_ovs_coeff:     1.52                     # Force phase interpolation to a multiple of 68
-  convolGaussSpotSize: 1.8
   inputs:
     in_ef: 'prop.out_source_lgs1_ef'
+    in_kernels: 'sodium_kernels.out_kernels'
   outputs:  ['out_i']
 
 sh_lgs2: { <<: *LGS_SH, inputs: {in_ef: 'prop.out_source_lgs2_ef' }}
@@ -237,7 +243,6 @@ sh_ref1: &REF_SH
   sensor_pxscale:    0.153                    # Pixel scale in arcsec/pix
   subap_npx:         30                      # Output sampling [usually corresponding to CCD pixels]
   wavelengthInNm:    750                     # [nm] Pyramid wavelength
-  convolGaussSpotSize: 0.333
   inputs:
     in_ef: 'prop.out_source_ref1_ef'
   outputs:  ['out_i']

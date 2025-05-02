@@ -116,6 +116,13 @@ prop:
                   'dm.out_layer:-1']
   outputs: ['out_on_axis_source_ef','out_ngs1_source_ef','out_ngs2_source_ef','out_ngs3_source_ef','out_ngs4_source_ef','out_ngs5_source_ef','out_ngs6_source_ef']
 
+
+sodium_kernels:
+  class:             'ShKernel'
+  subap_on_diameter:  40                      # Number of subapertures in diameter
+  spot_size:          1.8
+  outputs:  ['out_kernels']
+
 sh1:
   class:             'SH'
   subap_wanted_fov:  16.1                    # Requested field-of-view [arcsec]
@@ -124,9 +131,9 @@ sh1:
   subap_on_diameter: 68                      # Number of subapertures in diameter
   wavelengthInNm:    589                     # [nm] Pyramid wavelength
   fov_ovs_coeff:     1.6                     # Force phase interpolation to a multiple of 68
-  convolGaussSpotSize: 1.8
   inputs:
     in_ef: 'prop.out_ngs1_source_ef'
+    in_kernels: 'sodium_kernels.out_kernels'
   outputs:  ['out_i']
 
 sh2:
@@ -137,9 +144,9 @@ sh2:
   subap_on_diameter: 68                      # Number of subapertures in diameter
   wavelengthInNm:    589                     # [nm] Pyramid wavelength
   fov_ovs_coeff:     1.6                     # Force phase interpolation to a multiple of 68
-  convolGaussSpotSize: 1.8
   inputs:
     in_ef: 'prop.out_ngs2_source_ef'
+    in_kernels: 'sodium_kernels.out_kernels'
   outputs:  ['out_i']
 
 sh3:
@@ -150,9 +157,9 @@ sh3:
   subap_on_diameter: 68                      # Number of subapertures in diameter
   wavelengthInNm:    589                     # [nm] Pyramid wavelength
   fov_ovs_coeff:     1.6                     # Force phase interpolation to a multiple of 68
-  convolGaussSpotSize: 1.8
   inputs:
     in_ef: 'prop.out_ngs3_source_ef'
+    in_kernels: 'sodium_kernels.out_kernels'
   outputs:  ['out_i']
 
 sh4:
@@ -163,9 +170,9 @@ sh4:
   subap_on_diameter: 68                      # Number of subapertures in diameter
   wavelengthInNm:    589                     # [nm] Pyramid wavelength
   fov_ovs_coeff:     1.6                     # Force phase interpolation to a multiple of 68
-  convolGaussSpotSize: 1.8
   inputs:
     in_ef: 'prop.out_ngs4_source_ef'
+    in_kernels: 'sodium_kernels.out_kernels'
   outputs:  ['out_i']
 
 sh5:
@@ -176,9 +183,9 @@ sh5:
   subap_on_diameter: 68                      # Number of subapertures in diameter
   wavelengthInNm:    589                     # [nm] Pyramid wavelength
   fov_ovs_coeff:     1.6                     # Force phase interpolation to a multiple of 68
-  convolGaussSpotSize: 1.8
   inputs:
     in_ef: 'prop.out_ngs5_source_ef'
+    in_kernels: 'sodium_kernels.out_kernels'
   outputs:  ['out_i']
 
 sh6:
@@ -189,9 +196,9 @@ sh6:
   subap_on_diameter: 68                      # Number of subapertures in diameter
   wavelengthInNm:    589                     # [nm] Pyramid wavelength
   fov_ovs_coeff:     1.6                     # Force phase interpolation to a multiple of 68
-  convolGaussSpotSize: 1.8
   inputs:
     in_ef: 'prop.out_ngs6_source_ef'
+    in_kernels: 'sodium_kernels.out_kernels'
   outputs:  ['out_i']
 
 detector1:
