@@ -66,7 +66,6 @@ sh:
   subap_npx:         8                       # Output sampling [usually corresponding to CCD pixels]
   subap_on_diameter: 8                      # Number of subapertures in diameter
   wavelengthInNm:    600                     # [nm] Pyramid wavelength
-  convolGaussSpotSize: 0
   inputs:
     in_ef: 'prop.out_on_axis_source_ef'
   outputs:  ['out_i']
