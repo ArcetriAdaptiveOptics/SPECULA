@@ -35,19 +35,17 @@ class TestKernel(unittest.TestCase):
         """
         # Create a Gaussian kernel with the specified parameters
         dimx = dimy = 10
-        spotsize = 1.0  # arcsec
+        spot_size = 1.0  # arcsec
         pixel_scale = 0.1  # arcsec
         pupil_size_m = 1.0  # m
         dimension = 16  # Size of kernel in pixels
 
-        kernel = GaussianConvolutionKernel(
-            convolGaussSpotSize=spotsize,
-            dimx=dimx,
-            dimy=dimy,
-            target_device_idx=target_device_idx
-        )
+        kernel = GaussianConvolutionKernel(target_device_idx=target_device_idx)
 
         # Set required parameters
+        kernel.dimx = dimx
+        kernel.dimy = dimy
+        kernel.spot_size = spot_size
         kernel.pxscale = pixel_scale
         kernel.pupil_size_m = pupil_size_m
         kernel.dimension = dimension
@@ -87,7 +85,7 @@ class TestKernel(unittest.TestCase):
         """
         # Create a generic convolution kernel with the specified parameters
         dimx = dimy = 10
-        spotsize = 1.0  # arcsec
+        spot_size = 1.0  # arcsec
         pixel_scale = 0.1  # arcsec
         pupil_size_m = 8.0  # m
         dimension = 64  # Size of kernel in pixels
@@ -109,17 +107,15 @@ class TestKernel(unittest.TestCase):
         # Normalize the profile
         zprofile /= np.sum(zprofile)
 
-        kernel = ConvolutionKernel(
-            dimx=dimx,
-            dimy=dimy,
-            target_device_idx=target_device_idx
-        )
-        
+        kernel = ConvolutionKernel(target_device_idx=target_device_idx)
+
         # Set required parameters
+        kernel.dimx = dimx
+        kernel.dimy = dimy
         kernel.pxscale = pixel_scale
         kernel.pupil_size_m = pupil_size_m
         kernel.dimension = dimension
-        kernel.seeing = spotsize
+        kernel.seeing = spot_size
         kernel.zlayer = zlayer.tolist()
         kernel.zprofile = zprofile.tolist()
         kernel.zfocus = zfocus
@@ -167,7 +163,7 @@ class TestKernel(unittest.TestCase):
         """
         # Create a generic convolution kernel with the specified parameters
         dimx = dimy = 10
-        spotsize = 1.0  # arcsec
+        spot_size = 1.0  # arcsec
         pixel_scale = 0.1  # arcsec
         pupil_size_m = 8.0  # m
         dimension = 64  # Size of kernel in pixels
@@ -192,7 +188,7 @@ class TestKernel(unittest.TestCase):
 
         map = lgs_map_sh(
             nsh=dimx, diam=pupil_size_m, rl=launcher_pos, zb=zfocus,
-            dz=layer_offsets, profz=zprofile, fwhmb=spotsize, ps=pixel_scale,
+            dz=layer_offsets, profz=zprofile, fwhmb=spot_size, ps=pixel_scale,
             ssp=dimension, overs=1, theta=[0.0, 0.0], xp=xp)
 
         # Create a 2D grid to display all kernels in their spatial positions
@@ -274,7 +270,7 @@ class TestKernel(unittest.TestCase):
         try:
             # Create a kernel with test parameters (using smaller dimensions for faster test)
             dimx = dimy = 5
-            spotsize = 1.0  # arcsec
+            spot_size = 1.0  # arcsec
             pixel_scale = 0.1  # arcsec
             pupil_size_m = 8.0  # m
             dimension = 32  # Size of kernel in pixels
@@ -293,15 +289,16 @@ class TestKernel(unittest.TestCase):
             zprofile /= np.sum(zprofile)  # Normalize
             
             # Create the original kernel
-            original_kernel = ConvolutionKernel(
-                dimx=dimx, dimy=dimy, target_device_idx=target_device_idx
+            original_kernel = ConvolutionKernel(target_device_idx=target_device_idx
             )
             
             # Set parameters
+            original_kernel.dimx = dimx
+            original_kernel.dimy = dimy
             original_kernel.pxscale = pixel_scale
             original_kernel.pupil_size_m = pupil_size_m
             original_kernel.dimension = dimension
-            original_kernel.seeing = spotsize
+            original_kernel.seeing = spot_size
             original_kernel.zlayer = zlayer.tolist()
             original_kernel.zprofile = zprofile.tolist()
             original_kernel.zfocus = zfocus
@@ -327,7 +324,7 @@ class TestKernel(unittest.TestCase):
             self.assertEqual(original_kernel.pxscale, restored_kernel.pxscale)
             self.assertEqual(original_kernel.oversampling, restored_kernel.oversampling)
             self.assertEqual(original_kernel.positive_shift_tt, restored_kernel.positive_shift_tt)
-            self.assertEqual(original_kernel.spotsize, restored_kernel.spotsize)
+            self.assertEqual(original_kernel.spot_size, restored_kernel.spot_size)
             
             # Compare kernel data
             original_data = cpuArray(original_kernel.real_kernels)
