@@ -7,7 +7,7 @@ from specula.lib.toccd import toccd
 from specula.lib.interp2d import Interp2D
 from specula.lib.make_mask import make_mask
 from specula.connections import InputValue
-from specula.base_value import BaseValue
+from specula.data_objects.convolution_kernel import ConvolutionKernel
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.intensity import Intensity
 from specula.base_processing_obj import BaseProcessingObj
@@ -52,10 +52,6 @@ class SH(BaseProcessingObj):
                  aRotAnglePhInDeg: float = 0,
                  do_not_double_fov_ovs: bool = False,
                  set_fov_res_to_turbpxsc: bool = False,
-                 convolGaussSpotSize: float = 0.0,
-                 laser_launcher_pos: list = [],
-                 laser_beacon_focus: float = 90e3,
-                 laser_beacon_tt: list = [],
                  target_device_idx: int = None, 
                  precision: int = None,
         ):
@@ -87,24 +83,10 @@ class SH(BaseProcessingObj):
         self._idx_1pix = None
         self._idx_2pix = None
         self._do_interpolation = None
-        self.kernel_fn = None
 
-        # TODO these are fixed but should become parameters 
+        # TODO these are fixed but should become parameters
         self._fov_ovs = 1
         self._floatShifts = False
-        self._convolGaussSpotSize = convolGaussSpotSize
-        self._laser_launcher_pos = laser_launcher_pos
-        self._laser_beacon_focus = laser_beacon_focus
-        self._laser_beacon_tt = laser_beacon_tt
-
-
-        if len(self._laser_launcher_pos) == 0:                        
-            self._kernelobj = GaussianConvolutionKernel(self._convolGaussSpotSize,
-                                                        self._lenslet.dimx, self._lenslet.dimy,
-                                                        target_device_idx=self.target_device_idx)
-        else:
-            self._kernelobj = ConvolutionKernel(self._lenslet.dimx, self._lenslet.dimy,
-                                                target_device_idx=self.target_device_idx)
             
         self._ccd_side = self._subap_npx * self._lenslet.n_lenses
         self._out_i = Intensity(self._ccd_side, self._ccd_side, precision=self.precision, target_device_idx=self.target_device_idx)
@@ -112,8 +94,7 @@ class SH(BaseProcessingObj):
         self.interp = None
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
-        self.inputs['sodium_altitude'] = InputValue(type=BaseValue, optional=True)
-        self.inputs['sodium_intensity'] = InputValue(type=BaseValue, optional=True)
+        self.inputs['in_kernels'] = InputValue(type=ConvolutionKernel, optional=True)
         self.outputs['out_i'] = self._out_i
 
     def set_in_ef(self, in_ef):
@@ -242,8 +223,11 @@ class SH(BaseProcessingObj):
         elif not self._noprints:
             print(f'GOOD: interpolated input phase size {ef_size} * {round(self._fov_ovs)} is divisible by {self._lenslet.n_lenses} subapertures.')
     
-    def calc_trigger_geometry(self, in_ef):
-        
+    def calc_trigger_geometry(self, in_ef, in_kernels):
+        '''
+        Calculate the geometry of the SH
+        '''
+
         subap_wanted_fov = self._subap_wanted_fov
         sensor_pxscale = self._sensor_pxscale
         subap_npx = self._subap_npx
@@ -259,8 +243,8 @@ class SH(BaseProcessingObj):
             M1 = in_ef.size[1] * self._fov_ovs
             wf1 = ElectricField(M0, M1, in_ef.pixel_pitch / self._fov_ovs, target_device_idx=self.target_device_idx)
         else:
-            wf1 = in_ef            
-        
+            wf1 = in_ef
+
         # Reuse geometry calculated in set_in_ef
         fft_size = self._fft_size
 
@@ -273,7 +257,7 @@ class SH(BaseProcessingObj):
 
         sensor_subap_fov = sensor_pxscale * subap_npx
         fov_cut = fov_complete - sensor_subap_fov
-        
+
         self._cutpixels = int(np.round(fov_cut / fp4_pixel_pitch) / 2 * 2)
         self._cutsize = fft_size - self._cutpixels
         self._psfimage = self._zeros_common((self._cutsize * self._lenslet.dimx, self._cutsize * self._lenslet.dimy), dtype=self.dtype)
@@ -288,65 +272,15 @@ class SH(BaseProcessingObj):
         self.in_ef = in_ef
         self._wf1 = wf1
 
-        # Kernel object initialization
-        if self._kernelobj is not None:
-            self._kernelobj.pxscale = fp4_pixel_pitch * RAD2ASEC
-            self._kernelobj.pupil_size_m = in_ef.pixel_pitch * in_ef.size[0]
-            self._kernelobj.dimension = self._fft_size
-            self._kernelobj.oversampling = 1
-            self._kernelobj.return_fft = True
-            self._kernelobj.positive_shift_tt = True
-            if len(self._laser_beacon_tt) != 0:
-                self._kernelobj.lgs_tt = self._laser_beacon_tt
-            if len(self._laser_launcher_pos) != 0:
-                self._kernelobj.launcher_pos = self._laser_launcher_pos
-                self._kernelobj.seeing = 0.0
-                self._kernelobj.launcher_size = self._convolGaussSpotSize
-                self._kernelobj.zfocus = self._laser_beacon_focus
-            else:
-                kernel_fn = self._kernelobj.build()
-                if os.path.exists(kernel_fn):
-                    self._kernelobj = GaussianConvolutionKernel.restore(kernel_fn, target_device_idx=self.target_device_idx)
-                else:
-                    print('Calculating kernel...')
-                    self._kernelobj.calculate_lgs_map()
-                    self._kernelobj.save(kernel_fn)
-                    print('Done')
-
+        # update kernel parameters
+        if in_kernels is not None:
+            print('Updating kernel parameters')
+            in_kernels.pxscale = fp4_pixel_pitch * RAD2ASEC
+            in_kernels.pupil_size_m = in_ef.pixel_pitch * in_ef.size[0]
+            in_kernels.dimension = self._fft_size
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
-        
-        # update kernel parameters
-        if self._kernelobj is not None and len(self._laser_launcher_pos) != 0:
-            sodium_altitude = self.local_inputs['sodium_altitude']
-            sodium_intensity = self.local_inputs['sodium_intensity']
-            if sodium_altitude is None or sodium_intensity is None:
-                raise ValueError('sodium_altitude and sodium_intensity must be provided')
-            self._kernelobj.zlayer = sodium_altitude.value
-            self._kernelobj.zprofile = sodium_intensity.value
-
-            # Get the kernel filename hash based on current parameters
-            new_kernel_fn = self._kernelobj.build()
-            
-            # Only reload or recalculate if the kernel has changed
-            if new_kernel_fn != self.kernel_fn:
-                self.kernel_fn = new_kernel_fn  # Update the stored kernel filename
-                
-                if os.path.exists(self.kernel_fn):
-                    print(f"Loading kernel from {self.kernel_fn}")
-                    self._kernelobj = ConvolutionKernel.restore(self.kernel_fn, 
-                                                            target_device_idx=self.target_device_idx, 
-                                                            return_fft=True)
-                else:
-                    print('Calculating kernel...')
-                    self._kernelobj.calculate_lgs_map()
-                    self._kernelobj.save(self.kernel_fn)
-                    print('Done')
-            else:
-                # Kernel hasn't changed, no need to reload or recalculate
-                print("Kernel unchanged, using cached version")
-
 
     def trigger_code(self):
 
@@ -364,10 +298,14 @@ class SH(BaseProcessingObj):
         with show_in_profiler('ef_at_lambda'):
             self._wf1.ef_at_lambda(self._wavelengthInNm, out=self.ef_whole)
 
+        in_kernels = self.inputs['in_kernels'].get(target_device_idx=self.target_device_idx)
+        print('type(in_kernels):', type(in_kernels))
+        print('in_kernels.kernels.shape:', in_kernels.kernels.shape)
+
         # Work on SH rows (single-subap code is too inefficient)
 
         for i in range(self._lenslet.dimx):
-    
+
             # Extract 2D subap row
             ef_subap_view = self.ef_whole[i * self._ovs_np_sub: (i+1) * self._ovs_np_sub, :]
 
@@ -376,19 +314,19 @@ class SH(BaseProcessingObj):
 
             # Insert into padded array
             self._wf3[:, :self._ovs_np_sub, :self._ovs_np_sub] = subap_cube_view * self._tltf[self.xp.newaxis, :, :]
-            
+
             fp4 = self.xp.fft.fft2(self._wf3, axes=(1, 2))
             abs2(fp4, self.psf_shifted, xp=self.xp)
 
             # Full resolution kernel
-            if self._kernelobj is not None:
+            if in_kernels is not None:
                 first = i * self._lenslet.dimy
                 last = (i + 1) * self._lenslet.dimy
-                subap_kern_fft = self._kernelobj.kernels[first:last, :, :]
+                subap_kern_fft = in_kernels.kernels[first:last, :, :]
 
                 psf_fft = self.xp.fft.fft2(self.psf_shifted)
                 psf_fft *= subap_kern_fft
-                
+
                 self._scipy_ifft2(psf_fft, overwrite_x=True, norm='forward')
                 self.psf = psf_fft.real
 
@@ -430,7 +368,7 @@ class SH(BaseProcessingObj):
         self._out_i.i *= (phot / self._out_i.i.sum())
         self._out_i.generation_time = self.current_time
 
-        debug_figures = False
+        debug_figures = True
         if debug_figures:
             import matplotlib.pyplot as plt
             plt.figure()
@@ -443,9 +381,10 @@ class SH(BaseProcessingObj):
         super().setup(loop_dt, loop_niters)
 
         in_ef = self.inputs['in_ef'].get(target_device_idx=self.target_device_idx)
-
+        in_kernels = self.inputs['in_kernels'].get(target_device_idx=self.target_device_idx)
+        
         self.set_in_ef(in_ef)
-        self.calc_trigger_geometry(in_ef)
+        self.calc_trigger_geometry(in_ef,in_kernels)
 
         fov_oversample = self._fov_ovs
         shape_ovs = (int(in_ef.size[0] * fov_oversample), int(in_ef.size[1] * fov_oversample))
