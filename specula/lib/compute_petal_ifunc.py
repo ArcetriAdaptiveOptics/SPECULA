@@ -3,7 +3,8 @@ from specula.lib.make_mask import make_mask
 
 def compute_petal_ifunc(dim, n_petals, xp=np, dtype=np.float32, angle_offset=0,
                         obsratio=0.0, diaratio=1.0, mask=None, spider=False,
-                        spider_width=2, add_tilts=False, return_coordinates=False):
+                        spider_width=2, add_tilts=False, return_coordinates=False,
+                        special_last_petal=False):
     """
     Computes influence functions for a segmented mirror with n_petals segments.
     Optionally adds spider arms shadows between petals and tip/tilt modes.
@@ -34,6 +35,8 @@ def compute_petal_ifunc(dim, n_petals, xp=np, dtype=np.float32, angle_offset=0,
         Whether to add tip and tilt modes for each petal
     return_coordinates : bool
         Whether to return the coordinates array
+    special_last_petal : bool
+        Whether to use logical_or for the last petal to handle wrap-around angles.
         
     Returns:
     --------
@@ -81,7 +84,7 @@ def compute_petal_ifunc(dim, n_petals, xp=np, dtype=np.float32, angle_offset=0,
         angle_max = (i + 1) * petal_angle
 
         # Create mask for this petal
-        if i == n_petals - 1:
+        if i == n_petals - 1 and special_last_petal:
             petal_mask = xp.logical_or(
                 theta >= angle_min,
                 theta < angle_max
