@@ -62,7 +62,6 @@ prop:
 
 sh_kernels:
   class:             'ShKernel'
-  subap_on_diameter:  20                      # Number of subapertures in diameter
   spot_size:          0.5
   outputs:  ['out_kernels']
 

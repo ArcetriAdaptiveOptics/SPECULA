@@ -96,7 +96,6 @@ prop:
 
 sodium_kernels:
   class:             'ShKernel'
-  subap_on_diameter:  40                      # Number of subapertures in diameter
   spot_size:          1.8
   outputs:  ['out_kernels']
 
