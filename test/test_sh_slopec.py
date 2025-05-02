@@ -59,8 +59,7 @@ class TestShSlopec(unittest.TestCase):
         # ------------------------------------------------------------------------------
 
         # Create the SH object
-        sh_kernel = ShKernel(subap_on_diameter=subap_on_diameter,
-                             spot_size=pxscale_arcsec,
+        sh_kernel = ShKernel(spot_size=pxscale_arcsec,
                              target_device_idx=target_device_idx)
 
         sh = SH(wavelengthInNm=wavelengthInNm,
