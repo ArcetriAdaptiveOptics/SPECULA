@@ -109,8 +109,6 @@ def lgs_map_sh(nsh, diam, rl, zb, dz, profz, fwhmb, ps, ssp,
 
 class ConvolutionKernel(BaseDataObj):
     def __init__(self,
-                 dimx: int,
-                 dimy: int,
                  airmass: float=1.0,
                  target_device_idx: int=None,
                  precision: int=None):
@@ -136,8 +134,8 @@ class ConvolutionKernel(BaseDataObj):
         self.last_zprofile = -1        
         self.airmass = airmass
         self.positive_shift_tt = False
-        self.dimx = dimx
-        self.dimy = dimy
+        self.dimx = 0
+        self.dimy = 0
 
     def set_launcher_pos(self, launcher_pos):
         if len(launcher_pos) != 3:
@@ -159,10 +157,10 @@ class ConvolutionKernel(BaseDataObj):
         lay_heights = self.xp.array(self.zlayer) * self.airmass
         zfocus *= self.airmass
 
-        self.spotsize = self.xp.sqrt(self.seeing**2 + self.launcher_size**2)
+        self.spot_size = self.xp.sqrt(self.seeing**2 + self.launcher_size**2)
         lgs_tt = (self.xp.array([-0.5, -0.5]) if not self.positive_shift_tt else self.xp.array([0.5, 0.5])) * self.pxscale + self.theta
 
-        self.hash_arr = [self.dimx, self.pupil_size_m, zfocus, lay_heights, self.zprofile, self.spotsize,
+        self.hash_arr = [self.dimx, self.pupil_size_m, zfocus, lay_heights, self.zprofile, self.spot_size,
                          self.pxscale, self.dimension, self.oversampling, lgs_tt]
         return 'ConvolutionKernel' + self.generate_hash()
 
@@ -177,7 +175,7 @@ class ConvolutionKernel(BaseDataObj):
         if len(self.zlayer) != len(self.zprofile):
             raise ValueError("Number of elements of zlayer and zprofile must be the same")
 
-        if self.spotsize <= 0:
+        if self.spot_size <= 0:
             raise ValueError("Spot size must be greater than zero")
 
         # Determine focus distance - use calculated focus if zfocus is -1
@@ -188,7 +186,7 @@ class ConvolutionKernel(BaseDataObj):
         zfocus *= self.airmass
 
         # Calculate the spot size (combination of seeing and laser launcher size)
-        self.spotsize = self.xp.sqrt(self.seeing**2 + self.launcher_size**2)
+        self.spot_size = self.xp.sqrt(self.seeing**2 + self.launcher_size**2)
 
         # Determine LGS tip-tilt offsets
         if not self.positive_shift_tt:
@@ -203,7 +201,7 @@ class ConvolutionKernel(BaseDataObj):
         # Call the LGS map calculation function
         self.real_kernels = lgs_map_sh(
             self.dimx, self.pupil_size_m, self.launcher_pos, zfocus, layer_offsets,
-            self.zprofile, self.spotsize, self.pxscale, self.dimension,
+            self.zprofile, self.spot_size, self.pxscale, self.dimension,
             overs=self.oversampling, theta=lgs_tt, doCube=True, xp=self.xp
         )
 
@@ -286,7 +284,7 @@ class ConvolutionKernel(BaseDataObj):
         hdr['DIM'] = self.dimension
         hdr['OVERSAMP'] = self.oversampling
         hdr['POSTT'] = self.positive_shift_tt
-        hdr['SPOTSIZE'] = self.spotsize
+        hdr['SPOTSIZE'] = self.spot_size
         hdr['DIMX'] = self.dimx
         hdr['DIMY'] = self.dimy
 
@@ -318,7 +316,7 @@ class ConvolutionKernel(BaseDataObj):
 
         version = int(hdr['VERSION'])
         if kernel_obj is None:
-            kernel_obj = ConvolutionKernel(dimx=hdr['DIMX'], dimy=hdr['DIMY'], target_device_idx=target_device_idx)
+            kernel_obj = ConvolutionKernel(target_device_idx=target_device_idx)
         else:
             # If a kernel object is provided, use it
             # check if the dimensions match
@@ -326,11 +324,13 @@ class ConvolutionKernel(BaseDataObj):
                 raise ValueError("Provided kernel object dimensions do not match the FITS file dimensions")
 
         # Read properties from header
+        kernel_obj.dimx = hdr['DIMX']
+        kernel_obj.dimy = hdr['DIMY']
         kernel_obj.pxscale = hdr['PXSCALE']
         kernel_obj.dimension = hdr['DIM']
         kernel_obj.oversampling = hdr['OVERSAMP']
         kernel_obj.positive_shift_tt = hdr['POSTT']
-        kernel_obj.spotsize = hdr['SPOTSIZE']
+        kernel_obj.spot_size = hdr['SPOTSIZE']
 
         # Read the kernel data from extension 1
         kernel_obj.real_kernels = kernel_obj.xp.array(fits.getdata(filename, ext=1))       

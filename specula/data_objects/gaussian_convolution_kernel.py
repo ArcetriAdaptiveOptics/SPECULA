@@ -12,13 +12,9 @@ class GaussianConvolutionKernel(ConvolutionKernel):
     """
 
     def __init__(self,
-                 convolGaussSpotSize :int,
-                 dimx: int,
-                 dimy: int,
                  target_device_idx: int=None,
                  precision: int=None):
-        super().__init__(dimx, dimy, target_device_idx=target_device_idx, precision=precision)
-        self.spotsize = convolGaussSpotSize
+        super().__init__(target_device_idx=target_device_idx, precision=precision)
 
     def build(self):
         """
@@ -29,14 +25,14 @@ class GaussianConvolutionKernel(ConvolutionKernel):
         self.lgs_tt = [-0.5, -0.5] if not self.positive_shift_tt else [0.5, 0.5]
         self.lgs_tt = [x * self.pxscale for x in self.lgs_tt]
         self.hash_arr = [
-            self.dimx, self.pupil_size_m, 90e3, self.spotsize,
+            self.dimx, self.pupil_size_m, 90e3, self.spot_size,
             self.pxscale, self.dimension, 3, self.lgs_tt, [0, 0, 0], [90e3], [1.0]
         ]
         return 'ConvolutionKernel' + self.generate_hash()        
 
     def calculate_lgs_map(self):
         self.real_kernels = lgs_map_sh(
-            self.dimx, self.pupil_size_m, 0, 90e3, [0], profz=[1.0], fwhmb=self.spotsize, ps=self.pxscale,
+            self.dimx, self.pupil_size_m, 0, 90e3, [0], profz=[1.0], fwhmb=self.spot_size, ps=self.pxscale,
             ssp=self.dimension, overs=1, theta=self.lgs_tt, xp=self.xp )
 
         self.process_kernels(return_fft=self.return_fft)
@@ -58,17 +54,20 @@ class GaussianConvolutionKernel(ConvolutionKernel):
 
         version = int(hdr['VERSION'])
         if kernel_obj is None:
-            kernel_obj = ConvolutionKernel(hdr['SPOTSIZE'], dimx=hdr['DIMX'], dimy=hdr['DIMY'], target_device_idx=target_device_idx)
+            kernel_obj = ConvolutionKernel(target_device_idx=target_device_idx)
         else:
             # If a kernel object is provided, use it
             # check if the spot size matches
-            if kernel_obj.spotsize != hdr['SPOTSIZE']:
+            if kernel_obj.spot_size != hdr['SPOTSIZE']:
                 raise ValueError("Provided kernel object spot size does not match the FITS file spot size")
             # check if the dimensions match
             if kernel_obj.dimx != hdr['DIMX'] or kernel_obj.dimy != hdr['DIMY']:
                 raise ValueError("Provided kernel object dimensions do not match the FITS file dimensions")
 
         # Read properties from header
+        kernel_obj.dimx = hdr['DIMX']
+        kernel_obj.dimy = hdr['DIMY']
+        kernel_obj.spot_size = hdr['SPOTSIZE']
         kernel_obj.pxscale = hdr['PXSCALE']
         kernel_obj.dimension = hdr['DIM']
         kernel_obj.oversampling = hdr['OVERSAMP']
