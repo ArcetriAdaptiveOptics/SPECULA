@@ -29,18 +29,17 @@ class ShKernel(BaseProcessingObj):
         self._laser_beacon_tt = laser_beacon_tt
     
         if len(self._laser_launcher_pos) == 0:                        
-            self._kernelobj = GaussianConvolutionKernel(self._spot_size,
-                                                        self._dim, self._dim,
-                                                        target_device_idx=self.target_device_idx)
+            self._kernelobj = GaussianConvolutionKernel(target_device_idx=self.target_device_idx)
+            self._kernelobj.spot_size = self._spot_size
         else:
-            self._kernelobj = ConvolutionKernel(self._dim, self._dim,
-                                                target_device_idx=self.target_device_idx)
+            self._kernelobj = ConvolutionKernel(target_device_idx=self.target_device_idx)
             self._kernelobj.launcher_pos = self._laser_launcher_pos
             self._kernelobj.seeing = 0.0
             self._kernelobj.launcher_size = self._spot_size
             self._kernelobj.zfocus = self._laser_beacon_focus
             if len(self._laser_beacon_tt) != 0:
                 self._kernelobj.lgs_tt = self._laser_beacon_tt
+
 
         self._kernelobj.oversampling = 1
         self._kernelobj.return_fft = True
