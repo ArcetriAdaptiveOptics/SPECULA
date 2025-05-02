@@ -299,8 +299,6 @@ class SH(BaseProcessingObj):
             self._wf1.ef_at_lambda(self._wavelengthInNm, out=self.ef_whole)
 
         in_kernels = self.inputs['in_kernels'].get(target_device_idx=self.target_device_idx)
-        print('type(in_kernels):', type(in_kernels))
-        print('in_kernels.kernels.shape:', in_kernels.kernels.shape)
 
         # Work on SH rows (single-subap code is too inefficient)
 
@@ -368,7 +366,7 @@ class SH(BaseProcessingObj):
         self._out_i.i *= (phot / self._out_i.i.sum())
         self._out_i.generation_time = self.current_time
 
-        debug_figures = True
+        debug_figures = False
         if debug_figures:
             import matplotlib.pyplot as plt
             plt.figure()
