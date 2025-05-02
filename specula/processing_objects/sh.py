@@ -274,10 +274,14 @@ class SH(BaseProcessingObj):
 
         # update kernel parameters
         if in_kernels is not None:
-            print('Updating kernel parameters')
-            in_kernels.pxscale = fp4_pixel_pitch * RAD2ASEC
-            in_kernels.pupil_size_m = in_ef.pixel_pitch * in_ef.size[0]
-            in_kernels.dimension = self._fft_size
+            # update kernel parameters only if they are not set yet
+            if in_kernels.dimx == 0:
+                print('Updating kernel parameters')
+                in_kernels.dimx = self._lenslet.dimx
+                in_kernels.dimy = self._lenslet.dimy
+                in_kernels.pxscale = fp4_pixel_pitch * RAD2ASEC
+                in_kernels.pupil_size_m = in_ef.pixel_pitch * in_ef.size[0]
+                in_kernels.dimension = self._fft_size
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
