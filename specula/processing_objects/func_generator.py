@@ -144,7 +144,6 @@ class FuncGenerator(BaseProcessingObj):
 
         elif self.type in ['VIB_HIST', 'VIB_PSD', 'PUSH', 'PUSHPULL', 'TIME_HIST']:
             self.output_value = self.get_time_hist_at_current_time()
-            print(f'FuncGenerator: {self.output_value=}')
 
         else:
             raise ValueError(f'Unknown function generator type: {self.type}')
