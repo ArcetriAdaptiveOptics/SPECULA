@@ -23,7 +23,8 @@ class FuncGenerator(BaseProcessingObj):
                  amp: list=None, 
                  freq: list=None, 
                  offset: list=None, 
-                 vect_amplitude: list=None, 
+                 vect_amplitude: list=None,
+                 nsamples: int=1,
                  seed: int=None, 
                  ncycles: int=1,
                  vsize: int=1,
@@ -34,10 +35,13 @@ class FuncGenerator(BaseProcessingObj):
 
         self.type = func_type.upper()
         if self.type == 'PUSHPULLREPEAT':
-            self.repeat_ncycles = True
+            repeat_ncycles = True
             self.type = 'PUSHPULL'
         else:
-            self.repeat_ncycles = False
+            repeat_ncycles = False
+
+        if nsamples != 1 and self.type != 'PUSHPULL':
+            raise ValueError('nsamples can only be used with PUSHPULL or PUSHPULLREPEAT types')
 
         if str(seed).strip() == 'auto':
             self.seed = self.xp.around(self.xp.random.random() * 1e4)
@@ -103,7 +107,7 @@ class FuncGenerator(BaseProcessingObj):
                 raise ValueError('NMODES keyword is mandatory for type PUSHPULL')
             if amp is None and vect_amplitude is None:
                 raise ValueError('AMP or VECT_AMPLITUDE keyword is mandatory for type PUSHPULL')
-            self.time_hist = modal_pushpull_signal(nmodes, amplitude=amp, vect_amplitude=vect_amplitude, ncycles=ncycles, repeat_ncycles=self.repeat_ncycles)
+            self.time_hist = modal_pushpull_signal(nmodes, amplitude=amp, vect_amplitude=vect_amplitude, ncycles=ncycles, repeat_ncycles=repeat_ncycles, nsamples=nsamples)
 
         elif self.type == 'TIME_HIST':
             if time_hist is None:
@@ -140,13 +144,14 @@ class FuncGenerator(BaseProcessingObj):
 
         elif self.type in ['VIB_HIST', 'VIB_PSD', 'PUSH', 'PUSHPULL', 'TIME_HIST']:
             self.output_value = self.get_time_hist_at_current_time()
+            print(f'FuncGenerator: {self.output_value=}')
 
         else:
             raise ValueError(f'Unknown function generator type: {self.type}')
 
     def post_trigger(self):
         
-        if self.vsize>1:
+        if self.vsize > 1:
             self.output.value[:] = self.output_value * self.xp.ones(self.vsize, dtype=self.dtype)
         else:
             self.output.value = self.output_value
