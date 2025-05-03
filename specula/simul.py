@@ -523,13 +523,13 @@ class Simul():
             if isinstance(obj, BaseProcessingObj):
                 self.loop.add(obj, idx)
 
-
         # Default display web server
         if 'display_server' in params['main'] and params['main']['display_server']:
             from specula.processing_objects.display_server import DisplayServer
             disp = DisplayServer(params, self.input_ref, self.output_ref, self.get_info)
             self.objs['display_server'] = disp
             self.loop.add(disp, idx+1)
+            disp.name = 'display_server'
 
         # Run simulation loop
         self.loop.run(run_time=params['main']['total_time'], dt=params['main']['time_step'], speed_report=True)
