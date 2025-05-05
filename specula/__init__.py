@@ -88,6 +88,10 @@ def init(device_idx=-1, precision=0):
     global_precision = precision
     float_dtype = float_dtype_list[global_precision]
     complex_dtype = complex_dtype_list[global_precision]
+    
+    # Patch cupy's missing RandomState.random() method
+    if cp is not None:
+        cp.random.RandomState.random = cp.random.RandomState.random_sample
 
 # should be used as less as a possible and prefarably outside time critical computations
 def cpuArray(v):

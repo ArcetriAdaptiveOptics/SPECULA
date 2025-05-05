@@ -1,0 +1,109 @@
+---
+
+main:
+  root_dir:          './calib'         # Root directory for calibration manager
+  pixel_pupil:       80                    # Linear dimension of pupil phase array
+  pixel_pitch:       0.1                   # [m] Pitch of the pupil phase array
+  total_time:        30.0                  # [s] Total simulation running time
+  time_step:         0.01                  # [s] Simulation time step
+
+
+seeing:
+  class:             'FuncGenerator'
+  constant:          0.8                  # ["] seeing value
+
+
+wind_speed:
+  class:             'FuncGenerator'
+  constant:          [25.]                # [m/s] Wind speed value
+  outputs: ['output']
+
+
+wind_direction:
+  class:             'FuncGenerator'
+  constant:          [0.]               # [degrees] Wind direction value
+  outputs: ['output']
+
+
+on_axis_source:
+  class:             'Source'
+  polar_coordinates: [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  magnitude:         8                    # source magnitude
+  wavelengthInNm:    750                   # [nm] wavelength
+
+
+pupilstop:                                 # Default parameters (circular pupil)
+  class: 'Pupilstop'
+
+
+atmo1:
+  class:                'AtmoEvolution'
+  L0:                   10                   # [m] Outer scale
+  heights:              [0.]                 # [m] layer heights at 0 zenith angle
+  Cn2:                  [1.00]               # Cn2 weights (total must be eq 1)
+  fov:                  0.0
+  inputs:
+    seeing: 'seeing.output'
+    wind_speed: 'wind_speed.output'
+    wind_direction: 'wind_direction.output'
+  outputs: ['layer_list']
+
+
+prop1:
+  class:                'AtmoPropagation'
+  source_dict_ref:      ['on_axis_source']
+  inputs:
+    atmo_layer_list: ['atmo1.layer_list']
+    common_layer_list: ['pupilstop']
+  outputs: ['out_on_axis_source_ef']
+
+
+modal_analysis1:
+  class:            'ModalAnalysis'
+  type_str:         'zernike'
+  npixels:          80
+  nmodes:           100
+  dorms:            True
+  inputs:
+    in_ef: 'prop1.out_on_axis_source_ef'
+  outputs: ['out_modes']
+
+
+atmo2:
+  class:                'AtmoInfiniteEvolution'
+  L0:                   [10]                 # [m] Outer scale
+  heights:              [0.]                 # [m] layer heights at 0 zenith angle
+  Cn2:                  [1.00]               # Cn2 weights (total must be eq 1)
+  fov:                  0.0
+  inputs:
+    seeing: 'seeing.output'
+    wind_speed: 'wind_speed.output'
+    wind_direction: 'wind_direction.output'
+  outputs: ['layer_list']
+
+
+prop2:
+  class:                'AtmoPropagation'
+  source_dict_ref:      ['on_axis_source']
+  inputs:
+    atmo_layer_list: ['atmo2.layer_list']
+    common_layer_list: ['pupilstop']
+  outputs: ['out_on_axis_source_ef']
+
+
+modal_analysis2:
+  class:            'ModalAnalysis'
+  type_str:         'zernike'
+  npixels:          80
+  nmodes:           100
+  dorms:            True
+  inputs:
+    in_ef: 'prop2.out_on_axis_source_ef'
+  outputs: ['out_modes']
+
+
+data_store:
+  class:             'DataStore'
+  store_dir:         './output'             # Data result directory: 'store_dir'/TN/
+  inputs:    
+    input_list: ['modes1-modal_analysis1.out_modes','modes2-modal_analysis2.out_modes']
