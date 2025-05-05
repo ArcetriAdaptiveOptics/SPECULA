@@ -123,7 +123,7 @@ class Modalrec(BaseProcessingObj):
                 else:
                     commands = self.xp.zeros(self.projmat.recmat.shape[0])
             else:
-                comm_slopes = self.intmat._intmat @ commands
+                comm_slopes = self.intmat.intmat @ commands
             slopes += comm_slopes
             self.pseudo_ol_modes.value = self.recmat.recmat @ slopes
             self.pseudo_ol_modes.generation_time = self.current_time

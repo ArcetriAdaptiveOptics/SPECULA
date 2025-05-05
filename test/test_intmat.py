@@ -26,7 +26,7 @@ class TestIntmat(unittest.TestCase):
         im.save(self.filename)
         im2 = Intmat.restore(self.filename)
 
-        np.testing.assert_array_equal(cpuArray(im._intmat), cpuArray(im2._intmat))
+        np.testing.assert_array_equal(cpuArray(im.intmat), cpuArray(im2.intmat))
         
     def tearDown(self):
         try:
