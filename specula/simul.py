@@ -157,6 +157,7 @@ class Simul():
                 if len(pars) > 2:
                     raise ValueError('Extra parameters with "tag" are not allowed')
                 filename = cm.filename(classname, pars['tag'])
+                print('Restoring:', filename)
                 self.objs[key] = klass.restore(filename, target_device_idx=target_device_idx)
                 continue
                 
@@ -205,6 +206,7 @@ class Simul():
                                     break
                         
                         filename = cm.filename(parname, value)  # TODO use partype instead of parname?
+                        print('Restoring:', filename)
                         parobj = partype.restore(filename, target_device_idx=target_device_idx)
                         pars2[parname] = parobj
                     else:
