@@ -1,5 +1,5 @@
 
-
+import numpy as np
 from astropy.io import fits
 from specula import cpuArray
 
@@ -49,26 +49,28 @@ class Intmat(BaseDataObj):
         hdr['PUP_TAG'] = self._pupdata_tag
         hdr['NORMFACT'] = self._norm_factor
         # Save fits file
-        fits.writeto(filename, cpuArray(self._intmat), hdr, overwrite=True)
+        fits.writeto(filename, np.zeros(2), hdr, overwrite=True)
+        fits.append(filename, cpuArray(self._intmat))
         if self._slope_mm is not None:
             fits.append(filename, self._slope_mm)
         if self._slope_rms is not None:
             fits.append(filename, self._slope_rms)
 
     @staticmethod
-    def restore(filename, hdr=None, exten=0, target_device_idx=None):
-        intmat = fits.getdata(filename, ext=exten)
-        hdr = fits.getheader(filename, ext=exten)
+    def restore(filename, hdr=None, target_device_idx=None):
+        hdr = fits.getheader(filename, ext=0)
+        intmat = fits.getdata(filename, ext=1)
         norm_factor = float(hdr.get('NORMFACT', 0.0))
         pupdata_tag = hdr.get('PUP_TAG', '')
         # Reading additional fits extensions
         num_ext = len(fits.open(filename))
-        if num_ext >= exten + 2:
-            slope_mm = fits.getdata(filename, ext=exten + 1)
-            slope_rms = fits.getdata(filename, ext=exten + 2)
+        if num_ext >= 4:
+            slope_mm = fits.getdata(filename, ext=2)
+            slope_rms = fits.getdata(filename, ext=3)
         else:
             slope_mm = slope_rms = None
         return Intmat(intmat, slope_mm, slope_rms, pupdata_tag, norm_factor, target_device_idx=target_device_idx)
+
 
     def generate_rec(self, nmodes=None, cut_modes=0, w_vec=None, interactive=False):
         if nmodes is not None:
