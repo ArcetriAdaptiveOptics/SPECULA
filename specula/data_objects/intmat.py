@@ -50,7 +50,7 @@ class Intmat(BaseDataObj):
         hdr['NORMFACT'] = self._norm_factor
         # Save fits file
         fits.writeto(filename, np.zeros(2), hdr, overwrite=True)
-        fits.append(filename, cpuArray(self.recmat.T))
+        fits.append(filename, cpuArray(self._intmat))
         if self._slope_mm is not None:
             fits.append(filename, self._slope_mm)
         if self._slope_rms is not None:
