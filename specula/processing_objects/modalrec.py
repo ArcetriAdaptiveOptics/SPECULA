@@ -22,6 +22,7 @@ class Modalrec(BaseProcessingObj):
                  dmNumber: int=0,
                  noProj: bool=False,
                  input_modes_index: list=None,
+                 input_modes_slice: list=None,
                  output_slice: list=None,
                  target_device_idx: int=None,
                  precision: int=None
@@ -87,6 +88,11 @@ class Modalrec(BaseProcessingObj):
             self.output_slice = slice(None, None, None)
             nmodes = self.recmat.recmat.shape[0]
 
+        if input_modes_slice is not None:
+            self.input_modes_slice = slice(*input_modes_slice)
+        else:
+            self.input_modes_slice = slice(None, None, None)
+
         self.modes = BaseValue('output modes from modal reconstructor', target_device_idx=target_device_idx)
         self.pseudo_ol_modes = BaseValue('output POL modes from modal reconstructor', target_device_idx=target_device_idx)        
 
@@ -136,6 +142,10 @@ class Modalrec(BaseProcessingObj):
             if self.input_modes_index is not None:
                 commands = commands[self.input_modes_index]
 
+            if self.input_modes_slice is not None:
+                commands = commands[self.input_modes_slice]
+
+            print(f'POLC: {self.intmat._intmat.shape=}, {commands.shape=}')
             comm_slopes = self.intmat._intmat @ commands
             slopes += comm_slopes
             self.pseudo_ol_modes.value = self.recmat.recmat @ slopes
