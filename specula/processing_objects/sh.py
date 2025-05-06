@@ -52,7 +52,7 @@ class SH(BaseProcessingObj):
                  aRotAnglePhInDeg: float = 0,
                  do_not_double_fov_ovs: bool = False,
                  set_fov_res_to_turbpxsc: bool = False,
-                 laser_launch_tel_dict: dict = None,
+                 laser_launch_tel: dict = None,
                  target_device_idx: int = None, 
                  precision: int = None,
         ):
@@ -77,7 +77,7 @@ class SH(BaseProcessingObj):
         self._set_fov_res_to_turbpxsc = set_fov_res_to_turbpxsc
         self._do_not_double_fov_ovs = do_not_double_fov_ovs
         # first item of laser_launch_tel_dict is the good one
-        self._laser_launch_tel = next(iter(laser_launch_tel_dict.values()))
+        self._laser_launch_tel = laser_launch_tel
         self._np_sub = 0
         self._fft_size = 0
         self._trigger_geometry_calculated = False
@@ -327,7 +327,7 @@ class SH(BaseProcessingObj):
 
                 if os.path.exists(self._kernel_fn):
                     print(f"Loading kernel from {self._kernel_fn}")
-                    if len(self._laser_launcher_pos) == 0:
+                    if len(self._laser_launch_tel.tel_pos) == 0:
                         self._kernelobj = GaussianConvolutionKernel.restore(self._kernel_fn,
                                                                             kernel_obj=self._kernelobj,
                                                                             target_device_idx=self.target_device_idx,
