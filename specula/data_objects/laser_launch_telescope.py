@@ -1,6 +1,6 @@
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_data_obj import BaseDataObj
 
-class LaserLaunchTelescope(BaseProcessingObj):
+class LaserLaunchTelescope(BaseDataObj):
     '''
     Laser Launch Telescope
     
