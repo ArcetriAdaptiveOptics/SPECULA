@@ -128,7 +128,7 @@ prop:
 # LGS WFS simulation and slope processing
 # ---------------------------------------
 
-kernels:
+launcher:
   class:             'LaserLaunchTelescope'
   spot_size:          1.8
 
@@ -141,7 +141,7 @@ sh_lgs1: &LGS_SH
   wavelengthInNm:    589                     # [nm] Pyramid wavelength
   fov_ovs_coeff:     1.6                     # Force phase interpolation to a multiple of 68
   rotAnglePhInDeg:   6.2
-  laser_launch_tel_ref: 'kernels'
+  laser_launch_tel_ref: 'launcher'
   inputs:
     in_ef: 'prop.out_source_lgs1_ef'
   outputs:  ['out_i']

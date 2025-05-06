@@ -94,7 +94,7 @@ prop:
 # LGS WFS 
 # -------
 
-kernels:
+launcher:
   class:             'LaserLaunchTelescope'
   spot_size:          1.8
 
@@ -105,7 +105,7 @@ sh_lgs:
   subap_npx:         6                       # Output sampling [usually corresponding to CCD pixels]
   subap_on_diameter: 40                      # Number of subapertures in diameter
   wavelengthInNm:    589                     # [nm] Sensor wavelength
-  laser_launch_tel_ref: 'kernels'
+  laser_launch_tel_ref: 'launcher'
   inputs:
     in_ef: 'prop.out_source_lgs_ef'
   outputs:  ['out_i']
