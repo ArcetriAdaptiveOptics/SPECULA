@@ -57,8 +57,8 @@ class ModalAnalysis(BaseProcessingObj):
         self.wavelengthInNm = wavelengthInNm
         self.verbose = False  # Verbose flag for debugging output
         self.out_modes = BaseValue('output modes from modal analysis', target_device_idx=target_device_idx)
-        self.inputs['in_ef'] = InputValue(type=ElectricField)
-        self.inputs['in_ef_list'] = InputList(type=ElectricField)
+        self.inputs['in_ef'] = InputValue(type=ElectricField, optional=True)
+        self.inputs['in_ef_list'] = InputList(type=ElectricField, optional=True)
         self.outputs['out_modes'] = self.out_modes
         self.outputs['rms'] = self.rms
 
