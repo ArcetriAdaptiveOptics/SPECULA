@@ -1,0 +1,40 @@
+main:
+  root_dir:          './calib/'             # Root directory for calibration manager
+  pixel_pupil:       64                     # Linear dimension of pupil phase array
+  pixel_pitch:       0.015625               # [m] Pitch of the pupil phase array
+  total_time:        0.010                  # [s] Total simulation running time
+  time_step:         0.001                  # [s] Simulation time step
+
+dm1:
+  class:             'DM'
+  type_str:          'zernike'              # modes type
+  nmodes:            40                     # number of modes
+  npixels:           64                    # linear dimension of DM phase array
+  obsratio:          0.1                    # obstruction dimension ratio w.r.t. diameter
+  height:            0                      # DM height [m]
+  inputs:
+      in_command: 'control1.out_comm'
+  outputs:  ['out_layer']
+
+dm2:
+  class:             'DM'
+  type_str:          'zernike'              # modes type
+  nmodes:            40                     # number of modes
+  npixels:           128                    # linear dimension of DM phase array
+  obsratio:          0.0                    # obstruction dimension ratio w.r.t. diameter
+  height:            0                      # DM height [m]
+  inputs:
+      in_command: 'control2.out_comm'
+  outputs:  ['out_layer']
+
+# comb:
+#   class:             'MirrorCommandsCombinator'
+#   dims_LO: [2,0,3]
+#   out_dims: [100,100,100]
+#   dms_dict_ref: ['dm1', 'dm2']
+#   inputs:
+#       in_commandsHO: 'control1.out_comm'
+#       in_commandsLO: 'control1.out_comm'
+#       in_commandsF: 'control1.out_comm'
+#       in_commandsP: 'control2.out_comm'
+#   outputs: ['out_commands']
