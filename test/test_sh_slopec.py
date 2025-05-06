@@ -9,7 +9,7 @@ from specula import cpuArray
 
 from specula.data_objects.electric_field import ElectricField
 from specula.processing_objects.sh import SH
-from specula.processing_objects.sh_kernel import ShKernel
+from specula.data_objects.laser_launch_telescope import LaserLaunchTelescope
 from specula.data_objects.pixels import Pixels
 from specula.data_objects.subap_data import SubapData
 from specula.processing_objects.sh_slopec import ShSlopec
@@ -59,7 +59,7 @@ class TestShSlopec(unittest.TestCase):
         # ------------------------------------------------------------------------------
 
         # Create the SH object
-        sh_kernel = ShKernel(spot_size=pxscale_arcsec,
+        laser_launch_tel = LaserLaunchTelescope(spot_size=pxscale_arcsec,
                              target_device_idx=target_device_idx)
 
         sh = SH(wavelengthInNm=wavelengthInNm,
@@ -67,16 +67,15 @@ class TestShSlopec(unittest.TestCase):
                 sensor_pxscale=pxscale_arcsec,
                 subap_on_diameter=subap_on_diameter,
                 subap_npx=subap_npx,
+                laser_launch_tel=laser_launch_tel,
                 target_device_idx=target_device_idx)
 
         # Flat wavefront
         ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx)
         ef.generation_time = t
         sh.inputs['in_ef'].set(ef)
-        sh.inputs['in_kernels'].set(sh_kernel.outputs['out_kernels'])
         sh.setup(1, 1)
         sh.check_ready(t)
-        sh_kernel.trigger()
         sh.trigger()
         sh.post_trigger()
 
