@@ -160,8 +160,8 @@ class ConvolutionKernel(BaseDataObj):
         self.spot_size = self.xp.sqrt(self.seeing**2 + self.launcher_size**2)
         lgs_tt = (self.xp.array([-0.5, -0.5]) if not self.positive_shift_tt else self.xp.array([0.5, 0.5])) * self.pxscale + self.theta
 
-        self.hash_arr = [self.dimx, self.pupil_size_m, zfocus, lay_heights, self.zprofile, self.spot_size,
-                         self.pxscale, self.dimension, self.oversampling, lgs_tt]
+        self.hash_arr = [self.dimx, self.pupil_size_m, self.launcher_pos, zfocus, lay_heights, self.zprofile,
+                         self.spot_size, self.pxscale, self.dimension, self.oversampling, lgs_tt]
         return 'ConvolutionKernel' + self.generate_hash()
 
     def calculate_focus(self):
