@@ -60,10 +60,9 @@ prop:
                   'dm.out_layer:-1']
   outputs: ['out_on_axis_source_ef']
 
-sh_kernels:
-  class:             'ShKernel'
+kernels:
+  class:             'LaserLaunchTelescope'
   spot_size:          0.5
-  outputs:  ['out_kernels']
 
 sh:
   class:             'SH'
@@ -72,9 +71,9 @@ sh:
   subap_npx:         6                       # Output sampling [usually corresponding to CCD pixels]
   subap_on_diameter: 20                      # Number of subapertures in diameter
   wavelengthInNm:    750                     # [nm] Pyramid wavelength
+  laser_launch_tel_ref: 'kernels'
   inputs:
     in_ef: 'prop.out_on_axis_source_ef'
-    in_kernels: 'sh_kernels.out_kernels'
   outputs:  ['out_i']
 
 

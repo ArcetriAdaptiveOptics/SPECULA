@@ -128,10 +128,9 @@ prop:
 # LGS WFS simulation and slope processing
 # ---------------------------------------
 
-sodium_kernels:
-  class:             'ShKernel'
+kernels:
+  class:             'LaserLaunchTelescope'
   spot_size:          1.8
-  outputs:  ['out_kernels']
 
 sh_lgs1: &LGS_SH
   class:             'SH'
@@ -142,9 +141,9 @@ sh_lgs1: &LGS_SH
   wavelengthInNm:    589                     # [nm] Pyramid wavelength
   fov_ovs_coeff:     1.6                     # Force phase interpolation to a multiple of 68
   rotAnglePhInDeg:   6.2
+  laser_launch_tel_ref: 'kernels'
   inputs:
     in_ef: 'prop.out_source_lgs1_ef'
-    in_kernels: 'sodium_kernels.out_kernels'
   outputs:  ['out_i']
 
 sh_lgs2: { <<: *LGS_SH, rotAnglePhInDeg: 14.2, inputs: {in_ef: 'prop.out_source_lgs2_ef' }}

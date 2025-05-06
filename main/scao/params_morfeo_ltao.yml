@@ -117,10 +117,9 @@ prop:
   outputs: ['out_on_axis_source_ef','out_ngs1_source_ef','out_ngs2_source_ef','out_ngs3_source_ef','out_ngs4_source_ef','out_ngs5_source_ef','out_ngs6_source_ef']
 
 
-sodium_kernels:
-  class:             'ShKernel'
+kernels:
+  class:             'LaserLaunchTelescope'
   spot_size:          1.8
-  outputs:  ['out_kernels']
 
 sh1:
   class:             'SH'
@@ -130,9 +129,9 @@ sh1:
   subap_on_diameter: 68                      # Number of subapertures in diameter
   wavelengthInNm:    589                     # [nm] Pyramid wavelength
   fov_ovs_coeff:     1.6                     # Force phase interpolation to a multiple of 68
+  laser_launch_tel_ref: 'kernels'
   inputs:
     in_ef: 'prop.out_ngs1_source_ef'
-    in_kernels: 'sodium_kernels.out_kernels'
   outputs:  ['out_i']
 
 sh2:
