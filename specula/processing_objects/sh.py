@@ -12,6 +12,7 @@ from specula.data_objects.intensity import Intensity
 from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.lenslet import Lenslet
 from specula.base_value import BaseValue
+from specula.data_objects.laser_launch_telescope import LaserLaunchTelescope
 from specula.data_objects.gaussian_convolution_kernel import GaussianConvolutionKernel
 from specula.data_objects.convolution_kernel import ConvolutionKernel
 
@@ -52,12 +53,12 @@ class SH(BaseProcessingObj):
                  aRotAnglePhInDeg: float = 0,
                  do_not_double_fov_ovs: bool = False,
                  set_fov_res_to_turbpxsc: bool = False,
-                 laser_launch_tel: dict = None,
-                 target_device_idx: int = None, 
+                 laser_launch_tel: LaserLaunchTelescope = None,
+                 target_device_idx: int = None,
                  precision: int = None,
         ):
 
-        super().__init__(target_device_idx=target_device_idx, precision=precision)        
+        super().__init__(target_device_idx=target_device_idx, precision=precision)     
         self._wavelengthInNm = wavelengthInNm
         self._lenslet = Lenslet(subap_on_diameter)
         self._subap_wanted_fov = subap_wanted_fov / RAD2ASEC
@@ -113,14 +114,13 @@ class SH(BaseProcessingObj):
             self._kernelobj.return_fft = True
             self._kernelobj.positive_shift_tt = True
             self._kernel_fn = None
+            self.inputs['sodium_altitude'] = InputValue(type=BaseValue, optional=True)
+            self.inputs['sodium_intensity'] = InputValue(type=BaseValue, optional=True)
         else:
             self._kernelobj = None
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
         self.outputs['out_i'] = self._out_i
-        # These are the inputs for the sodium layer used in the kernel
-        self.inputs['sodium_altitude'] = InputValue(type=BaseValue, optional=True)
-        self.inputs['sodium_intensity'] = InputValue(type=BaseValue, optional=True)
 
     def set_in_ef(self, in_ef):
 
