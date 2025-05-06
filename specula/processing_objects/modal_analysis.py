@@ -52,6 +52,7 @@ class ModalAnalysis(BaseProcessingObj):
             # Prioritize ifunc_inv
             self.phase2modes = ifunc_inv
 
+        self.ifunc = ifunc
         self.rms = BaseValue('modes', 'output RMS of modes from modal reconstructor') 
         self.dorms = dorms
         self.wavelengthInNm = wavelengthInNm
