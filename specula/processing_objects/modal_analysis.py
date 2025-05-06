@@ -80,10 +80,11 @@ class ModalAnalysis(BaseProcessingObj):
         return unwrapped_p
 
     def setup(self, loop_dt, loop_niters):
-        super().setup(loop_dt, loop_niters)        
-        for i in range(len(self.inputs['in_ef_list'].get(self.target_device_idx))):
-            self.outputs['out_modes_list'].append(BaseValue('modes', target_device_idx=self.target_device_idx))
-
+        super().setup(loop_dt, loop_niters)
+        input_list = self.inputs['in_ef_list'].get(self.target_device_idx)
+        if input_list:
+            for i in range(len(input_list)):
+                self.outputs['out_modes_list'].append(BaseValue('modes', target_device_idx=self.target_device_idx))
         self.out_modes_list = self.outputs['out_modes_list']
 
     def trigger_code(self):
