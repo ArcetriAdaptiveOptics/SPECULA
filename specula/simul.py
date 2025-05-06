@@ -157,6 +157,7 @@ class Simul():
                 if len(pars) > 2:
                     raise ValueError('Extra parameters with "tag" are not allowed')
                 filename = cm.filename(classname, pars['tag'])
+                print('Restoring:', filename)
                 self.objs[key] = klass.restore(filename, target_device_idx=target_device_idx)
                 continue
                 
@@ -176,14 +177,18 @@ class Simul():
                     data = {x : self.output_ref(x) for x in value}
                     pars2[name[:-4]] = data
 
+                elif name.endswith('_ref'):
+                    data = self.output_ref(value)
+                    pars2[name[:-4]] = data
+
                 # data fields are read from a fits file
                 elif name.endswith('_data'):
                     data = cm.read_data(value)
                     pars2[name[:-5]] = data
 
                 # object fields are data objects which are loaded from a fits file
-                # the name of the object is the string preceeding th e_, 
-                # while its type is infered from the constructor of the current class                
+                # the name of the object is the string preceeding the "_object" suffix, 
+                # while its type is inferred from the constructor of the current class                
                 elif name.endswith('_object'):
                     parname = name[:-7]
                     if value is None:
@@ -201,6 +206,7 @@ class Simul():
                                     break
                         
                         filename = cm.filename(parname, value)  # TODO use partype instead of parname?
+                        print('Restoring:', filename)
                         parobj = partype.restore(filename, target_device_idx=target_device_idx)
                         pars2[parname] = parobj
                     else:
@@ -228,6 +234,7 @@ class Simul():
 
             my_params.update(pars2)
             self.objs[key] = klass(**my_params)
+            self.objs[key].name = key
 
             # TODO this could be more general like the getters above
             if type(self.objs[key]) is DataStore:
@@ -240,7 +247,7 @@ class Simul():
             if 'outputs' in pars:
                 for output_name in pars['outputs']:
                     if not output_name in self.objs[dest_object].outputs:
-                        raise ValueError(f'Object {dest_object} does does not have an output called {output_name}')
+                        raise ValueError(f'Object {dest_object} does not have an output called {output_name}')
 
             if 'inputs' not in pars:
                 continue
@@ -254,25 +261,15 @@ class Simul():
                     for ii, oo in zip(inputs, outputs):
                         self.objs[dest_object].inputs[ii] = InputValue(type = type(oo) )
                         self.objs[dest_object].inputs[ii].set(oo)
-                        self.objs[dest_object].add(oo, name=ii)
 
-                        if not type(output_name) is list:
+                        for oo in output_name:
                             a_connection = {}
-                            a_connection['start'] = output_name.split('.')[0].split('-')[-1]
+                            a_connection['start'] = oo.split('.')[0].split('-')[-1]
                             a_connection['end'] = dest_object
                             a_connection['start_label'] = ii
                             a_connection['middle_label'] = self.objs[dest_object].inputs[ii]
                             a_connection['end_label'] = oo
                             self.connections.append(a_connection)
-                        else:
-                            for oo in output_name:
-                                a_connection = {}
-                                a_connection['start'] = oo.split('.')[0].split('-')[-1]
-                                a_connection['end'] = dest_object
-                                a_connection['start_label'] = ii
-                                a_connection['middle_label'] = self.objs[dest_object].inputs[ii]
-                                a_connection['end_label'] = oo
-                                self.connections.append(a_connection)
 
                     continue
 
@@ -295,8 +292,12 @@ class Simul():
                         if not isinstance(output, wanted_type):
                             raise ValueError(f'Input {input_name}: output {output} is not of type {wanted_type}')
 
-                self.objs[dest_object].inputs[input_name].set(output_ref)
 
+                try:
+                    self.objs[dest_object].inputs[input_name].set(output_ref)
+                except ValueError:
+                    print(f'Error connecting {output_name} to {dest_object}.{input_name}')
+                    raise
                 
                 if not type(output_name) is list:
                     a_connection = {}
@@ -316,10 +317,6 @@ class Simul():
                         a_connection['middle_label'] = self.objs[dest_object].inputs[input_name]
                         a_connection['end_label'] = self.objs[dest_object].inputs[input_name]
                         self.connections.append(a_connection)
-
-
-                
-
 
     def build_replay(self, params):
         self.replay_params = deepcopy(params)
@@ -365,17 +362,9 @@ class Simul():
                     self.replay_params[key]['outputs'].append(kk)
                 del self.replay_params[key]['inputs']
 
-        for key, pars in params.items():
-            if key == 'main':
-                continue
-            try:
-                classname = pars['class']
-            except KeyError:
-                raise KeyError(f'Object {key} does not define the "class" parameter')
-
-            if type(self.objs[key]) is DataStore:
-                self.objs[key].setReplayParams(self.replay_params)
-
+        for obj in self.objs.values():
+            if type(obj) is DataStore:
+                obj.setReplayParams(self.replay_params)
 
     def remove_inputs(self, params, obj_to_remove):
         '''
@@ -515,13 +504,13 @@ class Simul():
             if isinstance(obj, BaseProcessingObj):
                 self.loop.add(obj, idx)
 
-
         # Default display web server
         if 'display_server' in params['main'] and params['main']['display_server']:
             from specula.processing_objects.display_server import DisplayServer
             disp = DisplayServer(params, self.input_ref, self.output_ref, self.get_info)
             self.objs['display_server'] = disp
             self.loop.add(disp, idx+1)
+            disp.name = 'display_server'
 
         # Run simulation loop
         self.loop.run(run_time=params['main']['total_time'], dt=params['main']['time_step'], speed_report=True)

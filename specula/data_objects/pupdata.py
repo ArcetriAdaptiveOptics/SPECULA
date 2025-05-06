@@ -63,13 +63,11 @@ class PupData(BaseDataObj):
         fits.append(filename, self.cy)
 
     def read(self, filename, hdr=None, exten=1):
-        #hdr, exten = super().read(filename)
-
+        super().read(filename)
         self.ind_pup = self.xp.array(fits.getdata(filename, ext=exten))
         self.radius = self.xp.array(fits.getdata(filename, ext=exten + 1))
         self.cx = self.xp.array(fits.getdata(filename, ext=exten + 2))
         self.cy = self.xp.array(fits.getdata(filename, ext=exten + 3))
-        exten += 4
 
     @staticmethod
     def restore(filename, target_device_idx=None):

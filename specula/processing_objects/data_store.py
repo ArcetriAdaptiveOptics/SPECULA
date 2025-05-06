@@ -3,7 +3,7 @@ from astropy.io import fits
 import os
 import numpy as np
 
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 import pickle
 import yaml
 import time
@@ -23,25 +23,16 @@ class DataStore(BaseProcessingObj):
                 store_dir: str,         # TODO ="",
                 data_format: str='fits'):
         super().__init__()
-        self.items = {}
-        self.storage = {}
         self.data_filename = ''
         self.tn_dir = store_dir
         self.data_format = data_format
+        self.storage = defaultdict(OrderedDict)
         
     def setParams(self, params):
         self.params = params
 
     def setReplayParams(self, replay_params):
         self.replay_params = replay_params
-
-    def add(self, data_obj, name=None):
-        if name is None:
-            name = data_obj.__class__.__name__
-        if name in self.items:
-            raise ValueError(f'Storing already has an object with name {name}')
-        self.items[name] = data_obj
-        self.storage[name] = OrderedDict()
 
     def save_pickle(self, compress=False):
         times = {k: np.array(list(v.keys()), dtype=self.dtype) for k, v in self.storage.items() if isinstance(v, OrderedDict)}
@@ -77,7 +68,6 @@ class DataStore(BaseProcessingObj):
             hdul = fits.HDUList([hdu_data, hdu_time])
             hdul.writeto(filename, overwrite=True)
 
-
     def create_TN_folder(self):
         today = time.strftime("%Y%m%d_%H%M%S")
         while True:
@@ -89,7 +79,8 @@ class DataStore(BaseProcessingObj):
         self.tn_dir = prefix        
 
     def trigger_code(self):
-        for k, item in self.items.items():
+        for k, in_ in self.inputs.items():
+            item = in_.get(target_device_idx=self.target_device_idx)
             if item is not None and item.generation_time == self.current_time:
                 if isinstance(item, BaseValue):
                     v = cpuArray(item.value)

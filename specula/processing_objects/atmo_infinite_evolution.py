@@ -45,7 +45,7 @@ class InfinitePhaseScreen(BaseDataObj):
         
         self.random_data_col = None
         self.random_data_row = None
-        self.requested_mx_size = mx_size
+        self.requested_mx_size = int(mx_size)
         self.mx_size = 2 ** (int( np.ceil(np.log2(mx_size)))) + 1
         self.pixel_scale = pixel_scale
         self.r0 = r0
@@ -61,7 +61,7 @@ class InfinitePhaseScreen(BaseDataObj):
         self.setup()
 
     def phase_covariance(self, r, r0, L0):
-        r = self.xp.asnumpy(r)
+        r = cpuArray(r)
         r0 = float(r0)
         L0 = float(L0)
         # Get rid of any zeros
@@ -75,7 +75,7 @@ class InfinitePhaseScreen(BaseDataObj):
 #        C = (((2 * self.xp.pi * r) / L0) ** (5. / 6)) * kv(5. / 6, (2 * self.xp.pi * r) / L0)
 #        cov = A * B1 * B2 * C / 2
         
-        cov = self.xp.asarray(cov) / 2
+        cov = self.xp.asarray(cov)
 
         return cov
 
@@ -214,7 +214,7 @@ class InfinitePhaseScreen(BaseDataObj):
 
     @property
     def scrn(self):
-        return self.full_scrn[:self.requested_mx_size, :self.requested_mx_size].get()
+        return cpuArray(self.full_scrn[:self.requested_mx_size, :self.requested_mx_size])
 
     @property
     def scrnRaw(self):
@@ -285,6 +285,12 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
             self.pixel_layer_size = np.full_like(self.heights, int(fov_in_m / self.pixel_pitch / 2.0) * 2)
         
         self.L0 = L0
+        
+        if np.isscalar(self.L0):
+            self.L0 = [self.L0] * len(self.heights)
+        elif len(self.L0) != len(self.heights):
+            raise ValueError(f"L0 must have the same length as heights ({len(self.heights)}), got {len(self.L0)}")
+        
         self.Cn2 = np.array(Cn2, dtype=self.dtype)
         self.pixel_pupil = pixel_pupil
         self.data_dir = data_dir

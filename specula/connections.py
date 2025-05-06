@@ -26,7 +26,7 @@ class InputValue():
 
     def set(self, value):
         if not isinstance(value, self.wrapped_type):
-            raise ValueError(f'Value must be of type {self.wrapped_type}')
+            raise ValueError(f'Value must be of type {self.wrapped_type} instead of {type(value)}')
         self.wrapped_value = value
     
     def type(self):
