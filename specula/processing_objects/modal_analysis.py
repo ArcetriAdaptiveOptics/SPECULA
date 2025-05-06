@@ -85,7 +85,7 @@ class ModalAnalysis(BaseProcessingObj):
         if input_list:
             for i in range(len(input_list)):
                 self.outputs['out_modes_list'].append(BaseValue('modes', target_device_idx=self.target_device_idx))
-        self.out_modes_list = self.outputs['out_modes_list']
+            self.out_modes_list = self.outputs['out_modes_list']
 
     def trigger_code(self):
         if self.in_ef:
