@@ -78,10 +78,13 @@ class MirrorCommandsCombinator(BaseProcessingObj):
         v11 = self.xp.concatenate( ( x_LO1, x_F, x_HO1 ) )
         v12 = self.xp.concatenate( ( self.z1, self.k_vector * x_LO3, self.z2 ) )
         
-        y1 = v11 + v12 + self.A_matrix.recmat[:self.out_dims[0],:] @ x_P        
+        y1 = v11 + v12
+        if self.dims_P > 0:
+             y1 += self.A_matrix.recmat[:self.out_dims[0],:] @ x_P        
         y2 = x_HO2
         y3 = self.xp.concatenate( ( x_LO3, x_HO3 ) )
 
+        #print(f'{len(y1)=}, {len(y2)=}, {len(y3)=}')
         self.result_commands1.value[:] = y1
         self.result_commands2.value[:] = y2
         self.result_commands3.value[:] = y3

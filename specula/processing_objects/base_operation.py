@@ -30,6 +30,7 @@ class BaseOperation(BaseProcessingObj):
                  sub: bool=False,
                  concat: bool=False,
                  value2_is_shorter: bool=False,
+                 value2_remap: list=None,
                  target_device_idx: int=None,
                  precision:int =None):
         """
@@ -63,6 +64,7 @@ class BaseOperation(BaseProcessingObj):
         self.concat = concat
         self.out_value = BaseValue(target_device_idx=target_device_idx)
         self.value2_is_shorter = value2_is_shorter
+        self.value2_remap = value2_remap
 
         self.inputs['in_value1'] = InputValue(type=BaseValue)
         self.inputs['in_value2'] = InputValue(type=BaseValue, optional=True)
@@ -95,12 +97,16 @@ class BaseOperation(BaseProcessingObj):
             out[:len(value1)] = value1
             out[len(value1):] = value2
         else:
-            if self.value2_is_shorter:
+            if self.value2_is_shorter or self.value2_remap is not None:
                 if self.div:
                     v2 = self.xp.ones_like(value1)
                 else:
                     v2 = self.xp.zeros_like(value1)
+
+            if self.value2_is_shorter:
                 v2[:len(value2)] = value2
+            elif self.value2_remap is not None:
+                v2[self.value2_remap] = value2
             else:
                 v2 = value2
 

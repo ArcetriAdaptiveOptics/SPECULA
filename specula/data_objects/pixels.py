@@ -38,7 +38,7 @@ class Pixels(BaseDataObj):
         return type_matrix[(bits - 1) // 8][signed]
 
     def set_value(self, v):
-        self._pixels = v
+        self.pixels[:] = v
 
     @property
     def size(self):

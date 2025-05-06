@@ -1,5 +1,6 @@
 import numpy as np
 
+from specula import cpuArray
 from specula.base_data_obj import BaseDataObj
 
 from astropy.io import fits
@@ -19,8 +20,8 @@ class IirFilterData(BaseDataObj):
         self.zeros = None
         self.poles = None
         self.gain = None
-        self.set_num(num)
-        self.set_den(den)
+        self.set_num(self.xp.array(num, dtype=self.dtype))
+        self.set_den(self.xp.array(den, dtype=self.dtype))
 
     @property
     def nfilter(self):
@@ -202,22 +203,23 @@ class IirFilterData(BaseDataObj):
 
         hdu = fits.PrimaryHDU(header=hdr)
         hdul = fits.HDUList([hdu])
-        hdul.append(fits.ImageHDU(data=self.ordnum, name='ORDNUM'))
-        hdul.append(fits.ImageHDU(data=self.ordden, name='ORDDEN'))
-        hdul.append(fits.ImageHDU(data=self.num, name='NUM'))
-        hdul.append(fits.ImageHDU(data=self.den, name='DEN'))
+        hdul.append(fits.ImageHDU(data=cpuArray(self.ordnum), name='ORDNUM'))
+        hdul.append(fits.ImageHDU(data=cpuArray(self.ordden), name='ORDDEN'))
+        hdul.append(fits.ImageHDU(data=cpuArray(self.num), name='NUM'))
+        hdul.append(fits.ImageHDU(data=cpuArray(self.den), name='DEN'))
         hdul.writeto(filename, overwrite=True)
 
-    def restore(self, filename, target_device_idx=None):
+    @staticmethod
+    def restore(filename, target_device_idx=None):
         with fits.open(filename) as hdul:
             hdr = hdul[0].header
             version = hdr['VERSION']
             if version != 1:
                 raise ValueError(f"Error: unknown version {version} in file {filename}")
-            ordnum = hdul['ORDNUM'].data
-            ordden = hdul['ORDDEN'].data
-            num = hdul['NUM'].data
-            den = hdul['DEN'].data
+            ordnum = hdul[1].data
+            ordden = hdul[2].data
+            num = hdul[3].data
+            den = hdul[4].data
             return IirFilterData(ordnum, ordden, num, den, target_device_idx=target_device_idx)
 
     def get_fits_header(self):
