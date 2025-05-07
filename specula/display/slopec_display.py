@@ -31,13 +31,9 @@ class SlopecDisplay(BaseProcessingObj):
     def trigger_code(self):
         
         slopes_obj = self.local_inputs['slopes']
-        pupdata = self.local_inputs['pupdata']
-        subapdata = self.local_inputs['subapdata']
+        pupdata = self.local_inputs['pupdata']        
 
-        if pupdata:
-            frame3d = slopes_obj.get2d(cm=None, pupdata=pupdata)
-        else:
-            frame3d = slopes_obj.get2d(cm=None, pupdata=subapdata)
+        frame3d = slopes_obj.get2d()
 
         frame2d = np.hstack(cpuArray(frame3d))
         title = self._title if self._title else 'Slope Display'

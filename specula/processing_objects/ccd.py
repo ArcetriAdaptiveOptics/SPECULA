@@ -10,6 +10,7 @@ from specula.data_objects.pixels import Pixels
 from specula.data_objects.intensity import Intensity
 from specula.lib.calc_detector_noise import calc_detector_noise
 from specula.processing_objects.modulated_pyramid import ModulatedPyramid
+from specula.data_objects.simul_params import SimulParams
 
 
 @fuse(kernel_name='clamp_generic')
@@ -30,7 +31,8 @@ class ModalAnalysisWFS:
 
 class CCD(BaseProcessingObj):
     '''Simple CCD from intensity field'''
-    def __init__(self, 
+    def __init__(self,
+                 simul_params: SimulParams,
                  size: int,           # TODO list=[80,80],
                  dt: float,           # TODO =0.001,
                  bandw: float,        # TODO =300.0,
@@ -51,8 +53,6 @@ class CCD(BaseProcessingObj):
                  quantum_eff: float=1.0,
                  pixelGains=None,                 
                  wfs=None,
-                 pixel_pupil: int=None,
-                 pixel_pitch: float=None,
                  sky_bg_norm: float=None,
                  photon_seed: int=1,
                  readout_seed: int=2,
@@ -66,13 +66,17 @@ class CCD(BaseProcessingObj):
                  precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
+        self.simul_params = simul_params
+        self.pixel_pupil = self.simul_params.pixel_pupil
+        self.pixel_pitch = self.simul_params.pixel_pitch
+
         if wfs:
             if not isinstance(wfs, ModalAnalysisWFS):
                 # checks detector size
                 if isinstance(wfs, SH):
                     ccdsize = wfs.sensor_npx * wfs.subap_on_diameter
                 elif isinstance(wfs, IdealWFS):
-                    ccdsize = pixel_pupil
+                    ccdsize = self.pixel_pupil
                 elif isinstance(wfs, ModulatedPyramid):
                     ccdsize = wfs.output_resolution
                 else:
@@ -93,7 +97,7 @@ class CCD(BaseProcessingObj):
                 # Compute sky background
                 if background_level == 'auto':
                     if background_noise:
-                        surf = (pixel_pupil * pixel_pitch) ** 2. / 4. * math.pi
+                        surf = (self.pixel_pupil * self.pixel_pitch) ** 2. / 4. * math.pi
 
                         if sky_bg_norm:
                             if isinstance(wfs, ModulatedPyramid):

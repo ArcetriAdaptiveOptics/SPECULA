@@ -1,13 +1,12 @@
 ---
 
 main:
+  class:             'SimulParams'
   root_dir:          './calib/SCAO'         # Root directory for calibration manager
-  store_dir:         './output'             # Data result directory: 'store_dir'/TN/
   pixel_pupil:       120                    # Linear dimension of pupil phase array
   pixel_pitch:       0.05                   # [m] Pitch of the pupil phase array
   total_time:        0.10                  # [s] Total simulation running time
   time_step:         0.001                  # [s] Simulation time step
-
 
 seeing:
   class:             'FuncGenerator'
@@ -32,9 +31,11 @@ on_axis_source:
 
 pupilstop:                                # Default parameters (circular pupil)
   class: 'Pupilstop'
+  simul_params_ref: 'main'
 
 atmo:
   class:                'AtmoRandomPhase'
+  simul_params_ref:  'main'
   L0:                   40                   # [m] Outer scale
   fov:                  0.0
   inputs:
@@ -51,6 +52,7 @@ modal_analysis:
 
 pyramid:
   class:             'ModulatedPyramid'
+  simul_params_ref:  'main'
   pup_diam:          40.                     # Pupil diameter in subaps.
   pup_dist:          48.                     # Separation between pupil centers in subaps.
   fov:               2.0                     # Requested field-of-view [arcsec]
@@ -63,6 +65,7 @@ pyramid:
 
 detector:
   class:             'CCD'
+  simul_params_ref:  'main'
   size:              [120,120]                 # Detector size in pixels
   dt:                0.001                   # [s] Detector integration time
   bandw:             300                     # [nm] Sensor bandwidth

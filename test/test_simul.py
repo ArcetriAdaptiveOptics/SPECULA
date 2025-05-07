@@ -43,6 +43,7 @@ class TestSimul(unittest.TestCase):
         '''
         yml = '''
         main:
+          class: 'SimulParams'
           root_dir: dummy
           
         test:

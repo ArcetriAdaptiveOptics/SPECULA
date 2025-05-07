@@ -142,13 +142,6 @@ class ConvolutionKernel(BaseDataObj):
             raise ValueError("Launcher position must be a three-elements vector [m]")
         self.launcher_pos = self.xp.array(launcher_pos)        
 
-#    def make_grid(self):
-#        self.dimx = max(self.dimx, 2)
-#        self.pixel_pitch = self.ef_pixel_pitch * (self.ef_size / 2.0)
-#        x = self.xp.linspace(-self.pixel_pitch, self.pixel_pitch, self.dimx)
-#        y = self.xp.linspace(-self.pixel_pitch, self.pixel_pitch, self.dimx)
-#        self.xgrid, self.ygrid = self.xp.meshgrid(x, y)
-
     def build(self):
         if len(self.zlayer) != len(self.zprofile):
             raise ValueError("Number of elements of zlayer and zprofile must be the same")

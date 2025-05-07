@@ -8,7 +8,7 @@ from specula.lib.make_xy import make_xy
 from specula.data_objects.intensity import Intensity
 from specula.lib.make_mask import make_mask
 from specula.lib.toccd import toccd
-
+from specula.data_objects.simul_params import SimulParams
 
 @fuse(kernel_name='pyr1_fused')
 def pyr1_fused(u_fp, ffv, fpsf, masked_exp, xp):
@@ -26,8 +26,7 @@ def pyr1_abs2(v, norm, ffv, xp):
 
 class ModulatedPyramid(BaseProcessingObj):
     def __init__(self,
-                 pixel_pupil: int,      # TODO =160,
-                 pixel_pitch: float,    # TODO =0.05,
+                 simul_params: SimulParams,
                  wavelengthInNm: float, # TODO =750,
                  fov: float,            # TODO =2.0,
                  pup_diam: int,         # TODO =30,
@@ -52,7 +51,11 @@ class ModulatedPyramid(BaseProcessingObj):
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        result = self.calc_geometry(pixel_pupil, pixel_pitch, wavelengthInNm, fov, pup_diam, ccd_side=output_resolution,
+        self.simul_params = simul_params
+        self.pixel_pupil = self.simul_params.pixel_pupil
+        self.pixel_pitch = self.simul_params.pixel_pitch
+
+        result = self.calc_geometry(self.pixel_pupil, self.pixel_pitch, wavelengthInNm, fov, pup_diam, ccd_side=output_resolution,
                                             fov_errinf=fov_errinf, fov_errsup=fov_errsup, pup_dist=pup_dist, pup_margin=pup_margin,
                                             fft_res=fft_res, min_pup_dist=min_pup_dist)
 

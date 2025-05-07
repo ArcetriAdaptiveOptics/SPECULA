@@ -1,9 +1,8 @@
 main:
+  class:             'SimulParams'
   # ---------------------
   # not used in this example
   root_dir:          './calib/SCAO'         # Root directory for calibration manager
-  # ---------------------
-  store_dir:         './output'             # Data result directory: 'store_dir'/TN/
   # ---------------------
   # not used in this example
   pixel_pupil:       160                    # Linear dimension of pupil phase array
@@ -35,14 +34,16 @@ sampHold:
       input: 'diff.out_value'
 
 control:
-  delay:             1                      # Total temporal delay in time steps
   class:             'Integrator'
+  simul_params_ref:  'main'
+  delay:             1                      # Total temporal delay in time steps
   int_gain:          [0.3]
   inputs:
       delta_comm: 'sampHold.output'
 
 lowpass:
   class:             'LowPassFilter'
+  simul_params_ref:  'main'
   delay:             0                      # Total temporal delay in time steps
   cutoff_freq:       [1000]
   amplif_fact:       [3]

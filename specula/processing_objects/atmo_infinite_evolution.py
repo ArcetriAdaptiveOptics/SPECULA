@@ -7,6 +7,7 @@ from specula.base_processing_obj import BaseProcessingObj
 from specula.base_data_obj import BaseDataObj
 from specula.base_value import BaseValue
 from specula.data_objects.layer import Layer
+from specula.data_objects.simul_params import SimulParams
 from specula.lib.cv_coord import cv_coord
 from specula.lib.phasescreen_manager import phasescreens_manager
 from specula.connections import InputValue
@@ -227,13 +228,10 @@ class InfinitePhaseScreen(BaseDataObj):
 
 class AtmoInfiniteEvolution(BaseProcessingObj):
     def __init__(self,
+                 simul_params: SimulParams,
                  L0: list=[1.0],
-                 pixel_pitch: float=0.05,
                  heights: list=[0.0],
                  Cn2: list=[1.0],
-                 pixel_pupil: int=160,
-                 data_dir: str="",
-                 wavelengthInNm: float=500.0,
                  zenithAngleInDeg: float=0.0,
                  fov: float=0.0,
                  seed: int=1,
@@ -245,6 +243,10 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
 
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         
+        self.simul_params = simul_params
+        self.pixel_pupil = self.simul_params.pixel_pupil
+        self.pixel_pitch = self.simul_params.pixel_pitch
+
         self.n_infinite_phasescreens = len(heights)
         self.last_position = np.zeros(self.n_infinite_phasescreens)
         self.last_t = 0
@@ -256,7 +258,6 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         self.wind_direction = 1
         self.airmass = 1
         self.ref_wavelengthInNm = 500
-        self.pixel_pitch = pixel_pitch         
         
         self.inputs['seeing'] = InputValue(type=BaseValue)
         self.inputs['wind_speed'] = InputValue(type=BaseValue)
@@ -279,7 +280,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         rad_alpha_fov = alpha_fov * ASEC2RAD
 
         # Compute layers dimension in pixels
-        self.pixel_layer_size = np.ceil((pixel_pupil + 2 * np.sqrt(np.sum(np.array(pupil_position, dtype=self.dtype) * 2)) / self.pixel_pitch + 
+        self.pixel_layer_size = np.ceil((self.pixel_pupil + 2 * np.sqrt(np.sum(np.array(pupil_position, dtype=self.dtype) * 2)) / self.pixel_pitch + 
                                2.0 * abs(self.heights) / self.pixel_pitch * rad_alpha_fov) / 2.0) * 2.0
         if fov_in_m is not None:
             self.pixel_layer_size = np.full_like(self.heights, int(fov_in_m / self.pixel_pitch / 2.0) * 2)
@@ -291,9 +292,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         elif len(self.L0) != len(self.heights):
             raise ValueError(f"L0 must have the same length as heights ({len(self.heights)}), got {len(self.L0)}")
         
-        self.Cn2 = np.array(Cn2, dtype=self.dtype)
-        self.pixel_pupil = pixel_pupil
-        self.data_dir = data_dir
+        self.Cn2 = np.array(Cn2, dtype=self.dtype)        
         self.wind_speed = None
         self.wind_direction = None
 

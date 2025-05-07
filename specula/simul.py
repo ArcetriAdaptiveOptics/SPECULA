@@ -35,6 +35,8 @@ class Simul():
         self.objs = {}
         self.verbose = False  #TODO
         self.isReplay = False
+        self.mainParams = None
+        self.mainParamsKeyName = None
         if overrides is None:
             self.overrides = []
         else:
@@ -117,7 +119,7 @@ class Simul():
         order_index = []
         ii = 0
         params = deepcopy(params_orig)
-        del params['main']
+        del params[self.mainParamsKeyName]
         while True:
             start = len(params)
             leaves = [name for name, pars in params.items() if self.is_leaf(pars)]
@@ -134,14 +136,21 @@ class Simul():
         return order, order_index
 
 
+    def setSimulParams(self, params):
+        for key, pars in params.items():
+            classname = pars['class']
+            if classname == 'SimulParams':
+                self.mainParams = pars
+                self.mainParamsKeyName = key
+
+
     def build_objects(self, params):
-        main = params['main']
-        cm = CalibManager(main['root_dir'])
+        
+        self.setSimulParams(params)
+        cm = CalibManager(self.mainParams['root_dir'])
         skip_pars = 'class inputs outputs'.split()
 
         for key, pars in params.items():
-            if key == 'main':
-                continue
             try:
                 classname = pars['class']
             except KeyError:
@@ -216,7 +225,10 @@ class Simul():
                     pars2[name] = value
 
             # Add global and class-specific params if needed
-            my_params = {k: main[k] for k in args if k in main}
+            # my_params = {k: main[k] for k in args if k in main}
+            # not going to initialize this with the simul params anymore
+            my_params = {}
+
             if 'data_dir' in args and 'data_dir' not in my_params:  # TODO special case
                 my_params['data_dir'] = cm.root_subdir(classname)
                 
@@ -233,6 +245,8 @@ class Simul():
                 my_params['info_getter'] = self.get_info
 
             my_params.update(pars2)
+            # print(key)
+            # print(my_params)
             self.objs[key] = klass(**my_params)
             self.objs[key].name = key
 
@@ -323,8 +337,6 @@ class Simul():
         obj_to_remove = []
         data_source_outputs = {}
         for key, pars in params.items():
-            if key == 'main':
-                continue
             try:
                 classname = pars['class']
             except KeyError:
@@ -344,8 +356,6 @@ class Simul():
             del self.replay_params[obj_name]
         
         for key, pars in self.replay_params.items():            
-            if key == 'main':
-                continue
             if not key=='data_source':
                 if 'inputs' in pars.keys():
                     for input_name, output_name_full in pars['inputs'].items():
@@ -480,8 +490,11 @@ class Simul():
                 additional_params = yaml.safe_load(stream)
                 self.combine_params(params, additional_params)
 
+        # update also global simul params
+        self.setSimulParams(params)
+
         # Initialize housekeeping objects
-        self.loop = LoopControl(run_time=params['main']['total_time'], dt=params['main']['time_step'])        
+        self.loop = LoopControl(run_time=self.mainParams['total_time'], dt=self.mainParams['time_step'])        
 
         # Actual creation code
         self.apply_overrides(params)
@@ -505,7 +518,7 @@ class Simul():
                 self.loop.add(obj, idx)
 
         # Default display web server
-        if 'display_server' in params['main'] and params['main']['display_server']:
+        if 'display_server' in self.mainParams and self.mainParams['display_server']:
             from specula.processing_objects.display_server import DisplayServer
             disp = DisplayServer(params, self.input_ref, self.output_ref, self.get_info)
             self.objs['display_server'] = disp
@@ -513,10 +526,10 @@ class Simul():
             disp.name = 'display_server'
 
         # Run simulation loop
-        self.loop.run(run_time=params['main']['total_time'], dt=params['main']['time_step'], speed_report=True)
+        self.loop.run(run_time=self.mainParams['total_time'], dt=self.mainParams['time_step'], speed_report=True)
 
 #        if data_store.has_key('sr'):
-#            print(f"Mean Strehl Ratio (@{params['psf']['wavelengthInNm']}nm) : {store.mean('sr', init=min([50, 0.1 * params['main']['total_time'] / params['main']['time_step']])) * 100.}")
+#            print(f"Mean Strehl Ratio (@{params['psf']['wavelengthInNm']}nm) : {store.mean('sr', init=min([50, 0.1 * self.mainParams['total_time'] / self.mainParams['time_step']])) * 100.}")
 
         for obj in self.objs.values():
             obj.finalize()
