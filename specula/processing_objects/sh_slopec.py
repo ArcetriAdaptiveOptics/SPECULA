@@ -359,10 +359,6 @@ class ShSlopec(Slopec):
 
                 print(f"Weights mask has been applied to {n_weight_applied} sub-apertures")
 
-        # Calculate flux and max flux per subaperture
-        flux_per_subaperture_vector = self.xp.sum(pixels, axis=0)
-        max_flux_per_subaperture = self.xp.max(flux_per_subaperture_vector)
-
         if self.winMatWindowed is not None:
             if self.verbose:
                 print("self.winMatWindowed applied")
@@ -370,8 +366,10 @@ class ShSlopec(Slopec):
 
         # Thresholding logic
         if self.thr_ratio_value > 0:
-            thr = self.thr_ratio_value * max_flux_per_subaperture
-            thr = thr[:, self.xp.newaxis] * self.xp.ones((1, np_sub * np_sub))
+            thr = self.thr_ratio_value * self.xp.max(pixels, axis=0)
+            # print(max_flux_per_subaperture)
+            # print(thr.shape)
+            #thr = thr[self.xp.newaxis, :] * self.xp.ones((np_sub * np_sub, 1))
         elif self.thr_pedestal or self.thr_value > 0:
             thr = self.thr_value
         else:
@@ -385,6 +383,10 @@ class ShSlopec(Slopec):
 
         if self.store_thr_mask_cube:
             thr_mask_cube = thr.reshape(np_sub, np_sub, n_subaps)
+
+        # Calculate flux and max flux per subaperture
+        flux_per_subaperture_vector = self.xp.sum(pixels, axis=0)
+        max_flux_per_subaperture = self.xp.max(flux_per_subaperture_vector)
 
         # Compute denominator for slopes
         #print(f'{pixels.sum()=}')
