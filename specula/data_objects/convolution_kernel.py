@@ -42,6 +42,7 @@ def lgs_map_sh(nsh, diam, rl, zb, dz, profz, fwhmb, ps, ssp,
         ccd (ndarray): The calculated LGS map
     """
 
+    theta = cpuArray(theta)
     # Oversampling and lenslet grid setup
     ossp = ssp * overs
     xsh, ysh = xp.meshgrid(xp.linspace(-diam / 2, diam / 2, nsh), xp.linspace(-diam / 2, diam / 2, nsh))
@@ -277,7 +278,7 @@ class ConvolutionKernel(BaseDataObj):
         hdr['DIM'] = self.dimension
         hdr['OVERSAMP'] = self.oversampling
         hdr['POSTT'] = self.positive_shift_tt
-        hdr['SPOTSIZE'] = self.spot_size
+        hdr['SPOTSIZE'] = float(self.spot_size)
         hdr['DIMX'] = self.dimx
         hdr['DIMY'] = self.dimy
 
