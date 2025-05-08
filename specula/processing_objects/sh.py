@@ -97,27 +97,10 @@ class SH(BaseProcessingObj):
 
         self.interp = None
 
-        # Set up the kernel object
+        # optional inputs for the kernel object
         if self._laser_launch_tel is not None:
-            if len(self._laser_launch_tel.tel_pos) == 0:                        
-                self._kernelobj = GaussianConvolutionKernel(target_device_idx=self.target_device_idx)
-                self._kernelobj.spot_size = self._laser_launch_tel.spot_size
-            else:
-                self._kernelobj = ConvolutionKernel(target_device_idx=self.target_device_idx)
-                self._kernelobj.launcher_pos = self._laser_launch_tel.tel_pos
-                self._kernelobj.seeing = 0.0
-                self._kernelobj.launcher_size = self._laser_launch_tel.spot_size
-                self._kernelobj.zfocus = self._laser_launch_tel.beacon_focus
-                if len(self._laser_launch_tel.beacon_tt) != 0:
-                    self._kernelobj.lgs_tt = self._laser_launch_tel.beacon_tt
-            self._kernelobj.oversampling = 1
-            self._kernelobj.return_fft = True
-            self._kernelobj.positive_shift_tt = True
-            self._kernel_fn = None
             self.inputs['sodium_altitude'] = InputValue(type=BaseValue, optional=True)
             self.inputs['sodium_intensity'] = InputValue(type=BaseValue, optional=True)
-        else:
-            self._kernelobj = None
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
         self.outputs['out_i'] = self._out_i
@@ -297,14 +280,41 @@ class SH(BaseProcessingObj):
         self.in_ef = in_ef
         self._wf1 = wf1
 
-        # update kernel parameters
-        if self._kernelobj is not None:
-            print('Updating kernel parameters')
-            self._kernelobj.dimx = self._lenslet.dimx
-            self._kernelobj.dimy = self._lenslet.dimy
-            self._kernelobj.pxscale = fp4_pixel_pitch * RAD2ASEC
-            self._kernelobj.pupil_size_m = in_ef.pixel_pitch * in_ef.size[0]
-            self._kernelobj.dimension = self._fft_size
+        # set up kernel object
+        if self._laser_launch_tel is not None:
+            if len(self._laser_launch_tel.tel_pos) == 0:                        
+                self._kernelobj = GaussianConvolutionKernel(dimx = self._lenslet.dimx,
+                                                            dimy = self._lenslet.dimy,
+                                                            pxscale = fp4_pixel_pitch * RAD2ASEC,
+                                                            pupil_size_m = in_ef.pixel_pitch * in_ef.size[0],
+                                                            dimension = self._fft_size,
+                                                            spot_size = self._laser_launch_tel.spot_size,
+                                                            oversampling = 1,
+                                                            return_fft = True,
+                                                            positive_shift_tt = True,
+                                                            target_device_idx=self.target_device_idx)
+            else:
+                if len(self._laser_launch_tel.beacon_tt) != 0:
+                    lgs_tt = self._laser_launch_tel.beacon_tt
+                else:
+                    lgs_tt = []
+                self._kernelobj = ConvolutionKernel(dimx = self._lenslet.dimx,
+                                                    dimy = self._lenslet.dimy,
+                                                    pxscale = fp4_pixel_pitch * RAD2ASEC,
+                                                    pupil_size_m = in_ef.pixel_pitch * in_ef.size[0],
+                                                    dimension = self._fft_size,
+                                                    launcher_pos = self._laser_launch_tel.tel_pos,
+                                                    seeing = 0.0,
+                                                    launcher_size = self._laser_launch_tel.spot_size,
+                                                    zfocus = self._laser_launch_tel.beacon_focus,
+                                                    lgs_tt = lgs_tt,
+                                                    oversampling = 1,
+                                                    return_fft = True,
+                                                    positive_shift_tt = True,
+                                                    target_device_idx=self.target_device_idx)
+            self._kernel_fn = None
+        else:
+            self._kernelobj = None
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)        
@@ -343,14 +353,13 @@ class SH(BaseProcessingObj):
                     self._kernelobj.save(self._kernel_fn)
                     print('Done')
 
-                self._kernels[:] = self._kernelobj.kernels
+                self._kernels = self._kernelobj.kernels
             else:
                 # Kernel hasn't changed, no need to reload or recalculate
                 print("Kernel unchanged, using cached version")
 
             self._kernelobj.generation_time = self.current_time
 
-      
 
     def trigger_code(self):
 

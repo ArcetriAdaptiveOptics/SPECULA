@@ -40,18 +40,17 @@ class TestKernel(unittest.TestCase):
         pupil_size_m = 1.0  # m
         dimension = 16  # Size of kernel in pixels
 
-        kernel = GaussianConvolutionKernel(target_device_idx=target_device_idx)
-
-        # Set required parameters
-        kernel.dimx = dimx
-        kernel.dimy = dimy
-        kernel.spot_size = spot_size
-        kernel.pxscale = pixel_scale
-        kernel.pupil_size_m = pupil_size_m
-        kernel.dimension = dimension
-        kernel.oversampling = 1
-        kernel.return_fft = True
-        kernel.positive_shift_tt = True
+        kernel = GaussianConvolutionKernel(dimx=dimx,
+                                           dimy=dimy,
+                                           pxscale=pixel_scale,
+                                           pupil_size_m=pupil_size_m,
+                                           dimension=dimension,
+                                           spot_size=spot_size,
+                                           oversampling=1,
+                                           return_fft=True,
+                                           positive_shift_tt=True,
+                                           airmass=1.0,
+                                           target_device_idx=target_device_idx)
 
         # Build and calculate kernel
         kernel_fn = kernel.build()
@@ -107,23 +106,24 @@ class TestKernel(unittest.TestCase):
         # Normalize the profile
         zprofile /= np.sum(zprofile)
 
-        kernel = ConvolutionKernel(target_device_idx=target_device_idx)
+        # Test with return_fft = False
+        kernel = ConvolutionKernel(dimx=dimx,
+                                   dimy=dimy,
+                                   pxscale=pixel_scale,
+                                   pupil_size_m=pupil_size_m,
+                                   dimension=dimension,
+                                   launcher_pos=launcher_pos,
+                                   seeing=spot_size,
+                                   zfocus = zfocus,
+                                   lgs_tt=[0.0, 0.0],
+                                   oversampling=1,
+                                   return_fft=False,
+                                   positive_shift_tt=True,
+                                   target_device_idx=target_device_idx)
 
-        # Set required parameters
-        kernel.dimx = dimx
-        kernel.dimy = dimy
-        kernel.pxscale = pixel_scale
-        kernel.pupil_size_m = pupil_size_m
-        kernel.dimension = dimension
-        kernel.seeing = spot_size
         kernel.zlayer = zlayer.tolist()
         kernel.zprofile = zprofile.tolist()
-        kernel.zfocus = zfocus
-        kernel.launcher_pos = launcher_pos
 
-        kernel.return_fft = False
-
-        # Test with return_fft = False
         kernel_fn = kernel.build()
         kernel.calculate_lgs_map()
 
@@ -138,7 +138,24 @@ class TestKernel(unittest.TestCase):
             self.assertTrue(float(cpuArray(xp.sum(kernel.kernels[i]))) > 0)
 
         # Now test with return_fft = True
-        kernel.return_fft = True
+        kernel = ConvolutionKernel(dimx=dimx,
+                                   dimy=dimy,
+                                   pxscale=pixel_scale,
+                                   pupil_size_m=pupil_size_m,
+                                   dimension=dimension,
+                                   launcher_pos=launcher_pos,
+                                   seeing=spot_size,
+                                   zfocus=zfocus,
+                                   lgs_tt=[0.0, 0.0],
+                                   oversampling=1,
+                                   return_fft=True,
+                                   positive_shift_tt=True,
+                                   target_device_idx=target_device_idx)
+
+        kernel.zlayer = zlayer.tolist()
+        kernel.zprofile = zprofile.tolist()
+        
+        kernel_fn = kernel.build()
         kernel.calculate_lgs_map()
 
         # Check kernel shape and dimensions again
@@ -289,21 +306,22 @@ class TestKernel(unittest.TestCase):
             zprofile /= np.sum(zprofile)  # Normalize
             
             # Create the original kernel
-            original_kernel = ConvolutionKernel(target_device_idx=target_device_idx
-            )
-            
-            # Set parameters
-            original_kernel.dimx = dimx
-            original_kernel.dimy = dimy
-            original_kernel.pxscale = pixel_scale
-            original_kernel.pupil_size_m = pupil_size_m
-            original_kernel.dimension = dimension
-            original_kernel.seeing = spot_size
+            original_kernel = ConvolutionKernel(dimx=dimx,
+                                   dimy=dimy,
+                                   pxscale=pixel_scale,
+                                   pupil_size_m=pupil_size_m,
+                                   dimension=dimension,
+                                   launcher_pos=launcher_pos,
+                                   seeing=spot_size,
+                                   zfocus=zfocus,
+                                   lgs_tt=[0.0, 0.0],
+                                   oversampling=1,
+                                   return_fft=False,
+                                   positive_shift_tt=True,
+                                   target_device_idx=target_device_idx)
+
             original_kernel.zlayer = zlayer.tolist()
             original_kernel.zprofile = zprofile.tolist()
-            original_kernel.zfocus = zfocus
-            original_kernel.launcher_pos = launcher_pos
-            original_kernel.return_fft = False
             
             # Calculate kernels
             original_kernel.build()
