@@ -295,9 +295,9 @@ class SH(BaseProcessingObj):
                                                             target_device_idx=self.target_device_idx)
             else:
                 if len(self._laser_launch_tel.beacon_tt) != 0:
-                    lgs_tt = self._laser_launch_tel.beacon_tt
+                    theta = self._laser_launch_tel.beacon_tt
                 else:
-                    lgs_tt = []
+                    theta = []
                 self._kernelobj = ConvolutionKernel(dimx = self._lenslet.dimx,
                                                     dimy = self._lenslet.dimy,
                                                     pxscale = fp4_pixel_pitch * RAD2ASEC,
@@ -307,7 +307,7 @@ class SH(BaseProcessingObj):
                                                     seeing = 0.0,
                                                     launcher_size = self._laser_launch_tel.spot_size,
                                                     zfocus = self._laser_launch_tel.beacon_focus,
-                                                    lgs_tt = lgs_tt,
+                                                    theta = theta,
                                                     oversampling = 1,
                                                     return_fft = True,
                                                     positive_shift_tt = True,

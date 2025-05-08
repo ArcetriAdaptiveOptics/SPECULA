@@ -119,7 +119,7 @@ class ConvolutionKernel(BaseDataObj):
                  seeing: float=0.0,
                  launcher_size: float=0.0,
                  zfocus: float=90e3,
-                 lgs_tt: list=[0.0, 0.0],
+                 theta: list=[0.0, 0.0],
                  airmass: float=1.0,
                  oversampling: int=1,
                  return_fft: bool=True,
@@ -137,7 +137,7 @@ class ConvolutionKernel(BaseDataObj):
         self.zlayer = None
         self.zprofile = None
         self.zfocus = zfocus
-        self.theta = self.xp.array(lgs_tt)
+        self.theta = self.xp.array(theta)
         self.last_zfocus = 0.0
         self.last_theta = self.xp.array([0.0, 0.0])
         self.return_fft = return_fft
