@@ -113,7 +113,6 @@ sh_lgs:
 
 detector_lgs:
   class:             'CCD'
-  simul_params_ref:  'main'
   size:              [240, 240]              # Detector size in pixels
   dt:                0.001                   # [s] Detector integration time
   bandw:             300                     # [nm] Sensor bandwidth
@@ -158,7 +157,6 @@ sh_lo:
 
 detector_lo:
   class:             'CCD'
-  simul_params_ref:  'main'
   size:              [48, 48]                # Detector size in pixels
   dt:                0.002                   # [s] Detector integration time
   bandw:             300                     # [nm] Sensor bandwidth

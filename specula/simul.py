@@ -138,6 +138,7 @@ class Simul():
 
     def setSimulParams(self, params):
         for key, pars in params.items():
+            #if 'class' in pars:
             classname = pars['class']
             if classname == 'SimulParams':
                 self.mainParams = pars
@@ -245,8 +246,8 @@ class Simul():
                 my_params['info_getter'] = self.get_info
 
             my_params.update(pars2)
-            # print(key)
-            # print(my_params)
+            print(key)
+            print(my_params)
             self.objs[key] = klass(**my_params)
             self.objs[key].name = key
 
@@ -490,6 +491,7 @@ class Simul():
                 additional_params = yaml.safe_load(stream)
                 self.combine_params(params, additional_params)
 
+        print(params)
         # update also global simul params
         self.setSimulParams(params)
 

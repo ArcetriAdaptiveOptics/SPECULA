@@ -32,6 +32,7 @@ class DM(BaseProcessingObj):
 
         self.simul_params = simul_params
         self.pixel_pitch = self.simul_params.pixel_pitch
+        print('self.simul_params', self.simul_params)
 
         mask = None
         if pupilstop:

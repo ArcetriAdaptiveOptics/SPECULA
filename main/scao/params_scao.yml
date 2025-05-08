@@ -16,7 +16,7 @@ main:
 
 seeing:
   class:             'FuncGenerator'
-  constant:          0.8                  # ["] seeing value
+  constant:          0.8                   # ["] seeing value
   func_type:         'SIN'                 # TODO necessary for factory.py line 217
 
 
@@ -81,8 +81,7 @@ pyramid:
 
 
 detector:
-  class:             'CCD'
-  simul_params_ref:         'main'
+  class:             'CCD'  
   size:              [80,80]                 # Detector size in pixels
   dt:                0.001                   # [s] Detector integration time
   bandw:             300                     # [nm] Sensor bandwidth

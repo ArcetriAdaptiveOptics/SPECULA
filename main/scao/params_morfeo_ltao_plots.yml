@@ -191,7 +191,6 @@ sh6:
 
 detector1:
   class:             'CCD'
-  simul_params_ref:  'main'
   size:              [952,952]               # Detector size in pixels
   dt:                0.002                   # [s] Detector integration time
   bandw:             20                      # [nm] Sensor bandwidth
@@ -205,7 +204,6 @@ detector1:
 
 detector2:
   class:             'CCD'
-  simul_params_ref:  'main'
   size:              [952,952]               # Detector size in pixels
   dt:                0.002                   # [s] Detector integration time
   bandw:             20                      # [nm] Sensor bandwidth
@@ -219,7 +217,6 @@ detector2:
 
 detector3:
   class:             'CCD'
-  simul_params_ref:  'main'
   size:              [952,952]               # Detector size in pixels
   dt:                0.002                   # [s] Detector integration time
   bandw:             20                      # [nm] Sensor bandwidth
@@ -233,7 +230,6 @@ detector3:
 
 detector4:
   class:             'CCD'
-  simul_params_ref:  'main'
   size:              [952,952]               # Detector size in pixels
   dt:                0.002                   # [s] Detector integration time
   bandw:             20                      # [nm] Sensor bandwidth
@@ -247,7 +243,6 @@ detector4:
 
 detector5:
   class:             'CCD'
-  simul_params_ref:  'main'
   size:              [952,952]               # Detector size in pixels
   dt:                0.002                   # [s] Detector integration time
   bandw:             20                      # [nm] Sensor bandwidth
@@ -261,7 +256,6 @@ detector5:
 
 detector6:
   class:             'CCD'
-  simul_params_ref:  'main'
   size:              [952,952]               # Detector size in pixels
   dt:                0.002                   # [s] Detector integration time
   bandw:             20                      # [nm] Sensor bandwidth

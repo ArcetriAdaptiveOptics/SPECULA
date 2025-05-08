@@ -23,9 +23,9 @@ class SimulParams(BaseDataObj):
     '''
 
     def __init__(self,
-                 root_dir: str = '',                 
                  pixel_pupil: int = 120,
                  pixel_pitch: float = 0.05,
+                 root_dir: str = '',
                  total_time: float = 0.1, 
                  time_step: float = 0.001, 
                  zenithAngleInDeg: float = 0,
@@ -35,12 +35,15 @@ class SimulParams(BaseDataObj):
         ):
 
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-
-        self.root_dir = root_dir        
+        
         self.pixel_pupil = pixel_pupil
         self.pixel_pitch = pixel_pitch
+        self.root_dir = root_dir
         self.total_time = total_time
         self.time_step = time_step
         self.zenithAngleInDeg = zenithAngleInDeg
         self.display_server = display_server
     
+    
+    def finalize(self):
+        pass

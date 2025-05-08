@@ -5,11 +5,10 @@ from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.electric_field import ElectricField
 from specula.base_value import BaseValue
 from specula.data_objects.layer import Layer
-from specula.data_objects.simul_params import SimulParams
 from specula.data_objects.pupilstop import Pupilstop
 from specula.lib.phasescreen_manager import phasescreens_manager
 from specula.connections import InputValue
-
+from specula.data_objects.simul_params import SimulParams
 
 class AtmoRandomPhase(BaseProcessingObj):
     def __init__(self,
@@ -28,6 +27,7 @@ class AtmoRandomPhase(BaseProcessingObj):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.simul_params = simul_params
+        print('self.simul_params', self.simul_params)
         self.pixel_pupil = self.simul_params.pixel_pupil
         self.pixel_pitch = self.simul_params.pixel_pitch
         self.zenithAngleInDeg = self.simul_params.zenithAngleInDeg

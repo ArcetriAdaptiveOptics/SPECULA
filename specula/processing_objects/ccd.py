@@ -10,6 +10,7 @@ from specula.data_objects.pixels import Pixels
 from specula.data_objects.intensity import Intensity
 from specula.lib.calc_detector_noise import calc_detector_noise
 from specula.processing_objects.modulated_pyramid import ModulatedPyramid
+from specula.processing_objects.sh import SH
 from specula.data_objects.simul_params import SimulParams
 
 
@@ -18,21 +19,9 @@ def clamp_generic(x, c, y, xp):
     y[:] = xp.where(y < x, c, y)
 
 
-# TODO
-class SH:
-    pass
-
-class IdealWFS:
-    pass
-
-class ModalAnalysisWFS:
-    pass
-
-
 class CCD(BaseProcessingObj):
     '''Simple CCD from intensity field'''
-    def __init__(self,
-                 simul_params: SimulParams,
+    def __init__(self,                 
                  size: int,           # TODO list=[80,80],
                  dt: float,           # TODO =0.001,
                  bandw: float,        # TODO =300.0,
@@ -52,8 +41,6 @@ class CCD(BaseProcessingObj):
                  cte_mat=None, # ??
                  quantum_eff: float=1.0,
                  pixelGains=None,                 
-                 wfs=None,
-                 sky_bg_norm: float=None,
                  photon_seed: int=1,
                  readout_seed: int=2,
                  excess_seed: int=3,
@@ -66,58 +53,41 @@ class CCD(BaseProcessingObj):
                  precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        self.simul_params = simul_params
-        self.pixel_pupil = self.simul_params.pixel_pupil
-        self.pixel_pitch = self.simul_params.pixel_pitch
+        if readout_level and darkcurrent_level and background_level:
+            # Compute RON and dark current
+            if readout_level == 'auto' or darkcurrent_level == 'auto' or background_level == 'auto':
+                noise = calc_detector_noise(1./dt, name, binning)
+                if readout_level == 'auto':
+                    readout_level = noise[0]
+                if darkcurrent_level == 'auto':
+                    darkcurrent_level = noise[1]
 
-        if wfs:
-            if not isinstance(wfs, ModalAnalysisWFS):
-                # checks detector size
-                if isinstance(wfs, SH):
-                    ccdsize = wfs.sensor_npx * wfs.subap_on_diameter
-                elif isinstance(wfs, IdealWFS):
-                    ccdsize = self.pixel_pupil
-                elif isinstance(wfs, ModulatedPyramid):
-                    ccdsize = wfs.output_resolution
-                else:
-                    raise ValueError(f'Unsupported WFS class: {type(wfs)}')
-                if size != ccdsize:
-                    raise ValueError(f'Incorrect detector size: {size}: should be {ccdsize} instead')
+        # TODO: move this code inside the wfs
+        # if wfs and background_level:
+        #     # Compute sky background
+        #     if background_level == 'auto':
+        #         if background_noise:
+        #             surf = (self.pixel_pupil * self.pixel_pitch) ** 2. / 4. * math.pi
 
-            if readout_level and darkcurrent_level and background_level:
-                # Compute RON and dark current
-                if readout_level == 'auto' or darkcurrent_level == 'auto' or background_level == 'auto':
-                    noise = calc_detector_noise(1./dt, name, binning)
-                    if readout_level == 'auto':
-                        readout_level = noise[0]
-                    if darkcurrent_level == 'auto':
-                        darkcurrent_level = noise[1]
-
-            if background_level:
-                # Compute sky background
-                if background_level == 'auto':
-                    if background_noise:
-                        surf = (self.pixel_pupil * self.pixel_pitch) ** 2. / 4. * math.pi
-
-                        if sky_bg_norm:
-                            if isinstance(wfs, ModulatedPyramid):
-                                subaps = round(wfs.pup_diam ** 2. / 4. * math.pi)
-                                tot_pix = subaps * 4.
-                                fov = wfs.fov ** 2. / 4. * math.pi
-                            elif isinstance(wfs, (SH, IdealWFS)):
-                                subaps = round(wfs.subap_on_diameter ** 2. / 4. * math.pi)
-                                if subaps != 1 and subaps < 4.:
-                                    subaps = 4.
-                                tot_pix = subaps * wfs.sensor_npx ** 2.
-                                fov = wfs.sensor_fov ** 2
-                            else:
-                                raise ValueError(f'Unsupported WFS class: {type(wfs)}')
-                            background_level = \
-                                sky_bg_norm * dt * fov * surf / tot_pix * binning ** 2
-                        else:
-                            raise ValueError('sky_bg_norm key must be set to update background_level key')
-                    else:
-                        background_level = 0
+        #             if sky_bg_norm:
+        #                 if isinstance(wfs, ModulatedPyramid):
+        #                     subaps = round(wfs.pup_diam ** 2. / 4. * math.pi)
+        #                     tot_pix = subaps * 4.
+        #                     fov = wfs.fov ** 2. / 4. * math.pi
+        #                 elif isinstance(wfs, SH):
+        #                     subaps = round(wfs.subap_on_diameter ** 2. / 4. * math.pi)
+        #                     if subaps != 1 and subaps < 4.:
+        #                         subaps = 4.
+        #                     tot_pix = subaps * wfs.sensor_npx ** 2.
+        #                     fov = wfs.sensor_fov ** 2
+        #                 else:
+        #                     raise ValueError(f'Unsupported WFS class: {type(wfs)}')
+        #                 background_level = \
+        #                     sky_bg_norm * dt * fov * surf / tot_pix * binning ** 2
+        #             else:
+        #                 raise ValueError('sky_bg_norm key must be set to update background_level key')
+        #         else:
+        #             background_level = 0
 
         # Adjust ADU / EM gain values
         

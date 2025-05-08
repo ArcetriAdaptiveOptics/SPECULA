@@ -12,6 +12,7 @@ from specula.processing_objects.func_generator import FuncGenerator
 from specula.processing_objects.atmo_evolution import AtmoEvolution
 from specula.processing_objects.atmo_propagation import AtmoPropagation
 from specula.data_objects.layer import Layer
+from specula.data_objects.simul_params import SimulParams
 
 from test.specula_testlib import cpu_and_gpu
 
@@ -29,9 +30,10 @@ class TestAtmo(unittest.TestCase):
         on_axis_source = Source(polar_coordinates=[0.0, 0.0], magnitude=8, wavelengthInNm=750)
         lgs1_source = Source( polar_coordinates=[45.0, 0.0], height=90000, magnitude=5, wavelengthInNm=589)
 
-        atmo = AtmoEvolution(L0=23,  # [m] Outer scale
-                             pixel_pupil=160,
-                             pixel_pitch=0.05,
+        simulParams = SimulParams(pixel_pupil=160, pixel_pitch=0.05)
+
+        atmo = AtmoEvolution(simulParams,
+                             L0=23,  # [m] Outer scale
                              data_dir=data_dir,
                              heights = [30.0000, 26500.0], # [m] layer heights at 0 zenith angle
                              Cn2 = [0.5, 0.5], # Cn2 weights (total must be eq 1)
@@ -39,8 +41,7 @@ class TestAtmo(unittest.TestCase):
                              target_device_idx=target_device_idx)
 
 
-        prop = AtmoPropagation(pixel_pupil=160,
-                               pixel_pitch=0.05,
+        prop = AtmoPropagation(simulParams,                               
                                source_dict = {'on_axis_source': on_axis_source,
                                                'lgs1_source': lgs1_source},
                                target_device_idx=target_device_idx)
@@ -73,10 +74,11 @@ class TestAtmo(unittest.TestCase):
         on_axis_source = Source(polar_coordinates=[0.0, 0.0], magnitude=8, wavelengthInNm=750)
         lgs1_source = Source( polar_coordinates=[45.0, 0.0], height=90000, magnitude=5, wavelengthInNm=589)
 
+        simulParams = SimulParams(pixel_pupil=160, pixel_pitch=0.05)
+
         with self.assertRaises(ValueError):
-            atmo = AtmoEvolution(L0=23,  # [m] Outer scale
-                                pixel_pupil=160,
-                                pixel_pitch=0.05,
+            atmo = AtmoEvolution(simulParams,
+                                L0=23,  # [m] Outer scale
                                 data_dir=data_dir,
                                 heights = [30.0000, 26500.0], # [m] layer heights at 0 zenith angle
                                 Cn2 = [0.2, 0.2], # Cn2 weights (total must be eq 1)
@@ -84,9 +86,8 @@ class TestAtmo(unittest.TestCase):
                                 target_device_idx=target_device_idx)
 
         # Total is 1, no exception raised.
-        atmo = AtmoEvolution(L0=23,  # [m] Outer scale
-                            pixel_pupil=160,
-                            pixel_pitch=0.05,
+        atmo = AtmoEvolution(simulParams,
+                            L0=23,  # [m] Outer scale
                             data_dir=data_dir,
                             heights = [30.0000, 26500.0], # [m] layer heights at 0 zenith angle
                             Cn2 = [0.5, 0.5], # Cn2 weights (total must be eq 1)
@@ -98,10 +99,11 @@ class TestAtmo(unittest.TestCase):
         data_dir = os.path.join(os.path.dirname(__file__), 'data')
         on_axis_source = Source(polar_coordinates=[0.0, 0.0], magnitude=8, wavelengthInNm=750)
         lgs1_source = Source( polar_coordinates=[45.0, 0.0], height=90000, magnitude=5, wavelengthInNm=589)
+        
+        simulParams = SimulParams(pixel_pupil=160, pixel_pitch=0.05)
 
-        atmo = AtmoEvolution(L0=23,  # [m] Outer scale
-                            pixel_pupil=160,
-                            pixel_pitch=0.05,
+        atmo = AtmoEvolution(simulParams,
+                            L0=23,  # [m] Outer scale
                             data_dir=data_dir,
                             heights = [30.0000, 26500.0], # [m] layer heights at 0 zenith angle
                             Cn2 = [0.5, 0.5], # Cn2 weights (total must be eq 1)

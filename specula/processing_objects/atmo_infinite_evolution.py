@@ -7,16 +7,15 @@ from specula.base_processing_obj import BaseProcessingObj
 from specula.base_data_obj import BaseDataObj
 from specula.base_value import BaseValue
 from specula.data_objects.layer import Layer
-from specula.data_objects.simul_params import SimulParams
 from specula.lib.cv_coord import cv_coord
 from specula.lib.phasescreen_manager import phasescreens_manager
 from specula.connections import InputValue
 from specula import cpuArray, ASEC2RAD, RAD2ASEC
+from specula.data_objects.simul_params import SimulParams
 
 from seeing.sympyHelpers import *
 from seeing.formulary import *
 from seeing.integrator import *
-
 
 from scipy.special import gamma, kv
 from symao.turbolence import createTurbolenceFormulary, ft_phase_screen0, ft_ft2
@@ -244,6 +243,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         
         self.simul_params = simul_params
+        print('self.simul_params', self.simul_params)
         self.pixel_pupil = self.simul_params.pixel_pupil
         self.pixel_pitch = self.simul_params.pixel_pitch
 
