@@ -114,7 +114,7 @@ prop:
   simul_params_ref:     'main'
   source_dict_ref:      ['on_axis_source', 'ngs1_source', 'ngs2_source', 'ngs3_source', 'ngs4_source', 'ngs5_source', 'ngs6_source' ]
   inputs:
-    atmo_layer_list: 'atmo.layer_list'
+    atmo_layer_list: ['atmo.layer_list']
     common_layer_list: ['pupilstop',
                   'dm.out_layer:-1']
   outputs: ['out_on_axis_source_ef','out_ngs1_source_ef','out_ngs2_source_ef','out_ngs3_source_ef','out_ngs4_source_ef','out_ngs5_source_ef','out_ngs6_source_ef']

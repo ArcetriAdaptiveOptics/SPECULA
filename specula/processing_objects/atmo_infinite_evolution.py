@@ -40,7 +40,7 @@ def cn2_to_seeing(cn2, wvl=500.e-9):
 
 class InfinitePhaseScreen(BaseDataObj):
 
-    def __init__(self, mx_size, pixel_scale, r0, L0, l0, xp=np, random_seed=None, stencil_size_factor=1, target_device_idx=0, precision=0):
+    def __init__(self, mx_size, pixel_scale, r0, L0, l0, random_seed=None, stencil_size_factor=1, xp=np, target_device_idx=0, precision=0):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         
         self.random_data_col = None
@@ -55,7 +55,7 @@ class InfinitePhaseScreen(BaseDataObj):
         self.stencil_size_factor = stencil_size_factor
         self.stencil_size = stencil_size_factor * self.mx_size        
         if random_seed is not None:
-            self.xp.random.seed(random_seed)
+            self.xp.random.seed(cpuArray(random_seed))
         #self.set_stencil_coords_basic()
         self.set_stencil_coords()
         self.setup()
@@ -243,7 +243,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         
         self.simul_params = simul_params
-        print('self.simul_params', self.simul_params)
+       
         self.pixel_pupil = self.simul_params.pixel_pupil
         self.pixel_pitch = self.simul_params.pixel_pitch
 
@@ -322,7 +322,6 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         if len(seed) != len(self.L0):
             raise ValueError('Number of elements in seed and L0 must be the same!')
 
-
         self.acc_rows = np.zeros((self.n_infinite_phasescreens))
         self.acc_cols = np.zeros((self.n_infinite_phasescreens))
 
@@ -333,9 +332,15 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
 #            self.ref_r0 *= (self.ref_wavelengthInNm / 500.0 / ((2*np.pi)))**(6./5.) 
             self.ref_r0 *= (self.ref_wavelengthInNm / 500.0 )**(6./5.) 
             print('self.ref_r0:', self.ref_r0)
-            temp_infinite_screen = InfinitePhaseScreen(self.pixel_layer_size[i], self.pixel_pitch, 
+            temp_infinite_screen = InfinitePhaseScreen(self.pixel_layer_size[i], 
+                                                       self.pixel_pitch, 
                                                        self.ref_r0,
-                                                       self.L0[i], self.l0, xp=self.xp, target_device_idx=self.target_device_idx, precision=self.precision )
+                                                       self.L0[i], 
+                                                       self.l0, 
+                                                       random_seed=seed[i], 
+                                                       xp=self.xp, 
+                                                       target_device_idx=self.target_device_idx, 
+                                                       precision=self.precision )
             self.infinite_phasescreens.append(temp_infinite_screen)
 
 

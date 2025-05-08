@@ -26,7 +26,7 @@ class IirFilter(BaseProcessingObj):
 
         self.simul_params = simul_params
         self.time_step = self.simul_params.time_step
-        print('self.simul_params', self.simul_params)
+       
         
         self._verbose = True
         self.iir_filter_data = iir_filter_data

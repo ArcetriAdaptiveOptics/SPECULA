@@ -137,8 +137,7 @@ class Simul():
 
 
     def setSimulParams(self, params):
-        for key, pars in params.items():
-            #if 'class' in pars:
+        for key, pars in params.items():            
             classname = pars['class']
             if classname == 'SimulParams':
                 self.mainParams = pars
@@ -226,8 +225,6 @@ class Simul():
                     pars2[name] = value
 
             # Add global and class-specific params if needed
-            # my_params = {k: main[k] for k in args if k in main}
-            # not going to initialize this with the simul params anymore
             my_params = {}
 
             if 'data_dir' in args and 'data_dir' not in my_params:  # TODO special case
@@ -246,8 +243,6 @@ class Simul():
                 my_params['info_getter'] = self.get_info
 
             my_params.update(pars2)
-            print(key)
-            print(my_params)
             self.objs[key] = klass(**my_params)
             self.objs[key].name = key
 

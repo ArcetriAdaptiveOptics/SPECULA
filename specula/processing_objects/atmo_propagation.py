@@ -28,7 +28,7 @@ class AtmoPropagation(BaseProcessingObj):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.simul_params = simul_params
-        print('self.simul_params', self.simul_params)
+       
         self.pixel_pupil = self.simul_params.pixel_pupil
         self.pixel_pitch = self.simul_params.pixel_pitch
 

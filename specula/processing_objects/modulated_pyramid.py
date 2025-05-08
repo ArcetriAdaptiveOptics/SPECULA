@@ -54,7 +54,7 @@ class ModulatedPyramid(BaseProcessingObj):
         self.simul_params = simul_params
         self.pixel_pupil = self.simul_params.pixel_pupil
         self.pixel_pitch = self.simul_params.pixel_pitch
-        print('self.simul_params', self.simul_params)
+       
         
         result = self.calc_geometry(self.pixel_pupil, self.pixel_pitch, wavelengthInNm, fov, pup_diam, ccd_side=output_resolution,
                                             fov_errinf=fov_errinf, fov_errsup=fov_errsup, pup_dist=pup_dist, pup_margin=pup_margin,
