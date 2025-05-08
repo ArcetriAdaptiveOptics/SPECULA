@@ -7,6 +7,7 @@ from specula.data_objects.electric_field import ElectricField
 from specula.connections import InputList
 from specula.data_objects.layer import Layer
 from specula import show_in_profiler, ASEC2RAD
+from specula.data_objects.simul_params import SimulParams
 
 import numpy as np
 
@@ -15,9 +16,8 @@ degree2rad = np.pi / 180.
 class AtmoPropagation(BaseProcessingObj):
     '''Atmospheric propagation'''
     def __init__(self,
+                 simul_params: SimulParams,
                  source_dict: dict,     # TODO ={},
-                 pixel_pupil: int,      # TODO =160,
-                 pixel_pitch: float,    # TODO =0.05,
                  doFresnel: bool=False,
                  wavelengthInNm: float=500.0,
                  pupil_position=None,
@@ -27,18 +27,22 @@ class AtmoPropagation(BaseProcessingObj):
 
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
+        self.simul_params = simul_params
+       
+        self.pixel_pupil = self.simul_params.pixel_pupil
+        self.pixel_pitch = self.simul_params.pixel_pitch
+
         if doFresnel and wavelengthInNm is None:
             raise ValueError('get_atmo_propagation: wavelengthInNm is required when doFresnel key is set to correctly simulate physical propagation.')
 
         if not (len(source_dict) > 0):
             raise ValueError('No sources have been set')
 
-        if not (pixel_pupil > 0):
+        if not (self.pixel_pupil > 0):
             raise ValueError('Pixel pupil must be >0')
         
         self. mergeLayersContrib = mergeLayersContrib
-        self.pixel_pupil_size = pixel_pupil
-        self.pixel_pitch = pixel_pitch
+        self.pixel_pupil_size = self.pixel_pupil        
         self.source_dict = source_dict
         if pupil_position is not None:
             self.pupil_position = np.array(pupil_position, dtype=self.dtype)
@@ -62,6 +66,10 @@ class AtmoPropagation(BaseProcessingObj):
         self.inputs['atmo_layer_list'] = InputList(type=Layer,optional=True)                
         self.inputs['common_layer_list'] = InputList(type=Layer)
 
+        self.airmass = 1. / np.cos(np.radians(self.simul_params.zenithAngleInDeg), dtype=self.dtype)        
+        
+
+
     def doFresnel_setup(self):
    
         raise NotImplementedError('Fresnel propagation is not implemented')
@@ -77,16 +85,16 @@ class AtmoPropagation(BaseProcessingObj):
             nlayers = len(layer_list)
             self.propagators = []
 
-            height_layers = np.array([layer.height for layer in self.atmo_layer_list + self.common_layer_list], dtype=self.dtype)
+            height_layers = np.array([layer.height * self.airmass for layer in self.atmo_layer_list + self.common_layer_list], dtype=self.dtype)
             sorted_heights = np.sort(height_layers)
             if not (np.allclose(height_layers, sorted_heights) or np.allclose(height_layers, sorted_heights[::-1])):
                 raise ValueError('Layers must be sorted from highest to lowest or from lowest to highest')
 
             for j in range(nlayers):
                 if j < nlayers - 1:
-                    self.diff_height_layer = layer_list[j].height - layer_list[j + 1].height
+                    self.diff_height_layer = (layer_list[j].height - layer_list[j + 1].height) * self.airmass
                 else:
-                    self.diff_height_layer = layer_list[j].height
+                    self.diff_height_layer = layer_list[j].height * self.airmass
                 
                 diameter = self.pixel_pupil_size * self.pixel_pitch
                 H = field_propagator(self.pixel_pupil_size, diameter, self.wavelengthInNm, self.diff_height_layer, do_shift=True)
@@ -142,7 +150,7 @@ class AtmoPropagation(BaseProcessingObj):
         for source in self.source_dict.values():
             self.interpolators[source] = {}
             for layer in self.atmo_layer_list + self.common_layer_list:
-                diff_height = source.height - layer.height
+                diff_height = (source.height - layer.height) * self.airmass
                 if (layer.height == 0 or (np.isinf(source.height) and source.r == 0)) and \
                                 not self.shiftXY_cond[layer] and \
                                 self.pupil_position is None and \
@@ -166,15 +174,15 @@ class AtmoPropagation(BaseProcessingObj):
         half_pixel_layer -= layer.shiftXYinPixel
 
         if self.pupil_position is not None and pixel_layer > self.pixel_pupil_size and np.isinf(source.height):
-            pixel_position_s = source.r * layer.height / layer.pixel_pitch
+            pixel_position_s = source.r * layer.height * self.airmass / layer.pixel_pitch
             pixel_position = pixel_position_s * cos_sin_phi + self.pupil_position / layer.pixel_pitch
         elif self.pupil_position is not None and pixel_layer > self.pixel_pupil_size and not np.isinf(source.height):
-            pixel_position_s = source.r * source.height / layer.pixel_pitch
+            pixel_position_s = source.r * source.height * self.airmass / layer.pixel_pitch
             sky_pixel_position = pixel_position_s * cos_sin_phi
             pupil_pixel_position = self.pupil_position / layer.pixel_pitch
             pixel_position = (sky_pixel_position - pupil_pixel_position) * layer.height / source.height + pupil_pixel_position
         else:
-            pixel_position_s = source.r * layer.height / layer.pixel_pitch
+            pixel_position_s = source.r * layer.height * self.airmass / layer.pixel_pitch
             pixel_position = pixel_position_s * cos_sin_phi
 
         if np.isinf(source.height):

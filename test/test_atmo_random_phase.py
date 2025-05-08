@@ -7,6 +7,7 @@ import unittest
 
 from specula.data_objects.source import Source
 from specula.processing_objects.atmo_random_phase import AtmoRandomPhase
+from specula.data_objects.simul_params import SimulParams
 
 from test.specula_testlib import cpu_and_gpu
 
@@ -19,9 +20,9 @@ class TestAtmo(unittest.TestCase):
         on_axis_source = Source(polar_coordinates=[0.0, 0.0], magnitude=8, wavelengthInNm=750)
         lgs1_source = Source( polar_coordinates=[45.0, 0.0], height=90000, magnitude=5, wavelengthInNm=589)
 
-        atmo = AtmoRandomPhase(L0=23,  # [m] Outer scale
-                            pixel_pupil=160,
-                            pixel_pitch=0.05,
+        simulParams = SimulParams(pixel_pupil=160, pixel_pitch=0.05)
+        atmo = AtmoRandomPhase(simulParams, 
+                            L0=23,  # [m] Outer scale
                             data_dir=data_dir,
                             source_dict = {'on_axis_source': on_axis_source,
                                             'lgs1_source': lgs1_source},

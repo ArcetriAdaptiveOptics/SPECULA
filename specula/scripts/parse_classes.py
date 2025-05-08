@@ -15,7 +15,7 @@ import sys
 
 exposed_classes = [ 'Source', 'Pupilstop',                    
                     'FuncGenerator', 'BaseOperation', 'AtmoEvolution', 'AtmoInfiniteEvolution', 'AtmoPropagation',
-                    'ModulatedPyramid', 'CCD', 'PyrSlopec', 'Modalrec', 'Integrator', 'DM', 'PSF', 'DataStore'                
+                    'ModulatedPyramid', 'CCD', 'Slopec', 'PyrSlopec', 'Modalrec', 'Integrator', 'IirFilter', 'DM', 'PSF', 'DataStore'                
                   ]
 
 class InitMethodVisitor(ast.NodeVisitor):
@@ -41,7 +41,7 @@ class InitMethodVisitor(ast.NodeVisitor):
                 param_type = annotations.get(param_name, None)
                 is_optional = i >= (total_params - num_defaults)
                 
-                default_value = "value"
+                default_value = "None"
                 if is_optional:
                     default_index = i - (total_params - num_defaults)
                     default_node = node.args.defaults[default_index]
@@ -52,7 +52,7 @@ class InitMethodVisitor(ast.NodeVisitor):
                         if isinstance(default_node, ast.Name):
                             default_value = default_node.id  # Handle names like `np`
                         else:
-                            default_value = "value"
+                            default_value = "None"
 
                 # Construct comment with type and optional status
                 comment = "Required" if not is_optional else f"Optional (default={default_value})"

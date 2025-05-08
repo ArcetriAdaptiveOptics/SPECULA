@@ -16,21 +16,10 @@ class Source(BaseDataObj):
                  height: float=float('inf'),
                  band: str='',
                  zeroPoint: float=0,
-                 zenithAngleInDeg: float=None,  # TODO =0.0,
                  error_coord: tuple=(0., 0.),
                  verbose: bool=False):
         super().__init__()
         
-        if zenithAngleInDeg is not None:
-            airmass = 1. / np.cos(np.radians(zenithAngleInDeg), dtype=self.dtype)
-            height *= airmass
-            print(f'get_source: changing source height by airmass value ({airmass})')
- 
-        # TODO new code to test
-        #airmass = 1. / np.cos(np.radians(zenithAngleInDeg), dtype=self.dtype)
-        #height *= airmass
-        #print(f'get_source: changing source height by airmass value ({airmass})')
-
         polar_coordinates = np.array(polar_coordinates, dtype=self.dtype) + np.array(error_coord, dtype=self.dtype)
         if any(error_coord):
             print(f'there is a desired error ({error_coord[0]},{error_coord[1]}) on source coordinates.')

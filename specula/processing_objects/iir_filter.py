@@ -5,6 +5,7 @@ from specula.base_processing_obj import BaseProcessingObj
 from specula.connections import InputValue
 from specula.base_value import BaseValue
 from specula.lib.calc_loop_delay import calc_loop_delay
+from specula.data_objects.simul_params import SimulParams
 
 class IirFilter(BaseProcessingObj):
     '''Infinite Impulse Response filter based Time Control
@@ -12,7 +13,9 @@ class IirFilter(BaseProcessingObj):
     Set *integration* to False to disable integration, regardless
     of wha the input IirFilter object contains
     '''
-    def __init__(self, iir_filter_data: IirFilterData,
+    def __init__(self,
+                 simul_params: SimulParams,
+                 iir_filter_data: IirFilterData,
                  delay: float=0,
                  integration: bool=True,
                  offset: float=None,
@@ -21,6 +24,10 @@ class IirFilter(BaseProcessingObj):
                  precision=None
                  ):  
 
+        self.simul_params = simul_params
+        self.time_step = self.simul_params.time_step
+       
+        
         self._verbose = True
         self.iir_filter_data = iir_filter_data
         
@@ -67,7 +74,7 @@ class IirFilter(BaseProcessingObj):
         if self._n is not None and self._type is not None:
             self.state = self.xp.zeros((self._n, self._total_length), dtype=self.dtype)
 
-    def auto_params_management(self, main_params, control_params, detector_params, dm_params, slopec_params):
+    def auto_params_management(self, control_params, detector_params, dm_params, slopec_params):
         result = control_params.copy()
 
         if str(result['delay']) == 'auto':
@@ -77,7 +84,7 @@ class IirFilter(BaseProcessingObj):
                                     type=detector_params['name'], bin=binning, comp_time=computation_time)
             if delay == float('inf'):
                 raise ValueError("Delay calculation resulted in infinity")
-            result['delay'] = delay * (1.0 / main_params['time_step']) - 1
+            result['delay'] = delay * (1.0 / self.time_step) - 1
 
         return result
 

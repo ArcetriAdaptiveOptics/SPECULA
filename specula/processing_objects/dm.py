@@ -6,10 +6,11 @@ from specula.data_objects.ifunc import IFunc
 from specula.data_objects.layer import Layer
 from specula.data_objects.pupilstop import Pupilstop
 from specula.base_processing_obj import BaseProcessingObj
+from specula.data_objects.simul_params import SimulParams
 
 class DM(BaseProcessingObj):
     def __init__(self,
-                 pixel_pitch: float,     # TODO =0.05,
+                 simul_params: SimulParams,
                  height: float,          # TODO =0.0,
                  ifunc: IFunc=None,
                  m2c: M2C=None,
@@ -29,6 +30,10 @@ class DM(BaseProcessingObj):
                  ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
+        self.simul_params = simul_params
+        self.pixel_pitch = self.simul_params.pixel_pitch
+       
+
         mask = None
         if pupilstop:
             mask = pupilstop.A
@@ -46,7 +51,7 @@ class DM(BaseProcessingObj):
         nmodes_if = self._ifunc.size[0]
         
         self.if_commands = self.xp.zeros(nmodes_if, dtype=self.dtype)
-        self.layer = Layer(s[0], s[1], pixel_pitch, height, target_device_idx=target_device_idx, precision=precision)
+        self.layer = Layer(s[0], s[1], self.pixel_pitch, height, target_device_idx=target_device_idx, precision=precision)
         self.layer.A = self._ifunc.mask_inf_func
         
         if m2c is not None:

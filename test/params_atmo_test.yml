@@ -1,6 +1,7 @@
 ---
 
 main:
+  class:             'SimulParams'
   root_dir:          './calib'         # Root directory for calibration manager
   pixel_pupil:       80                    # Linear dimension of pupil phase array
   pixel_pitch:       0.1                   # [m] Pitch of the pupil phase array
@@ -34,10 +35,12 @@ on_axis_source:
 
 pupilstop:                                 # Default parameters (circular pupil)
   class: 'Pupilstop'
+  simul_params_ref:     'main'
 
 
 atmo1:
   class:                'AtmoEvolution'
+  simul_params_ref:     'main'
   L0:                   10                   # [m] Outer scale
   heights:              [0.]                 # [m] layer heights at 0 zenith angle
   Cn2:                  [1.00]               # Cn2 weights (total must be eq 1)
@@ -51,6 +54,7 @@ atmo1:
 
 prop1:
   class:                'AtmoPropagation'
+  simul_params_ref:     'main'
   source_dict_ref:      ['on_axis_source']
   inputs:
     atmo_layer_list: ['atmo1.layer_list']
@@ -71,6 +75,7 @@ modal_analysis1:
 
 atmo2:
   class:                'AtmoInfiniteEvolution'
+  simul_params_ref:     'main'
   L0:                   [10]                 # [m] Outer scale
   heights:              [0.]                 # [m] layer heights at 0 zenith angle
   Cn2:                  [1.00]               # Cn2 weights (total must be eq 1)
@@ -84,6 +89,7 @@ atmo2:
 
 prop2:
   class:                'AtmoPropagation'
+  simul_params_ref:     'main'
   source_dict_ref:      ['on_axis_source']
   inputs:
     atmo_layer_list: ['atmo2.layer_list']
