@@ -12,9 +12,9 @@ class DataSource(BaseProcessingObj):
     '''Data source object'''
 
     def __init__(self,
-                outputs,
-                store_dir: str,
-                data_format: str = 'fits'):
+                outputs: list,         # TODO =[],
+                store_dir: str,        # TODO ="",
+                data_format: str='fits'):
         super().__init__()
         self.items = {}
         self.storage = {}

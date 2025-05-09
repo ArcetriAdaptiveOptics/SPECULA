@@ -10,14 +10,14 @@ class MirrorCommandsCombinator(BaseProcessingObj):
 
     def __init__(self,
                  k_vector,
-                 recmat: Recmat=None,
-                 dims_LO=None,
-                 dims_P=None,
-                 dims_F=1,
-                 out_dims=None,
+                 recmat: Recmat,
+                 dims_LO: list=[],
+                 dims_P: int=1,
+                 dims_F: int=1,
+                 out_dims: list=[],
                  # for all processing objects:                 
-                 target_device_idx=None, # thise is always here
-                 precision=None          # thise is always here
+                 target_device_idx: int=None,
+                 precision: int=None
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)        
                 
@@ -78,10 +78,13 @@ class MirrorCommandsCombinator(BaseProcessingObj):
         v11 = self.xp.concatenate( ( x_LO1, x_F, x_HO1 ) )
         v12 = self.xp.concatenate( ( self.z1, self.k_vector * x_LO3, self.z2 ) )
         
-        y1 = v11 + v12 + self.A_matrix.recmat[:self.out_dims[0],:] @ x_P        
+        y1 = v11 + v12
+        if self.dims_P > 0:
+             y1 += self.A_matrix.recmat[:self.out_dims[0],:] @ x_P        
         y2 = x_HO2
         y3 = self.xp.concatenate( ( x_LO3, x_HO3 ) )
 
+        #print(f'{len(y1)=}, {len(y2)=}, {len(y3)=}')
         self.result_commands1.value[:] = y1
         self.result_commands2.value[:] = y2
         self.result_commands3.value[:] = y3

@@ -10,10 +10,11 @@ class GaussianConvolutionKernel(ConvolutionKernel):
     """
     Kernel processing object for Gaussian kernels.
     """
-    
-    def __init__(self, convolGaussSpotSize, dimx, dimy, target_device_idx=None, precision=None):
-        super().__init__(dimx, dimy, target_device_idx=target_device_idx, precision=precision)        
-        self.spotsize = convolGaussSpotSize
+
+    def __init__(self,
+                 target_device_idx: int=None,
+                 precision: int=None):
+        super().__init__(target_device_idx=target_device_idx, precision=precision)
 
     def build(self):
         """
@@ -21,57 +22,58 @@ class GaussianConvolutionKernel(ConvolutionKernel):
         """
         self.orig_dimx = self.dimx
         self.dimx = max(self.dimx, 2)        
-        self.lgs_tt = [-0.5, -0.5] if not self.positiveShiftTT else [0.5, 0.5]
-        self.lgs_tt = [x * self.pxscale for x in self.lgs_tt]        
+        self.lgs_tt = [-0.5, -0.5] if not self.positive_shift_tt else [0.5, 0.5]
+        self.lgs_tt = [x * self.pxscale for x in self.lgs_tt]
         self.hash_arr = [
-            self.dimx, self.pupil_size_m, 90e3, self.spotsize,
+            self.dimx, self.pupil_size_m, 90e3, self.spot_size,
             self.pxscale, self.dimension, 3, self.lgs_tt, [0, 0, 0], [90e3], [1.0]
         ]
         return 'ConvolutionKernel' + self.generate_hash()        
 
     def calculate_lgs_map(self):
-        real_kernels = lgs_map_sh(
-            self.dimx, self.pupil_size_m, 0, 90e3, [0], profz=[1.0], fwhmb=self.spotsize, ps=self.pxscale,
+        self.real_kernels = lgs_map_sh(
+            self.dimx, self.pupil_size_m, 0, 90e3, [0], profz=[1.0], fwhmb=self.spot_size, ps=self.pxscale,
             ssp=self.dimension, overs=1, theta=self.lgs_tt, xp=self.xp )
-        self.kernels = self.xp.zeros_like(real_kernels, dtype=self.complex_dtype)
-        for i in range(self.dimx):
-            for j in range(self.dimy):
-                subap_kern = self.xp.array(real_kernels[j * self.dimx + i, :, :])
-                subap_kern /= self.xp.sum(subap_kern)
-                subap_kern_fft = self.xp.fft.ifft2(subap_kern)
-                self.kernels[j * self.dimx + i, :, :] = subap_kern_fft
-        
-    def save(self, filename, hdr=None):
-        if hdr is None:
-            hdr = fits.Header()
-        hdr['VERSION'] = 1
-        hdr['SPOTSIZE'] = self.spotsize
-        hdr['DIMX'] = self.dimx
-        hdr['DIMY'] = self.dimy
-        hdr['PXSCALE'] = self.pxscale
-        hdr['DIMENSION'] = self.dimension
-        hdr['OVERSAMPLING'] = self.oversampling
-        hdr['POSITIVESHIFTTT'] = self.positiveShiftTT
-        hdu1 = fits.PrimaryHDU(np.real(cpuArray(self.kernels)), header=hdr)
-        hdu2 = fits.ImageHDU(np.imag(cpuArray(self.kernels)), header=hdr)
-        hdul = fits.HDUList([hdu1, hdu2])
-        hdul.writeto(filename, overwrite=True)
-                        
+
+        self.process_kernels(return_fft=self.return_fft)
 
     @staticmethod
-    def restore(filename, target_device_idx=None):
+    def restore(filename, target_device_idx=None, kernel_obj=None, return_fft=False):
+        """
+        Restore a ConvolutionKernel object from a FITS file.
 
-        with fits.open(filename) as hdul:
-            hdr = hdul[0].header
-            version = int(hdr['VERSION'])
-            c = GaussianConvolutionKernel(hdr['SPOTSIZE'], hdr['DIMX'], hdr['DIMY'], target_device_idx=target_device_idx)
-            c.pxscale = hdr['PXSCALE']
-            c.dimension = hdr['DIMENSION']
-            c.oversampling = hdr['OVERSAMPLING']
-            c.positiveShiftTT = hdr['POSITIVESHIFTTT']
-            dr = c.xp.asarray(hdul[0].data)
-            dc = c.xp.asarray(hdul[1].data)
-            c.kernels = c.xp.empty_like(dr, dtype=c.complex_dtype)
-            c.kernels.real = dr
-            c.kernels.imag = dc
-            return c
+        Parameters:
+            filename (str): Path to the FITS file
+            target_device_idx (int, optional): Target device index for GPU processing
+            return_fft (bool, optional): Whether to return FFT of the kernel
+    
+        Returns:
+            ConvolutionKernel: The restored ConvolutionKernel object
+        """
+        hdr = fits.getheader(filename, ext=0)  # Get header from primary HDU
+
+        version = int(hdr['VERSION'])
+        if kernel_obj is None:
+            kernel_obj = ConvolutionKernel(target_device_idx=target_device_idx)
+        else:
+            # If a kernel object is provided, use it
+            # check if the spot size matches
+            if kernel_obj.spot_size != hdr['SPOTSIZE']:
+                raise ValueError("Provided kernel object spot size does not match the FITS file spot size")
+            # check if the dimensions match
+            if kernel_obj.dimx != hdr['DIMX'] or kernel_obj.dimy != hdr['DIMY']:
+                raise ValueError("Provided kernel object dimensions do not match the FITS file dimensions")
+
+        # Read properties from header
+        kernel_obj.dimx = hdr['DIMX']
+        kernel_obj.dimy = hdr['DIMY']
+        kernel_obj.spot_size = hdr['SPOTSIZE']
+        kernel_obj.pxscale = hdr['PXSCALE']
+        kernel_obj.dimension = hdr['DIM']
+        kernel_obj.oversampling = hdr['OVERSAMP']
+        kernel_obj.positive_shift_tt = hdr['POSTT']
+
+        # Read the kernel data from extension 1
+        kernel_obj.real_kernels = kernel_obj.xp.array(fits.getdata(filename, ext=1))       
+        kernel_obj.process_kernels(return_fft=return_fft)
+        return kernel_obj

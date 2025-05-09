@@ -1,0 +1,48 @@
+
+
+pushpull:
+  class:     'FuncGenerator'
+  func_type: 'PUSHPULLREPEAT'
+  ncycles:    2
+  nmodes:     700
+  vect_amplitude_data:  'data50_1127'
+  outputs: ['output']
+
+main_override:
+  total_time:  1.4
+
+prop_override:
+  inputs:
+    common_layer_list: ['pupilstop',
+                  'dm.out_layer']
+
+source_on_axis_override:
+  polar_coordinates:  [0.0, 0.0]         # [arcsec, degrees] source polar coordinates
+  magnitude:         7.0  
+
+dm_override:
+  sign: 1
+  inputs:
+      in_command: 'pushpull.output'
+
+
+detector_override:
+  photon_noise:      False
+  readout_noise:     False
+
+calibrator:
+  class: 'ImRecCalibrator'
+  nmodes: 700
+  rec_tag:     'eris_rec'
+  im_tag:  'eris_im'
+  #tag_template:    'subap_{main.tag}_n{modes}'
+  inputs:
+    in_slopes: 'slopec.out_slopes'
+    in_commands: 'pushpull.output'
+  outputs: ['out_im']
+
+remove: ['atmo',
+'modalrec',
+'integrator',
+'psf',
+  ]

@@ -10,7 +10,7 @@ class Modalrec(BaseProcessingObj):
     '''Modal reconstructor'''
 
     def __init__(self,
-                 nmodes: int=None,
+                 nmodes: int=None,      # TODO =0,
                  recmat: Recmat=None,
                  projmat: Recmat=None,
                  intmat: Intmat=None,
@@ -21,8 +21,11 @@ class Modalrec(BaseProcessingObj):
                  nSlopesToBeDiscarded: int=None,
                  dmNumber: int=0,
                  noProj: bool=False,
-                 target_device_idx=None, 
-                 precision=None
+                 input_modes_index: list=None,
+                 input_modes_slice: list=None,
+                 output_slice: list=None,
+                 target_device_idx: int=None,
+                 precision: int=None
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
@@ -34,6 +37,7 @@ class Modalrec(BaseProcessingObj):
         else:
             if recmat is None:
                 if identity:
+#                    if nmodes<=0:  # TODO new code to be tested
                     if nmodes is None:
                         raise ValueError('modalrec nmodes key must be set!')
                     recmat = Recmat(self.xp.identity(nmodes),
@@ -72,7 +76,22 @@ class Modalrec(BaseProcessingObj):
         self.intmat = intmat
         self.polc = polc
         # self.layer_modes_list = None
-        self.past_step_list = []
+        self.input_modes_index = input_modes_index
+
+        if output_slice is not None:
+            self.output_slice = slice(*output_slice)
+            start = self.output_slice.start if self.output_slice.start is not None else 0
+            stop = self.output_slice.stop if self.output_slice.stop is not None else self.recmat.recmat.shape[0]
+            step = abs(self.output_slice.step) if self.output_slice.step is not None else 1
+            nmodes = (stop - start) // step
+        else:
+            self.output_slice = slice(None, None, None)
+            nmodes = self.recmat.recmat.shape[0]
+
+        if input_modes_slice is not None:
+            self.input_modes_slice = slice(*input_modes_slice)
+        else:
+            self.input_modes_slice = slice(None, None, None)
 
         self.modes = BaseValue('output modes from modal reconstructor', target_device_idx=target_device_idx)
         self.pseudo_ol_modes = BaseValue('output POL modes from modal reconstructor', target_device_idx=target_device_idx)        
@@ -83,15 +102,14 @@ class Modalrec(BaseProcessingObj):
         self.outputs['out_pseudo_ol_modes'] = self.pseudo_ol_modes
         
         # TODO static allocation but polc not supported (should use projmat)
-        self.modes.value = self.xp.zeros(self.recmat.recmat.shape[0], dtype=self.dtype)
-        self.pseudo_ol_modes.value = self.xp.zeros(self.recmat.recmat.shape[0], dtype=self.dtype)
+        self.modes.value = self.xp.zeros(nmodes, dtype=self.dtype)
+        self.pseudo_ol_modes.value = self.xp.zeros(nmodes, dtype=self.dtype)
         
         if self.polc:
             self.out_comm = BaseValue('output commands from modal reconstructor', target_device_idx=target_device_idx)
             self.inputs['in_commands'] = InputValue(type=BaseValue, optional=True)
             self.inputs['in_commands_list'] = InputList(type=BaseValue, optional=True)            
             # TODO complete static allocation above
-            raise NotImplementedError
 
     def trigger_code(self):
         if self.recmat.recmat is None:
@@ -110,41 +128,44 @@ class Modalrec(BaseProcessingObj):
             commands_list = self.local_inputs['in_commands_list']
             if commandsobj is None:
                 commandsobj = commands_list
-                commands = self.xp.hstack([x.commands for x in commands_list])
+                commands = self.xp.hstack([x.value for x in commands_list]) # TODO this line does not work on the first step
             else:
-                commands = self.xp.array( commandsobj.value, dtype=self.dtype)
+                commands = self.xp.array(commandsobj.value, dtype=self.dtype)
 
             # this is true on the first step only
             if commandsobj is None or commands.shape == ():
-                comm_slopes = self.xp.zeros_like(slopes)
                 if self.projmat is None:
                     commands = self.xp.zeros(self.recmat.recmat.shape[0])
                 else:
                     commands = self.xp.zeros(self.projmat.recmat.shape[0])
-            else:
-                comm_slopes = self.intmat._intmat @ commands
+            
+            if self.input_modes_index is not None:
+                commands = commands[self.input_modes_index]
+
+            if self.input_modes_slice is not None:
+                commands = commands[self.input_modes_slice]
+
+            print(f'POLC: {self.intmat._intmat.shape=}, {commands.shape=}')
+            comm_slopes = self.intmat._intmat @ commands
             slopes += comm_slopes
             self.pseudo_ol_modes.value = self.recmat.recmat @ slopes
             self.pseudo_ol_modes.generation_time = self.current_time
             if self.projmat is None:
-                self.modes.value = self.pseudo_ol_modes.value
+                output_modes = self.pseudo_ol_modes.value
             else:
-                self.modes.value = self.projmat.recmat @ self.pseudo_ol_modes.value
-            self.modes.value -= commands
+                output_modes = self.projmat.recmat @ self.pseudo_ol_modes.value
+            output_modes -= commands
             
         else:
-            self.modes.value = self.recmat.recmat @ slopes
+            output_modes = self.recmat.recmat @ slopes
 
+        self.modes.value = output_modes[self.output_slice]
         self.modes.generation_time = self.current_time
 
         #if self.layer_modes_list is not None:
         #    for i, idx_list in enumerate(self.layer_idx_list):
         #        self.layer_modes_list[i].value = self.modes_first_step.value[idx_list]
         #        self.layer_modes_list[i].generation_time = self.current_time
-
-
-        #if self.polc and not commands is None:
-        #    self.modes.value -= commands
 
     def setup(self, loop_dt, loop_niters):
         super().setup(loop_dt, loop_niters)
@@ -160,5 +181,7 @@ class Modalrec(BaseProcessingObj):
             if not self.intmat:
                 raise ValueError("Intmat object not valid")
 
-
-
+            commands = self.inputs['in_commands'].get(self.target_device_idx)
+            commands_list = self.inputs['in_commands_list'].get(self.target_device_idx)
+            if not commands and (not commands_list or not all(commands_list)):
+                raise ValueError("When POLC is used, either 'commands' or 'commands_list' must be given as an input")

@@ -6,27 +6,33 @@ from specula.data_objects.ifunc import IFunc
 from specula.data_objects.layer import Layer
 from specula.data_objects.pupilstop import Pupilstop
 from specula.base_processing_obj import BaseProcessingObj
+from specula.data_objects.simul_params import SimulParams
 
 class DM(BaseProcessingObj):
     def __init__(self,
-                 pixel_pitch: float,
-                 height: float,
+                 simul_params: SimulParams,
+                 height: float,          # TODO =0.0,
                  ifunc: IFunc=None,
                  m2c: M2C=None,
                  type_str: str=None,
                  nmodes: int=None,
                  nzern: int=None,
                  start_mode: int=None,
+                 input_offset: int=0,
                  idx_modes = None,
                  npixels: int=None,
                  obsratio: float=None,
                  diaratio: float=None,
                  pupilstop: Pupilstop=None,
                  sign: int=-1,
-                 target_device_idx=None, 
-                 precision=None
+                 target_device_idx: int=None, 
+                 precision: int=None
                  ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
+
+        self.simul_params = simul_params
+        self.pixel_pitch = self.simul_params.pixel_pitch
+       
 
         mask = None
         if pupilstop:
@@ -45,7 +51,7 @@ class DM(BaseProcessingObj):
         nmodes_if = self._ifunc.size[0]
         
         self.if_commands = self.xp.zeros(nmodes_if, dtype=self.dtype)
-        self.layer = Layer(s[0], s[1], pixel_pitch, height, target_device_idx=target_device_idx, precision=precision)
+        self.layer = Layer(s[0], s[1], self.pixel_pitch, height, target_device_idx=target_device_idx, precision=precision)
         self.layer.A = self._ifunc.mask_inf_func
         
         if m2c is not None:
@@ -56,13 +62,20 @@ class DM(BaseProcessingObj):
             self.m2c = None
             self.m2c_commands = None
 
+        self.input_offset = input_offset
+        self.nmodes = nmodes
+
         # Default sign is -1 to take into account the reflection in the propagation
         self.sign = sign
         self.inputs['in_command'] = InputValue(type=BaseValue)
         self.outputs['out_layer'] = self.layer
-
+        
     def trigger_code(self):
         input_commands = self.local_inputs['in_command'].value
+        
+        if self.nmodes is not None:
+            input_commands = input_commands[self.input_offset: self.input_offset + self.nmodes]
+
         if self.m2c is not None:
             self.m2c_commands[:len(input_commands)] = input_commands
             cmd = self.m2c @ self.m2c_commands

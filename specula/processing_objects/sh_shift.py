@@ -4,9 +4,15 @@ class ShShift(BaseProcessingObj):
     '''
     TODO not yet working
     '''
-    def __init__(self, params_sh, params_main, shift_wavelength_in_nm, xy_shift, qe_factor, resize_fact, 
-                 target_device_idx=None, 
-                 precision=None):
+    def __init__(self, 
+                 params_sh, 
+                 params_main, 
+                 shift_wavelength_in_nm, 
+                 xy_shift, 
+                 qe_factor, 
+                 resize_fact, 
+                 target_device_idx: int=None, 
+                 precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         raise NotImplementedError
@@ -30,7 +36,7 @@ class ShShift(BaseProcessingObj):
 
     def do_factory(self, params_main):
         # Build the objects in function of the shift
-        factory = Factory(params_main, GPU=self._GPU)
+        factory = object() # Factory(params_main, GPU=self._GPU)
 
         self._ef_shift = self.xp.empty(self._n_shift, dtype=object)
         self._ef_resize = self.xp.empty(self._n_shift, dtype=object)
@@ -104,29 +110,6 @@ class ShShift(BaseProcessingObj):
         self._ef_resize = None
         self._sh = None
 
-# Helper classes for the functionality (e.g., `Factory`, `BaseProcessingObj`)
-class Factory:
-    def __init__(self, params_main, GPU):
-        # Assume this initializes a factory for SH, EF objects
-        pass
 
-    def get_sh(self, params_sh, GPU):
-        # Return an SH object based on params_sh and GPU
-        pass
 
-    def get_ef_shift(self, params_ef_shift):
-        # Return an EF shift object
-        pass
 
-    def get_ef_resize(self, params_ef_resize):
-        # Return an EF resize object
-        pass
-
-class BaseProcessingObj:
-    def __init__(self, name, description):
-        self.name = name
-        self.description = description
-
-    def cleanup(self):
-        # Basic cleanup functionality
-        pass

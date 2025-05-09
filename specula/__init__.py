@@ -2,7 +2,6 @@ import numpy as np
 import os
 import functools
 from functools import wraps
-#from numba import jit as numbajit # Not used at the moment
 
 cpu_float_dtype_list = [np.float64, np.float32]
 cpu_complex_dtype_list = [np.complex128, np.complex64]
@@ -89,6 +88,10 @@ def init(device_idx=-1, precision=0):
     global_precision = precision
     float_dtype = float_dtype_list[global_precision]
     complex_dtype = complex_dtype_list[global_precision]
+    
+    # Patch cupy's missing RandomState.random() method
+    if cp is not None:
+        cp.random.RandomState.random = cp.random.RandomState.random_sample
 
 # should be used as less as a possible and prefarably outside time critical computations
 def cpuArray(v):
@@ -158,33 +161,3 @@ def fuse(kernel_name=None):
                 return f_cpu(*args, **kwargs)
         return wrapper
     return decorator
-
-# cpujit = numbajit # Not used at the moment
-
-#def cpujit(nopython=True):
-#    def decorator(f):
-#        f_cp = functools.partial(f, xp=cp)
-#        f_np = functools.partial(f, xp=np)
-##        f_cpu = f_np
-#        f_gpu = f_cp
-#        f_cpu =  numbajit(nopython=nopython)(f_np) 
-#        @wraps(f)
-#        def wrapper(*args, xp, **kwargs):
-#            if xp==np:
-#                return f_cpu(*args, **kwargs)
-#            else:
-#                return f_gpu(*args, **kwargs)
-#            return wrapper
-#    return decorator
-
-'''
-Replacement of numba.jit() allowing runtime
-dispatch to cupy or numpy.
-
-jitted function takes an xp argument that will
-cause it to run as a jitted function or a standard
-function. The xp argument can be used
-inside the function as usual.
-
-Parameters are the same as cp.fuse()
-'''

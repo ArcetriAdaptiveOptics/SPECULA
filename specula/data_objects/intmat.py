@@ -1,5 +1,5 @@
 
-
+import numpy as np
 from astropy.io import fits
 from specula import cpuArray
 
@@ -9,36 +9,36 @@ from specula.data_objects.recmat import Recmat
 class Intmat(BaseDataObj):
     def __init__(self,
                  intmat,
-                 slope_mm = None,
-                 slope_rms = None,
+                 slope_mm: list = None,
+                 slope_rms: list = None,
                  pupdata_tag: str = '',
                  norm_factor: float= 0.0,
-                 target_device_idx=None,
-                 precision=None):
+                 target_device_idx: int=None,
+                 precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-        self._intmat = self.xp.array(intmat)
-        self._slope_mm = slope_mm
-        self._slope_rms = slope_rms
-        self._pupdata_tag = pupdata_tag
-        self._norm_factor = norm_factor
+        self.intmat = self.xp.array(intmat)
+        self.slope_mm = slope_mm
+        self.slope_rms = slope_rms
+        self.pupdata_tag = pupdata_tag
+        self.norm_factor = norm_factor
 
     def reduce_size(self, n_modes_to_be_discarded):
-        nmodes = self._intmat.shape[0]
+        nmodes = self.intmat.shape[0]
         if n_modes_to_be_discarded >= nmodes:
             raise ValueError(f'nModesToBeDiscarded should be less than nmodes (<{nmodes})')
-        self._intmat = self._intmat[:nmodes - n_modes_to_be_discarded, :]
+        self.intmat = self.intmat[:nmodes - n_modes_to_be_discarded, :]
 
     def reduce_slopes(self, n_slopes_to_be_discarded):
-        nslopes = self._intmat.shape[1]
+        nslopes = self.intmat.shape[1]
         if n_slopes_to_be_discarded >= nslopes:
             raise ValueError(f'nSlopesToBeDiscarded should be less than nslopes (<{nslopes})')
-        self._intmat = self._intmat[:, :nslopes - n_slopes_to_be_discarded]
+        self.intmat = self.intmat[:, :nslopes - n_slopes_to_be_discarded]
 
     def set_start_mode(self, start_mode):
-        nmodes = self._intmat.shape[0]
+        nmodes = self.intmat.shape[0]
         if start_mode >= nmodes:
             raise ValueError(f'start_mode should be less than nmodes (<{nmodes})')
-        self._intmat = self._intmat[start_mode:, :]
+        self.intmat = self.intmat[start_mode:, :]
 
     def save(self, filename, hdr=None):
         if not filename.endswith('.fits'):
@@ -46,38 +46,40 @@ class Intmat(BaseDataObj):
         if hdr is None:
             hdr = fits.Header()
         hdr['VERSION'] = 1
-        hdr['PUP_TAG'] = self._pupdata_tag
-        hdr['NORMFACT'] = self._norm_factor
+        hdr['PUP_TAG'] = self.pupdata_tag
+        hdr['NORMFACT'] = self.norm_factor
         # Save fits file
-        fits.writeto(filename, cpuArray(self._intmat), hdr, overwrite=True)
-        if self._slope_mm is not None:
-            fits.append(filename, self._slope_mm)
-        if self._slope_rms is not None:
-            fits.append(filename, self._slope_rms)
+        fits.writeto(filename, np.zeros(2), hdr, overwrite=True)
+        fits.append(filename, cpuArray(self.intmat))
+        if self.slope_mm is not None:
+            fits.append(filename, self.slope_mm)
+        if self.slope_rms is not None:
+            fits.append(filename, self.slope_rms)
 
     @staticmethod
-    def restore(filename, hdr=None, exten=0, target_device_idx=None):
-        intmat = fits.getdata(filename, ext=exten)
-        hdr = fits.getheader(filename, ext=exten)
+    def restore(filename, hdr=None, target_device_idx=None):
+        hdr = fits.getheader(filename, ext=0)
+        intmat = fits.getdata(filename, ext=1)
         norm_factor = float(hdr.get('NORMFACT', 0.0))
         pupdata_tag = hdr.get('PUP_TAG', '')
         # Reading additional fits extensions
         num_ext = len(fits.open(filename))
-        if num_ext >= exten + 2:
-            slope_mm = fits.getdata(filename, ext=exten + 1)
-            slope_rms = fits.getdata(filename, ext=exten + 2)
+        if num_ext >= 4:
+            slope_mm = fits.getdata(filename, ext=2)
+            slope_rms = fits.getdata(filename, ext=3)
         else:
             slope_mm = slope_rms = None
         return Intmat(intmat, slope_mm, slope_rms, pupdata_tag, norm_factor, target_device_idx=target_device_idx)
 
+
     def generate_rec(self, nmodes=None, cut_modes=0, w_vec=None, interactive=False):
         if nmodes is not None:
-            intmat = self._intmat[:nmodes, :]
+            intmat = self.intmat[:nmodes, :]
         else:
-            intmat = self._intmat
+            intmat = self.intmat
         recmat = self.pseudo_invert(intmat, n_modes_to_drop=cut_modes, w_vec=w_vec, interactive=interactive)
         rec = Recmat(recmat)
-        rec.im_tag = self._norm_factor
+        rec.im_tag = self.norm_factor  # TODO wrong
         return rec
 
     def pseudo_invert(self, matrix, n_modes_to_drop=0, w_vec=None, interactive=False):

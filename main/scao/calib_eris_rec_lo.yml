@@ -13,11 +13,11 @@ main_override:
 
 prop_override:
   inputs:
-    layer_list: ['pupilstop',
+    common_layer_list: ['pupilstop',
                   'dm.out_layer']
 
 source_on_axis_override:
-  polar_coordinate:  [0.0, 0.0]         # [arcsec, degrees] source polar coordinates
+  polar_coordinates:  [0.0, 0.0]         # [arcsec, degrees] source polar coordinates
   magnitude:         7.0  
 
 dm_override:

@@ -3,25 +3,29 @@ from astropy.io import fits
 
 from specula.data_objects.layer import Layer
 from specula.lib.make_mask import make_mask
-
+from specula.data_objects.simul_params import SimulParams
 
 class Pupilstop(Layer):
     '''Pupil stop'''
 
     def __init__(self,
-                 pixel_pupil: int,
-                 pixel_pitch: float,
+                 simul_params: SimulParams,
                  input_mask = None,
                  mask_diam: float=1.0,
                  obs_diam: float=None,
-                 shiftXYinPixel=(0.0, 0.0),
+                 shiftXYinPixel: tuple=(0.0, 0.0),
                  rotInDeg: float=0.0,
                  magnification: float=1.0,
                  target_device_idx: int=None,
                  precision: int=None):
 
-        super().__init__(pixel_pupil, pixel_pupil, pixel_pitch, height=0, target_device_idx=target_device_idx, precision=precision,
-                         shiftXYinPixel=shiftXYinPixel, rotInDeg=rotInDeg, magnification=magnification)
+        self.simul_params = simul_params
+        self.pixel_pupil = self.simul_params.pixel_pupil
+        self.pixel_pitch = self.simul_params.pixel_pitch
+
+        super().__init__(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, height=0,
+                        shiftXYinPixel=shiftXYinPixel, rotInDeg=rotInDeg, magnification=magnification,
+                        target_device_idx=target_device_idx, precision=precision)
 
         self._input_mask = input_mask
         self._mask_diam = mask_diam
@@ -31,7 +35,7 @@ class Pupilstop(Layer):
             self._input_mask = self.xp.array(input_mask)
             mask_amp = self._input_mask
         else:
-            mask_amp = make_mask(pixel_pupil, obs_diam, mask_diam, xp=self.xp)
+            mask_amp = make_mask(self.pixel_pupil, obs_diam, mask_diam, xp=self.xp)
         self.A = mask_amp
 
         # Initialise time for at least the first iteration
@@ -60,7 +64,8 @@ class Pupilstop(Layer):
         dim = fits.getdata(filename, ext=2)
         pixel_pitch = fits.getdata(filename, ext=3)[0]
 
-        pupilstop = Pupilstop(dim[0], pixel_pitch, input_mask=input_mask, target_device_idx=target_device_idx)
+        tempParams = SimulParams(dim[0], pixel_pitch)
+        pupilstop = Pupilstop(tempParams, input_mask=input_mask, target_device_idx=target_device_idx)
         return pupilstop
 
     # TODO: this is a data object, not a processing object

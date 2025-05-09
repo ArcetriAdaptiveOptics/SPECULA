@@ -12,7 +12,9 @@ class PupData(BaseDataObj):
     to avoid the later initialization (see test/test_slopec.py for an example),
     where things can be forgotten easily
     '''
-    def __init__(self, target_device_idx=None, precision=None):
+    def __init__(self,
+                 target_device_idx: int=None,
+                 precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         self.radius = self.xp.zeros(4, dtype=self.dtype)
         self.cx = self.xp.zeros(4, dtype=self.dtype)
@@ -61,13 +63,11 @@ class PupData(BaseDataObj):
         fits.append(filename, self.cy)
 
     def read(self, filename, hdr=None, exten=1):
-        #hdr, exten = super().read(filename)
-
+        super().read(filename)
         self.ind_pup = self.xp.array(fits.getdata(filename, ext=exten))
         self.radius = self.xp.array(fits.getdata(filename, ext=exten + 1))
         self.cx = self.xp.array(fits.getdata(filename, ext=exten + 2))
         self.cy = self.xp.array(fits.getdata(filename, ext=exten + 3))
-        exten += 4
 
     @staticmethod
     def restore(filename, target_device_idx=None):

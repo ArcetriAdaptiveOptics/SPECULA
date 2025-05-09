@@ -20,20 +20,23 @@ class CalibManager():
             'AtmoEvolution': 'phasescreens/',
             'AtmoInfiniteEvolution': 'phasescreens/',
             'slopenull': 'slopenulls/',
+            'SnCalibrator': 'slopenulls/',
             'sn': 'slopenulls/',
             'background': 'backgrounds/',
             'pupils': 'pupils/',
             'pupdata': 'pupils',
             'subapdata': 'subapdata/',
             'ShSubapCalibrator': 'subapdata/',
+            'iir_filter_data': 'filter/',
             'rec': 'rec/',
             'recmat': 'rec/',
             'intmat': 'im/',
-            'projmat': 'proj/',
+            'projmat': 'rec/',
             'ImRecCalibrator': 'rec/',
             'MultiImRecCalibrator': 'rec/',
             'im': 'im/',
             'ifunc': 'ifunc/',
+            'ifunc_inv': 'ifunc/',
             'm2c': 'm2c/',
             'filter': 'filter/',
             'kernel': 'kernels/',
@@ -84,7 +87,10 @@ class CalibManager():
         """
         Build the filename for a given subdir and name.
         """
-        return self.joinpath(self._root_dir, self._subdirs[subdir], name + '.fits')
+        fname = self.joinpath(self._root_dir, self._subdirs[subdir], name)
+        if not fname.endswith('.fits'):
+            fname += '.fits'
+        return fname
 
     def writefits(self, subdir, name, data):
         """

@@ -29,7 +29,7 @@ ExtendedSource = IdealWFS = IdealWFSSlopec = IntegratorOpt = IntegratorAutoGain 
 LUTControl = MatFilter = Kernel = LIFT = ModalAnalysisWFS = ModalRecNN = ModalRecNNMulti = object
 IIRControlState = IntegratorMat = LIFT_SH_Slopec = M2CRec = ModalAnalysis = ModalAnalysisSlopec = AVC = object
 ModalRecNNPython = ModalRecCured = ModalRecDisplay = ShShift = ShTilt = PyrTilt = OptGainControl = object
-IIRFilter = IIRFilterState = object
+IirFilter = IirFilterState = object
 
 def zern2phi(*args, **kwargs):
     pass
@@ -956,7 +956,7 @@ class Factory:
         """
         params = self.ensure_dictionary(params)
 
-        polar_coordinate = params.pop('polar_coordinate')
+        polar_coordinates = params.pop('polar_coordinates')
         height = params.pop('height')
         magnitude = params.pop('magnitude')
         wavelengthInNm = params.pop('wavelengthInNm')
@@ -990,7 +990,7 @@ class Factory:
         if kernel4PSF_conv_tag and kernel4PSF_conv is None:
             kernel4PSF_conv = self._cm.read_data(kernel4PSF_conv_tag)
 
-        polar_coordinate += error_coord
+        polar_coordinates += error_coord
 
         if 'zenithAngleInDeg' in self._main:
             airmass = 1.0 / xp.cos(xp.radians(self._main['zenithAngleInDeg']))
@@ -1002,7 +1002,7 @@ class Factory:
         if focusHeight is not None:
             focusHeight *= airmass
 
-        extended_source = ExtendedSource(polar_coordinate, height, magnitude, wavelengthInNm, multiples_fwhm, d_tel, source_type, 
+        extended_source = ExtendedSource(polar_coordinates, height, magnitude, wavelengthInNm, multiples_fwhm, d_tel, source_type, 
                                         band=band, zeroPoint=zeroPoint, size_obj=size_obj, xy_array=xy_array, 
                                         sampling_type=sampling_type, layerHeight=layerHeight, intensityProfile=intensityProfile, 
                                         ttProfile=ttProfile, focusHeight=focusHeight, n_rings=n_rings, show_source=show_source, 
@@ -1190,7 +1190,7 @@ class Factory:
         offset: Offset value
 
         Returns:
-        IIRFilter: IIR Control processing object
+        IirFilter: IIR Control processing object
         """
         params = self.ensure_dictionary(params)
 
@@ -1200,7 +1200,7 @@ class Factory:
         iir_tag = params.pop('iir_tag')
         iir_filter_data = self._cm.read_iir_filter_data(iir_tag)
 
-        iirc = IIRFilter(iir_filter_data, delay=delay)
+        iirc = IirFilter(iir_filter_data, delay=delay)
 
         if offset is not None:
             iirc.offset = offset
@@ -1221,7 +1221,7 @@ class Factory:
         offset: Offset value
 
         Returns:
-        IIRFilterState: IIR Control State processing object
+        IirFilterState: IIR Control State processing object
         """
         params = self.ensure_dictionary(params)
 
@@ -1231,7 +1231,7 @@ class Factory:
         iir_tag = params.pop('iir_tag')
         iir_filter_data = self._cm.read_iir_filter_data(iir_tag)
 
-        iirc = IIRFilterState(iir_filter_data, delay=delay)
+        iirc = IirFilterState(iir_filter_data, delay=delay)
 
         if offset is not None:
             iirc.offset = offset
@@ -2295,7 +2295,7 @@ class Factory:
 
         for i in range(len(x)):
             p = {
-                'polar_coordinate': [r[i], phi[i]],
+                'polar_coordinates': [r[i], phi[i]],
                 'height': height,
                 'magnitude': magnitude,
                 'wavelengthInNm': wavelengthInNm

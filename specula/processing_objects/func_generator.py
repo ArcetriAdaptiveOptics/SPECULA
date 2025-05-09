@@ -12,21 +12,36 @@ class Vibrations():
 
 
 class FuncGenerator(BaseProcessingObj):
-    def __init__(self, func_type='SIN', nmodes=None, time_hist=None, psd=None, fr_psd=None, continuous_psd=None, 
-                constant=None, amp=None, freq=None, offset=None, vect_amplitude=None, 
-                seed=None, ncycles=1,
-                vsize=1,
-                target_device_idx=None, 
-                precision=None
+    def __init__(self, 
+                 func_type='SIN', 
+                 nmodes: int=None, 
+                 time_hist=None, 
+                 psd=None, 
+                 fr_psd=None, 
+                 continuous_psd=None, 
+                 constant: list=None, 
+                 amp: list=None, 
+                 freq: list=None, 
+                 offset: list=None, 
+                 vect_amplitude: list=None,
+                 nsamples: int=1,
+                 seed: int=None, 
+                 ncycles: int=1,
+                 vsize: int=1,
+                 target_device_idx: int=None, 
+                 precision: int=None
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.type = func_type.upper()
         if self.type == 'PUSHPULLREPEAT':
-            self.repeat_ncycles = True
+            repeat_ncycles = True
             self.type = 'PUSHPULL'
         else:
-            self.repeat_ncycles = False
+            repeat_ncycles = False
+
+        if nsamples != 1 and self.type != 'PUSHPULL':
+            raise ValueError('nsamples can only be used with PUSHPULL or PUSHPULLREPEAT types')
 
         if str(seed).strip() == 'auto':
             self.seed = self.xp.around(self.xp.random.random() * 1e4)
@@ -92,7 +107,7 @@ class FuncGenerator(BaseProcessingObj):
                 raise ValueError('NMODES keyword is mandatory for type PUSHPULL')
             if amp is None and vect_amplitude is None:
                 raise ValueError('AMP or VECT_AMPLITUDE keyword is mandatory for type PUSHPULL')
-            self.time_hist = modal_pushpull_signal(nmodes, amplitude=amp, vect_amplitude=vect_amplitude, ncycles=ncycles, repeat_ncycles=self.repeat_ncycles)
+            self.time_hist = modal_pushpull_signal(nmodes, amplitude=amp, vect_amplitude=vect_amplitude, ncycles=ncycles, repeat_ncycles=repeat_ncycles, nsamples=nsamples)
 
         elif self.type == 'TIME_HIST':
             if time_hist is None:
@@ -135,7 +150,7 @@ class FuncGenerator(BaseProcessingObj):
 
     def post_trigger(self):
         
-        if self.vsize>1:
+        if self.vsize > 1:
             self.output.value[:] = self.output_value * self.xp.ones(self.vsize, dtype=self.dtype)
         else:
             self.output.value = self.output_value

@@ -7,6 +7,8 @@ from specula.lib.utils import unravel_index_2d
 from specula.data_objects.slopes import Slopes
 from specula.data_objects.subap_data import SubapData
 from specula.base_value import BaseValue
+from specula.data_objects.intmat import Intmat
+from specula.data_objects.recmat import Recmat
 
 from specula.processing_objects.slopec import Slopec
 
@@ -26,10 +28,12 @@ class ShSlopec(Slopec):
                  sn: Slopes=None,
                  thr_value: float = -1,
                  exp_weight: float = 1.0,
+                 filtmat=None,
                  corr_template = None,                
                  target_device_idx: int = None, 
-                 precision: int = None ):
-        super().__init__(sn=sn, target_device_idx=target_device_idx, precision=precision)
+                 precision: int = None):
+        super().__init__(sn=sn, filtmat=filtmat,
+                         target_device_idx=target_device_idx, precision=precision)
         self.thr_value = thr_value
         self.thr_mask_cube = BaseValue()  
         self.total_counts = BaseValue()
@@ -355,6 +359,8 @@ class ShSlopec(Slopec):
 
                 pixels *= accumulated_pixels_weight
 
+                print(f"Weights mask has been applied to {n_weight_applied} sub-apertures")
+
         # Calculate flux and max flux per subaperture
         flux_per_subaperture_vector = self.xp.sum(pixels, axis=0)
         max_flux_per_subaperture = self.xp.max(flux_per_subaperture_vector)
@@ -397,6 +403,7 @@ class ShSlopec(Slopec):
         sx = self.xp.sum(pixels * self.xweights.reshape(np_sub * np_sub, 1) * factor[self.xp.newaxis, :], axis=0)
         sy = self.xp.sum(pixels * self.yweights.reshape(np_sub * np_sub, 1) * factor[self.xp.newaxis, :], axis=0)
 
+        # TODO old code?
         if self.weight_from_accumulated:
             print(f"Weights mask has been applied to {n_weight_applied} sub-apertures")
 

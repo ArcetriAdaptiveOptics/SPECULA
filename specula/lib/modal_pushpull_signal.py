@@ -17,6 +17,7 @@
 #   only_push       makes an only push signal
 #   ncycles         number of cycle of push-pull
 #   repeat_ncycles   set it to have ncycles of push and then ncycles of pull
+#   nsamples        how many samples to hold in each position, default=1
 # OUTPUTS:
 #   time_hist       modal time history
 # COMMON BLOCKS:
@@ -33,7 +34,7 @@ from specula.lib.zernike_generator import ZernikeGenerator
 
 def modal_pushpull_signal(n_modes, amplitude=None, vect_amplitude=None,
                                 linear=None, min_amplitude=None, only_push=False,
-                                ncycles=1, repeat_ncycles=False, xp=np):
+                                ncycles=1, repeat_ncycles=False, nsamples=1, xp=np):
 
     if vect_amplitude is None:
         radorder = xp.array([ZernikeGenerator.degree(x)[0] for x in xp.arange(n_modes)+2])
@@ -61,4 +62,4 @@ def modal_pushpull_signal(n_modes, amplitude=None, vect_amplitude=None,
                 for j in range(ncycles):
                     time_hist[2*(ncycles*i+j):2*(ncycles*i+j)+2,i] = xp.array([vect_amplitude[i],-vect_amplitude[i]])
 
-    return time_hist
+    return np.repeat(time_hist, nsamples, axis=0)

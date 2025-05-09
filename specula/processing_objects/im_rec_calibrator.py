@@ -9,10 +9,10 @@ from specula.connections import InputValue
 
 class ImRecCalibrator(BaseProcessingObj):
     def __init__(self,
-                 nmodes: int,
-                 data_dir: str,         # Set by main simul object
-                 rec_tag: str,
-                 im_tag: str = None,
+                 nmodes: int,         # TODO =0,
+                 data_dir: str,       # TODO = "",         # Set by main simul object
+                 rec_tag: str,        # TODO = "",
+                 im_tag: str='',
                  first_mode: int = 0,
                  pupdata_tag: str = None,
                  tag_template: str = None,

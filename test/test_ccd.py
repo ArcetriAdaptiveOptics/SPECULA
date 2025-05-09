@@ -6,6 +6,7 @@ import unittest
 
 from specula.processing_objects.ccd import CCD
 from specula.data_objects.intensity import Intensity
+from specula.data_objects.simul_params import SimulParams
 
 from test.specula_testlib import cpu_and_gpu
 
@@ -13,7 +14,7 @@ class TestCCD(unittest.TestCase):
 
     @cpu_and_gpu
     def test_ccd_wrong_dt(self, target_device_idx, xp):
-        dt = 3
+        dt = 3        
         ccd = CCD(size=(2,2), dt=dt, bandw=300,
                        target_device_idx=target_device_idx)
 
@@ -30,7 +31,7 @@ class TestCCD(unittest.TestCase):
     @cpu_and_gpu
     def test_ccd_raises_on_missing_input(self, target_device_idx, xp):
 
-        dt = 1
+        dt = 1        
         ccd = CCD(size=(2,2), dt=dt, bandw=300,
                        target_device_idx=target_device_idx)
 

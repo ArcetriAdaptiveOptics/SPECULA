@@ -1,6 +1,7 @@
 ---
 
 main:
+  class:             'SimulParams'
   root_dir:          './calib/SCAO'         # Root directory for calibration manager
   pixel_pupil:       160                    # Linear dimension of pupil phase array
   pixel_pitch:       0.05                   # [m] Pitch of the pupil phase array
@@ -29,21 +30,22 @@ wind_direction:
 
 on_axis_source:
   class:             'Source'
-  polar_coordinate:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  polar_coordinates:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
   magnitude:         8                    # source magnitude
   wavelengthInNm:    750                   # [nm] wavelength
 
 
 pupilstop:                                 # Default parameters (circular pupil)
   class: 'Pupilstop'
-
+  simul_params_ref:  'main'
 
 atmo:
   class:                'AtmoEvolution'
+  simul_params_ref:     'main'
   L0:                   40                   # [m] Outer scale
   heights:              [119.] #,837,3045,12780]), # [m] layer heights at 0 zenith angle
   Cn2:                  [1.0] #,0.06,0.14,0.10]), # Cn2 weights (total must be eq 1)
-  source_dict_ref:      ['on_axis_source']
+  fov:                  0.0
   inputs:
     seeing: 'seeing.output'
     wind_speed: 'wind_speed.output'
@@ -53,13 +55,18 @@ atmo:
 
 prop:
   class:                'AtmoPropagation'
+  simul_params_ref:     'main'
   source_dict_ref:      ['on_axis_source']
   inputs:
-    layer_list: ['atmo.layer_list',
-                  'pupilstop',
+    atmo_layer_list: ['atmo.layer_list']
+    common_layer_list: ['pupilstop',
                   'dm.out_layer:-1']
   outputs: ['out_on_axis_source_ef']
-  
+
+launcher:
+  class:             'LaserLaunchTelescope'
+  spot_size:          0.5
+
 sh:
   class:             'SH'
   subap_wanted_fov:  2.4                     # Requested field-of-view [arcsec]
@@ -67,7 +74,7 @@ sh:
   subap_npx:         6                       # Output sampling [usually corresponding to CCD pixels]
   subap_on_diameter: 20                      # Number of subapertures in diameter
   wavelengthInNm:    750                     # [nm] Pyramid wavelength
-  convolGaussSpotSize: 0.5
+  laser_launch_tel_ref: 'launcher'
   inputs:
     in_ef: 'prop.out_on_axis_source_ef'
   outputs:  ['out_i']
@@ -105,6 +112,7 @@ rec:
 
 control:
   class:             'Integrator'
+  simul_params_ref:  'main'
   delay:             2                      # Total temporal delay in time steps
   int_gain:          [0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5, # Integrator gain (for 'INT' control)
                       0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,
@@ -119,6 +127,7 @@ control:
 
 dm:
   class:             'DM'
+  simul_params_ref:  'main'
   type_str:          'zernike'              # modes type
   nmodes:            54                     # number of modes
   npixels:           160                    # linear dimension of DM phase array

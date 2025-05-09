@@ -19,9 +19,20 @@ def convert_to_xp_array(obj, xp, dtype):
 
 class BaseOperation(BaseProcessingObj):
     ''''Simple operations with base value(s)'''
-
-    def __init__(self, constant_mul=None, constant_div=None, constant_sum=None, constant_sub=None, mul=False, div=False, sum=False, sub=False,
-                 concat=False, value2_is_shorter=False, target_device_idx=None, precision=None):
+    def __init__(self, 
+                 constant_mul: float=None,
+                 constant_div: float=None,
+                 constant_sum: float=None,
+                 constant_sub: float=None,
+                 mul: bool=False,
+                 div: bool=False,
+                 sum: bool=False,
+                 sub: bool=False,
+                 concat: bool=False,
+                 value2_is_shorter: bool=False,
+                 value2_remap: list=None,
+                 target_device_idx: int=None,
+                 precision:int =None):
         """
         Initialize the base operation object.
 
@@ -53,6 +64,7 @@ class BaseOperation(BaseProcessingObj):
         self.concat = concat
         self.out_value = BaseValue(target_device_idx=target_device_idx)
         self.value2_is_shorter = value2_is_shorter
+        self.value2_remap = value2_remap
 
         self.inputs['in_value1'] = InputValue(type=BaseValue)
         self.inputs['in_value2'] = InputValue(type=BaseValue, optional=True)
@@ -85,12 +97,16 @@ class BaseOperation(BaseProcessingObj):
             out[:len(value1)] = value1
             out[len(value1):] = value2
         else:
-            if self.value2_is_shorter:
+            if self.value2_is_shorter or self.value2_remap is not None:
                 if self.div:
                     v2 = self.xp.ones_like(value1)
                 else:
                     v2 = self.xp.zeros_like(value1)
+
+            if self.value2_is_shorter:
                 v2[:len(value2)] = value2
+            elif self.value2_remap is not None:
+                v2[self.value2_remap] = value2
             else:
                 v2 = value2
 

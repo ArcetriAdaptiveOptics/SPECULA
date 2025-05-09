@@ -69,8 +69,8 @@ class Interp2D():
             xc = input_shape[1] / 2 - 0.5
             cos_ = np.cos(rotInDeg * 3.1415 / 180.0)
             sin_ = np.sin(rotInDeg * 3.1415 / 180.0)
-            xxr = (xx-xc)*cos_ - (yy-yc)*sin_ + xc
-            yyr = (xx-xc)*sin_ + (yy-yc)*cos_ + yc
+            xxr = (xx-xc)*cos_ - (yy-yc)*sin_
+            yyr = (xx-xc)*sin_ + (yy-yc)*cos_
             xx = xxr + xc
             yy = yyr + yc
             

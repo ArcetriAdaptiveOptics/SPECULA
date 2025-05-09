@@ -1,6 +1,8 @@
 from specula.base_data_obj import BaseDataObj
-
+from specula.data_objects.ifunc_inv import IFuncInv
 from astropy.io import fits
+
+from specula.lib.compute_zonal_ifunc import compute_zonal_ifunc
 
 from specula.lib.compute_zern_ifunc import compute_zern_ifunc
 
@@ -22,8 +24,16 @@ class IFunc(BaseDataObj):
                  diaratio: float=None,
                  start_mode: int=None,
                  nmodes: int=None,
+                 n_act: int=None,
+                 circ_geom: bool=True,
+                 angle_offset: float=0,
+                 do_mech_coupling: bool=False,
+                 coupling_coeffs: list=[0.31, 0.05],
+                 do_slaving: bool=False,
+                 slaving_thr: float=0.1,
                  idx_modes=None,
-                 target_device_idx=None, precision=None
+                 target_device_idx=None,
+                 precision=None
                 ):
         super().__init__(precision=precision, target_device_idx=target_device_idx)
         self._doZeroPad = False
@@ -38,11 +48,19 @@ class IFunc(BaseDataObj):
             
             type_lower = type_str.lower()
             if type_lower == 'kl':
-                ifunc, mask = compute_kl_ifunc(npixels, nmodes=nmodes, obsratio=obsratio, diaratio=diaratio, mask=mask, xp=self.xp, dtype=self.dtype)
+                ifunc, mask = compute_kl_ifunc(npixels, nmodes=nmodes, obsratio=obsratio, diaratio=diaratio, mask=mask,
+                                               xp=self.xp, dtype=self.dtype)
             elif type_lower in ['zern', 'zernike']:
-                ifunc, mask = compute_zern_ifunc(npixels, nzern=nmodes, obsratio=obsratio, diaratio=diaratio, mask=mask, xp=self.xp, dtype=self.dtype)
+                ifunc, mask = compute_zern_ifunc(npixels, nzern=nmodes, obsratio=obsratio, diaratio=diaratio, mask=mask,
+                                                 xp=self.xp, dtype=self.dtype)
             elif type_lower == 'mixed':
-                ifunc, mask = compute_mixed_ifunc(npixels, nzern=nzern, nmodes=nmodes, obsratio=obsratio, diaratio=diaratio, mask=mask, xp=self.xp, dtype=self.dtype)
+                ifunc, mask = compute_mixed_ifunc(npixels, nzern=nzern, nmodes=nmodes, obsratio=obsratio, diaratio=diaratio, mask=mask,
+                                                  xp=self.xp, dtype=self.dtype)
+            elif type_lower == 'zonal':
+                ifunc, mask = compute_zonal_ifunc(npixels, n_act, circ_geom=circ_geom, angle_offset=angle_offset, do_mech_coupling=do_mech_coupling,
+                                                  coupling_coeffs=coupling_coeffs, do_slaving=do_slaving, slaving_thr=slaving_thr,
+                                                  obsratio=obsratio, diaratio=diaratio, mask=mask, xp=self.xp, dtype=self.dtype,
+                                                  return_coordinates=False)
             else:
                 raise ValueError(f'Invalid ifunc type {type_str}')
         
@@ -51,7 +69,7 @@ class IFunc(BaseDataObj):
 
         self._influence_function = ifunc
         self._mask_inf_func = mask
-        self._idx_inf_func = self.xp.where(mask)
+        self._idx_inf_func = self.xp.where(self._mask_inf_func)
         self.cut(start_mode=start_mode, nmodes=nmodes, idx_modes=idx_modes)
 
     @property
@@ -99,7 +117,8 @@ class IFunc(BaseDataObj):
         return self._influence_function.dtype
 
     def inverse(self):
-        return self.xp.linalg.pinv(self._influence_function)
+        inv = self.xp.linalg.pinv(self._influence_function)
+        return IFuncInv(inv, mask=self._mask_inf_func, precision=self.precision, target_device_idx=self.target_device_idx)
         
     def save(self, filename, hdr=None):
         hdr = hdr if hdr is not None else fits.Header()
@@ -107,7 +126,7 @@ class IFunc(BaseDataObj):
 
         hdu = fits.PrimaryHDU(header=hdr)
         hdul = fits.HDUList([hdu])
-        hdul.append(fits.ImageHDU(data=self._influence_function, name='INFLUENCE_FUNCTION'))
+        hdul.append(fits.ImageHDU(data=self._influence_function.T, name='INFLUENCE_FUNCTION'))
         hdul.append(fits.ImageHDU(data=self._mask_inf_func, name='MASK_INF_FUNC'))
         hdul.writeto(filename, overwrite=True)
 

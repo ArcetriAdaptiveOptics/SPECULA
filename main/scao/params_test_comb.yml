@@ -1,6 +1,7 @@
 ---
 
 main:
+  class:             'SimulParams'
   root_dir:          './calib/SCAO'         # Root directory for calibration manager
   pixel_pupil:       160                    # Linear dimension of pupil phase array
   pixel_pitch:       0.05                   # [m] Pitch of the pupil phase array
