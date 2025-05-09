@@ -4,6 +4,7 @@ from astropy.io import fits
 from specula.data_objects.layer import Layer
 from specula.lib.make_mask import make_mask
 from specula.data_objects.simul_params import SimulParams
+from specula import cpuArray
 
 class Pupilstop(Layer):
     '''Pupil stop'''
@@ -48,9 +49,9 @@ class Pupilstop(Layer):
 
         super().save(filename, hdr)
 
-        fits.append(filename, self._A)
-        fits.append(filename, self._A.shape)
-        fits.append(filename, [self._pixel_pitch])
+        fits.append(filename, cpuArray(self.A))
+        fits.append(filename, cpuArray(self.xp.array(self.A.shape)))
+        fits.append(filename, cpuArray(self.xp.array([self.pixel_pitch])))
 
     @staticmethod
     def restore(filename, target_device_idx=None):

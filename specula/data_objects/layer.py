@@ -23,10 +23,13 @@ class Layer(ElectricField):
         self.magnification = magnification
 
     def save(self, filename, hdr=None):
-        if hdr is None:
-            hdr = fits.Header()
-        hdr['HEIGHT'] = self._height
-        super().save(filename, hdr)
+        # header from ElectricField
+        base_hdr = self.get_fits_header()
+        # add other parameters in the header
+        if hdr is not None:
+            base_hdr.update(hdr)
+        base_hdr['HEIGHT'] = self.height
+        super().save(filename, base_hdr)
 
     def read(self, filename, hdr=None, exten=0):
         super().read(filename, hdr, exten)
