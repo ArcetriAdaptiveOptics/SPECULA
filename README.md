@@ -5,6 +5,8 @@ SPECULA is a Python-based, object-oriented software derived from [PASSATA](https
 by the Adaptive Optics group at the Arcetri Observatory for end-to-end Monte-Carlo simulations of adaptive optics systems.
 It can be accelerated using GPU-CUDA via CuPy.
 
+See the documentation here: [specula.readthedocs.io](https://specula.readthedocs.io/en/latest/)
+
 ## Directories
 
 - **docs**: contains the documentation.
