@@ -1,20 +1,22 @@
 ---
 
 main:
+  class:             'SimulParams'
   root_dir:          './calib/SCAO'         # Root directory for calibration manager  
   pixel_pupil:       160                    # Linear dimension of pupil phase array
   pixel_pitch:       0.05                   # [m] Pitch of the pupil phase array
   total_time:        0.050                  # [s] Total simulation running time
   time_step:         0.001                  # [s] Simulation time step
+  
 
-server:
-  class:             'DisplayServer'
-  host:              '0.0.0.0'              # Listen on all interfaces
-  port:              3000                   # Use zero for auto-selection
+#server:
+#  class:             'DisplayServer'
+#  host:              '0.0.0.0'              # Listen on all interfaces
+#  port:              3000                   # Use zero for auto-selection
 
 seeing:
   class:             'FuncGenerator'
-  constant:          0.8                  # ["] seeing value
+  constant:          0.8                   # ["] seeing value
   func_type:         'SIN'                 # TODO necessary for factory.py line 217
 
 
@@ -25,7 +27,7 @@ wind_speed:
 
 wind_direction:
   class:             'FuncGenerator'
-  constant:          [0.]#,270.,270.,90.]   # [degrees] Wind direction value
+  constant:          [0.] #,270.,270.,90.]   # [degrees] Wind direction value
 
 
 on_axis_source:
@@ -37,10 +39,12 @@ on_axis_source:
 
 pupilstop:                                 # Default parameters (circular pupil)
   class: 'Pupilstop'
+  simul_params_ref: 'main'
 
 
 atmo:
   class:                'AtmoEvolution'
+  simul_params_ref:     'main'
   L0:                   40                   # [m] Outer scale
   heights:              [119.] #,837,3045,12780]), # [m] layer heights at 0 zenith angle
   Cn2:                  [1.00] #,0.06,0.14,0.10]), # Cn2 weights (total must be eq 1)
@@ -54,14 +58,18 @@ atmo:
 
 prop:
   class:                'AtmoPropagation'
+  simul_params_ref:     'main'
   source_dict_ref:      ['on_axis_source']
   inputs:
     atmo_layer_list: ['atmo.layer_list']
     common_layer_list: ['pupilstop',
                   'dm.out_layer:-1']
+  outputs: ['out_on_axis_source_ef']
+
   
 pyramid:
   class:             'ModulatedPyramid'
+  simul_params_ref:  'main'
   pup_diam:          30.                     # Pupil diameter in subaps.
   pup_dist:          36.                     # Separation between pupil centers in subaps.
   fov:               2.0                     # Requested field-of-view [arcsec]
@@ -73,7 +81,7 @@ pyramid:
 
 
 detector:
-  class:             'CCD'
+  class:             'CCD'  
   size:              [80,80]                 # Detector size in pixels
   dt:                0.001                   # [s] Detector integration time
   bandw:             300                     # [nm] Sensor bandwidth
@@ -86,7 +94,7 @@ detector:
 
 
 slopec:
-  class:             'PyrSlopec'
+  class:             'PyrSlopec'  
   pupdata_object:    'scao_pup'            # tag of the pyramid WFS pupils
   sn_object:         'scao_sn'             # tag of the slope reference vector
   inputs:
@@ -94,7 +102,7 @@ slopec:
 
 
 rec:
-  class:              'Modalrec'
+  class:              'Modalrec'  
   recmat_object:      'scao_recmat'         # reconstruction matrix tag
   inputs:
     in_slopes:        'slopec.out_slopes'
@@ -102,6 +110,7 @@ rec:
 
 control:
   class:             'Integrator'
+  simul_params_ref:  'main'
   delay:             2                      # Total temporal delay in time steps
   int_gain:          [0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5, # Integrator gain (for 'INT' control)
                       0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,
@@ -115,6 +124,7 @@ control:
 
 dm:
   class:             'DM'
+  simul_params_ref:  'main'
   type_str:          'zernike'              # modes type
   nmodes:            54                     # number of modes
   npixels:           160                    # linear dimension of DM phase array
@@ -125,7 +135,7 @@ dm:
 
 
 psf:
-  class:             'PSF'
+  class:             'PSF'  
   wavelengthInNm:    1650                 # [nm] Imaging wavelength
   nd:                8                    # padding coefficient for PSF computation
   start_time:        0.05                # PSF integration start time

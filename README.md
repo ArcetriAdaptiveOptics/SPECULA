@@ -1,35 +1,42 @@
 # SPECULA
 Python AO end-to-end simulator
 
-SPECULA is a python based object oriented software developed
-in the Adaptive Optics group of the Arcetri observatory for Monte-Carlo end-to-end adaptive optics simulations.
-It can be accelerated with GPU-CUDA relying on CuPy.
+SPECULA is a Python-based, object-oriented software derived from [PASSATA](https://arxiv.org/abs/1607.07624) and developed
+by the Adaptive Optics group at the Arcetri Observatory for end-to-end Monte-Carlo simulations of adaptive optics systems.
+It can be accelerated using GPU-CUDA via CuPy.
 
-Directories:
-* calib: this directory contains functions/classes to make the calibration of an adaptive optics system
-* classes: this directory contains classes files (Data objects, Processing objects and Management/Coordination objects)
-* cloop: this directory contains functions/classes to run a closed loop of a adaptive optics system (single-conjugated, multi-conjugated, natural, laser, ...)
-* error_budget: this directory contains (semi-analytical) functions/classes to estimate the error budget of a single-conjugated adaptive optics system
-* gkl: this directory contain a collection of routines related to Karhunen-Loeve modes - reference: Robert C. Cannon, "Optimal bases for wave-front simulation and
-reconstruction on annular apertures", Journal of the Optical Society of America A, Vol. 13, Issue 4, pp. 862-867 (1996), https://doi.org/10.1364/JOSAA.13.000862
-* lib: this directory contains functions/procedure
-* main: this directory contains a few examples of main and parameters files to calibrate and run some adaptive optics systems
-* test: this directory contains a set of functions to test SPECULA using make_test.pro file
-* test_gpu: this directory contains a set of functions to test SPECULA with the GPU dll using make_test.pro file
+See the documentation here: [specula.readthedocs.io](https://specula.readthedocs.io/en/latest/)
 
-Libraries required:
-* 
-* 
-* 
+## Directories
 
-There is a help doc [help.pdf](help.pdf) for this software.
+- **docs**: contains the documentation.
+- **main**: contains functions and parameter files to calibrate and run a closed loop of an adaptive optics system (single-conjugated, multi-conjugated, natural, laser, ...).
+- **specula**: the main library, structured as follows:
+  - **data_objects**: classes that wrap the data and provide methods to access them.
+  - **display**: classes for data visualization.
+  - **lib**: utility functions used by multiple objects.
+  - **processing_objects**: classes that model the simulation elements as a function of inputs and time.
+  - **scripts**: various scripts.
+- **test**: contains functions to test SPECULA using the `unittest` framework.
 
-The reference publication for this software is:
+## Requirements
 
+- Python 3.8+
+- numpy
+- scipy
+- matplotlib
+- flask
+- flask-socketio
+- socketio
+- cupy (for GPU acceleration, optional)
 
+### Optional libraries
 
+Some features require additional libraries:
+- **pycairo**: needed for block diagram generation with `orthogram`
+- **orthogram**: for automatic block diagram creation (see [orthogram](https://pypi.org/project/orthogram/))
 
-
-
-
-
+Install optional dependencies with:
+```bash
+pip install pycairo orthogram
+```

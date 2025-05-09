@@ -1,0 +1,26 @@
+
+
+sh_subaps:
+  class: 'ShSubapCalibrator'
+  subap_on_diameter:  40
+  output_tag:        'eris_subaps'
+  energy_th:         0.5
+  #tag_template:      'subap_{main.tag}_n{subap_on_diameter}_th{energy_th:f.1}'
+  inputs:
+    in_i: 'sh.out_i'
+
+main_override:
+  total_time:  0.001
+
+prop_override:
+  inputs:
+    common_layer_list: ['pupilstop']
+
+remove: ['atmo',  
+'slopec',
+'modalrec',
+'integrator',
+'dm',
+'psf',
+  ]
+  

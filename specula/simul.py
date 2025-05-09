@@ -16,10 +16,9 @@ import yaml
 doBlockDiagram = False
 
 try:
-    import orthogram
-    doBlockDiagram = True
     from orthogram import Color, DiagramDef, write_png, Side, FontWeight, TextOrientation
     from collections import Counter
+    doBlockDiagram = True
 except ImportError as e:
     print('Optional package orthogram not installed, block diagram of the simulation will not be produced.')
 
@@ -35,6 +34,8 @@ class Simul():
         self.objs = {}
         self.verbose = False  #TODO
         self.isReplay = False
+        self.mainParams = None
+        self.mainParamsKeyName = None
         if overrides is None:
             self.overrides = []
         else:
@@ -77,7 +78,6 @@ class Simul():
             input_ref = self.objs[input_name].copyTo(target_device_idx)
         return input_ref
 
-
     def output_delay(self, output_name):
         if ':' in output_name:
             return int(output_name.split(':')[1])
@@ -117,7 +117,6 @@ class Simul():
         order_index = []
         ii = 0
         params = deepcopy(params_orig)
-        del params['main']
         while True:
             start = len(params)
             leaves = [name for name, pars in params.items() if self.is_leaf(pars)]
@@ -133,15 +132,21 @@ class Simul():
             print('Warning: the following objects will not be triggered:', params.keys())
         return order, order_index
 
+    def setSimulParams(self, params):
+        for key, pars in params.items():            
+            classname = pars['class']
+            if classname == 'SimulParams':
+                self.mainParams = pars
+                self.mainParamsKeyName = key
 
     def build_objects(self, params):
-        main = params['main']
-        cm = CalibManager(main['root_dir'])
+
+        self.setSimulParams(params)
+        
+        cm = CalibManager(self.mainParams['root_dir'])
         skip_pars = 'class inputs outputs'.split()
 
         for key, pars in params.items():
-            if key == 'main':
-                continue
             try:
                 classname = pars['class']
             except KeyError:
@@ -216,7 +221,8 @@ class Simul():
                     pars2[name] = value
 
             # Add global and class-specific params if needed
-            my_params = {k: main[k] for k in args if k in main}
+            my_params = {}
+
             if 'data_dir' in args and 'data_dir' not in my_params:  # TODO special case
                 my_params['data_dir'] = cm.root_subdir(classname)
                 
@@ -292,7 +298,6 @@ class Simul():
                         if not isinstance(output, wanted_type):
                             raise ValueError(f'Input {input_name}: output {output} is not of type {wanted_type}')
 
-
                 try:
                     self.objs[dest_object].inputs[input_name].set(output_ref)
                 except ValueError:
@@ -323,8 +328,6 @@ class Simul():
         obj_to_remove = []
         data_source_outputs = {}
         for key, pars in params.items():
-            if key == 'main':
-                continue
             try:
                 classname = pars['class']
             except KeyError:
@@ -344,8 +347,6 @@ class Simul():
             del self.replay_params[obj_name]
         
         for key, pars in self.replay_params.items():            
-            if key == 'main':
-                continue
             if not key=='data_source':
                 if 'inputs' in pars.keys():
                     for input_name, output_name_full in pars['inputs'].items():
@@ -431,8 +432,6 @@ class Simul():
         n_cols = max(trigger_order_idx) + 1                
         n_rows = max( list(dict(Counter(trigger_order_idx)).values()))        
         # names_to_orders = dict(zip(trigger_order, trigger_order_idx))
-        print('n_cols', n_cols)
-        print('n_rows', n_rows)
         orders_to_namelists = {}
         for order in range(n_cols):
             orders_to_namelists[order] = []
@@ -458,7 +457,6 @@ class Simul():
         for r in rows:
             d.add_row(r)        
         for c in self.connections:
-            print('connection', c)
             aconn = d.add_connection(c['start'], c['end'], buffer_fill=Color(1.0,1.0,1.0), buffer_width=1, 
                              exits=[Side.RIGHT], entrances=[Side.LEFT, Side.BOTTOM, Side.TOP])
             aconn.set_start_label(c['middle_label'],font_weight=FontWeight.BOLD, text_fill=Color(0, 0.5, 0), text_orientation=TextOrientation.HORIZONTAL)
@@ -480,14 +478,14 @@ class Simul():
                 additional_params = yaml.safe_load(stream)
                 self.combine_params(params, additional_params)
 
-        # Initialize housekeeping objects
-        self.loop = LoopControl(run_time=params['main']['total_time'], dt=params['main']['time_step'])        
-
         # Actual creation code
         self.apply_overrides(params)
         self.build_objects(params)
         self.connect_objects(params)                
-        
+
+        # Initialize housekeeping objects
+        self.loop = LoopControl(run_time=self.mainParams['total_time'], dt=self.mainParams['time_step'])        
+
         if not self.isReplay:
             self.build_replay(params)
 
@@ -505,7 +503,7 @@ class Simul():
                 self.loop.add(obj, idx)
 
         # Default display web server
-        if 'display_server' in params['main'] and params['main']['display_server']:
+        if 'display_server' in self.mainParams and self.mainParams['display_server']:
             from specula.processing_objects.display_server import DisplayServer
             disp = DisplayServer(params, self.input_ref, self.output_ref, self.get_info)
             self.objs['display_server'] = disp
@@ -513,13 +511,14 @@ class Simul():
             disp.name = 'display_server'
 
         # Run simulation loop
-        self.loop.run(run_time=params['main']['total_time'], dt=params['main']['time_step'], speed_report=True)
+        self.loop.run(run_time=self.mainParams['total_time'], dt=self.mainParams['time_step'], speed_report=True)
 
 #        if data_store.has_key('sr'):
-#            print(f"Mean Strehl Ratio (@{params['psf']['wavelengthInNm']}nm) : {store.mean('sr', init=min([50, 0.1 * params['main']['total_time'] / params['main']['time_step']])) * 100.}")
+#            print(f"Mean Strehl Ratio (@{params['psf']['wavelengthInNm']}nm) : {store.mean('sr', init=min([50, 0.1 * self.mainParams['total_time'] / self.mainParams['time_step']])) * 100.}")
 
         for obj in self.objs.values():
-            obj.finalize()
+            if isinstance(obj, BaseProcessingObj):
+                obj.finalize()
 
     def get_info(self):
         '''Quick info string intended for web interfaces'''

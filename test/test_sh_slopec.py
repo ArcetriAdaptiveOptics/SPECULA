@@ -1,5 +1,4 @@
 
-
 import specula
 specula.init(0)  # Default target device
 
@@ -10,6 +9,7 @@ from specula import cpuArray
 
 from specula.data_objects.electric_field import ElectricField
 from specula.processing_objects.sh import SH
+from specula.data_objects.laser_launch_telescope import LaserLaunchTelescope
 from specula.data_objects.pixels import Pixels
 from specula.data_objects.subap_data import SubapData
 from specula.processing_objects.sh_slopec import ShSlopec
@@ -59,12 +59,15 @@ class TestShSlopec(unittest.TestCase):
         # ------------------------------------------------------------------------------
 
         # Create the SH object
+        laser_launch_tel = LaserLaunchTelescope(spot_size=pxscale_arcsec,
+                             target_device_idx=target_device_idx)
+
         sh = SH(wavelengthInNm=wavelengthInNm,
                 subap_wanted_fov=subap_npx * pxscale_arcsec,
                 sensor_pxscale=pxscale_arcsec,
                 subap_on_diameter=subap_on_diameter,
                 subap_npx=subap_npx,
-                convolGaussSpotSize=0.0,
+                laser_launch_tel=laser_launch_tel,
                 target_device_idx=target_device_idx)
 
         # Flat wavefront

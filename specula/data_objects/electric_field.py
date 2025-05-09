@@ -105,8 +105,14 @@ class ElectricField(BaseDataObj):
         hdr['S0'] = self.S0
         return hdr
 
-    def save(self, filename):
-        hdr = self.get_fits_header()
+    def save(self, filename, hdr=None):
+        if hdr is None:
+            hdr = self.get_fits_header()
+        else:
+            # verify that the header is correct
+            # checking that we have 'VERSION' and 'OBJ_TYPE' in the header
+            if 'VERSION' not in hdr or 'OBJ_TYPE' not in hdr:
+                raise ValueError("Header must contain 'VERSION' and 'OBJ_TYPE'")
         A = self.A        
         hdu_A = fits.PrimaryHDU(A, header=hdr)
         hdu_phase = fits.ImageHDU(self.phaseInNm)

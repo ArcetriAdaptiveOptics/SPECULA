@@ -1,11 +1,13 @@
 import time
-
 import numpy as np
 
-class LoopControl:
+from specula.base_time_obj import BaseTimeObj
+
+
+class LoopControl(BaseTimeObj):
     def __init__(self, run_time=None, dt=None, t0=None, verbose=False):
+        super().__init__(target_device_idx=-1, precision=1)
         self._ordered_lists = {}
-        self._list = []
         self._init_run_time = run_time if run_time is not None else 0.0
         self._init_dt = dt if dt is not None else 0.001
         self._init_t0 = t0 if t0 is not None else 0.0
@@ -14,12 +16,10 @@ class LoopControl:
         self._dt = 0
         self._t0 = 0
         self._t = 0
-        self._time_resolution = 1
         self._stop_on_data = None
         self._stop_at_time = 0
         self._profiling = False
         self._profiler_started = False
-        self._quiet = False
         self._speed_report = False
         self._cur_time = -1
         self._old_time = 0
@@ -31,8 +31,6 @@ class LoopControl:
         if obj is None:
             raise ValueError("Cannot add null object to loop")
         
-        self._list.append(obj)
-        
         if idx>self._max_order:
             self._max_order = idx
             self._ordered_lists[idx] = []
@@ -41,7 +39,6 @@ class LoopControl:
         
         
     def remove_all(self):
-        self._list.clear()
         self._ordered_lists.clear()
 
     def niters(self):
@@ -57,15 +54,15 @@ class LoopControl:
         self._dt = dt
 
     def run(self, run_time=None, t0=None, dt=None, stop_on_data=None, stop_at_time=None,
-            profiling=False, quiet=False, speed_report=False):
+            profiling=False, speed_report=False):
         self.start(run_time=run_time, t0=t0, dt=dt, stop_on_data=stop_on_data, stop_at_time=stop_at_time,
-                   profiling=profiling, quiet=quiet, speed_report=speed_report)
+                   profiling=profiling, speed_report=speed_report)
         while self._t < self._t0 + self._run_time:
             self.iter()
         self.finish()
 
     def start(self, run_time=None, t0=None, dt=None, stop_on_data=None, stop_at_time=None,
-              profiling=False, quiet=False, speed_report=False):
+              profiling=False, speed_report=False):
         if run_time is not None:
             self._init_run_time = run_time
         if dt is not None:
@@ -74,22 +71,22 @@ class LoopControl:
             self._init_t0 = t0
 
         self._profiling = profiling
-        self._quiet = quiet
         self._speed_report = speed_report
         self._stop_at_time = stop_at_time if stop_at_time is not None else 0
         self._stop_on_data = stop_on_data
 
-        self._time_resolution = 1e9 # TODO get from somewhere
         self._run_time = self.seconds_to_t(self._init_run_time)
         self._dt = self.seconds_to_t(self._init_dt)
         self._t0 = self.seconds_to_t(self._init_t0)
 
-        for element in self._list:
-            try:
-                element.setup(self._dt, self.niters())
-            except:
-                print('Exception in', element.name)
-                raise
+        for i in range(self._max_order+1):
+            for element in self._ordered_lists[i]:
+                try:
+                    element.setup(self._dt, self.niters())
+                except:
+                    print('Exception in', element.name)
+                    raise
+
         self._t = self._t0
 
         self._cur_time = -1
@@ -137,18 +134,13 @@ class LoopControl:
             self._nframes_cnt %= nframes_elapsed
             if nframes_good:
                 msg = f"{1.0 / (np.sum(self._elapsed) / nframes_elapsed):.2f} Hz"
-                print(f't={self._t / self._time_resolution:.6f} {msg}')
+                print(f't={self.t_to_seconds(self._t):.6f} {msg}')
 
-#        if not self._quiet: # Verbose?
-#            print(f't={self._t / self._time_resolution:.6f} {msg}')
         self._t += self._dt
 
     def finish(self):
         if self._profiling:
             self.stop_profiling()
-
-    def seconds_to_t(self, seconds):
-        return int(seconds * self._time_resolution)
 
     def start_profiling(self):
         # Placeholder for profiling start

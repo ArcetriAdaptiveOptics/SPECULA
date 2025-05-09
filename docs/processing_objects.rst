@@ -18,10 +18,10 @@ A processing object life is divided into several discrete steps
 * Input/output connection
 * Setup
 * Loop (repeated N times):
-
-  * prepare_trigger
-  * trigger_code
-  * post_trigger
+  * check_ready()
+  * prepare_trigger()
+  * trigger_code()
+  * post_trigger()
 * Finalize
  
 
@@ -152,6 +152,15 @@ to run at a slower rate than the rest. For example, a object simulating a CCD mi
 before producing its output, in order to simulate a long integration time. All objects depending on this output will automatically
 be triggered at the slower rate.
 
+Readyness check
+***************
+
+Before triggering each object, its inputs are checked. The object is triggered only if at least one input
+has been refreshed since the last trigger, or if the object has no inputs.
+
+The readiness check is implemented in the *check_ready()* of the base class, and there is usually
+no need to override it.
+
 Trigger process
 ***************
 
@@ -162,13 +171,13 @@ The trigger order algorithm identifies groups of object that can be triggered at
 #. Call *post_trigger()* for all objects
 
 The general idea is to have a GPU-friendly algorithm in *trigger_code()*, that operates on statically-allocated
-arrays. This algorithm can be captured in a CUDA graph and executed on a private CUDA stream, wich is both
-be more efficient than a series of Python/CuPY operations and also allows multiple objects to run their trigger
-code in parallel on the same or different GPUs. *prepare_trigger()* and *post_trigger()* take care of operations
+arrays. This algorithm can be captured in a CUDA graph and executed on a private CUDA stream, which is both
+be more efficient than a series of Python/CuPY operations and also allows multiple objects to be run in parallel
+on the same or different GPUs. *prepare_trigger()* and *post_trigger()* take care of operations
 that cannot be captured in CUDA graph, in particular:
 
 * *prepare_trigger()*: perform any needed setup, for example CPU-only numpy calculations
-* *post_trigger()*: set the *generation_time* attribute of any output arrays.
+* *post_trigger()*: as a minimum, set the *generation_time* attribute of any output arrays.
 
 The three methods have a very simple signature: only *prepare_trigger()* takes a single argument,
 the current simulated time *t*. The base class method must be called as well, except for *trigger_code()*::
