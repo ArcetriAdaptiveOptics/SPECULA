@@ -83,7 +83,3 @@ class Source(BaseDataObj):
         if self.verbose:
             print(f'source.phot_density: magnitude is {self.magnitude}, and flux (output of n_phot with width=1e-9, surf=1) is {res[0]}')
         return res[0]
-
-    # TODO: this is a data object, not a processing object
-    def finalize(self):
-        pass

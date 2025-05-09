@@ -525,7 +525,8 @@ class Simul():
 #            print(f"Mean Strehl Ratio (@{params['psf']['wavelengthInNm']}nm) : {store.mean('sr', init=min([50, 0.1 * self.mainParams['total_time'] / self.mainParams['time_step']])) * 100.}")
 
         for obj in self.objs.values():
-            obj.finalize()
+            if isinstance(obj, BaseProcessingObj):
+                obj.finalize()
 
     def get_info(self):
         '''Quick info string intended for web interfaces'''

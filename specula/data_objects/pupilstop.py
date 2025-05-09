@@ -67,7 +67,3 @@ class Pupilstop(Layer):
         tempParams = SimulParams(dim[0], pixel_pitch)
         pupilstop = Pupilstop(tempParams, input_mask=input_mask, target_device_idx=target_device_idx)
         return pupilstop
-
-    # TODO: this is a data object, not a processing object
-    def finalize(self):
-        pass
