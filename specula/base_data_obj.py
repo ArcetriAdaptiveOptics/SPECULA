@@ -38,13 +38,12 @@ class BaseDataObj(BaseTimeObj):
         hdr = fits.Header()
         hdr['VERSION'] = 1
         hdr['OBJ_TYPE'] = 'BaseDataObj'
+        hdr['GEN_TIME'] = self._generation_time
+        hdr['TIME_RES'] = self._time_resolution
         return hdr
 
     def save(self, filename):
-        hdr = fits.Header()
-        hdr['GEN_TIME'] = self._generation_time
-        hdr['TIME_RES'] = self._time_resolution
-
+        hdr = self.get_fits_header()
         primary_hdu = fits.PrimaryHDU(header=hdr)
         hdul = fits.HDUList([primary_hdu])
         hdul.writeto(filename, overwrite=True)
@@ -52,10 +51,11 @@ class BaseDataObj(BaseTimeObj):
     def read(self, filename):
         with fits.open(filename) as hdul:
             hdr = hdul[0].header
+            if hdr['VERSION'] != 1:
+                raise ValueError(f'Invalid version for BaseDataObj: {hdr["VERSION"]} instead of 1')
             self._generation_time = int(hdr.get('GEN_TIME', 0))
             self._time_resolution = int(hdr.get('TIME_RES', 0))
-
-
+    
     def transferDataTo(self, destobj):
         excluded = ['_tag']
         #if target_device_idx==self.target_device_idx:

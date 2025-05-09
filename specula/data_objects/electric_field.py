@@ -1,5 +1,6 @@
 from astropy.io import fits
 
+from specula import cpuArray
 from specula.base_data_obj import BaseDataObj
 
 class ElectricField(BaseDataObj):
@@ -105,22 +106,19 @@ class ElectricField(BaseDataObj):
         hdr['S0'] = self.S0
         return hdr
 
-    def save(self, filename, hdr=None):
-        if hdr is None:
-            hdr = self.get_fits_header()
-        else:
-            # verify that the header is correct
-            # checking that we have 'VERSION' and 'OBJ_TYPE' in the header
-            if 'VERSION' not in hdr or 'OBJ_TYPE' not in hdr:
-                raise ValueError("Header must contain 'VERSION' and 'OBJ_TYPE'")
-        A = self.A        
-        hdu_A = fits.PrimaryHDU(A, header=hdr)
-        hdu_phase = fits.ImageHDU(self.phaseInNm)
-        hdul = fits.HDUList([hdu_A, hdu_phase])
-        hdul.writeto(filename, overwrite=True)
+    def save(self, filename):
+        super().save(filename)
+        fits.append(filename, cpuArray(self.A), self.get_fits_header())
+        fits.append(filename, cpuArray(self.phaseInNm))
+
+    def read(self, filename):
+        super().read(filename)
+        self.A = fits.getdata(filename, ext=0)
+        self.phaseInNm = fits.getdata(filename, ext=1)
 
     @staticmethod
-    def from_header(hdr):    
+    def restore(filename):
+        hdr = fits.getheader(filename)
         version = hdr['VERSION']
         if version != 1:
             raise ValueError(f"Error: unknown version {version} in header")
@@ -128,25 +126,9 @@ class ElectricField(BaseDataObj):
         dimy = hdr['DIMY']
         pitch = hdr['PIXPITCH']
         S0 = hdr['S0']
-        ef = ElectricField(dimx, dimy, pitch, S0)        
+        ef = ElectricField(dimx, dimy, pitch, S0)
+        ef.read(filename)
         return ef
-
-
-    @staticmethod
-    def restore(filename):
-        with fits.open(filename) as hdul:
-            hdr = hdul[0].header
-            version = hdr['VERSION']
-            if version != 1:
-                raise ValueError(f"Error: unknown version {version} in file {filename}")
-            dimx = hdr['DIMX']
-            dimy = hdr['DIMY']
-            pitch = hdr['PIXPITCH']
-            S0 = hdr['S0']
-
-            ef = ElectricField(dimx, dimy, pitch)
-            ef.set_property(A=hdul[0].data, phaseInNm=hdul[1].data, S0=S0)
-            return ef
 
     def array_for_display(self):
         frame = self.phaseInNm * (self.A > 0).astype(float)

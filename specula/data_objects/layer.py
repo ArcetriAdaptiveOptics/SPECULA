@@ -1,4 +1,5 @@
 from astropy.io import fits
+import numpy as np
 from specula import cpuArray
 
 from specula.data_objects.electric_field import ElectricField
@@ -22,32 +23,35 @@ class Layer(ElectricField):
         self.rotInDeg = rotInDeg
         self.magnification = magnification
 
-    def save(self, filename, hdr=None):
-        # header from ElectricField
-        base_hdr = self.get_fits_header()
-        # add other parameters in the header
-        if hdr is not None:
-            base_hdr.update(hdr)
-        base_hdr['HEIGHT'] = self.height
-        super().save(filename, base_hdr)
+    def get_fits_header(self):
+        hdr = fits.Header()
+        hdr['VERSION'] = 1
+        hdr['OBJ_TYPE'] = 'Layer'
+        hdr['HEIGHT'] = self.height
+        return hdr
 
-    def read(self, filename, hdr=None, exten=0):
-        super().read(filename, hdr, exten)
+    def save(self, filename):
+        super().save(filename)
+        fits.append(filename, np.zeros(1), self.get_fits_header())
 
+    def read(self, filename):
+        # Nothing extra to read
+        super().read(filename)
+ 
     @staticmethod
     def restore(filename):
-        hdr = fits.getheader(filename)
-        version = int(hdr['VERSION'])
+        ef_hdr = fits.getheader(filename, ext=0)
+        layer_hdr = fits.getheader(filename, ext=2)
 
+        version = layer_hdr['VERSION']
         if version != 1:
-            raise ValueError(f"Error: unknown version {version} in file {filename}")
+            raise ValueError(f"Error: unknown version {version} in header")
 
-        dimx = int(hdr['DIMX'])
-        dimy = int(hdr['DIMY'])
-        height = float(hdr['HEIGHT'])
-        pitch = float(hdr['PIXPITCH'])
-
+        dimx = ef_hdr['DIMX']
+        dimy = ef_hdr['DIMY']
+        pitch = ef_hdr['PIXPITCH']
+        height = layer_hdr['HEIGHT']
         layer = Layer(dimx, dimy, pitch, height)
-        layer.read(filename, hdr)
+        layer.read(filename)
         return layer
 
