@@ -6,7 +6,7 @@ import os
 import numpy as np
 import unittest
 
-from specula.dm.ELT_M1_ifunc_calculator import ELTM1IFuncCalculator
+from specula.lib.ELT_M1_ifunc_calculator import ELTM1IFuncCalculator
 from specula import cpu_float_dtype_list
 
 class TestELTM1IFuncCalculator(unittest.TestCase):
