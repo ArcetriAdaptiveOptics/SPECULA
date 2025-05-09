@@ -70,8 +70,8 @@ class ProcessingObjName(BaseProcessingObj):
         self.result_data1.generation_time = self.current_time
 
 
-    def setup(self, loop_dt, loop_niters):
-        super().setup(loop_dt, loop_niters)
+    def setup(self):
+        super().setup()
         
         # when using stream capture should do:
         # super().build_stream()

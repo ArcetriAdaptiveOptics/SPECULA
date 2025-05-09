@@ -80,8 +80,8 @@ class ModalAnalysis(BaseProcessingObj):
             unwrapped_p[c, :] = self.xp.unwrap(col)        
         return unwrapped_p
 
-    def setup(self, loop_dt, loop_niters):
-        super().setup(loop_dt, loop_niters)
+    def setup(self):
+        super().setup()
         input_list = self.inputs['in_ef_list'].get(self.target_device_idx)
         if input_list:
             for i in range(len(input_list)):

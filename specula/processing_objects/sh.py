@@ -443,8 +443,8 @@ class SH(BaseProcessingObj):
             plt.title('Intensity')
             plt.show()
 
-    def setup(self, loop_dt, loop_niters):
-        super().setup(loop_dt, loop_niters)
+    def setup(self):
+        super().setup()
 
         in_ef = self.inputs['in_ef'].get(target_device_idx=self.target_device_idx)
         

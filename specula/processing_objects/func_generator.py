@@ -3,6 +3,7 @@ import numpy as np
 
 from specula.base_value import BaseValue
 from specula.base_processing_obj import BaseProcessingObj
+from specula.data_objects.simul_params import SimulParams
 from specula.lib.modal_pushpull_signal import modal_pushpull_signal
 
 
@@ -12,7 +13,8 @@ class Vibrations():
 
 
 class FuncGenerator(BaseProcessingObj):
-    def __init__(self, 
+    def __init__(self,
+                 simul_params: SimulParams,
                  func_type='SIN', 
                  nmodes: int=None, 
                  time_hist=None, 
@@ -32,6 +34,9 @@ class FuncGenerator(BaseProcessingObj):
                  precision: int=None
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
+
+        self.loop_dt = simul_params.time_step
+        self.loop_niters = simul_params.total_time / simul_params.time_step
 
         self.type = func_type.upper()
         if self.type == 'PUSHPULLREPEAT':
@@ -120,11 +125,15 @@ class FuncGenerator(BaseProcessingObj):
         self.nmodes = nmodes
         self.outputs['output'] = self.output
         self.output_value = None
+        self.iter_counter = 0
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
 
     def trigger_code(self):
+        
+        self.iter_counter += 1
+
         if self.type == 'SIN':
             phase = self.freq*2 * self.xp.pi*self.current_time_seconds + self.offset
             self.output_value = self.amp * self.xp.sin(phase, dtype=self.dtype) + self.constant
@@ -158,15 +167,13 @@ class FuncGenerator(BaseProcessingObj):
         self.output.generation_time = self.current_time
 
     def get_time_hist_at_current_time(self):
-        t = self.current_time
-        i = int(np.round(t / self._loop_dt))
-        return self.xp.array(self.time_hist[i])
+        return self.xp.array(self.time_hist[self.iter_counter])
 
-    def setup(self, loop_dt, loop_niters):
-        super().setup(loop_dt, loop_niters)
+    def setup(self):
+        super().setup()
         if self.vib:
-            self.vib.set_niters(loop_niters + 1)
-            self.vib.set_samp_freq(1.0 / self.t_to_seconds(loop_dt))
+            self.vib.set_niters(self.loop_niters + 1)
+            self.vib.set_samp_freq(1.0 / self.t_to_seconds(self.loop_dt))
             self.vib.compute()
             self.time_hist = self.vib.get_time_hist()
 

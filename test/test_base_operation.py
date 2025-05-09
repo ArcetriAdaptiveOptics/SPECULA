@@ -24,7 +24,7 @@ class TestBaseOperation(unittest.TestCase):
         op.inputs['in_value1'].set(value1)
         op.inputs['in_value2'].set(value2)
         
-        op.setup(1, 1)
+        op.setup()
         op.check_ready(1)
         op.prepare_trigger(1)
         op.trigger()
@@ -44,7 +44,7 @@ class TestBaseOperation(unittest.TestCase):
         op.inputs['in_value1'].set(value1)
         op.inputs['in_value2'].set(value2)
         
-        op.setup(1, 1)
+        op.setup()
         op.check_ready(1)
         op.prepare_trigger(1)
         op.trigger()
@@ -64,7 +64,7 @@ class TestBaseOperation(unittest.TestCase):
         op.inputs['in_value1'].set(value1)
         op.inputs['in_value2'].set(value2)
         
-        op.setup(1, 1)
+        op.setup()
         op.check_ready(1)
         op.prepare_trigger(1)
         op.trigger()
@@ -84,7 +84,7 @@ class TestBaseOperation(unittest.TestCase):
         op.inputs['in_value1'].set(value1)
         op.inputs['in_value2'].set(value2)
         
-        op.setup(1, 1)
+        op.setup()
         op.check_ready(1)
         op.prepare_trigger(1)
         op.trigger()
@@ -104,7 +104,7 @@ class TestBaseOperation(unittest.TestCase):
         op.inputs['in_value1'].set(value1)
         op.inputs['in_value2'].set(value2)
         
-        op.setup(1, 1)
+        op.setup()
         op.check_ready(1)
         op.prepare_trigger(1)
         op.trigger()
@@ -123,7 +123,7 @@ class TestBaseOperation(unittest.TestCase):
         op = BaseOperation(constant_sum=2, target_device_idx=target_device_idx)
         op.inputs['in_value1'].set(value1)
         
-        op.setup(1, 1)
+        op.setup()
         op.check_ready(1)
         op.prepare_trigger(1)
         op.trigger()
@@ -140,7 +140,7 @@ class TestBaseOperation(unittest.TestCase):
         op = BaseOperation(constant_sub=2, target_device_idx=target_device_idx)
         op.inputs['in_value1'].set(value1)
         
-        op.setup(1, 1)
+        op.setup()
         op.check_ready(1)
         op.prepare_trigger(1)
         op.trigger()
@@ -157,7 +157,7 @@ class TestBaseOperation(unittest.TestCase):
         op = BaseOperation(constant_mul=2, target_device_idx=target_device_idx)
         op.inputs['in_value1'].set(value1)
         
-        op.setup(1, 1)
+        op.setup()
         op.check_ready(1)
         op.prepare_trigger(1)
         op.trigger()
@@ -174,7 +174,7 @@ class TestBaseOperation(unittest.TestCase):
         op = BaseOperation(constant_div=2, target_device_idx=target_device_idx)
         op.inputs['in_value1'].set(value1)
         
-        op.setup(1, 1)
+        op.setup()
         op.check_ready(1)
         op.prepare_trigger(1)
         op.trigger()
@@ -200,7 +200,7 @@ class TestBaseOperation(unittest.TestCase):
         for op in ops:
             op.inputs['in_value1'].set(value1)
             with self.assertRaises(ValueError):
-                op.setup(1, 1)
+                op.setup()
 
         # constant mul/div do not raise any exception in setup() with a single input
         ops = []
@@ -210,7 +210,7 @@ class TestBaseOperation(unittest.TestCase):
         for op in ops:
             op.inputs['in_value1'].set(value1)
             # Does not raise
-            op.setup(1, 1)  
+            op.setup()  
 
 
     @cpu_and_gpu
@@ -233,7 +233,7 @@ class TestBaseOperation(unittest.TestCase):
         for op in ops:
             op.inputs['in_value1'].set(value1)
             op.inputs['in_value2'].set(value2)
-            op.setup(1, 1)
+            op.setup()
             op.check_ready(1)
             op.prepare_trigger(1)
             op.trigger()
@@ -249,7 +249,7 @@ class TestBaseOperation(unittest.TestCase):
         
         op.inputs['in_value1'].set(value1)
         op.inputs['in_value2'].set(value2)
-        op.setup(1, 1)
+        op.setup()
         op.check_ready(1)
         op.prepare_trigger(1)
         op.trigger()

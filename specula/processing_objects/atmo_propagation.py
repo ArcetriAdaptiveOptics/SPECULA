@@ -209,8 +209,8 @@ class AtmoPropagation(BaseProcessingObj):
         return Interp2D(layer.size, (self.pixel_pupil_size, self.pixel_pupil_size), xx=xx1, yy=yy1,
                         rotInDeg=angle*180.0/np.pi, xp=self.xp, dtype=self.dtype)
 
-    def setup(self, loop_dt, loop_niters):
-        super().setup(loop_dt, loop_niters)
+    def setup(self):
+        super().setup()
 
         self.atmo_layer_list = self.inputs['atmo_layer_list'].get(self.target_device_idx)
         self.common_layer_list = self.inputs['common_layer_list'].get(self.target_device_idx)

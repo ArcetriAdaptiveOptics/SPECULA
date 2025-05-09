@@ -21,16 +21,17 @@ class TestAtmo(unittest.TestCase):
 
     @cpu_and_gpu
     def test_atmo(self, target_device_idx, xp):
-        
+
+        simulParams = SimulParams(pixel_pupil=160, pixel_pitch=0.05, time_step=1)
+    
         data_dir = os.path.join(os.path.dirname(__file__), 'data')
-        seeing = FuncGenerator(constant=0.65, target_device_idx=target_device_idx)
-        wind_speed = FuncGenerator(constant=5.5, target_device_idx=target_device_idx)
-        wind_direction = FuncGenerator(constant=0, target_device_idx=target_device_idx)
+        seeing = FuncGenerator(simulParams, constant=0.65, target_device_idx=target_device_idx)
+        wind_speed = FuncGenerator(simulParams, constant=5.5, target_device_idx=target_device_idx)
+        wind_direction = FuncGenerator(simulParams, constant=0, target_device_idx=target_device_idx)
 
         on_axis_source = Source(polar_coordinates=[0.0, 0.0], magnitude=8, wavelengthInNm=750)
         lgs1_source = Source( polar_coordinates=[45.0, 0.0], height=90000, magnitude=5, wavelengthInNm=589)
 
-        simulParams = SimulParams(pixel_pupil=160, pixel_pitch=0.05)
 
         atmo = AtmoEvolution(simulParams,
                              L0=23,  # [m] Outer scale
@@ -53,7 +54,7 @@ class TestAtmo(unittest.TestCase):
         prop.inputs['common_layer_list'].set([])
 
         for obj in [seeing, wind_speed, wind_direction, atmo, prop]:
-            obj.setup(1, 1)
+            obj.setup()
         
         for obj in [seeing, wind_speed, wind_direction, atmo, prop]:
             obj.check_ready(1)
