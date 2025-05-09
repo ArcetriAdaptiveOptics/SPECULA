@@ -42,8 +42,6 @@ class Integrator(IirFilter):
                     raise ValueError("When n_modes is a list, length of n_modes {len(n_modes)} must match length of ff {len(ff)}")
                 ff = [val for i, val in enumerate(ff) for _ in range(n_modes[i])]
 
-        print(f"Integrator: int_gain = {int_gain}, ff = {ff}")
-
         iir_filter_data = IirFilterData.from_gain_and_ff(int_gain, ff=ff,
                                                target_device_idx=target_device_idx)
 
