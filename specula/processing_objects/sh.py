@@ -353,7 +353,6 @@ class SH(BaseProcessingObj):
                     self._kernelobj.save(self._kernel_fn)
                     print('Done')
 
-                self._kernels = self._kernelobj.kernels
             else:
                 # Kernel hasn't changed, no need to reload or recalculate
                 print("Kernel unchanged, using cached version")
@@ -397,7 +396,7 @@ class SH(BaseProcessingObj):
             if self._kernelobj is not None:
                 first = i * self._lenslet.dimy
                 last = (i + 1) * self._lenslet.dimy
-                subap_kern_fft = self._kernels[first:last, :, :]
+                subap_kern_fft = self._kernelobj.kernels[first:last, :, :]
 
                 psf_fft = self.xp.fft.fft2(self.psf_shifted)
                 psf_fft *= subap_kern_fft
