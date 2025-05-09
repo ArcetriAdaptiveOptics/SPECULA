@@ -140,6 +140,8 @@ class Simul():
                 self.mainParamsKeyName = key
 
     def build_objects(self, params):
+
+        self.setSimulParams(params)
         
         cm = CalibManager(self.mainParams['root_dir'])
         skip_pars = 'class inputs outputs'.split()
@@ -475,9 +477,6 @@ class Simul():
             with open(filename, 'r') as stream:
                 additional_params = yaml.safe_load(stream)
                 self.combine_params(params, additional_params)
-
-        # update also global simul params
-        self.setSimulParams(params)
 
         # Actual creation code
         self.apply_overrides(params)
