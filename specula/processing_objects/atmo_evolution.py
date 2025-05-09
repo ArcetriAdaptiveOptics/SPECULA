@@ -259,7 +259,7 @@ class AtmoEvolution(BaseProcessingObj):
 
         # if len(self.phasescreens) != len(wind_speed) or len(self.phasescreens) != len(wind_direction):
         #     raise ValueError('Error: number of elements of wind speed and/or direction does not match the number of phasescreens')
-        seeing = cpuArray(self.local_inputs['seeing'].value)
+        seeing = float(cpuArray(self.local_inputs['seeing'].value))
         wind_speed = cpuArray(self.local_inputs['wind_speed'].value)
         wind_direction = cpuArray(self.local_inputs['wind_direction'].value)
         r0 = 0.9759 * 0.5 / (seeing * 4.848) * self.airmass**(-3./5.) # if seeing > 0 else 0.0

@@ -15,7 +15,7 @@ class WindowedIntegration(BaseProcessingObj):
                  precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        self.loop_dt = simul_params.time_step
+        self.loop_dt = self.seconds_to_t(simul_params.time_step)
 
         if dt <= 0:
             raise ValueError(f'dt (integration time) is {dt} and must be greater than zero')

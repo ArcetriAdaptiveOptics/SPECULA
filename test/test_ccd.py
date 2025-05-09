@@ -16,11 +16,12 @@ class TestCCD(unittest.TestCase):
     def test_ccd_wrong_dt(self, target_device_idx, xp):
         simul_params = SimulParams(time_step = 2)
 
+        # A non-multiple of time_step raises ValueError
         with self.assertRaises(ValueError):
             ccd = CCD(simul_params, size=(2,2), dt=5, bandw=300,
                       target_device_idx=target_device_idx)
 
-        # A multiple of dt does not raise
+        # A multiple of time_step does not raise
         _ = CCD(simul_params, size=(2,2), dt=4, bandw=300,
                       target_device_idx=target_device_idx)
 

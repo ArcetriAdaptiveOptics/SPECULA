@@ -1,6 +1,8 @@
 from astropy.io import fits
 
+from specula import cpuArray
 from specula.base_data_obj import BaseDataObj
+
 
 class ElectricField(BaseDataObj):
     '''Electric field'''
@@ -114,8 +116,8 @@ class ElectricField(BaseDataObj):
             if 'VERSION' not in hdr or 'OBJ_TYPE' not in hdr:
                 raise ValueError("Header must contain 'VERSION' and 'OBJ_TYPE'")
         A = self.A        
-        hdu_A = fits.PrimaryHDU(A, header=hdr)
-        hdu_phase = fits.ImageHDU(self.phaseInNm)
+        hdu_A = fits.PrimaryHDU(cpuArray(A), header=hdr)
+        hdu_phase = fits.ImageHDU(cpuArray(self.phaseInNm))
         hdul = fits.HDUList([hdu_A, hdu_phase])
         hdul.writeto(filename, overwrite=True)
 

@@ -25,9 +25,9 @@ class TestAtmo(unittest.TestCase):
         simulParams = SimulParams(pixel_pupil=160, pixel_pitch=0.05, time_step=1)
     
         data_dir = os.path.join(os.path.dirname(__file__), 'data')
-        seeing = FuncGenerator(simulParams, constant=0.65, target_device_idx=target_device_idx)
-        wind_speed = FuncGenerator(simulParams, constant=5.5, target_device_idx=target_device_idx)
-        wind_direction = FuncGenerator(simulParams, constant=0, target_device_idx=target_device_idx)
+        seeing = FuncGenerator(constant=0.65, target_device_idx=target_device_idx)
+        wind_speed = FuncGenerator(constant=5.5, target_device_idx=target_device_idx)
+        wind_direction = FuncGenerator(constant=0, target_device_idx=target_device_idx)
 
         on_axis_source = Source(polar_coordinates=[0.0, 0.0], magnitude=8, wavelengthInNm=750)
         lgs1_source = Source( polar_coordinates=[45.0, 0.0], height=90000, magnitude=5, wavelengthInNm=589)

@@ -18,7 +18,6 @@ class LowPassFilter(IirFilter):
         
         self.simul_params = simul_params
         self.time_step = self.simul_params.time_step
-       
         
         samp_freq = 1 / self.time_step
         

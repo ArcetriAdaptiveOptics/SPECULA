@@ -54,12 +54,13 @@ class CCD(BaseProcessingObj):
                  precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        self.loop_dt = simul_params.time_step
-
         if dt <= 0:
             raise ValueError(f'dt (integration time) is {dt} and must be greater than zero')
-        if dt % self.loop_dt != 0:
-            raise ValueError(f'integration time dt={dt} must be a multiple of the basic simulation time_step={self.loop_dt}')
+        if dt % simul_params.time_step != 0:
+            raise ValueError(f'integration time dt={dt} must be a multiple of the basic simulation time_step={simul_params.time_step}')
+
+        self.loop_dt = self.seconds_to_t(simul_params.time_step)
+        self._dt = self.seconds_to_t(dt)
 
         if readout_level and darkcurrent_level and background_level:
             # Compute RON and dark current
@@ -114,7 +115,6 @@ class CCD(BaseProcessingObj):
         if ADU_gain <= 1 and (not excess_noise or emccd_gain <= 1):
             print('ATTENTION: ADU gain is less than 1 and there is no electronic multiplication.')
 
-        self._dt = self.seconds_to_t(dt)
         self._start_time = self.seconds_to_t(start_time)
         self._photon_noise = photon_noise
         self._readout_noise = readout_noise

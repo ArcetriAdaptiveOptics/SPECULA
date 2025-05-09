@@ -105,6 +105,7 @@ sh1:
 
 detector1:
   class:             'CCD'
+  simul_params_ref:  'main'
   size:              [952,952]               # Detector size in pixels
   dt:                0.002                   # [s] Detector integration time
   bandw:             20                      # [nm] Sensor bandwidth
