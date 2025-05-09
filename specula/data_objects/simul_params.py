@@ -1,6 +1,7 @@
-from specula.base_data_obj import BaseDataObj
+from dataclasses import dataclass
 
-class SimulParams(BaseDataObj):
+@dataclass
+class SimulParams:
     '''
     Simulation Parameters 
     
@@ -13,37 +14,18 @@ class SimulParams(BaseDataObj):
     pixel_pitch : float
         The dimension in meters of a pixel (telescope diameter = pixel_pupil * pixel_pitch)
     total_time : float
-        The total time duration of the simulation
+        The total time duration of the simulation in seconds
     time_step : float
         The duration of a single timestep in seconds (number of timesteps = int(total_time/time_step) )
     zenithAngleInDeg : float
-        The zenith angle of the telescope
+        The zenith angle of the telescope in degrees
     display_server : bool
-
+        Activate web server for simulation display
     '''
-
-    def __init__(self,
-                 pixel_pupil: int = 120,
-                 pixel_pitch: float = 0.05,
-                 root_dir: str = '',
-                 total_time: float = 0.1, 
-                 time_step: float = 0.001, 
-                 zenithAngleInDeg: float = 0,
-                 display_server: bool = False,
-                 target_device_idx: int = None, 
-                 precision: int = None
-        ):
-
-        super().__init__(target_device_idx=target_device_idx, precision=precision)
-        
-        self.pixel_pupil = pixel_pupil
-        self.pixel_pitch = pixel_pitch
-        self.root_dir = root_dir
-        self.total_time = total_time
-        self.time_step = time_step
-        self.zenithAngleInDeg = zenithAngleInDeg
-        self.display_server = display_server
-    
-    
-    def finalize(self):
-        pass
+    pixel_pupil: int = None
+    pixel_pitch: float = None
+    root_dir: str = '.'
+    total_time: float = 0.1
+    time_step: float = 0.001
+    zenithAngleInDeg: float = 0
+    display_server: bool = False
