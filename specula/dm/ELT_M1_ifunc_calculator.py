@@ -2,10 +2,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from astropy.io import fits
-#TODO: update data_root_dir
-from andes.utils.package_data import DATA_ROOT_DIR
 from specula.data_objects.ifunc import IFunc
-
 
 class ELTM1IFuncCalculator:
 
@@ -17,8 +14,7 @@ class ELTM1IFuncCalculator:
         self.ifs_cube = None
 
     def M1_modal_base(self):
-        #TODO: update filepath
-        segmentation = fits.open(os.path.join(DATA_ROOT_DIR, 'M1SegmentsMapping1015.fits'))[0].data.copy()
+        segmentation = fits.open(os.path.join(os.path.dirname(__file__), '../data/EltM1SegmMap1015pix38570mm.fits'))[0].data.copy()
 
         rescalingFactor = segmentation.shape[0]/self.dim
         coord = np.round(np.arange(self.dim)*rescalingFactor).astype(int)
@@ -75,12 +71,9 @@ class ELTM1IFuncCalculator:
         for i, a in enumerate(ax.flatten()):
             a.imshow(mb[:, :, i], origin='lower')
 
-
-
-# Esempio di utilizzo della classe
-# dim = 320  # Dimensione della pupilla
-# n_act = 20  # Numero di attuatori lungo il diametro
-# calculator = ZonalIFuncCalculator(dim, n_act, circGeom=True, displayZonalIFs=False)
-# calculator.compute_zonal_ifunc()
-# calculator.save_results('/Users/guido/SourceCode/Python/PYSSATA_scripts/ifunc_data2.fits')
+# Example usage of the class
+# from specula.dm.ELT_M1_ifunc_calculator import ELTM1IFuncCalculator
+# dim = 480  # Pupil dimension
+# calculator = ELTM1IFuncCalculator(dim)
+# calculator.save_results('~/ifunc_elt_m1.fits')
 # calculator.plot_results()
