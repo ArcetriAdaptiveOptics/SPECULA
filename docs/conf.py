@@ -24,6 +24,8 @@ extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.coverage',
               'sphinx.ext.napoleon',
               'sphinx.ext.intersphinx',
+              'sphinx_rtd_theme',        # ReadTheDocs theme
+              'm2r',                     # mdinclude directive
               'nbsphinx',
               'numpydoc',
               ]
