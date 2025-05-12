@@ -29,6 +29,8 @@ class Integrator(IirFilter):
         #   Example: n_modes=[2,3], int_gain=[0.5, 1.0] -> int_gain = [0.5, 0.5, 1.0, 1.0, 1.0]
         # - If ff is provided, it is expanded in the same way as int_gain.
         # - Raises ValueError if the lengths do not match.
+        # Note: this behaviour (repeat each element of int_gain and ff by the corresponding number in n_modes)
+        #       is the same as numpy.repeat
         if n_modes is not None:
             if isinstance(n_modes, int):
                 n_modes = [n_modes]
