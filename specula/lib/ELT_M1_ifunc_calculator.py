@@ -75,7 +75,7 @@ class ELTM1IFuncCalculator:
             tilt_s[idx_s]-=np.mean(tilt_s[idx_s])#remove the average offset
             M1Base.append(tilt_s[idx_pupil].copy())
 
-        self.ifs_cube = np.asarray(M1Base, dtype=self.dtype).T
+        self.ifs_cube = np.asarray(M1Base, dtype=self.dtype)
 
     def save_results(self, filename):
         self.M1_modal_base()
