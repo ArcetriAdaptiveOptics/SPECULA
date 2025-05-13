@@ -223,6 +223,7 @@ class SH(BaseProcessingObj):
             print('-->     no. elements FoV,      {}'.format(subap_real_fov_pix))
             print('-->     FFT size (turb. FoV),  {}'.format(self._fft_size))
             print('-->     L.C.M. for toccd,      {}'.format(mcmx))
+            print('-->     oversampled np_sub,    {}'.format(self._ovs_np_sub))
 
 
         # Check for valid phase size
@@ -373,18 +374,18 @@ class SH(BaseProcessingObj):
                 # self._wf1 already set to in_ef
                 pass
 
-        with show_in_profiler('ef_at_lambda'):
-            self._wf1.ef_at_lambda(self._wavelengthInNm, out=self.ef_whole)
-
         # Work on SH rows (single-subap code is too inefficient)
 
         for i in range(self._lenslet.dimx):
 
             # Extract 2D subap row
-            ef_subap_view = self.ef_whole[i * self._ovs_np_sub: (i+1) * self._ovs_np_sub, :]
+            self._wf1.ef_at_lambda(self._wavelengthInNm,
+                                   slicey=np.s_[i * self._ovs_np_sub: (i+1) * self._ovs_np_sub],
+                                   slicex=np.s_[:],
+                                   out=self.ef_row)
 
             # Reshape to subap cube (nsubap, npix, npix)
-            subap_cube_view = ef_subap_view.reshape(self._ovs_np_sub, self._lenslet.dimy, self._ovs_np_sub).swapaxes(0, 1)
+            subap_cube_view = self.ef_row.reshape(self._ovs_np_sub, self._lenslet.dimy, self._ovs_np_sub).swapaxes(0, 1)
 
             # Insert into padded array
             self._wf3[:, :self._ovs_np_sub, :self._ovs_np_sub] = subap_cube_view * self._tltf[self.xp.newaxis, :, :]
@@ -428,7 +429,6 @@ class SH(BaseProcessingObj):
 
             # Assert that our views are actually views and not temporary allocations
             assert psf_cut_view.base is not None
-            assert ef_subap_view.base is not None
             assert subap_cube_view.base is not None
 
         with show_in_profiler('toccd'):
@@ -475,15 +475,9 @@ class SH(BaseProcessingObj):
             self._do_interpolation = False
 
         ef_whole_size = int(in_ef.size[0] * self._fov_ovs)
-        self.ef_whole = self._zeros_common((ef_whole_size, ef_whole_size), dtype=self.complex_dtype)
+        self.ef_row = self._zeros_common((self._ovs_np_sub, ef_whole_size), dtype=self.complex_dtype)
         self.psf = self._zeros_common((self._lenslet.dimy, self._fft_size, self._fft_size), dtype=self.dtype)
         self.psf_shifted = self._zeros_common((self._lenslet.dimy, self._fft_size, self._fft_size), dtype=self.dtype)
-
-        if self._kernelobj is not None:
-            self._kernels = self.xp.zeros((self._lenslet.dimx * self._lenslet.dimy, 
-                                           self._fft_size, self._fft_size), dtype=self.complex_dtype)
-        else:
-            self._kernels = None
 
         super().build_stream(allow_parallel=False)
 

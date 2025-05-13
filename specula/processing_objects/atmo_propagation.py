@@ -6,7 +6,7 @@ from specula.lib.interp2d import Interp2D
 from specula.data_objects.electric_field import ElectricField
 from specula.connections import InputList
 from specula.data_objects.layer import Layer
-from specula import show_in_profiler, ASEC2RAD
+from specula import cpuArray, show_in_profiler, ASEC2RAD
 from specula.data_objects.simul_params import SimulParams
 
 import numpy as np
@@ -170,8 +170,8 @@ class AtmoPropagation(BaseProcessingObj):
     def layer_interpolator(self, source, layer):
         pixel_layer = layer.size[0]
         half_pixel_layer = np.array([(pixel_layer - 1) / 2., (pixel_layer - 1) / 2.]) 
-        cos_sin_phi =  np.array( [np.cos(source.phi), np.sin(source.phi)]) 
-        half_pixel_layer -= layer.shiftXYinPixel
+        cos_sin_phi =  np.array( [np.cos(source.phi), np.sin(source.phi)])
+        half_pixel_layer -= cpuArray(layer.shiftXYinPixel)
 
         if self.pupil_position is not None and pixel_layer > self.pixel_pupil_size and np.isinf(source.height):
             pixel_position_s = source.r * layer.height * self.airmass / layer.pixel_pitch

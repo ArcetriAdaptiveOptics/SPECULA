@@ -1,4 +1,5 @@
 from astropy.io import fits
+import numpy as np
 
 from specula import cpuArray
 from specula.base_data_obj import BaseDataObj
@@ -56,13 +57,13 @@ class ElectricField(BaseDataObj):
             raise ValueError(f'{ef2} has size {ef2.size} instead of the required ({diff0}, {diff1})')
         return subrect
         
-    def phi_at_lambda(self, wavelengthInNm):
-        return self.phaseInNm * ((2 * self.xp.pi) / wavelengthInNm)
+    def phi_at_lambda(self, wavelengthInNm, slicey=np.s_[:], slicex=np.s_[:]):
+        return self.phaseInNm[slicey, slicex] * ((2 * self.xp.pi) / wavelengthInNm)
 
-    def ef_at_lambda(self, wavelengthInNm, out=None):
-        phi = self.phi_at_lambda(wavelengthInNm)
+    def ef_at_lambda(self, wavelengthInNm, slicey=np.s_[:], slicex=np.s_[:], out=None):
+        phi = self.phi_at_lambda(wavelengthInNm, slicey=slicey, slicex=slicex)
         ef = self.xp.exp(1j * phi, dtype=self.complex_dtype, out=out)
-        ef *= self.A
+        ef *= self.A[slicey, slicex]
         return ef
 
     def product(self, ef2, subrect=None):
