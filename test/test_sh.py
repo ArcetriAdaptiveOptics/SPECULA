@@ -33,7 +33,7 @@ class TestSH(unittest.TestCase):
 
         sh.inputs['in_ef'].set(ef)
 
-        sh.setup(1, 1)
+        sh.setup()
         sh.check_ready(t)
         sh.trigger()
         sh.post_trigger()
@@ -67,7 +67,7 @@ class TestSH(unittest.TestCase):
         ef.generation_time = t
         sh.inputs['in_ef'].set(ef)
 
-        sh.setup(1, 1)
+        sh.setup()
         sh.check_ready(t)
         sh.trigger()
         sh.post_trigger()
@@ -134,9 +134,9 @@ class TestSH(unittest.TestCase):
         sh2.inputs['in_ef'].set(ef)
         sh3.inputs['in_ef'].set(ef)
 
-        sh1.setup(1, 1)
-        sh2.setup(1, 1)
-        sh3.setup(1, 1)
+        sh1.setup()
+        sh2.setup()
+        sh3.setup()
         
         assert id(sh1._wf3) == id(sh2._wf3) 
         assert id(sh1._wf3) != id(sh3._wf3) 

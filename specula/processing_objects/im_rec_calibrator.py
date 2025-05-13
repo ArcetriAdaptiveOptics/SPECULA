@@ -81,8 +81,8 @@ class ImRecCalibrator(BaseProcessingObj):
             rec = im.generate_rec(self._nmodes)
             rec.save(os.path.join(self._data_dir, self._rec_filename))
 
-    def setup(self, loop_dt, loop_niters):
-        super().setup(loop_dt, loop_niters)
+    def setup(self):
+        super().setup()
 
         if self._im_filename:
             im_path = os.path.join(self._data_dir, self._im_filename)

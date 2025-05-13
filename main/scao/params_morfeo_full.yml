@@ -156,6 +156,7 @@ sh_lgs6: { <<: *LGS_SH, rotAnglePhInDeg: -6.2, inputs: {in_ef: 'prop.out_source_
 
 detector_lgs1: &LGS_DETECTOR
   class:             'CCD'
+  simul_params_ref:  'main'
   size:              [952,952]               # Detector size in pixels
   dt:                0.002                   # [s] Detector integration time
   bandw:             20                      # [nm] Sensor bandwidth
@@ -237,6 +238,7 @@ sh_ngs3: { <<: *NGS_SH, inputs: {in_ef: 'prop.out_source_ngs3_ef' }}
 
 detector_ngs1: &NGS_DETECTOR
   class:             'CCD'
+  simul_params_ref:  'main'
   size:              [240,240]               # Detector size in pixels
   dt:                0.002                   # [s] Detector integration time
   bandw:             330                      # [nm] Sensor bandwidth
@@ -283,6 +285,7 @@ sh_ref3: { <<: *REF_SH, inputs: {in_ef: 'prop.out_source_ref3_ef' }}
 
 detector_ref1: &REF_DETECTOR
   class:             'CCD'
+  simul_params_ref:  'main'
   size:              [240,240]               # Detector size in pixels
   dt:                0.002                   # [s] Detector integration time
   bandw:             400                      # [nm] Sensor bandwidth

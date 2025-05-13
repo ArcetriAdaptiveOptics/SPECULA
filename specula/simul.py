@@ -484,7 +484,7 @@ class Simul():
         self.connect_objects(params)                
 
         # Initialize housekeeping objects
-        self.loop = LoopControl(run_time=self.mainParams['total_time'], dt=self.mainParams['time_step'])        
+        self.loop = LoopControl()        
 
         if not self.isReplay:
             self.build_replay(params)
@@ -515,10 +515,6 @@ class Simul():
 
 #        if data_store.has_key('sr'):
 #            print(f"Mean Strehl Ratio (@{params['psf']['wavelengthInNm']}nm) : {store.mean('sr', init=min([50, 0.1 * self.mainParams['total_time'] / self.mainParams['time_step']])) * 100.}")
-
-        for obj in self.objs.values():
-            if isinstance(obj, BaseProcessingObj):
-                obj.finalize()
 
     def get_info(self):
         '''Quick info string intended for web interfaces'''

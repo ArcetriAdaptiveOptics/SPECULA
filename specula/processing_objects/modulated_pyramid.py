@@ -458,8 +458,8 @@ class ModulatedPyramid(BaseProcessingObj):
         self.out_transmission.value = self.transmission
         self.out_transmission.generation_time = self.current_time
     
-    def setup(self, loop_dt, loop_niters):
-        super().setup(loop_dt, loop_niters)
+    def setup(self):
+        super().setup()
 
         super().build_stream()
         if not self.extended_source_in_on:

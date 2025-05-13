@@ -350,7 +350,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
     
     @show_in_profiler('atmo_evolution.trigger_code')
     def trigger_code(self):
-        seeing = cpuArray(self.local_inputs['seeing'].value)
+        seeing = float(cpuArray(self.local_inputs['seeing'].value))
         wind_speed = cpuArray(self.local_inputs['wind_speed'].value)
         wind_direction = cpuArray(self.local_inputs['wind_direction'].value)
 

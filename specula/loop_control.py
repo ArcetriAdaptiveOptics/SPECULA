@@ -5,17 +5,14 @@ from specula.base_time_obj import BaseTimeObj
 
 
 class LoopControl(BaseTimeObj):
-    def __init__(self, run_time=None, dt=None, t0=None, verbose=False):
+    def __init__(self, verbose=False):
         super().__init__(target_device_idx=-1, precision=1)
         self._ordered_lists = {}
-        self._init_run_time = run_time if run_time is not None else 0.0
-        self._init_dt = dt if dt is not None else 0.001
-        self._init_t0 = t0 if t0 is not None else 0.0
         self._verbose = verbose
-        self._run_time = 0
-        self._dt = 0
-        self._t0 = 0
-        self._t = 0
+        self._run_time = None
+        self._dt = None
+        self._t0 = None
+        self._t = None
         self._stop_on_data = None
         self._stop_at_time = 0
         self._profiling = False
@@ -37,52 +34,36 @@ class LoopControl(BaseTimeObj):
 
         self._ordered_lists[idx].append(obj)
         
-        
     def remove_all(self):
         self._ordered_lists.clear()
 
     def niters(self):
         return (self._run_time + self._t0) / self._dt if self._dt != 0 else 0
 
-    def get_dt(self):
-        return self._dt
-
-    def get_t(self):
-        return self._t
-
-    def set_dt(self, dt):
-        self._dt = dt
-
-    def run(self, run_time=None, t0=None, dt=None, stop_on_data=None, stop_at_time=None,
+    def run(self, run_time, dt, t0=0, stop_on_data=None, stop_at_time=None,
             profiling=False, speed_report=False):
-        self.start(run_time=run_time, t0=t0, dt=dt, stop_on_data=stop_on_data, stop_at_time=stop_at_time,
+        self.start(run_time, dt, t0=t0, stop_on_data=stop_on_data, stop_at_time=stop_at_time,
                    profiling=profiling, speed_report=speed_report)
         while self._t < self._t0 + self._run_time:
             self.iter()
         self.finish()
 
-    def start(self, run_time=None, t0=None, dt=None, stop_on_data=None, stop_at_time=None,
+    def start(self, run_time, dt, t0=0, stop_on_data=None, stop_at_time=None,
               profiling=False, speed_report=False):
-        if run_time is not None:
-            self._init_run_time = run_time
-        if dt is not None:
-            self._init_dt = dt
-        if t0 is not None:
-            self._init_t0 = t0
 
         self._profiling = profiling
         self._speed_report = speed_report
         self._stop_at_time = stop_at_time if stop_at_time is not None else 0
         self._stop_on_data = stop_on_data
 
-        self._run_time = self.seconds_to_t(self._init_run_time)
-        self._dt = self.seconds_to_t(self._init_dt)
-        self._t0 = self.seconds_to_t(self._init_t0)
+        self._run_time = self.seconds_to_t(run_time)
+        self._dt = self.seconds_to_t(dt)
+        self._t0 = self.seconds_to_t(t0)
 
         for i in range(self._max_order+1):
             for element in self._ordered_lists[i]:
                 try:
-                    element.setup(self._dt, self.niters())
+                    element.setup()
                 except:
                     print('Exception in', element.name)
                     raise
@@ -139,6 +120,15 @@ class LoopControl(BaseTimeObj):
         self._t += self._dt
 
     def finish(self):
+
+        for i in range(self._max_order+1):
+             for element in self._ordered_lists[i]:
+                try:
+                    element.finalize()
+                except:
+                    print('Exception in', element.name)
+                    raise
+
         if self._profiling:
             self.stop_profiling()
 

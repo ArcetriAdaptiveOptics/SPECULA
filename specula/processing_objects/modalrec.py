@@ -167,8 +167,8 @@ class Modalrec(BaseProcessingObj):
         #        self.layer_modes_list[i].value = self.modes_first_step.value[idx_list]
         #        self.layer_modes_list[i].generation_time = self.current_time
 
-    def setup(self, loop_dt, loop_niters):
-        super().setup(loop_dt, loop_niters)
+    def setup(self):
+        super().setup()
 
         slopes = self.inputs['in_slopes'].get(self.target_device_idx)
         slopes_list = self.inputs['in_slopes_list'].get(self.target_device_idx)

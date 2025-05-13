@@ -114,23 +114,20 @@ The *setup()* method is called after all connections have been completed but bef
 and it is intended for later initialization that needs information from the connected inputs, or from some
 other global simulation parameter. The method signature is::
 
-    def setup(self, loop_dt, loop_niters):
-
-where *loop_dt* is the simulation time step (in units of *self._time_resolution*), and *loop_niters* is the foreseen
-total number of simulation iterations.
+    def setup(self):
 
 The default implementation checks that all non-optional inputs have been set, and selects the correct GPU if needed,
 so that the derived class' code runs on the correct target. A class that reimplements this method *must* call the base class one::
 
-    def setup(self, loop_dt, loop_niters):
-        super().setup(loop_dt, loop_niters)
+    def setup(self):
+        super().setup()
         [... additional setup as needed ...]
 
 An important task of the *setup()* method is to call the *build_stream()* method to enable CUDA graph capturing
 of the trigger code described below::
 
-    def setup(self, loop_dt, loop_niters):
-        super().setup(loop_dt, loop_niters)
+    def setup(self):
+        super().setup()
         self.build_stream()
 
 
@@ -194,8 +191,8 @@ the current simulated time *t*. The base class method must be called as well, ex
 By default, all streams in an object group are executed in parallel. If an object wishes to turn off parallelization,
 it can call *build_stream()* setting the optional *allow_parallel* parameter to False::
 
-    def setup(self, loop_dt, loop_niters):
-        super().setup(loop_dt, loop_niters)
+    def setup(self):
+        super().setup()
         self.build_stream(allow_parallel=False)
 
 In this case, the trigger graph will be run on a default stream that serializes all such graphs. It is still

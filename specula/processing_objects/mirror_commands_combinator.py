@@ -98,8 +98,8 @@ class MirrorCommandsCombinator(BaseProcessingObj):
         self.result_commands3.generation_time = self.current_time
 
 
-    def setup(self, loop_dt, loop_niters):
-        super().setup(loop_dt, loop_niters)
+    def setup(self):
+        super().setup()
             
 
 

@@ -1,6 +1,7 @@
 
 
 import specula
+from specula.data_objects.simul_params import SimulParams
 specula.init(0)  # Default target device
 
 import unittest
@@ -31,7 +32,7 @@ class TestFuncGenerator(unittest.TestCase):
         offset = 3
         constant = 4
         f = FuncGenerator('SIN', target_device_idx=target_device_idx, amp=amp, freq=freq, offset=offset, constant=constant)
-        f.setup(0.1, 3)
+        f.setup()
 
         # Test twice in order to test streams capture, if enabled
         for t in [f.seconds_to_t(x) for x in [0.1, 0.2, 0.3]]:

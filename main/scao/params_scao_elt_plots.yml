@@ -81,6 +81,7 @@ pyramid:
 
 detector:
   class:             'CCD'
+  simul_params_ref:  'main'
   size:              [240,240]                 # Detector size in pixels
   dt:                0.001                   # [s] Detector integration time
   bandw:             155                     # [nm] Sensor bandwidth

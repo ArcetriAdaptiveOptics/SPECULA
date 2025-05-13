@@ -14,37 +14,34 @@ class TestCCD(unittest.TestCase):
 
     @cpu_and_gpu
     def test_ccd_wrong_dt(self, target_device_idx, xp):
-        dt = 3        
-        ccd = CCD(size=(2,2), dt=dt, bandw=300,
-                       target_device_idx=target_device_idx)
+        simul_params = SimulParams(time_step = 2)
 
-        i = Intensity(dimx=2, dimy=2, target_device_idx=target_device_idx)
-        
-        ccd.inputs['in_i'].set(i)
-        # TODO dt and seconds_to_t() must be revised
-#        with self.assertRaises(ValueError):
-        ccd.setup(5, loop_niters=1)
-        
-        # A multiple of dt does not raise
-        ccd.setup(loop_dt=dt*2, loop_niters=1)
+        # A non-multiple of time_step raises ValueError
+        with self.assertRaises(ValueError):
+            ccd = CCD(simul_params, size=(2,2), dt=5, bandw=300,
+                      target_device_idx=target_device_idx)
+
+        # A multiple of time_step does not raise
+        _ = CCD(simul_params, size=(2,2), dt=4, bandw=300,
+                      target_device_idx=target_device_idx)
 
     @cpu_and_gpu
     def test_ccd_raises_on_missing_input(self, target_device_idx, xp):
 
-        dt = 1        
-        ccd = CCD(size=(2,2), dt=dt, bandw=300,
+        simul_params = SimulParams(time_step = 2)
+        ccd = CCD(simul_params, size=(2,2), dt=2, bandw=300,
                        target_device_idx=target_device_idx)
 
         i = Intensity(dimx=2, dimy=2, target_device_idx=target_device_idx)
         
         # Raises because of missing input
         with self.assertRaises(ValueError):
-            ccd.setup(loop_dt=dt, loop_niters=1)
+            ccd.setup()
 
         ccd.inputs['in_i'].set(i)
 
         # Does not raise anymore
-        ccd.setup(loop_dt=dt, loop_niters=1)
+        ccd.setup()
 
 if __name__ == '__main__':
     unittest.main()

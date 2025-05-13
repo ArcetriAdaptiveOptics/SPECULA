@@ -70,8 +70,8 @@ class BaseOperation(BaseProcessingObj):
         self.inputs['in_value2'] = InputValue(type=BaseValue, optional=True)
         self.outputs['out_value'] = self.out_value
     
-    def setup(self, loop_dt, loop_niters):
-        super().setup(loop_dt, loop_niters)
+    def setup(self):
+        super().setup()
  
         # Check that both inputs have been set for
         # operations that need them

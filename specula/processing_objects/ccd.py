@@ -21,7 +21,8 @@ def clamp_generic(x, c, y, xp):
 
 class CCD(BaseProcessingObj):
     '''Simple CCD from intensity field'''
-    def __init__(self,                 
+    def __init__(self,
+                 simul_params: SimulParams,        
                  size: int,           # TODO list=[80,80],
                  dt: float,           # TODO =0.001,
                  bandw: float,        # TODO =300.0,
@@ -52,6 +53,14 @@ class CCD(BaseProcessingObj):
                  target_device_idx: int=None,
                  precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
+
+        if dt <= 0:
+            raise ValueError(f'dt (integration time) is {dt} and must be greater than zero')
+        if dt % simul_params.time_step != 0:
+            raise ValueError(f'integration time dt={dt} must be a multiple of the basic simulation time_step={simul_params.time_step}')
+
+        self.loop_dt = self.seconds_to_t(simul_params.time_step)
+        self._dt = self.seconds_to_t(dt)
 
         if readout_level and darkcurrent_level and background_level:
             # Compute RON and dark current
@@ -106,7 +115,6 @@ class CCD(BaseProcessingObj):
         if ADU_gain <= 1 and (not excess_noise or emccd_gain <= 1):
             print('ATTENTION: ADU gain is less than 1 and there is no electronic multiplication.')
 
-        self._dt = self.seconds_to_t(dt)
         self._start_time = self.seconds_to_t(start_time)
         self._photon_noise = photon_noise
         self._readout_noise = readout_noise
@@ -192,11 +200,11 @@ class CCD(BaseProcessingObj):
             in_i = self.local_inputs['in_i']
             if in_i.generation_time == self.current_time:
                 if self._doNotChangeI:
-                    self._integrated_i.sum(in_i, factor=self._loop_dt / self._dt)
+                    self._integrated_i.sum(in_i, factor=self.loop_dt / self._dt)
                 else:
-                    self._integrated_i.sum(in_i, factor=self.t_to_seconds(self._loop_dt) * self._bandw)
+                    self._integrated_i.sum(in_i, factor=self.t_to_seconds(self.loop_dt) * self._bandw)
 
-            if (self.current_time + self._loop_dt - self._dt - self._start_time) % self._dt == 0:
+            if (self.current_time + self.loop_dt - self._dt - self._start_time) % self._dt == 0:
                 if self._doNotChangeI:
                     self._pixels.pixels = self._integrated_i.i.copy()
                 else:
@@ -287,15 +295,11 @@ class CCD(BaseProcessingObj):
                            (dim2d[1] // self._binning // 2) * j:(dim2d[1] // self._binning // 2) * (j + 1)] = quadrantsGains[j * 2 + i]
         self._pixelGains = pixelGains
 
-    def setup(self, loop_dt, loop_niters):
-        super().setup(loop_dt, loop_niters)
+    def setup(self):
+        super().setup()
         in_i = self.inputs['in_i'].get(self.target_device_idx)
         if in_i is None:
             raise ValueError('Input intensity object has not been set')
-        if self._dt <= 0:
-            raise ValueError(f'dt (integration time) is {self._dt} and must be greater than zero')
-        if self._dt % loop_dt != 0:
-            raise ValueError(f'integration time dt={self._dt} must be a multiple of the basic simulation time_step={loop_dt}')
         if self._cte_noise and self._cte_mat is None:
             raise ValueError('CTE matrix must be set if CTE noise is activated')
 
