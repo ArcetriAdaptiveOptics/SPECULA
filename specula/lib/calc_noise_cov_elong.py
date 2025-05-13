@@ -2,6 +2,7 @@ import numpy as np
 from astropy.io import fits
 import matplotlib.pyplot as plt
 from astropy.modeling import models, fitting
+from specula import cpuArray
 from specula.data_objects.convolution_kernel import lgs_map_sh
 
 
@@ -38,6 +39,21 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
         Bechet et al., "Optimal reconstruction for closed-loop ground-layer adaptive optics with elongated spots" 
         JOSA A, Vol. 27, No. 11 (2010)
     """
+    
+    # Convert inputs to CPU arrays for GPU processing
+    diameter_in_m = cpuArray(diameter_in_m)
+    zenith_angle_in_deg = cpuArray(zenith_angle_in_deg)
+    na_thickness_in_m = cpuArray(na_thickness_in_m)
+    launcher_coord_in_m = cpuArray(launcher_coord_in_m)
+    sub_aps_index = cpuArray(sub_aps_index)
+    n_sub_aps = cpuArray(n_sub_aps)
+    sub_aps_fov = cpuArray(sub_aps_fov)
+    sh_spot_fwhm = cpuArray(sh_spot_fwhm)
+    sigma_noise2 = cpuArray(sigma_noise2)
+    t_g_parameter = cpuArray(t_g_parameter)
+    h_in_m = cpuArray(h_in_m)
+    theta = cpuArray(theta)
+    
     if only_diag and verbose:
         print('onlyDiag is set')
     if eta_is_not_one and verbose:
