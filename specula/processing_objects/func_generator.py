@@ -143,7 +143,6 @@ class FuncGenerator(BaseProcessingObj):
 
         if self.type == 'SIN':
             phase = self.freq*2 * self.xp.pi * self.current_time_gpu + self.offset
-            print(f'{self.output.value.shape=} {self.vsize_array.shape=} {(self.amp * self.xp.sin(phase, dtype=self.dtype) + self.constant).shape}')        
             self.output.value[:] = (self.amp * self.xp.sin(phase, dtype=self.dtype) + self.constant) * self.vsize_array
 
         elif self.type == 'SQUARE_WAVE':
@@ -162,7 +161,6 @@ class FuncGenerator(BaseProcessingObj):
             self.output.value[:] = (self.xp.random.uniform(low=lowv, high=highv)) * self.vsize_array
 
         elif self.type in ['VIB_HIST', 'VIB_PSD', 'PUSH', 'PUSHPULL', 'TIME_HIST']:
-            print(f'{self.get_time_hist_at_current_time().shape=} {self.vsize_array.shape=} {self.output.value.shape=}')
             self.output.value[:] = self.get_time_hist_at_current_time() * self.vsize_array
 
         else:

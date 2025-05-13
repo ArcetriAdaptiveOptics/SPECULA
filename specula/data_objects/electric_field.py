@@ -57,10 +57,18 @@ class ElectricField(BaseDataObj):
             raise ValueError(f'{ef2} has size {ef2.size} instead of the required ({diff0}, {diff1})')
         return subrect
         
-    def phi_at_lambda(self, wavelengthInNm, slicey=np.s_[:], slicex=np.s_[:]):
+    def phi_at_lambda(self, wavelengthInNm, slicey=None, slicex=None):
+        if slicey is None:
+            slicey = np.s_[:]
+        if slicex is None:
+            slicex = np.s_[:]
         return self.phaseInNm[slicey, slicex] * ((2 * self.xp.pi) / wavelengthInNm)
 
-    def ef_at_lambda(self, wavelengthInNm, slicey=np.s_[:], slicex=np.s_[:], out=None):
+    def ef_at_lambda(self, wavelengthInNm, slicey=None, slicex=None, out=None):
+        if slicey is None:
+            slicey = np.s_[:]
+        if slicex is None:
+            slicex = np.s_[:]
         phi = self.phi_at_lambda(wavelengthInNm, slicey=slicey, slicex=slicex)
         ef = self.xp.exp(1j * phi, dtype=self.complex_dtype, out=out)
         ef *= self.A[slicey, slicex]

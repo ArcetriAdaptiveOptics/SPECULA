@@ -103,9 +103,17 @@ class GaussianConvolutionKernel(ConvolutionKernel):
 
         # Read the kernel data from extension 1
         data = kernel_obj.xp.array(fits.getdata(filename, ext=1))
-        if kernel_obj.real_kernels.shape == data.shape and kernel_obj.real_kernels.dtype == data.dtype:
-            kernel_obj.real_kernels[...] = data
-        else:
-            kernel_obj.real_kernels = data
+
+        kernel_obj.real_kernels[:] = data
         kernel_obj.process_kernels(return_fft=return_fft)
         return kernel_obj
+
+        if kernel_obj.real_kernels.shape == data.shape and kernel_obj.real_kernels.dtype == data.dtype:
+            print('Overwriting')
+            kernel_obj.real_kernels[:] = data
+        else:
+            print('Reallocating')
+            kernel_obj.real_kernels = data
+
+        return kernel_obj
+

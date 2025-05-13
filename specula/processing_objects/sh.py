@@ -279,6 +279,7 @@ class SH(BaseProcessingObj):
 
         # Remember a few things
         self.in_ef = in_ef
+        self.phase_extrapolated = in_ef.phaseInNm.copy()
         self._wf1 = wf1
 
         # set up kernel object
@@ -319,7 +320,10 @@ class SH(BaseProcessingObj):
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)        
+        self.prepare_kernels()
 
+
+    def prepare_kernels(self):
         if self._kernelobj is not None:
             if len(self._laser_launch_tel.tel_pos) != 0:
                 sodium_altitude = self.local_inputs['sodium_altitude']
@@ -358,8 +362,11 @@ class SH(BaseProcessingObj):
                 # Kernel hasn't changed, no need to reload or recalculate
                 print("Kernel unchanged, using cached version")
 
-            self._kernelobj.generation_time = self.current_time
+            if self._kernelobj is not None:
+                self._kernelobj.generation_time = self.current_time
 
+    # numpy 1.x compatibility (cupy tries to raise this exception)
+    np.ComplexWarning = np.exceptions.ComplexWarning
 
     def trigger_code(self):
 
@@ -367,9 +374,9 @@ class SH(BaseProcessingObj):
         with show_in_profiler('interpolation'):
 
             if self._do_interpolation:
-                phaseInNmNew = extrapolate_edge_pixel(self.in_ef.phaseInNm, self._extrapol_mat1, self._extrapol_mat2, self._idx_1pix, self._idx_2pix, xp=self.xp)
+                _ = extrapolate_edge_pixel(self.in_ef.phaseInNm, self._extrapol_mat1, self._extrapol_mat2, self._idx_1pix, self._idx_2pix, xp=self.xp, out=self.phase_extrapolated)
                 self.interp.interpolate(self.in_ef.A, out=self._wf1.A)
-                self.interp.interpolate(phaseInNmNew, out=self._wf1.phaseInNm)
+                self.interp.interpolate(self.phase_extrapolated, out=self._wf1.phaseInNm)
             else:
                 # self._wf1 already set to in_ef
                 pass
@@ -403,7 +410,7 @@ class SH(BaseProcessingObj):
                 psf_fft *= subap_kern_fft
 
                 self._scipy_ifft2(psf_fft, overwrite_x=True, norm='forward')
-                self.psf = psf_fft.real
+                self.psf[:] = psf_fft.real
 
                 # Assert that our views are actually views and not temporary allocations
                 assert subap_kern_fft.base is not None
