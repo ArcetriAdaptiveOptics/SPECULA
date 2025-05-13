@@ -40,6 +40,7 @@ class InputList():
         """
         self.wrapped_type = type
         self.wrapped_list = None
+        self.cloned_list = []
         self.optional = optional
 
     def get_time(self):
@@ -49,11 +50,25 @@ class InputList():
             return []
 
     def get(self, target_device_idx):
-        '''Copy all values in the list to the specified target
+        '''Copy all values in the list to the specified target'''
+        if self.wrapped_list is None:
+            return
 
-        TODO this should use transferTo() when possible like InputValue'''
-        if not self.wrapped_list is None:            
-            return [x.copyTo(target_device_idx) for x in self.wrapped_list]
+        if self.cloned_list == []:
+            # First get(): allocate another object with copyTo where needed
+            for wrapped in self.wrapped_list:
+                if wrapped.target_device_idx == target_device_idx:
+                    self.cloned_list.append(wrapped)
+                else:
+                    self.cloned_list.append(wrapped.copyTo(target_device_idx))
+        else:
+            # Second get(): alwats used transferDataTo()
+            for i, (wrapped, cloned) in enumerate(zip(self.wrapped_list, self.cloned_list)):
+                if wrapped.target_device_idx == target_device_idx:
+                    self.cloned_list[i] = wrapped
+                else:
+                    wrapped.transferDataTo(cloned)
+        return self.cloned_list
 
     def set(self, new_list):
         for value in new_list:
