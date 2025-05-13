@@ -110,38 +110,53 @@ def lgs_map_sh(nsh, diam, rl, zb, dz, profz, fwhmb, ps, ssp,
 
 class ConvolutionKernel(BaseDataObj):
     def __init__(self,
+                 dimx: int,
+                 dimy: int,
+                 pxscale: float,
+                 pupil_size_m: float,
+                 dimension: int,
+                 launcher_pos: list=[0.0,0.0,0.0],
+                 seeing: float=0.0,
+                 launcher_size: float=0.0,
+                 zfocus: float=90e3,
+                 theta: list=[0.0, 0.0],
                  airmass: float=1.0,
+                 oversampling: int=1,
+                 return_fft: bool=True,
+                 positive_shift_tt: bool=True,
                  target_device_idx: int=None,
                  precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        self.real_kernels = None
-        self.kernels = None
-        self.seeing = None
+        self.dimx = dimx
+        self.dimy = dimy
+        self.pxscale = pxscale
+        self.pupil_size_m = pupil_size_m
+        self.dimension = dimension
+        self.seeing = seeing
         self.zlayer = None
         self.zprofile = None
-        self.zfocus = 0.0
-        self.theta = self.xp.array([0.0, 0.0])
+        self.zfocus = zfocus
+        self.theta = self.xp.array(theta)
         self.last_zfocus = 0.0
         self.last_theta = self.xp.array([0.0, 0.0])
-        self.dimension = 0
-        self.pxscale = 0.0        
-        self.return_fft = False
-        self.launcher_size = 0.0
+        self.return_fft = return_fft
+        self.launcher_size = launcher_size
         self.last_seeing = -1.0
-        self.oversampling = 1
-        self.launcher_pos = self.xp.zeros(3)
-        self.last_zlayer = -1
-        self.last_zprofile = -1        
         self.airmass = airmass
-        self.positive_shift_tt = False
-        self.dimx = 0
-        self.dimy = 0
-
-    def set_launcher_pos(self, launcher_pos):
+        self.oversampling = oversampling
         if len(launcher_pos) != 3:
             raise ValueError("Launcher position must be a three-elements vector [m]")
-        self.launcher_pos = self.xp.array(launcher_pos)        
+        self.launcher_pos = self.xp.array(launcher_pos)
+        self.last_zlayer = -1
+        self.last_zprofile = -1
+        self.positive_shift_tt = positive_shift_tt
+        if self.return_fft:
+            dtype = self.complex_dtype
+        else:
+            dtype = self.dtype
+        self.real_kernels = self.xp.zeros((self.dimx*self.dimy, self.dimension, self.dimension), dtype=self.dtype)
+        self.kernels = self.xp.zeros((self.dimx*self.dimy, self.dimension, self.dimension), dtype=dtype)
 
     def build(self):
         if len(self.zlayer) != len(self.zprofile):
@@ -247,9 +262,6 @@ class ConvolutionKernel(BaseDataObj):
             raise ValueError("Kernel contains non-finite values!")
 
         # Process the kernels - apply FFT if needed
-        dtype = self.complex_dtype if return_fft else self.dtype
-
-        self.kernels = self.xp.zeros_like(self.real_kernels, dtype=dtype)
         for i in range(self.dimx):
             for j in range(self.dimy):
                 subap_kern = self.xp.array(self.real_kernels[i * self.dimx + j, :, :])
@@ -310,23 +322,35 @@ class ConvolutionKernel(BaseDataObj):
 
         version = int(hdr['VERSION'])
         if kernel_obj is None:
-            kernel_obj = ConvolutionKernel(target_device_idx=target_device_idx)
+            kernel_obj = ConvolutionKernel(
+                dimx=hdr['DIMX'],
+                dimy=hdr['DIMY'],
+                pxscale=hdr['PXSCALE'],
+                pupil_size_m=0.0,
+                dimension=hdr['DIM'],
+                launcher_pos=[0.0, 0.0, 0.0],
+                launcher_size=hdr['SPOTSIZE'],
+                oversampling=hdr['OVERSAMP'],
+                positive_shift_tt=hdr['POSTT'],
+                target_device_idx=target_device_idx)
+            kernel_obj.spot_size = hdr['SPOTSIZE']
         else:
             # If a kernel object is provided, use it
             # check if the dimensions match
             if kernel_obj.dimx != hdr['DIMX'] or kernel_obj.dimy != hdr['DIMY']:
                 raise ValueError("Provided kernel object dimensions do not match the FITS file dimensions")
-
-        # Read properties from header
-        kernel_obj.dimx = hdr['DIMX']
-        kernel_obj.dimy = hdr['DIMY']
-        kernel_obj.pxscale = hdr['PXSCALE']
-        kernel_obj.dimension = hdr['DIM']
-        kernel_obj.oversampling = hdr['OVERSAMP']
-        kernel_obj.positive_shift_tt = hdr['POSTT']
-        kernel_obj.spot_size = hdr['SPOTSIZE']
+            # Read properties from header
+            kernel_obj.pxscale = hdr['PXSCALE']
+            kernel_obj.dimension = hdr['DIM']
+            kernel_obj.oversampling = hdr['OVERSAMP']
+            kernel_obj.positive_shift_tt = hdr['POSTT']
+            kernel_obj.spot_size = hdr['SPOTSIZE']
 
         # Read the kernel data from extension 1
-        kernel_obj.real_kernels = kernel_obj.xp.array(fits.getdata(filename, ext=1))       
+        data = kernel_obj.xp.array(fits.getdata(filename, ext=1)) 
+        if kernel_obj.real_kernels.shape == data.shape and kernel_obj.real_kernels.dtype == data.dtype:
+            kernel_obj.real_kernels[...] = data
+        else:
+            kernel_obj.real_kernels = data
         kernel_obj.process_kernels(return_fft=return_fft)
         return kernel_obj
