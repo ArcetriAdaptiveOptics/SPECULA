@@ -1,8 +1,6 @@
 
 # TODO:
 # - check that modes_first_step is the non-POLC output
-# LGS SH: rotAnglePhInDeg - different for each one
-# LGS slopec : different subap tag depending on rot angle
 # All SH: double check threshold
 # LGS detector: double check readout level and quantum efficiency
 
@@ -449,7 +447,6 @@ modal_combination:
 dm1:
   class:             'DM'
   simul_params_ref:  'main'
-  target_device_idx: -1
   ifunc_object:      'M4_eso_zonal_486p_5352a_slaved'
   m2c_object:        'M4_eso_39.5m_486p_20230215'
   input_offset:      0                        # Offset into input command vector
@@ -462,7 +459,6 @@ dm1:
 dm2:
   class:             'DM'
   simul_params_ref:  'main'
-  target_device_idx: -1
   ifunc_object:      'MAORY_542pix_31nacts_cir_0.000obs_zonal_ifs'
   m2c_object:        'MAORY_542pix_31nacts_cir_0.000obs_5zern_10000.0cn'
   nmodes:            720
@@ -476,7 +472,6 @@ dm2:
 dm3:
   class:             'DM'
   simul_params_ref:  'main'
-  target_device_idx: -1
   ifunc_object:      'MAORY_648pix_37nacts_cir_0.000obs_zonal_ifs'
   m2c_object:        'MAORY_648pix_37nacts_cir_0.000obs_5zern_10000.0cn'
   nmodes:            1026

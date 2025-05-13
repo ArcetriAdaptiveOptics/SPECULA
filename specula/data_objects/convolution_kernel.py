@@ -71,6 +71,11 @@ def lgs_map_sh(nsh, diam, rl, zb, dz, profz, fwhmb, ps, ssp,
     es_y = fs_y / fs_z
     es_z = fs_z / fs_z
 
+    # These arrays are very big, try to save some memory
+    del fs_x
+    del fs_y
+    del fs_z
+
     # Initialize the field map (fmap) for LGS patterns
     fmap = xp.zeros((nsh * ossp, nsh * ossp))
     nz = len(dz)
@@ -169,9 +174,9 @@ class ConvolutionKernel(BaseDataObj):
         self.spot_size = self.xp.sqrt(self.seeing**2 + self.launcher_size**2)
         lgs_tt = (self.xp.array([-0.5, -0.5]) if not self.positive_shift_tt else self.xp.array([0.5, 0.5])) * self.pxscale + self.theta
 
-        self.hash_arr = [self.dimx, self.pupil_size_m, self.launcher_pos, zfocus, lay_heights, self.zprofile,
-                         self.spot_size, self.pxscale, self.dimension, self.oversampling, lgs_tt]
-        return 'ConvolutionKernel' + self.generate_hash()
+        items = [self.dimx, self.pupil_size_m, self.launcher_pos, zfocus, lay_heights, self.zprofile,
+                         self.spot_size, self.pxscale, self.dimension, self.oversampling, lgs_tt, self.dtype]
+        return 'ConvolutionKernel' + self.generate_hash(items)
 
     def calculate_focus(self):
         return self.xp.sum(self.xp.array(self.zlayer) * self.xp.array(self.zprofile)) / self.xp.sum(self.zprofile)
@@ -224,7 +229,7 @@ class ConvolutionKernel(BaseDataObj):
         self.last_zlayer = self.zlayer
         self.last_zprofile = self.zprofile
 
-    def generate_hash(self):
+    def generate_hash(self, items):
         """
         Generate a hash for the current kernel settings.
         This is used to check if the kernel needs to be recalculated.
@@ -234,13 +239,16 @@ class ConvolutionKernel(BaseDataObj):
         """
         # Convert all numpy arrays and values to native Python types
         hash_arr = []
-        for item in self.hash_arr:
+        for item in items:
             if isinstance(item, self.xp.ndarray):
                 # Convert array to list of native Python types
                 hash_arr.append(item.tolist())
             elif isinstance(item, tuple):
                 # Convert tuple elements to native Python types
                 hash_arr.append([float(x) for x in item])
+            elif isinstance(item, type):
+                # This matches class types and dtypes as well
+                hash_arr.append(str(item))
             elif hasattr(item, 'dtype') and hasattr(item, 'item'):
                 # Convert numpy scalars to Python types
                 hash_arr.append(item.item())
@@ -249,11 +257,7 @@ class ConvolutionKernel(BaseDataObj):
 
         # Placeholder function to compute SHA1 hash
         sha1 = hashlib.sha1()
-        # converts all numpy arrays to list
-        for i, hash_elem in enumerate(self.hash_arr):
-            if isinstance(hash_elem, self.xp.ndarray):
-                self.hash_arr[i] = hash_elem.tolist()
-        sha1.update(json.dumps(self.hash_arr).encode('utf-8'))
+        sha1.update(json.dumps(hash_arr).encode('utf-8'))
         return sha1.hexdigest()
 
     def process_kernels(self, return_fft=False):
@@ -320,7 +324,10 @@ class ConvolutionKernel(BaseDataObj):
         """
         hdr = fits.getheader(filename, ext=0)  # Get header from primary HDU
 
-        version = int(hdr['VERSION'])
+        version = hdr['VERSION']
+        if version != 1.1:
+            raise ValueError(f'Unknown version {version}. Only version=1.1 is supported')
+
         if kernel_obj is None:
             kernel_obj = ConvolutionKernel(
                 dimx=hdr['DIMX'],
@@ -346,11 +353,8 @@ class ConvolutionKernel(BaseDataObj):
             kernel_obj.positive_shift_tt = hdr['POSTT']
             kernel_obj.spot_size = hdr['SPOTSIZE']
 
-        # Read the kernel data from extension 1
-        data = kernel_obj.xp.array(fits.getdata(filename, ext=1)) 
-        if kernel_obj.real_kernels.shape == data.shape and kernel_obj.real_kernels.dtype == data.dtype:
-            kernel_obj.real_kernels[...] = data
-        else:
-            kernel_obj.real_kernels = data
+        # This code uses an intermediate array to make sure that endianess is correct (FITS is big-endian)
+        data = kernel_obj.xp.array(fits.getdata(filename, ext=1), dtype=kernel_obj.dtype)
+        kernel_obj.real_kernels[:] = data
         kernel_obj.process_kernels(return_fft=return_fft)
         return kernel_obj
