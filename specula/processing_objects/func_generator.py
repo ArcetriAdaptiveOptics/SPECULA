@@ -179,7 +179,6 @@ class FuncGenerator(BaseProcessingObj):
             self.output.value[:] = (self.xp.random.uniform(low=lowv, high=highv)) * self.vsize_array
 
         elif self.type in ['VIB_HIST', 'VIB_PSD', 'PUSH', 'PUSHPULL', 'TIME_HIST']:
-            print(f'{self.get_time_hist_at_current_time().shape=} {self.vsize_array.shape=} {self.output.value.shape=}')
             self.output.value[:] = self.get_time_hist_at_current_time() * self.vsize_array
 
         else:
