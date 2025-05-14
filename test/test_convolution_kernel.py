@@ -93,18 +93,18 @@ class TestKernel(unittest.TestCase):
         num_points = 20
         z_min = 80e3  # m
         z_max = 100e3  # m
-        zlayer = np.linspace(z_min, z_max, num_points)
+        zlayer = xp.linspace(z_min, z_max, num_points)
 
         # Create Gaussian intensity profile with FWHM of 10e3 m
         center = 90e3  # m
         fwhm = 10e3  # m
         sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
-        zprofile = np.exp(-0.5 * ((zlayer - center) / sigma) ** 2)
+        zprofile = xp.exp(-0.5 * ((zlayer - center) / sigma) ** 2)
         zfocus = 90e3  # m
         launcher_pos = [5, 5, 0]  # m
 
         # Normalize the profile
-        zprofile /= np.sum(zprofile)
+        zprofile /= xp.sum(zprofile)
 
         # Test with return_fft = False
         kernel = ConvolutionKernel(dimx=dimx,
@@ -120,11 +120,12 @@ class TestKernel(unittest.TestCase):
                                    return_fft=False,
                                    positive_shift_tt=True,
                                    target_device_idx=target_device_idx)
-
+        print(f'{kernel.xp=}')
         kernel.zlayer = zlayer.tolist()
         kernel.zprofile = zprofile.tolist()
 
         kernel_fn = kernel.build()
+        print(f'{kernel.xp=}')
         kernel.calculate_lgs_map()
 
         # Check kernel shape and dimensions
@@ -189,20 +190,21 @@ class TestKernel(unittest.TestCase):
         num_points = 20
         z_min = 80e3  # m
         z_max = 100e3  # m
-        zlayer = np.linspace(z_min, z_max, num_points)
+        zlayer = xp.linspace(z_min, z_max, num_points)
         
         # Create Gaussian intensity profile with FWHM of 10e3 m
         center = 90e3  # m
         fwhm = 10e3  # m
-        sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
-        zprofile = np.exp(-0.5 * ((zlayer - center) / sigma) ** 2)
+        sigma = fwhm / (2 * xp.sqrt(2 * np.log(2)))
+        zprofile = xp.exp(-0.5 * ((zlayer - center) / sigma) ** 2)
         zfocus = 90e3  # m
         launcher_pos = [5, 5, 0]  # m
 
         # Normalize the profile
-        zprofile /= np.sum(zprofile)
+        zprofile /= xp.sum(zprofile)
         layer_offsets = zlayer - zfocus
 
+        print(f'{xp=}')
         map = lgs_map_sh(
             nsh=dimx, diam=pupil_size_m, rl=launcher_pos, zb=zfocus,
             dz=layer_offsets, profz=zprofile, fwhmb=spot_size, ps=pixel_scale,

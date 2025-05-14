@@ -13,7 +13,7 @@ import hashlib, json
 def lgs_map_sh(nsh, diam, rl, zb, dz, profz, fwhmb, ps, ssp,
                overs=2, theta=[0.0, 0.0], rprof_type=0,
                mask_pupil=False, pupil_weight=None, doCube=True,
-               xp=np):
+               dtype=np.float32, xp=np):
     """
     It returns the pattern of Sodium Laser Guide Star images relayed by a Shack-Hartman lenlet array.
     Only geometrical propagation is taken in account (no diffraction effects).
@@ -45,34 +45,32 @@ def lgs_map_sh(nsh, diam, rl, zb, dz, profz, fwhmb, ps, ssp,
     theta = cpuArray(theta)
     # Oversampling and lenslet grid setup
     ossp = ssp * overs
-    xsh, ysh = xp.meshgrid(xp.linspace(-diam / 2, diam / 2, nsh), xp.linspace(-diam / 2, diam / 2, nsh))
-    xfov, yfov = xp.meshgrid(xp.linspace(-ssp * ps / 2, ssp * ps / 2, ossp), xp.linspace(-ssp * ps / 2, ssp * ps / 2, ossp))   
+
+    xsh, ysh = xp.meshgrid(xp.linspace(-diam / 2, diam / 2, nsh, dtype=dtype),
+                           xp.linspace(-diam / 2, diam / 2, nsh, dtype=dtype))
+    xfov, yfov = xp.meshgrid(xp.linspace(-ssp * ps / 2, ssp * ps / 2, ossp, dtype=dtype),
+                             xp.linspace(-ssp * ps / 2, ssp * ps / 2, ossp, dtype=dtype))
     # Gaussian parameters for the sodium layer
     sigma = (fwhmb * ASEC2RAD * zb) / (2 * xp.sqrt(2 * xp.log(2)))
     one_over_sigma2 = 1.0 / sigma**2
     exp_sigma = -0.5 * one_over_sigma2   
-    rb = xp.array([theta[0] * ASEC2RAD * zb, theta[1] * ASEC2RAD * zb, 0])
-    kv = xp.array([0, 0, 1])
-    BL = zb * kv + rb - xp.array(rl)
+    rb = xp.array([theta[0] * ASEC2RAD * zb, theta[1] * ASEC2RAD * zb, 0], dtype=dtype)
+    kv = xp.array([0, 0, 1], dtype=dtype)
+    BL = zb * kv + rb - xp.array(rl, dtype=dtype)
     el = BL / BL[2]
     # Create the focal plane field positions (rf) and the sub-aperture positions (rs)
-    rs_x, rs_y, rs_z = xsh, ysh, xp.zeros((nsh, nsh))
+    rs_x, rs_y = xsh, ysh
 
     rf_x = xp.tile(xfov * ASEC2RAD * zb, (nsh, nsh)).reshape(ossp * nsh, ossp * nsh)
     rf_y = xp.tile(yfov * ASEC2RAD * zb, (nsh, nsh)).reshape(ossp * nsh, ossp * nsh)
-    rf_z = xp.zeros((ossp * nsh, ossp * nsh))
 
     # Distance and direction vectors for calculating intensity maps
-    fs_x = rf_x - xp.repeat(xp.repeat(rs_x, ossp, axis=0), ossp, axis=1)
-    fs_y = rf_y - xp.repeat(xp.repeat(rs_y, ossp, axis=0), ossp, axis=1)
-    fs_z = zb + rf_z - xp.repeat(xp.repeat(rs_z, ossp, axis=0), ossp, axis=1)
-
-    es_x = fs_x / fs_z
-    es_y = fs_y / fs_z
-    es_z = fs_z / fs_z
+    es_x = (rf_x - xp.repeat(xp.repeat(rs_x, ossp, axis=0), ossp, axis=1)) / zb
+    es_y = (rf_y - xp.repeat(xp.repeat(rs_y, ossp, axis=0), ossp, axis=1)) / zb
+    es_z = 1.0
 
     # Initialize the field map (fmap) for LGS patterns
-    fmap = xp.zeros((nsh * ossp, nsh * ossp))
+    fmap = xp.zeros((nsh * ossp, nsh * ossp), dtype=dtype)
     nz = len(dz)
     # Gaussian or top-hat profile choice for LGS beam
     if rprof_type == 0:
@@ -87,10 +85,10 @@ def lgs_map_sh(nsh, diam, rl, zb, dz, profz, fwhmb, ps, ssp,
         if profz[iz] > 0:
             d2 = ((rf_x + dz[iz] * es_x - (rb[0] + dz[iz] * el[0]))**2 +
                   (rf_y + dz[iz] * es_y - (rb[1] + dz[iz] * el[1]))**2 +
-                  (rf_z + dz[iz] * es_z - (rb[2] + dz[iz] * el[2]))**2)
+                  ( 0.0 + dz[iz] * es_z - (rb[2] + dz[iz] * el[2]))**2)
 
             if rprof_type == 0:
-                fmap += (gnorm * profz[iz]) * xp.exp(d2 * exp_sigma)
+                fmap += (gnorm * profz[iz]) * xp.exp(d2 * exp_sigma, dtype=dtype)
             elif rprof_type == 1:
                 fmap += (gnorm * profz[iz]) * ((d2 * one_over_sigma2) <= 1.0)
 
@@ -169,9 +167,9 @@ class ConvolutionKernel(BaseDataObj):
         self.spot_size = self.xp.sqrt(self.seeing**2 + self.launcher_size**2)
         lgs_tt = (self.xp.array([-0.5, -0.5]) if not self.positive_shift_tt else self.xp.array([0.5, 0.5])) * self.pxscale + self.theta
 
-        self.hash_arr = [self.dimx, self.pupil_size_m, self.launcher_pos, zfocus, lay_heights, self.zprofile,
-                         self.spot_size, self.pxscale, self.dimension, self.oversampling, lgs_tt]
-        return 'ConvolutionKernel' + self.generate_hash()
+        items = [self.dimx, self.pupil_size_m, self.launcher_pos, zfocus, lay_heights, self.zprofile,
+                         self.spot_size, self.pxscale, self.dimension, self.oversampling, lgs_tt, self.dtype]
+        return 'ConvolutionKernel' + self.generate_hash(items)
 
     def calculate_focus(self):
         return self.xp.sum(self.xp.array(self.zlayer) * self.xp.array(self.zprofile)) / self.xp.sum(self.zprofile)
@@ -224,7 +222,7 @@ class ConvolutionKernel(BaseDataObj):
         self.last_zlayer = self.zlayer
         self.last_zprofile = self.zprofile
 
-    def generate_hash(self):
+    def generate_hash(self, items):
         """
         Generate a hash for the current kernel settings.
         This is used to check if the kernel needs to be recalculated.
@@ -234,13 +232,16 @@ class ConvolutionKernel(BaseDataObj):
         """
         # Convert all numpy arrays and values to native Python types
         hash_arr = []
-        for item in self.hash_arr:
+        for item in items:
             if isinstance(item, self.xp.ndarray):
                 # Convert array to list of native Python types
                 hash_arr.append(item.tolist())
             elif isinstance(item, tuple):
                 # Convert tuple elements to native Python types
                 hash_arr.append([float(x) for x in item])
+            elif isinstance(item, type):
+                # This matches class types and dtypes as well
+                hash_arr.append(str(item))
             elif hasattr(item, 'dtype') and hasattr(item, 'item'):
                 # Convert numpy scalars to Python types
                 hash_arr.append(item.item())
@@ -249,11 +250,7 @@ class ConvolutionKernel(BaseDataObj):
 
         # Placeholder function to compute SHA1 hash
         sha1 = hashlib.sha1()
-        # converts all numpy arrays to list
-        for i, hash_elem in enumerate(self.hash_arr):
-            if isinstance(hash_elem, self.xp.ndarray):
-                self.hash_arr[i] = hash_elem.tolist()
-        sha1.update(json.dumps(self.hash_arr).encode('utf-8'))
+        sha1.update(json.dumps(hash_arr).encode('utf-8'))
         return sha1.hexdigest()
 
     def process_kernels(self, return_fft=False):
@@ -320,7 +317,10 @@ class ConvolutionKernel(BaseDataObj):
         """
         hdr = fits.getheader(filename, ext=0)  # Get header from primary HDU
 
-        version = int(hdr['VERSION'])
+        version = hdr['VERSION']
+        if version != 1.1:
+            raise ValueError(f'Unknown version {version}. Only version=1.1 is supported')
+
         if kernel_obj is None:
             kernel_obj = ConvolutionKernel(
                 dimx=hdr['DIMX'],
@@ -346,11 +346,8 @@ class ConvolutionKernel(BaseDataObj):
             kernel_obj.positive_shift_tt = hdr['POSTT']
             kernel_obj.spot_size = hdr['SPOTSIZE']
 
-        # Read the kernel data from extension 1
-        data = kernel_obj.xp.array(fits.getdata(filename, ext=1)) 
-        if kernel_obj.real_kernels.shape == data.shape and kernel_obj.real_kernels.dtype == data.dtype:
-            kernel_obj.real_kernels[...] = data
-        else:
-            kernel_obj.real_kernels = data
+        # This code uses an intermediate array to make sure that endianess is correct (FITS is big-endian)
+        data = kernel_obj.xp.array(fits.getdata(filename, ext=1), dtype=kernel_obj.dtype)
+        kernel_obj.real_kernels[:] = data
         kernel_obj.process_kernels(return_fft=return_fft)
         return kernel_obj

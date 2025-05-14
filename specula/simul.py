@@ -464,7 +464,6 @@ class Simul():
 #            aconn.set_end_label(c['end_label'])
         write_png(d, self.param_files[0].split('.')[0] + ".png")
 
-        
     def run(self):
         params = {}
         # Read YAML file(s)
@@ -493,8 +492,10 @@ class Simul():
         print(f'{self.trigger_order=}')
         print(f'{self.trigger_order_idx=}')
 
+        print('Building diagram...')
         if doBlockDiagram:
             self.buildDiagram()
+        print('Diagram done')
 
         # Build loop
         for name, idx in zip(self.trigger_order, self.trigger_order_idx):
@@ -520,7 +521,7 @@ class Simul():
         '''Quick info string intended for web interfaces'''
         name= f'{self.param_files[0]}'
         curtime= f'{self.loop._t / self.loop._time_resolution:.3f}'
-        stoptime= f'{self.loop._init_run_time:.3f}'
+        stoptime= f'{self.loop._run_time:.3f}'
 
         info = f'{curtime}/{stoptime}s'
         return name, info

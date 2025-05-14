@@ -47,11 +47,11 @@ class GaussianConvolutionKernel(ConvolutionKernel):
         self.dimx = max(self.dimx, 2)        
         self.lgs_tt = [-0.5, -0.5] if not self.positive_shift_tt else [0.5, 0.5]
         self.lgs_tt = [x * self.pxscale for x in self.lgs_tt]
-        self.hash_arr = [
-            self.dimx, self.pupil_size_m, 90e3, self.spot_size,
-            self.pxscale, self.dimension, 3, self.lgs_tt, [0, 0, 0], [90e3], [1.0]
+        items = [
+            self.dimx, self.pupil_size_m, 90e3, self.spot_size, self.dtype,
+            self.pxscale, self.dimension, 3, self.lgs_tt, [0, 0, 0], [90e3], [1.0],
         ]
-        return 'ConvolutionKernel' + self.generate_hash()        
+        return 'ConvolutionKernel' + self.generate_hash(items)   
 
     def calculate_lgs_map(self):
         self.real_kernels = lgs_map_sh(
@@ -75,7 +75,10 @@ class GaussianConvolutionKernel(ConvolutionKernel):
         """
         hdr = fits.getheader(filename, ext=0)  # Get header from primary HDU
 
-        version = int(hdr['VERSION'])
+        version = hdr['VERSION']
+        if version != 1.1:
+            raise ValueError(f'Unknown version {version}. Only version=1.1 is supported')
+
         if kernel_obj is None:
             kernel_obj = GaussianConvolutionKernel(
                 dimx=hdr['DIMX'],
@@ -101,11 +104,10 @@ class GaussianConvolutionKernel(ConvolutionKernel):
             kernel_obj.oversampling = hdr['OVERSAMP']
             kernel_obj.positive_shift_tt = hdr['POSTT']
 
-        # Read the kernel data from extension 1
-        data = kernel_obj.xp.array(fits.getdata(filename, ext=1))
-        if kernel_obj.real_kernels.shape == data.shape and kernel_obj.real_kernels.dtype == data.dtype:
-            kernel_obj.real_kernels[...] = data
-        else:
-            kernel_obj.real_kernels = data
+        # This code uses an intermediate array to make sure that endianess is correct (FITS is big-endian)
+        data = kernel_obj.xp.array(fits.getdata(filename, ext=1), dtype=kernel_obj.dtype)
+        kernel_obj.real_kernels[:] = data
         kernel_obj.process_kernels(return_fft=return_fft)
         return kernel_obj
+
+

@@ -18,6 +18,10 @@ from specula.data_objects.convolution_kernel import ConvolutionKernel
 
 import os       
 
+# numpy 1.x compatibility (cupy sometimes tries to raise this exception)
+if hasattr(np, 'exceptions'):
+    np.ComplexWarning = np.exceptions.ComplexWarning
+
 @fuse(kernel_name='abs2')
 def abs2(u_fp, out, xp):
      out[:] = xp.real(u_fp * xp.conj(u_fp))
@@ -223,6 +227,7 @@ class SH(BaseProcessingObj):
             print('-->     no. elements FoV,      {}'.format(subap_real_fov_pix))
             print('-->     FFT size (turb. FoV),  {}'.format(self._fft_size))
             print('-->     L.C.M. for toccd,      {}'.format(mcmx))
+            print('-->     oversampled np_sub,    {}'.format(self._ovs_np_sub))
 
 
         # Check for valid phase size
@@ -278,6 +283,7 @@ class SH(BaseProcessingObj):
 
         # Remember a few things
         self.in_ef = in_ef
+        self.phase_extrapolated = in_ef.phaseInNm.copy()
         self._wf1 = wf1
 
         # set up kernel object
@@ -318,7 +324,10 @@ class SH(BaseProcessingObj):
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)        
+        self.prepare_kernels()
 
+
+    def prepare_kernels(self):
         if self._kernelobj is not None:
             if len(self._laser_launch_tel.tel_pos) != 0:
                 sodium_altitude = self.local_inputs['sodium_altitude']
@@ -357,8 +366,8 @@ class SH(BaseProcessingObj):
                 # Kernel hasn't changed, no need to reload or recalculate
                 print("Kernel unchanged, using cached version")
 
-            self._kernelobj.generation_time = self.current_time
-
+            if self._kernelobj is not None:
+                self._kernelobj.generation_time = self.current_time
 
     def trigger_code(self):
 
@@ -366,25 +375,26 @@ class SH(BaseProcessingObj):
         with show_in_profiler('interpolation'):
 
             if self._do_interpolation:
-                phaseInNmNew = extrapolate_edge_pixel(self.in_ef.phaseInNm, self._extrapol_mat1, self._extrapol_mat2, self._idx_1pix, self._idx_2pix, xp=self.xp)
+                self.phase_extrapolated[:] = self.in_ef.phaseInNm
+                _ = extrapolate_edge_pixel(self.in_ef.phaseInNm, self._extrapol_mat1, self._extrapol_mat2, self._idx_1pix, self._idx_2pix, xp=self.xp, out=self.phase_extrapolated)
                 self.interp.interpolate(self.in_ef.A, out=self._wf1.A)
-                self.interp.interpolate(phaseInNmNew, out=self._wf1.phaseInNm)
+                self.interp.interpolate(self.phase_extrapolated, out=self._wf1.phaseInNm)
             else:
                 # self._wf1 already set to in_ef
                 pass
-
-        with show_in_profiler('ef_at_lambda'):
-            self._wf1.ef_at_lambda(self._wavelengthInNm, out=self.ef_whole)
 
         # Work on SH rows (single-subap code is too inefficient)
 
         for i in range(self._lenslet.dimx):
 
             # Extract 2D subap row
-            ef_subap_view = self.ef_whole[i * self._ovs_np_sub: (i+1) * self._ovs_np_sub, :]
+            self._wf1.ef_at_lambda(self._wavelengthInNm,
+                                   slicey=np.s_[i * self._ovs_np_sub: (i+1) * self._ovs_np_sub],
+                                   slicex=np.s_[:],
+                                   out=self.ef_row)
 
             # Reshape to subap cube (nsubap, npix, npix)
-            subap_cube_view = ef_subap_view.reshape(self._ovs_np_sub, self._lenslet.dimy, self._ovs_np_sub).swapaxes(0, 1)
+            subap_cube_view = self.ef_row.reshape(self._ovs_np_sub, self._lenslet.dimy, self._ovs_np_sub).swapaxes(0, 1)
 
             # Insert into padded array
             self._wf3[:, :self._ovs_np_sub, :self._ovs_np_sub] = subap_cube_view * self._tltf[self.xp.newaxis, :, :]
@@ -402,7 +412,7 @@ class SH(BaseProcessingObj):
                 psf_fft *= subap_kern_fft
 
                 self._scipy_ifft2(psf_fft, overwrite_x=True, norm='forward')
-                self.psf = psf_fft.real
+                self.psf[:] = psf_fft.real
 
                 # Assert that our views are actually views and not temporary allocations
                 assert subap_kern_fft.base is not None
@@ -428,7 +438,6 @@ class SH(BaseProcessingObj):
 
             # Assert that our views are actually views and not temporary allocations
             assert psf_cut_view.base is not None
-            assert ef_subap_view.base is not None
             assert subap_cube_view.base is not None
 
         with show_in_profiler('toccd'):
@@ -475,15 +484,9 @@ class SH(BaseProcessingObj):
             self._do_interpolation = False
 
         ef_whole_size = int(in_ef.size[0] * self._fov_ovs)
-        self.ef_whole = self._zeros_common((ef_whole_size, ef_whole_size), dtype=self.complex_dtype)
+        self.ef_row = self._zeros_common((self._ovs_np_sub, ef_whole_size), dtype=self.complex_dtype)
         self.psf = self._zeros_common((self._lenslet.dimy, self._fft_size, self._fft_size), dtype=self.dtype)
         self.psf_shifted = self._zeros_common((self._lenslet.dimy, self._fft_size, self._fft_size), dtype=self.dtype)
-
-        if self._kernelobj is not None:
-            self._kernels = self.xp.zeros((self._lenslet.dimx * self._lenslet.dimy, 
-                                           self._fft_size, self._fft_size), dtype=self.complex_dtype)
-        else:
-            self._kernels = None
 
         super().build_stream(allow_parallel=False)
 

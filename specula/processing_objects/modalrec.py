@@ -145,8 +145,8 @@ class Modalrec(BaseProcessingObj):
             if self.input_modes_slice is not None:
                 commands = commands[self.input_modes_slice]
 
-            print(f'POLC: {self.intmat._intmat.shape=}, {commands.shape=}')
-            comm_slopes = self.intmat._intmat @ commands
+            print(f'POLC: {self.intmat.intmat.shape=}, {commands.shape=}')
+            comm_slopes = self.intmat.intmat @ commands
             slopes += comm_slopes
             self.pseudo_ol_modes.value = self.recmat.recmat @ slopes
             self.pseudo_ol_modes.generation_time = self.current_time

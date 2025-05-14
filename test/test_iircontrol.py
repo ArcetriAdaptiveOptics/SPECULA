@@ -31,5 +31,5 @@ class TestIirFilter(unittest.TestCase):
         integrator = Integrator(simulParams, int_gain=[0.5,0.4,0.3], ff=[0.99,0.95,0.90], n_modes= [2,3,4],
                                    target_device_idx=target_device_idx)
         # check that the iir_filter_data is set up correctly by comparing gain and [0.5,0.5,0.4,0.4,0.4,0.3,0.3,0.3,0.3]
-        self.assertEqual(np.sum(np.abs(integrator.iir_filter_data.gain-[0.5,0.5,0.4,0.4,0.4,0.3,0.3,0.3,0.3])),0)
+        self.assertEqual(np.sum(np.abs(cpuArray(integrator.iir_filter_data.gain) - np.array([0.5,0.5,0.4,0.4,0.4,0.3,0.3,0.3,0.3]))),0)
 

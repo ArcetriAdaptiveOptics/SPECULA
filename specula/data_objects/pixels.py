@@ -1,4 +1,5 @@
 from astropy.io import fits
+from specula import cpuArray
 
 from specula.base_data_obj import BaseDataObj
 
@@ -54,23 +55,21 @@ class Pixels(BaseDataObj):
         hdr = fits.Header()
         hdr['VERSION'] = 1
         hdr['OBJ_TYPE'] = 'Pixels'
-        hdr['TYPE'] = str(self._type)
-        hdr['BPP'] = self._bpp
-        hdr['BYTESPP'] = self._bytespp
-        hdr['SIGNED'] = self._signed
+        hdr['TYPE'] = str(self.type)
+        hdr['BPP'] = self.bpp
+        hdr['BYTESPP'] = self.bytespp
+        hdr['SIGNED'] = self.signed
         hdr['DIMX'] = self.size[0]
         hdr['DIMY'] = self.size[1]
         return hdr
 
     def save(self, filename):
         hdr = self.get_fits_header()            
-        super().save(filename, hdr)
-        fits.append(filename, self.pixels, hdr)
+        fits.writeto(filename, cpuArray(self.pixels), hdr, overwrite=True)
 
-    def read(self, filename, hdr=None, exten=0):
-        super().read(filename, hdr, exten)
-        self.pixels = fits.getdata(filename, ext=exten)
-
+    def read(self, filename):
+        super().read(filename)
+        self.pixels = fits.getdata(filename)
 
     @staticmethod
     def from_header(hdr):    
@@ -88,18 +87,8 @@ class Pixels(BaseDataObj):
     @staticmethod
     def restore(filename):
         hdr = fits.getheader(filename)
-        version = hdr['VERSION']
-
-        if version != 1:
-            raise ValueError(f"Error: unknown version {version} in file {filename}")
-
-        dimx = hdr['DIMX']
-        dimy = hdr['DIMY']
-        bits = hdr['BPP']
-        signed = hdr['SIGNED']
-
-        pixels = Pixels(dimx, dimy, bits=bits, signed=signed)
-        pixels.read(filename, hdr)
+        pixels = Pixels.from_header(hdr)
+        pixels.read(filename)
         return pixels
 
     def array_for_display(self):
