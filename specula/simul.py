@@ -240,6 +240,9 @@ class Simul():
 
             my_params.update(pars2)
             self.objs[key] = klass(**my_params)
+            if classname != 'SimulParams':
+                self.objs[key].stopMemUsageCount()
+
             self.objs[key].name = key
 
             # TODO this could be more general like the getters above

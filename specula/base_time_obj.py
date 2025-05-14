@@ -14,7 +14,8 @@ class BaseTimeObj:
 
         """
         self._time_resolution = int(1e9)        
-        
+        self.gpu_bytes_used = 0
+
         if precision is None:
             self.precision = global_precision
         else:
@@ -85,9 +86,18 @@ class BaseTimeObj:
         return (int(intpart) * self._time_resolution +
                 int(fracpart) * (self._time_resolution // (10 ** len(fracpart))))
 
+    def startMemUsageCount(self):
+        if self.target_device_idx >= 0:
+            self.gpu_bytes_used_before = cp.get_default_memory_pool().used_bytes()
+
+    def stopMemUsageCount(self):
+        if self.target_device_idx >= 0:
+            self.gpu_bytes_used_after = cp.get_default_memory_pool().used_bytes()
+            self.gpu_bytes_used += self.gpu_bytes_used_after - self.gpu_bytes_used_before
+            self.gpu_bytes_used_before = self.gpu_bytes_used_after
+
 
     def printMemUsage(self):
         if self.target_device_idx >= 0:
-            self.gpu_bytes_used_after = cp.get_default_memory_pool().used_bytes()
-            self.gpu_bytes_used = self.gpu_bytes_used_after - self.gpu_bytes_used_before
             print(f'\tcupy memory used by {self.__class__.__name__}: {self.gpu_bytes_used / (1024*1024)} MB')
+
