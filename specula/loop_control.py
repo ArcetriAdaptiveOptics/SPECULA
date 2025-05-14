@@ -64,6 +64,7 @@ class LoopControl(BaseTimeObj):
             for element in self._ordered_lists[i]:
                 try:
                     element.setup()
+                    element.printMemUsage()
                 except:
                     print('Exception in', element.name)
                     raise

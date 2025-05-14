@@ -46,6 +46,7 @@ class BaseTimeObj:
             from cupyx.scipy.linalg import lu_factor, lu_solve
 
             self._target_device.use()
+            self.gpu_bytes_used_before = cp.get_default_memory_pool().used_bytes()
         else:
             from scipy.ndimage import rotate
             from scipy.ndimage import shift
@@ -84,3 +85,9 @@ class BaseTimeObj:
         return (int(intpart) * self._time_resolution +
                 int(fracpart) * (self._time_resolution // (10 ** len(fracpart))))
 
+
+    def printMemUsage(self):
+        if self.target_device_idx >= 0:
+            self.gpu_bytes_used_after = cp.get_default_memory_pool().used_bytes()
+            self.gpu_bytes_used = self.gpu_bytes_used_after - self.gpu_bytes_used_before
+            print(f'\tcupy memory used by {self.__class__.__name__}: {self.gpu_bytes_used / (1024*1024)} MB')
