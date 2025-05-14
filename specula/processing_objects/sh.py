@@ -18,6 +18,10 @@ from specula.data_objects.convolution_kernel import ConvolutionKernel
 
 import os       
 
+# numpy 1.x compatibility (cupy sometimes tries to raise this exception)
+if hasattr(np, 'exceptions'):
+    np.ComplexWarning = np.exceptions.ComplexWarning
+
 @fuse(kernel_name='abs2')
 def abs2(u_fp, out, xp):
      out[:] = xp.real(u_fp * xp.conj(u_fp))
@@ -364,9 +368,6 @@ class SH(BaseProcessingObj):
 
             if self._kernelobj is not None:
                 self._kernelobj.generation_time = self.current_time
-
-    # numpy 1.x compatibility (cupy tries to raise this exception)
-    np.ComplexWarning = np.exceptions.ComplexWarning
 
     def trigger_code(self):
 
