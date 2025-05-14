@@ -164,6 +164,9 @@ class Simul():
                 filename = cm.filename(classname, pars['tag'])
                 print('Restoring:', filename)
                 self.objs[key] = klass.restore(filename, target_device_idx=target_device_idx)
+                self.objs[key].stopMemUsageCount()
+                self.objs[key].printMemUsage()
+
                 continue
                 
             pars2 = {}
@@ -213,6 +216,9 @@ class Simul():
                         filename = cm.filename(parname, value)  # TODO use partype instead of parname?
                         print('Restoring:', filename)
                         parobj = partype.restore(filename, target_device_idx=target_device_idx)
+                        parobj.stopMemUsageCount()
+                        parobj.printMemUsage()
+
                         pars2[parname] = parobj
                     else:
                         raise ValueError(f'No type hint for parameter {parname} of class {classname}')

@@ -160,16 +160,7 @@ class BaseProcessingObj(BaseTimeObj):
     @verbose.setter
     def verbose(self, value):
         self._verbose = value
-
-    def monitorMem(function):
-        def monitorMem_wrapper(*args):
-            self = args[0]
-            self.startMemUsageCount()
-            function(*args)
-            self.stopMemUsageCount()
-        return monitorMem_wrapper
-
-    @monitorMem
+    
     def setup(self):
         """
         Override this method to perform any setup

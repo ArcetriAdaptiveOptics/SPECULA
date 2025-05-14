@@ -96,8 +96,15 @@ class BaseTimeObj:
             self.gpu_bytes_used += self.gpu_bytes_used_after - self.gpu_bytes_used_before
             self.gpu_bytes_used_before = self.gpu_bytes_used_after
 
-
     def printMemUsage(self):
         if self.target_device_idx >= 0:
             print(f'\tcupy memory used by {self.__class__.__name__}: {self.gpu_bytes_used / (1024*1024)} MB')
 
+    # not used for now
+    def monitorMem(function):
+        def monitorMem_wrapper(*args):
+            self = args[0]
+            self.startMemUsageCount()
+            function(*args)
+            self.stopMemUsageCount()
+        return monitorMem_wrapper
