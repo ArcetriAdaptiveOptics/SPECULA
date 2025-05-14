@@ -10,6 +10,8 @@ from specula.lib.modal_pushpull_signal import modal_pushpull_signal
 class Vibrations():
     pass
 
+def is_scalar(x):
+    return np.isscalar(x) or (hasattr(x, 'shape') and x.shape == ())
 
 class FuncGenerator(BaseProcessingObj):
     def __init__(self,
@@ -33,6 +35,9 @@ class FuncGenerator(BaseProcessingObj):
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
+        if nmodes is not None and vsize>1:
+            raise ValueError('NMODES and VSIZE cannot be used together. Use NMODES only for PUSHPULL, PUSHPULLREPEAT, VIB_HIST or VIB_PSD types')
+
         self.type = func_type.upper()
         if self.type == 'PUSHPULLREPEAT':
             repeat_ncycles = True
@@ -55,36 +60,53 @@ class FuncGenerator(BaseProcessingObj):
         self.freq = self.xp.array(freq, dtype=self.dtype) if freq is not None else 0.0
         self.offset = self.xp.array(offset, dtype=self.dtype) if offset is not None else 0.0
         self.vect_amplitude = self.xp.array(vect_amplitude, dtype=self.dtype) if vect_amplitude is not None else 0.0
+
+        if self.type in ['SIN', 'SQUARE_WAVE', 'LINEAR', 'RANDOM', 'RANDOM_UNIFORM']:
+            # Check if the parameters are scalars or arrays and have coherent sizes
+            params = [self.amp, self.freq, self.offset, self.constant]
+            param_names = ['amp', 'freq', 'offset', 'constant']
+            vector_lengths = [p.shape[0] for p in params if not is_scalar(p)]
+
+            if len(vector_lengths) > 0:
+                unique_lengths = set(vector_lengths)
+                if len(unique_lengths) > 1:
+                    # Find the names of the parameters with different lengths
+                    details = [f"{name}={p.shape[0]}" for p, name in zip(params, param_names) if not is_scalar(p)]
+                    raise ValueError(
+                        f"Shape mismatch: parameter lengths are {details} (must all be equal if not scalar)"
+                    )
+                output_size = unique_lengths.pop()
+            else:
+                output_size = vsize if nmodes is None else vsize * nmodes
+        elif self.type in ['PUSH', 'PUSHPULL', 'TIME_HIST']:
+            if time_hist is not None:
+                output_size = np.array(time_hist).shape[1]
+            elif nmodes is not None:
+                output_size = nmodes
+        else:
+            output_size = vsize if nmodes is None else vsize * nmodes
+        
+        self.output = BaseValue(target_device_idx=target_device_idx, value=self.xp.zeros(output_size, dtype=self.dtype))
         self.vib = None
-        self.vsize_array = self.xp.ones(vsize, dtype=self.dtype)
-        self.iter_counter = 0
 
         if seed is not None:
             self.seed = seed
 
         # Initialize attributes based on the type
         if self.type == 'SIN':
-            phase = self.freq*2 * self.xp.pi * 0 + self.offset
-            output_shape = ((self.amp * self.xp.sin(phase, dtype=self.dtype) + self.constant) * self.vsize_array).shape
-        
+            pass
+
         elif self.type == 'SQUARE_WAVE':
-            phase = self.freq*2 * self.xp.pi * 0 + self.offset
-            output_shape = ((self.amp * self.xp.sign(self.xp.sin(phase, dtype=self.dtype)) + self.constant) * self.vsize_array).shape
+            pass
 
         elif self.type == 'LINEAR':
-            output_shape = ((self.slope * 0 + self.constant) * self.vsize_array).shape
             self.slope = 0.0
 
-        elif self.type == 'RANDOM':
-            output_shape = ((self.xp.random.normal(size=len(self.amp)) * self.amp + self.constant) * self.vsize_array).shape
-
-        elif self.type == 'RANDOM_UNIFORM':
-            output_shape = self.vsize_array
+        elif self.type == 'RANDOM' or self.type == 'RANDOM_UNIFORM':
+            pass
 
         elif self.type == 'VIB_HIST':
             raise NotImplementedError('VIB_HIST type is not implemented')
-
-            output_shape = (self.get_time_hist_at_current_time() * self.vsize_array).shape
         
             if nmodes is None:
                 raise ValueError('NMODES keyword is mandatory for type VIB_HIST')
@@ -94,8 +116,6 @@ class FuncGenerator(BaseProcessingObj):
 
         elif self.type == 'VIB_PSD':
             raise NotImplementedError('VIB_PSD type is not implemented')
-
-            output_shape = (self.get_time_hist_at_current_time() * self.vsize_array).shape
 
             if nmodes is None:
                 raise ValueError('NMODES keyword is mandatory for type VIB_PSD')
@@ -111,7 +131,6 @@ class FuncGenerator(BaseProcessingObj):
             if amp is None and vect_amplitude is None:
                 raise ValueError('AMP or VECT_AMPLITUDE keyword is mandatory for type PUSH')
             self.time_hist = modal_pushpull_signal(nmodes, amplitude=amp, vect_amplitude=vect_amplitude, only_push=True, ncycles=ncycles)
-            output_shape = (self.get_time_hist_at_current_time() * self.vsize_array).shape
 
         elif self.type == 'PUSHPULL':
             if nmodes is None:
@@ -119,21 +138,20 @@ class FuncGenerator(BaseProcessingObj):
             if amp is None and vect_amplitude is None:
                 raise ValueError('AMP or VECT_AMPLITUDE keyword is mandatory for type PUSHPULL')
             self.time_hist = modal_pushpull_signal(nmodes, amplitude=amp, vect_amplitude=vect_amplitude, ncycles=ncycles, repeat_ncycles=repeat_ncycles, nsamples=nsamples)
-            output_shape = (self.get_time_hist_at_current_time() * self.vsize_array).shape
 
         elif self.type == 'TIME_HIST':
             if time_hist is None:
                 raise ValueError('TIME_HIST keyword is mandatory for type TIME_HIST')
             self.time_hist = self.xp.array(time_hist)
-            output_shape = (self.get_time_hist_at_current_time() * self.vsize_array).shape
 
         else:
             raise ValueError(f'Unknown function type: {self.type}')
 
         self.nmodes = nmodes
-        self.output = BaseValue(target_device_idx=target_device_idx, value=self.xp.zeros(output_shape, dtype=self.dtype))
         self.outputs['output'] = self.output
+        self.iter_counter = 0
         self.current_time_gpu = self.xp.zeros(1, dtype=self.dtype)
+        self.vsize_array = self.xp.ones(vsize, dtype=self.dtype)
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
@@ -167,7 +185,7 @@ class FuncGenerator(BaseProcessingObj):
             raise ValueError(f'Unknown function generator type: {self.type}')
 
     def post_trigger(self):
-        
+
         self.output.generation_time = self.current_time
         self.iter_counter += 1
 
