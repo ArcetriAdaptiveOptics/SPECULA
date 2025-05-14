@@ -302,6 +302,27 @@ class ConvolutionKernel(BaseDataObj):
         hdul = fits.HDUList([primary_hdu, kernel_hdu])
         hdul.writeto(filename, overwrite=True)   
 
+    def prepare(self, sodium_altitude=None, sodium_intensity=None, laser_launch_tel=None, current_time=None):
+        # Aggiorna parametri se forniti
+        if sodium_altitude is not None:
+            self.zlayer = sodium_altitude
+        if sodium_intensity is not None:
+            self.zprofile = sodium_intensity
+
+        kernel_fn = self.build()
+
+        if os.path.exists(kernel_fn):
+            print(f"Loading kernel from {kernel_fn}")
+            ConvolutionKernel.restore(kernel_fn, kernel_obj=self, target_device_idx=self.target_device_idx, return_fft=True)
+        else:
+            print('Calculating kernel...')
+            self.calculate_lgs_map()
+            self.save(kernel_fn)
+            print('Done')
+
+        if current_time is not None:
+            self.generation_time = current_time
+
     @staticmethod
     def restore(filename, target_device_idx=None, kernel_obj=None, return_fft=False):
         """

@@ -324,50 +324,22 @@ class SH(BaseProcessingObj):
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)        
-        self.prepare_kernels()
-
+        if self._kernelobj is not None:
+            self.prepare_kernels()
 
     def prepare_kernels(self):
-        if self._kernelobj is not None:
-            if len(self._laser_launch_tel.tel_pos) != 0:
-                sodium_altitude = self.local_inputs['sodium_altitude']
-                sodium_intensity = self.local_inputs['sodium_intensity']
-                if sodium_altitude is None or sodium_intensity is None:
-                    raise ValueError('sodium_altitude and sodium_intensity must be provided')
-                self._kernelobj.zlayer = sodium_altitude.value
-                self._kernelobj.zprofile = sodium_intensity.value
-
-            # Get the kernel filename hash based on current parameters
-            new_kernel_fn = self._kernelobj.build()
-
-            # Only reload or recalculate if the kernel has changed
-            if new_kernel_fn != self._kernel_fn:
-                self._kernel_fn = new_kernel_fn  # Update the stored kernel filename
-
-                if os.path.exists(self._kernel_fn):
-                    print(f"Loading kernel from {self._kernel_fn}")
-                    if len(self._laser_launch_tel.tel_pos) == 0:
-                        self._kernelobj = GaussianConvolutionKernel.restore(self._kernel_fn,
-                                                                            kernel_obj=self._kernelobj,
-                                                                            target_device_idx=self.target_device_idx,
-                                                                            return_fft=True)
-                    else:
-                        self._kernelobj = ConvolutionKernel.restore(self._kernel_fn, 
-                                                                    kernel_obj=self._kernelobj,
-                                                                    target_device_idx=self.target_device_idx,
-                                                                    return_fft=True)
-                else:
-                    print('Calculating kernel...')
-                    self._kernelobj.calculate_lgs_map()
-                    self._kernelobj.save(self._kernel_fn)
-                    print('Done')
-
-            else:
-                # Kernel hasn't changed, no need to reload or recalculate
-                print("Kernel unchanged, using cached version")
-
-            if self._kernelobj is not None:
-                self._kernelobj.generation_time = self.current_time
+        if len(self._laser_launch_tel.tel_pos) != 0:
+            sodium_altitude = self.local_inputs['sodium_altitude']
+            sodium_intensity = self.local_inputs['sodium_intensity']
+            if sodium_altitude is None or sodium_intensity is None:
+                raise ValueError('sodium_altitude and sodium_intensity must be provided')
+            self._kernelobj.prepare(
+                sodium_altitude=sodium_altitude.value,
+                sodium_intensity=sodium_intensity.value,
+                current_time=self.current_time
+            )
+        else:
+            self._kernelobj.prepare(current_time=self.current_time)
 
     def trigger_code(self):
 
