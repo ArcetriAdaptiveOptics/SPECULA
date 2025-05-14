@@ -160,7 +160,7 @@ class BaseProcessingObj(BaseTimeObj):
     @verbose.setter
     def verbose(self, value):
         self._verbose = value
-    
+
     def setup(self):
         """
         Override this method to perform any setup
