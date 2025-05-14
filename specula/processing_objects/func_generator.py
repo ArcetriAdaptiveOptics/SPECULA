@@ -10,6 +10,8 @@ from specula.lib.modal_pushpull_signal import modal_pushpull_signal
 class Vibrations():
     pass
 
+def is_scalar(x):
+    return np.isscalar(x) or (hasattr(x, 'shape') and x.shape == ())
 
 class FuncGenerator(BaseProcessingObj):
     def __init__(self,
@@ -33,6 +35,9 @@ class FuncGenerator(BaseProcessingObj):
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
+        if nmodes is not None and vsize>1:
+            raise ValueError('NMODES and VSIZE cannot be used together. Use NMODES only for PUSHPULL, PUSHPULLREPEAT, VIB_HIST or VIB_PSD types')
+
         self.type = func_type.upper()
         if self.type == 'PUSHPULLREPEAT':
             repeat_ncycles = True
@@ -50,14 +55,37 @@ class FuncGenerator(BaseProcessingObj):
         else:
             self.seed = 0
 
-        output_size = vsize
-        if nmodes is not None:
-            output_size *= nmodes
         self.constant = self.xp.array(constant, dtype=self.dtype) if constant is not None else 0.0
         self.amp = self.xp.array(amp, dtype=self.dtype) if amp is not None else 0.0
         self.freq = self.xp.array(freq, dtype=self.dtype) if freq is not None else 0.0
         self.offset = self.xp.array(offset, dtype=self.dtype) if offset is not None else 0.0
         self.vect_amplitude = self.xp.array(vect_amplitude, dtype=self.dtype) if vect_amplitude is not None else 0.0
+
+        if self.type in ['SIN', 'SQUARE_WAVE', 'LINEAR', 'RANDOM', 'RANDOM_UNIFORM']:
+            # Check if the parameters are scalars or arrays and have coherent sizes
+            params = [self.amp, self.freq, self.offset, self.constant]
+            param_names = ['amp', 'freq', 'offset', 'constant']
+            vector_lengths = [p.shape[0] for p in params if not is_scalar(p)]
+
+            if len(vector_lengths) > 0:
+                unique_lengths = set(vector_lengths)
+                if len(unique_lengths) > 1:
+                    # Find the names of the parameters with different lengths
+                    details = [f"{name}={p.shape[0]}" for p, name in zip(params, param_names) if not is_scalar(p)]
+                    raise ValueError(
+                        f"Shape mismatch: parameter lengths are {details} (must all be equal if not scalar)"
+                    )
+                output_size = unique_lengths.pop()
+            else:
+                output_size = vsize if nmodes is None else vsize * nmodes
+        elif self.type in ['PUSH', 'PUSHPULL', 'TIME_HIST']:
+            if time_hist is not None:
+                output_size = np.array(time_hist).shape[1]
+            elif nmodes is not None:
+                output_size = nmodes
+        else:
+            output_size = vsize if nmodes is None else vsize * nmodes
+        
         self.output = BaseValue(target_device_idx=target_device_idx, value=self.xp.zeros(output_size, dtype=self.dtype))
         self.vib = None
 
@@ -67,7 +95,7 @@ class FuncGenerator(BaseProcessingObj):
         # Initialize attributes based on the type
         if self.type == 'SIN':
             pass
-        
+
         elif self.type == 'SQUARE_WAVE':
             pass
 
@@ -130,7 +158,7 @@ class FuncGenerator(BaseProcessingObj):
         self.current_time_gpu[:] = self.current_time_seconds
 
     def trigger_code(self):
-        
+
         if self.type == 'SIN':
             phase = self.freq*2 * self.xp.pi * self.current_time_gpu + self.offset
             self.output.value[:] = (self.amp * self.xp.sin(phase, dtype=self.dtype) + self.constant) * self.vsize_array
@@ -158,7 +186,7 @@ class FuncGenerator(BaseProcessingObj):
             raise ValueError(f'Unknown function generator type: {self.type}')
 
     def post_trigger(self):
-        
+
         self.output.generation_time = self.current_time
         self.iter_counter += 1
 
