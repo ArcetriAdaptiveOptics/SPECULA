@@ -374,6 +374,7 @@ class SH(BaseProcessingObj):
         with show_in_profiler('interpolation'):
 
             if self._do_interpolation:
+                self.phase_extrapolated[:] = self.in_ef.phaseInNm
                 _ = extrapolate_edge_pixel(self.in_ef.phaseInNm, self._extrapol_mat1, self._extrapol_mat2, self._idx_1pix, self._idx_2pix, xp=self.xp, out=self.phase_extrapolated)
                 self.interp.interpolate(self.in_ef.A, out=self._wf1.A)
                 self.interp.interpolate(self.phase_extrapolated, out=self._wf1.phaseInNm)
