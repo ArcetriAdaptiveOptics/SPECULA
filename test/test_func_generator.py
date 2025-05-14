@@ -1,7 +1,6 @@
 
 
 import specula
-from specula.data_objects.simul_params import SimulParams
 specula.init(0)  # Default target device
 
 import unittest
@@ -17,13 +16,13 @@ class TestFuncGenerator(unittest.TestCase):
 
     @cpu_and_gpu
     def test_func_generator_constant(self, target_device_idx, xp):
-        constant = 4
+        constant = [4,3]
         f = FuncGenerator('SIN', target_device_idx=target_device_idx, constant=constant)
         f.check_ready(1)
         f.trigger()
         f.post_trigger()
         value = cpuArray(f.outputs['output'].value)
-        np.testing.assert_almost_equal(value, constant)
+        np.testing.assert_allclose(value, constant)
 
     @cpu_and_gpu
     def test_func_generator_sin(self, target_device_idx, xp):
