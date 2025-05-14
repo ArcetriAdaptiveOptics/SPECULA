@@ -7,6 +7,7 @@ main:
   pixel_pitch:       0.0802                 # [m] Pitch of the pupil phase array2
   total_time:        30.000                  # [s] Total simulation running time
   time_step:         0.002                  # [s] Simulation time step
+  display_server:    true
 #  store:                                  # Dict of data products to store, 'name': 'output'
 #    sr: 'psf.out_sr'
 #    res_ef: 'prop.out_on_axis_source_ef'
@@ -86,7 +87,6 @@ ngs6_source:
 
 pupilstop:                                 # Default parameters (circular pupil)
   class: 'Pupilstop'
-  simul_params_ref:  'main'
   tag: 'EELT480pp0.0803m_obs0.283_spider2023'
 
 atmo:
@@ -345,7 +345,7 @@ rec:
 #  recmat_object:      'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_mn1000_ce'         # reconstruction matrix tag£
   #recmat_object:      'MORFEO_LTAO'         # reconstruction matrix tag
   recmat_object: '/raid1/guido/PASSATA/MAORYC/rec/20241127_110943.0/recmat'
-  intmat_object: '/raid1/guido/PASSATA/MAORYC/im/MORFEO_IM_LTAO'
+  intmat_object: '/raid1/guido/PASSATA/MAORYC/im/MORFEO_IM_LTAO_intmat'
   projmat_object: '/raid1/guido/PASSATA/MAORYC/rec/p20241127_110943.0/projmat1'
 
   polc: True
