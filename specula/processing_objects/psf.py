@@ -114,7 +114,7 @@ class PSF(BaseProcessingObj):
 
         # First time, calculate reference PSF.
         if self.first:
-            self.ref.i = self.calc_psf(in_ef.A * 0.0, in_ef.A, imwidth=self.out_size[0], normalize=True)
+            self.ref.i[:] = self.calc_psf(in_ef.A * 0.0, in_ef.A, imwidth=self.out_size[0], normalize=True)
             self.first = False
 
     def trigger_code(self):
