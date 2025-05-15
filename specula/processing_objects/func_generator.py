@@ -243,8 +243,7 @@ class FuncGenerator(BaseProcessingObj):
         self.iter_counter += 1
 
     def get_time_hist_at_current_time(self):
-        if self.time_hist is None:
-            return self.xp.array(self.time_hist[self.iter_counter])
+        return self.xp.array(self.time_hist[self.iter_counter])
 
     def setup(self):
         super().setup()
