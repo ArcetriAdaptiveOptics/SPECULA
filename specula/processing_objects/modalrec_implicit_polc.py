@@ -70,7 +70,8 @@ class ModalrecImplicitPolc(Modalrec):
         del comm_mat
         
         # set up the H matrix
-        h_mat = self.xp.identity(nmodes) - self.comm_mat.recmat @ self.intmat.intmat
+        h_mat = self.comm_mat.recmat @ self.intmat.intmat
+        h_mat = self.xp.identity(h_mat.shape[0], dtype=self.dtype) - h_mat
         self.h_mat = Recmat(h_mat, target_device_idx=target_device_idx, precision=precision)
         # Now self.intmat can be removed to save memory
         self.intmat = None
