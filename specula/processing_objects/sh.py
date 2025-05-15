@@ -333,13 +333,17 @@ class SH(BaseProcessingObj):
             sodium_intensity = self.local_inputs['sodium_intensity']
             if sodium_altitude is None or sodium_intensity is None:
                 raise ValueError('sodium_altitude and sodium_intensity must be provided')
-            self._kernelobj.prepare_for_sh(
-                sodium_altitude=sodium_altitude.value,
-                sodium_intensity=sodium_intensity.value,
-                current_time=self.current_time
-            )
+            sodium_altitude = sodium_altitude.value
+            sodium_intensity = sodium_intensity.value
         else:
-            self._kernelobj.prepare_for_sh(current_time=self.current_time)
+            sodium_altitude = None
+            sodium_intensity = None
+
+        self._kernelobj.prepare_for_sh(
+            sodium_altitude=sodium_altitude,
+            sodium_intensity=sodium_intensity,
+            current_time=self.current_time
+        )
 
     def trigger_code(self):
 
