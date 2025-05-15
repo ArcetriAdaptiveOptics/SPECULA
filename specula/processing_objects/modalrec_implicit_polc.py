@@ -111,4 +111,15 @@ class ModalrecImplicitPolc(Modalrec):
         self.modes.generation_time = self.current_time
 
     def setup(self):
-        super().setup()
+        super(Modalrec, self).setup()
+
+        slopes = self.inputs['in_slopes'].get(self.target_device_idx)
+        slopes_list = self.inputs['in_slopes_list'].get(self.target_device_idx)
+
+        if not slopes and (not slopes_list or not all(slopes_list)):
+            raise ValueError("Either 'slopes' or 'slopes_list' must be given as an input")
+
+        commands = self.inputs['in_commands'].get(self.target_device_idx)
+        commands_list = self.inputs['in_commands_list'].get(self.target_device_idx)
+        if not commands and (not commands_list or not all(commands_list)):
+            raise ValueError("When POLC is used, either 'commands' or 'commands_list' must be given as an input")
