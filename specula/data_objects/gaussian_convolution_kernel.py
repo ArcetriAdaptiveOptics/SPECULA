@@ -1,9 +1,4 @@
-from specula.base_data_obj import BaseDataObj
 from specula.data_objects.convolution_kernel import ConvolutionKernel, lgs_map_sh
-from specula import cpuArray
-
-import os
-import numpy as np
 
 from astropy.io import fits
 
