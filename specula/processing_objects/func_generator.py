@@ -167,8 +167,8 @@ class FuncGenerator(BaseProcessingObj):
         elif self.type == 'VIB_PSD':
             if nmodes is None:
                 raise ValueError('NMODES keyword is mandatory for type VIB_PSD')
-            if psd is None and continuous_psd is None:
-                raise ValueError('PSD or CONTINUOUS_PSD keyword is mandatory for type VIB_PSD')
+            if psd is None:
+                raise ValueError('PSD keyword is mandatory for type VIB_PSD')
             if fr_psd is None:
                 raise ValueError('FR_PSD keyword is mandatory for type VIB_PSD')
             samp_freq = 1/simul_params.time_step
