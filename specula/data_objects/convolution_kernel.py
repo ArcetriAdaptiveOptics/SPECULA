@@ -5,6 +5,7 @@ from astropy.io import fits
 from specula import cpuArray, ASEC2RAD
 from specula.lib.rebin import rebin2d
 
+import os
 import numpy as np
 
 import hashlib, json
@@ -302,8 +303,8 @@ class ConvolutionKernel(BaseDataObj):
         hdul = fits.HDUList([primary_hdu, kernel_hdu])
         hdul.writeto(filename, overwrite=True)   
 
-    def prepare(self, sodium_altitude=None, sodium_intensity=None, laser_launch_tel=None, current_time=None):
-        # Aggiorna parametri se forniti
+    def prepare_for_sh(self, sodium_altitude=None, sodium_intensity=None, current_time=None):
+        # Update the kernel parameters if provided
         if sodium_altitude is not None:
             self.zlayer = sodium_altitude
         if sodium_intensity is not None:
@@ -313,7 +314,7 @@ class ConvolutionKernel(BaseDataObj):
 
         if os.path.exists(kernel_fn):
             print(f"Loading kernel from {kernel_fn}")
-            ConvolutionKernel.restore(kernel_fn, kernel_obj=self, target_device_idx=self.target_device_idx, return_fft=True)
+            self.restore(kernel_fn, kernel_obj=self, target_device_idx=self.target_device_idx, return_fft=True)
         else:
             print('Calculating kernel...')
             self.calculate_lgs_map()

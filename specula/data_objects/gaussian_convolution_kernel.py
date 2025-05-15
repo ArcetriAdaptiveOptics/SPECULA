@@ -2,6 +2,7 @@ from specula.base_data_obj import BaseDataObj
 from specula.data_objects.convolution_kernel import ConvolutionKernel, lgs_map_sh
 from specula import cpuArray
 
+import os
 import numpy as np
 
 from astropy.io import fits
@@ -60,12 +61,12 @@ class GaussianConvolutionKernel(ConvolutionKernel):
 
         self.process_kernels(return_fft=self.return_fft)
 
-    def prepare(self, current_time=None):
+    def prepare_for_sh(self, current_time=None):
         kernel_fn = self.build()
 
         if os.path.exists(kernel_fn):
             print(f"Loading kernel from {kernel_fn}")
-            GaussianConvolutionKernel.restore(kernel_fn, kernel_obj=self, target_device_idx=self.target_device_idx, return_fft=True)
+            self.restore(kernel_fn, kernel_obj=self, target_device_idx=self.target_device_idx, return_fft=True)
         else:
             print('Calculating kernel...')
             self.calculate_lgs_map()
