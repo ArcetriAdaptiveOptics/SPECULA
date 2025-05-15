@@ -35,14 +35,23 @@ class PSF(BaseProcessingObj):
         self.int_sr = BaseValue()
         self.psf = BaseValue()
         self.int_psf = BaseValue()
-        self.in_ef = None
         self.ref = None
         self.intsr = 0.0
         self.count = 0
+        self.first = True
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
         self.outputs['out_sr'] = self.sr
         self.outputs['out_psf'] = self.psf
+
+    def setup(self):
+        in_ef = self.inputs['in_ef'].get(self.target_device_idx)
+        s = [int(np.around(dim * self.nd/2)*2) for dim in in_ef.size]
+        self.int_psf.value = self.xp.zeros(s, dtype=self.dtype)
+        self.intsr = 0
+
+        self.out_size = [int(np.around(dim * self.nd/2)*2) for dim in in_ef.size]
+        self.ref = Intensity(self.out_size[0], self.out_size[1])
 
     def calc_psf(self, phase, amp, imwidth=None, normalize=False, nocenter=False):
         """
@@ -91,7 +100,6 @@ class PSF(BaseProcessingObj):
         in_ef = self.inputs['in_ef'].get(self.target_device_idx)
         return in_ef.size if in_ef else None
 
-
     def reset_integration(self):
         self.count = 0
         in_ef = self.local_inputs['in_ef']
@@ -101,26 +109,24 @@ class PSF(BaseProcessingObj):
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
-        self.in_ef = self.local_inputs['in_ef']
-        if self.psf.value is None:
-            s = [int(np.around(dim * self.nd/2)*2) for dim in self.in_ef.size]
-            self.int_psf.value = self.xp.zeros(s, dtype=self.dtype)
-            self.intsr = 0
-        if self.current_time_seconds >= self.start_time:
-            self.count += 1
-        self.out_size = [int(np.around(dim * self.nd/2)*2) for dim in self.in_ef.size]
-        if not self.ref:
-            self.ref = Intensity(self.out_size[0], self.out_size[1])
-            self.ref.i = self.calc_psf(self.in_ef.A * 0.0, self.in_ef.A, imwidth=self.out_size[0], normalize=True)
+
+        in_ef = self.local_inputs['in_ef']
+
+        # First time, calculate reference PSF.
+        if self.first:
+            self.ref.i[:] = self.calc_psf(in_ef.A * 0.0, in_ef.A, imwidth=self.out_size[0], normalize=True)
+            self.first = False
 
     def trigger_code(self):
-        self.psf.value = self.calc_psf(self.in_ef.phi_at_lambda(self.wavelengthInNm), self.in_ef.A, imwidth=self.out_size[0], normalize=True)
+        in_ef = self.local_inputs['in_ef']
+        self.psf.value = self.calc_psf(in_ef.phi_at_lambda(self.wavelengthInNm), in_ef.A, imwidth=self.out_size[0], normalize=True)
         self.sr.value = self.psf.value[self.out_size[0] // 2, self.out_size[1] // 2] / self.ref.i[self.out_size[0] // 2, self.out_size[1] // 2]
         print('SR:', self.sr.value)
 
     def post_trigger(self):
         super().post_trigger()
         if self.current_time_seconds >= self.start_time:
+            self.count += 1
             self.intsr += self.sr.value
             self.int_psf.value += self.psf.value
             self.int_sr.value = self.intsr / self.count
