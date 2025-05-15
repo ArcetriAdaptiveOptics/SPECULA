@@ -61,7 +61,7 @@ class ModalrecImplicitPolc(Modalrec):
             raise ValueError("Intmat object not valid")
 
         # set up the command matrix as the product of the projection matrix and the reconstruction matrix
-        comm_mat = self.projmat.recmat @ self.recmat.recmat        
+        comm_mat = self.projmat.recmat @ self.recmat.recmat
         self.comm_mat = Recmat(comm_mat, target_device_idx=target_device_idx, precision=precision)
         # Now self.recmat and self.projmat can be removed to save memory
         self.recmat = None
@@ -105,7 +105,7 @@ class ModalrecImplicitPolc(Modalrec):
         if self.input_modes_slice is not None:
             commands = commands[self.input_modes_slice]
 
-        output_modes = self.comm_mat.recmat @ slopes + self.h_mat.recmat @ commands
+        output_modes = self.comm_mat.recmat @ slopes - self.h_mat.recmat @ commands
 
         self.modes.value = output_modes[self.output_slice]
         self.modes.generation_time = self.current_time
