@@ -64,14 +64,18 @@ class GaussianConvolutionKernel(ConvolutionKernel):
     def prepare_for_sh(self, current_time=None):
         kernel_fn = self.build()
 
-        if os.path.exists(kernel_fn):
-            print(f"Loading kernel from {kernel_fn}")
-            self.restore(kernel_fn, kernel_obj=self, target_device_idx=self.target_device_idx, return_fft=True)
-        else:
-            print('Calculating kernel...')
-            self.calculate_lgs_map()
-            self.save(kernel_fn)
-            print('Done')
+        # Only reload or recalculate if the kernel has changed
+        if kernel_fn != self._kernel_fn:
+            self._kernel_fn = kernel_fn  # Update the stored kernel filename
+
+            if os.path.exists(kernel_fn):
+                print(f"Loading kernel from {kernel_fn}")
+                self.restore(kernel_fn, kernel_obj=self, target_device_idx=self.target_device_idx, return_fft=True)
+            else:
+                print('Calculating kernel...')
+                self.calculate_lgs_map()
+                self.save(kernel_fn)
+                print('Done')
 
         if current_time is not None:
             self.generation_time = current_time
