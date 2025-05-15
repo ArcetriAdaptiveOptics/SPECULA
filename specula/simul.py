@@ -264,18 +264,17 @@ class Simul():
                 if isinstance(output_name, list) and input_name=='input_list':
                     inputs = [x.split('-')[0] for x in output_name]
                     outputs = [self.output_ref(x.split('-')[1]) for x in output_name]
-                    for ii, oo in zip(inputs, outputs):
+                    for ii, oo, nn in zip(inputs, outputs, output_name):
                         self.objs[dest_object].inputs[ii] = InputValue(type = type(oo) )
                         self.objs[dest_object].inputs[ii].set(oo)
 
-                        for oo in output_name:
-                            a_connection = {}
-                            a_connection['start'] = oo.split('.')[0].split('-')[-1]
-                            a_connection['end'] = dest_object
-                            a_connection['start_label'] = ii
-                            a_connection['middle_label'] = self.objs[dest_object].inputs[ii]
-                            a_connection['end_label'] = oo
-                            self.connections.append(a_connection)
+                        a_connection = {}
+                        a_connection['start'] = nn.split('.')[0].split('-')[-1]
+                        a_connection['end'] = dest_object
+                        a_connection['start_label'] = ii
+                        a_connection['middle_label'] = self.objs[dest_object].inputs[ii]
+                        a_connection['end_label'] = nn
+                        self.connections.append(a_connection)
 
                     continue
 
