@@ -67,7 +67,7 @@ class Vibrations:
 
 class FuncGenerator(BaseProcessingObj):
     def __init__(self,
-                 simul_params: SimulParams,
+                 simul_params: SimulParams=None,
                  func_type='SIN',
                  nmodes: int=None,
                  time_hist=None,
@@ -87,6 +87,8 @@ class FuncGenerator(BaseProcessingObj):
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
+        if type == 'VIB_PSD' and simul_params is None:
+            raise ValueError('SIMUL_PARAMS keyword is mandatory for type VIB_PSD')
         self.simul_params = simul_params
 
         if nmodes is not None and vsize>1:
