@@ -34,7 +34,7 @@ class TestModalrec(unittest.TestCase):
     def test_modalrec_vs_implicit_polc(self, target_device_idx, xp):
         target_device_idx = None
 
-        # intmat: 6x4 random array
+        # intmat (shape 6x4)
         intmat_arr = xp.array([
                             [1, 0,  1,  1],
                             [0, 1, -1,  1],
@@ -53,12 +53,12 @@ class TestModalrec(unittest.TestCase):
         projmat_arr = xp.eye(4) * 2
         projmat = Recmat(projmat_arr, target_device_idx=target_device_idx)
 
-        # slopes: 10 random values
+        # slopes:
         slopes_list = [3,  1.5,  3,  -0.5,  1,  1.5]
         slopes    = Slopes(slopes=xp.array(slopes_list), target_device_idx=target_device_idx)
         slopes_ip = Slopes(slopes=xp.array(slopes_list), target_device_idx=target_device_idx)
 
-        # commands: 4 random values
+        # commands:
         commands_list = [0.1, 0.2, 0.3, 0.4]
         commands    = BaseValue('commands', value=xp.array(commands_list), target_device_idx=target_device_idx)
         commands_ip = BaseValue('commands', value=xp.array(commands_list), target_device_idx=target_device_idx)
