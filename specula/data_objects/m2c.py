@@ -31,7 +31,7 @@ class M2C(BaseDataObj):
         hdr = fits.Header()
         hdr['VERSION'] = 1
         fits.writeto(filename, np.zeros(2), hdr)
-        fits.append(filename, cpuArray(self.m2c))
+        fits.append(filename, cpuArray(self.m2c.T))
 
     @classmethod
     def restore(cls, filename, target_device_idx=None):
@@ -41,5 +41,5 @@ class M2C(BaseDataObj):
             version = hdr.get('VERSION')
             if version != 1:
                 raise ValueError(f"Unknown version {version} in file {filename}")
-            m2c = hdul[1].data
+            m2c = hdul[1].data.T
         return M2C(m2c=m2c, target_device_idx=target_device_idx)
