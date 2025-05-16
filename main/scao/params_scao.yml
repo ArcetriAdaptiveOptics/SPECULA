@@ -17,7 +17,6 @@ main:
 seeing:
   class:             'FuncGenerator'
   constant:          0.8                   # ["] seeing value
-  func_type:         'SIN'                 # TODO necessary for factory.py line 217
 
 
 wind_speed:

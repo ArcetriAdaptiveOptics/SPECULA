@@ -5,6 +5,7 @@ from astropy.io import fits
 from specula import cpuArray, ASEC2RAD
 from specula.lib.rebin import rebin2d
 
+import os
 import numpy as np
 
 import hashlib, json
@@ -155,6 +156,7 @@ class ConvolutionKernel(BaseDataObj):
             dtype = self.dtype
         self.real_kernels = self.xp.zeros((self.dimx*self.dimy, self.dimension, self.dimension), dtype=self.dtype)
         self.kernels = self.xp.zeros((self.dimx*self.dimy, self.dimension, self.dimension), dtype=dtype)
+        self._kernel_fn = None
 
     def build(self):
         if len(self.zlayer) != len(self.zprofile):
@@ -301,6 +303,31 @@ class ConvolutionKernel(BaseDataObj):
         # Create an HDUList and write to file
         hdul = fits.HDUList([primary_hdu, kernel_hdu])
         hdul.writeto(filename, overwrite=True)   
+
+    def prepare_for_sh(self, sodium_altitude=None, sodium_intensity=None, current_time=None):
+        # Update the kernel parameters if provided
+        if sodium_altitude is not None:
+            self.zlayer = sodium_altitude
+        if sodium_intensity is not None:
+            self.zprofile = sodium_intensity
+
+        kernel_fn = self.build()
+
+        # Only reload or recalculate if the kernel has changed
+        if kernel_fn != self._kernel_fn:
+            self._kernel_fn = kernel_fn  # Update the stored kernel filename
+
+            if os.path.exists(kernel_fn):
+                print(f"Loading kernel from {kernel_fn}")
+                self.restore(kernel_fn, kernel_obj=self, target_device_idx=self.target_device_idx, return_fft=True)
+            else:
+                print('Calculating kernel...')
+                self.calculate_lgs_map()
+                self.save(kernel_fn)
+                print('Done')
+
+        if current_time is not None:
+            self.generation_time = current_time
 
     @staticmethod
     def restore(filename, target_device_idx=None, kernel_obj=None, return_fft=False):
