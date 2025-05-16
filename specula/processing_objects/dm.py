@@ -20,6 +20,7 @@ class DM(BaseProcessingObj):
                  start_mode: int=None,
                  input_offset: int=0,
                  idx_modes = None,
+                 npixels: int=None,
                  obsratio: float=None,
                  diaratio: float=None,
                  pupilstop: Pupilstop=None,
@@ -31,13 +32,21 @@ class DM(BaseProcessingObj):
 
         self.simul_params = simul_params
         self.pixel_pitch = self.simul_params.pixel_pitch
-        self.pixel_pupil = self.simul_params.pixel_pupil
+
         mask = None
         if pupilstop:
             mask = pupilstop.A
+            if npixels is not None and mask.shape != (npixels, npixels):
+                raise ValueError(f'npixels={npixels} is not consistent with the pupilstop shape {mask.shape}')
+            else:
+                npixels = mask.shape[0]
+
+        if npixels is not None and ifunc is not None:
+            if ifunc.mask_inf_func.shape != (npixels, npixels):
+                raise ValueError(f'npixels={npixels} is not consistent with the ifunc shape {ifunc.mask_inf_func.shape}')
 
         if not ifunc:
-            ifunc = IFunc(type_str=type_str, mask=mask, npixels=self.pixel_pupil,
+            ifunc = IFunc(type_str=type_str, mask=mask, npixels=npixels,
                            obsratio=obsratio, diaratio=diaratio, nzern=nzern,
                            nmodes=nmodes, start_mode=start_mode, idx_modes=idx_modes,
                            target_device_idx=target_device_idx, precision=precision)
