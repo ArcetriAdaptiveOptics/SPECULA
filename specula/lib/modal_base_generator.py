@@ -30,7 +30,7 @@ def generate_phase_spectrum(f, r0, L0, xp=np, dtype=np.float32):
         from cupyx.scipy.special import gamma
     else:
         from scipy.special import gamma
-        
+
     cst = (gamma(11.0/6.0)**2/(2.0*np.pi**(11.0/3.0)))*(24.0*gamma(6.0/5.0)/5.0)**(5.0/6.0)
     out = cst * r0**(-5.0/3.0)*(f**2+(1.0/L0)**2)**(-11.0/6.0)
     return xp.asarray(out, dtype=dtype)
@@ -58,21 +58,21 @@ def generate_distance_grid(N, M=None, xp=np, dtype=np.float32):
 
     if M is None:
         M = N
-    
+
     R = xp.zeros((M, N), dtype=dtype)
     for x in range(N):
         if x <= N/2:
             f = x**2
         else:
             f = (N-x)**2
- 
+
         for y in range(M):
             if y <= M/2:
                 g = y**2
             else:
                 g = (M-y)**2
             R[y, x] = xp.sqrt(f + g)
-  
+
     return R
 
 def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0, oversampling=2, verbose=False, xp=np, dtype=np.float32):
@@ -138,16 +138,10 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0, oversa
         ft_support = xp.fft.fft2(support)
         ft_influence_functions[:, :, act_idx] = ft_support
 
-    freq_x = xp.fft.fftfreq(ft_shape[0], d=diameter/(ft_shape[0]))
-    freq_y = xp.fft.fftfreq(ft_shape[1], d=diameter/(ft_shape[1]))
-    fx, fy = xp.meshgrid(freq_x, freq_y, indexing='ij')
-    f = xp.sqrt(fx**2 + fy**2)
-
-    phase_spectrum = xp.zeros(ft_shape, dtype=dtype)
-    valid_f = f > 0
-    phase_spectrum[valid_f] = 0.023 * (diameter/r0)**(5/3) * (f[valid_f]**2 + (1/L0)**2)**(-11/6)
-
-    norm_factor = npupil_mask**2 * (oversampling * diameter)**2
+    # Generation of Phase Spectrum
+    sp_freq        = generate_distance_grid(oversampling*mask_size,dtype=dtype)/(oversampling*diameter)    
+    phase_spectrum = generate_phase_spectrum(sp_freq, r0, L0) 
+    norm_factor    = npupil_mask**2 * (oversampling * diameter)**2
 
     if xp.__name__ == "cupy":
         prod_ft_shape = ft_shape[0] * ft_shape[1]
@@ -164,15 +158,15 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0, oversa
     i_if2 = xp.imag(if2)
     r_if3 = xp.real(if3)
     i_if3 = xp.imag(if3)
-    
+
     r_ifft_cov = xp.matmul(r_if2.T, r_if3)
     i_ifft_cov = xp.matmul(i_if2.T, i_if3)
-    
+
     ifft_covariance = (r_ifft_cov - i_ifft_cov) / norm_factor
-    
+
     return ifft_covariance
 
-def make_modal_base_from_ifs_fft(pupil_mask, diameter, influence_functions, r0, L0, 
+def make_modal_base_from_ifs_fft(pupil_mask, diameter, influence_functions, r0, L0,
                             zern_modes=0, oversampling=2, filt_modes=None,
                             if_max_condition_number=None, verbose=False,
                             xp=np, dtype=np.float32):
@@ -265,7 +259,7 @@ def make_modal_base_from_ifs_fft(pupil_mask, diameter, influence_functions, r0, 
     if zern_modes > 0:
         coef_zern = xp.matmul(modes_to_be_removed, pinv(influence_functions))
         modes_to_be_removed = xp.matmul(coef_zern, influence_functions)
-  
+
     coef = xp.zeros((number_of_modes_to_be_removed, n_actuators), dtype=dtype)
     filtered_ifs = influence_functions.copy()
 
