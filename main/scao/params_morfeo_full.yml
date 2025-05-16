@@ -133,7 +133,6 @@ dm_disturb:
   simul_params_ref:  'main'
   type_str:          'zernike'              # modes type
   nmodes:            10                     # number of modes
-  npixels:           480                    # linear dimension of DM phase array
   obsratio:          0.1                    # obstruction dimension ratio w.r.t. diameter
   height:            0                      # DM height [m]
   inputs:
