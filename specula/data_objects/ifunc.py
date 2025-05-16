@@ -2,6 +2,7 @@ from specula.base_data_obj import BaseDataObj
 from specula.data_objects.ifunc_inv import IFuncInv
 from astropy.io import fits
 
+from specula import cpuArray
 from specula.lib.compute_zonal_ifunc import compute_zonal_ifunc
 
 from specula.lib.compute_zern_ifunc import compute_zern_ifunc
@@ -37,7 +38,7 @@ class IFunc(BaseDataObj):
                 ):
         super().__init__(precision=precision, target_device_idx=target_device_idx)
         self._doZeroPad = False
-        
+
         if ifunc is None:
             if type_str is None:
                 raise ValueError('At least one of ifunc and type must be set')
@@ -45,7 +46,7 @@ class IFunc(BaseDataObj):
                 mask = (self.xp.array(mask) > 0).astype(self.dtype)
             if npixels is None:
                 raise ValueError("If ifunc is not set, then npixels must be set!")
-            
+
             type_lower = type_str.lower()
             if type_lower == 'kl':
                 ifunc, mask = compute_kl_ifunc(npixels, nmodes=nmodes, obsratio=obsratio, diaratio=diaratio, mask=mask,
@@ -63,7 +64,7 @@ class IFunc(BaseDataObj):
                                                   return_coordinates=False)
             else:
                 raise ValueError(f'Invalid ifunc type {type_str}')
-        
+
         ifunc = self.xp.array(ifunc)
         mask = self.xp.array(mask)
 
@@ -119,15 +120,15 @@ class IFunc(BaseDataObj):
     def inverse(self):
         inv = self.xp.linalg.pinv(self._influence_function)
         return IFuncInv(inv, mask=self._mask_inf_func, precision=self.precision, target_device_idx=self.target_device_idx)
-        
+
     def save(self, filename, hdr=None):
         hdr = hdr if hdr is not None else fits.Header()
         hdr['VERSION'] = 1
 
         hdu = fits.PrimaryHDU(header=hdr)
         hdul = fits.HDUList([hdu])
-        hdul.append(fits.ImageHDU(data=self._influence_function.T, name='INFLUENCE_FUNCTION'))
-        hdul.append(fits.ImageHDU(data=self._mask_inf_func, name='MASK_INF_FUNC'))
+        hdul.append(fits.ImageHDU(data=cpuArray(self._influence_function.T), name='INFLUENCE_FUNCTION'))
+        hdul.append(fits.ImageHDU(data=cpuArray(self._mask_inf_func), name='MASK_INF_FUNC'))
         hdul.writeto(filename, overwrite=True)
 
     def cut(self, start_mode=None, nmodes=None, idx_modes=None):
@@ -139,14 +140,14 @@ class IFunc(BaseDataObj):
             if nmodes is not None:
                 nmodes = None
                 print('ifunc.cut: nmodes cannot be set together with idx_modes. Setting to None nmodes.')
-                        
+          
         nrows, ncols = self.influence_function.shape
 
         if start_mode is None:
             start_mode = 0
         if nmodes is None:
             nmodes = nrows if ncols > nrows else ncols
-            
+
         if idx_modes is not None:
             if ncols > nrows:
                 self._influence_function = self._influence_function[idx_modes, :]
@@ -157,11 +158,9 @@ class IFunc(BaseDataObj):
                 self._influence_function = self._influence_function[start_mode:nmodes, :]
             else:
                 self._influence_function = self._influence_function[:, start_mode:nmodes] 
-      
+
     def restore(filename, target_device_idx=None, exten=1):
         with fits.open(filename) as hdul:
             ifunc = hdul[exten].data.T
             mask = hdul[exten+1].data
         return IFunc(ifunc, mask=mask, target_device_idx=target_device_idx)
-
-
