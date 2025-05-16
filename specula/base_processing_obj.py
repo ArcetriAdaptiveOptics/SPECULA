@@ -211,4 +211,8 @@ class BaseProcessingObj(BaseTimeObj):
         else:
             if cp is not None and isinstance(v, cp.ndarray):
                 return v.get()
-            return np.array(v)
+            elif isinstance(v, np.ndarray):
+                # Avoid extra copy (enabled by numpy default)
+                return v
+            else:
+                return np.array(v)
