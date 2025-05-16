@@ -99,7 +99,11 @@ def cpuArray(v):
         # which one is better, xp.asnumpy(v) or v.get() ? almost the same but asnumpy is more general
         return cp.asnumpy(v)
     else:
-        return np.array(v)
+        if isinstance(v, np.ndarray):
+            # Avoid reallocation of v if not needed
+            return v
+        else:
+            return np.array(v)
 
 
 class DummyDecoratorAndContextManager():
