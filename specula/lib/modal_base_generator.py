@@ -122,6 +122,8 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0, oversa
     mask_shape = pupil_mask.shape
 
     mask_size = max(mask_shape)
+
+    # Fourier transform of the influence functions 3D array
     ft_shape = (oversampling * mask_size, oversampling * mask_size)
 
     ft_influence_functions = xp.zeros((ft_shape[0], ft_shape[1], n_actuators), dtype=cdtype)
@@ -139,8 +141,8 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0, oversa
         ft_influence_functions[:, :, act_idx] = ft_support
 
     # Generation of Phase Spectrum
-    sp_freq        = generate_distance_grid(oversampling*mask_size,dtype=dtype)/(oversampling*diameter)    
-    phase_spectrum = generate_phase_spectrum(sp_freq, r0, L0) 
+    sp_freq        = generate_distance_grid(oversampling*mask_size,dtype=dtype)/(oversampling*diameter)
+    phase_spectrum = generate_phase_spectrum(sp_freq, r0, L0)
     norm_factor    = npupil_mask**2 * (oversampling * diameter)**2
 
     if xp.__name__ == "cupy":
@@ -148,19 +150,21 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0, oversa
     else:
         prod_ft_shape = xp.prod(ft_shape)
 
-    if2 = xp.zeros((prod_ft_shape, n_actuators), dtype=cdtype)
+    # Fourier transform of the influence functions
+    if_ft = xp.zeros((prod_ft_shape, n_actuators), dtype=cdtype)
     for act_idx in range(n_actuators):
-        if2[:, act_idx] = (ft_influence_functions[:, :, act_idx] * phase_spectrum).flatten()
+        if_ft[:, act_idx] = (ft_influence_functions[:, :, act_idx] * phase_spectrum).flatten()
 
-    if3 = xp.conj(ft_influence_functions.reshape(prod_ft_shape, n_actuators))
+    # Fourier transform of the influence functions conjugate
+    if_ft_conj = xp.conj(ft_influence_functions.reshape(prod_ft_shape, n_actuators))
 
-    r_if2 = xp.real(if2)
-    i_if2 = xp.imag(if2)
-    r_if3 = xp.real(if3)
-    i_if3 = xp.imag(if3)
+    r_if_ft = xp.real(if_ft)
+    i_if_ft = xp.imag(if_ft)
+    r_if_ft_conj = xp.real(if_ft_conj)
+    i_if_ft_conj = xp.imag(if_ft_conj)
 
-    r_ifft_cov = xp.matmul(r_if2.T, r_if3)
-    i_ifft_cov = xp.matmul(i_if2.T, i_if3)
+    r_ifft_cov = xp.matmul(r_if_ft.T, r_if_ft_conj)
+    i_ifft_cov = xp.matmul(i_if_ft.T, i_if_ft_conj)
 
     ifft_covariance = (r_ifft_cov - i_ifft_cov) / norm_factor
 
