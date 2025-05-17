@@ -25,14 +25,13 @@ class DM(BaseProcessingObj):
                  diaratio: float=None,
                  pupilstop: Pupilstop=None,
                  sign: int=-1,
-                 target_device_idx: int=None, 
+                 target_device_idx: int=None,
                  precision: int=None
                  ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.simul_params = simul_params
         self.pixel_pitch = self.simul_params.pixel_pitch
-       
 
         mask = None
         if pupilstop:
@@ -46,14 +45,14 @@ class DM(BaseProcessingObj):
                            nmodes=nmodes, start_mode=start_mode, idx_modes=idx_modes,
                            target_device_idx=target_device_idx, precision=precision)
         self._ifunc = ifunc
-        
+
         s = self._ifunc.mask_inf_func.shape
         nmodes_if = self._ifunc.size[0]
-        
+
         self.if_commands = self.xp.zeros(nmodes_if, dtype=self.dtype)
         self.layer = Layer(s[0], s[1], self.pixel_pitch, height, target_device_idx=target_device_idx, precision=precision)
         self.layer.A = self._ifunc.mask_inf_func
-        
+
         if m2c is not None:
             nmodes_m2c = m2c.m2c.shape[1]
             self.m2c_commands = self.xp.zeros(nmodes_m2c, dtype=self.dtype)
@@ -69,10 +68,10 @@ class DM(BaseProcessingObj):
         self.sign = sign
         self.inputs['in_command'] = InputValue(type=BaseValue)
         self.outputs['out_layer'] = self.layer
-        
+
     def trigger_code(self):
         input_commands = self.local_inputs['in_command'].value
-        
+
         if self.nmodes is not None:
             input_commands = input_commands[self.input_offset: self.input_offset + self.nmodes]
 
@@ -81,11 +80,11 @@ class DM(BaseProcessingObj):
             cmd = self.m2c @ self.m2c_commands
         else:
             cmd = input_commands
-            
+
         self.if_commands[:len(cmd)] = self.sign * cmd
         self.layer.phaseInNm[self._ifunc.idx_inf_func] = self.if_commands @ self._ifunc.influence_function
         self.layer.generation_time = self.current_time
-    
+
     # Getters and Setters for the attributes
     @property
     def ifunc(self):
@@ -94,5 +93,4 @@ class DM(BaseProcessingObj):
     @ifunc.setter
     def ifunc(self, value):
         self._ifunc.influence_function = value
-    
-       
+
