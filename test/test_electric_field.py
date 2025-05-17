@@ -50,18 +50,19 @@ class TestElectricField(unittest.TestCase):
     @cpu_and_gpu
     def test_ef_combinator(self, target_device_idx, xp):
         pixel_pitch = 0.1
-        simulParams = SimulParams(pixel_pitch=pixel_pitch)
-        ef1 = ElectricField(10,10, pixel_pitch, S0=1, target_device_idx=target_device_idx)
-        ef2 = ElectricField(10,10, pixel_pitch, S0=2, target_device_idx=target_device_idx)
+        pixel_pupil = 10
+        simulParams = SimulParams(pixel_pupil=pixel_pupil,pixel_pitch=pixel_pitch)
+        ef1 = ElectricField(pixel_pupil,pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        ef2 = ElectricField(pixel_pupil,pixel_pupil, pixel_pitch, S0=2, target_device_idx=target_device_idx)
 
-        A1 = xp.ones((10, 10))
+        A1 = xp.ones((pixel_pupil, pixel_pupil))
         ef1.A = A1
-        ef1.phaseInNm = 1 * xp.ones((10, 10))
-        A2 = xp.ones((10, 10))
+        ef1.phaseInNm = 1 * xp.ones((pixel_pupil, pixel_pupil))
+        A2 = xp.ones((pixel_pupil, pixel_pupil))
         A2[0, 0] = 0
         A2[9, 9] = 0
         ef2.A = A2
-        ef2.phaseInNm = 3 * xp.ones((10, 10))
+        ef2.phaseInNm = 3 * xp.ones((pixel_pupil, pixel_pupil))
 
         ef_combinator = ElectricFieldCombinator(
             simul_params=simulParams,
