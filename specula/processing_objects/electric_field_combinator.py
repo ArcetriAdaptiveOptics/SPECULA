@@ -32,22 +32,13 @@ class ElectricFieldCombinator(BaseProcessingObj):
 
         self.outputs['out_ef'] = self._out_ef
 
-    def prepare_trigger(self,t):
-        super().prepare_trigger(t)
-
+    def trigger(self):
         # Get the input electric fields
         in_ef1 = self.local_inputs['in_ef1']
         in_ef2 = self.local_inputs['in_ef2']
 
         if in_ef1.A.shape != in_ef2.A.shape:
             raise ValueError(f"Input electric field no. 1 shape {in_ef1.A.shape} does not match electric field no. 2 shape {in_ef2.A.shape}")
-
-    def trigger_code(self):
-        super().trigger_code()
-
-        # Get the input electric fields
-        in_ef1 = self.local_inputs['in_ef1']
-        in_ef2 = self.local_inputs['in_ef2']
 
         # Combine the electric fields
         # Add phases
