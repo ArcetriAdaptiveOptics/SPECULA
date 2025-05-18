@@ -14,6 +14,7 @@ from specula.base_value import BaseValue
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.pixels import Pixels
 from specula.data_objects.slopes import Slopes
+from specula.data_objects.intensity import Intensity
 
 
 class DataStore(BaseProcessingObj):
@@ -90,6 +91,8 @@ class DataStore(BaseProcessingObj):
                     v = cpuArray(item.pixels)
                 elif isinstance(item, ElectricField):
                     v = np.stack( (cpuArray(item.A), cpuArray(item.phaseInNm)) )
+                elif isinstance(item, Intensity):
+                    v = cpuArray(item.i)
                 else:
                     raise TypeError(f"Error: don't know how to save an object of type {type(item)}")
                 self.storage[k][self.current_time] = v
