@@ -88,7 +88,7 @@ class CCD(BaseProcessingObj):
         #                     if subaps != 1 and subaps < 4.:
         #                         subaps = 4.
         #                     tot_pix = subaps * wfs.sensor_npx ** 2.
-        #                     fov = wfs.sensor_fov ** 2
+        #                     fov = wfs.sensor_fov ** 2   # This is correct because it matches tot_pix, which is square as well
         #                 else:
         #                     raise ValueError(f'Unsupported WFS class: {type(wfs)}')
         #                 background_level = \

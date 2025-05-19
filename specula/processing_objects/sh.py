@@ -323,7 +323,20 @@ class SH(BaseProcessingObj):
             self._kernelobj = None
 
     def prepare_trigger(self, t):
-        super().prepare_trigger(t)        
+        super().prepare_trigger(t)     
+
+        # Interpolation of input array if needed
+        with show_in_profiler('interpolation'):
+
+            if self._do_interpolation:
+                self.phase_extrapolated[:] = self.in_ef.phaseInNm
+                _ = extrapolate_edge_pixel(self.in_ef.phaseInNm, self._extrapol_mat1, self._extrapol_mat2, self._idx_1pix, self._idx_2pix, xp=self.xp, out=self.phase_extrapolated)
+                self.interp.interpolate(self.in_ef.A, out=self._wf1.A)
+                self.interp.interpolate(self.phase_extrapolated, out=self._wf1.phaseInNm)
+            else:
+                # self._wf1 already set to in_ef
+                pass
+
         if self._kernelobj is not None:
             self.prepare_kernels()
 
@@ -345,19 +358,8 @@ class SH(BaseProcessingObj):
             current_time=self.current_time
         )
 
+
     def trigger_code(self):
-
-        # Interpolation of input array if needed
-        with show_in_profiler('interpolation'):
-
-            if self._do_interpolation:
-                self.phase_extrapolated[:] = self.in_ef.phaseInNm
-                _ = extrapolate_edge_pixel(self.in_ef.phaseInNm, self._extrapol_mat1, self._extrapol_mat2, self._idx_1pix, self._idx_2pix, xp=self.xp, out=self.phase_extrapolated)
-                self.interp.interpolate(self.in_ef.A, out=self._wf1.A)
-                self.interp.interpolate(self.phase_extrapolated, out=self._wf1.phaseInNm)
-            else:
-                # self._wf1 already set to in_ef
-                pass
 
         # Work on SH rows (single-subap code is too inefficient)
 
@@ -416,11 +418,12 @@ class SH(BaseProcessingObj):
             assert psf_cut_view.base is not None
             assert subap_cube_view.base is not None
 
-        with show_in_profiler('toccd'):
-            self._out_i.i[:] = toccd(self._psfimage, (self._ccd_side, self._ccd_side), xp=self.xp)
 
     def post_trigger(self):
         super().post_trigger()
+
+        with show_in_profiler('toccd'):
+            self._out_i.i[:] = toccd(self._psfimage, (self._ccd_side, self._ccd_side), xp=self.xp)
 
         in_ef = self.local_inputs['in_ef']
         phot = in_ef.S0 * in_ef.masked_area()
