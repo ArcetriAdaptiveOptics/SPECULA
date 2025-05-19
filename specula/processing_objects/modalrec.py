@@ -15,6 +15,7 @@ class Modalrec(BaseProcessingObj):
                  projmat: Recmat=None,
                  intmat: Intmat=None,
                  polc: bool=False,
+                 in_commands_size: int=None,
                  filtmat = None,
                  identity: bool=False,
                  ncutmodes: int=None,
@@ -75,7 +76,7 @@ class Modalrec(BaseProcessingObj):
         self.projmat = projmat
         self.intmat = intmat
         self.polc = polc
-        # self.layer_modes_list = None
+        self.in_commands_size = in_commands_size
         self.input_modes_index = input_modes_index
 
         if output_slice is not None:
@@ -111,6 +112,29 @@ class Modalrec(BaseProcessingObj):
             self.inputs['in_commands_list'] = InputList(type=BaseValue, optional=True)            
             # TODO complete static allocation above
 
+    def prepare_trigger(self, t):
+        super().prepare_trigger(t)
+
+        slopes = self.local_inputs['in_slopes']
+        slopes_list = self.local_inputs['in_slopes_list']
+
+        if slopes is None:
+            self.slopes[:] = self.xp.hstack([x.slopes for x in slopes_list])
+        else:
+            self.slopes[:] = slopes.slopes
+
+        if self.polc:
+            commands = self.local_inputs['in_commands']
+            commands_list = self.local_inputs['in_commands_list']
+            if commands is None:
+                self.commands[:] = self.xp.hstack([x.commands for x in commands_list])
+            else:
+                if commands.value is None:
+                    # value will be None in the first iteration
+                    self.commands[:] = 0.0
+                else:
+                    self.commands[:] = commands.value
+
     def trigger_code(self):
         if self.recmat.recmat is None:
             print("WARNING: modalrec skipping reconstruction because recmat is NULL")
@@ -124,26 +148,13 @@ class Modalrec(BaseProcessingObj):
             slopes = slopes.slopes
             
         if self.polc:
-            commandsobj = self.local_inputs['in_commands']
-            commands_list = self.local_inputs['in_commands_list']
-            if commandsobj is None:
-                commandsobj = commands_list
-                commands = self.xp.hstack([x.value for x in commands_list]) # TODO this line does not work on the first step
-            else:
-                commands = self.xp.array(commandsobj.value, dtype=self.dtype)
-
-            # this is true on the first step only
-            if commandsobj is None or commands.shape == ():
-                if self.projmat is None:
-                    commands = self.xp.zeros(self.recmat.recmat.shape[0])
-                else:
-                    commands = self.xp.zeros(self.projmat.recmat.shape[0])
-            
+    
             if self.input_modes_index is not None:
-                commands = commands[self.input_modes_index]
-
-            if self.input_modes_slice is not None:
-                commands = commands[self.input_modes_slice]
+                commands = self.commands[self.input_modes_index]
+            elif self.input_modes_slice is not None:
+                commands = self.commands[self.input_modes_slice]
+            else:
+                commands = self.commands
 
             comm_slopes = self.intmat.intmat @ commands
             slopes += comm_slopes
@@ -161,11 +172,6 @@ class Modalrec(BaseProcessingObj):
         self.modes.value = output_modes[self.output_slice]
         self.modes.generation_time = self.current_time
 
-        #if self.layer_modes_list is not None:
-        #    for i, idx_list in enumerate(self.layer_idx_list):
-        #        self.layer_modes_list[i].value = self.modes_first_step.value[idx_list]
-        #        self.layer_modes_list[i].generation_time = self.current_time
-
     def setup(self):
         super().setup()
 
@@ -174,8 +180,15 @@ class Modalrec(BaseProcessingObj):
 
         if not slopes and (not slopes_list or not all(slopes_list)):
             raise ValueError("Either 'slopes' or 'slopes_list' must be given as an input")
+        
+        if slopes is None:
+            self.slopes = self.xp.hstack([x.slopes for x in slopes_list])
+        else:
+            self.slopes = slopes.slopes.copy()
+
         if not self.recmat:
             raise ValueError("Recmat object not valid")
+
         if self.polc:
             if not self.intmat:
                 raise ValueError("Intmat object not valid")
@@ -184,3 +197,6 @@ class Modalrec(BaseProcessingObj):
             commands_list = self.inputs['in_commands_list'].get(self.target_device_idx)
             if not commands and (not commands_list or not all(commands_list)):
                 raise ValueError("When POLC is used, either 'commands' or 'commands_list' must be given as an input")
+
+            self.commands = self.xp.zeros(self.in_commands_size, dtype=self.dtype)
+
