@@ -93,23 +93,17 @@ def init(device_idx=-1, precision=0):
     if cp is not None:
         cp.random.RandomState.random = cp.random.RandomState.random_sample
 
-# should be used as less as a possible and prefarably outside time critical computations
+
+# should be used as less as a possible and preferably outside time critical computations
 def cpuArray(v):
-    if cp and isinstance(v, cp.ndarray):
-        # which one is better, xp.asnumpy(v) or v.get() ? almost the same but asnumpy is more general
-        return cp.asnumpy(v)
-    else:
-        if isinstance(v, np.ndarray):
-            # Avoid reallocation of v if not needed
-            return v
-        else:
-            return np.array(v)
+    return to_xp(np, v)
 
 
 def to_xp(xp, v, dtype=None):
     '''
     Make sure that v is allocated as an array on this object's device.
     Works for all combinations of np and cp, whether installed or not.
+
     Optionally casts to the required dtype (no copy is made if
     the dtype is already the correct one)
 
@@ -118,21 +112,21 @@ def to_xp(xp, v, dtype=None):
     '''
     if xp is cp:
         if isinstance(v, cp.ndarray):
-            reval =  v
+            retval =  v
         else:
-            reval =  cp.array(v)
+            retval =  cp.array(v)
     else:
         if cp is not None and isinstance(v, cp.ndarray):
-            reval = v.get()
+            retval = v.get()
         elif isinstance(v, np.ndarray):
             # Avoid extra copy (enabled by numpy default)
-            reval = v
+            retval = v
         else:
-            reval = np.array(v)
+            retval = np.array(v)
     if dtype is None:
-        return reval
+        return retval
     else:
-        return reval.astype(dtype, copy=False)
+        return retval.astype(dtype, copy=False)
 
 
 class DummyDecoratorAndContextManager():
