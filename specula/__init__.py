@@ -106,6 +106,35 @@ def cpuArray(v):
             return np.array(v)
 
 
+def to_xp(xp, v, dtype=None):
+    '''
+    Make sure that v is allocated as an array on this object's device.
+    Works for all combinations of np and cp, whether installed or not.
+    Optionally casts to the required dtype (no copy is made if
+    the dtype is already the correct one)
+
+    The main trigger for this function is that np.array() cannot
+    be used on a cupy array.
+    '''
+    if xp is cp:
+        if isinstance(v, cp.ndarray):
+            reval =  v
+        else:
+            reval =  cp.array(v)
+    else:
+        if cp is not None and isinstance(v, cp.ndarray):
+            reval = v.get()
+        elif isinstance(v, np.ndarray):
+            # Avoid extra copy (enabled by numpy default)
+            reval = v
+        else:
+            reval = np.array(v)
+    if dtype is None:
+        return reval
+    else:
+        return reval.astype(dtype, copy=False)
+
+
 class DummyDecoratorAndContextManager():
     def __init__(self):
         pass

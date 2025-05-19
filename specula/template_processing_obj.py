@@ -22,7 +22,7 @@ class ProcessingObjName(BaseProcessingObj):
 
         # initialization code, does something witht the parameters passed
         # build an intenal state, check some conditions
-        self.interalParam = self.xp.array(parameter1 * parameter2.recmat)
+        self.interalParam = self.to_xp(parameter1 * parameter2.recmat)
 
         # BaseValue is just an example, could be any data object 
         self.result_data1 = BaseValue('some output for this processing object', target_device_idx=target_device_idx)

@@ -82,7 +82,7 @@ class InfinitePhaseScreen(BaseDataObj):
     def set_stencil_coords_basic(self):
         self.stencil = self.xp.zeros((self.stencil_size, self.stencil_size))
         self.stencil[:2,:] = 1
-        self.stencil_coords = self.xp.array(self.xp.where(self.stencil==1)).T
+        self.stencil_coords = self.to_xp(self.xp.where(self.stencil==1)).T
         self.stencil_positions = self.stencil_coords * self.pixel_scale
         self.n_stencils = self.stencil_coords.shape[0]
 
@@ -105,8 +105,8 @@ class InfinitePhaseScreen(BaseDataObj):
         self.stencil = self.xp.asarray(self.stencil)
         self.stencilF = self.xp.asarray(self.stencilF)
         self.stencil_coords = []
-        self.stencil_coords.append(self.xp.array(self.xp.where(self.stencil == 1)).T)
-        self.stencil_coords.append(self.xp.array(self.xp.where(self.stencilF == 1)).T)
+        self.stencil_coords.append(self.to_xp(self.xp.where(self.stencil == 1)).T)
+        self.stencil_coords.append(self.to_xp(self.xp.where(self.stencilF == 1)).T)
         self.stencil_positions = []
         self.stencil_positions.append(self.stencil_coords[0] * self.pixel_scale)
         self.stencil_positions.append(self.stencil_coords[1] * self.pixel_scale)        

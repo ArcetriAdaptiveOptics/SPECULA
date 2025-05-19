@@ -1,4 +1,3 @@
-import numpy as np
 from astropy.io import fits
 
 from specula.base_time_obj import BaseTimeObj
@@ -195,24 +194,3 @@ class BaseProcessingObj(BaseTimeObj):
             hdr = hdul[0].header
             self._verbose = hdr.get('VERBOSE', 0)
 
-    def xp_array(self, v):
-        '''
-        Make sure that v is allocated as an array on this object's device.
-        Works for all combinations of np and cp, whether installed or not.
-
-        The main trigger for this function is that np.array() cannot
-        be used on a cupy array.
-        '''
-        if self.xp is cp:
-            if isinstance(v, cp.ndarray):
-                return v
-            else:
-                return cp.array(v)
-        else:
-            if cp is not None and isinstance(v, cp.ndarray):
-                return v.get()
-            elif isinstance(v, np.ndarray):
-                # Avoid extra copy (enabled by numpy default)
-                return v
-            else:
-                return np.array(v)

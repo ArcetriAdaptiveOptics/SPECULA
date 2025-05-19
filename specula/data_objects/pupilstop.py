@@ -33,7 +33,7 @@ class Pupilstop(Layer):
         self._obs_diam = obs_diam
 
         if self._input_mask is not None:
-            self._input_mask = self.xp.array(input_mask)
+            self._input_mask = self.to_xp(input_mask)
             mask_amp = self._input_mask
         else:
             mask_amp = make_mask(self.pixel_pupil, obs_diam, mask_diam, xp=self.xp)
@@ -50,8 +50,8 @@ class Pupilstop(Layer):
         super().save(filename, hdr)
 
         fits.append(filename, cpuArray(self.A))
-        fits.append(filename, cpuArray(self.xp.array(self.A.shape)))
-        fits.append(filename, cpuArray(self.xp.array([self.pixel_pitch])))
+        fits.append(filename, cpuArray(self.A.shape))
+        fits.append(filename, cpuArray([self.pixel_pitch]))
 
     @staticmethod
     def restore(filename, target_device_idx=None):

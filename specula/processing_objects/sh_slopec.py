@@ -77,11 +77,11 @@ class ShSlopec(Slopec):
         if self.subapdata:
             out = self.computeXYweights(self.subapdata.np_sub, self.exp_weight, self.weightedPixRad, 
                                           self.quadcell_mode, self.windowing)
-            self.mask_weighted = self.xp.array(out['mask_weighted'], copy=False)
-            self.xweights = self.xp.array(out['x'], copy=False)
-            self.yweights = self.xp.array(out['y'], copy=False)
-            self.xcweights = self.xp.array(out['xc'], copy=False)
-            self.ycweights = self.xp.array(out['yc'], copy=False)
+            self.mask_weighted = self.to_xp(out['mask_weighted'])
+            self.xweights = self.to_xp(out['x'])
+            self.yweights = self.to_xp(out['y'])
+            self.xcweights = self.to_xp(out['xc'])
+            self.ycweights = self.to_xp(out['yc'])
 
     def computeXYweights(self, np_sub, exp_weight, weightedPixRad, quadcell_mode=False, windowing=False):
         """

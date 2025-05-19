@@ -1,5 +1,5 @@
 import numpy as np
-from specula import cp
+from specula import cp, to_xp
 
 class Interp2D():
     
@@ -83,8 +83,8 @@ class Interp2D():
         yy[np.where(yy > input_shape[0]-1)] = input_shape[0]-1
         xx[np.where(xx > input_shape[1]-1)] = input_shape[1]-1
 
-        self.yy = self.xp.array(yy, dtype=dtype).ravel()
-        self.xx = self.xp.array(xx, dtype=dtype).ravel()
+        self.yy = to_xp(self.xp, yy, dtype=dtype).ravel()
+        self.xx = to_xp(self.xp, xx, dtype=dtype).ravel()
 
     def interpolate(self, value, out=None):
         if value.shape != self.input_shape:
