@@ -32,13 +32,22 @@ class DM(BaseProcessingObj):
 
         self.simul_params = simul_params
         self.pixel_pitch = self.simul_params.pixel_pitch
-       
+        self.pixel_pupil = self.simul_params.pixel_pupil
 
         mask = None
         if pupilstop:
             mask = pupilstop.A
-            if npixels is None:
+            if npixels is not None and mask.shape != (npixels, npixels):
+                raise ValueError(f'npixels={npixels} is not consistent with the pupilstop shape {mask.shape}')
+            else:
                 npixels = mask.shape[0]
+
+        if npixels is not None and ifunc is not None:
+            if ifunc.mask_inf_func.shape != (npixels, npixels):
+                raise ValueError(f'npixels={npixels} is not consistent with the ifunc shape {ifunc.mask_inf_func.shape}')
+
+        if mask is None and ifunc is None and npixels is None:
+            npixels = self.pixel_pupil
 
         if not ifunc:
             ifunc = IFunc(type_str=type_str, mask=mask, npixels=npixels,
