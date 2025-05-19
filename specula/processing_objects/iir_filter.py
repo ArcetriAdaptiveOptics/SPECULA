@@ -92,7 +92,7 @@ class IirFilter(BaseProcessingObj):
         return self.state[:, 0]
 
     def set_modal_start_time(self, modal_start_time):
-        modal_start_time_ = self.xp.array(modal_start_time, dtype=self.dtype)
+        modal_start_time_ = self.to_xp(modal_start_time, dtype=self.dtype)
         for i in range(len(modal_start_time)):
             modal_start_time_[i] = self.seconds_to_t(modal_start_time[i])
         self._modal_start_time = modal_start_time_

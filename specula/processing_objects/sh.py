@@ -451,8 +451,8 @@ class SH(BaseProcessingObj):
 
         if fov_oversample != 1 or self._rotAnglePhInDeg != 0 or np.sum(np.abs([self._xyShiftPhInPixel])) != 0:
             sum_1pix_extra, sum_2pix_extra, idx_1pix, idx_2pix = extrapolate_edge_pixel_mat_define(cpuArray(in_ef.A), do_ext_2_pix=True)
-            self._extrapol_mat1 = self.xp.array(sum_1pix_extra)
-            self._extrapol_mat2 = self.xp.array(sum_2pix_extra)
+            self._extrapol_mat1 = self.to_xp(sum_1pix_extra)
+            self._extrapol_mat2 = self.to_xp(sum_2pix_extra)
             self._idx_1pix = tuple(map(self.xp.array, idx_1pix))
             self._idx_2pix = tuple(map(self.xp.array, idx_2pix))
             self._do_interpolation = True

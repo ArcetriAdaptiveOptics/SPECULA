@@ -136,9 +136,9 @@ class ConvolutionKernel(BaseDataObj):
         self.zlayer = None
         self.zprofile = None
         self.zfocus = zfocus
-        self.theta = self.xp.array(theta)
+        self.theta = self.to_xp(theta)
         self.last_zfocus = 0.0
-        self.last_theta = self.xp.array([0.0, 0.0])
+        self.last_theta = self.xp.array([0.0, 0.0], dtype=self.dtype)
         self.return_fft = return_fft
         self.launcher_size = launcher_size
         self.last_seeing = -1.0
@@ -146,7 +146,7 @@ class ConvolutionKernel(BaseDataObj):
         self.oversampling = oversampling
         if len(launcher_pos) != 3:
             raise ValueError("Launcher position must be a three-elements vector [m]")
-        self.launcher_pos = self.xp.array(launcher_pos)
+        self.launcher_pos = self.to_xp(launcher_pos)
         self.last_zlayer = -1
         self.last_zprofile = -1
         self.positive_shift_tt = positive_shift_tt
@@ -163,18 +163,22 @@ class ConvolutionKernel(BaseDataObj):
             raise ValueError("Number of elements of zlayer and zprofile must be the same")
 
         zfocus = self.zfocus if self.zfocus != -1 else self.calculate_focus()
-        lay_heights = self.xp.array(self.zlayer) * self.airmass
+        lay_heights = self.to_xp(self.zlayer) * self.airmass
         zfocus *= self.airmass
 
         self.spot_size = self.xp.sqrt(self.seeing**2 + self.launcher_size**2)
-        lgs_tt = (self.xp.array([-0.5, -0.5]) if not self.positive_shift_tt else self.xp.array([0.5, 0.5])) * self.pxscale + self.theta
+        if not self.positive_shift_tt:
+            lgs_tt = self.xp.array([-0.5, -0.5], dtype=self.dtype) * self.pxscale
+        else:
+            lgs_tt = self.xp.array([0.5, 0.5], dtype=self.dtype) * self.pxscale
+        lgs_tt += self.theta
 
         items = [self.dimx, self.pupil_size_m, self.launcher_pos, zfocus, lay_heights, self.zprofile,
                          self.spot_size, self.pxscale, self.dimension, self.oversampling, lgs_tt, self.dtype]
         return 'ConvolutionKernel' + self.generate_hash(items)
 
     def calculate_focus(self):
-        return self.xp.sum(self.xp.array(self.zlayer) * self.xp.array(self.zprofile)) / self.xp.sum(self.zprofile)
+        return self.xp.sum(self.to_xp(self.zlayer) * self.to_xp(self.zprofile)) / self.xp.sum(self.zprofile)
 
     def calculate_lgs_map(self):
         """
@@ -191,7 +195,7 @@ class ConvolutionKernel(BaseDataObj):
         zfocus = self.zfocus if self.zfocus != -1 else self.calculate_focus()
 
         # Apply airmass to heights
-        lay_heights = self.xp.array(self.zlayer) * self.airmass
+        lay_heights = self.to_xp(self.zlayer) * self.airmass
         zfocus *= self.airmass
 
         # Calculate the spot size (combination of seeing and laser launcher size)
@@ -199,9 +203,9 @@ class ConvolutionKernel(BaseDataObj):
 
         # Determine LGS tip-tilt offsets
         if not self.positive_shift_tt:
-            lgs_tt = self.xp.array([-0.5, -0.5]) * self.pxscale
+            lgs_tt = self.xp.array([-0.5, -0.5], dtype=self.dtype) * self.pxscale
         else:
-            lgs_tt = self.xp.array([0.5, 0.5]) * self.pxscale
+            lgs_tt = self.xp.array([0.5, 0.5], dtype=self.dtype) * self.pxscale
         lgs_tt += self.theta
 
         # Calculate normalized layer heights and profiles
@@ -219,7 +223,7 @@ class ConvolutionKernel(BaseDataObj):
 
         # Save current parameters to avoid unnecessary recalculation
         self.last_zfocus = self.zfocus
-        self.last_theta = self.xp.array(self.theta)
+        self.last_theta = self.to_xp(self.theta)
         self.last_seeing = self.seeing
         self.last_zlayer = self.zlayer
         self.last_zprofile = self.zprofile
@@ -263,7 +267,7 @@ class ConvolutionKernel(BaseDataObj):
         # Process the kernels - apply FFT if needed
         for i in range(self.dimx):
             for j in range(self.dimy):
-                subap_kern = self.xp.array(self.real_kernels[i * self.dimx + j, :, :])
+                subap_kern = self.to_xp(self.real_kernels[i * self.dimx + j, :, :])
                 total = self.xp.sum(subap_kern)
                 if total > 0:  # Avoid division by zero
                     subap_kern /= total

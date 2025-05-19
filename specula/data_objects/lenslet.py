@@ -44,7 +44,7 @@ class Lenslet(BaseDataObj):
         Saves the lenslet data to a file with the header information"""
         hdr['VERSION'] = 1
         super().save(filename, hdr)
-        self.xp.save(filename, self.xp.array(self._lenses))
+        self.xp.save(filename, self.to_xp(self._lenses))
 
     def read(self, filename, hdr, exten=0):
         """TODO Invalid code. To be updated.

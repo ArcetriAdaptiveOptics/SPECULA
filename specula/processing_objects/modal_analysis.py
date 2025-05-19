@@ -29,7 +29,7 @@ class ModalAnalysis(BaseProcessingObj):
             if type_str is None:
                 raise ValueError('At least one of ifunc and type must be set')
             if mask is not None:
-                mask = (self.xp.array(mask) > 0).astype(self.dtype)
+                mask = (self.to_xp(mask) > 0).astype(self.dtype)
             if npixels is None:
                 raise ValueError("If ifunc is not set, then npixels must be set!")
             

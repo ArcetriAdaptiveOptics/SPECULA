@@ -42,7 +42,7 @@ class IFunc(BaseDataObj):
             if type_str is None:
                 raise ValueError('At least one of ifunc and type must be set')
             if mask is not None:
-                mask = (self.xp.array(mask) > 0).astype(self.dtype)
+                mask = (self.to_xp(mask) > 0).astype(self.dtype)
             if npixels is None:
                 raise ValueError("If ifunc is not set, then npixels must be set!")
             
@@ -64,8 +64,8 @@ class IFunc(BaseDataObj):
             else:
                 raise ValueError(f'Invalid ifunc type {type_str}')
         
-        ifunc = self.xp.array(ifunc)
-        mask = self.xp.array(mask)
+        ifunc = self.to_xp(ifunc)
+        mask = self.to_xp(mask)
 
         self._influence_function = ifunc
         self._mask_inf_func = mask
@@ -93,7 +93,7 @@ class IFunc(BaseDataObj):
 
             ifunc = ifuncPad
 
-        self._influence_function = self.xp.array(ifunc, dtype=self.dtype)
+        self._influence_function = self.to_xp(ifunc, dtype=self.dtype)
 
     @property
     def mask_inf_func(self):
@@ -101,7 +101,7 @@ class IFunc(BaseDataObj):
 
     @mask_inf_func.setter
     def mask_inf_func(self, mask_inf_func):
-        self._mask_inf_func = self.xp.array(mask_inf_func, dtype=self.dtype)
+        self._mask_inf_func = self.to_xp(mask_inf_func, dtype=self.dtype)
         self._idx_inf_func = self.xp.where(self._mask_inf_func)
 
     @property

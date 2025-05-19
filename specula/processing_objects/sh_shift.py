@@ -18,9 +18,9 @@ class ShShift(BaseProcessingObj):
         raise NotImplementedError
 
         self._params_sh = params_sh
-        self._shift_wavelength_in_nm = self.xp.array(shift_wavelength_in_nm)
-        self._xy_shift = self.xp.array(xy_shift)
-        self._qe_factor = self.xp.array(qe_factor)
+        self._shift_wavelength_in_nm = self.to_xp(shift_wavelength_in_nm)
+        self._xy_shift = self.to_xp(xy_shift)
+        self._qe_factor = self.to_xp(qe_factor)
         self._resize_fact = resize_fact
 
         self._n_shift = self._xy_shift.shape[1]
