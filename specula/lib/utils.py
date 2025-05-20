@@ -5,9 +5,18 @@ import importlib
 
 
 def camelcase_to_snakecase(s):
+    '''
+    Convert CamelCase to snake_case.
+    Underscores are not inserted in case of acronyms (like CCD)
+    or when the uppercase letter is preceded by a number like M2C.
+    '''
     tokens = re.findall('[A-Z]+[0-9a-z]*', s)
-    return '_'.join([x.lower() for x in tokens])
-
+    result = [tokens[0]]
+    for i, t in enumerate(tokens[1:]):
+        if not result[-1][-1].isdigit():
+            result.append('_')
+        result.append(t)
+    return ''.join([x.lower() for x in result])
 
 def import_class(classname):
     modulename = camelcase_to_snakecase(classname)

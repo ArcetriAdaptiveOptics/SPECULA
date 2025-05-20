@@ -9,6 +9,7 @@ from specula import np
 from specula import cpuArray
 
 from specula.lib.utils import unravel_index_2d
+from specula.lib.utils import camelcase_to_snakecase
 
 from test.specula_testlib import cpu_and_gpu
 
@@ -39,3 +40,9 @@ class TestUtils(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             _ = unravel_index_2d([1,2,3], (1,2,3), xp)
+
+    def test_camelcase_to_snakecase(self):
+        assert camelcase_to_snakecase('IFunc') == 'ifunc'
+        assert camelcase_to_snakecase('M2C') == 'm2c'
+        assert camelcase_to_snakecase('BaseValue') == 'base_value'
+        assert camelcase_to_snakecase('CCD') == 'ccd'
