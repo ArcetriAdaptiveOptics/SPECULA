@@ -358,6 +358,9 @@ class ShSlopec(Slopec):
                 pixels *= accumulated_pixels_weight
 
                 print(f"Weights mask has been applied to {n_weight_applied} sub-apertures")
+        # Calculate flux and max flux per subaperture before thr
+        flux_per_subaperture_vector = self.xp.sum(pixels, axis=0)
+        max_flux_per_subaperture = self.xp.max(flux_per_subaperture_vector)
 
         if self.winMatWindowed is not None:
             if self.verbose:
@@ -384,9 +387,12 @@ class ShSlopec(Slopec):
         if self.store_thr_mask_cube:
             thr_mask_cube = thr.reshape(np_sub, np_sub, n_subaps)
 
-        # Calculate flux and max flux per subaperture
-        flux_per_subaperture_vector = self.xp.sum(pixels, axis=0)
-        max_flux_per_subaperture = self.xp.max(flux_per_subaperture_vector)
+        self.pixels_after_thr = orig_pixels.copy()
+        self.pixels_after_thr[idx2d] = pixels.T
+        
+        # Calculate flux and max flux per subaperture after thr
+        #flux_per_subaperture_vector = self.xp.sum(pixels, axis=0)
+        #max_flux_per_subaperture = self.xp.max(flux_per_subaperture_vector)
 
         # Compute denominator for slopes
         #print(f'{pixels.sum()=}')
@@ -427,9 +433,9 @@ class ShSlopec(Slopec):
             self.slopes.single_mask = self.subapdata.single_mask()
             self.slopes.display_map = self.subapdata.display_map
             self.slopes.generation_time = self.current_time
-
             self.flux_per_subaperture_vector.value = flux_per_subaperture_vector
             self.flux_per_subaperture_vector.generation_time = self.current_time
+            self.max_flux_per_subaperture = max_flux_per_subaperture
             self.total_counts.value = self.xp.sum(self.flux_per_subaperture_vector.value)
             self.total_counts.generation_time = self.current_time
             self.subap_counts.value = self.xp.mean(self.flux_per_subaperture_vector.value)
