@@ -125,10 +125,15 @@ class AtmoPropagation(BaseProcessingObj):
                     output_ef.product(layer, subrect=topleft)
                 else:
                     if self.magnification_list[layer] is not None:
-                        tempA = layer.A
-                        tempP = layer.phaseInNm
-                        tempP[tempA == 0] = self.xp.mean(tempP[tempA != 0])
-                        layer.phaseInNm = tempP
+                        # Equivalent to:
+                        # layer.phaseInNm[layer.A == 0] = self.xp.mean(layer.phaseInNm[layer.A != 0])
+                        # avoiding any DtoH transfer.
+
+                        nonzero_mask = (layer.A != 0)
+                        count_nonzero = self.xp.count_nonzero(layer.A)
+                        total_nonzero = self.xp.sum(layer.phaseInNm * nonzero_mask)
+                        mean = total_nonzero / count_nonzero
+                        layer.phaseInNm += (1 - nonzero_mask) * mean
 
                     output_ef.A *= interpolator.interpolate(layer.A)
                     output_ef.phaseInNm += interpolator.interpolate(layer.phaseInNm)
