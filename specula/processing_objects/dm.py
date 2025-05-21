@@ -43,9 +43,31 @@ class DM(BaseProcessingObj):
         if not ifunc:
             ifunc = IFunc(type_str=type_str, mask=mask, npixels=npixels,
                            obsratio=obsratio, diaratio=diaratio, nzern=nzern,
-                           nmodes=nmodes, start_mode=start_mode, idx_modes=idx_modes,
                            target_device_idx=target_device_idx, precision=precision)
         self._ifunc = ifunc
+
+
+        if idx_modes is not None:
+            if start_mode is not None:
+                raise ValueError('start_mode cannot be set together with idx_modes. Setting to None start_mode.')
+            if nmodes is not None:
+                raise ValueError('nmodes cannot be set together with idx_modes. Setting to None nmodes.')
+        if start_mode is None:
+            start_mode = 0
+        if nmodes is None:
+            nmodes = -1
+
+        if idx_modes is not None:
+            self._valid_modes = idx_modes
+        else:
+            self._valid_modes = slice(start_mode, nmodes)
+
+        if m2c is not None:
+            self.m2c = m2c.m2c
+            nmodes_m2c = m2c.m2c[:, self._valid_modes].shape[1]
+            self.m2c_commands = self.xp.zeros(nmodes_m2c, dtype=self.dtype)
+        else:
+            self.m2c_commands = None
         
         s = self._ifunc.mask_inf_func.shape
         nmodes_if = self._ifunc.size[0]
@@ -53,17 +75,9 @@ class DM(BaseProcessingObj):
         self.if_commands = self.xp.zeros(nmodes_if, dtype=self.dtype)
         self.layer = Layer(s[0], s[1], self.pixel_pitch, height, target_device_idx=target_device_idx, precision=precision)
         self.layer.A = self._ifunc.mask_inf_func
-        
-        if m2c is not None:
-            nmodes_m2c = m2c.m2c.shape[1]
-            self.m2c_commands = self.xp.zeros(nmodes_m2c, dtype=self.dtype)
-            self.m2c = m2c.m2c
-        else:
-            self.m2c = None
-            self.m2c_commands = None
 
         self.input_offset = input_offset
-        self.nmodes = nmodes
+        self.nmodes = nmodes - start_mode   # Input command vector is not supposed to include the modes before "start_mode"
 
         # Default sign is -1 to take into account the reflection in the propagation
         self.sign = sign
@@ -78,12 +92,16 @@ class DM(BaseProcessingObj):
 
         if self.m2c is not None:
             self.m2c_commands[:len(input_commands)] = input_commands
-            cmd = self.m2c @ self.m2c_commands
+            cmd = self.m2c[:, self._valid_modes] @ self.m2c_commands
         else:
             cmd = input_commands
-            
+        
         self.if_commands[:len(cmd)] = self.sign * cmd
-        self.layer.phaseInNm[self._ifunc.idx_inf_func] = self.if_commands @ self._ifunc.influence_function
+
+        if self.m2c is not None:
+            self.layer.phaseInNm[self._ifunc.idx_inf_func] = self.if_commands @ self._ifunc.influence_function
+        else:
+            self.layer.phaseInNm[self._ifunc.idx_inf_func] = self.if_commands @ self._ifunc.influence_function[self._valid_modes, :]
         self.layer.generation_time = self.current_time
     
     # Getters and Setters for the attributes
