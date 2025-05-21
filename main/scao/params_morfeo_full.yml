@@ -61,16 +61,16 @@ source_on_axis:
 
 source_lgs1: &LGS_SOURCE
   class:             'Source'
-  polar_coordinates:  [45.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  polar_coordinates:  [45.0, 30.0]           # [arcsec, degrees] source polar coordinates
   height:            90000                 # Source height [m]
   magnitude:         5.0                   # source magnitude
   wavelengthInNm:    589                   # [nm] wavelength
 
-source_lgs2: { <<: *LGS_SOURCE, polar_coordinates: [45.0, 60.0] }
-source_lgs3: { <<: *LGS_SOURCE, polar_coordinates: [45.0, 120.0] }
-source_lgs4: { <<: *LGS_SOURCE, polar_coordinates: [45.0, 180.0] }
-source_lgs5: { <<: *LGS_SOURCE, polar_coordinates: [45.0, 240.0] }
-source_lgs6: { <<: *LGS_SOURCE, polar_coordinates: [45.0, 300.0] }
+source_lgs2: { <<: *LGS_SOURCE, polar_coordinates: [45.0, 90.0] }
+source_lgs3: { <<: *LGS_SOURCE, polar_coordinates: [45.0, 150.0] }
+source_lgs4: { <<: *LGS_SOURCE, polar_coordinates: [45.0, 210.0] }
+source_lgs5: { <<: *LGS_SOURCE, polar_coordinates: [45.0, 270.0] }
+source_lgs6: { <<: *LGS_SOURCE, polar_coordinates: [45.0, 330.0] }
 
 source_ngs1: &NGS_SOURCE
   class:             'Source'
@@ -95,7 +95,6 @@ source_ref3: { <<: *REF_SOURCE, polar_coordinates: [42.7, 197.0] }
 
 pupilstop:                                 # Default parameters (circular pupil)
   class: 'Pupilstop'
-#  simul_params_ref:  'main'
   tag: 'EELT480pp0.0803m_obs0.283_spider2023'
 
 atmo:
@@ -122,20 +121,33 @@ atmo:
 pushpull:
   class:     'FuncGenerator'
   func_type: 'PUSHPULLREPEAT'
-  ncycles:    4
-  nmodes:     10
-  vect_amplitude_data:  '/home/puglisi/git/SPECULA.old/main/scao/calib/ERIS/data/data5000_1127.fits'
-  nsamples:          10
+  ncycles:    1
+  nmodes:     100
+  amp:        1000
+  nsamples:          5
   outputs: ['output']
+
+ifunc_m4:
+  class:   'IFunc'
+  tag:     'M4_eso_zonal_486p_5352a_slaved'
+
+m2c_m4:
+  class:   'M2C'
+  tag:     'M4_eso_39.5m_486p_20230215'
 
 dm_disturb:
   class:             'DM'
   simul_params_ref:  'main'
-  type_str:          'zernike'              # modes type
-  nmodes:            10                     # number of modes
-  npixels:           480                    # linear dimension of DM phase array
-  obsratio:          0.1                    # obstruction dimension ratio w.r.t. diameter
-  height:            0                      # DM height [m]
+#  ifunc_ref:   'ifunc_m4'
+#  m2c_ref:     'm2c_m4'
+  ifunc_object:      'MAORY_542pix_31nacts_cir_0.000obs_zonal_ifs'
+  m2c_object:        'MAORY_542pix_31nacts_cir_0.000obs_5zern_10000.0cn'
+  start_mode:        5
+  input_offset:      0                        # Offset into input command vector
+#  nmodes:            4519
+  nmodes:            720
+#  height:            600                      # DM height [m]
+  height:            6500 
   inputs:
       in_command: 'pushpull.output'
   outputs:  ['out_layer']
@@ -148,12 +160,12 @@ prop:
                          'source_ngs1', 'source_ngs2', 'source_ngs3',
                          'source_ref1', 'source_ref2', 'source_ref3']
   inputs:
-#    atmo_layer_list: ['atmo.layer_list']
+    atmo_layer_list: ['atmo.layer_list']
     common_layer_list: [ 'pupilstop',
                   'dm1.out_layer:-1',
                   'dm2.out_layer:-1',
                   'dm3.out_layer:-1',
-                  'dm_disturb.out_layer'
+  #               'dm_disturb.out_layer'
                   ]
   outputs: ['out_source_on_axis_ef','out_source_lgs1_ef','out_source_lgs2_ef','out_source_lgs3_ef',
             'out_source_lgs4_ef','out_source_lgs5_ef','out_source_lgs6_ef',
@@ -176,17 +188,17 @@ sh_lgs1: &LGS_SH
   subap_on_diameter: 68                      # Number of subapertures in diameter
   wavelengthInNm:    589                     # [nm] Pyramid wavelength
   fov_ovs_coeff:     1.6                     # Force phase interpolation to a multiple of 68
-  rotAnglePhInDeg:   6.2
+  rotAnglePhInDeg:   -6.2
   laser_launch_tel_ref: 'launcher'
   inputs:
     in_ef: 'prop.out_source_lgs1_ef'
   outputs:  ['out_i']
 
-sh_lgs2: { <<: *LGS_SH, rotAnglePhInDeg: 14.2, inputs: {in_ef: 'prop.out_source_lgs2_ef' }}
-sh_lgs3: { <<: *LGS_SH, rotAnglePhInDeg: -6.2, inputs: {in_ef: 'prop.out_source_lgs3_ef' }}
-sh_lgs4: { <<: *LGS_SH, rotAnglePhInDeg:  6.2, inputs: {in_ef: 'prop.out_source_lgs4_ef' }}
-sh_lgs5: { <<: *LGS_SH, rotAnglePhInDeg: 14.2, inputs: {in_ef: 'prop.out_source_lgs5_ef' }}
-sh_lgs6: { <<: *LGS_SH, rotAnglePhInDeg: -6.2, inputs: {in_ef: 'prop.out_source_lgs6_ef' }}
+sh_lgs2: { <<: *LGS_SH, rotAnglePhInDeg: -14.2, inputs: {in_ef: 'prop.out_source_lgs2_ef' }}
+sh_lgs3: { <<: *LGS_SH, rotAnglePhInDeg: 6.2, inputs: {in_ef: 'prop.out_source_lgs3_ef' }}
+sh_lgs4: { <<: *LGS_SH, rotAnglePhInDeg:  -6.2, inputs: {in_ef: 'prop.out_source_lgs4_ef' }}
+sh_lgs5: { <<: *LGS_SH, rotAnglePhInDeg: -14.2, inputs: {in_ef: 'prop.out_source_lgs5_ef' }}
+sh_lgs6: { <<: *LGS_SH, rotAnglePhInDeg: 6.2, inputs: {in_ef: 'prop.out_source_lgs6_ef' }}
 
 detector_lgs1: &LGS_DETECTOR
   class:             'CCD'
@@ -194,8 +206,8 @@ detector_lgs1: &LGS_DETECTOR
   size:              [952,952]               # Detector size in pixels
   dt:                0.002                   # [s] Detector integration time
   bandw:             20                      # [nm] Sensor bandwidth
-  photon_noise:      True                    # activate photon noise
-  readout_noise:     True                    # activate readout noise
+  photon_noise:      False                    # activate photon noise
+  readout_noise:     False                    # activate readout noise
   readout_level:     2.7                     # readout noise in [e-/pix/frame]
   quantum_eff:       0.188                   # quantum efficiency * total transmission
   inputs:
@@ -363,10 +375,11 @@ lift:
 tomo_polc_lgs:
   class:              'Modalrec'
   recmat_object:      '20240606_200110.0/recmat'
-  projmat_object:     'p20240717_194929.0/projmatAll'
-  intmat_object:      '20250326_000000.0/intmat'
+  projmat_object:     'p20250519_195705.0/projmatAll.fits'
+  intmat_object:      '20250325_000000.0/intmat.fits'
   polc:   true
-  input_modes_slice:  [0, 6564]
+  input_modes_slice:  [0, 6258]
+  in_commands_size:   6269
   inputs:
     in_slopes_list:        ['slopec_lgs1.out_slopes','slopec_lgs2.out_slopes','slopec_lgs3.out_slopes','slopec_lgs4.out_slopes','slopec_lgs5.out_slopes','slopec_lgs6.out_slopes']
     in_commands:            'modal_combination.out_vector:-1'
@@ -399,7 +412,7 @@ subtract_ref:
 iir_lgs:
   class:             'IirFilter'
   simul_params_ref:  'main'
-  iir_filter_data_object: 'int0.25_6564'
+  iir_filter_data_object: 'int0.25_6258'
   inputs:
       delta_comm: 'subtract_ref.out_value'     
   outputs:  ['out_comm']
@@ -424,7 +437,7 @@ modal_combination:
 # modal_integrator:
 #   class:        'Integrator'
 #   delay:             2                      # Total temporal delay in time steps
-#   int_gain_data:     'g0.40_6564'
+#   int_gain_data:     'g0.40_6258'
 #   inputs:
 #       delta_comm: 'modal_combination.out_vector'     
 #   outputs:  ['out_comm']
@@ -445,12 +458,18 @@ modal_combination:
 #    in_value2: 'combine_avc.out_value'
 #s  outputs: ['out_value']
 
+zerocmd:
+  class:             'FuncGenerator'
+  constant:          0.0
+  vsize:             6269
+  outputs: ['output']
+
 
 dm1:
   class:             'DM'
   simul_params_ref:  'main'
-  ifunc_object:      'M4_eso_zonal_486p_5352a_slaved'
-  m2c_object:        'M4_eso_39.5m_486p_20230215'
+  ifunc_ref:         'ifunc_m4'
+  m2c_ref:           'm2c_m4'
   input_offset:      0                        # Offset into input command vector
   nmodes:            4519
   height:            600                      # DM height [m]
@@ -478,7 +497,7 @@ dm3:
   m2c_object:        'MAORY_648pix_37nacts_cir_0.000obs_5zern_10000.0cn'
   nmodes:            1026
   start_mode:        2                          # Offset into influence function matrix
-  input_offset:      5239  #  4519+720          # Offset into input command vector
+  input_offset:      5234  #  4519+720          # Offset into input command vector
   height:            17500                      # DM height [m]
   inputs:
       in_command: 'modal_combination.out_vector'
@@ -541,6 +560,7 @@ tomo_polc_ref:
   projmat_object:     'p20240526_141118.0/projmatAll'
   intmat_object:      '20250326_000001.0/intmat'
   polc:   true
+  in_commands_size:   6269
   input_modes_index_data:  '/tmp/ref_input_index.fits'     # Map from 6564 to 293
   inputs:
     in_slopes_list:        ['slopec_ref1.out_slopes','slopec_ref2.out_slopes','slopec_ref3.out_slopes']
