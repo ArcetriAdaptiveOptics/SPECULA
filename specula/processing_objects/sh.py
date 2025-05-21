@@ -16,7 +16,6 @@ from specula.data_objects.laser_launch_telescope import LaserLaunchTelescope
 from specula.data_objects.gaussian_convolution_kernel import GaussianConvolutionKernel
 from specula.data_objects.convolution_kernel import ConvolutionKernel
 
-import os       
 
 # numpy 1.x compatibility (cupy sometimes tries to raise this exception)
 if hasattr(np, 'exceptions'):
@@ -33,7 +32,9 @@ class SH(BaseProcessingObj):
 
     def _zeros_common(self, *args, **kwargs):
         '''
-        Wrapper around self.xp.zeros to enable the reuse cache
+        Wrapper around self.xp.zeros to enable the reuse cache.
+        None of the arrays allocated here should be used in 
+        prepare_trigger() or post_trigger().
         '''
         key = (self.target_device_idx, *args, *kwargs.items())
         if key not in self.__zeros_cache:
@@ -108,6 +109,7 @@ class SH(BaseProcessingObj):
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
         self.outputs['out_i'] = self._out_i
+        self.outputs['wf1'] = BaseValue()
 
     def set_in_ef(self, in_ef):
 
@@ -418,17 +420,19 @@ class SH(BaseProcessingObj):
             assert psf_cut_view.base is not None
             assert subap_cube_view.base is not None
 
+        with show_in_profiler('toccd'):
+            self._out_i.i[:] = toccd(self._psfimage, (self._ccd_side, self._ccd_side), xp=self.xp)
+
 
     def post_trigger(self):
         super().post_trigger()
-
-        with show_in_profiler('toccd'):
-            self._out_i.i[:] = toccd(self._psfimage, (self._ccd_side, self._ccd_side), xp=self.xp)
 
         in_ef = self.local_inputs['in_ef']
         phot = in_ef.S0 * in_ef.masked_area()
         self._out_i.i *= (phot / self._out_i.i.sum())
         self._out_i.generation_time = self.current_time
+        self.outputs['wf1'].value = toccd(self._wf1.phaseInNm, (100, 100), xp=self.xp)
+        self.outputs['wf1'].generation_time = self.current_time
 
         debug_figures = False
         if debug_figures:
