@@ -22,6 +22,7 @@ class LinearCombination(BaseProcessingObj):
         lift = in_vectors[2].value
         ngs = in_vectors[3].value
 
+        lgs[0:2] = ngs[0:2]
         focus *= 0
         lift *= 0
         ngs *= 0
