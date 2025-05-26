@@ -14,33 +14,33 @@ class Interp2D():
                 if ((y<out_dy) && (x<out_dx)) {
                     TYPE xcoord = xx[y*out_dx+x];
                     TYPE ycoord = yy[y*out_dx+x];
-                    int xin = floor(xcoord);
-                    int yin = floor(ycoord);
-                    int xin2 = xin+1;
-                    int yin2 = yin+1;
 
-                    TYPE xdist = xcoord-xin;
-                    TYPE ydist = ycoord-yin;
+                    if (!isfinite(xcoord) || !isfinite(ycoord)) {
+                        g_out[y*out_dx + x] = 0;
+                    } else {
+                        int xin = floor(xcoord);
+                        int yin = floor(ycoord);
+                        int xin2 = xin+1;
+                        int yin2 = yin+1;
 
-                    int idx_a = yin*in_dx + xin;
-                    int idx_b = yin*in_dx + xin2;
-                    int idx_c = yin2*in_dx + xin;
-                    int idx_d = yin2*in_dx + xin2;
+                        TYPE xdist = xcoord-xin;
+                        TYPE ydist = ycoord-yin;
 
-                    TYPE value;
-                    if (yin2 < in_dy) {
+                        int idx_a = yin*in_dx + xin;
+                        int idx_b = yin*in_dx + xin2;
+                        int idx_c = yin2*in_dx + xin;
+                        int idx_d = yin2*in_dx + xin2;
+
+                        TYPE value;
                         value = g_in[idx_a]*(1-xdist)*(1-ydist) +
                                 g_in[idx_b]*xdist*(1-ydist) +
                                 g_in[idx_c]*ydist*(1-xdist) +
                                 g_in[idx_d]*xdist*ydist;
-                    } else {
-                        value = g_in[idx_a]*(1-xdist)*(1-ydist) +
-                                g_in[idx_b]*xdist*(1-ydist);
-                    }
 
-                    g_out[y*out_dx + x] = value;
+                        g_out[y*out_dx + x] = value;
                     }
                 }
+            }
             '''
         interp2_kernel_float = cp.RawKernel(interp2_kernel.replace('TYPE', 'float'), name='interp2_kernel_float')
         interp2_kernel_double = cp.RawKernel(interp2_kernel.replace('TYPE', 'double'), name='interp2_kernel_double')
@@ -61,8 +61,8 @@ class Interp2D():
             yy, xx = map(self.dtype, np.mgrid[0:output_shape[0], 0:output_shape[1]])
             # This -1 appears to be correct by comparing with IDL code
             # It is not used in propagation, where xx and yy are set from the caller code
-            yy *= (input_shape[0]-1) / output_shape[0]
-            xx *= (input_shape[1]-1) / output_shape[1]
+            yy *= (input_shape[0]-1) / (output_shape[0]-1)
+            xx *= (input_shape[1]-1) / (output_shape[1]-1)
         else:
             if yy.shape != output_shape or xx.shape != output_shape:
                 raise ValueError(f'yy and xx must have shape {output_shape}')
@@ -84,10 +84,15 @@ class Interp2D():
             yy += rowShiftInPixels
             xx += colShiftInPixels
 
-        yy[np.where(yy < 0)] = 0
-        xx[np.where(xx < 0)] = 0
-        yy[np.where(yy > input_shape[0] - 1)] = input_shape[0] - 1
-        xx[np.where(xx > input_shape[1] - 1)] = input_shape[1] - 1
+            # NaNs will be checked in GPU code to skip interpolation
+            # and use a fill value of zero
+            # On CPU, this is done automatically by using
+            # bound checking parameters in RectangularGridInterpolator
+        if self.xp == cp:
+            yy[np.where(yy < 0)] = np.nan
+            xx[np.where(xx < 0)] = np.nan
+            yy[np.where(yy > input_shape[0] - 1)] = np.nan
+            xx[np.where(xx > input_shape[1] - 1)] = np.nan
 
         self.yy = self.xp.array(yy, dtype=dtype).ravel()
         self.xx = self.xp.array(xx, dtype=dtype).ravel()
@@ -117,6 +122,6 @@ class Interp2D():
         else:
             from scipy.interpolate import RegularGridInterpolator
             points = (self.xp.arange( self.input_shape[0], dtype=self.dtype), self.xp.arange( self.input_shape[1], dtype=self.dtype))
-            interp = RegularGridInterpolator(points,value, method='linear')
+            interp = RegularGridInterpolator(points, value, method='linear', bounds_error=False, fill_value=0.)
             out[:] = interp((self.yy, self.xx)).reshape(self.output_shape).astype(self.dtype)
             return out
