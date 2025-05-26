@@ -3,6 +3,7 @@ import numpy as np
 
 from specula.base_value import BaseValue
 from specula.base_processing_obj import BaseProcessingObj
+from specula.data_objects.time_history import TimeHistory
 from specula.lib.modal_pushpull_signal import modal_pushpull_signal
 
 
@@ -17,7 +18,7 @@ class FuncGenerator(BaseProcessingObj):
     def __init__(self,
                  func_type='SIN', 
                  nmodes: int=None, 
-                 time_hist=None, 
+                 time_hist: TimeHistory=None, 
                  psd=None, 
                  fr_psd=None, 
                  continuous_psd=None, 
@@ -80,7 +81,7 @@ class FuncGenerator(BaseProcessingObj):
                 output_size = vsize if nmodes is None else vsize * nmodes
         elif self.type in ['PUSH', 'PUSHPULL', 'TIME_HIST']:
             if time_hist is not None:
-                output_size = np.array(time_hist).shape[1]
+                output_size = self.xp.array(time_hist.time_history).shape[1]
             elif nmodes is not None:
                 output_size = nmodes
         else:
@@ -142,7 +143,7 @@ class FuncGenerator(BaseProcessingObj):
         elif self.type == 'TIME_HIST':
             if time_hist is None:
                 raise ValueError('TIME_HIST keyword is mandatory for type TIME_HIST')
-            self.time_hist = self.xp.array(time_hist)
+            self.time_hist = self.xp.array(time_hist.time_history)
 
         else:
             raise ValueError(f'Unknown function type: {self.type}')
