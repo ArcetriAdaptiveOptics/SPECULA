@@ -184,7 +184,7 @@ class IirFilter(BaseProcessingObj):
         factor = 1 / self.iir_filter_data.den[:, no - 1]
 
         # Compute new output
-        num_contrib = self.xp.sum(self.iir_filter_data.num * self._gain_mod * self._ist, axis=1)
+        num_contrib = self.xp.sum(self.iir_filter_data.num * self._gain_mod[:, None] * self._ist, axis=1)
         den_contrib = self.xp.sum(self.iir_filter_data.den[:, :no - 1] * self._ost[:, :no - 1], axis=1)
         self._ost[:, no - 1] = factor * (num_contrib - den_contrib)
         output = self._ost[:, no - 1]
