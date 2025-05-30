@@ -56,28 +56,23 @@ class FuncGenerator(BaseProcessingObj):
         Number of cycles for PUSHPULL type. If PUSHPULLREPEAT, cycles are repeated.
     vsize : int, default=1
         Size of the output vector. If nmodes is set, this is multiplied by nmodes.
-
     scheduled_values : list, optional
         For VALUE_SCHEDULE type only. List of value arrays for each time interval.
         Each element should be a list/array with length matching modes_per_group.
         Example: [[0.1, 0.0], [0.5, 1.0], [0.2, 0.3]]
-    
     time_intervals : list, optional
         For VALUE_SCHEDULE type only. List of time limits (in seconds) for each interval.
         Length must match scheduled_values.
         Example: [0.1, 0.2, 0.5] means:
         - First values used for t < 0.1s
         - Second values used for 0.1s ≤ t < 0.2s  
-        - Third values used for 0.2s ≤ t < 0.5s
-        - After 0.5s, last values are maintained
-    
+        - Third values used for t ≥ 0.2s
     modes_per_group : list or int, optional
         For VALUE_SCHEDULE type only. Number of modes for each group of values.
         If int, converted to single-element list.
         Each scheduled_values[i][j] is replicated modes_per_group[j] times.
         Example: modes_per_group=[2, 3] with scheduled_values=[[0.1, 0.5]]
         produces output [0.1, 0.1, 0.5, 0.5, 0.5]
-        
     target_device_idx : int, optional
         Index of the target device for this processing object.
     precision : int, optional
@@ -86,7 +81,7 @@ class FuncGenerator(BaseProcessingObj):
     Examples
     --------
     Basic VALUE_SCHEDULE usage:
-    
+
     >>> # Create a gain schedule that changes over time
     >>> func_gen = FuncGenerator(
     ...     func_type='VALUE_SCHEDULE',
@@ -95,28 +90,13 @@ class FuncGenerator(BaseProcessingObj):
     ...         [0.5, 0.2],    # Medium gain 
     ...         [1.0, 0.8]     # High gain
     ...     ],
-    ...     time_intervals=[0.1, 0.3, 0.6],  # Change at 0.1s, 0.3s, maintain after 0.6s
+    ...     time_intervals=[0.1, 0.3],  # Only 2 values for 3 sets of scheduled_values
     ...     modes_per_group=[2, 3]    # 2 modes for first value, 3 for second
     ... )
     >>> # Output will be:
     >>> # [0.1, 0.1, 0.0, 0.0, 0.0] for t < 0.1s
     >>> # [0.5, 0.5, 0.2, 0.2, 0.2] for 0.1s ≤ t < 0.3s  
     >>> # [1.0, 1.0, 0.8, 0.8, 0.8] for t ≥ 0.3s
-    
-    Integration gain modulation example:
-    
-    >>> # Create variable gain_mod for integrator
-    >>> gain_schedule = FuncGenerator(
-    ...     func_type='VALUE_SCHEDULE',
-    ...     scheduled_values=[
-    ...         [1.0, 1.0, 0.0],   # Initial: full gain on first 2 groups, none on third
-    ...         [0.5, 2.0, 1.0]    # Later: reduced/increased/enabled gains
-    ...     ],
-    ...     time_intervals=[0.2, 0.5],
-    ...     modes_per_group=[3, 2, 1]      # 3+2+1=6 total modes
-    ... )
-    >>> # Connect to integrator
-    >>> integrator.inputs['gain_mod'].set(gain_schedule.outputs['output'])
     
     Notes
     -----
@@ -266,8 +246,8 @@ class FuncGenerator(BaseProcessingObj):
             if scheduled_values is None or time_intervals is None or modes_per_group is None:
                 raise ValueError('SCHEDULED_VALUES, TIME_INTERVALS and MODES_PER_GROUP keywords are mandatory for type VALUE_SCHEDULE')
 
-            if len(scheduled_values) != len(time_intervals):
-                raise ValueError('SCHEDULED_VALUES and TIME_INTERVALS must have the same length')
+            if len(scheduled_values) != len(time_intervals) + 1:
+                raise ValueError('LENGTH of SCHEDULED_VALUES must be LENGTH of TIME_INTERVALS + 1')
 
             # Expand scheduled_values according to modes_per_group
             if isinstance(modes_per_group, int):
@@ -323,19 +303,14 @@ class FuncGenerator(BaseProcessingObj):
             self.output.value[:] = self.get_time_hist_at_current_time() * self.vsize_array
 
         elif self.type == 'VALUE_SCHEDULE':
-            # Find the index of the current time in the time schedule          
-            time_idx = 0
-            for i, time_limit in enumerate(self.value_schedule['times']):
-                if self.current_time_gpu < time_limit:
-                    time_idx = i
-                    break
-                time_idx = i + 1
-            
-            # Check if the time index is within bounds
-            if time_idx >= self.value_schedule['values'].shape[0]:
-                time_idx = self.value_schedule['values'].shape[0] - 1
-            
+            # Find the index of the current time in the time schedule using searchsorted
+            time_idx = self.xp.searchsorted(self.value_schedule['times'], self.current_time_gpu, side='right')
+
+            # Clamp to valid bounds
+            time_idx = self.xp.clip(time_idx, 0, self.value_schedule['values'].shape[0] - 1)
+
             self.output.value[:] = self.value_schedule['values'][time_idx, :]
+
         else:
             raise ValueError(f'Unknown function generator type: {self.type}')
 
