@@ -40,7 +40,7 @@ class TestIirFilter(unittest.TestCase):
         """
         Test integrator with VALUE_SCHEDULE gain_mod:
         - Create an integrator with int_gain=[0.5, 0.3] and modes_per_group=[1, 1] 
-        - Create a VALUE_SCHEDULE that changes gain_mod from [1.0, 1.0] to [2.0, 0.5]
+        - Create a VALUE_SCHEDULE that changes gain_mod from [1.0, 1.0] to [2.0, 0.5] at 3rd step (0.002s)
         - Apply constant input of 1.0 for 3 frames
         - Verify correct integration with varying gain_mod
         """
@@ -49,7 +49,7 @@ class TestIirFilter(unittest.TestCase):
         simulParams = SimulParams(time_step=0.001)
 
         # Create integrator: 2 modes with gains [0.5, 0.3]
-        integrator = Integrator(simulParams, int_gain=[0.5, 0.3], n_modes=[1, 1],# ff=[0.0,0.0],
+        integrator = Integrator(simulParams, int_gain=[0.5, 0.3], n_modes=[1, 1],
                             target_device_idx=target_device_idx)
 
         # Create VALUE_SCHEDULE gain_mod that changes after 0.001s
@@ -59,7 +59,7 @@ class TestIirFilter(unittest.TestCase):
                 [1.0, 1.0],  # gain_mod for t < 0.001s
                 [2.0, 0.5]   # gain_mod for t >= 0.001s
             ],
-            time_intervals=[0.002, 0.003],  # change at 0.001s
+            time_intervals=[0.002],  # change at 0.002s
             modes_per_group=[1, 1],  # 1 mode per value
             target_device_idx=target_device_idx
         )
@@ -140,6 +140,6 @@ class TestIirFilter(unittest.TestCase):
         if verbose:
             print("input at t=0.002:", constant_input.value)
             print("Output at t=0.002:", integrator.outputs['out_comm'].value)
-            rint("Expected output at t=0.002:", expected_frame2)
+            print("Expected output at t=0.002:", expected_frame2)
 
         np.testing.assert_allclose(output_frame2, expected_frame2, rtol=1e-5)
