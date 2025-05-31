@@ -5,6 +5,7 @@ import pickle
 
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_value import BaseValue
+from specula.base_data_obj import BaseDataObj
 from specula.lib.utils import import_class
 
 
@@ -27,7 +28,7 @@ class DataSource(BaseProcessingObj):
         for aout in outputs:            
             self.loadFromFile(aout)
         for k in self.storage.keys():
-            if not isinstance(self.obj_type[k], BaseValue):
+            if self.obj_type[k] not in ['BaseValue', 'BaseDataObj']:
                 self.outputs[k] = import_class(self.obj_type[k]).from_header(self.headers[k])
             else:
                 self.outputs[k] = BaseValue()
