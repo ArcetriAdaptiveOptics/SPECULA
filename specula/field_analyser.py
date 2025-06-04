@@ -383,6 +383,7 @@ class FieldAnalyser:
             'class': 'DataStore', 
             'store_dir': str(self.modal_output_dir),  # Fixed: use modal_output_dir
             'data_format': 'fits',  # Add explicit format
+            'save_on_disk': 'False',  # Do not save params
             'inputs': {
                 'input_list': input_list
             }
@@ -414,6 +415,7 @@ class FieldAnalyser:
             'class': 'DataStore',
             'store_dir': str(self.cube_output_dir),  # Fixed: use cube_output_dir
             'data_format': 'fits',  # Add explicit format
+            'save_on_disk': 'False',  # Do not save params
             'inputs': {
                 'input_list': input_list
             }
@@ -458,7 +460,7 @@ class FieldAnalyser:
             source_refs = []
             source_refs.extend([f'field_source_{i}' for i in range(len(self.sources))])
             new_params['prop']['source_dict_ref'] = source_refs
-            
+
             output_list = []
             for i in range(len(self.sources)):
                 output_list.append(f'out_field_source_{i}_ef')
@@ -500,7 +502,7 @@ class FieldAnalyser:
             output_dir = self.cube_output_dir
         else:
             output_dir = self.psf_output_dir  # default
-        
+
         # Save temporary parameters
         temp_params_file = output_dir / temp_filename
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -527,7 +529,7 @@ class FieldAnalyser:
 
     def compute_field_psf(self, psf_sampling: int = 7, save_results: bool = True, force_recompute: bool = False) -> Dict:
         """Calculate field PSF using SPECULA's replay system"""
-        
+
         # Check if all individual PSF files exist
         all_exist = True
         for i in range(len(self.sources)):
@@ -535,7 +537,7 @@ class FieldAnalyser:
             if not output_file.exists():
                 all_exist = False
                 break
-        
+
         if not force_recompute and all_exist:
             if self.verbose:
                 print(f"Loading existing PSF results from: {self.psf_output_dir}")
