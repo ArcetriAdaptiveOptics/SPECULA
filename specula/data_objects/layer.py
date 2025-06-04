@@ -12,9 +12,9 @@ class Layer(ElectricField):
                  pixel_pitch: float,
                  height: float,
                  shiftXYinPixel: tuple=(0.0, 0.0),
-                 rotInDeg: float=0.0, 
+                 rotInDeg: float=0.0,
                  magnification: float=1.0,
-                 target_device_idx: int=None, 
+                 target_device_idx: int=None,
                  precision: int=None):
         super().__init__(dimx, dimy, pixel_pitch, target_device_idx=target_device_idx, precision=precision)
         self.height = height

@@ -22,18 +22,18 @@ class IirFilter(BaseProcessingObj):
                  og_shaper: float=None,
                  target_device_idx=None,
                  precision=None
-                 ):  
+                 ):
 
         self.simul_params = simul_params
         self.time_step = self.simul_params.time_step
-        
+
         self._verbose = True
         self.iir_filter_data = iir_filter_data
-        
+
         self.integration = integration
         if integration is False:
             raise NotImplementedError('IirFilter: integration=False is not implemented yet')
-        
+
         if og_shaper is not None:
             raise NotImplementedError('OG Shaper not implementd yet')
 
@@ -46,13 +46,14 @@ class IirFilter(BaseProcessingObj):
         self._n = iir_filter_data.nfilter
         self._type = iir_filter_data.num.dtype
         self.set_state_buffer_length(int(np.ceil(self.delay)) + 1)
-        
+
         # Initialize state vectors
         self._ist = self.xp.zeros_like(iir_filter_data.num)
         self._ost = self.xp.zeros_like(iir_filter_data.den)
 
         self.out_comm = BaseValue(value=self.xp.zeros(self._n, dtype=self.dtype), target_device_idx=target_device_idx)
         self.inputs['delta_comm'] = InputValue(type=BaseValue)
+        self.inputs['gain_mod'] = InputValue(type=BaseValue,optional=True)
         self.outputs['out_comm'] = self.out_comm
 
         self._opticalgain = None  # TODO
@@ -60,9 +61,6 @@ class IirFilter(BaseProcessingObj):
         self._offset = None  # TODO
         self._bootstrap_ptr = None  # TODO
         self._modal_start_time = None  # TODO
-        self._time_gmt_imm = None  # TODO
-        self._gain_gmt_imm = None  # TODO
-        self._do_gmt_init_mod_manager = False  # TODO
         self._skipOneStep = False  # TODO
         self._StepIsNotGood = False  # TODO
         self._start_time = 0  # TODO
@@ -100,10 +98,17 @@ class IirFilter(BaseProcessingObj):
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
         self.delta_comm = self.local_inputs['delta_comm'].value
-        
+
         # Update the state
         if self.delay > 0:
             self.state[:, 1:self._total_length] = self.state[:, 0:self._total_length-1]
+
+        # check if gain_mod is provided
+        if self.local_inputs['gain_mod'] is not None:
+            self._gain_mod = self.local_inputs['gain_mod'].value
+        else:
+            # Default gain_mod is an array of ones
+            self._gain_mod = self.xp.ones_like(self.delta_comm, dtype=self.dtype)
 
         return
 
@@ -150,15 +155,6 @@ class IirFilter(BaseProcessingObj):
                 else:
                     print("no scale factor applied")
 
-        # Avoid warnings        
-        def gmt_init_mod_manager(*args, **kwargs):
-            pass
-
-        if self._do_gmt_init_mod_manager:
-            time_idx = self._time_gmt_imm if self._time_gmt_imm is not None else self.xp.zeros(0, dtype=self.dtype)
-            gain_idx = self._gain_gmt_imm if self._gain_gmt_imm is not None else self.xp.zeros(0, dtype=self.dtype)
-            self.delta_comm *= gmt_init_mod_manager(self.t_to_seconds(t), len(self.delta_comm), time_idx=time_idx, gain_idx=gain_idx)
-
 # this is probably useless
 #        n_delta_comm = self.delta_comm.size
 #        if n_delta_comm < self.iir_filter_data.nfilter:
@@ -188,7 +184,7 @@ class IirFilter(BaseProcessingObj):
         factor = 1 / self.iir_filter_data.den[:, no - 1]
 
         # Compute new output
-        num_contrib = self.xp.sum(self.iir_filter_data.num * self._ist, axis=1)
+        num_contrib = self.xp.sum(self.iir_filter_data.num * self._gain_mod[:, None] * self._ist, axis=1)
         den_contrib = self.xp.sum(self.iir_filter_data.den[:, :no - 1] * self._ost[:, :no - 1], axis=1)
         self._ost[:, no - 1] = factor * (num_contrib - den_contrib)
         output = self._ost[:, no - 1]
