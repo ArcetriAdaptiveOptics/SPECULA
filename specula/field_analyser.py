@@ -118,63 +118,6 @@ def check_simulation_data_completeness(tn_dir: Path) -> Dict[str, any]:
     return status
 
 
-def find_existing_analysis_files(analysis_dir: Path, 
-                                tracking_number: str,
-                                analysis_type: str) -> List[Path]:
-    """
-    Find existing analysis files for a given tracking number
-    """
-    pattern = f"{tracking_number}_{analysis_type}_*.fits"
-    return list(analysis_dir.glob(pattern))
-
-
-def parse_analysis_filename(filename: str) -> Dict[str, any]:
-    """
-    Extracts parameters from an analysis filename
-    
-    Returns:
-        Dict with extracted parameters or empty dict if not matched
-    """
-    # Pattern for parsing the filename
-    pattern = r"(\w+)_(\w+)_(.+)\.fits"
-    match = re.match(pattern, filename)
-
-    if not match:
-        return {}
-
-    tracking_number, analysis_type, params_str = match.groups()
-
-    info = {
-        'tracking_number': tracking_number,
-        'analysis_type': analysis_type,
-        'raw_params': params_str
-    }
-
-    # Extract polar coordinates
-    coord_pattern = r"r([\d.]+)t([\d.]+)"
-    coord_matches = re.findall(coord_pattern, params_str)
-
-    if coord_matches:
-        coordinates = [(float(r), float(t)) for r, t in coord_matches]
-        info['coordinates'] = coordinates
-        info['distances'] = [r for r, t in coordinates]
-
-    # Extract other parameters
-    param_patterns = {
-        'wavelength_nm': r"wl(\d+)nm",
-        'psf_sampling': r"samp(\d+)", 
-        'start_time': r"t([\d.]+)",
-        'end_time': r"to([\d.]+)"
-    }
-
-    for param, pattern in param_patterns.items():
-        match = re.search(pattern, params_str)
-        if match:
-            info[param] = float(match.group(1))
-
-    return info
-
-
 class FieldAnalyser:
     """
     Class to analyze field PSF, modal analysis, and phase cubes
@@ -270,34 +213,23 @@ class FieldAnalyser:
         """
         return check_simulation_data_completeness(self.tn_dir)
 
-    def _get_analysis_filename(self, analysis_type: str, source_idx: int = None, **kwargs) -> str:
+    def _get_analysis_filename(self, analysis_type: str, source_idx: int, **kwargs) -> str:
         """Generate filename for analysis results"""
-        if source_idx is not None:
-            # Single source filename
-            base_name = f"{self.tracking_number}_{analysis_type}_source_{source_idx:02d}"
-            
-            # Add coordinate info
-            r, theta = self.polar_coordinates[source_idx] if len(self.polar_coordinates.shape) == 2 else self.polar_coordinates[:, source_idx]
-            base_name += f"_r{r:.1f}t{theta:.1f}"
-            
-            # Add specific parameters
-            if 'psf_sampling' in kwargs:
-                base_name += f"_samp{kwargs['psf_sampling']}"
-            if 'wavelength_nm' in kwargs:
-                base_name += f"_wl{kwargs['wavelength_nm']:.0f}nm"
-                
-            return base_name + ".fits"
-        else:
-            # Original method for combined files (if needed)
-            return generate_field_filename(
-                self.tracking_number,
-                analysis_type,
-                self.polar_coordinates,
-                wavelength_nm=self.wavelength_nm,
-                start_time=self.start_time,
-                end_time=self.end_time,
-                **kwargs
-            )
+        # Single source filename
+        base_name = f"{self.tracking_number}_{analysis_type}"
+
+        # Add coordinate info
+        r, theta = self.polar_coordinates[source_idx] if len(self.polar_coordinates.shape) == 2 else self.polar_coordinates[:, source_idx]
+        base_name += f"_r{r:.1f}t{theta:.1f}"
+
+        # Add specific parameters
+        if 'psf_sampling' in kwargs:
+            base_name += f"_samp{kwargs['psf_sampling']}"
+        if 'wavelength_nm' in kwargs:
+            base_name += f"_wl{kwargs['wavelength_nm']:.0f}nm"
+
+        return base_name + ".fits"
+
 
     def _build_replay_params_psf(self, psf_sampling: int = 7) -> dict:
         """
@@ -383,7 +315,7 @@ class FieldAnalyser:
             'class': 'DataStore', 
             'store_dir': str(self.modal_output_dir),  # Fixed: use modal_output_dir
             'data_format': 'fits',  # Add explicit format
-            'save_on_disk': 'False',  # Do not save params
+            'save_on_disk': False,  # Do not save params
             'inputs': {
                 'input_list': input_list
             }
@@ -415,7 +347,7 @@ class FieldAnalyser:
             'class': 'DataStore',
             'store_dir': str(self.cube_output_dir),  # Fixed: use cube_output_dir
             'data_format': 'fits',  # Add explicit format
-            'save_on_disk': 'False',  # Do not save params
+            'save_on_disk': False,  # Do not save params
             'inputs': {
                 'input_list': input_list
             }
@@ -478,30 +410,21 @@ class FieldAnalyser:
         Remove objects that would conflict with the analysis based on their class
         """
         objects_to_remove = []
-        
+
         for obj_name, obj_config in replay_params.items():
             if isinstance(obj_config, dict) and 'class' in obj_config:
                 if obj_config['class'] in classes_to_remove:
                     objects_to_remove.append(obj_name)
-        
+
         for obj_name in objects_to_remove:
             del replay_params[obj_name]
             if self.verbose:
                 print(f"Removed conflicting object: {obj_name} (class: {replay_params.get(obj_name, {}).get('class', 'unknown')})")
 
-    def _run_simulation_with_params(self, params_dict: dict, temp_filename: str) -> Simul:
+    def _run_simulation_with_params(self, params_dict: dict, temp_filename: str, output_dir: Path) -> Simul:
         """
         Common simulation execution logic
         """
-        # Determine output directory based on analysis type
-        if 'psf_field_' in str(params_dict):
-            output_dir = self.psf_output_dir
-        elif 'modal_analysis_' in str(params_dict):
-            output_dir = self.modal_output_dir
-        elif 'data_store_cube' in params_dict:
-            output_dir = self.cube_output_dir
-        else:
-            output_dir = self.psf_output_dir  # default
 
         # Save temporary parameters
         temp_params_file = output_dir / temp_filename
@@ -553,7 +476,7 @@ class FieldAnalyser:
 
         # Setup replay parameters and run simulation
         replay_params = self._build_replay_params_psf(psf_sampling)
-        simul = self._run_simulation_with_params(replay_params, "temp_psf_replay_params.yml")
+        simul = self._run_simulation_with_params(replay_params, "temp_psf_replay_params.yml", self.psf_output_dir)
 
         # Extract and save results
         results = self._extract_psf_results_from_objects(simul, psf_sampling)
@@ -585,7 +508,7 @@ class FieldAnalyser:
 
         # Setup replay parameters and run simulation
         replay_params = self._build_replay_params_modal(modal_params)
-        simul = self._run_simulation_with_params(replay_params, "temp_modal_replay_params.yml")
+        simul = self._run_simulation_with_params(replay_params, "temp_modal_replay_params.yml", self.modal_output_dir)
 
         # Extract and save results
         results = self._extract_modal_results_from_datastore(simul, modal_params)
@@ -620,7 +543,7 @@ class FieldAnalyser:
 
         # Setup replay parameters and run simulation
         replay_params = self._build_replay_params_cube()
-        simul = self._run_simulation_with_params(replay_params, "temp_cube_replay_params.yml")
+        simul = self._run_simulation_with_params(replay_params, "temp_cube_replay_params.yml", self.cube_output_dir)
 
         # Extract and save results
         results = self._extract_cube_results_from_datastore(simul)
