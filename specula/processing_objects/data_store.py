@@ -27,9 +27,9 @@ class DataStore(BaseProcessingObj):
         self.data_filename = ''
         self.tn_dir = store_dir
         self.data_format = data_format
-        self.replay_params = None
         self.storage = defaultdict(OrderedDict)
         self._save_on_disk = save_on_disk
+        self.replay_params = None
 
     def setParams(self, params):
         self.params = params
@@ -83,8 +83,8 @@ class DataStore(BaseProcessingObj):
             prefix = os.path.join(self.tn_dir, tn)
             if not os.path.exists(prefix):
                 os.makedirs(prefix)
-                break            
-        self.tn_dir = prefix        
+                break
+        self.tn_dir = prefix
 
     def trigger_code(self):
         for k, in_ in self.inputs.items():
@@ -103,8 +103,8 @@ class DataStore(BaseProcessingObj):
                 self.storage[k][self.current_time] = v
 
     def finalize(self):
-        self.create_TN_folder()
         if self._save_on_disk:
+            self.create_TN_folder()
             self.save_params()
             if self.data_format == 'pickle':
                 self.save_pickle()
