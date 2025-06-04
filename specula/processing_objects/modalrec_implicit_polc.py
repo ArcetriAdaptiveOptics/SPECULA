@@ -32,6 +32,7 @@ class ModalrecImplicitPolc(Modalrec):
                  input_modes_index: list=None,
                  input_modes_slice: list=None,
                  output_slice: list=None,
+                 in_commands_size: int=None,
                  target_device_idx: int=None,
                  precision: int=None
                 ):
@@ -50,6 +51,7 @@ class ModalrecImplicitPolc(Modalrec):
                  input_modes_index=input_modes_index,
                  input_modes_slice=input_modes_slice,
                  output_slice=output_slice,
+                 in_commands_size=in_commands_size,
                  target_device_idx=target_device_idx,
                  precision=precision)
 
@@ -76,13 +78,6 @@ class ModalrecImplicitPolc(Modalrec):
 
     def trigger_code(self):
 
-        slopes = self.local_inputs['in_slopes']
-        slopes_list = self.local_inputs['in_slopes_list']
-        if slopes is None:
-            slopes = self.xp.hstack([x.slopes for x in slopes_list])
-        else:
-            slopes = slopes.slopes
-
         commandsobj = self.local_inputs['in_commands']
         commands_list = self.local_inputs['in_commands_list']
         if commandsobj is None:
@@ -101,19 +96,13 @@ class ModalrecImplicitPolc(Modalrec):
         if self.input_modes_slice is not None:
             commands = commands[self.input_modes_slice]
 
-        output_modes = self.comm_mat.recmat @ slopes - self.h_mat.recmat @ commands
+        output_modes = self.comm_mat.recmat @ self.slopes - self.h_mat.recmat @ commands
 
         self.modes.value = output_modes[self.output_slice]
         self.modes.generation_time = self.current_time
 
     def setup(self):
-        super(Modalrec, self).setup()
-
-        slopes = self.inputs['in_slopes'].get(self.target_device_idx)
-        slopes_list = self.inputs['in_slopes_list'].get(self.target_device_idx)
-
-        if not slopes and (not slopes_list or not all(slopes_list)):
-            raise ValueError("Either 'slopes' or 'slopes_list' must be given as an input")
+        super().setup()
 
         commands = self.inputs['in_commands'].get(self.target_device_idx)
         commands_list = self.inputs['in_commands_list'].get(self.target_device_idx)

@@ -15,8 +15,8 @@ class TestBaseOperation(unittest.TestCase):
     @cpu_and_gpu
     def test_sum(self, target_device_idx, xp):
         
-        value1 = BaseValue(value=1, target_device_idx=target_device_idx)
-        value2 = BaseValue(value=2, target_device_idx=target_device_idx)
+        value1 = BaseValue(value=xp.array([1]), target_device_idx=target_device_idx)
+        value2 = BaseValue(value=xp.array([2]), target_device_idx=target_device_idx)
         value1.generation_time = 1
         value2.generation_time = 1
         
@@ -35,8 +35,8 @@ class TestBaseOperation(unittest.TestCase):
     @cpu_and_gpu
     def test_sub(self, target_device_idx, xp):
         
-        value1 = BaseValue(value=1, target_device_idx=target_device_idx)
-        value2 = BaseValue(value=2, target_device_idx=target_device_idx)
+        value1 = BaseValue(value=xp.array([1]), target_device_idx=target_device_idx)
+        value2 = BaseValue(value=xp.array([2]), target_device_idx=target_device_idx)
         value1.generation_time = 1
         value2.generation_time = 1
         
@@ -55,8 +55,8 @@ class TestBaseOperation(unittest.TestCase):
     @cpu_and_gpu
     def test_mul(self, target_device_idx, xp):
         
-        value1 = BaseValue(value=2, target_device_idx=target_device_idx)
-        value2 = BaseValue(value=3, target_device_idx=target_device_idx)
+        value1 = BaseValue(value=xp.array([2]), target_device_idx=target_device_idx)
+        value2 = BaseValue(value=xp.array([3]), target_device_idx=target_device_idx)
         value1.generation_time = 1
         value2.generation_time = 1
         
@@ -75,8 +75,8 @@ class TestBaseOperation(unittest.TestCase):
     @cpu_and_gpu
     def test_div(self, target_device_idx, xp):
         
-        value1 = BaseValue(value=6.0, target_device_idx=target_device_idx)
-        value2 = BaseValue(value=3.0, target_device_idx=target_device_idx)
+        value1 = BaseValue(value=xp.array([6.0]), target_device_idx=target_device_idx)
+        value2 = BaseValue(value=xp.array([3.0]), target_device_idx=target_device_idx)
         value1.generation_time = 1
         value2.generation_time = 1
         
@@ -95,8 +95,8 @@ class TestBaseOperation(unittest.TestCase):
     @cpu_and_gpu
     def test_concat(self, target_device_idx, xp):
         
-        value1 = BaseValue(value=xp.array([1,2]), target_device_idx=target_device_idx)
-        value2 = BaseValue(value=xp.array([3]), target_device_idx=target_device_idx)
+        value1 = BaseValue(value=xp.array([1, 2]), target_device_idx=target_device_idx)
+        value2 = BaseValue(value=xp.array([3.0]), target_device_idx=target_device_idx)
         value1.generation_time = 1
         value2.generation_time = 1
         
@@ -117,7 +117,7 @@ class TestBaseOperation(unittest.TestCase):
     @cpu_and_gpu
     def test_const_sum(self, target_device_idx, xp):
         
-        value1 = BaseValue(value=6, target_device_idx=target_device_idx)
+        value1 = BaseValue(value=xp.array([6.0]), target_device_idx=target_device_idx)
         value1.generation_time = 1
         
         op = BaseOperation(constant_sum=2, target_device_idx=target_device_idx)
@@ -134,7 +134,7 @@ class TestBaseOperation(unittest.TestCase):
     @cpu_and_gpu
     def test_const_sub(self, target_device_idx, xp):
         
-        value1 = BaseValue(value=6, target_device_idx=target_device_idx)
+        value1 = BaseValue(value=xp.array([6.0]), target_device_idx=target_device_idx)
         value1.generation_time = 1
         
         op = BaseOperation(constant_sub=2, target_device_idx=target_device_idx)
@@ -151,7 +151,7 @@ class TestBaseOperation(unittest.TestCase):
     @cpu_and_gpu
     def test_const_mul(self, target_device_idx, xp):
         
-        value1 = BaseValue(value=6, target_device_idx=target_device_idx)
+        value1 = BaseValue(value=xp.array([6.0]), target_device_idx=target_device_idx)
         value1.generation_time = 1
         
         op = BaseOperation(constant_mul=2, target_device_idx=target_device_idx)
@@ -168,7 +168,7 @@ class TestBaseOperation(unittest.TestCase):
     @cpu_and_gpu
     def test_const_div(self, target_device_idx, xp):
         
-        value1 = BaseValue(value=6.0, target_device_idx=target_device_idx)
+        value1 = BaseValue(value=xp.array([6.0]), target_device_idx=target_device_idx)
         value1.generation_time = 1
         
         op = BaseOperation(constant_div=2, target_device_idx=target_device_idx)
@@ -186,7 +186,7 @@ class TestBaseOperation(unittest.TestCase):
     def test_missing_value2(self, target_device_idx, xp):
         '''Test that setup() raises ValueError when input2 has not been set'''
 
-        value1 = BaseValue(value=6.0, target_device_idx=target_device_idx)
+        value1 = BaseValue(value=xp.array([6.0]), target_device_idx=target_device_idx)
         value1.generation_time = 1
         
         # All these must raise an exception in setup() with a single input
@@ -217,9 +217,9 @@ class TestBaseOperation(unittest.TestCase):
     def test_that_value1_is_not_overwritten(self, target_device_idx, xp):
         '''Test that value1 is not overwritten'''
 
-        value1 = BaseValue(value=1.0, target_device_idx=target_device_idx)
+        value1 = BaseValue(value=xp.array([1.0]), target_device_idx=target_device_idx)
         value1.generation_time = 1
-        value2 = BaseValue(value=2.0, target_device_idx=target_device_idx)
+        value2 = BaseValue(value=xp.array([2.0]), target_device_idx=target_device_idx)
         value2.generation_time = 1
         
         ops = []

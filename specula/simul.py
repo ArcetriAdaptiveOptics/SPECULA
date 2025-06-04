@@ -247,7 +247,11 @@ class Simul():
                 my_params['info_getter'] = self.get_info
 
             my_params.update(pars2)
-            self.objs[key] = klass(**my_params)
+            try:
+                self.objs[key] = klass(**my_params)
+            except Exception:
+                print(f'Exception building', key)
+                raise
             if classname != 'SimulParams':
                 self.objs[key].stopMemUsageCount()
 

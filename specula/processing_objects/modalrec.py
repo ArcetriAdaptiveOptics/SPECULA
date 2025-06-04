@@ -72,6 +72,10 @@ class Modalrec(BaseProcessingObj):
             recmat.recmat = recmat.recmat @ filtmat
             print('recmat updated with filmat!')
 
+        if polc:
+            if not intmat:
+                raise ValueError("Intmat object not valid")
+
         self.recmat = recmat
         self.projmat = projmat
         self.intmat = intmat
@@ -87,7 +91,10 @@ class Modalrec(BaseProcessingObj):
             nmodes = (stop - start) // step
         else:
             self.output_slice = slice(None, None, None)
-            nmodes = self.recmat.recmat.shape[0]
+            if polc:
+                nmodes = self.projmat.recmat.shape[0]
+            else:
+                nmodes = self.recmat.recmat.shape[0]
 
         if input_modes_slice is not None:
             self.input_modes_slice = slice(*input_modes_slice)
@@ -140,13 +147,6 @@ class Modalrec(BaseProcessingObj):
             print("WARNING: modalrec skipping reconstruction because recmat is NULL")
             return
 
-        slopes = self.local_inputs['in_slopes']
-        slopes_list = self.local_inputs['in_slopes_list']
-        if slopes is None:
-            slopes = self.xp.hstack([x.slopes for x in slopes_list])
-        else:
-            slopes = slopes.slopes
-            
         if self.polc:
     
             if self.input_modes_index is not None:
@@ -157,8 +157,7 @@ class Modalrec(BaseProcessingObj):
                 commands = self.commands
 
             comm_slopes = self.intmat.intmat @ commands
-            slopes += comm_slopes
-            self.pseudo_ol_modes.value = self.recmat.recmat @ slopes
+            self.pseudo_ol_modes.value = self.recmat.recmat @ (self.slopes + comm_slopes)
             self.pseudo_ol_modes.generation_time = self.current_time
             if self.projmat is None:
                 output_modes = self.pseudo_ol_modes.value
@@ -167,7 +166,7 @@ class Modalrec(BaseProcessingObj):
             output_modes -= commands
             
         else:
-            output_modes = self.recmat.recmat @ slopes
+            output_modes = self.recmat.recmat @ self.slopes
 
         self.modes.value = output_modes[self.output_slice]
         self.modes.generation_time = self.current_time
@@ -186,13 +185,7 @@ class Modalrec(BaseProcessingObj):
         else:
             self.slopes = slopes.slopes.copy()
 
-        if not self.recmat:
-            raise ValueError("Recmat object not valid")
-
         if self.polc:
-            if not self.intmat:
-                raise ValueError("Intmat object not valid")
-
             commands = self.inputs['in_commands'].get(self.target_device_idx)
             commands_list = self.inputs['in_commands_list'].get(self.target_device_idx)
             if not commands and (not commands_list or not all(commands_list)):

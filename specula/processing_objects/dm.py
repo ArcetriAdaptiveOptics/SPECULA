@@ -1,3 +1,4 @@
+import numpy as np
 from specula.base_value import BaseValue
 from specula.connections import InputValue
 
@@ -42,6 +43,7 @@ class DM(BaseProcessingObj):
         if not ifunc:
             ifunc = IFunc(type_str=type_str, mask=mask, npixels=npixels,
                            obsratio=obsratio, diaratio=diaratio, nzern=nzern,
+                           nmodes=nmodes, start_mode=start_mode, idx_modes=idx_modes,
                            target_device_idx=target_device_idx, precision=precision)
         self._ifunc = ifunc
 
@@ -58,8 +60,10 @@ class DM(BaseProcessingObj):
 
         if idx_modes is not None:
             self._valid_modes = idx_modes
+            self.n_valid_modes = len(idx_modes)
         else:
             self._valid_modes = slice(start_mode, nmodes)
+            self.n_valid_modes = len(np.arange(start_mode, nmodes))
 
         if m2c is not None:
             self.m2c = m2c.m2c
@@ -71,18 +75,12 @@ class DM(BaseProcessingObj):
         
         s = self._ifunc.mask_inf_func.shape
         nmodes_if = self._ifunc.size[0]
-
         self.if_commands = self.xp.zeros(nmodes_if, dtype=self.dtype)
+
+        self.if_commands_selector = slice(0, self.n_valid_modes)
+
         self.layer = Layer(s[0], s[1], self.pixel_pitch, height, target_device_idx=target_device_idx, precision=precision)
         self.layer.A = self._ifunc.mask_inf_func
-
-        if m2c is not None:
-            nmodes_m2c = m2c.m2c.shape[1]
-            self.m2c_commands = self.xp.zeros(nmodes_m2c, dtype=self.dtype)
-            self.m2c = m2c.m2c
-        else:
-            self.m2c = None
-            self.m2c_commands = None
 
         self.input_offset = input_offset
         self.nmodes = nmodes - start_mode   # Input command vector is not supposed to include the modes before "start_mode"
@@ -108,7 +106,8 @@ class DM(BaseProcessingObj):
         if self.m2c is not None:
             self.layer.phaseInNm[self._ifunc.idx_inf_func] = self.if_commands @ self._ifunc.influence_function
         else:
-            self.layer.phaseInNm[self._ifunc.idx_inf_func] = self.if_commands @ self._ifunc.influence_function[self._valid_modes, :]
+            self.layer.phaseInNm[self._ifunc.idx_inf_func] = \
+                self.if_commands[self.if_commands_selector] @ self._ifunc.influence_function[self._valid_modes, :]
         self.layer.generation_time = self.current_time
 
     # Getters and Setters for the attributes
