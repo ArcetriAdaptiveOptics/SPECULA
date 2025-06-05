@@ -26,7 +26,9 @@ data_store:
                   'slopec_lgs1_out_slopes-slopec_lgs1.out_slopes',
                   'tomo_polc_lgs_out_modes-tomo_polc_lgs.out_modes',
                   'iir_lgs_out_comm-iir_lgs.out_comm',
-                  'dm1_out_layer-dm1.out_layer']
+                  'dm1_out_layer-dm1.out_layer',
+                  'psf-psf.out_psf'
+]
 
 
 seeing:
