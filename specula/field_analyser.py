@@ -228,6 +228,22 @@ class FieldAnalyser:
         if 'wavelength_nm' in kwargs:
             base_name += f"_wl{kwargs['wavelength_nm']:.0f}nm"
 
+        # Add modal analysis specific parameters
+        if analysis_type == 'modal':
+            if 'nmodes' in kwargs:
+                base_name += f"_nmodes{kwargs['nmodes']}"
+            elif 'nzern' in kwargs:
+                base_name += f"_nzern{kwargs['nzern']}"
+
+            if 'type_str' in kwargs:
+                base_name += f"_{kwargs['type_str']}"
+
+            # Add other relevant modal parameters
+            if 'obsratio' in kwargs:
+                base_name += f"_obs{kwargs['obsratio']:.2f}"
+            if 'diaratio' in kwargs:
+                base_name += f"_dia{kwargs['diaratio']:.2f}"
+
         return base_name + ".fits"
 
 
@@ -294,17 +310,33 @@ class FieldAnalyser:
         # Add ModalAnalysis for each source
         for i, source_dict in enumerate(self.sources):
             modal_name = f'modal_analysis_{i}'
-            replay_params[modal_name] = {
-                'class': 'ModalAnalysis',
-                'type_str': modal_params.get('type_str', 'zernike'),
-                'nmodes': modal_params.get('nmodes', 100),
-                'npixels': replay_params['main']['pixel_pupil'],
-                'wavelengthInNm': self.wavelength_nm,
-                'inputs': {
-                    'in_ef': f'prop.out_field_source_{i}_ef'
-                },
-                'outputs': ['out_modes']
+            
+            # Start with modal_params as base configuration
+            modal_config = modal_params.copy()
+            
+            # Force the class to be ModalAnalysis
+            modal_config['class'] = 'ModalAnalysis'
+            
+            # Add/override required parameters that are not user-configurable
+            modal_config['wavelengthInNm'] = self.wavelength_nm
+            
+            # Set default npixels if not provided
+            if 'npixels' not in modal_config:
+                modal_config['npixels'] = replay_params['main']['pixel_pupil']
+            
+            # Set default values for backward compatibility if not provided
+            if 'type_str' not in modal_config and 'ifunc' not in modal_config and 'ifunc_inv' not in modal_config:
+                modal_config['type_str'] = 'zernike'
+            if 'nmodes' not in modal_config and 'nzern' not in modal_config:
+                modal_config['nmodes'] = 100
+            
+            # Always set inputs and outputs (these are not user-configurable)
+            modal_config['inputs'] = {
+                'in_ef': f'prop.out_field_source_{i}_ef'
             }
+            modal_config['outputs'] = ['out_modes']
+            
+            replay_params[modal_name] = modal_config
 
         # Add DataStore to save results (without params saving)
         input_list = []
@@ -313,9 +345,9 @@ class FieldAnalyser:
 
         replay_params['data_store_modal'] = {
             'class': 'DataStore', 
-            'store_dir': str(self.modal_output_dir),  # Fixed: use modal_output_dir
-            'data_format': 'fits',  # Add explicit format
-            'save_on_disk': False,  # Do not save params
+            'store_dir': str(self.modal_output_dir),
+            'data_format': 'fits',
+            'save_on_disk': False,
             'inputs': {
                 'input_list': input_list
             }
@@ -486,14 +518,31 @@ class FieldAnalyser:
         return results
 
     def compute_modal_analysis(self, modal_params: Optional[Dict] = None, save_results: bool = True, force_recompute: bool = False) -> Dict:
-        """Calculate field modal analysis using replay system"""
+        """
+        Calculate field modal analysis using replay system
+        
+        Args:
+            modal_params: Dictionary with ModalAnalysis configuration parameters.
+                        Can include any parameter accepted by ModalAnalysis class:
+                        - type_str: 'zernike', 'kl', 'mixed', 'zonal' (if ifunc/ifunc_inv not provided)
+                        - nmodes/nzern: number of modes (for type_str-based analysis)
+                        - obsratio, diaratio: pupil parameters
+                        - ifunc: pre-computed IFunc object
+                        - ifunc_inv: pre-computed IFuncInv object
+                        - npixels: override default pupil pixels
+                        - mask: custom mask
+                        - dorms: compute RMS flag
+                        And any other ModalAnalysis parameter
+            save_results: Whether to save results to disk
+            force_recompute: Force recomputation even if files exist
+        """
         if modal_params is None:
             modal_params = {'type_str': 'zernike', 'nmodes': 100}
 
         # Check if all individual modal files exist
         all_exist = True
         for i in range(len(self.sources)):
-            output_file = self.modal_output_dir / self._get_analysis_filename("modal", source_idx=i, **modal_params, wavelength_nm=self.wavelength_nm)
+            output_file = self.modal_output_dir / self._get_analysis_filename("modal", source_idx=i, **modal_params)
             if not output_file.exists():
                 all_exist = False
                 break
@@ -505,6 +554,7 @@ class FieldAnalyser:
 
         if self.verbose:
             print(f"Computing field modal analysis for {len(self.sources)} sources...")
+            print(f"Modal parameters: {modal_params}")
 
         # Setup replay parameters and run simulation
         replay_params = self._build_replay_params_modal(modal_params)
@@ -519,15 +569,15 @@ class FieldAnalyser:
 
     def compute_phase_cube(self, save_results: bool = True, force_recompute: bool = False) -> Dict:
         """Calculate field phase cubes using replay system"""
-        
+
         # Check if all individual cube files exist
         all_exist = True
         for i in range(len(self.sources)):
-            output_file = self.cube_output_dir / self._get_analysis_filename("cube", source_idx=i, wavelength_nm=self.wavelength_nm)
+            output_file = self.cube_output_dir / self._get_analysis_filename("cube", source_idx=im)
             if not output_file.exists():
                 all_exist = False
                 break
-        
+
         if not force_recompute and all_exist:
             if self.verbose:
                 print(f"Loading existing phase cubes from: {self.cube_output_dir}")
