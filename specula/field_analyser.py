@@ -573,7 +573,7 @@ class FieldAnalyser:
         # Check if all individual cube files exist
         all_exist = True
         for i in range(len(self.sources)):
-            output_file = self.cube_output_dir / self._get_analysis_filename("cube", source_idx=im)
+            output_file = self.cube_output_dir / self._get_analysis_filename("cube", source_idx=i)
             if not output_file.exists():
                 all_exist = False
                 break
@@ -701,7 +701,7 @@ class FieldAnalyser:
                     times = np.array(list(time_series.keys()))
                     results['times'] = times
 
-                # Create 3D cube: [time, y, x] 
+                # Create 3D cube: [time, y, x]
                 phases = list(time_series.values())
                 if len(phases) > 0:
                     # Extract only amplitude and phase from ElectricField
@@ -721,13 +721,13 @@ class FieldAnalyser:
         """Save PSF results as separate files for each source"""
         # Create directory if it doesn't exist
         self.psf_output_dir.mkdir(parents=True, exist_ok=True)
-        
+
         for i, (psf_data, sr_value) in enumerate(zip(results['psf_list'], results['sr_list'])):
             filename = self.psf_output_dir / self._get_analysis_filename("psf", source_idx=i, psf_sampling=psf_sampling, wavelength_nm=self.wavelength_nm)
-            
+
             # Create HDU list for this source
             primary_hdu = fits.PrimaryHDU(psf_data)
-            
+
             # Add header info
             primary_hdu.header['TN'] = self.tracking_number
             primary_hdu.header['SOURCE'] = i
@@ -735,7 +735,7 @@ class FieldAnalyser:
             primary_hdu.header['STARTTIME'] = self.start_time
             primary_hdu.header['SAMPLING'] = psf_sampling
             primary_hdu.header['STREHL'] = sr_value
-            
+
             # Add coordinate info
             if len(self.polar_coordinates.shape) == 2:
                 r, theta = self.polar_coordinates[i]
@@ -743,15 +743,15 @@ class FieldAnalyser:
                 r, theta = self.polar_coordinates[:, i]
             primary_hdu.header['COORD_R'] = r
             primary_hdu.header['COORD_T'] = theta
-            
+
             if self.end_time:
                 primary_hdu.header['ENDTIME'] = self.end_time
             if results.get('pixel_scale'):
                 primary_hdu.header['PIXSCALE'] = results['pixel_scale']
-                
+
             # Save single HDU
             primary_hdu.writeto(filename, overwrite=True)
-            
+
             if self.verbose:
                 print(f"PSF for source {i} saved to: {filename}")
 
@@ -759,28 +759,28 @@ class FieldAnalyser:
         """Save modal analysis results as separate files for each source"""
         # Create directory if it doesn't exist
         self.modal_output_dir.mkdir(parents=True, exist_ok=True)
-        
+
         for i, (modal_coeffs, residual_var) in enumerate(zip(results['modal_coeffs'], results['residual_variance'])):
-            filename = self.modal_output_dir / self._get_analysis_filename("modal", source_idx=i, **modal_params, wavelength_nm=self.wavelength_nm)
-            
+            filename = self.modal_output_dir / self._get_analysis_filename("modal", source_idx=i, **modal_params)
+
             # Create HDU list for this source
             primary_hdu = fits.PrimaryHDU()
-            
+
             # Modal coefficients as primary data
             modal_hdu = fits.ImageHDU(modal_coeffs, name='MODAL_COEFFS')
-            
+
             # Residual variance as second extension
             var_hdu = fits.ImageHDU(residual_var, name='RESIDUAL_VAR')
-            
+
             hdul = fits.HDUList([primary_hdu, modal_hdu, var_hdu])
-            
+
             # Add header info
             primary_hdu.header['TN'] = self.tracking_number
             primary_hdu.header['SOURCE'] = i
             primary_hdu.header['WAVELNG'] = self.wavelength_nm
             primary_hdu.header['NMODES'] = modal_params['nmodes']
             primary_hdu.header['MODTYPE'] = modal_params['type_str']
-            
+
             # Add coordinate info
             if len(self.polar_coordinates.shape) == 2:
                 r, theta = self.polar_coordinates[i]
@@ -788,9 +788,9 @@ class FieldAnalyser:
                 r, theta = self.polar_coordinates[:, i]
             primary_hdu.header['COORD_R'] = r
             primary_hdu.header['COORD_T'] = theta
-            
+
             hdul.writeto(filename, overwrite=True)
-            
+
             if self.verbose:
                 print(f"Modal analysis for source {i} saved to: {filename}")
 
@@ -798,23 +798,23 @@ class FieldAnalyser:
         """Save phase cubes as separate files for each source"""
         # Create directory if it doesn't exist
         self.cube_output_dir.mkdir(parents=True, exist_ok=True)
-        
+
         for i, phase_cube in enumerate(results['phase_cubes']):
-            filename = self.cube_output_dir / self._get_analysis_filename("cube", source_idx=i, wavelength_nm=self.wavelength_nm)
-            
+            filename = self.cube_output_dir / self._get_analysis_filename("cube", source_idx=i)
+
             # Create HDU list for this source
             primary_hdu = fits.PrimaryHDU(phase_cube)
-            
+
             # Times as second extension
             times_hdu = fits.ImageHDU(results['times'], name='TIMES')
-            
+
             hdul = fits.HDUList([primary_hdu, times_hdu])
-            
+
             # Add header info
             primary_hdu.header['TN'] = self.tracking_number
             primary_hdu.header['SOURCE'] = i
             primary_hdu.header['WAVELNG'] = self.wavelength_nm
-            
+
             # Add coordinate info
             if len(self.polar_coordinates.shape) == 2:
                 r, theta = self.polar_coordinates[i]
@@ -822,9 +822,9 @@ class FieldAnalyser:
                 r, theta = self.polar_coordinates[:, i]
             primary_hdu.header['COORD_R'] = r
             primary_hdu.header['COORD_T'] = theta
-            
+
             hdul.writeto(filename, overwrite=True)
-            
+
             if self.verbose:
                 print(f"Phase cube for source {i} saved to: {filename}")
 
@@ -839,22 +839,22 @@ class FieldAnalyser:
             'psf_sampling': psf_sampling,
             'pixel_scale': None
         }
-        
+
         for i in range(len(self.sources)):
             filename = output_dir / self._get_analysis_filename("psf", source_idx=i, psf_sampling=psf_sampling, wavelength_nm=self.wavelength_nm)
-            
+
             if filename.exists():
                 hdul = fits.open(filename)
                 results['psf_list'].append(hdul[0].data)
                 results['sr_list'].append(hdul[0].header.get('STREHL', 0.0))
-                
+
                 if results['pixel_scale'] is None:
                     results['pixel_scale'] = hdul[0].header.get('PIXSCALE', None)
-                
+
                 hdul.close()
             else:
                 raise FileNotFoundError(f"PSF file not found: {filename}")
-        
+
         return results
 
     def _load_modal_results(self, output_dir: Path, modal_params: dict) -> Dict:
@@ -867,10 +867,10 @@ class FieldAnalyser:
             'wavelength_nm': self.wavelength_nm,
             'modal_params': modal_params
         }
-        
+
         for i in range(len(self.sources)):
-            filename = output_dir / self._get_analysis_filename("modal", source_idx=i, **modal_params, wavelength_nm=self.wavelength_nm)
-            
+            filename = output_dir / self._get_analysis_filename("modal", source_idx=i, **modal_params)
+
             if filename.exists():
                 hdul = fits.open(filename)
                 results['modal_coeffs'].append(hdul['MODAL_COEFFS'].data)
@@ -878,7 +878,7 @@ class FieldAnalyser:
                 hdul.close()
             else:
                 raise FileNotFoundError(f"Modal analysis file not found: {filename}")
-        
+
         return results
 
     def _load_cube_results(self, output_dir: Path) -> Dict:
@@ -890,19 +890,19 @@ class FieldAnalyser:
             'distances': self.distances,
             'wavelength_nm': self.wavelength_nm
         }
-        
+
         for i in range(len(self.sources)):
-            filename = output_dir / self._get_analysis_filename("cube", source_idx=i, wavelength_nm=self.wavelength_nm)
-            
+            filename = output_dir / self._get_analysis_filename("cube", source_idx=i)
+
             if filename.exists():
                 hdul = fits.open(filename)
                 results['phase_cubes'].append(hdul[0].data)
-                
+
                 if results['times'] is None:
                     results['times'] = hdul['TIMES'].data
-                
+
                 hdul.close()
             else:
                 raise FileNotFoundError(f"Phase cube file not found: {filename}")
-        
+
         return results
