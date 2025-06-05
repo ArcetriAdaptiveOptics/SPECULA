@@ -163,7 +163,7 @@ class FieldAnalyser:
         # Paths - modify to create separate directories
         self.tn_dir = self.data_dir / tracking_number
         self.base_output_dir = self.data_dir  # Base directory for analysis results
-        
+
         # Create separate directories for each analysis type
         self.psf_output_dir = self.base_output_dir / f"{tracking_number}_PSF"
         self.modal_output_dir = self.base_output_dir / f"{tracking_number}_MA"
@@ -207,6 +207,29 @@ class FieldAnalyser:
             self.sources.append(source_dict)
             self.distances.append(r)
 
+    def _get_source_coordinates(self, source_idx: int) -> Tuple[float, float]:
+        """
+        Get polar coordinates (r, theta) for a specific source index
+
+        Args:
+            source_idx: Index of the source
+            
+        Returns:
+            Tuple of (r, theta) in polar coordinates
+        """
+        if len(self.polar_coordinates.shape) == 2:
+            if self.polar_coordinates.shape[0] == 2:
+                # Format: [[r1, r2, ...], [theta1, theta2, ...]]
+                r, theta = self.polar_coordinates[0, source_idx], self.polar_coordinates[1, source_idx]
+            else:
+                # Format: [[r1, theta1], [r2, theta2], ...]
+                r, theta = self.polar_coordinates[source_idx, 0], self.polar_coordinates[source_idx, 1]
+        else:
+            # 1D array case
+            r, theta = self.polar_coordinates[source_idx]
+
+        return float(r), float(theta)
+
     def check_required_data(self) -> Dict[str, any]:
         """
         Verify that all necessary data is present for replay
@@ -219,7 +242,7 @@ class FieldAnalyser:
         base_name = f"{self.tracking_number}_{analysis_type}"
 
         # Add coordinate info
-        r, theta = self.polar_coordinates[source_idx] if len(self.polar_coordinates.shape) == 2 else self.polar_coordinates[:, source_idx]
+        r, theta = self._get_source_coordinates(source_idx)
         base_name += f"_r{r:.1f}t{theta:.1f}"
 
         # Add specific parameters
@@ -310,32 +333,32 @@ class FieldAnalyser:
         # Add ModalAnalysis for each source
         for i, source_dict in enumerate(self.sources):
             modal_name = f'modal_analysis_{i}'
-            
+
             # Start with modal_params as base configuration
             modal_config = modal_params.copy()
-            
+
             # Force the class to be ModalAnalysis
             modal_config['class'] = 'ModalAnalysis'
-            
+
             # Add/override required parameters that are not user-configurable
             modal_config['wavelengthInNm'] = self.wavelength_nm
-            
+
             # Set default npixels if not provided
             if 'npixels' not in modal_config:
                 modal_config['npixels'] = replay_params['main']['pixel_pupil']
-            
+
             # Set default values for backward compatibility if not provided
             if 'type_str' not in modal_config and 'ifunc' not in modal_config and 'ifunc_inv' not in modal_config:
                 modal_config['type_str'] = 'zernike'
             if 'nmodes' not in modal_config and 'nzern' not in modal_config:
                 modal_config['nmodes'] = 100
-            
+
             # Always set inputs and outputs (these are not user-configurable)
             modal_config['inputs'] = {
                 'in_ef': f'prop.out_field_source_{i}_ef'
             }
             modal_config['outputs'] = ['out_modes']
-            
+
             replay_params[modal_name] = modal_config
 
         # Add DataStore to save results (without params saving)
@@ -533,11 +556,13 @@ class FieldAnalyser:
                         - mask: custom mask
                         - dorms: compute RMS flag
                         And any other ModalAnalysis parameter
+                        If None, will try to extract from DM parameters if height=0,
+                        otherwise defaults to {'type_str': 'zernike', 'nmodes': 100}
             save_results: Whether to save results to disk
             force_recompute: Force recomputation even if files exist
         """
         if modal_params is None:
-            modal_params = {'type_str': 'zernike', 'nmodes': 100}
+            modal_params = self._extract_modal_params_from_dm()
 
         # Check if all individual modal files exist
         all_exist = True
@@ -642,6 +667,7 @@ class FieldAnalyser:
         results = {
             'modal_coeffs': [],
             'residual_variance': [],
+            'residual_average': [],
             'turbulence_variance': [],  # If available
             'distances': self.distances,
             'coordinates': self.polar_coordinates,
@@ -660,7 +686,7 @@ class FieldAnalyser:
 
                 results['modal_coeffs'].append(coeffs)
 
-                # Calculate residual variance (excluding settling time)
+                # Calculate residual variance and average (excluding settling time)
                 if self.start_time > 0:
                     valid_idx = times >= self.start_time
                     if self.end_time:
@@ -670,9 +696,12 @@ class FieldAnalyser:
                     valid_coeffs = coeffs
 
                 if len(valid_coeffs) > 0:
+                    residual_mean = np.mean(valid_coeffs, axis=0)
                     residual_var = np.var(valid_coeffs, axis=0)
+                    results['residual_average'].append(residual_mean)
                     results['residual_variance'].append(residual_var)
                 else:
+                    results['residual_average'].append(np.zeros(coeffs.shape[1]))
                     results['residual_variance'].append(np.zeros(coeffs.shape[1]))
 
         return results
@@ -737,10 +766,7 @@ class FieldAnalyser:
             primary_hdu.header['STREHL'] = sr_value
 
             # Add coordinate info
-            if len(self.polar_coordinates.shape) == 2:
-                r, theta = self.polar_coordinates[i]
-            else:
-                r, theta = self.polar_coordinates[:, i]
+            r, theta = self._get_source_coordinates(i)
             primary_hdu.header['COORD_R'] = r
             primary_hdu.header['COORD_T'] = theta
 
@@ -760,7 +786,11 @@ class FieldAnalyser:
         # Create directory if it doesn't exist
         self.modal_output_dir.mkdir(parents=True, exist_ok=True)
 
-        for i, (modal_coeffs, residual_var) in enumerate(zip(results['modal_coeffs'], results['residual_variance'])):
+        for i in range(len(self.sources)):
+            modal_coeffs = results['modal_coeffs'][i]
+            residual_var = results['residual_variance'][i]
+            residual_avg = results['residual_average'][i]
+
             filename = self.modal_output_dir / self._get_analysis_filename("modal", source_idx=i, **modal_params)
 
             # Create HDU list for this source
@@ -772,20 +802,27 @@ class FieldAnalyser:
             # Residual variance as second extension
             var_hdu = fits.ImageHDU(residual_var, name='RESIDUAL_VAR')
 
-            hdul = fits.HDUList([primary_hdu, modal_hdu, var_hdu])
+            # Residual average as third extension
+            avg_hdu = fits.ImageHDU(residual_avg, name='RESIDUAL_AVG')
+
+            hdul = fits.HDUList([primary_hdu, modal_hdu, var_hdu, avg_hdu])
 
             # Add header info
             primary_hdu.header['TN'] = self.tracking_number
             primary_hdu.header['SOURCE'] = i
             primary_hdu.header['WAVELNG'] = self.wavelength_nm
-            primary_hdu.header['NMODES'] = modal_params['nmodes']
-            primary_hdu.header['MODTYPE'] = modal_params['type_str']
+
+            # Handle different ways to specify number of modes
+            if 'nmodes' in modal_params:
+                primary_hdu.header['NMODES'] = modal_params['nmodes']
+            elif 'nzern' in modal_params:
+                primary_hdu.header['NZERN'] = modal_params['nzern']
+
+            if 'type_str' in modal_params:
+                primary_hdu.header['MODTYPE'] = modal_params['type_str']
 
             # Add coordinate info
-            if len(self.polar_coordinates.shape) == 2:
-                r, theta = self.polar_coordinates[i]
-            else:
-                r, theta = self.polar_coordinates[:, i]
+            r, theta = self._get_source_coordinates(i)
             primary_hdu.header['COORD_R'] = r
             primary_hdu.header['COORD_T'] = theta
 
@@ -816,10 +853,7 @@ class FieldAnalyser:
             primary_hdu.header['WAVELNG'] = self.wavelength_nm
 
             # Add coordinate info
-            if len(self.polar_coordinates.shape) == 2:
-                r, theta = self.polar_coordinates[i]
-            else:
-                r, theta = self.polar_coordinates[:, i]
+            r, theta = self._get_source_coordinates(i)
             primary_hdu.header['COORD_R'] = r
             primary_hdu.header['COORD_T'] = theta
 
@@ -862,6 +896,7 @@ class FieldAnalyser:
         results = {
             'modal_coeffs': [],
             'residual_variance': [],
+            'residual_average': [],
             'coordinates': self.polar_coordinates,
             'distances': self.distances,
             'wavelength_nm': self.wavelength_nm,
@@ -875,6 +910,7 @@ class FieldAnalyser:
                 hdul = fits.open(filename)
                 results['modal_coeffs'].append(hdul['MODAL_COEFFS'].data)
                 results['residual_variance'].append(hdul['RESIDUAL_VAR'].data)
+                results['residual_average'].append(hdul['RESIDUAL_AVG'].data)
                 hdul.close()
             else:
                 raise FileNotFoundError(f"Modal analysis file not found: {filename}")
@@ -906,3 +942,66 @@ class FieldAnalyser:
                 raise FileNotFoundError(f"Phase cube file not found: {filename}")
 
         return results
+    
+    def _extract_modal_params_from_dm(self) -> Dict:
+        """
+        Extract modal parameters from DM configuration if available and height=0
+        """
+        # Default fallback parameters
+        default_params = {'type_str': 'zernike', 'nmodes': 100}
+
+        if self.params is None:
+            if self.verbose:
+                print("No simulation parameters loaded, using default modal params")
+            return default_params
+
+        # Look for DM configuration in params
+        dm_config = None
+        for obj_name, obj_config in self.params.items():
+            if isinstance(obj_config, dict) and obj_config.get('class') == 'DM':
+                dm_config = obj_config
+                break
+
+        if dm_config is None:
+            if self.verbose:
+                print("No DM configuration found in params, using default modal params")
+            return default_params
+
+        # Check if DM height is 0 (atmospheric compensation)
+        dm_height = dm_config.get('height', None)
+        if dm_height != 0:
+            if self.verbose:
+                print(f"DM height is {dm_height} (not 0), using default modal params")
+            return default_params
+
+        # Extract modal parameters from DM config
+        modal_params = {}
+
+        # Map DM parameters to ModalAnalysis parameters
+        param_mapping = {
+            # Basic modal parameters
+            'type_str': 'type_str',
+            'nmodes': 'nmodes', 
+            'nzern': 'nzern',
+            'obsratio': 'obsratio',
+            'diaratio': 'diaratio',
+            'npixels': 'npixels',
+            'start_mode': 'start_mode',
+            'idx_modes': 'idx_modes',
+            'ifunc': 'ifunc',
+            'ifunc_object': 'ifunc_object',
+            'm2c_object': 'm2c_object',             # TODO update ModalAnalysis to use this
+            'ifunc_ref': 'ifunc_ref',
+            'm2c_ref': 'm2c_ref',
+            'pupilstop_object': 'pupilstop_object'  # TODO update ModalAnalysis to use this
+        }
+
+        for dm_param, modal_param in param_mapping.items():
+            if dm_param in dm_config:
+                modal_params[modal_param] = dm_config[dm_param]
+
+        if self.verbose:
+            print(f"Extracted modal parameters from DM config: {modal_params}")
+            print(f"DM height: {dm_height} (using DM-based modal analysis)")
+
+        return modal_params
