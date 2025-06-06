@@ -16,7 +16,6 @@ from specula.data_objects.laser_launch_telescope import LaserLaunchTelescope
 from specula.data_objects.gaussian_convolution_kernel import GaussianConvolutionKernel
 from specula.data_objects.convolution_kernel import ConvolutionKernel
 
-import os       
 
 # numpy 1.x compatibility (cupy sometimes tries to raise this exception)
 if hasattr(np, 'exceptions'):
@@ -33,7 +32,9 @@ class SH(BaseProcessingObj):
 
     def _zeros_common(self, *args, **kwargs):
         '''
-        Wrapper around self.xp.zeros to enable the reuse cache
+        Wrapper around self.xp.zeros to enable the reuse cache.
+        None of the arrays allocated here should be used in 
+        prepare_trigger() or post_trigger().
         '''
         key = (self.target_device_idx, *args, *kwargs.items())
         if key not in self.__zeros_cache:
@@ -108,6 +109,7 @@ class SH(BaseProcessingObj):
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
         self.outputs['out_i'] = self._out_i
+        self.outputs['wf1'] = BaseValue()
 
     def set_in_ef(self, in_ef):
 
@@ -323,53 +325,7 @@ class SH(BaseProcessingObj):
             self._kernelobj = None
 
     def prepare_trigger(self, t):
-        super().prepare_trigger(t)        
-        self.prepare_kernels()
-
-
-    def prepare_kernels(self):
-        if self._kernelobj is not None:
-            if len(self._laser_launch_tel.tel_pos) != 0:
-                sodium_altitude = self.local_inputs['sodium_altitude']
-                sodium_intensity = self.local_inputs['sodium_intensity']
-                if sodium_altitude is None or sodium_intensity is None:
-                    raise ValueError('sodium_altitude and sodium_intensity must be provided')
-                self._kernelobj.zlayer = sodium_altitude.value
-                self._kernelobj.zprofile = sodium_intensity.value
-
-            # Get the kernel filename hash based on current parameters
-            new_kernel_fn = self._kernelobj.build()
-
-            # Only reload or recalculate if the kernel has changed
-            if new_kernel_fn != self._kernel_fn:
-                self._kernel_fn = new_kernel_fn  # Update the stored kernel filename
-
-                if os.path.exists(self._kernel_fn):
-                    print(f"Loading kernel from {self._kernel_fn}")
-                    if len(self._laser_launch_tel.tel_pos) == 0:
-                        self._kernelobj = GaussianConvolutionKernel.restore(self._kernel_fn,
-                                                                            kernel_obj=self._kernelobj,
-                                                                            target_device_idx=self.target_device_idx,
-                                                                            return_fft=True)
-                    else:
-                        self._kernelobj = ConvolutionKernel.restore(self._kernel_fn, 
-                                                                    kernel_obj=self._kernelobj,
-                                                                    target_device_idx=self.target_device_idx,
-                                                                    return_fft=True)
-                else:
-                    print('Calculating kernel...')
-                    self._kernelobj.calculate_lgs_map()
-                    self._kernelobj.save(self._kernel_fn)
-                    print('Done')
-
-            else:
-                # Kernel hasn't changed, no need to reload or recalculate
-                print("Kernel unchanged, using cached version")
-
-            if self._kernelobj is not None:
-                self._kernelobj.generation_time = self.current_time
-
-    def trigger_code(self):
+        super().prepare_trigger(t)     
 
         # Interpolation of input array if needed
         with show_in_profiler('interpolation'):
@@ -382,6 +338,30 @@ class SH(BaseProcessingObj):
             else:
                 # self._wf1 already set to in_ef
                 pass
+
+        if self._kernelobj is not None:
+            self.prepare_kernels()
+
+    def prepare_kernels(self):
+        if len(self._laser_launch_tel.tel_pos) != 0:
+            sodium_altitude = self.local_inputs['sodium_altitude']
+            sodium_intensity = self.local_inputs['sodium_intensity']
+            if sodium_altitude is None or sodium_intensity is None:
+                raise ValueError('sodium_altitude and sodium_intensity must be provided')
+            sodium_altitude = sodium_altitude.value
+            sodium_intensity = sodium_intensity.value
+        else:
+            sodium_altitude = None
+            sodium_intensity = None
+
+        self._kernelobj.prepare_for_sh(
+            sodium_altitude=sodium_altitude,
+            sodium_intensity=sodium_intensity,
+            current_time=self.current_time
+        )
+
+
+    def trigger_code(self):
 
         # Work on SH rows (single-subap code is too inefficient)
 
@@ -443,6 +423,7 @@ class SH(BaseProcessingObj):
         with show_in_profiler('toccd'):
             self._out_i.i[:] = toccd(self._psfimage, (self._ccd_side, self._ccd_side), xp=self.xp)
 
+
     def post_trigger(self):
         super().post_trigger()
 
@@ -450,6 +431,8 @@ class SH(BaseProcessingObj):
         phot = in_ef.S0 * in_ef.masked_area()
         self._out_i.i *= (phot / self._out_i.i.sum())
         self._out_i.generation_time = self.current_time
+        self.outputs['wf1'].value = toccd(self._wf1.phaseInNm, (100, 100), xp=self.xp)
+        self.outputs['wf1'].generation_time = self.current_time
 
         debug_figures = False
         if debug_figures:

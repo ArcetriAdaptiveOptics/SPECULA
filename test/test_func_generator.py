@@ -7,6 +7,7 @@ import unittest
 from specula import np
 from specula import cpuArray
 
+from specula.data_objects.time_history import TimeHistory
 from specula.processing_objects.func_generator import FuncGenerator
 from specula.data_objects.simul_params import SimulParams
 
@@ -81,4 +82,23 @@ class TestFuncGenerator(unittest.TestCase):
             plt.plot(f.time_hist[:, 1], label='mode 2')
             plt.legend()
             plt.show()
+
+    @cpu_and_gpu
+    def test_func_generator_time_history(self, target_device_idx, xp):
+        data = xp.arange(12).reshape((3,4))
+        time_hist = TimeHistory(data, target_device_idx=target_device_idx)
+
+        f = FuncGenerator('TIME_HIST', target_device_idx=target_device_idx, time_hist=time_hist)
+        f.check_ready(1)
+        f.trigger()
+        f.post_trigger()
+        value = f.outputs['output'].value
+        np.testing.assert_allclose(cpuArray(value), cpuArray(data[0]))
+
+        # Second iteration
+        f.check_ready(2)
+        f.trigger()
+        f.post_trigger()
+        value = f.outputs['output'].value
+        np.testing.assert_allclose(cpuArray(value), cpuArray(data[1]))
 

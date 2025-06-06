@@ -88,7 +88,11 @@ class LoopControl(BaseTimeObj):
         for i in range(self._max_order+1):
 
             for element in self._ordered_lists[i]:
-                element.check_ready(self._t)
+                try:
+                    element.check_ready(self._t)
+                except:
+                    print('Exception in', element.name)
+                    raise
 
             for element in self._ordered_lists[i]:
                 try:
@@ -98,7 +102,11 @@ class LoopControl(BaseTimeObj):
                     raise
 
             for element in self._ordered_lists[i]:
-                element.post_trigger()
+                try:
+                    element.post_trigger()
+                except:
+                    print('Exception in', element.name)
+                    raise
 
         if self._stop_on_data and self._stop_on_data.generation_time == self._t:
             return
