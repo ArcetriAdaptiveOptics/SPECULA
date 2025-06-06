@@ -475,7 +475,7 @@ class FieldAnalyser:
             modal_config = {
                 'class': 'ModalAnalysis'
             }
-            
+
             # Always use shared references - one will always exist now
             if shared_ifunc_ref:
                 modal_config['ifunc_ref'] = shared_ifunc_ref
@@ -897,7 +897,7 @@ class FieldAnalyser:
             primary_hdu.header['TN'] = self.tracking_number
             primary_hdu.header['SOURCE'] = i
             primary_hdu.header['WAVELNG'] = self.wavelength_nm
-            primary_hdu.header['STARTTIME'] = self.start_time
+            primary_hdu.header['TSTART'] = self.start_time
             primary_hdu.header['SAMPLING'] = psf_sampling
             primary_hdu.header['STREHL'] = sr_value
 
@@ -907,7 +907,7 @@ class FieldAnalyser:
             primary_hdu.header['COORD_T'] = theta
 
             if self.end_time:
-                primary_hdu.header['ENDTIME'] = self.end_time
+                primary_hdu.header['TEND'] = self.end_time
             if results.get('pixel_scale'):
                 primary_hdu.header['PIXSCALE'] = results['pixel_scale']
 
