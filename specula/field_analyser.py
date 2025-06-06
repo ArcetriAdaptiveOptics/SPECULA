@@ -450,36 +450,43 @@ class FieldAnalyser:
             replay_params['modal_analysis_ifunc_inv'] = ifunc_inv_config
             shared_ifunc_inv_ref = 'modal_analysis_ifunc_inv'
 
+        else:
+            # No ifunc or ifunc_inv provided - create default IFunc
+            ifunc_config = {
+                'class': 'IFunc',
+                'type_str': modal_params.get('type_str', 'zernike'),
+                'nmodes': modal_params.get('nmodes', modal_params.get('nzern', 100)),
+                'npixels': modal_params.get('npixels', replay_params['main']['pixel_pupil'])
+            }
+
+            # Add optional parameters if present
+            for param in ['obsratio', 'diaratio', 'start_mode', 'idx_modes']:
+                if param in modal_params:
+                    ifunc_config[param] = modal_params[param]
+
+            replay_params['modal_analysis_ifunc'] = ifunc_config
+            shared_ifunc_ref = 'modal_analysis_ifunc'
+
         # Add ModalAnalysis for each source
         for i, source_dict in enumerate(self.sources):
             modal_name = f'modal_analysis_{i}'
 
-            # Start with modal_params as base configuration
-            modal_config = modal_params.copy()
-
-            # Force the class to be ModalAnalysis
-            modal_config['class'] = 'ModalAnalysis'
-
-            # Set default npixels if not provided
-            if 'npixels' not in modal_config:
-                modal_config['npixels'] = replay_params['main']['pixel_pupil']
-
-            # Remove ifunc/ifunc_inv from individual configs and use shared references
+            # Start with base configuration (don't copy all modal_params)
+            modal_config = {
+                'class': 'ModalAnalysis'
+            }
+            
+            # Always use shared references - one will always exist now
             if shared_ifunc_ref:
-                modal_config.pop('ifunc', None)
                 modal_config['ifunc_ref'] = shared_ifunc_ref
             elif shared_ifunc_inv_ref:
-                modal_config.pop('ifunc_inv', None)
                 modal_config['ifunc_inv_ref'] = shared_ifunc_inv_ref
 
-            # Set default values for backward compatibility if not provided
-            if ('type_str' not in modal_config and 
-                'ifunc_ref' not in modal_config and 
-                'ifunc_inv_ref' not in modal_config):
-                modal_config['type_str'] = 'zernike'
-
-            if 'nmodes' not in modal_config and 'nzern' not in modal_config:
-                modal_config['nmodes'] = 100
+            # Add optional ModalAnalysis-specific parameters that don't go in IFunc
+            modal_specific_params = ['dorms', 'wavelengthInNm']  # Parameters specific to ModalAnalysis
+            for param in modal_specific_params:
+                if param in modal_params:
+                    modal_config[param] = modal_params[param]
 
             # Always set inputs and outputs (these are not user-configurable)
             modal_config['inputs'] = {
