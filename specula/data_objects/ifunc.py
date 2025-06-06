@@ -14,6 +14,9 @@ def compute_mixed_ifunc(*args, **kwargs):
 
 
 class IFunc(BaseDataObj):
+    '''
+    Influence functions are stored as [modes, pixels]
+    '''
     def __init__(self,
                  ifunc=None,
                  type_str: str=None,
@@ -145,18 +148,12 @@ class IFunc(BaseDataObj):
         if start_mode is None:
             start_mode = 0
         if nmodes is None:
-            nmodes = nrows if ncols > nrows else ncols
-            
+            nmodes = nrows
+
         if idx_modes is not None:
-            if ncols > nrows:
-                self._influence_function = self._influence_function[idx_modes, :]
-            else:
-                self._influence_function = self._influence_function[:, idx_modes]
+            self._influence_function = self._influence_function[idx_modes, :]
         else:
-            if ncols > nrows:
-                self._influence_function = self._influence_function[start_mode:nmodes, :]
-            else:
-                self._influence_function = self._influence_function[:, start_mode:nmodes] 
+            self._influence_function = self._influence_function[start_mode:nmodes, :]
       
     def restore(filename, target_device_idx=None, exten=1):
         with fits.open(filename) as hdul:

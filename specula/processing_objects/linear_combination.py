@@ -22,9 +22,22 @@ class LinearCombination(BaseProcessingObj):
         lift = in_vectors[2].value
         ngs = in_vectors[3].value
 
+        lgs[0:2] = ngs[0:2]
         focus *= 0
         lift *= 0
         ngs *= 0
 
-        self.out_vector.value = np.concatenate([lgs, focus, lift, ngs])
+        self.out_vector.value *= 0.0
+        self.out_vector.value[:len(lgs)] = lgs
         self.out_vector.generation_time = self.current_time
+
+    def setup(self):
+        super().setup()
+
+        in_vectors = self.inputs['in_vectors_list'].get(target_device_idx=self.target_device_idx)
+        lgs = in_vectors[0].value
+        focus = in_vectors[1].value
+        lift = in_vectors[2].value
+        ngs = in_vectors[3].value
+
+        self.out_vector.value = np.concatenate([lgs, focus, lift, ngs]) * 0.0

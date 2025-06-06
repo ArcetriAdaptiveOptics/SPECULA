@@ -1,3 +1,4 @@
+import os
 import specula
 specula.init(0)  # Default target device
 
@@ -46,7 +47,9 @@ class TestCovTRunc(unittest.TestCase):
         )
 
         # Load reference FITS (IDL result)
-        cov_idl_all = fits.getdata("test/data/cov_sh_ref.fits")
+        testdir = os.path.dirname(__file__)
+        ref_path = os.path.join(testdir, 'data', 'cov_sh_ref.fits')
+        cov_idl_all = fits.getdata(ref_path)
         cov_idl = cov_idl_all[0]
         cov_only_diag_idl = cov_idl_all[1]
 

@@ -7,8 +7,6 @@ from specula.lib.utils import unravel_index_2d
 from specula.data_objects.slopes import Slopes
 from specula.data_objects.subap_data import SubapData
 from specula.base_value import BaseValue
-from specula.data_objects.intmat import Intmat
-from specula.data_objects.recmat import Recmat
 
 from specula.processing_objects.slopec import Slopec
 
