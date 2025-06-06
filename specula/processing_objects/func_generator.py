@@ -174,7 +174,7 @@ class FuncGenerator(BaseProcessingObj):
                 output_size = vsize if nmodes is None else vsize * nmodes
         elif self.type in ['PUSH', 'PUSHPULL', 'TIME_HIST']:
             if time_hist is not None:
-                output_size = self.xp.array(time_hist.time_history).shape[1]
+                output_size = self.to_xp(time_hist.time_history).shape[1]
             elif nmodes is not None:
                 output_size = nmodes
         elif self.type in ['VALUE_SCHEDULE']:
@@ -240,7 +240,7 @@ class FuncGenerator(BaseProcessingObj):
         elif self.type == 'TIME_HIST':
             if time_hist is None:
                 raise ValueError('TIME_HIST keyword is mandatory for type TIME_HIST')
-            self.time_hist = self.xp.array(time_hist.time_history)
+            self.time_hist = self.to_xp(time_hist.time_history)
 
         elif self.type == 'VALUE_SCHEDULE':
             if scheduled_values is None or time_intervals is None or modes_per_group is None:
@@ -261,8 +261,8 @@ class FuncGenerator(BaseProcessingObj):
                 expanded_values.append(expanded_value)
 
             self.value_schedule = {
-                'values': self.xp.array(expanded_values, dtype=self.dtype),
-                'times': self.xp.array(time_intervals, dtype=self.dtype)
+                'values': self.to_xp(expanded_values, dtype=self.dtype),
+                'times': self.to_xp(time_intervals, dtype=self.dtype)
             }
 
         else:

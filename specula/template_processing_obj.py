@@ -53,7 +53,7 @@ class ProcessingObjName(BaseProcessingObj):
         # do the computation here
         data1 = self.local_inputs['in_data1']
         if data1 is None:                        
-            d1 = self.xp.zeros_like(data1)
+            d1 = self.xp.zeros_like(data1, dtype=self.dtype)
         else:
             d1 = self.interalParam @ data1
 
