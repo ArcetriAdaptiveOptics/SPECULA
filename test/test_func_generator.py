@@ -88,7 +88,8 @@ class TestFuncGenerator(unittest.TestCase):
         data = xp.arange(12).reshape((3,4))
         time_hist = TimeHistory(data, target_device_idx=target_device_idx)
 
-        f = FuncGenerator('TIME_HIST', target_device_idx=target_device_idx, time_hist=time_hist)
+        simulParams = SimulParams(time_step=0.001)
+        f = FuncGenerator(simulParams, 'TIME_HIST', target_device_idx=target_device_idx, time_hist=time_hist)
         f.check_ready(1)
         f.trigger()
         f.post_trigger()

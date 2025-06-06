@@ -40,10 +40,10 @@ class Vibrations:
             raise ValueError('psd and freq must be defined and time_hist will be computed.')
 
         # Store PSD and freq as lists of arrays (one per mode)
-        psd = np.asarray(psd)
+        psd = self.xp.array(psd)
         for i in range(self._nmodes):
             self._psd.append(psd[i, :])
-        freq = np.asarray(freq)
+        freq = self.xp.array(freq)
         if freq.ndim == 1:
             freq = np.tile(freq, (self._nmodes, 1)).T
         for i in range(self._nmodes):
@@ -51,13 +51,13 @@ class Vibrations:
 
     def get_time_hist(self):
         n = int(np.floor((self._niter + 1) / 2.))
-        time_hist = np.zeros((2 * n, self._nmodes))
+        time_hist = self.xp.zeros((2 * n, self._nmodes), dtype=self.dtype)
         for i in range(self._nmodes):
             # Interpolation of the PSD on n points
             freq_mode = self._freq[i]
             psd_mode = self._psd[i]
-            freq_bins = np.linspace(freq_mode[0], freq_mode[-1], n)
-            psd_interp = np.interp(freq_bins, freq_mode, psd_mode)
+            freq_bins = self.xp.linspace(freq_mode[0], freq_mode[-1], n, dtype=self.dtype)
+            psd_interp = self.xp.interp(freq_bins, freq_mode, psd_mode)
             # Generate the signal from the interpolated PSD
             temp, _ = psd_to_signal(psd_interp, self._samp_freq, self.xp, self.dtype,
                                     self.complex_dtype, seed=self._seed + i)
