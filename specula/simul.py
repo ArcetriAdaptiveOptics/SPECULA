@@ -247,7 +247,11 @@ class Simul():
                 my_params['info_getter'] = self.get_info
 
             my_params.update(pars2)
-            self.objs[key] = klass(**my_params)
+            try:
+                self.objs[key] = klass(**my_params)
+            except Exception:
+                print(f'Exception building', key)
+                raise
             if classname != 'SimulParams':
                 self.objs[key].stopMemUsageCount()
 
@@ -536,7 +540,7 @@ class Simul():
         '''Quick info string intended for web interfaces'''
         name= f'{self.param_files[0]}'
         curtime= f'{self.loop._t / self.loop._time_resolution:.3f}'
-        stoptime= f'{self.loop._run_time:.3f}'
+        stoptime= f'{self.loop._run_time / self.loop._time_resolution:.3f}'
 
         info = f'{curtime}/{stoptime}s'
         return name, info

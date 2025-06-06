@@ -26,6 +26,7 @@ class TestModalrec(unittest.TestCase):
 
         t = 1
         slopes.generation_time = t
+        rec.setup()
         rec.prepare_trigger(t)
         with self.assertRaises(ValueError):
             rec.trigger_code()
@@ -68,10 +69,12 @@ class TestModalrec(unittest.TestCase):
             projmat=projmat,
             intmat=intmat,
             polc=True,
+            in_commands_size=4,
             target_device_idx=target_device_idx
         )
         rec.inputs['in_slopes'].set(slopes)
         rec.inputs['in_commands'].set(commands)
+        rec.setup()
         rec.prepare_trigger(0)
         rec.trigger_code()
         out1 = rec.modes.value.copy()
@@ -81,10 +84,12 @@ class TestModalrec(unittest.TestCase):
             recmat=recmat,
             projmat=projmat,
             intmat=intmat,
+            in_commands_size=4,
             target_device_idx=target_device_idx
         )
         rec2.inputs['in_slopes'].set(slopes_ip)
         rec2.inputs['in_commands'].set(commands_ip)
+        rec2.setup()
         rec2.prepare_trigger(0)
         rec2.trigger_code()
         out2 = rec2.modes.value.copy()
