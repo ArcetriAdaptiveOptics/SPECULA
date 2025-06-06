@@ -137,7 +137,7 @@ psf:
   class:             'PSF'
   wavelengthInNm:    1650                 # [nm] Imaging wavelength
   nd:                8                    # padding coefficient for PSF computation
-  start_time:        0.005                # PSF integration start time
+  start_time:        0.0                  # PSF integration start time
   inputs:
       in_ef:  'prop.out_on_axis_source_ef'
   outputs:  ['out_psf', 'out_sr']
@@ -147,4 +147,4 @@ data_store:
   class:             'DataStore'
   store_dir:         './data'             # Data result directory: 'store_dir'/TN/
   inputs:    
-    input_list: ['res_sr-psf.out_sr']
+    input_list: ['res_sr-psf.out_sr','res_psf-psf.out_psf','comm-control.out_comm']
