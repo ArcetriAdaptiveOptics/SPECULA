@@ -314,6 +314,8 @@ class FieldAnalyser:
         # Add specific parameters
         if 'psf_sampling' in kwargs:
             base_name += f"_samp{kwargs['psf_sampling']}"
+        if 'psf_pixel_size_mas' in kwargs:
+            base_name += f"_pix{kwargs['psf_pixel_size_mas']:.1f}mas"
         if 'wavelength_nm' in kwargs:
             base_name += f"_wl{kwargs['wavelength_nm']:.0f}nm"
 
@@ -641,13 +643,54 @@ class FieldAnalyser:
             # temp_params_file.unlink()
             pass
 
-    def compute_field_psf(self, psf_sampling: int = 7, save_results: bool = True, force_recompute: bool = False) -> Dict:
-        """Calculate field PSF using SPECULA's replay system"""
+    def compute_field_psf(self,
+                          psf_sampling: Optional[float] = None, 
+                          psf_pixel_size_mas: Optional[float] = None,
+                          save_results: bool = True, 
+                          force_recompute: bool = False) -> Dict:
+        """
+        Calculate field PSF using SPECULA's replay system
+        
+        Args:
+            psf_sampling: PSF sampling factor (alternative to psf_pixel_size_mas)
+            psf_pixel_size_mas: Desired PSF pixel size in milliarcseconds (alternative to psf_sampling)
+            save_results: Whether to save results to disk
+            force_recompute: Force recomputation even if files exist
+            
+        Note:
+            Either psf_sampling or psf_pixel_size_mas must be specified, but not both.
+            The actual pixel size may differ slightly from the requested value due to 
+            the constraint that main.pixel_pupil * psf_sampling must be an integer.
+        """
+
+        # Validate input parameters
+        if psf_sampling is not None and psf_pixel_size_mas is not None:
+            raise ValueError("Cannot specify both psf_sampling and psf_pixel_size_mas. Choose one.")
+
+        if psf_sampling is None and psf_pixel_size_mas is None:
+            psf_sampling = 7.0  # Default value
+
+        # Calculate sampling parameters
+        sampling_info = self._calculate_psf_sampling(psf_sampling, psf_pixel_size_mas)
+        actual_psf_sampling = sampling_info['psf_sampling']
+        actual_pixel_size_mas = sampling_info['pixel_size_mas']
+
+        if self.verbose:
+            if psf_pixel_size_mas is not None:
+                print(f"Requested PSF pixel size: {psf_pixel_size_mas:.2f} mas")
+                print(f"Actual PSF pixel size: {actual_pixel_size_mas:.2f} mas (sampling: {actual_psf_sampling:.3f})")
+            else:
+                print(f"PSF sampling: {actual_psf_sampling:.3f}, pixel size: {actual_pixel_size_mas:.2f} mas")
 
         # Check if all individual PSF files exist
         all_exist = True
         for i in range(len(self.sources)):
-            output_file = self.psf_output_dir / self._get_analysis_filename("psf", source_idx=i, psf_sampling=psf_sampling, wavelength_nm=self.wavelength_nm)
+            output_file = self.psf_output_dir / self._get_analysis_filename(
+                "psf", source_idx=i, 
+                psf_sampling=actual_psf_sampling,
+                psf_pixel_size_mas=actual_pixel_size_mas,
+                wavelength_nm=self.wavelength_nm
+            )
             if not output_file.exists():
                 all_exist = False
                 break
@@ -655,7 +698,7 @@ class FieldAnalyser:
         if not force_recompute and all_exist:
             if self.verbose:
                 print(f"Loading existing PSF results from: {self.psf_output_dir}")
-            return self._load_psf_results(self.psf_output_dir, psf_sampling)
+            return self._load_psf_results(self.psf_output_dir, actual_psf_sampling, actual_pixel_size_mas)
 
         # Verify necessary data
         data_status = self.check_required_data()
@@ -666,13 +709,15 @@ class FieldAnalyser:
             print(f"Computing field PSF for {len(self.sources)} sources...")
 
         # Setup replay parameters and run simulation
-        replay_params = self._build_replay_params_psf(psf_sampling)
+        replay_params = self._build_replay_params_psf(actual_psf_sampling)
         simul = self._run_simulation_with_params(replay_params, "temp_psf_replay_params.yml", self.psf_output_dir)
 
         # Extract and save results
-        results = self._extract_psf_results_from_objects(simul, psf_sampling)
+        results = self._extract_psf_results_from_objects(simul, actual_psf_sampling)
+        results['actual_pixel_size_mas'] = actual_pixel_size_mas
+
         if save_results:
-            self._save_psf_results(results, psf_sampling)
+            self._save_psf_results(results, actual_psf_sampling, actual_pixel_size_mas)
 
         return results
 
@@ -882,13 +927,18 @@ class FieldAnalyser:
 
     # Methods to save and load results (using FITS)
 
-    def _save_psf_results(self, results: Dict, psf_sampling: int):
+    def _save_psf_results(self, results: Dict, psf_sampling: float, pixel_size_mas: float):
         """Save PSF results as separate files for each source"""
         # Create directory if it doesn't exist
         self.psf_output_dir.mkdir(parents=True, exist_ok=True)
 
         for i, (psf_data, sr_value) in enumerate(zip(results['psf_list'], results['sr_list'])):
-            filename = self.psf_output_dir / self._get_analysis_filename("psf", source_idx=i, psf_sampling=psf_sampling, wavelength_nm=self.wavelength_nm)
+            filename = self.psf_output_dir / self._get_analysis_filename(
+                "psf", source_idx=i, 
+                psf_sampling=psf_sampling,
+                psf_pixel_size_mas=pixel_size_mas,
+                wavelength_nm=self.wavelength_nm
+            )
 
             # Create HDU list for this source
             primary_hdu = fits.PrimaryHDU(psf_data)
@@ -899,6 +949,7 @@ class FieldAnalyser:
             primary_hdu.header['WAVELNG'] = self.wavelength_nm
             primary_hdu.header['TSTART'] = self.start_time
             primary_hdu.header['SAMPLING'] = psf_sampling
+            primary_hdu.header['PIXSIZE'] = pixel_size_mas
             primary_hdu.header['STREHL'] = sr_value
 
             # Add coordinate info
@@ -1007,11 +1058,17 @@ class FieldAnalyser:
             'distances': self.distances,
             'wavelength_nm': self.wavelength_nm,
             'psf_sampling': psf_sampling,
+            'actual_pixel_size_mas': pixel_size_mas,
             'pixel_scale': None
         }
 
         for i in range(len(self.sources)):
-            filename = output_dir / self._get_analysis_filename("psf", source_idx=i, psf_sampling=psf_sampling, wavelength_nm=self.wavelength_nm)
+            filename = output_dir / self._get_analysis_filename(
+                "psf", source_idx=i, 
+                psf_sampling=psf_sampling,
+                psf_pixel_size_mas=pixel_size_mas,
+                wavelength_nm=self.wavelength_nm
+            )
 
             if filename.exists():
                 hdul = fits.open(filename)
@@ -1078,6 +1135,80 @@ class FieldAnalyser:
                 raise FileNotFoundError(f"Phase cube file not found: {filename}")
 
         return results
+
+    def _calculate_psf_sampling(self, psf_sampling: Optional[float] = None, 
+                            psf_pixel_size_mas: Optional[float] = None) -> Dict:
+        """
+        Calculate PSF sampling parameters ensuring constraints are met
+
+        Returns:
+            Dict with 'psf_sampling', 'pixel_size_mas', and validation info
+        """
+        # Get pupil parameters from loaded simulation params
+        if self.params is None:
+            raise RuntimeError("Simulation parameters not loaded")
+
+        pixel_pupil = self.params['main']['pixel_pupil']
+        pixel_pitch = self.params['main']['pixel_pitch']
+        dim_pup_in_m = pixel_pupil * pixel_pitch
+
+        # Calculate theoretical minimum pixel size (Nyquist limit)
+        min_pixel_size_mas = (self.wavelength_nm * 1e-9 / dim_pup_in_m * 3600 * 180 / np.pi) * 1000
+
+        if psf_pixel_size_mas is not None:
+            # User specified pixel size - calculate required sampling
+            if psf_pixel_size_mas > min_pixel_size_mas:
+                raise ValueError(
+                    f"Requested PSF pixel size ({psf_pixel_size_mas:.2f} mas) is larger than "
+                    f"the theoretical minimum ({min_pixel_size_mas:.2f} mas) for this wavelength and pupil size."
+                )
+
+            # Calculate required sampling
+            required_sampling = (self.wavelength_nm * 1e-9 / dim_pup_in_m * 3600 * 180 / np.pi) * 1000 / psf_pixel_size_mas
+
+            # Find nearest valid sampling (pixel_pupil * sampling must be integer)
+            # Try different integer values for the final PSF size
+            best_sampling = required_sampling
+            best_error = float('inf')
+
+            for psf_size in range(int(pixel_pupil * required_sampling) - 5, 
+                                int(pixel_pupil * required_sampling) + 6):
+                if psf_size > 0:
+                    candidate_sampling = psf_size / pixel_pupil
+                    candidate_pixel_size = min_pixel_size_mas / candidate_sampling
+                    error = abs(candidate_pixel_size - psf_pixel_size_mas)
+
+                    if error < best_error:
+                        best_error = error
+                        best_sampling = candidate_sampling
+
+            actual_psf_sampling = best_sampling
+            actual_pixel_size_mas = min_pixel_size_mas / actual_psf_sampling
+
+            # Warning if approximation is significant
+            error_percent = abs(actual_pixel_size_mas - psf_pixel_size_mas) / psf_pixel_size_mas * 100
+            if error_percent > 1.0 and self.verbose:
+                print(f"Warning: Actual pixel size ({actual_pixel_size_mas:.2f} mas) differs from "
+                    f"requested ({psf_pixel_size_mas:.2f} mas) by {error_percent:.1f}% due to "
+                    f"integer sampling constraint.")
+   
+        else:
+            # User specified sampling factor
+            actual_psf_sampling = psf_sampling
+            actual_pixel_size_mas = min_pixel_size_mas / actual_psf_sampling
+            
+            # Check that pixel_pupil * sampling gives reasonable integer
+            psf_size = pixel_pupil * actual_psf_sampling
+            if abs(psf_size - round(psf_size)) > 0.01 and self.verbose:
+                print(f"Warning: PSF sampling {actual_psf_sampling:.3f} with pixel_pupil {pixel_pupil} "
+                    f"gives non-integer PSF size {psf_size:.3f}")
+
+        return {
+            'psf_sampling': actual_psf_sampling,
+            'pixel_size_mas': actual_pixel_size_mas,
+            'min_pixel_size_mas': min_pixel_size_mas,
+            'pupil_diameter_m': dim_pup_in_m
+        }
 
     def _extract_modal_params_from_dm(self) -> Dict:
         """
@@ -1206,7 +1337,7 @@ class FieldAnalyser:
         Extract parameters from an IFunc configuration dictionary
         """
         ifunc_params = {}
-        
+
         # Map IFunc config parameters to ModalAnalysis IFunc parameters
         ifunc_param_mapping = {
             'type_str': 'type_str',
@@ -1219,14 +1350,14 @@ class FieldAnalyser:
             'idx_modes': 'idx_modes',
             'tag': 'tag'  # For saved IFunc objects
         }
-        
+
         for ifunc_param, modal_param in ifunc_param_mapping.items():
             if ifunc_param in ifunc_config:
                 ifunc_params[modal_param] = ifunc_config[ifunc_param]
-        
+
         if self.verbose:
             print(f"Extracted IFunc config parameters: {ifunc_params}")
-        
+
         return ifunc_params
 
     def _extract_ifunc_params(self, ifunc_obj) -> dict:
