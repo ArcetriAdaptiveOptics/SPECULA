@@ -160,7 +160,7 @@ class TestShSimulation(unittest.TestCase):
         field_psf /= field_psf.sum()  # Normalize to match original PSF
         original_psf /= original_psf.sum()  # Normalize to match original PSF
 
-        display = True
+        display = False
         if display:
             import matplotlib.pyplot as plt
             from matplotlib.colors import LogNorm
@@ -214,12 +214,12 @@ class TestShSimulation(unittest.TestCase):
             plt.tight_layout()
             plt.show()
 
-        # compare maximum values
-        max_field_psf = np.max(field_psf)
-        max_original_psf = np.max(original_psf)
-        self.assertAlmostEqual(max_field_psf, max_original_psf,
-                               delta=1e-3,
-                               msg="Maximum PSF values should be close between simulation and FieldAnalyser")
+        #Compare PSFs
+        np.testing.assert_allclose(
+            field_psf, original_psf,
+            rtol=1e-3, atol=1e-3,
+            err_msg="PSF values do not match between simulation and FieldAnalyser"
+        )
 
         # Check that pixel scale is reasonable
         pixel_scale = psf_results['pixel_scale']
