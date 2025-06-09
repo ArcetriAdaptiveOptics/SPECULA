@@ -15,13 +15,13 @@ class IirFilterData(BaseDataObj):
                  target_device_idx: int=None, 
                  precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-        self.ordnum = self.xp.array(ordnum, dtype=int)
-        self.ordden = self.xp.array(ordden, dtype=int) 
+        self.ordnum = self.to_xp(ordnum, dtype=int)
+        self.ordden = self.to_xp(ordden, dtype=int) 
         self.zeros = None
         self.poles = None
         self.gain = None
-        self.set_num(self.xp.array(num, dtype=self.dtype))
-        self.set_den(self.xp.array(den, dtype=self.dtype))
+        self.set_num(self.to_xp(num, dtype=self.dtype))
+        self.set_den(self.to_xp(den, dtype=self.dtype))
 
     @property
     def nfilter(self):
@@ -62,7 +62,7 @@ class IirFilterData(BaseDataObj):
             gain[i] = mynum[i, - 1]
         self.gain = gain
         self.zeros = None 
-        self.num = self.xp.array(mynum, dtype=self.dtype)
+        self.num = self.to_xp(mynum, dtype=self.dtype)
 
     def set_den(self, den):
         sden1 = den.shape[1]
@@ -72,11 +72,11 @@ class IirFilterData(BaseDataObj):
                 if np.sum(self.xp.abs(myden[i, int(self.ordden[i]):])) == 0:
                     myden[i, :] = self.xp.roll(myden[i, :], sden1 - int(self.ordden[i]))
 
-        self.den = self.xp.array(myden, dtype=self.dtype)
+        self.den = self.to_xp(myden, dtype=self.dtype)
         self.poles = None
 
     def set_zeros(self, zeros):
-        self.zeros = self.xp.array(zeros, dtype=self.dtype)
+        self.zeros = self.to_xp(zeros, dtype=self.dtype)
         num = self.xp.zeros((self.nfilter, self.zeros.shape[1] + 1), dtype=self.dtype)
         snum1 = num.shape[1]
         for i in range(self.nfilter):
@@ -85,7 +85,7 @@ class IirFilterData(BaseDataObj):
         self.num = num
 
     def set_poles(self, poles):
-        self.poles = self.xp.array(poles, dtype=self.dtype)
+        self.poles = self.to_xp(poles, dtype=self.dtype)
         den = self.xp.zeros((self.nfilter, self.poles.shape[1] + 1), dtype=self.dtype)
         sden1 = den.shape[1]
         for i in range(self.nfilter):
@@ -118,7 +118,7 @@ class IirFilterData(BaseDataObj):
                         self.num[i, - 1] = gain[i] / self.gain[i]
                 else:
                     gain[i] = self._gain[i]
-        self.gain = self.xp.array(gain, dtype=self.dtype)
+        self.gain = self.to_xp(gain, dtype=self.dtype)
         if verbose:
             print('new gain:', self._gain)
 

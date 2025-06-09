@@ -18,7 +18,7 @@ class ElectricField(BaseDataObj):
         super().__init__(precision=precision, target_device_idx=target_device_idx)
         dimx = int(dimx)
         dimy = int(dimy)
-        self.pixel_pitch = pixel_pitch        
+        self.pixel_pitch = pixel_pitch
         self.S0 = S0
         self.A = self.xp.ones((dimx, dimy), dtype=self.dtype)
         self.phaseInNm = self.xp.zeros((dimx, dimy), dtype=self.dtype)
@@ -29,8 +29,8 @@ class ElectricField(BaseDataObj):
         
         Arrays are not reallocated
         '''
-        self.A[:]= self.xp.array(v[0], dtype=self.dtype)
-        self.phaseInNm[:] = self.xp.array(v[1], dtype=self.dtype)
+        self.A[:]= self.to_xp(v[0], dtype=self.dtype)
+        self.phaseInNm[:] = self.to_xp(v[1], dtype=self.dtype)
 
     def reset(self):
         '''

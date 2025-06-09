@@ -14,7 +14,7 @@ class Recmat(BaseDataObj):
                  target_device_idx: int=None,
                  precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-        self.recmat = self.xp.array(recmat)
+        self.recmat = self.to_xp(recmat)
         self.norm_factor = norm_factor
         self.proj_list = []
         self.modes2recLayer = None
@@ -22,7 +22,7 @@ class Recmat(BaseDataObj):
 
     def set_modes2recLayer(self, modes2recLayer):
         if modes2recLayer is not None:
-            modes2recLayer = self.xp.array(modes2recLayer)
+            modes2recLayer = self.to_xp(modes2recLayer)
             n = modes2recLayer.shape
             for i in range(n[0]):
                 idx = self.xp.where(modes2recLayer[i, :] > 0)[0]

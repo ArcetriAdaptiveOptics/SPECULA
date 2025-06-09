@@ -16,7 +16,7 @@ class Intmat(BaseDataObj):
                  target_device_idx: int=None,
                  precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-        self.intmat = self.xp.array(intmat)
+        self.intmat = self.to_xp(intmat)
         self.slope_mm = slope_mm
         self.slope_rms = slope_rms
         self.pupdata_tag = pupdata_tag

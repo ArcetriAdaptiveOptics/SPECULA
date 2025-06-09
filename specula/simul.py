@@ -2,6 +2,8 @@
 import inspect
 import typing
 from copy import deepcopy
+from pathlib import Path
+from collections import Counter
 from specula.base_processing_obj import BaseProcessingObj
 
 from specula.loop_control import LoopControl
@@ -13,21 +15,18 @@ from specula.connections import InputValue
 
 import yaml
 
-doBlockDiagram = False
-
-try:
-    from orthogram import Color, DiagramDef, write_png, Side, FontWeight, TextOrientation
-    from collections import Counter
-    doBlockDiagram = True
-except ImportError as e:
-    print('Optional package orthogram not installed, block diagram of the simulation will not be produced.')
-
 
 class Simul():
     '''
     Simulation organizer
     '''
-    def __init__(self, *param_files, overrides=None):
+    def __init__(self,
+                 *param_files,
+                 overrides=None,
+                 diagram=False,
+                 diagram_title=None,
+                 diagram_filename=None                 
+                 ):
         if len(param_files) < 1:
             raise ValueError('At least one Yaml parameter file must be present')
         self.param_files = param_files
@@ -40,6 +39,9 @@ class Simul():
             self.overrides = []
         else:
             self.overrides = overrides
+        self.diagram = diagram
+        self.diagram_title = diagram_title
+        self.diagram_filename = diagram_filename
 
     def output_owner(self, output_name):
         if '-' in output_name:
@@ -245,7 +247,11 @@ class Simul():
                 my_params['info_getter'] = self.get_info
 
             my_params.update(pars2)
-            self.objs[key] = klass(**my_params)
+            try:
+                self.objs[key] = klass(**my_params)
+            except Exception:
+                print(f'Exception building', key)
+                raise
             if classname != 'SimulParams':
                 self.objs[key].stopMemUsageCount()
 
@@ -273,18 +279,17 @@ class Simul():
                 if isinstance(output_name, list) and input_name=='input_list':
                     inputs = [x.split('-')[0] for x in output_name]
                     outputs = [self.output_ref(x.split('-')[1]) for x in output_name]
-                    for ii, oo in zip(inputs, outputs):
+                    for ii, oo, nn in zip(inputs, outputs, output_name):
                         self.objs[dest_object].inputs[ii] = InputValue(type = type(oo) )
                         self.objs[dest_object].inputs[ii].set(oo)
 
-                        for oo in output_name:
-                            a_connection = {}
-                            a_connection['start'] = oo.split('.')[0].split('-')[-1]
-                            a_connection['end'] = dest_object
-                            a_connection['start_label'] = ii
-                            a_connection['middle_label'] = self.objs[dest_object].inputs[ii]
-                            a_connection['end_label'] = oo
-                            self.connections.append(a_connection)
+                        a_connection = {}
+                        a_connection['start'] = nn.split('.')[0].split('-')[-1]
+                        a_connection['end'] = dest_object
+                        a_connection['start_label'] = ii
+                        a_connection['middle_label'] = self.objs[dest_object].inputs[ii]
+                        a_connection['end_label'] = nn
+                        self.connections.append(a_connection)
 
                     continue
 
@@ -460,7 +465,11 @@ class Simul():
         return rows
         
     def buildDiagram(self):
-        d = DiagramDef(label="First SPECULA diagram", text_fill=Color(0, 0, 1), scale=2.0, collapse_connections=True)
+        from orthogram import Color, DiagramDef, write_png, Side, FontWeight, TextOrientation
+
+        print('Building diagram...')
+
+        d = DiagramDef(label=self.diagram_title, text_fill=Color(0, 0, 1), scale=2.0, collapse_connections=True)
         rows = self.arrangeInGrid(self.trigger_order, self.trigger_order_idx)
         # a row is a list of strings, which are labels for the cells
         for r in rows:
@@ -469,9 +478,8 @@ class Simul():
             aconn = d.add_connection(c['start'], c['end'], buffer_fill=Color(1.0,1.0,1.0), buffer_width=1, 
                              exits=[Side.RIGHT], entrances=[Side.LEFT, Side.BOTTOM, Side.TOP])
             aconn.set_start_label(c['middle_label'],font_weight=FontWeight.BOLD, text_fill=Color(0, 0.5, 0), text_orientation=TextOrientation.HORIZONTAL)
-#            aconn.set_middle_label(c['middle_label'])
-#            aconn.set_end_label(c['end_label'])
-        write_png(d, self.param_files[0].split('.')[0] + ".png")
+        write_png(d, self.diagram_filename)
+        print('Diagram saved.')
 
     def run(self):
         params = {}
@@ -501,10 +509,12 @@ class Simul():
         print(f'{self.trigger_order=}')
         print(f'{self.trigger_order_idx=}')
 
-        print('Building diagram...')
-        if doBlockDiagram:
+        if self.diagram or self.diagram_filename or self.diagram_title:
+            if self.diagram_filename is None:
+                self.diagram_filename = str(Path(self.param_files[0]).with_suffix('.png'))
+            if self.diagram_title is None:
+                self.diagram_title = str(Path(self.param_files[0]).with_suffix(''))
             self.buildDiagram()
-        print('Diagram done')
 
         # Build loop
         for name, idx in zip(self.trigger_order, self.trigger_order_idx):
@@ -530,7 +540,7 @@ class Simul():
         '''Quick info string intended for web interfaces'''
         name= f'{self.param_files[0]}'
         curtime= f'{self.loop._t / self.loop._time_resolution:.3f}'
-        stoptime= f'{self.loop._run_time:.3f}'
+        stoptime= f'{self.loop._run_time / self.loop._time_resolution:.3f}'
 
         info = f'{curtime}/{stoptime}s'
         return name, info
