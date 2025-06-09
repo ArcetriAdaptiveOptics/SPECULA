@@ -1049,7 +1049,7 @@ class FieldAnalyser:
             if self.verbose:
                 print(f"Phase cube for source {i} saved to: {filename}")
 
-    def _load_psf_results(self, output_dir: Path, psf_sampling: int) -> Dict:
+    def _load_psf_results(self, output_dir: Path, psf_sampling: int, pixel_size_mas: float) -> Dict:
         """Load PSF results from separate files"""
         results = {
             'psf_list': [],
