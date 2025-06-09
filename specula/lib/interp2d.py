@@ -1,12 +1,12 @@
 import numpy as np
-from specula import cp
+from specula import cp, to_xp
 
 class Interp2D():
     
     if cp:
         interp2_kernel = r'''
             extern "C" __global__
-            void interp2_kernel_TYPE(TYPE *g_in, TYPE *g_out, int out_dx, int out_dy, int in_dx, TYPE *xx, TYPE *yy) {
+            void interp2_kernel_TYPE(TYPE *g_in, TYPE *g_out, int out_dx, int out_dy, int in_dx, int in_dy, TYPE *xx, TYPE *yy) {
 
                 int y = blockIdx.y * blockDim.y + threadIdx.y;
                 int x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -27,10 +27,16 @@ class Interp2D():
                     int idx_c = yin2*in_dx + xin;
                     int idx_d = yin2*in_dx + xin2;
 
-                    TYPE value = g_in[idx_a]*(1-xdist)*(1-ydist) +
+                    TYPE value;
+                    if (yin2 < in_dy) {
+                        value = g_in[idx_a]*(1-xdist)*(1-ydist) +
                                 g_in[idx_b]*xdist*(1-ydist) +
                                 g_in[idx_c]*ydist*(1-xdist) +
                                 g_in[idx_d]*xdist*ydist;
+                    } else {
+                        value = g_in[idx_a]*(1-xdist)*(1-ydist) +
+                                g_in[idx_b]*xdist*(1-ydist);
+                    }
 
                     g_out[y*out_dx + x] = value;
                     }
@@ -69,8 +75,8 @@ class Interp2D():
             xc = input_shape[1] / 2 - 0.5
             cos_ = np.cos(rotInDeg * 3.1415 / 180.0)
             sin_ = np.sin(rotInDeg * 3.1415 / 180.0)
-            xxr = (xx-xc)*cos_ - (yy-yc)*sin_ + xc
-            yyr = (xx-xc)*sin_ + (yy-yc)*cos_ + yc
+            xxr = (xx-xc)*cos_ - (yy-yc)*sin_
+            yyr = (xx-xc)*sin_ + (yy-yc)*cos_
             xx = xxr + xc
             yy = yyr + yc
             
@@ -80,11 +86,11 @@ class Interp2D():
 
         yy[np.where(yy < 0)] = 0
         xx[np.where(xx < 0)] = 0
-        yy[np.where(yy > input_shape[0]-1)] = input_shape[0]-1
-        xx[np.where(xx > input_shape[1]-1)] = input_shape[1]-1
+        yy[np.where(yy > input_shape[0] - 1)] = input_shape[0] - 1
+        xx[np.where(xx > input_shape[1] - 1)] = input_shape[1] - 1
 
-        self.yy = self.xp.array(yy, dtype=dtype).ravel()
-        self.xx = self.xp.array(xx, dtype=dtype).ravel()
+        self.yy = to_xp(self.xp, yy, dtype=dtype).ravel()
+        self.xx = to_xp(self.xp, xx, dtype=dtype).ravel()
 
     def interpolate(self, value, out=None):
         if value.shape != self.input_shape:
@@ -101,9 +107,9 @@ class Interp2D():
             grid = (numBlocks2d, numBlocks2d)
             
             if self.dtype == cp.float32:
-                self.interp2_kernel_float(grid, block, (value, out, self.output_shape[1],  self.output_shape[0],  self.input_shape[1], self.xx, self.yy))
+                self.interp2_kernel_float(grid, block, (value, out, self.output_shape[1],  self.output_shape[0],  self.input_shape[1], self.input_shape[0], self.xx, self.yy))
             elif self.dtype == cp.float64:
-                self.interp2_kernel_double(grid, block, (value, out, self.output_shape[1],  self.output_shape[0],  self.input_shape[1], self.xx, self.yy))
+                self.interp2_kernel_double(grid, block, (value, out, self.output_shape[1],  self.output_shape[0],  self.input_shape[1], self.input_shape[0], self.xx, self.yy))
             else:
                 raise ValueError('Unsupported dtype {self.dtype}')
             return out

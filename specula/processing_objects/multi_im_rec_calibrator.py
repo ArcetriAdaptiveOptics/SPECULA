@@ -102,8 +102,8 @@ class MultiImRecCalibrator(BaseProcessingObj):
                 fullrec = full_intmat.generate_rec(self._nmodes)
                 fullrec.save(os.path.join(self._data_dir, full_rec_path))
 
-    def setup(self, loop_dt, loop_niters):
-        super().setup(loop_dt, loop_niters)
+    def setup(self):
+        super().setup()
 
         for i in range(len(self.inputs['in_slopes_list'].get(self.target_device_idx))):
             im_path = self.im_path(i)

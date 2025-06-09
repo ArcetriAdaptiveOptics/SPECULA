@@ -1,0 +1,8 @@
+numpy
+sphinx>=1.7.5
+nbsphinx
+numpydoc
+sphinx_rtd_theme
+pydata_sphinx_theme
+m2r
+lxml_html_clean

@@ -45,6 +45,7 @@ class PSF(BaseProcessingObj):
         self.intsr = [0.0] * len(self.wavelengthInNm_list)
         self.in_ef = None
         self.count = 0
+        self.first = True
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
         self.outputs['out_sr'] = self.out_sr
@@ -94,8 +95,8 @@ class PSF(BaseProcessingObj):
 
         return psf
 
-    def setup(self, loop_dt, loop_niters):
-        super().setup(loop_dt, loop_niters)
+    def setup(self):
+        super().setup()
 
         self.in_ef = self.inputs['in_ef'].get(target_device_idx=self.target_device_idx)
         self.out_shape = [int(np.around(dim * self.nd/2)*2) for dim in self.in_ef.size]

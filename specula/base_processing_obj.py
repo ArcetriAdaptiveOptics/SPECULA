@@ -23,8 +23,6 @@ class BaseProcessingObj(BaseTimeObj):
         self.current_time_seconds = 0
 
         self._verbose = 0
-        self._loop_dt = None
-        self._loop_niters = None
         
         # Stream/input management
         self.stream  = None
@@ -163,7 +161,7 @@ class BaseProcessingObj(BaseTimeObj):
     def verbose(self, value):
         self._verbose = value
 
-    def setup(self, loop_dt, loop_niters):
+    def setup(self):
         """
         Override this method to perform any setup
         just before the simulation is started.
@@ -171,12 +169,7 @@ class BaseProcessingObj(BaseTimeObj):
         The base class implementation also checks that
         all non-optional inputs have been set.
         
-        Parameters:
-        loop_dt (int): Simulation time step (in units of self._time_resolution)
-        loop_niters (int): Total number of loop iterations that will be performed
         """
-        self._loop_dt = loop_dt
-        self._loop_niters = loop_niters
         if self.target_device_idx >= 0:
             self._target_device.use()
         for name, input in self.inputs.items():
@@ -194,14 +187,10 @@ class BaseProcessingObj(BaseTimeObj):
         with fits.open(filename, mode='update') as hdul:
             hdr = hdul[0].header
             hdr['VERBOSE'] = self._verbose
-            hdr['LOOP_DT'] = self._loop_dt
-            hdr['LOOP_NITERS'] = self._loop_niters
             hdul.flush()
 
     def read(self, filename):        
         with fits.open(filename) as hdul:
             hdr = hdul[0].header
             self._verbose = hdr.get('VERBOSE', 0)
-            self._loop_dt = hdr.get('LOOP_DT', int(0))
-            self._loop_niters = hdr.get('LOOP_NITERS', 0)
 

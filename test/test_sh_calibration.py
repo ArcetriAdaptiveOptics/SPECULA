@@ -139,6 +139,10 @@ class TestShCalibration(unittest.TestCase):
         It should be run once, and then the generated files should be renamed
         and committed to the repository.
         """
+
+        # Change to test directory
+        os.chdir(os.path.dirname(__file__))
+
         # Run the simulations
         print("Running subap calibration...")
         yml_files = ['params_scao_sh_test.yml', 'params_scao_sh_test_subap.yml']

@@ -1,5 +1,6 @@
 import numpy as np
 
+from specula import cpuArray
 from specula.base_data_obj import BaseDataObj
 
 from astropy.io import fits
@@ -14,13 +15,13 @@ class IirFilterData(BaseDataObj):
                  target_device_idx: int=None, 
                  precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-        self.ordnum = self.xp.array(ordnum, dtype=int)
-        self.ordden = self.xp.array(ordden, dtype=int) 
+        self.ordnum = self.to_xp(ordnum, dtype=int)
+        self.ordden = self.to_xp(ordden, dtype=int) 
         self.zeros = None
         self.poles = None
         self.gain = None
-        self.set_num(num)
-        self.set_den(den)
+        self.set_num(self.to_xp(num, dtype=self.dtype))
+        self.set_den(self.to_xp(den, dtype=self.dtype))
 
     @property
     def nfilter(self):
@@ -61,7 +62,7 @@ class IirFilterData(BaseDataObj):
             gain[i] = mynum[i, - 1]
         self.gain = gain
         self.zeros = None 
-        self.num = self.xp.array(mynum, dtype=self.dtype)
+        self.num = self.to_xp(mynum, dtype=self.dtype)
 
     def set_den(self, den):
         sden1 = den.shape[1]
@@ -71,11 +72,11 @@ class IirFilterData(BaseDataObj):
                 if np.sum(self.xp.abs(myden[i, int(self.ordden[i]):])) == 0:
                     myden[i, :] = self.xp.roll(myden[i, :], sden1 - int(self.ordden[i]))
 
-        self.den = self.xp.array(myden, dtype=self.dtype)
+        self.den = self.to_xp(myden, dtype=self.dtype)
         self.poles = None
 
     def set_zeros(self, zeros):
-        self.zeros = self.xp.array(zeros, dtype=self.dtype)
+        self.zeros = self.to_xp(zeros, dtype=self.dtype)
         num = self.xp.zeros((self.nfilter, self.zeros.shape[1] + 1), dtype=self.dtype)
         snum1 = num.shape[1]
         for i in range(self.nfilter):
@@ -84,7 +85,7 @@ class IirFilterData(BaseDataObj):
         self.num = num
 
     def set_poles(self, poles):
-        self.poles = self.xp.array(poles, dtype=self.dtype)
+        self.poles = self.to_xp(poles, dtype=self.dtype)
         den = self.xp.zeros((self.nfilter, self.poles.shape[1] + 1), dtype=self.dtype)
         sden1 = den.shape[1]
         for i in range(self.nfilter):
@@ -117,7 +118,7 @@ class IirFilterData(BaseDataObj):
                         self.num[i, - 1] = gain[i] / self.gain[i]
                 else:
                     gain[i] = self._gain[i]
-        self.gain = self.xp.array(gain, dtype=self.dtype)
+        self.gain = self.to_xp(gain, dtype=self.dtype)
         if verbose:
             print('new gain:', self._gain)
 
@@ -202,22 +203,23 @@ class IirFilterData(BaseDataObj):
 
         hdu = fits.PrimaryHDU(header=hdr)
         hdul = fits.HDUList([hdu])
-        hdul.append(fits.ImageHDU(data=self.ordnum, name='ORDNUM'))
-        hdul.append(fits.ImageHDU(data=self.ordden, name='ORDDEN'))
-        hdul.append(fits.ImageHDU(data=self.num, name='NUM'))
-        hdul.append(fits.ImageHDU(data=self.den, name='DEN'))
+        hdul.append(fits.ImageHDU(data=cpuArray(self.ordnum), name='ORDNUM'))
+        hdul.append(fits.ImageHDU(data=cpuArray(self.ordden), name='ORDDEN'))
+        hdul.append(fits.ImageHDU(data=cpuArray(self.num), name='NUM'))
+        hdul.append(fits.ImageHDU(data=cpuArray(self.den), name='DEN'))
         hdul.writeto(filename, overwrite=True)
 
-    def restore(self, filename, target_device_idx=None):
+    @staticmethod
+    def restore(filename, target_device_idx=None):
         with fits.open(filename) as hdul:
             hdr = hdul[0].header
             version = hdr['VERSION']
             if version != 1:
                 raise ValueError(f"Error: unknown version {version} in file {filename}")
-            ordnum = hdul['ORDNUM'].data
-            ordden = hdul['ORDDEN'].data
-            num = hdul['NUM'].data
-            den = hdul['DEN'].data
+            ordnum = hdul[1].data
+            ordden = hdul[2].data
+            num = hdul[3].data
+            den = hdul[4].data
             return IirFilterData(ordnum, ordden, num, den, target_device_idx=target_device_idx)
 
     def get_fits_header(self):

@@ -29,7 +29,7 @@ class TestImRecCalibrator(unittest.TestCase):
         calibrator.inputs['in_commands'].set(cmd)
         
         with self.assertRaises(FileExistsError):
-            calibrator.setup(1, 1)
+            calibrator.setup()
         
     def test_existing_rec_file_is_detected(self):
 
@@ -45,7 +45,7 @@ class TestImRecCalibrator(unittest.TestCase):
         calibrator.inputs['in_commands'].set(cmd)
         
         with self.assertRaises(FileExistsError):
-            calibrator.setup(1, 1)
+            calibrator.setup()
 
     def test_existing_im_file_is_not_detected_if_not_requested(self):
 
@@ -65,7 +65,7 @@ class TestImRecCalibrator(unittest.TestCase):
         calibrator.inputs['in_commands'].set(cmd)
 
         # Does not raise        
-        calibrator.setup(1, 1)
+        calibrator.setup()
     
     @cpu_and_gpu
     def test_triggered_by_slopes_only(self, target_device_idx, xp):
@@ -81,7 +81,7 @@ class TestImRecCalibrator(unittest.TestCase):
         calibrator = ImRecCalibrator(nmodes=10, data_dir=data_dir, rec_tag='test_rec')
         calibrator.inputs['in_slopes'].set(slopes)
         calibrator.inputs['in_commands'].set(cmd)
-        calibrator.setup(1, 1)
+        calibrator.setup()
         
         slopes.generation_time = 1
         cmd.generation_time = 1

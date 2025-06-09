@@ -55,7 +55,6 @@ class BaseDataObj(BaseTimeObj):
             self._generation_time = int(hdr.get('GEN_TIME', 0))
             self._time_resolution = int(hdr.get('TIME_RES', 0))
 
-
     def transferDataTo(self, destobj):
         excluded = ['_tag']
         #if target_device_idx==self.target_device_idx:

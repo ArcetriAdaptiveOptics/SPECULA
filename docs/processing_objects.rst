@@ -18,10 +18,10 @@ A processing object life is divided into several discrete steps
 * Input/output connection
 * Setup
 * Loop (repeated N times):
-
-  * prepare_trigger
-  * trigger_code
-  * post_trigger
+  * check_ready()
+  * prepare_trigger()
+  * trigger_code()
+  * post_trigger()
 * Finalize
  
 
@@ -114,23 +114,20 @@ The *setup()* method is called after all connections have been completed but bef
 and it is intended for later initialization that needs information from the connected inputs, or from some
 other global simulation parameter. The method signature is::
 
-    def setup(self, loop_dt, loop_niters):
-
-where *loop_dt* is the simulation time step (in units of *self._time_resolution*), and *loop_niters* is the foreseen
-total number of simulation iterations.
+    def setup(self):
 
 The default implementation checks that all non-optional inputs have been set, and selects the correct GPU if needed,
 so that the derived class' code runs on the correct target. A class that reimplements this method *must* call the base class one::
 
-    def setup(self, loop_dt, loop_niters):
-        super().setup(loop_dt, loop_niters)
+    def setup(self):
+        super().setup()
         [... additional setup as needed ...]
 
 An important task of the *setup()* method is to call the *build_stream()* method to enable CUDA graph capturing
 of the trigger code described below::
 
-    def setup(self, loop_dt, loop_niters):
-        super().setup(loop_dt, loop_niters)
+    def setup(self):
+        super().setup()
         self.build_stream()
 
 
@@ -152,6 +149,15 @@ to run at a slower rate than the rest. For example, a object simulating a CCD mi
 before producing its output, in order to simulate a long integration time. All objects depending on this output will automatically
 be triggered at the slower rate.
 
+Readyness check
+***************
+
+Before triggering each object, its inputs are checked. The object is triggered only if at least one input
+has been refreshed since the last trigger, or if the object has no inputs.
+
+The readiness check is implemented in the *check_ready()* of the base class, and there is usually
+no need to override it.
+
 Trigger process
 ***************
 
@@ -162,13 +168,13 @@ The trigger order algorithm identifies groups of object that can be triggered at
 #. Call *post_trigger()* for all objects
 
 The general idea is to have a GPU-friendly algorithm in *trigger_code()*, that operates on statically-allocated
-arrays. This algorithm can be captured in a CUDA graph and executed on a private CUDA stream, wich is both
-be more efficient than a series of Python/CuPY operations and also allows multiple objects to run their trigger
-code in parallel on the same or different GPUs. *prepare_trigger()* and *post_trigger()* take care of operations
+arrays. This algorithm can be captured in a CUDA graph and executed on a private CUDA stream, which is both
+be more efficient than a series of Python/CuPY operations and also allows multiple objects to be run in parallel
+on the same or different GPUs. *prepare_trigger()* and *post_trigger()* take care of operations
 that cannot be captured in CUDA graph, in particular:
 
 * *prepare_trigger()*: perform any needed setup, for example CPU-only numpy calculations
-* *post_trigger()*: set the *generation_time* attribute of any output arrays.
+* *post_trigger()*: as a minimum, set the *generation_time* attribute of any output arrays.
 
 The three methods have a very simple signature: only *prepare_trigger()* takes a single argument,
 the current simulated time *t*. The base class method must be called as well, except for *trigger_code()*::
@@ -185,8 +191,8 @@ the current simulated time *t*. The base class method must be called as well, ex
 By default, all streams in an object group are executed in parallel. If an object wishes to turn off parallelization,
 it can call *build_stream()* setting the optional *allow_parallel* parameter to False::
 
-    def setup(self, loop_dt, loop_niters):
-        super().setup(loop_dt, loop_niters)
+    def setup(self):
+        super().setup()
         self.build_stream(allow_parallel=False)
 
 In this case, the trigger graph will be run on a default stream that serializes all such graphs. It is still

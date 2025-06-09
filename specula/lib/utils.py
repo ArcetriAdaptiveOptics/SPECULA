@@ -5,9 +5,18 @@ import importlib
 
 
 def camelcase_to_snakecase(s):
+    '''
+    Convert CamelCase to snake_case.
+    Underscores are not inserted in case of acronyms (like CCD)
+    or when the uppercase letter is preceded by a number like M2C.
+    '''
     tokens = re.findall('[A-Z]+[0-9a-z]*', s)
-    return '_'.join([x.lower() for x in tokens])
-
+    result = [tokens[0]]
+    for i, t in enumerate(tokens[1:]):
+        if not result[-1][-1].isdigit():
+            result.append('_')
+        result.append(t)
+    return ''.join([x.lower() for x in result])
 
 def import_class(classname):
     modulename = camelcase_to_snakecase(classname)
@@ -47,3 +56,87 @@ def unravel_index_2d(idxs, shape, xp):
     row_idx = idxs // ncols
     col_idx = idxs - (row_idx * ncols)
     return row_idx, col_idx
+
+def make_orto_modes(array, xp, dtype):
+    """
+    Return an orthogonal 2D array
+    
+    Parameters:
+    -----------
+    array : 2D array
+        Input array
+    xp : module
+        Array processing module (numpy or cupy)
+    dtype : data type, optional
+        Data type for arrays
+        
+    Returns:
+    --------
+    Q : 2D array
+        Orthogonal matrix
+    """
+    # return an othogonal 2D array
+    
+    size_array = xp.shape(array)
+
+    if len(size_array) != 2:
+        raise ValueError('Error in input data, the input array must have two dimensions.')
+
+    if size_array[1] > size_array[0]:
+        Q, R = xp.linalg.qr(array.T)
+        Q = Q.T
+    else:
+        Q, R = xp.linalg.qr(array)
+
+    Q = xp.asarray(Q, dtype=dtype)
+
+    return Q
+
+def is_scalar(x, xp):
+    """
+    Check if x is a scalar or a 0D array.
+
+    Parameters:
+    ----------
+    x : object
+        The object to check.
+    xp : module
+        The array processing module (numpy or cupy) to use for checking the shape.
+    """
+    return xp.isscalar(x) or (hasattr(x, 'shape') and x.shape == ())
+
+def psd_to_signal(psd, fs, xp, dtype, complex_dtype, seed=1):
+    """
+    Generate a random signal with a given PSD and sampling frequency.
+    
+    Parameters:
+    -----------
+    psd : 1D array
+        Power spectral density (PSD) of the signal.
+    fs : float
+        Sampling frequency.
+    xp : module
+        Array processing module (numpy or cupy) to use for array operations.
+    dtype : data type
+        Data type for the output signal.
+    complex_dtype : data type
+        Data type for the complex spectrum.
+    seed : int, optional
+        Random seed for reproducibility (default is 1).
+    """
+    n = len(psd)
+    df = fs / n / 2.
+    rng = xp.random.default_rng(seed)
+    # Spectrum vector (complex)
+    pspectrum = xp.zeros(2 * n, dtype=complex_dtype)
+    # Symmetric spectrum
+    pspectrum[1:n+1] = xp.sqrt(psd * df)
+    pspectrum[n+1:] = xp.sqrt(psd[:-1] * df)[::-1]
+    # Random phase
+    ph = rng.uniform(0, 2 * xp.pi, 2 * n)
+    pspectrum *= xp.exp(1j * ph, dtype=complex_dtype)
+    # Inverse FFT
+    temp = xp.fft.ifft(pspectrum) * 2 * n
+    out = xp.real(temp).astype(dtype)
+    im = xp.imag(temp).astype(dtype)
+    return out, im

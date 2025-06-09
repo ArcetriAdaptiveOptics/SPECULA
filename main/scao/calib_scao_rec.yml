@@ -1,0 +1,53 @@
+
+
+pushpull:
+  class:     'FuncGenerator'
+  func_type: 'PUSHPULL'
+  nmodes:     54
+  vect_amplitude:  [50,50,50,50,50,50,50,50,50,50,
+                      50,50,50,50,50,50,50,50,50,50,
+                      50,50,50,50,50,50,50,50,50,50,
+                      50,50,50,50,50,50,50,50,50,50,
+                      50,50,50,50,50,50,50,50,50,50,
+                      50,50,50,50]
+  outputs: ['output']
+
+main_override:
+  total_time:  0.108
+
+prop_override:
+  inputs:
+    common_layer_list: ['pupilstop',
+                  'dm.out_layer']
+
+dm_override:
+  sign: 1
+  inputs:
+      in_command: 'pushpull.output'
+
+detector_override:
+  photon_noise:      False
+  readout_noise:     False
+  
+
+calibrator:
+  class: 'ImRecCalibrator'
+  nmodes: 54
+  rec_tag:     'scao_recmat'
+  #tag_template:    'subap_{main.tag}_n{modes}'
+  inputs:
+    in_slopes: 'slopec.out_slopes'
+    in_commands: 'pushpull.output'
+
+pixels_disp:
+  class:            'PixelsDisplay'
+  inputs:
+    pixels:      "detector.out_pixels"
+  window:           15
+  title:            "Pixels"
+  disp_factor:      1
+
+remove: ['atmo', 'rec','control']
+ 
+
+

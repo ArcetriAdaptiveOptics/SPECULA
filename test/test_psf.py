@@ -29,7 +29,7 @@ class TestPSF(unittest.TestCase):
         ef.generation_time = t
 
         psf.inputs['in_ef'].set(ef)
-        psf.setup(1, 1)
+        psf.setup()
 
         psf.check_ready(t)
         psf.trigger()
@@ -53,7 +53,7 @@ class TestPSF(unittest.TestCase):
 
         psf.inputs['in_ef'].set(ef)
 
-        psf.setup(1, 1)
+        psf.setup()
         psf.check_ready(t)
         psf.trigger()
         psf.post_trigger()

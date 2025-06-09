@@ -12,9 +12,9 @@ class Layer(ElectricField):
                  pixel_pitch: float,
                  height: float,
                  shiftXYinPixel: tuple=(0.0, 0.0),
-                 rotInDeg: float=0.0, 
+                 rotInDeg: float=0.0,
                  magnification: float=1.0,
-                 target_device_idx: int=None, 
+                 target_device_idx: int=None,
                  precision: int=None):
         super().__init__(dimx, dimy, pixel_pitch, target_device_idx=target_device_idx, precision=precision)
         self.height = height
@@ -23,10 +23,13 @@ class Layer(ElectricField):
         self.magnification = magnification
 
     def save(self, filename, hdr=None):
-        if hdr is None:
-            hdr = fits.Header()
-        hdr['HEIGHT'] = self._height
-        super().save(filename, hdr)
+        # header from ElectricField
+        base_hdr = self.get_fits_header()
+        # add other parameters in the header
+        if hdr is not None:
+            base_hdr.update(hdr)
+        base_hdr['HEIGHT'] = self.height
+        super().save(filename, base_hdr)
 
     def read(self, filename, hdr=None, exten=0):
         super().read(filename, hdr, exten)

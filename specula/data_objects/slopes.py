@@ -110,7 +110,7 @@ class Slopes(BaseDataObj):
         fy = self.xp.zeros_like(mask, dtype=self.dtype)
         self.x_remap2d(fx, idx)
         self.y_remap2d(fy, idx)
-        return self.xp.array([fx, fy], dtype=self.dtype)
+        return self.to_xp([fx, fy], dtype=self.dtype)
 
     def rotate(self, angle, flipx=False, flipy=False):
         sx = self.xslopes
@@ -134,11 +134,9 @@ class Slopes(BaseDataObj):
         fits.writeto(filename, np.zeros(2), hdr)
         fits.append(filename, cpuArray(self.slopes))
 
-    def read(self, filename, hdr=None, exten=0):
+    def read(self, filename, hdr=None, exten=1):
         super().read(filename)
-        exten += 1  # TODO exten numbering does not work in Python this way
         self.slopes = fits.getdata(filename, ext=exten)
-        exten += 1
 
     @staticmethod
     def restore(filename, target_device_idx=None):
