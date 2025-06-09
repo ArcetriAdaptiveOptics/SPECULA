@@ -227,10 +227,6 @@ class TestShSimulation(unittest.TestCase):
         self.assertGreater(pixel_scale, 0, "Pixel scale should be positive")
 
         print(f"FieldAnalyser test successful!")
-        if verbose:
-            print(f"PSF comparison passed - shapes match: {field_psf.shape}")
-            print(f"Strehl comparison passed - field SR: {field_sr:.4f}")
-            print(f"Pixel scale: {pixel_scale:.6f} arcsec/pixel")
 
         # Verify that FieldAnalyser output files were created
         psf_output_dir = analyzer.psf_output_dir
