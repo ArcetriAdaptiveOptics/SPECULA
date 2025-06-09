@@ -92,15 +92,15 @@ class DataStore(BaseProcessingObj):
             item = in_.get(target_device_idx=self.target_device_idx)
             if item is not None and item.generation_time == self.current_time:
                 if isinstance(item, BaseValue):
-                    v = cpuArray(item.value)
+                    v = cpuArray(item.value).copy()
                 elif isinstance(item, Slopes):
-                    v = cpuArray(item.slopes)
+                    v = cpuArray(item.slopes).copy()
                 elif isinstance(item, Pixels):
-                    v = cpuArray(item.pixels)
+                    v = cpuArray(item.pixels).copy()
                 elif isinstance(item, ElectricField):
-                    v = np.stack( (cpuArray(item.A), cpuArray(item.phaseInNm)) )
+                    v = np.stack( (cpuArray(item.A).copy(), cpuArray(item.phaseInNm).copy()) )
                 elif isinstance(item, Intensity):
-                    v = cpuArray(item.i)
+                    v = cpuArray(item.i).copy()
                 else:
                     raise TypeError(f"Error: don't know how to save an object of type {type(item)}")
                 self.storage[k][self.current_time] = v
