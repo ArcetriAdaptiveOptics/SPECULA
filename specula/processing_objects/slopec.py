@@ -88,5 +88,6 @@ class Slopec(BaseProcessingObj):
         if self.do_rec:
             m = self.xp.dot(self.slopes.slopes, self.recmat.recmat)
             self.slopes.slopes = m
-
+        if self.sn: 
+            self.slopes.slopes -= self.sn.slopes
 

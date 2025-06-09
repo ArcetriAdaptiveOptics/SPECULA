@@ -389,7 +389,7 @@ class ShSlopec(Slopec):
 
         self.pixels_after_thr = orig_pixels.copy()
         self.pixels_after_thr[idx2d] = pixels.T
-        
+        #self.Npix_eff_per_sub = len(pixels[pixels>0]) 
         # Calculate flux and max flux per subaperture after thr
         #flux_per_subaperture_vector = self.xp.sum(pixels, axis=0)
         #max_flux_per_subaperture = self.xp.max(flux_per_subaperture_vector)
