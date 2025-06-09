@@ -1,6 +1,7 @@
 
-import inspect
 import typing
+import inspect
+import itertools
 from copy import deepcopy
 from pathlib import Path
 from collections import Counter
@@ -44,6 +45,8 @@ class Simul():
         self.diagram_filename = diagram_filename
 
     def output_owner(self, output_name):
+        if ':' in output_name:
+            output_name = output_name.split(':')[0]
         if '-' in output_name:
             output_name = output_name.split('-')[1]
         if '.' in output_name:
@@ -106,6 +109,31 @@ class Simul():
                 return False
         return True
     
+    def has_delayed_output(self, obj_name, params):
+        '''
+        Find out if an object has an output
+        that is used as a delayed input for another
+        object in the pars dictionary
+        '''
+        for name, pars in params.items():
+            if 'inputs' not in pars:
+                continue
+            for input_name, output_name in pars['inputs'].items():
+                if isinstance(output_name, str):
+                    outputs_list = [output_name]
+                elif isinstance(output_name, list):
+                    outputs_list = output_name
+                else:
+                    raise ValueError('Malformed output: must be either str or list')
+
+                for x in outputs_list:
+                    owner = self.output_owner(x)
+                    delay = self.output_delay(x)
+                    if owner == obj_name and delay < 0:
+                        # Delayed input detected
+                        return True
+        return False
+
     def trigger_order(self, params_orig):
         '''
         Work on a copy of the parameter file.
@@ -117,19 +145,22 @@ class Simul():
         '''
         order = []
         order_index = []
-        ii = 0
         params = deepcopy(params_orig)
-        while True:
-            start = len(params)
+        for index in itertools.count():
             leaves = [name for name, pars in params.items() if self.is_leaf(pars)]
             if len(leaves) == 0:
                 break
+            start = len(params)
             for leaf in leaves:
+                if self.has_delayed_output(leaf, params):
+                    continue
                 order.append(leaf)
-                order_index.append(ii)
+                order_index.append(index)
                 del params[leaf]
                 self.remove_inputs(params, leaf)
-            ii+=1
+            end = len(params)
+            if start == end:
+                raise ValueError('Cannot determine trigger order: circular loop detected in {leaves}')
         if len(params) > 0:
             print('Warning: the following objects will not be triggered:', params.keys())
         return order, order_index
