@@ -1,4 +1,3 @@
-import numpy as np
 from specula.base_value import BaseValue
 from specula.connections import InputValue
 
@@ -73,7 +72,7 @@ class DM(BaseProcessingObj):
             self.n_valid_modes = len(idx_modes)
         else:
             self._valid_modes = slice(start_mode, nmodes)
-            self.n_valid_modes = len(np.arange(start_mode, nmodes))
+            self.n_valid_modes = len(range(start_mode, nmodes))
 
         if m2c is not None:
             self.m2c = m2c.m2c

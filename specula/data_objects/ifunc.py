@@ -1,4 +1,3 @@
-from specula import cpuArray
 from specula.base_data_obj import BaseDataObj
 from specula.data_objects.ifunc_inv import IFuncInv
 from astropy.io import fits
