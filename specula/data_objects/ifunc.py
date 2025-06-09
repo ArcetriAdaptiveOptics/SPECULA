@@ -14,6 +14,9 @@ def compute_mixed_ifunc(*args, **kwargs):
 
 
 class IFunc(BaseDataObj):
+    '''
+    Influence functions are stored as [modes, pixels]
+    '''
     def __init__(self,
                  ifunc=None,
                  type_str: str=None,
@@ -42,7 +45,7 @@ class IFunc(BaseDataObj):
             if type_str is None:
                 raise ValueError('At least one of ifunc and type must be set')
             if mask is not None:
-                mask = (self.xp.array(mask) > 0).astype(self.dtype)
+                mask = (self.to_xp(mask) > 0).astype(self.dtype)
             if npixels is None:
                 raise ValueError("If ifunc is not set, then npixels must be set!")
             
@@ -64,8 +67,8 @@ class IFunc(BaseDataObj):
             else:
                 raise ValueError(f'Invalid ifunc type {type_str}')
         
-        ifunc = self.xp.array(ifunc)
-        mask = self.xp.array(mask)
+        ifunc = self.to_xp(ifunc)
+        mask = self.to_xp(mask)
 
         self._influence_function = ifunc
         self._mask_inf_func = mask
@@ -93,7 +96,7 @@ class IFunc(BaseDataObj):
 
             ifunc = ifuncPad
 
-        self._influence_function = self.xp.array(ifunc, dtype=self.dtype)
+        self._influence_function = self.to_xp(ifunc, dtype=self.dtype)
 
     @property
     def mask_inf_func(self):
@@ -101,7 +104,7 @@ class IFunc(BaseDataObj):
 
     @mask_inf_func.setter
     def mask_inf_func(self, mask_inf_func):
-        self._mask_inf_func = self.xp.array(mask_inf_func, dtype=self.dtype)
+        self._mask_inf_func = self.to_xp(mask_inf_func, dtype=self.dtype)
         self._idx_inf_func = self.xp.where(self._mask_inf_func)
 
     @property
@@ -145,18 +148,12 @@ class IFunc(BaseDataObj):
         if start_mode is None:
             start_mode = 0
         if nmodes is None:
-            nmodes = nrows if ncols > nrows else ncols
-            
+            nmodes = nrows
+
         if idx_modes is not None:
-            if ncols > nrows:
-                self._influence_function = self._influence_function[idx_modes, :]
-            else:
-                self._influence_function = self._influence_function[:, idx_modes]
+            self._influence_function = self._influence_function[idx_modes, :]
         else:
-            if ncols > nrows:
-                self._influence_function = self._influence_function[start_mode:nmodes, :]
-            else:
-                self._influence_function = self._influence_function[:, start_mode:nmodes] 
+            self._influence_function = self._influence_function[start_mode:nmodes, :]
       
     def restore(filename, target_device_idx=None, exten=1):
         with fits.open(filename) as hdul:

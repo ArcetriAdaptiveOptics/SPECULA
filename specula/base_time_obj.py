@@ -1,4 +1,5 @@
-from specula import np, cp, global_precision, default_target_device, default_target_device_idx, DummyDecoratorAndContextManager
+from specula import np, cp, to_xp
+from specula import global_precision, default_target_device, default_target_device_idx, DummyDecoratorAndContextManager
 from specula import cpu_float_dtype_list, gpu_float_dtype_list
 from specula import cpu_complex_dtype_list, gpu_complex_dtype_list
 
@@ -108,3 +109,10 @@ class BaseTimeObj:
             function(*args)
             self.stopMemUsageCount()
         return monitorMem_wrapper
+
+    def to_xp(self, v, dtype=None):
+        '''
+        Method wrapping the global to_xp function.
+        '''
+        return to_xp(self.xp, v, dtype)
+

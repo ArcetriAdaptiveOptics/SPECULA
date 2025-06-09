@@ -14,7 +14,7 @@ class M2C(BaseDataObj):
                  target_device_idx: int=None,
                  precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-        self.m2c = self.xp.array(m2c, dtype=self.dtype)
+        self.m2c = self.to_xp(m2c, dtype=self.dtype)
         if nmodes is not None:
             self.set_nmodes(nmodes)
         self.norm_factor = norm_factor
@@ -25,6 +25,28 @@ class M2C(BaseDataObj):
 
     def set_nmodes(self, nmodes):
         self.m2c = self.m2c[:, :nmodes]
+
+    def cut(self, start_mode=None, nmodes=None, idx_modes=None):
+
+        if idx_modes is not None:
+            if start_mode is not None:
+                start_mode = None
+                print('m2c.cut: start_mode cannot be set together with idx_modes. Setting to None start_mode.')
+            if nmodes is not None:
+                nmodes = None
+                print('m2c.cut: nmodes cannot be set together with idx_modes. Setting to None nmodes.')
+                        
+        nrows, ncols = self.m2c.shape
+
+        if start_mode is None:
+            start_mode = 0
+        if nmodes is None:
+            nmodes = ncols
+
+        if idx_modes is not None:
+            self.m2c = self.m2c[:, idx_modes]
+        else:
+            self.m2c = self.m2c[:, start_mode:nmodes]
 
     def save(self, filename):
         """Saves the M2C to a file."""

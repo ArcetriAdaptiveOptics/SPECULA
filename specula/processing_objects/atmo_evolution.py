@@ -203,7 +203,7 @@ class AtmoEvolution(BaseProcessingObj):
                         square_ps_index += 1
                         ps_index = 0
 
-                    temp_screen = self.xp.array(square_phasescreens[square_ps_index][int(self.pixel_phasescreens) * ps_index:
+                    temp_screen = self.to_xp(square_phasescreens[square_ps_index][int(self.pixel_phasescreens) * ps_index:
                                                                        int(self.pixel_phasescreens) * (ps_index + 1), :], dtype=self.dtype)
                     # print('self.Cn2[i]', self.Cn2[i], type(self.Cn2[i]), type(self.Cn2))  # Verbose?
                     # print('temp_screen', temp_screen, type(temp_screen))  # Verbose?
@@ -213,7 +213,7 @@ class AtmoEvolution(BaseProcessingObj):
                     # Convert to nm
                     temp_screen *= self.wavelengthInNm / (2 * np.pi)
 
-                    temp_screen = self.xp.array(temp_screen, dtype=self.dtype)
+                    temp_screen = self.to_xp(temp_screen, dtype=self.dtype)
 
                     # Flip x-axis for each odd phase-screen
                     if i % 2 != 0:

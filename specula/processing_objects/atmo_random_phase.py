@@ -104,7 +104,7 @@ class AtmoRandomPhase(BaseProcessingObj):
         # phase in rad
         temp_screen *= self.wavelengthInNm / (2 * np.pi)
 
-        temp_screen = self.xp.array(temp_screen, dtype=self.dtype)
+        temp_screen = self.to_xp(temp_screen, dtype=self.dtype)
         
         self.phasescreens = temp_screen
 

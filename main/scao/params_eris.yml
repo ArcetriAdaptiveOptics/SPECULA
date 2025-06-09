@@ -248,7 +248,7 @@ dm:
   class:             'DM'
   simul_params_ref:  'main'
   ifunc_object:      'VLT_ifunc'
-  nmodes:            2
+  nmodes:            702
   height:            0                        # DM height [m]
   inputs:
       in_command: 'modal_combination.out_value'

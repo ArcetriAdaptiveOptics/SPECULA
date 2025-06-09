@@ -14,7 +14,7 @@ class TimeHistory(BaseDataObj):
                  precision:int =None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         
-        self.time_history = self.xp.array(time_history)
+        self.time_history = self.to_xp(time_history)
 
     def save(self, filename):
         """Saves the subaperture data to a file."""
