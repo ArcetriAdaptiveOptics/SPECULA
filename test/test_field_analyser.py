@@ -105,16 +105,41 @@ class TestShSimulation(unittest.TestCase):
         # Load the original PSF from simulation
         with fits.open(res_psf_path) as hdul:
             original_psf = hdul[0].data
-            original_header = hdul[0].header
+            original_psf_header = hdul[0].header
 
         if original_psf.ndim == 3:
             original_psf = original_psf.sum(axis=0)
 
+        # Check if res.fits exists (the modal analysis data from simulation)
+        res_path = os.path.join(latest_data_dir, 'res.fits')
+        self.assertTrue(os.path.exists(res_path),
+                    f"res.fits not found in {latest_data_dir}")
+
+        # Load the original modes from simulation
+        with fits.open(res_path) as hdul:
+            original_modes = hdul[0].data
+            original_modes_header = hdul[0].header
+            
+        # Check if phase.fits exists (the phase cube data from simulation)
+        phase_path = os.path.join(latest_data_dir, 'phase.fits')
+        self.assertTrue(os.path.exists(phase_path),
+                    f"phase.fits not found in {latest_data_dir}")
+
+        # Load the original phase cube from simulation
+        with fits.open(phase_path) as hdul:
+            original_phase = hdul[0].data
+            original_phase_header = hdul[0].header
+
+        # extract the phase, discarding the amplitude
+        original_phase = original_phase[:,1,:,:]
+
         if verbose:
             print(f"Original PSF shape: {original_psf.shape}")
+            print(f"Original modes shape: {original_modes.shape}")
+            print(f"Original phase cube shape: {original_phase.shape}")
 
         # Now test FieldAnalyser
-        print("Testing FieldAnalyser PSF computation...")
+        print("Testing FieldAnalyser computation...")
 
         # Setup FieldAnalyser with on-axis source only (same as simulation)
         polar_coords = np.array([[0.0, 0.0]])  # on-axis only
@@ -136,7 +161,7 @@ class TestShSimulation(unittest.TestCase):
 
         # Compute PSF using FieldAnalyser with same sampling as original
         # Extract sampling from original simulation parameters
-        psf_sampling = 15  # Same as 'nd' parameter in params_scao_sh_test.yml
+        psf_sampling =7  # Same as 'nd' parameter in params_scao_sh_test.yml
 
         psf_results = analyzer.compute_field_psf(
             psf_sampling=psf_sampling,
@@ -144,21 +169,15 @@ class TestShSimulation(unittest.TestCase):
             force_recompute=True
         )
 
-        # Verify we got results
-        self.assertEqual(len(psf_results['psf_list']), 1, "Expected one PSF result for on-axis source")
+        # Compute modal analysis
+        modal_results = analyzer.compute_modal_analysis(save_results=True)
+
+        # Compute phase cube
+        cube_results = analyzer.compute_phase_cube(save_results=True)
 
         field_psf = psf_results['psf_list'][0]
-
-        if verbose:
-            print(f"FieldAnalyser PSF shape: {field_psf.shape}")
-
-        # Compare PSF shapes
-        self.assertEqual(field_psf.shape, original_psf.shape,
-                        "PSF shapes should match between simulation and FieldAnalyser")
-
-        # normalize PSF data to match original simulation
-        field_psf /= field_psf.sum()  # Normalize to match original PSF
-        original_psf /= original_psf.sum()  # Normalize to match original PSF
+        modes = modal_results['modal_coeffs'][0]
+        phase = cube_results['phase_cubes'][0]
 
         display = False
         if display:
@@ -194,25 +213,51 @@ class TestShSimulation(unittest.TestCase):
             plt.tight_layout()
             plt.show()
 
-            # Optional: also show linear scale for comparison
             plt.figure(figsize=(18, 6))
+
             plt.subplot(1, 3, 1)
-            plt.imshow(original_psf, origin='lower', cmap='hot', interpolation='nearest')
-            plt.title('Original PSF from Simulation (Linear Scale)')
+            plt.imshow(original_phase[-1], origin='lower', cmap='hot', interpolation='nearest')
+            plt.title('Original Phase Cube (Last Slice)')
             plt.colorbar()
 
             plt.subplot(1, 3, 2)
-            plt.imshow(field_psf, origin='lower', cmap='hot', interpolation='nearest')
-            plt.title('FieldAnalyser PSF (Linear Scale)')
+            plt.imshow(phase[-1], origin='lower', cmap='hot', interpolation='nearest')
+            plt.title('FieldAnalyser Phase Cube (Last Slice)')
             plt.colorbar()
 
             plt.subplot(1, 3, 3)
-            plt.imshow(np.abs(original_psf - field_psf), origin='lower', cmap='hot', interpolation='nearest')
-            plt.title('Difference (Original - FieldAnalyser)')
+            plt.imshow(np.abs(original_phase[-1] - phase[-1]), origin='lower', cmap='hot', interpolation='nearest')
+            plt.title('Phase Difference (Original - FieldAnalyser)')
             plt.colorbar()
 
             plt.tight_layout()
             plt.show()
+
+        # Verify we got results
+        self.assertEqual(len(psf_results['psf_list']), 1, "Expected one PSF result for on-axis source")
+        self.assertEqual(len(modal_results['modal_coeffs']), 1,
+                        "Expected one modal analysis result for on-axis source")
+        self.assertEqual(len(cube_results['phase_cubes']), 1,
+                        "Expected one phase cube result for on-axis source")
+
+        if verbose:
+            print(f"FieldAnalyser PSF shape: {field_psf.shape}")
+            print(f"FieldAnalyser modal coefficients shape: {modes.shape}")
+            print(f"FieldAnalyser phase cube shape: {phase.shape}")
+
+        # Compare PSF shapes
+        self.assertEqual(field_psf.shape, original_psf.shape,
+                        "PSF shapes should match between simulation and FieldAnalyser")
+        # Compare modal coefficients shapes
+        self.assertEqual(modes.shape, original_modes.shape,
+                        "Modal coefficients shape should match between simulation and FieldAnalyser")
+        # Compare phase cube shapes
+        self.assertEqual(phase.shape, original_phase.shape,
+                        "Phase cube shape should match between simulation and FieldAnalyser")
+        
+        # normalize PSF data to match original simulation
+        field_psf /= field_psf.sum()  # Normalize to match original PSF
+        original_psf /= original_psf.sum()  # Normalize to match original PSF
 
         #Compare PSFs
         np.testing.assert_allclose(
@@ -221,6 +266,20 @@ class TestShSimulation(unittest.TestCase):
             err_msg="PSF values do not match between simulation and FieldAnalyser"
         )
 
+        # Compare modal coefficients
+        np.testing.assert_allclose(
+            modes, original_modes,
+            rtol=1e-3, atol=1e-3,
+            err_msg="Modal coefficients do not match between simulation and FieldAnalyser"
+        )
+
+        # Compare phase cube
+        np.testing.assert_allclose(
+            phase, original_phase,
+            rtol=1e-3, atol=1e-3,
+            err_msg="Phase cube values do not match between simulation and FieldAnalyser"
+        )
+            
         # Check that pixel scale is reasonable
         pixel_scale = psf_results['pixel_scale']
         self.assertIsNotNone(pixel_scale, "Pixel scale should be calculated")
