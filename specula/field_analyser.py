@@ -2,188 +2,12 @@ import os
 import re
 import numpy as np
 from pathlib import Path
-from typing import List, Dict, Optional, Union, Tuple
+from typing import List, Dict, Optional, Tuple
 import yaml
 from astropy.io import fits
 from copy import deepcopy
 
 from specula.simul import Simul
-from specula.data_objects.source import Source
-from specula.processing_objects.data_store import DataStore
-from specula.processing_objects.data_source import DataSource
-from specula.calib_manager import CalibManager
-
-def generate_field_filename(tracking_number: str,
-                             analysis_type: str,
-                             polar_coordinates: np.ndarray,
-                             **kwargs) -> str:
-    """
-    Generate standardized filename for field analysis
-    
-    Args:
-        tracking_number: Simulation tracking number
-        analysis_type: Analysis type ('psf', 'modal', 'cube')
-        polar_coordinates: Polar coordinates of sources
-        **kwargs: Additional parameters (wavelength, sampling, etc.)
-    """
-    coords = np.atleast_2d(polar_coordinates)
-    if coords.shape[0] == 2:
-        coords = coords.T
-
-    coords_str = "_".join([f"r{r:.1f}t{t:.1f}" for r, t in coords])
-
-    filename = f"{tracking_number}_{analysis_type}_{coords_str}"
-
-    # Add specific parameters
-    for key, value in kwargs.items():
-        if value is not None:
-            if key == 'wavelength_nm':
-                filename += f"_wl{value:.0f}nm"
-            elif key == 'psf_sampling':
-                filename += f"_samp{value}"
-            elif key == 'start_time':
-                filename += f"_t{value:.1f}"
-            elif key == 'end_time':
-                filename += f"to{value:.1f}"
-            else:
-                filename += f"_{key}{value}"
-
-    return filename + ".fits"
-
-
-def check_simulation_data_completeness(tn_dir: Path) -> Dict[str, any]:
-    """
-    Check if all required data for a tracking number is available
-
-    Returns:
-        Dict with status of completeness, missing files, and available data
-    """
-    status = {
-        'complete': True,
-        'missing_files': [],
-        'available_data': {},
-        'dm_count': 0,
-        'has_atmosphere': False,
-        'dm_commands': False,
-        'dm_command_files': []
-    }
-
-    # Parameters file
-    params_file = tn_dir / "params.yml"
-    if not params_file.exists():
-        status['complete'] = False
-        status['missing_files'].append("params.yml")
-        return status
-
-    # Load parameters to analyze configuration
-    try:
-        with open(params_file, 'r') as f:
-            params = yaml.safe_load(f)
-    except Exception as e:
-        status['complete'] = False
-        status['missing_files'].append(f"params.yml (invalid YAML: {e})")
-        return status
-
-    status['available_data']['params'] = str(params_file)
-
-    # Find DM command files based on configuration
-    dm_command_files = _find_dm_command_files(params, tn_dir)
-
-    if len(dm_command_files) == 0:
-        status['complete'] = False
-        status['missing_files'].append("DM command files (based on DataStore configuration)")
-        status['dm_commands'] = False
-        status['dm_count'] = 0
-    else:
-        # Check if all found command files actually exist
-        existing_files = []
-        for cmd_file in dm_command_files:
-            file_path = tn_dir / cmd_file
-            if file_path.exists():
-                existing_files.append(cmd_file)
-            else:
-                status['complete'] = False
-                status['missing_files'].append(cmd_file)
-
-        status['available_data']['dm_commands'] = existing_files
-        status['dm_commands'] = len(existing_files) > 0
-        status['dm_count'] = len(existing_files)
-        status['dm_command_files'] = existing_files
-
-    return status
-
-
-def _find_dm_command_files(params: dict, tn_dir: Path) -> List[str]:
-    """
-    Find DM command files based on configuration analysis
-    
-    Args:
-        params: Loaded simulation parameters
-        tn_dir: Tracking number directory
-        
-    Returns:
-        List of DM command filenames that should exist
-    """
-    dm_command_files = []
-
-    # Step 1: Find AtmoPropagation object and extract DM layers
-    atmo_prop_config = None
-    for obj_name, obj_config in params.items():
-        if isinstance(obj_config, dict) and obj_config.get('class') == 'AtmoPropagation':
-            atmo_prop_config = obj_config
-            break
-
-    if atmo_prop_config is None:
-        return dm_command_files
-
-    # Extract DM layer references from common_layer_list
-    dm_refs = []
-    common_layers = atmo_prop_config.get('inputs', {}).get('common_layer_list', [])
-
-    for layer_ref in common_layers:
-        if isinstance(layer_ref, str) and '.out_layer' in layer_ref:
-            # Extract DM object name (e.g., 'dm.out_layer:-1' -> 'dm')
-            dm_name = layer_ref.split('.out_layer')[0]
-            dm_refs.append(dm_name)
-    
-    # Step 2: Find DataStore object and extract DM command inputs
-    datastore_config = None
-    for obj_name, obj_config in params.items():
-        if isinstance(obj_config, dict) and obj_config.get('class') == 'DataStore':
-            datastore_config = obj_config
-            break
-
-    if datastore_config is None:
-        return dm_command_files
-
-    # Extract command references from input_list
-    input_list = datastore_config.get('inputs', {}).get('input_list', [])
-
-    for input_ref in input_list:
-        if isinstance(input_ref, str):
-            # Check if this input corresponds to a DM command
-            # Format: 'filename-source.output' or 'filename-obj.out_comm'
-            if 'out_comm' in input_ref or any(dm_ref in input_ref for dm_ref in dm_refs):
-                # Extract filename part (before the '-')
-                if '-' in input_ref:
-                    filename = input_ref.split('-')[0] + '.fits'
-                    if filename not in dm_command_files:
-                        dm_command_files.append(filename)
-
-    # Step 3: Fallback - look for standard DM command patterns if nothing found
-    if len(dm_command_files) == 0 and len(dm_refs) > 0:
-        # Try standard naming patterns
-        standard_patterns = ['comm.fits']
-        for i, dm_ref in enumerate(dm_refs, 1):
-            standard_patterns.append(f'comm{i}.fits')
-            standard_patterns.append(f'{dm_ref}_comm.fits')
-
-        for pattern in standard_patterns:
-            if (tn_dir / pattern).exists():
-                dm_command_files.append(pattern)
-
-    return dm_command_files
-
 
 class FieldAnalyser:
     """
@@ -199,7 +23,6 @@ class FieldAnalyser:
         wavelength_nm (float): Wavelength in nanometers.
         start_time (float): Start time for the analysis.
         end_time (Optional[float]): End time for the analysis, if applicable.
-        gpu (bool): Whether to use GPU for computations.
         verbose (bool): Whether to print verbose output during processing.
     """
 
@@ -210,7 +33,6 @@ class FieldAnalyser:
                  wavelength_nm: float = 750.0,
                  start_time: float = 0.1,
                  end_time: Optional[float] = None,
-                 gpu: bool = True,
                  verbose: bool = False):
 
         self.data_dir = Path(data_dir)
@@ -219,7 +41,6 @@ class FieldAnalyser:
         self.wavelength_nm = wavelength_nm
         self.start_time = start_time
         self.end_time = end_time
-        self.gpu = gpu
         self.verbose = verbose
 
         # Loaded parameters
@@ -242,7 +63,6 @@ class FieldAnalyser:
 
         self._load_simulation_params()
         self._setup_sources()
-
 
     def _load_simulation_params(self):
         """Load simulation parameters from tracking number"""
@@ -297,46 +117,63 @@ class FieldAnalyser:
 
         return float(r), float(theta)
 
-    def check_required_data(self) -> Dict[str, any]:
+    def _get_psf_filenames(self, source_idx: int) -> Tuple[str, str]:
         """
-        Verify that all necessary data is present for replay
+        Generate PSF and SR filenames for a given source
+
+        Args:
+            source_idx: Index of the source
+            pixel_size_mas: PSF pixel size in milliarcseconds
+            
+        Returns:
+            Tuple of (psf_filename, sr_filename) without .fits extension
         """
-        return check_simulation_data_completeness(self.tn_dir)
-
-    def _get_analysis_filename(self, analysis_type: str, source_idx: int, **kwargs) -> str:
-        """Generate filename for analysis results"""
-        # Single source filename
-        base_name = f"{self.tracking_number}_{analysis_type}"
-
-        # Add coordinate info
         r, theta = self._get_source_coordinates(source_idx)
-        base_name += f"_r{r:.1f}t{theta:.1f}"
+        psf_filename = f"psf_r{r:.1f}t{theta:.1f}_pix{self.psf_pixel_size_mas:.2f}mas_wl{self.wavelength_nm:.0f}nm"
+        sr_filename = f"sr_r{r:.1f}t{theta:.1f}_pix{self.psf_pixel_size_mas:.2f}mas_wl{self.wavelength_nm:.0f}nm"
+        return psf_filename, sr_filename
 
-        # Add specific parameters
-        if 'psf_sampling' in kwargs:
-            base_name += f"_samp{kwargs['psf_sampling']}"
-        if 'psf_pixel_size_mas' in kwargs:
-            base_name += f"_pix{kwargs['psf_pixel_size_mas']:.1f}mas"
-        if 'wavelength_nm' in kwargs:
-            base_name += f"_wl{kwargs['wavelength_nm']:.0f}nm"
+    def _get_modal_filename(self, source_idx: int, modal_params: dict) -> str:
+        """
+        Generate modal analysis filename for a given source
+        
+        Args:
+            source_idx: Index of the source
+            modal_params: Modal analysis parameters
+            
+        Returns:
+            Filename without .fits extension
+        """
+        r, theta = self._get_source_coordinates(source_idx)
+        modal_filename = f"modal_r{r:.1f}t{theta:.1f}"
 
-        # Add modal analysis specific parameters
-        if analysis_type == 'modal':
-            if 'nmodes' in kwargs:
-                base_name += f"_nmodes{kwargs['nmodes']}"
-            elif 'nzern' in kwargs:
-                base_name += f"_nzern{kwargs['nzern']}"
+        # Add modal parameters to filename
+        if 'nmodes' in modal_params:
+            modal_filename += f"_nmodes{modal_params['nmodes']}"
+        elif 'nzern' in modal_params:
+            modal_filename += f"_nzern{modal_params['nzern']}"
 
-            if 'type_str' in kwargs:
-                base_name += f"_{kwargs['type_str']}"
+        if 'type_str' in modal_params:
+            modal_filename += f"_{modal_params['type_str']}"
 
-            # Add other relevant modal parameters
-            if 'obsratio' in kwargs:
-                base_name += f"_obs{kwargs['obsratio']:.2f}"
-            if 'diaratio' in kwargs:
-                base_name += f"_dia{kwargs['diaratio']:.2f}"
+        if 'obsratio' in modal_params:
+            modal_filename += f"_obs{modal_params['obsratio']:.2f}"
 
-        return base_name + ".fits"
+        return modal_filename
+
+    def _get_cube_filename(self, source_idx: int) -> str:
+        """
+        Generate phase cube filename for a given source
+
+        Args:
+            source_idx: Index of the source
+
+        Returns:
+            Filename without .fits extension
+        """
+        r, theta = self._get_source_coordinates(source_idx)
+        cube_filename = f"cube_r{r:.1f}t{theta:.1f}_wl{self.wavelength_nm:.0f}nm"
+        return cube_filename
 
     def _build_replay_params_from_datastore(self) -> dict:
         """
@@ -416,7 +253,7 @@ class FieldAnalyser:
 
         return temp_simul.replay_params
 
-    def _build_replay_params_psf(self, psf_sampling: int = 7) -> dict:
+    def _build_replay_params_psf(self) -> dict:
         """
         Build replay_params for field PSF calculation using build_replay mechanism
         """
@@ -436,21 +273,46 @@ class FieldAnalyser:
         self._add_field_sources_to_params(replay_params)
 
         # Add PSF objects for each field source
+        psf_input_list = []
         for i, source_dict in enumerate(self.sources):
             psf_name = f'psf_field_{i}'
-            replay_params[psf_name] = {
+
+            # Build PSF config with pixel_size_mas
+            psf_config = {
                 'class': 'PSF',
+                'simul_params_ref': 'main',
                 'wavelengthInNm': self.wavelength_nm,
-                'nd': psf_sampling,
+                'pixel_size_mas': self.psf_pixel_size_mas,
                 'start_time': self.start_time,
                 'inputs': {
                     'in_ef': f'prop.out_field_source_{i}_ef'
                 },
-                'outputs': ['out_psf', 'out_sr']
+                'outputs': ['out_int_psf', 'out_int_sr']
             }
+
+            replay_params[psf_name] = psf_config
+
+            # Create input_list entries with desired filenames
+            psf_filename, sr_filename = self._get_psf_filenames(i)
+            psf_input_list.extend([
+                f'{psf_filename}-{psf_name}.out_int_psf',
+                f'{sr_filename}-{psf_name}.out_int_sr'
+            ])
+
+        # Add DataStore to save PSF results
+        replay_params['data_store_psf'] = {
+            'class': 'DataStore',
+            'store_dir': str(self.psf_output_dir),
+            'data_format': 'fits',
+            'create_tn': False,  # Use existing directory structure
+            'inputs': {
+                'input_list': psf_input_list
+            }
+        }
 
         if self.verbose:
             print(f"Final replay_params keys: {list(replay_params.keys())}")
+            print(f"PSF files to be saved: {psf_input_list}")
 
         return replay_params
 
@@ -524,7 +386,8 @@ class FieldAnalyser:
             replay_params['modal_analysis_ifunc'] = ifunc_config
             shared_ifunc_ref = 'modal_analysis_ifunc'
 
-        # Add ModalAnalysis for each source
+        # Add ModalAnalysis for each source and build input_list
+        modal_input_list = []
         for i, source_dict in enumerate(self.sources):
             modal_name = f'modal_analysis_{i}'
             modal_config = {'class': 'ModalAnalysis'}
@@ -545,16 +408,23 @@ class FieldAnalyser:
 
             replay_params[modal_name] = modal_config
 
-        # Add DataStore to save results
-        input_list = [f'modal_res_{i}-modal_analysis_{i}.out_modes' for i in range(len(self.sources))]
+            # Create filename for this source
+            modal_filename = self._get_modal_filename(i, modal_params)
+            modal_input_list.append(f'{modal_filename}-{modal_name}.out_modes')
 
+        # Add DataStore to save results
         replay_params['data_store_modal'] = {
-            'class': 'DataStore', 
+            'class': 'DataStore',
             'store_dir': str(self.modal_output_dir),
             'data_format': 'fits',
-            'save_on_disk': False,
-            'inputs': {'input_list': input_list}
+            'create_tn': False,  # Use existing directory structure
+            'inputs': {
+                'input_list': modal_input_list
+            }
         }
+
+        if self.verbose:
+            print(f"Modal files to be saved: {modal_input_list}")
 
         return replay_params
 
@@ -574,16 +444,25 @@ class FieldAnalyser:
         # Add field sources to existing parameters
         self._add_field_sources_to_params(replay_params)
 
-        # Add DataStore to save phase cubes
-        input_list = [f'phase_cube_{i}-prop.out_field_source_{i}_ef' for i in range(len(self.sources))]
+        # Build input_list for phase cubes
+        cube_input_list = []
+        for i in range(len(self.sources)):
+            cube_filename = self._get_cube_filename(i)
+            cube_input_list.append(f'{cube_filename}-prop.out_field_source_{i}_ef')
 
+        # Add DataStore to save phase cubes
         replay_params['data_store_cube'] = {
             'class': 'DataStore',
             'store_dir': str(self.cube_output_dir),
             'data_format': 'fits',
-            'save_on_disk': False,
-            'inputs': {'input_list': input_list}
+            'create_tn': False,  # Use existing directory structure
+            'inputs': {
+                'input_list': cube_input_list
+            }
         }
+
+        if self.verbose:
+            print(f"Cube files to be saved: {cube_input_list}")
 
         return replay_params
 
@@ -708,23 +587,19 @@ class FieldAnalyser:
             pass
 
     def compute_field_psf(self,
-                          psf_sampling: Optional[float] = None, 
-                          psf_pixel_size_mas: Optional[float] = None,
-                          save_results: bool = True, 
-                          force_recompute: bool = False) -> Dict:
+                        psf_sampling: Optional[float] = None, 
+                        psf_pixel_size_mas: Optional[float] = None,
+                        force_recompute: bool = False) -> Dict:
         """
         Calculate field PSF using SPECULA's replay system
         
         Args:
             psf_sampling: PSF sampling factor (alternative to psf_pixel_size_mas)
             psf_pixel_size_mas: Desired PSF pixel size in milliarcseconds (alternative to psf_sampling)
-            save_results: Whether to save results to disk
             force_recompute: Force recomputation even if files exist
             
         Note:
             Either psf_sampling or psf_pixel_size_mas must be specified, but not both.
-            The actual pixel size may differ slightly from the requested value due to 
-            the constraint that main.pixel_pupil * psf_sampling must be an integer.
         """
 
         # Validate input parameters
@@ -732,60 +607,59 @@ class FieldAnalyser:
             raise ValueError("Cannot specify both psf_sampling and psf_pixel_size_mas. Choose one.")
 
         if psf_sampling is None and psf_pixel_size_mas is None:
-            psf_sampling = 7.0  # Default value
+            psf_sampling = 7.0
 
-        # Calculate sampling parameters
-        sampling_info = self._calculate_psf_sampling(psf_sampling, psf_pixel_size_mas)
-        actual_psf_sampling = sampling_info['psf_sampling']
-        actual_pixel_size_mas = sampling_info['pixel_size_mas']
+        # Pupil parameters
+        pixel_pitch = self.params['main']['pixel_pitch']
+        pixel_pupil = self.params['main']['pixel_pupil']
 
-        if self.verbose:
-            if psf_pixel_size_mas is not None:
-                print(f"Requested PSF pixel size: {psf_pixel_size_mas:.2f} mas")
-                print(f"Actual PSF pixel size: {actual_pixel_size_mas:.2f} mas (sampling: {actual_psf_sampling:.3f})")
-            else:
-                print(f"PSF sampling: {actual_psf_sampling:.3f}, pixel size: {actual_pixel_size_mas:.2f} mas")
+        # Calculate the pixel size of the PSF in mas in both cases
+        if psf_pixel_size_mas is not None:
+            # compute the actual pixel size based on the provided value
+            psf_sampling = PSF.calc_psf_sampling(
+                pixel_pupil, 
+                pixel_pitch, 
+                self.wavelength_nm, 
+                psf_pixel_size_mas
+            )
+
+        self.psf_sampling = psf_sampling
+        self.psf_pixel_size_mas = (self.wavelength_nm * 1e-9 / (pixel_pupil*pixel_pitch) * 3600 * 180 / np.pi) \
+                                    * 1000 / psf_sampling
 
         # Check if all individual PSF files exist
         all_exist = True
-        for i in range(len(self.sources)):
-            output_file = self.psf_output_dir / self._get_analysis_filename(
-                "psf", source_idx=i, 
-                psf_sampling=actual_psf_sampling,
-                psf_pixel_size_mas=actual_pixel_size_mas,
-                wavelength_nm=self.wavelength_nm
-            )
-            if not output_file.exists():
-                all_exist = False
-                break
+        if not force_recompute:
+            for i in range(len(self.sources)):
+                psf_filename, sr_filename = self._get_psf_filenames(i)
+                psf_path = self.psf_output_dir / f"{psf_filename}.fits"
+                sr_path = self.psf_output_dir / f"{sr_filename}.fits"
 
-        if not force_recompute and all_exist:
-            if self.verbose:
-                print(f"Loading existing PSF results from: {self.psf_output_dir}")
-            return self._load_psf_results(self.psf_output_dir, actual_psf_sampling, actual_pixel_size_mas)
+                if not psf_path.exists() or not sr_path.exists():
+                    all_exist = False
+                    break
 
-        # Verify necessary data
-        data_status = self.check_required_data()
-        if not data_status['dm_commands']:
-            raise RuntimeError("DM command data not found - cannot compute PSF")
+            if all_exist:
+                if self.verbose:
+                    print(f"Loading existing PSF results from: {self.psf_output_dir}")
+                return self._load_psf_results()
 
         if self.verbose:
             print(f"Computing field PSF for {len(self.sources)} sources...")
 
         # Setup replay parameters and run simulation
-        replay_params = self._build_replay_params_psf(actual_psf_sampling)
+        replay_params = self._build_replay_params_psf()
         simul = self._run_simulation_with_params(replay_params, "temp_psf_replay_params.yml", self.psf_output_dir)
 
-        # Extract and save results
-        results = self._extract_psf_results_from_objects(simul, actual_psf_sampling)
-        results['actual_pixel_size_mas'] = actual_pixel_size_mas
+        if self.verbose:
+            print(f"Actual PSF pixel size: {self.psf_pixel_size_mas:.2f} mas")
 
-        if save_results:
-            self._save_psf_results(results, actual_psf_sampling, actual_pixel_size_mas)
+        # Extract results from DataStore (files are automatically saved)
+        results = self._load_psf_results()
 
         return results
 
-    def compute_modal_analysis(self, modal_params: Optional[Dict] = None, save_results: bool = True, force_recompute: bool = False) -> Dict:
+    def compute_modal_analysis(self, modal_params: Optional[Dict] = None, force_recompute: bool = False) -> Dict:
         """
         Calculate field modal analysis using replay system
         
@@ -803,7 +677,6 @@ class FieldAnalyser:
                         And any other ModalAnalysis parameter
                         If None, will try to extract from DM parameters if height=0,
                         otherwise defaults to {'type_str': 'zernike', 'nmodes': 100}
-            save_results: Whether to save results to disk
             force_recompute: Force recomputation even if files exist
         """
         if modal_params is None:
@@ -811,52 +684,50 @@ class FieldAnalyser:
 
         # Check if all individual modal files exist
         all_exist = True
-        for i in range(len(self.sources)):
-            output_file = self.modal_output_dir / self._get_analysis_filename("modal", source_idx=i, **modal_params)
-            if not output_file.exists():
-                all_exist = False
-                break
+        if not force_recompute:
+            for i in range(len(self.sources)):
+                modal_filename = self._get_modal_filename(i, modal_params)
+                modal_path = self.modal_output_dir / f"{modal_filename}.fits"
 
-        if not force_recompute and all_exist:
-            if self.verbose:
-                print(f"Loading existing modal analysis from: {self.modal_output_dir}")
-            return self._load_modal_results(self.modal_output_dir, modal_params)
+                if not modal_path.exists():
+                    all_exist = False
+                    break
+
+            if all_exist:
+                if self.verbose:
+                    print(f"Loading existing modal analysis from: {self.modal_output_dir}")
+                return self._load_modal_results( modal_params)
 
         if self.verbose:
             print(f"Computing field modal analysis for {len(self.sources)} sources...")
-            print(f"Modal parameters: {modal_params}")
 
         # Setup replay parameters and run simulation
         replay_params = self._build_replay_params_modal(modal_params)
         simul = self._run_simulation_with_params(replay_params, "temp_modal_replay_params.yml", self.modal_output_dir)
 
-        # Extract and save results
-        results = self._extract_modal_results_from_datastore(simul, modal_params)
-        if save_results:
-            self._save_modal_results(results, modal_params)
+        # Extract results from DataStore (files are automatically saved)
+        results = self._load_modal_results(modal_params)
 
         return results
 
-    def compute_phase_cube(self, save_results: bool = True, force_recompute: bool = False) -> Dict:
+    def compute_phase_cube(self, force_recompute: bool = False) -> Dict:
         """Calculate field phase cubes using replay system"""
 
         # Check if all individual cube files exist
         all_exist = True
-        for i in range(len(self.sources)):
-            output_file = self.cube_output_dir / self._get_analysis_filename("cube", source_idx=i)
-            if not output_file.exists():
-                all_exist = False
-                break
+        if not force_recompute:
+            for i in range(len(self.sources)):
+                cube_filename = self._get_cube_filename(i)
+                cube_path = self.cube_output_dir / f"{cube_filename}.fits"
+                
+                if not cube_path.exists():
+                    all_exist = False
+                    break
 
-        if not force_recompute and all_exist:
-            if self.verbose:
-                print(f"Loading existing phase cubes from: {self.cube_output_dir}")
-            return self._load_cube_results(self.cube_output_dir)
-
-        # Verify necessary data
-        data_status = self.check_required_data()
-        if not data_status['dm_commands']:
-            raise RuntimeError("DM command data not found - cannot compute phase cubes")
+            if all_exist:
+                if self.verbose:
+                    print(f"Loading existing phase cubes from: {self.cube_output_dir}")
+                return self._load_cube_results()
 
         if self.verbose:
             print(f"Computing field phase cubes for {len(self.sources)} sources...")
@@ -865,291 +736,41 @@ class FieldAnalyser:
         replay_params = self._build_replay_params_cube()
         simul = self._run_simulation_with_params(replay_params, "temp_cube_replay_params.yml", self.cube_output_dir)
 
-        # Extract and save results
-        results = self._extract_cube_results_from_datastore(simul)
-        if save_results:
-            self._save_cube_results(results)
+        # Extract results from DataStore (files are automatically saved)
+        results = self._load_cube_results()
 
         return results
 
-    def _extract_psf_results_from_objects(self, simul: Simul, psf_sampling: int) -> Dict:
-        """
-        Extract PSF results from simulation PSF objects
-        """
+    def _load_psf_results(self) -> Dict:
+        """Extract PSF results from DataStore files"""
         results = {
             'psf_list': [],
             'sr_list': [],
             'distances': self.distances,
             'coordinates': self.polar_coordinates,
             'wavelength_nm': self.wavelength_nm,
-            'psf_sampling': psf_sampling,
-            'pixel_scale': None  # Calculated later
+            'pixel_size_mas': self.psf_pixel_size_mas,
+            'psf_sampling': self.psf_sampling
         }
 
-        # Extract PSF from each PSF object
+        # Load PSF and SR data from saved files
         for i in range(len(self.sources)):
-            psf_obj = simul.objs[f'psf_field_{i}']
-            results['psf_list'].append(psf_obj.int_psf.value)
-            results['sr_list'].append(psf_obj.int_sr.value)
+            psf_filename, sr_filename = self._get_psf_filenames(i)
 
-        # Calculate pixel scale (as in PASSATA)
-        main_params = simul.objs['main']
-        pixel_pitch = main_params.pixel_pitch
-        pixel_pupil = main_params.pixel_pupil
-
-        # scale = wavelength[m] / (diameter[m]) * rad2arcsec * (1/psf_sampling)
-        scale = (self.wavelength_nm * 1e-9) / (pixel_pitch * pixel_pupil) * 206264.8 * (1.0 / psf_sampling)
-        results['pixel_scale'] = scale
-
-        return results
-
-    def _extract_modal_results_from_datastore(self, simul: Simul, modal_params: dict) -> Dict:
-        """
-        Extract modal analysis results from DataStore
-        """
-        data_store = simul.objs['data_store_modal']
-
-        results = {
-            'modal_coeffs': [],
-            'residual_variance': [],
-            'residual_average': [],
-            'turbulence_variance': [],  # If available
-            'distances': self.distances,
-            'coordinates': self.polar_coordinates,
-            'modal_params': modal_params,
-            'wavelength_nm': self.wavelength_nm
-        }
-
-        # Extract modal coefficients for each source
-        for i in range(len(self.sources)):
-            modal_key = f'modal_res_{i}'
-            if modal_key in data_store.storage:
-                # Extract time series
-                time_series = data_store.storage[modal_key]
-                times = np.array(list(time_series.keys()))
-                coeffs = np.array(list(time_series.values()))
-
-                results['modal_coeffs'].append(coeffs)
-
-                # Calculate residual variance and average (excluding settling time)
-                if self.start_time > 0:
-                    valid_idx = times >= self.start_time
-                    if self.end_time:
-                        valid_idx &= times <= self.end_time
-                    valid_coeffs = coeffs[valid_idx]
-                else:
-                    valid_coeffs = coeffs
-
-                if len(valid_coeffs) > 0:
-                    residual_mean = np.mean(valid_coeffs, axis=0)
-                    residual_var = np.var(valid_coeffs, axis=0)
-                    results['residual_average'].append(residual_mean)
-                    results['residual_variance'].append(residual_var)
-                else:
-                    results['residual_average'].append(np.zeros(coeffs.shape[1]))
-                    results['residual_variance'].append(np.zeros(coeffs.shape[1]))
-
-        return results
-
-    def _extract_cube_results_from_datastore(self, simul: Simul) -> Dict:
-        """
-        Extract phase cubes from DataStore
-        """
-        data_store = simul.objs['data_store_cube']
-
-        results = {
-            'phase_cubes': [],
-            'times': None,
-            'distances': self.distances,
-            'coordinates': self.polar_coordinates,
-            'wavelength_nm': self.wavelength_nm
-        }
-
-        # Extract phase cubes for each source
-        times = None
-        for i in range(len(self.sources)):
-            cube_key = f'phase_cube_{i}'
-            if cube_key in data_store.storage:
-                time_series = data_store.storage[cube_key]
-                if times is None:
-                    times = np.array(list(time_series.keys()))
-                    results['times'] = times
-
-                # Create 3D cube: [time, y, x]
-                phases = list(time_series.values())
-                if len(phases) > 0:
-                    # Extract only amplitude and phase from ElectricField
-                    if hasattr(phases[0], '__len__') and len(phases[0]) == 2:
-                        # If it's [amplitude, phase], take only phase
-                        phase_cube = np.array([phase[1] for phase in phases])
-                    else:
-                        phase_cube = np.array(phases)
-
-                    results['phase_cubes'].append(phase_cube)
-
-        return results
-
-    # Methods to save and load results (using FITS)
-
-    def _save_psf_results(self, results: Dict, psf_sampling: float, pixel_size_mas: float):
-        """Save PSF results as separate files for each source"""
-        # Create directory if it doesn't exist
-        self.psf_output_dir.mkdir(parents=True, exist_ok=True)
-
-        for i, (psf_data, sr_value) in enumerate(zip(results['psf_list'], results['sr_list'])):
-            filename = self.psf_output_dir / self._get_analysis_filename(
-                "psf", source_idx=i, 
-                psf_sampling=psf_sampling,
-                psf_pixel_size_mas=pixel_size_mas,
-                wavelength_nm=self.wavelength_nm
-            )
-
-            # Create HDU list for this source
-            primary_hdu = fits.PrimaryHDU(psf_data)
-
-            # Add header info
-            primary_hdu.header['TN'] = self.tracking_number
-            primary_hdu.header['SOURCE'] = i
-            primary_hdu.header['WAVELNG'] = self.wavelength_nm
-            primary_hdu.header['TSTART'] = self.start_time
-            primary_hdu.header['SAMPLING'] = psf_sampling
-            primary_hdu.header['PIXSIZE'] = pixel_size_mas
-            primary_hdu.header['STREHL'] = sr_value
-
-            # Add coordinate info
-            r, theta = self._get_source_coordinates(i)
-            primary_hdu.header['COORD_R'] = r
-            primary_hdu.header['COORD_T'] = theta
-
-            if self.end_time:
-                primary_hdu.header['TEND'] = self.end_time
-            if results.get('pixel_scale'):
-                primary_hdu.header['PIXSCALE'] = results['pixel_scale']
-
-            # Save single HDU
-            primary_hdu.writeto(filename, overwrite=True)
-
-            if self.verbose:
-                print(f"PSF for source {i} saved to: {filename}")
-
-    def _save_modal_results(self, results: Dict, modal_params: dict):
-        """Save modal analysis results as separate files for each source"""
-        # Create directory if it doesn't exist
-        self.modal_output_dir.mkdir(parents=True, exist_ok=True)
-
-        for i in range(len(self.sources)):
-            modal_coeffs = results['modal_coeffs'][i]
-            residual_var = results['residual_variance'][i]
-            residual_avg = results['residual_average'][i]
-
-            filename = self.modal_output_dir / self._get_analysis_filename("modal", source_idx=i, **modal_params)
-
-            # Create HDU list for this source
-            primary_hdu = fits.PrimaryHDU()
-
-            # Modal coefficients as primary data
-            modal_hdu = fits.ImageHDU(modal_coeffs, name='MODAL_COEFFS')
-
-            # Residual variance as second extension
-            var_hdu = fits.ImageHDU(residual_var, name='RESIDUAL_VAR')
-
-            # Residual average as third extension
-            avg_hdu = fits.ImageHDU(residual_avg, name='RESIDUAL_AVG')
-
-            hdul = fits.HDUList([primary_hdu, modal_hdu, var_hdu, avg_hdu])
-
-            # Add header info
-            primary_hdu.header['TN'] = self.tracking_number
-            primary_hdu.header['SOURCE'] = i
-            primary_hdu.header['WAVELNG'] = self.wavelength_nm
-
-            # Handle different ways to specify number of modes
-            if 'nmodes' in modal_params:
-                primary_hdu.header['NMODES'] = modal_params['nmodes']
-            elif 'nzern' in modal_params:
-                primary_hdu.header['NZERN'] = modal_params['nzern']
-
-            if 'type_str' in modal_params:
-                primary_hdu.header['MODTYPE'] = modal_params['type_str']
-
-            # Add coordinate info
-            r, theta = self._get_source_coordinates(i)
-            primary_hdu.header['COORD_R'] = r
-            primary_hdu.header['COORD_T'] = theta
-
-            hdul.writeto(filename, overwrite=True)
-
-            if self.verbose:
-                print(f"Modal analysis for source {i} saved to: {filename}")
-
-    def _save_cube_results(self, results: Dict):
-        """Save phase cubes as separate files for each source"""
-        # Create directory if it doesn't exist
-        self.cube_output_dir.mkdir(parents=True, exist_ok=True)
-
-        for i, phase_cube in enumerate(results['phase_cubes']):
-            filename = self.cube_output_dir / self._get_analysis_filename("cube", source_idx=i)
-
-            # Create HDU list for this source
-            primary_hdu = fits.PrimaryHDU(phase_cube)
-
-            # Times as second extension
-            times_hdu = fits.ImageHDU(results['times'], name='TIMES')
-
-            hdul = fits.HDUList([primary_hdu, times_hdu])
-
-            # Add header info
-            primary_hdu.header['TN'] = self.tracking_number
-            primary_hdu.header['SOURCE'] = i
-            primary_hdu.header['WAVELNG'] = self.wavelength_nm
-
-            # Add coordinate info
-            r, theta = self._get_source_coordinates(i)
-            primary_hdu.header['COORD_R'] = r
-            primary_hdu.header['COORD_T'] = theta
-
-            hdul.writeto(filename, overwrite=True)
-
-            if self.verbose:
-                print(f"Phase cube for source {i} saved to: {filename}")
-
-    def _load_psf_results(self, output_dir: Path, psf_sampling: int, pixel_size_mas: float) -> Dict:
-        """Load PSF results from separate files"""
-        results = {
-            'psf_list': [],
-            'sr_list': [],
-            'coordinates': self.polar_coordinates,
-            'distances': self.distances,
-            'wavelength_nm': self.wavelength_nm,
-            'psf_sampling': psf_sampling,
-            'actual_pixel_size_mas': pixel_size_mas,
-            'pixel_scale': None
-        }
-
-        for i in range(len(self.sources)):
-            filename = output_dir / self._get_analysis_filename(
-                "psf", source_idx=i, 
-                psf_sampling=psf_sampling,
-                psf_pixel_size_mas=pixel_size_mas,
-                wavelength_nm=self.wavelength_nm
-            )
-
-            if filename.exists():
-                hdul = fits.open(filename)
+            # Load PSF
+            psf_path = self.psf_output_dir / f"{psf_filename}.fits"
+            with fits.open(psf_path) as hdul:
                 results['psf_list'].append(hdul[0].data)
-                results['sr_list'].append(hdul[0].header.get('STREHL', 0.0))
 
-                if results['pixel_scale'] is None:
-                    results['pixel_scale'] = hdul[0].header.get('PIXSCALE', None)
-
-                hdul.close()
-            else:
-                raise FileNotFoundError(f"PSF file not found: {filename}")
+            # Load SR
+            sr_path = self.psf_output_dir / f"{sr_filename}.fits"
+            with fits.open(sr_path) as hdul:
+                results['sr_list'].append(hdul[0].data)
 
         return results
 
-    def _load_modal_results(self, output_dir: Path, modal_params: dict) -> Dict:
-        """Load modal analysis results from separate files"""
+    def _load_modal_results(self, modal_params: dict) -> Dict:
+        """Load existing modal results from DataStore files"""
         results = {
             'modal_coeffs': [],
             'residual_variance': [],
@@ -1161,21 +782,26 @@ class FieldAnalyser:
         }
 
         for i in range(len(self.sources)):
-            filename = output_dir / self._get_analysis_filename("modal", source_idx=i, **modal_params)
+            modal_filename = self._get_modal_filename(i, modal_params)
+            modal_path = self.modal_output_dir / f"{modal_filename}.fits"
 
-            if filename.exists():
-                hdul = fits.open(filename)
-                results['modal_coeffs'].append(hdul['MODAL_COEFFS'].data)
-                results['residual_variance'].append(hdul['RESIDUAL_VAR'].data)
-                results['residual_average'].append(hdul['RESIDUAL_AVG'].data)
-                hdul.close()
-            else:
-                raise FileNotFoundError(f"Modal analysis file not found: {filename}")
+            with fits.open(modal_path) as hdul:
+                modal_coeffs = hdul[0].data
+                results['modal_coeffs'].append(modal_coeffs)
+
+                # Calculate statistics from time series
+                if len(modal_coeffs) > 0:
+                    # Filter by time if needed (assuming first dimension is time)
+                    results['residual_average'].append(np.mean(modal_coeffs, axis=0))
+                    results['residual_variance'].append(np.var(modal_coeffs, axis=0))
+                else:
+                    results['residual_average'].append(np.zeros(modal_coeffs.shape[1]))
+                    results['residual_variance'].append(np.zeros(modal_coeffs.shape[1]))
 
         return results
 
-    def _load_cube_results(self, output_dir: Path) -> Dict:
-        """Load phase cubes from separate files"""
+    def _load_cube_results(self) -> Dict:
+        """Load existing cube results from DataStore files"""
         results = {
             'phase_cubes': [],
             'times': None,
@@ -1185,94 +811,18 @@ class FieldAnalyser:
         }
 
         for i in range(len(self.sources)):
-            filename = output_dir / self._get_analysis_filename("cube", source_idx=i)
+            cube_filename = self._get_cube_filename(i)
+            cube_path = self.cube_output_dir / f"{cube_filename}.fits"
 
-            if filename.exists():
-                hdul = fits.open(filename)
+            with fits.open(cube_path) as hdul:
                 results['phase_cubes'].append(hdul[0].data)
 
-                if results['times'] is None:
-                    results['times'] = hdul['TIMES'].data
-
-                hdul.close()
-            else:
-                raise FileNotFoundError(f"Phase cube file not found: {filename}")
+                if results['times'] is None and len(hdul) > 1:
+                    results['times'] = hdul[1].data
 
         return results
 
-    def _calculate_psf_sampling(self, psf_sampling: Optional[float] = None, 
-                            psf_pixel_size_mas: Optional[float] = None) -> Dict:
-        """
-        Calculate PSF sampling parameters ensuring constraints are met
 
-        Returns:
-            Dict with 'psf_sampling', 'pixel_size_mas', and validation info
-        """
-        # Get pupil parameters from loaded simulation params
-        if self.params is None:
-            raise RuntimeError("Simulation parameters not loaded")
-
-        pixel_pupil = self.params['main']['pixel_pupil']
-        pixel_pitch = self.params['main']['pixel_pitch']
-        dim_pup_in_m = pixel_pupil * pixel_pitch
-
-        # Calculate theoretical minimum pixel size (Nyquist limit)
-        min_pixel_size_mas = (self.wavelength_nm * 1e-9 / dim_pup_in_m * 3600 * 180 / np.pi) * 1000
-
-        if psf_pixel_size_mas is not None:
-            # User specified pixel size - calculate required sampling
-            if psf_pixel_size_mas > min_pixel_size_mas:
-                raise ValueError(
-                    f"Requested PSF pixel size ({psf_pixel_size_mas:.2f} mas) is larger than "
-                    f"the theoretical minimum ({min_pixel_size_mas:.2f} mas) for this wavelength and pupil size."
-                )
-
-            # Calculate required sampling
-            required_sampling = (self.wavelength_nm * 1e-9 / dim_pup_in_m * 3600 * 180 / np.pi) * 1000 / psf_pixel_size_mas
-
-            # Find nearest valid sampling (pixel_pupil * sampling must be integer)
-            # Try different integer values for the final PSF size
-            best_sampling = required_sampling
-            best_error = float('inf')
-
-            for psf_size in range(int(pixel_pupil * required_sampling) - 5, 
-                                int(pixel_pupil * required_sampling) + 6):
-                if psf_size > 0:
-                    candidate_sampling = psf_size / pixel_pupil
-                    candidate_pixel_size = min_pixel_size_mas / candidate_sampling
-                    error = abs(candidate_pixel_size - psf_pixel_size_mas)
-
-                    if error < best_error:
-                        best_error = error
-                        best_sampling = candidate_sampling
-
-            actual_psf_sampling = best_sampling
-            actual_pixel_size_mas = min_pixel_size_mas / actual_psf_sampling
-
-            # Warning if approximation is significant
-            error_percent = abs(actual_pixel_size_mas - psf_pixel_size_mas) / psf_pixel_size_mas * 100
-            if error_percent > 1.0 and self.verbose:
-                print(f"Warning: Actual pixel size ({actual_pixel_size_mas:.2f} mas) differs from "
-                    f"requested ({psf_pixel_size_mas:.2f} mas) by {error_percent:.1f}% due to "
-                    f"integer sampling constraint.")
-   
-        else:
-            # User specified sampling factor
-            actual_psf_sampling = psf_sampling
-            actual_pixel_size_mas = min_pixel_size_mas / actual_psf_sampling
-            
-            # Check that pixel_pupil * sampling gives reasonable integer
-            psf_size = pixel_pupil * actual_psf_sampling
-            if abs(psf_size - round(psf_size)) > 0.01 and self.verbose:
-                print(f"Warning: PSF sampling {actual_psf_sampling:.3f} with pixel_pupil {pixel_pupil} "
-                    f"gives non-integer PSF size {psf_size:.3f}")
-
-        return {
-            'psf_sampling': actual_psf_sampling,
-            'pixel_size_mas': actual_pixel_size_mas,
-            'min_pixel_size_mas': min_pixel_size_mas,
-            'pupil_diameter_m': dim_pup_in_m
-        }
 
     def _extract_modal_params_from_dm(self) -> Dict:
         """
