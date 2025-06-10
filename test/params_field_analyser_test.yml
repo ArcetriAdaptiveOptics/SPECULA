@@ -144,6 +144,7 @@ modal_analysis:
 
 psf:
   class:             'PSF'
+  simul_params_ref:  'main'
   wavelengthInNm:    1650                 # [nm] Imaging wavelength
   nd:                7                    # padding coefficient for PSF computation
   start_time:        0.0                  # PSF integration start time
