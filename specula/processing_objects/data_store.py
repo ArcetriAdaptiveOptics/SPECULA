@@ -23,13 +23,13 @@ class DataStore(BaseProcessingObj):
     def __init__(self,
                 store_dir: str,         # TODO ="",
                 data_format: str='fits',
-                save_on_disk: bool=True):
+                create_tn: bool=True):
         super().__init__()
         self.data_filename = ''
         self.tn_dir = store_dir
         self.data_format = data_format
         self.storage = defaultdict(OrderedDict)
-        self._save_on_disk = save_on_disk
+        self._create_tn = create_tn
         self.replay_params = None
 
     def setParams(self, params):
@@ -111,12 +111,12 @@ class DataStore(BaseProcessingObj):
         # including any calculations done in other objects' finalize() methods
         self.trigger_code()
 
-        if self._save_on_disk:
+        if self._create_tn:
             self.create_TN_folder()
-            self.save_params()
-            if self.data_format == 'pickle':
-                self.save_pickle()
-            elif self.data_format == 'fits':
-                self.save_fits()
-            else:
-                raise TypeError(f"Error: unsupported file format {self.data_format}")
+        self.save_params()
+        if self.data_format == 'pickle':
+            self.save_pickle()
+        elif self.data_format == 'fits':
+            self.save_fits()
+        else:
+            raise TypeError(f"Error: unsupported file format {self.data_format}")
