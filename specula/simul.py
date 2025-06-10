@@ -390,8 +390,8 @@ class Simul():
 
         for obj_name in set(obj_to_remove):
             del self.replay_params[obj_name]
-        
-        for key, pars in self.replay_params.items():            
+
+        for key, pars in self.replay_params.items():
             if not key=='data_source':
                 if 'inputs' in pars.keys():
                     for input_name, output_name_full in pars['inputs'].items():
