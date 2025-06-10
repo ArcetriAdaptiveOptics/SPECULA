@@ -119,7 +119,6 @@ control:
       delta_comm: 'rec.out_modes'     
   outputs:  ['out_comm']
 
-
 dm:
   class:             'DM'
   simul_params_ref:  'main'
@@ -132,11 +131,21 @@ dm:
       in_command: 'control.out_comm'
   outputs:  ['out_layer']
 
+modal_analysis:
+  class:            'ModalAnalysis'
+  type_str:         'zernike'
+  npixels:          64
+  nmodes:           40
+  obsratio:         0.1
+  dorms:            True
+  inputs:
+    in_ef: 'prop.out_on_axis_source_ef'
+  outputs: ['out_modes']
 
 psf:
   class:             'PSF'
   wavelengthInNm:    1650                 # [nm] Imaging wavelength
-  nd:                15                    # padding coefficient for PSF computation
+  nd:                7                    # padding coefficient for PSF computation
   start_time:        0.0                  # PSF integration start time
   inputs:
       in_ef:  'prop.out_on_axis_source_ef'
@@ -147,4 +156,8 @@ data_store:
   class:             'DataStore'
   store_dir:         './data'             # Data result directory: 'store_dir'/TN/
   inputs:    
-    input_list: ['res_sr-psf.out_sr','res_psf-psf.out_psf','comm-control.out_comm']
+    input_list: ['res_sr-psf.out_sr',
+                 'res_psf-psf.out_psf',
+                 'comm-control.out_comm',
+                 'res-modal_analysis.out_modes',
+                 'phase-prop.out_on_axis_source_ef']
