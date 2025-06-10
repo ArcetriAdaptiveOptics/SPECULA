@@ -95,11 +95,11 @@ def init(device_idx=-1, precision=0):
 
 
 # should be used as less as a possible and preferably outside time critical computations
-def cpuArray(v):
-    return to_xp(np, v)
+def cpuArray(v, dtype=None, force_copy=False):
+    return to_xp(np, v, dtype=dtype, force_copy=force_copy)
 
 
-def to_xp(xp, v, dtype=None):
+def to_xp(xp, v, dtype=None, force_copy=False):
     '''
     Make sure that v is allocated as an array on this object's device.
     Works for all combinations of np and cp, whether installed or not.
@@ -111,22 +111,22 @@ def to_xp(xp, v, dtype=None):
     be used on a cupy array.
     '''
     if xp is cp:
-        if isinstance(v, cp.ndarray):
+        if isinstance(v, cp.ndarray) and not force_copy:
             retval =  v
         else:
             retval =  cp.array(v)
     else:
         if cp is not None and isinstance(v, cp.ndarray):
             retval = v.get()
-        elif isinstance(v, np.ndarray):
+        elif isinstance(v, np.ndarray) and not force_copy:
             # Avoid extra copy (enabled by numpy default)
             retval = v
         else:
             retval = np.array(v)
-    if dtype is None:
+    if dtype is None and not force_copy:
         return retval
     else:
-        return retval.astype(dtype, copy=False)
+        return retval.astype(dtype, copy=force_copy)
 
 
 class DummyDecoratorAndContextManager():

@@ -71,12 +71,19 @@ class DataStore(BaseProcessingObj):
 
     def create_TN_folder(self):
         today = time.strftime("%Y%m%d_%H%M%S")
+        iter = None
         while True:
             tn = f'{today}'
             prefix = os.path.join(self.tn_dir, tn)
+            if iter is not None:
+                prefix += f'.{iter}'
             if not os.path.exists(prefix):
                 os.makedirs(prefix)
-                break            
+                break
+            if iter is None:
+                iter = 0
+            else:
+                iter += 1      
         self.tn_dir = prefix        
 
     def trigger_code(self):
@@ -84,15 +91,15 @@ class DataStore(BaseProcessingObj):
             item = in_.get(target_device_idx=self.target_device_idx)
             if item is not None and item.generation_time == self.current_time:
                 if isinstance(item, BaseValue):
-                    v = cpuArray(item.value).copy()
+                    v = cpuArray(item.value, force_copy=True)
                 elif isinstance(item, Slopes):
-                    v = cpuArray(item.slopes).copy()
+                    v = cpuArray(item.slopes, force_copy=True)
                 elif isinstance(item, Pixels):
-                    v = cpuArray(item.pixels).copy()
+                    v = cpuArray(item.pixels, force_copy=True)
                 elif isinstance(item, ElectricField):
-                    v = np.stack( (cpuArray(item.A).copy(), cpuArray(item.phaseInNm).copy()) )
+                    v = np.stack( (cpuArray(item.A, force_copy=True), cpuArray(item.phaseInNm, force_copy=True)) )
                 elif isinstance(item, Intensity):
-                    v = cpuArray(item.i).copy()
+                    v = cpuArray(item.i, force_copy=True)
                 else:
                     raise TypeError(f"Error: don't know how to save an object of type {type(item)}")
                 self.storage[k][self.current_time] = v
