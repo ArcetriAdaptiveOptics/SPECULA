@@ -36,19 +36,20 @@ class PSF(BaseProcessingObj):
         self.psf = BaseValue()
         self.int_psf = BaseValue()
         self.ref = None
-        self.intsr = 0.0
         self.count = 0
         self.first = True
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
         self.outputs['out_sr'] = self.sr
         self.outputs['out_psf'] = self.psf
+        self.outputs['out_int_sr'] = self.int_sr
+        self.outputs['out_int_psf'] = self.int_psf
 
     def setup(self):
         in_ef = self.inputs['in_ef'].get(self.target_device_idx)
         s = [int(np.around(dim * self.nd/2)*2) for dim in in_ef.size]
         self.int_psf.value = self.xp.zeros(s, dtype=self.dtype)
-        self.intsr = 0
+        self.int_sr.value = 0
 
         self.out_size = [int(np.around(dim * self.nd/2)*2) for dim in in_ef.size]
         self.ref = Intensity(self.out_size[0], self.out_size[1])
@@ -105,7 +106,7 @@ class PSF(BaseProcessingObj):
         in_ef = self.local_inputs['in_ef']
         if in_ef:
             self.int_psf.value *= 0
-        self.intsr = 0
+        self.int_sr.value = 0
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
@@ -127,11 +128,15 @@ class PSF(BaseProcessingObj):
         super().post_trigger()
         if self.current_time_seconds >= self.start_time:
             self.count += 1
-            self.intsr += self.sr.value
+            self.int_sr.value += self.sr.value
             self.int_psf.value += self.psf.value
-            self.int_sr.value = self.intsr / self.count
-            self.int_psf.generation_time = self.current_time
-            self.int_sr.generation_time = self.current_time
         self.psf.generation_time = self.current_time
         self.sr.generation_time = self.current_time
 
+    def finalize(self):
+        if self.count > 0:
+            self.int_psf.value /= self.count
+            self.int_sr.value /= self.count
+
+        self.int_psf.generation_time = self.current_time
+        self.int_sr.generation_time = self.current_time

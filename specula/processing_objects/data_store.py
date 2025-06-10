@@ -106,6 +106,11 @@ class DataStore(BaseProcessingObj):
                 self.storage[k][self.current_time] = v
 
     def finalize(self):
+
+        # Perform an additional trigger to ensure all data is captured,
+        # including any calculations done in other objects' finalize() methods
+        self.trigger_code()
+
         if self._save_on_disk:
             self.create_TN_folder()
             self.save_params()
