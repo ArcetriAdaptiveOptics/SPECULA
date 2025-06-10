@@ -119,7 +119,7 @@ class TestShSimulation(unittest.TestCase):
         with fits.open(res_path) as hdul:
             original_modes = hdul[0].data
             original_modes_header = hdul[0].header
-            
+
         # Check if phase.fits exists (the phase cube data from simulation)
         phase_path = os.path.join(latest_data_dir, 'phase.fits')
         self.assertTrue(os.path.exists(phase_path),
@@ -151,13 +151,8 @@ class TestShSimulation(unittest.TestCase):
             wavelength_nm=1650,  # Same as PSF object in params
             start_time=0.0,      # Same as PSF object in params
             end_time=None,
-            gpu=False,
             verbose=True
         )
-
-        # Check required data
-        data_status = analyzer.check_required_data()
-        self.assertTrue(data_status['dm_commands'], "DM commands not found for FieldAnalyser")
 
         # Compute PSF using FieldAnalyser with same sampling as original
         # Extract sampling from original simulation parameters
@@ -165,19 +160,22 @@ class TestShSimulation(unittest.TestCase):
 
         psf_results = analyzer.compute_field_psf(
             psf_sampling=psf_sampling,
-            save_results=True,
             force_recompute=True
         )
 
         # Compute modal analysis
-        modal_results = analyzer.compute_modal_analysis(save_results=True)
+        modal_results = analyzer.compute_modal_analysis()
 
         # Compute phase cube
-        cube_results = analyzer.compute_phase_cube(save_results=True)
+        cube_results = analyzer.compute_phase_cube()
 
         field_psf = psf_results['psf_list'][0]
         modes = modal_results['modal_coeffs'][0]
         phase = cube_results['phase_cubes'][0]
+
+        field_psf = field_psf[0]
+        # extract the phase, discarding the amplitude
+        phase = phase[:,1,:,:]
 
         display = False
         if display:
@@ -254,7 +252,7 @@ class TestShSimulation(unittest.TestCase):
         # Compare phase cube shapes
         self.assertEqual(phase.shape, original_phase.shape,
                         "Phase cube shape should match between simulation and FieldAnalyser")
-        
+
         # normalize PSF data to match original simulation
         field_psf /= field_psf.sum()  # Normalize to match original PSF
         original_psf /= original_psf.sum()  # Normalize to match original PSF
@@ -279,11 +277,6 @@ class TestShSimulation(unittest.TestCase):
             rtol=1e-3, atol=1e-3,
             err_msg="Phase cube values do not match between simulation and FieldAnalyser"
         )
-            
-        # Check that pixel scale is reasonable
-        pixel_scale = psf_results['pixel_scale']
-        self.assertIsNotNone(pixel_scale, "Pixel scale should be calculated")
-        self.assertGreater(pixel_scale, 0, "Pixel scale should be positive")
 
         print(f"FieldAnalyser test successful!")
 
@@ -291,17 +284,8 @@ class TestShSimulation(unittest.TestCase):
         psf_output_dir = analyzer.psf_output_dir
         self.assertTrue(psf_output_dir.exists(), "PSF output directory should exist")
 
-        sampling_info = analyzer._calculate_psf_sampling(psf_sampling, None)
-        actual_psf_sampling = sampling_info['psf_sampling']
-        actual_pixel_size_mas = sampling_info['pixel_size_mas']
+        psf_filename, sr_filename = analyzer._get_psf_filenames(source_idx=0)
+        psf_path = psf_output_dir / f"{psf_filename}.fits"
+        self.assertTrue(psf_path.exists(), f"PSF output file should exist: {psf_path}")
 
-        expected_filename = analyzer._get_analysis_filename(
-            "psf", source_idx=0, 
-            psf_sampling=actual_psf_sampling,
-            psf_pixel_size_mas=actual_pixel_size_mas,
-            wavelength_nm=1650
-        )
-        expected_file = psf_output_dir / expected_filename
-        self.assertTrue(expected_file.exists(), f"PSF output file should exist: {expected_file}")
-
-        print(f"FieldAnalyser PSF file saved: {expected_file}")
+        print(f"FieldAnalyser PSF file saved: {psf_path}")
