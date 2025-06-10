@@ -8,6 +8,7 @@ from astropy.io import fits
 from copy import deepcopy
 
 from specula.simul import Simul
+from specula.processing_objects.psf import PSF
 
 class FieldAnalyser:
     """
