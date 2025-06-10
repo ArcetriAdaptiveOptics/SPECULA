@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List, Dict, Optional, Union, Tuple
 import yaml
 from astropy.io import fits
+from copy import deepcopy
 
 from specula.simul import Simul
 from specula.data_objects.source import Source
@@ -337,29 +338,99 @@ class FieldAnalyser:
 
         return base_name + ".fits"
 
+    def _build_replay_params_from_datastore(self) -> dict:
+        """
+        Build replay params using the existing build_replay mechanism in Simul
+        but with modified DataStore input_list containing only DM commands
+        """
+        if self.params is None:
+            raise RuntimeError("Simulation parameters not loaded")
+
+        # Create modified params with reduced DataStore input_list
+        modified_params = deepcopy(self.params)
+
+        # Find and modify DataStore object
+        datastore_obj = None
+        datastore_key = None
+
+        for key, config in modified_params.items():
+            if isinstance(config, dict) and config.get('class') == 'DataStore':
+                datastore_obj = config
+                datastore_key = key
+                break
+
+        if datastore_obj is None:
+            raise RuntimeError("No DataStore object found in original parameters")
+
+        # Extract only DM command inputs from original input_list
+        original_input_list = datastore_obj.get('inputs', {}).get('input_list', [])
+        dm_command_inputs = []
+
+        for input_ref in original_input_list:
+            if isinstance(input_ref, str):
+                # Keep only DM command references
+                # Format: 'comm-control.out_comm' or 'comm-integrator.out_comm'
+                if 'comm-' in input_ref and ('control.' in input_ref or 'integrator.' in input_ref):
+                    dm_command_inputs.append(input_ref)
+                # Also check for direct DM references
+                elif '.out_comm' in input_ref:
+                    dm_command_inputs.append(input_ref)
+
+        if not dm_command_inputs:
+            # Fallback: look for any command-related outputs
+            for input_ref in original_input_list:
+                if 'comm' in input_ref.lower():
+                    dm_command_inputs.append(input_ref)
+
+        if not dm_command_inputs:
+            raise RuntimeError("No DM command inputs found in DataStore configuration")
+
+        # Update DataStore with reduced input_list
+        modified_params[datastore_key]['inputs']['input_list'] = dm_command_inputs
+
+        if self.verbose:
+            print(f"Original DataStore input_list: {original_input_list}")
+            print(f"Reduced to DM commands only: {dm_command_inputs}")
+
+        # Create Simul instance by bypassing the constructor
+        temp_simul = object.__new__(Simul)  # Create instance without calling __init__
+
+        # Initialize essential attributes
+        temp_simul.params = modified_params
+        temp_simul.verbose = self.verbose
+        temp_simul.overrides = []
+        temp_simul.diagram = False
+        temp_simul.diagram_title = None
+        temp_simul.diagram_filename = None
+        temp_simul.objs = {}
+        temp_simul.replay_params = {}
+
+        # Build objects and connections (needed for build_replay)
+        temp_simul.build_replay(modified_params)
+
+        # FIX: Update DataSource store_dir to point to correct tracking number directory
+        if 'data_source' in temp_simul.replay_params:
+            temp_simul.replay_params['data_source']['store_dir'] = str(self.tn_dir)
+            if self.verbose:
+                print(f"Updated DataSource store_dir to: {self.tn_dir}")
+
+        return temp_simul.replay_params
 
     def _build_replay_params_psf(self, psf_sampling: int = 7) -> dict:
         """
-        Modify replay_params for field PSF calculation
+        Build replay_params for field PSF calculation using build_replay mechanism
         """
-        # Load existing replay_params
-        replay_params_file = self.tn_dir / "replay_params.yml"
-        if not replay_params_file.exists():
-            raise FileNotFoundError(f"Replay params not found: {replay_params_file}")
-
-        with open(replay_params_file, 'r') as f:
-            replay_params = yaml.safe_load(f)
+        # Get base replay params from DataStore mechanism
+        replay_params = self._build_replay_params_from_datastore()
 
         if self.verbose:
-            print(f"Original replay_params keys: {list(replay_params.keys())}")
-
-        # Debug: Check if main object exists
-        if 'main' not in replay_params:
-            raise KeyError("'main' object not found in original replay_params.yml")
+            print(f"Base replay_params keys: {list(replay_params.keys())}")
 
         # Remove conflicting objects
-        self._remove_conflicting_objects(replay_params, ['PSF','CCD','SH','ShSlopec','ModulatedPyramid',
-                                                         'PyrSlopec','Modalrec','ModalAnalysis','DataStore'])
+        self._remove_conflicting_objects(replay_params, [
+            'PSF', 'CCD', 'SH', 'ShSlopec', 'ModulatedPyramid',
+            'PyrSlopec', 'Modalrec', 'ModalAnalysis'
+        ])
 
         # Add field sources to existing parameters
         self._add_field_sources_to_params(replay_params)
@@ -385,15 +456,16 @@ class FieldAnalyser:
 
     def _build_replay_params_modal(self, modal_params: dict) -> dict:
         """
-        Modify replay_params for field modal analysis
+        Build replay_params for field modal analysis using build_replay mechanism
         """
-        replay_params_file = self.tn_dir / "replay_params.yml"
-        with open(replay_params_file, 'r') as f:
-            replay_params = yaml.safe_load(f)
+        # Get base replay params from DataStore mechanism
+        replay_params = self._build_replay_params_from_datastore()
 
         # Remove conflicting objects
-        self._remove_conflicting_objects(replay_params, ['PSF','CCD','SH','ShSlopec','ModulatedPyramid',
-                                                        'PyrSlopec','Modalrec','ModalAnalysis','DataStore'])
+        self._remove_conflicting_objects(replay_params, [
+            'PSF', 'CCD', 'SH', 'ShSlopec', 'ModulatedPyramid',
+            'PyrSlopec', 'Modalrec', 'ModalAnalysis'
+        ])
 
         # Add field sources to existing parameters
         self._add_field_sources_to_params(replay_params)
@@ -403,30 +475,20 @@ class FieldAnalyser:
         shared_ifunc_inv_ref = None
 
         if 'ifunc' in modal_params and modal_params['ifunc'] is not None:
-            # Create shared IFunc object using simple parameter mapping
+            # Create shared IFunc object
             ifunc_config = {'class': 'IFunc'}
-
-            # Map parameters for IFunc
             ifunc_param_mapping = {
-                'type_str': 'type_str',
-                'nmodes': 'nmodes', 
-                'nzern': 'nzern',
-                'obsratio': 'obsratio',
-                'diaratio': 'diaratio',
-                'npixels': 'npixels',
-                'start_mode': 'start_mode',
-                'idx_modes': 'idx_modes',
-                'mask': 'mask',
-                'tag': 'tag'  # For saved IFunc objects
+                'type_str': 'type_str', 'nmodes': 'nmodes', 'nzern': 'nzern',
+                'obsratio': 'obsratio', 'diaratio': 'diaratio', 'npixels': 'npixels',
+                'start_mode': 'start_mode', 'idx_modes': 'idx_modes',
+                'mask': 'mask', 'tag': 'tag'
             }
 
-            # Extract IFunc parameters from modal_params['ifunc']
             ifunc_source = modal_params['ifunc']
             for ifunc_param, config_param in ifunc_param_mapping.items():
                 if ifunc_param in ifunc_source:
                     ifunc_config[config_param] = ifunc_source[ifunc_param]
 
-            # Set default npixels if not provided
             if 'npixels' not in ifunc_config:
                 ifunc_config['npixels'] = replay_params['main']['pixel_pupil']
 
@@ -434,16 +496,10 @@ class FieldAnalyser:
             shared_ifunc_ref = 'modal_analysis_ifunc'
 
         elif 'ifunc_inv' in modal_params and modal_params['ifunc_inv'] is not None:
-            # Create shared IFuncInv object using simple parameter mapping
+            # Create shared IFuncInv object
             ifunc_inv_config = {'class': 'IFuncInv'}
+            ifunc_inv_param_mapping = {'tag': 'tag', 'mask': 'mask'}
 
-            # Map parameters for IFuncInv
-            ifunc_inv_param_mapping = {
-                'tag': 'tag',  # IFuncInv is typically loaded from saved file
-                'mask': 'mask'
-            }
-
-            # Extract IFuncInv parameters from modal_params['ifunc_inv']
             ifunc_inv_source = modal_params['ifunc_inv']
             for ifunc_inv_param, config_param in ifunc_inv_param_mapping.items():
                 if ifunc_inv_param in ifunc_inv_source:
@@ -453,7 +509,7 @@ class FieldAnalyser:
             shared_ifunc_inv_ref = 'modal_analysis_ifunc_inv'
 
         else:
-            # No ifunc or ifunc_inv provided - create default IFunc
+            # Create default IFunc
             ifunc_config = {
                 'class': 'IFunc',
                 'type_str': modal_params.get('type_str', 'zernike'),
@@ -461,7 +517,6 @@ class FieldAnalyser:
                 'npixels': modal_params.get('npixels', replay_params['main']['pixel_pupil'])
             }
 
-            # Add optional parameters if present
             for param in ['obsratio', 'diaratio', 'start_mode', 'idx_modes']:
                 if param in modal_params:
                     ifunc_config[param] = modal_params[param]
@@ -472,78 +527,62 @@ class FieldAnalyser:
         # Add ModalAnalysis for each source
         for i, source_dict in enumerate(self.sources):
             modal_name = f'modal_analysis_{i}'
+            modal_config = {'class': 'ModalAnalysis'}
 
-            # Start with base configuration (don't copy all modal_params)
-            modal_config = {
-                'class': 'ModalAnalysis'
-            }
-
-            # Always use shared references - one will always exist now
             if shared_ifunc_ref:
                 modal_config['ifunc_ref'] = shared_ifunc_ref
             elif shared_ifunc_inv_ref:
                 modal_config['ifunc_inv_ref'] = shared_ifunc_inv_ref
 
-            # Add optional ModalAnalysis-specific parameters that don't go in IFunc
-            modal_specific_params = ['dorms', 'wavelengthInNm']  # Parameters specific to ModalAnalysis
+            # Add ModalAnalysis-specific parameters
+            modal_specific_params = ['dorms', 'wavelengthInNm']
             for param in modal_specific_params:
                 if param in modal_params:
                     modal_config[param] = modal_params[param]
 
-            # Always set inputs and outputs (these are not user-configurable)
-            modal_config['inputs'] = {
-                'in_ef': f'prop.out_field_source_{i}_ef'
-            }
+            modal_config['inputs'] = {'in_ef': f'prop.out_field_source_{i}_ef'}
             modal_config['outputs'] = ['out_modes']
 
             replay_params[modal_name] = modal_config
 
         # Add DataStore to save results
-        input_list = []
-        for i in range(len(self.sources)):
-            input_list.append(f'modal_res_{i}-modal_analysis_{i}.out_modes')
+        input_list = [f'modal_res_{i}-modal_analysis_{i}.out_modes' for i in range(len(self.sources))]
 
         replay_params['data_store_modal'] = {
             'class': 'DataStore', 
             'store_dir': str(self.modal_output_dir),
             'data_format': 'fits',
             'save_on_disk': False,
-            'inputs': {
-                'input_list': input_list
-            }
+            'inputs': {'input_list': input_list}
         }
 
         return replay_params
 
-
     def _build_replay_params_cube(self) -> dict:
         """
-        Modify replay_params for field phase cubes
+        Build replay_params for field phase cubes using build_replay mechanism
         """
-        replay_params_file = self.tn_dir / "replay_params.yml"
-        with open(replay_params_file, 'r') as f:
-            replay_params = yaml.safe_load(f)
+        # Get base replay params from DataStore mechanism
+        replay_params = self._build_replay_params_from_datastore()
 
         # Remove conflicting objects
-        self._remove_conflicting_objects(replay_params, ['PSF','CCD','SH','ShSlopec','ModulatedPyramid',
-                                                        'PyrSlopec','Modalrec','ModalAnalysis','DataStore'])
+        self._remove_conflicting_objects(replay_params, [
+            'PSF', 'CCD', 'SH', 'ShSlopec', 'ModulatedPyramid',
+            'PyrSlopec', 'Modalrec', 'ModalAnalysis'
+        ])
 
         # Add field sources to existing parameters
         self._add_field_sources_to_params(replay_params)
 
         # Add DataStore to save phase cubes
-        input_list = []
-        for i in range(len(self.sources)):
-            input_list.append(f'phase_cube_{i}-prop.out_field_source_{i}_ef')
+        input_list = [f'phase_cube_{i}-prop.out_field_source_{i}_ef' for i in range(len(self.sources))]
 
         replay_params['data_store_cube'] = {
             'class': 'DataStore',
-            'store_dir': str(self.cube_output_dir),  # Fixed: use cube_output_dir
-            'data_format': 'fits',  # Add explicit format
-            'save_on_disk': False,  # Do not save params
-            'inputs': {
-                'input_list': input_list
-            }
+            'store_dir': str(self.cube_output_dir),
+            'data_format': 'fits',
+            'save_on_disk': False,
+            'inputs': {'input_list': input_list}
         }
 
         return replay_params
@@ -551,52 +590,77 @@ class FieldAnalyser:
     def _add_field_sources_to_params(self, replay_params: dict):
         """
         Add field sources and update propagation object
-        Common functionality for all analysis types
+        Now works with replay_params which already has proper DM inputs
         """
-        # Find the position of 'prop' in the dictionary
+        # Find the propagation object
+        prop_key = None
+        for key, config in replay_params.items():
+            if isinstance(config, dict) and config.get('class') == 'AtmoPropagation':
+                prop_key = key
+                break
+
+        if prop_key is None:
+            available_objects = list(replay_params.keys())
+            raise KeyError(f"AtmoPropagation object not found in replay_params. "
+                        f"Available objects: {available_objects}")
+
+        if self.verbose:
+            print(f"Found propagation object: '{prop_key}'")
+
+        # Find the position of the propagation object
         keys_list = list(replay_params.keys())
+        prop_index = keys_list.index(prop_key)
 
-        if 'prop' in keys_list:
-            prop_index = keys_list.index('prop')
+        # Create a new ordered dictionary
+        new_params = {}
 
-            # Create a new ordered dictionary
-            new_params = {}
+        # Add all items before the propagation object
+        for key in keys_list[:prop_index]:
+            new_params[key] = replay_params[key]
 
-            # Add all items before 'prop'
-            for key in keys_list[:prop_index]:
-                new_params[key] = replay_params[key]
+        # Add field sources
+        for i, source_dict in enumerate(self.sources):
+            source_name = f'field_source_{i}'
+            new_params[source_name] = {
+                'class': 'Source',
+                'polar_coordinates': source_dict['polar_coordinates'],
+                'magnitude': source_dict['magnitude'],
+                'wavelengthInNm': source_dict['wavelengthInNm'],
+                'height': source_dict['height']
+            }
 
-            # Add field sources
-            for i, source_dict in enumerate(self.sources):
-                source_name = f'field_source_{i}'
-                new_params[source_name] = {
-                    'class': 'Source',
-                    'polar_coordinates': source_dict['polar_coordinates'],
-                    'magnitude': source_dict['magnitude'],
-                    'wavelengthInNm': source_dict['wavelengthInNm'],
-                    'height': source_dict['height']
-                }
+        # Add propagation object and remaining items
+        for key in keys_list[prop_index:]:
+            new_params[key] = replay_params[key]
 
-            # Add 'prop' and remaining items
-            for key in keys_list[prop_index:]:
-                new_params[key] = replay_params[key]
+        # Update propagation object to include all sources
+        source_refs = []
 
-            # Update propagation object to include all sources
-            source_refs = []
-            source_refs.extend([f'field_source_{i}' for i in range(len(self.sources))])
-            new_params['prop']['source_dict_ref'] = source_refs
+        # Check if the original propagation object has source references
+        original_sources = new_params[prop_key].get('source_dict_ref', [])
+        if original_sources:
+            source_refs.extend(original_sources)
 
-            output_list = []
-            for i in range(len(self.sources)):
-                output_list.append(f'out_field_source_{i}_ef')
-            new_params['prop']['outputs'] = output_list
+        # Add field sources
+        source_refs.extend([f'field_source_{i}' for i in range(len(self.sources))])
+        new_params[prop_key]['source_dict_ref'] = source_refs
 
-            # Replace the original dictionary content
-            replay_params.clear()
-            replay_params.update(new_params)
+        # Update outputs to include field sources
+        original_outputs = new_params[prop_key].get('outputs', [])
+        output_list = list(original_outputs)
 
-        else:
-            raise KeyError("'prop' object not found in original replay_params.yml")
+        for i in range(len(self.sources)):
+            output_list.append(f'out_field_source_{i}_ef')
+        new_params[prop_key]['outputs'] = output_list
+
+        if self.verbose:
+            print(f"Updated propagation object '{prop_key}':")
+            print(f"  Sources: {source_refs}")
+            print(f"  Outputs: {output_list}")
+
+        # Replace the original dictionary content
+        replay_params.clear()
+        replay_params.update(new_params)
 
     def _remove_conflicting_objects(self, replay_params: dict, classes_to_remove: list):
         """
