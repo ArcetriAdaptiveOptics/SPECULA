@@ -2,21 +2,22 @@ from specula.base_processing_obj import BaseProcessingObj
 from specula.base_value import BaseValue
 from specula.connections import InputValue, InputList
 from specula.data_objects.electric_field import ElectricField
+from specula.data_objects.pupilstop import Pupilstop
 from specula.data_objects.ifunc import IFunc
 from specula.data_objects.ifunc_inv import IFuncInv
 from specula.lib.compute_zern_ifunc import compute_zern_ifunc
 
 class ModalAnalysis(BaseProcessingObj):
 
-    def __init__(self, 
+    def __init__(self,
                 ifunc: IFunc=None,
                 ifunc_inv: IFuncInv=None,
                 type_str: str=None,
-                mask=None,
                 npixels: int=None,
                 nzern: int=None,
                 obsratio: float=None,
                 diaratio: float=None,
+                pupilstop: Pupilstop=None,
                 nmodes: int=None,
                 wavelengthInNm: float=0.0,
                 dorms: bool=False,
@@ -25,6 +26,10 @@ class ModalAnalysis(BaseProcessingObj):
 
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
+        mask = None
+        if pupilstop:
+            mask = pupilstop.A
+                            
         if ifunc is None and ifunc_inv is None:
             if type_str is None:
                 raise ValueError('At least one of ifunc and type must be set')
@@ -32,14 +37,14 @@ class ModalAnalysis(BaseProcessingObj):
                 mask = (self.to_xp(mask) > 0).astype(self.dtype)
             if npixels is None:
                 raise ValueError("If ifunc is not set, then npixels must be set!")
-            
+
             type_lower = type_str.lower()
             if type_lower in ['zern', 'zernike']:
                 ifunc, mask = compute_zern_ifunc(npixels, nzern=nmodes, obsratio=obsratio, diaratio=diaratio, mask=mask,
                                                  xp=self.xp, dtype=self.dtype)
             else:
                 raise ValueError(f'Invalid ifunc type {type_str}')
-            
+
             ifunc = IFunc(ifunc, mask=mask, nmodes=nmodes)
             self.phase2modes = ifunc.inverse()
         elif ifunc is None and ifunc_inv is not None:
@@ -74,10 +79,10 @@ class ModalAnalysis(BaseProcessingObj):
         unwrapped_p = self.xp.copy(p)
         for r in range(p.shape[1]):
             row = unwrapped_p[:, r]
-            unwrapped_p[:, r] = self.xp.unwrap(row)        
+            unwrapped_p[:, r] = self.xp.unwrap(row)
         for c in range(p.shape[0]):
             col = unwrapped_p[c, :]
-            unwrapped_p[c, :] = self.xp.unwrap(col)        
+            unwrapped_p[c, :] = self.xp.unwrap(col)
         return unwrapped_p
 
     def setup(self):
@@ -126,10 +131,10 @@ class ModalAnalysis(BaseProcessingObj):
                     ph = current_ef.phaseInNm[self.ifunc.idx_inf_func]
 
                 m = self.xp.dot(ph, self.phase2modes.ifunc_inv)
-            
+
             output_list[li].value = m
             output_list[li].generation_time = self.current_time
-        
+
         if self.dorms:
             self.rms.value = self.xp.std(ph)
             self.rms.generation_time = self.current_time
