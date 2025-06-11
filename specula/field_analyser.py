@@ -333,79 +333,36 @@ class FieldAnalyser:
         # Add field sources to existing parameters
         self._add_field_sources_to_params(replay_params)
 
-        # Create shared IFunc/IFuncInv object if needed
-        shared_ifunc_ref = None
-        shared_ifunc_inv_ref = None
+        # Create simple IFunc with modal_params (let ModalAnalysis handle the complexity)
+        ifunc_config = {
+            'class': 'IFunc',
+            'type_str': modal_params.get('type_str', 'zernike'),
+            'nmodes': modal_params.get('nmodes', modal_params.get('nzern', 100)),
+            'npixels': modal_params.get('npixels', replay_params['main']['pixel_pupil'])
+        }
 
-        if 'ifunc' in modal_params and modal_params['ifunc'] is not None:
-            # Create shared IFunc object
-            ifunc_config = {'class': 'IFunc'}
-            ifunc_param_mapping = {
-                'type_str': 'type_str', 'nmodes': 'nmodes', 'nzern': 'nzern',
-                'obsratio': 'obsratio', 'diaratio': 'diaratio', 'npixels': 'npixels',
-                'start_mode': 'start_mode', 'idx_modes': 'idx_modes',
-                'mask': 'mask', 'tag': 'tag'
-            }
+        # Add optional parameters if present
+        for param in ['obsratio', 'diaratio', 'start_mode', 'idx_modes']:
+            if param in modal_params:
+                ifunc_config[param] = modal_params[param]
 
-            ifunc_source = modal_params['ifunc']
-            for ifunc_param, config_param in ifunc_param_mapping.items():
-                if ifunc_param in ifunc_source:
-                    ifunc_config[config_param] = ifunc_source[ifunc_param]
+        replay_params['modal_analysis_ifunc'] = ifunc_config
 
-            if 'npixels' not in ifunc_config:
-                ifunc_config['npixels'] = replay_params['main']['pixel_pupil']
-
-            replay_params['modal_analysis_ifunc'] = ifunc_config
-            shared_ifunc_ref = 'modal_analysis_ifunc'
-
-        elif 'ifunc_inv' in modal_params and modal_params['ifunc_inv'] is not None:
-            # Create shared IFuncInv object
-            ifunc_inv_config = {'class': 'IFuncInv'}
-            ifunc_inv_param_mapping = {'tag': 'tag', 'mask': 'mask'}
-
-            ifunc_inv_source = modal_params['ifunc_inv']
-            for ifunc_inv_param, config_param in ifunc_inv_param_mapping.items():
-                if ifunc_inv_param in ifunc_inv_source:
-                    ifunc_inv_config[config_param] = ifunc_inv_source[ifunc_inv_param]
-
-            replay_params['modal_analysis_ifunc_inv'] = ifunc_inv_config
-            shared_ifunc_inv_ref = 'modal_analysis_ifunc_inv'
-
-        else:
-            # Create default IFunc
-            ifunc_config = {
-                'class': 'IFunc',
-                'type_str': modal_params.get('type_str', 'zernike'),
-                'nmodes': modal_params.get('nmodes', modal_params.get('nzern', 100)),
-                'npixels': modal_params.get('npixels', replay_params['main']['pixel_pupil'])
-            }
-
-            for param in ['obsratio', 'diaratio', 'start_mode', 'idx_modes']:
-                if param in modal_params:
-                    ifunc_config[param] = modal_params[param]
-
-            replay_params['modal_analysis_ifunc'] = ifunc_config
-            shared_ifunc_ref = 'modal_analysis_ifunc'
-
-        # Add ModalAnalysis for each source and build input_list
+        # Add ModalAnalysis for each source
         modal_input_list = []
         for i, source_dict in enumerate(self.sources):
             modal_name = f'modal_analysis_{i}'
-            modal_config = {'class': 'ModalAnalysis'}
-
-            if shared_ifunc_ref:
-                modal_config['ifunc_ref'] = shared_ifunc_ref
-            elif shared_ifunc_inv_ref:
-                modal_config['ifunc_inv_ref'] = shared_ifunc_inv_ref
+            modal_config = {
+                'class': 'ModalAnalysis',
+                'ifunc_ref': 'modal_analysis_ifunc',
+                'inputs': {'in_ef': f'prop.out_field_source_{i}_ef'},
+                'outputs': ['out_modes']
+            }
 
             # Add ModalAnalysis-specific parameters
-            modal_specific_params = ['dorms', 'wavelengthInNm']
-            for param in modal_specific_params:
+            for param in ['dorms', 'wavelengthInNm']:
                 if param in modal_params:
                     modal_config[param] = modal_params[param]
-
-            modal_config['inputs'] = {'in_ef': f'prop.out_field_source_{i}_ef'}
-            modal_config['outputs'] = ['out_modes']
 
             replay_params[modal_name] = modal_config
 
@@ -418,7 +375,7 @@ class FieldAnalyser:
             'class': 'DataStore',
             'store_dir': str(self.modal_output_dir),
             'data_format': 'fits',
-            'create_tn': False,  # Use existing directory structure
+            'create_tn': False,
             'inputs': {
                 'input_list': modal_input_list
             }
@@ -558,34 +515,39 @@ class FieldAnalyser:
             if self.verbose:
                 print(f"Removed conflicting object: {obj_name} (class: {replay_params.get(obj_name, {}).get('class', 'unknown')})")
 
-    def _run_simulation_with_params(self, params_dict: dict, temp_filename: str, output_dir: Path) -> Simul:
+    def _run_simulation_with_params(self, params_dict: dict, output_dir: Path) -> Simul:
         """
-        Common simulation execution logic
+        Common simulation execution logic using minimal temporary file
         """
+        import tempfile
+        import os
 
-        # Save temporary parameters
-        temp_params_file = output_dir / temp_filename
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        with open(temp_params_file, 'w') as f:
-            yaml.dump(params_dict, f, default_flow_style=False, sort_keys=False)
-
         if self.verbose:
-            print(f"Computing simulation using: {temp_params_file}")
+            print(f"Computing simulation with parameters to be saved by DataStore in: {output_dir}")
 
-        # Execute simulation with replay
+        # Create minimal temporary YAML file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as temp_file:
+            yaml.dump(params_dict, temp_file, default_flow_style=False, sort_keys=False)
+            temp_params_file = temp_file.name
+
         try:
-            simul = Simul(str(temp_params_file))
+            # Create Simul instance normally (this initializes all required attributes)
+            simul = Simul(temp_params_file)
             simul.run()
             return simul
         except Exception as e:
             print(f"Simulation failed: {e}")
-            print(f"Temp params file saved for debugging: {temp_params_file}")
+            print(f"Check DataStore output in: {output_dir}")
+            print(f"Temp params file for debugging: {temp_params_file}")
             raise
         finally:
-            # Cleanup temporary file (comment out for debugging)
-            # temp_params_file.unlink()
-            pass
+            # Clean up temporary file
+            try:
+                os.unlink(temp_params_file)
+            except:
+                pass  # File cleanup failure is not critical
 
     def compute_field_psf(self,
                         psf_sampling: Optional[float] = None, 
@@ -650,7 +612,7 @@ class FieldAnalyser:
 
         # Setup replay parameters and run simulation
         replay_params = self._build_replay_params_psf()
-        simul = self._run_simulation_with_params(replay_params, "temp_psf_replay_params.yml", self.psf_output_dir)
+        simul = self._run_simulation_with_params(replay_params, self.psf_output_dir)
 
         if self.verbose:
             print(f"Actual PSF pixel size: {self.psf_pixel_size_mas:.2f} mas")
@@ -663,33 +625,31 @@ class FieldAnalyser:
     def compute_modal_analysis(self, modal_params: Optional[Dict] = None, force_recompute: bool = False) -> Dict:
         """
         Calculate field modal analysis using replay system
-        
+
         Args:
-            modal_params: Dictionary with ModalAnalysis configuration parameters.
-                        Can include any parameter accepted by ModalAnalysis class:
-                        - type_str: 'zernike', 'kl', 'mixed', 'zonal' (if ifunc/ifunc_inv not provided)
-                        - nmodes/nzern: number of modes (for type_str-based analysis)
-                        - obsratio, diaratio: pupil parameters
-                        - ifunc: pre-computed IFunc object
-                        - ifunc_inv: pre-computed IFuncInv object
-                        - npixels: override default pupil pixels
-                        - mask: custom mask
-                        - dorms: compute RMS flag
-                        And any other ModalAnalysis parameter
-                        If None, will try to extract from DM parameters if height=0,
-                        otherwise defaults to {'type_str': 'zernike', 'nmodes': 100}
+            modal_params: Simple dictionary with basic parameters:
+                        - type_str: 'zernike', 'kl', etc. (default: 'zernike')
+                        - nmodes/nzern: number of modes (default: 100)
+                        - obsratio, diaratio: pupil parameters (optional)
+                        - dorms: compute RMS flag (optional)
+                        If None, attempts to extract from DM configuration
             force_recompute: Force recomputation even if files exist
         """
         if modal_params is None:
             modal_params = self._extract_modal_params_from_dm()
 
-        # Check if all individual modal files exist
+        # Validate and set defaults
+        if 'nmodes' not in modal_params and 'nzern' not in modal_params:
+            modal_params['nmodes'] = 100
+        if 'type_str' not in modal_params:
+            modal_params['type_str'] = 'zernike'
+
+        # Check if files exist
         all_exist = True
         if not force_recompute:
             for i in range(len(self.sources)):
                 modal_filename = self._get_modal_filename(i, modal_params)
                 modal_path = self.modal_output_dir / f"{modal_filename}.fits"
-
                 if not modal_path.exists():
                     all_exist = False
                     break
@@ -697,14 +657,15 @@ class FieldAnalyser:
             if all_exist:
                 if self.verbose:
                     print(f"Loading existing modal analysis from: {self.modal_output_dir}")
-                return self._load_modal_results( modal_params)
+                return self._load_modal_results(modal_params)
 
         if self.verbose:
             print(f"Computing field modal analysis for {len(self.sources)} sources...")
+            print(f"Modal parameters: {modal_params}")
 
         # Setup replay parameters and run simulation
         replay_params = self._build_replay_params_modal(modal_params)
-        simul = self._run_simulation_with_params(replay_params, "temp_modal_replay_params.yml", self.modal_output_dir)
+        simul = self._run_simulation_with_params(replay_params, self.modal_output_dir)
 
         # Extract results from DataStore (files are automatically saved)
         results = self._load_modal_results(modal_params)
@@ -720,7 +681,7 @@ class FieldAnalyser:
             for i in range(len(self.sources)):
                 cube_filename = self._get_cube_filename(i)
                 cube_path = self.cube_output_dir / f"{cube_filename}.fits"
-                
+
                 if not cube_path.exists():
                     all_exist = False
                     break
@@ -735,7 +696,7 @@ class FieldAnalyser:
 
         # Setup replay parameters and run simulation
         replay_params = self._build_replay_params_cube()
-        simul = self._run_simulation_with_params(replay_params, "temp_cube_replay_params.yml", self.cube_output_dir)
+        simul = self._run_simulation_with_params(replay_params, self.cube_output_dir)
 
         # Extract results from DataStore (files are automatically saved)
         results = self._load_cube_results()
@@ -823,179 +784,47 @@ class FieldAnalyser:
 
         return results
 
-
-
     def _extract_modal_params_from_dm(self) -> Dict:
         """
-        Extract modal parameters from DM configuration if available and height=0
+        Extract modal parameters from DM configuration with simple fallback
         """
-        # Default fallback parameters
-        default_params = {'type_str': 'zernike', 'nmodes': 100}
-
+        # Try to find a DM with height=0 and extract basic parameters
         if self.params is None:
-            if self.verbose:
-                print("No simulation parameters loaded, using default modal params")
-            return default_params
+            return {'type_str': 'zernike', 'nmodes': 100}
 
-        # Look for DM configuration in params - prioritize DMs that are actually used
-        dm_configs = []
-
-        # First, find which DMs are used in AtmoPropagation
-        used_dm_names = set()
-        for obj_name, obj_config in self.params.items():
-            if isinstance(obj_config, dict) and obj_config.get('class') == 'AtmoPropagation':
-                common_layers = obj_config.get('inputs', {}).get('common_layer_list', [])
-                for layer_ref in common_layers:
-                    if isinstance(layer_ref, str) and '.out_layer' in layer_ref:
-                        dm_name = layer_ref.split('.out_layer')[0]
-                        used_dm_names.add(dm_name)
-
-        # Find DM configurations, prioritizing used ones
+        # Look for DM with height=0
         for obj_name, obj_config in self.params.items():
             if isinstance(obj_config, dict) and obj_config.get('class') == 'DM':
-                priority = 0 if obj_name in used_dm_names else 1
-                dm_configs.append((priority, obj_name, obj_config))
+                if obj_config.get('height', None) == 0:
+                    # Extract simple parameters
+                    modal_params = {}
 
-        # Sort by priority (used DMs first) and take the first one with height=0
-        dm_configs.sort(key=lambda x: (x[0], x[1]))
+                    # Direct copy of relevant parameters
+                    for param in ['type_str', 'nmodes', 'nzern', 'obsratio', 'diaratio']:
+                        if param in obj_config:
+                            modal_params[param] = obj_config[param]
 
-        for priority, dm_name, dm_config in dm_configs:
-            dm_height = dm_config.get('height', None)
-            if dm_height == 0:
-                if self.verbose:
-                    print(f"Using DM '{dm_name}' (height=0) for modal parameters")
-                return self._extract_params_from_dm_config(dm_config, dm_height)
+                    # If we have an ifunc_ref, try to get nmodes from it
+                    if 'ifunc_ref' in obj_config and obj_config['ifunc_ref'] in self.params:
+                        ifunc_config = self.params[obj_config['ifunc_ref']]
+                        if isinstance(ifunc_config, dict):
+                            for param in ['nmodes', 'nzern', 'type_str', 'obsratio']:
+                                if param in ifunc_config and param not in modal_params:
+                                    modal_params[param] = ifunc_config[param]
 
-        if self.verbose:
-            if dm_configs:
-                print("No DM with height=0 found, using default modal params")
-            else:
-                print("No DM configuration found in params, using default modal params")
+                    # Ensure we have basic parameters
+                    if 'nmodes' not in modal_params and 'nzern' not in modal_params:
+                        modal_params['nmodes'] = 100
+                    if 'type_str' not in modal_params:
+                        modal_params['type_str'] = 'zernike'
 
-        return default_params
-
-    def _extract_params_from_dm_config(self, dm_config: dict, dm_height: float) -> Dict:
-        """Extract parameters from a specific DM configuration"""
-        modal_params = {}
-
-        # Map DM parameters to ModalAnalysis parameters
-        param_mapping = {
-            'type_str': 'type_str',
-            'nmodes': 'nmodes', 
-            'nzern': 'nzern',
-            'obsratio': 'obsratio',
-            'diaratio': 'diaratio',
-            'npixels': 'npixels',
-            'start_mode': 'start_mode',
-            'idx_modes': 'idx_modes'
-        }
-
-        # Handle IFunc reference - this is the common case
-        if 'ifunc_ref' in dm_config:
-            ifunc_ref = dm_config['ifunc_ref']
-            if ifunc_ref in self.params:
-                ifunc_config = self.params[ifunc_ref]
-                if isinstance(ifunc_config, dict) and ifunc_config.get('class') == 'IFunc':
-                    # Extract IFunc parameters for modal analysis
-                    modal_params['ifunc'] = self._extract_ifunc_config_params(ifunc_config)
                     if self.verbose:
-                        print(f"Found IFunc reference '{ifunc_ref}' in DM config")
-                else:
-                    if self.verbose:
-                        print(f"Warning: ifunc_ref '{ifunc_ref}' does not point to an IFunc object")
-            else:
-                if self.verbose:
-                    print(f"Warning: ifunc_ref '{ifunc_ref}' not found in params")
+                        print(f"Extracted modal parameters from DM '{obj_name}': {modal_params}")
 
-        # Handle direct IFunc object (less common but possible)
-        elif 'ifunc' in dm_config:
-            raise ValueError("This case has not been implemented yet. "
-                             "Please provide an IFunc reference instead of a direct object.")
+                    return modal_params
 
-        # Handle saved IFunc objects
-        if 'ifunc_object' in dm_config:
-            # This is a saved IFunc loaded from file
-            modal_params['ifunc'] = {'tag': dm_config['ifunc_object']}
-
-        # Handle M2C information
-        if 'm2c_ref' in dm_config:
-            m2c_ref = dm_config['m2c_ref']
-            if m2c_ref in self.params:
-                m2c_config = self.params[m2c_ref]
-                if isinstance(m2c_config, dict) and m2c_config.get('class') == 'M2C':
-                    # Extract number of modes from M2C configuration if available
-                    if 'nmodes' in m2c_config and 'nmodes' not in modal_params:
-                        modal_params['nmodes'] = m2c_config['nmodes']
-        elif 'm2c' in dm_config:
-            raise ValueError("This case has not been implemented yet. "
-                             "Please provide an M2C reference instead of a direct object.")
-
-        # Copy standard parameters
-        for dm_param, modal_param in param_mapping.items():
-            if dm_param in dm_config:
-                modal_params[modal_param] = dm_config[dm_param]
-
-        # Ensure defaults
-        if 'nmodes' not in modal_params and 'nzern' not in modal_params:
-            modal_params['nmodes'] = 100
-        if 'type_str' not in modal_params and 'ifunc' not in modal_params:
-            modal_params['type_str'] = 'zernike'
-
+        # Fallback to defaults
         if self.verbose:
-            print(f"Extracted modal parameters from DM config: {modal_params}")
-            print(f"DM height: {dm_height} (using DM-based modal analysis)")
+            print("No suitable DM found, using default modal parameters")
 
-        return modal_params
-
-    def _extract_ifunc_config_params(self, ifunc_config: dict) -> dict:
-        """
-        Extract parameters from an IFunc configuration dictionary
-        """
-        ifunc_params = {}
-
-        # Map IFunc config parameters to ModalAnalysis IFunc parameters
-        ifunc_param_mapping = {
-            'type_str': 'type_str',
-            'nmodes': 'nmodes',
-            'nzern': 'nzern', 
-            'npixels': 'npixels',
-            'obsratio': 'obsratio',
-            'diaratio': 'diaratio',
-            'start_mode': 'start_mode',
-            'idx_modes': 'idx_modes',
-            'tag': 'tag'  # For saved IFunc objects
-        }
-
-        for ifunc_param, modal_param in ifunc_param_mapping.items():
-            if ifunc_param in ifunc_config:
-                ifunc_params[modal_param] = ifunc_config[ifunc_param]
-
-        if self.verbose:
-            print(f"Extracted IFunc config parameters: {ifunc_params}")
-
-        return ifunc_params
-
-    def _extract_ifunc_params(self, ifunc_obj) -> dict:
-        """
-        Extract parameters from an existing IFunc object for reconstruction
-        """
-        ifunc_params = {}
-
-        if hasattr(ifunc_obj, 'influence_function'):
-            # Extract shape information
-            shape = ifunc_obj.influence_function.shape
-            if shape[0] > shape[1]:
-                ifunc_params['nmodes'] = shape[1]
-                ifunc_params['npixels'] = int(np.sqrt(shape[0]))
-            else:
-                ifunc_params['nmodes'] = shape[0]
-                ifunc_params['npixels'] = int(np.sqrt(shape[1]))
-
-        # Try to infer type from shape or other properties
-        # This is a heuristic - you might need to adjust based on your IFunc objects
-        if hasattr(ifunc_obj, '_type_str'):
-            ifunc_params['type_str'] = ifunc_obj._type_str
-        else:
-            ifunc_params['type_str'] = 'zernike'  # Default assumption
-
-        return ifunc_params
+        return {'type_str': 'zernike', 'nmodes': 100}
