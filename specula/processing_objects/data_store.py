@@ -91,8 +91,8 @@ class DataStore(BaseProcessingObj):
             if iter is None:
                 iter = 0
             else:
-                iter += 1      
-        self.tn_dir = prefix        
+                iter += 1
+        self.tn_dir = prefix
 
     def trigger_code(self):
         for k, in_ in self.inputs.items():
