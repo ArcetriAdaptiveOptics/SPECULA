@@ -381,7 +381,7 @@ class Simul():
             if classname=='DataStore':
                 self.replay_params['data_source'] = self.replay_params[key]
                 self.replay_params['data_source']['class'] = 'DataSource'
-                del self.replay_params['data_store']
+                del self.replay_params[key]
                 for output_name_full in pars['inputs']['input_list']:
                     input_name, output_name = output_name_full.split('-')
                     output_obj, output_name_small = output_name.split('.')                     

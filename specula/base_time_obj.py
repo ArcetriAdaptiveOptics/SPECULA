@@ -110,9 +110,9 @@ class BaseTimeObj:
             self.stopMemUsageCount()
         return monitorMem_wrapper
 
-    def to_xp(self, v, dtype=None):
+    def to_xp(self, v, dtype=None, force_copy=False):
         '''
         Method wrapping the global to_xp function.
         '''
-        return to_xp(self.xp, v, dtype)
+        return to_xp(self.xp, v, dtype, force_copy)
 

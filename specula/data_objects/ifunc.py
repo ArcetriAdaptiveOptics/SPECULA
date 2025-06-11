@@ -51,15 +51,25 @@ class IFunc(BaseDataObj):
             
             type_lower = type_str.lower()
             if type_lower == 'kl':
+                if nmodes is None:
+                    raise ValueError('nmodes parameter is mandatory with type "kl"')
                 ifunc, mask = compute_kl_ifunc(npixels, nmodes=nmodes, obsratio=obsratio, diaratio=diaratio, mask=mask,
                                                xp=self.xp, dtype=self.dtype)
             elif type_lower in ['zern', 'zernike']:
+                if nzern is not None:
+                    raise ValueError('nzern is ignored with type "zern" or "zernike", please use nmodes instead')
+                if nmodes is None:
+                    raise ValueError('nmodes parameter is mandatory with type "zern" or "zernike"')
                 ifunc, mask = compute_zern_ifunc(npixels, nzern=nmodes, obsratio=obsratio, diaratio=diaratio, mask=mask,
                                                  xp=self.xp, dtype=self.dtype)
             elif type_lower == 'mixed':
+                if nmodes is None or nzern is None:
+                    raise ValueError('Both nzern and nmodes parameters are mandatory with type "mixed"')
                 ifunc, mask = compute_mixed_ifunc(npixels, nzern=nzern, nmodes=nmodes, obsratio=obsratio, diaratio=diaratio, mask=mask,
                                                   xp=self.xp, dtype=self.dtype)
             elif type_lower == 'zonal':
+                if n_act is None:
+                    raise ValueError('nact parameter is mandatory with type "zonal"')
                 ifunc, mask = compute_zonal_ifunc(npixels, n_act, circ_geom=circ_geom, angle_offset=angle_offset, do_mech_coupling=do_mech_coupling,
                                                   coupling_coeffs=coupling_coeffs, do_slaving=do_slaving, slaving_thr=slaving_thr,
                                                   obsratio=obsratio, diaratio=diaratio, mask=mask, xp=self.xp, dtype=self.dtype,
