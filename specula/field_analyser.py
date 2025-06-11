@@ -470,25 +470,24 @@ class FieldAnalyser:
         for key in keys_list[prop_index:]:
             new_params[key] = replay_params[key]
 
-        # Update propagation object to include all sources
-        source_refs = []
+        # CLEAN and UPDATE propagation object to ONLY include field sources
+        # Remove original source references and outputs
+        prop_config = new_params[prop_key]
 
-        # Check if the original propagation object has source references
-        original_sources = new_params[prop_key].get('source_dict_ref', [])
-        if original_sources:
-            source_refs.extend(original_sources)
+        # Clear existing sources and outputs - we only want field sources
+        prop_config.pop('source_dict_ref', None)  # Remove original sources
+        prop_config.pop('outputs', None)  # Remove original outputs
+        
+        if self.verbose:
+            print(f"Cleared original sources and outputs from '{prop_key}'")
 
-        # Add field sources
-        source_refs.extend([f'field_source_{i}' for i in range(len(self.sources))])
-        new_params[prop_key]['source_dict_ref'] = source_refs
+        # Set only field sources
+        source_refs = [f'field_source_{i}' for i in range(len(self.sources))]
+        prop_config['source_dict_ref'] = source_refs
 
-        # Update outputs to include field sources
-        original_outputs = new_params[prop_key].get('outputs', [])
-        output_list = list(original_outputs)
-
-        for i in range(len(self.sources)):
-            output_list.append(f'out_field_source_{i}_ef')
-        new_params[prop_key]['outputs'] = output_list
+        # Set only field source outputs
+        output_list = [f'out_field_source_{i}_ef' for i in range(len(self.sources))]
+        prop_config['outputs'] = output_list
 
         if self.verbose:
             print(f"Updated propagation object '{prop_key}':")
