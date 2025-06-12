@@ -200,28 +200,24 @@ class FieldAnalyser:
         if datastore_obj is None:
             raise RuntimeError("No DataStore object found in original parameters")
 
-        # Extract only DM command inputs from original input_list
+        # Find DM objects and their input sources
+        dm_input_sources = self._find_dm_input_sources(modified_params)
+        
+        if self.verbose:
+            print(f"Found DM input sources: {dm_input_sources}")
+
+        # Extract only DM command inputs from original DataStore input_list
         original_input_list = datastore_obj.get('inputs', {}).get('input_list', [])
         dm_command_inputs = []
 
         for input_ref in original_input_list:
-            if isinstance(input_ref, str):
-                # Keep only DM command references
-                # Format: 'comm-control.out_comm' or 'comm-integrator.out_comm'
-                if 'comm-' in input_ref and ('control.' in input_ref or 'integrator.' in input_ref):
-                    dm_command_inputs.append(input_ref)
-                # Also check for direct DM references
-                elif '.out_comm' in input_ref:
-                    dm_command_inputs.append(input_ref)
+            if isinstance(input_ref, str) and self._is_dm_command_in_datastore(input_ref, dm_input_sources):
+                dm_command_inputs.append(input_ref)
 
         if not dm_command_inputs:
-            # Fallback: look for any command-related outputs
-            for input_ref in original_input_list:
-                if 'comm' in input_ref.lower():
-                    dm_command_inputs.append(input_ref)
-
-        if not dm_command_inputs:
-            raise RuntimeError("No DM command inputs found in DataStore configuration")
+            raise RuntimeError(f"No DM command inputs found in DataStore configuration. "
+                            f"DM input sources: {dm_input_sources}, "
+                            f"Original input_list: {original_input_list}")
 
         # Update DataStore with reduced input_list
         modified_params[datastore_key]['inputs']['input_list'] = dm_command_inputs
@@ -246,13 +242,59 @@ class FieldAnalyser:
         # Build objects and connections (needed for build_replay)
         temp_simul.build_replay(modified_params)
 
-        # FIX: Update DataSource store_dir to point to correct tracking number directory
+        # Update DataSource store_dir to point to correct tracking number directory
         if 'data_source' in temp_simul.replay_params:
             temp_simul.replay_params['data_source']['store_dir'] = str(self.tn_dir)
             if self.verbose:
                 print(f"Updated DataSource store_dir to: {self.tn_dir}")
 
         return temp_simul.replay_params
+
+    def _find_dm_input_sources(self, params: dict) -> set:
+        """
+        Find all objects that provide inputs to DM objects
+        Returns set of object names that feed into DMs
+        """
+        dm_input_sources = set()
+
+        for obj_name, obj_config in params.items():
+            if isinstance(obj_config, dict) and obj_config.get('class') == 'DM':
+                # Look at DM inputs to find source objects
+                if 'inputs' in obj_config:
+                    for input_name, output_ref in obj_config['inputs'].items():
+                        if isinstance(output_ref, str):
+                            # Extract source object name
+                            if '.' in output_ref:
+                                source_obj = output_ref.split('.')[0]
+                                dm_input_sources.add(source_obj)
+                                if self.verbose:
+                                    print(f"DM '{obj_name}' gets input from '{source_obj}'")
+
+        return dm_input_sources
+
+    def _is_dm_command_in_datastore(self, input_ref: str, dm_input_sources: set) -> bool:
+        """
+        Check if a DataStore input reference corresponds to a DM command
+        by checking if it references one of the known DM input sources
+        
+        Args:
+            input_ref: DataStore input reference (format: 'filename-object.output')
+            dm_input_sources: Set of object names that provide inputs to DMs
+        """
+        if '-' in input_ref:
+            # DataStore format: 'filename-object.output'
+            filename_part, object_output = input_ref.split('-', 1)
+
+            if '.' in object_output:
+                source_obj = object_output.split('.')[0]
+
+                # Check if this object is one that feeds into DMs
+                if source_obj in dm_input_sources:
+                    if self.verbose:
+                        print(f"Identified DM command: {input_ref} (source: {source_obj})")
+                    return True
+
+        return False
 
     def _build_replay_params_psf(self) -> dict:
         """
