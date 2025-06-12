@@ -202,7 +202,7 @@ class FieldAnalyser:
 
         # Find DM objects and their input sources
         dm_input_sources = self._find_dm_input_sources(modified_params)
-        
+
         if self.verbose:
             print(f"Found DM input sources: {dm_input_sources}")
 
@@ -307,10 +307,7 @@ class FieldAnalyser:
             print(f"Base replay_params keys: {list(replay_params.keys())}")
 
         # Remove conflicting objects
-        self._remove_conflicting_objects(replay_params, [
-            'PSF', 'CCD', 'SH', 'ShSlopec', 'ModulatedPyramid',
-            'PyrSlopec', 'Modalrec', 'ModalAnalysis'
-        ])
+        self._remove_conflicting_objects(replay_params)
 
         # Add field sources to existing parameters
         self._add_field_sources_to_params(replay_params)
@@ -367,10 +364,7 @@ class FieldAnalyser:
         replay_params = self._build_replay_params_from_datastore()
 
         # Remove conflicting objects
-        self._remove_conflicting_objects(replay_params, [
-            'PSF', 'CCD', 'SH', 'ShSlopec', 'ModulatedPyramid',
-            'PyrSlopec', 'Modalrec', 'ModalAnalysis'
-        ])
+        self._remove_conflicting_objects(replay_params)
 
         # Add field sources to existing parameters
         self._add_field_sources_to_params(replay_params)
@@ -436,10 +430,7 @@ class FieldAnalyser:
         replay_params = self._build_replay_params_from_datastore()
 
         # Remove conflicting objects
-        self._remove_conflicting_objects(replay_params, [
-            'PSF', 'CCD', 'SH', 'ShSlopec', 'ModulatedPyramid',
-            'PyrSlopec', 'Modalrec', 'ModalAnalysis'
-        ])
+        self._remove_conflicting_objects(replay_params)
 
         # Add field sources to existing parameters
         self._add_field_sources_to_params(replay_params)
@@ -540,21 +531,68 @@ class FieldAnalyser:
         replay_params.clear()
         replay_params.update(new_params)
 
-    def _remove_conflicting_objects(self, replay_params: dict, classes_to_remove: list):
+    def _remove_conflicting_objects(self, replay_params: dict):
         """
-        Remove objects that would conflict with the analysis based on their class
+        Remove objects that are NOT in the whitelist of allowed classes
+        Uses a whitelist approach to keep only essential objects for field analysis
         """
+        # Whitelist of allowed processing object classes
+        allowed_processing_classes = {
+            'AtmoEvolution',
+            'AtmoInfiniteEvolution', 
+            'AtmoPropagation',
+            'AtmoRandomPhase',
+            'DataSource',
+            'DataStore',
+            'DM',
+            'ElectricFieldCombinator',
+            'FuncGenerator'
+            # Add other processing objects as needed
+        }
+        
+        # Whitelist of allowed data object classes
+        allowed_data_classes = {
+            'Source',
+            'ElectricField',
+            'IFunc',
+            'Pupilstop',
+            'Layer',
+            'SimulParams'
+            # Add other data objects as needed
+        }
+
+        # Combined whitelist
+        allowed_classes = allowed_processing_classes | allowed_data_classes
+
         objects_to_remove = []
 
         for obj_name, obj_config in replay_params.items():
-            if isinstance(obj_config, dict) and 'class' in obj_config:
-                if obj_config['class'] in classes_to_remove:
-                    objects_to_remove.append(obj_name)
+            # Skip non-dict objects
+            if not isinstance(obj_config, dict):
+                continue
 
+            # If object has a 'class' field, check if it's in whitelist
+            if 'class' in obj_config:
+                obj_class = obj_config['class']
+                
+                # Remove if NOT in whitelist
+                if obj_class not in allowed_classes:
+                    objects_to_remove.append(obj_name)
+                    if self.verbose:
+                        print(f"Removing non-whitelisted object: {obj_name} (class: {obj_class})")
+
+        # Remove the objects
         for obj_name in objects_to_remove:
             del replay_params[obj_name]
-            if self.verbose:
-                print(f"Removed conflicting object: {obj_name} (class: {replay_params.get(obj_name, {}).get('class', 'unknown')})")
+
+        if self.verbose:
+            remaining_classes = set()
+            for obj_config in replay_params.values():
+                if isinstance(obj_config, dict) and 'class' in obj_config:
+                    remaining_classes.add(obj_config['class'])
+
+            print(f"Removed {len(objects_to_remove)} objects")
+            print(f"Remaining classes: {sorted(remaining_classes)}")
 
     def _run_simulation_with_params(self, params_dict: dict, output_dir: Path) -> Simul:
         """
