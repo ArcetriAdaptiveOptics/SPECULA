@@ -4,12 +4,11 @@ from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.intensity import Intensity
 from specula.connections import InputValue
 from specula.data_objects.pupdata import PupData
-from specula.data_objects.simul_params import SimulParams
 
 
 class PyrPupdataCalibrator(BaseProcessingObj):
     def __init__(self,
-                 simul_params: SimulParams,
+                 data_dir: str,               # Set by main simul object
                  thr1: float = 0.1,           # Threshold per background removal
                  thr2: float = 0.25,          # Threshold per pupil refinement
                  output_tag: str = None,
@@ -25,7 +24,7 @@ class PyrPupdataCalibrator(BaseProcessingObj):
         self.thr2 = thr2
         self.do_not_ave_pup_cen = do_not_ave_pup_cen
         self.do_pup_inter_or_union = do_pup_inter_or_union
-        self._data_dir = simul_params.root_dir
+        self._data_dir = data_dir
 
         if tag_template is None and (output_tag is None or output_tag == 'auto'):
             raise ValueError('At least one of tag_template and output_tag must be set')
@@ -70,6 +69,10 @@ class PyrPupdataCalibrator(BaseProcessingObj):
         self.pupdata.cx = new_centers[pup_order, 0] 
         self.pupdata.cy = new_centers[pup_order, 1]
         self.pupdata.framesize = self.xp.array(image.shape, dtype=int)
+        print(f'Pupil data created with {self.pupdata.n_subap} subapertures')
+        print(f'Pupil data shape: {self.pupdata.ind_pup.shape}')
+        print(f'Pupil radii: {self.pupdata.radius}')
+        print(f'Pupil centers: {self.pupdata.cx}, {self.pupdata.cy}')
 
     def _ensure_even_dimensions(self, image):
         """Ensure image has even dimensions (from IDL code)"""
@@ -99,7 +102,7 @@ class PyrPupdataCalibrator(BaseProcessingObj):
 
         # Split image into 4 quadrants (equivalent to IDL SPLIT logic)
         dim = min(cx, cy)
-       
+
         # Create 4 pupil subimages
         reduce = 0  # Could be cx//20 for ccd39 fix
         cx += reduce
