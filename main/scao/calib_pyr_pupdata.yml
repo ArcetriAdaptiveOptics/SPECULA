@@ -4,6 +4,7 @@ pyr_pupdata:
   class: 'PyrPupdataCalibrator'
   thr1: 0.1
   thr2: 0.25
+  display_debug: 'False'
   output_tag:        'scao_pupdata'
   inputs:
     in_i: 'pyramid.out_i'
@@ -14,6 +15,10 @@ prop_override:
 
 main_override:
   total_time:  0.001
+
+pyramid_override:
+  mod_amp:           10.0                     # Modulation radius (in lambda/D units)
+
 
 remove: ['atmo', 'slopec', 'rec','control','dm']
  
