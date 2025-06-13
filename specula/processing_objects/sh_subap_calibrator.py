@@ -5,13 +5,14 @@ from specula.data_objects.intensity import Intensity
 from specula.data_objects.lenslet import Lenslet
 from specula.connections import InputValue
 from specula.data_objects.subap_data import SubapData
+from specula.data_objects.simul_params import SimulParams
 
 
 class ShSubapCalibrator(BaseProcessingObj):
     def __init__(self,
+                 simul_params: SimulParams,
                  subap_on_diameter: int,
                  energy_th: float,
-                 data_dir: str,         # Set by main simul object
                  output_tag: str = None,
                  tag_template: str = None,
                  target_device_idx: int = None, 
@@ -21,7 +22,7 @@ class ShSubapCalibrator(BaseProcessingObj):
         self._subap_on_diameter = subap_on_diameter
         self._lenslet = Lenslet(subap_on_diameter)
         self._energy_th = energy_th
-        self._data_dir = data_dir
+        self._data_dir = simul_params.root_dir
         if tag_template is None and (output_tag is None or output_tag == 'auto'):
             raise ValueError('At least one of tag_template and output_tag must be set')
 
@@ -34,7 +35,7 @@ class ShSubapCalibrator(BaseProcessingObj):
     def trigger_code(self):
         image = self.local_inputs['in_i'].i
         self.subaps = self._detect_subaps(image, self._energy_th)
-        
+
     def finalize(self):
         filename = self._filename
         if not filename.endswith('.fits'):
