@@ -77,7 +77,6 @@ class PSF(BaseProcessingObj):
         self.out_size = [int(np.around(dim * self.nd/2)*2) for dim in in_ef.size]
         self.ref = Intensity(self.out_size[0], self.out_size[1])
 
-    @staticmethod
     def calc_psf_sampling(pixel_pupil: int, pixel_pitch: float, wavelength_nm: float, psf_pixel_size_mas: float):
         """
         Calculate PSF sampling parameters ensuring constraints are met
@@ -134,7 +133,7 @@ class PSF(BaseProcessingObj):
                 f"integer sampling constraint.")
 
         return actual_psf_sampling
-    
+
     def calc_psf_pixel_size(self):
         """
         Calculate PSF pixel size based on sampling factor or default settings.
