@@ -478,16 +478,8 @@ class FieldAnalyser:
         if self.verbose:
             print(f"Found propagation object: '{prop_key}'")
 
-        # Find the position of the propagation object
-        keys_list = list(replay_params.keys())
-        prop_index = keys_list.index(prop_key)
-
         # Create a new ordered dictionary
         new_params = {}
-
-        # Add all items before the propagation object
-        for key in keys_list[:prop_index]:
-            new_params[key] = replay_params[key]
 
         # Add field sources
         for i, source_dict in enumerate(self.sources):
@@ -500,9 +492,9 @@ class FieldAnalyser:
                 'height': source_dict['height']
             }
 
-        # Add propagation object and remaining items
-        for key in keys_list[prop_index:]:
-            new_params[key] = replay_params[key]
+        # Add all existing objects after the field sources
+        for key, config in replay_params.items():
+            new_params[key] = config
 
         # CLEAN and UPDATE propagation object to ONLY include field sources
         # Remove original source references and outputs
