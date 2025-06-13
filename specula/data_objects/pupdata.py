@@ -27,7 +27,7 @@ class PupData(BaseDataObj):
             self.ind_pup = self.to_xp(ind_pup).astype(int)
         else:
             self.ind_pup = self.xp.empty((0, 4), dtype=int)
- 
+
         if radius is not None:
             self.radius = self.to_xp(radius).astype(self.dtype)
         else:
@@ -97,7 +97,7 @@ class PupData(BaseDataObj):
                 raise ValueError(f"Unsupported version {version} in file {filename}. Expected version >= 2")
             if version > 2:
                 raise ValueError(f"Unknown version {version} in file {filename}")
- 
+
             framesize = [int(hdr.get('FSIZEX')), int(hdr.get('FSIZEY'))]
             ind_pup = hdul[1].data
             radius = hdul[2].data
