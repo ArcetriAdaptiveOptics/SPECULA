@@ -5,334 +5,242 @@ from specula.data_objects.intensity import Intensity
 from specula.connections import InputValue
 from specula.data_objects.pupdata import PupData
 
-
 class PyrPupdataCalibrator(BaseProcessingObj):
     def __init__(self,
-                 data_dir: str,               # Set by main simul object
-                 thr1: float = 0.1,           # Threshold per background removal
-                 thr2: float = 0.25,          # Threshold per pupil refinement
+                 data_dir: str,
+                 thr1: float = 0.1,
+                 thr2: float = 0.25,
                  output_tag: str = None,
-                 tag_template: str = None,
-                 do_not_ave_pup_cen: bool = False,    # Avoid averaging pupil centers
-                 do_pup_inter_or_union: str = 'Union', # 'Union', 'Inter', or 'None'
+                 auto_detect_obstruction: bool = True,
+                 min_obstruction_ratio: float = 0.05,
+                 display_debug: bool = False,
                  target_device_idx: int = None,
-                 precision: int = None
-                ):
+                 precision: int = None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.thr1 = thr1
         self.thr2 = thr2
-        self.do_not_ave_pup_cen = do_not_ave_pup_cen
-        self.do_pup_inter_or_union = do_pup_inter_or_union
+        self.auto_detect_obstruction = auto_detect_obstruction
+        self.min_obstruction_ratio = min_obstruction_ratio
+        self.display_debug = display_debug
         self._data_dir = data_dir
-
-        if tag_template is None and (output_tag is None or output_tag == 'auto'):
-            raise ValueError('At least one of tag_template and output_tag must be set')
-
-        if output_tag is None or output_tag == 'auto':
-            self._filename = tag_template
-        else:
-            self._filename = output_tag
+        self._filename = output_tag or "pupdata"
+        self.central_obstruction_ratio = 0.0
 
         self.inputs['in_i'] = InputValue(type=Intensity)
         self.pupdata = None
 
     def trigger_code(self):
-        """Main trigger code - equivalent to pupil_acquire IDL function"""
+        """Main calibration function"""
         image = self.local_inputs['in_i'].i
 
-        # Ensure even dimensions (equivalent to IDL dimension adjustment)
-        image = self._ensure_even_dimensions(image)
-
-        # Analyze the four pupils
+        # Analyze pupils
         centers, radii = self._analyze_pupils(image)
 
-        if self.verbose:
-            print(f'Found pupil centers: {centers}')
-            print(f'Found pupil radii: {radii}')
+        # Auto-detect obstruction
+        if self.auto_detect_obstruction:
+            self.central_obstruction_ratio = self._detect_obstruction(image, centers, radii)
 
-        # Refine pupil centers and radii
-        new_radii, new_centers = self._refine_pup_centers(radii, centers)
+        # Debug plot
+        if self.display_debug:
+            self._debug_plot(image, centers, radii)
 
-        if self.verbose:
-            print(f'Refined pupil centers: {new_centers}')
-            print(f'Refined pupil radii: {new_radii}')
+        # Generate indices
+        ind_pup = self._generate_indices(centers, radii, image.shape)
 
-        # Generate pupil indices
-        ind_pup = self._generate_pupil_indices(new_radii, new_centers, image.shape)
-
-        # Create PupData object with reordered pupils (matching IDL pup_order = [3,2,0,1])
+        # Create PupData (reorder to match IDL: [3,2,0,1])
         pup_order = [3, 2, 0, 1]
-        self.pupdata = PupData(target_device_idx=self.target_device_idx, precision=self.precision)
-        self.pupdata.ind_pup = ind_pup[pup_order, :]
-        self.pupdata.radius = new_radii[pup_order]
-        self.pupdata.cx = new_centers[pup_order, 0] 
-        self.pupdata.cy = new_centers[pup_order, 1]
-        self.pupdata.framesize = self.xp.array(image.shape, dtype=int)
-        print(f'Pupil data created with {self.pupdata.n_subap} subapertures')
-        print(f'Pupil data shape: {self.pupdata.ind_pup.shape}')
-        print(f'Pupil radii: {self.pupdata.radius}')
-        print(f'Pupil centers: {self.pupdata.cx}, {self.pupdata.cy}')
-
-    def _ensure_even_dimensions(self, image):
-        """Ensure image has even dimensions (from IDL code)"""
-        h, w = image.shape
-        new_h = h if h % 2 == 0 else h + 1
-        new_w = w if w % 2 == 0 else w + 1
-
-        if new_h != h or new_w != w:
-            if self.verbose:
-                print(f'Adjusting dimensions from {image.shape} to ({new_h}, {new_w})')
-            new_image = self.xp.zeros((new_h, new_w), dtype=image.dtype)
-            new_image[:h, :w] = image
-            return new_image
-        return image
+        self.pupdata = PupData(
+            ind_pup=ind_pup[pup_order, :],
+            radius=radii[pup_order],
+            cx=centers[pup_order, 0],
+            cy=centers[pup_order, 1],
+            framesize=image.shape
+        )
 
     def _analyze_pupils(self, image):
-        """Equivalent to pyr_distanza_centri + pyr_analizza IDL functions"""
-        # Set border pixels to zero
-        image = image.copy()
-        image[0, :] = 0
-        image[-1, :] = 0
-        image[:, 0] = 0
-        image[:, -1] = 0
-
+        """Find 4 pupil centers and radii"""
         h, w = image.shape
-        cx, cy = h // 2, w // 2
-
-        # Split image into 4 quadrants (equivalent to IDL SPLIT logic)
+        cy, cx = h // 2, w // 2
         dim = min(cx, cy)
 
-        # Create 4 pupil subimages
-        reduce = 0  # Could be cx//20 for ccd39 fix
-        cx += reduce
-        dim -= reduce
+        # Extract 4 quadrants
+        quadrants = [
+            image[cy-dim:cy, cx-dim:cx],     # Top-left
+            image[cy-dim:cy, cx:cx+dim],     # Top-right
+            image[cy:cy+dim, cx-dim:cx],     # Bottom-left
+            image[cy:cy+dim, cx:cx+dim]      # Bottom-right
+        ]
 
-        pupils = self.xp.zeros((4, dim, dim))
-        pupils[0] = image[cx-dim:cx, cy:cy+dim]       # Top-left
-        pupils[1] = image[cx:cx+dim, cy:cy+dim]      # Top-right  
-        pupils[2] = image[cx-dim:cx, cy-dim:cy]      # Bottom-left
-        pupils[3] = image[cx:cx+dim, cy-dim:cy]      # Bottom-right
+        # Quadrant offsets
+        offsets = [[cx-dim, cy-dim], [cx, cy-dim], [cx-dim, cy], [cx, cy]]
 
-        centers = self.xp.zeros((4, 2))
-        radii = self.xp.zeros(4)
+        centers = np.zeros((4, 2))
+        radii = np.zeros(4)
 
-        for i in range(4):
-            if self.verbose:
-                print(f'Analyzing pupil {i}')
-
-            pupil_img = pupils[i].copy()
-            center, radius = self._analyze_single_pupil(pupil_img)
-
-            # Correct coordinates for quadrant position
-            if i == 0:    # Top-left
-                center += [cx-dim, cy]
-            elif i == 1:  # Top-right
-                center += [cx, cy]
-            elif i == 2:  # Bottom-left  
-                center += [cx-dim, cy-dim]
-            elif i == 3:  # Bottom-right
-                center += [cx, cy-dim]
-
-            centers[i] = center + 0.5  # IDL AGGIUSTINO2
+        for i, (quad, offset) in enumerate(zip(quadrants, offsets)):
+            center, radius = self._analyze_single_pupil(quad)
+            centers[i] = center + offset
             radii[i] = radius
-
-            if self.verbose:
-                print(f'Pupil {i}: Diameter = {2*radius:.1f}, Center = {center}')
 
         return centers, radii
 
-    def _analyze_single_pupil(self, pupil_img):
-        """Equivalent to pyr_analizza IDL function for single pupil"""
-        # First threshold (background removal)
-        min_val = float(self.xp.min(pupil_img))
-        max_val = float(self.xp.max(pupil_img))
+    def _analyze_single_pupil(self, image):
+        """Analyze single pupil quadrant"""
+        # Two-level thresholding
+        min_val, max_val = float(np.min(image)), float(np.max(image))
         s1 = min_val + (max_val - min_val) * self.thr1
 
-        pupil_thresh = pupil_img.copy()
-        pupil_thresh[pupil_thresh < s1] = 0
+        thresh_img = image.copy()
+        thresh_img[thresh_img < s1] = 0
 
-        # Second threshold
-        mean_val = float(self.xp.mean(pupil_thresh))
-        s2 = mean_val * self.thr2
-        pupil_thresh[pupil_thresh < s2] = 0
+        s2 = float(np.mean(thresh_img[thresh_img > 0])) * self.thr2
+        mask = thresh_img >= s2
 
-        if self.verbose:
-            print(f'  Thresholds: s1={s1:.1f}, s2={s2:.1f}')
-
-        # Iterative refinement (equivalent to IDL repeat-until loop)
-        max_iterations = 10
-        for iteration in range(max_iterations):
-            # Calculate centroid
-            center = self._calculate_centroid(pupil_thresh)
-
-            # Calculate radius 
-            radius = self._calculate_radius(pupil_thresh, s2)
-
-            # Apply threshold inside calculated radius
-            pixels_changed = self._apply_threshold_in_radius(pupil_thresh, s2, radius, center)
-
-            if self.verbose:
-                print(f'  Iteration {iteration}: center={center}, radius={radius:.1f}')
-
-            # Stop when no more pixels change
-            if pixels_changed == 0:
-                break
-
-        return center, radius
-
-    def _calculate_centroid(self, image):
-        """Equivalent to calcola_baricentro IDL function"""
-        h, w = image.shape
-        y_indices, x_indices = self.xp.mgrid[0:h, 0:w]
-
-        mask = image > 0
-        count = self.xp.sum(mask)
-
-        if count > 0:
-            y_center = self.xp.sum(y_indices * mask) / count
-            x_center = self.xp.sum(x_indices * mask) / count
-            return self.xp.array([x_center, y_center])
+        # Calculate centroid and radius
+        if np.any(mask):
+            y_coords, x_coords = np.mgrid[0:image.shape[0], 0:image.shape[1]]
+            x_center = np.sum(x_coords * mask) / np.sum(mask)
+            y_center = np.sum(y_coords * mask) / np.sum(mask)
+            radius = np.sqrt(np.sum(mask) / np.pi)
+            return np.array([x_center, y_center]), radius
         else:
-            return self.xp.array([0.0, 0.0])
+            return np.array([0.0, 0.0]), 0.0
 
-    def _calculate_radius(self, image, threshold):
-        """Equivalent to calcola_raggio IDL function"""
-        pixel_count = int(self.xp.sum(image >= threshold))
-        area = pixel_count / self.xp.pi
-        return float(self.xp.sqrt(area))
+    def _detect_obstruction(self, image, centers, radii):
+        """Simple obstruction detection"""
+        obstruction_ratios = []
 
-    def _apply_threshold_in_radius(self, image, threshold, radius, center, threshold_margin=0.1):
-        """Equivalent to sottosoglia IDL function"""
-        h, w = image.shape
-        y_indices, x_indices = self.xp.mgrid[0:h, 0:w]
-
-        # Distance from center
-        dx = x_indices - center[0]
-        dy = y_indices - center[1] 
-        distance_sq = dx**2 + dy**2
-
-        # Pixels inside radius (with margin)
-        inside_radius = distance_sq < (radius - threshold_margin)**2
-
-        # Count changed pixels
-        old_values = image[inside_radius].copy()
-        image[inside_radius] = threshold
-        changed_pixels = self.xp.sum(old_values != threshold)
-
-        return changed_pixels
-
-    def _refine_pup_centers(self, radii, centers):
-        """Equivalent to refine_pup_centers IDL function"""
-        # Use minimum radius for all pupils
-        new_radius = float(self.xp.min(radii))
-        new_radii = self.xp.full(4, new_radius)
-        new_centers = centers.copy()
-
-        if not self.do_not_ave_pup_cen:
-            # Original averaging logic
-            max_x = float(self.xp.max(centers[:, 0]))
-            min_x = float(self.xp.min(centers[:, 0]))
-            max_y = float(self.xp.max(centers[:, 1]))
-            min_y = float(self.xp.min(centers[:, 1]))
-            
-            distance = float(self.xp.round(self.xp.mean([max_x - min_x, max_y - min_y])))
-
-            # Find pupils with coordinates > mean 
-            mean_centers = self.xp.mean(centers, axis=0)
-            idx_high = centers > mean_centers[self.xp.newaxis, :]
-            new_centers[idx_high] -= distance
-
-            # Average coordinates
-            new_centers[:, 0] = self.xp.mean(new_centers[:, 0])
-            new_centers[:, 1] = self.xp.mean(new_centers[:, 1])
-
-            # Restore high coordinates
-            new_centers[idx_high] += distance
-
-        else:
-            # Alternative logic when not averaging
-            if self.do_pup_inter_or_union != 'None':
-                coords_round = self.xp.round(new_centers)
-                coords_decimal = new_centers - coords_round
-
-                diff_remainder_x = float(self.xp.max(coords_decimal[:, 0]) - self.xp.min(coords_decimal[:, 0]))
-                diff_remainder_y = float(self.xp.max(coords_decimal[:, 1]) - self.xp.min(coords_decimal[:, 1]))
-
-                new_centers[:, 0] = coords_round[:, 0] + self.xp.mean(coords_decimal[:, 0])
-                new_centers[:, 1] = coords_round[:, 1] + self.xp.mean(coords_decimal[:, 1])
-
-                delta_r = self.xp.sqrt(diff_remainder_x**2 + diff_remainder_y**2)
-
-                if self.do_pup_inter_or_union == 'Union':
-                    new_radii += delta_r
-                elif self.do_pup_inter_or_union == 'Inter':
-                    new_radii -= delta_r
-
-        return new_radii, new_centers
-
-    def _generate_pupil_indices(self, radii, centers, image_shape):
-        """Equivalent to pyr_generate_index IDL function"""
-        h, w = image_shape
-        n_subaps = len([idx for idx in range(len(radii)) if radii[idx] > 0])
-
-        if n_subaps == 0:
-            raise ValueError("No valid pupils found")
-
-        # Create coordinate grids
-        y_coords, x_coords = self.xp.mgrid[0:h, 0:w]
-
-        # Generate indices for each pupil
-        max_radius = float(self.xp.max(radii))
-        max_pixels_per_pupil = int(self.xp.pi * max_radius**2) + 100  # Safety margin
-        ind_pup = self.xp.zeros((n_subaps, max_pixels_per_pupil), dtype=int)
-
-        valid_pupil = 0
         for i in range(4):
-            if radii[i] > 0:
-                # Distance from pupil center
-                dx = x_coords - centers[i, 0]
-                dy = y_coords - centers[i, 1]
-                distance = self.xp.sqrt(dx**2 + dy**2)
+            if radii[i] <= 0:
+                continue
 
-                # Pixels inside pupil
-                inside_pupil = distance <= radii[i]
-                pupil_indices = self.xp.where(inside_pupil)
+            # Extract radial profile
+            profile = self._radial_profile(image, centers[i], radii[i])
 
-                # Convert to flat indices
-                flat_indices = self.xp.ravel_multi_index(pupil_indices, image_shape)
-                n_pixels = len(flat_indices)
+            # Look for central dip
+            if len(profile) > 5:
+                center_intensity = np.mean(profile[:3])  # Inner 3 bins
+                edge_intensity = np.mean(profile[-3:])   # Outer 3 bins
 
-                if n_pixels > max_pixels_per_pupil:
-                    raise ValueError(f"Pupil {i} has too many pixels: {n_pixels}")
+                if edge_intensity > center_intensity * 1.5:  # 50% intensity drop
+                    # Find where intensity starts rising
+                    grad = np.gradient(profile)
+                    max_grad_idx = np.argmax(grad[:len(grad)//2])  # First half only
+                    obstruction_ratio = (max_grad_idx / len(profile)) * 0.8  # Conservative
 
-                # Store indices
-                ind_pup[valid_pupil, :n_pixels] = flat_indices
-                if n_pixels < max_pixels_per_pupil:
-                    ind_pup[valid_pupil, n_pixels:] = flat_indices[0]  # Pad with first index
+                    if obstruction_ratio >= self.min_obstruction_ratio:
+                        obstruction_ratios.append(obstruction_ratio)
 
-                valid_pupil += 1
+        return np.median(obstruction_ratios) if obstruction_ratios else 0.0
 
-        # Resize to actual number of pixels used
-        actual_max_pixels = int(self.xp.max([self.xp.sum(ind_pup[i, :] != ind_pup[i, 0]) + 1 
-                                        for i in range(n_subaps)]))
-        ind_pup_final = ind_pup[:, :actual_max_pixels]
+    def _radial_profile(self, image, center, max_radius, n_bins=20):
+        """Extract radial intensity profile"""
+        h, w = image.shape
+        y, x = np.mgrid[0:h, 0:w]
+        r = np.sqrt((x - center[0])**2 + (y - center[1])**2)
 
-        return ind_pup_final
+        profile = []
+        for i in range(n_bins):
+            r_inner = (i / n_bins) * max_radius
+            r_outer = ((i + 1) / n_bins) * max_radius
+            mask = (r >= r_inner) & (r < r_outer)
+            if np.any(mask):
+                profile.append(np.mean(image[mask]))
+            else:
+                profile.append(0)
+
+        return np.array(profile)
+
+    def _generate_indices(self, centers, radii, image_shape):
+        """Generate pupil pixel indices with optional obstruction"""
+        h, w = image_shape
+        y_coords, x_coords = np.mgrid[0:h, 0:w]
+
+        # Estimate max pixels per pupil
+        max_pixels = int(np.pi * np.max(radii)**2 * (1 - self.central_obstruction_ratio**2)) + 100
+        ind_pup = np.zeros((4, max_pixels), dtype=int)
+
+        for i in range(4):
+            if radii[i] <= 0:
+                continue
+
+            # Distance from center
+            r = np.sqrt((x_coords - centers[i, 0])**2 + (y_coords - centers[i, 1])**2)
+
+            # Create mask (annulus if obstruction detected)
+            if self.central_obstruction_ratio > 0:
+                mask = (r <= radii[i]) & (r >= radii[i] * self.central_obstruction_ratio)
+            else:
+                mask = r <= radii[i]
+
+            # Get flat indices
+            flat_indices = np.where(mask.flatten())[0]
+            n_pixels = min(len(flat_indices), max_pixels)
+
+            ind_pup[i, :n_pixels] = flat_indices[:n_pixels]
+            if n_pixels < max_pixels:
+                ind_pup[i, n_pixels:] = flat_indices[0] if n_pixels > 0 else 0
+
+        return ind_pup
+
+    def _debug_plot(self, image, centers, radii):
+        """Simple debug plot"""
+        try:
+            import matplotlib.pyplot as plt
+            from matplotlib.patches import Circle
+
+            plt.figure(figsize=(10, 5))
+
+            # Image with circles
+            plt.subplot(1, 2, 1)
+            plt.imshow(image, origin='lower', cmap='gray')
+
+            colors = ['red', 'green', 'blue', 'orange']
+            for i, (center, radius) in enumerate(zip(centers, radii)):
+                if radius > 0:
+                    circle = Circle(center, radius, fill=False, color=colors[i], linewidth=2)
+                    plt.gca().add_patch(circle)
+
+                    if self.central_obstruction_ratio > 0:
+                        obs_circle = Circle(center, radius * self.central_obstruction_ratio, 
+                                          fill=False, color=colors[i], linestyle='--')
+                        plt.gca().add_patch(obs_circle)
+
+            plt.title(f'Detected Pupils (obstruction: {self.central_obstruction_ratio:.3f})')
+
+            # Radial profile example
+            plt.subplot(1, 2, 2)
+            if radii[0] > 0:
+                profile = self._radial_profile(image, centers[0], radii[0])
+                plt.plot(profile, 'b-', linewidth=2)
+                if self.central_obstruction_ratio > 0:
+                    obs_idx = int(len(profile) * self.central_obstruction_ratio)
+                    plt.axvline(obs_idx, color='red', linestyle='--', label='Obstruction')
+                plt.title('Radial Profile (Pupil 0)')
+                plt.xlabel('Radial bin')
+                plt.ylabel('Intensity')
+                plt.legend()
+
+            plt.tight_layout()
+            plt.show(block=True)
+            plt.pause(0.1)
+
+        except ImportError:
+            print("Matplotlib not available for debug plotting")
 
     def finalize(self):
-        """Save pupil data to file"""
+        """Save pupil data"""
         if self.pupdata is None:
-            raise ValueError("No pupil data to save - trigger_code() may have failed")
+            raise ValueError("No pupil data to save")
 
         filename = self._filename
         if not filename.endswith('.fits'):
             filename += '.fits'
         file_path = os.path.join(self._data_dir, filename)
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
         self.pupdata.save(file_path)
 
         if self.verbose:
-            print(f'Saved pupil data to: {file_path}')
-            print(f'Number of subapertures: {self.pupdata.n_subap}')
+            print(f'Saved pupil data: {file_path}')
+            print(f'Obstruction ratio: {self.central_obstruction_ratio:.3f}')
