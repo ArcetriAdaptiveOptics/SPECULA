@@ -48,8 +48,8 @@ class PyrPupdataCalibrator(BaseProcessingObj):
         # Generate indices
         ind_pup = self._generate_indices(centers, radii, image.shape)
 
-        # Create PupData (reorder to match IDL: [3,2,0,1])
-        pup_order = [3, 2, 0, 1]
+        # Create PupData (reorder to match IDL)
+        pup_order = [1, 0, 2, 3]
         self.pupdata = PupData(
             ind_pup=ind_pup[pup_order, :],
             radius=radii[pup_order],
