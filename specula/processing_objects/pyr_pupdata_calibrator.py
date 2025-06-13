@@ -75,8 +75,8 @@ class PyrPupdataCalibrator(BaseProcessingObj):
         # Quadrant offsets
         offsets = [[cx-dim, cy-dim], [cx, cy-dim], [cx-dim, cy], [cx, cy]]
 
-        centers = np.zeros((4, 2))
-        radii = np.zeros(4)
+        centers = self.xp.zeros((4, 2))
+        radii = self.xp.zeros(4)
 
         for i, (quad, offset) in enumerate(zip(quadrants, offsets)):
             center, radius = self._analyze_single_pupil(quad)
@@ -88,24 +88,24 @@ class PyrPupdataCalibrator(BaseProcessingObj):
     def _analyze_single_pupil(self, image):
         """Analyze single pupil quadrant"""
         # Two-level thresholding
-        min_val, max_val = float(np.min(image)), float(np.max(image))
+        min_val, max_val = float(self.xp.min(image)), float(self.xp.max(image))
         s1 = min_val + (max_val - min_val) * self.thr1
 
         thresh_img = image.copy()
         thresh_img[thresh_img < s1] = 0
 
-        s2 = float(np.mean(thresh_img[thresh_img > 0])) * self.thr2
+        s2 = float(self.xp.mean(thresh_img[thresh_img > 0])) * self.thr2
         mask = thresh_img >= s2
 
         # Calculate centroid and radius
-        if np.any(mask):
-            y_coords, x_coords = np.mgrid[0:image.shape[0], 0:image.shape[1]]
-            x_center = np.sum(x_coords * mask) / np.sum(mask)
-            y_center = np.sum(y_coords * mask) / np.sum(mask)
-            radius = np.sqrt(np.sum(mask) / np.pi)
-            return np.array([x_center, y_center]), radius
+        if self.xp.any(mask):
+            y_coords, x_coords = self.xp.mgrid[0:image.shape[0], 0:image.shape[1]]
+            x_center = self.xp.sum(x_coords * mask) / self.xp.sum(mask)
+            y_center = self.xp.sum(y_coords * mask) / self.xp.sum(mask)
+            radius = self.xp.sqrt(self.xp.sum(mask) / self.xp.pi)
+            return self.xp.array([x_center, y_center]), radius
         else:
-            return np.array([0.0, 0.0]), 0.0
+            return self.xp.array([0.0, 0.0]), 0.0
 
     def _detect_obstruction(self, image, centers, radii):
         """Simple obstruction detection"""
@@ -120,53 +120,53 @@ class PyrPupdataCalibrator(BaseProcessingObj):
 
             # Look for central dip
             if len(profile) > 5:
-                center_intensity = np.mean(profile[:3])  # Inner 3 bins
-                edge_intensity = np.mean(profile[-3:])   # Outer 3 bins
+                center_intensity = self.xp.mean(profile[:3])  # Inner 3 bins
+                edge_intensity = self.xp.mean(profile[-3:])   # Outer 3 bins
 
                 if edge_intensity > center_intensity * 1.5:  # 50% intensity drop
                     # Find where intensity starts rising
-                    grad = np.gradient(profile)
-                    max_grad_idx = np.argmax(grad[:len(grad)//2])  # First half only
+                    grad = self.xp.gradient(profile)
+                    max_grad_idx = self.xp.argmax(grad[:len(grad)//2])  # First half only
                     obstruction_ratio = (max_grad_idx / len(profile)) * 0.8  # Conservative
 
                     if obstruction_ratio >= self.min_obstruction_ratio:
                         obstruction_ratios.append(obstruction_ratio)
 
-        return np.median(obstruction_ratios) if obstruction_ratios else 0.0
+        return self.xp.median(obstruction_ratios) if obstruction_ratios else 0.0
 
     def _radial_profile(self, image, center, max_radius, n_bins=20):
         """Extract radial intensity profile"""
         h, w = image.shape
-        y, x = np.mgrid[0:h, 0:w]
-        r = np.sqrt((x - center[0])**2 + (y - center[1])**2)
+        y, x = self.xp.mgrid[0:h, 0:w]
+        r = self.xp.sqrt((x - center[0])**2 + (y - center[1])**2)
 
         profile = []
         for i in range(n_bins):
             r_inner = (i / n_bins) * max_radius
             r_outer = ((i + 1) / n_bins) * max_radius
             mask = (r >= r_inner) & (r < r_outer)
-            if np.any(mask):
-                profile.append(np.mean(image[mask]))
+            if self.xp.any(mask):
+                profile.append(self.xp.mean(image[mask]))
             else:
                 profile.append(0)
 
-        return np.array(profile)
+        return self.xp.array(profile)
 
     def _generate_indices(self, centers, radii, image_shape):
         """Generate pupil pixel indices with optional obstruction"""
         h, w = image_shape
-        y_coords, x_coords = np.mgrid[0:h, 0:w]
+        y_coords, x_coords = self.xp.mgrid[0:h, 0:w]
 
         # Estimate max pixels per pupil
-        max_pixels = int(np.pi * np.max(radii)**2 * (1 - self.central_obstruction_ratio**2)) + 100
-        ind_pup = np.zeros((4, max_pixels), dtype=int)
+        max_pixels = int(self.xp.pi * self.xp.max(radii)**2 * (1 - self.central_obstruction_ratio**2)) + 100
+        ind_pup = self.xp.zeros((4, max_pixels), dtype=int)
 
         for i in range(4):
             if radii[i] <= 0:
                 continue
 
             # Distance from center
-            r = np.sqrt((x_coords - centers[i, 0])**2 + (y_coords - centers[i, 1])**2)
+            r = self.xp.sqrt((x_coords - centers[i, 0])**2 + (y_coords - centers[i, 1])**2)
 
             # Create mask (annulus if obstruction detected)
             if self.central_obstruction_ratio > 0:
@@ -175,7 +175,7 @@ class PyrPupdataCalibrator(BaseProcessingObj):
                 mask = r <= radii[i]
 
             # Get flat indices
-            flat_indices = np.where(mask.flatten())[0]
+            flat_indices = self.xp.where(mask.flatten())[0]
             n_pixels = min(len(flat_indices), max_pixels)
 
             ind_pup[i, :n_pixels] = flat_indices[:n_pixels]
