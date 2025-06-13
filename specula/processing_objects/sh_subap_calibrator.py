@@ -17,7 +17,7 @@ class ShSubapCalibrator(BaseProcessingObj):
                  target_device_idx: int = None,
                  precision: int = None
                 ):
-        super().__init__(target_device_idx=target_device_idx, precision=precision)   
+        super().__init__(target_device_idx=target_device_idx, precision=precision)
         self._subap_on_diameter = subap_on_diameter
         self._lenslet = Lenslet(subap_on_diameter)
         self._energy_th = energy_th
