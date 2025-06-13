@@ -37,6 +37,7 @@ on_axis_source:
 pupilstop:                                 # Default parameters (circular pupil)
   class: 'Pupilstop'
   simul_params_ref:  'main'
+  obs_diam:          0.2                    # Obstruction dimension ratio w.r.t. diameter
 
 atmo:
   class:                'AtmoEvolution'
