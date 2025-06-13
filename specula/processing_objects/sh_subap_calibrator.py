@@ -5,24 +5,23 @@ from specula.data_objects.intensity import Intensity
 from specula.data_objects.lenslet import Lenslet
 from specula.connections import InputValue
 from specula.data_objects.subap_data import SubapData
-from specula.data_objects.simul_params import SimulParams
 
 
 class ShSubapCalibrator(BaseProcessingObj):
     def __init__(self,
-                 simul_params: SimulParams,
                  subap_on_diameter: int,
+                 data_dir: str,         # Set by main simul object
                  energy_th: float,
                  output_tag: str = None,
                  tag_template: str = None,
-                 target_device_idx: int = None, 
+                 target_device_idx: int = None,
                  precision: int = None
                 ):
-        super().__init__(target_device_idx=target_device_idx, precision=precision)        
+        super().__init__(target_device_idx=target_device_idx, precision=precision)   
         self._subap_on_diameter = subap_on_diameter
         self._lenslet = Lenslet(subap_on_diameter)
         self._energy_th = energy_th
-        self._data_dir = simul_params.root_dir
+        self._data_dir = data_dir
         if tag_template is None and (output_tag is None or output_tag == 'auto'):
             raise ValueError('At least one of tag_template and output_tag must be set')
 
@@ -43,7 +42,7 @@ class ShSubapCalibrator(BaseProcessingObj):
         file_path = os.path.join(self._data_dir, filename)
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         self.subaps.save(os.path.join(self._data_dir, filename))
-        
+
     def _detect_subaps(self, image, energy_th):
         np = image.shape[0]
         mask_subap = self.xp.zeros_like(image)
@@ -86,9 +85,9 @@ class ShSubapCalibrator(BaseProcessingObj):
         for k, idx in idxs.items():
             v[k] = self.xp.ravel_multi_index(idx, image.shape)
             m[k] = map[k]
-        
+
         subap_data = SubapData(idxs=v, display_map=m, nx=self._lenslet.dimx, ny=self._lenslet.dimy, energy_th=energy_th,
                            target_device_idx=self.target_device_idx, precision=self.precision)
-      
+
         return subap_data
     
