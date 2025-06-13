@@ -23,6 +23,7 @@ class CalibManager():
             'background': 'backgrounds/',
             'pupils': 'pupils/',
             'pupdata': 'pupils',
+            'PyrPupdataCalibrator': 'pupils/',
             'subapdata': 'subapdata/',
             'ShSubapCalibrator': 'subapdata/',
             'iir_filter_data': 'filter/',
