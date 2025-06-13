@@ -8,6 +8,7 @@ from astropy.io import fits
 from copy import deepcopy
 
 from specula.simul import Simul
+from specula.data_objects.simul_params import SimulParams
 from specula.processing_objects.psf import PSF
 
 class FieldAnalyser:
@@ -510,7 +511,7 @@ class FieldAnalyser:
         # Clear existing sources and outputs - we only want field sources
         prop_config.pop('source_dict_ref', None)  # Remove original sources
         prop_config.pop('outputs', None)  # Remove original outputs
-        
+
         if self.verbose:
             print(f"Cleared original sources and outputs from '{prop_key}'")
 
@@ -549,7 +550,7 @@ class FieldAnalyser:
             'FuncGenerator'
             # Add other processing objects as needed
         }
-        
+
         # Whitelist of allowed data object classes
         allowed_data_classes = {
             'Source',
@@ -574,7 +575,7 @@ class FieldAnalyser:
             # If object has a 'class' field, check if it's in whitelist
             if 'class' in obj_config:
                 obj_class = obj_config['class']
-                
+
                 # Remove if NOT in whitelist
                 if obj_class not in allowed_classes:
                     objects_to_remove.append(obj_name)
@@ -651,23 +652,24 @@ class FieldAnalyser:
         if psf_sampling is None and psf_pixel_size_mas is None:
             psf_sampling = 7.0
 
-        # Pupil parameters
-        pixel_pitch = self.params['main']['pixel_pitch']
-        pixel_pupil = self.params['main']['pixel_pupil']
+        # Get simul_params from main configuration
+        main_config = self.params.get('main', {})
+        if not main_config:
+            raise RuntimeError("No 'main' configuration found in parameters")
 
-        # Calculate the pixel size of the PSF in mas in both cases
-        if psf_pixel_size_mas is not None:
-            # compute the actual pixel size based on the provided value
-            psf_sampling = PSF.calc_psf_sampling(
-                pixel_pupil, 
-                pixel_pitch, 
-                self.wavelength_nm, 
-                psf_pixel_size_mas
-            )
+        # Create a temporary SimulParams object to initialize PSF
+        temp_simul_params = SimulParams(pixel_pitch = self.params['main']['pixel_pitch'],
+                                        pixel_pupil = self.params['main']['pixel_pupil'])
 
-        self.psf_sampling = psf_sampling
-        self.psf_pixel_size_mas = (self.wavelength_nm * 1e-9 / (pixel_pupil*pixel_pitch) * 3600 * 180 / np.pi) \
-                                    * 1000 / psf_sampling
+        temp_psf = PSF(
+            simul_params=temp_simul_params,
+            wavelengthInNm=self.wavelength_nm,
+            nd=psf_sampling,
+            pixel_size_mas=psf_pixel_size_mas,
+            start_time=self.start_time
+        )
+        self.psf_sampling = temp_psf.nd
+        self.psf_pixel_size_mas = temp_psf.psf_pixel_size
 
         # Check if all individual PSF files exist
         all_exist = True
