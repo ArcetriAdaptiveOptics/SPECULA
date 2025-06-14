@@ -54,6 +54,8 @@ class MultiRecCalibrator(BaseProcessingObj):
         self._full_im = self.local_inputs['full_intmat'].get(self.target_device_idx)
 
     def finalize(self):
+        os.makedirs(self._data_dir, exist_ok=True)
+
         for i, im in enumerate(self._ims):
             intmat = Intmat(im, target_device_idx=self.target_device_idx, precision=self.precision)
             if self.rec_path(i):

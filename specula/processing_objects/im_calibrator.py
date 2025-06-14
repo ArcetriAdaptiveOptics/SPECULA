@@ -28,7 +28,10 @@ class ImCalibrator(BaseProcessingObj):
         self.pupdata_tag = pupdata_tag
         self._overwrite = overwrite
 
-        self._im_filename = im_tag
+        if im_tag is None or im_tag == 'auto':
+            self._im_filename = tag_template
+        else:
+            self._im_filename = im_tag
         self.inputs['in_slopes'] = InputValue(type=Slopes)
         self.inputs['in_commands'] = InputValue(type=BaseValue)
 
@@ -47,15 +50,16 @@ class ImCalibrator(BaseProcessingObj):
         slopes = self.local_inputs['in_slopes'].slopes
         commands = self.local_inputs['in_commands'].value
 
-        #first iteration, we need to initialize the IM
+        # First iteration initialization
         if self._im.value is None:
             self._im.value = self.xp.zeros((self._nmodes, len(slopes)), dtype=self.dtype)
             for i in range(self._nmodes):
                 self.output_im[i].resize(len(self._im.value[i]))
+            if self.verbose:
+                print(f"Initialized interaction matrix: {self._im.value.shape}")
 
         idx = self.xp.nonzero(commands)
 
-        #temp_im = self._im.value
         if len(idx[0])>0:
             mode = int(idx[0]) - self._first_mode
             if mode < self._nmodes:

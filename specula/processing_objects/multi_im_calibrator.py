@@ -24,7 +24,7 @@ class MultiImCalibrator(BaseProcessingObj):
         self._im_filename = self.tag_filename(im_tag, im_tag_template, prefix='im')
         self._full_im_filename = self.tag_filename(full_im_tag, full_im_tag_template, prefix='full_im')
 
-        self._ims = []
+        self._ims = None
         self.inputs['in_slopes_list'] = InputList(type=Slopes)
         self.inputs['in_commands_list'] = InputList(type=BaseValue)
 
@@ -57,15 +57,25 @@ class MultiImCalibrator(BaseProcessingObj):
         slopes = [x.slopes for x in self.local_inputs['in_slopes_list']]
         commands = [x.value for x in self.local_inputs['in_commands_list']]
 
+        # First iteration
+        if self._ims is None:
+            self._ims = []
+            for i, ss in enumerate(slopes):
+                im = BaseValue(f'intmat_{i}', target_device_idx=self.target_device_idx)
+                im.value = self.xp.zeros((self._nmodes, len(ss)), dtype=self.dtype)
+                self._ims.append(im)
+
         for im, ss, cc in zip(self._ims, slopes, commands):
-            temp_im = im.value
             idx = self.xp.nonzero(cc)
-            if len(idx)>0:
-                mode = idx[0]
-                temp_im[mode] += ss / cc[idx]
-            im.value += temp_im
+            if len(idx[0])>0:
+                mode = int(idx[0])
+                if mode < self._nmodes:
+                    self._im.value[mode] += ss / cc[idx]
+
 
     def finalize(self):
+        os.makedirs(self._data_dir, exist_ok=True)
+
         for i, im in enumerate(self._ims):
             intmat = Intmat(im, target_device_idx=self.target_device_idx, precision=self.precision)
             if self.im_path(i):
@@ -81,11 +91,7 @@ class MultiImCalibrator(BaseProcessingObj):
     def setup(self):
         super().setup()
 
-        self._ims = []
-        for i, slopes in enumerate(self.inputs['in_slopes_list'].get(self.target_device_idx)):
-            im = BaseValue(f'intmat_{i}', target_device_idx=self.target_device_idx)
-            im.value = self.xp.zeros((self._nmodes, len(slopes.slopes)), dtype=self.dtype)
-            self._ims.append(im)
+        for i in range(len(self.inputs['in_slopes_list'].get(self.target_device_idx))):
             im_path = self.im_path(i)
             full_im_path = self.full_im_path()
             if im_path and os.path.exists(im_path):
