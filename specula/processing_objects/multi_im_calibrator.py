@@ -30,7 +30,7 @@ class MultiImCalibrator(BaseProcessingObj):
         self.inputs['in_slopes_list'] = InputList(type=Slopes)
         self.inputs['in_commands_list'] = InputList(type=BaseValue)
 
-        self.outputs['full_intmat'] = BaseValue('full_intmat', target_device_idx=self.target_device_idx)
+        self.outputs['out_intmat_full'] = BaseValue('full_intmat', target_device_idx=self.target_device_idx)
 
     def tag_filename(self, tag, tag_template, prefix):
         if tag == 'auto' and tag_template is None:
@@ -86,8 +86,8 @@ class MultiImCalibrator(BaseProcessingObj):
             if full_im_path:
                 full_intmat.save(os.path.join(self._data_dir, full_im_path), overwrite=self._overwrite)
 
-            self.outputs['full_intmat'].value = full_im
-            self.outputs['full_intmat'].generation_time = self.current_time
+            self.outputs['out_intmat_full'].value = full_im
+            self.outputs['out_intmat_full'].generation_time = self.current_time
 
     def setup(self):
         super().setup()
@@ -103,4 +103,4 @@ class MultiImCalibrator(BaseProcessingObj):
             if full_im_path and os.path.exists(full_im_path):
                 raise FileExistsError(f'IM file {full_im_path} already exists, please remove it')
 
-        self.outputs['intmat_list'] = self._ims
+        self.outputs['out_intmat_list'] = self._ims
