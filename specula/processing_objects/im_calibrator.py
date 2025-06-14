@@ -15,6 +15,7 @@ class ImCalibrator(BaseProcessingObj):
                  first_mode: int = 0,
                  pupdata_tag: str = None,
                  tag_template: str = None,
+                 overwrite: bool = False,
                  target_device_idx: int = None,
                  precision: int = None
                 ):
@@ -23,16 +24,18 @@ class ImCalibrator(BaseProcessingObj):
         self._first_mode = first_mode
         self._data_dir = data_dir
         if tag_template is None and (im_tag is None or im_tag == 'auto'):
-            raise ValueError('At least one of tag_template and rec_tag must be set')
+            raise ValueError('At least one of tag_template and im_tag must be set')
+        self.pupdata_tag = pupdata_tag
+        self._overwrite = overwrite
 
         self._im_filename = im_tag
-        self._im = None
         self.inputs['in_slopes'] = InputValue(type=Slopes)
         self.inputs['in_commands'] = InputValue(type=BaseValue)
 
         self.output_im = [Slopes(length=2, target_device_idx=self.target_device_idx) for _ in range(nmodes)]
         self.outputs['out_im'] = self.output_im
-        self.pupdata_tag = pupdata_tag
+        self._im = BaseValue('intmat', target_device_idx=self.target_device_idx)
+        self.outputs['out_intmat'] = self._im
 
     def trigger_code(self):
 
@@ -44,34 +47,38 @@ class ImCalibrator(BaseProcessingObj):
         slopes = self.local_inputs['in_slopes'].slopes
         commands = self.local_inputs['in_commands'].value
 
-        # First iteration
-        if self._im is None:
-            self._im = self.xp.zeros((self._nmodes, len(slopes)), dtype=self.dtype)
+        #first iteration, we need to initialize the IM
+        if self._im.value is None:
+            self._im.value = self.xp.zeros((self._nmodes, len(slopes)), dtype=self.dtype)
             for i in range(self._nmodes):
-                self.output_im[i].resize(len(self._im[i]))
+                self.output_im[i].resize(len(self._im.value[i]))
 
         idx = self.xp.nonzero(commands)
 
+        #temp_im = self._im.value
         if len(idx[0])>0:
             mode = int(idx[0]) - self._first_mode
             if mode < self._nmodes:
-                self._im[mode] += slopes / commands[idx]
+                self._im.value[mode] += slopes / commands[idx]
 
         in_slopes_object = self.local_inputs['in_slopes']
 
         for i in range(self._nmodes):
-            self.output_im[i].slopes[:] = self._im[i].copy()
+            self.output_im[i].slopes[:] = self._im.value[i].copy()
             self.output_im[i].single_mask = in_slopes_object.single_mask
             self.output_im[i].display_map = in_slopes_object.display_map
             self.output_im[i].generation_time = self.current_time
 
+        self._im.generation_time = self.current_time
+
     def finalize(self):
-        im = Intmat(self._im, pupdata_tag = self.pupdata_tag,
+        im = Intmat(self._im.value, pupdata_tag = self.pupdata_tag,
                     target_device_idx=self.target_device_idx, precision=self.precision)
 
+        os.makedirs(self._data_dir, exist_ok=True)
         # TODO add to IM the information about the first mode
         if self._im_filename:
-            im.save(os.path.join(self._data_dir, self._im_filename))
+            im.save(os.path.join(self._data_dir, self._im_filename), overwrite=self._overwrite)
 
     def setup(self):
         super().setup()
@@ -80,5 +87,5 @@ class ImCalibrator(BaseProcessingObj):
             im_path = os.path.join(self._data_dir, self._im_filename)
             if not im_path.endswith('.fits'):
                 im_path += '.fits'
-            if os.path.exists(im_path):
+            if os.path.exists(im_path) and not self._overwrite:
                 raise FileExistsError(f'IM file {im_path} already exists, please remove it')
