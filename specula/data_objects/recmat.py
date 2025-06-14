@@ -37,7 +37,7 @@ class Recmat(BaseDataObj):
             raise ValueError(f"nModesToBeDiscarded should be less than nmodes (<{nmodes})")
         self.recmat = self.recmat[:, :nmodes - nModesToBeDiscarded]
 
-    def save(self, filename, hdr=None):
+    def save(self, filename, hdr=None, overwrite=False):
         
         if not filename.endswith('.fits'):
             filename += '.fits'
@@ -47,7 +47,7 @@ class Recmat(BaseDataObj):
         hdr['VERSION'] = 1
         hdr['NORMFACT'] = self.norm_factor
 
-        fits.writeto(filename, np.zeros(2), hdr)
+        fits.writeto(filename, np.zeros(2), hdr, overwrite=overwrite)
         fits.append(filename, cpuArray(self.recmat.T))
         if self.modes2recLayer is not None:
             fits.append(filename, cpuArray(self.modes2recLayer))

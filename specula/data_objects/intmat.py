@@ -40,7 +40,7 @@ class Intmat(BaseDataObj):
             raise ValueError(f'start_mode should be less than nmodes (<{nmodes})')
         self.intmat = self.intmat[start_mode:, :]
 
-    def save(self, filename, hdr=None):
+    def save(self, filename, hdr=None, overwrite=False):
         if not filename.endswith('.fits'):
             filename += '.fits'
         if hdr is None:
@@ -49,7 +49,7 @@ class Intmat(BaseDataObj):
         hdr['PUP_TAG'] = self.pupdata_tag
         hdr['NORMFACT'] = self.norm_factor
         # Save fits file
-        fits.writeto(filename, np.zeros(2), hdr, overwrite=True)
+        fits.writeto(filename, np.zeros(2), hdr, overwrite=overwrite)
         fits.append(filename, cpuArray(self.intmat))
         if self.slope_mm is not None:
             fits.append(filename, self.slope_mm)
