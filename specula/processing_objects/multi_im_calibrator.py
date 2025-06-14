@@ -15,6 +15,7 @@ class MultiImCalibrator(BaseProcessingObj):
                  im_tag_template: str = None,
                  full_im_tag: str = None,
                  full_im_tag_template: str = None,
+                 overwrite: bool = False,
                  target_device_idx: int = None,
                  precision: int = None
                 ):
@@ -23,6 +24,7 @@ class MultiImCalibrator(BaseProcessingObj):
         self._data_dir = data_dir
         self._im_filename = self.tag_filename(im_tag, im_tag_template, prefix='im')
         self._full_im_filename = self.tag_filename(full_im_tag, full_im_tag_template, prefix='full_im')
+        self._overwrite = overwrite
 
         self._ims = None
         self.inputs['in_slopes_list'] = InputList(type=Slopes)
@@ -70,23 +72,23 @@ class MultiImCalibrator(BaseProcessingObj):
             if len(idx[0])>0:
                 mode = int(idx[0])
                 if mode < self._nmodes:
-                    self._im.value[mode] += ss / cc[idx]
+                    im.value[mode] += ss / cc[idx]
 
 
     def finalize(self):
         os.makedirs(self._data_dir, exist_ok=True)
 
         for i, im in enumerate(self._ims):
-            intmat = Intmat(im, target_device_idx=self.target_device_idx, precision=self.precision)
+            intmat = Intmat(im.value, target_device_idx=self.target_device_idx, precision=self.precision)
             if self.im_path(i):
-                intmat.save(os.path.join(self._data_dir, self.im_path(i)))
+                intmat.save(os.path.join(self._data_dir, self.im_path(i)), overwrite=self._overwrite)
 
         full_im_path = self.full_im_path()
         if full_im_path:
             full_im = self.xp.hstack(self._ims)
             full_intmat = Intmat(full_im, target_device_idx=self.target_device_idx, precision=self.precision)
             if full_im_path:
-                full_intmat.save(os.path.join(self._data_dir, full_im_path))
+                full_intmat.save(os.path.join(self._data_dir, full_im_path), overwrite=self._overwrite)
 
     def setup(self):
         super().setup()
