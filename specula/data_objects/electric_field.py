@@ -79,7 +79,7 @@ class ElectricField(BaseDataObj):
         x2 = subrect[0] + self.size[0]
         y2 = subrect[1] + self.size[1]
         self.A *= ef2.A[subrect[0] : x2, subrect[1] : y2]
-        self.phaseInNm += self.xp.asarray(ef2.phaseInNm[subrect[0] : x2, subrect[1] : y2])
+        self.phaseInNm += ef2.phaseInNm[subrect[0] : x2, subrect[1] : y2]
 
     def area(self):
         return self.A.size * (self.pixel_pitch ** 2)
