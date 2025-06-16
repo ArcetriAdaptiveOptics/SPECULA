@@ -8,31 +8,12 @@ What is SPECULA?
 
 SPECULA is a comprehensive end-to-end adaptive optics simulator designed for:
 
-* **Ground-based telescopes**: From 8m class to ELTs (Extremely Large Telescopes)
+* **Ground-based telescopes**: Any size, in particular from 8m class to ELTs (Extremely Large Telescopes)
 * **Multiple AO modes**: SCAO, LTAO, MCAO, GLAO
 * **Various wavefront sensors**: Shack-Hartmann, Pyramid, LGS systems
+* **Realistic atmospheric modeling**: Kolmogorov turbulence, von Karman models, multi-layer atmospheric profiles
 * **Performance**: GPU-accelerated computations
-* **Calibration procedures**: Automated interaction matrix generation
-
-Key Features
-~~~~~~~~~~~~
-
-**Physical Modeling**
-   * Kolmogorov and von Karman turbulence models
-   * Multi-layer atmospheric profiles
-   * Realistic telescope pupil geometry
-   * Optical aberrations and misalignments
-
-**Sensor Models**
-   * Photon and read noise
-   * Pixel response variations
-   * Optical features
-   * Temporal behavior
-
-**Control Systems**
-   * Multiple control algorithms (integrator, IIR filters, ...)
-   * Temporal delays and bandwidth limitations
-   * Multi-conjugate control strategies
+* **Calibration procedures**: Interaction matrix generation
 
 SPECULA Architecture
 --------------------
@@ -44,7 +25,7 @@ Processing Objects
 
 Processing objects perform the main computational tasks:
 
-**Common Processing Objects:**
+**Example Processing Objects:**
 
 * ``AtmoPropagation`` - Turbulence propagation
 * ``Slopesc`` - Wavefront sensor data processing
@@ -56,17 +37,29 @@ Data Objects
 
 Data objects encapsulate physical quantities and measurements:
 
-**Key Data Objects:**
+**Example Data Objects:**
 
 * ``ElectricField`` - Phase and amplitude information
 * ``Slopes`` - WFS measurements
 * ``Intensity`` - Detector images
 * ``Intmat`` - Interaction matrices
 
+Housekeeping Objects
+~~~~~~~~~~~~~~~~~~
+
+Housekeeping objects manage simulation state and configuration:
+
+**Example Housekeeping Objects:**
+* ``Simul`` - Main simulation controller
+* ``LoopControl`` - Controls simulation iterations and time steps
+* ``CalibManager`` - Handles data calibration structure
+* ``Connections`` - Manages connections between objects
+
 Configuration System
 ~~~~~~~~~~~~~~~~~~~~~
 
-Simulations are defined through hierarchical YAML configuration files:
+Simulations are defined through hierarchical YAML configuration files.
+See `tutorials/scao_tutorial` for a SCAO system example and the files in the ``main/scao`` directory.
 
 Connection Graph
 ~~~~~~~~~~~~~~~~
@@ -101,9 +94,3 @@ SPECULA uses a discrete-time simulation model:
 
 **Frame Rates**
    Support for different subsystem frame rates (e.g., WFS vs NGS)
-
-.. seealso::
-   
-   :doc:`running_simulations` for execution details
-   :doc:`configuration` for YAML syntax reference
-   :doc:`processing_objects` for object development guidelines

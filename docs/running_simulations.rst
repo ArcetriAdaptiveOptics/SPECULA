@@ -1,122 +1,27 @@
 Running Simulations
 ===================
 
-This comprehensive guide covers all aspects of executing SPECULA simulations, from basic usage to advanced optimization techniques.
+In the directory `main/scao` there are several example configuration / parameters files for SCAO systems.
 
-Quick Start
------------
-
-For impatient users, here's the fastest way to run a simulation:
-TODO add caibration info
-
-.. code-block:: bash
-
-   cd main/scao
-   python main_simul.py params_scao_sh.yml
-   
-This runs a complete SCAO simulation with default parameters.
-
-Command Line Interface
-----------------------
-
-SPECULA provides flexible command-line options:
-
-Basic Usage
-~~~~~~~~~~~
-
-.. code-block:: bash
-
-   python main_simul.py [options] [yaml file]
-
-**Common Options:**
-
-TODO
-
-.. code-block:: bash
-
-   # Use custom configuration
-   python main_simul.py --config my_setup.yaml
-
-
-Advanced Options
-~~~~~~~~~~~~~~~~
-
-.. code-block:: bash
-
-   # Profile performance
-   python main_simul.py --profile --profile-output timing.txt
-
-
-Configuration Management
-------------------------
-
-Directory Structure
-~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: text
-
-   ???
-
-Performance Optimization
-------------------------
-
-Hardware Acceleration
-~~~~~~~~~~~~~~~~~~~~~
-
-**GPU Usage:**
-
-.. code-block:: yaml
-
-   main:
-     target_device_idx: 0        # GPU device number
-     precision: 32               # 32-bit float (faster)
-     memory_pool: true           # Enable memory pooling
-
-**Multi-GPU:**
-
-   TODO target_device_idx
-
-**CPU:**
-
-.. code-block:: yaml
-
-   main:
-     target_device_idx: -1       # Force CPU execution
-
-Results Management
-------------------
-
-Output Organization
-~~~~~~~~~~~~~~~~~~~
-
-SPECULA automatically organizes simulation outputs:
-
-TODO
-
-Data Formats
-~~~~~~~~~~~~
-
-**FITS for astronomical data:**
+The basic way to run the simulation is to use the Simul class directly:
 
 .. code-block:: python
 
-   from astropy.io import fits
-   
-   # Load PSF evolution
-   psf_data = fits.getdata('results/psf.fits')
-   
-Troubleshooting
----------------
+    import specula
+    specula.init(target_device_idx, precision=1)
 
-Common Issues
-~~~~~~~~~~~~~
+    print(args)    
+    from specula.simul import Simul
+    simul = Simul(yml_file,
+                  overrides=args.overrides,
+                  diagram=args.diagram,
+                  diagram_filename=args.diagram_filename,
+                  diagram_title=args.diagram_title,
+    )
+    simul.run()
 
-**Memory Errors:**
+where target_device_idx is the GPU device number (or -1 for CPU), and yml_file is the path to your configuration / parameters file.
 
-TODO
+This is embedded in the main simulation script ``main_simul.py`` that can be found in the ``main/scao`` directory.
 
-.. seealso::
-   
-   :doc:`configuration` for complete YAML reference
-   :doc:`tutorials/scao_tutorial` for step-by-step examples  
-   :doc:`troubleshooting` for detailed problem resolution
+A tutorial for running SCAO simulations is available in the `tutorials/scao_tutorial` page.
