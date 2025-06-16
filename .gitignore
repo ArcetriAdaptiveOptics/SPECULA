@@ -137,3 +137,10 @@ dmypy.json
 *.nsys-rep
 *.sqlite
 
+# SPECULA calibs
+main/scao/calib/*
+main/scao/output/*
+
+# Nsys profiler repots
+*.nsys-rep
+

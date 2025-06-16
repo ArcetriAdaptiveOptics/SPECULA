@@ -10,14 +10,14 @@ from specula.data_objects.subap_data import SubapData
 class ShSubapCalibrator(BaseProcessingObj):
     def __init__(self,
                  subap_on_diameter: int,
-                 energy_th: float,
                  data_dir: str,         # Set by main simul object
+                 energy_th: float,
                  output_tag: str = None,
                  tag_template: str = None,
-                 target_device_idx: int = None, 
+                 target_device_idx: int = None,
                  precision: int = None
                 ):
-        super().__init__(target_device_idx=target_device_idx, precision=precision)        
+        super().__init__(target_device_idx=target_device_idx, precision=precision)
         self._subap_on_diameter = subap_on_diameter
         self._lenslet = Lenslet(subap_on_diameter)
         self._energy_th = energy_th
@@ -32,14 +32,17 @@ class ShSubapCalibrator(BaseProcessingObj):
         self.inputs['in_i'] = InputValue(type=Intensity)
 
     def trigger_code(self):
-        
         image = self.local_inputs['in_i'].i
-        subaps = self._detect_subaps(image, self._energy_th)
+        self.subaps = self._detect_subaps(image, self._energy_th)
+
+    def finalize(self):
         filename = self._filename
         if not filename.endswith('.fits'):
             filename += '.fits'
-        subaps.save(os.path.join(self._data_dir, filename))
-        
+        file_path = os.path.join(self._data_dir, filename)
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        self.subaps.save(os.path.join(self._data_dir, filename))
+
     def _detect_subaps(self, image, energy_th):
         np = image.shape[0]
         mask_subap = self.xp.zeros_like(image)
@@ -58,8 +61,8 @@ class ShSubapCalibrator(BaseProcessingObj):
                 np_sub = round(np / 2.0 * lens[2])
 
                 mask_subap *= 0
-                mask_subap[self.xp.round(x[i, j] - np_sub / 2):self.xp.round(x[i, j] + np_sub / 2),
-                           self.xp.round(y[i, j] - np_sub / 2):self.xp.round(y[i, j] + np_sub / 2)] = 1
+                mask_subap[int(self.xp.round(x[i, j] - np_sub / 2)):int(self.xp.round(x[i, j] + np_sub / 2)),
+                    int(self.xp.round(y[i, j] - np_sub / 2)):int(self.xp.round(y[i, j] + np_sub / 2))] = 1
 
                 spot_intensity[i, j] = self.xp.sum(image * mask_subap)
 
@@ -68,8 +71,8 @@ class ShSubapCalibrator(BaseProcessingObj):
             for j in range(self._lenslet.dimy):
                 if spot_intensity[i, j] > energy_th * self.xp.max(spot_intensity):
                     mask_subap *= 0
-                    mask_subap[self.xp.round(x[i, j] - np_sub / 2):self.xp.round(x[i, j] + np_sub / 2),
-                               self.xp.round(y[i, j] - np_sub / 2):self.xp.round(y[i, j] + np_sub / 2)] = 1
+                    mask_subap[int(self.xp.round(x[i, j] - np_sub / 2)):int(self.xp.round(x[i, j] + np_sub / 2)),
+                        int(self.xp.round(y[i, j] - np_sub / 2)):int(self.xp.round(y[i, j] + np_sub / 2))] = 1
                     idxs[count] = self.xp.where(mask_subap == 1)
                     map[count] = j * self._lenslet.dimx + i
                     count += 1
@@ -82,11 +85,9 @@ class ShSubapCalibrator(BaseProcessingObj):
         for k, idx in idxs.items():
             v[k] = self.xp.ravel_multi_index(idx, image.shape)
             m[k] = map[k]
-        
-        subap_data = SubapData(idxs=v, map=m, nx=self._lenslet.dimx, ny=self._lenslet.dimy, energy_th=energy_th,
+
+        subap_data = SubapData(idxs=v, display_map=m, nx=self._lenslet.dimx, ny=self._lenslet.dimy, energy_th=energy_th,
                            target_device_idx=self.target_device_idx, precision=self.precision)
-      
+
         return subap_data
     
-    def run_check(self, time_step):
-        return True

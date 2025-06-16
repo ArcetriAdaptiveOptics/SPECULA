@@ -129,6 +129,15 @@ def extrapolate_edge_pixel_mat_define(mask, do_ext_2_pix=False):
                 if sum_1pix_extra[idx] == -1 and test >= 0:
                     sum_1pix_extra[idx] = test
 
-    return sum_1pix_extra.astype(np.int32), sum_2pix_extra.astype(np.int32)
+    # Find indices where extrapolation is needed (for 1-pixel extrapolation)
+    # Find indices for 2-pixel extrapolation where value is defined
+    idx_1pix = np.where(sum_1pix_extra >= 0)
+    idxExtraPol2 = np.where(sum_2pix_extra[idx_1pix] >= 0)
+
+    return (sum_1pix_extra.astype(np.int32),
+           sum_2pix_extra.astype(np.int32),
+           idx_1pix,
+           idxExtraPol2)
+           
 
 

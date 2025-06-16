@@ -1,15 +1,14 @@
 import numbers
 import numpy as np
 
-from specula import cpuArray
-from specula import float_dtype
+from specula import cpuArray, to_xp
 
-from functools import cache
+from functools import lru_cache
 from scipy.special import factorial
 from specula.lib.mask import CircularMask
 
 
-class ZernikeGenerator(object):
+class ZernikeGenerator():
     '''
     Generator of Zernike polynomials and their derivatives
 
@@ -233,7 +232,7 @@ class ZernikeGenerator(object):
         '''
         nPxY = self._shape[0]
         nPxX = self._shape[1]
-        c = self.xp.array(self.center(), dtype=self.dtype)
+        c = to_xp(self.xp, self.center(), dtype=self.dtype)
         cc = self.xp.expand_dims(c, axis=(1, 2))
         Y, X = (self.xp.mgrid[0.5: nPxY + 0.5: 1,
                          0.5: nPxX + 0.5: 1] - cc) / self.radius()
@@ -264,7 +263,7 @@ class ZernikeGenerator(object):
             res = self._polar(index, self._rhoMap,
                               self._thetaMap)
             tmp = np.ma.masked_array(data=cpuArray(res), mask=cpuArray(self._boolean_mask))
-            self._dictCache[index] = self.xp.array(tmp, dtype=self.dtype)
+            self._dictCache[index] = to_xp(self.xp, tmp, dtype=self.dtype)
         return self._dictCache[index]
 
     @staticmethod
@@ -419,8 +418,9 @@ class ZernikeGenerator(object):
         '''
         return np.ceil(0.5 * (np.sqrt(8 * np.array(j) + 1) - 3)).astype(int)
 
+    # We use lru_cache() instead of cache() for python 3.8 compatibility
     @classmethod
-    @cache
+    @lru_cache(maxsize=None)
     def index_to_name_dict(cls):
         '''
         Zernike index to zernike name mapping
@@ -435,8 +435,9 @@ class ZernikeGenerator(object):
                 3:'tilt',
                 4:'focus'}
 
+    # We use lru_cache() instead of cache() for python 3.8 compatibility
     @classmethod
-    @cache
+    @lru_cache(maxsize=None)
     def name_to_index_dict(cls):
         '''
         Zernike name to zernike index mapping

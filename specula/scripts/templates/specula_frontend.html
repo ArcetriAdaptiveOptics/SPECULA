@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Socket.IO Object Status</title>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .object-list {
+            list-style-type: disc; /* Bullet list */
+            padding-left: 20px;
+        }
+        .object-list li {
+            margin: 5px 0;
+        }
+        .status {
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .countdown {
+            color: red;
+            margin-left: 10px;
+        }
+        .no-simulations {
+            color: gray;
+            font-style: italic;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>SPECULA simulations</h1>
+    <ul class="object-list" id="objectList"></ul>
+    <p id="noSimulationsMessage" class="no-simulations">No running simulations found</p>
+
+    <script>
+        // Connect to the Socket.IO server
+        const socket = io();
+
+        // Object to keep track of recent updates
+        const objects = new Map();
+
+        // Time to keep an object displayed (in milliseconds)
+        const DISPLAY_DURATION = 10000;
+
+        // Function to update the display list
+        function updateDisplay() {
+            const objectList = document.getElementById('objectList');
+            const noSimulationsMessage = document.getElementById('noSimulationsMessage');
+            objectList.innerHTML = ''; // Clear the list
+
+            const now = Date.now();
+            let hasItems = false;
+
+            objects.forEach((data, name) => {
+                const elapsedSeconds = Math.floor((now - data.timestamp) / 1000);
+
+                // Only display objects within the DISPLAY_DURATION
+                if (elapsedSeconds * 1000 <= DISPLAY_DURATION) {
+                    hasItems = true;
+                    const listItem = document.createElement('li');
+
+                    // Object link
+                    const link = document.createElement('a');
+                    link.href = `http://${window.location.hostname}:${data.port}`;
+                    link.textContent = name;
+                    link.target = '_blank';
+
+                    // Status
+                    const status = document.createElement('span');
+                    status.textContent = `(${data.status})`;
+                    status.className = 'status';
+
+                    // Countdown timer
+                    const countdown = document.createElement('span');
+                    if (elapsedSeconds > 2) {
+                        countdown.textContent = `(${elapsedSeconds} seconds ago)`;
+                        countdown.className = 'countdown';
+                    }
+
+                    // Append elements to the list item
+                    listItem.appendChild(link);
+                    listItem.appendChild(status);
+                    if (elapsedSeconds > 2) {
+                        listItem.appendChild(countdown);
+                    }
+
+                    // Add the list item to the list
+                    objectList.appendChild(listItem);
+                }
+            });
+
+            // Show or hide the "No running simulations found" message
+            if (hasItems) {
+                noSimulationsMessage.style.display = 'none';
+            } else {
+                noSimulationsMessage.style.display = 'block';
+            }
+        }
+
+        // Listen for 'simul_update' events
+        socket.on('simul_update', (data) => {
+            const { name, status, port } = data;
+
+            // Update the object in the Map
+            objects.set(name, { status, port, timestamp: Date.now() });
+
+            // Refresh the display
+            updateDisplay();
+        });
+
+        // Periodically clean up old entries and refresh the display
+        setInterval(() => {
+            const now = Date.now();
+            for (const [name, data] of objects) {
+                if (now - data.timestamp > DISPLAY_DURATION) {
+                    objects.delete(name); // Remove expired entries
+                }
+            }
+            updateDisplay();
+        }, 1000); // Refresh every second to update the countdowns
+    </script>
+</body>
+</html>

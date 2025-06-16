@@ -1,3 +1,5 @@
+import numpy as np
+
 def calc_detector_noise(fs, ccd_type, binning=1, CCD_speed=None):
     """
     Calculate the detector noise.
@@ -116,7 +118,7 @@ def calc_detector_noise(fs, ccd_type, binning=1, CCD_speed=None):
             ReadOutSpeed = [2.0e-3, 1.0e-3, 0.588e-3, 0.435e-3, 0.294e-3]
             ReadOutNoise = [1.7, 2.1, 2.6, 3.6, 4.4]
             temp_fs = max(fs) if isinstance(fs, list) else fs
-            idx = next(i for i, x in enumerate(ReadOutSpeed) if 1.0 / xp.around(temp_fs) >= x)
+            idx = next(i for i, x in enumerate(ReadOutSpeed) if 1.0 / np.around(temp_fs) >= x)
             CCD_speed = ReadOutSpeed[idx] if CCD_speed == 0.0 else CCD_speed
             RON = ReadOutNoise[idx]
         dark = 26.0 * binning ** 2 / fs

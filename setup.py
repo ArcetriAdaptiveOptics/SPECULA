@@ -76,12 +76,22 @@ setup(name=NAME,
                 ],
       package_data={
       },
+      entry_points={
+          'console_scripts': [
+              'specula_frontend_start=specula.scripts.web_frontend:start',
+              'specula_frontend_stop=specula.scripts.web_frontend:stop',
+          ],
+      },
       python_requires='>=3.8.0',
       install_requires=["numpy",
                         "scipy",
                         "astropy",
                         "matplotlib",
-                        "numba"
+                        "astro-seeing>=1.1",
+                        "symao>=1.0.1",
+                        "flask-socketio",
+                        "python-socketio",
+                        "requests"
                         ],
       include_package_data=True,
       test_suite='test',

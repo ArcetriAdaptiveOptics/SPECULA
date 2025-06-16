@@ -84,9 +84,6 @@ def toccd_gpu(a, newshape, set_total=None):
     f = 1.0 / (dx_out * dy_out)
     oneOverDxIn = 1.0 / dx_in
 
-    if set_total is None:
-        set_total = a.sum()
-
     block = (16, 16)
     numBlocks2d = int(outx // block[1])
     if outx % block[1]:
@@ -98,7 +95,7 @@ def toccd_gpu(a, newshape, set_total=None):
         numBlocks2d_tmp += 1
     grid_tmp = (numBlocks2d, numBlocks2d_tmp)  # Note second element is different
 
-    tmp = cp.empty_like(a, shape=(iny, outx))
+    tmp = cp.empty_like(a, shape=(iny, outx))  # TODO this is a reallocation and could give problems with streams
     out = cp.empty_like(a, shape=(outy, outx))
 
     if a.dtype == cp.float32:
@@ -110,7 +107,12 @@ def toccd_gpu(a, newshape, set_total=None):
     else:
         raise TypeError(f'toccd_gpu(): unsupported dtype {a.dtype}. Valid dtypes are float32 and float64')
 
-    return out / out.sum() * set_total
+    out /= out.sum()
+    if set_total is not None:
+        out *= set_total
+    else:
+        out *= a.sum()
+    return out
 
 
 # only define kernels if cupy has been loaded

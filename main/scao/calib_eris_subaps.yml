@@ -1,0 +1,45 @@
+
+
+sh_subaps_lgs:
+  class: 'ShSubapCalibrator'
+  subap_on_diameter:  40
+  output_tag:        'eris_subaps_lgs'
+  energy_th:         0.5
+  #tag_template:      'subap_{main.tag}_n{subap_on_diameter}_th{energy_th:f.1}'
+  inputs:
+    in_i: 'sh_lgs.out_i'
+
+sh_subaps_lo:
+  class: 'ShSubapCalibrator'
+  subap_on_diameter:  4
+  output_tag:        'eris_subaps_lo'
+  energy_th:         0.5
+  #tag_template:      'subap_{main.tag}_n{subap_on_diameter}_th{energy_th:f.1}'
+  inputs:
+    in_i: 'sh_lo.out_i'
+
+main_override:
+  total_time:  0.002
+
+prop_override:
+  inputs:
+    common_layer_list: ['pupilstop']
+
+remove: ['atmo',
+  'slopec_lgs',
+'modalrec_lgs',
+'slopec_lo',
+'modalrec_lo',
+'modalrec_truth',
+'integrator_truth',
+'subtract_truth',
+'integrator_lgs',
+'integrator_lo',
+'modal_combination',
+'dm',
+'psf',
+  ]
+  
+ 
+
+

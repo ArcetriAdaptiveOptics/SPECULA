@@ -4,20 +4,18 @@ from specula.base_processing_obj import BaseProcessingObj
 from specula.connections import InputValue
 from specula.base_value import BaseValue
 
+
 class ModesDisplay(BaseProcessingObj):
-    def __init__(self, disp_factor=1, wsize=(600, 300), window=22, yrange=(-100, 100), oplot=False, color=1, psym=-4, title=''):
+    def __init__(self, wsize=(600, 300), window=22, yrange=(-500, 500), oplot=False, color=1, title=''):
         super().__init__(target_device_idx=-1)
 
-        self._modes = None
         self._wsize = wsize
         self._window = window
         self._yrange = yrange
         self._oplot = oplot
         self._color = color
-        self._psym = psym
         self._title = title
         self._opened = False
-        self._disp_factor = disp_factor
         self._first = True
         self.inputs['modes'] = InputValue(type=BaseValue)
 
@@ -41,10 +39,3 @@ class ModesDisplay(BaseProcessingObj):
             self._line[0].set_ydata(m.value)
         plt.draw()
         plt.pause(0.01)
-
-    def run_check(self, time_step):
-        return self.inputs['modes'].get(self.target_device_idx) is not None
-
-    @classmethod
-    def from_dict(cls, params):
-        return cls(**params)

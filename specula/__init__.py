@@ -2,7 +2,6 @@ import numpy as np
 import os
 import functools
 from functools import wraps
-from numba import jit as numbajit
 
 cpu_float_dtype_list = [np.float64, np.float32]
 cpu_complex_dtype_list = [np.complex128, np.complex64]
@@ -21,6 +20,8 @@ default_target_device_idx = None
 default_target_device = None
 process_comm = None
 process_rank = None
+ASEC2RAD = np.pi / (3600 * 180)
+RAD2ASEC = 1.0 / ASEC2RAD
 
 # precision = 0 -> double precision
 # precision = 1 -> single precision
@@ -94,14 +95,58 @@ def init(device_idx=-1, precision=0, comm=None, rank=None):
     global_precision = precision
     float_dtype = float_dtype_list[global_precision]
     complex_dtype = complex_dtype_list[global_precision]
+    
+    # Patch cupy's missing RandomState.random() method
+    if cp is not None:
+        cp.random.RandomState.random = cp.random.RandomState.random_sample
 
-# should be used as less as a possible and prefarably outside time critical computations
-def cpuArray(v):
-    if cp and isinstance(v, cp.ndarray):
-        # which one is better, xp.asnumpy(v) or v.get() ? almost the same but asnumpy is more general
-        return cp.asnumpy(v)
+
+# should be used as less as a possible and preferably outside time critical computations
+def cpuArray(v, dtype=None, force_copy=False):
+    return to_xp(np, v, dtype=dtype, force_copy=force_copy)
+
+
+def to_xp(xp, v, dtype=None, force_copy=False):
+    '''
+    Make sure that v is allocated as an array on this object's device.
+    Works for all combinations of np and cp, whether installed or not.
+
+    Optionally casts to the required dtype (no copy is made if
+    the dtype is already the correct one)
+
+    The main trigger for this function is that np.array() cannot
+    be used on a cupy array.
+    '''
+    if xp is cp:
+        if isinstance(v, cp.ndarray) and not force_copy:
+            retval =  v
+        else:
+            retval =  cp.array(v)
     else:
-        return np.array(v)
+        if cp is not None and isinstance(v, cp.ndarray):
+            retval = v.get()
+        elif isinstance(v, np.ndarray) and not force_copy:
+            # Avoid extra copy (enabled by numpy default)
+            retval = v
+        else:
+            retval = np.array(v)
+    if dtype is None and not force_copy:
+        return retval
+    else:
+        return retval.astype(dtype, copy=force_copy)
+
+
+class DummyDecoratorAndContextManager():
+    def __init__(self):
+        pass
+    def __enter__(self):
+        pass
+    def __exit__(self, *args):
+        pass
+    def __call__(self, f):
+        def caller(*args, **kwargs):
+            return f(*args, **kwargs)
+        return caller
 
 
 def show_in_profiler(message=None, color_id=None, argb_color=None, sync=False):
@@ -119,9 +164,7 @@ def show_in_profiler(message=None, color_id=None, argb_color=None, sync=False):
                           sync=sync)
 
     except ImportError:
-        def decorator(f):
-            return f
-        return decorator
+        return DummyDecoratorAndContextManager()
 
 
 def fuse(kernel_name=None):
@@ -152,33 +195,3 @@ def fuse(kernel_name=None):
                 return f_cpu(*args, **kwargs)
         return wrapper
     return decorator
-
-cpujit = numbajit
-
-#def cpujit(nopython=True):
-#    def decorator(f):
-#        f_cp = functools.partial(f, xp=cp)
-#        f_np = functools.partial(f, xp=np)
-##        f_cpu = f_np
-#        f_gpu = f_cp
-#        f_cpu =  numbajit(nopython=nopython)(f_np) 
-#        @wraps(f)
-#        def wrapper(*args, xp, **kwargs):
-#            if xp==np:
-#                return f_cpu(*args, **kwargs)
-#            else:
-#                return f_gpu(*args, **kwargs)
-#            return wrapper
-#    return decorator
-
-'''
-Replacement of numba.jit() allowing runtime
-dispatch to cupy or numpy.
-
-jitted function takes an xp argument that will
-cause it to run as a jitted function or a standard
-function. The xp argument can be used
-inside the function as usual.
-
-Parameters are the same as cp.fuse()
-'''

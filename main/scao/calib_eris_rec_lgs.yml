@@ -1,0 +1,52 @@
+
+
+pushpull:
+  class:     'FuncGenerator'
+  func_type: 'PUSHPULL'
+  nmodes:     1127
+  vect_amplitude_data:  'data50_1127'
+  outputs: ['output']
+
+main_override:
+  total_time:  2.254
+
+prop_override:
+  inputs:
+    common_layer_list: ['pupilstop',
+                  'dm.out_layer']
+
+dm_override:
+  sign: 1
+  inputs:
+      in_command: 'pushpull.output'
+
+detector_lgs_override:
+  photon_noise:      False
+  readout_noise:     False
+  
+
+calibrator:
+  class: 'ImRecCalibrator'
+  nmodes: 700
+  first_mode: 2
+  rec_tag:     'eris_rec_lgs'
+  #tag_template:    'subap_{main.tag}_n{modes}'
+  inputs:
+    in_slopes: 'slopec_lgs.out_slopes'
+    in_commands: 'pushpull.output'
+
+
+remove: ['atmo',
+'modalrec_lgs',
+'sh_lo',
+'detector_lo',
+'slopec_lo',
+'modalrec_lo',
+'modalrec_truth',
+'integrator_truth',
+'subtract_truth',
+'integrator_lgs',
+'integrator_lo',
+'modal_combination',
+'psf',
+  ]

@@ -1,17 +1,17 @@
 ---
 
 main:
+  class:             'SimulParams'
   root_dir:          './calib/SCAO'         # Root directory for calibration manager
   pixel_pupil:       160                    # Linear dimension of pupil phase array
   pixel_pitch:       0.05                   # [m] Pitch of the pupil phase array
-  total_time:        0.050                  # [s] Total simulation running time
+  total_time:        0.10                  # [s] Total simulation running time
   time_step:         0.001                  # [s] Simulation time step
 
 
 seeing:
   class:             'FuncGenerator'
   constant:          0.8                  # ["] seeing value
-  func_type:         'SIN'                 # TODO necessary for factory.py line 217
   outputs: ['output']
 
 
@@ -29,21 +29,22 @@ wind_direction:
 
 on_axis_source:
   class:             'Source'
-  polar_coordinate:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  polar_coordinates:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
   magnitude:         8                    # source magnitude
   wavelengthInNm:    750                   # [nm] wavelength
 
 
 pupilstop:                                 # Default parameters (circular pupil)
   class: 'Pupilstop'
-
+  simul_params_ref:  'main'
 
 atmo:
   class:                'AtmoEvolution'
+  simul_params_ref:     'main'
   L0:                   40                   # [m] Outer scale
   heights:              [119.] #,837,3045,12780]), # [m] layer heights at 0 zenith angle
-  Cn2:                  [0.70] #,0.06,0.14,0.10]), # Cn2 weights (total must be eq 1)
-  source_dict_ref:      ['on_axis_source']
+  Cn2:                  [1.0] #,0.06,0.14,0.10]), # Cn2 weights (total must be eq 1)
+  fov:                  0.0
   inputs:
     seeing: 'seeing.output'
     wind_speed: 'wind_speed.output'
@@ -53,21 +54,26 @@ atmo:
 
 prop:
   class:                'AtmoPropagation'
+  simul_params_ref:     'main'
   source_dict_ref:      ['on_axis_source']
   inputs:
-    layer_list: ['atmo.layer_list',
-                  'pupilstop',
+    atmo_layer_list: ['atmo.layer_list']
+    common_layer_list: ['pupilstop',
                   'dm.out_layer:-1']
   outputs: ['out_on_axis_source_ef']
-  
+
+launcher:
+  class:             'LaserLaunchTelescope'
+  spot_size:          0.5
+
 sh:
   class:             'SH'
-  subap_wanted_fov:  1.2                     # Requested field-of-view [arcsec]
-  sensor_pxscale:    0.15                     # Pixel scale in arcsec/pix
+  subap_wanted_fov:  2.4                     # Requested field-of-view [arcsec]
+  sensor_pxscale:    0.4                     # Pixel scale in arcsec/pix
   subap_npx:         6                       # Output sampling [usually corresponding to CCD pixels]
   subap_on_diameter: 20                      # Number of subapertures in diameter
   wavelengthInNm:    750                     # [nm] Pyramid wavelength
-  # convolGaussSpotSize: 1
+  laser_launch_tel_ref: 'launcher'
   inputs:
     in_ef: 'prop.out_on_axis_source_ef'
   outputs:  ['out_i']
@@ -75,6 +81,7 @@ sh:
 
 detector:
   class:             'CCD'
+  simul_params_ref:  'main'
   size:              [120,120]                 # Detector size in pixels
   dt:                0.001                   # [s] Detector integration time
   bandw:             300                     # [nm] Sensor bandwidth
@@ -100,11 +107,12 @@ rec:
   recmat_object:      'scao_sh_rec5'         # reconstruction matrix tag
   inputs:
     in_slopes:        'slopec.out_slopes'
-  outputs:  ['out_modes', 'out_pseudo_ol_modes', 'out_modes_first_step']
+  outputs:  ['out_modes', 'out_pseudo_ol_modes']
 
 
 control:
-  class:             'IntControl'
+  class:             'Integrator'
+  simul_params_ref:  'main'
   delay:             2                      # Total temporal delay in time steps
   int_gain:          [0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5, # Integrator gain (for 'INT' control)
                       0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,
@@ -119,9 +127,9 @@ control:
 
 dm:
   class:             'DM'
+  simul_params_ref:  'main'
   type_str:          'zernike'              # modes type
   nmodes:            54                     # number of modes
-  npixels:           160                    # linear dimension of DM phase array
   obsratio:          0.1                    # obstruction dimension ratio w.r.t. diameter
   height:            0                      # DM height [m]
   inputs:
@@ -139,48 +147,55 @@ psf:
   outputs:  ['out_psf', 'out_sr']
 
 
-sc_disp:
-  class:            'SlopecDisplay'
-  inputs:
-  inputs:
-    slopes:       'slopec.out_slopes'
-    subapdata:    'slopec.out_subapdata'
-    pixels:       'detector.out_pixels'
-  disp_factor:      4
+# sc_disp:
+#   class:            'SlopecDisplay'
+#   inputs:
+#   inputs:
+#     slopes:       'slopec.out_slopes'
+#     subapdata:    'slopec.out_subapdata'
+#   disp_factor:      4
 sr_disp:
   class:            'PlotDisplay'
   inputs:
     value:       'psf.out_sr'
   window:           11
   title:            'SR'
-ph_disp:
-  class:            'PhaseDisplay'
+# ph_disp:
+#   class:            'PhaseDisplay'
+#   inputs:
+#     phase:       "prop.out_on_axis_source_ef"
+#   window:           12
+#   title:            'PUPIL PHASE'
+#   disp_factor:      2
+# dm_disp:
+#   class:            'PhaseDisplay'
+#   inputs:
+#     phase:       "dm.out_layer"
+#   window:           13
+#   title:            'DM'
+#   disp_factor:      2
+# psf_disp:
+#   class:            'PsfDisplay'
+#   inputs:
+#     psf:       "psf.out_psf"
+#   window:           14
+#   title:            'PSF'
+#   disp_factor:      2
+# cmd_disp:
+#   class:            'ModesDisplay'
+#   inputs:
+#     modes:       "rec.out_modes"
+#   window:           16
+#   title:            'rec.out_modes'
+pixels_disp:
+  class:            'PixelsDisplay'
   inputs:
-    phase:       "prop.out_on_axis_source_ef"
-  window:           12
-  title:            'PUPIL PHASE'
-  disp_factor:      2
-dm_disp:
-  class:            'PhaseDisplay'
-  inputs:
-    phase:       "dm.out_layer"
-  window:           13
-  title:            'DM'
-  disp_factor:      2
-psf_disp:
-  class:            'PsfDisplay'
-  inputs:
-    psf:       "psf.out_psf"
-  window:           14
-  title:            'PSF'
-  disp_factor:      2
-cmd_disp:
-  class:            'ModesDisplay'
-  inputs:
-    modes:       "rec.out_modes"
-  window:           16
-  title:            'rec.out_modes'
-  disp_factor:      2
+    pixels:      "detector.out_pixels"
+  window:           15
+  title:            "Pixels"
+  disp_factor:      1
+  sh_as_pyr:        false
+  subapdata_object:  'scao_subaps_n20_th0.5'
 
 data_store:
   class:             'DataStore'

@@ -1,27 +1,22 @@
 import numpy as np
-from specula import xp
-
 from astropy.io import fits
 
 from specula.base_processing_obj import BaseProcessingObj
-from specula.data_objects.ef import ElectricField
+from specula.data_objects.electric_field import ElectricField
 from specula.base_value import BaseValue
-from specula.base_list import BaseList
 from specula.data_objects.layer import Layer
 from specula.data_objects.pupilstop import Pupilstop
 from specula.lib.phasescreen_manager import phasescreens_manager
 from specula.connections import InputValue
-from specula import cpuArray
+from specula.data_objects.simul_params import SimulParams
 
 class AtmoRandomPhase(BaseProcessingObj):
     def __init__(self,
-                 L0,
-                 pixel_pitch,
-                 pixel_pupil,
-                 data_dir, 
-                 source_dict,
-                 wavelengthInNm: float=500.0,
-                 zenithAngleInDeg=None,
+                 simul_params: SimulParams,
+                 L0: float=1.0,
+                 data_dir: str="", 
+                 source_dict: dict={},
+                 wavelengthInNm: float=500.0,                 
                  pixel_phasescreens=None,
                  seed: int=1,
                  target_device_idx=None,
@@ -30,31 +25,33 @@ class AtmoRandomPhase(BaseProcessingObj):
 
 
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-                
+
+        self.simul_params = simul_params
+       
+        self.pixel_pupil = self.simul_params.pixel_pupil
+        self.pixel_pitch = self.simul_params.pixel_pitch
+        self.zenithAngleInDeg = self.simul_params.zenithAngleInDeg
+
         self.source_dict = source_dict
         self.last_position = 0
         self.seeing = 1
         self.airmass = 1
         self.wavelengthInNm = wavelengthInNm
-        self.pixel_pitch = pixel_pitch         
+        self.seed = seed
         
         self.inputs['seeing'] = InputValue(type=BaseValue)
         
-        if zenithAngleInDeg is not None:
-            self.airmass = 1.0 / np.cos(np.radians(zenithAngleInDeg))
-            print(f'AtmoRandomPhase: zenith angle is defined as: {zenithAngleInDeg} deg')
+        if self.zenithAngleInDeg is not None:
+            self.airmass = 1.0 / np.cos(np.radians(self.zenithAngleInDeg))
+            print(f'AtmoRandomPhase: zenith angle is defined as: {self.zenithAngleInDeg} deg')
             print(f'AtmoRandomPhase: airmass is: {self.airmass}')
         else:
             self.airmass = 1.0
 
-        # Conversion coefficient from arcseconds to radians
-        sec2rad = 4.848e-6
-               
         # Compute layers dimension in pixels
-        self.pixel_layer = pixel_pupil
+        self.pixel_layer_size = self.pixel_pupil
 
-        self.L0 = L0
-        self.pixel_pupil = pixel_pupil
+        self.L0 = L0        
         self.data_dir = data_dir
         self.seeing = None
 
@@ -64,14 +61,14 @@ class AtmoRandomPhase(BaseProcessingObj):
             self.pixel_square_phasescreens = pixel_phasescreens
 
         # Error if phase-screens dimension is smaller than maximum layer dimension
-        if self.pixel_square_phasescreens < self.pixel_layer:
+        if self.pixel_square_phasescreens < self.pixel_layer_size:
             raise ValueError('Error: phase-screens dimension must be greater than layer dimension!')
         
         self.verbose = verbose if verbose is not None else False
         
         # Initialize layer list with correct heights
-        self.layer_list = BaseList(target_device_idx=self.target_device_idx)
-        layer = Layer(self.pixel_pupil, self.pixel_pupil, pixel_pitch, 0, precision=self.precision, target_device_idx=self.target_device_idx)
+        self.layer_list = []
+        layer = Layer(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, 0, precision=self.precision, target_device_idx=self.target_device_idx)
         self.layer_list.append(layer)
         
         for name, source in source_dict.items():
@@ -79,32 +76,22 @@ class AtmoRandomPhase(BaseProcessingObj):
             ef.S0 = source.phot_density()
             self.outputs['out_'+name+'_ef'] = ef
 
-        if seed is not None:
-            self.seed = seed
+        if self.seed < 1:
+            raise ValueError('Seed must be >1')
+
+        self.initScreens()
 
         self.inputs['pupilstop'] = InputValue(type=Pupilstop)
     
-    @property
-    def seed(self):
-        return self._seed
 
-    @seed.setter
-    def seed(self, value):
-        self._seed = value
-        self.compute()
-
-
-    def compute(self):
-
+    def initScreens(self):
         # Seed
-        seed = np.array([self.seed])
-
+        self.seed = np.array([self.seed])
         # Square phasescreens
         square_phasescreens = phasescreens_manager(np.array([self.L0]), self.pixel_square_phasescreens,
                                                     self.pixel_pitch, self.data_dir,
-                                                    seed=seed, precision=self.precision,
+                                                    seed=self.seed, precision=self.precision,
                                                     verbose=self.verbose, xp=self.xp)
-
         # number of slices to be cut from the 2D array
         num_slices = (self.pixel_square_phasescreens // self.pixel_pupil)
 
@@ -117,7 +104,7 @@ class AtmoRandomPhase(BaseProcessingObj):
         # phase in rad
         temp_screen *= self.wavelengthInNm / (2 * np.pi)
 
-        temp_screen = self.xp.array(temp_screen, dtype=self.dtype)
+        temp_screen = self.to_xp(temp_screen, dtype=self.dtype)
         
         self.phasescreens = temp_screen
 
@@ -133,7 +120,7 @@ class AtmoRandomPhase(BaseProcessingObj):
         new_position = self.last_position
         if new_position+1 > self.phasescreens.shape[0]:
             self.seed += 1
-            self.compute()
+            self.initScreens()
             new_position = 0
 
         for name, source in self.source_dict.items():
@@ -164,21 +151,5 @@ class AtmoRandomPhase(BaseProcessingObj):
     def set_last_t(self, last_t):
         self.last_t = last_t
 
-    def run_check(self, time_step):
-        # self.prepare_trigger(0)
-
-        errmsg = ''
-        if not (self.seed > 0):
-            errmsg += ' Seed <= 0.'
-        if not isinstance(self.seeing, BaseValue):
-            errmsg += ' Missing input seeing.'
-
-        seeing = self.inputs['seeing'].get(self.target_device_idx)
                 
-        check = self.seed > 0 and isinstance(seeing, BaseValue)
-        if not check:
-            raise ValueError(errmsg)
-          
-        # super().build_stream()
-        return check
 
