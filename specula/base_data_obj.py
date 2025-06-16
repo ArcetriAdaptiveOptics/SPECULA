@@ -57,9 +57,9 @@ class BaseDataObj(BaseTimeObj):
 
     def transferDataTo(self, destobj):
         excluded = ['_tag']
-        #if target_device_idx==self.target_device_idx:
-        #    return self
-        #else:
+        if destobj.target_device_idx == self.target_device_idx:
+            return self
+
         pp = get_properties(type(self))            
         for attr in dir(self):
             if attr not in excluded and attr not in pp:
