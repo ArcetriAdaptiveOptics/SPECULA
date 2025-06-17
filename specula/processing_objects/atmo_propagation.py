@@ -41,7 +41,7 @@ class AtmoPropagation(BaseProcessingObj):
         if not (self.pixel_pupil > 0):
             raise ValueError('Pixel pupil must be >0')
         
-        self. mergeLayersContrib = mergeLayersContrib
+        self.mergeLayersContrib = mergeLayersContrib
         self.pixel_pupil_size = self.pixel_pupil        
         self.source_dict = source_dict
         if pupil_position is not None:
@@ -113,7 +113,7 @@ class AtmoPropagation(BaseProcessingObj):
             else:
                 output_ef_list = self.outputs['out_'+source_name+'_ef']
 
-            for li, layer in enumerate(self.local_inputs['atmo_layer_list'] + self.local_inputs['common_layer_list']):
+            for li, layer in enumerate(self.atmo_layer_list + self.common_layer_list):
 
                 if not self.mergeLayersContrib:
                     output_ef = output_ef_list[li]
@@ -124,7 +124,7 @@ class AtmoPropagation(BaseProcessingObj):
                     topleft = [(layer.size[0] - self.pixel_pupil_size) // 2, (layer.size[1] - self.pixel_pupil_size) // 2]
                     output_ef.product(layer, subrect=topleft)
                 else:
-                    if self.magnification_list[layer] is not None:
+                    if self.magnification_list[layer] is not None and self.magnification_list[layer] != 1:
                         tempA = layer.A
                         tempP = layer.phaseInNm
                         tempP[tempA == 0] = self.xp.mean(tempP[tempA != 0])
@@ -140,10 +140,12 @@ class AtmoPropagation(BaseProcessingObj):
 #                        propagator = None
 #                    self.update_ef.physical_prop(self.wavelengthInNm, propagator, temp_array=None)
 
+    def post_trigger(self):
+        super().post_trigger()
+
         for source_name in self.source_dict.keys():
             self.outputs['out_'+source_name+'_ef'].generation_time = self.current_time
 
-    
     def setup_interpolators(self):
         
         self.interpolators = {}
@@ -235,6 +237,7 @@ class AtmoPropagation(BaseProcessingObj):
         self.magnification_list = {layer: max(layer.magnification, 1.0) for layer in self.atmo_layer_list + self.common_layer_list}
 
         self.setup_interpolators()
+        self.build_stream()
 
     def save(self, filename):
         hdr = fits.Header()
