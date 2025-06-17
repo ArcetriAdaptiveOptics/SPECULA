@@ -166,7 +166,7 @@ class Simul():
         return order, order_index
 
     def setSimulParams(self, params):
-        for key, pars in params.items():            
+        for key, pars in params.items():
             classname = pars['class']
             if classname == 'SimulParams':
                 self.mainParams = pars
@@ -303,7 +303,7 @@ class Simul():
 
             if 'inputs' not in pars:
                 continue
-            
+
             for input_name, output_name in pars['inputs'].items():
 
                 # Special case for DataStore
@@ -328,9 +328,9 @@ class Simul():
                     raise ValueError(f'Object {dest_object} does does not have an input called {input_name}')
                 if not isinstance(output_name, (str, list)):
                     raise ValueError(f'Object {dest_object}: invalid input definition type {type(output_name)}')
-                
+
                 wanted_type = self.objs[dest_object].inputs[input_name].type()
-                
+
                 if isinstance(output_name, str):
                     output_ref = self.output_ref(output_name)
                     if not isinstance(output_ref, wanted_type):
@@ -348,7 +348,7 @@ class Simul():
                 except ValueError:
                     print(f'Error connecting {output_name} to {dest_object}.{input_name}')
                     raise
-                
+
                 if not type(output_name) is list:
                     a_connection = {}
                     a_connection['start'] = output_name.split('.')[0].split('-')[-1]
@@ -390,8 +390,8 @@ class Simul():
 
         for obj_name in set(obj_to_remove):
             del self.replay_params[obj_name]
-        
-        for key, pars in self.replay_params.items():            
+
+        for key, pars in self.replay_params.items():
             if not key=='data_source':
                 if 'inputs' in pars.keys():
                     for input_name, output_name_full in pars['inputs'].items():
@@ -518,7 +518,7 @@ class Simul():
         print('Reading parameters from', self.param_files[0])
         with open(self.param_files[0], 'r') as stream:
             params = yaml.safe_load(stream)
- 
+
         for filename in self.param_files[1:]:
             print('Reading additional parameters from', filename)
             with open(filename, 'r') as stream:

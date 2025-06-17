@@ -6,9 +6,9 @@ from specula import show_in_profiler
 from specula.connections import InputValue, InputList
 
 class BaseProcessingObj(BaseTimeObj):
-    
+
     _streams = {}
-    
+
     def __init__(self, target_device_idx=None, precision=None):
         """
         Initialize the base processing object.
@@ -23,7 +23,7 @@ class BaseProcessingObj(BaseTimeObj):
         self.current_time_seconds = 0
 
         self._verbose = 0
-        
+
         # Stream/input management
         self.stream  = None
         self.ready = False
@@ -102,7 +102,7 @@ class BaseProcessingObj(BaseTimeObj):
 #             self.xp.cuda.runtime.deviceSynchronize()
 ## at the end of the derevide method should call this?
 #            default_target_device.use()
-#            self.xp.cuda.runtime.deviceSynchronize()                
+#            self.xp.cuda.runtime.deviceSynchronize()
 #            cp.cuda.Stream.null.synchronize()
 
     @classmethod
@@ -110,7 +110,7 @@ class BaseProcessingObj(BaseTimeObj):
         if not target_device_idx in cls._streams:
             cls._streams[target_device_idx] = cp.cuda.Stream(non_blocking=False)
         return cls._streams[target_device_idx]
-        
+
     def build_stream(self, allow_parallel=True):
         if self.target_device_idx>=0:
             self._target_device.use()
@@ -141,8 +141,8 @@ class BaseProcessingObj(BaseTimeObj):
             if self.verbose:
                 print(f'No inputs have been refreshed, skipping trigger')
         return self.ready
-    
-    def trigger(self):        
+
+    def trigger(self):
         if self.ready:
             with show_in_profiler(self.__class__.__name__+'.trigger'):
                 if self.target_device_idx>=0:
@@ -152,7 +152,7 @@ class BaseProcessingObj(BaseTimeObj):
                 else:
                     self.trigger_code()
             self.ready = False
-                    
+             
     @property
     def verbose(self):
         return self._verbose
