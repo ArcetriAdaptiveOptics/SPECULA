@@ -26,10 +26,14 @@ class MultiImCalibrator(BaseProcessingObj):
         self._full_im_filename = self.tag_filename(full_im_tag, full_im_tag_template, prefix='full_im')
         self._overwrite = overwrite
 
-        self._ims = []
         self.inputs['in_slopes_list'] = InputList(type=Slopes)
         self.inputs['in_commands_list'] = InputList(type=BaseValue)
 
+        self._ims = []
+        im = BaseValue('intmat_0', target_device_idx=self.target_device_idx)
+        self._ims.append(im)
+
+        self.outputs['out_intmat_list'] = self._ims
         self.outputs['out_intmat_full'] = BaseValue('full_intmat', target_device_idx=self.target_device_idx)
 
     def tag_filename(self, tag, tag_template, prefix):
@@ -78,6 +82,7 @@ class MultiImCalibrator(BaseProcessingObj):
             intmat = Intmat(im.value, target_device_idx=self.target_device_idx, precision=self.precision)
             if self.im_path(i):
                 intmat.save(os.path.join(self._data_dir, self.im_path(i)), overwrite=self._overwrite)
+            im.generation_time = self.current_time
 
         full_im_path = self.full_im_path()
         if full_im_path:
@@ -98,9 +103,7 @@ class MultiImCalibrator(BaseProcessingObj):
             self._ims.append(im)
             im_path = self.im_path(i)
             full_im_path = self.full_im_path()
-            if im_path and os.path.exists(im_path):
+            if im_path and os.path.exists(im_path) and not self._overwrite:
                 raise FileExistsError(f'IM file {im_path} already exists, please remove it')
-            if full_im_path and os.path.exists(full_im_path):
+            if full_im_path and os.path.exists(full_im_path) and not self._overwrite:
                 raise FileExistsError(f'IM file {full_im_path} already exists, please remove it')
-
-        self.outputs['out_intmat_list'] = self._ims
