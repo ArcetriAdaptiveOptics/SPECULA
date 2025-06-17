@@ -50,164 +50,223 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
 
 .. code-block:: python
 
-   import specula
-   specula.init(0)  # Use GPU device 0 (or -1 for CPU)
-   
-   import numpy as np
-   from specula.lib.compute_zonal_ifunc import compute_zonal_ifunc
-   from astropy.io import fits
-   import os
-   
-   def compute_and_save_influence_functions():
-       """
-       Compute zonal influence functions for the SCAO tutorial
-       """
-       # DM and pupil parameters for VLT-like telescope
-       pupil_pixels = 160           # Pupil sampling resolution
-       n_actuators = 41             # 41x41 = 1681 total actuators
-       telescope_diameter = 8.2     # meters (VLT Unit Telescope)
-       
-       # Pupil geometry
-       obsratio = 0.14              # 14% central obstruction
-       diaratio = 1.0               # Full pupil diameter
-       
-       # Actuator geometry
-       circGeom = True              # Circular geometry (better for round pupils)
-       angleOffset = 0              # No rotation
-       
-       # Mechanical coupling between actuators
-       doMechCoupling = True        # Enable realistic coupling
-       couplingCoeffs = [0.31, 0.05]  # Nearest and next-nearest neighbor coupling
-       
-       # Actuator slaving (disable edge actuators outside pupil)
-       doSlaving = True             # Enable slaving
-       slavingThr = 0.1             # Threshold for valid actuators
-       
-       # Computation parameters
-       dtype = np.float32           # Use single precision for speed
-       
-       print("Computing zonal influence functions...")
-       print(f"Pupil pixels: {pupil_pixels}")
-       print(f"Actuators: {n_actuators}x{n_actuators} = {n_actuators**2}")
-       print(f"Telescope diameter: {telescope_diameter}m")
-       print(f"Central obstruction: {obsratio*100:.1f}%")
-       
-       # Generate zonal influence functions
-       influence_functions, pupil_mask = compute_zonal_ifunc(
-           pupil_pixels,
-           n_actuators,
-           circ_geom=circGeom,
-           angle_offset=angleOffset,
-           do_mech_coupling=doMechCoupling,
-           coupling_coeffs=couplingCoeffs,
-           do_slaving=doSlaving,
-           slaving_thr=slavingThr,
-           obsratio=obsratio,
-           diaratio=diaratio,
-           mask=None,
-           xp=specula.xp,  # Use current device (GPU or CPU)
-           dtype=dtype,
-           return_coordinates=False
-       )
-       
-       # Print statistics
-       n_valid_actuators = influence_functions.shape[0]
-       n_pupil_pixels = np.sum(pupil_mask)
-       
-       print(f"\nResults:")
-       print(f"Valid actuators: {n_valid_actuators}/{n_actuators**2} ({n_valid_actuators/(n_actuators**2)*100:.1f}%)")
-       print(f"Pupil pixels: {n_pupil_pixels}/{pupil_pixels**2} ({n_pupil_pixels/(pupil_pixels**2)*100:.1f}%)")
-       print(f"Influence functions shape: {influence_functions.shape}")
-       print(f"Memory usage: {influence_functions.nbytes / 1024**2:.1f} MB")
-       
-       # Create output directory
-       os.makedirs('calibration', exist_ok=True)
-       
-       # Save influence functions and pupil mask
-       # Convert to CPU arrays if needed for saving
-       if hasattr(influence_functions, 'get'):  # CuPy array
-           influence_functions_cpu = influence_functions.get()
-           pupil_mask_cpu = pupil_mask.get()
-       else:  # NumPy array
-           influence_functions_cpu = influence_functions
-           pupil_mask_cpu = pupil_mask
-       
-       # Save as FITS files
-       print(f"\nSaving to calibration/ directory...")
-       
-       # Influence functions: shape (n_actuators, n_pupil_pixels)
-       hdu_if = fits.PrimaryHDU(influence_functions_cpu)
-       hdu_if.header['COMMENT'] = 'Zonal influence functions'
-       hdu_if.header['NACT'] = n_valid_actuators
-       hdu_if.header['NPIX'] = n_pupil_pixels
-       hdu_if.header['PUPRES'] = pupil_pixels
-       hdu_if.header['TELDIA'] = telescope_diameter
-       hdu_if.header['OBSRAT'] = obsratio
-       hdu_if.writeto('calibration/influence_functions.fits', overwrite=True)
-       
-       # Pupil mask: shape (pupil_pixels, pupil_pixels) 
-       hdu_mask = fits.PrimaryHDU(pupil_mask_cpu.astype(np.uint8))
-       hdu_mask.header['COMMENT'] = 'Telescope pupil mask'
-       hdu_mask.header['PUPRES'] = pupil_pixels
-       hdu_mask.header['TELDIA'] = telescope_diameter
-       hdu_mask.header['OBSRAT'] = obsratio
-       hdu_mask.writeto('calibration/pupil_mask.fits', overwrite=True)
-       
-       print("✓ influence_functions.fits")
-       print("✓ pupil_mask.fits")
-       
-       # Optional: Visualize some influence functions
-       try:
-           import matplotlib.pyplot as plt
-           
-           print("\nGenerating visualization...")
-           
-           # Reconstruct 2D influence functions for plotting
-           def reconstruct_2d_ifunc(ifunc_1d, mask):
-               ifunc_2d = np.zeros(mask.shape)
-               ifunc_2d[mask] = ifunc_1d
-               return ifunc_2d
-           
-           # Plot a few example influence functions
-           fig, axes = plt.subplots(2, 3, figsize=(12, 8))
-           axes = axes.flatten()
-           
-           # Select representative actuators (center, edge, corner)
-           example_indices = [
-               n_valid_actuators // 2,        # Center actuator
-               n_valid_actuators // 4,        # Quarter point
-               n_valid_actuators // 8,        # Eighth point
-               3 * n_valid_actuators // 4,    # Three quarters
-               n_valid_actuators - 100,       # Near edge
-               n_valid_actuators - 1,         # Last actuator
-           ]
-           
-           for i, act_idx in enumerate(example_indices):
-               if act_idx < n_valid_actuators:
-                   ifunc_2d = reconstruct_2d_ifunc(influence_functions_cpu[act_idx], pupil_mask_cpu)
-                   
-                   im = axes[i].imshow(ifunc_2d, origin='lower', cmap='RdBu_r')
-                   axes[i].set_title(f'Actuator {act_idx}')
-                   axes[i].set_xticks([])
-                   axes[i].set_yticks([])
-                   plt.colorbar(im, ax=axes[i], shrink=0.8)
-           
-           plt.tight_layout()
-           plt.savefig('calibration/influence_functions_examples.png', dpi=150, bbox_inches='tight')
-           plt.show()
-           
-           print("✓ influence_functions_examples.png")
-           
-       except ImportError:
-           print("Matplotlib not available - skipping visualization")
-       
-       print(f"\nInfluence functions computation completed!")
-       print(f"Files saved in: {os.path.abspath('calibration/')}")
-       
-       return influence_functions, pupil_mask
+  import specula
+  specula.init(0)  # Use GPU device 0 (or -1 for CPU)
 
-   if __name__ == "__main__":
-       compute_and_save_influence_functions()
+  import numpy as np
+  import os
+  from specula.lib.compute_zonal_ifunc import compute_zonal_ifunc
+  from specula.lib.modal_base_generator import make_modal_base_from_ifs_fft
+  from specula.data_objects.ifunc import IFunc
+  from specula.data_objects.m2c import M2C
+
+  def compute_and_save_influence_functions():
+      """
+      Compute zonal influence functions and modal basis for the SCAO tutorial
+      Follows the same approach as test_modal_basis.py
+      """
+      # DM and pupil parameters for VLT-like telescope
+      pupil_pixels = 160           # Pupil sampling resolution
+      n_actuators = 41             # 41x41 = 1681 total actuators
+      telescope_diameter = 8.2     # meters (VLT Unit Telescope)
+      
+      # Pupil geometry
+      obsratio = 0.14              # 14% central obstruction
+      diaratio = 1.0               # Full pupil diameter
+      
+      # Actuator geometry - aligned with test_modal_basis.py
+      circGeom = True              # Circular geometry (better for round pupils)
+      angleOffset = 0              # No rotation
+      
+      # Mechanical coupling between actuators
+      doMechCoupling = True        # Enable realistic coupling
+      couplingCoeffs = [0.31, 0.05]  # Nearest and next-nearest neighbor coupling
+      
+      # Actuator slaving (disable edge actuators outside pupil)
+      doSlaving = True             # Enable slaving
+      slavingThr = 0.1             # Threshold for valid actuators
+      
+      # Modal basis parameters
+      r0 = 0.15                    # Fried parameter at 500nm [m]
+      L0 = 25.0                    # Outer scale [m] 
+      zern_modes = 5               # Number of Zernike modes to include
+      oversampling = 1             # No oversampling
+      
+      # Computation parameters
+      dtype = specula.xp.float32   # Use current device precision
+      
+      print("Computing zonal influence functions...")
+      print(f"Pupil pixels: {pupil_pixels}")
+      print(f"Actuators: {n_actuators}x{n_actuators} = {n_actuators**2}")
+      print(f"Telescope diameter: {telescope_diameter}m")
+      print(f"Central obstruction: {obsratio*100:.1f}%")
+      print(f"r0 = {r0}m, L0 = {L0}m")
+      
+      # Step 1: Generate zonal influence functions
+      influence_functions, pupil_mask = compute_zonal_ifunc(
+          pupil_pixels,
+          n_actuators,
+          circ_geom=circGeom,
+          angle_offset=angleOffset,
+          do_mech_coupling=doMechCoupling,
+          coupling_coeffs=couplingCoeffs,
+          do_slaving=doSlaving,
+          slaving_thr=slavingThr,
+          obsratio=obsratio,
+          diaratio=diaratio,
+          mask=None,
+          xp=specula.xp,
+          dtype=dtype,
+          return_coordinates=False
+      )
+      
+      # Print statistics
+      n_valid_actuators = influence_functions.shape[0]
+      n_pupil_pixels = specula.xp.sum(pupil_mask)
+      
+      print(f"\nZonal influence functions:")
+      print(f"Valid actuators: {n_valid_actuators}/{n_actuators**2} ({n_valid_actuators/(n_actuators**2)*100:.1f}%)")
+      print(f"Pupil pixels: {int(n_pupil_pixels)}/{pupil_pixels**2} ({float(n_pupil_pixels)/(pupil_pixels**2)*100:.1f}%)")
+      print(f"Influence functions shape: {influence_functions.shape}")
+      
+      # Step 2: Generate modal basis (KL modes)
+      print(f"\nGenerating KL modal basis...")
+      
+      kl_basis, _, _ = make_modal_base_from_ifs_fft(
+          pupil_mask=pupil_mask,
+          diameter=telescope_diameter,
+          influence_functions=influence_functions,
+          r0=r0,
+          L0=L0,
+          zern_modes=zern_modes,
+          oversampling=oversampling,
+          if_max_condition_number=None,
+          xp=specula.xp,
+          dtype=dtype
+      )
+      
+      print(f"KL basis shape: {kl_basis.shape}")
+      print(f"Number of KL modes: {kl_basis.shape[0]}")
+      
+      # Verify RMS normalization (like in test)
+      for i in range(min(5, kl_basis.shape[0])):  # Check first 5 modes
+          rms = float(specula.xp.sqrt(specula.xp.mean(kl_basis[i]**2)))
+          print(f"Mode {i+1} RMS: {rms:.3f}")
+      
+      # Step 3: Create output directory
+      os.makedirs('calibration', exist_ok=True)
+      
+      # Step 4: Save using SPECULA data objects
+      print(f"\nSaving influence functions and modal basis...")
+      
+      # Create IFunc object and save
+      ifunc_obj = IFunc(
+          ifunc=influence_functions,
+          mask=pupil_mask,
+          target_device_idx=specula.current_device_idx,
+          precision=specula.current_precision
+      )
+      ifunc_obj.save('calibration/tutorial_ifunc.fits')
+      print("✓ tutorial_ifunc.fits (zonal influence functions)")
+      
+      # Create M2C object for mode-to-command matrix and save
+      m2c_obj = M2C(
+          m2c=kl_basis,
+          target_device_idx=specula.current_device_idx,
+          precision=specula.current_precision
+      )
+      m2c_obj.save('calibration/tutorial_m2c.fits')
+      print("✓ tutorial_m2c.fits (KL modal basis)")
+      
+      # Step 5: Optional visualization
+      try:
+          import matplotlib.pyplot as plt
+          
+          print("\nGenerating visualization...")
+          
+          # Convert to CPU arrays for plotting
+          if hasattr(influence_functions, 'get'):  # CuPy array
+              influence_functions_cpu = influence_functions.get()
+              pupil_mask_cpu = pupil_mask.get()
+              kl_basis_cpu = kl_basis.get()
+          else:  # NumPy array
+              influence_functions_cpu = influence_functions
+              pupil_mask_cpu = pupil_mask
+              kl_basis_cpu = kl_basis
+          
+          # Function to reconstruct 2D functions for plotting
+          def reconstruct_2d_function(func_1d, mask):
+              func_2d = np.zeros(mask.shape)
+              func_2d[mask] = func_1d
+              return func_2d
+          
+          # Plot influence functions and KL modes
+          fig, axes = plt.subplots(2, 4, figsize=(16, 8))
+          
+          # Top row: Example influence functions
+          example_if_indices = [
+              n_valid_actuators // 2,        # Center actuator
+              n_valid_actuators // 4,        # Quarter point
+              3 * n_valid_actuators // 4,    # Three quarters
+              n_valid_actuators - 50,        # Near edge
+          ]
+          
+          for i, act_idx in enumerate(example_if_indices):
+              if act_idx < n_valid_actuators:
+                  ifunc_2d = reconstruct_2d_function(influence_functions_cpu[act_idx], pupil_mask_cpu)
+                  
+                  im = axes[0, i].imshow(ifunc_2d, origin='lower', cmap='RdBu_r')
+                  axes[0, i].set_title(f'Influence Function {act_idx}')
+                  axes[0, i].set_xticks([])
+                  axes[0, i].set_yticks([])
+                  plt.colorbar(im, ax=axes[0, i], shrink=0.8)
+          
+          # Bottom row: First 4 KL modes
+          for i in range(min(4, kl_basis.shape[0])):
+              kl_2d = reconstruct_2d_function(kl_basis_cpu[i], pupil_mask_cpu)
+              
+              im = axes[1, i].imshow(kl_2d, origin='lower', cmap='RdBu_r')
+              axes[1, i].set_title(f'KL Mode {i+1}')
+              axes[1, i].set_xticks([])
+              axes[1, i].set_yticks([])
+              plt.colorbar(im, ax=axes[1, i], shrink=0.8)
+          
+          plt.tight_layout()
+          plt.savefig('calibration/influence_functions_and_kl_modes.png', dpi=150, bbox_inches='tight')
+          plt.show()
+          
+          print("✓ influence_functions_and_kl_modes.png")
+          
+      except ImportError:
+          print("Matplotlib not available - skipping visualization")
+      
+      print(f"\nInfluence functions and modal basis computation completed!")
+      print(f"Files saved in: {os.path.abspath('calibration/')}")
+      print(f"\nFiles created:")
+      print(f"  tutorial_ifunc.fits  - Zonal influence functions ({n_valid_actuators} actuators)")
+      print(f"  tutorial_m2c.fits    - KL modal basis ({kl_basis.shape[0]} modes)")
+      
+      # Step 6: Test loading the saved files
+      print(f"\nTesting file loading...")
+      
+      try:
+          # Test IFunc loading
+          loaded_ifunc = IFunc.restore('calibration/tutorial_ifunc.fits', target_device_idx=specula.current_device_idx)
+          assert loaded_ifunc.influence_function.shape == influence_functions.shape
+          print("✓ IFunc loading test passed")
+          
+          # Test M2C loading  
+          loaded_m2c = M2C.restore('calibration/tutorial_m2c.fits', target_device_idx=specula.current_device_idx)
+          assert loaded_m2c.m2c.shape == kl_basis.shape
+          print("✓ M2C loading test passed")
+          
+      except Exception as e:
+          print(f"⚠ File loading test failed: {e}")
+      
+      return ifunc_obj, m2c_obj
+
+  if __name__ == "__main__":
+      compute_and_save_influence_functions()
 
 Run this script before starting the main simulation:
 
@@ -409,7 +468,7 @@ Create ``config/scao_tutorial.yaml``:
      simul_params_ref:  'main'
      delay:             1                     # 1 frame delay (realistic)
      gain:              [0.30]
-     n_modes:           [1000]                # Number of modes to control
+     n_modes:           [1240]                # Number of modes to control
      inputs:
        delta_comm:      'modalrec.out_modes'
      outputs:           ['out_comm']
@@ -419,7 +478,8 @@ Create ``config/scao_tutorial.yaml``:
      class:             'DM'
      simul_params_ref:  'main'
      ifunc_object:      'tutorial_ifunc'      # Our computed influence functions
-     nmodes:            1000                  # Number of controlled modes
+     m2c_object:        'tutorial_m2c'        # Modal-to-command matrix
+     nmodes:            1240                  # Number of controlled modes
      height:            0                     # Ground-conjugated DM
      inputs:
        in_command:      'integrator.out_comm'
