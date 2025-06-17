@@ -55,7 +55,7 @@ class Slopec(BaseProcessingObj):
             self.filt_recmat = filt_recmat
 
         self.accumulation_dt = self.seconds_to_t(accumulation_dt)
-        self.accumulated_pixels = self.xp.array(accumulated_pixels, dtype=self.dtype)
+        self.accumulated_pixels = self.to_xp(accumulated_pixels, dtype=self.dtype)
         self.accumulated_slopes = Slopes(2)   # TODO resized in derived class.
 
         self.inputs['in_pixels'] = InputValue(type=Pixels)

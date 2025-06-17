@@ -29,8 +29,8 @@ class ElectricField(BaseDataObj):
         
         Arrays are not reallocated
         '''
-        self.A[:]= self.xp.array(v[0], dtype=self.dtype)
-        self.phaseInNm[:] = self.xp.array(v[1], dtype=self.dtype)
+        self.A[:]= self.to_xp(v[0], dtype=self.dtype)
+        self.phaseInNm[:] = self.to_xp(v[1], dtype=self.dtype)
 
     def reset(self):
         '''

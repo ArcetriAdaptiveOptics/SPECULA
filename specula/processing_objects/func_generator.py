@@ -5,14 +5,66 @@ from specula.base_value import BaseValue
 from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.time_history import TimeHistory
 from specula.lib.modal_pushpull_signal import modal_pushpull_signal
+from specula.lib.utils import is_scalar, psd_to_signal
+from specula.data_objects.simul_params import SimulParams
 
+class Vibrations:
+    def __init__(self,
+                 nmodes,
+                 psd=None,
+                 freq=None,
+                 time_hist=None,
+                 seed=1987,
+                 samp_freq=1000,
+                 niter=1000,
+                 start_from_zero=False,
+                 verbose=False,
+                 xp=np,
+                 dtype=np.float32,
+                 complex_dtype=np.complex64):
+        self._verbose = verbose
+        self._nmodes = nmodes
+        self._psd = []
+        self._freq = []
+        self._seed = seed
+        self._start_from_zero = start_from_zero
+        self._type = ''
+        self._niter = niter
+        self._samp_freq = samp_freq
+        self.xp = xp
+        self.dtype = dtype
+        self.complex_dtype = complex_dtype
 
-# TODO
-class Vibrations():
-    pass
+        # Determine type
+        if psd is None or freq is None:
+            raise ValueError('psd and freq must be defined and time_hist will be computed.')
 
-def is_scalar(x):
-    return np.isscalar(x) or (hasattr(x, 'shape') and x.shape == ())
+        # Store PSD and freq as lists of arrays (one per mode)
+        psd = self.xp.array(psd)
+        for i in range(self._nmodes):
+            self._psd.append(psd[i, :])
+        freq = self.xp.array(freq)
+        if freq.ndim == 1:
+            freq = np.tile(freq, (self._nmodes, 1)).T
+        for i in range(self._nmodes):
+            self._freq.append(freq[:, i])
+
+    def get_time_hist(self):
+        n = int(np.floor((self._niter + 1) / 2.))
+        time_hist = self.xp.zeros((2 * n, self._nmodes), dtype=self.dtype)
+        for i in range(self._nmodes):
+            # Interpolation of the PSD on n points
+            freq_mode = self._freq[i]
+            psd_mode = self._psd[i]
+            freq_bins = self.xp.linspace(freq_mode[0], freq_mode[-1], n, dtype=self.dtype)
+            psd_interp = self.xp.interp(freq_bins, freq_mode, psd_mode)
+            # Generate the signal from the interpolated PSD
+            temp, _ = psd_to_signal(psd_interp, self._samp_freq, self.xp, self.dtype,
+                                    self.complex_dtype, seed=self._seed + i)
+            if self._start_from_zero:
+                temp -= temp[0]
+            time_hist[:, i] = temp
+        return time_hist
 
 class FuncGenerator(BaseProcessingObj):
     """
@@ -106,6 +158,7 @@ class FuncGenerator(BaseProcessingObj):
     - After the last time interval, the last set of values is maintained indefinitely
     """
     def __init__(self,
+                 simul_params: SimulParams=None,
                  func_type='SIN',
                  nmodes: int=None,
                  time_hist: TimeHistory=None,
@@ -113,7 +166,7 @@ class FuncGenerator(BaseProcessingObj):
                  fr_psd=None,
                  continuous_psd=None,
                  constant: list=None,
-                 amp: list=None,
+                 amp: list=None, 
                  freq: list=None,
                  offset: list=None,
                  vect_amplitude: list=None,
@@ -128,6 +181,10 @@ class FuncGenerator(BaseProcessingObj):
                  precision: int=None
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
+
+        if type == 'VIB_PSD' and simul_params is None:
+            raise ValueError('SIMUL_PARAMS keyword is mandatory for type VIB_PSD')
+        self.simul_params = simul_params
 
         if nmodes is not None and vsize>1:
             raise ValueError('NMODES and VSIZE cannot be used together. Use NMODES only for PUSHPULL, PUSHPULLREPEAT, VIB_HIST or VIB_PSD types')
@@ -145,27 +202,27 @@ class FuncGenerator(BaseProcessingObj):
         if str(seed).strip() == 'auto':
             self.seed = self.xp.around(self.xp.random.random() * 1e4)
         elif seed is not None:
-            self.seed = self.xp.array(seed, dtype=self.dtype)
+            self.seed = self.to_xp(seed, dtype=self.dtype)
         else:
             self.seed = 0
 
-        self.constant = self.xp.array(constant, dtype=self.dtype) if constant is not None else 0.0
-        self.amp = self.xp.array(amp, dtype=self.dtype) if amp is not None else 0.0
-        self.freq = self.xp.array(freq, dtype=self.dtype) if freq is not None else 0.0
-        self.offset = self.xp.array(offset, dtype=self.dtype) if offset is not None else 0.0
-        self.vect_amplitude = self.xp.array(vect_amplitude, dtype=self.dtype) if vect_amplitude is not None else 0.0
+        self.constant = self.to_xp(constant, dtype=self.dtype) if constant is not None else 0.0
+        self.amp = self.to_xp(amp, dtype=self.dtype) if amp is not None else 0.0
+        self.freq = self.to_xp(freq, dtype=self.dtype) if freq is not None else 0.0
+        self.offset = self.to_xp(offset, dtype=self.dtype) if offset is not None else 0.0
+        self.vect_amplitude = self.to_xp(vect_amplitude, dtype=self.dtype) if vect_amplitude is not None else 0.0
 
         if self.type in ['SIN', 'SQUARE_WAVE', 'LINEAR', 'RANDOM', 'RANDOM_UNIFORM']:
             # Check if the parameters are scalars or arrays and have coherent sizes
             params = [self.amp, self.freq, self.offset, self.constant]
             param_names = ['amp', 'freq', 'offset', 'constant']
-            vector_lengths = [p.shape[0] for p in params if not is_scalar(p)]
+            vector_lengths = [p.shape[0] for p in params if not is_scalar(p, np)]
 
             if len(vector_lengths) > 0:
                 unique_lengths = set(vector_lengths)
                 if len(unique_lengths) > 1:
                     # Find the names of the parameters with different lengths
-                    details = [f"{name}={p.shape[0]}" for p, name in zip(params, param_names) if not is_scalar(p)]
+                    details = [f"{name}={p.shape[0]}" for p, name in zip(params, param_names) if not is_scalar(p, np)]
                     raise ValueError(
                         f"Shape mismatch: parameter lengths are {details} (must all be equal if not scalar)"
                     )
@@ -174,7 +231,7 @@ class FuncGenerator(BaseProcessingObj):
                 output_size = vsize if nmodes is None else vsize * nmodes
         elif self.type in ['PUSH', 'PUSHPULL', 'TIME_HIST']:
             if time_hist is not None:
-                output_size = self.xp.array(time_hist.time_history).shape[1]
+                output_size = self.to_xp(time_hist.time_history).shape[1]
             elif nmodes is not None:
                 output_size = nmodes
         elif self.type in ['VALUE_SCHEDULE']:
@@ -204,24 +261,21 @@ class FuncGenerator(BaseProcessingObj):
             pass
 
         elif self.type == 'VIB_HIST':
-            raise NotImplementedError('VIB_HIST type is not implemented')
-        
-            if nmodes is None:
-                raise ValueError('NMODES keyword is mandatory for type VIB_HIST')
-            if time_hist is None:
-                raise ValueError('TIME_HIST keyword is mandatory for type VIB_HIST')
-            self.vib = Vibrations(nmodes, time_hist=time_hist)
+            raise ValueError('VIB_HIST is not implemented yet')
 
         elif self.type == 'VIB_PSD':
-            raise NotImplementedError('VIB_PSD type is not implemented')
-
             if nmodes is None:
                 raise ValueError('NMODES keyword is mandatory for type VIB_PSD')
-            if psd is None and continuous_psd is None:
-                raise ValueError('PSD or CONTINUOUS_PSD keyword is mandatory for type VIB_PSD')
+            if psd is None:
+                raise ValueError('PSD keyword is mandatory for type VIB_PSD')
             if fr_psd is None:
                 raise ValueError('FR_PSD keyword is mandatory for type VIB_PSD')
-            self.vib = Vibrations(nmodes, psd=psd, freq=fr_psd, continuous_psd=continuous_psd, seed=seed)
+            samp_freq = 1/simul_params.time_step
+            niter = simul_params.total_time/self.simul_params.time_step
+            self.vib = Vibrations(nmodes, psd=psd, freq=fr_psd, seed=seed,
+                                  samp_freq=samp_freq, niter=niter, start_from_zero=False, verbose=False,
+                                  xp=self.xp, dtype=self.dtype, complex_dtype=self.complex_dtype)
+            self.time_hist = self.vib.get_time_hist()
 
         elif self.type == 'PUSH':
             if nmodes is None:
@@ -240,7 +294,7 @@ class FuncGenerator(BaseProcessingObj):
         elif self.type == 'TIME_HIST':
             if time_hist is None:
                 raise ValueError('TIME_HIST keyword is mandatory for type TIME_HIST')
-            self.time_hist = self.xp.array(time_hist.time_history)
+            self.time_hist = self.to_xp(time_hist.time_history)
 
         elif self.type == 'VALUE_SCHEDULE':
             if scheduled_values is None or time_intervals is None or modes_per_group is None:
@@ -261,8 +315,8 @@ class FuncGenerator(BaseProcessingObj):
                 expanded_values.append(expanded_value)
 
             self.value_schedule = {
-                'values': self.xp.array(expanded_values, dtype=self.dtype),
-                'times': self.xp.array(time_intervals, dtype=self.dtype)
+                'values': self.to_xp(expanded_values, dtype=self.dtype),
+                'times': self.to_xp(time_intervals, dtype=self.dtype)
             }
 
         else:
@@ -320,7 +374,7 @@ class FuncGenerator(BaseProcessingObj):
         self.iter_counter += 1
 
     def get_time_hist_at_current_time(self):
-        return self.xp.array(self.time_hist[self.iter_counter])
+        return self.to_xp(self.time_hist[self.iter_counter])
 
     def setup(self):
         super().setup()

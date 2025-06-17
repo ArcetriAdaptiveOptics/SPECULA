@@ -143,3 +143,77 @@ class TestSimul(unittest.TestCase):
             simul.connect_objects({
                 'b': {'inputs': {'in': 'a.out'}}
             })
+
+
+    def test_delayed_input(self):
+        '''This test checks that the has_delayed_input method of
+        Simul returns True if any object has a delayed input with
+        the -1 syntax.
+        '''
+        pars = {
+            'obj1': {
+                'class': 'FuncGenerator',
+                'outputs': ['output']
+            },
+            'obj2': {
+                'class': 'FuncGenerator',
+                'inputs': {
+                    'in2': 'obj1.output:-1'
+                }
+            },
+            'obj3': {
+                'class': 'FuncGenerator',
+                'inputs': {
+                    'in2': 'obj1.output'
+                }
+            }      
+        }
+
+        simul = Simul([])
+        assert simul.has_delayed_output('obj1', pars) == True
+        assert simul.has_delayed_output('obj2', pars) == False
+
+    def test_delayed_input_detects_circular_loop(self):
+
+        pars = {
+            'obj1': {
+                'class': 'FuncGenerator',
+                'outputs': ['output']
+            },
+            'obj2': {
+                'class': 'FuncGenerator',
+                'inputs': {
+                    'in2': 'obj1.output:-1'
+                }
+            },
+            'obj3': {
+                'class': 'FuncGenerator',
+                'inputs': {
+                    'in2': 'obj1.output'
+                }
+            }      
+        }
+        simul = Simul([])
+
+        # Does not raise
+        _ = simul.trigger_order(pars)
+
+        # These outputs depend on each other
+        pars = {
+            'obj1': {
+                'class': 'FuncGenerator',
+                'inputs': {
+                    'in1': 'obj2.output:-1'
+                },
+                'outputs': ['output']
+            },
+            'obj2': {
+                'class': 'FuncGenerator',
+                'inputs': {
+                    'in2': 'obj1.output:-1'
+                }
+            },
+        }
+        # Raises ValueError
+        with self.assertRaises(ValueError):
+            _ = simul.trigger_order(pars)

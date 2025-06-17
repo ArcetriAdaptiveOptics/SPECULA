@@ -4,19 +4,6 @@ from specula.base_value import BaseValue
 from specula.connections import InputValue
 
 
-def convert_to_xp_array(obj, xp, dtype):
-    '''Convert scalar values like 2.0 to xp arrays'''
-    if obj:
-        value = obj.value
-        if xp.isscalar(value):
-            v1 = xp.zeros(1, dtype=xp.array(value).dtype) + value
-        else:
-            v1 = value
-    else:
-        v1 = xp.zeros(1, dtype=dtype)
-    return v1
-
-
 class BaseOperation(BaseProcessingObj):
     ''''Simple operations with base value(s)'''
     def __init__(self, 

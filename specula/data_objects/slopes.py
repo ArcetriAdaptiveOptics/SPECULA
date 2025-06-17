@@ -110,7 +110,7 @@ class Slopes(BaseDataObj):
         fy = self.xp.zeros_like(mask, dtype=self.dtype)
         self.x_remap2d(fx, idx)
         self.y_remap2d(fy, idx)
-        return self.xp.array([fx, fy], dtype=self.dtype)
+        return self.to_xp([fx, fy], dtype=self.dtype)
 
     def rotate(self, angle, flipx=False, flipy=False):
         sx = self.xslopes

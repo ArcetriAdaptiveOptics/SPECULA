@@ -84,11 +84,11 @@ class ModalrecImplicitPolc(Modalrec):
             commandsobj = commands_list
             commands = self.xp.hstack([x.value for x in commands_list]) # TODO this line does not work on the first step
         else:
-            commands = self.xp.array(commandsobj.value, dtype=self.dtype)
+            commands = self.to_xp(commandsobj.value, dtype=self.dtype)
 
         # this is true on the first step only
         if commandsobj is None or commands.shape == ():
-            commands = self.xp.zeros(self.comm_mat.recmat.shape[0])
+            commands = self.xp.zeros(self.comm_mat.recmat.shape[0], dtype=self.dtype)
 
         if self.input_modes_index is not None:
             commands = commands[self.input_modes_index]
