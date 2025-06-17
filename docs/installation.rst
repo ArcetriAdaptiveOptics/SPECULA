@@ -80,21 +80,17 @@ This installs SPECULA in "editable" mode, allowing you to modify the code and se
 **Required Dependencies:**
 All required dependencies will be installed automatically, including:
    * **numpy**: Numerical computing foundation
-   * **scipy**: Scientific computing algorithms
+   * **scipy**: Scientific computing algorithms  
    * **astropy**: Astronomical data handling and FITS I/O
    * **matplotlib**: Plotting and visualization
-   * **astro-seeing**: Atmospheric seeing calculations
-   * **symao**: Symbolic adaptive optics modeling
-   * **flask-socketio**: Web-based user interface backend
-   * **python-socketio**: Real-time communication
-   * **requests**: HTTP library for web services
-
-**Python Version Requirement:**
-   * Python 3.8 or higher (we recommend 3.11+)
+   * **flask**: Web framework for display server
+   * **flask-socketio**: Real-time web communication
+   * **python-socketio**: WebSocket client support
 
 **Optional Libraries:**
 
-Some advanced features require additional libraries:
+**Enhanced Web Interface:**
+   * **Frontend application**: Separate web app for advanced visualization (if available)
 
 **Block Diagram Generation:**
    * **pycairo**: Graphics library for rendering diagrams
@@ -102,7 +98,7 @@ Some advanced features require additional libraries:
 
 .. code-block:: bash
 
-   # Install optional diagram generation tools
+   # Install optional diagram tools
    pip install pycairo orthogram
 
 Environment Management
