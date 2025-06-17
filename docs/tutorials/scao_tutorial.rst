@@ -324,7 +324,7 @@ Create ``config/scao_tutorial.yaml``:
      polar_coordinates: [0.0, 0.0]           # [arcsec, deg] On-axis NGS
      height:            .inf                  # Infinite height (star)
      magnitude:         8.0                   # R-band magnitude (bright NGS)
-     wavelengthInNm:    650                   # [nm] R-band for WFS
+     wavelengthInNm:    800                   # [nm] R-band for WFS
    
    # Telescope pupil geometry
    pupilstop:
@@ -511,11 +511,24 @@ Run the calibration
 
    python main_simul.py config/scao_tutorial.yaml calib_subaps.yml
 
-2. Interaction and reconstruction matrices.
+2. Push-pull command generator.
+
+The calibration needs an amplitude vector defining the poke strength for each actuator. Create ``prepare_pushpull_amplitudes.py``:
+
+.. code-block:: python
+
+   import numpy as np
+   from astropy.io import fits
+   
+   # Create 50nm poke amplitudes for all 1240 actuators
+   amplitudes = np.full(1240, 50e-9)  # 50nm in meters
+   fits.writeto('calibration/pushpull_1240modes_amp50.fits', amplitudes)
+
+Ideally the amplitude vector should decrease with the square root of the radial order of the mode.
+
+3. Interaction and reconstruction matrices.
 
 Create ``calib_rec.yml`` for interaction matrix and reconstructor calibration:
-
-TODO explain how to compute the push-pull commands file.
 
 .. code-block:: yaml
 
@@ -603,6 +616,7 @@ Part 3: Results Analysis
 ------------------------
 
 Analyze the results.
+TODO
 
 Part 4: Parameter Optimization
 ------------------------------
@@ -681,6 +695,4 @@ The complete tutorial files are available in the SPECULA examples directory.
 
 .. seealso::
    
-   :doc:`pyramid_calibration` for Pyramid WFS systems
-   :doc:`mcao_tutorial` for multi-conjugate AO
-   :doc:`../configuration` for complete YAML reference
+   TODO: Add links to relevant documentation sections for further reading

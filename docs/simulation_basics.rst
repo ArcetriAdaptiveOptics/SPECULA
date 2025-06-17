@@ -32,6 +32,8 @@ Processing objects perform the main computational tasks:
 * ``ModalRec`` - Slope-to-modes conversion
 * ``DM`` - Mirror command application
 
+More information on processing objects can be found in the :doc:`processing_objects` documentation.
+
 Data Objects
 ~~~~~~~~~~~~~
 
@@ -43,6 +45,8 @@ Data objects encapsulate physical quantities and measurements:
 * ``Slopes`` - WFS measurements
 * ``Intensity`` - Detector images
 * ``Intmat`` - Interaction matrices
+
+More information on data objects can be found in the :doc:`data_objects` documentation.
 
 Housekeeping Objects
 ~~~~~~~~~~~~~~~~~~
@@ -94,3 +98,33 @@ SPECULA uses a discrete-time simulation model:
 
 **Frame Rates**
    Support for different subsystem frame rates (e.g., WFS vs NGS)
+
+**Web-based Monitoring:**
+
+SPECULA includes a real-time web-based monitoring system that runs during simulations:
+
+.. code-block:: yaml
+
+   # Enable in your configuration file
+   main:
+     class:             'SimulParams'
+     ...
+     display_server:    True                   # Display server on auto-selected port
+
+**Architecture:**
+   * **Display Server**: Runs within the simulation process, serves data via websockets
+   * **Frontend**: Separate web application (if available) for visualization
+   * **Real-time Updates**: Live plotting of data objects during simulation
+
+**Access:**
+   * The display server will print its URL when started: ``Display server running at http://localhost:[auto-selected-port]``
+   * Frontend connection (if running): ``http://localhost:8080``
+
+**Features:**
+   * Real-time plotting of any data object
+   * Simulation speed monitoring
+   * Interactive data exploration
+   * Multi-client support
+
+.. note::
+   The web interface is optional. Simulations run normally without it. Enable by adding a ``display_server: True`` object to your main configuration.
