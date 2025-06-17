@@ -52,27 +52,27 @@ class MultiRecCalibrator(BaseProcessingObj):
 
     def trigger_code(self):
         # Do nothing, the computation is done in finalize
-        self._ims = self.inputs['intmat_list'].get(self.target_device_idx)
-        self._full_im = self.inputs['full_intmat'].get(self.target_device_idx)
+        self._full_im = self.local_inputs['full_intmat']
+        self._ims = self.local_inputs['intmat_list']
 
     def finalize(self):
-        self._ims = self.inputs['intmat_list'].get(self.target_device_idx)
-        self._full_im = self.inputs['full_intmat'].get(self.target_device_idx)
+        self._full_im = self.local_inputs['full_intmat']
+        self._ims = self.local_inputs['intmat_list']
 
         os.makedirs(self._data_dir, exist_ok=True)
+
+        full_rec_path = self.full_rec_path()
+        if full_rec_path and self._full_im.value is not None:
+            full_intmat = Intmat(self._full_im.value, target_device_idx=self.target_device_idx, precision=self.precision)
+            if full_rec_path:
+                fullrec = full_intmat.generate_rec(self._nmodes)
+                fullrec.save(os.path.join(self._data_dir, full_rec_path), overwrite=self._overwrite)
 
         for i, im in enumerate(self._ims):
             intmat = Intmat(im.value, target_device_idx=self.target_device_idx, precision=self.precision)
             if self.rec_path(i):
                 rec = intmat.generate_rec(self._nmodes)
                 rec.save(os.path.join(self._data_dir, self.rec_path(i)), overwrite=self._overwrite)
-
-        full_rec_path = self.full_rec_path()
-        if full_rec_path:
-            full_intmat = Intmat(self._full_im.value, target_device_idx=self.target_device_idx, precision=self.precision)
-            if full_rec_path:
-                fullrec = full_intmat.generate_rec(self._nmodes)
-                fullrec.save(os.path.join(self._data_dir, full_rec_path), overwrite=self._overwrite)
 
     def setup(self):
         super().setup()
