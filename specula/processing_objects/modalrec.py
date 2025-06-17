@@ -151,9 +151,18 @@ class Modalrec(BaseProcessingObj):
         # (it might result in a kind of loop in the yml file)
         # Therefor we check the slopes input time and only run when they have been refreshed.
         if self.polc:
-            slopes_time = self.inputs["in_slopes_list"].get(self.target_device_idx)[0].generation_time
+
+            slopes = self.local_inputs['in_slopes']
+            slopes_list = self.local_inputs['in_slopes_list']
+
+            if slopes is not None:
+                slopes_time = slopes.generation_time
+            else:
+                slopes_time = slopes_list[0].generaton_time
+
             if slopes_time != self.current_time:
                 return
+
 
         if self.polc:
    
