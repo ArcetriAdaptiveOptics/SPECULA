@@ -57,7 +57,7 @@ im_calibrator:
 
 
 rec_calibrator:
-  class: 'MultiImRecCalibrator'
+  class: 'MultiRecCalibrator'
   nmodes: 4519
   rec_tag:     'test_ltao_rec'
   full_rec_tag: 'test_ltao_full_rec'
