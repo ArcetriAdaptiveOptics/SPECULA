@@ -56,8 +56,15 @@ class MultiRecCalibrator(BaseProcessingObj):
         self._ims = self.local_inputs['intmat_list']
 
     def finalize(self):
-        self._full_im = self.local_inputs['full_intmat']
         self._ims = self.local_inputs['intmat_list']
+
+        for i, im in enumerate(self._ims):
+            intmat = Intmat(im.value, target_device_idx=self.target_device_idx, precision=self.precision)
+            if self.rec_path(i):
+                rec = intmat.generate_rec(self._nmodes)
+                rec.save(os.path.join(self._data_dir, self.rec_path(i)), overwrite=self._overwrite)
+
+        self._full_im = self.local_inputs['full_intmat']
 
         os.makedirs(self._data_dir, exist_ok=True)
 
@@ -67,12 +74,6 @@ class MultiRecCalibrator(BaseProcessingObj):
             if full_rec_path:
                 fullrec = full_intmat.generate_rec(self._nmodes)
                 fullrec.save(os.path.join(self._data_dir, full_rec_path), overwrite=self._overwrite)
-
-        for i, im in enumerate(self._ims):
-            intmat = Intmat(im.value, target_device_idx=self.target_device_idx, precision=self.precision)
-            if self.rec_path(i):
-                rec = intmat.generate_rec(self._nmodes)
-                rec.save(os.path.join(self._data_dir, self.rec_path(i)), overwrite=self._overwrite)
 
     def setup(self):
         super().setup()
