@@ -26,8 +26,8 @@ class MultiRecCalibrator(BaseProcessingObj):
         self._full_rec_filename = self.tag_filename(full_rec_tag, full_rec_tag_template, prefix='full_rec')
         self._overwrite = overwrite
 
-        self.inputs['intmat_list'] = InputList(type=Intmat)
-        self.inputs['full_intmat'] = InputValue(type=Intmat)
+        self.inputs['intmat_list'] = InputList(type=BaseValue)
+        self.inputs['full_intmat'] = InputValue(type=BaseValue)
 
     def tag_filename(self, tag, tag_template, prefix):
         if tag == 'auto' and tag_template is None:
@@ -52,14 +52,17 @@ class MultiRecCalibrator(BaseProcessingObj):
 
     def trigger_code(self):
         # Do nothing, the computation is done in finalize
-        self._ims = self.local_inputs['intmat_list'].get(self.target_device_idx)
-        self._full_im = self.local_inputs['full_intmat'].get(self.target_device_idx)
+        self._ims = self.inputs['intmat_list'].get(self.target_device_idx)
+        self._full_im = self.inputs['full_intmat'].get(self.target_device_idx)
 
     def finalize(self):
+        self._ims = self.inputs['intmat_list'].get(self.target_device_idx)
+        self._full_im = self.inputs['full_intmat'].get(self.target_device_idx)
+
         os.makedirs(self._data_dir, exist_ok=True)
 
         for i, im in enumerate(self._ims):
-            intmat = Intmat(im, target_device_idx=self.target_device_idx, precision=self.precision)
+            intmat = Intmat(im.value, target_device_idx=self.target_device_idx, precision=self.precision)
             if self.rec_path(i):
                 rec = intmat.generate_rec(self._nmodes)
                 rec.save(os.path.join(self._data_dir, self.rec_path(i)), overwrite=self._overwrite)
@@ -77,7 +80,7 @@ class MultiRecCalibrator(BaseProcessingObj):
         for i in range(len(self.inputs['intmat_list'].get(self.target_device_idx))):
             rec_path = self.rec_path(i)
             full_rec_path = self.full_rec_path()
-            if rec_path and os.path.exists(rec_path):
+            if rec_path and os.path.exists(rec_path) and not self._overwrite:
                 raise FileExistsError(f'Rec file {rec_path} already exists, please remove it')
-            if full_rec_path and os.path.exists(full_rec_path):
+            if full_rec_path and os.path.exists(full_rec_path) and not self._overwrite:
                 raise FileExistsError(f'Rec file {full_rec_path} already exists, please remove it')
