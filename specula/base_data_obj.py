@@ -57,9 +57,9 @@ class BaseDataObj(BaseTimeObj):
 
     def transferDataTo(self, destobj):
         excluded = ['_tag']
-        #if target_device_idx==self.target_device_idx:
-        #    return self
-        #else:
+        if destobj.target_device_idx == self.target_device_idx:
+            return self
+
         pp = get_properties(type(self))            
         for attr in dir(self):
             if attr not in excluded and attr not in pp:
@@ -73,6 +73,10 @@ class BaseDataObj(BaseTimeObj):
                     if aType==np.ndarray:
                         #print(f'transferDataTo: {attr} to GPU')
                         setattr(destobj, attr, cp.asarray( concrete_attr ) )
+                else:
+                    if aType==cp.ndarray:
+                        # Device-to-device
+                        getattr(destobj, attr)[:] = concrete_attr
         destobj.generation_time = self.generation_time
         return destobj
 
@@ -98,6 +102,10 @@ class BaseDataObj(BaseTimeObj):
                         if aType==np.ndarray:
                             setattr(cloned, attr, cp.asarray( cloned_attr ) )
                             # print('Member', attr, 'of class', type(cloned).__name__, 'is now on GPU')
+                    else:
+                        if aType==cp.ndarray:
+                            # Device-to-device
+                            setattr(cloned, attr, cp.asarray( cloned_attr ))
             if target_device_idx >= 0:
                 cloned.xp = cp
             else:

@@ -58,6 +58,9 @@ class BaseProcessingObj(BaseTimeObj):
         return False
 
     def prepare_trigger(self, t):
+        if self.target_device_idx >= 0:
+            self._target_device.use()
+
         self.current_time_seconds = self.t_to_seconds(self.current_time)
         for input_name, input_obj in self.inputs.items():
             if type(input_obj) is InputValue:

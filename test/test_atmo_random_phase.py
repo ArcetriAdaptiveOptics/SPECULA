@@ -12,7 +12,7 @@ from specula.data_objects.simul_params import SimulParams
 from test.specula_testlib import cpu_and_gpu
 
 
-class TestAtmo(unittest.TestCase):
+class TestAtmoRandomPhase(unittest.TestCase):
 
     @cpu_and_gpu
     def test_output_ef_have_the_correct_names(self, target_device_idx, xp):
