@@ -3,9 +3,8 @@
 pushpull:
   class:     'FuncGenerator'
   func_type: 'PUSHPULL'
-  nmodes:    10
-  #vect_amplitude_data:  'pushpull_4519modes_amp50'
-  vect_amplitude:  [50,50,50,50,50,50,50,50,50,50]
+  nmodes:   4519
+  vect_amplitude_data:  'pushpull_4519modes_amp50'
   outputs: ['output']
 
 main_override:
@@ -48,7 +47,7 @@ detector6_override:
 
 im_calibrator:
   class: 'MultiImCalibrator'
-  nmodes: 10 #4519
+  nmodes: 4519
   im_tag:     'test_ltao_im'
   #tag_template:    'ltao_im_{main.tag}_n{modes}'
   overwrite: True
@@ -60,7 +59,7 @@ im_calibrator:
 
 rec_calibrator:
   class: 'MultiRecCalibrator'
-  nmodes: 10 #4519
+  nmodes: 4519
   rec_tag:     'test_ltao_rec'
   full_rec_tag: 'test_ltao_full_rec'
   #tag_template:    'ltao_im_{main.tag}_n{modes}'
