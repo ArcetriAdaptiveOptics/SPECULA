@@ -23,9 +23,10 @@ class LinearCombination(BaseProcessingObj):
         ngs = in_vectors[3].value
 
         lgs[0:2] = ngs[0:2]
-        focus *= 0
-        lift *= 0
-        ngs *= 0
+        lgs[2] = focus[0]
+#        focus *= 0.0
+#        lift *= 0
+#        ngs *= 0
 
         self.out_vector.value *= 0.0
         self.out_vector.value[:len(lgs)] = lgs

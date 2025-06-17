@@ -147,8 +147,16 @@ class Modalrec(BaseProcessingObj):
             print("WARNING: modalrec skipping reconstruction because recmat is NULL")
             return
 
+        # In the polc case, commands may be *alwats* refreshed if they are set with -1
+        # (it might result in a kind of loop in the yml file)
+        # Therefor we check the slopes input time and only run when they have been refreshed.
         if self.polc:
-    
+            slopes_time = self.inputs["in_slopes_list"].get(self.target_device_idx)[0].generation_time
+            if slopes_time != self.current_time:
+                return
+
+        if self.polc:
+   
             if self.input_modes_index is not None:
                 commands = self.commands[self.input_modes_index]
             elif self.input_modes_slice is not None:
