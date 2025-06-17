@@ -84,7 +84,7 @@ class MultiImCalibrator(BaseProcessingObj):
 
         full_im_path = self.full_im_path()
         if full_im_path:
-            if not self._ims:
+            if not self.outputs['out_intmat_list']:
                 full_im = self.xp.array([])
             else:
                 full_im = self.xp.hstack([im.value for im in self.outputs['out_intmat_list']])
