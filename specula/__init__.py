@@ -111,22 +111,19 @@ def to_xp(xp, v, dtype=None, force_copy=False):
     be used on a cupy array.
     '''
     if xp is cp:
-        if isinstance(v, cp.ndarray) and not force_copy:
-            retval =  v
-        else:
-            retval =  cp.array(v)
+        retval = cp.array(v, dtype=dtype, copy=force_copy)
     else:
         if cp is not None and isinstance(v, cp.ndarray):
             retval = v.get()
-        elif isinstance(v, np.ndarray) and not force_copy:
-            # Avoid extra copy (enabled by numpy default)
-            retval = v
+            if dtype is not None:
+                retval = retval.astype(dtype, copy=False)
         else:
-            retval = np.array(v)
-    if dtype is None and not force_copy:
-        return retval
-    else:
-        return retval.astype(dtype, copy=force_copy)
+            if force_copy:
+                copy = True
+            else:
+                copy = None
+            retval = np.array(v, dtype=dtype, copy=copy)
+    return retval
 
 
 class DummyDecoratorAndContextManager():

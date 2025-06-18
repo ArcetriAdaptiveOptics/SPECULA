@@ -1,5 +1,6 @@
 
 import numpy as np
+from functools import cached_property
 
 from specula import fuse
 from specula.lib.make_mask import make_mask
@@ -67,9 +68,9 @@ class ShSlopec(Slopec):
         self.set_xy_weights()
         self.outputs['out_subapdata'] = self.subapdata
 
-    @property
+    @cached_property
     def subap_idx(self):
-        return self.subapdata.idxs
+        return self.to_xp(self.subapdata.idxs)
  
     def set_xy_weights(self):
         if self.subapdata:
@@ -325,7 +326,7 @@ class ShSlopec(Slopec):
             raise ValueError("Only one between _thr_value and _thr_ratio_value can be set.")
 
         # Reform pixels based on the subaperture index
-        idx2d = unravel_index_2d(self.subap_idx, orig_pixels.shape, self.xp)
+        idx2d = unravel_index_2d(self.subap_idx, orig_pixels.shape)
         pixels = orig_pixels[idx2d].T
         
         if self.weight_from_accumulated:

@@ -43,7 +43,7 @@ def get_type_hints(type):
         hints.update(typing.get_type_hints(getattr(x, '__init__')))
     return hints
 
-def unravel_index_2d(idxs, shape, xp):
+def unravel_index_2d(idxs, shape):
     '''Unravel linear indexes in a 2d-shape (in row-major C order)
     
     Replaces cupy.unravel_index, that forces 2 separate DtH transfers
@@ -51,7 +51,7 @@ def unravel_index_2d(idxs, shape, xp):
     if len(shape) != 2:
         raise ValueError('shape must be 2d')
     
-    idxs = xp.array(idxs).astype(int)
+    idxs = idxs.astype(int, copy=False)
     _, ncols = shape
     row_idx = idxs // ncols
     col_idx = idxs - (row_idx * ncols)
