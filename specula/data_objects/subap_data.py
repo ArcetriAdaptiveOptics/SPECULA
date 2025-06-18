@@ -1,4 +1,5 @@
 import math
+from functools import cache
 
 import numpy as np
 from astropy.io import fits
@@ -23,8 +24,8 @@ class SubapData(BaseDataObj):
         ny: number of subapertures in the Y (vertical) direction
         '''
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-        self.idxs = idxs.astype(int)
-        self.display_map = display_map.astype(int)
+        self.idxs = self.to_xp(idxs.astype(int))
+        self.display_map = self.to_xp(display_map.astype(int))
         self.nx = int(nx)
         self.ny = int(ny)
         self.energy_th = float(energy_th)
@@ -37,6 +38,7 @@ class SubapData(BaseDataObj):
     def np_sub(self):
         return int(math.sqrt(self.idxs.shape[1]))
 
+    @cache
     def single_mask(self):
         f = self.xp.zeros(self.nx * self.ny, dtype=self.dtype)
         self.xp.put(f, self.display_map, 1)

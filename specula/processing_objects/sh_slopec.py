@@ -1,6 +1,6 @@
 
 import numpy as np
-from functools import cached_property
+from functools import cache
 
 from specula import fuse
 from specula.lib.make_mask import make_mask
@@ -68,7 +68,7 @@ class ShSlopec(Slopec):
         self.set_xy_weights()
         self.outputs['out_subapdata'] = self.subapdata
 
-    @cached_property
+    @cache
     def subap_idx(self):
         return self.to_xp(self.subapdata.idxs)
  
@@ -123,11 +123,16 @@ class ShSlopec(Slopec):
 
             mask_weighted[mask_weighted < 1e-6] = 0.0
 
-            x *= mask_weighted.astype(self.dtype)
-            y *= mask_weighted.astype(self.dtype)
+            x *= mask_weighted
+            y *= mask_weighted
         else:
-            mask_weighted = np.ones((np_sub, np_sub), dtype=self.dtype)
+            mask_weighted = np.ones((np_sub, np_sub))
 
+        x = x.astype(self.dtype)
+        y = y.astype(self.dtype)
+        xc = xc.astype(self.dtype)
+        yc = yc.astype(self.dtype)
+        mask_weighted = mask_weighted.astype(self.dtype)
         return {"x": x, "y": y, "xc": xc, "yc": yc, "mask_weighted": mask_weighted}
 
     # TODO what is this accumulated flag?
@@ -188,7 +193,7 @@ class ShSlopec(Slopec):
             n_weight_applied = 0
 
         for i in range(n_subaps):
-            idx = self.subap_idx[i, :]
+            idx = self.subap_idx()[i, :]
             subap = pixels[idx].reshape(np_sub, np_sub)
 
             if self.weight_from_accumulated and self.accumulated_pixels is not None and self.current_time >= self.accumulation_dt:
@@ -326,7 +331,7 @@ class ShSlopec(Slopec):
             raise ValueError("Only one between _thr_value and _thr_ratio_value can be set.")
 
         # Reform pixels based on the subaperture index
-        idx2d = unravel_index_2d(self.subap_idx, orig_pixels.shape)
+        idx2d = unravel_index_2d(self.subap_idx(), orig_pixels.shape)
         pixels = orig_pixels[idx2d].T
         
         if self.weight_from_accumulated:
@@ -334,7 +339,7 @@ class ShSlopec(Slopec):
         
             n_weight_applied = 0
             if self.accumulated_pixels is not None and self.current_time >= self.accumulation_dt:
-                accumulated_pixels_weight = self.accumulated_pixels[self.subap_idx].T
+                accumulated_pixels_weight = self.accumulated_pixels[self.subap_idx()].T
                 accumulated_pixels_weight -= self.xp.min(accumulated_pixels_weight, axis=1, keepdims=True)
                 max_temp = self.xp.max(accumulated_pixels_weight, axis=1)
                 idx0 = self.xp.where(max_temp <= 0)[0]
