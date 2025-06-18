@@ -24,13 +24,13 @@ def clamp_generic_more1(x, c, y, xp):
 
 
 class PyrSlopec(Slopec):
-    def __init__(self, 
-                 pupdata: PupData, 
-                 shlike: bool=False, 
-                 norm_factor: float=None,   # TODO =1.0, 
-                 thr_value: float=0.0, 
-                 slopes_from_intensity: bool=False, 
-                 target_device_idx: int=None, 
+    def __init__(self,
+                 pupdata: PupData,
+                 shlike: bool=False,
+                 norm_factor: float=None,   # TODO =1.0,
+                 thr_value: float=0.0,
+                 slopes_from_intensity: bool=False,
+                 target_device_idx: int=None,
                  precision: int=None,
                 **kwargs): # is this needed??
         super().__init__(target_device_idx=target_device_idx, precision=precision, **kwargs)
@@ -60,7 +60,6 @@ class PyrSlopec(Slopec):
         self.outputs['out_pupdata'] = self.pupdata
         self.outputs['total_counts'] = self.total_counts
         self.outputs['subap_counts'] = self.subap_counts
-
 
 
     @property
@@ -142,9 +141,9 @@ class PyrSlopec(Slopec):
         self.sy *= inv_factor[0]
 
         self.slopes.xslopes = self.sx
-        self.slopes.yslopes = self.sy 
+        self.slopes.yslopes = self.sy
 
-        
+
     def post_trigger(self):
         # super().post_trigger()
         self.subap_counts.value = self.total_counts.value / self.pupdata.n_subap
@@ -153,8 +152,3 @@ class PyrSlopec(Slopec):
         self.slopes.single_mask = self.pupdata.single_mask()
         self.slopes.display_map = self.pupdata.display_map
         self.slopes.generation_time = self.current_time
-
-
- 
-
-
