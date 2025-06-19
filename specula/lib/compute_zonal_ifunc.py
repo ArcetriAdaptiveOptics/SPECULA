@@ -100,7 +100,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom=False, an
         print(f"\rCompute IFs: {int((i / n_act_tot) * 100)}% done", end="")
 
     print()
-             
+         
     if do_mech_coupling:
         print("Applying mechanical coupling...")
         ifs_cube_orig = ifs_cube.copy()
@@ -119,7 +119,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom=False, an
             # Add coupling contributions
             if len(close1_indices) > 0:
                 ifs_cube[j, :, :] += coupling_coeffs[0] * xp.sum(ifs_cube_orig[close1_indices], axis=0)
- 
+
             if len(close2_indices) > 0:
                 ifs_cube[j, :, :] += coupling_coeffs[1] * xp.sum(ifs_cube_orig[close2_indices], axis=0)
 
