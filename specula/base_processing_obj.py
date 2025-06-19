@@ -115,6 +115,16 @@ class BaseProcessingObj(BaseTimeObj):
         return cls._streams[target_device_idx]
         
     def build_stream(self, allow_parallel=True):
+        '''
+        Setup a stream on the current device and capture the
+        trigger code into a CUDA graph.
+        If *allow_parallel* is True, a stream specific to this instance
+        will be created. This allows multiple instances to be executed
+        in parallel on a single device.
+
+        Otherwise the same stream for the current device is used
+        for all instances running on this device, serializing them.
+        '''
         if self.target_device_idx>=0:
             self._target_device.use()
             if allow_parallel:

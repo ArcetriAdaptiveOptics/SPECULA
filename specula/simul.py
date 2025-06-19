@@ -4,7 +4,7 @@ import inspect
 import itertools
 from copy import deepcopy
 from pathlib import Path
-from collections import Counter
+from collections import Counter, defaultdict
 from specula.base_processing_obj import BaseProcessingObj
 
 from specula.loop_control import LoopControl
@@ -525,6 +525,15 @@ class Simul():
                 additional_params = yaml.safe_load(stream)
                 self.combine_params(params, additional_params)
 
+        # Print trigger order
+        self.trigger_order, self.trigger_order_idx = self.trigger_order(params)
+
+        grouped = defaultdict(list)
+        for name, idx in zip(self.trigger_order, self.trigger_order_idx):
+            grouped[idx].append(name)
+        for idx in sorted(grouped):
+            print(f'{idx=} ' + ' '.join(grouped[idx]))
+
         # Actual creation code
         self.apply_overrides(params)
         self.build_objects(params)
@@ -536,9 +545,6 @@ class Simul():
         if not self.isReplay:
             self.build_replay(params)
 
-        self.trigger_order, self.trigger_order_idx = self.trigger_order(params)
-        print(f'{self.trigger_order=}')
-        print(f'{self.trigger_order_idx=}')
 
         if self.diagram or self.diagram_filename or self.diagram_title:
             if self.diagram_filename is None:
