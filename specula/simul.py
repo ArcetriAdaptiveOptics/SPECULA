@@ -166,7 +166,7 @@ class Simul():
         return order, order_index
 
     def setSimulParams(self, params):
-        for key, pars in params.items():            
+        for key, pars in params.items():
             classname = pars['class']
             if classname == 'SimulParams':
                 self.mainParams = pars
@@ -175,7 +175,7 @@ class Simul():
     def build_objects(self, params):
 
         self.setSimulParams(params)
-        
+
         cm = CalibManager(self.mainParams['root_dir'])
         skip_pars = 'class inputs outputs'.split()
 
@@ -201,7 +201,7 @@ class Simul():
                 self.objs[key].printMemUsage()
 
                 continue
-                
+
             pars2 = {}
             for name, value in pars.items():
                 if key == 'data_source':
@@ -209,10 +209,10 @@ class Simul():
 
                 if key != 'data_source' and name in skip_pars:
                     continue
-                
-                if key == 'data_source' and name in ['class']:                    
+
+                if key == 'data_source' and name in ['class']:
                     continue
-                
+
                 # dict_ref field contains a dictionary of names and associated data objects (defined in the same yml file)
                 elif name.endswith('_dict_ref'):
                     data = {x : self.output_ref(x) for x in value}
@@ -228,15 +228,15 @@ class Simul():
                     pars2[name[:-5]] = data
 
                 # object fields are data objects which are loaded from a fits file
-                # the name of the object is the string preceeding the "_object" suffix, 
-                # while its type is inferred from the constructor of the current class                
+                # the name of the object is the string preceeding the "_object" suffix,
+                # while its type is inferred from the constructor of the current class
                 elif name.endswith('_object'):
                     parname = name[:-7]
                     if value is None:
                         pars2[parname] = None
                     elif parname in hints:
                         partype = hints[parname]
-                        
+
                         # Handle Optional and Union types (for python <3.11)
                         if hasattr(partype, "__origin__") and partype.__origin__ is typing.Union:
                             # Extract actual class type from Optional/Union
@@ -245,7 +245,7 @@ class Simul():
                                 if arg is not type(None):  # Skip NoneType
                                     partype = arg
                                     break
-                        
+
                         filename = cm.filename(parname, value)  # TODO use partype instead of parname?
                         print('Restoring:', filename)
                         parobj = partype.restore(filename, target_device_idx=target_device_idx)
@@ -264,10 +264,10 @@ class Simul():
 
             if 'data_dir' in args and 'data_dir' not in my_params:  # TODO special case
                 my_params['data_dir'] = cm.root_subdir(classname)
-                
+
             if 'params_dict' in args:
                 my_params['params_dict'] = params
-                
+
             if 'input_ref_getter' in args:
                 my_params['input_ref_getter'] = self.input_ref
 
@@ -303,7 +303,7 @@ class Simul():
 
             if 'inputs' not in pars:
                 continue
-            
+
             for input_name, output_name in pars['inputs'].items():
 
                 # Special case for DataStore
@@ -328,9 +328,9 @@ class Simul():
                     raise ValueError(f'Object {dest_object} does does not have an input called {input_name}')
                 if not isinstance(output_name, (str, list)):
                     raise ValueError(f'Object {dest_object}: invalid input definition type {type(output_name)}')
-                
+
                 wanted_type = self.objs[dest_object].inputs[input_name].type()
-                
+
                 if isinstance(output_name, str):
                     output_ref = self.output_ref(output_name)
                     if not isinstance(output_ref, wanted_type):
@@ -348,7 +348,7 @@ class Simul():
                 except ValueError:
                     print(f'Error connecting {output_name} to {dest_object}.{input_name}')
                     raise
-                
+
                 if not type(output_name) is list:
                     a_connection = {}
                     a_connection['start'] = output_name.split('.')[0].split('-')[-1]
@@ -390,8 +390,8 @@ class Simul():
 
         for obj_name in set(obj_to_remove):
             del self.replay_params[obj_name]
-        
-        for key, pars in self.replay_params.items():            
+
+        for key, pars in self.replay_params.items():
             if not key=='data_source':
                 if 'inputs' in pars.keys():
                     for input_name, output_name_full in pars['inputs'].items():
@@ -462,7 +462,7 @@ class Simul():
                 if name in params:
                     raise ValueError(f'Parameter file already has an object named {name}')
                 params[name] = values
-    
+
     def apply_overrides(self, params):
         print('overrides:', self.overrides)
         if len(self.overrides) > 0:
@@ -494,7 +494,7 @@ class Simul():
                 r.append(block_name)
             rows.append(r)
         return rows
-        
+
     def buildDiagram(self):
         from orthogram import Color, DiagramDef, write_png, Side, FontWeight, TextOrientation
 
@@ -518,7 +518,7 @@ class Simul():
         print('Reading parameters from', self.param_files[0])
         with open(self.param_files[0], 'r') as stream:
             params = yaml.safe_load(stream)
-                
+
         for filename in self.param_files[1:]:
             print('Reading additional parameters from', filename)
             with open(filename, 'r') as stream:
@@ -528,10 +528,10 @@ class Simul():
         # Actual creation code
         self.apply_overrides(params)
         self.build_objects(params)
-        self.connect_objects(params)                
+        self.connect_objects(params)
 
         # Initialize housekeeping objects
-        self.loop = LoopControl()        
+        self.loop = LoopControl()
 
         if not self.isReplay:
             self.build_replay(params)
