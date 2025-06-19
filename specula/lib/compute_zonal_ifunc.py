@@ -97,26 +97,52 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom=False, an
 
         ifs_cube[i, :, :] = z_interp
 
-        # Mechanical Coupling
-        if do_mech_coupling:
-            ifs_cube_orig = ifs_cube.copy()
-            for j in range(n_act_tot):
-                distance = xp.sqrt((x - x[j])**2 + (y - y[j])**2)
-
-                close1_set = xp.where(distance <= step)[0]
-                close2_set = xp.where((distance > step) & (distance <= 2 * step))[0]
-
-                ifs_cube[j, :, :] = ifs_cube_orig[j, :, :]
-
-                if len(close1_set) > 0:
-                    for k in close1_set:
-                        ifs_cube[j, :, :] += coupling_coeffs[0] * ifs_cube_orig[k, :, :]
-
-                if len(close2_set) > 0:
-                    for k in close2_set:
-                        ifs_cube[j, :, :] += coupling_coeffs[1] * ifs_cube_orig[k, :, :]
-
         print(f"\rCompute IFs: {int((i / n_act_tot) * 100)}% done", end="")
+    
+    print()
+    
+    # Mechanical Coupling
+    if do_mech_coupling:
+        ifs_cube_orig = ifs_cube.copy()
+        for j in range(n_act_tot):
+            distance = xp.sqrt((x - x[j])**2 + (y - y[j])**2)
+
+            close1_set = xp.where(distance <= step)[0]
+            close2_set = xp.where((distance > step) & (distance <= 2 * step))[0]
+
+            ifs_cube[j, :, :] = ifs_cube_orig[j, :, :]
+
+            if len(close1_set) > 0:
+                for k in close1_set:
+                    ifs_cube[j, :, :] += coupling_coeffs[0] * ifs_cube_orig[k, :, :]
+
+            if len(close2_set) > 0:
+                for k in close2_set:
+                    ifs_cube[j, :, :] += coupling_coeffs[1] * ifs_cube_orig[k, :, :]
+                    
+    if do_mech_coupling:
+        print("Applying mechanical coupling...")
+        ifs_cube_orig = ifs_cube.copy()
+        
+        for j in range(n_act_tot):
+            # Distance from actuator j to all others
+            distance = xp.sqrt((x - x[j])**2 + (y - y[j])**2)
+            
+            # Find neighbors, excluding self (distance > 0)
+            close1_indices = xp.where((distance > 0) & (distance <= step))[0]
+            close2_indices = xp.where((distance > step) & (distance <= 2 * step))[0]
+            
+            # Start with original influence function
+            ifs_cube[j, :, :] = ifs_cube_orig[j, :, :]
+            
+            # Add coupling contributions
+            if len(close1_indices) > 0:
+                ifs_cube[j, :, :] += coupling_coeffs[0] * xp.sum(ifs_cube_orig[close1_indices], axis=0)
+                
+            if len(close2_indices) > 0:
+                ifs_cube[j, :, :] += coupling_coeffs[1] * xp.sum(ifs_cube_orig[close2_indices], axis=0)
+        
+        print("Mechanical coupling applied.")
 
     if do_slaving:
         max_vals = xp.max(ifs_cube[:, idx[0], idx[1]], axis=1)
