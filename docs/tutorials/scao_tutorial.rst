@@ -79,11 +79,11 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
       angleOffset = 0              # No rotation
       
       # Mechanical coupling between actuators
-      doMechCoupling = True        # Enable realistic coupling
+      doMechCoupling = False       # Enable realistic coupling
       couplingCoeffs = [0.31, 0.05]  # Nearest and next-nearest neighbor coupling
       
       # Actuator slaving (disable edge actuators outside pupil)
-      doSlaving = True             # Enable slaving
+      doSlaving = False            # Enable slaving
       slavingThr = 0.1             # Threshold for valid actuators
       
       # Modal basis parameters
