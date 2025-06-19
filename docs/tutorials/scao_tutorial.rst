@@ -569,14 +569,6 @@ Run the subaperture calibration:
 
    python main_simul.py config/scao_tutorial.yaml calib_subaps.yml
 
-**Expected output:**
-
-.. code-block:: text
-
-   Subaperture calibration completed
-   Valid subapertures: 1247/1600 (77.9%)
-   Output file: calibration/tutorial_subaps.fits
-
 This step identifies approximately 1247 valid subapertures out of the 1600 total (40×40 grid), excluding those outside the pupil or with insufficient illumination.
 
 Push-Pull Amplitude Preparation
@@ -676,26 +668,6 @@ Run the interaction matrix calibration:
 .. code-block:: bash
 
    python main_simul.py config/scao_tutorial.yaml calib_im_rec.yml
-
-**Expected output:**
-
-.. code-block:: text
-
-   Push-pull calibration progress:
-   Mode 1/1240: Push +50nm, Pull -50nm
-   Mode 2/1240: Push +50nm, Pull -50nm
-   ...
-   Mode 1240/1240: Push +50nm, Pull -50nm
-   
-   Interaction matrix: (2494, 1240) [slopes × modes]
-   Condition number: 12.3
-   
-   Reconstructor: (1240, 2494) [modes × slopes]
-   Reconstruction residual: 0.02%
-   
-   Files saved:
-   ✓ calibration/tutorial_im.fits
-   ✓ calibration/tutorial_rec.fits
 
 **What happens during calibration:**
 
