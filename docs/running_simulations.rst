@@ -1,7 +1,7 @@
 Running Simulations
 ===================
 
-In the directory `main/scao` there are several example configuration / parameters files for SCAO systems.
+In the directory ``main/scao`` there are several example configuration / parameters files for SCAO systems.
 
 The basic way to run the simulation is to use the Simul class directly:
 
@@ -20,8 +20,8 @@ The basic way to run the simulation is to use the Simul class directly:
     )
     simul.run()
 
-where target_device_idx is the GPU device number (or -1 for CPU), and yml_file is the path to your configuration / parameters file.
+where ``target_device_idx`` is the GPU device number (or ``-1`` for CPU), and ``yml_file`` is the path to your configuration / parameters file.
 
 This is embedded in the main simulation script ``main_simul.py`` that can be found in the ``main/scao`` directory.
 
-A tutorial for running SCAO simulations is available in the `tutorials/scao_tutorial` page.
+A tutorial for running SCAO simulations is available in the :doc:`tutorials/scao_tutorial` page.

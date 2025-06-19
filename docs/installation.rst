@@ -29,9 +29,6 @@ Create a dedicated conda environment for SPECULA (here with python 3.11):
    # Activate the environment
    conda activate specula
 
-.. note::
-   We only support Python 3.8 and higher. Older versions are not compatible with SPECULA's dependencies.
-
 Step 2: GPU Support (Optional but Recommended)
 ----------------------------------------------
 
@@ -88,9 +85,6 @@ All required dependencies will be installed automatically, including:
    * **python-socketio**: WebSocket client support
 
 **Optional Libraries:**
-
-**Enhanced Web Interface:**
-   * **Frontend application**: Separate web app for advanced visualization (if available)
 
 **Block Diagram Generation:**
    * **pycairo**: Graphics library for rendering diagrams

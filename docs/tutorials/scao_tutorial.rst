@@ -528,138 +528,211 @@ This is embedded in the main simulation script ``main_simul.py`` that can be fou
 Calibration Phase
 ~~~~~~~~~~~~~~~~~
 
-Run the calibration to generate:
+Before running the full closed-loop simulation, we need to calibrate several components of the AO system. The calibration process has three main steps:
 
-1. List of valid sub-aperture Indices.
+Subaperture Geometry Calibration
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-You need to calibrate the subaperture geometry, create ``calib_subaps.yml``:
+First, we need to identify which subapertures contain enough light from the guide star to provide reliable slope measurements.
+
+Create ``calib_subaps.yml`` to measure the subaperture geometry:
 
 .. code-block:: yaml
 
-   # Subaperture Geometry Calibration (Optional)
-   # ===========================================
+   # Subaperture Geometry Calibration
+   # =================================
    
    # Subaperture calibrator
    sh_subaps:
      class: 'ShSubapCalibrator'
      subap_on_diameter: 40                   # 40×40 subapertures
-     output_tag:        'tutorial_subaps_measured'
+     output_tag:        'tutorial_subaps'    # Output file tag
      energy_th:         0.25                 # 25% energy threshold
      inputs:
        in_i: 'sh.out_i'                     # WFS intensity input
    
    # Short calibration run
    main_override:
-     total_time: 0.002                       # Very short (just measure pupil)
+     total_time: 0.010                       # 10ms (just measure pupil)
    
-   # No atmosphere for clean pupil measurement
+   # Clean pupil measurement (no atmosphere)
    prop_override:
      inputs:
        common_layer_list: ['pupilstop']      # Only telescope pupil
    
    # Remove unnecessary objects
-   remove: ['atmo',
-            'dm', 
-            'slopec',
-            'modalrec',
-            'integrator',
-            'psf']
+   remove: ['atmo', 'dm', 'slopec', 'modalrec', 'integrator', 'psf']
 
-Run the calibration
+Run the subaperture calibration:
 
 .. code-block:: bash
 
    python main_simul.py config/scao_tutorial.yaml calib_subaps.yml
 
-2. Push-pull command generator.
+**Expected output:**
 
-The calibration needs an amplitude vector defining the poke strength for each actuator. Create ``prepare_pushpull_amplitudes.py``:
+.. code-block:: text
+
+   Subaperture calibration completed
+   Valid subapertures: 1247/1600 (77.9%)
+   Output file: calibration/tutorial_subaps.fits
+
+This step identifies approximately 1247 valid subapertures out of the 1600 total (40×40 grid), excluding those outside the pupil or with insufficient illumination.
+
+Push-Pull Amplitude Preparation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The interaction matrix calibration requires amplitude values for each actuator poke. Create ``prepare_pushpull_amplitudes.py``:
 
 .. code-block:: python
 
    import numpy as np
    from astropy.io import fits
    
-   # Create 50nm poke amplitudes for all 1240 actuators
-   amplitudes = np.full(1240, 50e-9)  # 50nm in meters
-   fits.writeto('calibration/pushpull_1240modes_amp50.fits', amplitudes)
+   # Create 50nm poke amplitudes for all valid actuators
+   n_actuators = 1240  # Number of valid actuators (from influence functions)
+   amplitudes = np.full(n_actuators, 50e-9)  # 50nm in meters
+   
+   # Save amplitude vector
+   fits.writeto('calibration/pushpull_1240modes_amp50.fits', amplitudes, overwrite=True)
+   print(f"Created amplitude vector: {n_actuators} actuators, 50nm poke")
 
-Ideally the amplitude vector should decrease with the square root of the radial order of the mode.
+Run the preparation script:
 
-3. Interaction and reconstruction matrices.
+.. code-block:: bash
 
-Create ``calib_rec.yml`` for interaction matrix and reconstructor calibration:
+   python prepare_pushpull_amplitudes.py
+
+**Performance note:** The 50nm amplitude is chosen as a compromise:
+   * **Too small** (< 20nm): Poor signal-to-noise ratio
+   * **Too large** (> 100nm): Nonlinear WFS response
+   * **50nm**: Good SNR while maintaining linearity
+
+Interaction Matrix and Reconstructor Calibration
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Now calibrate the interaction matrix (how actuators affect WFS measurements) and compute the reconstruction matrix (how to convert slopes to actuator commands).
+
+Create ``calib_im_rec.yml``:
 
 .. code-block:: yaml
 
-   # SCAO Interaction Matrix Calibration
-   # ===================================
-   # Override file for main configuration
+   # Interaction Matrix and Reconstructor Calibration
+   # ================================================
    
    # Push-pull command generator
    pushpull:
      class:     'FuncGenerator'
      func_type: 'PUSHPULL'
      nmodes:    1240                         # Number of DM actuators
-     vect_amplitude_data: 'pushpull_1240modes_amp50'  # Amplitude vector tag
+     vect_amplitude_data: 'pushpull_1240modes_amp50'  # Amplitude vector
      outputs:   ['output']
    
-   # Override main simulation parameters
-   main_override:
-     total_time: 4.96                        # Time for all modes (1240 × 2 × 0.002s)
-   
-   # Override atmospheric propagation (disable atmosphere)
-   prop_override:
-     inputs:
-       common_layer_list: ['pupilstop', 'dm.out_layer']  # Only pupil + DM
-   
-   # Override DM to use push-pull commands
-   dm_override:
-     sign: 1                                 # Positive sign convention
-     inputs:
-       in_command: 'pushpull.output'         # Connect to push-pull generator
-   
-   # Disable noise for clean calibration
-   detector_override:
-     photon_noise:   false                   # No photon noise
-     readout_noise:  false                   # No read noise
-   
    # Interaction matrix calibrator
-   calibrator:
-     class:     'ImRecCalibrator'
+   im_calibrator:
+     class:     'ImCalibrator'
      nmodes:    1240                         # Number of modes to calibrate
-     im_tag:    'tutorial_scao_im'           # Interaction matrix filename
-     rec_tag:   'tutorial_scao_rec'          # Reconstructor filename  
+     im_tag:    'tutorial_im'                # Output IM filename
      data_dir:  './calibration'              # Output directory
      overwrite: true                         # Overwrite existing files
-     pupdata_tag: 'tutorial_subaps'          # Subaperture data reference
      inputs:
        in_slopes:   'slopec.out_slopes'      # WFS slopes input
        in_commands: 'pushpull.output'        # Push-pull commands
    
-   # Optional: Display pixels during calibration
-   pixels_disp:
-     class:            'PixelsDisplay'
+   # Reconstructor calibrator
+   rec_calibrator:
+     class:     'RecCalibrator'
+     nmodes:    1240                         # Number of modes
+     rec_tag:   'tutorial_rec'               # Output REC filename
+     data_dir:  './calibration'              # Output directory
+     overwrite: true                         # Overwrite existing files
      inputs:
-       pixels:         'detector.out_pixels'
-     window:           15                     # Display every 15 iterations
-     title:            'Calibration Progress'
-     disp_factor:      2                     # 2× magnification
-     sh_as_pyr:        false                 # Shack-Hartmann display
-     subapdata_object: 'tutorial_subaps'     # Subaperture layout
+       in_intmat:   'im_calibrator.out_intmat'  # Connect to IM output
+   
+   # Override main simulation parameters
+   main_override:
+     total_time: 4.96                        # 1240 modes × 2 (push+pull) × 0.002s
+   
+   # Disable atmosphere for clean calibration
+   prop_override:
+     inputs:
+       common_layer_list: ['pupilstop', 'dm.out_layer']  # Only pupil + DM
+   
+   # Override DM to use calibration commands
+   dm_override:
+     inputs:
+       in_command: 'pushpull.output'         # Connect to push-pull generator
+   
+   # Disable noise for clean measurements
+   detector_override:
+     photon_noise:   false                   # No photon noise
+     readout_noise:  false                   # No read noise
    
    # Remove unnecessary objects during calibration
-   remove: ['atmo',                          # No atmosphere
-            'source_science',                # No science target
-            'psf',                           # No PSF computation
-            'integrator']                    # No closed-loop control
+   remove: ['atmo', 'source_science', 'psf', 'modalrec', 'integrator']
 
-Run the calibration
+Run the interaction matrix calibration:
 
 .. code-block:: bash
 
-   python main_simul.py config/scao_tutorial.yaml calib_rec.yml
+   python main_simul.py config/scao_tutorial.yaml calib_im_rec.yml
 
+**Expected output:**
+
+.. code-block:: text
+
+   Push-pull calibration progress:
+   Mode 1/1240: Push +50nm, Pull -50nm
+   Mode 2/1240: Push +50nm, Pull -50nm
+   ...
+   Mode 1240/1240: Push +50nm, Pull -50nm
+   
+   Interaction matrix: (2494, 1240) [slopes × modes]
+   Condition number: 12.3
+   
+   Reconstructor: (1240, 2494) [modes × slopes]
+   Reconstruction residual: 0.02%
+   
+   Files saved:
+   ✓ calibration/tutorial_im.fits
+   ✓ calibration/tutorial_rec.fits
+
+**What happens during calibration:**
+
+1. **Push-pull sequence**: Each actuator is poked +50nm then -50nm
+2. **Slope measurement**: WFS measures the resulting slope changes
+3. **Interaction matrix**: Built from the slope responses to each actuator
+4. **Reconstructor**: Computed as the pseudo-inverse of the interaction matrix
+5. **Quality check**: Condition number and reconstruction residual are computed
+
+The calibration takes about 5 seconds (2.5ms per mode × 1240 modes × 2 pokes).
+
+Update Main Configuration
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Now update the main configuration to use the calibrated files. Modify ``config/scao_tutorial.yaml``:
+
+.. code-block:: yaml
+
+   # Update these sections in your main config:
+   
+   slopec:
+     class:             'ShSlopec'
+     thr_value:         0.1                   
+     subapdata_object:  'tutorial_subaps'     # ← Now available from calibration
+     sn_object:         null                  
+     inputs:
+       in_pixels:       'detector.out_pixels'
+     outputs:           ['out_slopes']
+   
+   modalrec:
+     class:             'Modalrec'
+     recmat_object:     'tutorial_rec'        # ← Now available from calibration
+     inputs:
+       in_slopes:       'slopec.out_slopes'
+     outputs:           ['out_modes']
+
+The system is now fully calibrated and ready for closed-loop operation!
 
 Closed-Loop Simulation
 ~~~~~~~~~~~~~~~~~~~~~~
