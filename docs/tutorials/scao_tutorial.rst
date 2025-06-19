@@ -162,18 +162,14 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
       # Create IFunc object and save
       ifunc_obj = IFunc(
           ifunc=influence_functions,
-          mask=pupil_mask,
-          target_device_idx=specula.current_device_idx,
-          precision=specula.current_precision
+          mask=pupil_mask
       )
       ifunc_obj.save('calibration/tutorial_ifunc.fits')
       print("✓ tutorial_ifunc.fits (zonal influence functions)")
       
       # Create M2C object for mode-to-command matrix and save
       m2c_obj = M2C(
-          m2c=kl_basis,
-          target_device_idx=specula.current_device_idx,
-          precision=specula.current_precision
+          m2c=kl_basis
       )
       m2c_obj.save('calibration/tutorial_m2c.fits')
       print("✓ tutorial_m2c.fits (KL modal basis)")
