@@ -21,7 +21,9 @@ class MultiImCalibrator(BaseProcessingObj):
                  precision: int = None
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
+
         self._nmodes = nmodes
+        self._n_inputs = n_inputs
         self._data_dir = data_dir
         self._im_filename = self.tag_filename(im_tag, im_tag_template, prefix='im')
         self._full_im_filename = self.tag_filename(full_im_tag, full_im_tag_template, prefix='full_im')
@@ -31,7 +33,7 @@ class MultiImCalibrator(BaseProcessingObj):
         self.inputs['in_commands_list'] = InputList(type=BaseValue)
 
         self.outputs['out_intmat_list'] = []
-        for i in range(n_inputs):
+        for i in range(self._n_inputs):
             im = BaseValue(f'intmat_{i}', target_device_idx=self.target_device_idx)
             self.outputs['out_intmat_list'].append(im)
         self.outputs['out_intmat_full'] = BaseValue('full_intmat', target_device_idx=self.target_device_idx)
@@ -100,10 +102,30 @@ class MultiImCalibrator(BaseProcessingObj):
     def setup(self):
         super().setup()
 
-        for i in range(len(self.inputs['in_slopes_list'].get(self.target_device_idx))):
+        # Validate that actual input length matches expected n_inputs
+        actual_n_inputs = len(self.inputs['in_slopes_list'].get(self.target_device_idx))
+        if actual_n_inputs != self._n_inputs:
+            raise ValueError(
+                f"Number of input slopes ({actual_n_inputs}) does not match "
+                f"expected n_inputs ({self._n_inputs}). "
+                f"Please check your configuration."
+            )
+
+        # Also validate commands list has the same length
+        actual_n_commands = len(self.inputs['in_commands_list'].get(self.target_device_idx))
+        if actual_n_commands != self._n_inputs:
+            raise ValueError(
+                f"Number of input commands ({actual_n_commands}) does not match "
+                f"expected n_inputs ({self._n_inputs}). "
+                f"Both slopes and commands lists must have the same length."
+            )
+
+        # Existing file existence checks
+        for i in range(self._n_inputs):  # Use self._n_inputs instead of len(...)
             im_path = self.im_path(i)
-            full_im_path = self.full_im_path()
             if im_path and os.path.exists(im_path) and not self._overwrite:
                 raise FileExistsError(f'IM file {im_path} already exists, please remove it')
-            if full_im_path and os.path.exists(full_im_path) and not self._overwrite:
-                raise FileExistsError(f'IM file {full_im_path} already exists, please remove it')
+
+        full_im_path = self.full_im_path()
+        if full_im_path and os.path.exists(full_im_path) and not self._overwrite:
+            raise FileExistsError(f'IM file {full_im_path} already exists, please remove it')
