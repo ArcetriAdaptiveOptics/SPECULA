@@ -10,6 +10,7 @@ from specula.connections import InputList
 class MultiImCalibrator(BaseProcessingObj):
     def __init__(self,
                  nmodes: int,
+                 n_inputs: int,
                  data_dir: str,         # Set by main simul object
                  im_tag: str = None,
                  im_tag_template: str = None,
@@ -30,8 +31,9 @@ class MultiImCalibrator(BaseProcessingObj):
         self.inputs['in_commands_list'] = InputList(type=BaseValue)
 
         self.outputs['out_intmat_list'] = []
-        im = BaseValue('intmat_0', target_device_idx=self.target_device_idx)
-        self.outputs['out_intmat_list'].append(im)
+        for i in range(n_inputs):
+            im = BaseValue(f'intmat_{i}', target_device_idx=self.target_device_idx)
+            self.outputs['out_intmat_list'].append(im)
         self.outputs['out_intmat_full'] = BaseValue('full_intmat', target_device_idx=self.target_device_idx)
 
     def tag_filename(self, tag, tag_template, prefix):
@@ -99,9 +101,6 @@ class MultiImCalibrator(BaseProcessingObj):
         super().setup()
 
         for i in range(len(self.inputs['in_slopes_list'].get(self.target_device_idx))):
-            im = BaseValue(f'intmat_{i}', target_device_idx=self.target_device_idx)
-            if i > 0:
-                self.outputs['out_intmat_list'].append(im)
             im_path = self.im_path(i)
             full_im_path = self.full_im_path()
             if im_path and os.path.exists(im_path) and not self._overwrite:

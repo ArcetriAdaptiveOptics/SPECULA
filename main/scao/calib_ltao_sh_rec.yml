@@ -48,6 +48,7 @@ detector6_override:
 im_calibrator:
   class: 'MultiImCalibrator'
   nmodes: 4519
+  n_inputs: 6
   im_tag:     'test_ltao_im'
   #tag_template:    'ltao_im_{main.tag}_n{modes}'
   overwrite: True
