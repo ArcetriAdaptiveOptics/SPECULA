@@ -31,10 +31,10 @@ class PSF(BaseProcessingObj):
         self.start_time = start_time
         self.wavelengthInNm = wavelengthInNm
 
-        self.sr = BaseValue()
-        self.int_sr = BaseValue()
-        self.psf = BaseValue()
-        self.int_psf = BaseValue()
+        self.sr = BaseValue(target_device_idx=self.target_device_idx)
+        self.int_sr = BaseValue(target_device_idx=self.target_device_idx)
+        self.psf = BaseValue(target_device_idx=self.target_device_idx)
+        self.int_psf = BaseValue(target_device_idx=self.target_device_idx)
         self.ref = None
         self.intsr = 0.0
         self.count = 0
@@ -51,7 +51,7 @@ class PSF(BaseProcessingObj):
         self.intsr = 0
 
         self.out_size = [int(np.around(dim * self.nd/2)*2) for dim in in_ef.size]
-        self.ref = Intensity(self.out_size[0], self.out_size[1])
+        self.ref = Intensity(self.out_size[0], self.out_size[1], target_device_idx=self.target_device_idx)
 
     def calc_psf(self, phase, amp, imwidth=None, normalize=False, nocenter=False):
         """

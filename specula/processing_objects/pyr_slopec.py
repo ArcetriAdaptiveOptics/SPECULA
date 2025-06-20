@@ -55,8 +55,8 @@ class PyrSlopec(Slopec):
         self.n_pup = self.pupdata.ind_pup.shape[1]
         self.n_subap = self.pupdata.ind_pup.shape[0]
 
-        self.total_counts = BaseValue()
-        self.subap_counts = BaseValue()
+        self.total_counts = BaseValue(target_device_idx=self.target_device_idx)
+        self.subap_counts = BaseValue(target_device_idx=self.target_device_idx)
         self.outputs['out_pupdata'] = self.pupdata
         self.outputs['total_counts'] = self.total_counts
         self.outputs['subap_counts'] = self.subap_counts
@@ -145,7 +145,8 @@ class PyrSlopec(Slopec):
 
 
     def post_trigger(self):
-        # super().post_trigger()
+        super().post_trigger()
+
         self.subap_counts.value = self.total_counts.value / self.pupdata.n_subap
         self.total_counts.generation_time = self.current_time
         self.subap_counts.generation_time = self.current_time

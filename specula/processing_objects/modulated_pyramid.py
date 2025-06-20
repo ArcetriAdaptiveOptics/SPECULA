@@ -421,9 +421,10 @@ class ModulatedPyramid(BaseProcessingObj):
         self.transmission[:] = self.xp.sum(self.psf_tot_arr) / self.xp.sum(self.psf_bfm_arr)
 
     def post_trigger(self):
+        super().post_trigger()
+
         phot = self.in_ef.S0 * self.xp.sum(self.in_ef.A) * (self.in_ef.pixel_pitch ** 2)
         self.pup_pyr_tot *= (phot / self.xp.sum(self.pup_pyr_tot)) * self.transmission
-        # super().post_trigger()
         
 #        if phot == 0: slows down?
 #            print('WARNING: total intensity at PYR entrance is zero')

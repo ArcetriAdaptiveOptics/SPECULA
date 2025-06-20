@@ -1,4 +1,5 @@
 
+from specula import cpuArray
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_value import BaseValue
 from specula.connections import InputValue
@@ -33,10 +34,10 @@ class Slopec(BaseProcessingObj):
         if weight_from_accumulated and accumulate:
             raise ValueError('weightFromAccumulated and accumulate must not be set together')
 
-        self.slopes = self.slopes = Slopes(2, target_device_idx=self.target_device_idx) # TODO resized in derived class
+        self.slopes = Slopes(2, target_device_idx=self.target_device_idx) # TODO resized in derived class
         self.sn = sn
-        self.flux_per_subaperture_vector = BaseValue()
-        self.max_flux_per_subaperture_vector = BaseValue()
+        self.flux_per_subaperture_vector = BaseValue(target_device_idx=self.target_device_idx)
+        self.max_flux_per_subaperture_vector = BaseValue(target_device_idx=self.target_device_idx)
         self.use_sn = use_sn
         self.accumulate = accumulate
         self.weight_from_accumulated = weight_from_accumulated
@@ -56,7 +57,7 @@ class Slopec(BaseProcessingObj):
 
         self.accumulation_dt = self.seconds_to_t(accumulation_dt)
         self.accumulated_pixels = self.to_xp(accumulated_pixels, dtype=self.dtype)
-        self.accumulated_slopes = Slopes(2)   # TODO resized in derived class.
+        self.accumulated_slopes = Slopes(2, target_device_idx=self.target_device_idx)   # TODO resized in derived class.
 
         self.inputs['in_pixels'] = InputValue(type=Pixels)
         self.outputs['out_slopes'] = self.slopes
@@ -74,7 +75,7 @@ class Slopec(BaseProcessingObj):
         rm = recmat[:, :nmodes]
 
         output = self.xp.stack((im, self.xp.transpose(rm)), axis=-1)
-        self.writefits(filename, output)
+        self.writefits(filename, cpuArray(output))
         print(f'saved {filename}')
 
     def _compute_flux_per_subaperture(self):
@@ -83,22 +84,22 @@ class Slopec(BaseProcessingObj):
     def _compute_max_flux_per_subaperture(self):
         raise NotImplementedError('abstract method must be implemented')
 
-    def prepare_trigger(self, t):
-        super().prepare_trigger(t)
-
     def trigger_code(self):
         raise NotImplementedError(f'{self.__class__.__name__}: please implement trigger_code() in your derived class!')
         
     def post_trigger(self):
+        super().post_trigger()
+
         if self.recmat:
             m = self.xp.dot(self.slopes.slopes, self.recmat.recmat)
-            self.slopes.slopes = m
+            self.slopes.slopes[:] = m
         
         if self.filt_intmat and self.filt_recmat:
             m = self.slopes.slopes @ self.filt_recmat.recmat
             sl0 = m @ self.filt_intmat.intmat.T
             self.slopes.slopes -= sl0
-            rms = self.xp.sqrt(self.xp.mean(self.slopes.slopes**2))
+
+            #rms = self.xp.sqrt(self.xp.mean(self.slopes.slopes**2))
             #print('Slopes have been filtered. '
             #      'New slopes min, max and rms: '
             #      f'{self.slopes.slopes.min()}, {self.slopes.slopes.max()}, {rms}')

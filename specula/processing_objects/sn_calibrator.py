@@ -31,7 +31,7 @@ class SnCalibrator(BaseProcessingObj):
         self.inputs['in_slopes'] = InputValue(type=Slopes)
 
     def trigger_code(self):
-        self.slopes = Slopes(slopes=self.local_inputs['in_slopes'].slopes)
+        self.slopes = Slopes(slopes=self.local_inputs['in_slopes'].slopes, target_device_idx=self.target_device_idx)
         self.slopes.generation_time = self.local_inputs['in_slopes'].generation_time
 
         # Set tags if provided

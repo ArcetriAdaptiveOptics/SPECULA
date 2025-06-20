@@ -193,6 +193,8 @@ class IirFilter(BaseProcessingObj):
         self.state[:, 0] = output
 
     def post_trigger(self):
+        super().post_trigger()
+
         # Calculate output from the state considering the delay
         remainder_delay = self.delay % 1
         if remainder_delay == 0:

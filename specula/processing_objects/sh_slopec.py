@@ -33,9 +33,9 @@ class ShSlopec(Slopec):
         super().__init__(sn=sn, filtmat=filtmat,
                          target_device_idx=target_device_idx, precision=precision)
         self.thr_value = thr_value
-        self.thr_mask_cube = BaseValue()
-        self.total_counts = BaseValue()
-        self.subap_counts = BaseValue()
+        self.thr_mask_cube = BaseValue(target_device_idx=self.target_device_idx)
+        self.total_counts = BaseValue(target_device_idx=self.target_device_idx)
+        self.subap_counts = BaseValue(target_device_idx=self.target_device_idx)
         self.exp_weight = None
         self.subapdata = None
         self.xweights = None
@@ -63,7 +63,7 @@ class ShSlopec(Slopec):
         self.subapdata = subapdata
         # TODO replace this resize with an earlier initialization
         self.slopes.resize(subapdata.n_subaps * 2)
-        self.accumulated_slopes = Slopes(subapdata.n_subaps * 2)
+        self.accumulated_slopes = Slopes(subapdata.n_subaps * 2, target_device_idx=self.target_device_idx)
         self.set_xy_weights()
         self.outputs['out_subapdata'] = self.subapdata
 

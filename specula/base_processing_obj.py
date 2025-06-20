@@ -35,6 +35,11 @@ class BaseProcessingObj(BaseTimeObj):
         self.last_seen = {}
         self.outputs = {}
 
+        # Use the correct CUDA device for allocations
+        if self.target_device_idx >= 0:
+            self._target_device.use()
+
+
     def checkInputTimes(self):        
         if len(self.inputs)==0:
             return True
@@ -94,19 +99,14 @@ class BaseProcessingObj(BaseTimeObj):
         pass
 
     def post_trigger(self):
-        if self.target_device_idx>=0 and self.cuda_graph:
+        '''
+        Make sure we are using the correct device and that any previous
+        CUDA graph has been synchronized
+        '''
+        if self.target_device_idx>=0:
             self._target_device.use()
-            self.stream.synchronize()
-
-#        if self.checkInputTimes():
-#         if self.target_device_idx>=0 and self.cuda_graph:
-#             self.stream.synchronize()
-#             self._target_device.synchronize()
-#             self.xp.cuda.runtime.deviceSynchronize()
-## at the end of the derevide method should call this?
-#            default_target_device.use()
-#            self.xp.cuda.runtime.deviceSynchronize()                
-#            cp.cuda.Stream.null.synchronize()
+            if self.cuda_graph:
+                self.stream.synchronize()
 
     @classmethod
     def device_stream(cls, target_device_idx):

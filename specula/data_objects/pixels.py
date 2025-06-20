@@ -72,7 +72,7 @@ class Pixels(BaseDataObj):
         self.pixels = fits.getdata(filename)
 
     @staticmethod
-    def from_header(hdr):    
+    def from_header(hdr, target_device_idx=None):    
         version = hdr['VERSION']
         if version != 1:
             raise ValueError(f"Error: unknown version {version} in header")
@@ -81,13 +81,13 @@ class Pixels(BaseDataObj):
         bits = hdr['BPP']
         signed = hdr['SIGNED']
 
-        pixels = Pixels(dimx, dimy, bits=bits, signed=signed)
+        pixels = Pixels(dimx, dimy, bits=bits, signed=signed, target_device_idx=target_device_idx)
         return pixels
 
     @staticmethod
-    def restore(filename):
+    def restore(filename, target_device_idx=None):
         hdr = fits.getheader(filename)
-        pixels = Pixels.from_header(hdr)
+        pixels = Pixels.from_header(hdr, target_device_idx=target_device_idx)
         pixels.read(filename)
         return pixels
 

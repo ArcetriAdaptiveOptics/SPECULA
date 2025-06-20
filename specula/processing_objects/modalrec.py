@@ -64,7 +64,8 @@ class Modalrec(BaseProcessingObj):
                 if dmNumber is not None:
                     if dmNumber <= 0:
                         raise ValueError('dmNumber must be > 0')
-                    projmat = Recmat(recmat.proj_list[dmNumber - 1])
+                    projmat = Recmat(recmat.proj_list[dmNumber - 1],
+                                     target_device_idx=target_device_idx, precision=precision)
                 else:
                     raise ValueError('dmNumber (>0) must be defined if projmat_tag is not defined!')
 

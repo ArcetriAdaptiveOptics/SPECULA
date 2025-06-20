@@ -55,7 +55,8 @@ class PyrPupdataCalibrator(BaseProcessingObj):
             radius=radii[pup_order],
             cx=centers[pup_order, 0],
             cy=centers[pup_order, 1],
-            framesize=image.shape
+            framesize=image.shape,
+            target_device_idx=self.target_device_idx
         )
 
     def _analyze_pupils(self, image):

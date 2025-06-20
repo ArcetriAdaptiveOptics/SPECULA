@@ -12,7 +12,7 @@ class LinearCombination(BaseProcessingObj):
         super().__init__(target_device_idx=target_device_idx, precision=precision)       
 
         self.inputs['in_vectors_list'] = InputList(type=BaseValue)
-        self.out_vector = BaseValue()
+        self.out_vector = BaseValue(target_device_idx=self.target_device_idx)
         self.outputs['out_vector'] = self.out_vector
 
     def trigger_code(self):
