@@ -64,7 +64,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom=False, an
     for i in range(n_act_tot):
         z = xp.zeros(n_act_tot, dtype=dtype)
         z[i] = 1.0  # Set the central actuator
-        
+
         if min_distance_norm >= dim/2:
             x_close, y_close, z_close = x, y, z
             idx_far_grid = None
@@ -82,7 +82,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom=False, an
         z_close_np = cpuArray(z_close)
         grid_x_np = cpuArray(grid_x)
         grid_y_np = cpuArray(grid_y)
-        
+
         # Interpolation using Thin Plate Splines (using NumPy arrays)
         rbf = Rbf(x_close_np, y_close_np, z_close_np, function='thin_plate')
 
@@ -97,49 +97,56 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom=False, an
 
         ifs_cube[i, :, :] = z_interp
 
-        # Mechanical Coupling
-        if do_mech_coupling:
-            ifs_cube_orig = ifs_cube.copy()
-            for j in range(n_act_tot):
-                distance = xp.sqrt((x - x[j])**2 + (y - y[j])**2)
-
-                close1_set = xp.where(distance <= step)[0]
-                close2_set = xp.where((distance > step) & (distance <= 2 * step))[0]
-
-                ifs_cube[j, :, :] = ifs_cube_orig[j, :, :]
-
-                if len(close1_set) > 0:
-                    for k in close1_set:
-                        ifs_cube[j, :, :] += coupling_coeffs[0] * ifs_cube_orig[k, :, :]
-
-                if len(close2_set) > 0:
-                    for k in close2_set:
-                        ifs_cube[j, :, :] += coupling_coeffs[1] * ifs_cube_orig[k, :, :]
-
         print(f"\rCompute IFs: {int((i / n_act_tot) * 100)}% done", end="")
+
+    print()
+         
+    if do_mech_coupling:
+        print("Applying mechanical coupling...")
+        ifs_cube_orig = ifs_cube.copy()
+
+        for j in range(n_act_tot):
+            # Distance from actuator j to all others
+            distance = xp.sqrt((x - x[j])**2 + (y - y[j])**2)
+
+            # Find neighbors, excluding self (distance > 0)
+            close1_indices = xp.where((distance > 0) & (distance <= step))[0]
+            close2_indices = xp.where((distance > step) & (distance <= 2 * step))[0]
+
+            # Start with original influence function
+            ifs_cube[j, :, :] = ifs_cube_orig[j, :, :]
+
+            # Add coupling contributions
+            if len(close1_indices) > 0:
+                ifs_cube[j, :, :] += coupling_coeffs[0] * xp.sum(ifs_cube_orig[close1_indices], axis=0)
+
+            if len(close2_indices) > 0:
+                ifs_cube[j, :, :] += coupling_coeffs[1] * xp.sum(ifs_cube_orig[close2_indices], axis=0)
+
+        print("Mechanical coupling applied.")
 
     if do_slaving:
         max_vals = xp.max(ifs_cube[:, idx[0], idx[1]], axis=1)
         max_vals_all = xp.max(ifs_cube, axis=(1, 2))
-        idxMaster = xp.where(max_vals >= slaving_thr * max_vals_all)[0]
-        idxSlave = xp.where(max_vals < slaving_thr * max_vals_all)[0]
+        idx_master = xp.where(max_vals >= slaving_thr * max_vals_all)[0]
+        idx_slave = xp.where(max_vals < slaving_thr * max_vals_all)[0]
 
         print(f"Actuators: {n_act_tot}")
-        print(f"Master actuators: {len(idxMaster)}")
-        print(f"Actuators to be slaved: {len(idxSlave)}")
+        print(f"Master actuators: {len(idx_master)}")
+        print(f"Actuators to be slaved: {len(idx_slave)}")
 
         slaveMat1 = xp.zeros((n_act_tot, n_act_tot), dtype=dtype)
 
         for i in range(n_act_tot):
-            if i in idxMaster:
+            if i in idx_master:
                 distance = xp.sqrt((coordinates[0] - coordinates[0][i])**2 + 
                                 (coordinates[1] - coordinates[1][i])**2)
 
-                idxCloseMaster1 = xp.where(distance <= 1.1 * step)[0]
-                idxCloseMaster1 = xp.intersect1d(idxCloseMaster1, idxSlave)
+                idx_close_master1 = xp.where(distance <= 1.1 * step)[0]
+                idx_close_master1 = xp.intersect1d(idx_close_master1, idx_slave)
 
-                if len(idxCloseMaster1) > 0:
-                    for j in idxCloseMaster1:
+                if len(idx_close_master1) > 0:
+                    for j in idx_close_master1:
                         slaveMat1[i, j] = 1.0
 
         for j in range(n_act_tot):
@@ -147,13 +154,13 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom=False, an
 
         for i in range(n_act_tot):
             if xp.sum(slaveMat1[i, :]) > 0:
-                idxTemp = xp.where(slaveMat1[i, :] > 0)[0]
-                for j in idxTemp:
+                idx_temp = xp.where(slaveMat1[i, :] > 0)[0]
+                for j in idx_temp:
                     ifs_cube[i] += slaveMat1[i, j] * ifs_cube[j]
 
-        ifs_cube = ifs_cube[idxMaster]
-        coordinates = coordinates[:, idxMaster]
-        n_act_tot = len(idxMaster)
+        ifs_cube = ifs_cube[idx_master]
+        coordinates = coordinates[:, idx_master]
+        n_act_tot = len(idx_master)
 
     ifs_2d = xp.array([ifs_cube[i][idx] for i in range(n_act_tot)], dtype=dtype)
 
