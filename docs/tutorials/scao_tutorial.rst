@@ -277,32 +277,17 @@ Expected output:
 
 **What this does:**
 
-1. **Defines the actuator geometry**: 41×41 grid with circular layout optimized for round telescope pupils
+1. **Defines the actuator geometry**: A 41×41 grid with a circular layout, optimized for round telescope pupils with a 14% obstruction, which removes the central actuators.
 
-2. **Applies realistic constraints**:
-   - **Mechanical coupling**: Actuators influence their neighbors (31% nearest, 5% next-nearest)
-   - **Actuator slaving**: Edge actuators outside the pupil are disabled
-   - **Central obstruction**: 14% obstruction removes central actuators
-
-3. **Computes influence functions**: Each of the 1240 valid actuators produces a unique pattern of phase change across the 19,847 pupil pixels
+3. **Computes influence functions**: Each of the 1240 valid actuators produces a unique pattern of phase change across the ~19,000 pupil pixels
 
 4. **Saves calibration data**: Files are saved in FITS format for use by the main simulation
 
-5. **Generates visualization**: Example influence functions showing the localized nature of actuator effects
-
-**Key Parameters Explained:**
-
-- **``pupil_pixels=160``**: Higher resolution than the basic 128 pixels, providing better sampling of actuator influence functions
-
-- **``n_actuators=41``**: Chosen to give ~1240 valid actuators after removing those outside the pupil, typical for modern AO systems
-
-- **``couplingCoeffs=[0.31, 0.05]``**: Realistic mechanical coupling between adjacent actuators in deformable mirrors
-
-- **``slavingThr=0.1``**: Actuators with <10% overlap with the pupil are disabled (slaved to neighbors)
+5. **Generates visualization**: Example modes and singular values are plotted for inspection
 
 This pre-computation step is essential because:
 - Influence functions are expensive to calculate
-- They're needed for interaction matrix calibration
+- They're needed for interaction matrix calibration and closed-loop operation
 - They can be reused for multiple simulations with the same geometry
 
 The generated files will be automatically loaded by the DM configuration in the next steps.
@@ -555,27 +540,103 @@ The interaction matrix calibration requires amplitude values for each actuator p
 
 .. code-block:: python
 
-   import numpy as np
-   from astropy.io import fits
-   
-   # Create 50nm poke amplitudes for all valid actuators
-   n_actuators = 1240  # Number of valid actuators (from influence functions)
-   amplitudes = np.full(n_actuators, 50e-9)  # 50nm in meters
-   
-   # Save amplitude vector
-   fits.writeto('calibration/pushpull_1240modes_amp50.fits', amplitudes, overwrite=True)
-   print(f"Created amplitude vector: {n_actuators} actuators, 50nm poke")
+  import numpy as np
+  from astropy.io import fits
 
-Run the preparation script:
+  def create_scaled_amplitudes(n_actuators, base_amplitude=50):
+      """
+      Create amplitude vector with scaling pattern:
+      [1, 1, 1/sqrt(2), 1/sqrt(2), 1/sqrt(2), 1/sqrt(3), 1/sqrt(3), 1/sqrt(3), 1/sqrt(3), ...]
+      
+      Parameters:
+      -----------
+      n_actuators : int
+          Total number of actuators
+      base_amplitude : float
+          Base amplitude in nm (default: 50nm)
+          
+      Returns:
+      --------
+      amplitudes : ndarray
+          Scaled amplitude vector
+      """
+      amplitudes = np.zeros(n_actuators)
+      
+      # Pattern: n repetitions of 1/sqrt(n)
+      # Group 1: 2 actuators with factor 1 (1/sqrt(1))
+      # Group 2: 3 actuators with factor 1/sqrt(2) 
+      # Group 3: 4 actuators with factor 1/sqrt(3)
+      # etc.
+      
+      idx = 0
+      group = 1
+      
+      while idx < n_actuators:
+          # Number of actuators in this group
+          group_size = group + 1
+          
+          # Scale factor for this group
+          scale_factor = 1.0 / np.sqrt(group)
+          
+          # Fill the group (up to remaining actuators)
+          end_idx = min(idx + group_size, n_actuators)
+          amplitudes[idx:end_idx] = scale_factor
+          
+          print(f"Group {group}: actuators {idx:4d}-{end_idx-1:4d} (size={end_idx-idx:2d}), factor=1/√{group} = {scale_factor:.4f}")
+          
+          idx = end_idx
+          group += 1
+      
+      # Apply base amplitude
+      amplitudes *= base_amplitude
+      
+      return amplitudes
+
+  def main():
+      # Create scaled amplitudes for all valid actuators
+      n_actuators = 1240  # Number of valid actuators (from influence functions)
+      base_amplitude = 50e-9  # 50nm in meters
+      
+      print(f"Creating scaled amplitude vector for {n_actuators} actuators")
+      print(f"Base amplitude: {base_amplitude:.1f} nm")
+      print("")
+      
+      amplitudes = create_scaled_amplitudes(n_actuators, base_amplitude)
+      
+      # Print statistics
+      print(f"\nAmplitude statistics:")
+      print(f"  Minimum: {np.min(amplitudes):.2f} nm")
+      print(f"  Maximum: {np.max(amplitudes):.2f} nm")
+      print(f"  Mean:    {np.mean(amplitudes):.2f} nm")
+      print(f"  Std:     {np.std(amplitudes):.2f} nm")
+      
+      # Show first and last few values
+      print(f"\nFirst 10 amplitudes [nm]: {amplitudes[:10]}")
+      print(f"Last 10 amplitudes [nm]:  {amplitudes[-10:]}")
+      
+      # Save amplitude vector
+      output_file = 'calibration/pushpull_1240modes_amp50.fits'
+      fits.writeto(output_file, amplitudes, overwrite=True)
+      print(f"\n✓ Saved scaled amplitude vector: {output_file}")
+      
+      # Create comparison with uniform amplitudes
+      uniform_amplitudes = np.full(n_actuators, base_amplitude)
+      uniform_file = 'calibration/pushpull_1240modes_amp50_uniform.fits'
+      fits.writeto(uniform_file, uniform_amplitudes, overwrite=True)
+      print(f"✓ Saved uniform amplitude vector: {uniform_file}")
+      
+      return amplitudes
+
+  if __name__ == "__main__":
+      amplitudes = main()
+
+Run this script to generate the amplitude vector:
 
 .. code-block:: bash
 
    python prepare_pushpull_amplitudes.py
 
-**Performance note:** The 50nm amplitude is chosen as a compromise:
-   * **Too small** (< 20nm): Poor signal-to-noise ratio
-   * **Too large** (> 100nm): Nonlinear WFS response
-   * **50nm**: Good SNR while maintaining linearity
+**Performance note:** The 50nm amplitude is chosen as a compromise and scaling it for high order modes avoids saturation issues.
 
 Interaction Matrix and Reconstructor Calibration
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -648,38 +709,10 @@ Run the interaction matrix calibration:
 
 **What happens during calibration:**
 
-1. **Push-pull sequence**: Each actuator is poked +50nm then -50nm
+1. **Push-pull sequence**: Each modes is poked +amp then -amp sequentially (amp starts at 50nm and scales down for higher modes)
 2. **Slope measurement**: WFS measures the resulting slope changes
-3. **Interaction matrix**: Built from the slope responses to each actuator
+3. **Interaction matrix**: Built from the slope responses to each mode
 4. **Reconstructor**: Computed as the pseudo-inverse of the interaction matrix
-5. **Quality check**: Condition number and reconstruction residual are computed
-
-The calibration takes about 5 seconds (2.5ms per mode × 1240 modes × 2 pokes).
-
-Update Main Configuration
-^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Now update the main configuration to use the calibrated files. Modify ``config/scao_tutorial.yaml``:
-
-.. code-block:: yaml
-
-   # Update these sections in your main config:
-   
-   slopec:
-     class:             'ShSlopec'
-     thr_value:         0.1                   
-     subapdata_object:  'tutorial_subaps'     # ← Now available from calibration
-     sn_object:         null                  
-     inputs:
-       in_pixels:       'detector.out_pixels'
-     outputs:           ['out_slopes']
-   
-   modalrec:
-     class:             'Modalrec'
-     recmat_object:     'tutorial_rec'        # ← Now available from calibration
-     inputs:
-       in_slopes:       'slopec.out_slopes'
-     outputs:           ['out_modes']
 
 The system is now fully calibrated and ready for closed-loop operation!
 
@@ -697,32 +730,18 @@ TODO write that SR is printed during the simulation.
 Part 3: Results Analysis
 ------------------------
 
-Analyze the results.
-TODO
+TODO: Analyze the results.
+
 
 Part 4: Parameter Optimization
 ------------------------------
 
-Now that you have a working baseline, let's optimize the system performance.
+TODO: Now that you have a working baseline, let's optimize the system performance.
 
 Loop Gain Optimization
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Test different control gains to find the optimum:
-
-.. code-block:: yaml
-
-   # Create
-
-
-WFS Resolution Trade-off
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-Compare different subaperture numbers:
-
-.. code-block:: yaml
-
-   # yaml
+TODO: Test different control gains to find the optimum.
 
 Part 5: Advanced Topics
 -----------------------
@@ -730,12 +749,7 @@ Part 5: Advanced Topics
 Guide Star Magnitude Effects
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Study performance vs. star brightness:
-
-.. code-block:: yaml
-
-   sweep
-
+TODO:  Study performance vs. star brightness.
 
 Troubleshooting Common Issues
 -----------------------------
@@ -755,6 +769,7 @@ Congratulations! You've successfully:
 ✅ **Configured** a complete SCAO system
 ✅ **Calibrated** the interaction and reconstruction matrices  
 ✅ **Executed** a closed-loop simulation
+TODO:
 ✅ **Analyzed** performance results
 ✅ **Optimized** system parameters
 
@@ -763,17 +778,8 @@ Congratulations! You've successfully:
 1. **Experiment** with different atmospheric conditions
 2. **Try** pyramid wavefront sensors
 3. **Explore** laser guide star systems  
-4. **Scale up** to MCAO configurations
+4. **Try** MCAO configurations
 5. **Compute** off-axis PSFs
-
-**Additional Resources:**
-
-* :doc:`../processing_objects` - Create custom components
-* :doc:`../analysis` - Advanced performance analysis
-* :doc:`mcao_tutorial` - Multi-conjugate AO systems
-* :doc:`../troubleshooting` - Detailed problem solving
-
-The complete tutorial files are available in the SPECULA examples directory.
 
 .. seealso::
    
