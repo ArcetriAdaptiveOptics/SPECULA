@@ -76,7 +76,12 @@ class BaseDataObj(BaseTimeObj):
                 else:
                     if aType==cp.ndarray:
                         # Device-to-device
-                        getattr(destobj, attr)[:] = concrete_attr
+                        value = getattr(destobj, attr)
+                        if type(value) is cp.ndarray:
+                            getattr(destobj, attr)[:] = concrete_attr
+                        else:
+                            print(f'Warning: attribute was not initialized correctly: {attr=} {destobj=}')
+                            setattr(destobj, attr, cp.asarray(concrete_attr))
         destobj.generation_time = self.generation_time
         return destobj
 

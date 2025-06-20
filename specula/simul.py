@@ -462,7 +462,7 @@ class Simul():
                 if name in params:
                     raise ValueError(f'Parameter file already has an object named {name}')
                 params[name] = values
-    
+
     def apply_overrides(self, params):
         print('overrides:', self.overrides)
         if len(self.overrides) > 0:
@@ -494,7 +494,7 @@ class Simul():
                 r.append(block_name)
             rows.append(r)
         return rows
-        
+
     def buildDiagram(self):
         from orthogram import Color, DiagramDef, write_png, Side, FontWeight, TextOrientation
 

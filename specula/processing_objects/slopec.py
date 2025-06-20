@@ -33,7 +33,7 @@ class Slopec(BaseProcessingObj):
         if weight_from_accumulated and accumulate:
             raise ValueError('weightFromAccumulated and accumulate must not be set together')
 
-        self.slopes = Slopes(2)  # TODO resized in derived class
+        self.slopes = self.slopes = Slopes(2, target_device_idx=self.target_device_idx) # TODO resized in derived class
         self.sn = sn
         self.flux_per_subaperture_vector = BaseValue()
         self.max_flux_per_subaperture_vector = BaseValue()
@@ -46,8 +46,8 @@ class Slopec(BaseProcessingObj):
                 raise ValueError('filt_intmat must not be set if "filtmat" is set')
             if filt_recmat:
                 raise ValueError('filt_recmat must not be set if "filtmat" is set')
-            self.filt_intmat = Intmat(filtmat[0], target_device_idx=target_device_idx)
-            self.filt_recmat = Recmat(filtmat[1], target_device_idx=target_device_idx)
+            self.filt_intmat = Intmat(filtmat[0], target_device_idx=self.target_device_idx)
+            self.filt_recmat = Recmat(filtmat[1], target_device_idx=self.target_device_idx)
         else:
             if bool(filt_intmat) != bool(filt_recmat):
                 raise ValueError('Both filt_intmat and filt_recmat must be set for slopes filtering')

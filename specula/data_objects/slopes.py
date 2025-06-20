@@ -41,7 +41,7 @@ class Slopes(BaseDataObj):
         else:
             self.indicesX = self.xp.arange(0, self.size // 2)
             self.indicesY = self.indicesX + self.size // 2
-        
+
     @property
     def size(self):
         return self.slopes.size
@@ -149,9 +149,15 @@ class Slopes(BaseDataObj):
         s = Slopes(length=1, target_device_idx=target_device_idx)
         s.interleave = bool(hdr['INTRLVD'])
         if version >= 2:
-            # TODO pupdata_tag is present only in pyramid slopes
-            # and not in SH slopes
-            s.pupdata_tag = str(hdr['PUPD_TAG']).strip()
+            # Read optional tags if present
+            for tag_key, attr_name in [('PUPD_TAG', 'pupdata_tag'), ('SUBAP_TAG', 'subapdata_tag')]:
+                if tag_key in hdr:
+                    try:
+                        tag_value = str(hdr[tag_key]).strip()
+                        if tag_value:  # Non-empty
+                            setattr(s, attr_name, tag_value)
+                    except (ValueError, TypeError):
+                        pass  # Skip invalid tag values
         s.read(filename, hdr)
         return s
 
