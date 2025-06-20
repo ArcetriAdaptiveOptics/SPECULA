@@ -23,6 +23,7 @@ Tutorial Overview
 We'll simulate a modern SCAO system similar to those used on 8-10m class telescopes:
 
 **System Specifications:**
+
 * 8.2m telescope (VLT-like) with 14% central obstruction
 * Kolmogorov turbulence, r₀ = 15cm at 500nm
 * 40×40 Shack-Hartmann WFS (1600 subapertures)
@@ -31,6 +32,7 @@ We'll simulate a modern SCAO system similar to those used on 8-10m class telesco
 * R-band natural guide star (magnitude 8)
 
 **Performance Goals:**
+
 * Strehl ratio > 60% in H-band
 * RMS wavefront error < 150nm
 * Stable closed-loop operation
@@ -769,7 +771,9 @@ Congratulations! You've successfully:
 ✅ **Configured** a complete SCAO system
 ✅ **Calibrated** the interaction and reconstruction matrices  
 ✅ **Executed** a closed-loop simulation
+
 TODO:
+
 ✅ **Analyzed** performance results
 ✅ **Optimized** system parameters
 
