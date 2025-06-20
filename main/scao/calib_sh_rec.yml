@@ -30,14 +30,27 @@ detector_override:
   readout_noise:     False
   
 
-calibrator:
-  class: 'ImRecCalibrator'
+im_calibrator:
+  class: 'ImCalibrator'
   nmodes: 54
-  rec_tag:     'scao_sh_rec5'
+  im_tag:     'scao_sh_im5'
   #tag_template:    'subap_{main.tag}_n{modes}'
+  overwrite: True
   inputs:
     in_slopes: 'slopec.out_slopes'
     in_commands: 'pushpull.output'
+  outputs: ['out_im','out_intmat']
+
+
+rec_calibrator:
+  class: 'RecCalibrator'
+  nmodes: 54
+  rec_tag:     'scao_sh_rec5'
+  #tag_template:    'subap_{main.tag}_n{modes}'
+  overwrite: True
+  inputs:
+    in_intmat: 'im_calibrator.out_intmat'
+
 
 pixels_disp:
   class:            'PixelsDisplay'

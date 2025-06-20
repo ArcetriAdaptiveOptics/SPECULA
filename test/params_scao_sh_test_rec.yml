@@ -25,12 +25,20 @@ detector_override:
   photon_noise:      False
   readout_noise:     False
 
-calibrator:
-  class: 'ImRecCalibrator'
+im_calibrator:
+  class: 'ImCalibrator'
   nmodes: 40
-  rec_tag:     'scao_rec_n8_th0.5'
+  im_tag:     'scao_im_n8_th0.5'
   inputs:
     in_slopes: 'slopec.out_slopes'
     in_commands: 'pushpull.output'
+  outputs: ['out_im','out_intmat']
+
+rec_calibrator:
+  class: 'RecCalibrator'
+  nmodes: 40
+  rec_tag:     'scao_rec_n8_th0.5'
+  inputs:
+    in_intmat: 'im_calibrator.out_intmat'
 
 remove: ['atmo', 'rec', 'control', 'data_store']

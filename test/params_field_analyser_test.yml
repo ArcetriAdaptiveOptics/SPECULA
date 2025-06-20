@@ -2,49 +2,50 @@
 
 main:
   class:             'SimulParams'
-  root_dir:          './calib/SCAO'         # Root directory for calibration manager
-  pixel_pupil:       160                    # Linear dimension of pupil phase array
-  pixel_pitch:       0.05                   # [m] Pitch of the pupil phase array
-  total_time:        1.000                  # [s] Total simulation running time
+  root_dir:          './calib/'             # Root directory for calibration manager
+  pixel_pupil:       64                     # Linear dimension of pupil phase array
+  pixel_pitch:       0.015625               # [m] Pitch of the pupil phase array
+  total_time:        0.010                  # [s] Total simulation running time
   time_step:         0.001                  # [s] Simulation time step
-  display_server:    true                   # Display server on auto-selected port
 
 seeing:
   class:             'FuncGenerator'
-  constant:          0.8                  # ["] seeing value
+  constant:          0.000001                   # ["] seeing value
+  func_type:         'SIN'
   outputs: ['output']
-
 
 wind_speed:
   class:             'FuncGenerator'
-  constant:          [20.]                #,10.,20.,10.]      # [m/s] Wind speed value
+  constant:          [5.]                  # [m/s] Wind speed value
   outputs: ['output']
 
 
 wind_direction:
   class:             'FuncGenerator'
-  constant:          [0.]#,270.,270.,90.]   # [degrees] Wind direction value
+  constant:          [0.]                  # [degrees] Wind direction value
   outputs: ['output']
 
 
 on_axis_source:
   class:             'Source'
   polar_coordinates:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
-  magnitude:         8                    # source magnitude
-  wavelengthInNm:    750                   # [nm] wavelength
+  magnitude:         18                     # source magnitude
+  wavelengthInNm:    600                   # [nm] wavelength
 
 
 pupilstop:                                 # Default parameters (circular pupil)
   class: 'Pupilstop'
-  simul_params_ref:  'main'
+  simul_params_ref:     'main'
+
 
 atmo:
   class:                'AtmoEvolution'
   simul_params_ref:     'main'
-  L0:                   40                   # [m] Outer scale
-  heights:              [119.] #,837,3045,12780]), # [m] layer heights at 0 zenith angle
-  Cn2:                  [1.00] #,0.06,0.14,0.10]), # Cn2 weights (total must be eq 1)
+  L0:                   25                 # [m] Outer scale
+  heights:              [0.]               # [m] layer heights at 0 zenith angle
+  Cn2:                  [1.00]             # Cn2 weights (total must be eq 1)
   fov:                  0.0
+  pixel_phasescreens:   1024               # number of pixels in the phase screens
   inputs:
     seeing: 'seeing.output'
     wind_speed: 'wind_speed.output'
@@ -62,33 +63,28 @@ prop:
                   'dm.out_layer:-1']
   outputs: ['out_on_axis_source_ef']
 
-launcher:
-  class:             'LaserLaunchTelescope'
-  spot_size:          0.5
-
 sh:
   class:             'SH'
-  subap_wanted_fov:  1.2                     # Requested field-of-view [arcsec]
-  sensor_pxscale:    0.15                     # Pixel scale in arcsec/pix
-  subap_npx:         6                       # Output sampling [usually corresponding to CCD pixels]
-  subap_on_diameter: 20                      # Number of subapertures in diameter
-  wavelengthInNm:    750                     # [nm] Pyramid wavelength
-  laser_launch_tel_ref: 'launcher'
+  subap_wanted_fov:  4.0                     # Requested field-of-view [arcsec]
+  sensor_pxscale:    0.5                     # Pixel scale in arcsec/pix
+  subap_npx:         8                       # Output sampling [usually corresponding to CCD pixels]
+  subap_on_diameter: 8                      # Number of subapertures in diameter
+  wavelengthInNm:    600                     # [nm] Pyramid wavelength
   inputs:
     in_ef: 'prop.out_on_axis_source_ef'
   outputs:  ['out_i']
 
 
 detector:
-  class:             'CCD'
+  class:             'CCD'  
   simul_params_ref:  'main'
-  size:              [120,120]                 # Detector size in pixels
+  size:              [64,64]                 # Detector size in pixels
   dt:                0.001                   # [s] Detector integration time
   bandw:             300                     # [nm] Sensor bandwidth
   photon_noise:      True                    # activate photon noise
   readout_noise:     True                    # activate readout noise
   readout_level:     1.0                     # readout noise in [e-/pix/frame]
-  quantum_eff:       0.32                    # quantum efficiency * total transmission
+  quantum_eff:       0.3                    # quantum efficiency * total transmission
   inputs:
     in_i: 'sh.out_i'
   outputs:  ['out_pixels']
@@ -96,8 +92,7 @@ detector:
 
 slopec:
   class:             'ShSlopec'
-  subapdata_object:  'scao_subaps_n20_th0.5'  # tag of the pyramid WFS pupils
-  sn_object:         'scao_sn'                # tag of the slope reference vector
+  subapdata_object:  'scao_subaps_n8_th0.5'   # tag of the pyramid WFS pupils
   inputs:
     in_pixels:        'detector.out_pixels'
   outputs:  ['out_slopes', 'out_subapdata']
@@ -105,7 +100,7 @@ slopec:
 
 rec:
   class:              'Modalrec'
-  recmat_object:      'scao_sh_rec5'         # reconstruction matrix tag
+  recmat_object:      'scao_rec_n8_th0.5'         # reconstruction matrix tag
   inputs:
     in_slopes:        'slopec.out_slopes'
   outputs:  ['out_modes', 'out_pseudo_ol_modes']
@@ -114,36 +109,45 @@ rec:
 control:
   class:             'Integrator'
   simul_params_ref:  'main'
+  simul_params_ref:  'main'
   delay:             2                      # Total temporal delay in time steps
   int_gain:          [0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5, # Integrator gain (for 'INT' control)
                       0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,
                       0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,
-                      0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,
-                      0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,
-                      0.5,0.5,0.5,0.5]  
+                      0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5]  
   inputs:
       delta_comm: 'rec.out_modes'     
   outputs:  ['out_comm']
-
 
 dm:
   class:             'DM'
   simul_params_ref:  'main'
   type_str:          'zernike'              # modes type
-  nmodes:            54                     # number of modes
+  nmodes:            40                     # number of modes
+  npixels:           64                    # linear dimension of DM phase array
   obsratio:          0.1                    # obstruction dimension ratio w.r.t. diameter
   height:            0                      # DM height [m]
   inputs:
       in_command: 'control.out_comm'
   outputs:  ['out_layer']
 
+modal_analysis:
+  class:            'ModalAnalysis'
+  type_str:         'zernike'
+  npixels:          64
+  nmodes:           40
+  obsratio:         0.1
+  dorms:            True
+  inputs:
+    in_ef: 'prop.out_on_axis_source_ef'
+  outputs: ['out_modes']
 
 psf:
   class:             'PSF'
   simul_params_ref:  'main'
   wavelengthInNm:    1650                 # [nm] Imaging wavelength
-  nd:                8                    # padding coefficient for PSF computation
-  start_time:        0.05                # PSF integration start time
+  nd:                7                    # padding coefficient for PSF computation
+  start_time:        0.0                  # PSF integration start time
   inputs:
       in_ef:  'prop.out_on_axis_source_ef'
   outputs:  ['out_psf', 'out_sr']
@@ -151,6 +155,10 @@ psf:
 
 data_store:
   class:             'DataStore'
-  store_dir:         './output'             # Data result directory: 'store_dir'/TN/
+  store_dir:         './data'             # Data result directory: 'store_dir'/TN/
   inputs:    
-    input_list: ['res_ef-prop.out_on_axis_source_ef']
+    input_list: ['res_sr-psf.out_sr',
+                 'res_psf-psf.out_psf',
+                 'comm-control.out_comm',
+                 'res-modal_analysis.out_modes',
+                 'phase-prop.out_on_axis_source_ef']

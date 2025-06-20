@@ -30,16 +30,28 @@ detector_override:
   photon_noise:      False
   readout_noise:     False
 
-calibrator:
-  class: 'ImRecCalibrator'
+
+im_calibrator_lo:
+  class: 'ImCalibrator'
   nmodes: 700
-  rec_tag:     'eris_rec'
-  im_tag:  'eris_im'
+  im_tag:     'eris_im'
   #tag_template:    'subap_{main.tag}_n{modes}'
+  overwrite: True
   inputs:
     in_slopes: 'slopec.out_slopes'
     in_commands: 'pushpull.output'
-  outputs: ['out_im']
+  outputs: ['out_im','out_intmat']
+
+
+rec_calibrator_lo:
+  class: 'RecCalibrator'
+  nmodes: 700
+  rec_tag:     'eris_rec'
+  #tag_template:    'subap_{main.tag}_n{modes}'
+  overwrite: True
+  inputs:
+    in_intmat: 'im_calibrator_lo.out_intmat'
+
 
 remove: ['atmo',
 'modalrec',

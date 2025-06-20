@@ -50,7 +50,7 @@ class AtmoPropagation(BaseProcessingObj):
                 raise ValueError('Pupil position must be an array with 2 elements')
         else:
             self.pupil_position = None
-            
+
         self.doFresnel = doFresnel
         self.wavelengthInNm = wavelengthInNm
         self.propagators = None
@@ -60,18 +60,17 @@ class AtmoPropagation(BaseProcessingObj):
                 ef = ElectricField(self.pixel_pupil_size, self.pixel_pupil_size, self.pixel_pitch, target_device_idx=self.target_device_idx)
                 ef.S0 = source.phot_density()
                 self.outputs['out_'+name+'_ef'] = ef
-        
+
         # atmo_layer_list is optional because it can be empty during calibration of an AO system while
-        # the common_layer_list is not optional because at least a pupilstop is needed       
-        self.inputs['atmo_layer_list'] = InputList(type=Layer,optional=True)                
+        # the common_layer_list is not optional because at least a pupilstop is needed
+        self.inputs['atmo_layer_list'] = InputList(type=Layer,optional=True)
         self.inputs['common_layer_list'] = InputList(type=Layer)
 
-        self.airmass = 1. / np.cos(np.radians(self.simul_params.zenithAngleInDeg), dtype=self.dtype)        
-        
+        self.airmass = 1. / np.cos(np.radians(self.simul_params.zenithAngleInDeg), dtype=self.dtype)
 
 
     def doFresnel_setup(self):
-   
+
         raise NotImplementedError('Fresnel propagation is not implemented')
 
         # Missing lib function
@@ -218,13 +217,13 @@ class AtmoPropagation(BaseProcessingObj):
         self.common_layer_list = self.inputs['common_layer_list'].get(self.target_device_idx)
 
         if self.atmo_layer_list is None:
-            self.atmo_layer_list = []        
+            self.atmo_layer_list = []
 
         self.nAtmoLayers = len(self.atmo_layer_list)
- 
+
         if len(self.atmo_layer_list) + len(self.common_layer_list) < 1:
             raise ValueError('At least one layer must be set')
- 
+
         if not self.mergeLayersContrib:
             for name, source in self.source_dict.items():
                 self.outputs['out_'+name+'_ef'] = []
