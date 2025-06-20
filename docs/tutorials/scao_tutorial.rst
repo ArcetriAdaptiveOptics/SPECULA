@@ -176,62 +176,44 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
       
       # Step 5: Optional visualization
       try:
-          import matplotlib.pyplot as plt
-          
-          print("\nGenerating visualization...")
-          
-          # Convert to CPU arrays for plotting
-          if hasattr(influence_functions, 'get'):  # CuPy array
-              influence_functions_cpu = influence_functions.get()
-              pupil_mask_cpu = pupil_mask.get()
-              kl_basis_cpu = kl_basis.get()
-          else:  # NumPy array
-              influence_functions_cpu = influence_functions
-              pupil_mask_cpu = pupil_mask
-              kl_basis_cpu = kl_basis
-          
-          # Function to reconstruct 2D functions for plotting
-          def reconstruct_2d_function(func_1d, mask):
-              func_2d = np.zeros(mask.shape)
-              func_2d[mask] = func_1d
-              return func_2d
-          
-          # Plot influence functions and KL modes
-          fig, axes = plt.subplots(2, 4, figsize=(16, 8))
-          
-          # Top row: Example influence functions
-          example_if_indices = [
-              n_valid_actuators // 2,        # Center actuator
-              n_valid_actuators // 4,        # Quarter point
-              3 * n_valid_actuators // 4,    # Three quarters
-              n_valid_actuators - 50,        # Near edge
-          ]
-          
-          for i, act_idx in enumerate(example_if_indices):
-              if act_idx < n_valid_actuators:
-                  ifunc_2d = reconstruct_2d_function(influence_functions_cpu[act_idx], pupil_mask_cpu)
-                  
-                  im = axes[0, i].imshow(ifunc_2d, origin='lower', cmap='RdBu_r')
-                  axes[0, i].set_title(f'Influence Function {act_idx}')
-                  axes[0, i].set_xticks([])
-                  axes[0, i].set_yticks([])
-                  plt.colorbar(im, ax=axes[0, i], shrink=0.8)
-          
-          # Bottom row: First 4 KL modes
-          for i in range(min(4, kl_basis.shape[0])):
-              kl_2d = reconstruct_2d_function(kl_basis_cpu[i], pupil_mask_cpu)
-              
-              im = axes[1, i].imshow(kl_2d, origin='lower', cmap='RdBu_r')
-              axes[1, i].set_title(f'KL Mode {i+1}')
-              axes[1, i].set_xticks([])
-              axes[1, i].set_yticks([])
-              plt.colorbar(im, ax=axes[1, i], shrink=0.8)
-          
-          plt.tight_layout()
-          plt.savefig('calibration/influence_functions_and_kl_modes.png', dpi=150, bbox_inches='tight')
-          plt.show()
-          
-          print("✓ influence_functions_and_kl_modes.png")
+        import matplotlib.pyplot as plt
+
+        print("\nGenerating visualization...")
+
+        plt.figure(figsize=(10, 6))
+        plt.semilogy(singular_values['S1'], 'o-', label='IF Covariance')
+        plt.semilogy(singular_values['S2'], 'o-', label='Turbulence Covariance')
+        plt.xlabel('Mode number')
+        plt.ylabel('Singular value')
+        plt.title('Singular values of covariance matrices')
+        plt.legend()
+        plt.grid(True)
+
+        # Plot some modes
+        max_modes = min(16, kl_basis.shape[0])
+
+        # Create a mask array for display
+        mode_display = np.zeros((max_modes, pupil_mask.shape[0], pupil_mask.shape[1]))
+
+        # Place each mode vector into the 2D pupil shape
+        idx_mask = np.where(pupil_mask)
+        for i in range(max_modes):
+            mode_img = np.zeros(pupil_mask.shape)
+            mode_img[idx_mask] = kl_basis[i]
+            mode_display[i] = mode_img
+
+        # Plot the reshaped modes
+        n_rows = int(np.round(np.sqrt(max_modes)))
+        n_cols = int(np.ceil(max_modes / n_rows))
+        plt.figure(figsize=(18, 12))
+        for i in range(max_modes):
+            plt.subplot(n_rows, n_cols, i+1)
+            plt.imshow(mode_display[i], cmap='viridis')
+            plt.title(f'Mode {i+1}')
+            plt.axis('off')
+        plt.tight_layout()
+
+        plt.show()
           
       except ImportError:
           print("Matplotlib not available - skipping visualization")
@@ -289,7 +271,6 @@ Expected output:
    Saving to calibration/ directory...
    ✓ influence_functions.fits
    ✓ pupil_mask.fits
-   ✓ influence_functions_examples.png
 
    Influence functions computation completed!
    Files saved in: /path/to/your/simulation/calibration/
