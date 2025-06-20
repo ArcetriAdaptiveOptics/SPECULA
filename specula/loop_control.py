@@ -1,5 +1,6 @@
 import time
 import numpy as np
+from collections import defaultdict
 
 from specula.base_time_obj import BaseTimeObj
 
@@ -7,7 +8,7 @@ from specula.base_time_obj import BaseTimeObj
 class LoopControl(BaseTimeObj):
     def __init__(self, verbose=False):
         super().__init__(target_device_idx=-1, precision=1)
-        self._ordered_lists = {}
+        self._trigger_lists = defaultdict(list)
         self._verbose = verbose
         self._run_time = None
         self._dt = None
@@ -22,20 +23,12 @@ class LoopControl(BaseTimeObj):
         self._old_time = 0
         self._elapsed = []
         self._nframes_cnt = -1
-        self._max_order = -1
 
     def add(self, obj, idx):
-        if obj is None:
-            raise ValueError("Cannot add null object to loop")
-        
-        if idx>self._max_order:
-            self._max_order = idx
-            self._ordered_lists[idx] = []
-
-        self._ordered_lists[idx].append(obj)
+        self._trigger_lists[idx].append(obj)
         
     def remove_all(self):
-        self._ordered_lists.clear()
+        self._trigger_lists.clear()
 
     def niters(self):
         return (self._run_time + self._t0) / self._dt if self._dt != 0 else 0
@@ -60,8 +53,8 @@ class LoopControl(BaseTimeObj):
         self._dt = self.seconds_to_t(dt)
         self._t0 = self.seconds_to_t(t0)
 
-        for i in range(self._max_order+1):
-            for element in self._ordered_lists[i]:
+        for i in sorted(self._trigger_lists.keys()):
+            for element in self._trigger_lists[i]:
                 try:
                     element.startMemUsageCount()
                     element.setup()
@@ -85,23 +78,23 @@ class LoopControl(BaseTimeObj):
             self.start_profiling()
             self._profiler_started = True
 
-        for i in range(self._max_order+1):
+        for i in sorted(self._trigger_lists.keys()):
 
-            for element in self._ordered_lists[i]:
+            for element in self._trigger_lists[i]:
                 try:
                     element.check_ready(self._t)
                 except:
                     print('Exception in', element.name)
                     raise
 
-            for element in self._ordered_lists[i]:
+            for element in self._trigger_lists[i]:
                 try:
                     element.trigger()
                 except:
                     print('Exception in', element.name)
                     raise
 
-            for element in self._ordered_lists[i]:
+            for element in self._trigger_lists[i]:
                 try:
                     element.post_trigger()
                 except:
@@ -132,8 +125,8 @@ class LoopControl(BaseTimeObj):
 
     def finish(self):
 
-        for i in range(self._max_order+1):
-             for element in self._ordered_lists[i]:
+        for i in sorted(self._trigger_lists.keys()):
+             for element in self._trigger_lists[i]:
                 try:
                     element.finalize()
                 except:
