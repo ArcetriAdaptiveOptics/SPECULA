@@ -19,7 +19,12 @@ class TestIntmat(unittest.TestCase):
 
     @cpu_and_gpu
     def test_save_restore_roundtrip(self, target_device_idx, xp):
-        
+
+        try:
+            os.unlink(self.filename)
+        except FileNotFoundError:
+            pass
+
         im_data = xp.arange(9).reshape((3,3))
         im = Intmat(im_data, target_device_idx=target_device_idx)
         
