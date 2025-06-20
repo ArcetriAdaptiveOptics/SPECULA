@@ -65,7 +65,7 @@ class SH(BaseProcessingObj):
 
         super().__init__(target_device_idx=target_device_idx, precision=precision)     
         self._wavelengthInNm = wavelengthInNm
-        self._lenslet = Lenslet(subap_on_diameter)
+        self._lenslet = Lenslet(subap_on_diameter, target_device_idx=target_device_idx)
         self._subap_wanted_fov = subap_wanted_fov / RAD2ASEC
         self._sensor_pxscale = sensor_pxscale / RAD2ASEC
         self._subap_npx = subap_npx
@@ -109,7 +109,7 @@ class SH(BaseProcessingObj):
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
         self.outputs['out_i'] = self._out_i
-        self.outputs['wf1'] = BaseValue()
+        self.outputs['wf1'] = BaseValue(target_device_idx=self.target_device_idx)
 
     def set_in_ef(self, in_ef):
 

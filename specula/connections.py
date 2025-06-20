@@ -62,7 +62,7 @@ class InputList():
                 else:
                     self.cloned_list.append(wrapped.copyTo(target_device_idx))
         else:
-            # Second get(): alwats used transferDataTo()
+            # Second get(): always used transferDataTo()
             for i, (wrapped, cloned) in enumerate(zip(self.wrapped_list, self.cloned_list)):
                 if wrapped.target_device_idx == target_device_idx:
                     self.cloned_list[i] = wrapped

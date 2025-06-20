@@ -56,3 +56,9 @@ class BaseValue(BaseDataObj):
 
     def array_for_display(self):
         return self._value
+    
+    def get_fits_header(self):
+        hdr = fits.Header()
+        hdr['VERSION'] = 1
+        hdr['OBJ_TYPE'] = 'BaseValue'
+        return hdr

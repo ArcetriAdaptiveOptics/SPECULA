@@ -108,7 +108,7 @@ rec:
 
 control:
   class:             'Integrator'
-  simul_params_ref:     'main'
+  simul_params_ref:  'main'
   simul_params_ref:  'main'
   delay:             2                      # Total temporal delay in time steps
   int_gain:          [0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5, # Integrator gain (for 'INT' control)
@@ -122,7 +122,7 @@ control:
 
 dm:
   class:             'DM'
-  simul_params_ref:     'main'
+  simul_params_ref:  'main'
   type_str:          'zernike'              # modes type
   nmodes:            40                     # number of modes
   obsratio:          0.1                    # obstruction dimension ratio w.r.t. diameter
@@ -134,9 +134,10 @@ dm:
 
 psf:
   class:             'PSF'
+  simul_params_ref:  'main'
   wavelengthInNm:    1650                 # [nm] Imaging wavelength
   nd:                8                    # padding coefficient for PSF computation
-  start_time:        0.005                # PSF integration start time
+  start_time:        0.0                  # PSF integration start time
   inputs:
       in_ef:  'prop.out_on_axis_source_ef'
   outputs:  ['out_psf', 'out_sr']

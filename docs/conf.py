@@ -25,7 +25,7 @@ extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.napoleon',
               'sphinx.ext.intersphinx',
               'sphinx_rtd_theme',        # ReadTheDocs theme
-              'm2r',                     # mdinclude directive
+              'm2r2',                    # mdinclude directive
               'nbsphinx',
               'numpydoc',
               ]
@@ -64,7 +64,7 @@ today_fmt = '%B %d, %Y'
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'alabaster'
+html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
 
 
@@ -77,7 +77,7 @@ print("%s (VERSION %s)" % (project, version))
 #
 # html_theme = "sphinx_rtd_theme"
 # html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
-html_theme = 'pydata_sphinx_theme'
+# html_theme = 'pydata_sphinx_theme'
 
 html_theme_options = {
   "show_nav_level": 2

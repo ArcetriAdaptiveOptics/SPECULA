@@ -49,6 +49,8 @@ class BaseTimeObj:
 
             self._target_device.use()
             self.gpu_bytes_used_before = cp.get_default_memory_pool().used_bytes()
+            from cupy._util import PerformanceWarning
+            self.PerformanceWarning = PerformanceWarning
         else:
             from scipy.ndimage import rotate
             from scipy.ndimage import shift
@@ -58,6 +60,7 @@ class BaseTimeObj:
             from scipy.fft import ifft2 as scipy_ifft2
             def get_fft_plan(*args, **kwargs):
                 return DummyDecoratorAndContextManager()
+            self.PerformanceWarning = None
 
         self.rotate = rotate
         self.shift = shift

@@ -19,7 +19,7 @@ def clamp_generic_less(x, c, y, xp):
 @fuse(kernel_name='clamp_generic_more')
 def clamp_generic_more(x, c, y, xp):
     y[:] = xp.where(y > x, c, y)
-    
+
 class ShSlopec(Slopec):
     def __init__(self,
                  subapdata: SubapData,
@@ -27,15 +27,15 @@ class ShSlopec(Slopec):
                  thr_value: float = -1,
                  exp_weight: float = 1.0,
                  filtmat=None,
-                 corr_template = None,                
-                 target_device_idx: int = None, 
+                 corr_template = None, 
+                 target_device_idx: int = None,
                  precision: int = None):
         super().__init__(sn=sn, filtmat=filtmat,
                          target_device_idx=target_device_idx, precision=precision)
         self.thr_value = thr_value
-        self.thr_mask_cube = BaseValue()  
-        self.total_counts = BaseValue()
-        self.subap_counts = BaseValue()
+        self.thr_mask_cube = BaseValue(target_device_idx=self.target_device_idx)
+        self.total_counts = BaseValue(target_device_idx=self.target_device_idx)
+        self.subap_counts = BaseValue(target_device_idx=self.target_device_idx)
         self.exp_weight = None
         self.subapdata = None
         self.xweights = None
@@ -63,14 +63,14 @@ class ShSlopec(Slopec):
         self.subapdata = subapdata
         # TODO replace this resize with an earlier initialization
         self.slopes.resize(subapdata.n_subaps * 2)
-        self.accumulated_slopes = Slopes(subapdata.n_subaps * 2)
+        self.accumulated_slopes = Slopes(subapdata.n_subaps * 2, target_device_idx=self.target_device_idx)
         self.set_xy_weights()
         self.outputs['out_subapdata'] = self.subapdata
 
     @property
     def subap_idx(self):
         return self.subapdata.idxs
- 
+
     def set_xy_weights(self):
         if self.subapdata:
             out = self.computeXYweights(self.subapdata.np_sub, self.exp_weight, self.weightedPixRad, 
@@ -94,7 +94,7 @@ class ShSlopec(Slopec):
         """
         # Generate x, y coordinates
         x, y = np.meshgrid(np.linspace(-1, 1, np_sub), np.linspace(-1, 1, np_sub))
-        
+
         # Compute weights in quadcell mode or otherwise
         if quadcell_mode:
             x = np.where(x > 0, 1.0, -1.0)
@@ -160,7 +160,7 @@ class ShSlopec(Slopec):
             return
 
         in_pixels = self.inputs['in_pixels'].get(self.target_device_idx).pixels
-        
+
         n_subaps = self.subapdata.n_subaps
         np_sub = self.subapdata.np_sub
         pixels = self.accumulated_pixels.pixels if accumulated else in_pixels

@@ -6,9 +6,9 @@ from specula import show_in_profiler
 from specula.connections import InputValue, InputList
 
 class BaseProcessingObj(BaseTimeObj):
-    
+
     _streams = {}
-    
+
     def __init__(self, target_device_idx=None, precision=None):
         """
         Initialize the base processing object.
@@ -23,7 +23,7 @@ class BaseProcessingObj(BaseTimeObj):
         self.current_time_seconds = 0
 
         self._verbose = 0
-        
+
         # Stream/input management
         self.stream  = None
         self.ready = False
@@ -35,15 +35,12 @@ class BaseProcessingObj(BaseTimeObj):
         self.last_seen = {}
         self.outputs = {}
 
-    def get_fft_plan(self, a, shape=None, axes=None, value_type='C2C'):
-        if self._get_fft_plan:
-            return self._get_fft_plan(a, shape, axes, value_type)
-        else:
-            return nullcontext()
+        # Use the correct CUDA device for allocations
+        if self.target_device_idx >= 0:
+            self._target_device.use()
 
-    def checkInputTimes(self):
-        if self.__class__.__name__ == 'DataComm':
-            return True
+
+    def checkInputTimes(self):        
         if len(self.inputs)==0:
             return True
         for input_name, input_obj in self.inputs.items():
@@ -67,6 +64,9 @@ class BaseProcessingObj(BaseTimeObj):
         return False
 
     def prepare_trigger(self, t):
+        if self.target_device_idx >= 0:
+            self._target_device.use()
+
         self.current_time_seconds = self.t_to_seconds(self.current_time)
         for input_name, input_obj in self.inputs.items():
             if type(input_obj) is InputValue:
@@ -100,26 +100,21 @@ class BaseProcessingObj(BaseTimeObj):
         pass
 
     def post_trigger(self):
-        if self.target_device_idx>=0 and self.cuda_graph:
+        '''
+        Make sure we are using the correct device and that any previous
+        CUDA graph has been synchronized
+        '''
+        if self.target_device_idx>=0:
             self._target_device.use()
-            self.stream.synchronize()
-
-#        if self.checkInputTimes():
-#         if self.target_device_idx>=0 and self.cuda_graph:
-#             self.stream.synchronize()
-#             self._target_device.synchronize()
-#             self.xp.cuda.runtime.deviceSynchronize()
-## at the end of the derevide method should call this?
-#            default_target_device.use()
-#            self.xp.cuda.runtime.deviceSynchronize()                
-#            cp.cuda.Stream.null.synchronize()
+            if self.cuda_graph:
+                self.stream.synchronize()
 
     @classmethod
     def device_stream(cls, target_device_idx):
         if not target_device_idx in cls._streams:
             cls._streams[target_device_idx] = cp.cuda.Stream(non_blocking=False)
         return cls._streams[target_device_idx]
-        
+
     def build_stream(self, allow_parallel=True):
         if self.target_device_idx>=0:
             self._target_device.use()
@@ -150,8 +145,8 @@ class BaseProcessingObj(BaseTimeObj):
             if self.verbose:
                 print(f'No inputs have been refreshed, skipping trigger')
         return self.ready
-    
-    def trigger(self):        
+
+    def trigger(self):
         if self.ready:
             with show_in_profiler(self.__class__.__name__+'.trigger'):
                 if self.target_device_idx>=0:
@@ -161,7 +156,7 @@ class BaseProcessingObj(BaseTimeObj):
                 else:
                     self.trigger_code()
             self.ready = False
-                    
+             
     @property
     def verbose(self):
         return self._verbose

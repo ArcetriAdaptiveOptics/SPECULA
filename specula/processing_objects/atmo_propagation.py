@@ -41,7 +41,7 @@ class AtmoPropagation(BaseProcessingObj):
         if not (self.pixel_pupil > 0):
             raise ValueError('Pixel pupil must be >0')
         
-        self. mergeLayersContrib = mergeLayersContrib
+        self.mergeLayersContrib = mergeLayersContrib
         self.pixel_pupil_size = self.pixel_pupil        
         self.source_dict = source_dict
         if pupil_position is not None:
@@ -50,7 +50,7 @@ class AtmoPropagation(BaseProcessingObj):
                 raise ValueError('Pupil position must be an array with 2 elements')
         else:
             self.pupil_position = None
-            
+
         self.doFresnel = doFresnel
         self.wavelengthInNm = wavelengthInNm
         self.propagators = None
@@ -60,18 +60,17 @@ class AtmoPropagation(BaseProcessingObj):
                 ef = ElectricField(self.pixel_pupil_size, self.pixel_pupil_size, self.pixel_pitch, target_device_idx=self.target_device_idx)
                 ef.S0 = source.phot_density()
                 self.outputs['out_'+name+'_ef'] = ef
-        
+
         # atmo_layer_list is optional because it can be empty during calibration of an AO system while
-        # the common_layer_list is not optional because at least a pupilstop is needed       
-        self.inputs['atmo_layer_list'] = InputList(type=Layer,optional=True)                
+        # the common_layer_list is not optional because at least a pupilstop is needed
+        self.inputs['atmo_layer_list'] = InputList(type=Layer,optional=True)
         self.inputs['common_layer_list'] = InputList(type=Layer)
 
-        self.airmass = 1. / np.cos(np.radians(self.simul_params.zenithAngleInDeg), dtype=self.dtype)        
-        
+        self.airmass = 1. / np.cos(np.radians(self.simul_params.zenithAngleInDeg), dtype=self.dtype)
 
 
     def doFresnel_setup(self):
-   
+
         raise NotImplementedError('Fresnel propagation is not implemented')
 
         # Missing lib function
@@ -113,7 +112,7 @@ class AtmoPropagation(BaseProcessingObj):
             else:
                 output_ef_list = self.outputs['out_'+source_name+'_ef']
 
-            for li, layer in enumerate(self.local_inputs['atmo_layer_list'] + self.local_inputs['common_layer_list']):
+            for li, layer in enumerate(self.atmo_layer_list + self.common_layer_list):
 
                 if not self.mergeLayersContrib:
                     output_ef = output_ef_list[li]
@@ -124,7 +123,7 @@ class AtmoPropagation(BaseProcessingObj):
                     topleft = [(layer.size[0] - self.pixel_pupil_size) // 2, (layer.size[1] - self.pixel_pupil_size) // 2]
                     output_ef.product(layer, subrect=topleft)
                 else:
-                    if self.magnification_list[layer] is not None:
+                    if self.magnification_list[layer] is not None and self.magnification_list[layer] != 1:
                         tempA = layer.A
                         tempP = layer.phaseInNm
                         tempP[tempA == 0] = self.xp.mean(tempP[tempA != 0])
@@ -140,10 +139,12 @@ class AtmoPropagation(BaseProcessingObj):
 #                        propagator = None
 #                    self.update_ef.physical_prop(self.wavelengthInNm, propagator, temp_array=None)
 
+    def post_trigger(self):
+        super().post_trigger()
+
         for source_name in self.source_dict.keys():
             self.outputs['out_'+source_name+'_ef'].generation_time = self.current_time
 
-    
     def setup_interpolators(self):
         
         self.interpolators = {}
@@ -216,13 +217,13 @@ class AtmoPropagation(BaseProcessingObj):
         self.common_layer_list = self.inputs['common_layer_list'].get(self.target_device_idx)
 
         if self.atmo_layer_list is None:
-            self.atmo_layer_list = []        
+            self.atmo_layer_list = []
 
         self.nAtmoLayers = len(self.atmo_layer_list)
- 
+
         if len(self.atmo_layer_list) + len(self.common_layer_list) < 1:
             raise ValueError('At least one layer must be set')
- 
+
         if not self.mergeLayersContrib:
             for name, source in self.source_dict.items():
                 self.outputs['out_'+name+'_ef'] = []
@@ -235,6 +236,7 @@ class AtmoPropagation(BaseProcessingObj):
         self.magnification_list = {layer: max(layer.magnification, 1.0) for layer in self.atmo_layer_list + self.common_layer_list}
 
         self.setup_interpolators()
+        self.build_stream()
 
     def save(self, filename):
         hdr = fits.Header()

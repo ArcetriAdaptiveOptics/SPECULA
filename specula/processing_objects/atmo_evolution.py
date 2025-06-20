@@ -291,7 +291,7 @@ class AtmoEvolution(BaseProcessingObj):
             layer_phase = self.xp.rot90(layer_phase, wdi[ii])
             if not wdf_full[ii]==0:
                 layer_phase = self.rotate(layer_phase, wdf_full[ii], reshape=False, order=1)
-            self.layer_list[ii].phaseInNm = layer_phase * scale_coeff
+            self.layer_list[ii].phaseInNm[:] = layer_phase * scale_coeff
             self.layer_list[ii].generation_time = self.current_time
 
         # print(f'Phasescreen_shift: {new_position=}') # Verbose?

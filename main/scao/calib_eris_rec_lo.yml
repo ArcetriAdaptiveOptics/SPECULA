@@ -34,28 +34,50 @@ detector_lo_override:
   readout_noise:     False
 
 
-calibrator_lo:
-  class: 'ImRecCalibrator'
+im_calibrator_lo:
+  class: 'ImCalibrator'
   nmodes: 2
-  rec_tag:     'eris_rec_lo'
-  im_tag:  'eris_im_lo'
+  im_tag:     'eris_im_lo'
   #tag_template:    'subap_{main.tag}_n{modes}'
+  overwrite: True
   inputs:
     in_slopes: 'slopec_lo.out_slopes'
     in_commands: 'pushpull.output'
-  outputs: ['out_im']
+  outputs: ['out_im','out_intmat']
 
-calibrator_truth:
-  class: 'ImRecCalibrator'
+
+rec_calibrator_lo:
+  class: 'RecCalibrator'
+  nmodes: 54
+  rec_tag:     'eris_rec_lo'
+  #tag_template:    'subap_{main.tag}_n{modes}'
+  overwrite: True
+  inputs:
+    in_intmat: 'im_calibrator_lo.out_intmat'
+
+
+im_calibrator_truth:
+  class: 'ImCalibrator'
+  nmodes: 8
+  first_mode: 2
+  im_tag:     'eris_im_truth'
+  #tag_template:    'subap_{main.tag}_n{modes}'
+  overwrite: True
+  inputs:
+    in_slopes: 'slopec_lo.out_slopes'
+    in_commands: 'pushpull.output'
+  outputs: ['out_im','out_intmat']
+
+
+rec_calibrator_truth:
+  class: 'RecCalibrator'
   nmodes: 8
   first_mode: 2
   rec_tag:     'eris_rec_truth'
-  im_tag:  'eris_im_truth'
   #tag_template:    'subap_{main.tag}_n{modes}'
+  overwrite: True
   inputs:
-    in_slopes: 'slopec_lo.out_slopes'
-    in_commands: 'pushpull.output'
-  outputs: ['out_im']
+    in_intmat: 'im_calibrator_truth.out_intmat'
 
 
 remove: ['atmo',

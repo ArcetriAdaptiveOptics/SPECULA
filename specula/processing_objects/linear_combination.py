@@ -12,7 +12,7 @@ class LinearCombination(BaseProcessingObj):
         super().__init__(target_device_idx=target_device_idx, precision=precision)       
 
         self.inputs['in_vectors_list'] = InputList(type=BaseValue)
-        self.out_vector = BaseValue()
+        self.out_vector = BaseValue(target_device_idx=self.target_device_idx)
         self.outputs['out_vector'] = self.out_vector
 
     def trigger_code(self):
@@ -23,9 +23,10 @@ class LinearCombination(BaseProcessingObj):
         ngs = in_vectors[3].value
 
         lgs[0:2] = ngs[0:2]
-        focus *= 0
-        lift *= 0
-        ngs *= 0
+        lgs[2] = focus[0]
+#        focus *= 0.0
+#        lift *= 0
+#        ngs *= 0
 
         self.out_vector.value *= 0.0
         self.out_vector.value[:len(lgs)] = lgs

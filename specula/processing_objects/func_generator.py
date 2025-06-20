@@ -369,6 +369,7 @@ class FuncGenerator(BaseProcessingObj):
             raise ValueError(f'Unknown function generator type: {self.type}')
 
     def post_trigger(self):
+        super().post_trigger()
 
         self.output.generation_time = self.current_time
         self.iter_counter += 1

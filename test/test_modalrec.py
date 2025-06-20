@@ -57,11 +57,15 @@ class TestModalrec(unittest.TestCase):
         slopes_list = [3,  1.5,  3,  -0.5,  1,  1.5]
         slopes    = Slopes(slopes=xp.array(slopes_list), target_device_idx=target_device_idx)
         slopes_ip = Slopes(slopes=xp.array(slopes_list), target_device_idx=target_device_idx)
+        slopes.generation_time = 0
+        slopes_ip.generation_time = 0
 
         # commands:
         commands_list = [0.1, 0.2, 0.3, 0.4]
         commands    = BaseValue('commands', value=xp.array(commands_list), target_device_idx=target_device_idx)
         commands_ip = BaseValue('commands', value=xp.array(commands_list), target_device_idx=target_device_idx)
+        commands.generation_time = 0
+        commands_ip.generation_time = 0
 
         # Modalrec standard (POLC)
         rec = Modalrec(

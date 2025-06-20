@@ -64,7 +64,8 @@ class Modalrec(BaseProcessingObj):
                 if dmNumber is not None:
                     if dmNumber <= 0:
                         raise ValueError('dmNumber must be > 0')
-                    projmat = Recmat(recmat.proj_list[dmNumber - 1])
+                    projmat = Recmat(recmat.proj_list[dmNumber - 1],
+                                     target_device_idx=target_device_idx, precision=precision)
                 else:
                     raise ValueError('dmNumber (>0) must be defined if projmat_tag is not defined!')
 
@@ -147,8 +148,25 @@ class Modalrec(BaseProcessingObj):
             print("WARNING: modalrec skipping reconstruction because recmat is NULL")
             return
 
+        # In the polc case, commands may be *alwats* refreshed if they are set with -1
+        # (it might result in a kind of loop in the yml file)
+        # Therefor we check the slopes input time and only run when they have been refreshed.
         if self.polc:
-    
+
+            slopes = self.local_inputs['in_slopes']
+            slopes_list = self.local_inputs['in_slopes_list']
+
+            if slopes is not None:
+                slopes_time = slopes.generation_time
+            else:
+                slopes_time = slopes_list[0].generation_time
+
+            if slopes_time != self.current_time:
+                return
+
+
+        if self.polc:
+   
             if self.input_modes_index is not None:
                 commands = self.commands[self.input_modes_index]
             elif self.input_modes_slice is not None:

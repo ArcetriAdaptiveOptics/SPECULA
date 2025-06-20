@@ -139,6 +139,7 @@ dm:
 
 psf:
   class:             'PSF'
+  simul_params_ref:  'main'
   wavelengthInNm:    1650                 # [nm] Imaging wavelength
   nd:                8                    # padding coefficient for PSF computation
   start_time:        0.05                # PSF integration start time

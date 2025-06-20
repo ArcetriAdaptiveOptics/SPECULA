@@ -10,7 +10,7 @@ from astropy.io import fits
 
 class TestShCalibration(unittest.TestCase):
     """Test SH calibration by comparing generated calibration files with reference ones"""
-    
+
     def setUp(self):
         self.datadir = os.path.join(os.path.dirname(__file__), 'data')
         self.calibdir = os.path.join(os.path.dirname(__file__), 'calib')
@@ -24,9 +24,10 @@ class TestShCalibration(unittest.TestCase):
         self.subap_ref_path = os.path.join(self.datadir, 'scao_subaps_n8_th0.5_ref.fits')
         self.sn_ref_path = os.path.join(self.datadir, 'scao_sn_n8_th0.5_ref.fits')
         self.rec_ref_path = os.path.join(self.datadir, 'scao_rec_n8_th0.5_ref.fits')
-    
+
         self.subap_path = os.path.join(self.calibdir, 'subapdata', 'scao_subaps_n8_th0.5.fits')
         self.sn_path = os.path.join(self.calibdir, 'slopenulls', 'scao_sn_n8_th0.5.fits')
+        self.im_path = os.path.join(self.calibdir, 'im', 'scao_im_n8_th0.5.fits')
         self.rec_path = os.path.join(self.calibdir, 'rec', 'scao_rec_n8_th0.5.fits')
 
         self._cleanFiles()
@@ -40,9 +41,11 @@ class TestShCalibration(unittest.TestCase):
             os.remove(self.subap_path)
         if os.path.exists(self.sn_path):
             os.remove(self.sn_path)
+        if os.path.exists(self.im_path):
+            os.remove(self.im_path)
         if os.path.exists(self.rec_path):
             os.remove(self.rec_path)
-        
+
     def tearDown(self):
         self._cleanFiles()
         # Change back to original directory
