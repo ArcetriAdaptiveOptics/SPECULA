@@ -42,13 +42,13 @@ class MultiRecCalibrator(BaseProcessingObj):
         if self._rec_filename:
             return os.path.join(self._data_dir, self._rec_filename+str(i) + '.fits')
         else:
-            return None        
+            return None
 
     def full_rec_path(self):
         if self._full_rec_filename:
             return os.path.join(self._data_dir, self._full_rec_filename + '.fits')
         else:
-            return None           
+            return None
 
     def trigger_code(self):
         # Do nothing, the computation is done in finalize
@@ -83,5 +83,6 @@ class MultiRecCalibrator(BaseProcessingObj):
             full_rec_path = self.full_rec_path()
             if rec_path and os.path.exists(rec_path) and not self._overwrite:
                 raise FileExistsError(f'Rec file {rec_path} already exists, please remove it')
-            if full_rec_path and os.path.exists(full_rec_path) and not self._overwrite:
-                raise FileExistsError(f'Rec file {full_rec_path} already exists, please remove it')
+
+        if full_rec_path and os.path.exists(full_rec_path) and not self._overwrite:
+            raise FileExistsError(f'Rec file {full_rec_path} already exists, please remove it')
