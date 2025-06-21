@@ -35,7 +35,6 @@ class Simul():
         self.verbose = False  #TODO
         self.isReplay = False
         self.mainParams = None
-        self.mainParamsKeyName = None
         if overrides is None:
             self.overrides = []
         else:
@@ -170,7 +169,33 @@ class Simul():
             classname = pars['class']
             if classname == 'SimulParams':
                 self.mainParams = pars
-                self.mainParamsKeyName = key
+
+    def build_order(self, params):
+        '''
+        Return the correct object build order, taking into account
+        dependencies specified by _ref and _dict_ref parameters
+        '''
+        build_order = []
+
+        def add_to_build_order(key):
+            if key in build_order:
+                return
+
+            pars = params[key]
+            for name, value in pars.items():
+                if name.endswith('_ref'):
+                    objlist = value if type(value) is list else [value]
+                    for output in objlist:
+                        owner = self.output_owner(output)
+                        if owner not in build_order:
+                            add_to_build_order(owner)
+
+            build_order.append(key)
+
+        for key in params.keys():
+            add_to_build_order(key)
+
+        return build_order
 
     def build_objects(self, params):
 
@@ -179,7 +204,9 @@ class Simul():
         cm = CalibManager(self.mainParams['root_dir'])
         skip_pars = 'class inputs outputs'.split()
 
-        for key, pars in params.items():
+        for key in self.build_order(params):
+
+            pars = params[key]
             try:
                 classname = pars['class']
             except KeyError:
@@ -199,7 +226,6 @@ class Simul():
                 self.objs[key] = klass.restore(filename, target_device_idx=target_device_idx)
                 self.objs[key].stopMemUsageCount()
                 self.objs[key].printMemUsage()
-
                 continue
 
             pars2 = {}
@@ -527,6 +553,7 @@ class Simul():
 
         # Actual creation code
         self.apply_overrides(params)
+        self.setSimulParams(params)
         self.build_objects(params)
         self.connect_objects(params)
 
