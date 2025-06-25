@@ -4,6 +4,7 @@ from specula.base_time_obj import BaseTimeObj
 from specula import default_target_device, cp
 from specula import show_in_profiler
 from specula.connections import InputValue, InputList
+from specula import process_comm, process_rank
 
 class BaseProcessingObj(BaseTimeObj):
 
@@ -34,6 +35,7 @@ class BaseProcessingObj(BaseTimeObj):
         self.local_inputs = {}
         self.last_seen = {}
         self.outputs = {}
+        self.remote_outputs = {}
 
         # Use the correct CUDA device for allocations
         if self.target_device_idx >= 0:
@@ -108,6 +110,14 @@ class BaseProcessingObj(BaseTimeObj):
             self._target_device.use()
             if self.cuda_graph:
                 self.stream.synchronize()
+
+    # this method implments the mpi send call of the outputs connected to remote inputs
+    def send_outputs(self):
+        for out_name, remote_spec in self.remote_outputs.items():
+            dest_rank, dest_tag = remote_spec
+            # non blocking send, as we dont know the oder of the recieves
+            process_comm.isend(self.outputs[out_name], dest=dest_rank, tag=dest_tag)    
+        
 
     @classmethod
     def device_stream(cls, target_device_idx):

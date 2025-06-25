@@ -35,7 +35,7 @@ RAD2ASEC = 1.0 / ASEC2RAD
 # a GPU device (idx>=0).
 # This can be checked later looking at the  value of gpuEnabled.
 
-def init(device_idx=-1, precision=0, comm=None, rank=None):
+def init(device_idx=-1, precision=0, rank=None, comm=None):
     global xp
     global cp
     global gpuEnabled

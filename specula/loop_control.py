@@ -61,15 +61,22 @@ class LoopControl(BaseTimeObj):
         self._t0 = self.seconds_to_t(t0)
 
         for i in range(self._max_order+1):
-            for element in self._ordered_lists[i]:
-                try:
-                    element.startMemUsageCount()
-                    element.setup()
-                    element.stopMemUsageCount()
-                    element.printMemUsage()
-                except:
-                    print('Exception in', element.name)
-                    raise
+            # all the objects having this trigger order could be remote
+            if i in self._ordered_lists:
+                for element in self._ordered_lists[i]:
+                    try:
+                        element.send_outputs()
+
+                        for iname, ii in element.inputs.items():
+                            ii.get(element.target_device_idx)
+                        
+                        element.startMemUsageCount()
+                        element.setup()
+                        element.stopMemUsageCount()
+                        element.printMemUsage()
+                    except:
+                        print('Exception in', element.name)
+                        raise
 
         self._t = self._t0
 
@@ -86,27 +93,29 @@ class LoopControl(BaseTimeObj):
             self._profiler_started = True
 
         for i in range(self._max_order+1):
+            # all the objects having this trigger order could be remote
+            if i in self._ordered_lists:
+                for element in self._ordered_lists[i]:
+                    try:
+                        element.check_ready(self._t)
+                    except:
+                        print('Exception in', element.name)
+                        raise
 
-            for element in self._ordered_lists[i]:
-                try:
-                    element.check_ready(self._t)
-                except:
-                    print('Exception in', element.name)
-                    raise
+                for element in self._ordered_lists[i]:
+                    try:
+                        element.trigger()
+                    except:
+                        print('Exception in', element.name)
+                        raise
 
-            for element in self._ordered_lists[i]:
-                try:
-                    element.trigger()
-                except:
-                    print('Exception in', element.name)
-                    raise
-
-            for element in self._ordered_lists[i]:
-                try:
-                    element.post_trigger()
-                except:
-                    print('Exception in', element.name)
-                    raise
+                for element in self._ordered_lists[i]:
+                    try:
+                        element.post_trigger()
+                        element.send_outputs()
+                    except:
+                        print('Exception in', element.name)
+                        raise
 
         if self._stop_on_data and self._stop_on_data.generation_time == self._t:
             return

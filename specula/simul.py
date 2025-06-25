@@ -1,11 +1,13 @@
-
+import sys
 import typing
 import inspect
 import itertools
 from copy import deepcopy
 from pathlib import Path
 from collections import Counter
+from specula import process_comm, process_rank
 from specula.base_processing_obj import BaseProcessingObj
+from specula.base_data_obj import BaseDataObj
 
 from specula.loop_control import LoopControl
 from specula.lib.flatten import flatten
@@ -15,6 +17,14 @@ from specula.processing_objects.data_store import DataStore
 from specula.connections import InputValue
 
 import yaml
+import hashlib
+ 
+def computeTag(output_obj_name, dest_object, nn, ii):
+    s = output_obj_name + dest_object + nn + ii
+    print(s)
+    rr = int(hashlib.sha256(s.encode('utf-8')).hexdigest(), 16) % 10**6   
+    print(rr)
+    return rr
 
 
 class Simul():
@@ -26,10 +36,14 @@ class Simul():
                  overrides=None,
                  diagram=False,
                  diagram_title=None,
-                 diagram_filename=None                 
+                 diagram_filename=None
                  ):
         if len(param_files) < 1:
             raise ValueError('At least one Yaml parameter file must be present')
+        self.all_objs_ranks = {}
+        self.remote_objs_ranks = {}
+        self.remote_objs_types = {}
+        self.remote_objs_params = {}
         self.param_files = param_files
         self.objs = {}
         self.verbose = False  #TODO
@@ -61,13 +75,25 @@ class Simul():
         if '.' in output_name:
             obj_name, attr_name = output_name.split('.')
             if not obj_name in self.objs:
-                raise ValueError(f'Object {obj_name} does not exist')
+                if obj_name in self.remote_objs_ranks:
+                    return None, obj_name
+                else:
+                    raise ValueError(f'Object {obj_name} does not exist anywhere')
             if not attr_name in self.objs[obj_name].outputs:
                 raise ValueError(f'Object {obj_name} does not define an output with name {attr_name}')
             output_ref = self.objs[obj_name].outputs[attr_name]
         else:
-            output_ref = self.objs[output_name]
-        return output_ref
+            # this mus be a data object
+            # for data object the object name is the output name
+            obj_name = output_name
+            if not output_name in self.objs:
+                if output_name in self.remote_objs_ranks:
+                    return None, output_name
+                else:
+                    raise ValueError(f'Object {obj_name} does not exist anywhere')
+            else:
+                output_ref = self.objs[output_name]
+        return output_ref, obj_name
 
     def input_ref(self, input_name, target_device_idx):
         if ':' in input_name:
@@ -75,13 +101,17 @@ class Simul():
         if '.' in input_name:
             obj_name, attr_name = input_name.split('.')
             if not obj_name in self.objs:
-                raise ValueError(f'Object {obj_name} does not exist')
+                if obj_name in self.remote_objs_ranks:
+                    return None, obj_name
+                else:                
+                    raise ValueError(f'Object {obj_name} does not exist anywhere')
             if not attr_name in self.objs[obj_name].inputs:
                 raise ValueError(f'Object {obj_name} does not define an input with name {attr_name}')
             input_ref = self.objs[obj_name].inputs[attr_name].get(target_device_idx)
         else:
+            obj_name = input_name
             input_ref = self.objs[input_name].copyTo(target_device_idx)
-        return input_ref
+        return input_ref, obj_name
 
     def output_delay(self, output_name):
         if ':' in output_name:
@@ -190,11 +220,20 @@ class Simul():
             hints = get_type_hints(klass)
 
             target_device_idx = pars.get('target_device_idx', None)
+                        
+            target_rank = pars.get('target_rank', None)
+            if target_rank is None:
+                target_rank = 0
+                self.all_objs_ranks[key] = 0
+            else:                          
+                self.all_objs_ranks[key] = target_rank
+                del pars['target_rank']        
 
             if 'tag' in pars:
                 if len(pars) > 2:
                     raise ValueError('Extra parameters with "tag" are not allowed')
                 filename = cm.filename(classname, pars['tag'])
+                # tags are restored into each process (multiple copies), target_rank is not checked
                 print('Restoring:', filename)
                 self.objs[key] = klass.restore(filename, target_device_idx=target_device_idx)
                 self.objs[key].stopMemUsageCount()
@@ -215,11 +254,11 @@ class Simul():
 
                 # dict_ref field contains a dictionary of names and associated data objects (defined in the same yml file)
                 elif name.endswith('_dict_ref'):
-                    data = {x : self.output_ref(x) for x in value}
+                    data = {x : self.output_ref(x)[0] for x in value}
                     pars2[name[:-4]] = data
 
                 elif name.endswith('_ref'):
-                    data = self.output_ref(value)
+                    data = self.output_ref(value)[0]
                     pars2[name[:-4]] = data
 
                 # data fields are read from a fits file
@@ -245,7 +284,7 @@ class Simul():
                                 if arg is not type(None):  # Skip NoneType
                                     partype = arg
                                     break
-
+                        # data objects are restored into each process (multiple copies), target_rank is not checked
                         filename = cm.filename(parname, value)  # TODO use partype instead of parname?
                         print('Restoring:', filename)
                         parobj = partype.restore(filename, target_device_idx=target_device_idx)
@@ -278,28 +317,46 @@ class Simul():
                 my_params['info_getter'] = self.get_info
 
             my_params.update(pars2)
-            try:
-                self.objs[key] = klass(**my_params)
-            except Exception:
-                print(f'Exception building', key)
-                raise
-            if classname != 'SimulParams':
-                self.objs[key].stopMemUsageCount()
+            # create the simulations objects for this process. Data Object and SimulParams are always
+            # created, no matter what their rank (assigned process) is.
+            if process_rank==target_rank or issubclass(klass, BaseDataObj) or classname=='SimulParams':
+                try:
+                    self.objs[key] = klass(**my_params)
+                except Exception:
+                    print(f'Exception building', key)
+                    raise
+                if classname != 'SimulParams':
+                    self.objs[key].stopMemUsageCount()
 
-            self.objs[key].name = key
+                self.objs[key].name = key
 
-            # TODO this could be more general like the getters above
-            if type(self.objs[key]) is DataStore:
-                self.objs[key].setParams(params)
+                # TODO this could be more general like the getters above
+                if type(self.objs[key]) is DataStore:
+                    self.objs[key].setParams(params)
+            else:
+                self.remote_objs_ranks[key] = target_rank
+                self.remote_objs_types[key] = klass
+                self.remote_objs_params[key] = my_params
 
     def connect_objects(self, params):
         self.connections = []
         for dest_object, pars in params.items():
+            
+            classname = pars['class']
+            local_dest_object = dest_object in self.objs.keys()
 
             if 'outputs' in pars:
                 for output_name in pars['outputs']:
-                    if not output_name in self.objs[dest_object].outputs:
-                        raise ValueError(f'Object {dest_object} does not have an output called {output_name}')
+                    if local_dest_object:
+                        # check that this output was actually created by this dest_object
+                        if not output_name in self.objs[dest_object].outputs:
+                            raise ValueError(f'Object {dest_object} does not have an output called {output_name}')
+                    else:
+                        # remote object case
+                        if not ( self.all_objs_ranks[dest_object]!=process_rank \
+                             and 'outputs' in params[dest_object] \
+                             and output_name in params[dest_object]['outputs'] ):
+                            raise ValueError(f'Remote Object {dest_object} does not have an output called {output_name}')
 
             if 'inputs' not in pars:
                 continue
@@ -309,46 +366,100 @@ class Simul():
                 # Special case for DataStore
                 if isinstance(output_name, list) and input_name=='input_list':
                     inputs = [x.split('-')[0] for x in output_name]
-                    outputs = [self.output_ref(x.split('-')[1]) for x in output_name]
-                    for ii, oo, nn in zip(inputs, outputs, output_name):
-                        self.objs[dest_object].inputs[ii] = InputValue(type = type(oo) )
-                        self.objs[dest_object].inputs[ii].set(oo)
+                    outputs = [self.output_ref(x.split('-')[1])[0] for x in output_name]
+                    outputs_obj_names = [self.output_ref(x.split('-')[1])[1] for x in output_name]
 
-                        a_connection = {}
+                    for ii, oo, nn, output_obj_name in zip(inputs, outputs, output_name, outputs_obj_names):                            
+                        a_connection = {}                            
+                        if oo is None:
+                            if local_dest_object:
+                                # remote input case
+                                a_connection['remote'] = True
+                                self.objs[dest_object].inputs[ii] = InputValue(type = self.remote_objs_types[output_obj_name])
+                                self.objs[dest_object].inputs[ii].set_remote_rank(self.remote_objs_ranks[output_obj_name])
+                                self.objs[dest_object].inputs[ii].set_tag(computeTag(output_obj_name, dest_object, nn, ii))
+                            # else:
+                            #   nothing to do, both the sender and the reciver are remote, 
+                            #   some other process will take care of this case
+                        else:
+                            if local_dest_object:
+                                a_connection['remote'] = False
+                                self.objs[dest_object].inputs[ii] = InputValue(type = type(oo))
+                                self.objs[dest_object].inputs[ii].set(oo)
+                            else:
+                                # the sender is local, but the receiver is not
+                                self.objs[output_obj_name].remote_outputs[nn] = (self.remote_objs_ranks[output_obj_name], \
+                                                                                 computeTag(output_obj_name, dest_object, nn, ii))
+
                         a_connection['start'] = nn.split('.')[0].split('-')[-1]
                         a_connection['end'] = dest_object
                         a_connection['start_label'] = ii
-                        a_connection['middle_label'] = self.objs[dest_object].inputs[ii]
+                        # a_connection['middle_label'] = self.objs[dest_object].inputs[ii]
                         a_connection['end_label'] = nn
                         self.connections.append(a_connection)
+                        print(a_connection)
 
                     continue
 
-                if not input_name in self.objs[dest_object].inputs:
-                    raise ValueError(f'Object {dest_object} does does not have an input called {input_name}')
-                if not isinstance(output_name, (str, list)):
-                    raise ValueError(f'Object {dest_object}: invalid input definition type {type(output_name)}')
-
-                wanted_type = self.objs[dest_object].inputs[input_name].type()
+                if local_dest_object:
+                    if not input_name in self.objs[dest_object].inputs:
+                        raise ValueError(f'Object {dest_object} does does not have an input called {input_name}')
+                    if not isinstance(output_name, (str, list)):
+                        raise ValueError(f'Object {dest_object}: invalid input definition type {type(output_name)}')
+                    
+                    wanted_type = self.objs[dest_object].inputs[input_name].type()
+                else:
+                    # cannot check the type for remote object
+                    wanted_type = None
 
                 if isinstance(output_name, str):
-                    output_ref = self.output_ref(output_name)
-                    if not isinstance(output_ref, wanted_type):
-                        raise ValueError(f'Input {input_name}: output {output_ref} is not of type {wanted_type}')
+                    # Here we add the input, we can create the local or remote connections                    
+                    output_ref = self.output_ref(output_name)[0]
+                    output_obj_name = self.output_ref(output_name)[1]                    
 
+                    if output_ref is None:
+                        if local_dest_object:
+                            # remote connection
+                            self.objs[dest_object].inputs[input_name].set_remote_rank(self.remote_objs_ranks[output_obj_name])
+                        # else:
+                        #   nothing to do, both the sendere and the reciver are remote, 
+                        #   some other process will take care of this case
+                    else:
+                        # local connection
+                        if local_dest_object:
+                            self.objs[dest_object].inputs[input_name].set(output_ref)
+                        else:
+                            # otherwise this is a data object, no need for connection
+                            if output_obj_name in self.remote_objs_ranks:                        
+                                self.objs[output_obj_name].remote_outputs[output_name] = (self.remote_objs_ranks[output_obj_name], \
+                                                                                        computeTag(output_obj_name, \
+                                                                                                    dest_object, \
+                                                                                                    output_name, \
+                                                                                                    input_name))
+                
                 elif isinstance(output_name, list):
-                    outputs = [self.output_ref(x) for x in output_name]
+                    outputs = [self.output_ref(x)[0] for x in output_name]
+                    output_names = [self.output_ref(x)[1] for x in output_name]
                     output_ref = flatten(outputs)
-                    for output in output_ref:
-                        if not isinstance(output, wanted_type):
-                            raise ValueError(f'Input {input_name}: output {output} is not of type {wanted_type}')
+                    for output, output_name in zip(output_ref, output_names):
+                        print('list case:', output, output_name, wanted_type)
+                        if local_dest_object:                            
+                            if output is not None and not isinstance(output, wanted_type):
+                                raise ValueError(f'Input {input_name}: output {output} is not of type {wanted_type}')
 
                 try:
-                    self.objs[dest_object].inputs[input_name].set(output_ref)
+                    if output_ref is not None and local_dest_object:
+                        self.objs[dest_object].inputs[input_name].set(output_ref)
+                    # TODO Note this! is it necessary or useful?
+                    #else:
+                    #    self.objs[dest_object].inputs[input_name].set(None)
                 except ValueError:
                     print(f'Error connecting {output_name} to {dest_object}.{input_name}')
                     raise
-
+                # else:
+                #     # do nothing??? TODO
+                                        
+            if local_dest_object:             
                 if not type(output_name) is list:
                     a_connection = {}
                     a_connection['start'] = output_name.split('.')[0].split('-')[-1]
@@ -364,8 +475,13 @@ class Simul():
                         a_connection['start'] = oo.split('.')[0].split('-')[-1]
                         a_connection['end'] = dest_object
                         a_connection['start_label'] = oo.split('.')[-1]
-                        a_connection['middle_label'] = self.objs[dest_object].inputs[input_name]
-                        a_connection['end_label'] = self.objs[dest_object].inputs[input_name]
+                        # a_connection['middle_label'] = self.objs[dest_object].inputs[input_name]
+                        # a_connection['end_label'] = self.objs[dest_object].inputs[input_name]
+                        if output_ref is not None:
+                            a_connection['remote'] = False
+                        else:
+                            a_connection['remote'] = True
+                        print(a_connection)
                         self.connections.append(a_connection)
 
     def build_replay(self, params):
@@ -549,9 +665,10 @@ class Simul():
 
         # Build loop
         for name, idx in zip(self.trigger_order, self.trigger_order_idx):
-            obj = self.objs[name]
-            if isinstance(obj, BaseProcessingObj):
-                self.loop.add(obj, idx)
+            if name not in self.remote_objs_ranks:
+                obj = self.objs[name]
+                if isinstance(obj, BaseProcessingObj):
+                    self.loop.add(obj, idx)
 
         # Default display web server
         if 'display_server' in self.mainParams and self.mainParams['display_server']:
@@ -560,6 +677,11 @@ class Simul():
             self.objs['display_server'] = disp
             self.loop.add(disp, idx+1)
             disp.name = 'display_server'
+
+        print(process_rank, 'at run barrier')
+        
+        sys.stdout.flush()
+        process_comm.barrier()
 
         # Run simulation loop
         self.loop.run(run_time=self.mainParams['total_time'], dt=self.mainParams['time_step'], speed_report=True)

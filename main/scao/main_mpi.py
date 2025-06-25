@@ -3,21 +3,48 @@
 from mpi4py import MPI
 from mpi4py.util import pkl5
 
-# comm = MPI.COMM_WORLD
-comm = pkl5.Intracomm(MPI.COMM_WORLD)
-rank = comm.Get_rank()
-
 import sys
-
-import specula
-
-specula.init(device_idx=int(sys.argv[1]), precision=int(sys.argv[2]), comm=comm, rank=rank)
-
-from specula.simul import Simul
 
 import cProfile
 from pstats import Stats
 
+#!/usr/bin/env python
+
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--cpu', action='store_true')
+parser.add_argument('--overrides', type=str)
+parser.add_argument('--target', type=int, default=0)
+parser.add_argument('yml_file', nargs='+', type=str, help='YAML parameter files')
+parser.add_argument('--diagram', action='store_true', help='Save image block diagram')
+parser.add_argument('--diagram-title', type=str, default=None, help='Block diagram title')
+parser.add_argument('--diagram-filename', type=str, default=None, help='Block diagram filename')
+
+if __name__ == '__main__':
+    comm = pkl5.Intracomm(MPI.COMM_WORLD)
+    rank = comm.Get_rank()
+    args = parser.parse_args()
+    print('Starting proceess with rank:', rank)
+    if args.cpu:
+        target_device_idx = -1
+    else:
+        target_device_idx = args.target
+
+    import specula
+    specula.init(target_device_idx, precision=1, rank=rank, comm=comm)
+
+    print(args)    
+    from specula.simul import Simul
+    simul = Simul(*args.yml_file,
+                  overrides=args.overrides,
+                  diagram=args.diagram,
+                  diagram_filename=args.diagram_filename,
+                  diagram_title=args.diagram_title  
+    )
+    simul.run()
+
+'''
 def addRankToIniName(name, r):
     name_no_ext, ext = name.split('.')
     return name_no_ext+str(r)+'.'+ext
@@ -27,7 +54,7 @@ def main(*inifiles):
     global rank
     param_files = list(inifiles)
     param_files[0] = addRankToIniName(param_files[0], rank)
-    print(param_files)
+    #print(param_files)
     simul = Simul(*param_files)
     simul.run()
 
@@ -39,3 +66,4 @@ if __name__ == '__main__':
         stats.print_stats(r"\((?!\_).*\)$", 200)
     else:
         main(*sys.argv[3:])
+'''
