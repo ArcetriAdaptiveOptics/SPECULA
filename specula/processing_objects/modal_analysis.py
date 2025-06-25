@@ -67,6 +67,8 @@ class ModalAnalysis(BaseProcessingObj):
 
         if nmodes is None:
             self._n_modes = self.phase2modes.size[1]
+        else:
+            self._n_modes = nmodes
         self._n_inputs = n_inputs
 
         self.out_modes = BaseValue('output modes from modal analysis', target_device_idx=target_device_idx)
