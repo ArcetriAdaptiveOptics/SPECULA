@@ -377,7 +377,9 @@ class Simul():
                                 a_connection['remote'] = True
                                 self.objs[dest_object].inputs[ii] = InputValue(type = self.remote_objs_types[output_obj_name])
                                 self.objs[dest_object].inputs[ii].set_remote_rank(self.remote_objs_ranks[output_obj_name])
-                                self.objs[dest_object].inputs[ii].set_tag(computeTag(output_obj_name, dest_object, nn, ii))
+                                tag = computeTag(output_obj_name, dest_object, nn, ii)
+                                print('Computed tag:', tag)
+                                self.objs[dest_object].inputs[ii].set_tag(tag)
                             # else:
                             #   nothing to do, both the sender and the reciver are remote, 
                             #   some other process will take care of this case
@@ -425,9 +427,13 @@ class Simul():
                         if local_dest_object:
                             # remote connection
                             self.objs[dest_object].inputs[input_name].set_remote_rank(self.remote_objs_ranks[output_obj_name])
+                            tag = computeTag(output_obj_name, dest_object, outputs_attr_name, input_name)
+                            print('Computed tag:', tag)
+                            self.objs[dest_object].inputs[input_name].set_tag(tag)
+
                         # else:
                         #   nothing to do, both the sendere and the reciver are remote, 
-                        #   some other process will take care of this case
+                        #   some other processes will take care of this case
                     else:
                         # local connection
                         if local_dest_object:

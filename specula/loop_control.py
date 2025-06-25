@@ -81,7 +81,6 @@ class LoopControl(BaseTimeObj):
         sys.stdout.flush()
         process_comm.barrier()
 
-
         for i in range(self._max_order+1):
             # all the objects having this trigger order could be remote
             if i in self._ordered_lists:

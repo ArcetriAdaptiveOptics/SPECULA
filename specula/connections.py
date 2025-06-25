@@ -1,4 +1,5 @@
 from specula import process_rank, process_comm
+from specula import np, cp
 
 class InputValue():
     def __init__(self, type, optional=False):
@@ -26,8 +27,8 @@ class InputValue():
             return self.output_ref.generation_time        
 
     def get(self, target_device_idx):
-        if not self.output_ref is None:
-            if not self.remote:
+        if not self.remote:
+            if not self.output_ref is None:            
                 if self.output_ref.target_device_idx == target_device_idx:
                     return self.output_ref
                 else:
@@ -36,17 +37,21 @@ class InputValue():
                     else:
                         self.output_ref.transferDataTo(self.cloned_value)
                     return self.cloned_value
+        else:
+            print('Receiveing from ', self.remote_rank, 'with tag', self.tag)
+            output_data = process_comm.recv(source=self.remote_rank, tag=self.tag)
+            if output_data.xp_str == 'cp':
+                output_data.xp = cp
             else:
-                print('Recaiveing from ', self.remote_rank, 'with ttag', self.tag)
-                output_data = process_comm.recv(source=self.remote_rank, tag=self.tag)
-                print('Receive successful:', output_data)
-                if self.cloned_value is None:
-                    # update copyTo to handle same target_device_idx but different rank
-                    self.cloned_value = output_data.copyTo(target_device_idx)
-                else:
-                    # update transferDataTo to handle same target_device_idx but different rank
-                    output_data.transferDataTo(self.cloned_value)
-                return self.cloned_value
+                output_data.xp = np
+            print('Receive successful:', output_data)
+            if self.cloned_value is None:
+                # update copyTo to handle same target_device_idx but different rank
+                self.cloned_value = output_data.copyTo(target_device_idx)
+            else:
+                # update transferDataTo to handle same target_device_idx but different rank
+                output_data.transferDataTo(self.cloned_value)
+            return self.cloned_value
 
     def set(self, value):
         if not isinstance(value, self.output_ref_type):
