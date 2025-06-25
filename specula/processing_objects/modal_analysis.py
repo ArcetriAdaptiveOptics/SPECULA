@@ -100,9 +100,9 @@ class ModalAnalysis(BaseProcessingObj):
     def setup(self):
         super().setup()
         input_list = self.inputs['in_ef_list'].get(self.target_device_idx)
-        if self._n_inputs != len(input_list):
-            raise ValueError(f"Number of inputs ({len(input_list)}) does not match expected number ({self._n_inputs})")
         if input_list:
+            if self._n_inputs != len(input_list):
+                raise ValueError(f"Number of inputs ({len(input_list)}) does not match expected number ({self._n_inputs})")
             for i in range(len(input_list)):
                 self.outputs['out_modes_list'][i].value = self.xp.zeros(self._n_modes, dtype=self.dtype)
 
