@@ -388,6 +388,7 @@ class Simul():
                                 self.objs[dest_object].inputs[ii].set(oo)
                             else:
                                 # the sender is local, but the receiver is not
+                                print('Adding remote output to ', nn)
                                 self.objs[output_obj_name].remote_outputs[nn] = (self.remote_objs_ranks[output_obj_name], \
                                                                                  computeTag(output_obj_name, dest_object, nn, ii))
 
@@ -415,7 +416,10 @@ class Simul():
                 if isinstance(output_name, str):
                     # Here we add the input, we can create the local or remote connections                    
                     output_ref = self.output_ref(output_name)[0]
-                    output_obj_name = self.output_ref(output_name)[1]                    
+                    output_obj_name = self.output_ref(output_name)[1]
+                    outputs_attr_name = output_name.split('.')[1]
+
+                    print('output_obj_name', output_obj_name, 'outputs_attr_name', outputs_attr_name)                    
 
                     if output_ref is None:
                         if local_dest_object:
@@ -430,11 +434,12 @@ class Simul():
                             self.objs[dest_object].inputs[input_name].set(output_ref)
                         else:
                             # otherwise this is a data object, no need for connection
-                            if output_obj_name in self.remote_objs_ranks:                        
-                                self.objs[output_obj_name].remote_outputs[output_name] = (self.remote_objs_ranks[output_obj_name], \
+                            if dest_object in self.remote_objs_ranks and output_obj_name in self.objs:
+                                print('1 Adding remote output to ', output_obj_name)
+                                self.objs[output_obj_name].remote_outputs[outputs_attr_name] = (self.remote_objs_ranks[dest_object], \
                                                                                         computeTag(output_obj_name, \
                                                                                                     dest_object, \
-                                                                                                    output_name, \
+                                                                                                    outputs_attr_name, \
                                                                                                     input_name))
                 
                 elif isinstance(output_name, list):
@@ -442,7 +447,7 @@ class Simul():
                     output_names = [self.output_ref(x)[1] for x in output_name]
                     output_ref = flatten(outputs)
                     for output, output_name in zip(output_ref, output_names):
-                        print('list case:', output, output_name, wanted_type)
+                        # print('list case:', output, output_name, wanted_type)
                         if local_dest_object:                            
                             if output is not None and not isinstance(output, wanted_type):
                                 raise ValueError(f'Input {input_name}: output {output} is not of type {wanted_type}')
@@ -452,6 +457,13 @@ class Simul():
                         self.objs[dest_object].inputs[input_name].set(output_ref)
                     # TODO Note this! is it necessary or useful?
                     #else:
+                    #    if dest_object in self.remote_objs_ranks and output_obj_name in self.objs:
+                    #        print('2 Adding remote output to ', output_obj_name)
+                    #        self.objs[output_obj_name].remote_outputs[outputs_attr_name] = (self.remote_objs_ranks[dest_object], \
+                    #                                                                  computeTag(output_obj_name, \
+                    #                                                                  dest_object, \
+                    #                                                                  outputs_attr_name, \
+                    #                                                                  input_name))
                     #    self.objs[dest_object].inputs[input_name].set(None)
                 except ValueError:
                     print(f'Error connecting {output_name} to {dest_object}.{input_name}')

@@ -37,7 +37,9 @@ class InputValue():
                         self.output_ref.transferDataTo(self.cloned_value)
                     return self.cloned_value
             else:
+                print('Recaiveing from ', self.remote_rank, 'with ttag', self.tag)
                 output_data = process_comm.recv(source=self.remote_rank, tag=self.tag)
+                print('Receive successful:', output_data)
                 if self.cloned_value is None:
                     # update copyTo to handle same target_device_idx but different rank
                     self.cloned_value = output_data.copyTo(target_device_idx)
@@ -102,6 +104,7 @@ class InputList():
                         self.cloned_list.append(list_item.copyTo(target_device_idx))
                 else:
                     output_data = process_comm.recv(source=self.remote_rank, tag=self.tag)
+                    print('Receive successful:', output_data)
                     self.cloned_list.append(output_data.copyTo(target_device_idx))
         else:
             # Second get(): always used transferDataTo()            
@@ -113,6 +116,7 @@ class InputList():
                         list_item.transferDataTo(cloned)
                 else:
                     output_data = process_comm.recv(source=self.remote_rank, tag=self.tag)
+                    print('Receive successful:', output_data)
                     output_data.transferDataTo(cloned)                    
 
         return self.cloned_list

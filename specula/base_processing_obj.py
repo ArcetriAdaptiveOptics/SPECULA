@@ -113,9 +113,13 @@ class BaseProcessingObj(BaseTimeObj):
 
     # this method implments the mpi send call of the outputs connected to remote inputs
     def send_outputs(self):
+        print(self.remote_outputs)
         for out_name, remote_spec in self.remote_outputs.items():
             dest_rank, dest_tag = remote_spec
             # non blocking send, as we dont know the oder of the recieves
+            print('Sending ', out_name, 'to ', dest_rank, 'with ttag',  dest_tag)
+            print(type(self.outputs[out_name]))
+            print(self.outputs[out_name])
             process_comm.isend(self.outputs[out_name], dest=dest_rank, tag=dest_tag)    
         
 

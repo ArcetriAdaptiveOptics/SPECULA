@@ -1,8 +1,9 @@
+import sys
 import time
 import numpy as np
 
 from specula.base_time_obj import BaseTimeObj
-
+from specula import process_comm
 
 class LoopControl(BaseTimeObj):
     def __init__(self, verbose=False):
@@ -60,16 +61,32 @@ class LoopControl(BaseTimeObj):
         self._dt = self.seconds_to_t(dt)
         self._t0 = self.seconds_to_t(t0)
 
+
+        for i in range(self._max_order+1):
+            # all the objects having this trigger order could be remote
+            if i in self._ordered_lists:
+                for element in self._ordered_lists[i]:                    
+                    element.send_outputs()
+                    
+        sys.stdout.flush()
+        process_comm.barrier()        
+
+        for i in range(self._max_order+1):
+            # all the objects having this trigger order could be remote
+            if i in self._ordered_lists:
+                for element in self._ordered_lists[i]:                    
+                    for iname, ii in element.inputs.items():
+                        ii.get(element.target_device_idx)
+                    
+        sys.stdout.flush()
+        process_comm.barrier()
+
+
         for i in range(self._max_order+1):
             # all the objects having this trigger order could be remote
             if i in self._ordered_lists:
                 for element in self._ordered_lists[i]:
-                    try:
-                        element.send_outputs()
-
-                        for iname, ii in element.inputs.items():
-                            ii.get(element.target_device_idx)
-                        
+                    try:                        
                         element.startMemUsageCount()
                         element.setup()
                         element.stopMemUsageCount()
