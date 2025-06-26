@@ -24,6 +24,7 @@ class LoopControl(BaseTimeObj):
         self._elapsed = []
         self._nframes_cnt = -1
         self._max_order = -1
+        self.max_global_order = -1
 
     def add(self, obj, idx):
         if obj is None:
@@ -64,24 +65,24 @@ class LoopControl(BaseTimeObj):
         self._run_time = self.seconds_to_t(run_time)
         self._dt = self.seconds_to_t(dt)
         self._t0 = self.seconds_to_t(t0)
+        
+        process_comm.barrier()
 
-
-        for i in range(self._max_order+1):
+        for i in range(self.max_global_order+1):
             # all the objects having this trigger order could be remote
             if i in self._ordered_lists:
                 for element in self._ordered_lists[i]:                    
                     element.send_outputs()
-        
-        sys.stdout.flush()
-        
-        print(process_rank, 'at barrier A')        
-        process_comm.barrier()
-        print(process_rank, 'after barrier A')
 
-        print(process_rank, 'self._max_order', self._max_order)
+
+        print(process_rank, 'at barrier A', flush=True)
+        process_comm.barrier()
+        print(process_rank, 'after barrier A', flush=True)
+
+        print(process_rank, 'self._max_order', self._max_order, flush=True)
 
         '''
-        for i in range(self._max_order+1):
+        for i in range(self.max_global_order+1):
             print(process_rank, i, 'begin', flush=True)
             # all the objects having this trigger order could be remote
             if i in self._ordered_lists.keys():
@@ -95,18 +96,25 @@ class LoopControl(BaseTimeObj):
                     print(process_rank, element, 'done', flush=True)
             print(process_rank, i, 'done', flush=True)            
         '''
-        print(process_rank, 'all done', flush=True)        
-        #print(process_rank, 'at barrier B', flush=True)        
-        process_comm.barrier()
+        print(process_rank, 'all done', flush=True)
+        #print(process_rank, 'at barrier B', flush=True)
+        #process_comm.barrier()
         #print(process_rank, 'after barrier B', flush=True)
 
-        for i in range(self._max_order+1):
+        process_comm.barrier()
+        print(process_rank, 'Sending data pre-setup', flush=True)
+
+        for i in range(self.max_global_order+1):
             # all the objects having this trigger order could be remote
             if i in self._ordered_lists:
                 for element in self._ordered_lists[i]:                    
                     element.send_outputs()
+            process_comm.barrier()
 
-        for i in range(self._max_order+1):
+        process_comm.barrier()
+        print(process_rank, 'Starting setups', flush=True)
+
+        for i in range(self.max_global_order+1):
             # all the objects having this trigger order could be remote
             if i in self._ordered_lists:
                 for element in self._ordered_lists[i]:
@@ -123,10 +131,7 @@ class LoopControl(BaseTimeObj):
                         print('Exception in', element.name, flush=True)
                         raise
         
-        # print(process_rank, 'at barrier C', flush=True)
-        process_comm.barrier()
-        # print(process_rank, 'after barrier C', flush=True)
-
+        
         self._t = self._t0
 
         self._cur_time = -1
@@ -137,12 +142,14 @@ class LoopControl(BaseTimeObj):
         self._nframes_cnt = -1
 
     def iter(self):
+
+        print(process_rank, 'NEW ITERATION')
+
         if self._profiling and self._t != self._t0 and not self._profiler_started:
             self.start_profiling()
             self._profiler_started = True
 
-        for i in range(self._max_order+1):
-            process_comm.barrier()
+        for i in range(self.max_global_order+1):            
             # all the objects having this trigger order could be remote
             if i in self._ordered_lists:
                 for element in self._ordered_lists[i]:
@@ -170,6 +177,8 @@ class LoopControl(BaseTimeObj):
                         print('Exception in', element.name, flush=True)
                         raise
 
+        # process_comm.barrier()
+
         if self._stop_on_data and self._stop_on_data.generation_time == self._t:
             return
 
@@ -194,7 +203,7 @@ class LoopControl(BaseTimeObj):
 
     def finish(self):
 
-        for i in range(self._max_order+1):
+        for i in range(self.max_global_order+1):
             if i in self._ordered_lists:
                 for element in self._ordered_lists[i]:
                     try:

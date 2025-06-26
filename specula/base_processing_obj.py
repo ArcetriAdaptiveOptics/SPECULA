@@ -73,8 +73,8 @@ class BaseProcessingObj(BaseTimeObj):
         for input_name, input_obj in self.inputs.items():
             if type(input_obj) is InputValue:
                 self.local_inputs[input_name] = input_obj.get(self.target_device_idx)
-                if input_name=='in_ef':
-                    print(input_name, 'local input', self.local_inputs[input_name], flush=True)
+#                if input_name=='in_ef':
+#                    print(process_rank, input_name, 'local input', self.local_inputs[input_name], flush=True)
                 if self.local_inputs[input_name] is not None:
                     self.last_seen[input_name] = self.local_inputs[input_name].generation_time
             elif type(input_obj) is InputList:

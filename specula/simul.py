@@ -688,6 +688,10 @@ class Simul():
                 obj = self.objs[name]
                 if isinstance(obj, BaseProcessingObj):
                     self.loop.add(obj, idx)
+        
+        self.loop.max_global_order = max(self.trigger_order_idx)
+        print('self.loop.max_global_order', self.loop.max_global_order, flush=True)
+
 
         # Default display web server
         if 'display_server' in self.mainParams and self.mainParams['display_server']:

@@ -23,6 +23,9 @@ class ElectricField(BaseDataObj):
         self.A = self.xp.ones((dimx, dimy), dtype=self.dtype)
         self.phaseInNm = self.xp.zeros((dimx, dimy), dtype=self.dtype)
 
+    def __str__(self):
+        return str(self.A)+str(self.phaseInNm)
+    
     def set_value(self, v):
         '''
         Set new values for phase and amplitude
