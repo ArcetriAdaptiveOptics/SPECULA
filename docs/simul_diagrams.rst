@@ -12,7 +12,7 @@ The diagram corresponding to the parameters file ``main/scao/params_scao_sh.yml`
 A file named ``params_scao_sh.png`` will be created in the current directory, containing the diagram of the simulation.
 The diagram is:
 
-.. image:: ../_static/diagrams/params_scao_sh.png
+.. image:: ../_static/params_scao_sh.png
    :width: 100%
    :align: center
 
@@ -20,6 +20,6 @@ Another example is the diagram corresponding to the parameters file ``main/scao/
 
 .. code-block:: bash
 
-.. image:: ../_static/diagrams/params_control_lpf.png
+.. image:: ../_static/params_control_lpf.png
    :width: 100%
    :align: center
