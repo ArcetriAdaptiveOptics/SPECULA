@@ -6,7 +6,7 @@ from specula.data_objects.simul_params import SimulParams
 class LowPassFilter(IirFilter):
     def __init__(self,
                  simul_params: SimulParams,
-                 cutoff_freq: float,    # TODO =1.0,                 
+                 cutoff_freq: float,    # TODO =1.0,           
                  amplif_fact: float=None,
                  n_ord: int=None,
                  delay: float=0,
@@ -15,12 +15,12 @@ class LowPassFilter(IirFilter):
                  target_device_idx: int=None,
                  precision: int=None
                 ):
-        
+
         self.simul_params = simul_params
         self.time_step = self.simul_params.time_step
-        
+
         samp_freq = 1 / self.time_step
-        
+
         if amplif_fact is not None:
             if n_ord is not None:
                 raise ValueError('Only one of amplif_fact and n_ord can be specified')
@@ -31,5 +31,5 @@ class LowPassFilter(IirFilter):
                                                         target_device_idx=target_device_idx)
 
         # Initialize IirFilter object
-        super().__init__(iir_filter_data, delay=delay, offset=offset, og_shaper=og_shaper,
+        super().__init__(simul_params, iir_filter_data, delay=delay, offset=offset, og_shaper=og_shaper,
                          target_device_idx=target_device_idx, precision=precision)
