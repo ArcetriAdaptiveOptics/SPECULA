@@ -3,7 +3,7 @@ Running Simulations
 
 In the directory ``main/scao`` there are several example configuration / parameters files for SCAO systems.
 
-The basic way to run the simulation is to use the Simul class directly:
+The basic way to run the simulation is to use the :class:`specula.simul.Simul` class directly:
 
 .. code-block:: python
 
