@@ -60,6 +60,7 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
   from specula.lib.compute_zonal_ifunc import compute_zonal_ifunc
   from specula.lib.modal_base_generator import make_modal_base_from_ifs_fft
   from specula.data_objects.ifunc import IFunc
+  from specula.data_objects.ifunc_inv import IFuncInv
   from specula.data_objects.m2c import M2C
 
   def compute_and_save_influence_functions():
@@ -149,14 +150,13 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
       
       print(f"KL basis shape: {kl_basis.shape}")
       print(f"Number of KL modes: {kl_basis.shape[0]}")
-      
-      # Verify RMS normalization (like in test)
-      for i in range(min(5, kl_basis.shape[0])):  # Check first 5 modes
-          rms = float(specula.xp.sqrt(specula.xp.mean(kl_basis[i]**2)))
-          print(f"Mode {i+1} RMS: {rms:.3f}")
-      
+           
+      ifunc_inv_matrix = np.linalg.pinv(m2c.T @ influence_functions)
+
       # Step 3: Create output directory
       os.makedirs('calibration', exist_ok=True)
+      os.makedirs('calibration/ifunc', exist_ok=True)
+      os.makedirs('calibration/m2c', exist_ok=True)
       
       # Step 4: Save using SPECULA data objects
       print(f"\nSaving influence functions and modal basis...")
@@ -176,6 +176,15 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
       m2c_obj.save('calibration/tutorial_m2c.fits')
       print("✓ tutorial_m2c.fits (KL modal basis)")
       
+      # inverse influence function object for modal analysis
+      print("Saving inverse modal base...")
+      ifunc_inv_obj = IFuncInv(
+          ifunc_inv=ifunc_inv_matrix,
+          mask=pupil_mask
+      )
+      ifunc_inv_obj.save('calibration/ifunc/tutorial_base_inv.fits')
+      print("✓ tutorial_base_inv.fits (inverse modal base)")
+
       # Step 5: Optional visualization
       try:
         import matplotlib.pyplot as plt
@@ -258,30 +267,49 @@ Expected output:
 
 .. code-block:: text
 
-   Computing zonal influence functions...
-   Pupil pixels: 160
-   Actuators: 41x41 = 1681
-   Telescope diameter: 8.2m
-   Central obstruction: 14.0%
+  Computing zonal influence functions...
+  Pupil pixels: 160
+  Actuators: 41x41 = 1681
+  Telescope diameter: 8.2m
+  Central obstruction: 14.0%
+  r0 = 0.15m, L0 = 25.0m
 
-   Results:
-   Valid actuators: 1240/1681 (73.8%)
-   Pupil pixels: 19847/25600 (77.5%)
-   Influence functions shape: (1240, 19847)
-   Memory usage: 98.5 MB
+  Computation completed.
 
-   Saving to calibration/ directory...
-   ✓ influence_functions.fits
-   ✓ pupil_mask.fits
+  Zonal influence functions:
+  Valid actuators: 1141/1681 (67.9%)
+  Pupil pixels: 19716/25600 (77.0%)
+  Influence functions shape: (1141, 19716)
 
-   Influence functions computation completed!
-   Files saved in: /path/to/your/simulation/calibration/
+  Generating KL modal basis...
+  KL basis shape: (1140, 19716)
+  Number of KL modes: 1140
+
+  Saving influence functions and modal basis...
+  ✓ tutorial_ifunc.fits (zonal influence functions)
+  ✓ tutorial_m2c.fits (KL modal basis)
+
+  Saving inverse modal base...
+  ✓ tutorial_base_inv.fits (inverse modal base)
+
+  Generating visualization...
+
+  Influence functions and modal basis computation completed!
+  Files saved in: calibration
+
+  Files created:
+    tutorial_ifunc.fits  - Zonal influence functions (1141 actuators)
+    tutorial_m2c.fits    - KL modal basis (1140 modes)
+
+  Testing file loading...
+  ✓ IFunc loading test passed
+  ✓ M2C loading test passed
 
 **What this does:**
 
 1. **Defines the actuator geometry**: A 41×41 grid with a circular layout, optimized for round telescope pupils with a 14% obstruction, which removes the central actuators.
 
-3. **Computes influence functions**: Each of the 1240 valid actuators produces a unique pattern of phase change across the ~19,000 pupil pixels
+3. **Computes influence functions**: Each of the 1141 valid actuators produces a unique pattern of phase change across the ~19,000 pupil pixels
 
 4. **Saves calibration data**: Files are saved in FITS format for use by the main simulation
 
@@ -337,14 +365,15 @@ Create ``config/scao_tutorial.yaml``:
    # Science target (on-axis)
    source_science:
      class:             'Source'
-     polar_coordinates: [0.0, 0.0]           # [arcsec, deg] On-axis target
+     polar_coordinates: [0.0, 0.0]            # [arcsec, deg] On-axis target
+     height:            .inf                  # Infinite height (star)
      magnitude:         10.0                  # H-band magnitude
      wavelengthInNm:    1650                  # [nm] H-band center
    
    # Natural guide star for WFS
    source_ngs:
      class:             'Source'
-     polar_coordinates: [0.0, 0.0]           # [arcsec, deg] On-axis NGS
+     polar_coordinates: [0.0, 0.0]            # [arcsec, deg] On-axis NGS
      height:            .inf                  # Infinite height (star)
      magnitude:         8.0                   # R-band magnitude (bright NGS)
      wavelengthInNm:    800                   # [nm] R-band for WFS
@@ -432,7 +461,7 @@ Create ``config/scao_tutorial.yaml``:
      simul_params_ref:  'main'
      delay:             1                     # 1 frame delay (realistic)
      gain:              [0.30]
-     n_modes:           [1240]                # Number of modes to control
+     n_modes:           [1140]                # Number of modes to control
      inputs:
        delta_comm:      'modalrec.out_modes'
      outputs:           ['out_comm']
@@ -443,7 +472,7 @@ Create ``config/scao_tutorial.yaml``:
      simul_params_ref:  'main'
      ifunc_object:      'tutorial_ifunc'      # Our computed influence functions
      m2c_object:        'tutorial_m2c'        # Modal-to-command matrix
-     nmodes:            1240                  # Number of controlled modes
+     nmodes:            1140                  # Number of controlled modes
      height:            0                     # Ground-conjugated DM
      inputs:
        in_command:      'integrator.out_comm'
@@ -459,11 +488,28 @@ Create ``config/scao_tutorial.yaml``:
        in_ef:           'prop.out_source_science_ef'
      outputs:           ['out_psf', 'out_sr']
 
+   # modal analysis to compute modal residual
+   modal_analysis:
+     class:            'ModalAnalysis'
+     ifunc_inv_object: 'tutorial_base_inv'   # Our computed ininverse modal base
+     inputs:
+       in_ef: 'prop.out_source_science_ef'
+     outputs: ['out_modes']
+   
+   # Data store for results 
+   data_store:
+     class:             'DataStore'
+     store_dir:         './output'            # Data result directory: 'store_dir'/TN/
+     inputs:    
+       input_list: ['comm-control.out_comm','sr-psf.out_sr','res-modal_analysis.out_modes']
+
 **What we've created:**
 
 1. **Main configuration file** (``scao_tutorial.yaml``) that defines the complete AO system
 
 The configuration is now ready to run the calibration step!
+
+Note that the :class:`specula.processing_objects.data_store.DataStore` object can be configured to save more data, such as the slopes, the detector pixels, the PSF, etc.
 
 Part 2: Running the Simulation
 ------------------------------
@@ -514,7 +560,7 @@ Run the subaperture calibration:
 
    python main_simul.py config/scao_tutorial.yaml calib_subaps.yml
 
-This step identifies approximately 1247 valid subapertures out of the 1600 total (40×40 grid), excluding those outside the pupil or with insufficient illumination.
+This step identifies approximately 1200 valid subapertures out of the 1600 total (40×40 grid), excluding those outside the pupil or with insufficient illumination.
 
 Push-Pull Amplitude Preparation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -577,7 +623,7 @@ The interaction matrix calibration requires amplitude values for each actuator p
 
   def main():
       # Create scaled amplitudes for all valid actuators
-      n_actuators = 1240  # Number of valid actuators (from influence functions)
+      n_actuators = 1140  # Number of valid actuators (from influence functions)
       base_amplitude = 50e-9  # 50nm in meters
       
       print(f"Creating scaled amplitude vector for {n_actuators} actuators")
@@ -598,13 +644,13 @@ The interaction matrix calibration requires amplitude values for each actuator p
       print(f"Last 10 amplitudes [nm]:  {amplitudes[-10:]}")
       
       # Save amplitude vector
-      output_file = 'calibration/pushpull_1240modes_amp50.fits'
+      output_file = 'calibration/pushpull_1140modes_amp50.fits'
       fits.writeto(output_file, amplitudes, overwrite=True)
       print(f"\n✓ Saved scaled amplitude vector: {output_file}")
       
       # Create comparison with uniform amplitudes
       uniform_amplitudes = np.full(n_actuators, base_amplitude)
-      uniform_file = 'calibration/pushpull_1240modes_amp50_uniform.fits'
+      uniform_file = 'calibration/pushpull_1140modes_amp50_uniform.fits'
       fits.writeto(uniform_file, uniform_amplitudes, overwrite=True)
       print(f"✓ Saved uniform amplitude vector: {uniform_file}")
       
@@ -637,14 +683,14 @@ Create ``calib_im_rec.yml``:
    pushpull:
      class:     'FuncGenerator'
      func_type: 'PUSHPULL'
-     nmodes:    1240                         # Number of DM actuators
-     vect_amplitude_data: 'pushpull_1240modes_amp50'  # Amplitude vector
+     nmodes:    1140                         # Number of DM actuators
+     vect_amplitude_data: 'pushpull_1140modes_amp50'  # Amplitude vector
      outputs:   ['output']
    
    # Interaction matrix calibrator
    im_calibrator:
      class:     'ImCalibrator'
-     nmodes:    1240                         # Number of modes to calibrate
+     nmodes:    1140                         # Number of modes to calibrate
      im_tag:    'tutorial_im'                # Output IM filename
      data_dir:  './calibration'              # Output directory
      overwrite: true                         # Overwrite existing files
@@ -655,7 +701,7 @@ Create ``calib_im_rec.yml``:
    # Reconstructor calibrator
    rec_calibrator:
      class:     'RecCalibrator'
-     nmodes:    1240                         # Number of modes
+     nmodes:    1140                         # Number of modes
      rec_tag:   'tutorial_rec'               # Output REC filename
      data_dir:  './calibration'              # Output directory
      overwrite: true                         # Overwrite existing files
@@ -664,7 +710,7 @@ Create ``calib_im_rec.yml``:
    
    # Override main simulation parameters
    main_override:
-     total_time: 4.96                        # 1240 modes × 2 (push+pull) × 0.002s
+     total_time: 2.28                        # 1140 modes × 2 (push+pull) × 0.001s
    
    # Disable atmosphere for clean calibration
    prop_override:
