@@ -661,6 +661,11 @@ class Simul():
 
         # Actual creation code
         self.apply_overrides(params)
+
+        self.trigger_order, self.trigger_order_idx = self.trigger_order(params)
+        print(f'{self.trigger_order=}')
+        print(f'{self.trigger_order_idx=}')
+
         self.build_objects(params)
         self.connect_objects(params)
 
@@ -669,10 +674,6 @@ class Simul():
 
         if not self.isReplay:
             self.build_replay(params)
-
-        self.trigger_order, self.trigger_order_idx = self.trigger_order(params)
-        print(f'{self.trigger_order=}')
-        print(f'{self.trigger_order_idx=}')
 
         if self.diagram or self.diagram_filename or self.diagram_title:
             if self.diagram_filename is None:

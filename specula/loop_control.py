@@ -3,7 +3,7 @@ import time
 import numpy as np
 
 from specula.base_time_obj import BaseTimeObj
-from specula import process_comm
+from specula import process_comm, process_rank
 
 class LoopControl(BaseTimeObj):
     def __init__(self, verbose=False):
@@ -47,6 +47,10 @@ class LoopControl(BaseTimeObj):
                    profiling=profiling, speed_report=speed_report)
         while self._t < self._t0 + self._run_time:
             self.iter()
+            # print(process_rank, 'at barrier iter', flush=True)
+            process_comm.barrier()
+            # print(process_rank, 'after barrier iter', flush=True)
+
         self.finish()
 
     def start(self, run_time, dt, t0=0, stop_on_data=None, stop_at_time=None,
@@ -67,32 +71,61 @@ class LoopControl(BaseTimeObj):
             if i in self._ordered_lists:
                 for element in self._ordered_lists[i]:                    
                     element.send_outputs()
-                    
+        
         sys.stdout.flush()
-        process_comm.barrier()        
+        
+        print(process_rank, 'at barrier A')        
+        process_comm.barrier()
+        print(process_rank, 'after barrier A')
+
+        print(process_rank, 'self._max_order', self._max_order)
+
+        '''
+        for i in range(self._max_order+1):
+            print(process_rank, i, 'begin', flush=True)
+            # all the objects having this trigger order could be remote
+            if i in self._ordered_lists.keys():
+                print(process_rank, self._ordered_lists[i])
+                for element in self._ordered_lists[i]:
+                    print(process_rank, element.inputs.keys())
+                    for iname, ii in element.inputs.items():
+                        r = ii.get(element.target_device_idx)
+                        print(process_rank, iname, r)
+                        print(process_rank, '...')
+                    print(process_rank, element, 'done', flush=True)
+            print(process_rank, i, 'done', flush=True)            
+        '''
+        print(process_rank, 'all done', flush=True)        
+        #print(process_rank, 'at barrier B', flush=True)        
+        process_comm.barrier()
+        #print(process_rank, 'after barrier B', flush=True)
 
         for i in range(self._max_order+1):
             # all the objects having this trigger order could be remote
             if i in self._ordered_lists:
                 for element in self._ordered_lists[i]:                    
-                    for iname, ii in element.inputs.items():
-                        ii.get(element.target_device_idx)
-                    
-        sys.stdout.flush()
-        process_comm.barrier()
+                    element.send_outputs()
 
         for i in range(self._max_order+1):
             # all the objects having this trigger order could be remote
             if i in self._ordered_lists:
                 for element in self._ordered_lists[i]:
-                    try:                        
+                    try:
+                        # print(process_rank, element, 'startMemUsageCount', flush=True)
                         element.startMemUsageCount()
+                        #print(process_rank, element, 'setup', flush=True)
                         element.setup()
+                        #print(process_rank, element, 'stopMemUsageCount', flush=True)
                         element.stopMemUsageCount()
+                        #print(process_rank, element, 'printMemUsage', flush=True)
                         element.printMemUsage()
                     except:
-                        print('Exception in', element.name)
+                        print('Exception in', element.name, flush=True)
                         raise
+        
+        # print(process_rank, 'at barrier C', flush=True)
+        process_comm.barrier()
+        # print(process_rank, 'after barrier C', flush=True)
 
         self._t = self._t0
 
@@ -109,28 +142,32 @@ class LoopControl(BaseTimeObj):
             self._profiler_started = True
 
         for i in range(self._max_order+1):
+            process_comm.barrier()
             # all the objects having this trigger order could be remote
             if i in self._ordered_lists:
                 for element in self._ordered_lists[i]:
                     try:
                         element.check_ready(self._t)
                     except:
-                        print('Exception in', element.name)
+                        print('Exception in', element.name, flush=True)
                         raise
+
+                #print(process_rank, 'at barrier check_ready', flush=True)                
+                #print(process_rank, 'after barrier check_ready', flush=True)
 
                 for element in self._ordered_lists[i]:
                     try:
                         element.trigger()
                     except:
-                        print('Exception in', element.name)
+                        print('Exception in', element.name, flush=True)
                         raise
 
                 for element in self._ordered_lists[i]:
                     try:
-                        element.post_trigger()
+                        element.post_trigger()                                                
                         element.send_outputs()
                     except:
-                        print('Exception in', element.name)
+                        print('Exception in', element.name, flush=True)
                         raise
 
         if self._stop_on_data and self._stop_on_data.generation_time == self._t:
@@ -158,12 +195,13 @@ class LoopControl(BaseTimeObj):
     def finish(self):
 
         for i in range(self._max_order+1):
-             for element in self._ordered_lists[i]:
-                try:
-                    element.finalize()
-                except:
-                    print('Exception in', element.name)
-                    raise
+            if i in self._ordered_lists:
+                for element in self._ordered_lists[i]:
+                    try:
+                        element.finalize()
+                    except:
+                        print('Exception in', element.name)
+                        raise
 
         if self._profiling:
             self.stop_profiling()

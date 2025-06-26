@@ -1,6 +1,6 @@
 import numpy as np
 
-from specula import cpuArray, fuse, show_in_profiler, RAD2ASEC
+from specula import cpuArray, fuse, show_in_profiler, RAD2ASEC, process_rank
 from specula.lib.extrapolate_edge_pixel import extrapolate_edge_pixel
 from specula.lib.extrapolate_edge_pixel_mat_define import extrapolate_edge_pixel_mat_define
 from specula.lib.toccd import toccd
@@ -444,10 +444,12 @@ class SH(BaseProcessingObj):
             plt.show()
 
     def setup(self):
+        # print('super steup', flush=True)
         super().setup()
-
+        print(process_rank, 'get in_ef', flush=True)
         in_ef = self.inputs['in_ef'].get(target_device_idx=self.target_device_idx)
-        
+        print(process_rank, 'GOT in_ef', flush=True)
+
         self.set_in_ef(in_ef)
         self.calc_trigger_geometry(in_ef)
 

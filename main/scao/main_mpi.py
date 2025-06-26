@@ -25,6 +25,14 @@ if __name__ == '__main__':
     comm = pkl5.Intracomm(MPI.COMM_WORLD)
     rank = comm.Get_rank()
     args = parser.parse_args()
+
+    N = 100000000
+    datatype = MPI.FLOAT
+    num_bytes = N * (datatype.Pack_size(count=1, comm=comm) + MPI.BSEND_OVERHEAD)
+
+    attached_buf = bytearray(num_bytes)
+    MPI.Attach_buffer(attached_buf)
+
     print('Starting proceess with rank:', rank)
     if args.cpu:
         target_device_idx = -1
@@ -43,6 +51,9 @@ if __name__ == '__main__':
                   diagram_title=args.diagram_title  
     )
     simul.run()
+
+    MPI.Detach_buffer()
+
 
 '''
 def addRankToIniName(name, r):

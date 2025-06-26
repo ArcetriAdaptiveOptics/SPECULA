@@ -3,7 +3,7 @@ import math
 from scipy.stats import gamma
 from scipy.ndimage import convolve
 
-from specula import fuse
+from specula import fuse, process_rank
 from specula.base_processing_obj import BaseProcessingObj
 from specula.connections import InputValue
 from specula.data_objects.pixels import Pixels
@@ -296,8 +296,11 @@ class CCD(BaseProcessingObj):
         self._pixelGains = pixelGains
 
     def setup(self):
+        # print('super steup', flush=True)
         super().setup()
+        print(process_rank, 'get in_i', flush=True)
         in_i = self.inputs['in_i'].get(self.target_device_idx)
+        print(process_rank, 'GOT in_i', flush=True)
         if in_i is None:
             raise ValueError('Input intensity object has not been set')
         if self._cte_noise and self._cte_mat is None:

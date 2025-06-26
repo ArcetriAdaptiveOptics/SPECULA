@@ -73,6 +73,8 @@ class BaseProcessingObj(BaseTimeObj):
         for input_name, input_obj in self.inputs.items():
             if type(input_obj) is InputValue:
                 self.local_inputs[input_name] = input_obj.get(self.target_device_idx)
+                if input_name=='in_ef':
+                    print(input_name, 'local input', self.local_inputs[input_name], flush=True)
                 if self.local_inputs[input_name] is not None:
                     self.last_seen[input_name] = self.local_inputs[input_name].generation_time
             elif type(input_obj) is InputList:
@@ -116,13 +118,11 @@ class BaseProcessingObj(BaseTimeObj):
         for out_name, remote_spec in self.remote_outputs.items():
             dest_rank, dest_tag = remote_spec
             # non blocking send, as we dont know the oder of the recieves
-            print('Sending ', out_name, 'to ', dest_rank, 'with tag',  dest_tag)
-            print(type(self.outputs[out_name]))
-            print(self.outputs[out_name])
+            print(process_rank, 'Sending ', out_name, 'to ', dest_rank, 'with tag',  dest_tag, type(self.outputs[out_name]), self.outputs[out_name])
             # workaround cause module objects canno be pickled
             xp = self.outputs[out_name].xp
-            self.outputs[out_name].xp = None
-            process_comm.isend(self.outputs[out_name], dest=dest_rank, tag=dest_tag)    
+            self.outputs[out_name].xp = 0
+            process_comm.ibsend(self.outputs[out_name], dest=dest_rank, tag=dest_tag)    
             self.outputs[out_name].xp = xp
         
 
@@ -194,8 +194,10 @@ class BaseProcessingObj(BaseTimeObj):
         if self.target_device_idx >= 0:
             self._target_device.use()
         for name, input in self.inputs.items():
-            if input.get(self.target_device_idx) is None and not input.optional:
+            vv = input.get(self.target_device_idx)
+            if vv is None and not input.optional:
                 raise ValueError(f'Input {name} for object {self} has not been set')
+            self.local_inputs[name] = vv
 
     def finalize(self):
         '''

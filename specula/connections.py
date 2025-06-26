@@ -38,19 +38,21 @@ class InputValue():
                         self.output_ref.transferDataTo(self.cloned_value)
                     return self.cloned_value
         else:
-            print('Receiveing from ', self.remote_rank, 'with tag', self.tag)
+            print(process_rank, 'Receiveing from ', self.remote_rank, 'with tag', self.tag, flush=True)
             output_data = process_comm.recv(source=self.remote_rank, tag=self.tag)
             if output_data.xp_str == 'cp':
                 output_data.xp = cp
             else:
                 output_data.xp = np
-            print('Receive successful:', output_data)
+            print(process_rank, 'Receive successful:', output_data, flush=True)
             if self.cloned_value is None:
                 # update copyTo to handle same target_device_idx but different rank
                 self.cloned_value = output_data.copyTo(target_device_idx)
+                print(process_rank, 'Received data copied', flush=True)
             else:
                 # update transferDataTo to handle same target_device_idx but different rank
                 output_data.transferDataTo(self.cloned_value)
+                print(process_rank, 'Received data transfered', flush=True)
             return self.cloned_value
 
     def set(self, value):
@@ -108,8 +110,9 @@ class InputList():
                     else:
                         self.cloned_list.append(list_item.copyTo(target_device_idx))
                 else:
+                    print(process_rank, 'Receiveing from ', self.remote_rank, 'with tag', self.tag, flush=True)
                     output_data = process_comm.recv(source=self.remote_rank, tag=self.tag)
-                    print('Receive successful:', output_data)
+                    print(process_rank, 'Receive successful:', output_data, flush=True)
                     self.cloned_list.append(output_data.copyTo(target_device_idx))
         else:
             # Second get(): always used transferDataTo()            
@@ -120,8 +123,9 @@ class InputList():
                     else:
                         list_item.transferDataTo(cloned)
                 else:
+                    print(process_rank, 'Receiveing from ', self.remote_rank, 'with tag', self.tag, flush=True)
                     output_data = process_comm.recv(source=self.remote_rank, tag=self.tag)
-                    print('Receive successful:', output_data)
+                    print(process_rank, 'Receive successful:', output_data, flush=True)
                     output_data.transferDataTo(cloned)                    
 
         return self.cloned_list
