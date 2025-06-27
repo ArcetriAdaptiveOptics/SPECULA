@@ -230,7 +230,9 @@ class CCD(BaseProcessingObj):
             ccd_frame = self._photon_rng.poisson(ccd_frame)
 
         if self._excess_noise:
-            ccd_frame = 1.0 / self._excess_delta * gamma.rvs(self._excess_delta * ccd_frame, self._emccd_gain, random_state=self._excess_seed)
+            ex_ccd_frame = self._excess_delta * ccd_frame
+            clamp_generic(1e-10, 1e-10, ex_ccd_frame, xp=self.xp)
+            ccd_frame = 1.0 / self._excess_delta * gamma.rvs(ex_ccd_frame, self._emccd_gain, random_state=self._excess_seed)
 
         if self._readout_noise:
             ron_vector = self._readout_rng.standard_normal(size=ccd_frame.size)
