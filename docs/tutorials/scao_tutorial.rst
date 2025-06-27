@@ -331,7 +331,7 @@ This pre-computation step is essential because:
 The generated files will be automatically loaded by the DM configuration in the next steps.
 
 Prepare the simulation parameters
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Now that we have computed the influence functions, we need to create the main simulation configuration file that uses them. We'll create a YAML parameter file inspired by the ERIS NGS configuration.
 
@@ -525,7 +525,7 @@ Note that the :class:`specula.processing_objects.data_store.DataStore` object ca
 Part 2: Running the Simulation
 ------------------------------
 
-See the :ref:`running-simulations` section for details on how to run the simulation.
+See the :ref:`running_simulations` section for details on how to run the simulation.
 
 Calibration Phase
 ~~~~~~~~~~~~~~~~~
@@ -871,7 +871,7 @@ Part 4: Parameter Optimization
 TODO: Now that you have a working baseline, let's optimize the system performance.
 
 Loop Gain Optimization
-~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
 
 TODO: Test different control gains to find the optimum.
 
@@ -889,7 +889,7 @@ Troubleshooting Common Issues
 TODO
 
 Computational Issues
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 TODO
 
