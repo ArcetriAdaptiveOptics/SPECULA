@@ -5,15 +5,20 @@ main:
   root_dir:          './calib/SCAO'         # Root directory for calibration manager
   pixel_pupil:       160                    # Linear dimension of pupil phase array
   pixel_pitch:       0.05                   # [m] Pitch of the pupil phase array
-  total_time:        0.005                  # [s] Total simulation running time
+  total_time:        0.50                  # [s] Total simulation running time
   time_step:         0.001                  # [s] Simulation time step
-  display_server:    false                  # Display server on auto-selected port
+#  display_server:    true                  # Display server on auto-selected port
+
+
+server:
+  class:             'DisplayServer'
+  host:              '0.0.0.0'              # Listen on all interfaces
+  port:              3000                   # Use zero for auto-selection
 
 seeing:
   class:             'FuncGenerator'
   constant:          0.8                  # ["] seeing value
-  outputs: ['output']
-  target_device_idx: 1000
+  outputs: ['output']  
   target_rank: 0
   target_device_idx: 0
 
@@ -87,7 +92,7 @@ sh:
   inputs:
     in_ef: 'prop.out_on_axis_source_ef'
   outputs:  ['out_i']
-  target_rank: 1
+  target_rank: 0
   target_device_idx: 0
 
 
@@ -97,14 +102,14 @@ detector:
   size:              [120,120]                 # Detector size in pixels
   dt:                0.001                   # [s] Detector integration time
   bandw:             300                     # [nm] Sensor bandwidth
-  photon_noise:      True                    # activate photon noise
-  readout_noise:     True                    # activate readout noise
+  photon_noise:      false                    # activate photon noise
+  readout_noise:     false                    # activate readout noise
   readout_level:     1.0                     # readout noise in [e-/pix/frame]
   quantum_eff:       0.32                    # quantum efficiency * total transmission
   inputs:
     in_i: 'sh.out_i'
   outputs:  ['out_pixels']
-  target_rank: 0
+  target_rank: 1
   target_device_idx: 0
 
 

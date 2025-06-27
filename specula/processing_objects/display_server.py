@@ -15,6 +15,7 @@ from flask_socketio import SocketIO, join_room
 import socketio
 import socketio.exceptions
 
+from specula.base_value import BaseValue
 from specula.base_processing_obj import BaseProcessingObj
 from specula.display.data_plotter import DataPlotter
 
@@ -98,6 +99,9 @@ class DisplayServer(BaseProcessingObj):
                 # Find the requested object, make sure it's on CPU,
                 # and remove xp/np modules to prepare for pickling
                 dataobj = self.data_obj_getter(name)
+                if dataobj is None:
+                    dataobj = BaseValue(value=None)
+
                 if isinstance(dataobj, list):
                     dataobj_cpu = [x.copyTo(-1) for x in dataobj]
                 else:

@@ -429,7 +429,8 @@ class SH(BaseProcessingObj):
 
         in_ef = self.local_inputs['in_ef']
         phot = in_ef.S0 * in_ef.masked_area()
-        self._out_i.i *= (phot / self._out_i.i.sum())
+        self._out_i.i *= phot / self._out_i.i.sum()
+        # self._out_i.i = self.xp.nan_to_num(self._out_i.i, copy=False)
         self._out_i.generation_time = self.current_time
         self.outputs['wf1'].value = toccd(self._wf1.phaseInNm, (100, 100), xp=self.xp)
         self.outputs['wf1'].generation_time = self.current_time
@@ -470,7 +471,7 @@ class SH(BaseProcessingObj):
         self.psf = self._zeros_common((self._lenslet.dimy, self._fft_size, self._fft_size), dtype=self.dtype)
         self.psf_shifted = self._zeros_common((self._lenslet.dimy, self._fft_size, self._fft_size), dtype=self.dtype)
 
-        super().build_stream(allow_parallel=False)
+        # super().build_stream(allow_parallel=False)
 
     def get_tlt_f(self, p, c):
         '''

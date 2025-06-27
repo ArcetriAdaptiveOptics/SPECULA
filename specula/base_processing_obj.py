@@ -74,9 +74,6 @@ class BaseProcessingObj(BaseTimeObj):
         if self.target_device_idx >= 0:
             self._target_device.use()
 
-        if self.target_device_idx >= 0:
-            self._target_device.use()
-
         self.current_time_seconds = self.t_to_seconds(self.current_time)
         for input_name, input_obj in self.inputs.items():
             if type(input_obj) is InputValue:
@@ -121,7 +118,7 @@ class BaseProcessingObj(BaseTimeObj):
 
         if self.target_device_idx>=0:
             self._target_device.use()
-            if self.cuda_graph:                
+            if self.cuda_graph:
                 self.stream.synchronize()
 
     # this method implments the mpi send call of the outputs connected to remote inputs
@@ -164,7 +161,9 @@ class BaseProcessingObj(BaseTimeObj):
 
     def check_ready(self, t):
         self.current_time = t
-        if self.checkInputTimes():
+        # TODO This is temporary!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        #if self.checkInputTimes():
+        if True:
             if self.target_device_idx>=0:
                 self._target_device.use()
             self.prepare_trigger(t)

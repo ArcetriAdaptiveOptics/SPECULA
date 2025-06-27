@@ -134,7 +134,7 @@ class BaseDataObj(BaseTimeObj):
                 if HtD:
                     setattr(destobj, attr, cp.asarray(self_attr))
                 if HtH:
-                    setattr(destobj, attr, np.asarray(self_attr, copy=True))
+                    setattr(destobj, attr, np.asarray(self_attr))
 
         destobj.generation_time = self.generation_time
 

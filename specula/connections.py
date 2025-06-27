@@ -38,7 +38,7 @@ class InputValue():
                         self.output_ref.transferDataTo(self.cloned_value)
                     return self.cloned_value
         else:
-            print(process_rank, 'Receiveing from ', self.remote_rank, 'with tag', self.tag, flush=True)
+            print(process_rank, 'Receiving from ', self.remote_rank, 'with tag', self.tag, flush=True)
             output_data = process_comm.recv(source=self.remote_rank, tag=self.tag)
             if output_data.xp_str == 'cp':
                 output_data.xp = cp
@@ -46,19 +46,19 @@ class InputValue():
                 output_data.xp = np
             
             print(process_rank, 'Receive successful:', output_data, flush=True)
-
             print(process_rank, 'received obj type', type(output_data), flush=True)
             print(process_rank, 'received obj', output_data, flush=True)
 
             #if self.cloned_value is None:
-            # update copyTo to handle same target_device_idx but different rank
+                # update copyTo to handle same target_device_idx but different rank
             self.cloned_value = output_data.copyTo(target_device_idx)
             print(process_rank, 'Received data copied', flush=True)
             #else:
-                # update transferDataTo to handle same target_device_idx but different rank
-            #output_data.transferDataTo(self.cloned_value)
-            #print(process_rank, 'Received data transfered', flush=True)
+            #    # update transferDataTo to handle same target_device_idx but different rank
+            #    output_data.transferDataTo(self.cloned_value)
+            #    print(process_rank, 'Received data transfered', flush=True)
 
+            print(process_rank, 'self.cloned_value', self.cloned_value)
             return self.cloned_value
 
     def set(self, value):

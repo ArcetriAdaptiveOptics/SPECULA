@@ -107,7 +107,7 @@ class Simul():
                     raise ValueError(f'Object {obj_name} does not exist anywhere')
             if not attr_name in self.objs[obj_name].inputs:
                 raise ValueError(f'Object {obj_name} does not define an input with name {attr_name}')
-            input_ref = self.objs[obj_name].inputs[attr_name].get(target_device_idx)
+            input_ref = self.objs[obj_name].local_inputs[attr_name]
         else:
             obj_name = input_name
             input_ref = self.objs[input_name].copyTo(target_device_idx)

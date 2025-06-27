@@ -46,6 +46,10 @@ class DataPlotter():
         
         Generation of the numpy array to display is delegated to each data object.
         '''
+
+        if obj_list is None:
+            return self.plot_text(f'This is None')
+
         if len(obj_list) < 1:
             return self.plot_text(f'No values to plot')
 
