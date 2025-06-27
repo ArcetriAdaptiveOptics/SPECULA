@@ -842,7 +842,7 @@ Create a script ``analyse_data.py``:
        plt.plot(x,np.sqrt(np.mean(res**2, axis=0)), label='Residuals RMS', marker='o')
        plt.plot(x[:comm.shape[1]],np.sqrt(np.mean(comm**2, axis=0)), label='Commands RMS', marker='o')
        plt.title("RMS of Turbulence, Residuals and Commands")
-       plt.xlabel("Frame")
+       plt.xlabel("Mode number")
        plt.ylabel("RMS")
        plt.xscale('log')
        plt.yscale('log')
