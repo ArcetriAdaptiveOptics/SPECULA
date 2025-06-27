@@ -1,3 +1,5 @@
+.. _scao_tutorial:
+
 SCAO Tutorial: Complete Walkthrough
 ====================================
 

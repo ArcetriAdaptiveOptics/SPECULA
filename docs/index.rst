@@ -22,6 +22,7 @@ Getting Started
    Installation <installation>
    Simulation basics <simulation_basics>
    Running simulations <running_simulations>
+   Diagrams <simul_diagrams>
 
 Tutorials
 ---------
