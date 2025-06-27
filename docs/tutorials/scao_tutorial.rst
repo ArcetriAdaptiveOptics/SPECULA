@@ -305,6 +305,14 @@ Expected output:
   ✓ IFunc loading test passed
   ✓ M2C loading test passed
 
+.. image:: _static/tutorial/singular_values.png
+   :width: 100%
+   :align: center
+
+.. image:: _static/tutorial/DM_shapes.png
+   :width: 100%
+   :align: center
+
 **What this does:**
 
 1. **Defines the actuator geometry**: A 41×41 grid with a circular layout, optimized for round telescope pupils with a 14% obstruction, which removes the central actuators.
@@ -463,7 +471,7 @@ Create ``config/scao_tutorial.yml``:
      simul_params_ref:  'main'
      delay:             1                     # 1 frame delay (realistic)
      int_gain:          [0.30]
-     n_modes:           [1140]                # Number of modes to control
+     n_modes:           [800]                 # Number of modes to control
      inputs:
        delta_comm:      'modalrec.out_modes'
      outputs:           ['out_comm']
@@ -474,7 +482,7 @@ Create ``config/scao_tutorial.yml``:
      simul_params_ref:  'main'
      ifunc_object:      'tutorial_ifunc'      # Our computed influence functions
      m2c_object:        'tutorial_m2c'        # Modal-to-command matrix
-     nmodes:            1140                  # Number of controlled modes
+     nmodes:            800                   # Number of controlled modes
      height:            0                     # Ground-conjugated DM
      inputs:
        in_command:      'integrator.out_comm'
@@ -704,7 +712,7 @@ Create ``calib_im_rec.yml``:
    # Reconstructor calibrator
    rec_calibrator:
      class:     'RecCalibrator'
-     nmodes:    1140                         # Number of modes
+     nmodes:    800                          # Number of modes (reduced to keep noise propagation low and avoid numerical issues)
      rec_tag:   'tutorial_rec'               # Output REC filename
      data_dir:  './calibration/rec'              # Output directory
      overwrite: true                         # Overwrite existing files
@@ -760,12 +768,101 @@ Now run the full closed-loop simulation:
 
    python main_simul.py config/scao_tutorial.yml
 
-TODO write that SR is printed during the simulation.
+SR is printed during the simulation at each iteration while time and iterations per seconds are displayed every 10 iterations.
 
 Part 3: Results Analysis
 ------------------------
 
-TODO: Analyze the results.
+After running the closed-loop simulation, you can analyze the results using the following script.  
+This script automatically finds the most recent output directory, loads all `.fits` and `.pickle` files, and plots the Strehl Ratio and RMS of turbulence, residuals, and commands.
+
+Create a script ``analyse_data.py``:
+
+.. code-block:: python
+
+   import os
+   import glob
+   import pickle
+   from astropy.io import fits
+   import numpy as np
+   import matplotlib.pyplot as plt
+
+   # Find all directories in ./output starting with '20'
+   dirs = [d for d in glob.glob("./output/20*") if os.path.isdir(d)]
+   if not dirs:
+       raise RuntimeError("No output directories found.")
+   # Select the most recent one (by name, assuming timestamp format)
+   data_dir = sorted(dirs)[-1]
+   print(f"Using data directory: {data_dir}")
+
+   data = {}
+
+   # Load all .fits files in the directory
+   for fname in glob.glob(os.path.join(data_dir, "*.fits")):
+       key = os.path.splitext(os.path.basename(fname))[0]
+       with fits.open(fname) as hdul:
+           arr = hdul[0].data
+       data[key] = arr
+       print('key:', key, 'type:', type(data[key]))
+
+   # Load all .pickle files in the directory
+   for fname in glob.glob(os.path.join(data_dir, "*.pickle")):
+       key = os.path.splitext(os.path.basename(fname))[0]
+       with open(fname, "rb") as f:
+           data[key] = pickle.load(f)
+       print('key:', key, 'type:', type(data[key]))
+
+   # Plot the sr.fits file if present (assumed to be a 1D vector)
+   if "sr" in data:
+       sr = data["sr"]
+       print(f"The average Strehl Ratio after 50 iterations is: {sr[50:].mean():.4f}")
+       plt.figure()
+       plt.plot(sr, marker='o')
+       plt.title("Strehl Ratio (sr.fits)")
+       plt.xlabel("Frame")
+       plt.ylabel("SR")
+       plt.grid(True)
+       plt.show()
+   else:
+       print("sr.fits file not found in the directory.")
+       
+   if "res" in data and "comm" in data:
+       res = data["res"]
+       comm = data["comm"]
+       init = 50
+       turb = res[init:-1, :].copy()
+       turb[:, :comm.shape[1]] += comm[init+1:, :]
+       x = np.arange(turb.shape[1])+1
+       
+       # Plot RMS of residuals, commands and turbulence
+       plt.figure(figsize=(12, 6))
+       plt.plot(x,np.sqrt(np.mean(turb**2, axis=0)), label='Turbulence RMS', marker='o')
+       plt.plot(x,np.sqrt(np.mean(res**2, axis=0)), label='Residuals RMS', marker='o')
+       plt.plot(x[:comm.shape[1]],np.sqrt(np.mean(comm**2, axis=0)), label='Commands RMS', marker='o')
+       plt.title("RMS of Turbulence, Residuals and Commands")
+       plt.xlabel("Frame")
+       plt.ylabel("RMS")
+       plt.xscale('log')
+       plt.yscale('log')
+       plt.legend()
+       plt.grid(True)
+       plt.show()
+
+Save this script as ``analyse_data.py`` and run it after your simulation to visualize the results.
+
+.. image:: _static/tutorial/SR.png
+   :width: 100%
+   :align: center
+
+.. image:: _static/tutorial/modal_plot.png
+   :width: 100%
+   :align: center
+
+.. code-block:: bash
+
+   python analyse_data.py
+
+This will display the Strehl Ratio evolution and the RMS of turbulence, residuals, and commands for your simulation.
 
 
 Part 4: Parameter Optimization
