@@ -60,7 +60,9 @@ def toccd(a, newshape, set_total=None, xp=None):
     temp = rebin2d(temp, (newshape[0], mcmy), sample=True, xp=xp)
     rebinned = rebin2d(temp, newshape, xp=xp)
 
-    return rebinned / rebinned.sum() * set_total
+    rebinned_sum = xp.maximum(rebinned.sum(), 1e-10)
+
+    return rebinned / rebinned_sum * set_total
 
 
 def toccd_gpu(a, newshape, set_total=None):
