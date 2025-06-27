@@ -305,11 +305,11 @@ Expected output:
   ✓ IFunc loading test passed
   ✓ M2C loading test passed
 
-.. image:: ../_static/tutorial/singular_values.png
+.. image:: /_static/tutorial/singular_values.png
    :width: 100%
    :align: center
 
-.. image:: ../_static/tutorial/DM_shapes.png
+.. image:: /_static/tutorial/DM_shapes.png
    :width: 100%
    :align: center
 
@@ -850,11 +850,11 @@ Create a script ``analyse_data.py``:
 
 Save this script as ``analyse_data.py`` and run it after your simulation to visualize the results.
 
-.. image:: ../_static/tutorial/SR.png
+.. image:: /_static/tutorial/SR.png
    :width: 100%
    :align: center
 
-.. image:: ../_static/tutorial/modal_plot.png
+.. image:: /_static/tutorial/modal_plot.png
    :width: 100%
    :align: center
 
