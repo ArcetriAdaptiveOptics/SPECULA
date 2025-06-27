@@ -443,12 +443,9 @@ class SH(BaseProcessingObj):
             plt.title('Intensity')
             plt.show()
 
-    def setup(self):
-        # print('super steup', flush=True)
-        super().setup()
-        print(process_rank, 'get in_ef', flush=True)
-        in_ef = self.inputs['in_ef'].get(target_device_idx=self.target_device_idx)
-        print(process_rank, 'GOT in_ef', flush=True)
+    def setup(self):        
+        super().setup()        
+        in_ef = self.local_inputs['in_ef']        
 
         self.set_in_ef(in_ef)
         self.calc_trigger_geometry(in_ef)

@@ -90,6 +90,7 @@ class LoopControl(BaseTimeObj):
                 for element in self._ordered_lists[i]:
                     print(process_rank, element.inputs.keys())
                     for iname, ii in element.inputs.items():
+                        print(process_rank, 'loop control, Getting:', input_name, flush=True)
                         r = ii.get(element.target_device_idx)
                         print(process_rank, iname, r)
                         print(process_rank, '...')

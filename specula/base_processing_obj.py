@@ -80,6 +80,7 @@ class BaseProcessingObj(BaseTimeObj):
         self.current_time_seconds = self.t_to_seconds(self.current_time)
         for input_name, input_obj in self.inputs.items():
             if type(input_obj) is InputValue:
+                print(process_rank, 'prepare_trigger, Getting:', input_name, flush=True)
                 self.local_inputs[input_name] = input_obj.get(self.target_device_idx)
 #                if input_name=='in_ef':
 #                    print(process_rank, input_name, 'local input', self.local_inputs[input_name], flush=True)
@@ -88,6 +89,7 @@ class BaseProcessingObj(BaseTimeObj):
             elif type(input_obj) is InputList:
                 self.local_inputs[input_name] = []
                 self.last_seen[input_name] = []
+                print(process_rank, ', prepare_trigger, Getting:', input_name, flush=True)
                 input_list = input_obj.get(self.target_device_idx)
                 if input_list is not None:
                     for tt in input_list:
@@ -202,11 +204,12 @@ class BaseProcessingObj(BaseTimeObj):
         """
         if self.target_device_idx >= 0:
             self._target_device.use()
-        for name, input in self.inputs.items():
+        for input_name, input in self.inputs.items():
+            print(process_rank, 'Setup, Getting:', input_name, flush=True)
             vv = input.get(self.target_device_idx)
             if vv is None and not input.optional:
-                raise ValueError(f'Input {name} for object {self} has not been set')
-            self.local_inputs[name] = vv
+                raise ValueError(f'Input {input_name} for object {self} has not been set')
+            self.local_inputs[input_name] = vv
 
     def finalize(self):
         '''
