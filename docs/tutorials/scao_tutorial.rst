@@ -852,6 +852,12 @@ Create a script ``analyse_data.py``:
 
 Save this script as ``analyse_data.py`` and run it after your simulation to visualize the results.
 
+.. code-block:: bash
+
+   python analyse_data.py
+
+This will display the Strehl Ratio evolution and the RMS of turbulence, residuals, and commands for your simulation.
+
 .. image:: /_static/tutorial/SR.png
    :width: 100%
    :align: center
@@ -859,13 +865,6 @@ Save this script as ``analyse_data.py`` and run it after your simulation to visu
 .. image:: /_static/tutorial/modal_plot.png
    :width: 100%
    :align: center
-
-.. code-block:: bash
-
-   python analyse_data.py
-
-This will display the Strehl Ratio evolution and the RMS of turbulence, residuals, and commands for your simulation.
-
 
 Part 4: Parameter Optimization
 ------------------------------
