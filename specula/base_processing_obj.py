@@ -42,6 +42,11 @@ class BaseProcessingObj(BaseTimeObj):
             self._target_device.use()
 
 
+        # Use the correct CUDA device for allocations
+        if self.target_device_idx >= 0:
+            self._target_device.use()
+
+
     def checkInputTimes(self):        
         if len(self.inputs)==0:
             return True
@@ -66,6 +71,9 @@ class BaseProcessingObj(BaseTimeObj):
         return False
 
     def prepare_trigger(self, t):
+        if self.target_device_idx >= 0:
+            self._target_device.use()
+
         if self.target_device_idx >= 0:
             self._target_device.use()
 
@@ -108,9 +116,10 @@ class BaseProcessingObj(BaseTimeObj):
         Make sure we are using the correct device and that any previous
         CUDA graph has been synchronized
         '''
+
         if self.target_device_idx>=0:
             self._target_device.use()
-            if self.cuda_graph:
+            if self.cuda_graph:                
                 self.stream.synchronize()
 
     # this method implments the mpi send call of the outputs connected to remote inputs

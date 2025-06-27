@@ -21,6 +21,7 @@ class ModalAnalysis(BaseProcessingObj):
                 nmodes: int=None,
                 wavelengthInNm: float=0.0,
                 dorms: bool=False,
+                n_inputs: int=1,
                 target_device_idx: int=None,
                 precision: int=None):
 
@@ -29,7 +30,7 @@ class ModalAnalysis(BaseProcessingObj):
         mask = None
         if pupilstop:
             mask = pupilstop.A
-                            
+
         if ifunc is None and ifunc_inv is None:
             if type_str is None:
                 raise ValueError('At least one of ifunc and type must be set')
@@ -44,7 +45,7 @@ class ModalAnalysis(BaseProcessingObj):
                                                  xp=self.xp, dtype=self.dtype)
             else:
                 raise ValueError(f'Invalid ifunc type {type_str}')
-            
+
             ifunc = IFunc(ifunc, mask=mask, nmodes=nmodes, target_device_idx=self.target_device_idx)
             self.phase2modes = ifunc.inverse()
         elif ifunc is None and ifunc_inv is not None:
@@ -58,22 +59,33 @@ class ModalAnalysis(BaseProcessingObj):
             self.phase2modes = ifunc_inv
 
         self.ifunc = ifunc
-        self.rms = BaseValue('modes', 'output RMS of modes from modal reconstructor') 
+        self.rms = BaseValue('modes', 'output RMS of phase from modal reconstructor')
+        self.rms.value = self.xp.zeros(1, dtype=self.dtype)
         self.dorms = dorms
         self.wavelengthInNm = wavelengthInNm
         self.verbose = False  # Verbose flag for debugging output
+
+        if nmodes is None:
+            self._n_modes = self.phase2modes.size[1]
+        else:
+            self._n_modes = nmodes
+        self._n_inputs = n_inputs
+
         self.out_modes = BaseValue('output modes from modal analysis', target_device_idx=target_device_idx)
+        self.out_modes.value = self.xp.zeros(self._n_modes, dtype=self.dtype)
         self.inputs['in_ef'] = InputValue(type=ElectricField, optional=True)
         self.inputs['in_ef_list'] = InputList(type=ElectricField, optional=True)
         self.outputs['out_modes'] = self.out_modes
         self.outputs['rms'] = self.rms
-
+        self.outputs['out_modes_list'] = []
+        for i in range(self._n_inputs):
+            self.outputs['out_modes_list'].append(BaseValue('modes', target_device_idx=self.target_device_idx))
+        self.out_modes_list = self.outputs['out_modes_list']
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
         self.in_ef = self.local_inputs['in_ef']
         self.in_ef_list = self.local_inputs['in_ef_list']
-
 
     def unwrap_2d(self, p):
         unwrapped_p = self.xp.copy(p)
@@ -89,9 +101,10 @@ class ModalAnalysis(BaseProcessingObj):
         super().setup()
         input_list = self.inputs['in_ef_list'].get(self.target_device_idx)
         if input_list:
+            if self._n_inputs != len(input_list):
+                raise ValueError(f"Number of inputs ({len(input_list)}) does not match expected number ({self._n_inputs})")
             for i in range(len(input_list)):
-                self.outputs['out_modes_list'].append(BaseValue('modes', target_device_idx=self.target_device_idx))
-            self.out_modes_list = self.outputs['out_modes_list']
+                self.outputs['out_modes_list'][i].value = self.xp.zeros(self._n_modes, dtype=self.dtype)
 
     def trigger_code(self):
         if self.in_ef:
@@ -114,7 +127,7 @@ class ModalAnalysis(BaseProcessingObj):
 
             m = self.xp.dot(ph, self.phase2modes.ifunc_inv)
 
-        self.out_modes.value = m
+        self.out_modes.value[:] = m
         self.out_modes.generation_time = self.current_time
 
         for li, current_ef in enumerate(ef_list):
@@ -132,11 +145,11 @@ class ModalAnalysis(BaseProcessingObj):
 
                 m = self.xp.dot(ph, self.phase2modes.ifunc_inv)
 
-            output_list[li].value = m
+            output_list[li].value[:] = m
             output_list[li].generation_time = self.current_time
 
         if self.dorms:
-            self.rms.value = self.xp.std(ph)
+            self.rms.value[:] = self.xp.std(ph)
             self.rms.generation_time = self.current_time
 
         if self.verbose:
