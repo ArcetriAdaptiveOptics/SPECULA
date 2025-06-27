@@ -135,7 +135,7 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
       # Step 2: Generate modal basis (KL modes)
       print(f"\nGenerating KL modal basis...")
       
-      kl_basis, _, _ = make_modal_base_from_ifs_fft(
+      kl_basis, m2c, singular_values = make_modal_base_from_ifs_fft(
           pupil_mask=pupil_mask,
           diameter=telescope_diameter,
           influence_functions=influence_functions,
@@ -151,7 +151,7 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
       print(f"KL basis shape: {kl_basis.shape}")
       print(f"Number of KL modes: {kl_basis.shape[0]}")
            
-      ifunc_inv_matrix = np.linalg.pinv(m2c.T @ influence_functions)
+      kl_basis_inv = np.linalg.pinv(kl_basis)
 
       # Step 3: Create output directory
       os.makedirs('calibration', exist_ok=True)
@@ -179,7 +179,7 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
       # inverse influence function object for modal analysis
       print("Saving inverse modal base...")
       ifunc_inv_obj = IFuncInv(
-          ifunc_inv=ifunc_inv_matrix,
+          ifunc_inv=kl_basis_inv,
           mask=pupil_mask
       )
       ifunc_inv_obj.save('calibration/ifunc/tutorial_base_inv.fits')
@@ -327,7 +327,7 @@ Prepare the simulation parameters
 
 Now that we have computed the influence functions, we need to create the main simulation configuration file that uses them. We'll create a YAML parameter file inspired by the ERIS NGS configuration.
 
-Create ``config/scao_tutorial.yaml``:
+Create ``config/scao_tutorial.yml``:
 
 .. code-block:: yaml
 
@@ -414,9 +414,9 @@ Create ``config/scao_tutorial.yaml``:
    sh:
      class:             'SH'
      subap_on_diameter: 40                    # 40x40 subapertures across pupil
-     subap_wanted_fov:  3.0                   # [arcsec] Subaperture field of view
-     sensor_pxscale:    0.5                   # [arcsec/pixel] Pixel scale
-     subap_npx:         8                     # 8x8 pixels per subaperture
+     subap_wanted_fov:  2.4                   # [arcsec] Subaperture field of view
+     sensor_pxscale:    0.4                   # [arcsec/pixel] Pixel scale
+     subap_npx:         6                     # 8x8 pixels per subaperture
      wavelengthInNm:    800                   # [nm] R-band sensing
      inputs:
        in_ef:           'prop.out_source_ngs_ef'
@@ -426,7 +426,7 @@ Create ``config/scao_tutorial.yaml``:
    detector:
      class:             'CCD'
      simul_params_ref:  'main'
-     size:              [320, 320]            # Total detector size (40x40 × 8x8)
+     size:              [240, 240]            # Total detector size (40x40 × 8x8)
      dt:                0.001                 # [s] Integration time (1ms)
      bandw:             400                   # [nm] R+I-band filter width 600-1000nm
      photon_noise:      true                  # Enable photon noise
@@ -460,7 +460,7 @@ Create ``config/scao_tutorial.yaml``:
      class:             'Integrator'
      simul_params_ref:  'main'
      delay:             1                     # 1 frame delay (realistic)
-     gain:              [0.30]
+     int_gain:          [0.30]
      n_modes:           [1140]                # Number of modes to control
      inputs:
        delta_comm:      'modalrec.out_modes'
@@ -481,6 +481,7 @@ Create ``config/scao_tutorial.yaml``:
    # Science PSF computation
    psf:
      class:             'PSF'
+     simul_params_ref:  'main'
      wavelengthInNm:    1650                 # [nm] H-band science
      nd:                4                    # 4× padding for PSF
      start_time:        0.2                  # Start PSF integration after 200ms
@@ -501,11 +502,11 @@ Create ``config/scao_tutorial.yaml``:
      class:             'DataStore'
      store_dir:         './output'            # Data result directory: 'store_dir'/TN/
      inputs:    
-       input_list: ['comm-control.out_comm','sr-psf.out_sr','res-modal_analysis.out_modes']
+       input_list: ['comm-integrator.out_comm','sr-psf.out_sr','res-modal_analysis.out_modes']
 
 **What we've created:**
 
-1. **Main configuration file** (``scao_tutorial.yaml``) that defines the complete AO system
+1. **Main configuration file** (``scao_tutorial.yml``) that defines the complete AO system
 
 The configuration is now ready to run the calibration step!
 
@@ -552,13 +553,13 @@ Create ``calib_subaps.yml`` to measure the subaperture geometry:
        common_layer_list: ['pupilstop']      # Only telescope pupil
    
    # Remove unnecessary objects
-   remove: ['atmo', 'dm', 'slopec', 'modalrec', 'integrator', 'psf']
+   remove: ['atmo', 'dm', 'slopec', 'modalrec', 'integrator', 'psf', 'modal_analysis', 'data_store']
 
 Run the subaperture calibration:
 
 .. code-block:: bash
 
-   python main_simul.py config/scao_tutorial.yaml calib_subaps.yml
+   python main_simul.py config/scao_tutorial.yml calib_subaps.yml
 
 This step identifies approximately 1200 valid subapertures out of the 1600 total (40×40 grid), excluding those outside the pupil or with insufficient illumination.
 
@@ -624,8 +625,8 @@ The interaction matrix calibration requires amplitude values for each actuator p
   def main():
       # Create scaled amplitudes for all valid actuators
       n_actuators = 1140  # Number of valid actuators (from influence functions)
-      base_amplitude = 50e-9  # 50nm in meters
-      
+      base_amplitude = 50  # 50nm
+  
       print(f"Creating scaled amplitude vector for {n_actuators} actuators")
       print(f"Base amplitude: {base_amplitude:.1f} nm")
       print("")
@@ -644,13 +645,13 @@ The interaction matrix calibration requires amplitude values for each actuator p
       print(f"Last 10 amplitudes [nm]:  {amplitudes[-10:]}")
       
       # Save amplitude vector
-      output_file = 'calibration/pushpull_1140modes_amp50.fits'
+      output_file = 'calibration/data/pushpull_1140modes_amp50.fits'
       fits.writeto(output_file, amplitudes, overwrite=True)
       print(f"\n✓ Saved scaled amplitude vector: {output_file}")
       
       # Create comparison with uniform amplitudes
       uniform_amplitudes = np.full(n_actuators, base_amplitude)
-      uniform_file = 'calibration/pushpull_1140modes_amp50_uniform.fits'
+      uniform_file = 'calibration/data/pushpull_1140modes_amp50_uniform.fits'
       fits.writeto(uniform_file, uniform_amplitudes, overwrite=True)
       print(f"✓ Saved uniform amplitude vector: {uniform_file}")
       
@@ -692,7 +693,7 @@ Create ``calib_im_rec.yml``:
      class:     'ImCalibrator'
      nmodes:    1140                         # Number of modes to calibrate
      im_tag:    'tutorial_im'                # Output IM filename
-     data_dir:  './calibration'              # Output directory
+     data_dir:  './calibration/im'              # Output directory
      overwrite: true                         # Overwrite existing files
      inputs:
        in_slopes:   'slopec.out_slopes'      # WFS slopes input
@@ -703,7 +704,7 @@ Create ``calib_im_rec.yml``:
      class:     'RecCalibrator'
      nmodes:    1140                         # Number of modes
      rec_tag:   'tutorial_rec'               # Output REC filename
-     data_dir:  './calibration'              # Output directory
+     data_dir:  './calibration/rec'              # Output directory
      overwrite: true                         # Overwrite existing files
      inputs:
        in_intmat:   'im_calibrator.out_intmat'  # Connect to IM output
@@ -714,9 +715,11 @@ Create ``calib_im_rec.yml``:
    
    # Disable atmosphere for clean calibration
    prop_override:
+     source_dict_ref:   ['source_ngs']
      inputs:
        common_layer_list: ['pupilstop', 'dm.out_layer']  # Only pupil + DM
-   
+     outputs:           ['out_source_ngs_ef']
+
    # Override DM to use calibration commands
    dm_override:
      inputs:
@@ -728,13 +731,13 @@ Create ``calib_im_rec.yml``:
      readout_noise:  false                   # No read noise
    
    # Remove unnecessary objects during calibration
-   remove: ['atmo', 'source_science', 'psf', 'modalrec', 'integrator']
+   remove: ['atmo', 'source_science', 'psf', 'modalrec', 'integrator', 'modal_analysis', 'data_store']
 
 Run the interaction matrix calibration:
 
 .. code-block:: bash
 
-   python main_simul.py config/scao_tutorial.yaml calib_im_rec.yml
+   python main_simul.py config/scao_tutorial.yml calib_im_rec.yml
 
 **What happens during calibration:**
 
@@ -752,7 +755,7 @@ Now run the full closed-loop simulation:
 
 .. code-block:: bash
 
-   python main_simul.py config/scao_tutorial.yaml
+   python main_simul.py config/scao_tutorial.yml
 
 TODO write that SR is printed during the simulation.
 
