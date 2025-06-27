@@ -431,8 +431,10 @@ Create ``config/scao_tutorial.yml``:
      bandw:             400                   # [nm] R+I-band filter width 600-1000nm
      photon_noise:      true                  # Enable photon noise
      readout_noise:     true                  # Enable read noise
-     readout_level:     2.0                   # [e-/pix/frame] Read noise level
-     quantum_eff:       0.8                   # QE × transmission
+     excess_noise:      true                  # Enable excess noise
+     readout_level:     0.2                   # [e-/pix/frame] Read noise level
+     emccd_gain:        400                   # EMCCD gain factor
+     quantum_eff:       0.3                   # QE × transmission
      inputs:
        in_i:            'sh.out_i'
      outputs:           ['out_pixels']
@@ -722,6 +724,7 @@ Create ``calib_im_rec.yml``:
 
    # Override DM to use calibration commands
    dm_override:
+     sign: 1                                 # Use positive sign for calibration (default is -1)
      inputs:
        in_command: 'pushpull.output'         # Connect to push-pull generator
    
