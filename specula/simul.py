@@ -399,7 +399,8 @@ class Simul():
                                 if MPI_DBG: print('Adding remote output to ', output_attr_name, flush=True)
                                 tag, s = computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name)
                                 if MPI_DBG: print(process_rank, 'Output side, Computed tag (A):', s, tag, flush=True)
-                                self.objs[output_obj_name].remote_outputs[output_attr_name] = (self.remote_objs_ranks[dest_object], tag)                                                                                 
+                                self.objs[output_obj_name].addRemoteOutput(output_attr_name, (self.remote_objs_ranks[dest_object], tag))
+
                         a_connection['start'] = output_attr_name.split('.')[0].split('-')[-1]
                         a_connection['end'] = dest_object
                         a_connection['start_label'] = input_attr_name
@@ -450,8 +451,9 @@ class Simul():
                             if dest_object in self.remote_objs_ranks and output_obj_name in self.objs:
                                 print(process_rank, 'Adding remote output to ', output_obj_name, flush=True)
                                 tag, s = computeTag(output_obj_name, dest_object, output_attr_name, input_name)
-                                if MPI_DBG: print(process_rank, 'Output side, Computed tag (B):', tag, s, flush=True)
-                                self.objs[output_obj_name].remote_outputs[output_attr_name] = (self.remote_objs_ranks[dest_object], tag)
+                                if MPI_DBG: print(process_rank, 'Output side, Computed tag (B):', tag, s, flush=True)                                
+                                self.objs[output_obj_name].addRemoteOutput(output_attr_name, (self.remote_objs_ranks[dest_object], tag))
+
 
                 elif isinstance(output_name, list):
                     if MPI_DBG: print(process_rank, 'List input', flush=True)
@@ -494,7 +496,7 @@ class Simul():
                                 if MPI_DBG: print('Adding remote output to ', output_attr_name, flush=True)
                                 tag, s = computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name)
                                 if MPI_DBG: print(process_rank, 'Output side, Computed tag (F):', s, tag, flush=True)
-                                self.objs[output_obj_name].remote_outputs[output_attr_name] = (self.remote_objs_ranks[dest_object], tag)                                                                                 
+                                self.objs[output_obj_name].addRemoteOutput(output_attr_name, (self.remote_objs_ranks[dest_object], tag))
 
                     output_ref = None
                     
@@ -510,6 +512,7 @@ class Simul():
                     #        tag, s = computeTag(output_obj_name, dest_object, output_attr_name, input_name)
                     #        if MPI_DBG: print(process_rank, 'Computed tag (G):', tag, s, flush=True)
                     #        self.objs[output_obj_name].remote_outputs[output_attr_name] = (self.remote_objs_ranks[dest_object], tag)
+                    # self.objs[output_obj_name].remote_outputs[output_attr_name] = (self.remote_objs_ranks[dest_object], tag)            
                     #    # self.objs[dest_object].inputs[input_name].set(None)
                 except ValueError:
                     print(f'Error connecting {output_name} to {dest_object}.{input_name}')

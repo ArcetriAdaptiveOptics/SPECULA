@@ -38,16 +38,16 @@ class InputValue():
                         self.output_ref.transferDataTo(self.cloned_value)
                     return self.cloned_value
         else:
-            if MPI_DBG: print(process_rank, 'Receiving from ', self.remote_rank, 'with tag', self.tag, flush=True)
+            if MPI_DBG: print(process_rank, 'Waiting from ', self.remote_rank, 'with tag', self.tag, flush=True)
             output_data = process_comm.recv(source=self.remote_rank, tag=self.tag)
             if output_data.xp_str == 'cp':
                 output_data.xp = cp
             else:
                 output_data.xp = np
             
-            if MPI_DBG: print(process_rank, 'Receive successful:', output_data, flush=True)
-            if MPI_DBG: print(process_rank, 'received obj type', type(output_data), flush=True)
-            if MPI_DBG: print(process_rank, 'received obj', output_data, flush=True)
+            # if MPI_DBG: print(process_rank, 'Receive successful:', output_data, flush=True)
+            if MPI_DBG: print(process_rank, 'received successful obj type', type(output_data), flush=True)
+            #if MPI_DBG: print(process_rank, 'received obj', output_data, flush=True)
 
             if self.cloned_value is None:
                 # update copyTo to handle same target_device_idx but different rank
@@ -119,10 +119,11 @@ class InputList():
                         list_item.transferDataTo(cloned)
         else:
             self.cloned_list = []
-            if MPI_DBG: print(process_rank, 'Getting remote List from ', flush=True)
-            if MPI_DBG: print(process_rank, 'Receiveing List from ', self.remote_rank, 'with tag', self.tag, flush=True)
+            #if MPI_DBG: print(process_rank, 'Getting remote List from ', flush=True)
+            if MPI_DBG: print(process_rank, 'Waiting List from ', self.remote_rank, 'with tag', self.tag, flush=True)
             output_data_list = process_comm.recv(source=self.remote_rank, tag=self.tag)
-            if MPI_DBG: print(process_rank, 'Receive List successful:', output_data_list, flush=True)
+            if MPI_DBG: print(process_rank, 'Receive List successful:', flush=True)
+            #if MPI_DBG: print(process_rank, 'Receive List successful:', output_data_list, flush=True)
             #if self.cloned_list == []:
                 # First get(): allocate another object with copyTo where needed
             if type(output_data_list) is list:

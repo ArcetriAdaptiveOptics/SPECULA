@@ -46,6 +46,12 @@ class BaseProcessingObj(BaseTimeObj):
         if self.target_device_idx >= 0:
             self._target_device.use()
 
+    def addRemoteOutput(self, name, remote_output):
+        if name in self.remote_outputs:
+            self.remote_outputs[name].append(remote_output)
+        else:
+            self.remote_outputs[name] = []
+            self.remote_outputs[name].append(remote_output)
 
     def checkInputTimes(self):        
         if len(self.inputs)==0:
@@ -125,27 +131,32 @@ class BaseProcessingObj(BaseTimeObj):
     # this method implments the mpi send call of the outputs connected to remote inputs
     def send_outputs(self):
         if MPI_DBG: print(process_rank, 'send_outputs', flush=True)
-        for out_name, remote_spec in self.remote_outputs.items():
-            dest_rank, dest_tag = remote_spec
-            # workaround cause module objects canno be pickled
-            xp = []
-            if out_name.split('_')[-1] == 'list':
-                # the list is sent at once as well, but its data objects has to be manipulated one at a time
-                for ii, list_elem in enumerate(self.outputs[out_name]):
-                    xp.append(list_elem.xp)
-                    list_elem.xp = 0
-                if MPI_DBG: print(process_rank, 'Sending ', out_name, 'to ', dest_rank, 'with tag',  dest_tag, type(self.outputs[out_name]), self.outputs[out_name])            
-                process_comm.ibsend(self.outputs[out_name], dest=dest_rank, tag=dest_tag)                    
-                for ii, list_elem in enumerate(self.outputs[out_name]):
-                    list_elem.xp = xp[ii]
-            else:
-                # non blocking send, as we dont know the oder of the recieves
-                if MPI_DBG: print(process_rank, 'Sending ', out_name, 'to ', dest_rank, 'with tag',  dest_tag, type(self.outputs[out_name]), self.outputs[out_name])            
-                xp = self.outputs[out_name].xp
-                self.outputs[out_name].xp = 0
-                process_comm.ibsend(self.outputs[out_name], dest=dest_rank, tag=dest_tag)    
-                self.outputs[out_name].xp = xp
-            
+        for out_name, remote_specs in self.remote_outputs.items():
+            for remote_spec in remote_specs:
+                dest_rank, dest_tag = remote_spec
+                # workaround cause module objects canno be pickled
+                xp = []
+                if out_name.split('_')[-1] == 'list':
+                    # the list is sent at once as well, but its data objects has to be manipulated one at a time
+                    for ii, list_elem in enumerate(self.outputs[out_name]):
+                        xp.append(list_elem.xp)
+                        list_elem.xp = 0
+                    if MPI_DBG: print(process_rank, 'Sending List ', out_name, 'to ', dest_rank, 'with tag',  dest_tag, type(self.outputs[out_name]))
+                                    #, self.outputs[out_name])            
+                    process_comm.ibsend(self.outputs[out_name], dest=dest_rank, tag=dest_tag)                    
+                    if MPI_DBG: print(process_rank, 'Sent List ')
+                    for ii, list_elem in enumerate(self.outputs[out_name]):
+                        list_elem.xp = xp[ii]
+                else:
+                    # non blocking send, as we dont know the oder of the recieves
+                    if MPI_DBG: print(process_rank, 'Sending ', out_name, 'to ', dest_rank, 'with tag',  dest_tag, type(self.outputs[out_name]))
+                        #, self.outputs[out_name])            
+                    xp = self.outputs[out_name].xp
+                    self.outputs[out_name].xp = 0
+                    process_comm.ibsend(self.outputs[out_name], dest=dest_rank, tag=dest_tag)
+                    if MPI_DBG: print(process_rank, 'Sent')
+                    self.outputs[out_name].xp = xp
+                
 
     @classmethod
     def device_stream(cls, target_device_idx):

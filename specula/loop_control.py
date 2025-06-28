@@ -123,19 +123,21 @@ class LoopControl(BaseTimeObj):
             if i in self._ordered_lists:
                 for element in self._ordered_lists[i]:
                     try:
-                        # if MPI_DBG: print(process_rank, element, 'startMemUsageCount', flush=True)
+                        if MPI_DBG: print(process_rank, element, 'startMemUsageCount', flush=True)
                         element.startMemUsageCount()
-                        #if MPI_DBG: print(process_rank, element, 'setup', flush=True)
+                        if MPI_DBG: print(process_rank, element, 'setup', flush=True)
                         element.setup()
-                        #if MPI_DBG: print(process_rank, element, 'stopMemUsageCount', flush=True)
+                        if MPI_DBG: print(process_rank, element, 'stopMemUsageCount', flush=True)
                         element.stopMemUsageCount()
-                        #if MPI_DBG: print(process_rank, element, 'printMemUsage', flush=True)
+                        if MPI_DBG: print(process_rank, element, 'printMemUsage', flush=True)
                         element.printMemUsage()
                     except:
                         print('Exception in', element.name, flush=True)
                         raise
-            process_comm.barrier()
+        process_comm.barrier()
         
+        if MPI_DBG: print(process_rank, 'Setups DONE', flush=True)
+
         
         self._t = self._t0
 
