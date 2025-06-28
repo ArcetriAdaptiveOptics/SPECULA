@@ -34,7 +34,7 @@ class TestExtrapolation2D(unittest.TestCase):
         true_data = zernike_data.data.copy() if hasattr(zernike_data, 'data') else zernike_data.copy()
 
         input_data = true_data.copy()
-        input_data[reduced_mask.mask()] = 0  # Zero outside the reduced mask
+        input_data[cpuArray(reduced_mask.mask())] = 0  # Zero outside the reduced mask
 
         # Annular region: inside full_mask and outside reduced_mask
         annular_region = (~full_mask.mask()) & reduced_mask.mask()
