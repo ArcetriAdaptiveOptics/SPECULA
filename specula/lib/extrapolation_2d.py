@@ -2,9 +2,6 @@ import numpy as np
 from scipy.ndimage import binary_dilation
 from specula import cpuArray
 
-# Labels for the extrapolation directions
-directions_labels = ['Down (y+1)', 'Up (y-1)', 'Right (x+1)', 'Left (x-1)']
-
 def calculate_extrapolation_indices_coeffs(mask):
     """
     Calculates indices and coefficients for extrapolating edge pixels of a mask.
