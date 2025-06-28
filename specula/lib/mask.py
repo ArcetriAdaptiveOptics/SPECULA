@@ -110,18 +110,19 @@ class CircularMask(BaseMask):
     def __init__(self,
                  frameShape,
                  maskRadius=None,
-                 maskCenter=None):
+                 maskCenter=None,
+                 xp=xp):
         self._shape = frameShape
         self._maskRadius = maskRadius
         self._maskCenter = maskCenter
         self._mask = None
-        self._computeMask()
+        self._computeMask(xp=xp)
 
     def __repr__(self):
         return "shape %s, radius %f, center %s" % (
             self._shape, self._maskRadius, self._maskCenter)
 
-    def _computeMask(self):
+    def _computeMask(self,xp=xp):
         if self._maskRadius is None:
             self._maskRadius = min(self._shape) / 2.
         if self._maskCenter is None:
