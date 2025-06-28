@@ -41,7 +41,7 @@ if __name__ == '__main__':
 
     import specula
 
-    mpidbg = False
+    mpidbg = True
     specula.init(target_device_idx, precision=1, rank=rank, comm=comm, mpi_dbg=mpidbg)
 
     print(args)    

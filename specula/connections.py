@@ -27,7 +27,7 @@ class InputValue():
             return self.output_ref.generation_time        
 
     def get(self, target_device_idx):
-        if not self.remote:
+        if not self.remote:            
             if not self.output_ref is None:            
                 if self.output_ref.target_device_idx == target_device_idx:
                     return self.output_ref
@@ -99,10 +99,10 @@ class InputList():
 
     def get(self, target_device_idx):
         '''Copy all values in the list to the specified target'''
-        if self.output_ref_list is None:
+        if not self.remote and self.output_ref_list is None:
             return
-
-        if not self.remote:
+        
+        if not self.remote:            
             if self.cloned_list == []:
                 # First get(): allocate another object with copyTo where needed
                 for list_item in self.output_ref_list:
@@ -110,7 +110,7 @@ class InputList():
                             self.cloned_list.append(list_item)
                         else:
                             self.cloned_list.append(list_item.copyTo(target_device_idx))             
-            else:
+            else:                
                 # Second get(): always used transferDataTo()            
                 for i, (list_item, cloned) in enumerate(zip(self.output_ref_list, self.cloned_list)):                    
                     if list_item.target_device_idx == target_device_idx:
@@ -118,13 +118,18 @@ class InputList():
                     else:
                         list_item.transferDataTo(cloned)
         else:
+            self.cloned_list = []
+            if MPI_DBG: print(process_rank, 'Getting remote List from ', flush=True)
             if MPI_DBG: print(process_rank, 'Receiveing List from ', self.remote_rank, 'with tag', self.tag, flush=True)
             output_data_list = process_comm.recv(source=self.remote_rank, tag=self.tag)
             if MPI_DBG: print(process_rank, 'Receive List successful:', output_data_list, flush=True)
             #if self.cloned_list == []:
                 # First get(): allocate another object with copyTo where needed
-            for list_item in output_data_list:                                        
-                self.cloned_list.append(list_item.copyTo(target_device_idx))                        
+            if type(output_data_list) is list:
+                for list_item in output_data_list:
+                    self.cloned_list.append(list_item.copyTo(target_device_idx))
+            else:
+                self.cloned_list.append(output_data_list.copyTo(target_device_idx))
             # else:
             #    # Second get(): always used transferDataTo()            
             #    for i, (list_item, cloned) in enumerate(zip(self.output_ref_list, output_data_list)):

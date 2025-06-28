@@ -9,11 +9,12 @@ main:
   time_step:         0.001                  # [s] Simulation time step
 #  display_server:    true                  # Display server on auto-selected port
 
+# http://193.206.154.232:3000/
 
-server:
-  class:             'DisplayServer'
-  host:              '0.0.0.0'              # Listen on all interfaces
-  port:              3000                   # Use zero for auto-selection
+#server:
+#  class:             'DisplayServer'
+#  host:              '0.0.0.0'              # Listen on all interfaces
+#  port:              3000                   # Use zero for auto-selection
 
 seeing:
   class:             'FuncGenerator'
@@ -102,14 +103,14 @@ detector:
   size:              [120,120]                 # Detector size in pixels
   dt:                0.001                   # [s] Detector integration time
   bandw:             300                     # [nm] Sensor bandwidth
-  photon_noise:      false                    # activate photon noise
-  readout_noise:     false                    # activate readout noise
+  photon_noise:      true                    # activate photon noise
+  readout_noise:     true                    # activate readout noise
   readout_level:     1.0                     # readout noise in [e-/pix/frame]
   quantum_eff:       0.32                    # quantum efficiency * total transmission
   inputs:
     in_i: 'sh.out_i'
   outputs:  ['out_pixels']
-  target_rank: 1
+  target_rank: 0
   target_device_idx: 0
 
 

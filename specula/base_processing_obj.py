@@ -123,11 +123,10 @@ class BaseProcessingObj(BaseTimeObj):
                 self.stream.synchronize()
 
     # this method implments the mpi send call of the outputs connected to remote inputs
-    def send_outputs(self):        
+    def send_outputs(self):
+        if MPI_DBG: print(process_rank, 'send_outputs', flush=True)
         for out_name, remote_spec in self.remote_outputs.items():
             dest_rank, dest_tag = remote_spec
-            # non blocking send, as we dont know the oder of the recieves
-            if MPI_DBG: print(process_rank, 'Sending ', out_name, 'to ', dest_rank, 'with tag',  dest_tag, type(self.outputs[out_name]), self.outputs[out_name])
             # workaround cause module objects canno be pickled
             xp = []
             if out_name.split('_')[-1] == 'list':
@@ -135,10 +134,13 @@ class BaseProcessingObj(BaseTimeObj):
                 for ii, list_elem in enumerate(self.outputs[out_name]):
                     xp.append(list_elem.xp)
                     list_elem.xp = 0
+                if MPI_DBG: print(process_rank, 'Sending ', out_name, 'to ', dest_rank, 'with tag',  dest_tag, type(self.outputs[out_name]), self.outputs[out_name])            
                 process_comm.ibsend(self.outputs[out_name], dest=dest_rank, tag=dest_tag)                    
                 for ii, list_elem in enumerate(self.outputs[out_name]):
-                    self.outputs[out_name].xp = xp[ii]
+                    list_elem.xp = xp[ii]
             else:
+                # non blocking send, as we dont know the oder of the recieves
+                if MPI_DBG: print(process_rank, 'Sending ', out_name, 'to ', dest_rank, 'with tag',  dest_tag, type(self.outputs[out_name]), self.outputs[out_name])            
                 xp = self.outputs[out_name].xp
                 self.outputs[out_name].xp = 0
                 process_comm.ibsend(self.outputs[out_name], dest=dest_rank, tag=dest_tag)    
