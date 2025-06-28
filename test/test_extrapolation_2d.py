@@ -30,15 +30,16 @@ class TestExtrapolation2D(unittest.TestCase):
         reduced_mask = CircularMask(shape, inner_radius, center)
 
         zg = ZernikeGenerator(full_mask, xp=xp, dtype=xp.float64)
-        zernike_data = zg.getZernike(zernike_mode)
-        true_data = zernike_data.data.copy() if hasattr(zernike_data, 'data') else zernike_data.copy()
+        full_mask = xp.array(cpuArray(full_mask.mask()))
+        reduced_mask = xp.array(cpuArray(reduced_mask.mask()))
+        true_data = zg.getZernike(zernike_mode)
 
         input_data = true_data.copy()
-        input_data[reduced_mask.mask()] = 0  # Zero outside the reduced mask
+        input_data[reduced_mask] = 0  # Zero outside the reduced mask
 
         # Annular region: inside full_mask and outside reduced_mask
-        annular_region = (~full_mask.mask()) & reduced_mask.mask()
-        return true_data, input_data, full_mask.mask(), reduced_mask.mask(), annular_region
+        annular_region = (~full_mask) & reduced_mask
+        return true_data, input_data, full_mask, reduced_mask, annular_region
 
     @cpu_and_gpu
     def test_extrapolation_piston(self, target_device_idx, xp):
