@@ -40,7 +40,9 @@ if __name__ == '__main__':
         target_device_idx = args.target
 
     import specula
-    specula.init(target_device_idx, precision=1, rank=rank, comm=comm)
+
+    mpidbg = False
+    specula.init(target_device_idx, precision=1, rank=rank, comm=comm, mpi_dbg=mpidbg)
 
     print(args)    
     from specula.simul import Simul

@@ -1,4 +1,4 @@
-from specula import process_rank, process_comm
+from specula import process_rank, process_comm, MPI_DBG
 from specula import np, cp
 
 class InputValue():
@@ -38,27 +38,27 @@ class InputValue():
                         self.output_ref.transferDataTo(self.cloned_value)
                     return self.cloned_value
         else:
-            print(process_rank, 'Receiving from ', self.remote_rank, 'with tag', self.tag, flush=True)
+            if MPI_DBG: print(process_rank, 'Receiving from ', self.remote_rank, 'with tag', self.tag, flush=True)
             output_data = process_comm.recv(source=self.remote_rank, tag=self.tag)
             if output_data.xp_str == 'cp':
                 output_data.xp = cp
             else:
                 output_data.xp = np
             
-            print(process_rank, 'Receive successful:', output_data, flush=True)
-            print(process_rank, 'received obj type', type(output_data), flush=True)
-            print(process_rank, 'received obj', output_data, flush=True)
+            if MPI_DBG: print(process_rank, 'Receive successful:', output_data, flush=True)
+            if MPI_DBG: print(process_rank, 'received obj type', type(output_data), flush=True)
+            if MPI_DBG: print(process_rank, 'received obj', output_data, flush=True)
 
-            #if self.cloned_value is None:
+            if self.cloned_value is None:
                 # update copyTo to handle same target_device_idx but different rank
-            self.cloned_value = output_data.copyTo(target_device_idx)
-            print(process_rank, 'Received data copied', flush=True)
-            #else:
-            #    # update transferDataTo to handle same target_device_idx but different rank
-            #    output_data.transferDataTo(self.cloned_value)
-            #    print(process_rank, 'Received data transfered', flush=True)
+                self.cloned_value = output_data.copyTo(target_device_idx)
+                if MPI_DBG: print(process_rank, 'Received data copied', flush=True)
+            else:
+                # update transferDataTo to handle same target_device_idx but different rank
+                output_data.transferDataTo(self.cloned_value)
+                if MPI_DBG: print(process_rank, 'Received data transfered', flush=True)
 
-            print(process_rank, 'self.cloned_value', self.cloned_value)
+            if MPI_DBG: print(process_rank, 'self.cloned_value', self.cloned_value)
             return self.cloned_value
 
     def set(self, value):
@@ -71,8 +71,6 @@ class InputValue():
 
 
 class InputList():
-    # tag = 20000 * process_rank
-
     def __init__(self, type, optional=False):
         """
         Wrapper for input lists
@@ -92,9 +90,6 @@ class InputList():
         self.remote = remote_rank is not None
         # the sender rank
         self.remote_rank = remote_rank
-        #if self.remote:
-        #    self.tag = InputList.tag + 1
-        #    InputList.tag += 1
 
     def get_time(self):
         if not self.output_ref_list is None:
@@ -107,32 +102,33 @@ class InputList():
         if self.output_ref_list is None:
             return
 
-        if self.cloned_list == []:
-            # First get(): allocate another object with copyTo where needed
-            for list_item in self.output_ref_list:
-                if not self.remote:
-                    if list_item.target_device_idx == target_device_idx:
-                        self.cloned_list.append(list_item)
-                    else:
-                        self.cloned_list.append(list_item.copyTo(target_device_idx))
-                else:
-                    print(process_rank, 'Receiveing from ', self.remote_rank, 'with tag', self.tag, flush=True)
-                    output_data = process_comm.recv(source=self.remote_rank, tag=self.tag)
-                    print(process_rank, 'Receive successful:', output_data, flush=True)
-                    self.cloned_list.append(output_data.copyTo(target_device_idx))
-        else:
-            # Second get(): always used transferDataTo()            
-            for i, (list_item, cloned) in enumerate(zip(self.output_ref_list, self.cloned_list)):
-                if not self.remote:
+        if not self.remote:
+            if self.cloned_list == []:
+                # First get(): allocate another object with copyTo where needed
+                for list_item in self.output_ref_list:
+                        if list_item.target_device_idx == target_device_idx:
+                            self.cloned_list.append(list_item)
+                        else:
+                            self.cloned_list.append(list_item.copyTo(target_device_idx))             
+            else:
+                # Second get(): always used transferDataTo()            
+                for i, (list_item, cloned) in enumerate(zip(self.output_ref_list, self.cloned_list)):                    
                     if list_item.target_device_idx == target_device_idx:
                         self.cloned_list[i] = list_item
                     else:
                         list_item.transferDataTo(cloned)
-                else:
-                    print(process_rank, 'Receiveing from ', self.remote_rank, 'with tag', self.tag, flush=True)
-                    output_data = process_comm.recv(source=self.remote_rank, tag=self.tag)
-                    print(process_rank, 'Receive successful:', output_data, flush=True)
-                    output_data.transferDataTo(cloned)                    
+        else:
+            if MPI_DBG: print(process_rank, 'Receiveing List from ', self.remote_rank, 'with tag', self.tag, flush=True)
+            output_data_list = process_comm.recv(source=self.remote_rank, tag=self.tag)
+            if MPI_DBG: print(process_rank, 'Receive List successful:', output_data_list, flush=True)
+            #if self.cloned_list == []:
+                # First get(): allocate another object with copyTo where needed
+            for list_item in output_data_list:                                        
+                self.cloned_list.append(list_item.copyTo(target_device_idx))                        
+            # else:
+            #    # Second get(): always used transferDataTo()            
+            #    for i, (list_item, cloned) in enumerate(zip(self.output_ref_list, output_data_list)):
+            #        list_item.transferDataTo(cloned)
 
         return self.cloned_list
 

@@ -1,7 +1,7 @@
 from astropy.io import fits
 
 from specula.base_time_obj import BaseTimeObj
-from specula import default_target_device, cp
+from specula import default_target_device, cp, MPI_DBG
 from specula import show_in_profiler
 from specula.connections import InputValue, InputList
 from specula import process_comm, process_rank
@@ -77,19 +77,20 @@ class BaseProcessingObj(BaseTimeObj):
         self.current_time_seconds = self.t_to_seconds(self.current_time)
         for input_name, input_obj in self.inputs.items():
             if type(input_obj) is InputValue:
-                print(process_rank, 'prepare_trigger, Getting:', input_name, flush=True)
+                if MPI_DBG: print(process_rank, 'prepare_trigger, Getting:', input_name, flush=True)
                 self.local_inputs[input_name] = input_obj.get(self.target_device_idx)
-#                if input_name=='in_ef':
-#                    print(process_rank, input_name, 'local input', self.local_inputs[input_name], flush=True)
+#                if input_name=='in_ef' and MPI_DBG:
+#                    if MPI_DBG: print(process_rank, input_name, 'local input', self.local_inputs[input_name], flush=True)
                 if self.local_inputs[input_name] is not None:
                     self.last_seen[input_name] = self.local_inputs[input_name].generation_time
             elif type(input_obj) is InputList:
                 self.local_inputs[input_name] = []
                 self.last_seen[input_name] = []
-                print(process_rank, ', prepare_trigger, Getting:', input_name, flush=True)
+                if MPI_DBG: print(process_rank, ', prepare_trigger, Getting Input List:', input_name, flush=True)
                 input_list = input_obj.get(self.target_device_idx)
                 if input_list is not None:
                     for tt in input_list:
+                        if MPI_DBG: print(process_rank, ', prepare_trigger, Got  Input List item:', tt, flush=True)
                         self.local_inputs[input_name].append(tt)
                         if self.local_inputs[input_name] is not None:
                             self.last_seen[input_name].append(tt.generation_time)
@@ -126,13 +127,23 @@ class BaseProcessingObj(BaseTimeObj):
         for out_name, remote_spec in self.remote_outputs.items():
             dest_rank, dest_tag = remote_spec
             # non blocking send, as we dont know the oder of the recieves
-            print(process_rank, 'Sending ', out_name, 'to ', dest_rank, 'with tag',  dest_tag, type(self.outputs[out_name]), self.outputs[out_name])
+            if MPI_DBG: print(process_rank, 'Sending ', out_name, 'to ', dest_rank, 'with tag',  dest_tag, type(self.outputs[out_name]), self.outputs[out_name])
             # workaround cause module objects canno be pickled
-            xp = self.outputs[out_name].xp
-            self.outputs[out_name].xp = 0
-            process_comm.ibsend(self.outputs[out_name], dest=dest_rank, tag=dest_tag)    
-            self.outputs[out_name].xp = xp
-        
+            xp = []
+            if out_name.split('_')[1] == 'list':
+                # the list is sent at once as well, but its data objects has to be manipulated one at a time
+                for ii, list_elem in enumerate(self.outputs[out_name]):
+                    xp.append(list_elem.xp)
+                    list_elem.xp = 0
+                process_comm.ibsend(self.outputs[out_name], dest=dest_rank, tag=dest_tag)                    
+                for ii, list_elem in enumerate(self.outputs[out_name]):
+                    self.outputs[out_name].xp = xp[ii]
+            else:
+                xp = self.outputs[out_name].xp
+                self.outputs[out_name].xp = 0
+                process_comm.ibsend(self.outputs[out_name], dest=dest_rank, tag=dest_tag)    
+                self.outputs[out_name].xp = xp
+            
 
     @classmethod
     def device_stream(cls, target_device_idx):
@@ -204,7 +215,7 @@ class BaseProcessingObj(BaseTimeObj):
         if self.target_device_idx >= 0:
             self._target_device.use()
         for input_name, input in self.inputs.items():
-            print(process_rank, 'Setup, Getting:', input_name, flush=True)
+            if MPI_DBG: print(process_rank, 'Setup, Getting:', input_name, flush=True)
             vv = input.get(self.target_device_idx)
             if vv is None and not input.optional:
                 raise ValueError(f'Input {input_name} for object {self} has not been set')

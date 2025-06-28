@@ -5,7 +5,7 @@ import itertools
 from copy import deepcopy
 from pathlib import Path
 from collections import Counter
-from specula import process_comm, process_rank
+from specula import process_comm, process_rank, MPI_DBG
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_data_obj import BaseDataObj
 
@@ -447,7 +447,7 @@ class Simul():
                                                                                                     dest_object, \
                                                                                                     outputs_attr_name, \
                                                                                                     input_name))
-                
+                # TODO look what happens from here on
                 elif isinstance(output_name, list):
                     outputs = [self.output_ref(x)[0] for x in output_name]
                     output_names = [self.output_ref(x)[1] for x in output_name]
@@ -701,7 +701,7 @@ class Simul():
             self.loop.add(disp, idx+1)
             disp.name = 'display_server'
 
-        print(process_rank, 'at run barrier')
+        if MPI_DBG: print(process_rank, 'at run barrier')
         
         sys.stdout.flush()
         process_comm.barrier()

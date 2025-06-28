@@ -22,6 +22,7 @@ process_comm = None
 process_rank = None
 ASEC2RAD = np.pi / (3600 * 180)
 RAD2ASEC = 1.0 / ASEC2RAD
+MPI_DBG = False
 
 # precision = 0 -> double precision
 # precision = 1 -> single precision
@@ -35,7 +36,7 @@ RAD2ASEC = 1.0 / ASEC2RAD
 # a GPU device (idx>=0).
 # This can be checked later looking at the  value of gpuEnabled.
 
-def init(device_idx=-1, precision=0, rank=None, comm=None):
+def init(device_idx=-1, precision=0, rank=None, comm=None, mpi_dbg=False):
     global xp
     global cp
     global gpuEnabled
@@ -50,7 +51,9 @@ def init(device_idx=-1, precision=0, rank=None, comm=None):
     global default_target_device
     global process_comm
     global process_rank
+    global MPI_DBG
     
+    MPI_DBG = mpi_dbg
     process_comm = comm
     process_rank = rank
 

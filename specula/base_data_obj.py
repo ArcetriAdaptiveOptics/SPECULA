@@ -69,8 +69,9 @@ class BaseDataObj(BaseTimeObj):
         Destination (CPU or GPU device) is inferred by *destobj.target_device_idx*,
         which must be set correctly before calling this method.
         '''
-        if destobj.target_device_idx == self.target_device_idx and not force_reallocation:
-            return self
+        #print(f'{destobj.target_device_idx=} {self.target_device_idx=} {force_reallocation=}')
+        #if destobj.target_device_idx == self.target_device_idx and not force_reallocation:
+        #    return self
 
         # Get a list of all attributes, but skip properties
         pp = get_properties(type(self))

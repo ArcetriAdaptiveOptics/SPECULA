@@ -3,7 +3,7 @@ import time
 import numpy as np
 
 from specula.base_time_obj import BaseTimeObj
-from specula import process_comm, process_rank
+from specula import process_comm, process_rank, MPI_DBG
 
 class LoopControl(BaseTimeObj):
     def __init__(self, verbose=False):
@@ -47,11 +47,11 @@ class LoopControl(BaseTimeObj):
         self.start(run_time, dt, t0=t0, stop_on_data=stop_on_data, stop_at_time=stop_at_time,
                    profiling=profiling, speed_report=speed_report)
         while self._t < self._t0 + self._run_time:            
-            print(process_rank, 'before barrier iter', flush=True)
+            if MPI_DBG: print(process_rank, 'before barrier iter', flush=True)
             process_comm.barrier()
-            print(process_rank, 'after barrier iter', flush=True)
-            print(process_rank, 'NEW ITERATION', self._t,flush=True)
-            time.sleep(1)
+            if MPI_DBG: print(process_rank, 'after barrier iter', flush=True)
+            if MPI_DBG: print(process_rank, 'NEW ITERATION', self._t,flush=True)
+            # time.sleep(1)
             self.iter()
             
         self.finish()
@@ -76,35 +76,35 @@ class LoopControl(BaseTimeObj):
                 for element in self._ordered_lists[i]:                    
                     element.send_outputs()
 
-        print(process_rank, 'at barrier A', flush=True)
+        if MPI_DBG: print(process_rank, 'at barrier A', flush=True)
         process_comm.barrier()
-        print(process_rank, 'after barrier A', flush=True)
-        print(process_rank, 'self._max_order', self._max_order, flush=True)
+        if MPI_DBG: print(process_rank, 'after barrier A', flush=True)
+        if MPI_DBG: print(process_rank, 'self._max_order', self._max_order, flush=True)
 
         
         for i in range(self.max_global_order+1):
-            print(process_rank, i, 'begin', flush=True)
+            if MPI_DBG: print(process_rank, i, 'begin', flush=True)
             # all the objects having this trigger order could be remote
             if i in self._ordered_lists.keys():
-                print(process_rank, self._ordered_lists[i])
+                if MPI_DBG: print(process_rank, self._ordered_lists[i])
                 for element in self._ordered_lists[i]:
-                    print(process_rank, element.inputs.keys())
+                    if MPI_DBG: print(process_rank, element.inputs.keys())
                     for input_name, ii in element.inputs.items():
-                        print(process_rank, 'loop control, Getting:', input_name, flush=True)
+                        if MPI_DBG: print(process_rank, 'loop control, Getting:', input_name, flush=True)
                         r = ii.get(element.target_device_idx)
-                        print(process_rank, input_name, r)
-                        print(process_rank, '...')
-                    print(process_rank, element, 'done', flush=True)
-            print(process_rank, i, 'done', flush=True)            
+                        if MPI_DBG: print(process_rank, input_name, r)
+                        if MPI_DBG: print(process_rank, '...')
+                    if MPI_DBG: print(process_rank, element, 'done', flush=True)
+            if MPI_DBG: print(process_rank, i, 'done', flush=True)            
         
-        print(process_rank, 'all done', flush=True)
-        #print(process_rank, 'at barrier B', flush=True)
+        if MPI_DBG: print(process_rank, 'all done', flush=True)
+        #if MPI_DBG: print(process_rank, 'at barrier B', flush=True)
         #process_comm.barrier()
-        #print(process_rank, 'after barrier B', flush=True)
+        #if MPI_DBG: print(process_rank, 'after barrier B', flush=True)
         '''
 
         process_comm.barrier()
-        print(process_rank, 'Sending data pre-setup', flush=True)
+        if MPI_DBG: print(process_rank, 'Sending data pre-setup', flush=True)
 
         for i in range(self.max_global_order+1):
             # all the objects having this trigger order could be remote
@@ -114,22 +114,22 @@ class LoopControl(BaseTimeObj):
             process_comm.barrier()
 
         process_comm.barrier()
-        print(process_rank, 'Starting setups', flush=True)
+        if MPI_DBG: print(process_rank, 'Starting setups', flush=True)
 
-        print(process_rank, 'self._ordered_lists', self._ordered_lists, flush=True)
+        if MPI_DBG: print(process_rank, 'self._ordered_lists', self._ordered_lists, flush=True)
 
         for i in range(self.max_global_order+1):
             # all the objects having this trigger order could be remote
             if i in self._ordered_lists:
                 for element in self._ordered_lists[i]:
                     try:
-                        # print(process_rank, element, 'startMemUsageCount', flush=True)
+                        # if MPI_DBG: print(process_rank, element, 'startMemUsageCount', flush=True)
                         element.startMemUsageCount()
-                        #print(process_rank, element, 'setup', flush=True)
+                        #if MPI_DBG: print(process_rank, element, 'setup', flush=True)
                         element.setup()
-                        #print(process_rank, element, 'stopMemUsageCount', flush=True)
+                        #if MPI_DBG: print(process_rank, element, 'stopMemUsageCount', flush=True)
                         element.stopMemUsageCount()
-                        #print(process_rank, element, 'printMemUsage', flush=True)
+                        #if MPI_DBG: print(process_rank, element, 'printMemUsage', flush=True)
                         element.printMemUsage()
                     except:
                         print('Exception in', element.name, flush=True)
@@ -162,8 +162,8 @@ class LoopControl(BaseTimeObj):
                         print('Exception in', element.name, flush=True)
                         raise
 
-                #print(process_rank, 'at barrier check_ready', flush=True)                
-                #print(process_rank, 'after barrier check_ready', flush=True)
+                #if MPI_DBG: print(process_rank, 'at barrier check_ready', flush=True)                
+                #if MPI_DBG: print(process_rank, 'after barrier check_ready', flush=True)
 
                 for element in self._ordered_lists[i]:
                     try:

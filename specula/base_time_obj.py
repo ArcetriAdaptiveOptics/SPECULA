@@ -1,4 +1,4 @@
-from specula import np, cp, to_xp, process_rank
+from specula import np, cp, to_xp, process_rank, MPI_DBG
 from specula import global_precision, default_target_device, default_target_device_idx, DummyDecoratorAndContextManager
 from specula import cpu_float_dtype_list, gpu_float_dtype_list
 from specula import cpu_complex_dtype_list, gpu_complex_dtype_list
@@ -104,7 +104,7 @@ class BaseTimeObj:
 
     def printMemUsage(self):
         if self.target_device_idx >= 0:
-            print(process_rank, f'\tcupy memory used by {self.__class__.__name__}: {self.gpu_bytes_used / (1024*1024)} MB')
+            if MPI_DBG: print(process_rank, f'\tcupy memory used by {self.__class__.__name__}: {self.gpu_bytes_used / (1024*1024)} MB')
 
     # not used for now
     def monitorMem(function):
