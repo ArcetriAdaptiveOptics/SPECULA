@@ -130,7 +130,7 @@ class BaseProcessingObj(BaseTimeObj):
             if MPI_DBG: print(process_rank, 'Sending ', out_name, 'to ', dest_rank, 'with tag',  dest_tag, type(self.outputs[out_name]), self.outputs[out_name])
             # workaround cause module objects canno be pickled
             xp = []
-            if out_name.split('_')[1] == 'list':
+            if out_name.split('_')[-1] == 'list':
                 # the list is sent at once as well, but its data objects has to be manipulated one at a time
                 for ii, list_elem in enumerate(self.outputs[out_name]):
                     xp.append(list_elem.xp)
