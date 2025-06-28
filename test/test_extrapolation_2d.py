@@ -30,11 +30,14 @@ class TestExtrapolation2D(unittest.TestCase):
         reduced_mask = CircularMask(shape, inner_radius, center)
 
         zg = ZernikeGenerator(full_mask, xp=xp, dtype=xp.float64)
+        true_data = zg.getZernike(zernike_mode)
+        input_data = true_data.copy()
+                
+        # the following lines are required because CircularMask use the xp from specula and not the xp passed
+        # to the function as the ZernikeGenerator
         full_mask = xp.array(cpuArray(full_mask.mask()))
         reduced_mask = xp.array(cpuArray(reduced_mask.mask()))
-        true_data = zg.getZernike(zernike_mode)
 
-        input_data = true_data.copy()
         input_data[reduced_mask] = 0  # Zero outside the reduced mask
 
         # Annular region: inside full_mask and outside reduced_mask
