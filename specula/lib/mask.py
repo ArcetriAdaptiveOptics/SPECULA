@@ -36,7 +36,7 @@ class BaseMask():
         '''
         return self._mask
     
-    def as_masked_array(self):
+    def as_masked_array(self, xp=xp):
         return xp.ma.array(xp.ones(self._shape, dtype=self.dtype),
                            mask=self.mask())
         
@@ -359,9 +359,10 @@ class AnnularMask(CircularMask):
                  frameShape,
                  maskRadius=None,
                  maskCenter=None,
-                 inRadius=0):
+                 inRadius=0,
+                 xp=xp):
         self._inRadius = inRadius
-        super().__init__(frameShape, maskRadius, maskCenter)
+        super().__init__(frameShape, maskRadius, maskCenter, xp=xp)
 
     def __repr__(self):
         return "shape %s, radius %f, center %s, inradius %f" % (
@@ -370,7 +371,7 @@ class AnnularMask(CircularMask):
     def inRadius(self):
         return self._inRadius
 
-    def _computeMask(self):
+    def _computeMask(self, xp=xp):
 
         if self._maskRadius is None:
             self._maskRadius = min(self._shape) / 2.
