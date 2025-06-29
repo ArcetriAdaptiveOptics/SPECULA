@@ -4,6 +4,7 @@ import numpy as np
 
 from specula.base_time_obj import BaseTimeObj
 from specula import process_comm, process_rank, MPI_DBG
+from specula.processing_objects.dm import DM
 
 class LoopControl(BaseTimeObj):
     def __init__(self, verbose=False):
@@ -131,6 +132,11 @@ class LoopControl(BaseTimeObj):
                         element.stopMemUsageCount()
                         if MPI_DBG: print(process_rank, element, 'printMemUsage', flush=True)
                         element.printMemUsage()
+                        # TODO workaround for DM objects that need to send outputs
+                        # before the first iter() call
+                        # because their outputs are used with ":-1"
+                        if isinstance(element, DM):
+                            element.send_outputs()
                     except:
                         print('Exception in', element.name, flush=True)
                         raise

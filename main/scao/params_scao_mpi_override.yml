@@ -10,17 +10,21 @@
 #wind_direction_override:
 #  target_rank: 1
 
-# failed
-#atmo_override:
-#  target_rank: 1
-
-# stuck
-prop_override:
-  target_rank: 1
+# works
+atmo_override:
+  target_rank: 0
 
 # works
-#sh_override:
-#  target_rank: 1
+pupilstop_override:
+  target_rank: 0
+
+# works
+prop_override:
+  target_rank: 0
+
+# works
+sh_override:
+  target_rank: 1
 
 # works
 #detector_override:
@@ -38,7 +42,7 @@ prop_override:
 #control_override:
 #  target_rank: 1
 
-# struck
+# works
 #dm_override:
 #  target_rank: 1
 
