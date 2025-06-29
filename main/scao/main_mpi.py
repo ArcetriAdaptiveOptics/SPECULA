@@ -26,10 +26,11 @@ if __name__ == '__main__':
     rank = comm.Get_rank()
     args = parser.parse_args()
 
-    N = 100000000
+    N = 10000000
     datatype = MPI.FLOAT
     num_bytes = N * (datatype.Pack_size(count=1, comm=comm) + MPI.BSEND_OVERHEAD)
 
+    print(f'MPI buffer size: {num_bytes/1024**2:.2f} MB')
     attached_buf = bytearray(num_bytes)
     MPI.Attach_buffer(attached_buf)
 
