@@ -1,3 +1,4 @@
+from collections import defaultdict
 from astropy.io import fits
 
 from specula.base_time_obj import BaseTimeObj
@@ -36,7 +37,7 @@ class BaseProcessingObj(BaseTimeObj):
         self.local_inputs = {}
         self.last_seen = {}
         self.outputs = {}
-        self.remote_outputs = {}
+        self.remote_outputs = defaultdict(list)
 
         # Use the correct CUDA device for allocations
         if self.target_device_idx >= 0:
@@ -48,11 +49,7 @@ class BaseProcessingObj(BaseTimeObj):
             self._target_device.use()
 
     def addRemoteOutput(self, name, remote_output):
-        if name in self.remote_outputs:
-            self.remote_outputs[name].append(remote_output)
-        else:
-            self.remote_outputs[name] = []
-            self.remote_outputs[name].append(remote_output)
+        self.remote_outputs[name].append(remote_output)
 
     def checkInputTimes(self):        
         if len(self.inputs)==0:

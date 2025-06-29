@@ -20,7 +20,7 @@ pupilstop_override:
 
 # works
 prop_override:
-  target_rank: 0
+  target_rank: 1
 
 # works
 sh_override:
@@ -48,4 +48,9 @@ sh_override:
 
 # works
 #psf_override:
+#  target_rank: 1
+
+
+# not sure it works
+#data_store_override:
 #  target_rank: 1

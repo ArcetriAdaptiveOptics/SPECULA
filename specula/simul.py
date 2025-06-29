@@ -4,13 +4,12 @@ import inspect
 import itertools
 from copy import deepcopy
 from pathlib import Path
-from collections import Counter
+from collections import Counter, namedtuple
 from specula import process_comm, process_rank, MPI_DBG
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_data_obj import BaseDataObj
 
 from specula.loop_control import LoopControl
-from specula.lib.flatten import flatten
 from specula.lib.utils import import_class, get_type_hints
 from specula.calib_manager import CalibManager
 from specula.processing_objects.data_store import DataStore
@@ -18,12 +17,16 @@ from specula.connections import InputValue, InputList
 
 import yaml
 import hashlib
- 
+
+
+Output = namedtuple('Output', 'obj_name output_key delay ref')
+
+
 def computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name, index=None):
     s = output_obj_name + '%' + dest_object + '%' + str(output_attr_name) + '%' + str(input_attr_name) + '%'  + str(index)
-
     rr = int(hashlib.sha256(s.encode('utf-8')).hexdigest(), 16) % 10**6   
     return rr, s
+
 
 class Simul():
     '''
@@ -55,28 +58,42 @@ class Simul():
         self.diagram = diagram
         self.diagram_title = diagram_title
         self.diagram_filename = diagram_filename
+    
+    def split_output(self, output_name, get_ref=False):
+        '''
+        Split the output name into object name and output key.
+        '''
+        if ':' in output_name:
+            output_name, delay = output_name.split(':')
+            delay = int(delay)
+        else:
+            delay = 0
+        if '-' in output_name:
+            output_name = output_name.split('-')[1]
+        try:
+            obj_name, output_key = output_name.split('.')
+        except ValueError:
+            raise ValueError(f'Invalid output name {output_name}, must be in the form "object_name.output_name"')
 
+        # Get a reference to the output if possible
+        if get_ref:
+            if not obj_name in self.objs:
+                if obj_name in self.remote_objs_ranks:
+                    ref = None
+                else:
+                    raise ValueError(f'Object {obj_name} does not exist anywhere')
+            elif not output_key in self.objs[obj_name].outputs:
+                raise ValueError(f'Object {obj_name} does not define an output with name {output_key}')
+            else:
+                ref = self.objs[obj_name].outputs[output_key]
+        else:
+            ref = None
+
+        return Output(obj_name, output_key, delay, ref)
+            
     def output_owner(self, output_name):
-        if ':' in output_name:
-            output_name = output_name.split(':')[0]
-        if '-' in output_name:
-            output_name = output_name.split('-')[1]
-        try:
-            obj_name, _ = output_name.split('.')
-        except ValueError:
-            raise ValueError(f'Invalid output name {output_name}, must be in the form "object_name.output_name"')
-        return obj_name
-
-    def output_key(self, output_name):
-        if ':' in output_name:
-            output_name = output_name.split(':')[0]
-        if '-' in output_name:
-            output_name = output_name.split('-')[1]
-        try:
-            _, output_key = output_name.split('.')
-        except ValueError:
-            raise ValueError(f'Invalid output name {output_name}, must be in the form "object_name.output_name"')
-        return output_key
+        output = self.split_output(output_name)
+        return output.obj_name
         
     def output_ref(self, output_name):
         '''
@@ -84,25 +101,8 @@ class Simul():
            - reference to the output, or None if the object is remote.
            - name of the object that defines the output
         '''
-        if ':' in output_name:
-            output_name = output_name.split(':')[0]
-        if '-' in output_name:
-            output_name = output_name.split('-')[1]
-        try:
-            obj_name, output_name = output_name.split('.')
-        except ValueError:
-            raise ValueError(f'Invalid output name {output_name}, must be in the form "object_name.output_name"')
-            
-        if not obj_name in self.objs:
-            if obj_name in self.remote_objs_ranks:
-                return None, obj_name
-            else:
-                raise ValueError(f'Object {obj_name} does not exist anywhere')
-        if not output_name in self.objs[obj_name].outputs:
-            raise ValueError(f'Object {obj_name} does not define an output with name {output_name}')
-        output_ref = self.objs[obj_name].outputs[output_name]
-
-        return output_ref, obj_name
+        output = self.split_output(output_name, get_ref=True)
+        return output.ref
 
     def input_ref(self, input_name):
         '''
@@ -110,30 +110,20 @@ class Simul():
            - reference to the input, or None if the object is remote.
            - name of the object that defines the input
         '''
-        if ':' in input_name:
-            input_name = input_name.split(':')[0]
-        if '-' in input_name:
-            input_name = input_name.split('-')[1]
-        try:
-            obj_name, attr_name = input_name.split('.')
-        except ValueError:
-            raise ValueError(f'Invalid output name {input_name}, must be in the form "object_name.attr_name"')
+        obj_name, output_key = self.split_output(output_name)
 
         if not obj_name in self.objs:
             if obj_name in self.remote_objs_ranks:
                 return None, obj_name
             else:                
                 raise ValueError(f'Object {obj_name} does not exist anywhere')
-        if not attr_name in self.objs[obj_name].inputs:
-            raise ValueError(f'Object {obj_name} does not define an input with name {attr_name}')
-        input_ref = self.objs[obj_name].local_inputs[attr_name]
+        if not output_key in self.objs[obj_name].inputs:
+            raise ValueError(f'Object {obj_name} does not define an input with name {output_key}')
+        input_ref = self.objs[obj_name].local_inputs[output_key]
         return input_ref, obj_name
 
     def output_delay(self, output_name):
-        if ':' in output_name:
-            return int(output_name.split(':')[1])
-        else:
-            return 0
+        return self.split_output(output_name).delay
 
     def is_leaf(self, p):
         '''
@@ -337,7 +327,7 @@ class Simul():
             my_params.update(pars2)
             # create the simulations objects for this process. Data Object and SimulParams are always
             # created, no matter what their rank (assigned process) is.
-            if process_rank==target_rank or issubclass(klass, BaseDataObj) or classname=='SimulParams':
+            if process_rank == target_rank or issubclass(klass, BaseDataObj) or classname=='SimulParams' or process_rank == None:
                 try:
                     self.objs[key] = klass(**my_params)
                 except Exception:
@@ -359,9 +349,30 @@ class Simul():
     def connect_objects(self, params):
         self.connections = []
         
-        def _connect(output_ref, output_obj_name, output_attr_name, local_dest_object, input_name, dest_object,
+        def _connect(output_name, local_dest_object, input_name, dest_object,
                      index=None, set_list=False):
-    
+            '''
+            Connect the output *output_name*, defined by object *output_obj_name*,
+            and whose reference is *output_ref*, which might be None if the object is remote,
+            to the input *input_name* of the object *dest_object*, which is a local one if *local_dest_object* is True,
+            otherwise it's a remote object.
+            If the input is a list, the *index* says which list element must be set.
+            If *set_list* is True, the *output_ref* is assumed to be a list and the whole list is set as the input. 
+
+            This routine handles the four cases:
+            1. local output to local input - use Python references
+            2. local output to remote input - use addRemoteOutput() to send the output to the remote object
+            3. remote output to local input - use set_remote_rank() to set the remote rank of the input
+            4. remote output to remote input - nothing to do, some other process will take care of this case
+
+            '''
+            desc = self.split_output(output_name, get_ref=True)
+            output_attr_name = desc.output_key
+            output_obj_name = desc.obj_name
+            output_ref = desc.ref
+
+            tag, s = computeTag(output_obj_name, dest_object, output_attr_name, input_name, index)
+        
             if output_ref is None:
                 if local_dest_object:
                     print(process_rank, f'{output_ref} -> {dest_object} : remote to local connection', flush=True)
@@ -370,7 +381,6 @@ class Simul():
                         self.objs[dest_object].inputs[input_name].set_item_remote_rank(self.remote_objs_ranks[output_obj_name], index=index)
                     else:
                         self.objs[dest_object].inputs[input_name].set_remote_rank(self.remote_objs_ranks[output_obj_name])
-                    tag, s = computeTag(output_obj_name, dest_object, output_attr_name, input_name, index)
                     if MPI_DBG: print(process_rank, 'Input side, Computed tag (B):', tag, s, flush=True)
                     if index is not None:
                         self.objs[dest_object].inputs[input_name].set_item_tag(tag, index=index)
@@ -398,7 +408,6 @@ class Simul():
                     print(process_rank, f'{output_ref} -> {dest_object} : local to remote connection, calling addRemoteOutput()', flush=True)
                     if dest_object in self.remote_objs_ranks and output_obj_name in self.objs:
                         print(process_rank, 'Adding remote output to ', output_obj_name, flush=True)
-                        tag, s = computeTag(output_obj_name, dest_object, output_attr_name, input_name, index=index)
                         if MPI_DBG: print(process_rank, 'Output side, Computed tag (B):', tag, s, flush=True)
                         self.objs[output_obj_name].addRemoteOutput(output_attr_name, (self.remote_objs_ranks[dest_object], tag))
 
@@ -434,8 +443,8 @@ class Simul():
                 if isinstance(output_name, list) and input_name=='input_list':
                     inputs = [x.split('-')[0] for x in output_name]
                     output_names = [x.split('-')[1].split('.')[1] for x in output_name]
-                    outputs = [self.output_ref(x.split('-')[1])[0] for x in output_name]
-                    outputs_obj_names = [self.output_ref(x.split('-')[1])[1] for x in output_name]                    
+                    outputs = [self.output_ref(x.split('-')[1]) for x in output_name]
+                    outputs_obj_names = [self.output_owner(x.split('-')[1]) for x in output_name]
                     # if MPI_DBG: print(process_rank, 'output_names:', output_names, flush=True)
                     # if MPI_DBG: print(process_rank, 'inputs:', inputs, flush=True)
                     # if MPI_DBG: print(process_rank, 'outputs:', outputs, flush=True)
@@ -478,13 +487,7 @@ class Simul():
                         raise ValueError(f'Object {dest_object} does does not have an input called {input_name}')
                     if not isinstance(output_name, (str, list)):
                         raise ValueError(f'Object {dest_object}: invalid input definition type {type(output_name)}')
-                    
-                    wanted_type = self.objs[dest_object].inputs[input_name].type()
-                else:
-                    # TODO cannot check the type for remote object
-                    wanted_type = None
 
-                print(process_rank, 'known objects: ', self.objs.keys())
                 if local_dest_object:
                     local_list = type(self.objs[dest_object].inputs[input_name]) == InputList
                 else:
@@ -494,12 +497,8 @@ class Simul():
                     if MPI_DBG: print(process_rank, 'Simple input', flush=True)
 
                     # Here we add the input, we can create the local or remote connections
-                    output_ref= self.output_ref(output_name)[0]
-                    output_obj_name = self.output_ref(output_name)[1]
-                    output_attr_name = self.output_key(output_name)
-
-                    print(process_rank, 'output_obj_name', output_obj_name, 'output_attr_name', output_attr_name,flush=True)                    
-                    print(process_rank, f'output_ref: {output_ref}', flush=True)
+                    desc = self.split_output(output_name, get_ref=True)
+                    output_ref = desc.ref
     
                     if not local_dest_object and output_ref is None:
                         continue
@@ -509,63 +508,36 @@ class Simul():
                     if local_list:
                         if output_ref_is_list:
                             # List - List (example: atmo.layer_list to propagation.atmo_layer_list)
-                            _connect(output_ref, output_obj_name, output_attr_name, local_dest_object, input_name, dest_object, set_list=True)
+                            _connect(output_name, local_dest_object, input_name, dest_object, set_list=True)
                         else:
                             # Single remote object into a local list (not tested)
-                            _connect(output_ref, output_obj_name, output_attr_name, local_dest_object, input_name, dest_object, index=0)
+                            _connect(output_name, local_dest_object, input_name, dest_object, index=0)
 
                     else:
                         if output_ref_is_list:
                             # TODO this works but I do not understand why (test: set atmo to rank 1 and prop to rank 0)
-                            _connect(output_ref, output_obj_name, output_attr_name, local_dest_object, input_name, dest_object, index=0)
+                            _connect(output_name, local_dest_object, input_name, dest_object, index=0)
                         else:
-                            _connect(output_ref, output_obj_name, output_attr_name, local_dest_object, input_name, dest_object)
+                            _connect(output_name, local_dest_object, input_name, dest_object)
 
                 elif isinstance(output_name, list):
                     if MPI_DBG: print(process_rank, 'List input', flush=True)
 
-                    output_refs = [self.output_ref(x)[0] for x in output_name]
-                    output_obj_names = [self.output_ref(x)[1] for x in output_name]
-                    output_attr_names = [self.output_key(x) for x in output_name]
-                    
-                    print(output_name, flush=True)
-                    for x in output_name:
-                        print(process_rank, f'output_ref: {x}',  flush=True)
-
                     if local_dest_object and not local_list:
                         raise ValueError(f'Cannot set a list of inputs to a non-list input {dest_object}.{input_name}')
                     
-                    for i, (output_ref, output_obj_name, output_attr_name) in \
-                        enumerate(zip(output_refs, output_obj_names, output_attr_names)):
+                    for i, single_output_name in enumerate(output_name):
 
+                        desc = self.split_output(single_output_name, get_ref=True)
+                        output_ref = desc.ref
+                        
                         if not local_dest_object and output_ref is None:
                             continue
                         
-                        _connect(output_ref, output_obj_name, output_attr_name, local_dest_object, input_name, dest_object, index=i)
+                        _connect(single_output_name, local_dest_object, input_name, dest_object, index=i)
 
                 else:
                     raise ValueError(f'Object {dest_object}: invalid input definition type {type(output_name)}')
-                    
-
-                try:
-                    pass
-                    #if output_ref is not None and local_dest_object:
-                    #    if MPI_DBG: print(process_rank, "setting input", dest_object, input_name, output_ref, flush=True)
-                    #    self.objs[dest_object].inputs[input_name].set(output_ref)
-                    # TODO Note this! is it necessary or useful?
-                    #else:
-                    #    if dest_object in self.remote_objs_ranks and output_obj_name in self.objs:
-                    #        print(process_comm, '2 Adding remote output to ', output_obj_name)
-                    #        tag, s = computeTag(output_obj_name, dest_object, output_attr_name, input_name)
-                    #        if MPI_DBG: print(process_rank, 'Computed tag (G):', tag, s, flush=True)
-                    #        self.objs[output_obj_name].remote_outputs[output_attr_name] = (self.remote_objs_ranks[dest_object], tag)
-                    # self.objs[output_obj_name].remote_outputs[output_attr_name] = (self.remote_objs_ranks[dest_object], tag)            
-                    #    # self.objs[dest_object].inputs[input_name].set(None)
-                except ValueError:
-                    print(f'Error connecting {output_name} to {dest_object}.{input_name}')
-                    raise
-                # else:
-                #     # do nothing??? TODO
                                         
             if local_dest_object:             
                 if not type(output_name) is list:
