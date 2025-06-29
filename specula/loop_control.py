@@ -49,7 +49,8 @@ class LoopControl(BaseTimeObj):
                    profiling=profiling, speed_report=speed_report)
         while self._t < self._t0 + self._run_time:            
             if MPI_DBG: print(process_rank, 'before barrier iter', flush=True)
-            process_comm.barrier()
+            if process_comm is not None:
+                process_comm.barrier()
             if MPI_DBG: print(process_rank, 'after barrier iter', flush=True)
             if MPI_DBG: print(process_rank, 'NEW ITERATION', self._t,flush=True)
             # time.sleep(1)
@@ -69,42 +70,9 @@ class LoopControl(BaseTimeObj):
         self._dt = self.seconds_to_t(dt)
         self._t0 = self.seconds_to_t(t0)
         
-        '''
-        process_comm.barrier()
-        for i in range(self.max_global_order+1):
-            # all the objects having this trigger order could be remote
-            if i in self._ordered_lists:
-                for element in self._ordered_lists[i]:                    
-                    element.send_outputs()
 
-        if MPI_DBG: print(process_rank, 'at barrier A', flush=True)
-        process_comm.barrier()
-        if MPI_DBG: print(process_rank, 'after barrier A', flush=True)
-        if MPI_DBG: print(process_rank, 'self._max_order', self._max_order, flush=True)
-
-        
-        for i in range(self.max_global_order+1):
-            if MPI_DBG: print(process_rank, i, 'begin', flush=True)
-            # all the objects having this trigger order could be remote
-            if i in self._ordered_lists.keys():
-                if MPI_DBG: print(process_rank, self._ordered_lists[i])
-                for element in self._ordered_lists[i]:
-                    if MPI_DBG: print(process_rank, element.inputs.keys())
-                    for input_name, ii in element.inputs.items():
-                        if MPI_DBG: print(process_rank, 'loop control, Getting:', input_name, flush=True)
-                        r = ii.get(element.target_device_idx)
-                        if MPI_DBG: print(process_rank, input_name, r)
-                        if MPI_DBG: print(process_rank, '...')
-                    if MPI_DBG: print(process_rank, element, 'done', flush=True)
-            if MPI_DBG: print(process_rank, i, 'done', flush=True)            
-        
-        if MPI_DBG: print(process_rank, 'all done', flush=True)
-        #if MPI_DBG: print(process_rank, 'at barrier B', flush=True)
-        #process_comm.barrier()
-        #if MPI_DBG: print(process_rank, 'after barrier B', flush=True)
-        '''
-
-        process_comm.barrier()
+        if process_comm is not None:
+            process_comm.barrier()
         if MPI_DBG: print(process_rank, 'Sending data pre-setup', flush=True)
 
         for i in range(self.max_global_order+1):
@@ -112,9 +80,11 @@ class LoopControl(BaseTimeObj):
             if i in self._ordered_lists:
                 for element in self._ordered_lists[i]:                    
                     element.send_outputs()
-            process_comm.barrier()
+            if process_comm is not None:
+                process_comm.barrier()
 
-        process_comm.barrier()
+        if process_comm is not None:
+            process_comm.barrier()
         if MPI_DBG: print(process_rank, 'Starting setups', flush=True)
 
         if MPI_DBG: print(process_rank, 'self._ordered_lists', self._ordered_lists, flush=True)
@@ -140,7 +110,8 @@ class LoopControl(BaseTimeObj):
                     except:
                         print('Exception in', element.name, flush=True)
                         raise
-        process_comm.barrier()
+        if process_comm is not None:
+            process_comm.barrier()
         
         if MPI_DBG: print(process_rank, 'Setups DONE', flush=True)
 
@@ -188,7 +159,8 @@ class LoopControl(BaseTimeObj):
                         print('Exception in', element.name, flush=True)
                         raise
 
-            process_comm.barrier()
+            if process_comm is not None:
+                process_comm.barrier()
 
         if self._stop_on_data and self._stop_on_data.generation_time == self._t:
             return
@@ -222,7 +194,8 @@ class LoopControl(BaseTimeObj):
                     except:
                         print('Exception in', element.name)
                         raise
-            process_comm.barrier()
+            if process_comm is not None:
+                process_comm.barrier()
 
         if self._profiling:
             self.stop_profiling()
