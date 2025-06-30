@@ -8,7 +8,7 @@ sh_subaps:
 
 prop_override:
   inputs:
-    common_layer_list: ['pupilstop']
+    common_layer_list: ['pupilstop.out_layer']
 
 main_override:
   total_time:  0.001

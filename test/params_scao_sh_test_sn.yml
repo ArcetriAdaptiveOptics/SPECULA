@@ -9,7 +9,7 @@ main_override:
 
 prop_override:
   inputs:
-    common_layer_list: ['pupilstop']
+    common_layer_list: ['pupilstop.out_layer']
 
 detector_override:
   photon_noise:      False

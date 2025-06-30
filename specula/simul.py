@@ -415,7 +415,6 @@ class Simul():
 
             if MPI_DBG: print(process_rank, 'connect_objects for', dest_object, flush=True)
 
-            classname = pars['class']
             local_dest_object = dest_object in self.objs.keys()
 
             if 'outputs' in pars:
@@ -479,7 +478,7 @@ class Simul():
                         # a_connection['middle_label'] = self.objs[dest_object].inputs[input_attr_name]
                         a_connection['end_label'] = output_attr_name
                         self.connections.append(a_connection)
-                        print(a_connection)
+                        print(process_rank, a_connection)
                     continue
 
                 if local_dest_object:
@@ -551,6 +550,9 @@ class Simul():
                     self.connections.append(a_connection)
                 else:
                     for oo in output_name:
+                        desc = self.split_output(oo, get_ref=True)
+                        output_ref = desc.ref
+                        
                         a_connection = {}
                         a_connection['start'] = oo.split('.')[0].split('-')[-1]
                         a_connection['end'] = dest_object
@@ -772,6 +774,7 @@ class Simul():
         # Run simulation loop
         self.loop.run(run_time=self.mainParams['total_time'], dt=self.mainParams['time_step'], speed_report=True)
 
+        print(process_rank, 'Simulation finished', flush=True)
 #        if data_store.has_key('sr'):
 #            print(f"Mean Strehl Ratio (@{params['psf']['wavelengthInNm']}nm) : {store.mean('sr', init=min([50, 0.1 * self.mainParams['total_time'] / self.mainParams['time_step']])) * 100.}")
 

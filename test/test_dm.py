@@ -21,7 +21,7 @@ class TestCM(unittest.TestCase):
 
         # does not raise in any case
         _ = DM(simul_params, height=0, type_str='zernike', nmodes=4,
-               pupilstop=pupilstop, target_device_idx=target_device_idx)
+               pupilstop=pupilstop.layer, target_device_idx=target_device_idx)
 
     @cpu_and_gpu
     def test_dm_nmodes_is_mandatory_with_zernike(self, target_device_idx, xp):
@@ -32,11 +32,11 @@ class TestCM(unittest.TestCase):
         # Missing nmodes
         with self.assertRaises(ValueError):
             dm = DM(simul_params, height=0, type_str='zernike',
-                    pupilstop=pupilstop, npixels=5, target_device_idx=target_device_idx)
+                    pupilstop=pupilstop.layer, npixels=5, target_device_idx=target_device_idx)
 
         # nmodes present, does not raise
         _ = DM(simul_params, height=0, type_str='zernike', nmodes=4, 
-               pupilstop=pupilstop, target_device_idx=target_device_idx)
+               pupilstop=pupilstop.layer, target_device_idx=target_device_idx)
 
     @cpu_and_gpu
     def test_dm_npixels_matches_pupilstop_mask(self, target_device_idx, xp):
@@ -47,15 +47,15 @@ class TestCM(unittest.TestCase):
         # Npixels different from pixel_pitch
         with self.assertRaises(ValueError):
             dm = DM(simul_params, height=0, type_str='zernike', nmodes=4,
-                    pupilstop=pupilstop, npixels=5, target_device_idx=target_device_idx)
+                    pupilstop=pupilstop.layer, npixels=5, target_device_idx=target_device_idx)
 
         # Npixels same as from pixel_pitch
         _ = DM(simul_params, height=0, type_str='zernike', nmodes=4,
-               pupilstop=pupilstop, npixels=10, target_device_idx=target_device_idx)
+               pupilstop=pupilstop.layer, npixels=10, target_device_idx=target_device_idx)
 
         # Npixels not given
         _ = DM(simul_params, height=0, type_str='zernike', nmodes=4,
-               pupilstop=pupilstop, target_device_idx=target_device_idx)
+               pupilstop=pupilstop.layer, target_device_idx=target_device_idx)
 
     @cpu_and_gpu
     def test_dm_npixels_matches_ifunc_mask(self, target_device_idx, xp):

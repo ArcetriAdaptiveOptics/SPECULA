@@ -46,16 +46,14 @@ class Pupilstop(BaseProcessingObj):
     def trigger_code(self):
         self.layer.generation_time = self.current_time
 
-    def save(self, filename, hdr=None):
-        if hdr is None:
-            hdr = fits.Header()
+    def save(self, filename):
+        hdr = fits.Header()
         hdr['VERSION'] = 1
-
-        super().save(filename, hdr)
-
-        fits.append(filename, cpuArray(self.A))
-        fits.append(filename, cpuArray(self.A.shape))
-        fits.append(filename, cpuArray([self.pixel_pitch]))
+        hdu_A = fits.PrimaryHDU(cpuArray(self.layer.A), header=hdr)
+        hdu_phase = fits.ImageHDU(cpuArray(self.layer.A.shape))
+        hdu_pitch = fits.ImageHDU(cpuArray([self.pixel_pitch]))
+        hdul = fits.HDUList([hdu_A, hdu_phase, hdu_pitch])
+        hdul.writeto(filename, overwrite=True)
 
     @staticmethod
     def restore(filename, target_device_idx=None):
