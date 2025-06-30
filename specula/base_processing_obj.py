@@ -51,12 +51,11 @@ class BaseProcessingObj(BaseTimeObj):
     def addRemoteOutput(self, name, remote_output):
         self.remote_outputs[name].append(remote_output)
 
-    def checkInputTimes(self):        
+    def checkInputTimes(self):
         if len(self.inputs)==0:
             return True
         for input_name, input_obj in self.inputs.items():
-            if type(input_obj) is InputValue:
-                # print('input_name', input_name)
+            if type(input_obj) is InputValue:                
                 if input_name not in self.last_seen and input_obj.get_time() is not None and input_obj.get_time() >= 0:  # First time
                     return True
                 if input_name in self.last_seen and input_obj.get_time() > self.last_seen[input_name]:
@@ -66,8 +65,6 @@ class BaseProcessingObj(BaseTimeObj):
                     for tt in input_obj.get_time():
                         if tt >= 0:
                             return True
-#                if input_name not in self.last_seen and input_obj.get_time() >= 0:  # First time
-#                    return True
                 else:
                     for tt, last in zip(input_obj.get_time(), self.last_seen[input_name]):
                         if tt > last:
@@ -131,7 +128,6 @@ class BaseProcessingObj(BaseTimeObj):
         Make sure we are using the correct device and that any previous
         CUDA graph has been synchronized
         '''
-
         if self.target_device_idx>=0:
             self._target_device.use()
             if self.cuda_graph:

@@ -471,7 +471,7 @@ class SH(BaseProcessingObj):
         self.psf = self._zeros_common((self._lenslet.dimy, self._fft_size, self._fft_size), dtype=self.dtype)
         self.psf_shifted = self._zeros_common((self._lenslet.dimy, self._fft_size, self._fft_size), dtype=self.dtype)
 
-        # super().build_stream(allow_parallel=False)
+        super().build_stream(allow_parallel=False)
 
     def get_tlt_f(self, p, c):
         '''

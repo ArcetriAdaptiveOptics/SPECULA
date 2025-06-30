@@ -295,9 +295,9 @@ class CCD(BaseProcessingObj):
                            (dim2d[1] // self._binning // 2) * j:(dim2d[1] // self._binning // 2) * (j + 1)] = quadrantsGains[j * 2 + i]
         self._pixelGains = pixelGains
 
-    def setup(self):        
-        super().setup()        
-        in_i = self.local_inputs['in_i']        
+    def setup(self):
+        super().setup()
+        in_i = self.local_inputs['in_i']
         if in_i is None:
             raise ValueError('Input intensity object has not been set')
         if self._cte_noise and self._cte_mat is None:

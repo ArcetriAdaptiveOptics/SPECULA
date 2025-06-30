@@ -51,9 +51,9 @@ class InputValue():
             import sys
             if MPI_DBG: print(process_rank, 'Waiting from ', self.remote_rank, 'with tag', self.tag, flush=True)
             output_data = process_comm.recv(source=self.remote_rank, tag=self.tag)
-            if MPI_DBG: print('Received data from rank', self.remote_rank, 'with tag', self.tag, output_data, flush=True, file=sys.stderr)
-            
-            if MPI_DBG: print(process_rank, 'received successful obj type', type(output_data), flush=True)
+            if MPI_DBG:
+                print('Received data from rank', self.remote_rank, 'with tag', self.tag, output_data, flush=True, file=sys.stderr)
+                print(process_rank, 'received successful obj type', type(output_data), flush=True)
 
             if type(output_data) is list:
                 for v in output_data:

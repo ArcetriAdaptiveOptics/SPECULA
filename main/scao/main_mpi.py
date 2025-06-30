@@ -1,7 +1,13 @@
 # mpiexec -n 2 python script.py args
 
-from mpi4py import MPI
-from mpi4py.util import pkl5
+try:
+    from mpi4py import MPI
+    from mpi4py.util import pkl5
+    print("mpi4py import successfull. Installed version is:", MPI.__version__)
+except:
+    print("mpi4py import failed.")
+    print("You should use a main_simul.py for single process execution.")
+    exit
 
 import sys
 
@@ -16,6 +22,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--cpu', action='store_true')
 parser.add_argument('--overrides', type=str)
 parser.add_argument('--target', type=int, default=0)
+parser.add_argument('--mpidbg', action='store_true')
 parser.add_argument('yml_file', nargs='+', type=str, help='YAML parameter files')
 parser.add_argument('--diagram', action='store_true', help='Save image block diagram')
 parser.add_argument('--diagram-title', type=str, default=None, help='Block diagram title')
@@ -42,8 +49,7 @@ if __name__ == '__main__':
 
     import specula
 
-    mpidbg = True
-    specula.init(target_device_idx, precision=1, rank=rank, comm=comm, mpi_dbg=mpidbg)
+    specula.init(target_device_idx, precision=1, rank=rank, comm=comm, mpi_dbg=args.mpidbg)
 
     print(args)    
     from specula.simul import Simul
@@ -57,27 +63,3 @@ if __name__ == '__main__':
 
     MPI.Detach_buffer()
 
-
-'''
-def addRankToIniName(name, r):
-    name_no_ext, ext = name.split('.')
-    return name_no_ext+str(r)+'.'+ext
-
-def main(*inifiles):
-    global comm
-    global rank
-    param_files = list(inifiles)
-    param_files[0] = addRankToIniName(param_files[0], rank)
-    #print(param_files)
-    simul = Simul(*param_files)
-    simul.run()
-
-if __name__ == '__main__':
-    if sys.argv[3]=='profile':
-        with cProfile.Profile() as pr:
-            main(*sys.argv[4:])
-        stats = Stats(pr).sort_stats("cumtime")
-        stats.print_stats(r"\((?!\_).*\)$", 200)
-    else:
-        main(*sys.argv[3:])
-'''

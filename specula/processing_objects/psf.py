@@ -190,7 +190,7 @@ class PSF(BaseProcessingObj):
         return psf
 
     @property
-    def size(self):        
+    def size(self):
         in_ef = self.local_inputs['in_ef']
         return in_ef.size if in_ef else None
 

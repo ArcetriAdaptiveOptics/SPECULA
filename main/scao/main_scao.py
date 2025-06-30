@@ -1,8 +1,4 @@
 import sys
-import os
-
-#os.chdir('/home/frossi/dev/SPECULA/main/scao')
-#sys.argv=['', '0', '1', 'params_scao_sh1.yml']
 
 import specula
 
@@ -25,3 +21,4 @@ if __name__ == '__main__':
         stats.print_stats(r"\((?!\_).*\)$", 200)
     else:
         main(*sys.argv[3:])
+historye

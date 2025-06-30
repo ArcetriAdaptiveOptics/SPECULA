@@ -44,7 +44,6 @@ class Simul():
         self.all_objs_ranks = {}
         self.remote_objs_ranks = {}
         self.remote_objs_types = {}
-        self.remote_objs_params = {}
         self.param_files = param_files
         self.objs = {}
         self.verbose = False  #TODO
@@ -344,7 +343,6 @@ class Simul():
             else:
                 self.remote_objs_ranks[key] = target_rank
                 self.remote_objs_types[key] = klass
-                self.remote_objs_params[key] = my_params
 
     def connect_objects(self, params):
         self.connections = []
