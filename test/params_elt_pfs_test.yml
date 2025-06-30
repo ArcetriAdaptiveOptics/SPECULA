@@ -1,0 +1,232 @@
+---
+
+main:
+  class:             'SimulParams'
+  root_dir:          './calib/'             # Root directory for calibration manager
+  pixel_pupil:       128                    # Linear dimension of pupil phase array
+  pixel_pitch:       0.301                  # [m] Pitch of the pupil phase array2
+  total_time:        0.02                   # [s] Total simulation running time (short for test)
+  time_step:         0.002                  # [s] Simulation time step
+  zenithAngleInDeg:  30.000
+  display_server:    False
+
+zern_ifunc:
+  class:            'IFunc'
+  type_str:          'zernike'              # modes type
+  nmodes:            50                     # number of modes
+  npixels:           128                    # number of pixels
+  obsratio:          0.283                  # obstruction dimension ratio w.r.t. diameter
+
+time_hist:
+  class:             'TimeHistory'
+  time_history: [[0, 10],
+                 [1, 9],
+                 [2, 8],
+                 [3, 7],
+                 [4, 6],
+                 [5, 5],
+                 [6, 4],
+                 [7, 3],
+                 [8, 2],
+                 [9, 1],
+                 [10, 0]]
+
+disturbance:
+  class:             'FuncGenerator'
+  func_type:         'TIME_HIST'
+  time_hist_ref:     time_hist
+  nmodes:            2
+  outputs: ['output']
+
+dm_windshake:
+  class:             'DM'
+  simul_params_ref:  'main'
+  type_str:          'zernike'              # modes type
+  nmodes:            2                    # number of modes
+  npixels:           128                   # number of pixels
+  obsratio:          0.283                  # obstruction dimension ratio w.r.t. diameter
+  height:             0                      # DM height [m]
+  inputs:
+      in_command:     'disturbance.output'
+  outputs:  ['out_layer']
+
+seeing:
+  class:             'FuncGenerator'
+  constant:          0.65                  # ["] seeing value
+  outputs: ['output']
+
+wind_speed:
+  class:             'FuncGenerator'
+  constant:          [5.5, 7.5, 22.0, 8.5]      # [m/s] Wind speed value
+  outputs: ['output']
+
+wind_direction:
+  class:             'FuncGenerator'
+  constant:          [0, 10, -10, 90]   # [degrees] Wind direction value
+  outputs: ['output']
+
+on_axis_source:
+  class:             'Source'
+  polar_coordinates:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  magnitude:         8                    # source magnitude
+  wavelengthInNm:    750                   # [nm] wavelength
+
+pfs_source:
+  class:             'Source'
+  polar_coordinates:  [300.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  magnitude:         8                    # source magnitude
+  wavelengthInNm:    750                   # [nm] wavelength
+
+ngs_source:
+  class:             'Source'
+  polar_coordinates:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  magnitude:         8                    # source magnitude
+  wavelengthInNm:    750                   # [nm] wavelength
+
+pupilstop:                                 # Default parameters (circular pupil)
+  class: 'Pupilstop'
+  simul_params_ref: 'main'
+  obs_diam:          0.283
+
+atmo:
+  class:                'AtmoEvolution'
+  simul_params_ref:     'main'
+  L0:                   25                   # [m] Outer scale
+  heights:              [30.0000, 2630.00, 12500.0, 22500.0] # [m] layer heights at 0 zenith angle
+  Cn2:                  [0.70,0.10,0.15,0.05] # Cn2 weights (total must be eq 1)
+  fov:                  700.0
+  pixel_phasescreens:   2048               # number of pixels in the phase screens
+  inputs:
+    seeing: 'seeing.output'
+    wind_speed: 'wind_speed.output'
+    wind_direction: 'wind_direction.output'
+  outputs: ['layer_list']
+
+prop:
+  class:                'AtmoPropagation'
+  simul_params_ref:     'main'
+  source_dict_ref:      ['on_axis_source', 'pfs_source', 'ngs_source']
+  inputs:
+    atmo_layer_list: ['atmo.layer_list']
+    common_layer_list: ['pupilstop',
+                  'dm_windshake.out_layer',
+                  'dm.out_layer:-1']
+  outputs: ['out_on_axis_source_ef','out_pfs_source_ef','out_ngs_source_ef']
+
+modal_analysis_pfs:
+  class:            'ModalAnalysis'
+  type_str:         'zernike'
+  npixels:          128
+  nmodes:           50
+  obsratio:         0.283
+  inputs:
+    in_ef: 'prop.out_pfs_source_ef'
+  outputs: ['out_modes']
+
+modal_analysis_ngs:
+  class:            'ModalAnalysis'
+  type_str:         'zernike'
+  npixels:          128
+  nmodes:           2
+  obsratio:         0.283
+  inputs:
+    in_ef: 'prop.out_ngs_source_ef'
+  outputs: ['out_modes']
+
+random_ngs:
+  class:            'FuncGenerator'
+  func_type:        'random'
+  amp:              [10,10.]
+  outputs: ['output']
+
+sum_operation_ngs_nosie:
+  class:            'BaseOperation'
+  sum:              True
+  inputs:
+    in_value1:      'modal_analysis_ngs.out_modes'
+    in_value2:      'random_ngs.output'
+  outputs:  ['out_value']
+
+control_ngs:
+  class:             'Integrator'
+  simul_params_ref:  'main'
+  delay:             2                      # Total temporal delay in time steps
+  int_gain:          [0.1,0.1]
+  inputs:
+      delta_comm: 'sum_operation_ngs_nosie.out_value'     
+  outputs:  ['out_comm']
+
+
+sum_operation:
+  class:            'BaseOperation'
+  sum:              True
+  value2_is_shorter: True
+  inputs:
+    in_value1:      'modal_analysis_pfs.out_modes'
+    in_value2:      'control_ngs.out_comm'
+  outputs:  ['out_value']
+
+random_pfs:
+  class:            'FuncGenerator'
+  func_type:        'random'
+  amp:              [10,10.,0,0,0, 0,0,0,0,0, 0,0,0,0,0, 0,0,0,0,0, 0,0,0,0,0, 0,0,0,0,0, 0,0,0,0,0, 0,0,0,0,0, 0,0,0,0,0, 0,0,0,0,0]
+  outputs: ['output']
+
+sum_operation_pfs_noise:
+  class:            'BaseOperation'
+  sum:              True
+  inputs:
+    in_value1:      'sum_operation.out_value'
+    in_value2:      'random_pfs.output'
+  outputs:  ['out_value']
+
+temporal_filter:
+  class:            'IirFilterData'
+  ordnum:           [3,3,2,2,2,2,2,2,2,2, 2,2,2,2,2,2,2,2,2,2, 2,2,2,2,2,2,2,2,2,2, 2,2,2,2,2,2,2,2,2,2, 2,2,2,2,2,2,2,2,2,2]
+  ordden:           [3,3,2,2,2,2,2,2,2,2, 2,2,2,2,2,2,2,2,2,2, 2,2,2,2,2,2,2,2,2,2, 2,2,2,2,2,2,2,2,2,2, 2,2,2,2,2,2,2,2,2,2]
+  num:              [[0.19125,-0.65,0.5],[0.19125,-0.65,0.5],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],
+                     [0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],
+                     [0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],
+                     [0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],
+                     [0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0]]
+  den:              [[0.995,-1.995,1.0],[0.995,-1.995,1.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],
+                     [1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],
+                     [1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],
+                     [1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],
+                     [1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0],[1.0,1.0,0.0]]
+
+control:
+  class:                'IirFilter'
+  simul_params_ref:     'main'
+  delay:                2                      # Total temporal delay in time steps
+  iir_filter_data_ref:  'temporal_filter'
+  inputs:
+      delta_comm: 'sum_operation_pfs_noise.out_value'     
+  outputs:  ['out_comm']
+
+dm:
+  class:             'DM'
+  simul_params_ref:  'main'
+  ifunc_ref:         'zern_ifunc'
+  height:             0                      # DM height [m]
+  inputs:
+      in_command:     'control.out_comm'
+  outputs:  ['out_layer']
+
+modal_analysis:
+  class:            'ModalAnalysis'
+  type_str:         'zernike'
+  npixels:          128
+  nmodes:           50
+  obsratio:         0.283
+  inputs:
+    in_ef: 'prop.out_on_axis_source_ef'
+  outputs: ['out_modes']
+
+data_store:
+  class:             'DataStore'
+  store_dir:         './output'             # Data result directory: 'store_dir'/TN/
+  inputs:    
+    input_list: ['res_mod-modal_analysis.out_modes',
+                 'res_mod_pfs-modal_analysis_pfs.out_modes',
+                 'res_mod_ngs-modal_analysis_ngs.out_modes']
