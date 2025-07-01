@@ -1,8 +1,6 @@
 import numpy as np
 
 from specula import cpuArray, fuse, show_in_profiler, RAD2ASEC
-from specula.lib.extrapolate_edge_pixel import extrapolate_edge_pixel
-from specula.lib.extrapolate_edge_pixel_mat_define import extrapolate_edge_pixel_mat_define
 from specula.lib.extrapolation_2d import calculate_extrapolation_indices_coeffs, apply_extrapolation
 from specula.lib.toccd import toccd
 from specula.lib.interp2d import Interp2D
