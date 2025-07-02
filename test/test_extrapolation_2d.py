@@ -51,7 +51,7 @@ class TestExtrapolation2D(unittest.TestCase):
             shape=(32, 32), outer_radius=12, inner_radius=11, zernike_mode=1, xp=xp)
 
         # Calculate extrapolation coefficients using the reduced mask
-        edge_pixels, reference_indices, coefficients = calculate_extrapolation_indices_coeffs(
+        edge_pixels, reference_indices, coefficients, valid_indices = calculate_extrapolation_indices_coeffs(
             ~reduced_mask)  # Invert mask: True=valid, False=invalid
 
         # Apply extrapolation
@@ -60,6 +60,7 @@ class TestExtrapolation2D(unittest.TestCase):
             xp.array(edge_pixels),
             xp.array(reference_indices),
             xp.array(coefficients),
+            xp.array(valid_indices),
             xp=xp
         )
 
@@ -80,7 +81,7 @@ class TestExtrapolation2D(unittest.TestCase):
             shape=(32, 32), outer_radius=12, inner_radius=11, zernike_mode=2, xp=xp)
 
         # Calculate extrapolation coefficients
-        edge_pixels, reference_indices, coefficients = calculate_extrapolation_indices_coeffs(
+        edge_pixels, reference_indices, coefficients, valid_indices = calculate_extrapolation_indices_coeffs(
             ~reduced_mask)
 
         # Apply extrapolation
@@ -89,6 +90,7 @@ class TestExtrapolation2D(unittest.TestCase):
             xp.array(edge_pixels),
             xp.array(reference_indices),
             xp.array(coefficients),
+            xp.array(valid_indices),
             xp=xp
         )
 
@@ -109,7 +111,7 @@ class TestExtrapolation2D(unittest.TestCase):
             shape=(32, 32), outer_radius=12, inner_radius=11, zernike_mode=3, xp=xp)
 
         # Calculate extrapolation coefficients
-        edge_pixels, reference_indices, coefficients = calculate_extrapolation_indices_coeffs(
+        edge_pixels, reference_indices, coefficients, valid_indices = calculate_extrapolation_indices_coeffs(
             ~reduced_mask)
 
         # Apply extrapolation
@@ -118,6 +120,7 @@ class TestExtrapolation2D(unittest.TestCase):
             xp.array(edge_pixels),
             xp.array(reference_indices),
             xp.array(coefficients),
+            xp.array(valid_indices),
             xp=xp
         )
 
@@ -138,7 +141,7 @@ class TestExtrapolation2D(unittest.TestCase):
             shape=(32, 32), outer_radius=12, inner_radius=11, zernike_mode=4, xp=xp)
 
         # Calculate extrapolation coefficients
-        edge_pixels, reference_indices, coefficients = calculate_extrapolation_indices_coeffs(
+        edge_pixels, reference_indices, coefficients, valid_indices = calculate_extrapolation_indices_coeffs(
             ~reduced_mask)
 
         # Apply extrapolation
@@ -147,6 +150,7 @@ class TestExtrapolation2D(unittest.TestCase):
             xp.array(edge_pixels),
             xp.array(reference_indices),
             xp.array(coefficients),
+            xp.array(valid_indices),
             xp=xp
         )
 
@@ -171,9 +175,9 @@ class TestExtrapolation2D(unittest.TestCase):
         original_inside = input_data[~reduced_mask].copy()
 
         # Calculate and apply extrapolation
-        edge_pixels, reference_indices, coefficients = calculate_extrapolation_indices_coeffs(
+        edge_pixels, reference_indices, coefficients, valid_indices = calculate_extrapolation_indices_coeffs(
             ~reduced_mask)
-        result = apply_extrapolation(input_data, edge_pixels, reference_indices, coefficients)
+        result = apply_extrapolation(input_data, edge_pixels, reference_indices, coefficients, valid_indices, xp=xp)
 
         # Check that values inside the original mask are unchanged
         np.testing.assert_array_equal(
@@ -191,7 +195,7 @@ class TestExtrapolation2D(unittest.TestCase):
         mask = xp.ones((20, 20), dtype=bool)
         mask[5:15, 5:15] = False  # 10x10 inner region is valid
 
-        edge_pixels, reference_indices, coefficients = calculate_extrapolation_indices_coeffs(mask)
+        edge_pixels, reference_indices, coefficients, _ = calculate_extrapolation_indices_coeffs(mask)
 
         # Check shapes are consistent
         n_max = len(edge_pixels)

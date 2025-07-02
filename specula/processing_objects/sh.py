@@ -90,6 +90,7 @@ class SH(BaseProcessingObj):
         self._edge_pixels = None
         self._reference_indices = None
         self._coefficients = None
+        self._valid_indices = None
 
         # TODO these are fixed but should become parameters
         self._fov_ovs = 1
@@ -327,7 +328,7 @@ class SH(BaseProcessingObj):
 
         if self._edge_pixels is None and self._do_interpolation:
             # Compute once indices and coefficients
-            self._edge_pixels, self._reference_indices, self._coefficients = calculate_extrapolation_indices_coeffs(
+            self._edge_pixels, self._reference_indices, self._coefficients, self._valid_indices = calculate_extrapolation_indices_coeffs(
                 cpuArray(self.in_ef.A)
             )
 
@@ -335,6 +336,7 @@ class SH(BaseProcessingObj):
             self._edge_pixels = self.to_xp(self._edge_pixels)
             self._reference_indices = self.to_xp(self._reference_indices)
             self._coefficients = self.to_xp(self._coefficients)
+            self._valid_indices = self.to_xp(self._valid_indices)
 
         # Interpolation of input array if needed
         with show_in_profiler('interpolation'):
@@ -345,6 +347,7 @@ class SH(BaseProcessingObj):
                     self._edge_pixels,
                     self._reference_indices,
                     self._coefficients,
+                    self._valid_indices,
                     xp=self.xp
                 )
 

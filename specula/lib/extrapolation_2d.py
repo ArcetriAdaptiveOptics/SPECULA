@@ -101,9 +101,13 @@ def calculate_extrapolation_indices_coeffs(mask):
                     if coefficients_fixed[i, 2*dir_idx + 1] != 0:
                         coefficients_fixed[i, 2*dir_idx + 1] *= factor
 
-    return edge_pixels_fixed, reference_indices_fixed, coefficients_fixed
+    # Calculate valid indices here
+    valid_edge_mask = (edge_pixels_fixed >= 0) & ~np.isnan(coefficients_fixed[:, 0])
+    valid_indices = np.where(valid_edge_mask)[0]
 
-def apply_extrapolation(data, edge_pixels, reference_indices, coefficients, xp=np):
+    return edge_pixels_fixed, reference_indices_fixed, coefficients_fixed, valid_indices
+
+def apply_extrapolation(data, edge_pixels, reference_indices, coefficients, valid_indices, xp=np):
     """
     Applies linear extrapolation to edge pixels using precalculated indices and coefficients.
 
@@ -111,15 +115,13 @@ def apply_extrapolation(data, edge_pixels, reference_indices, coefficients, xp=n
         data (ndarray): Input array to extrapolate.
         edge_pixels (ndarray): Linear indices of edge pixels to extrapolate.
         reference_indices (ndarray): Indices of reference pixels.
-        coefficients (ndarray): Coefficients for linear extrapolation.
+        coefficients (ndarray): Coefficients for linear extrapolation.ù
+        valid_indices (ndarray): Indices of valid edge pixels.
         xp (np): NumPy or CuPy module for array operations.
 
     Returns:
         ndarray: Array with extrapolated pixels.
     """
-    # Create a copy of the input array
-    result = data.copy()
-    flat_result = result.ravel()
     flat_data = data.ravel()
 
     # Mask for valid coefficients (not NaN in the first column)
@@ -140,6 +142,6 @@ def apply_extrapolation(data, edge_pixels, reference_indices, coefficients, xp=n
                 extrap_value += contrib
 
         # Assign the extrapolated value
-        flat_result[edge_idx] = extrap_value
+        flat_data[edge_idx] = extrap_value
 
-    return result
+    return data
