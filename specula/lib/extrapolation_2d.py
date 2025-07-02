@@ -124,10 +124,6 @@ def apply_extrapolation(data, edge_pixels, reference_indices, coefficients, vali
     """
     flat_data = data.ravel()
 
-    # Mask for valid coefficients (not NaN in the first column)
-    valid_edge_mask = (edge_pixels >= 0) & ~xp.isnan(coefficients[:, 0])
-    valid_indices = xp.where(valid_edge_mask)[0]
-
     # Iterate over each valid edge pixel
     for i in valid_indices:
         edge_idx = edge_pixels[i]
