@@ -342,12 +342,14 @@ class SH(BaseProcessingObj):
         with show_in_profiler('interpolation'):
 
             if self._do_interpolation:
-                self.phase_extrapolated[:] = apply_extrapolation(
+                self.phase_extrapolated[:] = self.in_ef.phaseInNm
+                _ = apply_extrapolation(
                     self.in_ef.phaseInNm,
                     self._edge_pixels,
                     self._reference_indices,
                     self._coefficients,
                     self._valid_indices,
+                    out=self.phase_extrapolated,
                     xp=self.xp
                 )
 
