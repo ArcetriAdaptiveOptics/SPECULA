@@ -107,7 +107,7 @@ def calculate_extrapolation_indices_coeffs(mask):
 
     return edge_pixels_fixed, reference_indices_fixed, coefficients_fixed, valid_indices
 
-def apply_extrapolation(data, edge_pixels, reference_indices, coefficients, valid_indices, xp=np):
+def apply_extrapolation(data, edge_pixels, reference_indices, coefficients, valid_indices, out=None, xp=np):
     """
     Applies linear extrapolation to edge pixels using precalculated indices and coefficients.
 
@@ -122,6 +122,9 @@ def apply_extrapolation(data, edge_pixels, reference_indices, coefficients, vali
     Returns:
         ndarray: Array with extrapolated pixels.
     """
+    if out is None:
+        out = data.copy()
+    flat_out = out.ravel()
     flat_data = data.ravel()
 
     # Vectorized extrapolation for valid edge pixels
@@ -148,6 +151,6 @@ def apply_extrapolation(data, edge_pixels, reference_indices, coefficients, vali
         extrap_values = xp.sum(contributions, axis=1)  # Sum across reference positions
 
         # Assign extrapolated values to edge pixels
-        flat_data[valid_edge_pixels] = extrap_values
+        flat_out[valid_edge_pixels] = extrap_values
 
-    return data
+    return out
