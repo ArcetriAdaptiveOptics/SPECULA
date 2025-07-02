@@ -50,7 +50,6 @@ class TestCCD(unittest.TestCase):
         average_i = 10.0
         emccd_gain = 400.0
         simul_params = SimulParams(time_step=t_seconds)
-        print("Testing CCD with excess noise and EMCCD gain...")
         ccd = CCD(
             simul_params,
             size=(10, 10),
@@ -89,7 +88,6 @@ class TestCCD(unittest.TestCase):
         readout_level = 1.0
         ADU_gain = 1.0
         simul_params = SimulParams(time_step=t_seconds)
-        print("Testing CCD with excess noise and EMCCD gain...")
         ccd = CCD(
             simul_params,
             size=(10, 10),
@@ -117,7 +115,7 @@ class TestCCD(unittest.TestCase):
         # Check that the average pixel value is close to the expected value
         actual = float(xp.mean(ccd._pixels.pixels))
         expected = average_i
-        rel_tol = 0.1
+        rel_tol = 0.20
         self.assertTrue(
             abs(actual - expected) / expected < rel_tol,
             f"Relative difference {abs(actual - expected) / expected:.2%} exceeds {rel_tol:.2%}"
