@@ -124,20 +124,37 @@ def apply_extrapolation(data, edge_pixels, reference_indices, coefficients, vali
     """
     flat_data = data.ravel()
 
-    # Iterate over each valid edge pixel
-    for i in valid_indices:
-        edge_idx = edge_pixels[i]
-        # Initialize the extrapolated value
-        extrap_value = 0.0
-
-        # Sum contributions from all references
+    # Vectorized extrapolation for valid edge pixels
+    if len(valid_indices) > 0:
+        # Extract valid edge pixels, reference indices, and coefficients
+        valid_edge_pixels = edge_pixels[valid_indices]
+        valid_ref_indices = reference_indices[valid_indices]
+        valid_coeffs = coefficients[valid_indices]
+        
+        # Create a mask for valid reference indices (>= 0)
+        valid_ref_mask = valid_ref_indices >= 0
+        
+        # Initialize extrapolated values array
+        extrap_values = xp.zeros(len(valid_indices), dtype=data.dtype)
+        
+        # Vectorized computation of contributions
+        # For each reference position j
         for j in range(reference_indices.shape[1]):
-            ref_idx = reference_indices[i, j]
-            if ref_idx >= 0:  # If the index is valid
-                contrib = coefficients[i, j] * flat_data[ref_idx]
-                extrap_value += contrib
-
-        # Assign the extrapolated value
-        flat_data[edge_idx] = extrap_value
+            # Get mask for valid references at position j
+            mask_j = valid_ref_mask[:, j]
+            
+            if xp.any(mask_j):
+                # Get reference indices and coefficients for valid positions
+                ref_idx_j = valid_ref_indices[mask_j, j]
+                coeff_j = valid_coeffs[mask_j, j]
+                
+                # Compute contributions: coeff * data[ref_idx]
+                contributions = coeff_j * flat_data[ref_idx_j]
+                
+                # Add contributions to extrapolated values
+                extrap_values[mask_j] += contributions
+        
+        # Assign extrapolated values to edge pixels
+        flat_data[valid_edge_pixels] = extrap_values
 
     return data
