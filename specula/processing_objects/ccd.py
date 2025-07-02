@@ -41,15 +41,15 @@ class CCD(BaseProcessingObj):
                  cic_level: float=0,
                  cte_mat=None, # ??
                  quantum_eff: float=1.0,
-                 pixelGains=None,                 
+                 pixelGains=None,
                  photon_seed: int=1,
                  readout_seed: int=2,
                  excess_seed: int=3,
                  excess_delta: float=1.0,
                  start_time: int=0,
-                 ADU_gain: int=8,
+                 ADU_gain: float=None,
                  ADU_bias: int=400,
-                 emccd_gain: int=1,
+                 emccd_gain: int=None,
                  target_device_idx: int=None,
                  precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
@@ -99,36 +99,47 @@ class CCD(BaseProcessingObj):
         #             background_level = 0
 
         # Adjust ADU / EM gain values
-        
-        # TODO old code
-        if excess_noise:
-            emccd_gain = 400         
-            ADU_gain = 1 / 20
 
-        # TODO new code to be tested
-        # if emccd_gain is None:
-        #     emccd_gain = 400 if excess_noise else 1
-
-        # if ADU_gain is None:
-        #     ADU_gain = 1 / 20 if excess_noise else 8
-
-        if ADU_gain <= 1 and (not excess_noise or emccd_gain <= 1):
-            print('ATTENTION: ADU gain is less than 1 and there is no electronic multiplication.')
-
-        self._start_time = self.seconds_to_t(start_time)
         self._photon_noise = photon_noise
         self._readout_noise = readout_noise
-        self._excess_noise = excess_noise
         self._darkcurrent_noise = darkcurrent_noise
         self._background_noise = background_noise
         self._cic_noise = cic_noise
         self._cte_noise = cte_noise
+        self._excess_noise = excess_noise
 
-        self._binning = binning
+        if self._excess_noise:
+            if emccd_gain is not None:
+                self._emccd_gain = float(emccd_gain)
+            else:
+                self._emccd_gain = 400.0
+            if ADU_gain is not None:
+                self._ADU_gain = float(ADU_gain)
+            else:
+                self._ADU_gain = 1 / 20
+        else:
+            if emccd_gain is not None:
+                raise ValueError('emccd_gain must be None if excess_noise is False')
+            self._emccd_gain = 1.0
+            if ADU_gain is not None:
+                self._ADU_gain = float(ADU_gain)
+            else:
+                self._ADU_gain = 8.0
+
+        if self._ADU_gain <= 1 and (not excess_noise or self._emccd_gain <= 1):
+            print('ATTENTION: ADU gain is less than 1 and there is no electronic multiplication.')
+
         self._readout_level = readout_level
+        if self._excess_noise and not isinstance(self._readout_level, str):
+            self._readout_level *= self._emccd_gain
         self._darkcurrent_level = darkcurrent_level
         self._background_level = background_level
         self._cic_level = cic_level
+        
+        self._start_time = self.seconds_to_t(start_time)
+
+        self._binning = binning
+
         self._cte_mat = cte_mat if cte_mat is not None else self.xp.zeros((size[0], size[1], 2), dtype=self.dtype)
         self._qe = quantum_eff
 
@@ -144,9 +155,7 @@ class CCD(BaseProcessingObj):
         self._doNotChangeI = False
         self._bg_remove_average = False
         self._do_not_remove_dark = False
-        self._ADU_gain = ADU_gain
         self._ADU_bias = ADU_bias
-        self._emccd_gain = emccd_gain
         self._bandw = bandw
         self._pixelGains = pixelGains
         self._notUniformQeMatrix = None
@@ -178,7 +187,7 @@ class CCD(BaseProcessingObj):
     @property
     def bandw(self):
         return self._bandw
-    
+
     @bandw.setter
     def bandw(self, bandw):
         self._bandw = bandw
@@ -232,7 +241,7 @@ class CCD(BaseProcessingObj):
         if self._excess_noise:
             ex_ccd_frame = self._excess_delta * ccd_frame
             clamp_generic(1e-10, 1e-10, ex_ccd_frame, xp=self.xp)
-            ccd_frame = 1.0 / self._excess_delta * gamma.rvs(ex_ccd_frame, self._emccd_gain, random_state=self._excess_seed)
+            ccd_frame = 1.0 / self._excess_delta * gamma.rvs(ex_ccd_frame, scale=self._emccd_gain, random_state=self._excess_seed)
 
         if self._readout_noise:
             ron_vector = self._readout_rng.standard_normal(size=ccd_frame.size)

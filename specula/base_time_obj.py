@@ -17,7 +17,7 @@ class BaseTimeObj:
         target_device_idx (int, optional): if None will use the default_target_device_idx, otherwise pass -1 for cpu, i for GPU of index i
 
         """
-        self._time_resolution = int(1e9)        
+        self._time_resolution = int(1e9)
         self.gpu_bytes_used = 0
 
         if precision is None:
