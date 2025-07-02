@@ -37,7 +37,7 @@ atmo:
   class:                'AtmoRandomPhase'
   simul_params_ref:  'main'
   L0:                   40                   # [m] Outer scale
-  fov:                  0.0
+  source_dict_ref:      ['on_axis_source']
   inputs:
     seeing: 'seeing.output'
     pupilstop: 'pupilstop'
