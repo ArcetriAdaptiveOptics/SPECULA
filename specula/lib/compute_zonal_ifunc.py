@@ -93,7 +93,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom=False, an
         z_interp = xp.asarray(z_interp_np)
 
         if idx_far_grid is not None:
-            z_interp.ravel[idx_far_grid] = 0
+            z_interp.ravel()[idx_far_grid] = 0
 
         ifs_cube[i, :, :] = z_interp
 
