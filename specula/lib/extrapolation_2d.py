@@ -126,6 +126,12 @@ def apply_extrapolation(data, edge_pixels, reference_indices, coefficients, vali
 
     # Vectorized extrapolation for valid edge pixels
     if len(valid_indices) > 0:
+
+        edge_pixels = xp.asarray(edge_pixels)
+        reference_indices = xp.asarray(reference_indices)
+        coefficients = xp.asarray(coefficients)
+        valid_indices = xp.asarray(valid_indices)
+
         # Extract valid edge pixels, reference indices, and coefficients
         valid_edge_pixels = edge_pixels[valid_indices]
         valid_ref_indices = reference_indices[valid_indices]
