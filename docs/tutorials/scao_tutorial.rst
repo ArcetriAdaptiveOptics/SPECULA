@@ -247,12 +247,12 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
       
       try:
           # Test IFunc loading
-          loaded_ifunc = IFunc.restore('calibration/tutorial_ifunc.fits', target_device_idx=specula.current_device_idx)
+          loaded_ifunc = IFunc.restore('calibration/tutorial_ifunc.fits')
           assert loaded_ifunc.influence_function.shape == influence_functions.shape
           print("✓ IFunc loading test passed")
           
           # Test M2C loading  
-          loaded_m2c = M2C.restore('calibration/tutorial_m2c.fits', target_device_idx=specula.current_device_idx)
+          loaded_m2c = M2C.restore('calibration/tutorial_m2c.fits')
           assert loaded_m2c.m2c.shape == kl_basis.shape
           print("✓ M2C loading test passed")
           
