@@ -130,30 +130,23 @@ def apply_extrapolation(data, edge_pixels, reference_indices, coefficients, vali
         valid_edge_pixels = edge_pixels[valid_indices]
         valid_ref_indices = reference_indices[valid_indices]
         valid_coeffs = coefficients[valid_indices]
-        
+
         # Create a mask for valid reference indices (>= 0)
         valid_ref_mask = valid_ref_indices >= 0
-        
-        # Initialize extrapolated values array
-        extrap_values = xp.zeros(len(valid_indices), dtype=data.dtype)
-        
-        # Vectorized computation of contributions
-        # For each reference position j
-        for j in range(reference_indices.shape[1]):
-            # Get mask for valid references at position j
-            mask_j = valid_ref_mask[:, j]
-            
-            if xp.any(mask_j):
-                # Get reference indices and coefficients for valid positions
-                ref_idx_j = valid_ref_indices[mask_j, j]
-                coeff_j = valid_coeffs[mask_j, j]
-                
-                # Compute contributions: coeff * data[ref_idx]
-                contributions = coeff_j * flat_data[ref_idx_j]
-                
-                # Add contributions to extrapolated values
-                extrap_values[mask_j] += contributions
-        
+
+        # Replace invalid indices with 0 to avoid indexing errors
+        safe_ref_indices = xp.where(valid_ref_mask, valid_ref_indices, 0)
+
+        # Get data values for all reference indices at once
+        ref_data = flat_data[safe_ref_indices]  # Shape: (n_valid_edges, 8)
+
+        # Zero out contributions from invalid references
+        masked_coeffs = xp.where(valid_ref_mask, valid_coeffs, 0.0)
+
+        # Compute all contributions at once and sum across reference positions
+        contributions = masked_coeffs * ref_data  # Element-wise multiplication
+        extrap_values = xp.sum(contributions, axis=1)  # Sum across reference positions
+
         # Assign extrapolated values to edge pixels
         flat_data[valid_edge_pixels] = extrap_values
 
