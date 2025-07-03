@@ -18,7 +18,7 @@ def clamp_generic(x, c, y, xp):
 class CCD(BaseProcessingObj):
     '''Simple CCD from intensity field'''
     def __init__(self,
-                 simul_params: SimulParams,        
+                 simul_params: SimulParams,
                  size: int,           # TODO list=[80,80],
                  dt: float,           # TODO =0.001,
                  bandw: float,        # TODO =300.0,
