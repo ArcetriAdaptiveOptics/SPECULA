@@ -1,0 +1,25 @@
+---
+
+main:
+  class:             'SimulParams'
+  root_dir:          '.'         # Root directory for calibration manager
+  pixel_pupil:       80                # Linear dimension of pupil phase array
+  total_time:        1.0               # [s] Total simulation running time
+  time_step:         0.1               # [s] Simulation time step
+
+
+mytimehist:
+  class:             'TimeHistory'
+  tag:               'timehistory_test'
+
+generator:
+  class:             'FuncGenerator'
+  func_type:         'TIME_HIST'
+  time_hist_ref:     'mytimehist'
+  outputs: ['output']
+
+data_store:
+  class:             'DataStore'
+  store_dir:         './output_timehistory'             # Data result directory: 'store_dir'/TN/
+  inputs:    
+    input_list: ['timehist-generator.output']

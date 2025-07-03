@@ -41,3 +41,20 @@ class TestInterp2D(unittest.TestCase):
         test_phase[394,365] = ref_phase[394,365]
         # Then a few pixels with 3%
         np.testing.assert_allclose(test_phase, ref_phase, rtol=4e-2)
+
+    @cpu_and_gpu
+    def test_interp2d_boundary_check(self, target_device_idx, xp):
+        '''
+        Test that interp2d does not read beyond the input array boundaries,
+        using as input a small array that is a slice of a larger one, the latter
+        filled with NaNs outside the slice range. We check that the output
+        contains no NaNs.
+        '''
+
+        array = xp.empty(shape=(20,20), dtype=xp.float32)
+        array[:] = np.nan
+        array[:10] = 1
+
+        interpolator = Interp2D(input_shape=(10, 20), output_shape=(5,5), rotInDeg=45, xp=xp, dtype=xp.float32)
+        result = interpolator.interpolate(array[:10])
+        assert xp.isnan(result).sum() == 0

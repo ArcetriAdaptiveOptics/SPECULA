@@ -20,7 +20,7 @@ class LaserLaunchTelescope(BaseDataObj):
                  spot_size: float = 0.0,
                  tel_position: list = [],
                  beacon_focus: float = 90e3,
-                 beacon_tt: list = [],
+                 beacon_tt: list = [0.0, 0.0],
                  target_device_idx: int = None, 
                  precision: int = None
         ):

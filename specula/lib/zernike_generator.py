@@ -1,7 +1,7 @@
 import numbers
 import numpy as np
 
-from specula import cpuArray
+from specula import cpuArray, to_xp
 
 from functools import lru_cache
 from scipy.special import factorial
@@ -232,7 +232,7 @@ class ZernikeGenerator():
         '''
         nPxY = self._shape[0]
         nPxX = self._shape[1]
-        c = self.xp.array(self.center(), dtype=self.dtype)
+        c = to_xp(self.xp, self.center(), dtype=self.dtype)
         cc = self.xp.expand_dims(c, axis=(1, 2))
         Y, X = (self.xp.mgrid[0.5: nPxY + 0.5: 1,
                          0.5: nPxX + 0.5: 1] - cc) / self.radius()
@@ -263,7 +263,7 @@ class ZernikeGenerator():
             res = self._polar(index, self._rhoMap,
                               self._thetaMap)
             tmp = np.ma.masked_array(data=cpuArray(res), mask=cpuArray(self._boolean_mask))
-            self._dictCache[index] = self.xp.array(tmp, dtype=self.dtype)
+            self._dictCache[index] = to_xp(self.xp, tmp, dtype=self.dtype)
         return self._dictCache[index]
 
     @staticmethod

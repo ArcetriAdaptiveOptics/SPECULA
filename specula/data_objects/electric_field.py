@@ -1,6 +1,9 @@
 from astropy.io import fits
+import numpy as np
 
+from specula import cpuArray
 from specula.base_data_obj import BaseDataObj
+
 
 class ElectricField(BaseDataObj):
     '''Electric field'''
@@ -15,7 +18,7 @@ class ElectricField(BaseDataObj):
         super().__init__(precision=precision, target_device_idx=target_device_idx)
         dimx = int(dimx)
         dimy = int(dimy)
-        self.pixel_pitch = pixel_pitch        
+        self.pixel_pitch = pixel_pitch
         self.S0 = S0
         self.A = self.xp.ones((dimx, dimy), dtype=self.dtype)
         self.phaseInNm = self.xp.zeros((dimx, dimy), dtype=self.dtype)
@@ -26,8 +29,8 @@ class ElectricField(BaseDataObj):
         
         Arrays are not reallocated
         '''
-        self.A[:]= self.xp.array(v[0], dtype=self.dtype)
-        self.phaseInNm[:] = self.xp.array(v[1], dtype=self.dtype)
+        self.A[:]= self.to_xp(v[0], dtype=self.dtype)
+        self.phaseInNm[:] = self.to_xp(v[1], dtype=self.dtype)
 
     def reset(self):
         '''
@@ -54,13 +57,21 @@ class ElectricField(BaseDataObj):
             raise ValueError(f'{ef2} has size {ef2.size} instead of the required ({diff0}, {diff1})')
         return subrect
         
-    def phi_at_lambda(self, wavelengthInNm):
-        return self.phaseInNm * ((2 * self.xp.pi) / wavelengthInNm)
+    def phi_at_lambda(self, wavelengthInNm, slicey=None, slicex=None):
+        if slicey is None:
+            slicey = np.s_[:]
+        if slicex is None:
+            slicex = np.s_[:]
+        return self.phaseInNm[slicey, slicex] * ((2 * self.xp.pi) / wavelengthInNm)
 
-    def ef_at_lambda(self, wavelengthInNm, out=None):
-        phi = self.phi_at_lambda(wavelengthInNm)
+    def ef_at_lambda(self, wavelengthInNm, slicey=None, slicex=None, out=None):
+        if slicey is None:
+            slicey = np.s_[:]
+        if slicex is None:
+            slicex = np.s_[:]
+        phi = self.phi_at_lambda(wavelengthInNm, slicey=slicey, slicex=slicex)
         ef = self.xp.exp(1j * phi, dtype=self.complex_dtype, out=out)
-        ef *= self.A
+        ef *= self.A[slicey, slicex]
         return ef
 
     def product(self, ef2, subrect=None):
@@ -68,7 +79,7 @@ class ElectricField(BaseDataObj):
         x2 = subrect[0] + self.size[0]
         y2 = subrect[1] + self.size[1]
         self.A *= ef2.A[subrect[0] : x2, subrect[1] : y2]
-        self.phaseInNm += self.xp.asarray(ef2.phaseInNm[subrect[0] : x2, subrect[1] : y2])
+        self.phaseInNm += ef2.phaseInNm[subrect[0] : x2, subrect[1] : y2]
 
     def area(self):
         return self.A.size * (self.pixel_pitch ** 2)
@@ -105,11 +116,17 @@ class ElectricField(BaseDataObj):
         hdr['S0'] = self.S0
         return hdr
 
-    def save(self, filename):
-        hdr = self.get_fits_header()
+    def save(self, filename, hdr=None):
+        if hdr is None:
+            hdr = self.get_fits_header()
+        else:
+            # verify that the header is correct
+            # checking that we have 'VERSION' and 'OBJ_TYPE' in the header
+            if 'VERSION' not in hdr or 'OBJ_TYPE' not in hdr:
+                raise ValueError("Header must contain 'VERSION' and 'OBJ_TYPE'")
         A = self.A        
-        hdu_A = fits.PrimaryHDU(A, header=hdr)
-        hdu_phase = fits.ImageHDU(self.phaseInNm)
+        hdu_A = fits.PrimaryHDU(cpuArray(A), header=hdr)
+        hdu_phase = fits.ImageHDU(cpuArray(self.phaseInNm))
         hdul = fits.HDUList([hdu_A, hdu_phase])
         hdul.writeto(filename, overwrite=True)
 

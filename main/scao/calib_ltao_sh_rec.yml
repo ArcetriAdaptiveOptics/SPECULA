@@ -3,12 +3,12 @@
 pushpull:
   class:     'FuncGenerator'
   func_type: 'PUSHPULL'
-  nmodes:     4519
+  nmodes:   4519
   vect_amplitude_data:  'pushpull_4519modes_amp50'
   outputs: ['output']
 
 main_override:
-  total_time:  18.076
+  total_time:  0.040
 
 prop_override:
   inputs:
@@ -43,32 +43,44 @@ detector5_override:
 detector6_override:
   photon_noise:      False
   readout_noise:     False
-  
 
 
-calibrator:
-  class: 'MultiImRecCalibrator'
+im_calibrator:
+  class: 'MultiImCalibrator'
   nmodes: 4519
+  n_inputs: 6
   im_tag:     'test_ltao_im'
-  rec_tag:     'test_ltao_rec'
-  data_dir: '/tmp'
-  full_rec_tag: 'test_ltao_full_rec'
   #tag_template:    'ltao_im_{main.tag}_n{modes}'
+  overwrite: True
   inputs:
     in_slopes_list: ['slopec1.out_slopes', 'slopec2.out_slopes', 'slopec3.out_slopes', 'slopec4.out_slopes', 'slopec5.out_slopes', 'slopec6.out_slopes']
-    in_commands_list: ['pushpull.output', 'pushpull.output', 'pushpull.output', 'pushpull.output', 'pushpull.output', 'pushpull.output'] 
+    in_commands_list: ['pushpull.output', 'pushpull.output', 'pushpull.output', 'pushpull.output', 'pushpull.output', 'pushpull.output']
+  outputs: ['out_intmat_full', 'out_intmat_list'] 
 
-pixels_disp:
-  class:            'PixelsDisplay'
+
+rec_calibrator:
+  class: 'MultiRecCalibrator'
+  nmodes: 4519
+  rec_tag:     'test_ltao_rec'
+  full_rec_tag: 'test_ltao_full_rec'
+  #tag_template:    'ltao_im_{main.tag}_n{modes}'
+  overwrite: True
   inputs:
-    pixels:      "detector1.out_pixels"
-  window:           15
-  title:            "Pixels"
-  disp_factor:      1
-  sh_as_pyr:        true
-  subapdata_object:  'morfeo_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.25'
+    intmat_list: ['im_calibrator.out_intmat_list']
+    full_intmat: 'im_calibrator.out_intmat_full'
 
-remove: ['atmo'] #, 'rec']
+
+#pixels_disp:
+#  class:            'PixelsDisplay'
+#  inputs:
+#    pixels:      "detector1.out_pixels"
+#  window:           15
+#  title:            "Pixels"
+#  disp_factor:      1
+#  sh_as_pyr:        true
+#  subapdata_object:  'morfeo_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.25'
+
+remove: ['atmo', 'rec', 'control', 'psf']
  
 
 

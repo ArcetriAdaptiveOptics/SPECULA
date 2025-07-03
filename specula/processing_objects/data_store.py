@@ -14,6 +14,7 @@ from specula.base_value import BaseValue
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.pixels import Pixels
 from specula.data_objects.slopes import Slopes
+from specula.data_objects.intensity import Intensity
 
 
 class DataStore(BaseProcessingObj):
@@ -21,13 +22,16 @@ class DataStore(BaseProcessingObj):
 
     def __init__(self,
                 store_dir: str,         # TODO ="",
-                data_format: str='fits'):
+                data_format: str='fits',
+                create_tn: bool=True):
         super().__init__()
         self.data_filename = ''
         self.tn_dir = store_dir
         self.data_format = data_format
         self.storage = defaultdict(OrderedDict)
-        
+        self._create_tn = create_tn
+        self.replay_params = None
+
     def setParams(self, params):
         self.params = params
 
@@ -36,31 +40,36 @@ class DataStore(BaseProcessingObj):
 
     def save_pickle(self, compress=False):
         times = {k: np.array(list(v.keys()), dtype=self.dtype) for k, v in self.storage.items() if isinstance(v, OrderedDict)}
-        data = {k: np.array(list(v.values()), dtype=self.dtype) for k, v in self.storage.items() if isinstance(v, OrderedDict)}        
+        data = {k: np.array(list(v.values()), dtype=self.dtype) for k, v in self.storage.items() if isinstance(v, OrderedDict)}
         for k,v in times.items():            
             filename = os.path.join(self.tn_dir,k+'.pickle')
             hdr = self.inputs[k].get(target_device_idx=-1).get_fits_header()
             with open(filename, 'wb') as handle:
                 data_to_save = {'data': data[k], 'times': times[k], 'hdr':hdr}
                 pickle.dump(data_to_save, handle, protocol=pickle.HIGHEST_PROTOCOL)
-        
+
     def save_params(self):
         filename = os.path.join(self.tn_dir, 'params.yml')
         with open(filename, 'w') as outfile:
             yaml.dump(self.params, outfile,  default_flow_style=False, sort_keys=False)
 
-        self.replay_params['data_source']['store_dir'] = self.tn_dir
-
-        filename = os.path.join(self.tn_dir, 'replay_params.yml')
-        with open(filename, 'w') as outfile:
-            yaml.dump(self.replay_params, outfile,  default_flow_style=False, sort_keys=False)
+        # Check if replay_params exists before using it
+        if hasattr(self, 'replay_params') and self.replay_params is not None:
+            self.replay_params['data_source']['store_dir'] = self.tn_dir
+            filename = os.path.join(self.tn_dir, 'replay_params.yml')
+            with open(filename, 'w') as outfile:
+                yaml.dump(self.replay_params, outfile, default_flow_style=False, sort_keys=False)
+        else:
+            # Skip saving replay_params if not available
+            if self.verbose:
+                print("Warning: replay_params not available, skipping replay_params.yml creation")
 
     def save_fits(self, compress=False):
         times = {k: np.array(list(v.keys()), dtype=self.dtype) for k, v in self.storage.items() if isinstance(v, OrderedDict)}
-        data = {k: np.array(list(v.values()), dtype=self.dtype) for k, v in self.storage.items() if isinstance(v, OrderedDict)}        
-        
+        data = {k: np.array(list(v.values()), dtype=self.dtype) for k, v in self.storage.items() if isinstance(v, OrderedDict)}
+
         for k,v in times.items():
-        
+
             filename = os.path.join(self.tn_dir,k+'.fits')
             hdr = self.inputs[k].get(target_device_idx=-1).get_fits_header()
             hdu_time = fits.ImageHDU(times[k], header=hdr)
@@ -70,32 +79,47 @@ class DataStore(BaseProcessingObj):
 
     def create_TN_folder(self):
         today = time.strftime("%Y%m%d_%H%M%S")
+        iter = None
         while True:
             tn = f'{today}'
             prefix = os.path.join(self.tn_dir, tn)
+            if iter is not None:
+                prefix += f'.{iter}'
             if not os.path.exists(prefix):
                 os.makedirs(prefix)
-                break            
-        self.tn_dir = prefix        
+                break
+            if iter is None:
+                iter = 0
+            else:
+                iter += 1
+        self.tn_dir = prefix
 
     def trigger_code(self):
         for k, in_ in self.inputs.items():
             item = in_.get(target_device_idx=self.target_device_idx)
             if item is not None and item.generation_time == self.current_time:
                 if isinstance(item, BaseValue):
-                    v = cpuArray(item.value)
+                    v = cpuArray(item.value, force_copy=True)
                 elif isinstance(item, Slopes):
-                    v = cpuArray(item.slopes)
+                    v = cpuArray(item.slopes, force_copy=True)
                 elif isinstance(item, Pixels):
-                    v = cpuArray(item.pixels)
+                    v = cpuArray(item.pixels, force_copy=True)
                 elif isinstance(item, ElectricField):
-                    v = np.stack( (cpuArray(item.A), cpuArray(item.phaseInNm)) )
+                    v = np.stack( (cpuArray(item.A, force_copy=True), cpuArray(item.phaseInNm, force_copy=True)) )
+                elif isinstance(item, Intensity):
+                    v = cpuArray(item.i, force_copy=True)
                 else:
                     raise TypeError(f"Error: don't know how to save an object of type {type(item)}")
                 self.storage[k][self.current_time] = v
 
-    def finalize(self):        
-        self.create_TN_folder()
+    def finalize(self):
+
+        # Perform an additional trigger to ensure all data is captured,
+        # including any calculations done in other objects' finalize() methods
+        self.trigger_code()
+
+        if self._create_tn:
+            self.create_TN_folder()
         self.save_params()
         if self.data_format == 'pickle':
             self.save_pickle()

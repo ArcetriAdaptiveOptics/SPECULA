@@ -33,7 +33,7 @@ class TestSH(unittest.TestCase):
 
         sh.inputs['in_ef'].set(ef)
 
-        sh.setup(1, 1)
+        sh.setup()
         sh.check_ready(t)
         sh.trigger()
         sh.post_trigger()
@@ -67,7 +67,7 @@ class TestSH(unittest.TestCase):
         ef.generation_time = t
         sh.inputs['in_ef'].set(ef)
 
-        sh.setup(1, 1)
+        sh.setup()
         sh.check_ready(t)
         sh.trigger()
         sh.post_trigger()
@@ -75,7 +75,7 @@ class TestSH(unittest.TestCase):
         
         # tilt corresponding to pxscale_arcsec
         tilt_value = np.radians(pixel_pupil * pixel_pitch * 1/(60*60) * pxscale_arcsec)
-        tilt = np.linspace(-tilt_value / 2, tilt_value / 2, pixel_pupil)
+        tilt = np.linspace(-tilt_value / 2 * (1-1/pixel_pupil), tilt_value / 2 * (1-1/pixel_pupil), pixel_pupil)
 
         # Tilted wavefront
         ef.phaseInNm[:] = xp.array(np.broadcast_to(tilt, (pixel_pupil, pixel_pupil))) * 1e9
@@ -92,7 +92,13 @@ class TestSH(unittest.TestCase):
         flat_shifted[:, ::sh_npix] = 0
         tilted[:, ::sh_npix] = 0
         
-        np.testing.assert_array_almost_equal(cpuArray(tilted), cpuArray(flat_shifted), decimal=3) 
+        # import matplotlib.pyplot as plt
+        # plt.imshow(cpuArray(tilted))
+        # plt.figure()
+        # plt.imshow(cpuArray(flat_shifted))
+        # plt.show()
+
+        np.testing.assert_array_almost_equal(cpuArray(tilted), cpuArray(flat_shifted), decimal=4)
         
 
     @cpu_and_gpu
@@ -134,9 +140,9 @@ class TestSH(unittest.TestCase):
         sh2.inputs['in_ef'].set(ef)
         sh3.inputs['in_ef'].set(ef)
 
-        sh1.setup(1, 1)
-        sh2.setup(1, 1)
-        sh3.setup(1, 1)
+        sh1.setup()
+        sh2.setup()
+        sh3.setup()
         
         assert id(sh1._wf3) == id(sh2._wf3) 
         assert id(sh1._wf3) != id(sh3._wf3) 

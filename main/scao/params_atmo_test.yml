@@ -1,12 +1,17 @@
 ---
 
 main:
+  class:             'SimulParams'
   root_dir:          './calib/SCAO'         # Root directory for calibration manager
   pixel_pupil:       256                    # Linear dimension of pupil phase array
   pixel_pitch:       0.03                   # [m] Pitch of the pupil phase array
   total_time:        80.0                  # [s] Total simulation running time
   time_step:         0.001                  # [s] Simulation time step
 
+
+pupilstop:                                 # Default parameters (circular pupil)
+  class: 'Pupilstop'
+  simul_params_ref:     'main'
 
 seeing:
   class:             'FuncGenerator'
@@ -35,6 +40,7 @@ on_axis_source:
 
 atmoF:
   class:                'AtmoEvolution'
+  simul_params_ref:  'main'
   L0:                   [8] #, 20, 30, 10]                   # [m] Outer scale
   heights:              [119.] #, 180, 300, 500] #,837,3045,12780]), # [m] layer heights at 0 zenith angle
   Cn2:                  [1.0] #, 0.3, 0.1, 0.2] #,0.06,0.14,0.10]), # Cn2 weights (total must be eq 1)
@@ -47,6 +53,7 @@ atmoF:
 
 atmoI:
   class:                'AtmoInfiniteEvolution'
+  simul_params_ref:  'main'
   L0:                   [8] #, 20, 30, 10]                   # [m] Outer scale
   heights:              [119.] #, 180, 300, 500] #,837,3045,12780]), # [m] layer heights at 0 zenith angle
   Cn2:                  [1] #, 0.3, 0.1, 0.2] #,0.06,0.14,0.10]), # Cn2 weights (total must be eq 1)
@@ -59,16 +66,20 @@ atmoI:
 
 propF:
   class:                'AtmoPropagation'
+  simul_params_ref:     'main'
   source_dict_ref:      ['on_axis_source']
   inputs:
-    atmo_layer_list: 'atmoF.layer_list'
+    common_layer_list: ['pupilstop']
+    atmo_layer_list: ['atmoF.layer_list']
   outputs: ['out_on_axis_source_ef']
 
 propI:
   class:                'AtmoPropagation'
+  simul_params_ref:  'main'
   source_dict_ref:      ['on_axis_source']
   inputs:
-    atmo_layer_list: 'atmoI.layer_list'
+    common_layer_list: ['pupilstop']
+    atmo_layer_list: ['atmoI.layer_list']
   outputs: ['out_on_axis_source_ef']
 
 ph_disp:

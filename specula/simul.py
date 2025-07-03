@@ -1,7 +1,10 @@
 
-import inspect
 import typing
+import inspect
+import itertools
 from copy import deepcopy
+from pathlib import Path
+from collections import Counter
 from specula.base_processing_obj import BaseProcessingObj
 
 from specula.loop_control import LoopControl
@@ -13,34 +16,37 @@ from specula.connections import InputValue
 
 import yaml
 
-doBlockDiagram = False
-
-try:
-    import orthogram
-    doBlockDiagram = True
-    from orthogram import Color, DiagramDef, write_png, Side, FontWeight, TextOrientation
-    from collections import Counter
-except ImportError as e:
-    print('Optional package orthogram not installed, block diagram of the simulation will not be produced.')
-
 
 class Simul():
     '''
     Simulation organizer
     '''
-    def __init__(self, *param_files, overrides=None):
+    def __init__(self,
+                 *param_files,
+                 overrides=None,
+                 diagram=False,
+                 diagram_title=None,
+                 diagram_filename=None                 
+                 ):
         if len(param_files) < 1:
             raise ValueError('At least one Yaml parameter file must be present')
         self.param_files = param_files
         self.objs = {}
         self.verbose = False  #TODO
         self.isReplay = False
+        self.mainParams = None
+        self.mainParamsKeyName = None
         if overrides is None:
             self.overrides = []
         else:
             self.overrides = overrides
+        self.diagram = diagram
+        self.diagram_title = diagram_title
+        self.diagram_filename = diagram_filename
 
     def output_owner(self, output_name):
+        if ':' in output_name:
+            output_name = output_name.split(':')[0]
         if '-' in output_name:
             output_name = output_name.split('-')[1]
         if '.' in output_name:
@@ -77,7 +83,6 @@ class Simul():
             input_ref = self.objs[input_name].copyTo(target_device_idx)
         return input_ref
 
-
     def output_delay(self, output_name):
         if ':' in output_name:
             return int(output_name.split(':')[1])
@@ -104,6 +109,31 @@ class Simul():
                 return False
         return True
     
+    def has_delayed_output(self, obj_name, params):
+        '''
+        Find out if an object has an output
+        that is used as a delayed input for another
+        object in the pars dictionary
+        '''
+        for name, pars in params.items():
+            if 'inputs' not in pars:
+                continue
+            for input_name, output_name in pars['inputs'].items():
+                if isinstance(output_name, str):
+                    outputs_list = [output_name]
+                elif isinstance(output_name, list):
+                    outputs_list = output_name
+                else:
+                    raise ValueError('Malformed output: must be either str or list')
+
+                for x in outputs_list:
+                    owner = self.output_owner(x)
+                    delay = self.output_delay(x)
+                    if owner == obj_name and delay < 0:
+                        # Delayed input detected
+                        return True
+        return False
+
     def trigger_order(self, params_orig):
         '''
         Work on a copy of the parameter file.
@@ -115,33 +145,41 @@ class Simul():
         '''
         order = []
         order_index = []
-        ii = 0
         params = deepcopy(params_orig)
-        del params['main']
-        while True:
-            start = len(params)
+        for index in itertools.count():
             leaves = [name for name, pars in params.items() if self.is_leaf(pars)]
             if len(leaves) == 0:
                 break
+            start = len(params)
             for leaf in leaves:
+                if self.has_delayed_output(leaf, params):
+                    continue
                 order.append(leaf)
-                order_index.append(ii)
+                order_index.append(index)
                 del params[leaf]
                 self.remove_inputs(params, leaf)
-            ii+=1
+            end = len(params)
+            if start == end:
+                raise ValueError('Cannot determine trigger order: circular loop detected in {leaves}')
         if len(params) > 0:
             print('Warning: the following objects will not be triggered:', params.keys())
         return order, order_index
 
+    def setSimulParams(self, params):
+        for key, pars in params.items():
+            classname = pars['class']
+            if classname == 'SimulParams':
+                self.mainParams = pars
+                self.mainParamsKeyName = key
 
     def build_objects(self, params):
-        main = params['main']
-        cm = CalibManager(main['root_dir'])
+
+        self.setSimulParams(params)
+
+        cm = CalibManager(self.mainParams['root_dir'])
         skip_pars = 'class inputs outputs'.split()
 
         for key, pars in params.items():
-            if key == 'main':
-                continue
             try:
                 classname = pars['class']
             except KeyError:
@@ -159,8 +197,9 @@ class Simul():
                 filename = cm.filename(classname, pars['tag'])
                 print('Restoring:', filename)
                 self.objs[key] = klass.restore(filename, target_device_idx=target_device_idx)
+                self.objs[key].printMemUsage()
                 continue
-                
+
             pars2 = {}
             for name, value in pars.items():
                 if key == 'data_source':
@@ -168,10 +207,10 @@ class Simul():
 
                 if key != 'data_source' and name in skip_pars:
                     continue
-                
-                if key == 'data_source' and name in ['class']:                    
+
+                if key == 'data_source' and name in ['class']:
                     continue
-                
+
                 # dict_ref field contains a dictionary of names and associated data objects (defined in the same yml file)
                 elif name.endswith('_dict_ref'):
                     data = {x : self.output_ref(x) for x in value}
@@ -187,15 +226,15 @@ class Simul():
                     pars2[name[:-5]] = data
 
                 # object fields are data objects which are loaded from a fits file
-                # the name of the object is the string preceeding the "_object" suffix, 
-                # while its type is inferred from the constructor of the current class                
+                # the name of the object is the string preceeding the "_object" suffix,
+                # while its type is inferred from the constructor of the current class
                 elif name.endswith('_object'):
                     parname = name[:-7]
                     if value is None:
                         pars2[parname] = None
                     elif parname in hints:
                         partype = hints[parname]
-                        
+
                         # Handle Optional and Union types (for python <3.11)
                         if hasattr(partype, "__origin__") and partype.__origin__ is typing.Union:
                             # Extract actual class type from Optional/Union
@@ -204,10 +243,12 @@ class Simul():
                                 if arg is not type(None):  # Skip NoneType
                                     partype = arg
                                     break
-                        
+
                         filename = cm.filename(parname, value)  # TODO use partype instead of parname?
                         print('Restoring:', filename)
                         parobj = partype.restore(filename, target_device_idx=target_device_idx)
+                        parobj.printMemUsage()
+
                         pars2[parname] = parobj
                     else:
                         raise ValueError(f'No type hint for parameter {parname} of class {classname}')
@@ -216,13 +257,14 @@ class Simul():
                     pars2[name] = value
 
             # Add global and class-specific params if needed
-            my_params = {k: main[k] for k in args if k in main}
+            my_params = {}
+
             if 'data_dir' in args and 'data_dir' not in my_params:  # TODO special case
                 my_params['data_dir'] = cm.root_subdir(classname)
-                
+
             if 'params_dict' in args:
                 my_params['params_dict'] = params
-                
+
             if 'input_ref_getter' in args:
                 my_params['input_ref_getter'] = self.input_ref
 
@@ -233,7 +275,12 @@ class Simul():
                 my_params['info_getter'] = self.get_info
 
             my_params.update(pars2)
-            self.objs[key] = klass(**my_params)
+            try:
+                self.objs[key] = klass(**my_params)
+            except Exception:
+                print(f'Exception building', key)
+                raise
+
             self.objs[key].name = key
 
             # TODO this could be more general like the getters above
@@ -251,25 +298,24 @@ class Simul():
 
             if 'inputs' not in pars:
                 continue
-            
+
             for input_name, output_name in pars['inputs'].items():
 
                 # Special case for DataStore
                 if isinstance(output_name, list) and input_name=='input_list':
                     inputs = [x.split('-')[0] for x in output_name]
                     outputs = [self.output_ref(x.split('-')[1]) for x in output_name]
-                    for ii, oo in zip(inputs, outputs):
+                    for ii, oo, nn in zip(inputs, outputs, output_name):
                         self.objs[dest_object].inputs[ii] = InputValue(type = type(oo) )
                         self.objs[dest_object].inputs[ii].set(oo)
 
-                        for oo in output_name:
-                            a_connection = {}
-                            a_connection['start'] = oo.split('.')[0].split('-')[-1]
-                            a_connection['end'] = dest_object
-                            a_connection['start_label'] = ii
-                            a_connection['middle_label'] = self.objs[dest_object].inputs[ii]
-                            a_connection['end_label'] = oo
-                            self.connections.append(a_connection)
+                        a_connection = {}
+                        a_connection['start'] = nn.split('.')[0].split('-')[-1]
+                        a_connection['end'] = dest_object
+                        a_connection['start_label'] = ii
+                        a_connection['middle_label'] = self.objs[dest_object].inputs[ii]
+                        a_connection['end_label'] = nn
+                        self.connections.append(a_connection)
 
                     continue
 
@@ -277,9 +323,9 @@ class Simul():
                     raise ValueError(f'Object {dest_object} does does not have an input called {input_name}')
                 if not isinstance(output_name, (str, list)):
                     raise ValueError(f'Object {dest_object}: invalid input definition type {type(output_name)}')
-                
+
                 wanted_type = self.objs[dest_object].inputs[input_name].type()
-                
+
                 if isinstance(output_name, str):
                     output_ref = self.output_ref(output_name)
                     if not isinstance(output_ref, wanted_type):
@@ -292,13 +338,12 @@ class Simul():
                         if not isinstance(output, wanted_type):
                             raise ValueError(f'Input {input_name}: output {output} is not of type {wanted_type}')
 
-
                 try:
                     self.objs[dest_object].inputs[input_name].set(output_ref)
                 except ValueError:
                     print(f'Error connecting {output_name} to {dest_object}.{input_name}')
                     raise
-                
+
                 if not type(output_name) is list:
                     a_connection = {}
                     a_connection['start'] = output_name.split('.')[0].split('-')[-1]
@@ -323,8 +368,6 @@ class Simul():
         obj_to_remove = []
         data_source_outputs = {}
         for key, pars in params.items():
-            if key == 'main':
-                continue
             try:
                 classname = pars['class']
             except KeyError:
@@ -333,7 +376,7 @@ class Simul():
             if classname=='DataStore':
                 self.replay_params['data_source'] = self.replay_params[key]
                 self.replay_params['data_source']['class'] = 'DataSource'
-                del self.replay_params['data_store']
+                del self.replay_params[key]
                 for output_name_full in pars['inputs']['input_list']:
                     input_name, output_name = output_name_full.split('-')
                     output_obj, output_name_small = output_name.split('.')                     
@@ -342,10 +385,8 @@ class Simul():
 
         for obj_name in set(obj_to_remove):
             del self.replay_params[obj_name]
-        
-        for key, pars in self.replay_params.items():            
-            if key == 'main':
-                continue
+
+        for key, pars in self.replay_params.items():
             if not key=='data_source':
                 if 'inputs' in pars.keys():
                     for input_name, output_name_full in pars['inputs'].items():
@@ -416,7 +457,7 @@ class Simul():
                 if name in params:
                     raise ValueError(f'Parameter file already has an object named {name}')
                 params[name] = values
-    
+
     def apply_overrides(self, params):
         print('overrides:', self.overrides)
         if len(self.overrides) > 0:
@@ -431,8 +472,6 @@ class Simul():
         n_cols = max(trigger_order_idx) + 1                
         n_rows = max( list(dict(Counter(trigger_order_idx)).values()))        
         # names_to_orders = dict(zip(trigger_order, trigger_order_idx))
-        print('n_cols', n_cols)
-        print('n_rows', n_rows)
         orders_to_namelists = {}
         for order in range(n_cols):
             orders_to_namelists[order] = []
@@ -450,44 +489,45 @@ class Simul():
                 r.append(block_name)
             rows.append(r)
         return rows
-        
+
     def buildDiagram(self):
-        d = DiagramDef(label="First SPECULA diagram", text_fill=Color(0, 0, 1), scale=2.0, collapse_connections=True)
+        from orthogram import Color, DiagramDef, write_png, Side, FontWeight, TextOrientation
+
+        print('Building diagram...')
+
+        d = DiagramDef(label=self.diagram_title, text_fill=Color(0, 0, 1), scale=2.0, collapse_connections=True)
         rows = self.arrangeInGrid(self.trigger_order, self.trigger_order_idx)
         # a row is a list of strings, which are labels for the cells
         for r in rows:
             d.add_row(r)        
         for c in self.connections:
-            print('connection', c)
             aconn = d.add_connection(c['start'], c['end'], buffer_fill=Color(1.0,1.0,1.0), buffer_width=1, 
                              exits=[Side.RIGHT], entrances=[Side.LEFT, Side.BOTTOM, Side.TOP])
             aconn.set_start_label(c['middle_label'],font_weight=FontWeight.BOLD, text_fill=Color(0, 0.5, 0), text_orientation=TextOrientation.HORIZONTAL)
-#            aconn.set_middle_label(c['middle_label'])
-#            aconn.set_end_label(c['end_label'])
-        write_png(d, self.param_files[0].split('.')[0] + ".png")
+        write_png(d, self.diagram_filename)
+        print('Diagram saved.')
 
-        
     def run(self):
         params = {}
         # Read YAML file(s)
         print('Reading parameters from', self.param_files[0])
         with open(self.param_files[0], 'r') as stream:
             params = yaml.safe_load(stream)
-                
+
         for filename in self.param_files[1:]:
             print('Reading additional parameters from', filename)
             with open(filename, 'r') as stream:
                 additional_params = yaml.safe_load(stream)
                 self.combine_params(params, additional_params)
 
-        # Initialize housekeeping objects
-        self.loop = LoopControl(run_time=params['main']['total_time'], dt=params['main']['time_step'])        
-
         # Actual creation code
         self.apply_overrides(params)
         self.build_objects(params)
-        self.connect_objects(params)                
-        
+        self.connect_objects(params)
+
+        # Initialize housekeeping objects
+        self.loop = LoopControl()
+
         if not self.isReplay:
             self.build_replay(params)
 
@@ -495,7 +535,11 @@ class Simul():
         print(f'{self.trigger_order=}')
         print(f'{self.trigger_order_idx=}')
 
-        if doBlockDiagram:
+        if self.diagram or self.diagram_filename or self.diagram_title:
+            if self.diagram_filename is None:
+                self.diagram_filename = str(Path(self.param_files[0]).with_suffix('.png'))
+            if self.diagram_title is None:
+                self.diagram_title = str(Path(self.param_files[0]).with_suffix(''))
             self.buildDiagram()
 
         # Build loop
@@ -505,7 +549,7 @@ class Simul():
                 self.loop.add(obj, idx)
 
         # Default display web server
-        if 'display_server' in params['main'] and params['main']['display_server']:
+        if 'display_server' in self.mainParams and self.mainParams['display_server']:
             from specula.processing_objects.display_server import DisplayServer
             disp = DisplayServer(params, self.input_ref, self.output_ref, self.get_info)
             self.objs['display_server'] = disp
@@ -513,19 +557,16 @@ class Simul():
             disp.name = 'display_server'
 
         # Run simulation loop
-        self.loop.run(run_time=params['main']['total_time'], dt=params['main']['time_step'], speed_report=True)
+        self.loop.run(run_time=self.mainParams['total_time'], dt=self.mainParams['time_step'], speed_report=True)
 
 #        if data_store.has_key('sr'):
-#            print(f"Mean Strehl Ratio (@{params['psf']['wavelengthInNm']}nm) : {store.mean('sr', init=min([50, 0.1 * params['main']['total_time'] / params['main']['time_step']])) * 100.}")
-
-        for obj in self.objs.values():
-            obj.finalize()
+#            print(f"Mean Strehl Ratio (@{params['psf']['wavelengthInNm']}nm) : {store.mean('sr', init=min([50, 0.1 * self.mainParams['total_time'] / self.mainParams['time_step']])) * 100.}")
 
     def get_info(self):
         '''Quick info string intended for web interfaces'''
         name= f'{self.param_files[0]}'
         curtime= f'{self.loop._t / self.loop._time_resolution:.3f}'
-        stoptime= f'{self.loop._init_run_time:.3f}'
+        stoptime= f'{self.loop._run_time / self.loop._time_resolution:.3f}'
 
         info = f'{curtime}/{stoptime}s'
         return name, info

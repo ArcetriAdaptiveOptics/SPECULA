@@ -74,7 +74,7 @@ class TestShSlopec(unittest.TestCase):
         ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx)
         ef.generation_time = t
         sh.inputs['in_ef'].set(ef)
-        sh.setup(1, 1)
+        sh.setup()
         sh.check_ready(t)
         sh.trigger()
         sh.post_trigger()

@@ -6,9 +6,9 @@ from specula import show_in_profiler
 from specula.connections import InputValue, InputList
 
 class BaseProcessingObj(BaseTimeObj):
-    
+
     _streams = {}
-    
+
     def __init__(self, target_device_idx=None, precision=None):
         """
         Initialize the base processing object.
@@ -23,9 +23,7 @@ class BaseProcessingObj(BaseTimeObj):
         self.current_time_seconds = 0
 
         self._verbose = 0
-        self._loop_dt = None
-        self._loop_niters = None
-        
+
         # Stream/input management
         self.stream  = None
         self.ready = False
@@ -37,7 +35,12 @@ class BaseProcessingObj(BaseTimeObj):
         self.last_seen = {}
         self.outputs = {}
 
-    def checkInputTimes(self):        
+        # Use the correct CUDA device for allocations
+        if self.target_device_idx >= 0:
+            self._target_device.use()
+
+
+    def checkInputTimes(self):
         if len(self.inputs)==0:
             return True
         for input_name, input_obj in self.inputs.items():
@@ -60,6 +63,9 @@ class BaseProcessingObj(BaseTimeObj):
         return False
 
     def prepare_trigger(self, t):
+        if self.target_device_idx >= 0:
+            self._target_device.use()
+
         self.current_time_seconds = self.t_to_seconds(self.current_time)
         for input_name, input_obj in self.inputs.items():
             if type(input_obj) is InputValue:
@@ -93,26 +99,21 @@ class BaseProcessingObj(BaseTimeObj):
         pass
 
     def post_trigger(self):
-        if self.target_device_idx>=0 and self.cuda_graph:
+        '''
+        Make sure we are using the correct device and that any previous
+        CUDA graph has been synchronized
+        '''
+        if self.target_device_idx>=0:
             self._target_device.use()
-            self.stream.synchronize()
-
-#        if self.checkInputTimes():
-#         if self.target_device_idx>=0 and self.cuda_graph:
-#             self.stream.synchronize()
-#             self._target_device.synchronize()
-#             self.xp.cuda.runtime.deviceSynchronize()
-## at the end of the derevide method should call this?
-#            default_target_device.use()
-#            self.xp.cuda.runtime.deviceSynchronize()                
-#            cp.cuda.Stream.null.synchronize()
+            if self.cuda_graph:
+                self.stream.synchronize()
 
     @classmethod
     def device_stream(cls, target_device_idx):
         if not target_device_idx in cls._streams:
             cls._streams[target_device_idx] = cp.cuda.Stream(non_blocking=False)
         return cls._streams[target_device_idx]
-        
+
     def build_stream(self, allow_parallel=True):
         if self.target_device_idx>=0:
             self._target_device.use()
@@ -143,8 +144,8 @@ class BaseProcessingObj(BaseTimeObj):
             if self.verbose:
                 print(f'No inputs have been refreshed, skipping trigger')
         return self.ready
-    
-    def trigger(self):        
+
+    def trigger(self):
         if self.ready:
             with show_in_profiler(self.__class__.__name__+'.trigger'):
                 if self.target_device_idx>=0:
@@ -154,7 +155,7 @@ class BaseProcessingObj(BaseTimeObj):
                 else:
                     self.trigger_code()
             self.ready = False
-                    
+             
     @property
     def verbose(self):
         return self._verbose
@@ -163,7 +164,7 @@ class BaseProcessingObj(BaseTimeObj):
     def verbose(self, value):
         self._verbose = value
 
-    def setup(self, loop_dt, loop_niters):
+    def setup(self):
         """
         Override this method to perform any setup
         just before the simulation is started.
@@ -171,12 +172,7 @@ class BaseProcessingObj(BaseTimeObj):
         The base class implementation also checks that
         all non-optional inputs have been set.
         
-        Parameters:
-        loop_dt (int): Simulation time step (in units of self._time_resolution)
-        loop_niters (int): Total number of loop iterations that will be performed
         """
-        self._loop_dt = loop_dt
-        self._loop_niters = loop_niters
         if self.target_device_idx >= 0:
             self._target_device.use()
         for name, input in self.inputs.items():
@@ -194,14 +190,10 @@ class BaseProcessingObj(BaseTimeObj):
         with fits.open(filename, mode='update') as hdul:
             hdr = hdul[0].header
             hdr['VERBOSE'] = self._verbose
-            hdr['LOOP_DT'] = self._loop_dt
-            hdr['LOOP_NITERS'] = self._loop_niters
             hdul.flush()
 
     def read(self, filename):        
         with fits.open(filename) as hdul:
             hdr = hdul[0].header
             self._verbose = hdr.get('VERBOSE', 0)
-            self._loop_dt = hdr.get('LOOP_DT', int(0))
-            self._loop_niters = hdr.get('LOOP_NITERS', 0)
 

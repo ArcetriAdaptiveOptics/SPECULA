@@ -1,8 +1,7 @@
 import numpy as np
 
 from specula import cpuArray, fuse, show_in_profiler, RAD2ASEC
-from specula.lib.extrapolate_edge_pixel import extrapolate_edge_pixel
-from specula.lib.extrapolate_edge_pixel_mat_define import extrapolate_edge_pixel_mat_define
+from specula.lib.extrapolation_2d import calculate_extrapolation_indices_coeffs, apply_extrapolation
 from specula.lib.toccd import toccd
 from specula.lib.interp2d import Interp2D
 from specula.lib.make_mask import make_mask
@@ -16,7 +15,10 @@ from specula.data_objects.laser_launch_telescope import LaserLaunchTelescope
 from specula.data_objects.gaussian_convolution_kernel import GaussianConvolutionKernel
 from specula.data_objects.convolution_kernel import ConvolutionKernel
 
-import os       
+
+# numpy 1.x compatibility (cupy sometimes tries to raise this exception)
+if hasattr(np, 'exceptions'):
+    np.ComplexWarning = np.exceptions.ComplexWarning
 
 @fuse(kernel_name='abs2')
 def abs2(u_fp, out, xp):
@@ -29,7 +31,9 @@ class SH(BaseProcessingObj):
 
     def _zeros_common(self, *args, **kwargs):
         '''
-        Wrapper around self.xp.zeros to enable the reuse cache
+        Wrapper around self.xp.zeros to enable the reuse cache.
+        None of the arrays allocated here should be used in 
+        prepare_trigger() or post_trigger().
         '''
         key = (self.target_device_idx, *args, *kwargs.items())
         if key not in self.__zeros_cache:
@@ -60,7 +64,7 @@ class SH(BaseProcessingObj):
 
         super().__init__(target_device_idx=target_device_idx, precision=precision)     
         self._wavelengthInNm = wavelengthInNm
-        self._lenslet = Lenslet(subap_on_diameter)
+        self._lenslet = Lenslet(subap_on_diameter, target_device_idx=target_device_idx)
         self._subap_wanted_fov = subap_wanted_fov / RAD2ASEC
         self._sensor_pxscale = sensor_pxscale / RAD2ASEC
         self._subap_npx = subap_npx
@@ -82,11 +86,11 @@ class SH(BaseProcessingObj):
         self._np_sub = 0
         self._fft_size = 0
         self._trigger_geometry_calculated = False
-        self._extrapol_mat1 = None
-        self._extrapol_mat2 = None
-        self._idx_1pix = None
-        self._idx_2pix = None
         self._do_interpolation = None
+        self._edge_pixels = None
+        self._reference_indices = None
+        self._coefficients = None
+        self._valid_indices = None
 
         # TODO these are fixed but should become parameters
         self._fov_ovs = 1
@@ -97,30 +101,14 @@ class SH(BaseProcessingObj):
 
         self.interp = None
 
-        # Set up the kernel object
+        # optional inputs for the kernel object
         if self._laser_launch_tel is not None:
-            if len(self._laser_launch_tel.tel_pos) == 0:                        
-                self._kernelobj = GaussianConvolutionKernel(target_device_idx=self.target_device_idx)
-                self._kernelobj.spot_size = self._laser_launch_tel.spot_size
-            else:
-                self._kernelobj = ConvolutionKernel(target_device_idx=self.target_device_idx)
-                self._kernelobj.launcher_pos = self._laser_launch_tel.tel_pos
-                self._kernelobj.seeing = 0.0
-                self._kernelobj.launcher_size = self._laser_launch_tel.spot_size
-                self._kernelobj.zfocus = self._laser_launch_tel.beacon_focus
-                if len(self._laser_launch_tel.beacon_tt) != 0:
-                    self._kernelobj.lgs_tt = self._laser_launch_tel.beacon_tt
-            self._kernelobj.oversampling = 1
-            self._kernelobj.return_fft = True
-            self._kernelobj.positive_shift_tt = True
-            self._kernel_fn = None
             self.inputs['sodium_altitude'] = InputValue(type=BaseValue, optional=True)
             self.inputs['sodium_intensity'] = InputValue(type=BaseValue, optional=True)
-        else:
-            self._kernelobj = None
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
         self.outputs['out_i'] = self._out_i
+        self.outputs['wf1'] = BaseValue(target_device_idx=self.target_device_idx)
 
     def set_in_ef(self, in_ef):
 
@@ -240,6 +228,7 @@ class SH(BaseProcessingObj):
             print('-->     no. elements FoV,      {}'.format(subap_real_fov_pix))
             print('-->     FFT size (turb. FoV),  {}'.format(self._fft_size))
             print('-->     L.C.M. for toccd,      {}'.format(mcmx))
+            print('-->     oversampled np_sub,    {}'.format(self._ovs_np_sub))
 
 
         # Check for valid phase size
@@ -295,86 +284,139 @@ class SH(BaseProcessingObj):
 
         # Remember a few things
         self.in_ef = in_ef
+        self.phase_extrapolated = in_ef.phaseInNm.copy()
         self._wf1 = wf1
 
-        # update kernel parameters
-        if self._kernelobj is not None:
-            print('Updating kernel parameters')
-            self._kernelobj.dimx = self._lenslet.dimx
-            self._kernelobj.dimy = self._lenslet.dimy
-            self._kernelobj.pxscale = fp4_pixel_pitch * RAD2ASEC
-            self._kernelobj.pupil_size_m = in_ef.pixel_pitch * in_ef.size[0]
-            self._kernelobj.dimension = self._fft_size
+        # set up kernel object
+        if self._laser_launch_tel is not None:
+            if len(self._laser_launch_tel.tel_pos) == 0:                        
+                self._kernelobj = GaussianConvolutionKernel(dimx = self._lenslet.dimx,
+                                                            dimy = self._lenslet.dimy,
+                                                            pxscale = fp4_pixel_pitch * RAD2ASEC,
+                                                            pupil_size_m = in_ef.pixel_pitch * in_ef.size[0],
+                                                            dimension = self._fft_size,
+                                                            spot_size = self._laser_launch_tel.spot_size,
+                                                            oversampling = 1,
+                                                            return_fft = True,
+                                                            positive_shift_tt = True,
+                                                            target_device_idx=self.target_device_idx)
+            else:
+                if len(self._laser_launch_tel.beacon_tt) != 0:
+                    theta = self._laser_launch_tel.beacon_tt
+                else:
+                    theta = []
+                self._kernelobj = ConvolutionKernel(dimx = self._lenslet.dimx,
+                                                    dimy = self._lenslet.dimy,
+                                                    pxscale = fp4_pixel_pitch * RAD2ASEC,
+                                                    pupil_size_m = in_ef.pixel_pitch * in_ef.size[0],
+                                                    dimension = self._fft_size,
+                                                    launcher_pos = self._laser_launch_tel.tel_pos,
+                                                    seeing = 0.0,
+                                                    launcher_size = self._laser_launch_tel.spot_size,
+                                                    zfocus = self._laser_launch_tel.beacon_focus,
+                                                    theta = theta,
+                                                    oversampling = 1,
+                                                    return_fft = True,
+                                                    positive_shift_tt = True,
+                                                    target_device_idx=self.target_device_idx)
+            self._kernel_fn = None
+        else:
+            self._kernelobj = None
 
     def prepare_trigger(self, t):
-        super().prepare_trigger(t)        
-        
-        if self._kernelobj is not None:
-            if len(self._laser_launch_tel.tel_pos) != 0:
-                sodium_altitude = self.local_inputs['sodium_altitude']
-                sodium_intensity = self.local_inputs['sodium_intensity']
-                if sodium_altitude is None or sodium_intensity is None:
-                    raise ValueError('sodium_altitude and sodium_intensity must be provided')
-                self._kernelobj.zlayer = sodium_altitude.value
-                self._kernelobj.zprofile = sodium_intensity.value
+        super().prepare_trigger(t)
 
-            # Get the kernel filename hash based on current parameters
-            new_kernel_fn = self._kernelobj.build()
+        if self._edge_pixels is None and self._do_interpolation:
+            # Compute once indices and coefficients
+            self._edge_pixels, self._reference_indices, self._coefficients, self._valid_indices = calculate_extrapolation_indices_coeffs(
+                cpuArray(self.in_ef.A)
+            )
 
-            # Only reload or recalculate if the kernel has changed
-            if new_kernel_fn != self._kernel_fn:
-                self._kernel_fn = new_kernel_fn  # Update the stored kernel filename
-
-                if os.path.exists(self._kernel_fn):
-                    print(f"Loading kernel from {self._kernel_fn}")
-                    if len(self._laser_launch_tel.tel_pos) == 0:
-                        self._kernelobj = GaussianConvolutionKernel.restore(self._kernel_fn,
-                                                                            kernel_obj=self._kernelobj,
-                                                                            target_device_idx=self.target_device_idx,
-                                                                            return_fft=True)
-                    else:
-                        self._kernelobj = ConvolutionKernel.restore(self._kernel_fn, 
-                                                                    kernel_obj=self._kernelobj,
-                                                                    target_device_idx=self.target_device_idx,
-                                                                    return_fft=True)
-                else:
-                    print('Calculating kernel...')
-                    self._kernelobj.calculate_lgs_map()
-                    self._kernelobj.save(self._kernel_fn)
-                    print('Done')
-            else:
-                # Kernel hasn't changed, no need to reload or recalculate
-                print("Kernel unchanged, using cached version")
-
-            self._kernelobj.generation_time = self.current_time
-        
-        
-
-    def trigger_code(self):
+            # convert to xp
+            self._edge_pixels = self.to_xp(self._edge_pixels)
+            self._reference_indices = self.to_xp(self._reference_indices)
+            self._coefficients = self.to_xp(self._coefficients)
+            self._valid_indices = self.to_xp(self._valid_indices)
 
         # Interpolation of input array if needed
         with show_in_profiler('interpolation'):
 
             if self._do_interpolation:
-                phaseInNmNew = extrapolate_edge_pixel(self.in_ef.phaseInNm, self._extrapol_mat1, self._extrapol_mat2, self._idx_1pix, self._idx_2pix, xp=self.xp)
+                self.phase_extrapolated[:] = self.in_ef.phaseInNm
+                _ = apply_extrapolation(
+                    self.in_ef.phaseInNm,
+                    self._edge_pixels,
+                    self._reference_indices,
+                    self._coefficients,
+                    self._valid_indices,
+                    out=self.phase_extrapolated,
+                    xp=self.xp
+                )
+
+                if self._debugOutput:
+                    # compare input and extrapolated phase
+                    import matplotlib.pyplot as plt
+                    plt.figure(figsize=(20, 5))
+                    plt.subplot(1, 4, 1)
+                    plt.imshow(self.in_ef.phaseInNm, origin='lower', cmap='gray')
+                    plt.title('Input Phase')
+                    plt.colorbar()
+                    plt.subplot(1, 4, 2)
+                    plt.imshow(self.phase_extrapolated, origin='lower', cmap='gray')
+                    plt.title('Extrapolated Phase')
+                    plt.colorbar()
+                    plt.subplot(1, 4, 3)
+                    plt.imshow(self.phase_extrapolated - self.in_ef.phaseInNm, origin='lower', cmap='gray')
+                    plt.title('Phase Difference')
+                    plt.colorbar()
+                    plt.subplot(1, 4, 4)
+                    plt.imshow(self.in_ef.A)
+                    plt.title('Input Electric Field Amplitude')
+                    plt.colorbar()
+                    plt.show()
+
                 self.interp.interpolate(self.in_ef.A, out=self._wf1.A)
-                self.interp.interpolate(phaseInNmNew, out=self._wf1.phaseInNm)
+                self.interp.interpolate(self.phase_extrapolated, out=self._wf1.phaseInNm)
             else:
                 # self._wf1 already set to in_ef
                 pass
 
-        with show_in_profiler('ef_at_lambda'):
-            self._wf1.ef_at_lambda(self._wavelengthInNm, out=self.ef_whole)
+        if self._kernelobj is not None:
+            self.prepare_kernels()
+
+    def prepare_kernels(self):
+        if len(self._laser_launch_tel.tel_pos) != 0:
+            sodium_altitude = self.local_inputs['sodium_altitude']
+            sodium_intensity = self.local_inputs['sodium_intensity']
+            if sodium_altitude is None or sodium_intensity is None:
+                raise ValueError('sodium_altitude and sodium_intensity must be provided')
+            sodium_altitude = sodium_altitude.value
+            sodium_intensity = sodium_intensity.value
+        else:
+            sodium_altitude = None
+            sodium_intensity = None
+
+        self._kernelobj.prepare_for_sh(
+            sodium_altitude=sodium_altitude,
+            sodium_intensity=sodium_intensity,
+            current_time=self.current_time
+        )
+
+
+    def trigger_code(self):
 
         # Work on SH rows (single-subap code is too inefficient)
 
         for i in range(self._lenslet.dimx):
 
             # Extract 2D subap row
-            ef_subap_view = self.ef_whole[i * self._ovs_np_sub: (i+1) * self._ovs_np_sub, :]
+            self._wf1.ef_at_lambda(self._wavelengthInNm,
+                                   slicey=np.s_[i * self._ovs_np_sub: (i+1) * self._ovs_np_sub],
+                                   slicex=np.s_[:],
+                                   out=self.ef_row)
 
             # Reshape to subap cube (nsubap, npix, npix)
-            subap_cube_view = ef_subap_view.reshape(self._ovs_np_sub, self._lenslet.dimy, self._ovs_np_sub).swapaxes(0, 1)
+            subap_cube_view = self.ef_row.reshape(self._ovs_np_sub, self._lenslet.dimy, self._ovs_np_sub).swapaxes(0, 1)
 
             # Insert into padded array
             self._wf3[:, :self._ovs_np_sub, :self._ovs_np_sub] = subap_cube_view * self._tltf[self.xp.newaxis, :, :]
@@ -392,7 +434,7 @@ class SH(BaseProcessingObj):
                 psf_fft *= subap_kern_fft
 
                 self._scipy_ifft2(psf_fft, overwrite_x=True, norm='forward')
-                self.psf = psf_fft.real
+                self.psf[:] = psf_fft.real
 
                 # Assert that our views are actually views and not temporary allocations
                 assert subap_kern_fft.base is not None
@@ -418,11 +460,11 @@ class SH(BaseProcessingObj):
 
             # Assert that our views are actually views and not temporary allocations
             assert psf_cut_view.base is not None
-            assert ef_subap_view.base is not None
             assert subap_cube_view.base is not None
 
         with show_in_profiler('toccd'):
             self._out_i.i[:] = toccd(self._psfimage, (self._ccd_side, self._ccd_side), xp=self.xp)
+
 
     def post_trigger(self):
         super().post_trigger()
@@ -431,6 +473,8 @@ class SH(BaseProcessingObj):
         phot = in_ef.S0 * in_ef.masked_area()
         self._out_i.i *= (phot / self._out_i.i.sum())
         self._out_i.generation_time = self.current_time
+        self.outputs['wf1'].value = toccd(self._wf1.phaseInNm, (100, 100), xp=self.xp)
+        self.outputs['wf1'].generation_time = self.current_time
 
         debug_figures = False
         if debug_figures:
@@ -441,11 +485,11 @@ class SH(BaseProcessingObj):
             plt.title('Intensity')
             plt.show()
 
-    def setup(self, loop_dt, loop_niters):
-        super().setup(loop_dt, loop_niters)
+    def setup(self):
+        super().setup()
 
         in_ef = self.inputs['in_ef'].get(target_device_idx=self.target_device_idx)
-        
+
         self.set_in_ef(in_ef)
         self.calc_trigger_geometry(in_ef)
 
@@ -455,17 +499,12 @@ class SH(BaseProcessingObj):
         self.interp = Interp2D(in_ef.size, shape_ovs, self._rotAnglePhInDeg, self._xyShiftPhInPixel[0], self._xyShiftPhInPixel[1], dtype=self.dtype, xp=self.xp)
 
         if fov_oversample != 1 or self._rotAnglePhInDeg != 0 or np.sum(np.abs([self._xyShiftPhInPixel])) != 0:
-            sum_1pix_extra, sum_2pix_extra, idx_1pix, idx_2pix = extrapolate_edge_pixel_mat_define(cpuArray(in_ef.A), do_ext_2_pix=True)
-            self._extrapol_mat1 = self.xp.array(sum_1pix_extra)
-            self._extrapol_mat2 = self.xp.array(sum_2pix_extra)
-            self._idx_1pix = tuple(map(self.xp.array, idx_1pix))
-            self._idx_2pix = tuple(map(self.xp.array, idx_2pix))
             self._do_interpolation = True
         else:
             self._do_interpolation = False
 
         ef_whole_size = int(in_ef.size[0] * self._fov_ovs)
-        self.ef_whole = self._zeros_common((ef_whole_size, ef_whole_size), dtype=self.complex_dtype)
+        self.ef_row = self._zeros_common((self._ovs_np_sub, ef_whole_size), dtype=self.complex_dtype)
         self.psf = self._zeros_common((self._lenslet.dimy, self._fft_size, self._fft_size), dtype=self.dtype)
         self.psf_shifted = self._zeros_common((self._lenslet.dimy, self._fft_size, self._fft_size), dtype=self.dtype)
 

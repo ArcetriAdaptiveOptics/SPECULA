@@ -23,8 +23,8 @@ class SubapData(BaseDataObj):
         ny: number of subapertures in the Y (vertical) direction
         '''
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-        self.idxs = idxs.astype(int)
-        self.display_map = display_map.astype(int)
+        self.idxs = self.to_xp(idxs.astype(int))
+        self.display_map = self.to_xp(display_map.astype(int))
         self.nx = int(nx)
         self.ny = int(ny)
         self.energy_th = float(energy_th)
@@ -62,8 +62,8 @@ class SubapData(BaseDataObj):
         fits.append(filename, cpuArray(self.idxs.T))  # Transposed for IDL-saved data compatibility
         fits.append(filename, cpuArray(self.display_map))
 
-    @classmethod
-    def restore(cls, filename, target_device_idx=None):
+    @staticmethod
+    def restore(filename, target_device_idx=None):
         """Restores the subaperture data from a file."""
         with fits.open(filename) as hdul:
             hdr = hdul[0].header

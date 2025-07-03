@@ -13,9 +13,13 @@ class IFuncInv(BaseDataObj):
         super().__init__(precision=precision, target_device_idx=target_device_idx)
         self._doZeroPad = False
         
-        self.ifunc_inv = self.xp.array(ifunc_inv)
-        self.mask_inf_func = self.xp.array(mask)
+        self.ifunc_inv = self.to_xp(ifunc_inv)
+        self.mask_inf_func = self.to_xp(mask)
         self.idx_inf_func = self.xp.where(self.mask_inf_func)
+
+    @property
+    def size(self):
+        return self.ifunc_inv.shape
 
     def save(self, filename, hdr=None):
         hdr = hdr if hdr is not None else fits.Header()

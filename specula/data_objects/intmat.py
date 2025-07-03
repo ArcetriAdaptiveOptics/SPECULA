@@ -16,7 +16,7 @@ class Intmat(BaseDataObj):
                  target_device_idx: int=None,
                  precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-        self.intmat = self.xp.array(intmat)
+        self.intmat = self.to_xp(intmat)
         self.slope_mm = slope_mm
         self.slope_rms = slope_rms
         self.pupdata_tag = pupdata_tag
@@ -40,7 +40,7 @@ class Intmat(BaseDataObj):
             raise ValueError(f'start_mode should be less than nmodes (<{nmodes})')
         self.intmat = self.intmat[start_mode:, :]
 
-    def save(self, filename, hdr=None):
+    def save(self, filename, hdr=None, overwrite=False):
         if not filename.endswith('.fits'):
             filename += '.fits'
         if hdr is None:
@@ -49,7 +49,7 @@ class Intmat(BaseDataObj):
         hdr['PUP_TAG'] = self.pupdata_tag
         hdr['NORMFACT'] = self.norm_factor
         # Save fits file
-        fits.writeto(filename, np.zeros(2), hdr, overwrite=True)
+        fits.writeto(filename, np.zeros(2), hdr, overwrite=overwrite)
         fits.append(filename, cpuArray(self.intmat))
         if self.slope_mm is not None:
             fits.append(filename, self.slope_mm)
@@ -78,7 +78,7 @@ class Intmat(BaseDataObj):
         else:
             intmat = self.intmat
         recmat = self.pseudo_invert(intmat, n_modes_to_drop=cut_modes, w_vec=w_vec, interactive=interactive)
-        rec = Recmat(recmat)
+        rec = Recmat(recmat, target_device_idx=self.target_device_idx)
         rec.im_tag = self.norm_factor  # TODO wrong
         return rec
 

@@ -5,6 +5,7 @@ from specula.base_processing_obj import BaseProcessingObj
 from specula.connections import InputValue
 from specula.base_value import BaseValue
 from specula.lib.calc_loop_delay import calc_loop_delay
+from specula.data_objects.simul_params import SimulParams
 
 class IirFilter(BaseProcessingObj):
     '''Infinite Impulse Response filter based Time Control
@@ -12,22 +13,27 @@ class IirFilter(BaseProcessingObj):
     Set *integration* to False to disable integration, regardless
     of wha the input IirFilter object contains
     '''
-    def __init__(self, iir_filter_data: IirFilterData,
+    def __init__(self,
+                 simul_params: SimulParams,
+                 iir_filter_data: IirFilterData,
                  delay: float=0,
                  integration: bool=True,
                  offset: float=None,
                  og_shaper: float=None,
                  target_device_idx=None,
                  precision=None
-                 ):  
+                 ):
+
+        self.simul_params = simul_params
+        self.time_step = self.simul_params.time_step
 
         self._verbose = True
         self.iir_filter_data = iir_filter_data
-        
+
         self.integration = integration
         if integration is False:
             raise NotImplementedError('IirFilter: integration=False is not implemented yet')
-        
+
         if og_shaper is not None:
             raise NotImplementedError('OG Shaper not implementd yet')
 
@@ -40,13 +46,14 @@ class IirFilter(BaseProcessingObj):
         self._n = iir_filter_data.nfilter
         self._type = iir_filter_data.num.dtype
         self.set_state_buffer_length(int(np.ceil(self.delay)) + 1)
-        
+
         # Initialize state vectors
         self._ist = self.xp.zeros_like(iir_filter_data.num)
         self._ost = self.xp.zeros_like(iir_filter_data.den)
 
         self.out_comm = BaseValue(value=self.xp.zeros(self._n, dtype=self.dtype), target_device_idx=target_device_idx)
         self.inputs['delta_comm'] = InputValue(type=BaseValue)
+        self.inputs['gain_mod'] = InputValue(type=BaseValue,optional=True)
         self.outputs['out_comm'] = self.out_comm
 
         self._opticalgain = None  # TODO
@@ -54,9 +61,6 @@ class IirFilter(BaseProcessingObj):
         self._offset = None  # TODO
         self._bootstrap_ptr = None  # TODO
         self._modal_start_time = None  # TODO
-        self._time_gmt_imm = None  # TODO
-        self._gain_gmt_imm = None  # TODO
-        self._do_gmt_init_mod_manager = False  # TODO
         self._skipOneStep = False  # TODO
         self._StepIsNotGood = False  # TODO
         self._start_time = 0  # TODO
@@ -67,7 +71,7 @@ class IirFilter(BaseProcessingObj):
         if self._n is not None and self._type is not None:
             self.state = self.xp.zeros((self._n, self._total_length), dtype=self.dtype)
 
-    def auto_params_management(self, main_params, control_params, detector_params, dm_params, slopec_params):
+    def auto_params_management(self, control_params, detector_params, dm_params, slopec_params):
         result = control_params.copy()
 
         if str(result['delay']) == 'auto':
@@ -77,7 +81,7 @@ class IirFilter(BaseProcessingObj):
                                     type=detector_params['name'], bin=binning, comp_time=computation_time)
             if delay == float('inf'):
                 raise ValueError("Delay calculation resulted in infinity")
-            result['delay'] = delay * (1.0 / main_params['time_step']) - 1
+            result['delay'] = delay * (1.0 / self.time_step) - 1
 
         return result
 
@@ -86,7 +90,7 @@ class IirFilter(BaseProcessingObj):
         return self.state[:, 0]
 
     def set_modal_start_time(self, modal_start_time):
-        modal_start_time_ = self.xp.array(modal_start_time, dtype=self.dtype)
+        modal_start_time_ = self.to_xp(modal_start_time, dtype=self.dtype)
         for i in range(len(modal_start_time)):
             modal_start_time_[i] = self.seconds_to_t(modal_start_time[i])
         self._modal_start_time = modal_start_time_
@@ -94,10 +98,17 @@ class IirFilter(BaseProcessingObj):
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
         self.delta_comm = self.local_inputs['delta_comm'].value
-        
+
         # Update the state
         if self.delay > 0:
             self.state[:, 1:self._total_length] = self.state[:, 0:self._total_length-1]
+
+        # check if gain_mod is provided
+        if self.local_inputs['gain_mod'] is not None:
+            self._gain_mod = self.local_inputs['gain_mod'].value
+        else:
+            # Default gain_mod is an array of ones
+            self._gain_mod = self.xp.ones_like(self.delta_comm, dtype=self.dtype)
 
         return
 
@@ -144,15 +155,6 @@ class IirFilter(BaseProcessingObj):
                 else:
                     print("no scale factor applied")
 
-        # Avoid warnings        
-        def gmt_init_mod_manager(*args, **kwargs):
-            pass
-
-        if self._do_gmt_init_mod_manager:
-            time_idx = self._time_gmt_imm if self._time_gmt_imm is not None else self.xp.zeros(0, dtype=self.dtype)
-            gain_idx = self._gain_gmt_imm if self._gain_gmt_imm is not None else self.xp.zeros(0, dtype=self.dtype)
-            self.delta_comm *= gmt_init_mod_manager(self.t_to_seconds(t), len(self.delta_comm), time_idx=time_idx, gain_idx=gain_idx)
-
 # this is probably useless
 #        n_delta_comm = self.delta_comm.size
 #        if n_delta_comm < self.iir_filter_data.nfilter:
@@ -182,7 +184,7 @@ class IirFilter(BaseProcessingObj):
         factor = 1 / self.iir_filter_data.den[:, no - 1]
 
         # Compute new output
-        num_contrib = self.xp.sum(self.iir_filter_data.num * self._ist, axis=1)
+        num_contrib = self.xp.sum(self.iir_filter_data.num * self._gain_mod[:, None] * self._ist, axis=1)
         den_contrib = self.xp.sum(self.iir_filter_data.den[:, :no - 1] * self._ost[:, :no - 1], axis=1)
         self._ost[:, no - 1] = factor * (num_contrib - den_contrib)
         output = self._ost[:, no - 1]
@@ -191,6 +193,8 @@ class IirFilter(BaseProcessingObj):
         self.state[:, 0] = output
 
     def post_trigger(self):
+        super().post_trigger()
+
         # Calculate output from the state considering the delay
         remainder_delay = self.delay % 1
         if remainder_delay == 0:
