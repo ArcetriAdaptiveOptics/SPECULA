@@ -103,7 +103,7 @@ class CCD(BaseProcessingObj):
                 self._ADU_gain = 1 / 20
         else:
             if emccd_gain is not None:
-                raise ValueError('emccd_gain must be None if excess_noise is False')
+                print('ATTENTION: emccd_gain will not be used if excess_noise is False')
             self._emccd_gain = 1.0
             if ADU_gain is not None:
                 self._ADU_gain = float(ADU_gain)
