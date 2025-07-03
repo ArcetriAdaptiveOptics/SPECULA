@@ -1,10 +1,7 @@
 import math
-import numpy as np
-
-from scipy.stats import gamma
 from scipy.ndimage import convolve
 
-from specula import fuse, cpuArray
+from specula import fuse
 from specula.base_processing_obj import BaseProcessingObj
 from specula.connections import InputValue
 from specula.data_objects.pixels import Pixels
@@ -151,7 +148,7 @@ class CCD(BaseProcessingObj):
         self._gaussian_noise = None
         self._photon_rng = self.xp.random.default_rng(self._photon_seed)
         self._readout_rng = self.xp.random.default_rng(self._readout_seed)
-        self._excess_rng = np.random.default_rng(self._excess_seed)
+        self._excess_rng = self.xp.random.default_rng(self._excess_seed)
 
         self.inputs['in_i'] = InputValue(type=Intensity)
         self.outputs['out_pixels'] = self._pixels
@@ -221,7 +218,7 @@ class CCD(BaseProcessingObj):
         if self._excess_noise:
             ex_ccd_frame = self._excess_delta * ccd_frame
             clamp_generic(1e-10, 1e-10, ex_ccd_frame, xp=self.xp)
-            ccd_frame = self.to_xp(1.0 / self._excess_delta * gamma.rvs(cpuArray(ex_ccd_frame), scale=self._emccd_gain, random_state=self._excess_rng))
+            ccd_frame = 1.0 / self._excess_delta * self._excess_rng.gamma(shape=ex_ccd_frame, scale=self._emccd_gain)
 
         if self._readout_noise:
             ron_vector = self._readout_rng.standard_normal(size=ccd_frame.size)
