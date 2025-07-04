@@ -107,8 +107,8 @@ prop:
   simul_params_ref:     'main'
   source_dict_ref:      ['on_axis_source', 'pfs_source', 'ngs_source']
   inputs:
-    atmo_layer_list: ['atmo.layer_list']
-    common_layer_list: ['pupilstop',
+    atmo_layer_list: 'atmo.layer_list'
+    common_layer_list: ['pupilstop.out_layer',
                   'dm_windshake.out_layer',
                   'dm.out_layer:-1']
   outputs: ['out_on_axis_source_ef','out_pfs_source_ef','out_ngs_source_ef']

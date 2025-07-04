@@ -43,7 +43,6 @@ class Simul():
             raise ValueError('At least one Yaml parameter file must be present')
         self.all_objs_ranks = {}
         self.remote_objs_ranks = {}
-        self.remote_objs_types = {}
         self.param_files = param_files
         self.objs = {}
         self.verbose = False  #TODO
@@ -109,7 +108,7 @@ class Simul():
            - reference to the input, or None if the object is remote.
            - name of the object that defines the input
         '''
-        obj_name, output_key = self.split_output(output_name)
+        obj_name, output_key = self.split_output(input_name)
 
         if not obj_name in self.objs:
             if obj_name in self.remote_objs_ranks:
@@ -340,7 +339,6 @@ class Simul():
                     self.objs[key].setParams(params)
             else:
                 self.remote_objs_ranks[key] = target_rank
-                self.remote_objs_types[key] = klass
 
     def connect_objects(self, params):
         self.connections = []

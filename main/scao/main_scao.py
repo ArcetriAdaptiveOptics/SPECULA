@@ -21,4 +21,3 @@ if __name__ == '__main__':
         stats.print_stats(r"\((?!\_).*\)$", 200)
     else:
         main(*sys.argv[3:])
-historye
