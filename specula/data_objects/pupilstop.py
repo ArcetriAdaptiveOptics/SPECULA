@@ -61,9 +61,9 @@ class Pupilstop(Layer):
         if version != 1:
             raise ValueError(f"Error: unknown version {version} in file {filename}")
 
-        input_mask = fits.getdata(filename, ext=1)
-        dim = fits.getdata(filename, ext=2)
-        pixel_pitch = fits.getdata(filename, ext=3)[0]
+        input_mask = fits.getdata(filename, ext=2)
+        dim = fits.getdata(filename, ext=3)
+        pixel_pitch = fits.getdata(filename, ext=4)[0]
 
         tempParams = SimulParams(dim[0], pixel_pitch)
         pupilstop = Pupilstop(tempParams, input_mask=input_mask, target_device_idx=target_device_idx)
