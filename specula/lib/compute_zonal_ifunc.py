@@ -13,7 +13,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom=False, an
         mask, idx = make_mask(dim, obsratio, diaratio, get_idx=True, xp=xp)
     else:
         mask = mask.astype(float)
-        idx = xp.where(mask)[0]
+        idx = xp.where(mask)
 
     step = float(dim) / float(n_act)
 
@@ -38,7 +38,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom=False, an
                 ka += 1
 
         # System center
-        x_c, y_c = dim / 2, dim / 2  
+        x_c, y_c = dim / 2, dim / 2
 
         # Convert from polar to Cartesian coordinates
         x = pol_coords[1] * xp.cos(xp.radians(pol_coords[0])) + x_c
@@ -100,7 +100,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom=False, an
         print(f"\rCompute IFs: {int((i / n_act_tot) * 100)}% done", end="")
 
     print()
-         
+
     if do_mech_coupling:
         print("Applying mechanical coupling...")
         ifs_cube_orig = ifs_cube.copy()
