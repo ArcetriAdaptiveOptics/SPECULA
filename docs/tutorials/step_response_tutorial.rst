@@ -6,7 +6,7 @@ Step Response Tutorial: Simulating the Step Response of a DM Actuator
 This tutorial demonstrates how to set up and analyze the **step response** of a simplified deformable mirror (DM) actuator model using SPECULA.
 
 **Goals:**
-- Simulate the dynamic response of a DM actuator to a step input
+- Simulate the dynamic response of a DM actuator to a step input in closed-loop control
 - Model the control chain with sample&hold, integrator, and low-pass filter
 - Visualize the response in real time (no data is saved to disk)
 
@@ -129,7 +129,7 @@ Customizations and Experiments
 - Change the cutoff frequency (`cutoff_freq`) to simulate faster or slower actuators.
 - Adjust the integrator gain (`int_gain`) to see its effect on response speed.
 - Try different values of `amplif_fact` to simulate actuator resonance.
-- Replace the input with other signals (`SINE`, `STEP`, etc.) to test different responses.
+- Replace the input with other signals (`SIN`, etc.) to test different responses.
 
 **Conclusion**
 
