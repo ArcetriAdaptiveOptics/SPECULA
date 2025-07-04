@@ -245,7 +245,7 @@ class Simul():
                 self.objs[key] = klass.restore(filename, target_device_idx=target_device_idx)
                 self.objs[key].stopMemUsageCount()
                 self.objs[key].printMemUsage()
-
+                self.objs[key].name = key
                 continue
 
             pars2 = {}
@@ -373,7 +373,7 @@ class Simul():
         
             if output_ref is None:
                 if local_dest_object:
-                    print(process_rank, f'{output_ref} -> {dest_object} : remote to local connection', flush=True)
+                    if MPI_DBG: print(process_rank, f'{output_ref} -> {dest_object} : remote to local connection', flush=True)
                     # receiving input from a remote object
                     if index is not None:
                         self.objs[dest_object].inputs[input_name].set_item_remote_rank(self.remote_objs_ranks[output_obj_name], index=index)
@@ -388,13 +388,13 @@ class Simul():
                 else:
                 #   nothing to do, both the sender and the receiver are remote, 
                 #   some other processe will take care of this case
-                    print(process_rank, f'{output_ref} -> {dest_object} : remote to remote connection, nothing to do', flush=True)
+                    if MPI_DBG: print(process_rank, f'{output_ref} -> {dest_object} : remote to remote connection, nothing to do', flush=True)
             else:
                 # local connection
                 if local_dest_object:
-                    print(process_rank, f'{output_ref} -> {dest_object} : local to local connection, simple case', flush=True)
+                    if MPI_DBG: print(process_rank, f'{output_ref} -> {dest_object} : local to local connection, simple case', flush=True)
                     if index is not None:
-                        print(process_rank, f'{dest_object=} setting input {input_name} to {output_ref} with index {index}', flush=True)
+                        if MPI_DBG: print(process_rank, f'{dest_object=} setting input {input_name} to {output_ref} with index {index}', flush=True)
                         self.objs[dest_object].inputs[input_name].set_item(output_ref, index=index)
                     else:
                         if set_list:
@@ -403,9 +403,9 @@ class Simul():
                             self.objs[dest_object].inputs[input_name].set(output_ref)
                 else:
                     # sending output to a remote object
-                    print(process_rank, f'{output_ref} -> {dest_object} : local to remote connection, calling addRemoteOutput()', flush=True)
+                    if MPI_DBG: print(process_rank, f'{output_ref} -> {dest_object} : local to remote connection, calling addRemoteOutput()', flush=True)
                     if dest_object in self.remote_objs_ranks and output_obj_name in self.objs:
-                        print(process_rank, 'Adding remote output to ', output_obj_name, flush=True)
+                        if MPI_DBG: print(process_rank, 'Adding remote output to ', output_obj_name, flush=True)
                         if MPI_DBG: print(process_rank, 'Output side, Computed tag (B):', tag, s, flush=True)
                         self.objs[output_obj_name].addRemoteOutput(output_attr_name, (self.remote_objs_ranks[dest_object], tag))
 
@@ -476,7 +476,7 @@ class Simul():
                         # a_connection['middle_label'] = self.objs[dest_object].inputs[input_attr_name]
                         a_connection['end_label'] = output_attr_name
                         self.connections.append(a_connection)
-                        print(process_rank, a_connection)
+                        #print(process_rank, a_connection)
                     continue
 
                 if local_dest_object:
@@ -561,7 +561,7 @@ class Simul():
                             a_connection['remote'] = False
                         else:
                             a_connection['remote'] = True
-                        print(a_connection)
+                        #print(a_connection)
                         self.connections.append(a_connection)
 
     def build_replay(self, params):

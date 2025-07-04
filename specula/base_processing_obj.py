@@ -35,7 +35,6 @@ class BaseProcessingObj(BaseTimeObj):
         # Will be populated by derived class
         self.inputs = {}
         self.local_inputs = {}
-        self.last_seen = {}
         self.outputs = {}
         self.remote_outputs = defaultdict(list)
 
@@ -54,58 +53,51 @@ class BaseProcessingObj(BaseTimeObj):
     def checkInputTimes(self):
         if len(self.inputs)==0:
             return True
-        for input_name, input_obj in self.inputs.items():
-            if type(input_obj) is InputValue:                
-                if input_name not in self.last_seen and input_obj.get_time() is not None and input_obj.get_time() >= 0:  # First time
+        self.get_all_inputs()
+        for input_name, input_obj in self.local_inputs.items():
+            if type(input_obj) is not list:
+                input_obj = [input_obj]
+
+            tt_list = [x.generation_time if x is not None else None for x in input_obj]
+            for tt in tt_list:
+                if tt is not None and tt >= self.current_time:
                     return True
-                if input_name in self.last_seen and input_obj.get_time() > self.last_seen[input_name]:
-                    return True
-            elif type(input_obj) is InputList:
-                if input_name not in self.last_seen:
-                    for tt in input_obj.get_time():
-                        if tt >= 0:
-                            return True
-                else:
-                    for tt, last in zip(input_obj.get_time(), self.last_seen[input_name]):
-                        if tt > last:
-                            return True
-        return False
+        else:
+            return False
 
     def prepare_trigger(self, t):
+        self.current_time_seconds = self.t_to_seconds(self.current_time)
+
+    def get_all_inputs(self):
+        '''
+        Perform get() on all inputs.
+        Remote inputs, if any, are received via MPI.
+        Data is transferred between devices if necessary.
+        '''
         if self.target_device_idx >= 0:
             self._target_device.use()
 
-        self.current_time_seconds = self.t_to_seconds(self.current_time)
         for input_name, input_obj in self.inputs.items():
             if type(input_obj) is InputValue:
-                if MPI_DBG: print(process_rank, 'prepare_trigger, Getting:', input_name, flush=True)
+                if MPI_DBG: print(process_rank, 'get_all_inputs(): getting InputValue:', input_name, flush=True)
                 self.local_inputs[input_name] = input_obj.get(self.target_device_idx)
-#                if input_name=='in_ef' and MPI_DBG:
-#                    if MPI_DBG: print(process_rank, input_name, 'local input', self.local_inputs[input_name], flush=True)
-                if self.local_inputs[input_name] is not None:
-                    self.last_seen[input_name] = self.local_inputs[input_name].generation_time
             elif type(input_obj) is InputList:
                 self.local_inputs[input_name] = []
-                self.last_seen[input_name] = []
-                if MPI_DBG: print(process_rank, ', prepare_trigger, Getting Input List:', input_name, flush=True)
+                if MPI_DBG: print(process_rank, 'get_all_inputs(): getting InputList:', input_name, flush=True)
                 input_list = input_obj.get(self.target_device_idx)
                 if input_list is not None:
-                    for tt in input_list:
-                        if MPI_DBG: print(process_rank, ', prepare_trigger, Got  Input List item:', tt, flush=True)
-                        self.local_inputs[input_name].append(tt)
-                        if self.local_inputs[input_name] is not None:
-                            self.last_seen[input_name].append(tt.generation_time)
+                    self.local_inputs[input_name] = input_list
         
         if MPI_DBG:
-            print(process_rank, 'My inputs are:')
+            print(process_rank, self.name, 'My inputs are:')
             for in_name, in_value in self.local_inputs.items():
                 if type(in_value) is list:
                     if len(in_value) > 0 and type(in_value[0]) is Layer:
-                        print(process_rank, in_name, [x.phaseInNm for x in in_value], flush=True)
+                        print(process_rank, in_name, [(x.generation_time, x.phaseInNm) for x in in_value], flush=True)
                     else:
-                        print(process_rank, in_name, [x for x in in_value], flush=True)
+                        print(process_rank, in_name, [(x.generation_time, x) for x in in_value], flush=True)
                 else:
-                    print(process_rank, in_name, in_value, type(in_value), flush=True)
+                    print(process_rank, in_name, in_value.generation_time if in_value is not None else None, in_value, type(in_value), flush=True)
 
     def trigger_code(self):
         '''
@@ -143,7 +135,6 @@ class BaseProcessingObj(BaseTimeObj):
 
         if MPI_DBG: print(process_rank, 'send_outputs', flush=True)
         for out_name, remote_specs in self.remote_outputs.items():
-            if MPI_DBG: print(process_rank, 'send_outputs, out_name, remote_specs=', out_name, remote_specs, flush=True)
             for remote_spec in remote_specs:
                 dest_rank, dest_tag = remote_spec
                 # workaround cause module objects cannot be pickled
@@ -199,9 +190,7 @@ class BaseProcessingObj(BaseTimeObj):
 
     def check_ready(self, t):
         self.current_time = t
-        # TODO This is temporary!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        #if self.checkInputTimes():
-        if True:
+        if self.checkInputTimes():
             if self.target_device_idx>=0:
                 self._target_device.use()
             self.prepare_trigger(t)
@@ -241,12 +230,11 @@ class BaseProcessingObj(BaseTimeObj):
         """
         if self.target_device_idx >= 0:
             self._target_device.use()
+
+        self.get_all_inputs()
         for input_name, input in self.inputs.items():
-            if MPI_DBG: print(process_rank, 'Setup, Getting:', input_name, flush=True)
-            vv = input.get(self.target_device_idx)
-            if vv is None and not input.optional:
+            if self.local_inputs[input_name] is None and not input.optional:
                 raise ValueError(f'Input {input_name} for object {self} has not been set')
-            self.local_inputs[input_name] = vv
 
     def finalize(self):
         '''

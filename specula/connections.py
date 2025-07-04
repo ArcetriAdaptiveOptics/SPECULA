@@ -23,10 +23,6 @@ class InputValue():
         # the sender rank
         self.remote_rank = remote_rank
 
-    def get_time(self):
-        if not self.output_ref is None:
-            return self.output_ref.generation_time        
-
     def get(self, target_device_idx):
         if not self.remote:            
             if not self.output_ref is None:            
@@ -52,8 +48,7 @@ class InputValue():
             if MPI_DBG: print(process_rank, 'Waiting from ', self.remote_rank, 'with tag', self.tag, flush=True)
             output_data = process_comm.recv(source=self.remote_rank, tag=self.tag)
             if MPI_DBG:
-                print('Received data from rank', self.remote_rank, 'with tag', self.tag, output_data, flush=True, file=sys.stderr)
-                print(process_rank, 'received successful obj type', type(output_data), flush=True)
+                print(process_rank, 'Received data from rank', self.remote_rank, 'with tag', self.tag, type(output_data), output_data, flush=True)
 
             if type(output_data) is list:
                 for v in output_data:
@@ -72,17 +67,19 @@ class InputValue():
                 if type(output_data) is list:
                     # if the output_ref is a list, we need to copy each element
                     self.cloned_value = [v.copyTo(target_device_idx) for v in output_data]
+                    if MPI_DBG: print(process_rank, 'Received data copied, generation_time=', [x.generation_time for x in self.cloned_value], flush=True)
                 else:
                     self.cloned_value = output_data.copyTo(target_device_idx)
-                if MPI_DBG: print(process_rank, 'Received data copied', flush=True)
+                    if MPI_DBG: print(process_rank, 'Received data copied, generation_time=', self.cloned_value.generation_time, flush=True)
             else:
                 # update transferDataTo to handle same target_device_idx but different rank
                 if type(output_data) is list:
                     for output, cloned in zip(output_data, self.cloned_value):
                         output.transferDataTo(cloned)
+                    if MPI_DBG: print(process_rank, 'Received data transfered, generation_time=', [x.generation_time for x in self.cloned_value], flush=True)
                 else:
                     output_data.transferDataTo(self.cloned_value)
-                if MPI_DBG: print(process_rank, 'Received data transfered', flush=True)
+                    if MPI_DBG: print(process_rank, 'Received data transfered, generation_time=', self.cloned_value.generation_time, flush=True)
 
             if MPI_DBG: print(process_rank, 'self.cloned_value', self.cloned_value)
             return self.cloned_value

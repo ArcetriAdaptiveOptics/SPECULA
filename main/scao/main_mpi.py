@@ -3,7 +3,7 @@
 try:
     from mpi4py import MPI
     from mpi4py.util import pkl5
-    print("mpi4py import successfull. Installed version is:", MPI.__version__)
+    print("mpi4py import successfull. Installed version is:", MPI.Get_version())
 except:
     print("mpi4py import failed.")
     print("You should use a main_simul.py for single process execution.")
