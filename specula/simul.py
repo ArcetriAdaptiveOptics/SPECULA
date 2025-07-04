@@ -227,33 +227,40 @@ class Simul():
 
             target_device_idx = pars.get('target_device_idx', None)
                         
-            target_rank = pars.get('target_rank', None)
-            if target_rank is None:
+            par_target_rank = pars.get('target_rank', None)
+            if par_target_rank is None:
                 target_rank = 0
                 self.all_objs_ranks[key] = 0
-            else:                          
-                self.all_objs_ranks[key] = target_rank
+            else:
+                target_rank = par_target_rank     
+                self.all_objs_ranks[key] = par_target_rank
                 del pars['target_rank']        
 
+            # create the simulations objects for this process. Data Objects are created
+            # on all ranks (processes) by default, unless a specific rank has been specified.
 
-            build_this_object = process_rank == target_rank or \
-                                issubclass(klass, BaseDataObj) or \
-                                classname=='SimulParams' or \
-                                process_rank == None
+            build_this_object = (process_rank == target_rank) or \
+                                (issubclass(klass, BaseDataObj) and (par_target_rank == None)) or \
+                                (issubclass(klass, BaseDataObj) and (par_target_rank == process_rank)) or \
+                                (classname=='SimulParams') or \
+                                (process_rank == None)
+
+            # If not build, remember the remote rank of this object (needed for connections setup)
+            if not build_this_object:
+                self.remote_objs_ranks[key] = target_rank
+                continue
 
             if 'tag' in pars:
+                if 'target_device_idx' in pars:
+                    del pars['target_device_idx']
                 if len(pars) > 2:
                     raise ValueError('Extra parameters with "tag" are not allowed')
-                if build_this_object:
-                    filename = cm.filename(classname, pars['tag'])
-                    # tags are restored into each process (multiple copies), target_rank is not checked
-                    print('Restoring:', filename)
-                    self.objs[key] = klass.restore(filename, target_device_idx=target_device_idx)
-                    self.objs[key].printMemUsage()
-                    self.objs[key].name = key
-                else:
-                    self.remote_objs_ranks[key] = target_rank
-                # Continue to the next object in any case
+                filename = cm.filename(classname, pars['tag'])
+                # tags are restored into each process (multiple copies), target_rank is not checked
+                print('Restoring:', filename)
+                self.objs[key] = klass.restore(filename, target_device_idx=target_device_idx)
+                self.objs[key].printMemUsage()
+                self.objs[key].name = key
                 continue
 
             pars2 = {}
@@ -331,24 +338,19 @@ class Simul():
                 my_params['info_getter'] = self.get_info
 
             my_params.update(pars2)
-            # create the simulations objects for this process. Data Object and SimulParams are always
-            # created, no matter what their rank (assigned process) is.
-            if build_this_object:
-                try:
-                    self.objs[key] = klass(**my_params)
-                except Exception:
-                    print(f'Exception building', key)
-                    raise
-                if classname != 'SimulParams':
-                    self.objs[key].stopMemUsageCount()
+            try:
+                self.objs[key] = klass(**my_params)
+            except Exception:
+                print(f'Exception building', key)
+                raise
+            if classname != 'SimulParams':
+                self.objs[key].stopMemUsageCount()
 
-                self.objs[key].name = key
+            self.objs[key].name = key
 
-                # TODO this could be more general like the getters above
-                if type(self.objs[key]) is DataStore:
-                    self.objs[key].setParams(params)
-            else:
-                self.remote_objs_ranks[key] = target_rank
+            # TODO this could be more general like the getters above
+            if type(self.objs[key]) is DataStore:
+                self.objs[key].setParams(params)
 
     def connect_objects(self, params):
         self.connections = []
@@ -430,7 +432,7 @@ class Simul():
                             raise ValueError(f'Object {dest_object} does not have an output called {output_name}')
                     else:
                         # remote object case
-                        if not ( self.all_objs_ranks[dest_object]!=process_rank \
+                        if not ( self.all_objs_ranks[dest_object] != process_rank \
                              and 'outputs' in params[dest_object] \
                              and output_name in params[dest_object]['outputs'] ):
                             raise ValueError(f'Remote Object {dest_object} does not have an output called {output_name}')

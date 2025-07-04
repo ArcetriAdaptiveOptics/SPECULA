@@ -2,6 +2,11 @@
 main_override:
     total_time: 0.02
 
+ifunc_m4_override: { target_device_idx: 1, target_rank: 1 }
+m2c_m4_override: { target_device_idx: 1, target_rank: 1 }
+dm1_override: { target_device_idx: 1, target_rank: 1 }
+dm2_override: { target_device_idx: 1, target_rank: 1 }
+dm3_override: { target_device_idx: 1, target_rank: 1 }
 
 sh_lgs1_override: { target_device_idx: 0, target_rank: 0 }
 sh_lgs2_override: { target_device_idx: 1, target_rank: 1 }
