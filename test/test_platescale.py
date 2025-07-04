@@ -1,10 +1,5 @@
 import unittest
 import os
-import shutil
-import subprocess
-import sys
-import glob
-import time
 import yaml
 import specula
 specula.init(-1,precision=1)  # Default target device
@@ -18,7 +13,7 @@ class TestPlateScale(unittest.TestCase):
 
     def test_platescale(self):
         """"""
-
+        verbose = False  # Set to True to print debug information
         # Change to test directory
         os.chdir(os.path.dirname(__file__))
 
@@ -47,7 +42,8 @@ class TestPlateScale(unittest.TestCase):
         # Call platescale_coeff with the DMs and their starting modes
         coeff = platescale_coeff(dm_list, start_modes, params['main']['pixel_pupil'])
 
-        print("coeff from platescale_coeff", coeff)
+        if verbose:
+            print("coeff from platescale_coeff", coeff)
 
         # verify that the coeffiecients are not None
         self.assertIsNotNone(coeff, "coeff is None")
