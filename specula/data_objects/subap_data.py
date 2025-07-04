@@ -62,8 +62,8 @@ class SubapData(BaseDataObj):
         fits.append(filename, cpuArray(self.idxs.T))  # Transposed for IDL-saved data compatibility
         fits.append(filename, cpuArray(self.display_map))
 
-    @classmethod
-    def restore(cls, filename, target_device_idx=None):
+    @staticmethod
+    def restore(filename, target_device_idx=None):
         """Restores the subaperture data from a file."""
         with fits.open(filename) as hdul:
             hdr = hdul[0].header

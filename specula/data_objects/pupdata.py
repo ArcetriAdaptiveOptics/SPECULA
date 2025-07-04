@@ -87,8 +87,8 @@ class PupData(BaseDataObj):
         fits.append(filename, self.cx)
         fits.append(filename, self.cy)
 
-    @classmethod
-    def restore(cls, filename, target_device_idx=None):
+    @staticmethod
+    def restore(filename, target_device_idx=None):
         """Restores the pupil data from a file."""
         with fits.open(filename) as hdul:
             hdr = hdul[0].header

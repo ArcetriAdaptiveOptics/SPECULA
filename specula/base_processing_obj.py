@@ -38,12 +38,13 @@ class BaseProcessingObj(BaseTimeObj):
         self.outputs = {}
         self.remote_outputs = defaultdict(list)
 
-        # Use the correct CUDA device for allocations
+        # Use the correct CUDA device for allocations in derived classes'  __init__
         if self.target_device_idx >= 0:
             self._target_device.use()
 
 
-        # Use the correct CUDA device for allocations
+    # Use the correct CUDA device for allocations in derived classes' prepare_trigger()
+    def prepare_trigger(self, t):
         if self.target_device_idx >= 0:
             self._target_device.use()
 

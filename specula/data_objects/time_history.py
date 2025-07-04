@@ -22,8 +22,8 @@ class TimeHistory(BaseDataObj):
         hdr['VERSION'] = 1
         fits.writeto(filename, cpuArray(self.time_history), hdr)
 
-    @classmethod
-    def restore(cls, filename, target_device_idx=None):
+    @staticmethod
+    def restore(filename, target_device_idx=None):
         """Restores the time history data from a file."""
         hdr = fits.getheader(filename)
         version = hdr.get('VERSION')

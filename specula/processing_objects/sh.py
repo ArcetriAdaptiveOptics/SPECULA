@@ -1,8 +1,7 @@
 import numpy as np
 
 from specula import cpuArray, fuse, show_in_profiler, RAD2ASEC, process_rank
-from specula.lib.extrapolate_edge_pixel import extrapolate_edge_pixel
-from specula.lib.extrapolate_edge_pixel_mat_define import extrapolate_edge_pixel_mat_define
+from specula.lib.extrapolation_2d import calculate_extrapolation_indices_coeffs, apply_extrapolation
 from specula.lib.toccd import toccd
 from specula.lib.interp2d import Interp2D
 from specula.lib.make_mask import make_mask
@@ -87,11 +86,11 @@ class SH(BaseProcessingObj):
         self._np_sub = 0
         self._fft_size = 0
         self._trigger_geometry_calculated = False
-        self._extrapol_mat1 = None
-        self._extrapol_mat2 = None
-        self._idx_1pix = None
-        self._idx_2pix = None
         self._do_interpolation = None
+        self._edge_pixels = None
+        self._reference_indices = None
+        self._coefficients = None
+        self._valid_indices = None
 
         # TODO these are fixed but should become parameters
         self._fov_ovs = 1
@@ -325,14 +324,57 @@ class SH(BaseProcessingObj):
             self._kernelobj = None
 
     def prepare_trigger(self, t):
-        super().prepare_trigger(t)     
+        super().prepare_trigger(t)
+
+        if self._edge_pixels is None and self._do_interpolation:
+            # Compute once indices and coefficients
+            self._edge_pixels, self._reference_indices, self._coefficients, self._valid_indices = calculate_extrapolation_indices_coeffs(
+                cpuArray(self.in_ef.A)
+            )
+
+            # convert to xp
+            self._edge_pixels = self.to_xp(self._edge_pixels)
+            self._reference_indices = self.to_xp(self._reference_indices)
+            self._coefficients = self.to_xp(self._coefficients)
+            self._valid_indices = self.to_xp(self._valid_indices)
 
         # Interpolation of input array if needed
         with show_in_profiler('interpolation'):
 
             if self._do_interpolation:
                 self.phase_extrapolated[:] = self.in_ef.phaseInNm
-                _ = extrapolate_edge_pixel(self.in_ef.phaseInNm, self._extrapol_mat1, self._extrapol_mat2, self._idx_1pix, self._idx_2pix, xp=self.xp, out=self.phase_extrapolated)
+                _ = apply_extrapolation(
+                    self.in_ef.phaseInNm,
+                    self._edge_pixels,
+                    self._reference_indices,
+                    self._coefficients,
+                    self._valid_indices,
+                    out=self.phase_extrapolated,
+                    xp=self.xp
+                )
+
+                if self._debugOutput:
+                    # compare input and extrapolated phase
+                    import matplotlib.pyplot as plt
+                    plt.figure(figsize=(20, 5))
+                    plt.subplot(1, 4, 1)
+                    plt.imshow(self.in_ef.phaseInNm, origin='lower', cmap='gray')
+                    plt.title('Input Phase')
+                    plt.colorbar()
+                    plt.subplot(1, 4, 2)
+                    plt.imshow(self.phase_extrapolated, origin='lower', cmap='gray')
+                    plt.title('Extrapolated Phase')
+                    plt.colorbar()
+                    plt.subplot(1, 4, 3)
+                    plt.imshow(self.phase_extrapolated - self.in_ef.phaseInNm, origin='lower', cmap='gray')
+                    plt.title('Phase Difference')
+                    plt.colorbar()
+                    plt.subplot(1, 4, 4)
+                    plt.imshow(self.in_ef.A)
+                    plt.title('Input Electric Field Amplitude')
+                    plt.colorbar()
+                    plt.show()
+
                 self.interp.interpolate(self.in_ef.A, out=self._wf1.A)
                 self.interp.interpolate(self.phase_extrapolated, out=self._wf1.phaseInNm)
             else:
@@ -457,11 +499,6 @@ class SH(BaseProcessingObj):
         self.interp = Interp2D(in_ef.size, shape_ovs, self._rotAnglePhInDeg, self._xyShiftPhInPixel[0], self._xyShiftPhInPixel[1], dtype=self.dtype, xp=self.xp)
 
         if fov_oversample != 1 or self._rotAnglePhInDeg != 0 or np.sum(np.abs([self._xyShiftPhInPixel])) != 0:
-            sum_1pix_extra, sum_2pix_extra, idx_1pix, idx_2pix = extrapolate_edge_pixel_mat_define(cpuArray(in_ef.A), do_ext_2_pix=True)
-            self._extrapol_mat1 = self.to_xp(sum_1pix_extra)
-            self._extrapol_mat2 = self.to_xp(sum_2pix_extra)
-            self._idx_1pix = tuple(map(self.xp.array, idx_1pix))
-            self._idx_2pix = tuple(map(self.xp.array, idx_2pix))
             self._do_interpolation = True
         else:
             self._do_interpolation = False

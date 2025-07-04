@@ -11,7 +11,9 @@ from specula import cpuArray
 
 
 class SlopecDisplay(BaseProcessingObj):
-    def __init__(self, window=27, disp_factor=1):
+    def __init__(self,
+                 window=27,
+                 disp_factor=1):
         super().__init__(target_device_idx=-1)
 
         self._disp_factor = disp_factor
@@ -20,18 +22,16 @@ class SlopecDisplay(BaseProcessingObj):
         self._opened = False
         self._first = True
         self.fig = self.ax = None
+      
         self.inputs['slopes'] = InputValue(type=Slopes)
-        self.inputs['pupdata'] = InputValue(type=PupData, optional=True)
-        self.inputs['subapdata'] = InputValue(type=SubapData, optional=True)
 
     def set_w(self, size_frame):
         self.fig = plt.figure(self._window, figsize=(size_frame[0] * self._disp_factor / 100, size_frame[1] * self._disp_factor / 100))
         self.ax = self.fig.add_subplot(111)
 
     def trigger_code(self):
-        
+
         slopes_obj = self.local_inputs['slopes']
-        pupdata = self.local_inputs['pupdata']        
 
         frame3d = slopes_obj.get2d()
 
@@ -50,4 +50,3 @@ class SlopecDisplay(BaseProcessingObj):
             self.img.set_clim(frame2d.min(), frame2d.max())
         self.fig.canvas.draw()
         plt.pause(0.001)
-
