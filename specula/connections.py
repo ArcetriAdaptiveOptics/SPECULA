@@ -24,66 +24,34 @@ class InputValue():
         self.remote_rank = remote_rank
 
     def get(self, target_device_idx):
+        if not self.remote:
+            if self.output_ref is None:
+                return None
+            if self.output_ref.target_device_idx == target_device_idx:
+                return self.output_ref
+
         if not self.remote:            
-            if not self.output_ref is None:            
-                if self.output_ref.target_device_idx == target_device_idx:
-                    return self.output_ref
-                else:
-                    if self.cloned_value is None:
-                        if type(self.output_ref) is list:
-                            # if the output_ref is a list, we need to copy each element
-                            self.cloned_value = [v.copyTo(target_device_idx) for v in self.output_ref]
-                        else:
-                            self.cloned_value = self.output_ref.copyTo(target_device_idx)
-                    else:
-                        if type(self.output_ref) is list:
-                            # if the output_ref is a list, we need to transfer each element
-                            for output, cloned in zip(self.output_ref, self.cloned_value):
-                                output.transferDataTo(cloned)
-                        else:
-                            self.output_ref.transferDataTo(self.cloned_value)
-                    return self.cloned_value
+            value_to_copy = self.output_ref
         else:
-            import sys
-            if MPI_DBG: print(process_rank, 'Waiting from ', self.remote_rank, 'with tag', self.tag, flush=True)
-            output_data = process_comm.recv(source=self.remote_rank, tag=self.tag)
-            if MPI_SEND_DBG: print(process_rank, f'RECV from rank {self.remote_rank} tag={self.tag}', flush=True)
-            if MPI_DBG:
-                print(process_rank, 'Received data from rank', self.remote_rank, 'with tag', self.tag, type(output_data), output_data, flush=True)
+            value_to_copy = process_comm.recv(source=self.remote_rank, tag=self.tag)
+            for v in value_to_copy if type(value_to_copy) is list else [value_to_copy]:
+                if v.xp_str == 'cp':
+                    v.xp = cp
+                else:
+                    v.xp = np
 
-            if type(output_data) is list:
-                for v in output_data:
-                    if v.xp_str == 'cp':
-                        v.xp = cp
-                    else:
-                        v.xp = np
+        if self.cloned_value is None:
+            if type(value_to_copy) is list:
+                self.cloned_value = [v.copyTo(target_device_idx) for v in value_to_copy]
             else:
-                if output_data.xp_str == 'cp':
-                    output_data.xp = cp
-                else:
-                    output_data.xp = np
-
-            if self.cloned_value is None:
-                # TODO update copyTo to handle same target_device_idx but different rank
-                if type(output_data) is list:
-                    # if the output_ref is a list, we need to copy each element
-                    self.cloned_value = [v.copyTo(target_device_idx) for v in output_data]
-                    if MPI_DBG: print(process_rank, 'Received data copied, generation_time=', [x.generation_time for x in self.cloned_value], flush=True)
-                else:
-                    self.cloned_value = output_data.copyTo(target_device_idx)
-                    if MPI_DBG: print(process_rank, 'Received data copied, generation_time=', self.cloned_value.generation_time, flush=True)
+                self.cloned_value = value_to_copy.copyTo(target_device_idx)
+        else:
+            if type(value_to_copy) is list:
+                for output, cloned in zip(value_to_copy, self.cloned_value):
+                    output.transferDataTo(cloned)
             else:
-                # update transferDataTo to handle same target_device_idx but different rank
-                if type(output_data) is list:
-                    for output, cloned in zip(output_data, self.cloned_value):
-                        output.transferDataTo(cloned)
-                    if MPI_DBG: print(process_rank, 'Received data transfered, generation_time=', [x.generation_time for x in self.cloned_value], flush=True)
-                else:
-                    output_data.transferDataTo(self.cloned_value)
-                    if MPI_DBG: print(process_rank, 'Received data transfered, generation_time=', self.cloned_value.generation_time, flush=True)
-
-            if MPI_DBG: print(process_rank, 'self.cloned_value', self.cloned_value)
-            return self.cloned_value
+                value_to_copy.transferDataTo(self.cloned_value)
+        return self.cloned_value
 
     def set(self, value):
         if self.output_ref is not None:
@@ -92,9 +60,6 @@ class InputValue():
             raise ValueError(f'Value must be of type {self.output_ref_type} instead of {type(value)}')
         self.output_ref = value
     
-    def type(self):
-        return self.output_ref_type
-
 
 class InputList():
     def __init__(self, type, optional=False):
@@ -141,5 +106,3 @@ class InputList():
     def set_item_tag(self, tag, index):
         self.input_values[index].set_tag(tag)
 
-    def type(self):
-        return self.output_ref_type
