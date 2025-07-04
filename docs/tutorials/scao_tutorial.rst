@@ -956,14 +956,14 @@ Example analysis script (`plot_gain_optimization.py`):
 
     for d in dirs:
         # Find the YAML file to get the gain value
-        yml_files = glob.glob(os.path.join("gain_overrides", "*.yml"))
+        yml_files = glob.glob(os.path.join(d, "*.yml"))
         gain = None
         for yml in yml_files:
-            if f"gain_{os.path.basename(d).strip('/')[-5:]}" in yml:
-                with open(yml, "r") as f:
-                    yml_data = yaml.safe_load(f)
-                    gain = float(yml_data["control_override"]["int_gain"][0])
-                break
+            with open(yml, "r") as f:
+                yml_data = yaml.safe_load(f)
+                if "integrator" in yml_data:
+                    gain = float(yml_data["integrator"]["int_gain"][0])
+                    break
         if gain is None:
             # Fallback: parse from directory name
             gain = float(d.split("_")[-1].replace("/", ""))
