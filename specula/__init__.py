@@ -24,6 +24,8 @@ ASEC2RAD = np.pi / (3600 * 180)
 RAD2ASEC = 1.0 / ASEC2RAD
 MPI_DBG = False
 
+MPI_SEND_DBG = False
+
 # precision = 0 -> double precision
 # precision = 1 -> single precision
 

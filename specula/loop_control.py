@@ -25,6 +25,7 @@ class LoopControl(BaseTimeObj):
         self._elapsed = []
         self._nframes_cnt = -1
         self._max_order = -1
+        self._iter_counter = 0
         self.max_global_order = -1
 
     def add(self, obj, idx):
@@ -41,7 +42,7 @@ class LoopControl(BaseTimeObj):
         self._ordered_lists.clear()
 
     def niters(self):
-        return (self._run_time + self._t0) / self._dt if self._dt != 0 else 0
+        return int((self._run_time + self._t0) / self._dt) if self._dt != 0 else 0
 
     def run(self, run_time, dt, t0=0, stop_on_data=None, stop_at_time=None,
             profiling=False, speed_report=False):
@@ -102,11 +103,11 @@ class LoopControl(BaseTimeObj):
                         element.stopMemUsageCount()
                         if MPI_DBG: print(process_rank, element, 'printMemUsage', flush=True)
                         element.printMemUsage()
-                        # TODO workaround for DM objects that need to send outputs
+                        if MPI_DBG: print(process_rank, 'setup', element)
+                        #  workaround for objects that need to send outputs
                         # before the first iter() call
                         # because their outputs are used with ":-1"
-                        if isinstance(element, DM):
-                            element.send_outputs()
+                        element.send_outputs(delayed_only=True)
                     except:
                         print('Exception in', element.name, flush=True)
                         raise
@@ -131,6 +132,12 @@ class LoopControl(BaseTimeObj):
             self.start_profiling()
             self._profiler_started = True
 
+
+        # set the last_iter flag based on several conditions
+        last_iter = (self._iter_counter == self.niters()-1)
+        if self._stop_at_time and self._t >= self.seconds_to_t(self._stop_at_time):
+            last_iter = True
+
         for i in range(self.max_global_order+1):            
             # all the objects having this trigger order could be remote
             if i in self._ordered_lists:
@@ -154,7 +161,7 @@ class LoopControl(BaseTimeObj):
                 for element in self._ordered_lists[i]:
                     try:
                         element.post_trigger()
-                        element.send_outputs()
+                        element.send_outputs(skip_delayed=last_iter)
                     except:
                         print('Exception in', element.name, flush=True)
                         raise
@@ -183,6 +190,7 @@ class LoopControl(BaseTimeObj):
                 print(f't={self.t_to_seconds(self._t):.6f} {msg}')
 
         self._t += self._dt
+        self._iter_counter += 1
 
     def finish(self):
 

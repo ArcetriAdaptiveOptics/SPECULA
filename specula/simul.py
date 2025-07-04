@@ -235,15 +235,25 @@ class Simul():
                 self.all_objs_ranks[key] = target_rank
                 del pars['target_rank']        
 
+
+            build_this_object = process_rank == target_rank or \
+                                issubclass(klass, BaseDataObj) or \
+                                classname=='SimulParams' or \
+                                process_rank == None
+
             if 'tag' in pars:
                 if len(pars) > 2:
                     raise ValueError('Extra parameters with "tag" are not allowed')
-                filename = cm.filename(classname, pars['tag'])
-                # tags are restored into each process (multiple copies), target_rank is not checked
-                print('Restoring:', filename)
-                self.objs[key] = klass.restore(filename, target_device_idx=target_device_idx)
-                self.objs[key].printMemUsage()
-                self.objs[key].name = key
+                if build_this_object:
+                    filename = cm.filename(classname, pars['tag'])
+                    # tags are restored into each process (multiple copies), target_rank is not checked
+                    print('Restoring:', filename)
+                    self.objs[key] = klass.restore(filename, target_device_idx=target_device_idx)
+                    self.objs[key].printMemUsage()
+                    self.objs[key].name = key
+                else:
+                    self.remote_objs_ranks[key] = target_rank
+                # Continue to the next object in any case
                 continue
 
             pars2 = {}
@@ -323,7 +333,7 @@ class Simul():
             my_params.update(pars2)
             # create the simulations objects for this process. Data Object and SimulParams are always
             # created, no matter what their rank (assigned process) is.
-            if process_rank == target_rank or issubclass(klass, BaseDataObj) or classname=='SimulParams' or process_rank == None:
+            if build_this_object:
                 try:
                     self.objs[key] = klass(**my_params)
                 except Exception:
@@ -364,6 +374,7 @@ class Simul():
             output_attr_name = desc.output_key
             output_obj_name = desc.obj_name
             output_ref = desc.ref
+            output_delay = desc.delay
 
             tag, s = computeTag(output_obj_name, dest_object, output_attr_name, input_name, index)
         
@@ -403,7 +414,7 @@ class Simul():
                     if dest_object in self.remote_objs_ranks and output_obj_name in self.objs:
                         if MPI_DBG: print(process_rank, 'Adding remote output to ', output_obj_name, flush=True)
                         if MPI_DBG: print(process_rank, 'Output side, Computed tag (B):', tag, s, flush=True)
-                        self.objs[output_obj_name].addRemoteOutput(output_attr_name, (self.remote_objs_ranks[dest_object], tag))
+                        self.objs[output_obj_name].addRemoteOutput(output_attr_name, (self.remote_objs_ranks[dest_object], tag, output_delay))
 
         for dest_object, pars in params.items():
 
@@ -438,11 +449,14 @@ class Simul():
                     output_names = [x.split('-')[1].split('.')[1] for x in output_name]
                     outputs = [self.output_ref(x.split('-')[1]) for x in output_name]
                     outputs_obj_names = [self.output_owner(x.split('-')[1]) for x in output_name]
+                    output_delays = [self.output_delay(x) for x in output_name]
+
                     # if MPI_DBG: print(process_rank, 'output_names:', output_names, flush=True)
                     # if MPI_DBG: print(process_rank, 'inputs:', inputs, flush=True)
                     # if MPI_DBG: print(process_rank, 'outputs:', outputs, flush=True)
                     # if MPI_DBG: print(process_rank, 'outputs_obj_names:', outputs_obj_names, flush=True)
-                    for input_attr_name, oo, output_attr_name, output_obj_name in zip(inputs, outputs, output_names, outputs_obj_names):
+                    for input_attr_name, oo, output_attr_name, output_obj_name, output_delay \
+                               in zip(inputs, outputs, output_names, outputs_obj_names, output_delays):
                         a_connection = {}                            
                         if oo is None:
                             if local_dest_object:
@@ -465,7 +479,7 @@ class Simul():
                                 if MPI_DBG: print('Adding remote output to ', output_attr_name, flush=True)
                                 tag, s = computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name)
                                 if MPI_DBG: print(process_rank, 'Output side, Computed tag (A):', s, tag, flush=True)
-                                self.objs[output_obj_name].addRemoteOutput(output_attr_name, (self.remote_objs_ranks[dest_object], tag))
+                                self.objs[output_obj_name].addRemoteOutput(output_attr_name, (self.remote_objs_ranks[dest_object], tag, output_delay))
 
                         a_connection['start'] = output_attr_name.split('.')[0].split('-')[-1]
                         a_connection['end'] = dest_object
@@ -753,7 +767,7 @@ class Simul():
 
 
         # Default display web server
-        if 'display_server' in self.mainParams and self.mainParams['display_server']:
+        if 'display_server' in self.mainParams and self.mainParams['display_server'] and process_rank == 0:
             from specula.processing_objects.display_server import DisplayServer
             disp = DisplayServer(params, self.input_ref, self.output_ref, self.get_info)
             self.objs['display_server'] = disp

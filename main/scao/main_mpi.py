@@ -41,7 +41,7 @@ if __name__ == '__main__':
     attached_buf = bytearray(num_bytes)
     MPI.Attach_buffer(attached_buf)
 
-    print('Starting proceess with rank:', rank)
+    print('Starting process with rank:', rank)
     if args.cpu:
         target_device_idx = -1
     else:

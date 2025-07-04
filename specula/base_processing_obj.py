@@ -2,7 +2,7 @@ from collections import defaultdict
 from astropy.io import fits
 
 from specula.base_time_obj import BaseTimeObj
-from specula import default_target_device, cp, MPI_DBG
+from specula import default_target_device, cp, MPI_DBG, MPI_SEND_DBG
 from specula import show_in_profiler
 from specula.connections import InputValue, InputList
 from specula import process_comm, process_rank
@@ -128,7 +128,16 @@ class BaseProcessingObj(BaseTimeObj):
 
 
     # this method implments the mpi send call of the outputs connected to remote inputs
-    def send_outputs(self):
+    def send_outputs(self, skip_delayed=False, delayed_only=False):
+        '''
+        Send all remote outputs via MPI.
+        If *skip_delayed* is True, skip sending all delayed outputs.
+            Used during the last iteration when the simulation is ending and
+            no one would receive the delayed inputs.
+        If *delayed_only* is True, only send the delayed outputs.
+            Used while setting up the simulation, to initialize outputs
+            that are delayed and thus would not be received otherwise.
+        '''
         if MPI_DBG:
             print(process_rank, self.name, 'My outputs are:')
             for out_name, out_value in self.outputs.items():
@@ -137,7 +146,15 @@ class BaseProcessingObj(BaseTimeObj):
         if MPI_DBG: print(process_rank, 'send_outputs', flush=True)
         for out_name, remote_specs in self.remote_outputs.items():
             for remote_spec in remote_specs:
-                dest_rank, dest_tag = remote_spec
+                dest_rank, dest_tag, delay = remote_spec
+                # avoid sending outputs that will not be received
+                # because the simulation is ending
+                if delay < 0 and skip_delayed:
+                    if MPI_SEND_DBG: print(process_rank, f'SKIPPED SEND to rank {dest_rank} {dest_tag=} due to delay={delay}', flush=True)
+                    continue
+                if delay >= 0 and delayed_only:
+                    if MPI_SEND_DBG: print(process_rank, f'SKIPPED SEND to rank {dest_rank} {dest_tag=} due to delay={delay}', flush=True)
+                    continue
                 # workaround cause module objects cannot be pickled
                 xp = []
                 if MPI_DBG: print(process_rank, 'Sending ', out_name, 'to ', dest_rank, 'with tag',  dest_tag, type(self.outputs[out_name]), flush=True)
@@ -148,7 +165,9 @@ class BaseProcessingObj(BaseTimeObj):
                         list_elem.xp = 0
                     if MPI_DBG: print(process_rank, 'Sending List ', out_name, 'to ', dest_rank, 'with tag',  dest_tag, type(self.outputs[out_name]), flush=True)
                                     #, self.outputs[out_name])            
-                    process_comm.ibsend(self.outputs[out_name], dest=dest_rank, tag=dest_tag)                    
+                    process_comm.ibsend(self.outputs[out_name], dest=dest_rank, tag=dest_tag)
+                    if MPI_SEND_DBG: print(process_rank, f'SEND to rank {dest_rank} {dest_tag=} (from {self.name}.{out_name})', flush=True)
+                 
                     if MPI_DBG: print(process_rank, 'Sent List ', flush=True)
                     for ii, list_elem in enumerate(self.outputs[out_name]):
                         list_elem.xp = xp[ii]
@@ -160,6 +179,7 @@ class BaseProcessingObj(BaseTimeObj):
                     self.outputs[out_name].xp = 0
                     if MPI_DBG: print(process_rank, 'Sending data:', self.outputs[out_name], flush=True)
                     process_comm.ibsend(self.outputs[out_name], dest=dest_rank, tag=dest_tag)
+                    if MPI_SEND_DBG: print(process_rank, f'SEND to rank {dest_rank} {dest_tag=} (from {self.name}.{out_name})', flush=True)
                     if MPI_DBG: print(process_rank, 'Sent', flush=True)
                     self.outputs[out_name].xp = xp
                 

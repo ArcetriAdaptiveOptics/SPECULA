@@ -1,4 +1,4 @@
-from specula import process_rank, process_comm, MPI_DBG
+from specula import process_rank, process_comm, MPI_DBG, MPI_SEND_DBG
 from specula import np, cp
 from specula.lib.flatten import flatten
 
@@ -47,6 +47,7 @@ class InputValue():
             import sys
             if MPI_DBG: print(process_rank, 'Waiting from ', self.remote_rank, 'with tag', self.tag, flush=True)
             output_data = process_comm.recv(source=self.remote_rank, tag=self.tag)
+            if MPI_SEND_DBG: print(process_rank, f'RECV from rank {self.remote_rank} tag={self.tag}', flush=True)
             if MPI_DBG:
                 print(process_rank, 'Received data from rank', self.remote_rank, 'with tag', self.tag, type(output_data), output_data, flush=True)
 
