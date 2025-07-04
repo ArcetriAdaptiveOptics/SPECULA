@@ -19,7 +19,7 @@ import yaml
 import hashlib
 
 
-Output = namedtuple('Output', 'obj_name output_key delay ref')
+Output = namedtuple('Output', 'obj_name output_key delay ref input_name')
 
 
 def computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name, index=None):
@@ -67,7 +67,9 @@ class Simul():
         else:
             delay = 0
         if '-' in output_name:
-            output_name = output_name.split('-')[1]
+            input_name, output_name = output_name.split('-')
+        else:
+            input_name = None
         try:
             obj_name, output_key = output_name.split('.')
         except ValueError:
@@ -87,12 +89,16 @@ class Simul():
         else:
             ref = None
 
-        return Output(obj_name, output_key, delay, ref)
+        return Output(obj_name, output_key, delay, ref, input_name)
             
     def output_owner(self, output_name):
         output = self.split_output(output_name)
         return output.obj_name
-        
+
+    def output_key(self, output_name):
+        output = self.split_output(output_name)
+        return output.output_key
+
     def output_ref(self, output_name):
         '''
         return a tuple with:
@@ -447,47 +453,39 @@ class Simul():
 
                 # Special case for DataStore
                 if isinstance(output_name, list) and input_name=='input_list':
-                    inputs = [x.split('-')[0] for x in output_name]
-                    output_names = [x.split('-')[1].split('.')[1] for x in output_name]
-                    outputs = [self.output_ref(x.split('-')[1]) for x in output_name]
-                    outputs_obj_names = [self.output_owner(x.split('-')[1]) for x in output_name]
-                    output_delays = [self.output_delay(x) for x in output_name]
-
-                    # if MPI_DBG: print(process_rank, 'output_names:', output_names, flush=True)
-                    # if MPI_DBG: print(process_rank, 'inputs:', inputs, flush=True)
-                    # if MPI_DBG: print(process_rank, 'outputs:', outputs, flush=True)
-                    # if MPI_DBG: print(process_rank, 'outputs_obj_names:', outputs_obj_names, flush=True)
-                    for input_attr_name, oo, output_attr_name, output_obj_name, output_delay \
-                               in zip(inputs, outputs, output_names, outputs_obj_names, output_delays):
+                   
+                    for name in output_name:
+                        output = self.split_output(name, get_ref=True)
+                        
                         a_connection = {}                            
-                        if oo is None:
+                        if output.ref is None:
                             if local_dest_object:
                                 # remote input case
                                 a_connection['remote'] = True
                                 # TODO the remote data object type is not available
-                                self.objs[dest_object].inputs[input_attr_name] = InputValue(type = None)
-                                self.objs[dest_object].inputs[input_attr_name].set_remote_rank(self.remote_objs_ranks[output_obj_name])
-                                tag, s = computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name)
+                                self.objs[dest_object].inputs[output.input_name] = InputValue(type = None)
+                                self.objs[dest_object].inputs[output.input_name].set_remote_rank(self.remote_objs_ranks[output.obj_name])
+                                tag, s = computeTag(output.obj_name, dest_object, output.output_key, output.input_name)
                                 if MPI_DBG: print(process_rank, 'Input side, Computed tag (A):', s, tag, flush=True)
-                                self.objs[dest_object].inputs[input_attr_name].set_tag(tag)
+                                self.objs[dest_object].inputs[output.input_name].set_tag(tag)
                             # else: nothing to do, both the sender and the reciver are remote, some other process will take care of this case
                         else:
                             if local_dest_object:
                                 a_connection['remote'] = False
-                                self.objs[dest_object].inputs[input_attr_name] = InputValue(type = type(oo))
-                                self.objs[dest_object].inputs[input_attr_name].set(oo)
+                                self.objs[dest_object].inputs[output.input_name] = InputValue(type = type(output.ref))
+                                self.objs[dest_object].inputs[output.input_name].set(output.ref)
                             else:
                                 # the sender is local, but the receiver is not
-                                if MPI_DBG: print('Adding remote output to ', output_attr_name, flush=True)
-                                tag, s = computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name)
+                                if MPI_DBG: print('Adding remote output to ', output.output_key, flush=True)
+                                tag, s = computeTag(output.obj_name, dest_object, output.output_key, output.input_name)
                                 if MPI_DBG: print(process_rank, 'Output side, Computed tag (A):', s, tag, flush=True)
-                                self.objs[output_obj_name].addRemoteOutput(output_attr_name, (self.remote_objs_ranks[dest_object], tag, output_delay))
+                                self.objs[output.obj_name].addRemoteOutput(output.output_key, (self.remote_objs_ranks[dest_object], tag, output.delay))
 
-                        a_connection['start'] = output_attr_name.split('.')[0].split('-')[-1]
+                        a_connection['start'] = output.obj_name
                         a_connection['end'] = dest_object
-                        a_connection['start_label'] = input_attr_name
-                        # a_connection['middle_label'] = self.objs[dest_object].inputs[input_attr_name]
-                        a_connection['end_label'] = output_attr_name
+                        a_connection['start_label'] = output.output_key
+                        # a_connection['middle_label'] = self.objs[dest_object].inputs[output.output_key]
+                        #a_connection['end_label'] = output_attr_name
                         self.connections.append(a_connection)
                         #print(process_rank, a_connection)
                     continue
@@ -552,9 +550,9 @@ class Simul():
             if local_dest_object:             
                 if not type(output_name) is list:
                     a_connection = {}
-                    a_connection['start'] = output_name.split('.')[0].split('-')[-1]
+                    a_connection['start'] = self.output_owner(output_name)
                     a_connection['end'] = dest_object
-                    a_connection['start_label'] = output_name.split('.')[-1]
+                    a_connection['start_label'] = self.output_key(output_name)
                     a_connection['middle_label'] = self.objs[dest_object].inputs[input_name]
                     a_connection['end_label'] = self.objs[dest_object].inputs[input_name]
 
@@ -680,7 +678,6 @@ class Simul():
                 params[obj_name][param_name] = v
                 print(obj_name, param_name, v)
 
-
     def arrangeInGrid(self, trigger_order, trigger_order_idx):
         rows = []
         n_cols = max(trigger_order_idx) + 1                
@@ -717,7 +714,7 @@ class Simul():
         for c in self.connections:
             aconn = d.add_connection(c['start'], c['end'], buffer_fill=Color(1.0,1.0,1.0), buffer_width=1, 
                              exits=[Side.RIGHT], entrances=[Side.LEFT, Side.BOTTOM, Side.TOP])
-            aconn.set_start_label(c['middle_label'],font_weight=FontWeight.BOLD, text_fill=Color(0, 0.5, 0), text_orientation=TextOrientation.HORIZONTAL)
+            #aconn.set_start_label(c['middle_label'],font_weight=FontWeight.BOLD, text_fill=Color(0, 0.5, 0), text_orientation=TextOrientation.HORIZONTAL)
         write_png(d, self.diagram_filename)
         print('Diagram saved.')
 
