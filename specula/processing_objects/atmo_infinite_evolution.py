@@ -55,15 +55,7 @@ class InfinitePhaseScreen(BaseDataObj):
         self.stencil_size_factor = stencil_size_factor
         self.stencil_size = stencil_size_factor * self.mx_size
         if random_seed is not None:
-            if self.xp is np:
-                self.rng = np.random.default_rng(cpuArray(random_seed))
-            else:
-                self.rng = self.xp.random.RandomState(random_seed)
-        else:
-            if self.xp is np:
-                self.rng = np.random.default_rng()
-            else:
-                self.rng = self.xp.random.RandomState()
+            self.rng = self.xp.random.default_rng(random_seed)
         #self.set_stencil_coords_basic()
         self.set_stencil_coords()
         self.setup()
