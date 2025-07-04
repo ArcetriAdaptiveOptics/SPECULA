@@ -450,7 +450,8 @@ class Simul():
                             if local_dest_object:
                                 # remote input case
                                 a_connection['remote'] = True
-                                self.objs[dest_object].inputs[input_attr_name] = InputValue(type = self.remote_objs_types[output_obj_name])
+                                # TODO the remote data object type is not available
+                                self.objs[dest_object].inputs[input_attr_name] = InputValue(type = None)
                                 self.objs[dest_object].inputs[input_attr_name].set_remote_rank(self.remote_objs_ranks[output_obj_name])
                                 tag, s = computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name)
                                 if MPI_DBG: print(process_rank, 'Input side, Computed tag (A):', s, tag, flush=True)
