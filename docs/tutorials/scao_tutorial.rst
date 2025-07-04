@@ -174,7 +174,7 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
       
       # Create M2C object for mode-to-command matrix and save
       m2c_obj = M2C(
-          m2c=m2c,
+          m2c=m2c
       )
       m2c_obj.save('calibration/m2c/tutorial_m2c.fits')
       print("✓ tutorial_m2c.fits (KL modal basis)")
