@@ -155,8 +155,8 @@ prop:
                          'source_ngs1', 'source_ngs2', 'source_ngs3',
                          'source_ref1', 'source_ref2', 'source_ref3']
   inputs:
-    atmo_layer_list: ['atmo.layer_list']
-    common_layer_list: [ 'pupilstop',
+    atmo_layer_list: 'atmo.layer_list'
+    common_layer_list: [ 'pupilstop.out_layer',
                   'dm1.out_layer:-1',
                   'dm2.out_layer:-1',
                   'dm3.out_layer:-1',
