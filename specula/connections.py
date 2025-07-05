@@ -6,7 +6,7 @@ from specula.lib.flatten import flatten
 class _InputItem():
     def __init__(self, type, remote_rank=None, tag=None, optional=False):
         """
-        Wrapper for simple input values
+        Private class, wrapper for simple input values
         """
         self.output_ref_type = type
         self.output_ref = None
@@ -61,7 +61,6 @@ class InputValue():
             return values_list
         else:
             if len(values_list) > 1:
-                print(values_list)
                 raise ValueError('InputValue contains more than one item')
             if len(values_list) == 0:
                 if self.optional:
@@ -83,7 +82,6 @@ class InputValue():
         if not isinstance(item, self.output_ref_type) and remote_rank is None:
             raise ValueError(f'Item must be of type {self.output_ref_type} instead of {type(item)}')
 
-#        print(f'InputValue appending item {item} of type {type(item)} with remote_rank={remote_rank} and tag={tag}')
         self.input_values.append(_InputItem(self.output_ref_type,
                                             remote_rank=remote_rank,
                                             tag=tag,

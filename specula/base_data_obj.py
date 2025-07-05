@@ -68,7 +68,6 @@ class BaseDataObj(BaseTimeObj):
         Destination (CPU or GPU device) is inferred by *destobj.target_device_idx*,
         which must be set correctly before calling this method.
         '''
-
         # Get a list of all attributes, but skip properties
         pp = get_properties(type(self))
         attr_list = [attr for attr in dir(self) if attr not in pp]       

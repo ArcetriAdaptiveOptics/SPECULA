@@ -25,7 +25,6 @@ Output = namedtuple('Output', 'obj_name output_key delay ref input_name')
 def computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name):
     s = output_obj_name + '%' + dest_object + '%' + str(output_attr_name) + '%' + str(input_attr_name)
     rr = int(hashlib.sha256(s.encode('utf-8')).hexdigest(), 16) % 10**6
-    print('Compute tag for', output_obj_name, dest_object, output_attr_name, input_attr_name, '->', rr)
     return rr
 
 

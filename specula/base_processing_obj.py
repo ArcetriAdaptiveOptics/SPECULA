@@ -42,7 +42,6 @@ class BaseProcessingObj(BaseTimeObj):
         if self.target_device_idx >= 0:
             self._target_device.use()
 
-
     # Use the correct CUDA device for allocations in derived classes' prepare_trigger()
     def prepare_trigger(self, t):
         if self.target_device_idx >= 0:
