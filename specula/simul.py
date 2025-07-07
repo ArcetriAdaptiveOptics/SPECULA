@@ -70,10 +70,12 @@ class Simul():
             input_name, output_name = output_name.split('-')
         else:
             input_name = None
-        try:
+
+        if '.' in output_name:
             obj_name, output_key = output_name.split('.')
-        except ValueError:
-            raise ValueError(f'Invalid output name {output_name}, must be in the form "object_name.output_name"')
+        else:
+            obj_name = output_name
+            output_key = None
 
         # Get a reference to the output if possible
         if get_ref:
@@ -82,6 +84,8 @@ class Simul():
                     ref = None
                 else:
                     raise ValueError(f'Object {obj_name} does not exist anywhere')
+            elif output_key is None:
+                ref = self.objs[obj_name]
             elif not output_key in self.objs[obj_name].outputs:
                 raise ValueError(f'Object {obj_name} does not define an output with name {output_key}')
             else:

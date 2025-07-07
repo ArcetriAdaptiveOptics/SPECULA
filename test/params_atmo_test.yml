@@ -58,7 +58,7 @@ prop1:
   source_dict_ref:      ['on_axis_source']
   inputs:
     atmo_layer_list: 'atmo1.layer_list'
-    common_layer_list: ['pupilstop.out_layer']
+    common_layer_list: ['pupilstop']
   outputs: ['out_on_axis_source_ef']
 
 
@@ -93,7 +93,7 @@ prop2:
   source_dict_ref:      ['on_axis_source']
   inputs:
     atmo_layer_list: 'atmo2.layer_list'
-    common_layer_list: ['pupilstop.out_layer']
+    common_layer_list: ['pupilstop']
   outputs: ['out_on_axis_source_ef']
 
 

@@ -45,11 +45,10 @@ class TestAtmoEvolution(unittest.TestCase):
                                                'lgs1_source': lgs1_source},
                                target_device_idx=target_device_idx)
 
-        atmo.inputs['seeing'].set(seeing.output)
-        atmo.inputs['wind_direction'].set(wind_direction.output)
-        atmo.inputs['wind_speed'].set(wind_speed.output)
-        prop.inputs['atmo_layer_list'].set_list(atmo.outputs['layer_list'])
-        prop.inputs['common_layer_list'].set_list([])
+        atmo.inputs['seeing'].append(seeing.output)
+        atmo.inputs['wind_direction'].append(wind_direction.output)
+        atmo.inputs['wind_speed'].append(wind_speed.output)
+        prop.inputs['atmo_layer_list'].append(atmo.outputs['layer_list'])
 
         for obj in [seeing, wind_speed, wind_direction, atmo, prop]:
             obj.setup()
@@ -128,9 +127,9 @@ class TestAtmoEvolution(unittest.TestCase):
                              fov = 120.0,
                              target_device_idx=target_device_idx)
 
-        atmo.inputs['seeing'].set(seeing.output)
-        atmo.inputs['wind_direction'].set(wind_direction.output)
-        atmo.inputs['wind_speed'].set(wind_speed.output)
+        atmo.inputs['seeing'].append(seeing.output)
+        atmo.inputs['wind_direction'].append(wind_direction.output)
+        atmo.inputs['wind_speed'].append(wind_speed.output)
 
         for obj in [seeing, wind_speed, wind_direction, atmo]:
             obj.setup()

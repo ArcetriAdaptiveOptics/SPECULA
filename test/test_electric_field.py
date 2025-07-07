@@ -69,8 +69,8 @@ class TestElectricField(unittest.TestCase):
             target_device_idx=target_device_idx
         )
 
-        ef_combinator.inputs['in_ef1'].set(ef1)
-        ef_combinator.inputs['in_ef2'].set(ef2)
+        ef_combinator.inputs['in_ef1'].append(ef1)
+        ef_combinator.inputs['in_ef2'].append(ef2)
 
         t = 1
         ef1.generation_time = t
