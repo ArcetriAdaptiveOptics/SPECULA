@@ -73,7 +73,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom=False, an
             idx_close = xp.where(distance <= min_distance_norm)[0]
             x_close, y_close, z_close = x[idx_close], y[idx_close], z[idx_close]           
             # Compute the distance grid
-            distance_grid = xp.sqrt((grid_x.flat - x[i]) ** 2 + (grid_y.flat - y[i]) ** 2)
+            distance_grid = xp.sqrt((grid_x.ravel() - x[i]) ** 2 + (grid_y.ravel() - y[i]) ** 2)
             idx_far_grid = xp.where(distance_grid > 0.8*min_distance_norm)[0]
 
         # Convert to NumPy arrays for Rbf interpolation (required)
@@ -93,7 +93,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom=False, an
         z_interp = xp.asarray(z_interp_np)
 
         if idx_far_grid is not None:
-            z_interp.flat[idx_far_grid] = 0
+            z_interp.ravel()[idx_far_grid] = 0
 
         ifs_cube[i, :, :] = z_interp
 

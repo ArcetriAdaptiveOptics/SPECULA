@@ -47,6 +47,7 @@ class CalibManager():
             'Pupilstop': 'pupilstop/',
             'maskef': 'maskef/',
             'TimeHistory': 'data/',
+            'time_hist': 'data/',
             'vibrations': 'vibrations/',
             'data': 'data/',
             'projection': 'popt/'

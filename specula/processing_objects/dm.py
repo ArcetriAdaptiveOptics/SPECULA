@@ -66,7 +66,7 @@ class DM(BaseProcessingObj):
         if start_mode is None:
             start_mode = 0
         if nmodes is None:
-            nmodes = -1
+            nmodes = self._ifunc.size[0]
 
         if idx_modes is not None:
             self._valid_modes = idx_modes

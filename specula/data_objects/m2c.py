@@ -55,8 +55,8 @@ class M2C(BaseDataObj):
         fits.writeto(filename, np.zeros(2), hdr)
         fits.append(filename, cpuArray(self.m2c))
 
-    @classmethod
-    def restore(cls, filename, target_device_idx=None):
+    @staticmethod
+    def restore(filename, target_device_idx=None):
         """Restores the M2C from a file."""
         with fits.open(filename) as hdul:
             hdr = hdul[0].header

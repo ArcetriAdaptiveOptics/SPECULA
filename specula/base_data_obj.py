@@ -106,7 +106,9 @@ class BaseDataObj(BaseTimeObj):
                             warnings.simplefilter("ignore", category=self.PerformanceWarning)
                         dest_attr[:] = self_attr
                 elif DtH:
-                    self_attr.get(out=dest_attr, blocking=True)
+                    # Do not set blocking=True for cupy 12.x compatibility.
+                    # Blocking is True by default in later versions anyway
+                    self_attr.get(out=dest_attr)
                 elif HtD:
                     dest_attr.set(self_attr)
                 elif HtH:
@@ -130,7 +132,9 @@ class BaseDataObj(BaseTimeObj):
                             warnings.simplefilter("ignore", category=self.PerformanceWarning)
                         setattr(destobj, attr, cp.asarray(self_attr))
                 if DtH:
-                    setattr(destobj, attr, self_attr.get(blocking=True))
+                    # Do not set blocking=True for cupy 12.x compatibility.
+                    # Blocking is True by default in later versions anyway
+                    setattr(destobj, attr, self_attr.get())
                 if HtD:
                     setattr(destobj, attr, cp.asarray(self_attr))
                 if HtH:

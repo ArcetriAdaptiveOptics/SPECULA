@@ -224,7 +224,6 @@ class Simul():
                 filename = cm.filename(classname, pars['tag'])
                 print('Restoring:', filename)
                 self.objs[key] = klass.restore(filename, target_device_idx=target_device_idx)
-                self.objs[key].stopMemUsageCount()
                 self.objs[key].printMemUsage()
                 continue
 
@@ -275,7 +274,6 @@ class Simul():
                         filename = cm.filename(parname, value)  # TODO use partype instead of parname?
                         print('Restoring:', filename)
                         parobj = partype.restore(filename, target_device_idx=target_device_idx)
-                        parobj.stopMemUsageCount()
                         parobj.printMemUsage()
 
                         pars2[parname] = parobj
@@ -309,8 +307,6 @@ class Simul():
             except Exception:
                 print(f'Exception building', key)
                 raise
-            if classname != 'SimulParams':
-                self.objs[key].stopMemUsageCount()
 
             self.objs[key].name = key
 

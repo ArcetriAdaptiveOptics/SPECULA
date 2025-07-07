@@ -54,13 +54,13 @@ class Lenslet(BaseDataObj):
         self._lenses = self.xp.load(filename, allow_pickle=True).tolist()
         exten += 1
 
-    @classmethod
-    def restore(cls, filename):
+    @staticmethod
+    def restore(filename):
         """TODO Invalid code. To be updated.
 
         Restores a lenslet object from a file"""
 
-        p = cls()
+        p = Lenslet()
         p.read(filename, hdr={})
         return p
 

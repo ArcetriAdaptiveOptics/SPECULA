@@ -2,13 +2,13 @@ main:
   class:             'SimulParams'
   # ---------------------
   # not used in this example
-  root_dir:          './calib/SCAO'         # Root directory for calibration manager
+  root_dir:          './calib'         # Root directory for calibration manager
   # ---------------------
   # not used in this example
   pixel_pupil:       160                    # Linear dimension of pupil phase array
   pixel_pitch:       0.05                   # [m] Pitch of the pupil phase array
   # ---------------------
-  total_time:        1.000                  # [s] Total simulation running time
+  total_time:        0.0010                  # [s] Total simulation running time
   time_step:         0.0001                 # [s] Simulation time step
 
 disturbance:
@@ -23,6 +23,7 @@ diff:
   inputs:
       in_value1: 'disturbance.output'
       in_value2: 'lowpass.out_comm:-1'
+  outputs: ['out_value']
 
 sampHold:
   class:             'WindowedIntegration'
@@ -49,13 +50,8 @@ lowpass:
   inputs:
       delta_comm: 'control.out_comm'
 
-all_disp:
-  class:            'PlotDisplay'
-  inputs:
-    value_list: ['disturbance.output',
-                 'diff.out_value',
-                 'control.out_comm',
-                 'lowpass.out_comm']
-  window:           11
-  yrange:           [-10,10]
-  title:            'input'
+data_store:
+  class:             'DataStore'
+  store_dir:         './output'             # Data result directory: 'store_dir'/TN/
+  inputs:    
+    input_list: ['diff-diff.out_value']

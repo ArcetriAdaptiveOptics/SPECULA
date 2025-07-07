@@ -387,6 +387,6 @@ class FuncGenerator(BaseProcessingObj):
 #           self.vib.compute()
 #           self.time_hist = self.vib.get_time_hist()
 
-        if self.type in ['SIN', 'LINEAR', 'RANDOM']:
+        if self.type in ['SIN', 'LINEAR']:
             self.build_stream()
 
