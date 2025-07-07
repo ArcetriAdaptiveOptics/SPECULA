@@ -27,14 +27,14 @@ def platescale_coeff(dm_list, start_modes, pixel_pupil, verbose=False):
     n_modes_ps = 3
 
     # Extract influence functions from the first DM
-    aIfunc = dm_list[0]._ifunc.influence_function
+    aIfunc = dm_list[0].ifunc
     # The first DM is the ground DM, so we always skip the tip-tilt modes
-    if hasattr(dm_list[0], 'm2c') and dm_list[0].m2c is not None:
+    if dm_list[0].m2c is not None:
         aIfunc = np.dot(dm_list[0].m2c[2:2+n_modes_ps, :], aIfunc)
     else:
         aIfunc = aIfunc[2:2+n_modes_ps, :]  # Skip tip-tilt modes
 
-    maska = dm_list[0]._ifunc.mask_inf_func
+    maska = dm_list[0].mask
     idxa = np.where(maska)
     smaska = maska.shape
 
@@ -57,13 +57,13 @@ def platescale_coeff(dm_list, start_modes, pixel_pupil, verbose=False):
             else:
                 idx0 = 0
 
-            bIfunc = dm_list[i]._ifunc.influence_function
+            bIfunc = dm_list[i].ifunc
             if hasattr(dm_list[i], 'm2c') and dm_list[i].m2c is not None:
                 bIfunc = np.dot(dm_list[i].m2c[idx0:n_modes_ps+idx0, :], bIfunc)
             else:
                 bIfunc = bIfunc[idx0:n_modes_ps+idx0, :]
 
-            maskb = dm_list[i]._ifunc.mask_inf_func
+            maskb = dm_list[i].mask
             idxb = np.where(maskb)
             smaskb = maskb.shape
 
