@@ -1,3 +1,6 @@
+from functools import wraps
+from inspect import signature
+
 from specula import np, cp, to_xp
 from specula import global_precision, default_target_device, default_target_device_idx, DummyDecoratorAndContextManager
 from specula import cpu_float_dtype_list, gpu_float_dtype_list
@@ -14,7 +17,7 @@ class BaseTimeObj:
         target_device_idx (int, optional): if None will use the default_target_device_idx, otherwise pass -1 for cpu, i for GPU of index i
 
         """
-        self._time_resolution = int(1e9)        
+        self._time_resolution = int(1e9)
         self.gpu_bytes_used = 0
 
         if precision is None:
@@ -91,27 +94,40 @@ class BaseTimeObj:
                 int(fracpart) * (self._time_resolution // (10 ** len(fracpart))))
 
     def startMemUsageCount(self):
-        if self.target_device_idx >= 0:
+        if hasattr(self, 'target_device_idx') and self.target_device_idx >= 0:
             self.gpu_bytes_used_before = cp.get_default_memory_pool().used_bytes()
 
     def stopMemUsageCount(self):
-        if self.target_device_idx >= 0:
+        if hasattr(self, 'target_device_idx') and self.target_device_idx >= 0:
             self.gpu_bytes_used_after = cp.get_default_memory_pool().used_bytes()
             self.gpu_bytes_used += self.gpu_bytes_used_after - self.gpu_bytes_used_before
             self.gpu_bytes_used_before = self.gpu_bytes_used_after
 
     def printMemUsage(self):
-        if self.target_device_idx >= 0:
+        if hasattr(self, 'target_device_idx') and self.target_device_idx >= 0:
             print(f'\tcupy memory used by {self.__class__.__name__}: {self.gpu_bytes_used / (1024*1024)} MB')
 
-    # not used for now
-    def monitorMem(function):
-        def monitorMem_wrapper(*args):
+
+    def monitorMem(f):
+
+        @wraps(f)
+        def monitorMem_wrapper(*args, **kwargs):
             self = args[0]
             self.startMemUsageCount()
-            function(*args)
+            retval = f(*args, **kwargs)
             self.stopMemUsageCount()
+            return retval
+
+        monitorMem_wrapper.__signature__ = signature(f)    # Needed to track type hints in __init__ for object creation
         return monitorMem_wrapper
+
+    def __init_subclass__(cls, /, **kwargs):
+        super().__init_subclass__(**kwargs)
+        methods = ['__init__', 'setup']
+
+        for name, attr in cls.__dict__.items():
+            if name in methods:
+                setattr(cls, name, BaseTimeObj.monitorMem(attr))
 
     def to_xp(self, v, dtype=None, force_copy=False):
         '''

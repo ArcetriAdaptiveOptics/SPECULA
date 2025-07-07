@@ -40,7 +40,7 @@ class BaseProcessingObj(BaseTimeObj):
             self._target_device.use()
 
 
-    def checkInputTimes(self):        
+    def checkInputTimes(self):
         if len(self.inputs)==0:
             return True
         for input_name, input_obj in self.inputs.items():

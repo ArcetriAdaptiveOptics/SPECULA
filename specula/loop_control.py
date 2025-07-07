@@ -56,9 +56,7 @@ class LoopControl(BaseTimeObj):
         for i in sorted(self._trigger_lists.keys()):
             for element in self._trigger_lists[i]:
                 try:
-                    element.startMemUsageCount()
                     element.setup()
-                    element.stopMemUsageCount()
                     element.printMemUsage()
                 except:
                     print('Exception in', element.name)

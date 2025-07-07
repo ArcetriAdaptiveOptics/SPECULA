@@ -1,3 +1,5 @@
+.. _scao_tutorial:
+
 SCAO Tutorial: Complete Walkthrough
 ====================================
 
@@ -60,7 +62,9 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
   from specula.lib.compute_zonal_ifunc import compute_zonal_ifunc
   from specula.lib.modal_base_generator import make_modal_base_from_ifs_fft
   from specula.data_objects.ifunc import IFunc
+  from specula.data_objects.ifunc_inv import IFuncInv
   from specula.data_objects.m2c import M2C
+  from specula import cpuArray
 
   def compute_and_save_influence_functions():
       """
@@ -85,8 +89,8 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
       couplingCoeffs = [0.31, 0.05]  # Nearest and next-nearest neighbor coupling
       
       # Actuator slaving (disable edge actuators outside pupil)
-      doSlaving = False            # Enable slaving
-      slavingThr = 0.1             # Threshold for valid actuators
+      doSlaving = True             # Enable slaving (very simple slaving)
+      slavingThr = 0.1             # Threshold for master actuators
       
       # Modal basis parameters
       r0 = 0.15                    # Fried parameter at 500nm [m]
@@ -134,7 +138,7 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
       # Step 2: Generate modal basis (KL modes)
       print(f"\nGenerating KL modal basis...")
       
-      kl_basis, _, _ = make_modal_base_from_ifs_fft(
+      kl_basis, m2c, singular_values = make_modal_base_from_ifs_fft(
           pupil_mask=pupil_mask,
           diameter=telescope_diameter,
           influence_functions=influence_functions,
@@ -149,14 +153,13 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
       
       print(f"KL basis shape: {kl_basis.shape}")
       print(f"Number of KL modes: {kl_basis.shape[0]}")
-      
-      # Verify RMS normalization (like in test)
-      for i in range(min(5, kl_basis.shape[0])):  # Check first 5 modes
-          rms = float(specula.xp.sqrt(specula.xp.mean(kl_basis[i]**2)))
-          print(f"Mode {i+1} RMS: {rms:.3f}")
-      
+           
+      kl_basis_inv = np.linalg.pinv(kl_basis)
+
       # Step 3: Create output directory
       os.makedirs('calibration', exist_ok=True)
+      os.makedirs('calibration/ifunc', exist_ok=True)
+      os.makedirs('calibration/m2c', exist_ok=True)
       
       # Step 4: Save using SPECULA data objects
       print(f"\nSaving influence functions and modal basis...")
@@ -166,16 +169,25 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
           ifunc=influence_functions,
           mask=pupil_mask
       )
-      ifunc_obj.save('calibration/tutorial_ifunc.fits')
+      ifunc_obj.save('calibration/ifunc/tutorial_ifunc.fits')
       print("✓ tutorial_ifunc.fits (zonal influence functions)")
       
       # Create M2C object for mode-to-command matrix and save
       m2c_obj = M2C(
-          m2c=kl_basis
+          m2c=m2c
       )
-      m2c_obj.save('calibration/tutorial_m2c.fits')
+      m2c_obj.save('calibration/m2c/tutorial_m2c.fits')
       print("✓ tutorial_m2c.fits (KL modal basis)")
       
+      # inverse influence function object for modal analysis
+      print("Saving inverse modal base...")
+      ifunc_inv_obj = IFuncInv(
+          ifunc_inv=kl_basis_inv,
+          mask=pupil_mask
+      )
+      ifunc_inv_obj.save('calibration/ifunc/tutorial_base_inv.fits')
+      print("✓ tutorial_base_inv.fits (inverse modal base)")
+
       # Step 5: Optional visualization
       try:
         import matplotlib.pyplot as plt
@@ -183,13 +195,17 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
         print("\nGenerating visualization...")
 
         plt.figure(figsize=(10, 6))
-        plt.semilogy(singular_values['S1'], 'o-', label='IF Covariance')
-        plt.semilogy(singular_values['S2'], 'o-', label='Turbulence Covariance')
+        plt.semilogy(cpuArray(singular_values['S1']), 'o-', label='IF Covariance')
+        plt.semilogy(cpuArray(singular_values['S2']), 'o-', label='Turbulence Covariance')
         plt.xlabel('Mode number')
         plt.ylabel('Singular value')
         plt.title('Singular values of covariance matrices')
         plt.legend()
         plt.grid(True)
+
+        # move to CPU / numpy for plotting if required
+        kl_basis = cpuArray(kl_basis)
+        pupil_mask = cpuArray(pupil_mask)
 
         # Plot some modes
         max_modes = min(16, kl_basis.shape[0])
@@ -231,12 +247,12 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
       
       try:
           # Test IFunc loading
-          loaded_ifunc = IFunc.restore('calibration/tutorial_ifunc.fits', target_device_idx=specula.current_device_idx)
+          loaded_ifunc = IFunc.restore('calibration/tutorial_ifunc.fits')
           assert loaded_ifunc.influence_function.shape == influence_functions.shape
           print("✓ IFunc loading test passed")
           
           # Test M2C loading  
-          loaded_m2c = M2C.restore('calibration/tutorial_m2c.fits', target_device_idx=specula.current_device_idx)
+          loaded_m2c = M2C.restore('calibration/tutorial_m2c.fits')
           assert loaded_m2c.m2c.shape == kl_basis.shape
           print("✓ M2C loading test passed")
           
@@ -258,30 +274,57 @@ Expected output:
 
 .. code-block:: text
 
-   Computing zonal influence functions...
-   Pupil pixels: 160
-   Actuators: 41x41 = 1681
-   Telescope diameter: 8.2m
-   Central obstruction: 14.0%
+  Computing zonal influence functions...
+  Pupil pixels: 160
+  Actuators: 41x41 = 1681
+  Telescope diameter: 8.2m
+  Central obstruction: 14.0%
+  r0 = 0.15m, L0 = 25.0m
 
-   Results:
-   Valid actuators: 1240/1681 (73.8%)
-   Pupil pixels: 19847/25600 (77.5%)
-   Influence functions shape: (1240, 19847)
-   Memory usage: 98.5 MB
+  Computation completed.
 
-   Saving to calibration/ directory...
-   ✓ influence_functions.fits
-   ✓ pupil_mask.fits
+  Zonal influence functions:
+  Valid actuators: 1141/1681 (67.9%)
+  Pupil pixels: 19716/25600 (77.0%)
+  Influence functions shape: (1141, 19716)
 
-   Influence functions computation completed!
-   Files saved in: /path/to/your/simulation/calibration/
+  Generating KL modal basis...
+  KL basis shape: (1140, 19716)
+  Number of KL modes: 1140
+
+  Saving influence functions and modal basis...
+  ✓ tutorial_ifunc.fits (zonal influence functions)
+  ✓ tutorial_m2c.fits (KL modal basis)
+
+  Saving inverse modal base...
+  ✓ tutorial_base_inv.fits (inverse modal base)
+
+  Generating visualization...
+
+  Influence functions and modal basis computation completed!
+  Files saved in: calibration
+
+  Files created:
+    tutorial_ifunc.fits  - Zonal influence functions (1141 actuators)
+    tutorial_m2c.fits    - KL modal basis (1140 modes)
+
+  Testing file loading...
+  ✓ IFunc loading test passed
+  ✓ M2C loading test passed
+
+.. image:: /_static/tutorial/singular_values.png
+   :width: 100%
+   :align: center
+
+.. image:: /_static/tutorial/DM_shapes.png
+   :width: 100%
+   :align: center
 
 **What this does:**
 
 1. **Defines the actuator geometry**: A 41×41 grid with a circular layout, optimized for round telescope pupils with a 14% obstruction, which removes the central actuators.
 
-3. **Computes influence functions**: Each of the 1240 valid actuators produces a unique pattern of phase change across the ~19,000 pupil pixels
+3. **Computes influence functions**: Each of the 1141 valid actuators produces a unique pattern of phase change across the ~19,000 pupil pixels
 
 4. **Saves calibration data**: Files are saved in FITS format for use by the main simulation
 
@@ -295,11 +338,11 @@ This pre-computation step is essential because:
 The generated files will be automatically loaded by the DM configuration in the next steps.
 
 Prepare the simulation parameters
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Now that we have computed the influence functions, we need to create the main simulation configuration file that uses them. We'll create a YAML parameter file inspired by the ERIS NGS configuration.
 
-Create ``config/scao_tutorial.yaml``:
+Create ``config/scao_tutorial.yml``:
 
 .. code-block:: yaml
 
@@ -337,14 +380,15 @@ Create ``config/scao_tutorial.yaml``:
    # Science target (on-axis)
    source_science:
      class:             'Source'
-     polar_coordinates: [0.0, 0.0]           # [arcsec, deg] On-axis target
+     polar_coordinates: [0.0, 0.0]            # [arcsec, deg] On-axis target
+     height:            .inf                  # Infinite height (star)
      magnitude:         10.0                  # H-band magnitude
      wavelengthInNm:    1650                  # [nm] H-band center
    
    # Natural guide star for WFS
    source_ngs:
      class:             'Source'
-     polar_coordinates: [0.0, 0.0]           # [arcsec, deg] On-axis NGS
+     polar_coordinates: [0.0, 0.0]            # [arcsec, deg] On-axis NGS
      height:            .inf                  # Infinite height (star)
      magnitude:         8.0                   # R-band magnitude (bright NGS)
      wavelengthInNm:    800                   # [nm] R-band for WFS
@@ -385,9 +429,9 @@ Create ``config/scao_tutorial.yaml``:
    sh:
      class:             'SH'
      subap_on_diameter: 40                    # 40x40 subapertures across pupil
-     subap_wanted_fov:  3.0                   # [arcsec] Subaperture field of view
-     sensor_pxscale:    0.5                   # [arcsec/pixel] Pixel scale
-     subap_npx:         8                     # 8x8 pixels per subaperture
+     subap_wanted_fov:  2.4                   # [arcsec] Subaperture field of view
+     sensor_pxscale:    0.4                   # [arcsec/pixel] Pixel scale
+     subap_npx:         6                     # 8x8 pixels per subaperture
      wavelengthInNm:    800                   # [nm] R-band sensing
      inputs:
        in_ef:           'prop.out_source_ngs_ef'
@@ -397,13 +441,15 @@ Create ``config/scao_tutorial.yaml``:
    detector:
      class:             'CCD'
      simul_params_ref:  'main'
-     size:              [320, 320]            # Total detector size (40x40 × 8x8)
+     size:              [240, 240]            # Total detector size (40x40 × 8x8)
      dt:                0.001                 # [s] Integration time (1ms)
      bandw:             400                   # [nm] R+I-band filter width 600-1000nm
      photon_noise:      true                  # Enable photon noise
      readout_noise:     true                  # Enable read noise
-     readout_level:     2.0                   # [e-/pix/frame] Read noise level
-     quantum_eff:       0.8                   # QE × transmission
+     excess_noise:      true                  # Enable excess noise
+     readout_level:     0.2                   # [e-/pix/frame] Read noise level
+     emccd_gain:        400                   # EMCCD gain factor
+     quantum_eff:       0.3                   # QE × transmission
      inputs:
        in_i:            'sh.out_i'
      outputs:           ['out_pixels']
@@ -431,8 +477,8 @@ Create ``config/scao_tutorial.yaml``:
      class:             'Integrator'
      simul_params_ref:  'main'
      delay:             1                     # 1 frame delay (realistic)
-     gain:              [0.30]
-     n_modes:           [1240]                # Number of modes to control
+     int_gain:          [0.30]
+     n_modes:           [800]                 # Number of modes to control
      inputs:
        delta_comm:      'modalrec.out_modes'
      outputs:           ['out_comm']
@@ -443,7 +489,7 @@ Create ``config/scao_tutorial.yaml``:
      simul_params_ref:  'main'
      ifunc_object:      'tutorial_ifunc'      # Our computed influence functions
      m2c_object:        'tutorial_m2c'        # Modal-to-command matrix
-     nmodes:            1240                  # Number of controlled modes
+     nmodes:            800                   # Number of controlled modes
      height:            0                     # Ground-conjugated DM
      inputs:
        in_command:      'integrator.out_comm'
@@ -452,6 +498,7 @@ Create ``config/scao_tutorial.yaml``:
    # Science PSF computation
    psf:
      class:             'PSF'
+     simul_params_ref:  'main'
      wavelengthInNm:    1650                 # [nm] H-band science
      nd:                4                    # 4× padding for PSF
      start_time:        0.2                  # Start PSF integration after 200ms
@@ -459,35 +506,33 @@ Create ``config/scao_tutorial.yaml``:
        in_ef:           'prop.out_source_science_ef'
      outputs:           ['out_psf', 'out_sr']
 
+   # modal analysis to compute modal residual
+   modal_analysis:
+     class:            'ModalAnalysis'
+     ifunc_inv_object: 'tutorial_base_inv'   # Our computed ininverse modal base
+     inputs:
+       in_ef: 'prop.out_source_science_ef'
+     outputs: ['out_modes']
+   
+   # Data store for results 
+   data_store:
+     class:             'DataStore'
+     store_dir:         './output'            # Data result directory: 'store_dir'/TN/
+     inputs:    
+       input_list: ['comm-integrator.out_comm','sr-psf.out_sr','res-modal_analysis.out_modes']
+
 **What we've created:**
 
-1. **Main configuration file** (``scao_tutorial.yaml``) that defines the complete AO system
+1. **Main configuration file** (``scao_tutorial.yml``) that defines the complete AO system
 
 The configuration is now ready to run the calibration step!
+
+Note that the :class:`specula.processing_objects.data_store.DataStore` object can be configured to save more data, such as the slopes, the detector pixels, the PSF, etc.
 
 Part 2: Running the Simulation
 ------------------------------
 
-The basic way to run the simulation is to use the Simul class directly:
-
-.. code-block:: python
-
-    import specula
-    specula.init(target_device_idx, precision=1)
-
-    print(args)    
-    from specula.simul import Simul
-    simul = Simul(yml_file,
-                  overrides=args.overrides,
-                  diagram=args.diagram,
-                  diagram_filename=args.diagram_filename,
-                  diagram_title=args.diagram_title,
-    )
-    simul.run()
-
-where target_device_idx is the GPU device number (or -1 for CPU), and yml_file is the path to your configuration file.
-
-This is embedded in the main simulation script ``main_simul.py`` that can be found in the ``main/scao`` directory.
+See the :ref:`running_simulations` section for details on how to run the simulation.
 
 Calibration Phase
 ~~~~~~~~~~~~~~~~~
@@ -511,13 +556,13 @@ Create ``calib_subaps.yml`` to measure the subaperture geometry:
      class: 'ShSubapCalibrator'
      subap_on_diameter: 40                   # 40×40 subapertures
      output_tag:        'tutorial_subaps'    # Output file tag
-     energy_th:         0.25                 # 25% energy threshold
+     energy_th:         0.5                  # 50% energy threshold
      inputs:
        in_i: 'sh.out_i'                     # WFS intensity input
    
    # Short calibration run
    main_override:
-     total_time: 0.010                       # 10ms (just measure pupil)
+     total_time: 0.001                       # 0ms (just measure pupil)
    
    # Clean pupil measurement (no atmosphere)
    prop_override:
@@ -525,15 +570,15 @@ Create ``calib_subaps.yml`` to measure the subaperture geometry:
        common_layer_list: ['pupilstop']      # Only telescope pupil
    
    # Remove unnecessary objects
-   remove: ['atmo', 'dm', 'slopec', 'modalrec', 'integrator', 'psf']
+   remove: ['atmo', 'dm', 'slopec', 'modalrec', 'integrator', 'psf', 'modal_analysis', 'data_store']
 
 Run the subaperture calibration:
 
 .. code-block:: bash
 
-   python main_simul.py config/scao_tutorial.yaml calib_subaps.yml
+   python main_simul.py config/scao_tutorial.yml calib_subaps.yml
 
-This step identifies approximately 1247 valid subapertures out of the 1600 total (40×40 grid), excluding those outside the pupil or with insufficient illumination.
+This step identifies approximately 1200 valid subapertures out of the 1600 total (40×40 grid), excluding those outside the pupil or with insufficient illumination.
 
 Push-Pull Amplitude Preparation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -542,6 +587,7 @@ The interaction matrix calibration requires amplitude values for each actuator p
 
 .. code-block:: python
 
+  import os
   import numpy as np
   from astropy.io import fits
 
@@ -596,9 +642,9 @@ The interaction matrix calibration requires amplitude values for each actuator p
 
   def main():
       # Create scaled amplitudes for all valid actuators
-      n_actuators = 1240  # Number of valid actuators (from influence functions)
-      base_amplitude = 50e-9  # 50nm in meters
-      
+      n_actuators = 1140  # Number of valid actuators (from influence functions)
+      base_amplitude = 50  # 50nm
+  
       print(f"Creating scaled amplitude vector for {n_actuators} actuators")
       print(f"Base amplitude: {base_amplitude:.1f} nm")
       print("")
@@ -617,13 +663,14 @@ The interaction matrix calibration requires amplitude values for each actuator p
       print(f"Last 10 amplitudes [nm]:  {amplitudes[-10:]}")
       
       # Save amplitude vector
-      output_file = 'calibration/pushpull_1240modes_amp50.fits'
+      os.makedirs('calibration/data', exist_ok=True)
+      output_file = 'calibration/data/pushpull_1140modes_amp50.fits'
       fits.writeto(output_file, amplitudes, overwrite=True)
       print(f"\n✓ Saved scaled amplitude vector: {output_file}")
       
       # Create comparison with uniform amplitudes
       uniform_amplitudes = np.full(n_actuators, base_amplitude)
-      uniform_file = 'calibration/pushpull_1240modes_amp50_uniform.fits'
+      uniform_file = 'calibration/data/pushpull_1140modes_amp50_uniform.fits'
       fits.writeto(uniform_file, uniform_amplitudes, overwrite=True)
       print(f"✓ Saved uniform amplitude vector: {uniform_file}")
       
@@ -656,16 +703,16 @@ Create ``calib_im_rec.yml``:
    pushpull:
      class:     'FuncGenerator'
      func_type: 'PUSHPULL'
-     nmodes:    1240                         # Number of DM actuators
-     vect_amplitude_data: 'pushpull_1240modes_amp50'  # Amplitude vector
+     nmodes:    1140                         # Number of DM actuators
+     vect_amplitude_data: 'pushpull_1140modes_amp50'  # Amplitude vector
      outputs:   ['output']
    
    # Interaction matrix calibrator
    im_calibrator:
      class:     'ImCalibrator'
-     nmodes:    1240                         # Number of modes to calibrate
+     nmodes:    1140                         # Number of modes to calibrate
      im_tag:    'tutorial_im'                # Output IM filename
-     data_dir:  './calibration'              # Output directory
+     data_dir:  './calibration/im'              # Output directory
      overwrite: true                         # Overwrite existing files
      inputs:
        in_slopes:   'slopec.out_slopes'      # WFS slopes input
@@ -674,24 +721,27 @@ Create ``calib_im_rec.yml``:
    # Reconstructor calibrator
    rec_calibrator:
      class:     'RecCalibrator'
-     nmodes:    1240                         # Number of modes
+     nmodes:    800                          # Number of modes (reduced to keep noise propagation low and avoid numerical issues)
      rec_tag:   'tutorial_rec'               # Output REC filename
-     data_dir:  './calibration'              # Output directory
+     data_dir:  './calibration/rec'              # Output directory
      overwrite: true                         # Overwrite existing files
      inputs:
        in_intmat:   'im_calibrator.out_intmat'  # Connect to IM output
    
    # Override main simulation parameters
    main_override:
-     total_time: 4.96                        # 1240 modes × 2 (push+pull) × 0.002s
+     total_time: 2.28                        # 1140 modes × 2 (push+pull) × 0.001s
    
    # Disable atmosphere for clean calibration
    prop_override:
+     source_dict_ref:   ['source_ngs']
      inputs:
        common_layer_list: ['pupilstop', 'dm.out_layer']  # Only pupil + DM
-   
+     outputs:           ['out_source_ngs_ef']
+
    # Override DM to use calibration commands
    dm_override:
+     sign: 1                                 # Use positive sign for calibration (default is -1)
      inputs:
        in_command: 'pushpull.output'         # Connect to push-pull generator
    
@@ -699,15 +749,16 @@ Create ``calib_im_rec.yml``:
    detector_override:
      photon_noise:   false                   # No photon noise
      readout_noise:  false                   # No read noise
+     excess_noise:   false                   # No excess noise
    
    # Remove unnecessary objects during calibration
-   remove: ['atmo', 'source_science', 'psf', 'modalrec', 'integrator']
+   remove: ['atmo', 'source_science', 'psf', 'modalrec', 'integrator', 'modal_analysis', 'data_store']
 
 Run the interaction matrix calibration:
 
 .. code-block:: bash
 
-   python main_simul.py config/scao_tutorial.yaml calib_im_rec.yml
+   python main_simul.py config/scao_tutorial.yml calib_im_rec.yml
 
 **What happens during calibration:**
 
@@ -725,15 +776,103 @@ Now run the full closed-loop simulation:
 
 .. code-block:: bash
 
-   python main_simul.py config/scao_tutorial.yaml
+   python main_simul.py config/scao_tutorial.yml
 
-TODO write that SR is printed during the simulation.
+SR is printed during the simulation at each iteration while time and iterations per seconds are displayed every 10 iterations.
 
 Part 3: Results Analysis
 ------------------------
 
-TODO: Analyze the results.
+After running the closed-loop simulation, you can analyze the results using the following script.  
+This script automatically finds the most recent output directory, loads all `.fits` and `.pickle` files, and plots the Strehl Ratio and RMS of turbulence, residuals, and commands.
 
+Create a script ``analyse_data.py``:
+
+.. code-block:: python
+
+   import os
+   import glob
+   import pickle
+   from astropy.io import fits
+   import numpy as np
+   import matplotlib.pyplot as plt
+
+   # Find all directories in ./output starting with '20'
+   dirs = [d for d in glob.glob("./output/20*") if os.path.isdir(d)]
+   if not dirs:
+       raise RuntimeError("No output directories found.")
+   # Select the most recent one (by name, assuming timestamp format)
+   data_dir = sorted(dirs)[-1]
+   print(f"Using data directory: {data_dir}")
+
+   data = {}
+
+   # Load all .fits files in the directory
+   for fname in glob.glob(os.path.join(data_dir, "*.fits")):
+       key = os.path.splitext(os.path.basename(fname))[0]
+       with fits.open(fname) as hdul:
+           arr = hdul[0].data
+       data[key] = arr
+       print('key:', key, 'type:', type(data[key]))
+
+   # Load all .pickle files in the directory
+   for fname in glob.glob(os.path.join(data_dir, "*.pickle")):
+       key = os.path.splitext(os.path.basename(fname))[0]
+       with open(fname, "rb") as f:
+           data[key] = pickle.load(f)
+       print('key:', key, 'type:', type(data[key]))
+
+   # Plot the sr.fits file if present (assumed to be a 1D vector)
+   if "sr" in data:
+       sr = data["sr"]
+       print(f"The average Strehl Ratio after 50 iterations is: {sr[50:].mean():.4f}")
+       plt.figure()
+       plt.plot(sr, marker='o')
+       plt.title("Strehl Ratio (sr.fits)")
+       plt.xlabel("Frame")
+       plt.ylabel("SR")
+       plt.grid(True)
+       plt.show()
+   else:
+       print("sr.fits file not found in the directory.")
+       
+   if "res" in data and "comm" in data:
+       res = data["res"]
+       comm = data["comm"]
+       init = 50
+       turb = res[init:-1, :].copy()
+       turb[:, :comm.shape[1]] += comm[init+1:, :]
+       x = np.arange(turb.shape[1])+1
+       
+       # Plot RMS of residuals, commands and turbulence
+       plt.figure(figsize=(12, 6))
+       plt.plot(x,np.sqrt(np.mean(turb**2, axis=0)), label='Turbulence RMS', marker='o')
+       plt.plot(x,np.sqrt(np.mean(res**2, axis=0)), label='Residuals RMS', marker='o')
+       plt.plot(x[:comm.shape[1]],np.sqrt(np.mean(comm**2, axis=0)), label='Commands RMS', marker='o')
+       plt.title("RMS of Turbulence, Residuals and Commands")
+       plt.xlabel("Mode number")
+       plt.ylabel("RMS")
+       plt.xscale('log')
+       plt.yscale('log')
+       plt.legend()
+       plt.grid(True)
+       plt.show()
+
+Save this script as ``analyse_data.py`` and run it after your simulation to visualize the results.
+
+.. code-block:: bash
+
+   python analyse_data.py
+
+This will display the Strehl Ratio evolution and the RMS of turbulence, residuals, and commands for your simulation.
+
+.. image:: /_static/tutorial/SR.png
+   :width: 100%
+   :align: center
+
+.. image:: /_static/tutorial/modal_plot.png
+   :width: 100%
+   :align: center
 
 Part 4: Parameter Optimization
 ------------------------------
@@ -741,9 +880,122 @@ Part 4: Parameter Optimization
 TODO: Now that you have a working baseline, let's optimize the system performance.
 
 Loop Gain Optimization
-~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
 
-TODO: Test different control gains to find the optimum.
+A common task in AO system optimization is to find the best integrator gain for your controller.  
+Here we show how to automate a **parameter sweep** over the integrator gain, running multiple simulations and analyzing the results.
+
+**Step 1: Generate YAML override files for each gain**
+
+Create a script `generate_gain_overrides.py` to produce N YAML files, each with a different gain value:
+
+.. code-block:: python
+
+    import numpy as np
+    import yaml
+    import os
+
+    # Range of gains to test
+    gains = np.linspace(0.1, 1.0, 10)
+    output_dir = "gain_overrides"
+    os.makedirs(output_dir, exist_ok=True)
+
+    for gain in gains:
+        override = {
+            "control_override": {
+                "int_gain": [float(f"{gain:.2f}")]
+            },
+            "data_store_override": {
+                "store_dir": f"./output/gain_opt/gain_{gain:.2f}/"
+            }
+        }
+        fname = os.path.join(output_dir, f"gain_override_{gain:.2f}.yml")
+        with open(fname, "w") as f:
+            yaml.dump(override, f)
+        print(f"Created {fname}")
+
+**Step 2: Run all simulations**
+
+You can run all simulations in a loop with a shell script or a Python script.  
+Example Python launcher (`run_gain_sweep.py`):
+
+.. code-block:: python
+
+    import os
+    import glob
+
+    base_config = "config/scao_tutorial.yml"
+    override_dir = "gain_overrides"
+    override_files = sorted(glob.glob(os.path.join(override_dir, "gain_override_*.yml")))
+
+    for override in override_files:
+        print(f"Running simulation with {override} ...")
+        os.system(f"python main_simul.py {base_config} {override}")
+
+**Step 3: Analyze the results**
+
+After all simulations are complete, you can plot the average Strehl Ratio as a function of the integrator gain.  
+Each simulation output is stored in a separate directory (e.g., `./output/gain_opt/gain_0.10/`).
+
+Example analysis script (`plot_gain_optimization.py`):
+
+.. code-block:: python
+
+    import os
+    import glob
+    import yaml
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from astropy.io import fits
+
+    output_base = "./output/gain_opt"
+    dirs = sorted(glob.glob(os.path.join(output_base, "gain_*/2*/")))
+
+    gains = []
+    mean_sr = []
+
+    for d in dirs:
+        # Find the YAML file to get the gain value
+        yml_files = glob.glob(os.path.join(d, "*.yml"))
+        gain = None
+        for yml in yml_files:
+            with open(yml, "r") as f:
+                yml_data = yaml.safe_load(f)
+                if "integrator" in yml_data:
+                    gain = float(yml_data["integrator"]["int_gain"][0])
+                    break
+        if gain is None:
+            # Fallback: parse from directory name
+            gain = float(d.split("_")[-1].replace("/", ""))
+        # Load sr.fits
+        sr_file = os.path.join(d, "sr.fits")
+        if os.path.exists(sr_file):
+            with fits.open(sr_file) as hdul:
+                sr = hdul[0].data
+            mean_sr.append(sr[50:].mean())  # Ignore initial transient
+            gains.append(gain)
+            print(f"Gain {gain:.2f}: mean SR = {sr[50:].mean():.4f}")
+        else:
+            print(f"Warning: {sr_file} not found.")
+
+    # Plot
+    plt.figure()
+    plt.plot(gains, mean_sr, marker='o')
+    plt.xlabel("Integrator Gain")
+    plt.ylabel("Mean Strehl Ratio")
+    plt.title("Loop Gain Optimization")
+    plt.grid(True)
+    plt.show()
+
+**Summary**
+
+- You can automate parameter sweeps in SPECULA by generating override YAML files and running batch simulations.
+- The results can be easily analyzed by loading the output files and plotting performance metrics as a function of the parameter of interest.
+
+**Note:**
+- A modal gain optimization can be done comparing the modal residuals across different gains.
+- This approach can be generalized to optimize other parameters (e.g., number of modes, filter cutoff, etc.) by modifying the override YAML files accordingly.
+
 
 Part 5: Advanced Topics
 -----------------------
@@ -751,7 +1003,116 @@ Part 5: Advanced Topics
 Guide Star Magnitude Effects
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-TODO:  Study performance vs. star brightness.
+Another important parameter in AO performance is the brightness of the guide star.  
+Here we show how to automate a **parameter sweep** over the guide star magnitude, running multiple simulations and analyzing the results.
+
+**Step 1: Generate YAML override files for each magnitude**
+
+Create a script `generate_magnitude_overrides.py` to produce N YAML files, each with a different magnitude value:
+
+.. code-block:: python
+
+    import numpy as np
+    import yaml
+    import os
+
+    # Range of magnitudes to test (e.g., from 6 to 12)
+    magnitudes = np.arange(6, 13)
+    output_dir = "magnitude_overrides"
+    os.makedirs(output_dir, exist_ok=True)
+
+    for mag in magnitudes:
+        override = {
+            "source_ngs_override": {
+                "magnitude": float(mag)
+            },
+            "data_store_override": {
+                "store_dir": f"./output/magnitude/mag_{mag}/"
+            }
+        }
+        fname = os.path.join(output_dir, f"magnitude_override_{mag}.yml")
+        with open(fname, "w") as f:
+            yaml.dump(override, f)
+        print(f"Created {fname}")
+
+**Step 2: Run all simulations**
+
+You can run all simulations in a loop with a shell script or a Python script.  
+Example Python launcher (`run_magnitude_sweep.py`):
+
+.. code-block:: python
+
+    import os
+    import glob
+
+    base_config = "config/scao_tutorial.yml"
+    override_dir = "magnitude_overrides"
+    override_files = sorted(glob.glob(os.path.join(override_dir, "magnitude_override_*.yml")))
+
+    for override in override_files:
+        print(f"Running simulation with {override} ...")
+        os.system(f"python main_simul.py {base_config} {override}")
+
+**Step 3: Analyze the results**
+
+After all simulations are complete, you can plot the average Strehl Ratio as a function of the guide star magnitude.  
+Each simulation output is stored in a separate directory (e.g., `./output/magnitude/mag_6/`).
+
+Example analysis script (`plot_magnitude_effects.py`):
+
+.. code-block:: python
+
+    import os
+    import glob
+    import yaml
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from astropy.io import fits
+
+    output_base = "./output/magnitude"
+    dirs = sorted(glob.glob(os.path.join(output_base, "mag_*/")))
+
+    magnitudes = []
+    mean_sr = []
+
+    for d in dirs:
+        # Find the YAML file to get the magnitude value
+        yml_files = glob.glob(os.path.join("magnitude_overrides", "*.yml"))
+        mag = None
+        for yml in yml_files:
+            if f"mag_{os.path.basename(d).strip('/')[-2:]}" in yml:
+                with open(yml, "r") as f:
+                    yml_data = yaml.safe_load(f)
+                    mag = float(yml_data["source_ngs_override"]["magnitude"])
+                break
+        if mag is None:
+            # Fallback: parse from directory name
+            mag = float(d.split("_")[-1].replace("/", ""))
+        # Load sr.fits
+        sr_file = os.path.join(d, "sr.fits")
+        if os.path.exists(sr_file):
+            with fits.open(sr_file) as hdul:
+                sr = hdul[0].data
+            mean_sr.append(sr[50:].mean())  # Ignore initial transient
+            magnitudes.append(mag)
+            print(f"Magnitude {mag:.1f}: mean SR = {sr[50:].mean():.4f}")
+        else:
+            print(f"Warning: {sr_file} not found.")
+
+    # Plot
+    plt.figure()
+    plt.plot(magnitudes, mean_sr, marker='o')
+    plt.xlabel("Guide Star Magnitude")
+    plt.ylabel("Mean Strehl Ratio")
+    plt.title("SR vs Guide Star Magnitude")
+    plt.gca().invert_xaxis()  # Brighter stars (lower mag) on the left
+    plt.grid(True)
+    plt.show()
+
+**Summary**
+
+- You can automate magnitude sweeps in SPECULA by generating override YAML files and running batch simulations.
+- The results can be easily analyzed by loading the output files and plotting performance metrics as a function of guide star magnitude.
 
 Troubleshooting Common Issues
 -----------------------------
@@ -759,7 +1120,7 @@ Troubleshooting Common Issues
 TODO
 
 Computational Issues
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 TODO
 
@@ -787,4 +1148,5 @@ TODO:
 
 .. seealso::
    
-   TODO: Add links to relevant documentation sections for further reading
+   - :ref:`field_analyser_tutorial` for post-processing PSF, modal analysis, and phase cubes
+   - TODO: Add links to relevant documentation sections for further reading
