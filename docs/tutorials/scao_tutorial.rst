@@ -89,8 +89,8 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
       couplingCoeffs = [0.31, 0.05]  # Nearest and next-nearest neighbor coupling
       
       # Actuator slaving (disable edge actuators outside pupil)
-      doSlaving = False            # Enable slaving
-      slavingThr = 0.1             # Threshold for valid actuators
+      doSlaving = True             # Enable slaving (very simple slaving)
+      slavingThr = 0.1             # Threshold for master actuators
       
       # Modal basis parameters
       r0 = 0.15                    # Fried parameter at 500nm [m]
@@ -169,14 +169,14 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
           ifunc=influence_functions,
           mask=pupil_mask
       )
-      ifunc_obj.save('calibration/tutorial_ifunc.fits')
+      ifunc_obj.save('calibration/ifunc/tutorial_ifunc.fits')
       print("✓ tutorial_ifunc.fits (zonal influence functions)")
       
       # Create M2C object for mode-to-command matrix and save
       m2c_obj = M2C(
-          m2c=kl_basis
+          m2c=m2c
       )
-      m2c_obj.save('calibration/tutorial_m2c.fits')
+      m2c_obj.save('calibration/m2c/tutorial_m2c.fits')
       print("✓ tutorial_m2c.fits (KL modal basis)")
       
       # inverse influence function object for modal analysis
@@ -587,6 +587,7 @@ The interaction matrix calibration requires amplitude values for each actuator p
 
 .. code-block:: python
 
+  import os
   import numpy as np
   from astropy.io import fits
 
@@ -662,6 +663,7 @@ The interaction matrix calibration requires amplitude values for each actuator p
       print(f"Last 10 amplitudes [nm]:  {amplitudes[-10:]}")
       
       # Save amplitude vector
+      os.makedirs('calibration/data', exist_ok=True)
       output_file = 'calibration/data/pushpull_1140modes_amp50.fits'
       fits.writeto(output_file, amplitudes, overwrite=True)
       print(f"\n✓ Saved scaled amplitude vector: {output_file}")
@@ -880,7 +882,120 @@ TODO: Now that you have a working baseline, let's optimize the system performanc
 Loop Gain Optimization
 ~~~~~~~~~~~~~~~~~~~~~~
 
-TODO: Test different control gains to find the optimum.
+A common task in AO system optimization is to find the best integrator gain for your controller.  
+Here we show how to automate a **parameter sweep** over the integrator gain, running multiple simulations and analyzing the results.
+
+**Step 1: Generate YAML override files for each gain**
+
+Create a script `generate_gain_overrides.py` to produce N YAML files, each with a different gain value:
+
+.. code-block:: python
+
+    import numpy as np
+    import yaml
+    import os
+
+    # Range of gains to test
+    gains = np.linspace(0.1, 1.0, 10)
+    output_dir = "gain_overrides"
+    os.makedirs(output_dir, exist_ok=True)
+
+    for gain in gains:
+        override = {
+            "control_override": {
+                "int_gain": [float(f"{gain:.2f}")]
+            },
+            "data_store_override": {
+                "store_dir": f"./output/gain_opt/gain_{gain:.2f}/"
+            }
+        }
+        fname = os.path.join(output_dir, f"gain_override_{gain:.2f}.yml")
+        with open(fname, "w") as f:
+            yaml.dump(override, f)
+        print(f"Created {fname}")
+
+**Step 2: Run all simulations**
+
+You can run all simulations in a loop with a shell script or a Python script.  
+Example Python launcher (`run_gain_sweep.py`):
+
+.. code-block:: python
+
+    import os
+    import glob
+
+    base_config = "config/scao_tutorial.yml"
+    override_dir = "gain_overrides"
+    override_files = sorted(glob.glob(os.path.join(override_dir, "gain_override_*.yml")))
+
+    for override in override_files:
+        print(f"Running simulation with {override} ...")
+        os.system(f"python main_simul.py {base_config} {override}")
+
+**Step 3: Analyze the results**
+
+After all simulations are complete, you can plot the average Strehl Ratio as a function of the integrator gain.  
+Each simulation output is stored in a separate directory (e.g., `./output/gain_opt/gain_0.10/`).
+
+Example analysis script (`plot_gain_optimization.py`):
+
+.. code-block:: python
+
+    import os
+    import glob
+    import yaml
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from astropy.io import fits
+
+    output_base = "./output/gain_opt"
+    dirs = sorted(glob.glob(os.path.join(output_base, "gain_*/2*/")))
+
+    gains = []
+    mean_sr = []
+
+    for d in dirs:
+        # Find the YAML file to get the gain value
+        yml_files = glob.glob(os.path.join(d, "*.yml"))
+        gain = None
+        for yml in yml_files:
+            with open(yml, "r") as f:
+                yml_data = yaml.safe_load(f)
+                if "integrator" in yml_data:
+                    gain = float(yml_data["integrator"]["int_gain"][0])
+                    break
+        if gain is None:
+            # Fallback: parse from directory name
+            gain = float(d.split("_")[-1].replace("/", ""))
+        # Load sr.fits
+        sr_file = os.path.join(d, "sr.fits")
+        if os.path.exists(sr_file):
+            with fits.open(sr_file) as hdul:
+                sr = hdul[0].data
+            mean_sr.append(sr[50:].mean())  # Ignore initial transient
+            gains.append(gain)
+            print(f"Gain {gain:.2f}: mean SR = {sr[50:].mean():.4f}")
+        else:
+            print(f"Warning: {sr_file} not found.")
+
+    # Plot
+    plt.figure()
+    plt.plot(gains, mean_sr, marker='o')
+    plt.xlabel("Integrator Gain")
+    plt.ylabel("Mean Strehl Ratio")
+    plt.title("Loop Gain Optimization")
+    plt.grid(True)
+    plt.show()
+
+**Summary**
+
+- You can automate parameter sweeps in SPECULA by generating override YAML files and running batch simulations.
+- The results can be easily analyzed by loading the output files and plotting performance metrics as a function of the parameter of interest.
+
+**Note:**
+- A modal gain optimization can be done comparing the modal residuals across different gains.
+- This approach can be generalized to optimize other parameters (e.g., number of modes, filter cutoff, etc.) by modifying the override YAML files accordingly.
+
 
 Part 5: Advanced Topics
 -----------------------
@@ -888,7 +1003,116 @@ Part 5: Advanced Topics
 Guide Star Magnitude Effects
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-TODO:  Study performance vs. star brightness.
+Another important parameter in AO performance is the brightness of the guide star.  
+Here we show how to automate a **parameter sweep** over the guide star magnitude, running multiple simulations and analyzing the results.
+
+**Step 1: Generate YAML override files for each magnitude**
+
+Create a script `generate_magnitude_overrides.py` to produce N YAML files, each with a different magnitude value:
+
+.. code-block:: python
+
+    import numpy as np
+    import yaml
+    import os
+
+    # Range of magnitudes to test (e.g., from 6 to 12)
+    magnitudes = np.arange(6, 13)
+    output_dir = "magnitude_overrides"
+    os.makedirs(output_dir, exist_ok=True)
+
+    for mag in magnitudes:
+        override = {
+            "source_ngs_override": {
+                "magnitude": float(mag)
+            },
+            "data_store_override": {
+                "store_dir": f"./output/magnitude/mag_{mag}/"
+            }
+        }
+        fname = os.path.join(output_dir, f"magnitude_override_{mag}.yml")
+        with open(fname, "w") as f:
+            yaml.dump(override, f)
+        print(f"Created {fname}")
+
+**Step 2: Run all simulations**
+
+You can run all simulations in a loop with a shell script or a Python script.  
+Example Python launcher (`run_magnitude_sweep.py`):
+
+.. code-block:: python
+
+    import os
+    import glob
+
+    base_config = "config/scao_tutorial.yml"
+    override_dir = "magnitude_overrides"
+    override_files = sorted(glob.glob(os.path.join(override_dir, "magnitude_override_*.yml")))
+
+    for override in override_files:
+        print(f"Running simulation with {override} ...")
+        os.system(f"python main_simul.py {base_config} {override}")
+
+**Step 3: Analyze the results**
+
+After all simulations are complete, you can plot the average Strehl Ratio as a function of the guide star magnitude.  
+Each simulation output is stored in a separate directory (e.g., `./output/magnitude/mag_6/`).
+
+Example analysis script (`plot_magnitude_effects.py`):
+
+.. code-block:: python
+
+    import os
+    import glob
+    import yaml
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from astropy.io import fits
+
+    output_base = "./output/magnitude"
+    dirs = sorted(glob.glob(os.path.join(output_base, "mag_*/")))
+
+    magnitudes = []
+    mean_sr = []
+
+    for d in dirs:
+        # Find the YAML file to get the magnitude value
+        yml_files = glob.glob(os.path.join("magnitude_overrides", "*.yml"))
+        mag = None
+        for yml in yml_files:
+            if f"mag_{os.path.basename(d).strip('/')[-2:]}" in yml:
+                with open(yml, "r") as f:
+                    yml_data = yaml.safe_load(f)
+                    mag = float(yml_data["source_ngs_override"]["magnitude"])
+                break
+        if mag is None:
+            # Fallback: parse from directory name
+            mag = float(d.split("_")[-1].replace("/", ""))
+        # Load sr.fits
+        sr_file = os.path.join(d, "sr.fits")
+        if os.path.exists(sr_file):
+            with fits.open(sr_file) as hdul:
+                sr = hdul[0].data
+            mean_sr.append(sr[50:].mean())  # Ignore initial transient
+            magnitudes.append(mag)
+            print(f"Magnitude {mag:.1f}: mean SR = {sr[50:].mean():.4f}")
+        else:
+            print(f"Warning: {sr_file} not found.")
+
+    # Plot
+    plt.figure()
+    plt.plot(magnitudes, mean_sr, marker='o')
+    plt.xlabel("Guide Star Magnitude")
+    plt.ylabel("Mean Strehl Ratio")
+    plt.title("SR vs Guide Star Magnitude")
+    plt.gca().invert_xaxis()  # Brighter stars (lower mag) on the left
+    plt.grid(True)
+    plt.show()
+
+**Summary**
+
+- You can automate magnitude sweeps in SPECULA by generating override YAML files and running batch simulations.
+- The results can be easily analyzed by loading the output files and plotting performance metrics as a function of guide star magnitude.
 
 Troubleshooting Common Issues
 -----------------------------
@@ -924,4 +1148,5 @@ TODO:
 
 .. seealso::
    
-   TODO: Add links to relevant documentation sections for further reading
+   - :ref:`field_analyser_tutorial` for post-processing PSF, modal analysis, and phase cubes
+   - TODO: Add links to relevant documentation sections for further reading

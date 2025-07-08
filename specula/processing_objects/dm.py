@@ -129,3 +129,6 @@ class DM(BaseProcessingObj):
     def ifunc(self, value):
         self._ifunc.influence_function = value
 
+    @property
+    def mask(self):
+        return self._ifunc.mask_inf_func
