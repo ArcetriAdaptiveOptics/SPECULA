@@ -367,7 +367,7 @@ Create ``config/scao_tutorial.yml``:
    # Atmospheric conditions
    seeing:
      class:             'FuncGenerator'
-     constant:          0.65                  # [arcsec] Good seeing conditions (r0 ≈ 15cm)
+     constant:          0.65                  # [arcsec] Good seeing conditions (r0 about 15cm)
      outputs:           ['output']
    
    wind_speed:
@@ -445,7 +445,7 @@ Create ``config/scao_tutorial.yml``:
    detector:
      class:             'CCD'
      simul_params_ref:  'main'
-     size:              [240, 240]            # Total detector size (40x40 × 8x8)
+     size:              [240, 240]            # Total detector size (40x40 x 8x8)
      dt:                0.001                 # [s] Integration time (1ms)
      bandw:             400                   # [nm] R+I-band filter width 600-1000nm
      photon_noise:      true                  # Enable photon noise
@@ -453,7 +453,7 @@ Create ``config/scao_tutorial.yml``:
      excess_noise:      true                  # Enable excess noise
      readout_level:     0.2                   # [e-/pix/frame] Read noise level
      emccd_gain:        400                   # EMCCD gain factor
-     quantum_eff:       0.3                   # QE × transmission
+     quantum_eff:       0.3                   # QE x transmission
      inputs:
        in_i:            'sh.out_i'
      outputs:           ['out_pixels']
@@ -504,7 +504,7 @@ Create ``config/scao_tutorial.yml``:
      class:             'PSF'
      simul_params_ref:  'main'
      wavelengthInNm:    1650                 # [nm] H-band science
-     nd:                4                    # 4× padding for PSF
+     nd:                4                    # 4x padding for PSF
      start_time:        0.2                  # Start PSF integration after 200ms
      inputs:
        in_ef:           'prop.out_source_science_ef'
