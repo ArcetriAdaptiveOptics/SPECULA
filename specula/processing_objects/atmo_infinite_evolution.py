@@ -42,7 +42,7 @@ class InfinitePhaseScreen(BaseDataObj):
 
     def __init__(self, mx_size, pixel_scale, r0, L0, l0, random_seed=None, stencil_size_factor=1, xp=np, target_device_idx=0, precision=0):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-        
+
         self.random_data_col = None
         self.random_data_row = None
         self.requested_mx_size = int(mx_size)
@@ -53,9 +53,9 @@ class InfinitePhaseScreen(BaseDataObj):
         self.l0 = l0
         self.xp = xp
         self.stencil_size_factor = stencil_size_factor
-        self.stencil_size = stencil_size_factor * self.mx_size        
+        self.stencil_size = stencil_size_factor * self.mx_size
         if random_seed is not None:
-            self.xp.random.seed(cpuArray(random_seed))
+            self.rng = self.xp.random.default_rng(random_seed)
         #self.set_stencil_coords_basic()
         self.set_stencil_coords()
         self.setup()
@@ -74,7 +74,7 @@ class InfinitePhaseScreen(BaseDataObj):
 #        B2 = ((24. / 5) * gamma(6. / 5)) ** (5. / 6)
 #        C = (((2 * self.xp.pi * r) / L0) ** (5. / 6)) * kv(5. / 6, (2 * self.xp.pi * r) / L0)
 #        cov = A * B1 * B2 * C / 2
-        
+
         cov = self.xp.asarray(cov)
 
         return cov
@@ -157,20 +157,20 @@ class InfinitePhaseScreen(BaseDataObj):
         tmp, _, _ = ft_phase_screen0( turbolenceFormulas, self.r0, self.stencil_size, self.pixel_scale, self.L0)
         self.full_scrn = self.xp.asarray(tmp) / 2
         self.full_scrn -= self.xp.mean(self.full_scrn)
-        # print(self.full_scrn.shape)  
+        # print(self.full_scrn.shape)
 
     def prepare_random_data_col(self):
         if self.random_data_col is None:
 #            print('generating new random data col')
-            self.random_data_col = self.xp.random.normal(size=self.stencil_size)            
+            self.random_data_col = self.rng.normal(size=self.stencil_size)
         else:
             pass
 #            print('using old random data col')
 
     def prepare_random_data_row(self):
         if self.random_data_row is None:
-#            print('generating new random data row')            
-            self.random_data_row = self.xp.random.normal(size=self.stencil_size)
+#            print('generating new random data row')
+            self.random_data_row = self.rng.normal(size=self.stencil_size)
         else:
             pass
 #            print('using old random data row')
@@ -241,9 +241,9 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
                  precision: int=None):
 
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-        
+
         self.simul_params = simul_params
-       
+
         self.pixel_pupil = self.simul_params.pixel_pupil
         self.pixel_pitch = self.simul_params.pixel_pitch
 
@@ -258,14 +258,14 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         self.wind_direction = 1
         self.airmass = 1
         self.ref_wavelengthInNm = 500
-        
+
         self.inputs['seeing'] = InputValue(type=BaseValue)
         self.inputs['wind_speed'] = InputValue(type=BaseValue)
         self.inputs['wind_direction'] = InputValue(type=BaseValue)
 
         if pupil_position is None:
             pupil_position = [0, 0]
-        
+
         if zenithAngleInDeg is not None:
             self.airmass = 1.0 / np.cos(np.radians(zenithAngleInDeg), dtype=self.dtype)
             print(f'Atmo_Evolution: zenith angle is defined as: {zenithAngleInDeg} deg')
@@ -275,7 +275,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         self.heights = np.array(heights, dtype=self.dtype) * self.airmass
 
         alpha_fov = fov / 2.0
-        
+
         # Max star angle from arcseconds to radians
         rad_alpha_fov = alpha_fov * ASEC2RAD
 
@@ -284,31 +284,31 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
                                2.0 * abs(self.heights) / self.pixel_pitch * rad_alpha_fov) / 2.0) * 2.0
         if fov_in_m is not None:
             self.pixel_layer_size = np.full_like(self.heights, int(fov_in_m / self.pixel_pitch / 2.0) * 2)
-        
+
         self.L0 = L0
-        
+
         if np.isscalar(self.L0):
             self.L0 = [self.L0] * len(self.heights)
         elif len(self.L0) != len(self.heights):
             raise ValueError(f"L0 must have the same length as heights ({len(self.heights)}), got {len(self.L0)}")
-        
-        self.Cn2 = np.array(Cn2, dtype=self.dtype)        
+
+        self.Cn2 = np.array(Cn2, dtype=self.dtype)
         self.wind_speed = None
         self.wind_direction = None
 
         self.verbose = verbose if verbose is not None else False
-        
+
         # Initialize layer list with correct heights
         self.layer_list = []
         for i in range(self.n_infinite_phasescreens):
             layer = Layer(self.pixel_layer_size[i], self.pixel_layer_size[i], self.pixel_pitch, self.heights[i], precision=self.precision, target_device_idx=self.target_device_idx)
             self.layer_list.append(layer)
         self.outputs['layer_list'] = self.layer_list
-        
+
         self.initScreens(seed)
 
         self.last_position = np.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
-        
+
         if not np.isclose(np.sum(self.Cn2), 1.0, atol=1e-6):
             raise ValueError(f' Cn2 total must be 1. Instead is: {np.sum(self.Cn2)}.')
 
@@ -329,17 +329,17 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         for i in range(self.n_infinite_phasescreens):
             print('Creating phase screen..')
             self.ref_r0 = 0.9759 * 0.5 / (self.seeing * 4.848) * self.airmass**(-3./5.) # if seeing > 0 else 0.0
-#            self.ref_r0 *= (self.ref_wavelengthInNm / 500.0 / ((2*np.pi)))**(6./5.) 
-            self.ref_r0 *= (self.ref_wavelengthInNm / 500.0 )**(6./5.) 
+#            self.ref_r0 *= (self.ref_wavelengthInNm / 500.0 / ((2*np.pi)))**(6./5.)
+            self.ref_r0 *= (self.ref_wavelengthInNm / 500.0 )**(6./5.)
             print('self.ref_r0:', self.ref_r0)
-            temp_infinite_screen = InfinitePhaseScreen(self.pixel_layer_size[i], 
-                                                       self.pixel_pitch, 
+            temp_infinite_screen = InfinitePhaseScreen(self.pixel_layer_size[i],
+                                                       self.pixel_pitch,
                                                        self.ref_r0,
-                                                       self.L0[i], 
-                                                       self.l0, 
-                                                       random_seed=seed[i], 
-                                                       xp=self.xp, 
-                                                       target_device_idx=self.target_device_idx, 
+                                                       self.L0[i],
+                                                       self.l0,
+                                                       random_seed=seed[i],
+                                                       xp=self.xp,
+                                                       target_device_idx=self.target_device_idx,
                                                        precision=self.precision )
             self.infinite_phasescreens.append(temp_infinite_screen)
 
@@ -347,7 +347,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
         self.delta_time = self.t_to_seconds(self.current_time - self.last_t)
-    
+
     @show_in_profiler('atmo_evolution.trigger_code')
     def trigger_code(self):
         seeing = float(cpuArray(self.local_inputs['seeing'].value))
@@ -355,8 +355,8 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         wind_direction = cpuArray(self.local_inputs['wind_direction'].value)
 
         r0 = 0.9759 * 0.5 / (seeing * 4.848) * self.airmass**(-3./5.)
-        r0 *= (self.ref_wavelengthInNm / 500)**(6./5.)        
-        scale_r0 = (self.ref_r0 / r0)**(5./6.) 
+        r0 *= (self.ref_wavelengthInNm / 500)**(6./5.)
+        scale_r0 = (self.ref_r0 / r0)**(5./6.)
 
         scale_wvl = ( self.ref_wavelengthInNm / (2 * np.pi) )
         scale_coeff = scale_wvl
@@ -365,7 +365,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
 #        print('scale_coeff', scale_coeff)
 
         ascreen = scale_coeff * self.infinite_phasescreens[0].scrn
-        
+
         # Compute the delta position in pixels
         delta_position =  wind_speed * self.delta_time / self.pixel_pitch  # [pixel]
         new_position = self.last_position + delta_position
@@ -374,13 +374,13 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         for ii, phaseScreen in enumerate(self.infinite_phasescreens):
             w_y_comp = np.cos(2*np.pi*(wind_direction[ii])/360.0)
             w_x_comp = np.sin(2*np.pi*(wind_direction[ii])/360.0)
-            frac_rows, rows_to_add = np.modf( delta_position[ii] * w_y_comp + self.acc_rows[ii])            
+            frac_rows, rows_to_add = np.modf( delta_position[ii] * w_y_comp + self.acc_rows[ii])
             #sr = int( (np.sign(rows_to_add) + 1) / 2 )
             sr = int(np.sign(rows_to_add) )
             frac_cols, cols_to_add = np.modf( delta_position[ii] * w_x_comp + self.acc_cols[ii] )
             #sc = int( (-np.sign(cols_to_add) + 1) / 2 )
             sc = int(np.sign(cols_to_add) )
-            # print('rows_to_add, cols_to_add', rows_to_add, cols_to_add)            
+            # print('rows_to_add, cols_to_add', rows_to_add, cols_to_add)
             if np.abs(w_y_comp)>eps:
                 for r in range(int(np.abs(rows_to_add))):
                     phaseScreen.add_line(1, sr)
@@ -409,7 +409,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
             self.layer_list[ii].generation_time = self.current_time
         self.last_position = new_position
         self.last_t = self.current_time
-        
+
     def save(self, filename):
         hdr = fits.Header()
         hdr['VERSION'] = 1
@@ -429,6 +429,3 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
 
     def set_last_t(self, last_t):
         self.last_t = last_t
-
-
-
