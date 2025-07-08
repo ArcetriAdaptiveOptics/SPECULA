@@ -37,7 +37,7 @@ atmo:
   class:                'AtmoRandomPhase'
   simul_params_ref:  'main'
   L0:                   40                   # [m] Outer scale
-  fov:                  0.0
+  source_dict_ref:      ['on_axis_source']
   inputs:
     seeing: 'seeing.output'
     pupilstop: 'pupilstop'
@@ -45,7 +45,10 @@ atmo:
 
 modal_analysis:
   class:             'ModalAnalysis'
-  ifunc_object:         'KLmatrix_KL_v10'
+  type_str: zernike
+  nmodes: 250
+  npixels: 120
+  obsratio: 0.0
   inputs:
     in_ef: 'atmo.out_on_axis_source_ef'
   outputs: ['out_modes']
@@ -64,7 +67,8 @@ pyramid:
   outputs:  ['out_i']
 
 detector:
-  class:             'CCD'  
+  class:             'CCD'
+  simul_params_ref:  'main'
   size:              [120,120]                 # Detector size in pixels
   dt:                0.001                   # [s] Detector integration time
   bandw:             300                     # [nm] Sensor bandwidth
@@ -78,8 +82,8 @@ detector:
 
 slopec:
   class:             'PyrSlopec'
-  pupdata_object:    'soul_pup'            # tag of the pyramid WFS pupils
-  sn_object:         'scao_sn'             # tag of the slope reference vector
+  pupdata_object:    'scao_40x40_pupdata'            # tag of the pyramid WFS pupils
+  use_sn:            False
   inputs:
     in_pixels:        'detector.out_pixels'
   outputs:  ['out_slopes', 'out_pupdata', 'total_counts', 'subap_counts']
