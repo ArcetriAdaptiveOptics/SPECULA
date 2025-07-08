@@ -73,7 +73,7 @@ class TestShSlopec(unittest.TestCase):
         # Flat wavefront
         ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx)
         ef.generation_time = t
-        sh.inputs['in_ef'].append(ef)
+        sh.inputs['in_ef'].set(ef)
         sh.setup()
         sh.check_ready(t)
         sh.trigger()
@@ -100,7 +100,7 @@ class TestShSlopec(unittest.TestCase):
         # Create the slope computer object
         subapdata = SubapData(idxs=v, display_map=m, nx=subap_on_diameter, ny=subap_on_diameter, target_device_idx=target_device_idx)
         slopec = ShSlopec(subapdata, target_device_idx=target_device_idx)
-        slopec.inputs['in_pixels'].append(pixels)
+        slopec.inputs['in_pixels'].set(pixels)
         slopec.check_ready(t+1)
         slopec.trigger()
         slopec.post_trigger()

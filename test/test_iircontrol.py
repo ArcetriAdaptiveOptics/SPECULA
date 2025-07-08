@@ -69,8 +69,8 @@ class TestIirFilter(unittest.TestCase):
                                 target_device_idx=target_device_idx)
 
         # Connect inputs
-        integrator.inputs['delta_comm'].append(constant_input)
-        integrator.inputs['gain_mod'].append(gain_mod_generator.outputs['output'])
+        integrator.inputs['delta_comm'].set(constant_input)
+        integrator.inputs['gain_mod'].set(gain_mod_generator.outputs['output'])
 
         # Setup objects
         gain_mod_generator.setup()

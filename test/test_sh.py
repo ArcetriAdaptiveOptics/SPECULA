@@ -31,7 +31,7 @@ class TestSH(unittest.TestCase):
         ef = ElectricField(120,120,0.05, S0=ref_S0, target_device_idx=target_device_idx)
         ef.generation_time = t
 
-        sh.inputs['in_ef'].append(ef)
+        sh.inputs['in_ef'].set(ef)
 
         sh.setup()
         sh.check_ready(t)
@@ -65,7 +65,7 @@ class TestSH(unittest.TestCase):
         # Flat wavefront
         ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx)
         ef.generation_time = t
-        sh.inputs['in_ef'].append(ef)
+        sh.inputs['in_ef'].set(ef)
 
         sh.setup()
         sh.check_ready(t)
@@ -136,9 +136,9 @@ class TestSH(unittest.TestCase):
         # Flat wavefront
         ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx)
         ef.generation_time = t
-        sh1.inputs['in_ef'].append(ef)
-        sh2.inputs['in_ef'].append(ef)
-        sh3.inputs['in_ef'].append(ef)
+        sh1.inputs['in_ef'].set(ef)
+        sh2.inputs['in_ef'].set(ef)
+        sh3.inputs['in_ef'].set(ef)
 
         sh1.setup()
         sh2.setup()

@@ -22,7 +22,7 @@ class TestModalrec(unittest.TestCase):
         rec = Modalrec(recmat=recmat, target_device_idx=target_device_idx)
 
         slopes = Slopes(slopes=xp.arange(5), target_device_idx=target_device_idx)
-        rec.inputs['in_slopes'].append(slopes)
+        rec.inputs['in_slopes'].set(slopes)
 
         t = 1
         slopes.generation_time = t
@@ -76,8 +76,8 @@ class TestModalrec(unittest.TestCase):
             in_commands_size=4,
             target_device_idx=target_device_idx
         )
-        rec.inputs['in_slopes'].append(slopes)
-        rec.inputs['in_commands'].append(commands)
+        rec.inputs['in_slopes'].set(slopes)
+        rec.inputs['in_commands'].set(commands)
         rec.setup()
         rec.prepare_trigger(0)
         rec.trigger_code()
@@ -91,8 +91,8 @@ class TestModalrec(unittest.TestCase):
             in_commands_size=4,
             target_device_idx=target_device_idx
         )
-        rec2.inputs['in_slopes'].append(slopes_ip)
-        rec2.inputs['in_commands'].append(commands_ip)
+        rec2.inputs['in_slopes'].set(slopes_ip)
+        rec2.inputs['in_commands'].set(commands_ip)
         rec2.setup()
         rec2.prepare_trigger(0)
         rec2.trigger_code()

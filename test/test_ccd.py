@@ -38,7 +38,7 @@ class TestCCD(unittest.TestCase):
         with self.assertRaises(ValueError):
             ccd.setup()
 
-        ccd.inputs['in_i'].append(i)
+        ccd.inputs['in_i'].set(i)
 
         # Does not raise anymore
         ccd.setup()
@@ -63,7 +63,7 @@ class TestCCD(unittest.TestCase):
         # Set up the input intensity with a known value
         i.i[:] = average_i
         i.generation_time = t
-        ccd.inputs['in_i'].append(i)
+        ccd.inputs['in_i'].set(i)
         ccd.loop_dt = t
         ccd.setup()
         # Execute the trigger method
@@ -105,7 +105,7 @@ class TestCCD(unittest.TestCase):
         # Set up the input intensity with a known value
         i.i[:] = average_i
         i.generation_time = t
-        ccd.inputs['in_i'].append(i)
+        ccd.inputs['in_i'].set(i)
         ccd.loop_dt = t
         ccd.setup()
         # Execute the trigger method

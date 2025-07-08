@@ -38,8 +38,8 @@ class TestImRecCalibrator(unittest.TestCase):
         slopes = Slopes(2)
         cmd = BaseValue(value=2)
         calibrator = ImCalibrator(nmodes=10, data_dir=self.test_dir, im_tag=im_tag)
-        calibrator.inputs['in_slopes'].append(slopes)
-        calibrator.inputs['in_commands'].append(cmd)
+        calibrator.inputs['in_slopes'].set(slopes)
+        calibrator.inputs['in_commands'].set(cmd)
 
         with self.assertRaises(FileExistsError):
             calibrator.setup()
@@ -57,8 +57,8 @@ class TestImRecCalibrator(unittest.TestCase):
         slopes = Slopes(2)
         cmd = BaseValue(value=2)
         calibrator = ImCalibrator(nmodes=10, data_dir=self.test_dir, im_tag=im_tag, overwrite=True)
-        calibrator.inputs['in_slopes'].append(slopes)
-        calibrator.inputs['in_commands'].append(cmd)
+        calibrator.inputs['in_slopes'].set(slopes)
+        calibrator.inputs['in_commands'].set(cmd)
 
         # Should not raise
         calibrator.setup()
@@ -76,7 +76,7 @@ class TestImRecCalibrator(unittest.TestCase):
         # Create mock interaction matrix
         intmat = BaseValue(value=specula.np.array([[1, 2], [3, 4]]))
         rec_calibrator = RecCalibrator(nmodes=2, data_dir=self.test_dir, rec_tag=rec_tag)
-        rec_calibrator.inputs['in_intmat'].append(intmat)
+        rec_calibrator.inputs['in_intmat'].set(intmat)
 
         with self.assertRaises(FileExistsError):
             rec_calibrator.setup()
@@ -89,8 +89,8 @@ class TestImRecCalibrator(unittest.TestCase):
         slopes = Slopes(2, target_device_idx=target_device_idx)
         cmd = BaseValue(value=xp.zeros(2), target_device_idx=target_device_idx)
         calibrator = ImCalibrator(nmodes=10, data_dir=self.test_dir, im_tag=im_tag, overwrite=True)
-        calibrator.inputs['in_slopes'].append(slopes)
-        calibrator.inputs['in_commands'].append(cmd)
+        calibrator.inputs['in_slopes'].set(slopes)
+        calibrator.inputs['in_commands'].set(cmd)
         calibrator.setup()
 
         slopes.generation_time = 1
@@ -140,7 +140,7 @@ class TestImRecCalibrator(unittest.TestCase):
 
         intmat = BaseValue(value=specula.np.array([[1, 2], [3, 4]]))
         calibrator = RecCalibrator(nmodes=2, data_dir=self.test_dir, rec_tag=rec_tag, overwrite=True)
-        calibrator.inputs['in_intmat'].append(intmat)
+        calibrator.inputs['in_intmat'].set(intmat)
 
         # Should not raise
         calibrator.setup()
@@ -160,7 +160,7 @@ class TestImRecCalibrator(unittest.TestCase):
         intmat.generation_time = 1
 
         calibrator = RecCalibrator(nmodes=n_modes, data_dir=self.test_dir, rec_tag=rec_tag, overwrite=True)
-        calibrator.inputs['in_intmat'].append(intmat)
+        calibrator.inputs['in_intmat'].set(intmat)
         calibrator.setup()
 
         # Check ready and trigger

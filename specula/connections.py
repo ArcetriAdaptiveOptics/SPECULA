@@ -69,6 +69,13 @@ class InputValue():
                     raise ValueError('InputValue is empty and not optional')
             return values_list[0]
 
+    def set(self, item, remote_rank=None, tag=None):
+        """
+        Set a single item as the input list
+        """
+        self.input_values = []
+        self.append(item, remote_rank, tag)
+
     def append(self, item, remote_rank=None, tag=None):
         """
         Append an item to the input list, optionally specifying a remote rank and tag.

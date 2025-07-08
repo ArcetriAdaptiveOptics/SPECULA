@@ -21,8 +21,8 @@ class TestBaseOperation(unittest.TestCase):
         value2.generation_time = 1
         
         op = BaseOperation(sum=True, target_device_idx=target_device_idx)
-        op.inputs['in_value1'].append(value1)
-        op.inputs['in_value2'].append(value2)
+        op.inputs['in_value1'].set(value1)
+        op.inputs['in_value2'].set(value2)
         
         op.setup()
         op.check_ready(1)
@@ -41,8 +41,8 @@ class TestBaseOperation(unittest.TestCase):
         value2.generation_time = 1
         
         op = BaseOperation(sub=True, target_device_idx=target_device_idx)
-        op.inputs['in_value1'].append(value1)
-        op.inputs['in_value2'].append(value2)
+        op.inputs['in_value1'].set(value1)
+        op.inputs['in_value2'].set(value2)
         
         op.setup()
         op.check_ready(1)
@@ -61,8 +61,8 @@ class TestBaseOperation(unittest.TestCase):
         value2.generation_time = 1
         
         op = BaseOperation(mul=True, target_device_idx=target_device_idx)
-        op.inputs['in_value1'].append(value1)
-        op.inputs['in_value2'].append(value2)
+        op.inputs['in_value1'].set(value1)
+        op.inputs['in_value2'].set(value2)
         
         op.setup()
         op.check_ready(1)
@@ -81,8 +81,8 @@ class TestBaseOperation(unittest.TestCase):
         value2.generation_time = 1
         
         op = BaseOperation(div=True, target_device_idx=target_device_idx)
-        op.inputs['in_value1'].append(value1)
-        op.inputs['in_value2'].append(value2)
+        op.inputs['in_value1'].set(value1)
+        op.inputs['in_value2'].set(value2)
         
         op.setup()
         op.check_ready(1)
@@ -101,8 +101,8 @@ class TestBaseOperation(unittest.TestCase):
         value2.generation_time = 1
         
         op = BaseOperation(concat=True, target_device_idx=target_device_idx)
-        op.inputs['in_value1'].append(value1)
-        op.inputs['in_value2'].append(value2)
+        op.inputs['in_value1'].set(value1)
+        op.inputs['in_value2'].set(value2)
         
         op.setup()
         op.check_ready(1)
@@ -121,7 +121,7 @@ class TestBaseOperation(unittest.TestCase):
         value1.generation_time = 1
         
         op = BaseOperation(constant_sum=2, target_device_idx=target_device_idx)
-        op.inputs['in_value1'].append(value1)
+        op.inputs['in_value1'].set(value1)
         
         op.setup()
         op.check_ready(1)
@@ -138,7 +138,7 @@ class TestBaseOperation(unittest.TestCase):
         value1.generation_time = 1
         
         op = BaseOperation(constant_sub=2, target_device_idx=target_device_idx)
-        op.inputs['in_value1'].append(value1)
+        op.inputs['in_value1'].set(value1)
         
         op.setup()
         op.check_ready(1)
@@ -155,7 +155,7 @@ class TestBaseOperation(unittest.TestCase):
         value1.generation_time = 1
         
         op = BaseOperation(constant_mul=2, target_device_idx=target_device_idx)
-        op.inputs['in_value1'].append(value1)
+        op.inputs['in_value1'].set(value1)
         
         op.setup()
         op.check_ready(1)
@@ -172,7 +172,7 @@ class TestBaseOperation(unittest.TestCase):
         value1.generation_time = 1
         
         op = BaseOperation(constant_div=2, target_device_idx=target_device_idx)
-        op.inputs['in_value1'].append(value1)
+        op.inputs['in_value1'].set(value1)
         
         op.setup()
         op.check_ready(1)
@@ -198,7 +198,7 @@ class TestBaseOperation(unittest.TestCase):
         ops.append(BaseOperation(concat=True, target_device_idx=target_device_idx))
         
         for op in ops:
-            op.inputs['in_value1'].append(value1)
+            op.inputs['in_value1'].set(value1)
             with self.assertRaises(ValueError):
                 op.setup()
 
@@ -208,7 +208,7 @@ class TestBaseOperation(unittest.TestCase):
         ops.append(BaseOperation(constant_div=True, target_device_idx=target_device_idx))
           
         for op in ops:
-            op.inputs['in_value1'].append(value1)
+            op.inputs['in_value1'].set(value1)
             # Does not raise
             op.setup()  
 
@@ -231,8 +231,8 @@ class TestBaseOperation(unittest.TestCase):
         ops.append(BaseOperation(constant_div=3, target_device_idx=target_device_idx))
         
         for op in ops:
-            op.inputs['in_value1'].append(value1)
-            op.inputs['in_value2'].append(value2)
+            op.inputs['in_value1'].set(value1)
+            op.inputs['in_value2'].set(value2)
             op.setup()
             op.check_ready(1)
             op.prepare_trigger(1)
@@ -247,8 +247,8 @@ class TestBaseOperation(unittest.TestCase):
         
         op = BaseOperation(concat=True, target_device_idx=target_device_idx)
         
-        op.inputs['in_value1'].append(value1)
-        op.inputs['in_value2'].append(value2)
+        op.inputs['in_value1'].set(value1)
+        op.inputs['in_value2'].set(value2)
         op.setup()
         op.check_ready(1)
         op.prepare_trigger(1)
