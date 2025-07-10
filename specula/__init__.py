@@ -190,22 +190,6 @@ def fuse(kernel_name=None):
     return decorator
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--cpu', action='store_true')
-    parser.add_argument('--overrides', type=str)
-    parser.add_argument('--target', type=int, default=0)
-    parser.add_argument('--profile', action='store_true')
-    parser.add_argument('--mpi', action='store_true')
-    parser.add_argument('--mpidbg', action='store_true')
-    parser.add_argument('--diagram', action='store_true', help='Save image block diagram')
-    parser.add_argument('--diagram-title', type=str, default=None, help='Block diagram title')
-    parser.add_argument('--diagram-filename', type=str, default=None, help='Block diagram filename')
-    parser.add_argument('yml_file', nargs='+', type=str, help='YAML parameter files')
-    
-    args = parser.parse_args()
-
-
 def main_simul(yml_files: list,
                cpu: bool=False,
                overrides: str=None,
@@ -244,7 +228,7 @@ def main_simul(yml_files: list,
     else:
         target_device_idx = target
 
-    init(target_device_idx, precision=1, rank=rank, comm=comm, mpi_dbg=mpidbg)
+    init(target_device_idx, precision=1)#, rank=rank, comm=comm, mpi_dbg=mpidbg)
     from specula.simul import Simul
 
     if profile:
