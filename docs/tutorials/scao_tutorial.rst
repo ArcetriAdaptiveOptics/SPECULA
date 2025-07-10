@@ -576,7 +576,7 @@ Run the subaperture calibration:
 
 .. code-block:: bash
 
-   python main_simul.py config/scao_tutorial.yml calib_subaps.yml
+   specula config/scao_tutorial.yml calib_subaps.yml
 
 This step identifies approximately 1200 valid subapertures out of the 1600 total (40×40 grid), excluding those outside the pupil or with insufficient illumination.
 
@@ -758,7 +758,7 @@ Run the interaction matrix calibration:
 
 .. code-block:: bash
 
-   python main_simul.py config/scao_tutorial.yml calib_im_rec.yml
+   specula config/scao_tutorial.yml calib_im_rec.yml
 
 **What happens during calibration:**
 
@@ -776,7 +776,7 @@ Now run the full closed-loop simulation:
 
 .. code-block:: bash
 
-   python main_simul.py config/scao_tutorial.yml
+   specula config/scao_tutorial.yml
 
 SR is printed during the simulation at each iteration while time and iterations per seconds are displayed every 10 iterations.
 
@@ -885,54 +885,32 @@ Loop Gain Optimization
 A common task in AO system optimization is to find the best integrator gain for your controller.  
 Here we show how to automate a **parameter sweep** over the integrator gain, running multiple simulations and analyzing the results.
 
-**Step 1: Generate YAML override files for each gain**
+**Step 1: Run simulations for each gain**
 
-Create a script `generate_gain_overrides.py` to produce N YAML files, each with a different gain value:
+Create a script `gain_overrides.py` to modify the ``scao_tutorial.yml`` file, each time with a different gain value
+and saving the result in a different output directory, using the ``overrides`` feature:
 
 .. code-block:: python
 
+    import specula
     import numpy as np
-    import yaml
-    import os
 
     # Range of gains to test
     gains = np.linspace(0.1, 1.0, 10)
     output_dir = "gain_overrides"
-    os.makedirs(output_dir, exist_ok=True)
+    base_config = "config/scao_tutorial.yml"
 
     for gain in gains:
-        override = {
-            "control_override": {
-                "int_gain": [float(f"{gain:.2f}")]
-            },
-            "data_store_override": {
-                "store_dir": f"./output/gain_opt/gain_{gain:.2f}/"
-            }
-        }
-        fname = os.path.join(output_dir, f"gain_override_{gain:.2f}.yml")
-        with open(fname, "w") as f:
-            yaml.dump(override, f)
-        print(f"Created {fname}")
+        overrides = ("{"
+                    f"integrator.int_gain: [{gain:.2f}], "
+                    f"data_store.store_dir: ./output/gain_opt/gain_{gain:.2f}"
+                    "}")
 
-**Step 2: Run all simulations**
+        specula.main_simul(yml_files=[base_config], overrides=overrides)
 
-You can run all simulations in a loop with a shell script or a Python script.  
-Example Python launcher (`run_gain_sweep.py`):
+Run this file with the command ``python gain_overrides.py``
 
-.. code-block:: python
-
-    import os
-    import glob
-
-    base_config = "config/scao_tutorial.yml"
-    override_dir = "gain_overrides"
-    override_files = sorted(glob.glob(os.path.join(override_dir, "gain_override_*.yml")))
-
-    for override in override_files:
-        print(f"Running simulation with {override} ...")
-        os.system(f"python main_simul.py {base_config} {override}")
-
-**Step 3: Analyze the results**
+**Step 2: Analyze the results**
 
 After all simulations are complete, you can plot the average Strehl Ratio as a function of the integrator gain.  
 Each simulation output is stored in a separate directory (e.g., `./output/gain_opt/gain_0.10/`).
@@ -1006,54 +984,33 @@ Guide Star Magnitude Effects
 Another important parameter in AO performance is the brightness of the guide star.  
 Here we show how to automate a **parameter sweep** over the guide star magnitude, running multiple simulations and analyzing the results.
 
-**Step 1: Generate YAML override files for each magnitude**
+**Step 1: Run simulations for each magnitude**
 
-Create a script `generate_magnitude_overrides.py` to produce N YAML files, each with a different magnitude value:
+Create a script `magnitude_overrides.py` to modify the ``scao_tutorial.yml`` file, each time with a different magnitude
+and saving the result in a different output directory, using the ``overrides`` feature:
 
 .. code-block:: python
 
+    import specula
     import numpy as np
-    import yaml
-    import os
 
     # Range of magnitudes to test (e.g., from 6 to 12)
     magnitudes = np.arange(6, 13)
     output_dir = "magnitude_overrides"
-    os.makedirs(output_dir, exist_ok=True)
+    base_config = "config/scao_tutorial.yml"
 
     for mag in magnitudes:
-        override = {
-            "source_ngs_override": {
-                "magnitude": float(mag)
-            },
-            "data_store_override": {
-                "store_dir": f"./output/magnitude/mag_{mag}/"
-            }
-        }
-        fname = os.path.join(output_dir, f"magnitude_override_{mag}.yml")
-        with open(fname, "w") as f:
-            yaml.dump(override, f)
-        print(f"Created {fname}")
+        overrides = ("{"
+                    f"source_ngs.magnitude: {mag}, "
+                    f"data_store.store_dir: ./output/magnitude/mag{mag}"
+                    "}")
 
-**Step 2: Run all simulations**
+        specula.main_simul(yml_files=[base_config], overrides=overrides)
 
-You can run all simulations in a loop with a shell script or a Python script.  
-Example Python launcher (`run_magnitude_sweep.py`):
 
-.. code-block:: python
+Run this file with the command ``python magnitude_overrides.py``
 
-    import os
-    import glob
-
-    base_config = "config/scao_tutorial.yml"
-    override_dir = "magnitude_overrides"
-    override_files = sorted(glob.glob(os.path.join(override_dir, "magnitude_override_*.yml")))
-
-    for override in override_files:
-        print(f"Running simulation with {override} ...")
-        os.system(f"python main_simul.py {base_config} {override}")
-
-**Step 3: Analyze the results**
+**Step 2: Analyze the results**
 
 After all simulations are complete, you can plot the average Strehl Ratio as a function of the guide star magnitude.  
 Each simulation output is stored in a separate directory (e.g., `./output/magnitude/mag_6/`).

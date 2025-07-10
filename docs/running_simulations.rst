@@ -5,7 +5,11 @@ Running Simulations
 
 In the directory ``main/scao`` there are several example configuration / parameters files for SCAO systems.
 
-The basic way to run the simulation is to use the :class:`specula.simul.Simul` class directly:
+The main way to run a simulation is to use the ``specula`` command line tool, installed together
+with the SPECULA package, giving the configuration file as an argument, in addition to several
+optional arguments (visible with the ``specula -h`` command).
+
+When embedding in another Python program, it is possible to use the :class:`specula.simul.Simul` class directly:
 
 .. code-block:: python
 
@@ -28,7 +32,7 @@ This is useful when we need to override, add and/or remove some parameters of th
 The other parameters, ``diagram``, ``diagram_filename``, and ``diagram_title``, are optional and can be used to generate a diagram of the simulation, which is useful for understanding and debugging the flow of data.
 The diagram is the graphical representation of the simulation, showing the objects and their connections.
 
-This is embedded in the main simulation script ``main_simul.py`` that can be found in the ``main/scao`` directory.
+These arguments are similar to the ones used by ``specula`` itself, whose implementation can be find in the :function:`specula.__init__.main` function in file :file:`specula.__init__.py`.
 
 Examples of the diagram can be found in :doc:`simul_diagrams` page.
 A tutorial for running SCAO simulations is available in the :doc:`tutorials/scao_tutorial` page.
