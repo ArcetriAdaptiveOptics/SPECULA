@@ -42,8 +42,11 @@ We'll simulate a modern SCAO system similar to those used on 8-10m class telesco
 Part 1: System Configuration
 ----------------------------
 
-Calculate and save the influence functions
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Notes on script running
+~~~~~~~~~~~~~~~~~~~~~~~
+
+This tutorial uses the *main_simul.py* script in several places, which is located in *SPECULA/main/scao*.
+It is assumed that the user will *cd* into this directory before starting.
 
 Calculate and save the influence functions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -247,12 +250,12 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
       
       try:
           # Test IFunc loading
-          loaded_ifunc = IFunc.restore('calibration/tutorial_ifunc.fits')
+          loaded_ifunc = IFunc.restore('calibration/ifunc/tutorial_ifunc.fits')
           assert loaded_ifunc.influence_function.shape == influence_functions.shape
           print("✓ IFunc loading test passed")
           
           # Test M2C loading  
-          loaded_m2c = M2C.restore('calibration/tutorial_m2c.fits')
+          loaded_m2c = M2C.restore('calibration/m2c/tutorial_m2c.fits')
           assert loaded_m2c.m2c.shape == kl_basis.shape
           print("✓ M2C loading test passed")
           
@@ -364,7 +367,7 @@ Create ``config/scao_tutorial.yml``:
    # Atmospheric conditions
    seeing:
      class:             'FuncGenerator'
-     constant:          0.65                  # [arcsec] Good seeing conditions (r0 ≈ 15cm)
+     constant:          0.65                  # [arcsec] Good seeing conditions (r0 about 15cm)
      outputs:           ['output']
    
    wind_speed:
@@ -422,7 +425,8 @@ Create ``config/scao_tutorial.yml``:
      source_dict_ref:   ['source_science', 'source_ngs']
      inputs:
        atmo_layer_list: ['atmo.layer_list']
-       common_layer_list: ['pupilstop', 'dm.out_layer:-1']  # Pupil + DM correction
+       common_layer_list: ['pupilstop',       # Pupil
+                          'dm.out_layer:-1']  # DM correction from last step
      outputs:           ['out_source_science_ef', 'out_source_ngs_ef']
    
    # Shack-Hartmann wavefront sensor
@@ -441,7 +445,7 @@ Create ``config/scao_tutorial.yml``:
    detector:
      class:             'CCD'
      simul_params_ref:  'main'
-     size:              [240, 240]            # Total detector size (40x40 × 8x8)
+     size:              [240, 240]            # Total detector size (40x40 x 8x8)
      dt:                0.001                 # [s] Integration time (1ms)
      bandw:             400                   # [nm] R+I-band filter width 600-1000nm
      photon_noise:      true                  # Enable photon noise
@@ -449,7 +453,7 @@ Create ``config/scao_tutorial.yml``:
      excess_noise:      true                  # Enable excess noise
      readout_level:     0.2                   # [e-/pix/frame] Read noise level
      emccd_gain:        400                   # EMCCD gain factor
-     quantum_eff:       0.3                   # QE × transmission
+     quantum_eff:       0.3                   # QE x transmission
      inputs:
        in_i:            'sh.out_i'
      outputs:           ['out_pixels']
@@ -500,7 +504,7 @@ Create ``config/scao_tutorial.yml``:
      class:             'PSF'
      simul_params_ref:  'main'
      wavelengthInNm:    1650                 # [nm] H-band science
-     nd:                4                    # 4× padding for PSF
+     nd:                4                    # 4x padding for PSF
      start_time:        0.2                  # Start PSF integration after 200ms
      inputs:
        in_ef:           'prop.out_source_science_ef'
@@ -902,7 +906,7 @@ Create a script `generate_gain_overrides.py` to produce N YAML files, each with 
 
     for gain in gains:
         override = {
-            "control_override": {
+            "integrator_override": {
                 "int_gain": [float(f"{gain:.2f}")]
             },
             "data_store_override": {
@@ -1030,7 +1034,7 @@ Create a script `generate_magnitude_overrides.py` to produce N YAML files, each 
                 "store_dir": f"./output/magnitude/mag_{mag}/"
             }
         }
-        fname = os.path.join(output_dir, f"magnitude_override_{mag}.yml")
+        fname = os.path.join(output_dir, f"magnitude_override_mag_{mag}.yml")
         with open(fname, "w") as f:
             yaml.dump(override, f)
         print(f"Created {fname}")
@@ -1070,38 +1074,30 @@ Example analysis script (`plot_magnitude_effects.py`):
     from astropy.io import fits
 
     output_base = "./output/magnitude"
-    dirs = sorted(glob.glob(os.path.join(output_base, "mag_*/")))
+    dirs = sorted(glob.glob(os.path.join(output_base, "mag_*/2*/")))
 
-    magnitudes = []
-    mean_sr = []
+    mean_sr = {}
 
     for d in dirs:
         # Find the YAML file to get the magnitude value
-        yml_files = glob.glob(os.path.join("magnitude_overrides", "*.yml"))
-        mag = None
-        for yml in yml_files:
-            if f"mag_{os.path.basename(d).strip('/')[-2:]}" in yml:
-                with open(yml, "r") as f:
-                    yml_data = yaml.safe_load(f)
-                    mag = float(yml_data["source_ngs_override"]["magnitude"])
-                break
-        if mag is None:
-            # Fallback: parse from directory name
-            mag = float(d.split("_")[-1].replace("/", ""))
-        # Load sr.fits
+        params_file = os.path.join(d, "params.yml")
+        with open(params_file, 'r') as f:
+            yml_data = yaml.safe_load(f)
+        mag = float(yml_data['source_ngs']['magnitude'])
         sr_file = os.path.join(d, "sr.fits")
         if os.path.exists(sr_file):
             with fits.open(sr_file) as hdul:
                 sr = hdul[0].data
-            mean_sr.append(sr[50:].mean())  # Ignore initial transient
-            magnitudes.append(mag)
+            mean_sr[mag] = sr[50:].mean()  # Ignore initial transient
             print(f"Magnitude {mag:.1f}: mean SR = {sr[50:].mean():.4f}")
         else:
             print(f"Warning: {sr_file} not found.")
 
     # Plot
+    mag_to_plot = sorted(mean_sr.keys())
+    sr_to_plot = [mean_sr[mag] for mag in mag_to_plot]
     plt.figure()
-    plt.plot(magnitudes, mean_sr, marker='o')
+    plt.plot(mag_to_plot, sr_to_plot, marker='o')
     plt.xlabel("Guide Star Magnitude")
     plt.ylabel("Mean Strehl Ratio")
     plt.title("SR vs Guide Star Magnitude")
