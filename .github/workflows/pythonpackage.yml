@@ -31,6 +31,7 @@ jobs:
     - name: Install dependencies
       run: |
         bash
+        sudo apt update
         if ${{runner.os == 'Linux'}}; then
           sudo apt install libcairo2-dev pkg-config python3-dev
         fi
