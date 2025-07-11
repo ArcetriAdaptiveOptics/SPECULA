@@ -105,7 +105,7 @@ class CCD(BaseProcessingObj):
         else:
             if emccd_gain is not None:
                 warnings.warn('ATTENTION: emccd_gain will not be used if excess_noise is False',
-                    warnings.RuntimeWarning)
+                    RuntimeWarning)
             self._emccd_gain = 1.0
             if ADU_gain is not None:
                 self._ADU_gain = float(ADU_gain)
@@ -114,7 +114,7 @@ class CCD(BaseProcessingObj):
 
         if self._ADU_gain <= 1 and (not excess_noise or self._emccd_gain <= 1):
             warnings.warn('ATTENTION: ADU gain is less than 1 and there is no electronic multiplication.',
-                warnings.RuntimeWarning)
+                RuntimeWarning)
 
         self._readout_level = readout_level
         # readout noise is scaled by the emccd gain because it is applied after the EMCCD gain
