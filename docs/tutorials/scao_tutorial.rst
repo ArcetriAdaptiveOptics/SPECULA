@@ -283,17 +283,20 @@ Expected output:
   Telescope diameter: 8.2m
   Central obstruction: 14.0%
   r0 = 0.15m, L0 = 25.0m
+  Actuators: 1141
+  Master actuators: 1130
+  Actuators to be slaved: 11
 
   Computation completed.
 
   Zonal influence functions:
-  Valid actuators: 1141/1681 (67.9%)
+  Valid actuators: 1130/1681 (67.2%)
   Pupil pixels: 19716/25600 (77.0%)
-  Influence functions shape: (1141, 19716)
+  Influence functions shape: (1130, 19716)
 
   Generating KL modal basis...
-  KL basis shape: (1140, 19716)
-  Number of KL modes: 1140
+  KL basis shape: (1129, 19716)
+  Number of KL modes: 1129
 
   Saving influence functions and modal basis...
   ✓ tutorial_ifunc.fits (zonal influence functions)
@@ -308,8 +311,8 @@ Expected output:
   Files saved in: calibration
 
   Files created:
-    tutorial_ifunc.fits  - Zonal influence functions (1141 actuators)
-    tutorial_m2c.fits    - KL modal basis (1140 modes)
+    tutorial_ifunc.fits  - Zonal influence functions (1130 actuators)
+    tutorial_m2c.fits    - KL modal basis (1129 modes)
 
   Testing file loading...
   ✓ IFunc loading test passed
@@ -327,7 +330,7 @@ Expected output:
 
 1. **Defines the actuator geometry**: A 41×41 grid with a circular layout, optimized for round telescope pupils with a 14% obstruction, which removes the central actuators.
 
-3. **Computes influence functions**: Each of the 1141 valid actuators produces a unique pattern of phase change across the ~19,000 pupil pixels
+3. **Computes influence functions**: Each of the 1130 valid actuators produces a unique pattern of phase change across the ~19,000 pupil pixels
 
 4. **Saves calibration data**: Files are saved in FITS format for use by the main simulation
 
@@ -646,7 +649,7 @@ The interaction matrix calibration requires amplitude values for each actuator p
 
   def main():
       # Create scaled amplitudes for all valid actuators
-      n_actuators = 1140  # Number of valid actuators (from influence functions)
+      n_actuators = 1129  # Number of valid actuators -1 (from influence functions)
       base_amplitude = 50  # 50nm
   
       print(f"Creating scaled amplitude vector for {n_actuators} actuators")
@@ -668,13 +671,13 @@ The interaction matrix calibration requires amplitude values for each actuator p
       
       # Save amplitude vector
       os.makedirs('calibration/data', exist_ok=True)
-      output_file = 'calibration/data/pushpull_1140modes_amp50.fits'
+      output_file = 'calibration/data/pushpull_1129modes_amp50.fits'
       fits.writeto(output_file, amplitudes, overwrite=True)
       print(f"\n✓ Saved scaled amplitude vector: {output_file}")
       
       # Create comparison with uniform amplitudes
       uniform_amplitudes = np.full(n_actuators, base_amplitude)
-      uniform_file = 'calibration/data/pushpull_1140modes_amp50_uniform.fits'
+      uniform_file = 'calibration/data/pushpull_1129modes_amp50_uniform.fits'
       fits.writeto(uniform_file, uniform_amplitudes, overwrite=True)
       print(f"✓ Saved uniform amplitude vector: {uniform_file}")
       
@@ -707,14 +710,14 @@ Create ``calib_im_rec.yml``:
    pushpull:
      class:     'FuncGenerator'
      func_type: 'PUSHPULL'
-     nmodes:    1140                         # Number of DM actuators
-     vect_amplitude_data: 'pushpull_1140modes_amp50'  # Amplitude vector
+     nmodes:    1129                         # Number of DM actuators
+     vect_amplitude_data: 'pushpull_1129modes_amp50'  # Amplitude vector
      outputs:   ['output']
    
    # Interaction matrix calibrator
    im_calibrator:
      class:     'ImCalibrator'
-     nmodes:    1140                         # Number of modes to calibrate
+     nmodes:    1129                         # Number of modes to calibrate
      im_tag:    'tutorial_im'                # Output IM filename
      data_dir:  './calibration/im'              # Output directory
      overwrite: true                         # Overwrite existing files
@@ -734,7 +737,7 @@ Create ``calib_im_rec.yml``:
    
    # Override main simulation parameters
    main_override:
-     total_time: 2.28                        # 1140 modes × 2 (push+pull) × 0.001s
+     total_time: 2.258                        # 1129 modes × 2 (push+pull) × 0.001s
    
    # Disable atmosphere for clean calibration
    prop_override:
@@ -746,7 +749,7 @@ Create ``calib_im_rec.yml``:
    # Override DM to use calibration commands
    dm_override:
      sign: 1                                 # Use positive sign for calibration (default is -1)
-     nmodes: 1140                            # Use all 1140 modes for calibration
+     nmodes: 1129                            # Use all 1129 modes for calibration
      inputs:
        in_command: 'pushpull.output'         # Connect to push-pull generator
    
