@@ -92,7 +92,7 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
       couplingCoeffs = [0.31, 0.05] # Nearest and next-nearest neighbor coupling
       
       # Actuator slaving (disable edge actuators outside pupil)
-      doSlaving = False            # Enable slaving (very simple slaving)
+      doSlaving = True            # Enable slaving (very simple slaving)
       slavingThr = 0.1             # Threshold for master actuators
       
       # Modal basis parameters
