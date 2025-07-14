@@ -89,10 +89,10 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
       
       # Mechanical coupling between actuators
       doMechCoupling = False       # Enable realistic coupling
-      couplingCoeffs = [0.31, 0.05]  # Nearest and next-nearest neighbor coupling
+      couplingCoeffs = [0.31, 0.05] # Nearest and next-nearest neighbor coupling
       
       # Actuator slaving (disable edge actuators outside pupil)
-      doSlaving = True             # Enable slaving (very simple slaving)
+      doSlaving = False            # Enable slaving (very simple slaving)
       slavingThr = 0.1             # Threshold for master actuators
       
       # Modal basis parameters
@@ -746,6 +746,7 @@ Create ``calib_im_rec.yml``:
    # Override DM to use calibration commands
    dm_override:
      sign: 1                                 # Use positive sign for calibration (default is -1)
+     nmodes: 1140                            # Use all 1140 modes for calibration
      inputs:
        in_command: 'pushpull.output'         # Connect to push-pull generator
    
