@@ -42,16 +42,16 @@ class Pupilstop(Layer):
         # Initialise time for at least the first iteration
         self._generation_time = 0
 
+    def get_fits_header(self):
+        hdr = super().get_fits_header()
+        hdr['OBJ_TYPE'] = 'Pupilstop'
+        hdr['VERSION'] = 1
+        return hdr
+
     def save(self, filename, hdr=None):
         if hdr is None:
-            hdr = fits.Header()
-        hdr['VERSION'] = 1
-
+            hdr = self.get_fits_header()
         super().save(filename, hdr)
-
-        fits.append(filename, cpuArray(self.A))
-        fits.append(filename, cpuArray(self.A.shape))
-        fits.append(filename, cpuArray([self.pixel_pitch]))
 
     @staticmethod
     def restore(filename, target_device_idx=None):
@@ -61,10 +61,16 @@ class Pupilstop(Layer):
         if version != 1:
             raise ValueError(f"Error: unknown version {version} in file {filename}")
 
-        input_mask = fits.getdata(filename, ext=2)
-        dim = fits.getdata(filename, ext=3)
-        pixel_pitch = fits.getdata(filename, ext=4)[0]
+        # Takes the values from the header
+        dimx = int(hdr['DIMX'])
+        pixel_pitch = float(hdr['PIXPITCH'])
 
-        tempParams = SimulParams(dim[0], pixel_pitch)
-        pupilstop = Pupilstop(tempParams, input_mask=input_mask, target_device_idx=target_device_idx)
+        tempParams = SimulParams(dimx, pixel_pitch)
+        
+        # Use electric field constructor to create the Pupilstop
+        with fits.open(filename) as hdul:
+            pupilstop = Pupilstop(tempParams, target_device_idx=target_device_idx)
+            pupilstop.A[:] = hdul[0].data
+            pupilstop.phaseInNm[:] = hdul[1].data
+            
         return pupilstop
