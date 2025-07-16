@@ -51,7 +51,6 @@ class DataSource(BaseProcessingObj):
 
     def load_fits(self, name):
         filename = os.path.join(self.tn_dir, name+'.fits')
-        self.headers[name] = fits.getheader(filename)
         with fits.open(filename) as hdul:
             self.headers[name] = hdul[0].header
             self.obj_type[name] = self.headers[name]['OBJ_TYPE']
