@@ -1,0 +1,32 @@
+---
+
+main:
+  class:             'SimulParams'
+  root_dir:          './calib/SCAO'         # Root directory for calibration manager  
+  pixel_pupil:       160                    # Linear dimension of pupil phase array
+  pixel_pitch:       0.05                   # [m] Pitch of the pupil phase array
+  total_time:        0.010                  # [s] Total simulation running time
+  time_step:         0.001                  # [s] Simulation time step
+  
+
+on_axis_source:
+  class:             'Source'
+  polar_coordinates:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  magnitude:         8                    # source magnitude
+  wavelengthInNm:    750                   # [nm] wavelength
+
+
+pupilstop:                                 # Default parameters (circular pupil)
+  class: 'Pupilstop'
+  simul_params_ref: 'main'
+
+
+prop:
+  class:                'AtmoPropagation'
+  simul_params_ref:     'main'
+  source_dict_ref:      ['on_axis_source']
+  inputs:
+    common_layer_list: ['pupilstop']
+  outputs: ['out_on_axis_source_ef']
+
+ 

@@ -200,3 +200,69 @@ def fuse(kernel_name=None):
                 return f_cpu(*args, **kwargs)
         return wrapper
     return decorator
+
+
+def main_simul(yml_files: list,
+               cpu: bool=False,
+               overrides: str=None,
+               target: int=0,
+               profile: bool=False,
+               mpi: bool=False,
+               mpidbg: bool=False,
+               diagram: bool=False,
+               diagram_title: str=None,
+               diagram_filename: str=None):
+
+    if mpi:
+        try:
+            from mpi4py import MPI
+            import mpi4py.pickle as pkl5
+            print("mpi4py import successfull. Installed version is:", MPI.Get_version())
+        except ImportError:
+            print("mpi4py import failed.")
+            raise
+
+        comm = pkl5.Intracomm(MPI.COMM_WORLD)
+        rank = comm.Get_rank()
+        N = 10000000
+        datatype = MPI.FLOAT
+        num_bytes = N * (datatype.Pack_size(count=1, comm=comm) + MPI.BSEND_OVERHEAD)
+
+        print(f'MPI buffer size: {num_bytes/1024**2:.2f} MB')
+        attached_buf = bytearray(num_bytes)
+        MPI.Attach_buffer(attached_buf)
+    else:
+        rank = None
+        comm = None
+        
+    if cpu:
+        target_device_idx = -1
+    else:
+        target_device_idx = target
+
+    init(target_device_idx, precision=1)#, rank=rank, comm=comm, mpi_dbg=mpidbg)
+    from specula.simul import Simul
+
+    if profile:
+        import cProfile
+        import pstats
+        pr = cProfile.Profile()
+        pr.enable()
+
+    print(yml_files)
+    Simul(*yml_files,
+          overrides=overrides,
+          diagram=diagram,
+          diagram_filename=diagram_filename,
+          diagram_title=diagram_title,
+    ).run()
+
+    if profile:
+        pr.disable
+        stats = pstats.Stats(pr).sort_stats("cumtime")
+        stats.print_stats(r"\((?!\_).*\)$", 200)
+        
+    if mpi:
+        MPI.Detach_buffer()
+
+

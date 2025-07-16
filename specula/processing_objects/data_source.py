@@ -52,11 +52,11 @@ class DataSource(BaseProcessingObj):
     def load_fits(self, name):
         filename = os.path.join(self.tn_dir, name+'.fits')
         self.headers[name] = fits.getheader(filename)
-        hdul = fits.open(filename)        
-        times = hdul[1]
-        data = hdul[0]
-        self.storage[name] = { t:data.data[i] for i, t in enumerate(times.data.tolist())}
-        self.obj_type[name] = self.headers[name]['OBJ_TYPE']
+        with fits.open(filename) as hdul:
+            times = hdul[1]
+            data = hdul[0]
+            self.storage[name] = { t:data.data[i] for i, t in enumerate(times.data.tolist())}
+            self.obj_type[name] = self.headers[name]['OBJ_TYPE']
 
     def size(self, name, dimensions=False):
         if not self.has_key(name):

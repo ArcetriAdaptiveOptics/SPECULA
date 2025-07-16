@@ -102,7 +102,7 @@ To run the simulation, use:
 
 .. code-block:: bash
 
-   python main_simul.py params_control_lpf.yml
+   specula params_control_lpf.yml
 
 During the simulation, a real-time plot will show:
 - Input (step)
