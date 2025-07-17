@@ -75,7 +75,7 @@ class TestConnections(unittest.TestCase):
 
         output1 = BaseValue(value=data1, target_device_idx=target_device_idx)
         output2 = BaseValue(value=data2, target_device_idx=target_device_idx)
-        input_v.set_list([output1, output2])
+        input_v.set([output1, output2])
 
         result = input_v.get(target_device_idx=target_device_idx)
         assert(result[0].target_device_idx == target_device_idx)
@@ -93,7 +93,7 @@ class TestConnections(unittest.TestCase):
 
         output1 = BaseValue(value=data1, target_device_idx=target_device_idx)
         output2 = BaseValue(value=data2, target_device_idx=target_device_idx)
-        input_v.set_list([output1, output2])
+        input_v.set([output1, output2])
 
         if target_device_idx == 0:
             my_target = -1
@@ -117,7 +117,7 @@ class TestConnections(unittest.TestCase):
 
         output1 = BaseValue(value=data1, target_device_idx=target_device_idx)
         output2 = BaseValue(value=data2, target_device_idx=target_device_idx)
-        input_v.set_list([output1, output2])
+        input_v.set([output1, output2])
 
         if target_device_idx == 0:
             my_target = -1

@@ -106,6 +106,8 @@ class CCD(BaseProcessingObj):
             if emccd_gain is not None:
                 warnings.warn('ATTENTION: emccd_gain will not be used if excess_noise is False',
                     RuntimeWarning)
+            
+            
             self._emccd_gain = 1.0
             if ADU_gain is not None:
                 self._ADU_gain = float(ADU_gain)

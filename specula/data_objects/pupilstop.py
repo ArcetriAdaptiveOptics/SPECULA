@@ -1,14 +1,12 @@
 
 from astropy.io import fits
 
-from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.layer import Layer
 from specula.lib.make_mask import make_mask
 from specula.data_objects.simul_params import SimulParams
 from specula import cpuArray
 
-
-class Pupilstop(BaseProcessingObj):
+class Pupilstop(Layer):
     '''Pupil stop'''
 
     def __init__(self,
@@ -21,15 +19,14 @@ class Pupilstop(BaseProcessingObj):
                  magnification: float=1.0,
                  target_device_idx: int=None,
                  precision: int=None):
-        super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.simul_params = simul_params
         self.pixel_pupil = self.simul_params.pixel_pupil
         self.pixel_pitch = self.simul_params.pixel_pitch
 
-        self.layer = Layer(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, height=0,
-                           shiftXYinPixel=shiftXYinPixel, rotInDeg=rotInDeg, magnification=magnification,
-                           target_device_idx=target_device_idx, precision=precision)
+        super().__init__(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, height=0,
+                        shiftXYinPixel=shiftXYinPixel, rotInDeg=rotInDeg, magnification=magnification,
+                        target_device_idx=target_device_idx, precision=precision)
 
         self._input_mask = input_mask
         self._mask_diam = mask_diam
@@ -40,20 +37,21 @@ class Pupilstop(BaseProcessingObj):
             mask_amp = self._input_mask
         else:
             mask_amp = make_mask(self.pixel_pupil, obs_diam, mask_diam, xp=self.xp)
-        self.layer.A = mask_amp
-        self.outputs['out_layer'] = self.layer
+        self.A = mask_amp
 
-    def trigger_code(self):
-        self.layer.generation_time = self.current_time
+        # Initialise time for at least the first iteration
+        self._generation_time = 0
 
-    def save(self, filename):
-        hdr = fits.Header()
+    def save(self, filename, hdr=None):
+        if hdr is None:
+            hdr = fits.Header()
         hdr['VERSION'] = 1
-        hdu_A = fits.PrimaryHDU(cpuArray(self.layer.A), header=hdr)
-        hdu_phase = fits.ImageHDU(cpuArray(self.layer.A.shape))
-        hdu_pitch = fits.ImageHDU(cpuArray([self.pixel_pitch]))
-        hdul = fits.HDUList([hdu_A, hdu_phase, hdu_pitch])
-        hdul.writeto(filename, overwrite=True)
+
+        super().save(filename, hdr)
+
+        fits.append(filename, cpuArray(self.A))
+        fits.append(filename, cpuArray(self.A.shape))
+        fits.append(filename, cpuArray([self.pixel_pitch]))
 
     @staticmethod
     def restore(filename, target_device_idx=None):

@@ -208,7 +208,7 @@ class FieldAnalyser:
             print(f"Found DM input sources: {dm_input_sources}")
 
         # Extract only DM command inputs from original DataStore input_list
-        original_input_list = datastore_obj.get('inputs', {}).get('input_list', [])
+        original_input_list = datastore_obj.get('inputs', {}).values()
         dm_command_inputs = []
 
         for input_ref in original_input_list:

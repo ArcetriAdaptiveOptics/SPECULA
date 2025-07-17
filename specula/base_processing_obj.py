@@ -1,12 +1,12 @@
 from collections import defaultdict
 from astropy.io import fits
 
-from specula.base_time_obj import BaseTimeObj
 from specula import default_target_device, cp, MPI_DBG, MPI_SEND_DBG
 from specula import show_in_profiler
-from specula.connections import InputValue, InputList
 from specula import process_comm, process_rank
+from specula.base_time_obj import BaseTimeObj
 from specula.data_objects.layer import Layer
+
 
 class BaseProcessingObj(BaseTimeObj):
 
@@ -41,7 +41,6 @@ class BaseProcessingObj(BaseTimeObj):
         # Use the correct CUDA device for allocations in derived classes'  __init__
         if self.target_device_idx >= 0:
             self._target_device.use()
-
 
     # Use the correct CUDA device for allocations in derived classes' prepare_trigger()
     def prepare_trigger(self, t):
@@ -79,15 +78,8 @@ class BaseProcessingObj(BaseTimeObj):
             self._target_device.use()
 
         for input_name, input_obj in self.inputs.items():
-            if type(input_obj) is InputValue:
-                if MPI_DBG: print(process_rank, 'get_all_inputs(): getting InputValue:', input_name, flush=True)
-                self.local_inputs[input_name] = input_obj.get(self.target_device_idx)
-            elif type(input_obj) is InputList:
-                self.local_inputs[input_name] = []
-                if MPI_DBG: print(process_rank, 'get_all_inputs(): getting InputList:', input_name, flush=True)
-                input_list = input_obj.get(self.target_device_idx)
-                if input_list is not None:
-                    self.local_inputs[input_name] = input_list
+            if MPI_DBG: print(process_rank, 'get_all_inputs(): getting InputValue:', input_name, flush=True)
+            self.local_inputs[input_name] = input_obj.get(self.target_device_idx)
         
         if MPI_DBG:
             print(process_rank, self.name, 'My inputs are:')
@@ -126,8 +118,7 @@ class BaseProcessingObj(BaseTimeObj):
             if self.cuda_graph:
                 self.stream.synchronize()
 
-
-    # this method implments the mpi send call of the outputs connected to remote inputs
+    # this method implements the mpi send call of the outputs connected to remote inputs
     def send_outputs(self, skip_delayed=False, delayed_only=False):
         '''
         Send all remote outputs via MPI.
@@ -155,34 +146,17 @@ class BaseProcessingObj(BaseTimeObj):
                 if delay >= 0 and delayed_only:
                     if MPI_SEND_DBG: print(process_rank, f'SKIPPED SEND to rank {dest_rank} {dest_tag=} due to delay={delay}', flush=True)
                     continue
-                # workaround cause module objects cannot be pickled
-                xp = []
                 if MPI_DBG: print(process_rank, 'Sending ', out_name, 'to ', dest_rank, 'with tag',  dest_tag, type(self.outputs[out_name]), flush=True)
-                if out_name.split('_')[-1] == 'list':
-                    # the list is sent at once as well, but its data objects has to be manipulated one at a time
-                    for ii, list_elem in enumerate(self.outputs[out_name]):
-                        xp.append(list_elem.xp)
-                        list_elem.xp = 0
-                    if MPI_DBG: print(process_rank, 'Sending List ', out_name, 'to ', dest_rank, 'with tag',  dest_tag, type(self.outputs[out_name]), flush=True)
-                                    #, self.outputs[out_name])            
-                    process_comm.ibsend(self.outputs[out_name], dest=dest_rank, tag=dest_tag)
+
+                # workaround because module objects cannot be pickled
+                for item in self.outputs[out_name] if isinstance(self.outputs[out_name], list) else [self.outputs[out_name]]:
+                    xp_orig = item.xp
+                    item.xp = 0
+
                     if MPI_SEND_DBG: print(process_rank, f'SEND to rank {dest_rank} {dest_tag=} (from {self.name}.{out_name})', flush=True)
-                 
-                    if MPI_DBG: print(process_rank, 'Sent List ', flush=True)
-                    for ii, list_elem in enumerate(self.outputs[out_name]):
-                        list_elem.xp = xp[ii]
-                else:
-                    # non blocking send, as we dont know the oder of the recieves
-                    if MPI_DBG: print(process_rank, 'Sending ', out_name, 'to ', dest_rank, 'with tag',  dest_tag, type(self.outputs[out_name]), flush=True)
-                        #, self.outputs[out_name])            
-                    xp = self.outputs[out_name].xp
-                    self.outputs[out_name].xp = 0
-                    if MPI_DBG: print(process_rank, 'Sending data:', self.outputs[out_name], flush=True)
-                    process_comm.ibsend(self.outputs[out_name], dest=dest_rank, tag=dest_tag)
-                    if MPI_SEND_DBG: print(process_rank, f'SEND to rank {dest_rank} {dest_tag=} (from {self.name}.{out_name})', flush=True)
-                    if MPI_DBG: print(process_rank, 'Sent', flush=True)
-                    self.outputs[out_name].xp = xp
+                    process_comm.ibsend(item, dest=dest_rank, tag=dest_tag)
                 
+                    item.xp = xp_orig                
 
     @classmethod
     def device_stream(cls, target_device_idx):
