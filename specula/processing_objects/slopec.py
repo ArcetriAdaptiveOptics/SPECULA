@@ -13,14 +13,11 @@ class Slopec(BaseProcessingObj):
     def __init__(self,
                  sn: Slopes=None, 
                  use_sn: bool=False,
-                 accumulate: bool=False,
-                 weight_from_accumulated: bool=False,
                  recmat: Recmat=None,
                  filt_intmat: Intmat=None, 
                  filt_recmat: Recmat=None,
                  filtmat=None,
-                 accumulation_dt: float=0, 
-                 accumulated_pixels: tuple=(0,0),
+                 weight_int_pixel_dt: float=0,
                  target_device_idx: int=None, 
                  precision: int=None
                 ):
@@ -29,18 +26,12 @@ class Slopec(BaseProcessingObj):
         # TODO this can become a single parameter (no need for separate flag)
         if use_sn and not sn:
             raise ValueError('Slopes null are not valid')
-        
-        # TODO this can become a single parameter (no need for separate flag)
-        if weight_from_accumulated and accumulate:
-            raise ValueError('weightFromAccumulated and accumulate must not be set together')
 
         self.slopes = Slopes(2, target_device_idx=self.target_device_idx) # TODO resized in derived class
         self.sn = sn
         self.flux_per_subaperture_vector = BaseValue(target_device_idx=self.target_device_idx)
         self.max_flux_per_subaperture_vector = BaseValue(target_device_idx=self.target_device_idx)
         self.use_sn = use_sn
-        self.accumulate = accumulate
-        self.weight_from_accumulated = weight_from_accumulated
         self.recmat = recmat
         if filtmat is not None:
             if filt_intmat:
@@ -55,9 +46,13 @@ class Slopec(BaseProcessingObj):
             self.filt_intmat = filt_intmat
             self.filt_recmat = filt_recmat
 
-        self.accumulation_dt = self.seconds_to_t(accumulation_dt)
-        self.accumulated_pixels = self.to_xp(accumulated_pixels, dtype=self.dtype)
-        self.accumulated_slopes = Slopes(2, target_device_idx=self.target_device_idx)   # TODO resized in derived class.
+        self.weight_int_pixel_dt = self.seconds_to_t(weight_int_pixel_dt)
+        if self.weight_int_pixel_dt > 0:
+            self.weight_int_pixel = True
+        else:
+            self.weight_int_pixel = False
+        self.int_pixels = None
+        self.t_previous = None
 
         self.inputs['in_pixels'] = InputValue(type=Pixels)
         self.outputs['out_slopes'] = self.slopes
@@ -77,6 +72,47 @@ class Slopec(BaseProcessingObj):
         output = self.xp.stack((im, self.xp.transpose(rm)), axis=-1)
         self.writefits(filename, cpuArray(output))
         print(f'saved {filename}')
+
+    def do_accumulation(self, t):
+        """
+        Perform pixel accumulation based on the IDL version.
+        This method should be called in trigger_code of derived classes.
+        """
+        if self.weight_int_pixel_dt <= 0:
+            return
+            
+        current_pixels = self.inputs['in_pixels'].get(self.target_device_idx).pixels
+        
+        # Calculate accumulation factor
+        if self.t_previous is None:
+            self.t_previous = t
+            factor = 0.0
+        else:
+            factor = float(self.seconds_to_t(t-self.t_previous)) / float(self.weight_int_pixel_dt)
+        
+        # Initialize accumulated pixels if not exists
+        if self.int_pixels is None:
+            from specula.data_objects.pixels import Pixels
+            self.int_pixels = Pixels(
+                current_pixels.shape[0], 
+                current_pixels.shape[1], 
+                target_device_idx=self.target_device_idx
+            )
+            self.int_pixels.pixels = self.xp.zeros_like(current_pixels)
+        
+        # Check if we're at the start of a new accumulation period
+        if (t % self.weight_int_pixel_dt) == 0:
+            # Reset accumulation
+            self.int_pixels.pixels = current_pixels.astype(self.dtype) * factor
+        else:
+            # Add to existing accumulation
+            self.int_pixels.pixels += current_pixels.astype(self.dtype) * factor
+        
+        # Update generation time
+        self.int_pixels.generation_time = t
+        
+        if self.verbose:
+            print(f'Accumulation factor is: {factor}')
 
     def _compute_flux_per_subaperture(self):
         raise NotImplementedError('abstract method must be implemented')

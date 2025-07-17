@@ -93,6 +93,8 @@ detector:
 slopec:
   class:             'ShSlopec'
   subapdata_object:  'scao_subaps_n8_th0.5'   # tag of the pyramid WFS pupils
+  weight_int_pixel_dt: 0.002
+  window_int_pixel: True
   inputs:
     in_pixels:        'detector.out_pixels'
   outputs:  ['out_slopes', 'out_subapdata']

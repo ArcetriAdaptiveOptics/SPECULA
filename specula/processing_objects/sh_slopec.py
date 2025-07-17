@@ -27,10 +27,12 @@ class ShSlopec(Slopec):
                  thr_value: float = -1,
                  exp_weight: float = 1.0,
                  filtmat=None,
-                 corr_template = None, 
+                 corr_template = None,
+                 weight_int_pixel_dt: float=0,
+                 window_int_pixel: bool=False,
                  target_device_idx: int = None,
                  precision: int = None):
-        super().__init__(sn=sn, filtmat=filtmat,
+        super().__init__(sn=sn, filtmat=filtmat, weight_int_pixel_dt=weight_int_pixel_dt,
                          target_device_idx=target_device_idx, precision=precision)
         self.thr_value = thr_value
         self.thr_mask_cube = BaseValue(target_device_idx=self.target_device_idx)
@@ -61,6 +63,7 @@ class ShSlopec(Slopec):
 
         self.exp_weight = exp_weight
         self.subapdata = subapdata
+        self.window_int_pixel = window_int_pixel
         # TODO replace this resize with an earlier initialization
         self.slopes.resize(subapdata.n_subaps * 2)
         self.accumulated_slopes = Slopes(subapdata.n_subaps * 2, target_device_idx=self.target_device_idx)
@@ -139,6 +142,10 @@ class ShSlopec(Slopec):
                 if self.verbose:
                     print(f'self.weightedPixRad: {self.weightedPixRad}')
                 self.set_xy_weights()
+                
+        if self.weight_int_pixel_dt > 0:
+            print(f"Accumulation dt: {self.weight_int_pixel_dt}, current time: {self.current_time}")
+            self.do_accumulation(self.current_time)
 
         if self.dotemplate or self.correlation or self.two_steps_cog:
             self.calc_slopes_for(accumulated=accumulated)
@@ -163,54 +170,55 @@ class ShSlopec(Slopec):
 
         n_subaps = self.subapdata.n_subaps
         np_sub = self.subapdata.np_sub
-        pixels = self.accumulated_pixels.pixels if accumulated else in_pixels
+        pixels = self.int_pixels if accumulated else in_pixels
 
-        sx = self.xp.zeros(n_subaps, dtype=float)
-        sy = self.xp.zeros(n_subaps, dtype=float)
+        sx = self.xp.zeros(n_subaps, dtype=self.dtype)
+        sy = self.xp.zeros(n_subaps, dtype=self.dtype)
 
         if self.store_thr_mask_cube:
             thr_mask_cube = self.xp.zeros((np_sub, np_sub, n_subaps), dtype=int)
             thr_mask = self.xp.zeros((np_sub, np_sub), dtype=int)
 
-        flux_per_subaperture = self.xp.zeros(n_subaps, dtype=float)
-        max_flux_per_subaperture = self.xp.zeros(n_subaps, dtype=float)
+        flux_per_subaperture = self.xp.zeros(n_subaps, dtype=self.dtype)
+        max_flux_per_subaperture = self.xp.zeros(n_subaps, dtype=self.dtype)
 
         if self.dotemplate:
-            corr_template = self.xp.zeros((np_sub, np_sub, n_subaps), dtype=float)
+            corr_template = self.xp.zeros((np_sub, np_sub, n_subaps), dtype=self.dtype)
         elif self.corr_template is not None:
             corr_template = self.corr_template
 
         if self.thr_value > 0 and self.thr_ratio_value > 0:
             raise ValueError('Only one between _thr_value and _thr_ratio_value can be set.')
 
-        if self.weight_from_accumulated:
+        if self.weight_int_pixel:
             n_weight_applied = 0
 
         for i in range(n_subaps):
             idx = self.subap_idx[i, :]
             subap = pixels[idx].reshape(np_sub, np_sub)
 
-            if self.weight_from_accumulated and self.accumulated_pixels is not None and self.current_time >= self.accumulation_dt:
-                accumulated_pixels_weight = self.accumulated_pixels[idx].reshape(np_sub, np_sub)
-                accumulated_pixels_weight -= self.xp.min(accumulated_pixels_weight)
-                max_temp = self.xp.max(accumulated_pixels_weight)
+            if self.weight_int_pixel and self.int_pixels is not None and self.current_time >= self.weight_int_pixel_dt:
+                int_pixels_weight = self.int_pixels.pixels[idx].reshape(np_sub, np_sub)
+                int_pixels_weight -= self.xp.min(int_pixels_weight)
+                max_temp = self.xp.max(int_pixels_weight)
                 if max_temp > 0:
-                    if self.weightFromAccWithWindow:
+                    if self.window_int_pixel:
                         window_threshold = 0.05
                         over_threshold = self.xp.where(
-                            (accumulated_pixels_weight >= max_temp * window_threshold) | 
-                            (self.xp.rot90(accumulated_pixels_weight, 2) >= max_temp * window_threshold)
+                            (int_pixels_weight >= max_temp * window_threshold) | 
+                            (self.xp.flip(self.xp.flip(int_pixels_weight, axis=0), axis=1) >= max_temp * window_threshold)
                         )
                         if len(over_threshold[0]) > 0:
-                            accumulated_pixels_weight.fill(0)
-                            accumulated_pixels_weight[over_threshold] = 1.0
+                            int_pixels_weight.fill(0)
+                            int_pixels_weight[over_threshold] = 1.0
+                            n_weight_applied += 1
                         else:
-                            accumulated_pixels_weight.fill(1.0)
+                            int_pixels_weight.fill(1.0)
                     else:
-                        accumulated_pixels_weight *= 1.0 / max_temp
+                        int_pixels_weight *= 1.0 / max_temp
+                        n_weight_applied += 1
 
-                    subap *= accumulated_pixels_weight
-                    n_weight_applied += 1
+                    subap *= int_pixels_weight
 
             if self.winMatWindowed is not None:
                 if i == 0 and self.verbose:
@@ -261,13 +269,13 @@ class ShSlopec(Slopec):
             if self.two_steps_cog:
                 pass  # Further logic for two-step centroid calculation can go here.
 
-            subap_total = self.xp.sum(subap)
-            factor = 1.0 / subap_total if subap_total > 0 else 0
+            subap_total = self.xp.sum(subap * self.mask_weighted)
+            factor = 1.0 / subap_total if subap_total > (self.xp.mean(flux_per_subaperture) * 1e-3) else 0
 
             sx[i] = self.xp.sum(subap * self.xweights) * factor
             sy[i] = self.xp.sum(subap * self.yweights) * factor
 
-        if self.weight_from_accumulated:
+        if self.weight_int_pixel and self.verbose:
             print(f"Weights mask has been applied to {n_weight_applied} sub-apertures")
 
         if self.dotemplate:
@@ -319,7 +327,7 @@ class ShSlopec(Slopec):
 
         n_subaps = self.subapdata.n_subaps
         np_sub = self.subapdata.np_sub
-        orig_pixels = self.accumulated_pixels.pixels if accumulated else in_pixels
+        orig_pixels = self.int_pixels.pixel if accumulated else in_pixels
 
         if self.thr_value > 0 and self.thr_ratio_value > 0:
             raise ValueError("Only one between _thr_value and _thr_ratio_value can be set.")
@@ -327,37 +335,51 @@ class ShSlopec(Slopec):
         # Reform pixels based on the subaperture index
         idx2d = unravel_index_2d(self.subap_idx, orig_pixels.shape, self.xp)
         pixels = orig_pixels[idx2d].T
-        
-        if self.weight_from_accumulated:
-            raise NotImplementedError('weight_from_accumulated is not implemented')
-        
+
+        print(f"weight_int_pixel: {self.weight_int_pixel}")
+        print(f"int_pixels: {self.int_pixels is not None}")
+        print(f"current_time: {self.current_time}")
+        print(f"weight_int_pixel_dt: {self.weight_int_pixel_dt}")
+        print(f"shape of pixels: {pixels.shape}")
+        print(f"shape of int_pixels: {self.int_pixels.pixels.shape if self.int_pixels is not None else 'N/A'}")
+
+        if self.weight_int_pixel:
             n_weight_applied = 0
-            if self.accumulated_pixels is not None and self.current_time >= self.accumulation_dt:
-                accumulated_pixels_weight = self.accumulated_pixels[self.subap_idx].T
-                accumulated_pixels_weight -= self.xp.min(accumulated_pixels_weight, axis=1, keepdims=True)
-                max_temp = self.xp.max(accumulated_pixels_weight, axis=1)
-                idx0 = self.xp.where(max_temp <= 0)[0]
-                if len(idx0) > 0:
-                    accumulated_pixels_weight[:, idx0] = 1.0
+            if self.int_pixels is not None and self.current_time >= self.weight_int_pixel_dt:
+                # Reshape accumulated pixels to match the format
+                int_pixels_weight = self.int_pixels.pixels[idx2d].T
+                int_pixels_weight -= self.xp.min(int_pixels_weight, axis=0, keepdims=True)
+                max_temp = self.xp.max(int_pixels_weight, axis=0)
 
-                if self.weightFromAccWithWindow:
+                # Handle subapertures with zero or negative max values
+                valid_mask = max_temp > 0
+
+                if self.window_int_pixel:
                     window_threshold = 0.05
-                    one_over_max_temp = 1.0 / max_temp[:, self.xp.newaxis]
-                    accumulated_pixels_weight *= one_over_max_temp
-                    over_threshold = self.xp.where(
-                        (accumulated_pixels_weight >= window_threshold) | 
-                        (accumulated_pixels_weight[:, ::-1] >= window_threshold)
-                    )
-                    if len(over_threshold[0]) > 0:
-                        accumulated_pixels_weight.fill(0)
-                        accumulated_pixels_weight[over_threshold] = 1.0
-                    else:
-                        accumulated_pixels_weight.fill(1.0)
-                    n_weight_applied += self.xp.sum(self.xp.any(accumulated_pixels_weight > 0, axis=1))
+                    # Create a mask for pixels above threshold
+                    normalized_weight = self.xp.zeros_like(int_pixels_weight)
+                    normalized_weight[:, valid_mask] = int_pixels_weight[:, valid_mask] / max_temp[valid_mask]
 
-                pixels *= accumulated_pixels_weight
+                    # Apply threshold and symmetry condition
+                    over_threshold = (normalized_weight >= window_threshold) | (normalized_weight[::-1, :] >= window_threshold)
 
-                print(f"Weights mask has been applied to {n_weight_applied} sub-apertures")
+                    # Reset weights and apply threshold mask
+                    int_pixels_weight.fill(0)
+                    int_pixels_weight[over_threshold] = 1.0
+
+                    # Count subapertures where weights were applied
+                    n_weight_applied = self.xp.sum(self.xp.any(int_pixels_weight > 0, axis=0))
+                else:
+                    # Normalize by max value for valid subapertures
+                    int_pixels_weight[:, valid_mask] /= max_temp[valid_mask]
+                    int_pixels_weight[:, ~valid_mask] = 1.0
+                    n_weight_applied = self.xp.sum(valid_mask)
+
+                # Apply weights to pixels
+                pixels *= int_pixels_weight
+
+                if self.verbose:
+                    print(f"Weights mask has been applied to {n_weight_applied} sub-apertures")
 
         # Calculate flux and max flux per subaperture
         flux_per_subaperture_vector = self.xp.sum(pixels, axis=0)
@@ -402,7 +424,7 @@ class ShSlopec(Slopec):
         sy = self.xp.sum(pixels * self.yweights.reshape(np_sub * np_sub, 1) * factor[self.xp.newaxis, :], axis=0)
 
         # TODO old code?
-        if self.weight_from_accumulated:
+        if self.weight_int_pixel:
             print(f"Weights mask has been applied to {n_weight_applied} sub-apertures")
 
         if self.mult_factor != 0:
