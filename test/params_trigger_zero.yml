@@ -26,7 +26,7 @@ prop:
   simul_params_ref:     'main'
   source_dict_ref:      ['on_axis_source']
   inputs:
-    common_layer_list: ['pupilstop.out_layer']
+    common_layer_list: ['pupilstop']
   outputs: ['out_on_axis_source_ef']
 
  
