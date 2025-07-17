@@ -26,6 +26,7 @@ class LoopControl(BaseTimeObj):
         self._elapsed = []
         self._nframes_cnt = -1
         self.max_global_order = -1
+        self._iter_counter = 0
 
     def add(self, obj, idx):
         self._trigger_lists[idx].append(obj)
