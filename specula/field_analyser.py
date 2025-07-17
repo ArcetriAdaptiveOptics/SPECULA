@@ -478,13 +478,10 @@ class FieldAnalyser:
         if self.verbose:
             print(f"Found propagation object: '{prop_key}'")
 
-        # Create a new ordered dictionary
-        new_params = {}
-
         # Add field sources
         for i, source_dict in enumerate(self.sources):
             source_name = f'field_source_{i}'
-            new_params[source_name] = {
+            replay_params[source_name] = {
                 'class': 'Source',
                 'polar_coordinates': source_dict['polar_coordinates'],
                 'magnitude': source_dict['magnitude'],
@@ -492,20 +489,7 @@ class FieldAnalyser:
                 'height': source_dict['height']
             }
 
-        # Add all existing objects after the field sources
-        for key, config in replay_params.items():
-            new_params[key] = config
-
-        # CLEAN and UPDATE propagation object to ONLY include field sources
-        # Remove original source references and outputs
-        prop_config = new_params[prop_key]
-
-        # Clear existing sources and outputs - we only want field sources
-        prop_config.pop('source_dict_ref', None)  # Remove original sources
-        prop_config.pop('outputs', None)  # Remove original outputs
-
-        if self.verbose:
-            print(f"Cleared original sources and outputs from '{prop_key}'")
+        prop_config = replay_params[prop_key]
 
         # Set only field sources
         source_refs = [f'field_source_{i}' for i in range(len(self.sources))]
@@ -519,10 +503,6 @@ class FieldAnalyser:
             print(f"Updated propagation object '{prop_key}':")
             print(f"  Sources: {source_refs}")
             print(f"  Outputs: {output_list}")
-
-        # Replace the original dictionary content
-        replay_params.clear()
-        replay_params.update(new_params)
 
     def _remove_conflicting_objects(self, replay_params: dict):
         """

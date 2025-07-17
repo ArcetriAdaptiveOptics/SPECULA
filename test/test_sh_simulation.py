@@ -139,7 +139,7 @@ class TestShSimulation(unittest.TestCase):
         # Run the simulation
         print("Running SH SCAO simulation to create reference SR file...")
         result = subprocess.run(
-            [sys.executable, os.path.join('..', 'main', 'scao', 'main_simul.py'), 
+            ['specula', 
              'params_scao_sh_test.yml'],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
             universal_newlines=True

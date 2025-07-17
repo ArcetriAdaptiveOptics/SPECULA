@@ -7,7 +7,7 @@ The diagram corresponding to the parameters file ``main/scao/params_scao_sh.yml`
 
 .. code-block:: bash
 
-    python main_simul.py params_scao_sh.yml --diagram
+    specula params_scao_sh.yml --diagram
 
 A file named ``params_scao_sh.png`` will be created in the current directory, containing the diagram of the simulation.
 The diagram is:

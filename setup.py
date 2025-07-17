@@ -80,6 +80,7 @@ setup(name=NAME,
           'console_scripts': [
               'specula_frontend_start=specula.scripts.web_frontend:start',
               'specula_frontend_stop=specula.scripts.web_frontend:stop',
+              'specula=specula.scripts.specula:main',
           ],
       },
       python_requires='>=3.8.0',

@@ -32,6 +32,7 @@ jobs:
       run: |
         bash
         if ${{runner.os == 'Linux'}}; then
+          sudo apt update
           sudo apt install libcairo2-dev pkg-config python3-dev
         fi
         python -m pip install --upgrade pip
