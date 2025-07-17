@@ -46,7 +46,7 @@ class _InputItem():
         self.output_ref = value
 
 
-class InputValue():
+class InputList():
     def __init__(self, type, optional=False):
         """
         Wrapper for input lists
@@ -55,11 +55,9 @@ class InputValue():
         self.input_values = []
         self.optional = optional
 
-    def get(self, target_device_idx, as_list=False):
+    def get(self, target_device_idx, single_value=False):
         values_list = flatten([v.get(target_device_idx) for v in self.input_values])
-        if as_list:
-            return values_list
-        else:
+        if single_value:
             if len(values_list) > 1:
                 raise ValueError('InputValue contains more than one item')
             if len(values_list) == 0:
@@ -68,6 +66,8 @@ class InputValue():
                 else:
                     raise ValueError('InputValue is empty and not optional')
             return values_list[0]
+        else:
+            return values_list
 
     def set(self, item, remote_rank=None, tag=None):
         """
@@ -96,9 +96,9 @@ class InputValue():
         self.input_values[-1].set(item)
 
 
-class InputList(InputValue):
+class InputValue(InputList):
     '''
     Convenience class for input lists. Calling get() will return a list of items.
     '''
     def get(self, target_device_idx):
-        return super().get(target_device_idx, as_list=True)
+        return super().get(target_device_idx, single_value=True)
