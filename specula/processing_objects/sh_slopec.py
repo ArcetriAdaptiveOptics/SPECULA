@@ -27,7 +27,8 @@ class ShSlopec(Slopec):
                  thr_value: float = -1,
                  exp_weight: float = 1.0,
                  filtmat=None,
-                 corr_template = None,
+                 weightedPixRad: float = -1.0,
+                 windowing: bool = False,
                  weight_int_pixel_dt: float=0,
                  window_int_pixel: bool=False,
                  target_device_idx: int = None,
@@ -45,11 +46,11 @@ class ShSlopec(Slopec):
         self.xcweights = None
         self.ycweights = None
         self.mask_weighted = None
-        self.corr_template = corr_template
+        self.corr_template = None # TODO: this is not working yet
         self.winMatWindowed = None
         self.vecWeiPixRadT = None
-        self.weightedPixRad = 0.0
-        self.windowing = False
+        self.weightedPixRad = weightedPixRad
+        self.windowing = windowing
         self.correlation = False
         self.corrWindowSidePix = 0
         self.thr_ratio_value = 0.0
@@ -120,7 +121,7 @@ class ShSlopec(Slopec):
                 mask_weighted = make_mask(np_sub, diaratio=(2.0 * weightedPixRad / np_sub), xp=np)
             else:
                 # Weighted Center of Gravity (WCoG)
-                mask_weighted = self.psf_gaussian(np_sub, 2, [weightedPixRad, weightedPixRad])
+                mask_weighted = self.psf_gaussian(np_sub, [weightedPixRad, weightedPixRad])
                 mask_weighted /= np.max(mask_weighted)
 
             mask_weighted[mask_weighted < 1e-6] = 0.0
