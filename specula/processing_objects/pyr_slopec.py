@@ -83,7 +83,6 @@ class PyrSlopec(Slopec):
                 self.slopes.resize(len(self.pupdata.ind_pup) * 4)
             else:
                 self.slopes.resize(len(self.pupdata.ind_pup) * 2)
-            self.accumulated_slopes.resize(len(self.pupdata.ind_pup) * 2)
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
