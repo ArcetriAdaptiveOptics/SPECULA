@@ -162,7 +162,7 @@ class InfinitePhaseScreen(BaseDataObj):
     def prepare_random_data_col(self):
         if self.random_data_col is None:
 #            print('generating new random data col')
-            self.random_data_col = self.rng.normal(size=self.stencil_size)
+            self.random_data_col = self.rng.standard_normal(size=self.stencil_size)
         else:
             pass
 #            print('using old random data col')
@@ -170,7 +170,7 @@ class InfinitePhaseScreen(BaseDataObj):
     def prepare_random_data_row(self):
         if self.random_data_row is None:
 #            print('generating new random data row')
-            self.random_data_row = self.rng.normal(size=self.stencil_size)
+            self.random_data_row = self.rng.standard_normal(size=self.stencil_size)
         else:
             pass
 #            print('using old random data row')
@@ -337,7 +337,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
                                                        self.ref_r0,
                                                        self.L0[i],
                                                        self.l0,
-                                                       random_seed=seed[i],
+                                                       random_seed=int(seed[i]),
                                                        xp=self.xp,
                                                        target_device_idx=self.target_device_idx,
                                                        precision=self.precision )
