@@ -27,7 +27,7 @@ class ShSlopec(Slopec):
                  thr_value: float = -1,
                  exp_weight: float = 1.0,
                  filtmat=None,
-                 weightedPixRad: float = -1.0,
+                 weightedPixRad: float = 0.0,
                  windowing: bool = False,
                  weight_int_pixel_dt: float=0,
                  window_int_pixel: bool=False,
