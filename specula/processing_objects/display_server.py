@@ -15,6 +15,7 @@ from flask_socketio import SocketIO, join_room
 import socketio
 import socketio.exceptions
 
+from specula.base_value import BaseValue
 from specula.base_processing_obj import BaseProcessingObj
 from specula.display.data_plotter import DataPlotter
 
@@ -58,13 +59,13 @@ class DisplayServer(BaseProcessingObj):
         # Heuristic to detect inputs: they usually start with "in_"
         def data_obj_getter(name):
             if '.in_' in name:
-                return input_ref_getter(name, target_device_idx=-1)
+                return input_ref_getter(name, target_device_idx=-1)[0]
             else:
                 try:
-                    return output_ref_getter(name)     
+                    return output_ref_getter(name)[0]
                 except ValueError:
                     # Try inputs as well
-                    return input_ref_getter(name, target_device_idx=-1)
+                    return input_ref_getter(name, target_device_idx=-1)[0]
 
         self.data_obj_getter = data_obj_getter
         self.info_getter = info_getter
@@ -98,6 +99,9 @@ class DisplayServer(BaseProcessingObj):
                 # Find the requested object, make sure it's on CPU,
                 # and remove xp/np modules to prepare for pickling
                 dataobj = self.data_obj_getter(name)
+                if dataobj is None:
+                    dataobj = BaseValue(value=None)
+
                 if isinstance(dataobj, list):
                     dataobj_cpu = [x.copyTo(-1) for x in dataobj]
                 else:

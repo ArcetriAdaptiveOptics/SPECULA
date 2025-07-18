@@ -52,9 +52,4 @@ class WindowedIntegration(BaseProcessingObj):
                 self.output.value = self.output_value.copy()
                 self.output.generation_time = self.current_time
                 self.output_value *= 0.0
-
-    def setup(self):
-        super().setup()
-        input = self.inputs['input'].get(self.target_device_idx)
-        if input is None:
-            raise ValueError('Input object has not been set')
+                

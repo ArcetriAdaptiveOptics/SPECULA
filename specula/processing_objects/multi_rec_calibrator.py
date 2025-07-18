@@ -78,7 +78,7 @@ class MultiRecCalibrator(BaseProcessingObj):
     def setup(self):
         super().setup()
 
-        for i in range(len(self.inputs['intmat_list'].get(self.target_device_idx))):
+        for i in range(len(self.local_inputs['intmat_list'])):
             rec_path = self.rec_path(i)
             full_rec_path = self.full_rec_path()
             if rec_path and os.path.exists(rec_path) and not self._overwrite:

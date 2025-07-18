@@ -61,7 +61,9 @@ class Recmat(BaseDataObj):
 
         norm_factor = float(hdr['NORMFACT'])
         recmat = fits.getdata(filename, ext=1)
-        if len(fits.open(filename)) >= 3:
+        with fits.open(filename) as hdul:
+            num_ext = len(hdul)
+        if num_ext >= 3:                
             mode2reLayer = fits.getdata(filename, ext=2)
         else:
             mode2reLayer = None

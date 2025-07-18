@@ -63,6 +63,7 @@ def main():
         root_dir = data['main']['root_dir']
 
     cm = CalibManager(root_dir)
+    paths = []
     for item in results:
         if item['type'] == 'tag':
             path = cm.filename(item['class'], item['value'])
@@ -71,7 +72,13 @@ def main():
         elif item['type'] == 'data':
             path = cm.filename('data', item['value'])
 
-        print(path)
+        paths.append(path)
+
+    unique_res = set(paths)
+
+    for r in unique_res:
+
+        print('rsync -PavzR ' + r + ' frossi04@data.leonardo.cineca.it:/leonardo_work/try25_rossi/MORFEO_DATA')
 
 
 if __name__ == "__main__":

@@ -1,20 +1,31 @@
-
+import sys
 import typing
 import inspect
 import itertools
 from copy import deepcopy
 from pathlib import Path
-from collections import Counter
+from collections import Counter, namedtuple
+from specula import process_comm, process_rank, MPI_DBG
 from specula.base_processing_obj import BaseProcessingObj
+from specula.base_data_obj import BaseDataObj
 
 from specula.loop_control import LoopControl
-from specula.lib.flatten import flatten
 from specula.lib.utils import import_class, get_type_hints
 from specula.calib_manager import CalibManager
 from specula.processing_objects.data_store import DataStore
-from specula.connections import InputValue
+from specula.connections import InputList, InputValue
 
 import yaml
+import hashlib
+
+
+Output = namedtuple('Output', 'obj_name output_key delay ref input_name')
+
+
+def computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name):
+    s = output_obj_name + '%' + dest_object + '%' + str(output_attr_name) + '%' + str(input_attr_name)
+    rr = int(hashlib.sha256(s.encode('utf-8')).hexdigest(), 16) % 10**6
+    return rr
 
 
 class Simul():
@@ -26,10 +37,12 @@ class Simul():
                  overrides=None,
                  diagram=False,
                  diagram_title=None,
-                 diagram_filename=None                 
+                 diagram_filename=None
                  ):
         if len(param_files) < 1:
             raise ValueError('At least one Yaml parameter file must be present')
+        self.all_objs_ranks = {}
+        self.remote_objs_ranks = {}
         self.param_files = param_files
         self.objs = {}
         self.verbose = False  #TODO
@@ -42,51 +55,82 @@ class Simul():
         self.diagram = diagram
         self.diagram_title = diagram_title
         self.diagram_filename = diagram_filename
-
-    def output_owner(self, output_name):
+    
+    def split_output(self, output_name, get_ref=False):
+        '''
+        Split the output name into object name and output key.
+        '''
         if ':' in output_name:
-            output_name = output_name.split(':')[0]
-        if '-' in output_name:
-            output_name = output_name.split('-')[1]
-        if '.' in output_name:
-            obj_name, attr_name = output_name.split('.')
-            return obj_name
+            output_name, delay = output_name.split(':')
+            delay = int(delay)
         else:
-            return output_name
+            delay = 0
+        if '-' in output_name:
+            input_name, output_name = output_name.split('-')
+        else:
+            input_name = None
+
+        if '.' in output_name:
+            obj_name, output_key = output_name.split('.')
+        else:
+            obj_name = output_name
+            output_key = None
+
+        # Get a reference to the output if possible
+        if get_ref:
+            if not obj_name in self.objs:
+                if obj_name in self.remote_objs_ranks:
+                    ref = None
+                else:
+                    raise ValueError(f'Object {obj_name} does not exist anywhere')
+            elif output_key is None:
+                ref = self.objs[obj_name]
+            elif not output_key in self.objs[obj_name].outputs:
+                raise ValueError(f'Object {obj_name} does not define an output with name {output_key}')
+            else:
+                ref = self.objs[obj_name].outputs[output_key]
+        else:
+            ref = None
+
+        return Output(obj_name, output_key, delay, ref, input_name)
+            
+    def output_owner(self, output_name):
+        output = self.split_output(output_name)
+        return output.obj_name
+
+    def output_key(self, output_name):
+        output = self.split_output(output_name)
+        return output.output_key
 
     def output_ref(self, output_name):
-        if ':' in output_name:
-            output_name = output_name.split(':')[0]
-        if '.' in output_name:
-            obj_name, attr_name = output_name.split('.')
-            if not obj_name in self.objs:
-                raise ValueError(f'Object {obj_name} does not exist')
-            if not attr_name in self.objs[obj_name].outputs:
-                raise ValueError(f'Object {obj_name} does not define an output with name {attr_name}')
-            output_ref = self.objs[obj_name].outputs[attr_name]
-        else:
-            output_ref = self.objs[output_name]
-        return output_ref
+        '''
+        return a tuple with:
+           - reference to the output, or None if the object is remote.
+           - name of the object that defines the output
+        '''
+        output = self.split_output(output_name, get_ref=True)
+        return output.ref
 
-    def input_ref(self, input_name, target_device_idx):
-        if ':' in input_name:
-            input_name = input_name.split(':')[0]
-        if '.' in input_name:
-            obj_name, attr_name = input_name.split('.')
-            if not obj_name in self.objs:
-                raise ValueError(f'Object {obj_name} does not exist')
-            if not attr_name in self.objs[obj_name].inputs:
-                raise ValueError(f'Object {obj_name} does not define an input with name {attr_name}')
-            input_ref = self.objs[obj_name].inputs[attr_name].get(target_device_idx)
-        else:
-            input_ref = self.objs[input_name].copyTo(target_device_idx)
-        return input_ref
+    def input_ref(self, input_name):
+        '''
+        return a tuple with:
+           - reference to the input, or None if the object is remote.
+           - name of the object that defines the input
+        '''
+        obj_name, output_key = self.split_output(input_name)
+
+        if not obj_name in self.objs:
+            if obj_name in self.remote_objs_ranks:
+                return None, obj_name
+            else:                
+                raise ValueError(f'Object {obj_name} does not exist anywhere')
+        if not output_key in self.objs[obj_name].inputs:
+            raise ValueError(f'Object {obj_name} does not define an input with name {output_key}')
+        input_ref = self.objs[obj_name].local_inputs[output_key]
+        return input_ref, obj_name
 
     def output_delay(self, output_name):
-        if ':' in output_name:
-            return int(output_name.split(':')[1])
-        else:
-            return 0
+        return self.split_output(output_name).delay
 
     def is_leaf(self, p):
         '''
@@ -197,12 +241,37 @@ class Simul():
 
         return build_order
 
+    def create_datastore_inputs(self, params):
+        '''
+        Create inputs for DataStore objects.
+        This is done after all objects have been created, so that
+        the inputs can be created with the correct type.
+        Analyze the input_list parameter of each DataStore object, and for each item,
+        create an InputList or InputValue object with the correct type.
+        Also modify the params dictionary to use the correct input names.
+        '''
+        for key, pars in params.items():
+            if 'class' in pars and pars['class'] == 'DataStore' and 'input_list' in pars['inputs']:
+                for single_output_name in pars['inputs']['input_list']:
+                    # If a DataStore exists in this process, create the input
+                    output = self.split_output(single_output_name, get_ref=True)
+                    if key in self.objs:
+                        if type(output.ref) is list:
+                            self.objs[key].inputs[output.input_name] = InputList(type=type(output.ref[0]))
+                        else:
+                            self.objs[key].inputs[output.input_name] = InputValue(type=type(output.ref))
+                    # Modify the params dictionary in all processes
+                    params[key]['inputs'][output.input_name] = single_output_name
+                del params[key]['inputs']['input_list']
+                        
     def build_objects(self, params):
 
         self.setSimulParams(params)
 
         cm = CalibManager(self.mainParams['root_dir'])
         skip_pars = 'class inputs outputs'.split()
+
+        if MPI_DBG: print(process_rank, 'building objects')
 
         for key in self.build_order(params):
 
@@ -217,14 +286,41 @@ class Simul():
             hints = get_type_hints(klass)
 
             target_device_idx = pars.get('target_device_idx', None)
+                        
+            par_target_rank = pars.get('target_rank', None)
+            if par_target_rank is None:
+                target_rank = 0
+                self.all_objs_ranks[key] = 0
+            else:
+                target_rank = par_target_rank     
+                self.all_objs_ranks[key] = par_target_rank
+                del pars['target_rank']        
+
+            # create the simulations objects for this process. Data Objects are created
+            # on all ranks (processes) by default, unless a specific rank has been specified.
+
+            build_this_object = (process_rank == target_rank) or \
+                                (issubclass(klass, BaseDataObj) and (par_target_rank == None)) or \
+                                (issubclass(klass, BaseDataObj) and (par_target_rank == process_rank)) or \
+                                (classname=='SimulParams') or \
+                                (process_rank == None)
+
+            # If not build, remember the remote rank of this object (needed for connections setup)
+            if not build_this_object:
+                self.remote_objs_ranks[key] = target_rank
+                continue
 
             if 'tag' in pars:
+                if 'target_device_idx' in pars:
+                    del pars['target_device_idx']
                 if len(pars) > 2:
                     raise ValueError('Extra parameters with "tag" are not allowed')
                 filename = cm.filename(classname, pars['tag'])
+                # tags are restored into each process (multiple copies), target_rank is not checked
                 print('Restoring:', filename)
                 self.objs[key] = klass.restore(filename, target_device_idx=target_device_idx)
                 self.objs[key].printMemUsage()
+                self.objs[key].name = key
                 continue
 
             pars2 = {}
@@ -240,11 +336,11 @@ class Simul():
 
                 # dict_ref field contains a dictionary of names and associated data objects (defined in the same yml file)
                 elif name.endswith('_dict_ref'):
-                    data = {x : self.output_ref(x) for x in value}
+                    data = {x : self.objs[x] for x in value}
                     pars2[name[:-4]] = data
 
                 elif name.endswith('_ref'):
-                    data = self.output_ref(value)
+                    data = self.objs[value]
                     pars2[name[:-4]] = data
 
                 # data fields are read from a fits file
@@ -270,7 +366,7 @@ class Simul():
                                 if arg is not type(None):  # Skip NoneType
                                     partype = arg
                                     break
-
+                        # data objects are restored into each process (multiple copies), target_rank is not checked
                         filename = cm.filename(parname, value)  # TODO use partype instead of parname?
                         print('Restoring:', filename)
                         parobj = partype.restore(filename, target_device_idx=target_device_idx)
@@ -307,6 +403,8 @@ class Simul():
             except Exception:
                 print(f'Exception building', key)
                 raise
+            if classname != 'SimulParams':
+                self.objs[key].stopMemUsageCount()
 
             self.objs[key].name = key
 
@@ -314,81 +412,99 @@ class Simul():
             if type(self.objs[key]) is DataStore:
                 self.objs[key].setParams(params)
 
+    def connect(self, output_name, input_name, dest_object):
+        '''
+        Connect the output *output_name*, defined by object *output_obj_name*,
+        and whose reference is *output_ref*, which might be None if the object is remote,
+        to the input *input_name* of the object *dest_object*, which might be local or remote.
+
+        This routine handles the three cases:
+        1. local output to local input - use Python references
+        2. local output to remote input - use addRemoteOutput() to send the output to the remote object
+        3. remote output to local input - use set_remote_rank() to set the remote rank of the input
+        '''
+        output = self.split_output(output_name, get_ref=True)
+        local_dest_object = dest_object in self.objs.keys()
+
+        send = output.ref is not None and local_dest_object is False
+        recv = output.ref is None and local_dest_object is True
+        local = output.ref is not None and local_dest_object is True
+        if send or recv:
+            tag = computeTag(output.obj_name, dest_object, output.output_key, input_name)
+
+        if MPI_DBG: print(process_rank, f'{output.obj_name}.{output.output_key} -> {dest_object} : {send=} {recv=} {local=}', flush=True)
+
+        if recv:
+            if MPI_DBG: print(process_rank, f'CONNECT Connecting remote output {output.obj_name}.{output.output_key} to local input {dest_object}.{input_name} with tag {tag}')
+            self.objs[dest_object].inputs[input_name].append(None,
+                                                            remote_rank = self.remote_objs_ranks[output.obj_name],
+                                                            tag=tag)
+        if local:
+            if MPI_DBG: print(process_rank, f'CONNECT Connecting local output {output.obj_name}.{output.output_key} to local input {dest_object}.{input_name}')
+            self.objs[dest_object].inputs[input_name].append(output.ref)
+
+        if send:
+            self.objs[output.obj_name].addRemoteOutput(output.output_key, (self.remote_objs_ranks[dest_object], 
+                                                                            tag,
+                                                                            output.delay))
+                
     def connect_objects(self, params):
         self.connections = []
+        
         for dest_object, pars in params.items():
 
+            if MPI_DBG: print(process_rank, 'connect_objects for', dest_object, flush=True)
+
+            local_dest_object = dest_object in self.objs.keys()
+
+            # Check that outputs exist (or for remote objects, that they are defined in the params)
             if 'outputs' in pars:
                 for output_name in pars['outputs']:
-                    if not output_name in self.objs[dest_object].outputs:
-                        raise ValueError(f'Object {dest_object} does not have an output called {output_name}')
+                    if local_dest_object:
+                        # check that this output was actually created by this dest_object
+                        if not output_name in self.objs[dest_object].outputs:
+                            raise ValueError(f'Object {dest_object} does not have an output called {output_name}')
+                    else:
+                        # remote object case
+                        # TODO these checks are almost all reduntant
+                        if not ( self.all_objs_ranks[dest_object] != process_rank \
+                             and 'outputs' in params[dest_object] \
+                             and output_name in params[dest_object]['outputs'] ):
+                            raise ValueError(f'Remote Object {dest_object} does not have an output called {output_name}')
 
             if 'inputs' not in pars:
                 continue
 
             for input_name, output_name in pars['inputs'].items():
 
-                # Special case for DataStore
-                if isinstance(output_name, list) and input_name=='input_list':
-                    inputs = [x.split('-')[0] for x in output_name]
-                    outputs = [self.output_ref(x.split('-')[1]) for x in output_name]
-                    for ii, oo, nn in zip(inputs, outputs, output_name):
-                        self.objs[dest_object].inputs[ii] = InputValue(type = type(oo) )
-                        self.objs[dest_object].inputs[ii].set(oo)
+                if MPI_DBG: print(process_rank, 'ASSIGNMENT of input_name:', input_name, flush=True)
+                if MPI_DBG: print(process_rank, 'output_name', output_name, flush=True)
 
-                        a_connection = {}
-                        a_connection['start'] = nn.split('.')[0].split('-')[-1]
-                        a_connection['end'] = dest_object
-                        a_connection['start_label'] = ii
-                        a_connection['middle_label'] = self.objs[dest_object].inputs[ii]
-                        a_connection['end_label'] = nn
-                        self.connections.append(a_connection)
+                if local_dest_object and input_name != 'input_list':
+                    if not input_name in self.objs[dest_object].inputs:
+                        raise ValueError(f'Object {dest_object} does does not have an input called {input_name}')
 
-                    continue
-
-                if not input_name in self.objs[dest_object].inputs:
-                    raise ValueError(f'Object {dest_object} does does not have an input called {input_name}')
                 if not isinstance(output_name, (str, list)):
                     raise ValueError(f'Object {dest_object}: invalid input definition type {type(output_name)}')
 
-                wanted_type = self.objs[dest_object].inputs[input_name].type()
+                for single_output_name in output_name if isinstance(output_name, list) else [output_name]:
+                    if MPI_DBG: print(process_rank, 'List input', flush=True)
 
-                if isinstance(output_name, str):
-                    output_ref = self.output_ref(output_name)
-                    if not isinstance(output_ref, wanted_type):
-                        raise ValueError(f'Input {input_name}: output {output_ref} is not of type {wanted_type}')
+                    output = self.split_output(single_output_name, get_ref=True)
 
-                elif isinstance(output_name, list):
-                    outputs = [self.output_ref(x) for x in output_name]
-                    output_ref = flatten(outputs)
-                    for output in output_ref:
-                        if not isinstance(output, wanted_type):
-                            raise ValueError(f'Input {input_name}: output {output} is not of type {wanted_type}')
+                    # Remote-to-remote: nothing to do
+                    if not local_dest_object and output.ref is None:
+                        continue
+                    
+                    self.connect(single_output_name, input_name, dest_object)
 
-                try:
-                    self.objs[dest_object].inputs[input_name].set(output_ref)
-                except ValueError:
-                    print(f'Error connecting {output_name} to {dest_object}.{input_name}')
-                    raise
-
-                if not type(output_name) is list:
                     a_connection = {}
-                    a_connection['start'] = output_name.split('.')[0].split('-')[-1]
+                    a_connection['start'] = output.obj_name
                     a_connection['end'] = dest_object
-                    a_connection['start_label'] = output_name.split('.')[-1]
-                    a_connection['middle_label'] = self.objs[dest_object].inputs[input_name]
-                    a_connection['end_label'] = self.objs[dest_object].inputs[input_name]
-
+                    a_connection['start_label'] = output.output_key
+#                    a_connection['middle_label'] = self.objs[dest_object].inputs[use_input_name]
+#                    a_connection['end_label'] = self.objs[dest_object].inputs[use_input_name]
                     self.connections.append(a_connection)
-                else:
-                    for oo in output_name:
-                        a_connection = {}
-                        a_connection['start'] = oo.split('.')[0].split('-')[-1]
-                        a_connection['end'] = dest_object
-                        a_connection['start_label'] = oo.split('.')[-1]
-                        a_connection['middle_label'] = self.objs[dest_object].inputs[input_name]
-                        a_connection['end_label'] = self.objs[dest_object].inputs[input_name]
-                        self.connections.append(a_connection)
 
     def build_replay(self, params):
         self.replay_params = deepcopy(params)
@@ -493,7 +609,6 @@ class Simul():
                 params[obj_name][param_name] = v
                 print(obj_name, param_name, v)
 
-
     def arrangeInGrid(self, trigger_order, trigger_order_idx):
         rows = []
         n_cols = max(trigger_order_idx) + 1                
@@ -530,7 +645,7 @@ class Simul():
         for c in self.connections:
             aconn = d.add_connection(c['start'], c['end'], buffer_fill=Color(1.0,1.0,1.0), buffer_width=1, 
                              exits=[Side.RIGHT], entrances=[Side.LEFT, Side.BOTTOM, Side.TOP])
-            aconn.set_start_label(c['middle_label'],font_weight=FontWeight.BOLD, text_fill=Color(0, 0.5, 0), text_orientation=TextOrientation.HORIZONTAL)
+            #aconn.set_start_label(c['middle_label'],font_weight=FontWeight.BOLD, text_fill=Color(0, 0.5, 0), text_orientation=TextOrientation.HORIZONTAL)
         write_png(d, self.diagram_filename)
         print('Diagram saved.')
 
@@ -550,18 +665,20 @@ class Simul():
         # Actual creation code
         self.apply_overrides(params)
         self.setSimulParams(params)
-        self.build_objects(params)
-        self.connect_objects(params)
-
-        # Initialize housekeeping objects
-        self.loop = LoopControl()
-
-        if not self.isReplay:
-            self.build_replay(params)
 
         self.trigger_order, self.trigger_order_idx = self.trigger_order(params)
         print(f'{self.trigger_order=}')
         print(f'{self.trigger_order_idx=}')
+
+        if not self.isReplay:
+            self.build_replay(params)
+
+        self.build_objects(params)
+        self.create_datastore_inputs(params)
+        self.connect_objects(params)
+
+        # Initialize housekeeping objects
+        self.loop = LoopControl()
 
         if self.diagram or self.diagram_filename or self.diagram_title:
             if self.diagram_filename is None:
@@ -572,21 +689,32 @@ class Simul():
 
         # Build loop
         for name, idx in zip(self.trigger_order, self.trigger_order_idx):
-            obj = self.objs[name]
-            if isinstance(obj, BaseProcessingObj):
-                self.loop.add(obj, idx)
+            if name not in self.remote_objs_ranks:
+                obj = self.objs[name]
+                if isinstance(obj, BaseProcessingObj):
+                    self.loop.add(obj, idx)
+        
+        self.loop.max_global_order = max(self.trigger_order_idx)
+        print('self.loop.max_global_order', self.loop.max_global_order, flush=True)
 
         # Default display web server
-        if 'display_server' in self.mainParams and self.mainParams['display_server']:
+        if 'display_server' in self.mainParams and self.mainParams['display_server'] and process_rank == 0:
             from specula.processing_objects.display_server import DisplayServer
             disp = DisplayServer(params, self.input_ref, self.output_ref, self.get_info)
             self.objs['display_server'] = disp
             self.loop.add(disp, idx+1)
             disp.name = 'display_server'
 
+        if MPI_DBG: print(process_rank, 'at run barrier')
+        
+        sys.stdout.flush()
+        if process_comm is not None:
+            process_comm.barrier()
+
         # Run simulation loop
         self.loop.run(run_time=self.mainParams['total_time'], dt=self.mainParams['time_step'], speed_report=True)
 
+        print(process_rank, 'Simulation finished', flush=True)
 #        if data_store.has_key('sr'):
 #            print(f"Mean Strehl Ratio (@{params['psf']['wavelengthInNm']}nm) : {store.mean('sr', init=min([50, 0.1 * self.mainParams['total_time'] / self.mainParams['time_step']])) * 100.}")
 

@@ -14,6 +14,9 @@ class Intensity(BaseDataObj):
                 
         self.i = self.xp.zeros((dimx, dimy), dtype=self.dtype)
 
+    def __str__(self):
+        return str(self.i)
+
     @property
     def size(self):
         return self.i.shape

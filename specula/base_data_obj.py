@@ -17,7 +17,6 @@ def get_properties(cls):
     for cc in classlist:
         result.extend([attr for attr, value in vars(cc).items() if isinstance(value, property) ]) 
     return result
-    # return [attr for attr, value in vars(cls).items() if isinstance(value, property) ]
 
 
 class BaseDataObj(BaseTimeObj):
@@ -69,9 +68,6 @@ class BaseDataObj(BaseTimeObj):
         Destination (CPU or GPU device) is inferred by *destobj.target_device_idx*,
         which must be set correctly before calling this method.
         '''
-        if destobj.target_device_idx == self.target_device_idx and not force_reallocation:
-            return self
-
         # Get a list of all attributes, but skip properties
         pp = get_properties(type(self))
         attr_list = [attr for attr in dir(self) if attr not in pp]       
@@ -138,7 +134,7 @@ class BaseDataObj(BaseTimeObj):
                 if HtD:
                     setattr(destobj, attr, cp.asarray(self_attr))
                 if HtH:
-                    setattr(destobj, attr, np.asarray(self_attr, copy=True))
+                    setattr(destobj, attr, np.asarray(self_attr))
 
         destobj.generation_time = self.generation_time
 
@@ -147,7 +143,7 @@ class BaseDataObj(BaseTimeObj):
         Duplicate a data object on another device,
         alllocating all CPU/GPU arrays on the new device.
         '''
-        if target_device_idx==self.target_device_idx:
+        if target_device_idx == self.target_device_idx:
             return self
         else:
             cloned = copy(self)

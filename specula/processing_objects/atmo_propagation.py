@@ -213,8 +213,8 @@ class AtmoPropagation(BaseProcessingObj):
     def setup(self):
         super().setup()
 
-        self.atmo_layer_list = self.inputs['atmo_layer_list'].get(self.target_device_idx)
-        self.common_layer_list = self.inputs['common_layer_list'].get(self.target_device_idx)
+        self.atmo_layer_list = self.local_inputs['atmo_layer_list']
+        self.common_layer_list = self.local_inputs['common_layer_list']
 
         if self.atmo_layer_list is None:
             self.atmo_layer_list = []

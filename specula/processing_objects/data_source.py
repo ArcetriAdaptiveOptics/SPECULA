@@ -46,17 +46,22 @@ class DataSource(BaseProcessingObj):
         with open( filename, 'rb') as handle:
             unserialized_data = pickle.load(handle)
         times = unserialized_data['times']
-        data = unserialized_data['times']
-        self.storage[name] = { t:data.data[i] for i, t in enumerate(times.data.tolist())}
+        data = unserialized_data['data']
+
+        if 'hdr' in unserialized_data:
+            self.headers[name] = unserialized_data['hdr']
+            self.obj_type[name] = self.headers[name]['OBJ_TYPE']
+        
+        self.storage[name] = { t:data[i] for i, t in enumerate(times.tolist())}
 
     def load_fits(self, name):
         filename = os.path.join(self.tn_dir, name+'.fits')
-        self.headers[name] = fits.getheader(filename)
         with fits.open(filename) as hdul:
-            times = hdul[1]
-            data = hdul[0]
-            self.storage[name] = { t:data.data[i] for i, t in enumerate(times.data.tolist())}
+            self.headers[name] = dict(hdul[0].header)
             self.obj_type[name] = self.headers[name]['OBJ_TYPE']
+            times = hdul[1].data.copy()
+            data = hdul[0].data.copy()
+        self.storage[name] = { t:data[i] for i, t in enumerate(times.tolist())}
 
     def size(self, name, dimensions=False):
         if not self.has_key(name):

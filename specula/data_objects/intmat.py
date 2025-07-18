@@ -63,7 +63,8 @@ class Intmat(BaseDataObj):
         norm_factor = float(hdr.get('NORMFACT', 0.0))
         pupdata_tag = hdr.get('PUP_TAG', '')
         # Reading additional fits extensions
-        num_ext = len(fits.open(filename))
+        with fits.open(filename) as hdul:
+            num_ext = len(hdul)
         if num_ext >= 4:
             slope_mm = fits.getdata(filename, ext=2)
             slope_rms = fits.getdata(filename, ext=3)

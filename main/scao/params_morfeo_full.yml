@@ -130,22 +130,22 @@ m2c_m4:
   class:   'M2C'
   tag:     'M4_eso_39.5m_486p_20230215'
 
-dm_disturb:
-  class:             'DM'
-  simul_params_ref:  'main'
-#  ifunc_ref:   'ifunc_m4'
-#  m2c_ref:     'm2c_m4'
-  ifunc_object:      'MAORY_542pix_31nacts_cir_0.000obs_zonal_ifs'
-  m2c_object:        'MAORY_542pix_31nacts_cir_0.000obs_5zern_10000.0cn'
-  start_mode:        5
-  input_offset:      0                        # Offset into input command vector
-#  nmodes:            4519
-  nmodes:            720
-#  height:            600                      # DM height [m]
-  height:            6500 
-  inputs:
-      in_command: 'pushpull.output'
-  outputs:  ['out_layer']
+    #dm_disturb:
+    #  class:             'DM'
+    #  simul_params_ref:  'main'
+    ##  ifunc_ref:   'ifunc_m4'
+    ##  m2c_ref:     'm2c_m4'
+#  ifunc_object:      'MAORY_542pix_31nacts_cir_0.000obs_zonal_ifs'
+#  m2c_object:        'MAORY_542pix_31nacts_cir_0.000obs_5zern_10000.0cn'
+#  start_mode:        5
+#  input_offset:      0                        # Offset into input command vector
+##  nmodes:            4519
+#  nmodes:            720
+##  height:            600                      # DM height [m]
+#  height:            6500 
+#  inputs:
+#      in_command: 'pushpull.output'
+#  outputs:  ['out_layer']
 
 prop:
   class:                'AtmoPropagation'
