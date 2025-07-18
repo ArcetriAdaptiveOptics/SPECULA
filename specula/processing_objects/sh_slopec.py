@@ -170,7 +170,7 @@ class ShSlopec(Slopec):
 
         n_subaps = self.subapdata.n_subaps
         np_sub = self.subapdata.np_sub
-        pixels = self.int_pixels if accumulated else in_pixels
+        pixels = self.int_pixels.pixels if accumulated else in_pixels
 
         sx = self.xp.zeros(n_subaps, dtype=self.dtype)
         sy = self.xp.zeros(n_subaps, dtype=self.dtype)
@@ -335,13 +335,6 @@ class ShSlopec(Slopec):
         # Reform pixels based on the subaperture index
         idx2d = unravel_index_2d(self.subap_idx, orig_pixels.shape, self.xp)
         pixels = orig_pixels[idx2d].T
-
-        print(f"weight_int_pixel: {self.weight_int_pixel}")
-        print(f"int_pixels: {self.int_pixels is not None}")
-        print(f"current_time: {self.current_time}")
-        print(f"weight_int_pixel_dt: {self.weight_int_pixel_dt}")
-        print(f"shape of pixels: {pixels.shape}")
-        print(f"shape of int_pixels: {self.int_pixels.pixels.shape if self.int_pixels is not None else 'N/A'}")
 
         if self.weight_int_pixel:
             n_weight_applied = 0
