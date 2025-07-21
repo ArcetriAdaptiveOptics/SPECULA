@@ -104,7 +104,7 @@ class DistributedSH(BaseProcessingObj):
             sh.trigger()
 
     def post_trigger(self):
-        BaseProcessingObj.post_trigger(self)
+        super().post_trigger()
 
         # Collect results from the other SHs into our Intensity result
         for s, sh in zip(self.slices, self.sub_sh):
