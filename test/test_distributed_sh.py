@@ -59,6 +59,7 @@ class TestSH(unittest.TestCase):
                 sensor_pxscale=pxscale_arcsec,
                 subap_on_diameter=20,
                 subap_npx=sh_npix,
+                n_slices=2,
                 target_device_idx=target_device_idx)
 
         # Flat wavefront
@@ -116,6 +117,7 @@ class TestSH(unittest.TestCase):
                 sensor_pxscale=pxscale_arcsec,
                 subap_on_diameter=20,
                 subap_npx=sh_npix,
+                n_slices=2,
                 target_device_idx=target_device_idx)
 
         sh2 = DistributedSH(wavelengthInNm=500,
@@ -123,6 +125,7 @@ class TestSH(unittest.TestCase):
                 sensor_pxscale=pxscale_arcsec,
                 subap_on_diameter=20,
                 subap_npx=sh_npix,
+                n_slices=2,
                 target_device_idx=target_device_idx)
 
         sh3 = DistributedSH(wavelengthInNm=500,
@@ -130,6 +133,7 @@ class TestSH(unittest.TestCase):
                 sensor_pxscale=pxscale_arcsec,
                 subap_on_diameter=30,  # Different
                 subap_npx=sh_npix,
+                n_slices=2,
                 target_device_idx=target_device_idx)
 
         # Flat wavefront
