@@ -4,16 +4,27 @@ from specula.lib.flatten import flatten
 
 
 class _InputItem():
-    def __init__(self, type, remote_rank=None, tag=None, optional=False):
+    def __init__(self, type_, value, remote_rank=None, tag=None, optional=False):
         """
         Private class, wrapper for simple input values
+
+        *value* must be a reference to the output value being read, or None
+        in case of remote inputs.
         """
-        self.output_ref_type = type
+        if remote_rank:
+            if value is not None:
+                raise ValueError(f'non-None value used with remote input')
+        else:
+            if not isinstance(value, type_):
+                raise ValueError(f'Value must be of type {type_} instead of {type(value)}')
+
+        self.output_ref_type = type_
         self.output_ref = None
         self.cloned_value = None
         self.optional = optional
         self.remote_rank = remote_rank
         self.tag = tag
+        self.output_ref = value
 
     def get(self, target_device_idx):
         if self.remote_rank is None:
@@ -38,43 +49,28 @@ class _InputItem():
             value.transferDataTo(self.cloned_value)
         return self.cloned_value
 
-    def set(self, value):
-        if self.output_ref is not None:
-            raise ValueError('InputValue already set, cannot set again')        
-        if not isinstance(value, self.output_ref_type) and self.remote_rank is None:
-            raise ValueError(f'Value must be of type {self.output_ref_type} instead of {type(value)}')
-        self.output_ref = value
-
 
 class InputList():
     def __init__(self, type, optional=False):
         """
-        Wrapper for input lists
+        Wrapper for input lists exchanged by objects. All inputs and outputs
+        are managed as lists. Singles values use the InputValue() class below,
+        which just reduces to a list with a single value.
+
+        Each list element is a separate _InputItem instance, which is able to
+        perform its own MPI receive if needed. This allows to mix in the same list
+        inputs with different sources (useful e.g. in propagation)
         """
         self.output_ref_type = type
         self.input_values = []
         self.optional = optional
 
-    def get(self, target_device_idx, single_value=False):
-        values_list = flatten([v.get(target_device_idx) for v in self.input_values])
-        if single_value:
-            if len(values_list) > 1:
-                raise ValueError('InputValue contains more than one item')
-            if len(values_list) == 0:
-                if self.optional:
-                    return None
-                else:
-                    raise ValueError('InputValue is empty and not optional')
-            return values_list[0]
-        else:
-            return values_list
+    def get(self, target_device_idx):
+        return flatten([v.get(target_device_idx) for v in self.input_values])
 
-    def set(self, item, remote_rank=None, tag=None):
-        """
-        Set a single item as the input list
-        """
+    def set(self, values_list, remote_rank=None, tag=None):
         self.input_values = []
-        self.append(item, remote_rank, tag)
+        self.append(values_list, remote_rank, tag)
 
     def append(self, item, remote_rank=None, tag=None):
         """
@@ -90,15 +86,31 @@ class InputList():
             raise ValueError(f'Item must be of type {self.output_ref_type} instead of {type(item)}')
 
         self.input_values.append(_InputItem(self.output_ref_type,
+                                            item,
                                             remote_rank=remote_rank,
                                             tag=tag,
                                             optional=self.optional))
-        self.input_values[-1].set(item)
 
 
 class InputValue(InputList):
     '''
-    Convenience class for input lists. Calling get() will return a list of items.
+    Convenience class for single values: calling get() will return a single item
     '''
+    def set(self, item, remote_rank=None, tag=None):
+        """
+        Set a single item as the input list
+        """
+        self.input_values = []
+        self.append(item, remote_rank, tag)
+
     def get(self, target_device_idx):
-        return super().get(target_device_idx, single_value=True)
+        values_list = super().get(target_device_idx)
+        if len(values_list) > 1:
+            raise ValueError('InputValue contains more than one item')
+        if len(values_list) == 0:
+            if self.optional:
+                return None
+            else:
+                raise ValueError('InputValue is empty and not optional')
+        return values_list[0]
+
