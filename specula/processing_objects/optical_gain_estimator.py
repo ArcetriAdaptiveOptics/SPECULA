@@ -22,9 +22,9 @@ class OpticalGainEstimator(BaseProcessingObj):
                  expression: list = None,
                  target_device_idx: int = None,
                  precision: int = None):
-        
+
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-        
+
         self.gain = gain
         self.initial_optical_gain = initial_optical_gain
 
