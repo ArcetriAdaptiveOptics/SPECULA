@@ -92,8 +92,8 @@ class Pupilstop(Layer):
         return pupilstop
 
     @staticmethod
-    def restore(filename):
-        hdr = fits.getheader(filename, target_device_idx=None)
+    def restore(filename, target_device_idx=None):
+        hdr = fits.getheader(filename)
         if 'OBJ_TYPE' not in hdr or hdr['OBJ_TYPE'] != 'Pupilstop':
             raise ValueError(f"Error: file {filename} does not contain a Pupilstop object")
         pupilstop = Pupilstop.from_header(hdr, target_device_idx=target_device_idx)
