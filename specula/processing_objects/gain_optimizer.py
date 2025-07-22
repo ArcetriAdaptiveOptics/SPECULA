@@ -14,7 +14,7 @@ class GainOptimizer(BaseProcessingObj):
     This class optimizes the gains of an IIR filter by minimizing the residual variance
     in the closed-loop system using pseudo open-loop measurements.
     """
-    
+
     def __init__(self,
                  simul_params: SimulParams,
                  iir_filter_data: IirFilterData,
@@ -28,13 +28,13 @@ class GainOptimizer(BaseProcessingObj):
                  running_mean: bool = False,     # Use running mean for PSD
                  target_device_idx: int = None,
                  precision: int = None):
-        
+
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-        
+
         self.simul_params = simul_params
         self.iir_filter_data = iir_filter_data
         self.time_step = simul_params.time_step
-        
+
         # Convert optimization parameters
         self.opt_dt = self.seconds_to_t(opt_dt)
         self.delay = delay
@@ -44,10 +44,10 @@ class GainOptimizer(BaseProcessingObj):
         self.limit_inc = limit_inc
         self.ngains = ngains
         self.running_mean = running_mean
-        
+
         # Get number of modes from filter
         self.nmodes = iir_filter_data.nfilter
-        
+
         # History storage
         self.time_hist = []
         self.delta_comm_hist = []
@@ -55,30 +55,30 @@ class GainOptimizer(BaseProcessingObj):
         self.optical_gain_hist = []
         self.psd_ol = None
         self.prev_optgain = None
-        
+
         # Outputs
         self.optgain = BaseValue(
             value=self.xp.ones(self.nmodes, dtype=self.dtype),
             target_device_idx=target_device_idx
         )
-        
+
         # Inputs
         self.inputs['delta_comm'] = InputValue(type=BaseValue)
         self.inputs['out_comm'] = InputValue(type=BaseValue)
         self.inputs['optical_gain'] = InputValue(type=BaseValue, optional=True)
-        
+
         # Outputs
         self.outputs['optgain'] = self.optgain
-        
+
         self.verbose = True
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
-        
+
         # Get current inputs
         self.current_delta_comm = self.local_inputs['delta_comm'].value
         self.current_out_comm = self.local_inputs['out_comm'].value
-        
+
         # Store optical gain if available
         if self.local_inputs['optical_gain'] is not None:
             self.current_optical_gain = self.local_inputs['optical_gain'].value
@@ -88,12 +88,12 @@ class GainOptimizer(BaseProcessingObj):
 
     def trigger_code(self):
         t = self.current_time
-        
+
         # Store history
         self.time_hist.append(t)
         self.delta_comm_hist.append(self.current_delta_comm.copy())
         self.comm_hist.append(self.current_out_comm.copy())
-        
+
         # Check if it's time to optimize
         if t >= self.opt_dt and (t % self.opt_dt) == 0:
             self._optimize_gains(t)
@@ -106,51 +106,51 @@ class GainOptimizer(BaseProcessingObj):
             if self.verbose:
                 print("Not enough history for optimization")
             return
-        
+
         # Convert history to arrays
         delta_comm_hist = self.xp.array(self.delta_comm_hist)
         comm_hist = self.xp.array(self.comm_hist)
-        
+
         # Calculate integration time
-        Te = self.t_to_seconds(self.time_step)
-        
+        t_int = self.t_to_seconds(self.time_step)
+
         # Calculate pseudo open-loop signal
         pseudo_ol = self._calculate_pseudo_open_loop(delta_comm_hist, comm_hist)
-        
+
         # Calculate maximum stable gains
         gmax_vec = self._calculate_max_gains()
-        
+
         # Optimize gains for each mode
         opt_gains = self.xp.zeros(self.nmodes, dtype=self.dtype)
-        
+
         for mode in range(self.nmodes):
             opt_gains[mode] = self._optimize_single_mode(
-                mode, pseudo_ol[mode], Te, gmax_vec[mode]
+                mode, pseudo_ol[mode], t_int, gmax_vec[mode]
             )
-        
+
         # Apply increment limiting
         if self.limit_inc and self.prev_optgain is not None:
             opt_gains = (self.prev_optgain + 
                         self.max_inc * (opt_gains - self.prev_optgain))
-        
+
         # Apply optical gain compensation
         if len(self.optical_gain_hist) >= 2:
             gain_ratio = self.optical_gain_hist[-1] / self.optical_gain_hist[-2]
             opt_gains *= gain_ratio
-        
+
         # Apply safety factors
         opt_gains *= self.safety_factor
         opt_gains = self.xp.minimum(opt_gains, gmax_vec)
-        
+
         # Store results
         self.prev_optgain = opt_gains.copy()
         self.optgain.value = opt_gains
         self.optgain.generation_time = self.current_time
-        
+
         if self.verbose:
             print(f"Optimized gains at t={self.t_to_seconds(t):.3f}s: "
                   f"mean={float(self.xp.mean(opt_gains)):.4f}")
-        
+
         # Clear history
         self._clear_history()
 
@@ -161,14 +161,14 @@ class GainOptimizer(BaseProcessingObj):
         """
         n_modes, n_time = delta_comm_hist.shape
         pseudo_ol = self.xp.zeros((n_modes, n_time), dtype=self.dtype)
-        
+
         # First time step: use delta command only
         pseudo_ol[:, 0] = delta_comm_hist[:, 0]
-        
+
         # Subsequent time steps: add previous command
         for t in range(1, n_time):
             pseudo_ol[:, t] = comm_hist[:, t-1] + delta_comm_hist[:, t]
-        
+
         return pseudo_ol
 
     def _calculate_max_gains(self):
@@ -182,13 +182,13 @@ class GainOptimizer(BaseProcessingObj):
             base_gmax = 1.0
         else:
             base_gmax = 0.61
-        
-        gmax_vec = self.xp.full(self.nmodes, base_gmax * self.max_gain_factor, 
+
+        gmax_vec = self.xp.full(self.nmodes, base_gmax * self.max_gain_factor,
                                dtype=self.dtype)
-        
+
         return gmax_vec
 
-    def _optimize_single_mode(self, mode, pseudo_ol_mode, Te, gmax):
+    def _optimize_single_mode(self, mode, pseudo_ol_mode, t_int, gmax):
         """
         Optimize gain for a single mode using PSD minimization.
         """
@@ -202,29 +202,29 @@ class GainOptimizer(BaseProcessingObj):
             # Default integrator
             num = self.xp.array([0.0, 1.0], dtype=self.dtype)
             den = self.xp.array([-1.0, 1.0], dtype=self.dtype)
-        
+
         # Calculate PSD of pseudo open-loop signal
-        psd_pseudo_ol, freq = self._calculate_psd(pseudo_ol_mode, Te)
-        
+        psd_pseudo_ol, freq = self._calculate_psd(pseudo_ol_mode, t_int)
+
         # Apply running mean if enabled
         if self.running_mean and self.psd_ol is not None:
             if self.psd_ol.shape[1] > mode:
                 psd_pseudo_ol = (psd_pseudo_ol + self.psd_ol[:, mode]) / 2.0
-        
-        # Test different gain values
+
+        # t_intst different gain values
         gains = self.xp.linspace(gmax/self.ngains, gmax, self.ngains)
         totals = self.xp.zeros(self.ngains, dtype=self.dtype)
-        
+
         for i, gain in enumerate(gains):
             # Calculate rejection transfer function
-            h_rej = self._calculate_rejection_tf(freq, Te, gain, num, den)
+            h_rej = self._calculate_rejection_tf(freq, t_int, gain, num, den)
             # Calculate total residual variance
             totals[i] = self.xp.sum(self.xp.abs(h_rej)**2 * psd_pseudo_ol)
-        
+
         # Find optimal gain
         min_idx = self.xp.argmin(totals)
         optimal_gain = gains[min_idx]
-        
+
         return optimal_gain
 
     def _get_forgetting_factor(self, mode):
@@ -239,47 +239,47 @@ class GainOptimizer(BaseProcessingObj):
         else:
             return 1.0  # Perfect integrator
 
-    def _calculate_psd(self, data, Te):
+    def _calculate_psd(self, data, t_int):
         """
         Calculate Power Spectral Density using Welch's method.
         """
         # Convert to CPU for scipy operations
         data_cpu = self.xp.asnumpy(data) if hasattr(self.xp, 'asnumpy') else data
-        
+
         # Use Welch's method with Hanning window
-        fs = 1.0 / Te
+        fs = 1.0 / t_int
         freq, psd = signal.welch(data_cpu, fs=fs, window='hann', 
                                 nperseg=min(len(data_cpu), 256))
-        
+
         # Convert back to target device
         freq = self.to_xp(freq, dtype=self.dtype)
         psd = self.to_xp(psd, dtype=self.dtype)
-        
+
         return psd, freq
 
-    def _calculate_rejection_tf(self, freq, Te, gain, num, den):
+    def _calculate_rejection_tf(self, freq, t_int, gain, num, den):
         """
         Calculate rejection transfer function H_rej = 1/(1 + g*G(z))
         where G(z) is the plant transfer function including delay.
         """
         # Convert frequency to normalized angular frequency
-        omega = 2 * np.pi * freq * Te
+        omega = 2 * np.pi * freq * t_int
         z = self.xp.exp(1j * omega)
-        
+
         # Calculate control transfer function C(z) = num/den
         num_val = self.xp.polyval(num[::-1], z)  # polyval expects reverse order
         den_val = self.xp.polyval(den[::-1], z)
         c_tf = num_val / den_val
-        
+
         # Calculate delay transfer function
         delay_tf = z**(-self.delay)
-        
+
         # Calculate open-loop transfer function
         ol_tf = gain * c_tf * delay_tf
-        
+
         # Calculate rejection transfer function
         h_rej = 1.0 / (1.0 + ol_tf)
-        
+
         return h_rej
 
     def _clear_history(self):
@@ -291,7 +291,7 @@ class GainOptimizer(BaseProcessingObj):
             if self.psd_ol is None:
                 self.psd_ol = self.xp.zeros((256, self.nmodes), dtype=self.dtype)
             # Update stored PSD (simplified)
-        
+
         # Clear history lists
         self.time_hist = []
         self.delta_comm_hist = []
@@ -299,7 +299,7 @@ class GainOptimizer(BaseProcessingObj):
 
     def post_trigger(self):
         super().post_trigger()
-        
+
         # Ensure output generation time is set
         if hasattr(self.optgain, 'generation_time'):
             self.optgain.generation_time = self.current_time
@@ -309,7 +309,7 @@ class GainOptimizer(BaseProcessingObj):
         Setup the gain optimizer.
         """
         super().setup()
-        
+
         # Initialize optimal gain to ones
         self.optgain.value = self.xp.ones(self.nmodes, dtype=self.dtype)
         self.optgain.generation_time = 0
