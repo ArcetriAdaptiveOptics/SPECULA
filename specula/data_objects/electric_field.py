@@ -35,6 +35,9 @@ class ElectricField(BaseDataObj):
         self.A[:]= self.to_xp(v[0], dtype=self.dtype)
         self.phaseInNm[:] = self.to_xp(v[1], dtype=self.dtype)
 
+    def get_value(self):
+        return self.xp.stack((self.A, self.phaseInNm))
+
     def reset(self):
         '''
         Reset to zero phase and unitary amplitude
