@@ -1,9 +1,8 @@
-import numpy as np
-from scipy import signal
-
+from specula import to_xp
 from specula.base_processing_obj import BaseProcessingObj
 from specula.connections import InputValue
 from specula.base_value import BaseValue
+from specula.data_objects.simul_params import SimulParams
 
 
 class Demodulator(BaseProcessingObj):
@@ -14,6 +13,7 @@ class Demodulator(BaseProcessingObj):
     """
 
     def __init__(self,
+                 simul_params: SimulParams,
                  mode_numbers: list,
                  carrier_frequencies: list,
                  demod_dt: float,  # Demodulation time interval
@@ -30,6 +30,8 @@ class Demodulator(BaseProcessingObj):
         self.data_history = []
         self.time_history = []
 
+        self.loop_dt = self.seconds_to_t(simul_params.time_step)
+
         # Outputs
         self.output = BaseValue(target_device_idx=target_device_idx)
 
@@ -43,20 +45,20 @@ class Demodulator(BaseProcessingObj):
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
-        self.current_data = self.local_inputs['in_data']
+        self.input = self.local_inputs['in_data']
 
     def trigger_code(self):
         t = self.current_time
 
         # Store data if input is ready
-        if self.current_data.generation_time == t:
+        if self.input.generation_time == t:
             # Extract data for the specified modes
-            if self.current_data.value.ndim > 1:
+            if self.input.value.ndim > 1:
                 # Multi-dimensional data - extract modes
-                mode_data = self.current_data.value[self.mode_numbers]
+                mode_data = self.input.value[self.mode_numbers]
             else:
                 # 1D data
-                mode_data = self.current_data.value
+                mode_data = self.input.value
 
             self.data_history.append(mode_data.copy())
             self.time_history.append(t)
@@ -189,6 +191,11 @@ class Demodulator(BaseProcessingObj):
         # Convert back to target device if needed
         value = to_xp(self.xp, value, dtype=self.dtype)
 
+        if self.verbose:
+            print(f"Demodulated value: {value}, Phase: {pphi}")
+            print(f"Carrier frequency: {sinFreq}, Sampling frequency: {sampling_freq}, N4mean: {N4mean}")
+            print(f"Data length: {len(data)}, Time steps: {nt}, dt: {dt:.3f}s")
+
         return value
 
     def setup(self):
@@ -205,7 +212,3 @@ class Demodulator(BaseProcessingObj):
 
     def post_trigger(self):
         super().post_trigger()
-
-        # Ensure output generation time is set
-        if hasattr(self.output, 'generation_time'):
-            self.output.generation_time = self.current_time
