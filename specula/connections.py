@@ -14,12 +14,16 @@ class _InputItem():
         self.optional = optional
         self.remote_rank = remote_rank
         self.tag = tag
+        self.last_value = None
 
     def get(self, target_device_idx):
         if self.remote_rank is None:
             if self.output_ref is None:
+                self.last_value = None
                 return None
-            if self.output_ref.target_device_idx == target_device_idx:
+
+            elif self.output_ref.target_device_idx == target_device_idx:
+                self.last_value = self.output_ref
                 return self.output_ref
 
         if self.remote_rank is None:         
@@ -36,6 +40,8 @@ class _InputItem():
             self.cloned_value = value.copyTo(target_device_idx)
         else:
             value.transferDataTo(self.cloned_value)
+
+        self.last_value = self.cloned_value
         return self.cloned_value
 
     def set(self, value):

@@ -10,7 +10,7 @@ from specula.data_objects.laser_launch_telescope import LaserLaunchTelescope
 from specula.processing_objects.sh import SH
 
 
-class DistributedSH(BaseProcessingObj):
+class DistributedSH(SH):
     '''
     SH class that distributes work on multiple devices.
 
@@ -40,8 +40,6 @@ class DistributedSH(BaseProcessingObj):
                  target_device_idx: int = None,
                  precision: int = None,
         ):
-        super().__init__(target_device_idx=target_device_idx, precision=precision)
-
         # Complete dict of init arguments, without extra ones
         args = copy.copy(locals())
         del args['self']
@@ -50,6 +48,10 @@ class DistributedSH(BaseProcessingObj):
         # Calculate slices for each SH
         subaps_per_sh = subap_on_diameter // n_slices
         del args['n_slices']
+
+        # Initialize base class - we do not use the calculation routines,
+        # but it is needed for inputs and outputs
+        super().__init__(**args)
 
         self.slices = []
         for i in range(n_slices):
@@ -64,58 +66,48 @@ class DistributedSH(BaseProcessingObj):
             args['subap_rows_slice'] = self.slices[i]
             self.sub_sh.append( SH(**args))
 
-        # Same inputs and outputs as a SH
-        # Inputs will be copied to the sub-SH
-        if laser_launch_tel is not None:
-            self.inputs['sodium_altitude'] = InputValue(type=BaseValue, optional=True)
-            self.inputs['sodium_intensity'] = InputValue(type=BaseValue, optional=True)
-
-        sh0 = self.sub_sh[0]
-        self.out_i = Intensity(sh0._ccd_side, sh0._ccd_side, precision=precision, target_device_idx=target_device_idx)
-        self.inputs['in_ef'] = InputValue(type=ElectricField)
-        self.outputs['out_i'] = self.out_i
-        self.outputs['wf1'] = BaseValue(target_device_idx=self.target_device_idx)
-        self.subap_npx = subap_npx
-
     def setup(self):
-        super().setup()
+        BaseProcessingObj.setup(self)
 
         # Copy our inputs into all sub-SH
         for i, sh in enumerate(self.sub_sh):
             sh.name = f'subsh{i}'
             for k, v in self.inputs.items():
                 if len(v.input_values) > 0:
-                    sh.inputs[k].set(v.input_values[0].output_ref)
+                    sh.inputs[k].set(v.input_values[0].last_value)
             sh.setup()
 
     def check_ready(self, t):
-        super().check_ready(t)
+        BaseProcessingObj.check_ready(self, t)
         for sh in self.sub_sh:
             sh.check_ready(t)
 
     def prepare_trigger(self, t):
-        super().prepare_trigger(t)
+        BaseProcessingObj.prepare_trigger(self, t)
         for sh in self.sub_sh:
             sh.prepare_trigger(t)
    
     def trigger(self):
-        super().trigger()
+        BaseProcessingObj.trigger(self)
         for sh in self.sub_sh:
             sh.trigger()
 
+    def trigger_code(self):
+        return
+
     def post_trigger(self):
-        super().post_trigger()
+        BaseProcessingObj.post_trigger(self)
 
         # Collect results from the other SHs into our Intensity result
         for s, sh in zip(self.slices, self.sub_sh):
-            y1 = self.subap_npx * s.start
-            y2 = self.subap_npx * s.stop
-            self.out_i.i[y1:y2] = sh._out_i.i[y1:y2]
+            y1 = self._subap_npx * s.start
+            y2 = self._subap_npx * s.stop
+            self._out_i.i[y1:y2] = sh._out_i.i[y1:y2]
 
         in_ef = self.local_inputs['in_ef']
         phot = in_ef.S0 * in_ef.masked_area()
-        self.out_i.i *= phot / self.out_i.i.sum()
-        self.out_i.generation_time = self.current_time
+        self._out_i.i *= phot / self._out_i.i.sum()
+        self._out_i.generation_time = self.current_time
 
 #        import matplotlib.pyplot as plt
 #        plt.imshow(cpuArray(self._out_i.i))
