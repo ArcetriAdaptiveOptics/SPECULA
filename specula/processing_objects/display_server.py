@@ -59,13 +59,13 @@ class DisplayServer(BaseProcessingObj):
         # Heuristic to detect inputs: they usually start with "in_"
         def data_obj_getter(name):
             if '.in_' in name:
-                return input_ref_getter(name, target_device_idx=-1)[0]
+                return input_ref_getter(name)
             else:
                 try:
-                    return output_ref_getter(name)[0]
+                    return output_ref_getter(name)
                 except ValueError:
                     # Try inputs as well
-                    return input_ref_getter(name, target_device_idx=-1)[0]
+                    return input_ref_getter(name)
 
         self.data_obj_getter = data_obj_getter
         self.info_getter = info_getter
