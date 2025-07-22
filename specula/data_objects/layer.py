@@ -14,10 +14,9 @@ class Layer(ElectricField):
                  shiftXYinPixel: tuple=(0.0, 0.0),
                  rotInDeg: float=0.0,
                  magnification: float=1.0,
-                 S0: float=0.0,
                  target_device_idx: int=None,
                  precision: int=None):
-        super().__init__(dimx, dimy, pixel_pitch, S0=S0, target_device_idx=target_device_idx, precision=precision)
+        super().__init__(dimx, dimy, pixel_pitch, target_device_idx=target_device_idx, precision=precision)
         self.height = height
         self.shiftXYinPixel = cpuArray(shiftXYinPixel).astype(self.dtype)
         self.rotInDeg = rotInDeg
@@ -37,7 +36,6 @@ class Layer(ElectricField):
         hdr['SHIFTY'] = self.shiftXYinPixel[1]
         hdr['ROTATION'] = self.rotInDeg
         hdr['MAGNIFICATION'] = self.magnification
-        hdr['S0'] = self.S0
         return hdr
 
     def save(self, filename, overwrite=True):
@@ -60,8 +58,7 @@ class Layer(ElectricField):
         shiftY = float(hdr['SHIFTY'])
         rotInDeg = float(hdr['ROTATION'])
         magnification = float(hdr['MAGNIFICATION'])
-        S0 = float(hdr['S0'])
-        layer = Layer(dimx, dimy, pitch, height, (shiftX, shiftY), rotInDeg, magnification, S0, target_device_idx=target_device_idx)
+        layer = Layer(dimx, dimy, pitch, height, (shiftX, shiftY), rotInDeg, magnification, target_device_idx=target_device_idx)
         return layer
 
     @staticmethod
