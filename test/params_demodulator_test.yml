@@ -22,7 +22,7 @@ noise:
   seed:             1342
   outputs: ['output']
 
-sum_operation_nosie:
+sum_operation_noise:
   class:            'BaseOperation'
   sum:              True
   inputs:
@@ -37,7 +37,7 @@ demodulator:
   carrier_frequencies: [50.0]
   demod_dt:           1.0
   inputs:
-      in_data: 'sum_operation_nosie.out_value'
+      in_data: 'sum_operation_noise.out_value'
   outputs: ['output']
 
 data_store:

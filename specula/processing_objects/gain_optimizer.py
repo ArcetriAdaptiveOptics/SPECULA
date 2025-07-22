@@ -7,6 +7,7 @@ from specula.base_value import BaseValue
 from specula.data_objects.iir_filter_data import IirFilterData
 from specula.data_objects.simul_params import SimulParams
 
+import matplotlib.pyplot as plt
 
 class GainOptimizer(BaseProcessingObj):
     """
@@ -55,6 +56,8 @@ class GainOptimizer(BaseProcessingObj):
         self.optical_gain_hist = []
         self.psd_ol = None
         self.prev_optgain = None
+        
+        self.plot_debug = False  # Enable plotting for debugging
 
         # Outputs
         self.optgain = BaseValue(
@@ -111,9 +114,6 @@ class GainOptimizer(BaseProcessingObj):
         delta_comm_hist = self.xp.array(self.delta_comm_hist)
         comm_hist = self.xp.array(self.comm_hist)
 
-        # Calculate integration time
-        t_int = self.t_to_seconds(self.time_step)
-
         # Calculate pseudo open-loop signal
         pseudo_ol = self._calculate_pseudo_open_loop(delta_comm_hist, comm_hist)
 
@@ -125,12 +125,21 @@ class GainOptimizer(BaseProcessingObj):
 
         for mode in range(self.nmodes):
             opt_gains[mode] = self._optimize_single_mode(
-                mode, pseudo_ol[mode], t_int, gmax_vec[mode]
+                mode, pseudo_ol[:, mode], self.time_step, gmax_vec[mode]
             )
+
+        if self.plot_debug:
+            plt.figure()
+            plt.plot(opt_gains, marker='o')
+            plt.xlabel('Mode Index')
+            plt.ylabel('Optimized Gain')
+            plt.title('Optimized Gains for Each Mode')
+            plt.grid()
+            plt.show()
 
         # Apply increment limiting
         if self.limit_inc and self.prev_optgain is not None:
-            opt_gains = (self.prev_optgain + 
+            opt_gains = (self.prev_optgain +
                         self.max_inc * (opt_gains - self.prev_optgain))
 
         # Apply optical gain compensation
@@ -163,11 +172,22 @@ class GainOptimizer(BaseProcessingObj):
         pseudo_ol = self.xp.zeros((n_modes, n_time), dtype=self.dtype)
 
         # First time step: use delta command only
-        pseudo_ol[:, 0] = delta_comm_hist[:, 0]
+        pseudo_ol[0, :] = delta_comm_hist[0, :]
 
         # Subsequent time steps: add previous command
-        for t in range(1, n_time):
-            pseudo_ol[:, t] = comm_hist[:, t-1] + delta_comm_hist[:, t]
+        pseudo_ol[1:, :] = comm_hist[:-1, :] + delta_comm_hist[1:, :]
+
+        if self.plot_debug:
+            plt.figure()
+            plt.plot(comm_hist[:,0], label='Output Command')
+            plt.plot(delta_comm_hist[:,0], label='Delta Command')
+            plt.plot(pseudo_ol[:,0], label='Pseudo Open-Loop Signal')
+            plt.legend()
+            plt.xlabel('Time Step')
+            plt.ylabel('Signal Value')
+            plt.title('Pseudo Open-Loop Signal Calculation')
+            plt.grid()
+            plt.show()
 
         return pseudo_ol
 
@@ -205,6 +225,16 @@ class GainOptimizer(BaseProcessingObj):
 
         # Calculate PSD of pseudo open-loop signal
         psd_pseudo_ol, freq = self._calculate_psd(pseudo_ol_mode, t_int)
+        
+        if self.plot_debug:
+            plt.figure()
+            plt.plot(freq, psd_pseudo_ol, label='PSD of Pseudo Open-Loop Signal')
+            plt.xlabel('Frequency (Hz)')
+            plt.ylabel('Power Spectral Density')
+            plt.title(f'PSD for Mode {mode}')
+            plt.grid()
+            plt.legend()
+            plt.show()
 
         # Apply running mean if enabled
         if self.running_mean and self.psd_ol is not None:
@@ -219,7 +249,16 @@ class GainOptimizer(BaseProcessingObj):
             # Calculate rejection transfer function
             h_rej = self._calculate_rejection_tf(freq, t_int, gain, num, den)
             # Calculate total residual variance
-            totals[i] = self.xp.sum(self.xp.abs(h_rej)**2 * psd_pseudo_ol)
+            totals[i] = self.xp.sum(self.xp.nan_to_num(self.xp.abs(h_rej)**2 * psd_pseudo_ol))
+        
+        if self.plot_debug:
+            plt.figure()
+            plt.plot(gains, totals, marker='o')
+            plt.xlabel('Gain')
+            plt.ylabel('Total Residual Variance')
+            plt.title(f'Mode {mode} Gain Optimization')
+            plt.grid()
+            plt.show()
 
         # Find optimal gain
         min_idx = self.xp.argmin(totals)
@@ -231,7 +270,7 @@ class GainOptimizer(BaseProcessingObj):
         """
         Extract forgetting factor for a specific mode from filter coefficients.
         """
-        if (hasattr(self.iir_filter_data, 'den') and 
+        if (hasattr(self.iir_filter_data, 'den') and
             self.iir_filter_data.den.shape[0] > mode and
             self.iir_filter_data.den.shape[1] >= 2):
             # ff = -den[0] for integrator with forgetting factor
@@ -248,7 +287,7 @@ class GainOptimizer(BaseProcessingObj):
 
         # Use Welch's method with Hanning window
         fs = 1.0 / t_int
-        freq, psd = signal.welch(data_cpu, fs=fs, window='hann', 
+        freq, psd = signal.welch(data_cpu, fs=fs, window='hann',
                                 nperseg=min(len(data_cpu), 256))
 
         # Convert back to target device
@@ -258,28 +297,25 @@ class GainOptimizer(BaseProcessingObj):
         return psd, freq
 
     def _calculate_rejection_tf(self, freq, t_int, gain, num, den):
-        """
-        Calculate rejection transfer function H_rej = 1/(1 + g*G(z))
-        where G(z) is the plant transfer function including delay.
-        """
-        # Convert frequency to normalized angular frequency
         omega = 2 * np.pi * freq * t_int
         z = self.xp.exp(1j * omega)
 
-        # Calculate control transfer function C(z) = num/den
-        num_val = self.xp.polyval(num[::-1], z)  # polyval expects reverse order
+        num_val = self.xp.polyval(num[::-1], z)
         den_val = self.xp.polyval(den[::-1], z)
+
+        # Avoid division by zero
+        den_val = self.xp.where(self.xp.abs(den_val) < 1e-12, 1e-12, den_val)
         c_tf = num_val / den_val
 
-        # Calculate delay transfer function
         delay_tf = z**(-self.delay)
-
-        # Calculate open-loop transfer function
         ol_tf = gain * c_tf * delay_tf
 
-        # Calculate rejection transfer function
-        h_rej = 1.0 / (1.0 + ol_tf)
+        denom = 1.0 + ol_tf
+        denom = self.xp.where(self.xp.abs(denom) < 1e-12, 1e-12, denom)
+        h_rej = 1.0 / denom
 
+        # Clean up any NaN/Inf
+        h_rej = self.xp.nan_to_num(h_rej, nan=0.0, posinf=0.0, neginf=0.0)
         return h_rej
 
     def _clear_history(self):
