@@ -149,8 +149,8 @@ class ElectricField(BaseDataObj):
             raise ValueError(f"Error: file {filename} does not contain an ElectricField object")
         ef = ElectricField.from_header(hdr, target_device_idx=target_device_idx)
         with fits.open(filename) as hdul:
-            ef.A = hdul[1].data
-            ef.phaseInNm = hdul[2].data
+            ef.A = ef.to_xp(hdul[1].data)
+            ef.phaseInNm = ef.to_xp(hdul[2].data)
         return ef
 
     def array_for_display(self):

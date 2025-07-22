@@ -69,8 +69,8 @@ class Layer(ElectricField):
             raise ValueError(f"Error: file {filename} does not contain a Layer object")
         layer = Layer.from_header(hdr, target_device_idx=target_device_idx)
         with fits.open(filename) as hdul:
-            layer.A = hdul[1].data
-            layer.phaseInNm = hdul[2].data
+            layer.A = layer.to_xp(hdul[1].data)
+            layer.phaseInNm = layer.to_xp(hdul[2].data)
         return layer
 
     # array_for_display is inherited from ElectricField
