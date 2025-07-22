@@ -45,6 +45,7 @@ class Layer(ElectricField):
         hdul.append(fits.ImageHDU(data=cpuArray(self.A), name='AMPLITUDE'))
         hdul.append(fits.ImageHDU(data=cpuArray(self.phaseInNm), name='PHASE'))
         hdul.writeto(filename, overwrite=overwrite)
+        hdul.close()  # Force close for Windows
 
     @staticmethod
     def from_header(hdr, target_device_idx=None):
@@ -69,8 +70,8 @@ class Layer(ElectricField):
             raise ValueError(f"Error: file {filename} does not contain a Layer object")
         layer = Layer.from_header(hdr, target_device_idx=target_device_idx)
         with fits.open(filename) as hdul:
-            layer.A = layer.to_xp(hdul[1].data)
-            layer.phaseInNm = layer.to_xp(hdul[2].data)
+            layer.A = layer.to_xp(hdul[1].data.copy())
+            layer.phaseInNm = layer.to_xp(hdul[2].data.copy())
         return layer
 
     # array_for_display is inherited from ElectricField

@@ -4,6 +4,7 @@ specula.init(0)  # Default target device
 
 import tempfile
 import os
+import gc
 import unittest
 
 from specula import np
@@ -76,3 +77,7 @@ class TestPupilstop(unittest.TestCase):
             assert np.allclose(cpuArray(pupilstop.A), cpuArray(pupilstop2.A))
             assert pupilstop.pixel_pitch == pupilstop2.pixel_pitch
             assert pupilstop.magnification == pupilstop2.magnification
+
+            # Force cleanup for Windows
+            del pupilstop2
+            gc.collect()

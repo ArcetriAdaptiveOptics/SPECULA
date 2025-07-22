@@ -4,6 +4,7 @@ specula.init(0)  # Default target device
 
 import tempfile
 import os
+import gc
 import unittest
 
 from specula import np
@@ -112,3 +113,7 @@ class TestElectricField(unittest.TestCase):
             assert np.allclose(cpuArray(ef.phaseInNm), cpuArray(ef2.phaseInNm))
             assert ef.pixel_pitch == ef2.pixel_pitch
             assert ef.S0 == ef2.S0
+
+            # Force cleanup for Windows
+            del ef2
+            gc.collect()

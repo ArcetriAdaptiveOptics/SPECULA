@@ -75,6 +75,7 @@ class Pupilstop(Layer):
         hdul.append(fits.ImageHDU(data=cpuArray(self.A), name='AMPLITUDE'))
         # phaseInNm is not used in Pupilstop
         hdul.writeto(filename, overwrite=overwrite)
+        hdul.close()  # Force close for Windows
 
     @staticmethod
     def from_header(hdr, target_device_idx=None):
@@ -99,7 +100,7 @@ class Pupilstop(Layer):
             raise ValueError(f"Error: file {filename} does not contain a Pupilstop object")
         pupilstop = Pupilstop.from_header(hdr, target_device_idx=target_device_idx)
         with fits.open(filename) as hdul:
-            pupilstop.A = pupilstop.to_xp(hdul[1].data)
+            pupilstop.A = pupilstop.to_xp(hdul[1].data.copy())
             # phaseInNm is not used in Pupilstop
         return pupilstop
 
