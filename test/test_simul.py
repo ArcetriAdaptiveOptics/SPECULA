@@ -7,25 +7,15 @@ import unittest
 
 import yaml
 from specula.simul import Simul
+from specula.connections import InputValue, InputList
 
 class DummyObj:
     def __init__(self):
         self.inputs = {}
         self.outputs = {}
 
-class DummyInput:
-    def __init__(self, type_):
-        self._type = type_
-        self.value = None
-
-    def type(self):
-        return self._type
-
-    def set(self, value):
-        self.value = value
-
 class DummyOutput:
-    pass
+    target_device_idx = -1
 
 class DummyOutputDerived(DummyOutput):
     pass
@@ -64,7 +54,7 @@ class TestSimul(unittest.TestCase):
             'b': DummyObj()
         }
         simul.objs['a'].outputs['out'] = DummyOutputDerived()
-        simul.objs['b'].inputs['in'] = DummyInput(DummyOutput)
+        simul.objs['b'].inputs['in'] = InputValue(type=DummyOutput)
 
         simul.connect_objects({
             'b': {
@@ -74,7 +64,7 @@ class TestSimul(unittest.TestCase):
             }
         })
 
-        assert isinstance(simul.objs['b'].inputs['in'].value, DummyOutputDerived)
+        assert isinstance(simul.objs['b'].inputs['in'].get(-1), DummyOutputDerived)
         
     def test_list_input_reference(self):
         '''Test that a list of inputs is correctly connected'''
@@ -85,7 +75,7 @@ class TestSimul(unittest.TestCase):
         }
         simul.objs['a'].outputs['out1'] = DummyOutputDerived()
         simul.objs['a'].outputs['out2'] = DummyOutputDerived()
-        simul.objs['b'].inputs['in'] = DummyInput(DummyOutput)
+        simul.objs['b'].inputs['in'] = InputList(type=DummyOutput)
 
         simul.connect_objects({
             'b': {
@@ -95,7 +85,7 @@ class TestSimul(unittest.TestCase):
             }
         })
 
-        val = simul.objs['b'].inputs['in'].value
+        val = simul.objs['b'].inputs['in'].get(-1)
         assert isinstance(val, list)
         assert all(isinstance(x, DummyOutputDerived) for x in val)
         
@@ -116,7 +106,7 @@ class TestSimul(unittest.TestCase):
             'b': DummyObj()
         }
         simul.objs['a'].outputs['out'] = DummyOutputDerived()
-        simul.objs['b'].inputs['in'] = DummyInput(DummyOutput)
+        simul.objs['b'].inputs['in'] = InputValue(type=DummyOutput)
 
         with self.assertRaises(ValueError):
             simul.connect_objects({
@@ -137,7 +127,7 @@ class TestSimul(unittest.TestCase):
             'b': DummyObj()
         }
         simul.objs['a'].outputs['out'] = WrongType()
-        simul.objs['b'].inputs['in'] = DummyInput(DummyOutput)
+        simul.objs['b'].inputs['in'] = InputValue(type=DummyOutput)
 
         with self.assertRaises(ValueError):
             simul.connect_objects({

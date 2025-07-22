@@ -71,7 +71,7 @@ class DataStore(BaseProcessingObj):
         for k,v in times.items():
 
             filename = os.path.join(self.tn_dir,k+'.fits')
-            hdr = self.inputs[k].get(target_device_idx=-1).get_fits_header()
+            hdr = self.local_inputs[k].get_fits_header()
             hdu_time = fits.ImageHDU(times[k], header=hdr)
             hdu_data = fits.PrimaryHDU(data[k], header=hdr)
             hdul = fits.HDUList([hdu_data, hdu_time])
@@ -95,8 +95,7 @@ class DataStore(BaseProcessingObj):
         self.tn_dir = prefix
 
     def trigger_code(self):
-        for k, in_ in self.inputs.items():
-            item = in_.get(target_device_idx=self.target_device_idx)
+        for k, item in self.local_inputs.items():
             if item is not None and item.generation_time == self.current_time:
                 if isinstance(item, BaseValue):
                     v = cpuArray(item.value, force_copy=True)

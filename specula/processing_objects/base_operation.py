@@ -60,8 +60,8 @@ class BaseOperation(BaseProcessingObj):
     def setup(self):
         super().setup()
  
-        value1 = self.inputs['in_value1'].get(target_device_idx=self.target_device_idx)
-        value2 = self.inputs['in_value2'].get(target_device_idx=self.target_device_idx)
+        value1 = self.local_inputs['in_value1']
+        value2 = self.local_inputs['in_value2']
 
         # Check that both inputs have been set for
         # operations that need them

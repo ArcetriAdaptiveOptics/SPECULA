@@ -1,6 +1,6 @@
 import numpy as np
 
-from specula import cpuArray, fuse, show_in_profiler, RAD2ASEC
+from specula import cpuArray, fuse, show_in_profiler, RAD2ASEC, process_rank
 from specula.lib.extrapolation_2d import calculate_extrapolation_indices_coeffs, apply_extrapolation
 from specula.lib.toccd import toccd
 from specula.lib.interp2d import Interp2D
@@ -471,7 +471,8 @@ class SH(BaseProcessingObj):
 
         in_ef = self.local_inputs['in_ef']
         phot = in_ef.S0 * in_ef.masked_area()
-        self._out_i.i *= (phot / self._out_i.i.sum())
+        self._out_i.i *= phot / self._out_i.i.sum()
+        # self._out_i.i = self.xp.nan_to_num(self._out_i.i, copy=False)
         self._out_i.generation_time = self.current_time
         self.outputs['wf1'].value = toccd(self._wf1.phaseInNm, (100, 100), xp=self.xp)
         self.outputs['wf1'].generation_time = self.current_time
@@ -485,10 +486,9 @@ class SH(BaseProcessingObj):
             plt.title('Intensity')
             plt.show()
 
-    def setup(self):
-        super().setup()
-
-        in_ef = self.inputs['in_ef'].get(target_device_idx=self.target_device_idx)
+    def setup(self):        
+        super().setup()        
+        in_ef = self.local_inputs['in_ef']        
 
         self.set_in_ef(in_ef)
         self.calc_trigger_geometry(in_ef)

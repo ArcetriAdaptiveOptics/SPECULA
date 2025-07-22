@@ -69,7 +69,8 @@ class PSF(BaseProcessingObj):
         self.outputs['out_int_psf'] = self.int_psf
 
     def setup(self):
-        in_ef = self.inputs['in_ef'].get(self.target_device_idx)
+        super().setup()
+        in_ef = self.local_inputs['in_ef']
         s = [int(np.around(dim * self.nd/2)*2) for dim in in_ef.size]
         self.int_psf.value = self.xp.zeros(s, dtype=self.dtype)
         self.int_sr.value = 0
@@ -190,7 +191,7 @@ class PSF(BaseProcessingObj):
 
     @property
     def size(self):
-        in_ef = self.inputs['in_ef'].get(self.target_device_idx)
+        in_ef = self.local_inputs['in_ef']
         return in_ef.size if in_ef else None
 
     def reset_integration(self):
@@ -214,7 +215,7 @@ class PSF(BaseProcessingObj):
         in_ef = self.local_inputs['in_ef']
         self.psf.value = self.calc_psf(in_ef.phi_at_lambda(self.wavelengthInNm), in_ef.A, imwidth=self.out_size[0], normalize=True)
         self.sr.value = self.psf.value[self.out_size[0] // 2, self.out_size[1] // 2] / self.ref.i[self.out_size[0] // 2, self.out_size[1] // 2]
-        print('SR:', self.sr.value)
+        print('SR:', self.sr.value, flush=True)
 
     def post_trigger(self):
         super().post_trigger()

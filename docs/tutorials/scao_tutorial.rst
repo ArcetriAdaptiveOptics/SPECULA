@@ -671,7 +671,9 @@ The interaction matrix calibration requires amplitude values for each actuator p
       
       # Save amplitude vector
       os.makedirs('calibration/data', exist_ok=True)
-      output_file = 'calibration/data/pushpull_1129modes_amp50.fits'
+
+      output_file = 'calibration/data/pushpull_1140modes_amp50.fits'
+
       fits.writeto(output_file, amplitudes, overwrite=True)
       print(f"\n✓ Saved scaled amplitude vector: {output_file}")
       

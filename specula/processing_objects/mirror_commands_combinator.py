@@ -39,10 +39,10 @@ class MirrorCommandsCombinator(BaseProcessingObj):
         self.result_commands2 = BaseValue('Second chunk of output commands', target_device_idx=target_device_idx)
         self.result_commands3 = BaseValue('Third chunk of output commands', target_device_idx=target_device_idx)
 
-        self.inputs['in_commandsHO'] = InputValue(type=BaseValue, optional=False)      # could be 6000 elements, dims[0]
-        self.inputs['in_commandsLO'] = InputValue(type=BaseValue, optional=False)      # could be 5 elements, dims[1]
-        self.inputs['in_commandsF'] = InputValue(type=BaseValue, optional=False)       # could be 1 element, dims[2]
-        self.inputs['in_commandsP'] = InputValue(type=BaseValue, optional=False)       # could be 6 elements, dims[3]
+        self.inputs['in_commandsHO'] = InputValue(type=BaseValue)      # could be 6000 elements, dims[0]
+        self.inputs['in_commandsLO'] = InputValue(type=BaseValue)      # could be 5 elements, dims[1]
+        self.inputs['in_commandsF'] = InputValue(type=BaseValue)       # could be 1 element, dims[2]
+        self.inputs['in_commandsP'] = InputValue(type=BaseValue)       # could be 6 elements, dims[3]
                 
         self.outputs['out_result_commands1'] = self.result_commands1       # could be 4000, out_dims[0]
         self.outputs['out_result_commands2'] = self.result_commands2       # could be 1000, out_dims[1]

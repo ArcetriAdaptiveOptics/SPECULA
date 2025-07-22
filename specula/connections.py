@@ -1,36 +1,49 @@
+from specula import process_rank, process_comm, MPI_DBG, MPI_SEND_DBG
+from specula import np, cp
+from specula.lib.flatten import flatten
 
-class InputValue():
-    def __init__(self, type, optional=False):
+
+class _InputItem():
+    def __init__(self, type, remote_rank=None, tag=None, optional=False):
         """
-        Wrapper for simple input values
+        Private class, wrapper for simple input values
         """
-        self.wrapped_type = type
-        self.wrapped_value = None
+        self.output_ref_type = type
+        self.output_ref = None
         self.cloned_value = None
         self.optional = optional
-
-    def get_time(self):
-        if not self.wrapped_value is None:
-            return self.wrapped_value.generation_time        
+        self.remote_rank = remote_rank
+        self.tag = tag
 
     def get(self, target_device_idx):
-        if not self.wrapped_value is None:
-            if self.wrapped_value.target_device_idx == target_device_idx:
-                return self.wrapped_value
+        if self.remote_rank is None:
+            if self.output_ref is None:
+                return None
+            if self.output_ref.target_device_idx == target_device_idx:
+                return self.output_ref
+
+        if self.remote_rank is None:         
+            value = self.output_ref
+        else:
+            if MPI_SEND_DBG: print(process_rank, f'RECV from rank {self.remote_rank} {self.tag=} type={self.output_ref_type})', flush=True)
+            value = process_comm.recv(source=self.remote_rank, tag=self.tag)
+            if value.xp_str == 'cp':
+                value.xp = cp
             else:
-                if self.cloned_value is None:
-                    self.cloned_value = self.wrapped_value.copyTo(target_device_idx)
-                else:
-                    self.wrapped_value.transferDataTo(self.cloned_value)
-                return self.cloned_value
+                value.xp = np
+
+        if self.cloned_value is None:
+            self.cloned_value = value.copyTo(target_device_idx)
+        else:
+            value.transferDataTo(self.cloned_value)
+        return self.cloned_value
 
     def set(self, value):
-        if not isinstance(value, self.wrapped_type):
-            raise ValueError(f'Value must be of type {self.wrapped_type} instead of {type(value)}')
-        self.wrapped_value = value
-    
-    def type(self):
-        return self.wrapped_type
+        if self.output_ref is not None:
+            raise ValueError('InputValue already set, cannot set again')        
+        if not isinstance(value, self.output_ref_type) and self.remote_rank is None:
+            raise ValueError(f'Value must be of type {self.output_ref_type} instead of {type(value)}')
+        self.output_ref = value
 
 
 class InputList():
@@ -38,43 +51,54 @@ class InputList():
         """
         Wrapper for input lists
         """
-        self.wrapped_type = type
-        self.wrapped_list = None
-        self.cloned_list = []
+        self.output_ref_type = type
+        self.input_values = []
         self.optional = optional
 
-    def get_time(self):
-        if not self.wrapped_list is None:
-            return [x.generation_time for x in self.wrapped_list]
+    def get(self, target_device_idx, single_value=False):
+        values_list = flatten([v.get(target_device_idx) for v in self.input_values])
+        if single_value:
+            if len(values_list) > 1:
+                raise ValueError('InputValue contains more than one item')
+            if len(values_list) == 0:
+                if self.optional:
+                    return None
+                else:
+                    raise ValueError('InputValue is empty and not optional')
+            return values_list[0]
         else:
-            return []
+            return values_list
 
-    def get(self, target_device_idx):
-        '''Copy all values in the list to the specified target'''
-        if self.wrapped_list is None:
+    def set(self, item, remote_rank=None, tag=None):
+        """
+        Set a single item as the input list
+        """
+        self.input_values = []
+        self.append(item, remote_rank, tag)
+
+    def append(self, item, remote_rank=None, tag=None):
+        """
+        Append an item to the input list, optionally specifying a remote rank and tag.
+        If the item is a list, it will be flattened and each item will be added to the input list.
+        """
+        if isinstance(item, list):
+            for v in item:
+                self.append(v, remote_rank, tag)
             return
 
-        if self.cloned_list == []:
-            # First get(): allocate another object with copyTo where needed
-            for wrapped in self.wrapped_list:
-                if wrapped.target_device_idx == target_device_idx:
-                    self.cloned_list.append(wrapped)
-                else:
-                    self.cloned_list.append(wrapped.copyTo(target_device_idx))
-        else:
-            # Second get(): always used transferDataTo()
-            for i, (wrapped, cloned) in enumerate(zip(self.wrapped_list, self.cloned_list)):
-                if wrapped.target_device_idx == target_device_idx:
-                    self.cloned_list[i] = wrapped
-                else:
-                    wrapped.transferDataTo(cloned)
-        return self.cloned_list
+        if not isinstance(item, self.output_ref_type) and remote_rank is None:
+            raise ValueError(f'Item must be of type {self.output_ref_type} instead of {type(item)}')
 
-    def set(self, new_list):
-        for value in new_list:
-            if not isinstance(value, self.wrapped_type):
-                raise ValueError(f'List element must be of type {self.wrapped_type}')
-        self.wrapped_list = new_list
+        self.input_values.append(_InputItem(self.output_ref_type,
+                                            remote_rank=remote_rank,
+                                            tag=tag,
+                                            optional=self.optional))
+        self.input_values[-1].set(item)
 
-    def type(self):
-        return self.wrapped_type
+
+class InputValue(InputList):
+    '''
+    Convenience class for input lists. Calling get() will return a list of items.
+    '''
+    def get(self, target_device_idx):
+        return super().get(target_device_idx, single_value=True)

@@ -104,7 +104,7 @@ class ModalrecImplicitPolc(Modalrec):
     def setup(self):
         super().setup()
 
-        commands = self.inputs['in_commands'].get(self.target_device_idx)
-        commands_list = self.inputs['in_commands_list'].get(self.target_device_idx)
+        commands = self.local_inputs['in_commands']
+        commands_list = self.local_inputs['in_commands_list']
         if not commands and (not commands_list or not all(commands_list)):
             raise ValueError("When POLC is used, either 'commands' or 'commands_list' must be given as an input")

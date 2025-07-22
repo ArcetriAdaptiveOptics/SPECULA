@@ -1,7 +1,8 @@
+
 from functools import wraps
 from inspect import signature
 
-from specula import np, cp, to_xp
+from specula import np, cp, to_xp, process_rank
 from specula import global_precision, default_target_device, default_target_device_idx, DummyDecoratorAndContextManager
 from specula import cpu_float_dtype_list, gpu_float_dtype_list
 from specula import cpu_complex_dtype_list, gpu_complex_dtype_list
@@ -35,11 +36,13 @@ class BaseTimeObj:
             self.dtype = gpu_float_dtype_list[self.precision]
             self.complex_dtype = gpu_complex_dtype_list[self.precision]
             self.xp = cp
+            self.xp_str = 'cp'
         else:
             self._target_device = default_target_device                # CPU case
             self.dtype = cpu_float_dtype_list[self.precision]
             self.complex_dtype = cpu_complex_dtype_list[self.precision]
             self.xp = np
+            self.xp_str = 'np'
 
         if self.target_device_idx>=0:
             from cupyx.scipy.ndimage import rotate
@@ -105,8 +108,7 @@ class BaseTimeObj:
 
     def printMemUsage(self):
         if hasattr(self, 'target_device_idx') and self.target_device_idx >= 0:
-            print(f'\tcupy memory used by {self.__class__.__name__}: {self.gpu_bytes_used / (1024*1024)} MB')
-
+            print(process_rank, f'\tcupy memory used by {self.__class__.__name__}: {self.gpu_bytes_used / (1024*1024)} MB')
 
     def monitorMem(f):
 

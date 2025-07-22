@@ -7,7 +7,7 @@ main:
   pixel_pitch:       0.05                   # [m] Pitch of the pupil phase array
   total_time:        1.000                  # [s] Total simulation running time
   time_step:         0.001                  # [s] Simulation time step
-  display_server:    true                   # Display server on auto-selected port
+  display_server:    false                   # Display server on auto-selected port
 
 seeing:
   class:             'FuncGenerator'

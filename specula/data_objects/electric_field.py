@@ -23,11 +23,8 @@ class ElectricField(BaseDataObj):
         self.A = self.xp.ones((dimx, dimy), dtype=self.dtype)
         self.phaseInNm = self.xp.zeros((dimx, dimy), dtype=self.dtype)
 
-    def get_value(self):
-        '''
-        Get the electric field as a tuple of amplitude and phase
-        '''
-        return self.xp.stack((self.A, self.phaseInNm))
+    def __str__(self):
+        return str(self.A)+str(self.phaseInNm)
 
     def set_value(self, v):
         '''

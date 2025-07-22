@@ -192,8 +192,8 @@ class Modalrec(BaseProcessingObj):
     def setup(self):
         super().setup()
 
-        slopes = self.inputs['in_slopes'].get(self.target_device_idx)
-        slopes_list = self.inputs['in_slopes_list'].get(self.target_device_idx)
+        slopes = self.local_inputs['in_slopes']
+        slopes_list = self.local_inputs['in_slopes_list']
 
         if not slopes and (not slopes_list or not all(slopes_list)):
             raise ValueError("Either 'slopes' or 'slopes_list' must be given as an input")
@@ -204,8 +204,8 @@ class Modalrec(BaseProcessingObj):
             self.slopes = slopes.slopes.copy()
 
         if self.polc:
-            commands = self.inputs['in_commands'].get(self.target_device_idx)
-            commands_list = self.inputs['in_commands_list'].get(self.target_device_idx)
+            commands = self.local_inputs['in_commands']
+            commands_list = self.local_inputs['in_commands_list']
             if not commands and (not commands_list or not all(commands_list)):
                 raise ValueError("When POLC is used, either 'commands' or 'commands_list' must be given as an input")
 

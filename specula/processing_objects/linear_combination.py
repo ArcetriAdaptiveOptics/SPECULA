@@ -35,7 +35,7 @@ class LinearCombination(BaseProcessingObj):
     def setup(self):
         super().setup()
 
-        in_vectors = self.inputs['in_vectors_list'].get(target_device_idx=self.target_device_idx)
+        in_vectors = self.local_inputs['in_vectors_list']
         lgs = in_vectors[0].value
         focus = in_vectors[1].value
         lift = in_vectors[2].value

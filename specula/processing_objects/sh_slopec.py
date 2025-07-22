@@ -158,8 +158,8 @@ class ShSlopec(Slopec):
         if self.verbose and self.subapdata is None:
             print('subapdata is not valid.')
             return
-
-        in_pixels = self.inputs['in_pixels'].get(self.target_device_idx).pixels
+        
+        in_pixels = self.local_inputs['in_pixels'].pixels
 
         n_subaps = self.subapdata.n_subaps
         np_sub = self.subapdata.np_sub
@@ -314,8 +314,8 @@ class ShSlopec(Slopec):
         if self.verbose and self.subapdata is None:
             print('subapdata is not valid.')
             return
-
-        in_pixels = self.inputs['in_pixels'].get(self.target_device_idx).pixels
+        
+        in_pixels = self.local_inputs['in_pixels'].pixels
 
         n_subaps = self.subapdata.n_subaps
         np_sub = self.subapdata.np_sub

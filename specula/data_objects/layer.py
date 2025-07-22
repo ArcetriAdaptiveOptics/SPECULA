@@ -18,7 +18,7 @@ class Layer(ElectricField):
                  precision: int=None):
         super().__init__(dimx, dimy, pixel_pitch, target_device_idx=target_device_idx, precision=precision)
         self.height = height
-        self.shiftXYinPixel = cpuArray(shiftXYinPixel).astype(self.dtype)
+        self.shiftXYinPixel = self.to_xp(shiftXYinPixel).astype(self.dtype)
         self.rotInDeg = rotInDeg
         self.magnification = magnification
 

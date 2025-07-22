@@ -28,7 +28,8 @@ class ELTM1IFuncCalculator:
         # Load segmentation map
         seg_path = os.path.join(os.path.dirname(__file__), '../data/EltM1SegmMap1015pix38570mm.fits')
         self.size_in_m = 38570.0 / 1e3
-        self.segmentation = fits.open(seg_path)[0].data.copy()
+        with fits.open(seg_path) as hdul:
+            self.segmentation = hdul[0].data.copy()
         self.size_in_pix = self.segmentation.shape[0]
         rescalingFactor = self.segmentation.shape[0] / self.dim
         coord = np.round(np.arange(self.dim) * rescalingFactor).astype(int)

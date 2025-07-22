@@ -36,8 +36,8 @@ class ElectricFieldCombinator(BaseProcessingObj):
         super().setup()
         
         # Get the input electric fields to check their shapes and initialize the output electric field with correct dimensions
-        in_ef1 = self.inputs['in_ef1'].get(self.target_device_idx)
-        in_ef2 = self.inputs['in_ef2'].get(self.target_device_idx)
+        in_ef1 = self.local_inputs['in_ef1']
+        in_ef2 = self.local_inputs['in_ef2']
 
         if in_ef1.A.shape != in_ef2.A.shape:
             raise ValueError(f"Input electric field no. 1 shape {in_ef1.A.shape} does not match electric field no. 2 shape {in_ef2.A.shape}")

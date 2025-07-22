@@ -77,7 +77,7 @@ class ProcessingObjName(BaseProcessingObj):
         # super().build_stream()
 
         # check some initial conditions
-        data1 = self.inputs['in_data1'].get(self.target_device_idx)        
+        data1 = self.local_inputs['in_data1']
         if not data1:
             raise ValueError("'data1' must be given as an input")
         

@@ -103,7 +103,7 @@ class MultiImCalibrator(BaseProcessingObj):
         super().setup()
 
         # Validate that actual input length matches expected n_inputs
-        actual_n_inputs = len(self.inputs['in_slopes_list'].get(self.target_device_idx))
+        actual_n_inputs = len(self.local_inputs['in_slopes_list'])
         if actual_n_inputs != self._n_inputs:
             raise ValueError(
                 f"Number of input slopes ({actual_n_inputs}) does not match "
@@ -112,7 +112,7 @@ class MultiImCalibrator(BaseProcessingObj):
             )
 
         # Also validate commands list has the same length
-        actual_n_commands = len(self.inputs['in_commands_list'].get(self.target_device_idx))
+        actual_n_commands = len(self.local_inputs['in_commands_list'])
         if actual_n_commands != self._n_inputs:
             raise ValueError(
                 f"Number of input commands ({actual_n_commands}) does not match "

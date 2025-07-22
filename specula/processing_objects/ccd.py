@@ -2,7 +2,7 @@ import math
 import warnings
 from scipy.ndimage import convolve
 
-from specula import fuse
+from specula import fuse, process_rank
 from specula.base_processing_obj import BaseProcessingObj
 from specula.connections import InputValue
 from specula.data_objects.pixels import Pixels
@@ -106,6 +106,8 @@ class CCD(BaseProcessingObj):
             if emccd_gain is not None:
                 warnings.warn('ATTENTION: emccd_gain will not be used if excess_noise is False',
                     RuntimeWarning)
+            
+            
             self._emccd_gain = 1.0
             if ADU_gain is not None:
                 self._ADU_gain = float(ADU_gain)
@@ -288,7 +290,7 @@ class CCD(BaseProcessingObj):
 
     def setup(self):
         super().setup()
-        in_i = self.inputs['in_i'].get(self.target_device_idx)
+        in_i = self.local_inputs['in_i']
         if in_i is None:
             raise ValueError('Input intensity object has not been set')
         if self._cte_noise and self._cte_mat is None:
