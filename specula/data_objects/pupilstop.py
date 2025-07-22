@@ -42,35 +42,64 @@ class Pupilstop(Layer):
         # Initialise time for at least the first iteration
         self._generation_time = 0
 
+    def get_value(self):
+        '''
+        Get the electric field as a tuple of amplitude and phase
+        '''
+        return self.A
+
+    def set_value(self, v):
+        '''
+        Set new values for amplitude
+        
+        Arrays are not reallocated
+        '''
+        self.A[:]= self.to_xp(v, dtype=self.dtype)
+
     def get_fits_header(self):
-        hdr = super().get_fits_header()
-        hdr['OBJ_TYPE'] = 'Pupilstop'
+        hdr = fits.Header()
         hdr['VERSION'] = 1
+        hdr['OBJ_TYPE'] = 'Pupilstop'
+        hdr['PIXPUPIL'] = self.A.shape[0]
+        hdr['PIXPITCH'] = self.pixel_pitch
+        hdr['SHIFTX'] = self.shiftXYinPixel[0]
+        hdr['SHIFTY'] = self.shiftXYinPixel[1]
+        hdr['ROTATION'] = self.rotInDeg
+        hdr['MAGNIFICATION'] = self.magnification
         return hdr
 
-    def save(self, filename, hdr=None):
-        if hdr is None:
-            hdr = self.get_fits_header()
-        super().save(filename, hdr)
+    def save(self, filename, overwrite=True):
+        hdr = self.get_fits_header()
+        hdu_A = fits.PrimaryHDU(cpuArray(self.A), header=hdr)
+        # phaseInNm is not used in Pupilstop
+        hdul = fits.HDUList([hdu_A])
+        hdul.writeto(filename, overwrite=overwrite)
 
     @staticmethod
-    def restore(filename, target_device_idx=None):
-        hdr = fits.getheader(filename)
-        version = int(hdr['VERSION'])
-
+    def from_header(hdr, target_device_idx=None):
+        version = hdr['VERSION']
         if version != 1:
-            raise ValueError(f"Error: unknown version {version} in file {filename}")
-
-        # Takes the values from the header
-        dimx = int(hdr['DIMX'])
+            raise ValueError(f"Error: unknown version {version} in header")
+        pixel_pupil = int(hdr['PIXPUPIL'])
         pixel_pitch = float(hdr['PIXPITCH'])
-
-        tempParams = SimulParams(dimx, pixel_pitch)
-        
-        # Use electric field constructor to create the Pupilstop
-        with fits.open(filename) as hdul:
-            pupilstop = Pupilstop(tempParams, target_device_idx=target_device_idx)
-            pupilstop.A[:] = hdul[0].data
-            pupilstop.phaseInNm[:] = hdul[1].data
-            
+        shiftX = float(hdr['SHIFTX'])
+        shiftY = float(hdr['SHIFTY'])
+        rotInDeg = float(hdr['ROTATION'])
+        magnification = float(hdr['MAGNIFICATION'])
+        simul_params = SimulParams(pixel_pupil, pixel_pitch)
+        pupilstop = Pupilstop(simul_params, shiftXYinPixel=(shiftX, shiftY), rotInDeg=rotInDeg, \
+                              magnification=magnification, target_device_idx=target_device_idx)
         return pupilstop
+
+    @staticmethod
+    def restore(filename):
+        hdr = fits.getheader(filename, target_device_idx=None)
+        if 'OBJ_TYPE' not in hdr or hdr['OBJ_TYPE'] != 'Pupilstop':
+            raise ValueError(f"Error: file {filename} does not contain a Pupilstop object")
+        pupilstop = Pupilstop.from_header(hdr, target_device_idx=target_device_idx)
+        with fits.open(filename) as hdul:
+            pupilstop.A = hdul[0].data
+            pupilstop.phaseInNm = self.xp.zeros_like(pupilstop.A)  # phaseInNm is not used in Pupilstop
+        return pupilstop
+
+    # array_for_display is inherited from Layer (ElectricField)

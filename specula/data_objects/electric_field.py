@@ -23,6 +23,12 @@ class ElectricField(BaseDataObj):
         self.A = self.xp.ones((dimx, dimy), dtype=self.dtype)
         self.phaseInNm = self.xp.zeros((dimx, dimy), dtype=self.dtype)
 
+    def get_value(self):
+        '''
+        Get the electric field as a tuple of amplitude and phase
+        '''
+        return self.xp.stack((self.A, self.phaseInNm))
+
     def set_value(self, v):
         '''
         Set new values for phase and amplitude
@@ -56,7 +62,7 @@ class ElectricField(BaseDataObj):
         if ef2.size[0] != diff0 or ef2.size[1] != diff1:
             raise ValueError(f'{ef2} has size {ef2.size} instead of the required ({diff0}, {diff1})')
         return subrect
-        
+
     def phi_at_lambda(self, wavelengthInNm, slicey=None, slicex=None):
         if slicey is None:
             slicey = np.s_[:]
@@ -116,22 +122,15 @@ class ElectricField(BaseDataObj):
         hdr['S0'] = self.S0
         return hdr
 
-    def save(self, filename, hdr=None):
-        if hdr is None:
-            hdr = self.get_fits_header()
-        else:
-            # verify that the header is correct
-            # checking that we have 'VERSION' and 'OBJ_TYPE' in the header
-            if 'VERSION' not in hdr or 'OBJ_TYPE' not in hdr:
-                raise ValueError("Header must contain 'VERSION' and 'OBJ_TYPE'")
-        A = self.A        
-        hdu_A = fits.PrimaryHDU(cpuArray(A), header=hdr)
+    def save(self, filename, overwrite=True):
+        hdr = self.get_fits_header()
+        hdu_A = fits.PrimaryHDU(cpuArray(self.A), header=hdr)
         hdu_phase = fits.ImageHDU(cpuArray(self.phaseInNm))
         hdul = fits.HDUList([hdu_A, hdu_phase])
-        hdul.writeto(filename, overwrite=True)
+        hdul.writeto(filename, overwrite=overwrite)
 
     @staticmethod
-    def from_header(hdr):    
+    def from_header(hdr, target_device_idx=None):
         version = hdr['VERSION']
         if version != 1:
             raise ValueError(f"Error: unknown version {version} in header")
@@ -139,25 +138,19 @@ class ElectricField(BaseDataObj):
         dimy = hdr['DIMY']
         pitch = hdr['PIXPITCH']
         S0 = hdr['S0']
-        ef = ElectricField(dimx, dimy, pitch, S0)        
+        ef = ElectricField(dimx, dimy, pitch, S0, target_device_idx=target_device_idx)
         return ef
 
-
     @staticmethod
-    def restore(filename):
+    def restore(filename, target_device_idx=None):
+        hdr = fits.getheader(filename)
+        if 'OBJ_TYPE' not in hdr or hdr['OBJ_TYPE'] != 'ElectricField':
+            raise ValueError(f"Error: file {filename} does not contain an ElectricField object")
+        ef = ElectricField.from_header(hdr, target_device_idx=target_device_idx)
         with fits.open(filename) as hdul:
-            hdr = hdul[0].header
-            version = hdr['VERSION']
-            if version != 1:
-                raise ValueError(f"Error: unknown version {version} in file {filename}")
-            dimx = hdr['DIMX']
-            dimy = hdr['DIMY']
-            pitch = hdr['PIXPITCH']
-            S0 = hdr['S0']
-
-            ef = ElectricField(dimx, dimy, pitch)
-            ef.set_property(A=hdul[0].data, phaseInNm=hdul[1].data, S0=S0)
-            return ef
+            ef.A = hdul[0].data
+            ef.phaseInNm = hdul[1].data
+        return ef
 
     def array_for_display(self):
         frame = self.phaseInNm * (self.A > 0).astype(float)

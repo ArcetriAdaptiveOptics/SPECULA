@@ -6,7 +6,7 @@ from specula.data_objects.electric_field import ElectricField
 class Layer(ElectricField):
     '''Layer'''
 
-    def __init__(self, 
+    def __init__(self,
                  dimx: int,
                  dimy: int,
                  pixel_pitch: float,
@@ -14,40 +14,65 @@ class Layer(ElectricField):
                  shiftXYinPixel: tuple=(0.0, 0.0),
                  rotInDeg: float=0.0,
                  magnification: float=1.0,
+                 S0: float=0.0,
                  target_device_idx: int=None,
                  precision: int=None):
-        super().__init__(dimx, dimy, pixel_pitch, target_device_idx=target_device_idx, precision=precision)
+        super().__init__(dimx, dimy, pixel_pitch, S0=S0, target_device_idx=target_device_idx, precision=precision)
         self.height = height
         self.shiftXYinPixel = cpuArray(shiftXYinPixel).astype(self.dtype)
         self.rotInDeg = rotInDeg
         self.magnification = magnification
 
-    def save(self, filename, hdr=None):
-        # header from ElectricField
-        base_hdr = self.get_fits_header()
-        # add other parameters in the header
-        if hdr is not None:
-            base_hdr.update(hdr)
-        base_hdr['HEIGHT'] = self.height
-        super().save(filename, base_hdr)
+    # get_value and set_value are inherited from ElectricField
 
-    def read(self, filename, hdr=None, exten=0):
-        super().read(filename, hdr, exten)
+    def get_fits_header(self):
+        hdr = fits.Header()
+        hdr['VERSION'] = 1
+        hdr['OBJ_TYPE'] = 'Layer'
+        hdr['DIMX'] = self.A.shape[0]
+        hdr['DIMY'] = self.A.shape[1]
+        hdr['PIXPITCH'] = self.pixel_pitch
+        hdr['HEIGHT'] = self.height
+        hdr['SHIFTX'] = self.shiftXYinPixel[0]
+        hdr['SHIFTY'] = self.shiftXYinPixel[1]
+        hdr['ROTATION'] = self.rotInDeg
+        hdr['MAGNIFICATION'] = self.magnification
+        hdr['S0'] = self.S0
+        return hdr
+
+    def save(self, filename, overwrite=True):
+        hdr = self.get_fits_header()
+        hdu_A = fits.PrimaryHDU(cpuArray(self.A), header=hdr)
+        hdu_phase = fits.ImageHDU(cpuArray(self.phaseInNm))
+        hdul = fits.HDUList([hdu_A, hdu_phase])
+        hdul.writeto(filename, overwrite=overwrite)
 
     @staticmethod
-    def restore(filename):
-        hdr = fits.getheader(filename)
-        version = int(hdr['VERSION'])
-
+    def from_header(hdr, target_device_idx=None):
+        version = hdr['VERSION']
         if version != 1:
-            raise ValueError(f"Error: unknown version {version} in file {filename}")
-
+            raise ValueError(f"Error: unknown version {version} in header")
         dimx = int(hdr['DIMX'])
         dimy = int(hdr['DIMY'])
-        height = float(hdr['HEIGHT'])
         pitch = float(hdr['PIXPITCH'])
-
-        layer = Layer(dimx, dimy, pitch, height)
-        layer.read(filename, hdr)
+        height = float(hdr['HEIGHT'])
+        shiftX = float(hdr['SHIFTX'])
+        shiftY = float(hdr['SHIFTY'])
+        rotInDeg = float(hdr['ROTATION'])
+        magnification = float(hdr['MAGNIFICATION'])
+        S0 = float(hdr['S0'])
+        layer = Layer(dimx, dimy, pitch, height, (shiftX, shiftY), rotInDeg, magnification, S0, target_device_idx=target_device_idx)
         return layer
 
+    @staticmethod
+    def restore(filename, target_device_idx=None):
+        hdr = fits.getheader(filename)
+        if 'OBJ_TYPE' not in hdr or hdr['OBJ_TYPE'] != 'Layer':
+            raise ValueError(f"Error: file {filename} does not contain a Layer object")
+        layer = Layer.from_header(hdr, target_device_idx=target_device_idx)
+        with fits.open(filename) as hdul:
+            layer.A = hdul[0].data
+            layer.phaseInNm = hdul[1].data
+        return layer
+
+    # array_for_display is inherited from ElectricField
