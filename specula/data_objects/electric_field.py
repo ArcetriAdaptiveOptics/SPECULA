@@ -124,9 +124,10 @@ class ElectricField(BaseDataObj):
 
     def save(self, filename, overwrite=True):
         hdr = self.get_fits_header()
-        hdu_A = fits.PrimaryHDU(cpuArray(self.A), header=hdr)
-        hdu_phase = fits.ImageHDU(cpuArray(self.phaseInNm))
-        hdul = fits.HDUList([hdu_A, hdu_phase])
+        hdu = fits.PrimaryHDU(header=hdr)  # main HDU, empty, only header
+        hdul = fits.HDUList([hdu])
+        hdul.append(fits.ImageHDU(data=cpuArray(self.A), name='AMPLITUDE'))
+        hdul.append(fits.ImageHDU(data=cpuArray(self.phaseInNm), name='PHASE'))
         hdul.writeto(filename, overwrite=overwrite)
 
     @staticmethod
@@ -148,8 +149,8 @@ class ElectricField(BaseDataObj):
             raise ValueError(f"Error: file {filename} does not contain an ElectricField object")
         ef = ElectricField.from_header(hdr, target_device_idx=target_device_idx)
         with fits.open(filename) as hdul:
-            ef.A = hdul[0].data
-            ef.phaseInNm = hdul[1].data
+            ef.A = hdul[1].data
+            ef.phaseInNm = hdul[2].data
         return ef
 
     def array_for_display(self):

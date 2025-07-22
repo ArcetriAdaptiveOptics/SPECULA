@@ -70,9 +70,10 @@ class Pupilstop(Layer):
 
     def save(self, filename, overwrite=True):
         hdr = self.get_fits_header()
-        hdu_A = fits.PrimaryHDU(cpuArray(self.A), header=hdr)
+        hdu = fits.PrimaryHDU(header=hdr)  # main HDU, empty, only header
+        hdul = fits.HDUList([hdu])
+        hdul.append(fits.ImageHDU(data=cpuArray(self.A), name='AMPLITUDE'))
         # phaseInNm is not used in Pupilstop
-        hdul = fits.HDUList([hdu_A])
         hdul.writeto(filename, overwrite=overwrite)
 
     @staticmethod
@@ -98,7 +99,7 @@ class Pupilstop(Layer):
             raise ValueError(f"Error: file {filename} does not contain a Pupilstop object")
         pupilstop = Pupilstop.from_header(hdr, target_device_idx=target_device_idx)
         with fits.open(filename) as hdul:
-            pupilstop.A = hdul[0].data
+            pupilstop.A = hdul[1].data
             # phaseInNm is not used in Pupilstop
         return pupilstop
 

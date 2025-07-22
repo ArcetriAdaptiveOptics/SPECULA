@@ -40,9 +40,10 @@ class Layer(ElectricField):
 
     def save(self, filename, overwrite=True):
         hdr = self.get_fits_header()
-        hdu_A = fits.PrimaryHDU(cpuArray(self.A), header=hdr)
-        hdu_phase = fits.ImageHDU(cpuArray(self.phaseInNm))
-        hdul = fits.HDUList([hdu_A, hdu_phase])
+        hdu = fits.PrimaryHDU(header=hdr)  # main HDU, empty, only header
+        hdul = fits.HDUList([hdu])
+        hdul.append(fits.ImageHDU(data=cpuArray(self.A), name='AMPLITUDE'))
+        hdul.append(fits.ImageHDU(data=cpuArray(self.phaseInNm), name='PHASE'))
         hdul.writeto(filename, overwrite=overwrite)
 
     @staticmethod
