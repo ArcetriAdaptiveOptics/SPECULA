@@ -62,8 +62,8 @@ class Pupilstop(Layer):
         hdr['OBJ_TYPE'] = 'Pupilstop'
         hdr['PIXPUPIL'] = self.A.shape[0]
         hdr['PIXPITCH'] = self.pixel_pitch
-        hdr['SHIFTX'] = self.shiftXYinPixel[0]
-        hdr['SHIFTY'] = self.shiftXYinPixel[1]
+        hdr['SHIFTX'] = float(self.shiftXYinPixel[0])
+        hdr['SHIFTY'] = float(self.shiftXYinPixel[1])
         hdr['ROTATION'] = self.rotInDeg
         hdr['MAGNIFICATION'] = self.magnification
         return hdr
