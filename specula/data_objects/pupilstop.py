@@ -65,7 +65,7 @@ class Pupilstop(Layer):
         hdr['SHIFTX'] = float(self.shiftXYinPixel[0])
         hdr['SHIFTY'] = float(self.shiftXYinPixel[1])
         hdr['ROTATION'] = self.rotInDeg
-        hdr['MAGNIFICATION'] = self.magnification
+        hdr['MAGNIFIC'] = self.magnification
         return hdr
 
     def save(self, filename, overwrite=True):
@@ -85,7 +85,7 @@ class Pupilstop(Layer):
         shiftX = float(hdr['SHIFTX'])
         shiftY = float(hdr['SHIFTY'])
         rotInDeg = float(hdr['ROTATION'])
-        magnification = float(hdr['MAGNIFICATION'])
+        magnification = float(hdr['MAGNIFIC'])
         simul_params = SimulParams(pixel_pupil, pixel_pitch)
         pupilstop = Pupilstop(simul_params, shiftXYinPixel=(shiftX, shiftY), rotInDeg=rotInDeg, \
                               magnification=magnification, target_device_idx=target_device_idx)
