@@ -1,6 +1,7 @@
 import unittest
 import os
 import glob
+import shutil
 import specula
 specula.init(-1, precision=1)  # CPU, single precision
 
