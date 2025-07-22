@@ -103,7 +103,7 @@ class FuncGenerator(BaseProcessingObj):
     nsamples : int, default=1
         Number of samples to generate for PUSHPULL type. Must be 1 for other types.
     seed : int, optional
-        Random seed for generating random signals. If 'auto', a random seed is generated.
+        Random seed for generating random signals. If None a random seed is generated.
     ncycles : int, default=1
         Number of cycles for PUSHPULL type. If PUSHPULLREPEAT, cycles are repeated.
     vsize : int, default=1
