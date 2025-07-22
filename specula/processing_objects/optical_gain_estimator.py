@@ -225,9 +225,3 @@ class OpticalGainEstimator(BaseProcessingObj):
 
     def post_trigger(self):
         super().post_trigger()
-
-        # Ensure output generation times are set
-        if hasattr(self.optical_gain, 'generation_time'):
-            self.optical_gain.generation_time = self.current_time
-        if hasattr(self.output, 'generation_time'):
-            self.output.generation_time = self.current_time
