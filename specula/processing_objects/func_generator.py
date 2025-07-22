@@ -238,9 +238,9 @@ class FuncGenerator(BaseProcessingObj):
         self.vib = None
 
         if seed is not None:
-            self.seed = seed
+            self.seed = int(seed)
         else:
-            self.seed = self.xp.around(self.xp.random.random() * 1e4)
+            self.seed = int(self.xp.around(self.xp.random.random() * 1e4))
 
         # Initialize attributes based on the type
         if self.type == 'SIN':
