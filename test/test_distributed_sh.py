@@ -147,5 +147,5 @@ class TestSH(unittest.TestCase):
         sh2.setup()
         sh3.setup()
         
-        assert id(sh1._wf3) == id(sh2._wf3) 
-        assert id(sh1._wf3) != id(sh3._wf3) 
+        assert id(sh1.sub_sh[0]._wf3) == id(sh2.sub_sh[0]._wf3) 
+        assert id(sh1.sub_sh[1]._wf3) != id(sh3.sub_sh[1]._wf3) 
