@@ -99,7 +99,7 @@ class Pupilstop(Layer):
         pupilstop = Pupilstop.from_header(hdr, target_device_idx=target_device_idx)
         with fits.open(filename) as hdul:
             pupilstop.A = hdul[0].data
-            pupilstop.phaseInNm = self.xp.zeros_like(pupilstop.A)  # phaseInNm is not used in Pupilstop
+            # phaseInNm is not used in Pupilstop
         return pupilstop
 
     # array_for_display is inherited from Layer (ElectricField)
