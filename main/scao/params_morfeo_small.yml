@@ -1,0 +1,447 @@
+
+# TODO:
+# - check that modes_first_step is the non-POLC output
+# All SH: double check threshold
+# LGS detector: double check readout level and quantum efficiency
+
+
+main:
+  class:             'SimulParams'
+  root_dir:          '/raid1/guido/PASSATA/MAORYC'         # Root directory for calibration manager  
+  pixel_pupil:       480                    # Linear dimension of pupil phase array
+  pixel_pitch:       0.0802                 # [m] Pitch of the pupil phase array2
+  total_time:        2.000                  # [s] Total simulation running time
+  time_step:         0.002                  # [s] Simulation time step
+  zenithAngleInDeg:  30.0                   # [deg] Airmass correction
+  display_server:    true                   # Display server on auto-selected port
+
+
+seeing:
+  class:             'FuncGenerator'
+  constant:          0.65                  # ["] seeing value
+  outputs: ['output']
+
+
+wind_speed:
+  class:             'FuncGenerator'
+  constant:          [5.5, 5.5, 5.1, 5.5, 5.6, 5.7, 5.8, 6.0, 6.5, 7.0,
+                      7.5, 8.5, 9.5, 11.5, 17.5, 23.0, 26.0, 29.0, 32.0, 27.0,
+                      22.0, 14.5, 9.5, 6.3, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0,
+                      8.5, 9.0, 9.5, 10.0, 10.0]      # [m/s] Wind speed value
+  outputs: ['output']
+
+
+wind_direction:
+  class:             'FuncGenerator'
+  constant:          [0, -180, 0, 0, 90, 180, 0, 0, 0, -180,
+                      0, 0, -90, 0, 90, -180, 90, 0, -90, -90,
+                      0, -90, 0, 0, 180, 180, 0, -180, 90, 0,
+                      0, 180, -90, 90, -90]   # [degrees] Wind direction value
+  outputs: ['output']
+
+
+source_on_axis:
+  class:             'Source'
+  polar_coordinates:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  magnitude:         8                    # source magnitude
+  wavelengthInNm:    750                   # [nm] wavelength
+
+source_lgs1: &LGS_SOURCE
+  class:             'Source'
+  polar_coordinates:  [45.0, 30.0]           # [arcsec, degrees] source polar coordinates
+  height:            90000                 # Source height [m]
+  magnitude:         5.0                   # source magnitude
+  wavelengthInNm:    589                   # [nm] wavelength
+
+source_lgs2: { <<: *LGS_SOURCE, polar_coordinates: [45.0, 90.0] }
+source_lgs3: { <<: *LGS_SOURCE, polar_coordinates: [45.0, 150.0] }
+source_lgs4: { <<: *LGS_SOURCE, polar_coordinates: [45.0, 210.0] }
+source_lgs5: { <<: *LGS_SOURCE, polar_coordinates: [45.0, 270.0] }
+source_lgs6: { <<: *LGS_SOURCE, polar_coordinates: [45.0, 330.0] }
+
+source_ngs1: &NGS_SOURCE
+  class:             'Source'
+  polar_coordinates:  [46.2,303.5]         # [arcsec, degrees] source polar coordinates
+  height:            .inf                # Source height [m]
+  magnitude:         10.0                # source magnitude
+  wavelengthInNm:    1650                # [nm] wavelength
+
+source_ngs2: { <<: *NGS_SOURCE, polar_coordinates: [42.5, 78.9] }
+source_ngs3: { <<: *NGS_SOURCE, polar_coordinates: [42.7,197.0] }
+
+
+pupilstop:                                 # Default parameters (circular pupil)
+  class: 'Pupilstop'
+  tag: 'EELT480pp0.0803m_obs0.283_spider2023'
+
+atmo:
+  class:                'AtmoEvolution'
+  simul_params_ref:  'main'
+  L0:                   25                   # [m] Outer scale
+  heights:              [30.0000, 90.0000, 150.000, 200.000, 245.000, 300.000, 390.000, 601.000, 1130.00, 1880.00,
+                         2630.00, 3500.00, 4500.00, 5500.00, 6500.00, 7500.00, 8500.00, 9500.00, 10500.0, 11500.0,
+                         12500.0, 13500.0, 14500.0, 15500.0, 16500.0, 17500.0, 18500.0, 19500.0, 20500.0, 21500.0,
+                         22500.0, 23500.0, 24500.0, 25500.0, 26500.0] # [m] layer heights at 0 zenith angle
+  Cn2:                  [0.241954, 0.119977, 0.0968817, 0.0589889, 0.0472911, 0.0472911, 0.0472911, 0.0472911, 0.0398925, 0.0323939,
+                         0.0161969, 0.0260951, 0.0155971, 0.0103980, 0.00999811, 0.0119977, 0.00400924, 0.0139974, 0.0129975, 0.00700868,
+                         0.0159970, 0.0258951, 0.0190964, 0.00986813, 0.00616883, 0.00400924, 0.00246953, 0.00215959, 0.00184965, 0.00135974,
+                         0.00110979, 0.000616883, 0.000925825, 0.000493907, 0.000431918] # Cn2 weights (total must be eq 1)
+  fov:      303.5     # TODO the FoV check in AtmoPropagation does not work at all (try setting this to 120)
+
+  inputs:
+    seeing: 'seeing.output'
+    wind_speed: 'wind_speed.output'
+    wind_direction: 'wind_direction.output'
+  outputs: ['layer_list']
+
+ifunc_m4:
+  class:   'IFunc'
+  tag:     'M4_eso_zonal_486p_5352a_slaved'
+
+m2c_m4:
+  class:   'M2C'
+  tag:     'M4_eso_39.5m_486p_20230215'
+
+prop:
+  class:                'AtmoPropagation'
+  simul_params_ref:  'main'
+  source_dict_ref:      ['source_on_axis',
+                         'source_lgs1','source_lgs2','source_lgs3','source_lgs4','source_lgs5','source_lgs6',
+                         'source_ngs1', 'source_ngs2', 'source_ngs3']
+  inputs:
+    atmo_layer_list: ['atmo.layer_list']
+    common_layer_list: [ 'pupilstop',
+                  'dm1.out_layer:-1',
+                  'dm2.out_layer:-1',
+                  'dm3.out_layer:-1',
+  #               'dm_disturb.out_layer'
+                  ]
+  outputs: ['out_source_on_axis_ef','out_source_lgs1_ef','out_source_lgs2_ef','out_source_lgs3_ef',
+            'out_source_lgs4_ef','out_source_lgs5_ef','out_source_lgs6_ef',
+            'out_source_ngs1_ef', 'out_source_ngs2_ef', 'out_source_ngs3_ef']            
+
+# ---------------------------------------
+# LGS WFS simulation and slope processing
+# ---------------------------------------
+
+launcher:
+  class:             'LaserLaunchTelescope'
+  spot_size:          1.8
+
+sh_lgs1: &LGS_SH
+  class:             'SH'
+  subap_wanted_fov:  16.1                    # Requested field-of-view [arcsec]
+  sensor_pxscale:    1.15                    # Pixel scale in arcsec/pix
+  subap_npx:         14                      # Output sampling [usually corresponding to CCD pixels]
+  subap_on_diameter: 68                      # Number of subapertures in diameter
+  wavelengthInNm:    589                     # [nm] Pyramid wavelength
+  fov_ovs_coeff:     1.6                     # Force phase interpolation to a multiple of 68
+  rotAnglePhInDeg:   -6.2
+  laser_launch_tel_ref: 'launcher'
+  inputs:
+    in_ef: 'prop.out_source_lgs1_ef'
+  outputs:  ['out_i']
+
+sh_lgs2: { <<: *LGS_SH, rotAnglePhInDeg: -14.2, inputs: {in_ef: 'prop.out_source_lgs2_ef' }}
+sh_lgs3: { <<: *LGS_SH, rotAnglePhInDeg: 6.2, inputs: {in_ef: 'prop.out_source_lgs3_ef' }}
+sh_lgs4: { <<: *LGS_SH, rotAnglePhInDeg:  -6.2, inputs: {in_ef: 'prop.out_source_lgs4_ef' }}
+sh_lgs5: { <<: *LGS_SH, rotAnglePhInDeg: -14.2, inputs: {in_ef: 'prop.out_source_lgs5_ef' }}
+sh_lgs6: { <<: *LGS_SH, rotAnglePhInDeg: 6.2, inputs: {in_ef: 'prop.out_source_lgs6_ef' }}
+
+detector_lgs1: &LGS_DETECTOR
+  class:             'CCD'
+  simul_params_ref:  'main'
+  size:              [952,952]               # Detector size in pixels
+  dt:                0.002                   # [s] Detector integration time
+  bandw:             20                      # [nm] Sensor bandwidth
+  photon_noise:      False                    # activate photon noise
+  readout_noise:     False                    # activate readout noise
+  readout_level:     2.7                     # readout noise in [e-/pix/frame]
+  quantum_eff:       0.188                   # quantum efficiency * total transmission
+  inputs:
+    in_i: 'sh_lgs1.out_i'
+  outputs:  ['out_pixels']
+
+detector_lgs2: { <<: *LGS_DETECTOR, inputs: {in_i: 'sh_lgs2.out_i' }}
+detector_lgs3: { <<: *LGS_DETECTOR, inputs: {in_i: 'sh_lgs3.out_i' }}
+detector_lgs4: { <<: *LGS_DETECTOR, inputs: {in_i: 'sh_lgs4.out_i' }}
+detector_lgs5: { <<: *LGS_DETECTOR, inputs: {in_i: 'sh_lgs5.out_i' }}
+detector_lgs6: { <<: *LGS_DETECTOR, inputs: {in_i: 'sh_lgs6.out_i' }}
+
+slopec_lgs1: &LGS_SLOPEC
+  class:             'ShSlopec'
+  thr_value:         10
+  subapdata_object:  'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_rot6.2'  # tag of the pyramid WFS pupils
+  sn_object:         'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_ce_rot6.2'  # tag of the slope reference vector
+  filtmat_data:      'maory_np_filtmat_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_mn1000_3_ce_rot6.2'
+  inputs:
+    in_pixels:        'detector_lgs1.out_pixels'
+  outputs:  ['out_slopes', 'out_subapdata']
+
+slopec_lgs2: { <<: *LGS_SLOPEC,
+    inputs: {in_pixels: 'detector_lgs2.out_pixels' },
+    subapdata_object:  'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_rot14.2',
+    sn_object:         'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_ce_rot14.2',
+    filtmat_data:      'maory_np_filtmat_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_mn1000_3_ce_rot14.2'
+    }
+
+slopec_lgs3: { <<: *LGS_SLOPEC,
+    inputs: {in_pixels: 'detector_lgs3.out_pixels' },
+    subapdata_object:  'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_rot-6.2',
+    sn_object:         'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_ce_rot-6.2',
+    filtmat_data:      'maory_np_filtmat_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_mn1000_3_ce_rot-6.2'
+    }
+
+slopec_lgs4: { <<: *LGS_SLOPEC,
+    inputs: {in_pixels: 'detector_lgs4.out_pixels' },
+    subapdata_object:  'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_rot6.2',
+    sn_object:         'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_ce_rot6.2',
+    filtmat_data:      'maory_np_filtmat_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_mn1000_3_ce_rot6.2'
+    }
+slopec_lgs5: { <<: *LGS_SLOPEC,
+    inputs: {in_pixels: 'detector_lgs5.out_pixels' },
+    subapdata_object:  'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_rot14.2',
+    sn_object:         'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_ce_rot14.2',
+    filtmat_data:      'maory_np_filtmat_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_mn1000_3_ce_rot14.2'
+    }
+
+slopec_lgs6: { <<: *LGS_SLOPEC,
+    inputs: {in_pixels: 'detector_lgs6.out_pixels' },
+    subapdata_object:  'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_rot-6.2',
+    sn_object:         'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_ce_rot-6.2',
+    filtmat_data:      'maory_np_filtmat_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_mn1000_3_ce_rot-6.2'
+    }
+
+# ---------------------------------------
+# LO WFS simulation and slope processing
+# ---------------------------------------
+
+sh_ngs1: &NGS_SH
+  class:             'SH'
+  subap_on_diameter: 2                      # Number of subapertures in diameter
+  subap_wanted_fov:  1.8                    # Requested field-of-view [arcsec]
+  sensor_pxscale:    0.015                    # Pixel scale in arcsec/pix
+  subap_npx:         120                      # Output sampling [usually corresponding to CCD pixels]
+  wavelengthInNm:    1650                     # [nm] Pyramid wavelength
+  inputs:
+    in_ef: 'prop.out_source_ngs1_ef'
+  outputs:  ['out_i']
+
+sh_ngs2: { <<: *NGS_SH, inputs: {in_ef: 'prop.out_source_ngs2_ef' }}
+sh_ngs3: { <<: *NGS_SH, inputs: {in_ef: 'prop.out_source_ngs3_ef' }}
+
+detector_ngs1: &NGS_DETECTOR
+  class:             'CCD'
+  simul_params_ref:  'main'
+  size:              [240,240]               # Detector size in pixels
+  dt:                0.002                   # [s] Detector integration time
+  bandw:             330                      # [nm] Sensor bandwidth
+  photon_noise:      True                    # activate photon noise
+  readout_noise:     True                    # activate readout noise
+  readout_level:     2.7                     # readout noise in [e-/pix/frame]
+  quantum_eff:       0.382                   # quantum efficiency * total transmission
+  inputs:
+    in_i: 'sh_ngs1.out_i'
+  outputs:  ['out_pixels']
+
+detector_ngs2: { <<: *NGS_DETECTOR, inputs: {in_i: 'sh_ngs2.out_i' }}
+detector_ngs3: { <<: *NGS_DETECTOR, inputs: {in_i: 'sh_ngs3.out_i' }}
+
+slopec_ngs1: &NGS_SLOPEC
+  class:             'ShSlopec'
+  thr_value:         10
+  subapdata_object:  'maory_ps480p0.080_shs1x1_wl1650_fv1.8_np240_th0.50_stopTEELT480pp0.0803m_obs0.283_spider2023'
+  sn_object:         'maory_ps480p0.080_shs1x1_wl1650_fv1.8_np240_th0.50_ce_stopTEELT480pp0.0803m_obs0.283_spider2023'
+  inputs:
+    in_pixels:        'detector_ngs1.out_pixels'
+  outputs:  ['out_slopes', 'out_subapdata']
+
+slopec_ngs2: { <<: *NGS_SLOPEC, inputs: {in_pixels: 'detector_ngs2.out_pixels' }}
+slopec_ngs3: { <<: *NGS_SLOPEC, inputs: {in_pixels: 'detector_ngs3.out_pixels' }}
+
+# -----------------------------
+# LGS pipeline
+# -----------------------------
+
+tomo_polc_lgs:
+  class:              'Modalrec'
+  recmat_object:      '20240606_200110.0/recmat'
+  projmat_object:     'p20250519_195705.0/projmatAll.fits'
+  intmat_object:      '20250325_000000.0/intmat.fits'
+  polc:   true
+  input_modes_slice:  [0, 6258]
+  in_commands_size:   6269
+  inputs:
+    in_slopes_list:        ['slopec_lgs1.out_slopes','slopec_lgs2.out_slopes','slopec_lgs3.out_slopes','slopec_lgs4.out_slopes','slopec_lgs5.out_slopes','slopec_lgs6.out_slopes']
+    in_commands:            'modal_combination.out_vector:-1'
+  outputs:  ['out_modes', 'out_pseudo_ol_modes']
+
+
+iir_lgs:
+  class:             'IirFilter'
+  simul_params_ref:  'main'
+  iir_filter_data_object: 'int0.25_6258'
+  inputs:
+      delta_comm: 'tomo_polc_lgs.out_modes'     
+  outputs:  ['out_comm']
+
+modal_combination:
+  class:        'LinearCombination'
+  inputs:
+    in_vectors_list: ['iir_lgs.out_comm', 'iir_focus.out_comm', 'iir_lift.out_comm', 'iir_ngs.out_comm']
+  outputs: ['out_vector']
+
+dm1:
+  class:             'DM'
+  simul_params_ref:  'main'
+  ifunc_ref:         'ifunc_m4'
+  m2c_ref:           'm2c_m4'
+  input_offset:      0                        # Offset into input command vector
+  nmodes:            100
+  height:            600                      # DM height [m]
+  inputs:
+      in_command: 'modal_combination.out_vector'
+  outputs:  ['out_layer']
+
+dm2:
+  class:             'DM'
+  simul_params_ref:  'main'
+  ifunc_object:      'MAORY_542pix_31nacts_cir_0.000obs_zonal_ifs'
+  m2c_object:        'MAORY_542pix_31nacts_cir_0.000obs_5zern_10000.0cn'
+  nmodes:            100
+  start_mode:        5                         # Offset into influence function matrix
+  input_offset:      100                       # Offset into input command vector
+  height:            6500                      # DM height [m]
+  inputs:
+      in_command: 'modal_combination.out_vector'
+  outputs:  ['out_layer']
+
+dm3:
+  class:             'DM'
+  simul_params_ref:  'main'
+  ifunc_object:      'MAORY_648pix_37nacts_cir_0.000obs_zonal_ifs'
+  m2c_object:        'MAORY_648pix_37nacts_cir_0.000obs_5zern_10000.0cn'
+  nmodes:            100
+  start_mode:        2                          # Offset into influence function matrix
+  input_offset:      195    #  100+100-5        # Offset into input command vector
+  height:            17500                      # DM height [m]
+  inputs:
+      in_command: 'modal_combination.out_vector'
+  outputs:  ['out_layer']
+
+# ----------------
+# LO pipeline
+# ----------------
+
+tomo_ngs:
+  class:              'Modalrec'
+  recmat_object:      '20240614_073541.0/recmat'
+  projmat_object:     'p20230222_104426.0/projmatAll'
+  inputs:
+    in_slopes_list:        ['slopec_ngs1.out_slopes','slopec_ngs2.out_slopes','slopec_ngs3.out_slopes']
+  outputs:  ['out_modes', 'out_pseudo_ol_modes']
+
+iir_ngs:
+  class:             'IirFilter'
+  simul_params_ref:  'main'
+  iir_filter_data_object: 'int0.1_5modes'
+  inputs:
+      delta_comm: 'tomo_ngs.out_modes'     
+  outputs:  ['out_comm']
+
+rec_focus:
+  class:              'Modalrec'
+  recmat_object:      '20240530_101618.0/recmat'
+  output_slice:       [2, 3]
+  inputs:
+    in_slopes_list:        ['slopec_ref1.out_slopes','slopec_ref2.out_slopes','slopec_ref3.out_slopes']
+  outputs:  ['out_modes', 'out_pseudo_ol_modes']
+
+iir_focus:
+  class:             'Integrator'
+  simul_params_ref:  'main'
+  int_gain:          [0.3]
+  n_modes:           [1]
+  inputs:
+      delta_comm: 'rec_focus.out_modes'     
+  outputs:  ['out_comm']
+
+psf:
+  class:             'PSF'
+  simul_params_ref:  'main'
+  wavelengthInNm:    2200                 # [nm] Imaging wavelength
+  nd:                4                    # padding coefficient for PSF computation
+  start_time:        0.05                 # PSF integration start time
+  inputs:
+      in_ef:  'prop.out_source_on_axis_ef'
+  outputs:  ['out_psf', 'out_sr']
+
+
+# ---------------
+# Displays
+# ----------------
+
+
+
+# sc1_disp:
+#  class:            'SlopecDisplay'
+#  inputs:
+#    slopes:       'slopec_lgs1.out_slopes'
+#    subapdata:    'slopec_lgs1.out_subapdata'
+#  disp_factor:      1
+
+# psf_disp:
+#  class:            'PsfDisplay'
+#  inputs:
+#    psf:       "psf.out_psf"
+#  window:           14
+#  title:            'PSF'
+#  disp_factor:      1
+
+# sr_disp:
+#   class:            'PlotDisplay'
+#   inputs:
+#     value:       'psf.out_sr'
+#   window:           11
+#   title:            'SR'
+
+# cmd_disp:
+#   class:            'ModesDisplay'
+#   inputs:
+#     modes:       "rec.out_modes"
+#   window:           16
+#   title:            'rec.out_modes'
+
+# dm_disp:
+#   class:            'PhaseDisplay'
+#   inputs:
+#     phase:       "dm1.out_layer"
+#   window:           13
+#   title:            'DM'
+#   disp_factor:      2
+
+# ph1_disp:
+#    class:            'PhaseDisplay'
+#    inputs:
+#      phase:       "prop.out_source_on_axis_ef"
+#    window:           15
+#    title:            'PHASE ON AXIS'
+#    disp_factor:      1
+
+# pixels_disp:
+#    class:            'PixelsDisplay'
+#    inputs:
+#      pixels:      "detector_lgs1.out_pixels"
+#    window:           25
+#    title:            "Pixels"
+#    disp_factor:      1
+#    sh_as_pyr:        true
+#    subapdata_object:  'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_rot6.2'
+
+# pixels_disp2:
+#    class:            'PixelsDisplay'
+#    inputs:
+#      pixels:      "detector_lgs1.out_pixels"
+#    window:           26
+#    title:            "Pixels"
+#    disp_factor:      1

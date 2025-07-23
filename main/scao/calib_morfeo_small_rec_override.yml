@@ -1,0 +1,74 @@
+prop_override_0:
+  inputs:
+    common_layer_list: ['pupilstop',
+                  'dm1.out_layer']
+
+prop_override_1:
+  inputs:
+    common_layer_list: ['pupilstop',
+                  'dm2.out_layer']
+
+prop_override_2:
+  inputs:
+    common_layer_list: ['pupilstop',
+                  'dm3.out_layer']
+
+dm1_override_0:
+  sign: 1
+  inputs:
+      in_command: 'pushpull.output'
+
+dm2_override_1:
+  sign: 1
+  start_mode: 0
+  inputs:
+      in_command: 'pushpull.output'
+
+dm3_override_2:
+  sign: 1
+  start_mode: 0
+  inputs:
+      in_command: 'pushpull.output'
+
+im_calibrator1_override_0:
+  im_tag: 'morfeo1_im_lgs_0'
+im_calibrator2_override_0:
+  im_tag: 'morfeo2_im_lgs_0'
+im_calibrator3_override_0:
+  im_tag: 'morfeo3_im_lgs_0'
+im_calibrator4_override_0:
+  im_tag: 'morfeo4_im_lgs_0'
+im_calibrator5_override_0:
+  im_tag: 'morfeo5_im_lgs_0'
+im_calibrator6_override_0:
+  im_tag: 'morfeo6_im_lgs_0'
+
+im_calibrator1_override_1:
+  im_tag: 'morfeo1_im_lgs_1'
+im_calibrator2_override_1:
+  im_tag: 'morfeo2_im_lgs_1'
+im_calibrator3_override_1:
+  im_tag: 'morfeo3_im_lgs_1'
+im_calibrator4_override_1:
+  im_tag: 'morfeo4_im_lgs_1'
+im_calibrator5_override_1:
+  im_tag: 'morfeo5_im_lgs_1'
+im_calibrator6_override_1:
+  im_tag: 'morfeo6_im_lgs_1'
+
+im_calibrator1_override_2:
+  im_tag: 'morfeo1_im_lgs_2'
+im_calibrator2_override_2:
+  im_tag: 'morfeo2_im_lgs_2'
+im_calibrator3_override_2:
+  im_tag: 'morfeo3_im_lgs_2'
+im_calibrator4_override_2:
+  im_tag: 'morfeo4_im_lgs_2'
+im_calibrator5_override_2:
+  im_tag: 'morfeo5_im_lgs_2'
+im_calibrator6_override_2:
+  im_tag: 'morfeo6_im_lgs_2'
+
+remove_0: ['dm2', 'dm3'] 
+remove_1: ['dm1', 'dm3'] 
+remove_2: ['dm1', 'dm2'] 

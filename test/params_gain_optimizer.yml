@@ -1,0 +1,80 @@
+main:
+  class:             'SimulParams'
+  # ---------------------
+  # not used in this example
+  root_dir:          './calib'         # Root directory for calibration manager
+  # ---------------------
+  # not used in this example
+  pixel_pupil:       160                    # Linear dimension of pupil phase array
+  pixel_pitch:       0.05                   # [m] Pitch of the pupil phase array
+  # ---------------------
+  total_time:        1.000                  # [s] Total simulation running time
+  time_step:         0.001                 # [s] Simulation time step
+
+disturbance:
+  class:             'FuncGenerator'
+  func_type:         'SIN'
+  amp:               [5.0]
+  freq:              [5.0] 
+
+diff:
+  class:             'BaseOperation'
+  sub:               True
+  inputs:
+      in_value1: 'disturbance.output'
+      in_value2: 'control.out_comm:-1'
+  outputs: ['out_value']
+
+noise:
+  class:            'FuncGenerator'
+  func_type:        'random'
+  amp:              [0.2]
+  seed:             1342
+  outputs: ['output']
+
+sum_operation_noise:
+  class:            'BaseOperation'
+  sum:              True
+  inputs:
+    in_value1:      'diff.out_value'
+    in_value2:      'noise.output'
+  outputs:  ['out_value']
+
+temporal_filter:
+  class:            'IirFilterData'
+  ordnum:           [2]
+  ordden:           [2]
+  num:              [[ 0.0, 0.3]]
+  den:              [[-1.0, 1.0]]
+
+control:
+  class:                'IirFilter'
+  simul_params_ref:     'main'
+  delay:                2                      # Total temporal delay in time steps
+  iir_filter_data_ref:  'temporal_filter'
+  inputs:
+      delta_comm: 'sum_operation_noise.out_value'
+  outputs: ['out_comm']
+
+gain_optimizer:
+  class:             'GainOptimizer'
+  simul_params_ref:  'main'
+  iir_filter_data_ref: 'temporal_filter'
+  opt_dt:           0.2                     # Optimization interval in seconds
+  delay:            2                       # Loop delay in frames
+  max_gain_factor:  0.95                    # Safety factor for maximum gain
+  safety_factor:    0.90                    # Additional safety margin
+  max_inc:          0.5                     # Maximum gain increment per step
+  limit_inc:        True                    # Limit gain increments
+  ngains:           20                      # Number of gain values to test
+  running_mean:     False                   # Use running mean for PSD
+  inputs:
+      delta_comm: 'sum_operation_noise.out_value'
+      out_comm: 'control.out_comm'
+  outputs: ['optgain']
+
+data_store:
+  class:             'DataStore'
+  store_dir:         './data'             # Data result directory: 'store_dir'/TN/
+  inputs:
+    input_list: ['res-diff.out_value','optgain-gain_optimizer.optgain']

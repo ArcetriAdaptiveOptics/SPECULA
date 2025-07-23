@@ -34,6 +34,7 @@ class Simul():
     '''
     def __init__(self,
                  *param_files,
+                 simul_idx=0,
                  overrides=None,
                  diagram=False,
                  diagram_title=None,
@@ -45,6 +46,7 @@ class Simul():
         self.remote_objs_ranks = {}
         self.param_files = param_files
         self.objs = {}
+        self.simul_idx = simul_idx
         self.verbose = False  #TODO
         self.isReplay = False
         self.mainParams = None
@@ -56,7 +58,7 @@ class Simul():
         self.diagram_title = diagram_title
         self.diagram_filename = diagram_filename
     
-    def split_output(self, output_name, get_ref=False):
+    def split_output(self, output_name, get_ref=False, use_inputs=False):
         '''
         Split the output name into object name and output key.
         '''
@@ -78,6 +80,7 @@ class Simul():
 
         # Get a reference to the output if possible
         if get_ref:
+
             if not obj_name in self.objs:
                 if obj_name in self.remote_objs_ranks:
                     ref = None
@@ -85,10 +88,15 @@ class Simul():
                     raise ValueError(f'Object {obj_name} does not exist anywhere')
             elif output_key is None:
                 ref = self.objs[obj_name]
-            elif not output_key in self.objs[obj_name].outputs:
-                raise ValueError(f'Object {obj_name} does not define an output with name {output_key}')
             else:
-                ref = self.objs[obj_name].outputs[output_key]
+                if use_inputs:
+                    array_to_check, display_str = self.objs[obj_name].local_inputs, 'input'
+                else:
+                    array_to_check, display_str = self.objs[obj_name].outputs, 'output'
+                if not output_key in array_to_check:
+                    raise ValueError(f'Object {obj_name} does not define an {display_str} with name {output_key}')
+                else:
+                    ref = array_to_check[output_key]
         else:
             ref = None
 
@@ -117,18 +125,9 @@ class Simul():
            - reference to the input, or None if the object is remote.
            - name of the object that defines the input
         '''
-        obj_name, output_key = self.split_output(input_name)
-
-        if not obj_name in self.objs:
-            if obj_name in self.remote_objs_ranks:
-                return None, obj_name
-            else:                
-                raise ValueError(f'Object {obj_name} does not exist anywhere')
-        if not output_key in self.objs[obj_name].inputs:
-            raise ValueError(f'Object {obj_name} does not define an input with name {output_key}')
-        input_ref = self.objs[obj_name].local_inputs[output_key]
-        return input_ref, obj_name
-
+        output = self.split_output(input_name, get_ref=True, use_inputs=True)
+        return output.ref
+        
     def output_delay(self, output_name):
         return self.split_output(output_name).delay
 
@@ -581,16 +580,34 @@ class Simul():
         Add/update/remove params with additional_params
         '''
         for name, values in additional_params.items():
-            if name == 'remove':
+            doRemoveIdx = False            
+            if '_' in name:
+                ri = name.split('_')
+                # check for a remove (with simulation index) list, something of the form:  remove_3: ['atmo', 'rec', 'dm2']                
+                if len(ri) == 2:
+                    if ri[0] == 'remove':
+                        if int(ri[1]) == self.simul_idx:
+                            doRemoveIdx = True
+                        else:
+                            continue
+                # check for a override (with simulation index) parameters structure, something of the form:  dm_override_2: { ... }                
+                if ri[-1].isnumeric() and ri[-2] == 'override':
+                    if int(ri[-1]) == self.simul_idx:
+                        separator = "_"
+                        objname = separator.join(ri[:-2])                        
+                        if objname not in params:
+                            raise ValueError(f'Parameter file has no object named {objname}')
+                        params[objname].update(values)
+                    continue
+
+            if name == 'remove' or doRemoveIdx:
                 for objname in values:
                     if objname not in params:
                         raise ValueError(f'Parameter file has no object named {objname}')
                     del params[objname]
                     print(f'Removed {objname}')
-
                     # Remove corresponding inputs
                     params = self.remove_inputs(params, objname)
-
             elif name.endswith('_override'):
                 objname = name[:-9]
                 if objname not in params:
@@ -659,7 +676,7 @@ class Simul():
         for filename in self.param_files[1:]:
             print('Reading additional parameters from', filename)
             with open(filename, 'r') as stream:
-                additional_params = yaml.safe_load(stream)
+                additional_params = yaml.safe_load(stream)                
                 self.combine_params(params, additional_params)
 
         # Actual creation code
@@ -698,7 +715,7 @@ class Simul():
         print('self.loop.max_global_order', self.loop.max_global_order, flush=True)
 
         # Default display web server
-        if 'display_server' in self.mainParams and self.mainParams['display_server'] and process_rank == 0:
+        if 'display_server' in self.mainParams and self.mainParams['display_server'] and process_rank in [0, None]:
             from specula.processing_objects.display_server import DisplayServer
             disp = DisplayServer(params, self.input_ref, self.output_ref, self.get_info)
             self.objs['display_server'] = disp

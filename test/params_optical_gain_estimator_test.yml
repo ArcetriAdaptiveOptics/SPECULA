@@ -1,0 +1,58 @@
+---
+
+main:
+  class:             'SimulParams'
+  root_dir:          './calib/'             # Root directory for calibration manager
+  pixel_pupil:       64                     # Linear dimension of pupil phase array
+  pixel_pitch:       0.01                   # [m] Pitch of the pupil phase array
+  total_time:        1.000                  # [s] Total simulation running time
+  time_step:         0.001                  # [s] Simulation time step
+
+disturbance1:
+  class:             'FuncGenerator'
+  func_type:         'SIN'
+  amp:               [5.0]
+  freq:              [50.0]
+  outputs: ['output']
+
+disturbance2:
+  class:             'FuncGenerator'
+  func_type:         'SIN'
+  amp:               [10.0]
+  freq:              [50.0]
+  outputs: ['output']
+
+demodulator1:
+  class:             'Demodulator'
+  simul_params_ref:  'main'
+  mode_numbers:      [0]
+  carrier_frequencies: [50.0]
+  demod_dt:           0.2
+  inputs:
+      in_data: 'disturbance1.output'
+  outputs: ['output']
+
+demodulator2:
+  class:             'Demodulator'
+  simul_params_ref:  'main'
+  mode_numbers:      [0]
+  carrier_frequencies: [50.0]
+  demod_dt:           0.2
+  inputs:
+      in_data: 'disturbance2.output'
+  outputs: ['output']
+
+optical_gain_estimator:
+  class:             'OpticalGainEstimator'
+  gain:              0.3
+  initial_optical_gain: 1.0
+  inputs:
+    in_demod_delta_command: 'demodulator1.output'
+    in_demod_command: 'demodulator2.output'
+  outputs: ['output','optical_gain']
+
+data_store:
+  class:             'DataStore'
+  store_dir:         './data'             # Data result directory: 'store_dir'/TN/
+  inputs:    
+    input_list: ['dem1-demodulator1.output','dem2-demodulator2.output','optg-optical_gain_estimator.optical_gain']
