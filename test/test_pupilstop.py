@@ -81,3 +81,30 @@ class TestPupilstop(unittest.TestCase):
             # Force cleanup for Windows
             del pupilstop2
             gc.collect()
+
+    @cpu_and_gpu
+    def test_PASSATA_pupilstop_file(self, target_device_idx, xp):
+        '''Test that old pupilstop files from PASSATA are loaded correctly'''
+
+        filename = os.path.join(os.path.dirname(__file__), 'data', 'PASSATA_pupilstop_64pix.fits')
+
+        # From custom PASSATA method
+        pupilstop = Pupilstop.restore_from_passata(filename, target_device_idx=target_device_idx)
+        assert pupilstop.A.shape == (64,64)
+        self.assertAlmostEqual(pupilstop.pixel_pitch, 0.01)
+
+        # From generic method - both must work
+        pupilstop = Pupilstop.restore(filename, target_device_idx=target_device_idx)
+        assert pupilstop.A.shape == (64,64)
+        self.assertAlmostEqual(pupilstop.pixel_pitch, 0.01)
+
+    @cpu_and_gpu
+    def test_wrong_file_fails(self, target_device_idx, xp):
+
+        filename = os.path.join(os.path.dirname(__file__), 'data', 'ref_phase.fits')
+
+        with self.assertRaises(ValueError):
+            pupilstop = Pupilstop.restore_from_passata(filename, target_device_idx=target_device_idx)
+
+        with self.assertRaises(ValueError):
+            Pupilstop.restore(filename, target_device_idx=target_device_idx)

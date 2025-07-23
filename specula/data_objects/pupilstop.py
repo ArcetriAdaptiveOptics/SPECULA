@@ -1,4 +1,6 @@
 
+import warnings
+
 from astropy.io import fits
 
 from specula.data_objects.layer import Layer
@@ -97,11 +99,29 @@ class Pupilstop(Layer):
     def restore(filename, target_device_idx=None):
         hdr = fits.getheader(filename)
         if 'OBJ_TYPE' not in hdr or hdr['OBJ_TYPE'] != 'Pupilstop':
-            raise ValueError(f"Error: file {filename} does not contain a Pupilstop object")
+            # Maybe it's a PASSATA object
+            try:
+                return Pupilstop.restore_from_passata(filename, target_device_idx)
+            except ValueError:
+                raise ValueError(f"Error: file {filename} does not contain a SPECULA or PASSATA Pupilstop object")
+
         pupilstop = Pupilstop.from_header(hdr, target_device_idx=target_device_idx)
         with fits.open(filename) as hdul:
             pupilstop.A = pupilstop.to_xp(hdul[1].data.copy())
             # phaseInNm is not used in Pupilstop
         return pupilstop
+
+    @staticmethod
+    def restore_from_passata(filename, target_device_idx=None):
+        with fits.open(filename) as hdul:
+            if len(hdul) == 4:
+                pixel_pitch = float(hdul[3].data)
+                A = hdul[1].data.copy()
+                pixel_pupil = A.shape[0]
+                simul_params = SimulParams(pixel_pupil, pixel_pitch)
+                pupilstop = Pupilstop(simul_params, input_mask=A, target_device_idx=target_device_idx)
+                warnings.warn('Detected PASSATA pupilstop file', RuntimeWarning)
+                return pupilstop
+        raise ValueError(f"Error: file {filename} does not contain a PASSATA Pupilstop object")
 
     # array_for_display is inherited from Layer (ElectricField)
