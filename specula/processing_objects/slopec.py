@@ -11,14 +11,14 @@ from specula.data_objects.recmat import Recmat
 
 class Slopec(BaseProcessingObj):
     def __init__(self,
-                 sn: Slopes=None, 
+                 sn: Slopes=None,
                  use_sn: bool=False,
                  recmat: Recmat=None,
-                 filt_intmat: Intmat=None, 
+                 filt_intmat: Intmat=None,
                  filt_recmat: Recmat=None,
                  filtmat=None,
                  weight_int_pixel_dt: float=0,
-                 target_device_idx: int=None, 
+                 target_device_idx: int=None,
                  precision: int=None
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
@@ -80,37 +80,40 @@ class Slopec(BaseProcessingObj):
         """
         if self.weight_int_pixel_dt <= 0:
             return
-            
-        current_pixels = self.inputs['in_pixels'].get(self.target_device_idx).pixels
-        
+ 
+        current_pixels = self.inputs['in_pixels'].get(self.target_device_idx).pixels.copy()
+
         # Calculate accumulation factor
         if self.t_previous is None:
-            self.t_previous = t
             factor = 0.0
+            delta_t = 0.0
         else:
-            factor = float(self.seconds_to_t(t-self.t_previous)) / float(self.weight_int_pixel_dt)
-        
+            delta_t = t - self.t_previous
+            factor = float(delta_t) / float(self.weight_int_pixel_dt)
+        self.t_previous = t
+
         # Initialize accumulated pixels if not exists
         if self.int_pixels is None:
             from specula.data_objects.pixels import Pixels
             self.int_pixels = Pixels(
-                current_pixels.shape[0], 
-                current_pixels.shape[1], 
+                current_pixels.shape[0],
+                current_pixels.shape[1],
                 target_device_idx=self.target_device_idx
             )
             self.int_pixels.pixels = self.xp.zeros_like(current_pixels)
-        
+
         # Check if we're at the start of a new accumulation period
-        if (t % self.weight_int_pixel_dt) == 0:
+        if (t % self.weight_int_pixel_dt) == delta_t and t > self.weight_int_pixel_dt:
             # Reset accumulation
             self.int_pixels.pixels = current_pixels.astype(self.dtype) * factor
         else:
             # Add to existing accumulation
             self.int_pixels.pixels += current_pixels.astype(self.dtype) * factor
-        
-        # Update generation time
-        self.int_pixels.generation_time = t
-        
+
+        if (t % self.weight_int_pixel_dt) == 0 and t > 0:
+            # Update generation time
+            self.int_pixels.generation_time = t
+
         if self.verbose:
             print(f'Accumulation factor is: {factor}')
 
@@ -122,14 +125,14 @@ class Slopec(BaseProcessingObj):
 
     def trigger_code(self):
         raise NotImplementedError(f'{self.__class__.__name__}: please implement trigger_code() in your derived class!')
-        
+
     def post_trigger(self):
         super().post_trigger()
 
         if self.recmat:
             m = self.xp.dot(self.slopes.slopes, self.recmat.recmat)
             self.slopes.slopes[:] = m
-        
+
         if self.filt_intmat and self.filt_recmat:
             m = self.slopes.slopes @ self.filt_recmat.recmat
             sl0 = m @ self.filt_intmat.intmat.T
@@ -139,4 +142,3 @@ class Slopec(BaseProcessingObj):
             #print('Slopes have been filtered. '
             #      'New slopes min, max and rms: '
             #      f'{self.slopes.slopes.min()}, {self.slopes.slopes.max()}, {rms}')
-
