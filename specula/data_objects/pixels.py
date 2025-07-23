@@ -72,7 +72,7 @@ class Pixels(BaseDataObj):
         self.pixels = fits.getdata(filename)
 
     @staticmethod
-    def from_header(hdr, target_device_idx=None):    
+    def from_header(hdr, target_device_idx=None):
         version = hdr['VERSION']
         if version != 1:
             raise ValueError(f"Error: unknown version {version} in header")

@@ -5,6 +5,7 @@ import argparse
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--nsimul', type=int, default=1)
     parser.add_argument('--cpu', action='store_true')
     parser.add_argument('--overrides', type=str)
     parser.add_argument('--target', type=int, default=0)

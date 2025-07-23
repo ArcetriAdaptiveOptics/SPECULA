@@ -103,7 +103,7 @@ class FuncGenerator(BaseProcessingObj):
     nsamples : int, default=1
         Number of samples to generate for PUSHPULL type. Must be 1 for other types.
     seed : int, optional
-        Random seed for generating random signals. If 'auto', a random seed is generated.
+        Random seed for generating random signals. If None a random seed is generated.
     ncycles : int, default=1
         Number of cycles for PUSHPULL type. If PUSHPULLREPEAT, cycles are repeated.
     vsize : int, default=1
@@ -197,14 +197,7 @@ class FuncGenerator(BaseProcessingObj):
             repeat_ncycles = False
 
         if nsamples != 1 and self.type != 'PUSHPULL':
-            raise ValueError('nsamples can only be used with PUSHPULL or PUSHPULLREPEAT types')
-
-        if str(seed).strip() == 'auto':
-            self.seed = self.xp.around(self.xp.random.random() * 1e4)
-        elif seed is not None:
-            self.seed = self.to_xp(seed, dtype=self.dtype)
-        else:
-            self.seed = 0
+            raise ValueError('nsamples can only be used with PUSHPULL or PUSHPULLREPEAT types')      
 
         self.constant = self.to_xp(constant, dtype=self.dtype) if constant is not None else 0.0
         self.amp = self.to_xp(amp, dtype=self.dtype) if amp is not None else 0.0
@@ -245,7 +238,9 @@ class FuncGenerator(BaseProcessingObj):
         self.vib = None
 
         if seed is not None:
-            self.seed = seed
+            self.seed = int(seed)
+        else:
+            self.seed = int(self.xp.around(self.xp.random.random() * 1e4))
 
         # Initialize attributes based on the type
         if self.type == 'SIN':
@@ -258,7 +253,10 @@ class FuncGenerator(BaseProcessingObj):
             self.slope = 0.0
 
         elif self.type == 'RANDOM' or self.type == 'RANDOM_UNIFORM':
-            pass
+            if hasattr(self.xp.random, "default_rng"):
+                self.rng = self.xp.random.default_rng(self.seed)
+            else:
+                self.rng = self.xp.random  # fallback (es. Cupy o NumPy < 1.17)
 
         elif self.type == 'VIB_HIST':
             raise ValueError('VIB_HIST is not implemented yet')
@@ -346,12 +344,12 @@ class FuncGenerator(BaseProcessingObj):
             self.output.value[:] = (self.slope * self.current_time_gpu + self.constant) * self.vsize_array
 
         elif self.type == 'RANDOM':
-            self.output.value[:] = (self.xp.random.normal(size=len(self.amp)) * self.amp + self.constant) * self.vsize_array
+            self.output.value[:] = (self.rng.standard_normal(size=len(self.amp)) * self.amp + self.constant) * self.vsize_array
 
         elif self.type == 'RANDOM_UNIFORM':
             lowv = self.constant - self.amp/2
             highv = self.constant + self.amp/2
-            self.output.value[:] = (self.xp.random.uniform(low=lowv, high=highv)) * self.vsize_array
+            self.output.value[:] = (self.rng.uniform(low=lowv, high=highv)) * self.vsize_array
 
         elif self.type in ['VIB_HIST', 'VIB_PSD', 'PUSH', 'PUSHPULL', 'TIME_HIST']:
             self.output.value[:] = self.get_time_hist_at_current_time() * self.vsize_array

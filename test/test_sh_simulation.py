@@ -88,19 +88,19 @@ class TestShSimulation(unittest.TestCase):
 
         # Check if res_sr.fits exists
         res_sr_path = os.path.join(latest_data_dir, 'res_sr.fits')
-        self.assertTrue(os.path.exists(res_sr_path), 
+        self.assertTrue(os.path.exists(res_sr_path),
                        f"res_sr.fits not found in {latest_data_dir}")
 
         # Verify SR values are within expected range
         with fits.open(res_sr_path) as hdul:
             # Check if there's data
             self.assertTrue(len(hdul) >= 1, "No data found in res_sr.fits")
-            self.assertTrue(hasattr(hdul[0], 'data') and hdul[0].data is not None, 
+            self.assertTrue(hasattr(hdul[0], 'data') and hdul[0].data is not None,
                            "No data found in first HDU of res_sr.fits")
 
-            # For this test, we'll check that the SR values are reasonable 
+            # For this test, we'll check that the SR values are reasonable
             # (typically between 0.0 and 1.0, with higher values indicating better correction)
-            sr_values = hdul[0].data
+            sr_values = hdul[0].data.copy()
             self.assertTrue(np.all(sr_values >= 0.0) and np.all(sr_values <= 1.0),
                            f"SR values outside expected range [0,1]: min={np.min(sr_values)}, max={np.max(sr_values)}")
 

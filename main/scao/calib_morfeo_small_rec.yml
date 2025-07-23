@@ -1,0 +1,75 @@
+
+
+pushpull:
+  class:     'FuncGenerator'
+  func_type: 'PUSHPULL'
+  nmodes:     100
+  vect_amplitude:  [50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 
+                    50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 
+                    50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 
+                    50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 
+                    50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 
+                    50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 
+                    50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 
+                    50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 
+                    50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 
+                    50, 50, 50, 50, 50, 50, 50, 50, 50, 50]
+  outputs: ['output']
+
+
+main_override:
+  total_time:  0.2
+
+detector_lgs1_override:
+  photon_noise:      False
+  readout_noise:     False
+
+detector_lgs2_override:
+  photon_noise:      False
+  readout_noise:     False
+
+detector_lgs3_override:
+  photon_noise:      False
+  readout_noise:     False
+
+detector_lgs4_override:
+  photon_noise:      False
+  readout_noise:     False
+
+detector_lgs5_override:
+  photon_noise:      False
+  readout_noise:     False
+
+detector_lgs6_override:
+  photon_noise:      False
+  readout_noise:     False
+
+im_calibrator1:  &IM_CALIBRATOR
+  class: 'ImCalibrator'
+  nmodes: 100
+  first_mode: 0
+  im_tag:     'morfeo1_im_lgs'
+  #tag_template:    'subap_{main.tag}_n{modes}'
+  overwrite: True
+  inputs:
+    in_slopes: 'slopec_lgs1.out_slopes'
+    in_commands: 'pushpull.output'
+  outputs: ['out_im','out_intmat']
+
+im_calibrator2: { <<: *IM_CALIBRATOR, im_tag: 'morfeo2_im_lgs', inputs: {in_slopes: 'slopec_lgs2.out_slopes', in_commands: 'pushpull.output' }}
+im_calibrator3: { <<: *IM_CALIBRATOR, im_tag: 'morfeo3_im_lgs', inputs: {in_slopes: 'slopec_lgs3.out_slopes', in_commands: 'pushpull.output' }}
+im_calibrator4: { <<: *IM_CALIBRATOR, im_tag: 'morfeo4_im_lgs', inputs: {in_slopes: 'slopec_lgs4.out_slopes', in_commands: 'pushpull.output' }}
+im_calibrator5: { <<: *IM_CALIBRATOR, im_tag: 'morfeo5_im_lgs', inputs: {in_slopes: 'slopec_lgs5.out_slopes', in_commands: 'pushpull.output' }}
+im_calibrator6: { <<: *IM_CALIBRATOR, im_tag: 'morfeo6_im_lgs', inputs: {in_slopes: 'slopec_lgs6.out_slopes', in_commands: 'pushpull.output' }}
+
+
+remove: ['atmo',
+'tomo_polc_lgs',
+'iir_lgs',
+'modal_combination',
+
+'tomo_ngs',
+'iir_ngs',
+'rec_focus',
+'iir_focus',
+'psf']
