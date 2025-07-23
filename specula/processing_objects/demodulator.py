@@ -50,18 +50,16 @@ class Demodulator(BaseProcessingObj):
     def trigger_code(self):
         t = self.current_time
 
-        # Store data if input is ready
-        if self.input.generation_time == t:
-            # Extract data for the specified modes
-            if self.input.value.ndim > 1:
-                # Multi-dimensional data - extract modes
-                mode_data = self.input.value[self.mode_numbers]
-            else:
-                # 1D data
-                mode_data = self.input.value
+        # Extract data for the specified modes
+        if self.input.value.ndim > 1:
+            # Multi-dimensional data - extract modes
+            mode_data = self.input.value[self.mode_numbers]
+        else:
+            # 1D data
+            mode_data = self.input.value
 
-            self.data_history.append(mode_data.copy())
-            self.time_history.append(t)
+        self.data_history.append(mode_data.copy())
+        self.time_history.append(t)
 
         # Check if it's time to demodulate
         if (t + self.loop_dt - self.demod_dt) % self.demod_dt == 0:
