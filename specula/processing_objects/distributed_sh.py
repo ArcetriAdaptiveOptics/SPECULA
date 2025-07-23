@@ -67,6 +67,11 @@ class DistributedSH(SH):
             self.sub_sh.append( SH(**args))
 
     def setup(self):
+        '''
+        Skip the SH method for this object, since we do not perform
+        any calculation, but call the BaseProcessingObj one for housekeeping.
+        Then set inputs on all sub-SHs
+        '''
         BaseProcessingObj.setup(self)
 
         # Copy our inputs into all sub-SH
@@ -78,24 +83,49 @@ class DistributedSH(SH):
             sh.setup()
 
     def check_ready(self, t):
+        '''
+        Skip the SH method for this object, since we do not perform
+        any calculation, but call the BaseProcessingObj one for housekeeping.
+        Then call all sub-SHs
+        '''
         BaseProcessingObj.check_ready(self, t)
         for sh in self.sub_sh:
             sh.check_ready(t)
 
     def prepare_trigger(self, t):
+        '''
+        Skip the SH method for this object, since we do not perform
+        any calculation, but call the BaseProcessingObj one for housekeeping.
+        Then call all sub-SHs
+        '''
         BaseProcessingObj.prepare_trigger(self, t)
         for sh in self.sub_sh:
             sh.prepare_trigger(t)
    
     def trigger(self):
+        '''
+        Skip the SH method for this object, since we do not perform
+        any calculation, but call the BaseProcessingObj one for housekeeping.
+        Then call all sub-SHs
+        '''
         BaseProcessingObj.trigger(self)
         for sh in self.sub_sh:
             sh.trigger()
 
     def trigger_code(self):
+        '''
+        Nothing to do in the distributed SH. The Sub-SH will run
+        the regular SH implementation.
+        '''
         return
 
     def post_trigger(self):
+        '''
+        Skip the SH method for this object, but call the 
+        BaseProcessingObj one for housekeeping.
+        Then gather results from the sub-SH and perform
+        the final normalization
+        '''
         BaseProcessingObj.post_trigger(self)
 
         # Collect results from the other SHs into our Intensity result
@@ -109,9 +139,4 @@ class DistributedSH(SH):
         self._out_i.i *= phot / self._out_i.i.sum()
         self._out_i.generation_time = self.current_time
 
-#        import matplotlib.pyplot as plt
-#        plt.imshow(cpuArray(self._out_i.i))
-#        plt.show()
-        # import time
-        # time.sleep(0.1)
 

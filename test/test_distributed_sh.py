@@ -13,8 +13,10 @@ from specula.processing_objects.distributed_sh import DistributedSH
 from test.specula_testlib import cpu_and_gpu
 
 
-class TestSH(unittest.TestCase):
-
+class TestDistributedSH(unittest.TestCase):
+    '''
+    Same tests as TestSH, but with the DistributedSH class
+    '''
     @cpu_and_gpu
     def test_distributed_sh_flux(self, target_device_idx, xp):
         
