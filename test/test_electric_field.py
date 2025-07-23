@@ -2,6 +2,9 @@
 import specula
 specula.init(0)  # Default target device
 
+import tempfile
+import os
+import gc
 import unittest
 
 from specula import np
@@ -86,3 +89,31 @@ class TestElectricField(unittest.TestCase):
         assert np.allclose(out_ef.A, ef1.A * ef2.A)
         assert np.allclose(out_ef.phaseInNm, ef1.phaseInNm + ef2.phaseInNm)
         assert np.allclose(out_ef.S0, ef1.S0 + ef2.S0)
+
+    @cpu_and_gpu
+    def test_save_and_restore(self, target_device_idx, xp):
+        pixel_pupil = 10
+        pixel_pitch = 0.1
+        S0 = 1.23
+
+        ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=S0, target_device_idx=target_device_idx)
+        ef.A = xp.arange(pixel_pupil * pixel_pupil, dtype=ef.dtype).reshape(pixel_pupil, pixel_pupil)
+        ef.phaseInNm = xp.arange(pixel_pupil * pixel_pupil, dtype=ef.dtype).reshape(pixel_pupil, pixel_pupil) * 0.5
+
+        # Save to temporary file
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filename = os.path.join(tmpdir, "ef_test.fits")
+            ef.save(filename)
+
+            # Restore from file
+            ef2 = ElectricField.restore(filename, target_device_idx=target_device_idx)
+
+            # Check that the restored object has the data as expected
+            assert np.allclose(cpuArray(ef.A), cpuArray(ef2.A))
+            assert np.allclose(cpuArray(ef.phaseInNm), cpuArray(ef2.phaseInNm))
+            assert ef.pixel_pitch == ef2.pixel_pitch
+            assert ef.S0 == ef2.S0
+
+            # Force cleanup for Windows
+            del ef2
+            gc.collect()

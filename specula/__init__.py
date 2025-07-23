@@ -203,6 +203,7 @@ def fuse(kernel_name=None):
 
 
 def main_simul(yml_files: list,
+               nsimul = 1,
                cpu: bool=False,
                overrides: str=None,
                target: int=0,
@@ -249,13 +250,15 @@ def main_simul(yml_files: list,
         pr = cProfile.Profile()
         pr.enable()
 
-    print(yml_files)
-    Simul(*yml_files,
-          overrides=overrides,
-          diagram=diagram,
-          diagram_filename=diagram_filename,
-          diagram_title=diagram_title,
-    ).run()
+    for simul_idx in range(nsimul):
+        print(yml_files)
+        Simul(*yml_files,
+            simul_idx=simul_idx,
+            overrides=overrides,
+            diagram=diagram,
+            diagram_filename=diagram_filename,
+            diagram_title=diagram_title,
+        ).run()
 
     if profile:
         pr.disable

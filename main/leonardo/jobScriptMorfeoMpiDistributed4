@@ -1,0 +1,27 @@
+#!/bin/bash
+
+#SBATCH --job-name=specula_mpi              # Descriptive job name
+#SBATCH --time=00:10:00                       # Maximum wall time (hh:mm:ss)
+#SBATCH --nodes=7                             # Number of nodes to use
+#SBATCH --ntasks-per-node=1                   # Number of MPI tasks per node (e.g., 1 per GPU)
+#SBATCH --cpus-per-task=4                     # Number of CPU cores per task (adjust as needed)
+#SBATCH --gres=gpu:4                          # Number of GPUs per node (adjust to match hardware)
+#SBATCH --partition=boost_usr_prod           # GPU-enabled partition
+#SBATCH --qos=normal                         # Quality of Service
+#SBATCH --output=speculaJobMorfeoMpi.out              # File for standard output
+#SBATCH --error=speculaJobMorfeoMpi.err               # File for standard error
+#SBATCH --account=try25_rossi           # Project account number
+
+# Load necessary modules (adjust to your environment)
+
+# module load your_app_dependencies             # Load any other required modules
+module load cuda/12.2                         # Load CUDA toolkit
+module load openmpi/4.1.6--nvhpc--23.11
+module load nvhpc/23.11
+
+# Launch the distributed GPU application
+# Replace with your actual command (e.g., mpirun or srun)
+srun --mpi=none bash -c "./launch_morfeo_full_mpi_distributed4.sh"
+
+
+

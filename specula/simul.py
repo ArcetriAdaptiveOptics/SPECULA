@@ -34,6 +34,7 @@ class Simul():
     '''
     def __init__(self,
                  *param_files,
+                 simul_idx=0,
                  overrides=None,
                  diagram=False,
                  diagram_title=None,
@@ -45,6 +46,7 @@ class Simul():
         self.remote_objs_ranks = {}
         self.param_files = param_files
         self.objs = {}
+        self.simul_idx = simul_idx
         self.verbose = False  #TODO
         self.isReplay = False
         self.mainParams = None
@@ -578,16 +580,34 @@ class Simul():
         Add/update/remove params with additional_params
         '''
         for name, values in additional_params.items():
-            if name == 'remove':
+            doRemoveIdx = False            
+            if '_' in name:
+                ri = name.split('_')
+                # check for a remove (with simulation index) list, something of the form:  remove_3: ['atmo', 'rec', 'dm2']                
+                if len(ri) == 2:
+                    if ri[0] == 'remove':
+                        if int(ri[1]) == self.simul_idx:
+                            doRemoveIdx = True
+                        else:
+                            continue
+                # check for a override (with simulation index) parameters structure, something of the form:  dm_override_2: { ... }                
+                if ri[-1].isnumeric() and ri[-2] == 'override':
+                    if int(ri[-1]) == self.simul_idx:
+                        separator = "_"
+                        objname = separator.join(ri[:-2])                        
+                        if objname not in params:
+                            raise ValueError(f'Parameter file has no object named {objname}')
+                        params[objname].update(values)
+                    continue
+
+            if name == 'remove' or doRemoveIdx:
                 for objname in values:
                     if objname not in params:
                         raise ValueError(f'Parameter file has no object named {objname}')
                     del params[objname]
                     print(f'Removed {objname}')
-
                     # Remove corresponding inputs
                     params = self.remove_inputs(params, objname)
-
             elif name.endswith('_override'):
                 objname = name[:-9]
                 if objname not in params:
@@ -656,7 +676,7 @@ class Simul():
         for filename in self.param_files[1:]:
             print('Reading additional parameters from', filename)
             with open(filename, 'r') as stream:
-                additional_params = yaml.safe_load(stream)
+                additional_params = yaml.safe_load(stream)                
                 self.combine_params(params, additional_params)
 
         # Actual creation code
