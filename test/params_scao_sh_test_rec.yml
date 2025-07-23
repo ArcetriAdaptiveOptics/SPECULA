@@ -25,6 +25,9 @@ detector_override:
   photon_noise:      False
   readout_noise:     False
 
+slopec_override:
+  weightedPixRad: 0.0
+
 im_calibrator:
   class: 'ImCalibrator'
   nmodes: 40

@@ -58,6 +58,7 @@ class SH(BaseProcessingObj):
                  do_not_double_fov_ovs: bool = False,
                  set_fov_res_to_turbpxsc: bool = False,
                  laser_launch_tel: LaserLaunchTelescope = None,
+                 subap_rows_slice = None,
                  target_device_idx: int = None,
                  precision: int = None,
         ):
@@ -100,6 +101,7 @@ class SH(BaseProcessingObj):
         self._out_i = Intensity(self._ccd_side, self._ccd_side, precision=self.precision, target_device_idx=self.target_device_idx)
 
         self.interp = None
+        self.subap_rows_slice = subap_rows_slice
 
         # optional inputs for the kernel object
         if self._laser_launch_tel is not None:
@@ -110,7 +112,7 @@ class SH(BaseProcessingObj):
         self.outputs['out_i'] = self._out_i
         self.outputs['wf1'] = BaseValue(target_device_idx=self.target_device_idx)
 
-    def set_in_ef(self, in_ef):
+    def _set_in_ef(self, in_ef):
 
         lens = self._lenslet.get(0, 0)
         n_lenses = self._lenslet.n_lenses
@@ -237,7 +239,7 @@ class SH(BaseProcessingObj):
         elif not self._noprints:
             print(f'GOOD: interpolated input phase size {ef_size} * {round(self._fov_ovs)} is divisible by {self._lenslet.n_lenses} subapertures.')
 
-    def calc_trigger_geometry(self, in_ef):
+    def _calc_trigger_geometry(self, in_ef):
         '''
         Calculate the geometry of the SH
         '''
@@ -278,7 +280,7 @@ class SH(BaseProcessingObj):
         self._psf_reshaped_2d = self._zeros_common((self._cutsize, self._cutsize * self._lenslet.dimy), dtype=self.dtype)
 
         # 1/2 Px tilt
-        self._tltf = self.get_tlt_f(self._ovs_np_sub, fft_size - self._ovs_np_sub)
+        self._tltf = self._get_tlt_f(self._ovs_np_sub, fft_size - self._ovs_np_sub)
 
         self._fp_mask = make_mask(fft_size, diaratio=subap_wanted_fov / fov_complete, square=self._squaremask, xp=self.xp)
 
@@ -382,9 +384,9 @@ class SH(BaseProcessingObj):
                 pass
 
         if self._kernelobj is not None:
-            self.prepare_kernels()
+            self._prepare_kernels()
 
-    def prepare_kernels(self):
+    def _prepare_kernels(self):
         if len(self._laser_launch_tel.tel_pos) != 0:
             sodium_altitude = self.local_inputs['sodium_altitude']
             sodium_intensity = self.local_inputs['sodium_intensity']
@@ -407,7 +409,7 @@ class SH(BaseProcessingObj):
 
         # Work on SH rows (single-subap code is too inefficient)
 
-        for i in range(self._lenslet.dimx):
+        for i in range(self.subap_rows_slice.start, self.subap_rows_slice.stop):
 
             # Extract 2D subap row
             self._wf1.ef_at_lambda(self._wavelengthInNm,
@@ -471,6 +473,7 @@ class SH(BaseProcessingObj):
 
         in_ef = self.local_inputs['in_ef']
         phot = in_ef.S0 * in_ef.masked_area()
+       # print(self.name, f'{in_ef.S0=} {self._out_i.i.sum()=}')
         self._out_i.i *= phot / self._out_i.i.sum()
         # self._out_i.i = self.xp.nan_to_num(self._out_i.i, copy=False)
         self._out_i.generation_time = self.current_time
@@ -490,8 +493,8 @@ class SH(BaseProcessingObj):
         super().setup()        
         in_ef = self.local_inputs['in_ef']        
 
-        self.set_in_ef(in_ef)
-        self.calc_trigger_geometry(in_ef)
+        self._set_in_ef(in_ef)
+        self._calc_trigger_geometry(in_ef)
 
         fov_oversample = self._fov_ovs
         shape_ovs = (int(in_ef.size[0] * fov_oversample), int(in_ef.size[1] * fov_oversample))
@@ -508,9 +511,12 @@ class SH(BaseProcessingObj):
         self.psf = self._zeros_common((self._lenslet.dimy, self._fft_size, self._fft_size), dtype=self.dtype)
         self.psf_shifted = self._zeros_common((self._lenslet.dimy, self._fft_size, self._fft_size), dtype=self.dtype)
 
+        if self.subap_rows_slice is None:
+            self.subap_rows_slice = slice(0, self._lenslet.dimy)
+
         super().build_stream(allow_parallel=False)
 
-    def get_tlt_f(self, p, c):
+    def _get_tlt_f(self, p, c):
         '''
         Half-pixel tilt
         '''

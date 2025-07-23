@@ -42,8 +42,12 @@ class BaseProcessingObj(BaseTimeObj):
         if self.target_device_idx >= 0:
             self._target_device.use()
 
+        # Default name is none is given externally
+        self.name = self.__class__.__name__
+
     # Use the correct CUDA device for allocations in derived classes' prepare_trigger()
     def prepare_trigger(self, t):
+        self.current_time_seconds = self.t_to_seconds(self.current_time)
         if self.target_device_idx >= 0:
             self._target_device.use()
 
@@ -64,9 +68,6 @@ class BaseProcessingObj(BaseTimeObj):
                     return True
         else:
             return False
-
-    def prepare_trigger(self, t):
-        self.current_time_seconds = self.t_to_seconds(self.current_time)
 
     def get_all_inputs(self):
         '''
