@@ -18,8 +18,8 @@ class OpticalGainEstimator(BaseProcessingObj):
     def __init__(self,
                  gain: float,
                  initial_optical_gain: float = 1.0,
-                 idx_array: list = None,
-                 expression: list = None,
+                 #idx_array: list = None, # not supported yet
+                 #expression: list = None, # not supported yet
                  target_device_idx: int = None,
                  precision: int = None):
 
@@ -29,8 +29,9 @@ class OpticalGainEstimator(BaseProcessingObj):
         self.initial_optical_gain = initial_optical_gain
 
         # Optional advanced output mapping
-        self.idx_array = idx_array
-        self.expression = expression
+        # Not supported yet
+        self.idx_array = None
+        self.expression = None
 
         # Internal optical gain storage
         self.optical_gain = BaseValue(
@@ -101,7 +102,8 @@ class OpticalGainEstimator(BaseProcessingObj):
         """
         if self.idx_array is not None and self.expression is not None:
             # Advanced output calculation using expressions
-            output = self._evaluate_expressions()
+            # This case is not implemented yet
+            raise NotImplementedError("Advanced output calculation with idx_array and expression is not implemented.")
         else:
             # Simple case: output equals optical gain
             output = self.optical_gain.value
@@ -121,81 +123,6 @@ class OpticalGainEstimator(BaseProcessingObj):
 
         if self.verbose:
             print(f'Optical gain output: {output}')
-
-    def _evaluate_expressions(self):
-        """
-        Evaluate expressions for advanced output mapping.
-        This replicates the IDL functionality with idx_array and expression.
-        
-        Example:
-        idx_array: [0, 49, 50, 671]
-        expression: ['opticalGain[0]', 'opticalGain[0]+0.01*(idx-49)*(opticalGain[1]-opticalGain[0])']
-        
-        Means:
-        - Between 0 and 49: output = opticalGain[0]
-        - Between 50 and 671: output = linear interpolation
-        """
-        if len(self.idx_array) == 0 or len(self.expression) == 0:
-            return self.optical_gain.value
-
-        max_idx = max(self.idx_array)
-        output = self.xp.zeros(max_idx + 1, dtype=self.dtype)
-
-        # Get current optical gain value(s)
-        opt_gain = self.optical_gain.value
-        if not hasattr(opt_gain, '__len__'):
-            opt_gain = [opt_gain]
-
-        # Process each range defined by idx_array pairs
-        for i in range(len(self.idx_array) // 2):
-            start_idx = self.idx_array[2*i]
-            end_idx = self.idx_array[2*i + 1]
-            expr = self.expression[i]
-
-            # Create index range
-            idx_range = self.xp.arange(start_idx, end_idx + 1)
-
-            # Evaluate expression for this range
-            values = self._evaluate_single_expression(expr, idx_range, opt_gain)
-            output[idx_range] = values
-
-        return output
-
-    def _evaluate_single_expression(self, expression, idx_range, optical_gain):
-        """
-        Evaluate a single expression for a range of indices.
-        This is a simplified version - in practice you might want more robust parsing.
-        """
-        # Simple expression evaluation
-        # For now, handle the most common cases
-
-        if 'opticalGain[0]' in expression and '+' in expression:
-            # Linear interpolation case
-            if len(optical_gain) > 1:
-                base_gain = optical_gain[0]
-                target_gain = optical_gain[1]
-
-                # Extract coefficient and offset from expression
-                # This is a simplified parser - you might want more robust parsing
-                start_mode = idx_range[0]
-                coeff = 0.01  # Default coefficient from example
-
-                values = self.xp.zeros(len(idx_range), dtype=self.dtype)
-                for i, idx in enumerate(idx_range):
-                    values[i] = base_gain + coeff * (idx - start_mode) * (target_gain - base_gain)
-
-                return values
-            else:
-                return self.xp.full(len(idx_range), optical_gain[0], dtype=self.dtype)
-
-        elif 'opticalGain[0]' in expression:
-            # Simple constant case
-            return self.xp.full(len(idx_range), optical_gain[0], dtype=self.dtype)
-
-        else:
-            # Fallback
-            return self.xp.full(len(idx_range), optical_gain[0] if len(optical_gain) > 0 else 1.0,
-                               dtype=self.dtype)
 
     def setup(self):
         """

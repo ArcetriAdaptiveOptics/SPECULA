@@ -46,8 +46,6 @@ optical_gain_estimator:
   class:             'OpticalGainEstimator'
   gain:              0.3
   initial_optical_gain: 1.0
-  idx_array:         [0]
-  expression:        ['output']
   inputs:
     in_demod_delta_command: 'demodulator1.output'
     in_demod_command: 'demodulator2.output'
