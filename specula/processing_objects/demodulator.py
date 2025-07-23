@@ -51,12 +51,13 @@ class Demodulator(BaseProcessingObj):
         t = self.current_time
 
         # Extract data for the specified modes
-        if self.input.value.ndim > 1:
-            # Multi-dimensional data - extract modes
-            mode_data = self.input.value[self.mode_numbers]
-        else:
-            # 1D data
-            mode_data = self.input.value
+        mode_data = self.xp.asarray(self.input.value)
+        if mode_data.ndim == 0:
+            mode_data = mode_data[None]
+        elif mode_data.ndim == 1 and len(self.mode_numbers) == 1:
+            mode_data = mode_data[self.mode_numbers]
+        elif mode_data.ndim > 1:
+            mode_data = mode_data[self.mode_numbers]
 
         self.data_history.append(mode_data.copy())
         self.time_history.append(t)
@@ -75,21 +76,20 @@ class Demodulator(BaseProcessingObj):
         # Convert history to array
         data_array = self.xp.array(self.data_history)
 
-        if data_array.ndim == 2:
-            # Multiple modes
-            n_time, n_modes = data_array.shape
-            values = self.xp.zeros(n_modes, dtype=self.dtype)
+        # Make sure data_array is at least 2D: (n_time, n_modes))
+        data_array = self.xp.squeeze(data_array)
+        if data_array.ndim == 1:
+            data_array = data_array[:, None]
+        elif data_array.ndim > 2:
+            data_array = data_array.reshape(data_array.shape[0], -1)
 
-            for i in range(n_modes):
-                values[i] = self._demodulate_signal(
-                    data_array[:, i],
-                    self.carrier_frequencies[i]
-                )
-        else:
-            # Single mode
-            values = self._demodulate_signal(
-                data_array,
-                self.carrier_frequencies[0]
+        n_time, n_modes = data_array.shape
+        values = self.xp.zeros(n_modes, dtype=self.dtype)
+
+        for i in range(n_modes):
+            values[i] = self._demodulate_signal(
+                data_array[:, i],
+                self.carrier_frequencies[i]
             )
 
         # Clear history
