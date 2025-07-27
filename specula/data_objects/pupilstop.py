@@ -46,16 +46,17 @@ class Pupilstop(Layer):
 
     def get_value(self):
         '''
-        Get the electric field as a tuple of amplitude and phase
+        Get the amplitude mask as a numpy/cupy array
         '''
         return self.A
 
     def set_value(self, v):
         '''
-        Set new values for amplitude
-        
+        Set a new amplitude mask.
         Arrays are not reallocated
         '''
+        assert v.shape == self.A.shape, \
+            f"Error: input array shape {v.shape} does not match pupilstop shape {self.A.shape}"
         self.A[:]= self.to_xp(v, dtype=self.dtype)
 
     def get_fits_header(self):
