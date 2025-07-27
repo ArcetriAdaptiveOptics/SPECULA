@@ -726,12 +726,6 @@ class Simul():
             self.loop.add(disp, idx+1)
             disp.name = 'display_server'
 
-        if MPI_DBG: print(process_rank, 'at run barrier')
-        
-        sys.stdout.flush()
-        if process_comm is not None:
-            process_comm.barrier()
-
         # Run simulation loop
         self.loop.run(run_time=self.mainParams['total_time'], dt=self.mainParams['time_step'], speed_report=True)
 

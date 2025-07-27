@@ -119,8 +119,19 @@ class BaseProcessingObj(BaseTimeObj):
             if self.cuda_graph:
                 self.stream.synchronize()
 
+    def send_remote_output(self, item, dest_rank, dest_tag, first_mpi_send=True):
+        if MPI_SEND_DBG: print(process_rank, f'SEND to rank {dest_rank} {dest_tag=} (from {self.name}.{out_name})', flush=True)
+        if first_mpi_send:
+            xp_orig = item.xp
+            item.xp = 0            
+            process_comm.ibsend(item, dest=dest_rank, tag=dest_tag)
+            item.xp = xp_orig
+        else:
+            process_comm.Ibsend(item.get_value(), dest=dest_rank, tag=dest_tag)
+
+
     # this method implements the mpi send call of the outputs connected to remote inputs
-    def send_outputs(self, skip_delayed=False, delayed_only=False):
+    def send_outputs(self, skip_delayed=False, delayed_only=False, first_mpi_send=True):
         '''
         Send all remote outputs via MPI.
         If *skip_delayed* is True, skip sending all delayed outputs.
@@ -151,13 +162,7 @@ class BaseProcessingObj(BaseTimeObj):
 
                 # workaround because module objects cannot be pickled
                 for item in self.outputs[out_name] if isinstance(self.outputs[out_name], list) else [self.outputs[out_name]]:
-                    xp_orig = item.xp
-                    item.xp = 0
-
-                    if MPI_SEND_DBG: print(process_rank, f'SEND to rank {dest_rank} {dest_tag=} (from {self.name}.{out_name})', flush=True)
-                    process_comm.ibsend(item, dest=dest_rank, tag=dest_tag)
-                
-                    item.xp = xp_orig                
+                    self.send_remote_output(item, dest_rank, dest_tag, first_mpi_send)
 
     @classmethod
     def device_stream(cls, target_device_idx):

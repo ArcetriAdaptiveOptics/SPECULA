@@ -26,6 +26,22 @@ class _InputItem():
         self.output_ref = value
         self.last_value = None
 
+
+    def receive_new_value(self, first_mpi_receive=True):
+        if MPI_SEND_DBG: print(process_rank, f'RECV from rank {self.remote_rank} {self.tag=} type={self.output_ref_type})', flush=True)
+        if first_mpi_receive:
+            new_value = process_comm.recv(source=self.remote_rank, tag=self.tag)
+            if new_value.xp_str == 'cp':
+                new_value.xp = cp
+            else:
+                new_value.xp = np
+        else:
+            new_value = self.last_value
+            new_value_data = process_comm.Recv(new_value.get_value, source=self.remote_rank, tag=self.tag)
+            new_value.set_value(new_value_data)
+
+        return new_value        
+
     def get(self, target_device_idx):
         if self.remote_rank is None:
             if self.output_ref is None:
@@ -39,12 +55,7 @@ class _InputItem():
         if self.remote_rank is None:         
             value = self.output_ref
         else:
-            if MPI_SEND_DBG: print(process_rank, f'RECV from rank {self.remote_rank} {self.tag=} type={self.output_ref_type})', flush=True)
-            value = process_comm.recv(source=self.remote_rank, tag=self.tag)
-            if value.xp_str == 'cp':
-                value.xp = cp
-            else:
-                value.xp = np
+            value = self.receive_new_value(first_mpi_receive=self.cloned_value is None )
 
         if self.cloned_value is None:
             self.cloned_value = value.copyTo(target_device_idx)
