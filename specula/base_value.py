@@ -15,7 +15,9 @@ class BaseValue(BaseDataObj):
         self._description = description
         self._value = value
         
-    
+    def get_value(self):
+        return self._value
+
     def set_value(self, val):
         self._value = val
 

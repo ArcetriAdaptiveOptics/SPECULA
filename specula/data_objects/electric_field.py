@@ -32,7 +32,7 @@ class ElectricField(BaseDataObj):
         
         Arrays are not reallocated
         '''
-        assert len(v) == 2, "Input must be a tuple of (amplitude, phase)"
+        assert len(v) == 2, "Input must be a sequence of [amplitude, phase]"
         assert v[0].shape == self.A.shape, \
             f"Error: input array shape {v[0].shape} does not match amplitude shape {self.A.shape}"
         assert v[1].shape == self.phaseInNm.shape, \
