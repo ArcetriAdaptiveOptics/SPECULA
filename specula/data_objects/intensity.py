@@ -16,7 +16,7 @@ class Intensity(BaseDataObj):
 
     def get_value(self):
         '''
-        Get the intensirt field as a numpy/cupy array
+        Get the intensity field as a numpy/cupy array
         '''
         return self.i
 
