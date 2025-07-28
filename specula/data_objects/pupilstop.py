@@ -35,10 +35,16 @@ class Pupilstop(Layer):
         self._obs_diam = obs_diam
 
         if self._input_mask is not None:
-            self._input_mask = self.to_xp(input_mask)
+            self._input_mask = self.to_xp(input_mask,dtype=self.dtype)
             mask_amp = self._input_mask
         else:
             mask_amp = make_mask(self.pixel_pupil, obs_diam, mask_diam, xp=self.xp)
+            
+        # field dtype must be self.dtype
+        if mask_amp.dtype != self.dtype:
+            mask_amp = self.xp.asarray(mask_amp, dtype=self.dtype)
+        
+        self.field = self.xp.zeros_like(self.xp.stack([mask_amp, mask_amp]))        
         self.field[0] = mask_amp
 
         # Initialise time for at least the first iteration
@@ -108,7 +114,7 @@ class Pupilstop(Layer):
 
         pupilstop = Pupilstop.from_header(hdr, target_device_idx=target_device_idx)
         with fits.open(filename) as hdul:
-            pupilstop.field[0] = pupilstop.to_xp(hdul[1].data.copy())
+            pupilstop.field[0] = pupilstop.to_xp(hdul[1].data.copy(), dtype=pupilstop.dtype)
             # phaseInNm is not used in Pupilstop
         return pupilstop
 
