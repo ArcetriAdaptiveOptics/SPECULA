@@ -43,9 +43,8 @@ class Pupilstop(Layer):
         # field dtype must be self.dtype
         if mask_amp.dtype != self.dtype:
             mask_amp = self.xp.asarray(mask_amp, dtype=self.dtype)
-        
-        self.field = self.xp.zeros_like(self.xp.stack([mask_amp, mask_amp]))        
-        self.field[0] = mask_amp
+                
+        self.A = mask_amp
 
         # Initialise time for at least the first iteration
         self._generation_time = 0

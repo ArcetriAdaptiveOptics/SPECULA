@@ -143,8 +143,8 @@ class TestAtmoEvolution(unittest.TestCase):
         for obj in [seeing, wind_speed, wind_direction, atmo]:
             obj.post_trigger()
 
-        id_a1 = id(atmo.outputs['layer_list'][0].phaseInNm)
-        id_b1 = id(atmo.outputs['layer_list'][1].phaseInNm)
+        id_a1 = id(atmo.outputs['layer_list'][0].field)
+        id_b1 = id(atmo.outputs['layer_list'][1].field)
 
         for obj in [seeing, wind_speed, wind_direction, atmo]:
             obj.check_ready(2)
@@ -155,8 +155,8 @@ class TestAtmoEvolution(unittest.TestCase):
         for obj in [seeing, wind_speed, wind_direction, atmo]:
             obj.post_trigger()
 
-        id_a2 = id(atmo.outputs['layer_list'][0].phaseInNm)
-        id_b2 = id(atmo.outputs['layer_list'][1].phaseInNm)
+        id_a2 = id(atmo.outputs['layer_list'][0].field)
+        id_b2 = id(atmo.outputs['layer_list'][1].field)
 
         assert id_a1 == id_a2
         assert id_b1 == id_b2

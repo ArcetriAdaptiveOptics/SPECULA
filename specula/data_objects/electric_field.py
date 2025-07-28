@@ -30,7 +30,7 @@ class ElectricField(BaseDataObj):
 
     @A.setter
     def A(self, value):
-        self.field[0, :, :] = value
+        self.field[0, :, :] = self.to_xp(value, dtype=self.dtype)
 
     @property
     def phaseInNm(self):
@@ -38,10 +38,10 @@ class ElectricField(BaseDataObj):
 
     @phaseInNm.setter
     def phaseInNm(self, value):
-        self.field[1, :, :] = value
+        self.field[1, :, :] = self.to_xp(value, dtype=self.dtype)
 
     def __str__(self):
-        return 'A: '+ str(self.field[0]) + 'Phase: ' + str(self.phaseInNm)
+        return 'A: '+ str(self.field[0]) + 'Phase: ' + str(self.field[1])
 
     def set_value(self, v):
         '''
@@ -57,8 +57,7 @@ class ElectricField(BaseDataObj):
         assert v[1].shape == self.phaseInNm.shape, \
             f"Error: input array shape {v[1].shape} does not match phase shape {self.field[1].shape}"
 
-        self.field[0, :]= self.to_xp(v[0], dtype=self.dtype)
-        self.field[1, :] = self.to_xp(v[1], dtype=self.dtype)
+        self.field[:] = self.to_xp(v, dtype=self.dtype)
 
     def get_value(self):
         return self.field
@@ -129,7 +128,7 @@ class ElectricField(BaseDataObj):
             xfrom, xto = self.xp.min(idx[0]), self.xp.max(idx[0] +1)
             yfrom, yto = self.xp.min(idx[1]), self.xp.max(idx[1] +1)
         sub_ef = ElectricField(xto - xfrom + 1, yto - yfrom + 1, self.pixel_pitch)
-        sub_ef.field[0] = self.field[1, xfrom:xto, yfrom:yto]
+        sub_ef.field[0] = self.field[0, xfrom:xto, yfrom:yto]
         sub_ef.field[1] = self.field[1, xfrom:xto, yfrom:yto]
         sub_ef.S0 = self.S0
         return sub_ef
