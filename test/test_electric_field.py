@@ -117,3 +117,19 @@ class TestElectricField(unittest.TestCase):
             # Force cleanup for Windows
             del ef2
             gc.collect()
+            
+    @cpu_and_gpu
+    def test_fits_header(self, target_device_idx, xp):
+        pixel_pupil = 10
+        pixel_pitch = 0.1
+        S0 = 1.23
+
+        ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=S0, target_device_idx=target_device_idx)
+        hdr = ef.get_fits_header()
+
+        assert hdr['VERSION'] == 1
+        assert hdr['OBJ_TYPE'] == 'ElectricField'
+        assert hdr['DIMX'] == pixel_pupil
+        assert hdr['DIMY'] == pixel_pupil
+        assert hdr['PIXPITCH'] == pixel_pitch
+        assert hdr['S0'] == S0        

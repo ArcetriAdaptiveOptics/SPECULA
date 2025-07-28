@@ -32,10 +32,10 @@ class Layer(ElectricField):
         hdr['DIMY'] = self.A.shape[1]
         hdr['PIXPITCH'] = self.pixel_pitch
         hdr['HEIGHT'] = self.height
-        hdr['SHIFTX'] = self.shiftXYinPixel[0]
-        hdr['SHIFTY'] = self.shiftXYinPixel[1]
+        hdr['SHIFTX'] = float(self.shiftXYinPixel[0])
+        hdr['SHIFTY'] = float(self.shiftXYinPixel[1])
         hdr['ROTATION'] = self.rotInDeg
-        hdr['MAGNIFICATION'] = self.magnification
+        hdr['MAGNIFIC'] = self.magnification
         return hdr
 
     def save(self, filename, overwrite=True):

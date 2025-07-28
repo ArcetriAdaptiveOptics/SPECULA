@@ -63,13 +63,13 @@ class Pixels(BaseDataObj):
         hdr['DIMY'] = self.size[1]
         return hdr
 
-    def save(self, filename):
-        hdr = self.get_fits_header()            
-        fits.writeto(filename, cpuArray(self.pixels), hdr, overwrite=True)
-
-    def read(self, filename):
-        super().read(filename)
-        self.pixels = fits.getdata(filename)
+    def save(self, filename, overwrite=True):
+        hdr = self.get_fits_header()
+        hdu = fits.PrimaryHDU(header=hdr)  # main HDU, empty, only header
+        hdul = fits.HDUList([hdu])
+        hdul.append(fits.ImageHDU(data=cpuArray(self.pixels), name='SLOPES'))
+        hdul.writeto(filename, overwrite=overwrite)
+        hdul.close()  # Force close for Windows
 
     @staticmethod
     def from_header(hdr, target_device_idx=None):
@@ -88,7 +88,7 @@ class Pixels(BaseDataObj):
     def restore(filename, target_device_idx=None):
         hdr = fits.getheader(filename)
         pixels = Pixels.from_header(hdr, target_device_idx=target_device_idx)
-        pixels.read(filename)
+        pixels.set_value(fits.getdata(filename, ext=1))
         return pixels
 
     def array_for_display(self):
