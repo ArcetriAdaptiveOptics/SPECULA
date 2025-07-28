@@ -107,9 +107,10 @@ class TestShSlopec(unittest.TestCase):
 
         # Expected value: 1/(subap_npx/2)
         expected_slope = 1.0 / (subap_npx / 2)
+        s_x = cpuArray(slopes.xslopes)
 
         # All X slopes (all slopes are valid) should be close to the expected value
-        np.testing.assert_allclose(cpuArray(slopes.xslopes), expected_slope, rtol=1e-2, atol=1e-2)
+        np.testing.assert_allclose(s_x, expected_slope, rtol=1e-2, atol=1e-2)
 
     @cpu_and_gpu
     def test_weight_int_pixel_dt(self, target_device_idx, xp):
