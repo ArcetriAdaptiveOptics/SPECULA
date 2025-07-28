@@ -1,0 +1,394 @@
+.. _scao_basic_tutorial:
+
+SCAO Basic Tutorial: Complete Walkthrough
+=========================================
+
+This comprehensive tutorial guides you through creating and running a basic Single Conjugate Adaptive Optics (SCAO) simulation using SPECULA.
+A more advanced SCAO simulation tutorial is available in the :ref:`scao_tutorial`.
+
+**What you'll learn:**
+
+* Setting up a minimal SCAO system configuration with a Pyramid WFS
+* Running calibration and closed-loop phases
+* Using Zernike modes and a single atmospheric layer
+* Setting the push-pull amplitude directly in the YAML file
+
+**Prerequisites:**
+
+* SPECULA installed and working (see :ref:`installation`)
+* Basic understanding of adaptive optics concepts
+* Python and YAML familiarity
+
+Tutorial Overview
+-----------------
+
+We'll simulate a simple SCAO system with:
+
+* Circular pupil (VLT-like, 8m class)
+* 1 atmospheric layer
+* Pyramid wavefront sensor
+* Zernike modal DM
+* 1 kHz control loop with integrator controller
+* R-band natural guide star (magnitude 8)
+
+Part 1: System Configuration
+----------------------------
+
+Create a YAML configuration file, for example ``params_scao_pyr_basic.yml``:
+
+.. code-block:: yaml
+
+   # main section with simulation parameters used by most of the components
+   main:
+     class:             'SimulParams'
+     root_dir:          './calib/'             # Root directory for calibration manager  
+     pixel_pupil:       160                    # Linear dimension of pupil phase array
+     pixel_pitch:       0.05                   # [m] Pitch of the pupil phase array
+     total_time:        0.050                  # [s] Total simulation running time
+     time_step:         0.001                  # [s] Simulation time step
+
+   # Atmospheric seeing (approx. inverse of Fried parameter r0). Here is a static value,
+   # but it can be a function of time. The full list of parameters can be found in the
+   # init method of the FuncGenerator class.
+   seeing:
+     class:             'FuncGenerator'
+     constant:          0.8                   # ["] seeing value
+
+   # Wind speed and direction, also static in this example.
+   # These can be functions of time or vary per layer in more complex setups.
+   wind_speed:
+     class:             'FuncGenerator'
+     constant:          [20.]                 # [m/s] Wind speed value
+
+   wind_direction:
+     class:             'FuncGenerator'
+     constant:          [0.]                  # [degrees] Wind direction value
+
+   # Source definition. This defines the direction of the propagation the electromagnetic field
+   # the flux intensity and the wavelength. In this case, we have a single on-axis source.
+   # The source is defined in polar coordinates (arcsec, degrees). The full list of parameters
+   # can be found in the init method of the Source class.
+   on_axis_source:
+     class:             'Source'
+     polar_coordinates:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
+     magnitude:         8                     # source magnitude
+     wavelengthInNm:    750                   # [nm] wavelength
+
+   # Pupil stop definition. This is the pupil geometry used in our simulation.
+   # It can be a circular aperture or a more complex shape.
+   # It can be stored in a file or defined directly in the YAML.
+   # When no parameters are specified, a circular pupil is assumed, with the size
+   # defined by the pixel_pupil parameter in the main section. The full list of parameters
+   # can be found in the init method of the Pupilstop class.
+   pupilstop:
+     class:             'Pupilstop'
+     simul_params_ref:  'main'
+
+   # Atmospheric layers generation and temporal evolution.
+   # Here we define a single atmospheric layer with a constant Cn2 value.
+   # Outer scale can be a scalar or a vector (for multiple layers).
+   # The layer heights are defined in meters, and the Cn2 values must sum to 1.
+   # The fov parameter defines the field-of-view in arcseconds.
+   # The inputs are the seeing, wind speed, and wind direction defined above.
+   atmo:
+     class:                'AtmoEvolution'
+     simul_params_ref:     'main'
+     L0:                   40                   # [m] Outer scale
+     heights:              [0.]                 # [m] layer heights at 0 zenith angle
+     Cn2:                  [1.00]               # Cn2 weights (total must be eq 1)
+     fov:                  0.0                  # [arcsec] Field of view, 0.0 means only on-axis,
+                                                # no off-axis sources
+     inputs:
+       seeing: 'seeing.output'
+       wind_speed: 'wind_speed.output'
+       wind_direction: 'wind_direction.output'
+     outputs: ['layer_list']
+
+   # The propagation block simulates the propagation of the electromagnetic field
+   # through the atmosphere, the pupil stop and the DM. It takes the source and the atmospheric layers
+   # as inputs and outputs the electric field at the pupil plane in all the directions corresponding
+   # to the source polar coordinates.
+   # The output is a list of electric fields, one for each source direction.
+   prop:
+     class:                'AtmoPropagation'
+     simul_params_ref:     'main'
+     source_dict_ref:      ['on_axis_source']
+     inputs:
+       atmo_layer_list: ['atmo.layer_list']
+       common_layer_list: ['pupilstop', 'dm.out_layer:-1']
+     outputs: ['out_on_axis_source_ef']
+
+   # The Pyramid WFS block simulates the Pyramid wavefront sensor.
+   # It takes the electric field from the propagation block and computes the intensity on the detector.
+   # The full list of parameters can be found in the init method of the ModulatedPyramid class.
+   pyramid:
+     class:             'ModulatedPyramid'
+     simul_params_ref:  'main'
+     pup_diam:          30.                     # Pupil diameter in subaps.
+     pup_dist:          36.                     # Separation between pupil centers in subaps.
+     fov:               2.0                     # Requested field-of-view [arcsec]
+     mod_amp:           3.0                     # Modulation radius (in lambda/D units)
+     output_resolution: 80                      # Output sampling [usually corresponding to CCD pixels]
+     wavelengthInNm:    750                     # [nm] Pyramid wavelength
+     inputs:
+       in_ef: 'prop.out_on_axis_source_ef'
+
+   # The detector simulates the CCD sensor where the Pyramid WFS intensity is recorded.
+   # Its integration time can be a multiple of the simulation time step.
+   detector:
+     class:             'CCD'
+     simul_params_ref:  'main'
+     size:              [80,80]                 # Detector size in pixels
+     dt:                0.001                   # [s] Detector integration time
+     bandw:             300                     # [nm] Sensor bandwidth
+     photon_noise:      True                    # activate photon noise
+     readout_noise:     True                    # activate readout noise
+     readout_level:     1.0                     # readout noise in [e-/pix/frame]
+     quantum_eff:       0.32                    # quantum efficiency * total transmission
+     inputs:
+       in_i: 'pyramid.out_i'
+
+   # The slope computer calculates the wavefront slopes from the detector frame.
+   # It requires a pupil data object with the list of the valid sub-apertures (this
+   # is computed from the pyramid WFS input during the calibration step).
+   # The full list of parameters can be found in the init method of the PyrSlopec class.
+   slopec:
+     class:             'PyrSlopec'  
+     pupdata_object:    'scao_pup'            # tag of the pyramid WFS pupils
+     sn_object:         'scao_sn'             # tag of the slope reference vector
+     inputs:
+       in_pixels:        'detector.out_pixels'
+
+   # The modal reconstruction block reconstructs the wavefront slopes into modal coefficients.
+   # It uses a reconstruction matrix that is computed during the calibration phase.
+   rec:
+     class:              'Modalrec'  
+     recmat_object:      'scao_recmat'         # reconstruction matrix tag
+     inputs:
+       in_slopes:        'slopec.out_slopes'
+
+   # The control block computes the control commands based on the differential modal coefficients.
+   # The modal coefficients are differential because it operates in closed loop.
+   # The full list of parameters can be found in the init method of the Integrator class.
+   control:
+     class:             'Integrator'
+     simul_params_ref:  'main'
+     delay:             2                      # Total temporal delay in time steps
+     int_gain:          [0.5]                  # Integrator gain (for 'INT' control)
+     n_modes:           [54]                   # This means we use 54 modes with the same gain
+     inputs:
+         delta_comm: 'rec.out_modes'
+
+   # The DM block simulates the deformable mirror.
+   # In this case, it uses Zernike modes directly without generating a modal basis.
+   # The Zernike modes are generated on the fly.
+   # It can also use influence functions and modes-to-command matrix stored in files.
+   # The DM height is set to 0, meaning it is at the pupil plane.
+   # The full list of parameters can be found in the init method of the DM class.
+   dm:
+     class:             'DM'
+     simul_params_ref:  'main'
+     type_str:          'zernike'              # modes type
+     nmodes:            54                     # number of modes
+     obsratio:          0.0                    # obstruction dimension ratio w.r.t. diameter
+     height:            0                      # DM height [m]
+     inputs:
+         in_command: 'control.out_comm'
+
+   # The PSF block computes the point spread function (PSF) based on the electric field
+   # at the pupil plane after the DM. It uses the wavelength and the padding coefficient
+   # to compute the PSF. The start_time is the time at which the PSF integration starts.
+   psf:
+     class:             'PSF'
+     simul_params_ref:  'main'
+     wavelengthInNm:    1650                 # [nm] Imaging wavelength
+     nd:                8                    # padding coefficient for PSF computation
+     start_time:        0.05                # PSF integration start time
+     inputs:
+         in_ef:  'prop.out_on_axis_source_ef'
+
+   # Data store for saving the simulation results.
+   # The data will be stored in a directory named with a timestamp (TN) located in 'output'.
+   # In this case it saves the residual electric field on-axis source.
+   # Other results can be added as needed.
+   data_store:
+     class:             'DataStore'
+     store_dir:         './output'             # Data result directory: store_dir'/TN/'
+     inputs:
+       input_list: [ 'res_ef-prop.out_on_axis_source_ef']
+
+Part 3: Calibration
+-------------------
+
+Step 1: Calibrate the Pyramid WFS Pupil Geometry
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Create a YAML file, for example ``params_scao_pyr_test_pupdata.yml``:
+
+.. code-block:: yaml
+
+   # this is the block that generates the pupil geometry file used by the Pyramid WFS
+   # as a function of a single frame of the Pyramid WFS
+   pyr_pupdata:
+     class: 'PyrPupdataCalibrator'
+     thr1: 0.1
+     thr2: 0.25
+     output_tag:        'scao_pupdata'
+     inputs:
+       in_i: 'pyramid.out_i'
+
+   # Override propagation parameters leaving only the pupilstop layer and removing
+   # the atmo layers and the DM layer.
+   # This is necessary to ensure the Pyramid WFS pupil geometry is correctly computed
+   # considering the pupil mask.
+   prop_override:
+     inputs:
+       common_layer_list: ['pupilstop']
+
+   # Override main simulation parameters reducing the total time to 0.001s,
+   # which is sufficient for getting a single frame of the Pyramid WFS.
+   main_override:
+     total_time:  0.001
+
+   # Override Pyramid WFS parameters to set a very large modulation radius
+   # This is necessary to reduce the diffraction effects and get uniform illumination
+   pyramid_override:
+     mod_amp:           10.0                     # Modulation radius (in lambda/D units)
+
+   # Remove unnecessary components to avoid issues and speed up the calibration
+   remove: ['atmo', 'slopec', 'rec','control','dm', 'data_store']
+
+Run this calibration step with:
+
+.. code-block:: bash
+
+   specula params_scao_pyr_basic.yml params_scao_pyr_test_pupdata.yml
+
+This will generate the ``scao_pupdata.fits`` file, which contains the valid pupil geometry for the Pyramid WFS.
+
+Step 2: Calibrate the Reconstruction Matrix
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Create a YAML file, for example ``params_scao_pyr_test_rec.yml``:
+
+.. code-block:: yaml
+
+   # this block generates a positive and negative push-pull signal
+   # to command the DM and compute the interaction matrix
+   pushpull:
+     class:     'FuncGenerator'
+     func_type: 'PUSHPULL'
+     amplitude: [50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0,
+                 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0,
+                 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0,
+                 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0,
+                 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0,
+                 50.0, 50.0, 50.0, 50.0] # Push-pull amplitude in nm (written by hand,
+                 # it can be stored in a file)
+     outputs:   ['output']
+
+   # This block computes the interaction matrix using the Pyramid WFS
+   # It takes the slopes from the Pyramid WFS and the push-pull commands as inputs
+   im_calibrator:
+     class:     'ImCalibrator'
+     nmodes:    54
+     im_tag:    'scao_im'
+     data_dir:  './calib/im'
+     overwrite: true
+     inputs:
+       in_slopes:   'slopec.out_slopes'
+       in_commands: 'pushpull.output'
+
+   # This block computes the reconstruction matrix from the interaction matrix
+   # doing a pseudo-inverse operation
+   rec_calibrator:
+     class:     'RecCalibrator'
+     nmodes:    54
+     rec_tag:   'scao_recmat'
+     data_dir:  './calib/rec'
+     overwrite: true
+     inputs:
+       in_intmat:   'im_calibrator.out_intmat'
+
+   # Override main simulation parameters to set the total time
+   # 54 times 2 (push+pull) times 0.001s
+   main_override:
+     total_time: 0.108                        # 54 modes × 2 (push+pull) × 0.001s
+
+   # Override propagation parameters to include the pupilstop and DM layers
+   # removing the atmo layers
+   prop_override:
+     inputs:
+       common_layer_list: ['pupilstop', 'dm.out_layer']
+
+   # Override the DM parameters to set the sign (by default it is -1)
+   # and change the input command to the push-pull output
+   dm_override:
+     sign: 1
+     inputs:
+       in_command: 'pushpull.output'
+
+   # Override the detector parameters to disable photon and readout noise
+   detector_override:
+     photon_noise:   false
+     readout_noise:  false
+
+   # Remove unnecessary components to avoid issues and speed up the calibration
+   remove: ['atmo', 'psf', 'data_store']
+
+Run this calibration step with:
+
+.. code-block:: bash
+
+   specula params_scao_pyr_basic.yml params_scao_pyr_test_rec.yml
+
+This will generate the interaction matrix (``scao_im.fits``) and the reconstruction matrix (``scao_recmat.fits``).
+
+Summary of Calibration Steps
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+1. **Pyramid Pupil Geometry:**  
+   - Generates ``scao_pupdata.fits`` for the Pyramid WFS geometry.
+2. **Reconstruction Matrix:**  
+   - Generates ``scao_recmat.fits`` for modal reconstruction.
+
+Both files are then referenced in your main YAML for closed-loop operation:
+
+.. code-block:: yaml
+
+   slopec:
+     class:             'PyrSlopec'  
+     pupdata_object:    'scao_pupdata'
+     sn_object:         'scao_sn'
+     inputs:
+       in_pixels:        'detector.out_pixels'
+
+   rec:
+     class:              'Modalrec'  
+     recmat_object:      'scao_recmat'
+     inputs:
+       in_slopes:        'slopec.out_slopes'
+
+---
+
+Now your SCAO simulation is properly calibrated and ready for closed-loop runs!
+
+
+Part 3: Running the Simulation
+------------------------------
+
+To run the simulation, use:
+
+.. code-block:: bash
+
+   specula params_scao_pyr_basic.yml
+
+The simulation will run and save results in the output directory (``./output/``), including the residual electric field on-axis source as specified in the YAML file.
+
+**Congratulations!**  
+You have now configured and run a minimal SCAO simulation with a Pyramid WFS, Zernike DM, and a single atmospheric layer.
+
+.. seealso::
+
+   - :ref:`scao_tutorial` for a full-featured SCAO simulation, calibration and analysis workflow
+   - :ref:`field_analyser_tutorial` for post-processing and analysis
