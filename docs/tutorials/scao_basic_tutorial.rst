@@ -34,6 +34,61 @@ We'll simulate a simple SCAO system with:
 Part 1: System Configuration
 ----------------------------
 
+In this part, we will define the system configuration in a YAML file.
+SPECULA uses a modular, object-oriented architecture where each component of the simulation is defined as an object in a YAML configuration file.
+In the YAML file all the parameters of the simulation are defined, including the objects and their connections.
+
+Understanding the YAML Simulation File
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The core of a SPECULA simulation is defined in a YAML file, which describes the system as a set of interconnected objects.
+Each **section** in the YAML file corresponds to a specific object (or "block") in the simulation, such as the atmosphere, the wavefront sensor, the deformable mirror, or the control law.
+
+**How it works:**
+
+- **Object Instantiation:**  
+  Each section's ``class`` parameter specifies which Python class will be instantiated for that object.
+  All other parameters in the section are passed as arguments to the class constructor.
+  This is handled automatically by the simulation engine (``simul.py``).
+
+- **Inputs and Outputs:**  
+  The ``inputs`` and ``outputs`` fields define how objects are connected.  
+  - The value of each input is a reference to the output of another object, using the syntax ``object_name.output_name``.
+  - This mechanism defines the **data flow** and the **dependency graph** of the simulation.
+
+- **Simulation Graph:**  
+  The entire simulation is built as a directed graph, where nodes are objects and edges are the connections defined by the ``inputs``.
+  The simulation engine parses the YAML, instantiates all objects, and connects them according to this graph.
+
+- **Special Notes:**  
+  - In the propagation block (``prop``), the input ``common_layer_list`` often includes ``dm.out_layer:-1``.  
+    This is a SPECULA convention to handle feedback in the simulation loop.
+    The ``-1`` index is used to resolve an ambiguity in closed-loop simulations: not all the elements of the loop can perform their operations at the same time, at least one must happen at the following time step.
+    In an Adaptive Optics context the DM output is computed during the current time step, but it is applied in the next time step.
+
+**Example:**
+
+.. code-block:: yaml
+
+   prop:
+     class: 'AtmoPropagation'
+     simul_params_ref: 'main'
+     source_dict_ref: ['on_axis_source']
+     inputs:
+       atmo_layer_list: ['atmo.layer_list']
+       common_layer_list: ['pupilstop', 'dm.out_layer:-1']
+     outputs: ['out_on_axis_source_ef']
+
+In this example:
+- The ``prop`` object is an instance of the ``AtmoPropagation`` class.
+- It receives as input the atmospheric layers from ``atmo.layer_list``, the pupil geometry from ``pupilstop``, and the most recent DM surface from ``dm.out_layer:-1``.
+- It produces an output ``out_on_axis_source_ef``, which can be used as input by other objects (e.g., the Pyramid WFS).
+
+This modular and explicit approach makes it easy to customize, extend, and debug your simulation setup.
+
+Create the main YAML configuration file
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 Create a YAML configuration file, for example ``params_scao_pyr_basic.yml``:
 
 .. code-block:: yaml
@@ -219,6 +274,28 @@ Create a YAML configuration file, for example ``params_scao_pyr_basic.yml``:
 
 Part 3: Calibration
 -------------------
+
+Not all elements of an adaptive optics simulation are fully defined a priori.
+Some key components—such as the geometry of valid subapertures for the wavefront sensor or the reconstruction matrix for modal control—depend on the specific configuration and must be determined through a **calibration process**.
+
+Calibration in SPECULA consists of running dedicated, simplified simulations whose purpose is to "probe" the system and extract the necessary information for later use in the main (closed-loop) simulation.
+These calibration runs typically:
+
+- Use a reduced or modified version of the full simulation (for example, with only the pupil mask and no atmospheric or DM layers).
+- Apply known inputs (such as push-pull commands or uniform illumination) to measure the response of specific components.
+- Save the results (such as the valid pupil geometry or the interaction/reconstruction matrices) to files.
+
+These calibration files are then referenced in the main YAML configuration and used by the corresponding objects during the closed-loop simulation.
+
+This approach ensures that the simulation accurately reflects the real system's behavior.
+Note that if you change the pupil geometry, WFS parameters, or DM configuration, you simply repeat the relevant calibration steps before running the full simulation.
+
+In this case we need to calibrate two components:
+1. **Pyramid WFS pupil geometry**:  
+   This defines the valid subapertures for the Pyramid WFS based on the pupil geometry.
+2. **Reconstruction matrix**:
+    This defines how the wavefront slopes measured by the Pyramid WFS are converted into modal coefficients for control.
+    The reconstruction matrix is the inverse of the interaction matrix, which is computed by applying a known push-pull signal to the DM and measuring the resulting slopes.
 
 Step 1: Calibrate the Pyramid WFS Pupil Geometry
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
