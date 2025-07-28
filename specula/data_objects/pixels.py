@@ -97,8 +97,6 @@ class Pixels(BaseDataObj):
     def restore(filename, target_device_idx=None):
         hdr = fits.getheader(filename)
         pixels = Pixels.from_header(hdr, target_device_idx=target_device_idx)
-        print('Data:', fits.getdata(filename, ext=1))
-        print('Pixels:', pixels.pixels)
         pixels.set_value(fits.getdata(filename, ext=1))
         return pixels
 

@@ -37,8 +37,7 @@ class TestPixels(unittest.TestCase):
         
     def tearDown(self):
         try:
-            #os.unlink(self.filename)
-            print(self.filename)
+            os.unlink(self.filename)
         except FileNotFoundError:
             pass
 
