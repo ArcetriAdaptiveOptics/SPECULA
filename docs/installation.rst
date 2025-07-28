@@ -87,8 +87,8 @@ All required dependencies will be installed automatically, including:
 **Optional Libraries:**
 
 **Block Diagram Generation:**
-   * **pycairo**: Graphics library for rendering diagrams
-   * **orthogram**: Automatic block diagram creation from SPECULA configurations
+* **pycairo**: Graphics library for rendering diagrams
+* **orthogram**: Automatic block diagram creation from SPECULA configurations
 
 .. code-block:: bash
 

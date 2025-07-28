@@ -35,7 +35,7 @@ Processing objects perform the main computational tasks:
 More information on processing objects can be found in the :doc:`processing_objects` documentation.
 
 Data Objects
-~~~~~~~~~~~~~
+~~~~~~~~~~~~
 
 Data objects encapsulate physical quantities and measurements:
 
@@ -49,7 +49,7 @@ Data objects encapsulate physical quantities and measurements:
 More information on data objects can be found in the :doc:`data_objects` documentation.
 
 Housekeeping Objects
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 Housekeeping objects manage simulation state and configuration:
 

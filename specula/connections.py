@@ -74,6 +74,9 @@ class InputList():
         return flatten([v.get(target_device_idx) for v in self.input_values])
 
     def set(self, values_list, remote_rank=None, tag=None):
+        """
+        Set the input values for the list.
+        """
         self.input_values = []
         self.append(values_list, remote_rank, tag)
 

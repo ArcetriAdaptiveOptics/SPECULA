@@ -61,10 +61,7 @@ Each **section** in the YAML file corresponds to a specific object (or "block") 
   The simulation engine parses the YAML, instantiates all objects, and connects them according to this graph.
 
 - **Special Notes:**  
-  - In the propagation block (``prop``), the input ``common_layer_list`` often includes ``dm.out_layer:-1``.  
-    This is a SPECULA convention to handle feedback in the simulation loop.
-    The ``-1`` index is used to resolve an ambiguity in closed-loop simulations: not all the elements of the loop can perform their operations at the same time, at least one must happen at the following time step.
-    In an Adaptive Optics context the DM output is computed during the current time step, but it is applied in the next time step.
+  - In the propagation block (``prop``), the input ``common_layer_list`` often includes ``dm.out_layer:-1``. This is a SPECULA convention to handle feedback in the simulation loop. The ``-1`` index is used to resolve an ambiguity in closed-loop simulations: not all the elements of the loop can perform their operations at the same time, at least one must happen at the following time step. In an Adaptive Optics context the DM output is computed during the current time step, but it is applied in the next time step.
 
 **Example:**
 
@@ -291,11 +288,8 @@ This approach ensures that the simulation accurately reflects the real system's 
 Note that if you change the pupil geometry, WFS parameters, or DM configuration, you simply repeat the relevant calibration steps before running the full simulation.
 
 In this case we need to calibrate two components:
-1. **Pyramid WFS pupil geometry**:  
-   This defines the valid subapertures for the Pyramid WFS based on the pupil geometry.
-2. **Reconstruction matrix**:
-    This defines how the wavefront slopes measured by the Pyramid WFS are converted into modal coefficients for control.
-    The reconstruction matrix is the inverse of the interaction matrix, which is computed by applying a known push-pull signal to the DM and measuring the resulting slopes.
+1. **Pyramid WFS pupil geometry**: This defines the valid subapertures for the Pyramid WFS based on the pupil geometry.
+2. **Reconstruction matrix**: This defines how the wavefront slopes measured by the Pyramid WFS are converted into modal coefficients for control. The reconstruction matrix is the inverse of the interaction matrix, which is computed by applying a known push-pull signal to the DM and measuring the resulting slopes.
 
 Step 1: Calibrate the Pyramid WFS Pupil Geometry
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -422,7 +416,7 @@ Run this calibration step with:
 This will generate the interaction matrix (``scao_im.fits``) and the reconstruction matrix (``scao_recmat.fits``).
 
 Summary of Calibration Steps
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 1. **Pyramid Pupil Geometry:**  
    - Generates ``scao_pupdata.fits`` for the Pyramid WFS geometry.
