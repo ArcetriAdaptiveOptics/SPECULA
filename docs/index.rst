@@ -52,9 +52,6 @@ Detailed API documentation:
 .. toctree::
    :maxdepth: 1
 
-   Base classes <base_classes>
-
-
 Indices and tables
 ==================
 

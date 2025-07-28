@@ -1,3 +1,5 @@
+.. _simul_diagrams:
+
 Simulation diagrams
 ===================
 
