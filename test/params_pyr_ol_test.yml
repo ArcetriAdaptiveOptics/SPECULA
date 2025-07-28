@@ -1,0 +1,129 @@
+---
+
+main:
+  class:             'SimulParams'
+  root_dir:          './calib/'             # Root directory for calibration manager  
+  pixel_pupil:       160                    # Linear dimension of pupil phase array
+  pixel_pitch:       0.05                   # [m] Pitch of the pupil phase array
+  total_time:        0.010                  # [s] Total simulation running time
+  time_step:         0.001                  # [s] Simulation time step
+  zenithAngleInDeg:  30.000
+  display_server:    False
+
+
+seeing:
+  class:             'FuncGenerator'
+  amp:               0.1
+  constant:          0.6                  # range of [0.5, 0.7]
+  func_type:         'RANDOM_UNIFORM'
+  outputs: ['output']
+
+
+on_axis_source:
+  class:             'Source'
+  polar_coordinates:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  magnitude:         8                    # source magnitude
+  wavelengthInNm:    750                   # [nm] wavelength
+
+
+pupilstop:                                 # Default parameters (circular pupil)
+  class: 'Pupilstop'
+  mask_diam:          0.75                 # Diameter ratio of the pupilstop
+  simul_params_ref: 'main'
+
+atmo:
+  class:                'AtmoRandomPhase'
+  simul_params_ref:  'main'
+  L0:                   25                   # [m] Outer scale
+  pixel_phasescreens:   1024               # number of pixels in the phase screens
+  source_dict_ref:      ['on_axis_source']
+  inputs:
+    seeing: 'seeing.output'
+    pupilstop: 'pupilstop'
+  outputs: ['out_on_axis_source_ef']
+
+pyramid1:
+  class:             'ModulatedPyramid'
+  simul_params_ref:  'main'
+  pup_diam:          20.                     # Pupil diameter in subaps.
+  pup_dist:          24.                     # Separation between pupil centers in subaps.
+  fov:               2.0                     # Requested field-of-view [arcsec]
+  mod_amp:           0.0                     # Modulation radius (in lambda/D units)
+  output_resolution: 60                      # Output sampling [usually corresponding to CCD pixels]
+  wavelengthInNm:    750                     # [nm] Pyramid wavelength
+  rotAnglePhInDeg:   45.0                    # Rotation angle in degrees
+  xShiftPhInPixel:   0.0                     # Shift in X in pixels
+  yShiftPhInPixel:   0.0                    # Shift in Y in pixels
+  inputs:
+    in_ef: 'atmo.out_on_axis_source_ef'
+
+pyramid2:
+  class:             'ModulatedPyramid'
+  simul_params_ref:  'main'
+  pup_diam:          20.                     # Pupil diameter in subaps.
+  pup_dist:          24.                     # Separation between pupil centers in subaps.
+  fov:               2.0                     # Requested field-of-view [arcsec]
+  mod_amp:           0.0                     # Modulation radius (in lambda/D units)
+  output_resolution: 60                     # Output sampling [usually corresponding to CCD pixels]
+  wavelengthInNm:    750                     # [nm] Pyramid wavelength
+  rotAnglePhInDeg:   135.0                    # Rotation angle in degrees
+  xShiftPhInPixel:   0.0                     # Shift in X in pixels
+  yShiftPhInPixel:   0.0                    # Shift in Y in pixels
+  inputs:
+    in_ef: 'atmo.out_on_axis_source_ef'
+
+pyramid3:
+  class:             'ModulatedPyramid'
+  simul_params_ref:  'main'
+  pup_diam:          20.                     # Pupil diameter in subaps.
+  pup_dist:          24.                     # Separation between pupil centers in subaps.
+  fov:               2.0                     # Requested field-of-view [arcsec]
+  mod_amp:           0.0                     # Modulation radius (in lambda/D units)
+  output_resolution: 60                      # Output sampling [usually corresponding to CCD pixels]
+  wavelengthInNm:    750                     # [nm] Pyramid wavelength
+  rotAnglePhInDeg:   45.0                    # Rotation angle in degrees
+  # NOTE: this shift is at 45 deg, because the pyramid is rotated to produce four pupils on a square grid
+  xShiftPhInPixel:   5.62                    # Shift in X in pixels
+  yShiftPhInPixel:   5.62                    # Shift in Y in pixels
+  inputs:
+    in_ef: 'atmo.out_on_axis_source_ef'
+
+pyramid4:
+  class:             'ModulatedPyramid'
+  simul_params_ref:  'main'
+  pup_diam:          20.                     # Pupil diameter in subaps.
+  pup_dist:          24.                     # Separation between pupil centers in subaps.
+  fov:               2.0                     # Requested field-of-view [arcsec]
+  mod_amp:           0.0                     # Modulation radius (in lambda/D units)
+  output_resolution: 60                      # Output sampling [usually corresponding to CCD pixels]
+  wavelengthInNm:    750                     # [nm] Pyramid wavelength
+  rotAnglePhInDeg:   45.0                    # Rotation angle in degrees
+  xShiftPhInPixel:   0.0                     # Shift in X in pixels
+  yShiftPhInPixel:   0.0                     # Shift in Y in pixels
+  pup_shifts:        [1.0,-1.0]               # Shift of sub-pupils of the pyramid in pixels of the detector
+  inputs:
+    in_ef: 'atmo.out_on_axis_source_ef'
+
+detector1:
+  class:             'CCD'
+  simul_params_ref:  'main'
+  size:              [60,60]                 # Detector size in pixels
+  dt:                0.001                   # [s] Detector integration time
+  bandw:             300                     # [nm] Sensor bandwidth
+  photon_noise:      True                    # activate photon noise
+  readout_noise:     True                    # activate readout noise
+  readout_level:     1.0                     # readout noise in [e-/pix/frame]
+  quantum_eff:       0.32                    # quantum efficiency * total transmission
+  inputs:
+    in_i: 'pyramid1.out_i'
+
+data_store:
+  class:             'DataStore'
+  store_dir:         './data'             # Data result directory: 'store_dir'/TN/
+  data_format:       'fits'
+  inputs:
+    input_list: ['intensity1-pyramid1.out_i',
+                 'intensity2-pyramid2.out_i',
+                 'intensity3-pyramid3.out_i',
+                 'intensity4-pyramid4.out_i',
+                 'ccd1-detector1.out_pixels']
