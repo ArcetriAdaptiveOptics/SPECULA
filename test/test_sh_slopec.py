@@ -14,7 +14,7 @@ from specula.data_objects.pixels import Pixels
 from specula.data_objects.subap_data import SubapData
 from specula.processing_objects.sh_slopec import ShSlopec
 from test.specula_testlib import cpu_and_gpu
-
+from specula.lib.utils import unravel_index_2d
 
 class TestShSlopec(unittest.TestCase):
 
