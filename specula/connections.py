@@ -11,7 +11,7 @@ class _InputItem():
         *value* must be a reference to the output value being read, or None
         in case of remote inputs.
         """
-        if remote_rank:
+        if remote_rank is not None:
             if value is not None:
                 raise ValueError(f'non-None value used with remote input')
         else:

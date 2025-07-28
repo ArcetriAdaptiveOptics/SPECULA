@@ -37,7 +37,8 @@ class TestPixels(unittest.TestCase):
         
     def tearDown(self):
         try:
-            os.unlink(self.filename)
+            #os.unlink(self.filename)
+            print(self.filename)
         except FileNotFoundError:
             pass
 
@@ -51,6 +52,23 @@ class TestPixels(unittest.TestCase):
         id_pixels_after = id(pixels.pixels)
 
         assert id_pixels_before == id_pixels_after
+    
+    @cpu_and_gpu
+    def test_set_value_shape_mismatch(self, target_device_idx, xp):
+        pixels = Pixels(10, 10, target_device_idx=target_device_idx)
+        expected_value = xp.ones((10, 10), dtype=xp.float32)
+        pixels.set_value(expected_value)
+
+        np.testing.assert_array_equal(cpuArray(pixels.pixels), cpuArray(expected_value))
+
+    @cpu_and_gpu
+    def test_get_value(self, target_device_idx, xp):
+        pixels = Pixels(10, 10, target_device_idx=target_device_idx)
+        expected_value = xp.ones((10, 10), dtype=xp.float32)
+        pixels.set_value(expected_value)
+
+        value = pixels.get_value()
+        np.testing.assert_array_equal(cpuArray(value), cpuArray(expected_value))
         
     @cpu_and_gpu
     def test_fits_header(self, target_device_idx, xp):
@@ -67,3 +85,9 @@ class TestPixels(unittest.TestCase):
         assert hdr['SIGNED'] == 1
         assert hdr['DIMX'] == 6
         assert hdr['DIMY'] == 5
+
+    @cpu_and_gpu
+    def test_set_with_invalid_shape(self, target_device_idx, xp):
+        pixels = Pixels(10, 10, target_device_idx=target_device_idx)
+        with self.assertRaises(AssertionError):
+            pixels.set_value(xp.ones((5, 5), dtype=xp.float32))

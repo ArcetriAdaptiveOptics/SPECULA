@@ -38,8 +38,17 @@ class Pixels(BaseDataObj):
         ]
         return type_matrix[(bits - 1) // 8][signed]
 
+    def get_value(self):
+        '''Get the pixel values as a numpy/cupy array'''
+        return self.pixels
+    
     def set_value(self, v):
-        self.pixels[:] = v
+        '''Set new pixel values.
+        Arrays are not reallocated.
+        '''
+        assert v.shape == self.pixels.shape, \
+            f"Error: input array shape {v.shape} does not match pixel shape {self.pixels.shape}"
+        self.pixels[:] = self.to_xp(v, dtype=self.dtype)
 
     @property
     def size(self):
@@ -55,12 +64,12 @@ class Pixels(BaseDataObj):
         hdr = fits.Header()
         hdr['VERSION'] = 1
         hdr['OBJ_TYPE'] = 'Pixels'
-        hdr['TYPE'] = str(self.type)
+        hdr['TYPE'] = str(self.xp.dtype(self.type))
         hdr['BPP'] = self.bpp
         hdr['BYTESPP'] = self.bytespp
         hdr['SIGNED'] = self.signed
-        hdr['DIMX'] = self.size[0]
-        hdr['DIMY'] = self.size[1]
+        hdr['DIMX'] = self.pixels.shape[0]
+        hdr['DIMY'] = self.pixels.shape[1]
         return hdr
 
     def save(self, filename, overwrite=True):
@@ -88,6 +97,8 @@ class Pixels(BaseDataObj):
     def restore(filename, target_device_idx=None):
         hdr = fits.getheader(filename)
         pixels = Pixels.from_header(hdr, target_device_idx=target_device_idx)
+        print('Data:', fits.getdata(filename, ext=1))
+        print('Pixels:', pixels.pixels)
         pixels.set_value(fits.getdata(filename, ext=1))
         return pixels
 

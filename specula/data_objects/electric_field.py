@@ -24,7 +24,7 @@ class ElectricField(BaseDataObj):
         self.phaseInNm = self.xp.zeros((dimx, dimy), dtype=self.dtype)
 
     def __str__(self):
-        return str(self.A)+str(self.phaseInNm)
+        return 'A: '+ str(self.A) + 'Phase: ' + str(self.phaseInNm)
 
     def set_value(self, v):
         '''
@@ -32,6 +32,12 @@ class ElectricField(BaseDataObj):
         
         Arrays are not reallocated
         '''
+        assert len(v) == 2, "Input must be a sequence of [amplitude, phase]"
+        assert v[0].shape == self.A.shape, \
+            f"Error: input array shape {v[0].shape} does not match amplitude shape {self.A.shape}"
+        assert v[1].shape == self.phaseInNm.shape, \
+            f"Error: input array shape {v[1].shape} does not match phase shape {self.phaseInNm.shape}"
+
         self.A[:]= self.to_xp(v[0], dtype=self.dtype)
         self.phaseInNm[:] = self.to_xp(v[1], dtype=self.dtype)
 

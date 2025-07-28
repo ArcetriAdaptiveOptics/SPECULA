@@ -495,7 +495,11 @@ class Simul():
                     if not local_dest_object and output.ref is None:
                         continue
                     
-                    self.connect(single_output_name, input_name, dest_object)
+                    try:
+                        self.connect(single_output_name, input_name, dest_object)
+                    except ValueError:
+                        print(f'Exception while connecting {single_output_name} {dest_object}.{input_name}')
+                        raise
 
                     a_connection = {}
                     a_connection['start'] = output.obj_name

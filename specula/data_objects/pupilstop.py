@@ -35,10 +35,13 @@ class Pupilstop(Layer):
         self._obs_diam = obs_diam
 
         if self._input_mask is not None:
-            self._input_mask = self.to_xp(input_mask)
+            self._input_mask = self.to_xp(input_mask,dtype=self.dtype)
             mask_amp = self._input_mask
         else:
             mask_amp = make_mask(self.pixel_pupil, obs_diam, mask_diam, xp=self.xp)
+        # A dtype must be self.dtype
+        if mask_amp.dtype != self.dtype:
+            mask_amp = self.xp.asarray(mask_amp, dtype=self.dtype)
         self.A = mask_amp
 
         # Initialise time for at least the first iteration
@@ -46,16 +49,17 @@ class Pupilstop(Layer):
 
     def get_value(self):
         '''
-        Get the electric field as a tuple of amplitude and phase
+        Get the amplitude mask as a numpy/cupy array
         '''
         return self.A
 
     def set_value(self, v):
         '''
-        Set new values for amplitude
-        
+        Set a new amplitude mask.
         Arrays are not reallocated
         '''
+        assert v.shape == self.A.shape, \
+            f"Error: input array shape {v.shape} does not match pupilstop shape {self.A.shape}"
         self.A[:]= self.to_xp(v, dtype=self.dtype)
 
     def get_fits_header(self):
@@ -107,7 +111,7 @@ class Pupilstop(Layer):
 
         pupilstop = Pupilstop.from_header(hdr, target_device_idx=target_device_idx)
         with fits.open(filename) as hdul:
-            pupilstop.A = pupilstop.to_xp(hdul[1].data.copy())
+            pupilstop.A = pupilstop.to_xp(hdul[1].data.copy(),dtype=pupilstop.dtype)
             # phaseInNm is not used in Pupilstop
         return pupilstop
 
