@@ -97,16 +97,9 @@ class DataStore(BaseProcessingObj):
     def trigger_code(self):
         for k, item in self.local_inputs.items():
             if item is not None and item.generation_time == self.current_time:
-                if isinstance(item, BaseValue):
-                    v = cpuArray(item.value, force_copy=True)
-                elif isinstance(item, Slopes):
-                    v = cpuArray(item.slopes, force_copy=True)
-                elif isinstance(item, Pixels):
-                    v = cpuArray(item.pixels, force_copy=True)
-                elif isinstance(item, ElectricField):
-                    v = np.stack( (cpuArray(item.A, force_copy=True), cpuArray(item.phaseInNm, force_copy=True)) )
-                elif isinstance(item, Intensity):
-                    v = cpuArray(item.i, force_copy=True)
+                if hasattr(item, 'get_value'):
+                    value = item.get_value()
+                    v = cpuArray(value, force_copy=True)
                 else:
                     raise TypeError(f"Error: don't know how to save an object of type {type(item)}")
                 self.storage[k][self.current_time] = v

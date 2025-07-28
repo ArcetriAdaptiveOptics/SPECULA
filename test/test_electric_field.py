@@ -117,3 +117,55 @@ class TestElectricField(unittest.TestCase):
             # Force cleanup for Windows
             del ef2
             gc.collect()
+            
+    @cpu_and_gpu
+    def test_set_value(self, target_device_idx, xp):
+        pixel_pupil = 10
+        pixel_pitch = 0.1
+        S0 = 1.23
+        shape = (pixel_pupil, pixel_pupil)
+        amp = xp.ones(shape)
+        phase = xp.arange(pixel_pupil**2).reshape(shape) * 0.5
+
+        ef = ElectricField(shape[0], shape[1], pixel_pitch, S0=S0, target_device_idx=target_device_idx)
+        ef.set_value([amp, phase])
+
+        assert np.allclose(cpuArray(ef.A), cpuArray(amp))
+        assert np.allclose(cpuArray(ef.phaseInNm), cpuArray(phase))
+        assert ef.A.dtype == ef.dtype
+        assert ef.phaseInNm.dtype == ef.dtype
+        
+    @cpu_and_gpu
+    def test_get_value(self, target_device_idx, xp):
+        pixel_pupil = 10
+        pixel_pitch = 0.1
+        S0 = 1.23
+        shape = (pixel_pupil, pixel_pupil)
+        amp = xp.ones(shape)
+        phase = xp.arange(pixel_pupil**2).reshape(shape) * 0.5
+
+        ef = ElectricField(shape[0], shape[1], pixel_pitch, S0=S0, target_device_idx=target_device_idx)
+        ef.set_value([amp, phase])
+
+        retrieved_amp, retrieved_phase = ef.get_value()
+
+        assert np.allclose(cpuArray(retrieved_amp), cpuArray(amp))
+        assert np.allclose(cpuArray(retrieved_phase), cpuArray(phase))
+        assert retrieved_amp.dtype == ef.dtype
+        assert retrieved_phase.dtype == ef.dtype
+        
+    @cpu_and_gpu
+    def test_with_invalid_shape(self, target_device_idx, xp):
+        pixel_pupil = 10
+        pixel_pitch = 0.1
+        S0 = 1.23
+
+        ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=S0, target_device_idx=target_device_idx)
+
+        # invalid phase shape
+        with self.assertRaises(AssertionError):
+            ef.set_value([xp.ones((10, 10)), xp.zeros((5, 5))])
+        
+        # invalid amplitude shape
+        with self.assertRaises(AssertionError):
+            ef.set_value([xp.ones((5, 5)), xp.zeros((10, 10))])

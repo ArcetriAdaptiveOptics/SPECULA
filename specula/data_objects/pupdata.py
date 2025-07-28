@@ -2,6 +2,7 @@ import numpy as np
 from astropy.io import fits
 
 from specula.base_data_obj import BaseDataObj
+from specula import cpuArray
 
 class PupData(BaseDataObj):
     '''
@@ -82,10 +83,10 @@ class PupData(BaseDataObj):
         hdr['FSIZEY'] = self.framesize[1]
 
         fits.writeto(filename, np.zeros(2), hdr)
-        fits.append(filename, self.ind_pup.T)
-        fits.append(filename, self.radius)
-        fits.append(filename, self.cx)
-        fits.append(filename, self.cy)
+        fits.append(filename, cpuArray(self.ind_pup.T))
+        fits.append(filename, cpuArray(self.radius))
+        fits.append(filename, cpuArray(self.cx))
+        fits.append(filename, cpuArray(self.cy))
 
     @staticmethod
     def restore(filename, target_device_idx=None):

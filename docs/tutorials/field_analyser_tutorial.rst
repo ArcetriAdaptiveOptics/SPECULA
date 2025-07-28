@@ -49,6 +49,9 @@ Below is an example script that loads the latest simulation output and computes 
     import os
     import glob
     import numpy as np
+    import specula
+    specula.init(0)
+    
     from specula.field_analyser import FieldAnalyser
 
     # Find the latest data directory (assuming output is in ./data)

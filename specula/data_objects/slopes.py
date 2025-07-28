@@ -31,6 +31,22 @@ class Slopes(BaseDataObj):
             self.indicesX = self.xp.arange(0, self.size // 2)
             self.indicesY = self.indicesX + self.size // 2
 
+    def get_value(self):
+        '''
+        Get the slopes as anumpy/cupy array
+        '''
+        return self.slopes
+
+    def set_value(self, v):
+        '''
+        Set new slopes values.
+        Arrays are not reallocated
+        '''
+        assert v.shape == self.slopes.shape, \
+            f"Error: input array shape {v.shape} does not match slopes shape {self.slopes.shape}"
+
+        self.slopes[:] = self.to_xp(v, dtype=self.dtype)
+
     # TODO needed to support late SlopeC-derived class initialization
     # Replace with a full initialization in base class?
     def resize(self, new_size):

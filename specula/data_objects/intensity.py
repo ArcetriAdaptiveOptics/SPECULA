@@ -14,12 +14,20 @@ class Intensity(BaseDataObj):
                 
         self.i = self.xp.zeros((dimx, dimy), dtype=self.dtype)
 
-    def __str__(self):
-        return str(self.i)
+    def get_value(self):
+        '''
+        Get the intensity field as a numpy/cupy array
+        '''
+        return self.i
 
-    @property
-    def size(self):
-        return self.i.shape
+    def set_value(self, v):
+        '''
+        Set new values for the intensity field    
+        Arrays are not reallocated
+        '''
+        assert v.shape == self.i.shape, \
+            f"Error: input array shape {v.shape} does not match intensity field shape {self.i.shape}"
+        self.i[:]= self.to_xp(v, dtype=self.dtype)
 
     def sum(self, i2, factor=1.0):
         self.i += i2.i * factor
