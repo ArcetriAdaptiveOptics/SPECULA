@@ -54,9 +54,6 @@ class LoopControl(BaseTimeObj):
 
     def start(self, run_time, dt, t0=0, stop_on_data=None, stop_at_time=None,
               profiling=False, speed_report=False):
-
-        if process_comm is not None:
-            process_comm.barrier()
         
         self._profiling = profiling
         self._speed_report = speed_report
@@ -71,7 +68,7 @@ class LoopControl(BaseTimeObj):
         for i in sorted(self._trigger_lists.keys()):        
             # all the objects having this trigger order could be remote            
             for element in self._trigger_lists[i]:
-                element.send_outputs(first_mpi_send=True)
+                element.send_outputs(skip_delayed=False, first_mpi_send=True)
 
         if process_comm is not None:
             process_comm.barrier()
@@ -95,12 +92,14 @@ class LoopControl(BaseTimeObj):
                     #  workaround for objects that need to send outputs
                     # before the first iter() call
                     # because their outputs are used with ":-1"
-                    element.send_outputs(delayed_only=True, first_mpi_send=True)
+                    element.send_outputs(delayed_only=True, first_mpi_send=False)
                 except:
                     print('Exception in', element.name, flush=True)
                     raise
         
         if MPI_DBG: print(process_rank, 'Setups DONE', flush=True)
+        if process_comm is not None:
+            process_comm.barrier()
         
         self._t = self._t0
 

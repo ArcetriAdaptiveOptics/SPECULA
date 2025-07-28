@@ -1,11 +1,12 @@
 from collections import defaultdict
 from astropy.io import fits
 
-from specula import default_target_device, cp, MPI_DBG, MPI_SEND_DBG
+from specula import cpuArray, default_target_device, cp, MPI_DBG, MPI_SEND_DBG
 from specula import show_in_profiler
 from specula import process_comm, process_rank
 from specula.base_time_obj import BaseTimeObj
 from specula.data_objects.layer import Layer
+from specula.data_objects.electric_field import ElectricField
 
 
 class BaseProcessingObj(BaseTimeObj):
@@ -122,12 +123,25 @@ class BaseProcessingObj(BaseTimeObj):
     def send_remote_output(self, item, dest_rank, dest_tag, first_mpi_send=True, out_name=''):
         if MPI_SEND_DBG: print(process_rank, f'SEND to rank {dest_rank} {dest_tag=} (from {self.name}.{out_name})', flush=True)
         if first_mpi_send:
+            if MPI_SEND_DBG: print(process_rank, f'SEND with Pickle', flush=True)
             xp_orig = item.xp
             item.xp = 0            
             process_comm.ibsend(item, dest=dest_rank, tag=dest_tag)
             item.xp = xp_orig
-        else:
-            process_comm.Ibsend(item.get_value(), dest=dest_rank, tag=dest_tag)
+        else:            
+            buffer = item.get_value()
+            if MPI_SEND_DBG:  print(process_rank, dest_tag, 'SEND .device', buffer.device)
+            if MPI_SEND_DBG: print(process_rank, f'SEND with Buffer', type(buffer), buffer, flush=True)
+
+            if MPI_SEND_DBG and isinstance(item, ElectricField): print(process_rank, dest_tag, 'SEND VALUE', item.field[1, 100:105, 100:105], flush=True)
+
+            process_comm.Ibsend(cpuArray(buffer), dest=dest_rank, tag=dest_tag)
+
+            if MPI_SEND_DBG and isinstance(item, ElectricField): print(process_rank, dest_tag, 'SEND TIME', flush=True)
+
+            process_comm.ibsend(item.generation_time, dest=dest_rank, tag=dest_tag+1)
+
+            if MPI_SEND_DBG and isinstance(item, ElectricField): print(process_rank, dest_tag+1, 'TIME SENT', flush=True)
 
 
     # this method implements the mpi send call of the outputs connected to remote inputs

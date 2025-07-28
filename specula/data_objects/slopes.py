@@ -37,7 +37,7 @@ class Slopes(BaseDataObj):
         '''
         return self.slopes
 
-    def set_value(self, v):
+    def set_value(self, v, force_copy=False):
         '''
         Set new slopes values.
         Arrays are not reallocated
@@ -45,7 +45,7 @@ class Slopes(BaseDataObj):
         assert v.shape == self.slopes.shape, \
             f"Error: input array shape {v.shape} does not match slopes shape {self.slopes.shape}"
 
-        self.slopes[:] = self.to_xp(v, dtype=self.dtype)
+        self.slopes[:] = self.to_xp(v, dtype=self.dtype, force_copy=force_copy)
 
     # TODO needed to support late SlopeC-derived class initialization
     # Replace with a full initialization in base class?

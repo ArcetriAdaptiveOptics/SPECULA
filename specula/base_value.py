@@ -18,8 +18,8 @@ class BaseValue(BaseDataObj):
     def get_value(self):
         return self._value
 
-    def set_value(self, val):
-        self._value = val
+    def set_value(self, val, force_copy=False):
+        self._value = self.to_xp(val, force_copy=force_copy)
 
     @property
     def value(self):

@@ -55,14 +55,14 @@ class Pupilstop(Layer):
         '''
         return self.field[0]
 
-    def set_value(self, v):
+    def set_value(self, v, force_copy=False):
         '''
         Set a new amplitude mask.
         Arrays are not reallocated
         '''
         assert v.shape == self.field[0].shape, \
             f"Error: input array shape {v.shape} does not match pupilstop shape {self.field[0].shape}"
-        self.field[0][:]= self.to_xp(v, dtype=self.dtype)
+        self.field[0][:]= self.to_xp(v, dtype=self.dtype, force_copy=force_copy)
 
     def get_fits_header(self):
         hdr = fits.Header()
