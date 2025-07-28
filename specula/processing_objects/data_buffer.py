@@ -35,16 +35,8 @@ class DataBuffer(BaseProcessingObj):
         # Accumulate data (same logic as DataStore)
         for k, item in self.local_inputs.items():
             if item is not None and item.generation_time == self.current_time:
-                if isinstance(item, BaseValue):
-                    v = item.value
-                elif isinstance(item, Slopes):
-                    v = item.slopes
-                elif isinstance(item, Pixels):
-                    v = item.pixels
-                elif isinstance(item, ElectricField):
-                    v = np.stack((item.A, item.phaseInNm))
-                elif isinstance(item, Intensity):
-                    v = item.i
+                if hasattr(item, 'get_value'):
+                    v = item.get_value()
                 else:
                     raise TypeError(f"Error: don't know how to buffer an object of type {type(item)}")
                 self.storage[k][self.current_time] = v
