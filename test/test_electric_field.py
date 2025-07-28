@@ -59,13 +59,11 @@ class TestElectricField(unittest.TestCase):
         ef2 = ElectricField(pixel_pupil,pixel_pupil, pixel_pitch, S0=2, target_device_idx=target_device_idx)
 
         A1 = xp.ones((pixel_pupil, pixel_pupil))
-        ef1.A = A1
-        ef1.phaseInNm = 1 * xp.ones((pixel_pupil, pixel_pupil))
+        ef1.field = xp.stack(A1, xp.ones((pixel_pupil, pixel_pupil)))
         A2 = xp.ones((pixel_pupil, pixel_pupil))
         A2[0, 0] = 0
         A2[9, 9] = 0
-        ef2.A = A2
-        ef2.phaseInNm = 3 * xp.ones((pixel_pupil, pixel_pupil))
+        ef2.field = xp.stack(A2, 3 * xp.ones((pixel_pupil, pixel_pupil)))
 
         ef_combinator = ElectricFieldCombinator(
             simul_params=simulParams,
@@ -97,8 +95,8 @@ class TestElectricField(unittest.TestCase):
         S0 = 1.23
 
         ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=S0, target_device_idx=target_device_idx)
-        ef.A = xp.arange(pixel_pupil * pixel_pupil, dtype=ef.dtype).reshape(pixel_pupil, pixel_pupil)
-        ef.phaseInNm = xp.arange(pixel_pupil * pixel_pupil, dtype=ef.dtype).reshape(pixel_pupil, pixel_pupil) * 0.5
+        ef.field = xp.stack( xp.arange(pixel_pupil * pixel_pupil, dtype=ef.dtype).reshape(pixel_pupil, pixel_pupil), \
+                             xp.arange(pixel_pupil * pixel_pupil, dtype=ef.dtype).reshape(pixel_pupil, pixel_pupil) * 0.5 )
 
         # Save to temporary file
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -30,7 +30,7 @@ class ElectricField(BaseDataObj):
 
     @A.setter
     def A(self, value):
-        self.field[0] = value
+        self.field[0, :, :] = value
 
     @property
     def phaseInNm(self):
@@ -38,7 +38,7 @@ class ElectricField(BaseDataObj):
 
     @phaseInNm.setter
     def phaseInNm(self, value):
-        self.field[1] = value
+        self.field[1, :, :] = value
 
     def __str__(self):
         return 'A: '+ str(self.field[0]) + 'Phase: ' + str(self.phaseInNm)
