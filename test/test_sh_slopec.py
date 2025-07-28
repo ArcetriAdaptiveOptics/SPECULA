@@ -14,7 +14,6 @@ from specula.data_objects.pixels import Pixels
 from specula.data_objects.subap_data import SubapData
 from specula.processing_objects.sh_slopec import ShSlopec
 from test.specula_testlib import cpu_and_gpu
-from specula.lib.utils import unravel_index_2d
 
 class TestShSlopec(unittest.TestCase):
 
@@ -203,9 +202,10 @@ class TestShSlopec(unittest.TestCase):
         # normalized to the maximum intensity
         last_weights = slopec.int_pixels_weight
 
-        idx2d = unravel_index_2d(slopec.subap_idx, pixels.pixels.shape, xp)
         last_weights_2d = xp.zeros_like(pixels.pixels)
-        last_weights_2d[idx2d] = last_weights.T.flatten()
+        last_weights_2d_flat = last_weights_2d.flatten()
+        last_weights_2d_flat[slopec.subap_idx.flatten()] = last_weights.T.flatten()
+        last_weights_2d = last_weights_2d_flat.reshape(last_weights_2d.shape)
 
         # first step is skipped in the int_pixels computation, so the expected weights
         # are the average of the second and third frame
@@ -308,9 +308,10 @@ class TestShSlopec(unittest.TestCase):
         # and value of 1.0 in the square and 0 outside
         last_weights = slopec.int_pixels_weight
 
-        idx2d = unravel_index_2d(slopec.subap_idx, pixels.pixels.shape, xp)
         last_weights_2d = xp.zeros_like(pixels.pixels)
-        last_weights_2d[idx2d] = last_weights.T.flatten()
+        last_weights_2d_flat = last_weights_2d.flatten()
+        last_weights_2d_flat[slopec.subap_idx.flatten()] = last_weights.T.flatten()
+        last_weights_2d = last_weights_2d_flat.reshape(last_weights_2d.shape)
 
         expected_weights = xp.zeros_like(last_weights_2d)
         expected_weights[4:8,   4:8] = 1.0
