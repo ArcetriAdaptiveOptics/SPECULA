@@ -211,14 +211,14 @@ class TestShSlopec(unittest.TestCase):
         expected_weights = (intensity + xp.roll(intensity, shift=1, axis=0))
         expected_weights = expected_weights / expected_weights.max()
 
-        np.testing.assert_allclose(cpuArray(slopes.xslopes), last_weights_2d, expected_weights, atol=1e-3)
+        np.testing.assert_allclose(cpuArray(slopes.xslopes), cpuArray(last_weights_2d), cpuArray(expected_weights), atol=1e-3)
 
         # Then compares slopec.int_pixels.pixels and slopec.pixels.pixels:
         # they must be equal because the accumulation was resetted
         # expect for a scalar factor equal factor = float(self.seconds_to_t(t-self.t_previous)) / float(self.weight_int_pixel_dt)
         factor = t_seconds / weight_int_pixel_dt
         expected_int_pixels = pixels.pixels.astype(slopec.dtype) * factor
-        np.testing.assert_allclose(cpuArray(slopec.int_pixels.pixels), expected_int_pixels, atol=1e-3)
+        np.testing.assert_allclose(cpuArray(slopec.int_pixels.pixels), cpuArray(expected_int_pixels), atol=1e-3)
 
     @cpu_and_gpu
     def test_weight_int_pixel_dt_window(self, target_device_idx, xp):
@@ -318,4 +318,4 @@ class TestShSlopec(unittest.TestCase):
         expected_weights[4:8,   16:20] = 1.0
         expected_weights[16:20, 4:8] = 1.0
 
-        np.testing.assert_equal(cpuArray(last_weights_2d), expected_weights, err_msg="Weight map does not match expected values.")
+        np.testing.assert_equal(cpuArray(last_weights_2d), cpuArray(expected_weights), err_msg="Weight map does not match expected values.")
