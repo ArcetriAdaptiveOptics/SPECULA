@@ -16,7 +16,7 @@ Note that a more basic SCAO simulation tutorial is available in the :ref:`scao_b
 
 **Prerequisites:**
 
-* SPECULA installed and working (see :ref:`../installation`)
+* SPECULA installed and working (see :doc:`../installation`)
 * Basic understanding of adaptive optics concepts
 * Python and YAML familiarity
 
