@@ -119,7 +119,7 @@ class BaseProcessingObj(BaseTimeObj):
             if self.cuda_graph:
                 self.stream.synchronize()
 
-    def send_remote_output(self, item, dest_rank, dest_tag, first_mpi_send=True):
+    def send_remote_output(self, item, dest_rank, dest_tag, first_mpi_send=True, out_name=''):
         if MPI_SEND_DBG: print(process_rank, f'SEND to rank {dest_rank} {dest_tag=} (from {self.name}.{out_name})', flush=True)
         if first_mpi_send:
             xp_orig = item.xp
@@ -162,7 +162,7 @@ class BaseProcessingObj(BaseTimeObj):
 
                 # workaround because module objects cannot be pickled
                 for item in self.outputs[out_name] if isinstance(self.outputs[out_name], list) else [self.outputs[out_name]]:
-                    self.send_remote_output(item, dest_rank, dest_tag, first_mpi_send)
+                    self.send_remote_output(item, dest_rank, dest_tag, first_mpi_send, out_name)
 
     @classmethod
     def device_stream(cls, target_device_idx):
