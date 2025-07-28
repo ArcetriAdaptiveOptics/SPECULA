@@ -30,8 +30,9 @@ class _InputItem():
 
     def receive_new_value(self, first_mpi_receive=True):
         if MPI_SEND_DBG: print(process_rank, f'RECV from rank {self.remote_rank} {self.tag=} type={self.output_ref_type})', flush=True)
-        if first_mpi_receive:
-            if MPI_SEND_DBG: print(process_rank, f'recv with Pickle', flush=True)
+
+        if first_mpi_receive or self.cloned_value.get_value() is None:
+            if MPI_SEND_DBG: print(process_rank, f'recv with Pickle', self.tag, flush=True)
             new_value = process_comm.recv(source=self.remote_rank, tag=self.tag)
             if new_value.xp_str == 'cp':
                 new_value.xp = cp

@@ -38,6 +38,7 @@ class BaseProcessingObj(BaseTimeObj):
         self.local_inputs = {}
         self.outputs = {}
         self.remote_outputs = defaultdict(list)
+        self.sent_valid = {}
 
         # Use the correct CUDA device for allocations in derived classes'  __init__
         if self.target_device_idx >= 0:
@@ -121,9 +122,10 @@ class BaseProcessingObj(BaseTimeObj):
                 self.stream.synchronize()
 
     def send_remote_output(self, item, dest_rank, dest_tag, first_mpi_send=True, out_name=''):
-        if MPI_SEND_DBG: print(process_rank, f'SEND to rank {dest_rank} {dest_tag=} (from {self.name}.{out_name})', flush=True)
-        if first_mpi_send:
-            if MPI_SEND_DBG: print(process_rank, f'SEND with Pickle', flush=True)
+        if MPI_SEND_DBG: print(process_rank, f'SEND to rank {dest_rank} {dest_tag=} {(dest_tag in self.sent_valid)=} (from {self.name}.{out_name})', flush=True)
+        
+        if first_mpi_send or not dest_tag in self.sent_valid:
+            if MPI_SEND_DBG: print(process_rank, f'SEND with Pickle', dest_tag, flush=True)
             xp_orig = item.xp
             item.xp = 0            
             process_comm.ibsend(item, dest=dest_rank, tag=dest_tag)
@@ -131,7 +133,7 @@ class BaseProcessingObj(BaseTimeObj):
         else:            
             buffer = item.get_value()
             if MPI_SEND_DBG:  print(process_rank, dest_tag, 'SEND .device', buffer.device)
-            if MPI_SEND_DBG: print(process_rank, f'SEND with Buffer', type(buffer), buffer, flush=True)
+            if MPI_SEND_DBG: print(process_rank, f'SEND with Buffer', dest_tag, type(buffer), buffer, flush=True)
 
             if MPI_SEND_DBG and isinstance(item, ElectricField): print(process_rank, dest_tag, 'SEND VALUE', item.field[1, 100:105, 100:105], flush=True)
 
@@ -142,6 +144,9 @@ class BaseProcessingObj(BaseTimeObj):
             process_comm.ibsend(item.generation_time, dest=dest_rank, tag=dest_tag+1)
 
             if MPI_SEND_DBG and isinstance(item, ElectricField): print(process_rank, dest_tag+1, 'TIME SENT', flush=True)
+
+        if item.get_value() is not None:
+            self.sent_valid[dest_tag] = True
 
 
     # this method implements the mpi send call of the outputs connected to remote inputs
