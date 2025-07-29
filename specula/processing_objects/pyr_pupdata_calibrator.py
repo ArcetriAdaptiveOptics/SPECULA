@@ -180,9 +180,9 @@ class PyrPupdataCalibrator(BaseProcessingObj):
 
                 # Create mask (annulus if obstruction detected)
                 if self.central_obstruction_ratio > 0:
-                    mask = (r <= radii[i]) & (r >= radii[i] * self.central_obstruction_ratio)
+                    mask = (r < radii[i]) & (r > radii[i] * self.central_obstruction_ratio)
                 else:
-                    mask = r <= radii[i]
+                    mask = r < radii[i]
 
                 # Get flat indices
                 flat_indices = self.xp.where(mask.flatten())[0]
@@ -210,9 +210,9 @@ class PyrPupdataCalibrator(BaseProcessingObj):
             r_ref = self.xp.sqrt((x_coords - center_x)**2 + (y_coords - center_y)**2)
             
             if self.central_obstruction_ratio > 0:
-                reference_mask = (r_ref <= reference_radius) & (r_ref >= reference_radius * self.central_obstruction_ratio)
+                reference_mask = (r_ref < reference_radius) & (r_ref > reference_radius * self.central_obstruction_ratio)
             else:
-                reference_mask = r_ref <= reference_radius
+                reference_mask = r_ref < reference_radius
                 
             # Find relative offsets from reference center
             reference_indices = self.xp.where(reference_mask.flatten())[0]
