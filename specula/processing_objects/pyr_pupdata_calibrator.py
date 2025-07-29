@@ -4,6 +4,7 @@ from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.intensity import Intensity
 from specula.connections import InputValue
 from specula.data_objects.pupdata import PupData
+from specula import cpuArray
 
 class PyrPupdataCalibrator(BaseProcessingObj):
     def __init__(self,
@@ -198,7 +199,7 @@ class PyrPupdataCalibrator(BaseProcessingObj):
 
             # Convert to CPU arrays for matplotlib
             image_cpu = cpuArray(image)
-            centers_cpu = cpuArray(centers) 
+            centers_cpu = cpuArray(centers)
             radii_cpu = cpuArray(radii)
 
             # Image with circles
