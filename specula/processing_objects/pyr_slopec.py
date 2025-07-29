@@ -30,7 +30,7 @@ class PyrSlopec(Slopec):
                  sn: Slopes=None,
                  shlike: bool=False,
                  norm_factor: float=None,   # TODO =1.0,
-                 thr_value: int=0,
+                 thr_value: float=0,
                  slopes_from_intensity: bool=False,
                  target_device_idx: int=None,
                  precision: int=None,
