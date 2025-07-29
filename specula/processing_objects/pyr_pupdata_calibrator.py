@@ -122,20 +122,23 @@ class PyrPupdataCalibrator(BaseProcessingObj):
             profile = self._radial_profile(image, centers[i], radii[i])
 
             # Look for central dip
-            if len(profile) > 5:
+            if profile.shape[0] > 5:
                 center_intensity = self.xp.mean(profile[:3])  # Inner 3 bins
                 edge_intensity = self.xp.mean(profile[-3:])   # Outer 3 bins
 
                 if edge_intensity > center_intensity * 1.5:  # 50% intensity drop
                     # Find where intensity starts rising
                     grad = self.xp.gradient(profile)
-                    max_grad_idx = self.xp.argmax(grad[:len(grad)//2])  # First half only
-                    obstruction_ratio = (max_grad_idx / len(profile)) * 0.8  # Conservative
+                    max_grad_idx = self.xp.argmax(grad[:grad.shape[0]//2])  # First half only
+                    obstruction_ratio = (float(max_grad_idx) / profile.shape[0]) * 0.8  # Conservative
 
                     if obstruction_ratio >= self.min_obstruction_ratio:
-                        obstruction_ratios.append(obstruction_ratio)
+                        obstruction_ratios.append(float(obstruction_ratio))
 
-        return self.xp.median(obstruction_ratios) if obstruction_ratios else 0.0
+        if obstruction_ratios:
+            return float(self.xp.median(self.xp.array(obstruction_ratios)))
+        else:
+            return 0.0
 
     def _radial_profile(self, image, center, max_radius, n_bins=20):
         """Extract radial intensity profile"""
@@ -177,7 +180,7 @@ class PyrPupdataCalibrator(BaseProcessingObj):
 
             # Get flat indices
             flat_indices = self.xp.where(mask.flatten())[0]
-            n_pixels = min(len(flat_indices), max_pixels)
+            n_pixels = min(flat_indices.shape[0], max_pixels)
 
             ind_pup[i, :n_pixels] = flat_indices[:n_pixels]
             if n_pixels < max_pixels:
@@ -193,12 +196,17 @@ class PyrPupdataCalibrator(BaseProcessingObj):
 
             plt.figure(figsize=(10, 5))
 
+            # Convert to CPU arrays for matplotlib
+            image_cpu = cpuArray(image)
+            centers_cpu = cpuArray(centers) 
+            radii_cpu = cpuArray(radii)
+
             # Image with circles
             plt.subplot(1, 2, 1)
-            plt.imshow(image, origin='lower', cmap='gray')
+            plt.imshow(image_cpu, origin='lower', cmap='gray')
 
             colors = ['red', 'green', 'blue', 'orange']
-            for i, (center, radius) in enumerate(zip(centers, radii)):
+            for i, (center, radius) in enumerate(zip(centers_cpu, radii_cpu)):
                 if radius > 0:
                     circle = Circle(center, radius, fill=False, color=colors[i], linewidth=2)
                     plt.gca().add_patch(circle)
@@ -214,9 +222,10 @@ class PyrPupdataCalibrator(BaseProcessingObj):
             plt.subplot(1, 2, 2)
             if radii[0] > 0:
                 profile = self._radial_profile(image, centers[0], radii[0])
-                plt.plot(profile, 'b-', linewidth=2)
+                profile_cpu = cpuArray(profile)
+                plt.plot(profile_cpu, 'b-', linewidth=2)
                 if self.central_obstruction_ratio > 0:
-                    obs_idx = int(len(profile) * self.central_obstruction_ratio)
+                    obs_idx = int(profile_cpu.shape[0] * self.central_obstruction_ratio)
                     plt.axvline(obs_idx, color='red', linestyle='--', label='Obstruction')
                 plt.title('Radial Profile (Pupil 0)')
                 plt.xlabel('Radial bin')
