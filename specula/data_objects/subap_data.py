@@ -50,7 +50,7 @@ class SubapData(BaseDataObj):
         """Returns the position of subaperture `n`."""
         return self.display_map[n]
 
-    def save(self, filename):
+    def save(self, filename, overwrite=False):
         """Saves the subaperture data to a file."""
         hdr = fits.Header()
         hdr['VERSION'] = 1
@@ -58,7 +58,7 @@ class SubapData(BaseDataObj):
         hdr['NP_SUB'] = self.np_sub
         hdr['NX'] = self.nx
         hdr['NY'] = self.ny
-        fits.writeto(filename, np.zeros(2), hdr)
+        fits.writeto(filename, np.zeros(2), hdr, overwrite=overwrite)
         fits.append(filename, cpuArray(self.idxs.T))  # Transposed for IDL-saved data compatibility
         fits.append(filename, cpuArray(self.display_map))
 
