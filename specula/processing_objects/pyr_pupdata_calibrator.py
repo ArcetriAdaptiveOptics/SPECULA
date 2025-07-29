@@ -162,12 +162,13 @@ class PyrPupdataCalibrator(BaseProcessingObj):
         h, w = image_shape
         y_coords, x_coords = self.xp.mgrid[0:h, 0:w]
 
-        # Estimate max pixels per pupil
-        max_pixels = int(self.xp.pi * self.xp.max(radii)**2 * (1 - self.central_obstruction_ratio**2)) + 100
-        ind_pup = self.xp.zeros((4, max_pixels), dtype=int)
+        # Compute maximum number of pixels needed
+        max_pixels = 0
+        temp_indices = []
 
         for i in range(4):
             if radii[i] <= 0:
+                temp_indices.append(self.xp.array([], dtype=int))
                 continue
 
             # Distance from center
@@ -181,11 +182,23 @@ class PyrPupdataCalibrator(BaseProcessingObj):
 
             # Get flat indices
             flat_indices = self.xp.where(mask.flatten())[0]
-            n_pixels = min(flat_indices.shape[0], max_pixels)
+            temp_indices.append(flat_indices)
+            max_pixels = max(max_pixels, flat_indices.shape[0])
 
-            ind_pup[i, :n_pixels] = flat_indices[:n_pixels]
-            if n_pixels < max_pixels:
-                ind_pup[i, n_pixels:] = flat_indices[0] if n_pixels > 0 else 0
+        # Create a 2D array with padding to -1
+        ind_pup = self.xp.full((4, max_pixels), -1, dtype=int)
+
+        for i, indices in enumerate(temp_indices):
+            if indices.shape[0] > 0:
+                ind_pup[i, :indices.shape[0]] = indices
+
+        # Look for any rows with all -1 and remove them
+        valid_rows = self.xp.any(ind_pup != -1, axis=1)
+        # If no valid rows raise an error
+        if not self.xp.any(valid_rows):
+            raise ValueError("No valid pupil indices found. Check input image and parameters.")
+        # Filter out invalid rows
+        ind_pup = ind_pup[valid_rows]
 
         return ind_pup
 
