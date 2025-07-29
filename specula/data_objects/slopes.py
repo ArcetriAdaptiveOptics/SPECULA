@@ -142,7 +142,7 @@ class Slopes(BaseDataObj):
 
     def get_fits_header(self):
         hdr = fits.Header()
-        hdr['VERSION'] = 2
+        hdr['VERSION'] = 3
         hdr['OBJ_TYPE'] = 'Intensity'
         hdr['INTRLVD'] = int(self.interleave)
         hdr['LENGTH'] = self.size
@@ -161,11 +161,14 @@ class Slopes(BaseDataObj):
     @staticmethod
     def from_header(hdr, target_device_idx=None):
         version = hdr['VERSION']
-        if version not in [1, 2]:
+        if version not in [1, 2, 3]:
             raise ValueError(f"Error: unknown version {version} in header")
         interleave = bool(hdr['INTRLVD'])
-        length = hdr['LENGTH']
-        slopes = Slopes(length=length, interleave=interleave, target_device_idx=target_device_idx)
+        if version == 3:
+            length = hdr['LENGTH']
+            slopes = Slopes(length=length, interleave=interleave, target_device_idx=target_device_idx)
+        else:
+            slopes = Slopes(length=1, interleave=interleave, target_device_idx=target_device_idx)
         if version >= 2:
             slopes.pupdata_tag = hdr.get('PUPD_TAG', None)
             slopes.subapdata_tag = hdr.get('SUBAP_TAG', None)
@@ -175,7 +178,10 @@ class Slopes(BaseDataObj):
     def restore(filename, target_device_idx=None):
         hdr = fits.getheader(filename)
         slopes = Slopes.from_header(hdr, target_device_idx=target_device_idx)
-        slopes.set_value(fits.getdata(filename, ext=1))
+        if hdr['VERSION'] >= 3:
+            slopes.set_value(fits.getdata(filename, ext=1))
+        else:
+            slopes.slopes = fits.getdata(filename, ext=1)
         return slopes
 
     def array_for_display(self):
