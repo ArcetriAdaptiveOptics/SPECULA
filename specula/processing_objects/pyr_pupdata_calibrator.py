@@ -11,6 +11,7 @@ class PyrPupdataCalibrator(BaseProcessingObj):
                  data_dir: str,
                  thr1: float = 0.1,
                  thr2: float = 0.25,
+                 slopes_from_intensity: bool=False,
                  output_tag: str = None,
                  auto_detect_obstruction: bool = True,
                  min_obstruction_ratio: float = 0.05,
@@ -22,6 +23,7 @@ class PyrPupdataCalibrator(BaseProcessingObj):
 
         self.thr1 = thr1
         self.thr2 = thr2
+        self.slopes_from_intensity = slopes_from_intensity
         self.auto_detect_obstruction = auto_detect_obstruction
         self.min_obstruction_ratio = min_obstruction_ratio
         self.display_debug = display_debug
@@ -162,35 +164,91 @@ class PyrPupdataCalibrator(BaseProcessingObj):
         h, w = image_shape
         y_coords, x_coords = self.xp.mgrid[0:h, 0:w]
 
-        # Compute maximum number of pixels needed
-        max_pixels = 0
-        temp_indices = []
+        if self.slopes_from_intensity:
+            # INTENSITY MODE: Adapt to real indices of each pupil
+            # Compute maximum number of pixels needed
+            max_pixels = 0
+            temp_indices = []
 
-        for i in range(4):
-            if radii[i] <= 0:
-                temp_indices.append(self.xp.array([], dtype=int))
-                continue
+            for i in range(4):
+                if radii[i] <= 0:
+                    temp_indices.append(self.xp.array([], dtype=int))
+                    continue
 
-            # Distance from center
-            r = self.xp.sqrt((x_coords - centers[i, 0])**2 + (y_coords - centers[i, 1])**2)
+                # Distance from center
+                r = self.xp.sqrt((x_coords - centers[i, 0])**2 + (y_coords - centers[i, 1])**2)
 
-            # Create mask (annulus if obstruction detected)
+                # Create mask (annulus if obstruction detected)
+                if self.central_obstruction_ratio > 0:
+                    mask = (r <= radii[i]) & (r >= radii[i] * self.central_obstruction_ratio)
+                else:
+                    mask = r <= radii[i]
+
+                # Get flat indices
+                flat_indices = self.xp.where(mask.flatten())[0]
+                temp_indices.append(flat_indices)
+                max_pixels = max(max_pixels, flat_indices.shape[0])
+
+            # Create a 2D array with padding to -1
+            ind_pup = self.xp.full((4, max_pixels), -1, dtype=int)
+
+            for i, indices in enumerate(temp_indices):
+                if indices.shape[0] > 0:
+                    ind_pup[i, :indices.shape[0]] = indices
+
+        else:
+            # SLOPES MODE: Identical areas obtained by simple translation
+            # Use average radius and define reference geometry
+            valid_radii = radii[radii > 0]
+            if valid_radii.shape[0] == 0:
+                raise ValueError("No valid pupils found for geometric mode")
+            
+            reference_radius = float(self.xp.mean(valid_radii))
+            
+            # Calculate reference mask at image center
+            center_x, center_y = w // 2, h // 2
+            r_ref = self.xp.sqrt((x_coords - center_x)**2 + (y_coords - center_y)**2)
+            
             if self.central_obstruction_ratio > 0:
-                mask = (r <= radii[i]) & (r >= radii[i] * self.central_obstruction_ratio)
+                reference_mask = (r_ref <= reference_radius) & (r_ref >= reference_radius * self.central_obstruction_ratio)
             else:
-                mask = r <= radii[i]
-
-            # Get flat indices
-            flat_indices = self.xp.where(mask.flatten())[0]
-            temp_indices.append(flat_indices)
-            max_pixels = max(max_pixels, flat_indices.shape[0])
-
-        # Create a 2D array with padding to -1
-        ind_pup = self.xp.full((4, max_pixels), -1, dtype=int)
-
-        for i, indices in enumerate(temp_indices):
-            if indices.shape[0] > 0:
-                ind_pup[i, :indices.shape[0]] = indices
+                reference_mask = r_ref <= reference_radius
+                
+            # Find relative offsets from reference center
+            reference_indices = self.xp.where(reference_mask.flatten())[0]
+            ref_y, ref_x = self.xp.unravel_index(reference_indices, (h, w))
+            
+            # Calculate relative offsets
+            offset_x = ref_x - center_x
+            offset_y = ref_y - center_y
+            
+            # Number of pixels per pupil (same for all)
+            n_pixels = reference_indices.shape[0]
+            ind_pup = self.xp.full((4, n_pixels), -1, dtype=int)
+            
+            # Apply translation for each pupil
+            for i in range(4):
+                if radii[i] <= 0:
+                    continue
+                    
+                # Calculate translated coordinates
+                new_x = offset_x + centers[i, 0]
+                new_y = offset_y + centers[i, 1]
+                
+                # Check that pixels are inside the image
+                valid_mask = (new_x >= 0) & (new_x < w) & (new_y >= 0) & (new_y < h)
+                
+                if self.xp.any(valid_mask):
+                    # Convert to linear indices
+                    valid_x = new_x[valid_mask].astype(int)
+                    valid_y = new_y[valid_mask].astype(int)
+                    valid_linear_indices = valid_y * w + valid_x
+                    
+                    # Fill array with valid indices
+                    n_valid = valid_linear_indices.shape[0]
+                    ind_pup[i, :n_valid] = valid_linear_indices
+                    
+                    # If fewer valid pixels, pad with -1 (already done by xp.full)
 
         # Look for any rows with all -1 and remove them
         valid_rows = self.xp.any(ind_pup != -1, axis=1)
