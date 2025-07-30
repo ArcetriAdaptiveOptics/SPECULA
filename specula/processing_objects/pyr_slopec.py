@@ -47,11 +47,12 @@ class PyrSlopec(Slopec):
         self.threshold = self.thr_value if self.thr_value != -1 else None
         self.slopes_from_intensity = slopes_from_intensity
         self.pupdata = pupdata  # Property set
-        self.pup_idx  = self.pupdata.ind_pup.flatten().astype(self.xp.int64)
-        self.pup_idx0 = self.pupdata.ind_pup[:, 0]
-        self.pup_idx1 = self.pupdata.ind_pup[:, 1]
-        self.pup_idx2 = self.pupdata.ind_pup[:, 2]
-        self.pup_idx3 = self.pupdata.ind_pup[:, 3]
+        ind_pup = self.pupdata.ind_pup
+        self.pup_idx  = ind_pup.flatten().astype(self.xp.int64)[ind_pup.flatten() >= 0] # Exclude -1 padding
+        self.pup_idx0 = ind_pup[:, 0][ind_pup[:, 0] >= 0]  # Exclude -1 padding
+        self.pup_idx1 = ind_pup[:, 1][ind_pup[:, 1] >= 0]  # Exclude -1 padding
+        self.pup_idx2 = ind_pup[:, 2][ind_pup[:, 2] >= 0]  # Exclude -1 padding
+        self.pup_idx3 = ind_pup[:, 3][ind_pup[:, 3] >= 0]  # Exclude -1 padding
         self.n_pup = self.pupdata.ind_pup.shape[1]
         self.n_subap = self.pupdata.ind_pup.shape[0]
 
