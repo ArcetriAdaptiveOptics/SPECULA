@@ -6,7 +6,7 @@ Submodules
 ----------
 
 specula.connections module
------------------------
+--------------------------
 
 .. automodule:: specula.connections
    :members:

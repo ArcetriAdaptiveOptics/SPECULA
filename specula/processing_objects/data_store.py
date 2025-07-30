@@ -65,7 +65,7 @@ class DataStore(BaseProcessingObj):
                 print("Warning: replay_params not available, skipping replay_params.yml creation")
 
     def save_fits(self, compress=False):
-        times = {k: np.array(list(v.keys()), dtype=self.dtype) for k, v in self.storage.items() if isinstance(v, OrderedDict)}
+        times = {k: np.array(list(v.keys()), dtype=np.uint64) for k, v in self.storage.items() if isinstance(v, OrderedDict)}
         data = {k: np.array(list(v.values()), dtype=self.dtype) for k, v in self.storage.items() if isinstance(v, OrderedDict)}
 
         for k,v in times.items():

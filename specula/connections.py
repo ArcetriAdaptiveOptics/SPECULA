@@ -25,7 +25,6 @@ class _InputItem():
         self.remote_rank = remote_rank
         self.tag = tag
         self.output_ref = value
-        self.last_value = None
 
 
     def receive_new_value(self, first_mpi_receive=True):
@@ -62,12 +61,12 @@ class _InputItem():
     def get(self, target_device_idx):
         if self.remote_rank is None:
             if self.output_ref is None:
-                self.last_value = None
+                self.cloned_value = None
                 return None
 
             elif self.output_ref.target_device_idx == target_device_idx:
-                self.last_value = self.output_ref
-                return self.output_ref
+                self.cloned_value = self.output_ref
+                return self.cloned_value
 
         if self.remote_rank is None:         
             value = self.output_ref
@@ -82,7 +81,6 @@ class _InputItem():
 
         if MPI_SEND_DBG and isinstance(self.cloned_value, ElectricField): print(process_rank, self.tag, 'RECV GET', self.cloned_value.field[1, 100:105, 100:105], flush=True)
 
-        self.last_value = self.cloned_value
         return self.cloned_value
 
 
@@ -105,6 +103,9 @@ class InputList():
         return flatten([v.get(target_device_idx) for v in self.input_values])
 
     def set(self, values_list, remote_rank=None, tag=None):
+        """
+        Set the input values for the list.
+        """
         self.input_values = []
         self.append(values_list, remote_rank, tag)
 
