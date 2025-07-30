@@ -172,8 +172,8 @@ class PyrPupdataCalibrator(BaseProcessingObj):
 
             for i in range(4):
                 if radii[i] <= 0:
-                    temp_indices.append(self.xp.array([], dtype=int))
-                    continue
+                    raise ValueError("Invalid radius detected on index {i}. "
+                                     "Check input image and parameters.")
 
                 # Distance from center
                 r = self.xp.sqrt((x_coords - centers[i, 0])**2 + (y_coords - centers[i, 1])**2)
@@ -199,20 +199,15 @@ class PyrPupdataCalibrator(BaseProcessingObj):
         else:
             # SLOPES MODE: Identical areas obtained by simple translation
             # Use first valid pupil as reference geometry
+            valid_pupils = [i for i in range(4) if radii[i] > 0]
+            if len(valid_pupils) != 4:
+                raise ValueError("All four pupils must be valid (radius > 0) for geometric mode. "
+                                f"Found valid pupils: {valid_pupils}")
 
-            # Find first valid pupil to use as reference
-            reference_pupil_idx = None
-            for i in range(4):
-                if radii[i] > 0:
-                    reference_pupil_idx = i
-                    break
-
-            if reference_pupil_idx is None:
-                raise ValueError("No valid pupils found for geometric mode")
-
-            # Create reference mask using first valid pupil
+            # Create reference mask using first valid pupil and maximum radius
+            reference_pupil_idx = valid_pupils[0]
             ref_center = centers[reference_pupil_idx]
-            ref_radius = radii[reference_pupil_idx]
+            ref_radius = radii.max()
 
             r_ref = self.xp.sqrt((x_coords - ref_center[0])**2 + (y_coords - ref_center[1])**2)
 
@@ -235,8 +230,6 @@ class PyrPupdataCalibrator(BaseProcessingObj):
 
             # Apply translation for each pupil
             for i in range(4):
-                if radii[i] <= 0:
-                    continue
 
                 # Calculate INTEGER translation vector
                 translation_x = self.xp.round(centers[i, 0] - ref_center[0]).astype(int)
