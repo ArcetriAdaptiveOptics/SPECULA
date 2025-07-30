@@ -1,3 +1,5 @@
+.. _installation:
+
 Installation
 ============
 
@@ -76,19 +78,21 @@ This installs SPECULA in "editable" mode, allowing you to modify the code and se
 
 **Required Dependencies:**
 All required dependencies will be installed automatically, including:
-   * **numpy**: Numerical computing foundation
-   * **scipy**: Scientific computing algorithms  
-   * **astropy**: Astronomical data handling and FITS I/O
-   * **matplotlib**: Plotting and visualization
-   * **flask**: Web framework for display server
-   * **flask-socketio**: Real-time web communication
-   * **python-socketio**: WebSocket client support
+
+* **numpy**: Numerical computing foundation
+* **scipy**: Scientific computing algorithms
+* **astropy**: Astronomical data handling and FITS I/O
+* **matplotlib**: Plotting and visualization
+* **flask**: Web framework for display server
+* **flask-socketio**: Real-time web communication
+* **python-socketio**: WebSocket client support
 
 **Optional Libraries:**
 
 **Block Diagram Generation:**
-   * **pycairo**: Graphics library for rendering diagrams
-   * **orthogram**: Automatic block diagram creation from SPECULA configurations
+
+* **pycairo**: Graphics library for rendering diagrams
+* **orthogram**: Automatic block diagram creation from SPECULA configurations
 
 .. code-block:: bash
 

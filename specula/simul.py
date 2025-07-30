@@ -240,29 +240,29 @@ class Simul():
 
         return build_order
 
-    def create_datastore_inputs(self, params):
+    def create_input_list_inputs(self, params):
         '''
-        Create inputs for DataStore objects.
-        This is done after all objects have been created, so that
-        the inputs can be created with the correct type.
-        Analyze the input_list parameter of each DataStore object, and for each item,
-        create an InputList or InputValue object with the correct type.
-        Also modify the params dictionary to use the correct input names.
+        Create inputs for objects that use input_list parameter.
+        Currently supported: DataStore, DataBuffer
         '''
+        supported_classes = ['DataBuffer','DataStore']
+
         for key, pars in params.items():
-            if 'class' in pars and pars['class'] == 'DataStore' and 'input_list' in pars['inputs']:
+            if ('class' in pars and 
+                pars['class'] in supported_classes and
+                'inputs' in pars and 
+                'input_list' in pars['inputs']):
+
                 for single_output_name in pars['inputs']['input_list']:
-                    # If a DataStore exists in this process, create the input
                     output = self.split_output(single_output_name, get_ref=True)
                     if key in self.objs:
                         if type(output.ref) is list:
                             self.objs[key].inputs[output.input_name] = InputList(type=type(output.ref[0]))
                         else:
                             self.objs[key].inputs[output.input_name] = InputValue(type=type(output.ref))
-                    # Modify the params dictionary in all processes
                     params[key]['inputs'][output.input_name] = single_output_name
                 del params[key]['inputs']['input_list']
-                        
+   
     def build_objects(self, params):
 
         self.setSimulParams(params)
@@ -695,7 +695,7 @@ class Simul():
             self.build_replay(params)
 
         self.build_objects(params)
-        self.create_datastore_inputs(params)
+        self.create_input_list_inputs(params)
         self.connect_objects(params)
 
         # Initialize housekeeping objects
