@@ -15,12 +15,12 @@ from test.specula_testlib import cpu_and_gpu
 
 
 class TestDataStore(unittest.TestCase):
-   
+
     def setUp(self):
         self.tmp_dir = os.path.join(os.path.dirname(__file__), 'tmp_data_store')
         if not os.path.exists(self.tmp_dir):
             os.mkdir(self.tmp_dir)
-    
+
     def tearDown(self):
        shutil.rmtree(self.tmp_dir, ignore_errors=True)
 
@@ -50,3 +50,6 @@ class TestDataStore(unittest.TestCase):
         gen_data = fits.getdata(gen_file)
         np.testing.assert_array_almost_equal(gen_data, np.array([[0], [0.9510565162951535]]))
 
+        # Make sure times are in int64
+        gen_times = fits.getdata(gen_file, ext=1)
+        assert gen_times.dtype == np.uint64

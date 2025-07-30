@@ -221,11 +221,9 @@ This method has no base class implementation.
 
 Any code implemented by derived classes must:
 
-#. only perform GPU operations using the xp module
-   on arrays allocated with self.xp
+#. only perform GPU operations using the xp module on arrays allocated with self.xp
 #. avoid any explicity numpy or normal python operation.
-#. NOT use any value in variables that are reallocated by prepare_trigger() or post_trigger(),
-  and in general avoid any value defined outside this class (like object inputs)
+#. NOT use any value in variables that are reallocated by prepare_trigger() or post_trigger(), and in general avoid any value defined outside this class (like object inputs)
 
 because if stream capture is used, a CUDA graph will be generated that will skip
 over any non-GPU operation and re-use GPU memory addresses of its first run.

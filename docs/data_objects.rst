@@ -53,6 +53,23 @@ Available Data Objects
    * :class:`~specula.data_objects.lenslet.Lenslet` - Shack-Hartmann lenslet arrays
    * :class:`~specula.data_objects.infinite_phase_screen.InfinitePhaseScreen` - Atmospheric turbulence screens
 
+Persistence and Data Flow
+-------------------------
+
+SPECULA data objects implement specialized methods for seamless integration with the data storage and replay system:
+
+**Storage and Replay Integration**
+   Data objects work automatically with :class:`~specula.processing_objects.data_store.DataStore` and :class:`~specula.processing_objects.data_source.DataSource` through standardized methods:
+
+   * :meth:`get_value` - Extracts the core numerical data for storage
+   * :meth:`from_header` - Reconstructs objects from stored headers
+   * :meth:`set_value` - Restores numerical data from storage
+
+**Supported Data Formats:**
+
+- **FITS**: Default format, preserves metadata and ensures portability
+- **Pickle**: Python-specific format for complex objects
+
 Usage Example
 -------------
 
@@ -107,11 +124,12 @@ Saving and loading calibration data:
 
 1. **Temporal Consistency**: Every data object knows when it was created
 2. **Device Agnostic**: Automatic GPU/CPU memory management  
-3. **Persistent**: All data can be saved and restored
+3. **Persistent**: All data can be saved and restored with full metadata
 4. **Type Safety**: Each data type has specific validation and methods
 5. **Modular**: Data objects can be combined and reused across simulations
+6. **Automatic Storage and Replay**: Seamless integration with DataStore/DataSource pipeliner analysis
 
-Data objects form the **connective tissue** of SPECULA simulations, ensuring that information flows correctly through the processing pipeline while maintaining temporal and spatial consistency.
+Data objects form the **connective tissue** of SPECULA simulations, ensuring that information flows correctly through the processing pipeline while maintaining temporal and spatial consistency. The integrated storage system enables **complete reproducibility** of simulation results and facilitates post-processing analysis workflows.
 
 .. seealso::
    

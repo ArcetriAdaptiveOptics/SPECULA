@@ -29,6 +29,7 @@ Tutorials
 .. toctree::
    :maxdepth: 2
 
+   Basic SCAO simulation tutorial <tutorials/scao_basic_tutorial>
    SCAO simulation tutorial <tutorials/scao_tutorial>
    Deformable Mirror actuator step response tutorial <tutorials/step_response_tutorial>
    Field Analyser (deferred computation of PSF, modal analysis and phase cube) tutorial <tutorials/field_analyser_tutorial>
@@ -50,9 +51,6 @@ Detailed API documentation:
 
 .. toctree::
    :maxdepth: 1
-
-   Base classes <base_classes>
-
 
 Indices and tables
 ==================

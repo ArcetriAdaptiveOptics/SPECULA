@@ -32,7 +32,7 @@ This is useful when we need to override, add and/or remove some parameters of th
 The other parameters, ``diagram``, ``diagram_filename``, and ``diagram_title``, are optional and can be used to generate a diagram of the simulation, which is useful for understanding and debugging the flow of data.
 The diagram is the graphical representation of the simulation, showing the objects and their connections.
 
-These arguments are similar to the ones used by ``specula`` itself, whose implementation can be find in the :function:`specula.__init__.main` function in file :file:`specula.__init__.py`.
+These arguments are similar to the ones used by ``specula`` itself, whose implementation can be find in the :py:func:`specula.__init__.main` function in file :file:`specula.__init__.py`.
 
 Examples of the diagram can be found in :doc:`simul_diagrams` page.
 A tutorial for running SCAO simulations is available in the :doc:`tutorials/scao_tutorial` page.

@@ -4,6 +4,7 @@ SCAO Tutorial: Complete Walkthrough
 ====================================
 
 This comprehensive tutorial guides you through creating, running, and analyzing a complete Single Conjugate Adaptive Optics (SCAO) simulation using SPECULA.
+Note that a more basic SCAO simulation tutorial is available in the :ref:`scao_basic_tutorial`.
 
 **What you'll learn:**
 
@@ -15,7 +16,7 @@ This comprehensive tutorial guides you through creating, running, and analyzing 
 
 **Prerequisites:**
 
-* SPECULA installed and working
+* SPECULA installed and working (see :doc:`../installation`)
 * Basic understanding of adaptive optics concepts
 * Python and YAML familiarity
 

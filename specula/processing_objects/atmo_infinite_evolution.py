@@ -54,8 +54,12 @@ class InfinitePhaseScreen(BaseDataObj):
         self.xp = xp
         self.stencil_size_factor = stencil_size_factor
         self.stencil_size = stencil_size_factor * self.mx_size
-        if random_seed is not None:
-            self.rng = self.xp.random.default_rng(random_seed)
+        if random_seed is None:
+            raise ValueError("random_seed must be provided")
+        else:
+            self.random_seed = int(random_seed)
+        self.rng = self.xp.random.default_rng(self.random_seed)
+
         #self.set_stencil_coords_basic()
         self.set_stencil_coords()
         self.setup()
@@ -154,7 +158,7 @@ class InfinitePhaseScreen(BaseDataObj):
         self.A_mat.append(self.xp.fliplr(self.xp.flipud(A_mat)))
         self.B_mat.append(B_mat)
         # make initial screen
-        tmp, _, _ = ft_phase_screen0( turbolenceFormulas, self.r0, self.stencil_size, self.pixel_scale, self.L0)
+        tmp, _, _ = ft_phase_screen0( turbolenceFormulas, self.r0, self.stencil_size, self.pixel_scale, self.L0, seed=self.random_seed)
         self.full_scrn = self.xp.asarray(tmp) / 2
         self.full_scrn -= self.xp.mean(self.full_scrn)
         # print(self.full_scrn.shape)

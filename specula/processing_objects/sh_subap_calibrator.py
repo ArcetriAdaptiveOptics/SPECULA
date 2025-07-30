@@ -14,6 +14,7 @@ class ShSubapCalibrator(BaseProcessingObj):
                  energy_th: float,
                  output_tag: str = None,
                  tag_template: str = None,
+                 overwrite: bool = False,
                  target_device_idx: int = None,
                  precision: int = None
                 ):
@@ -29,6 +30,8 @@ class ShSubapCalibrator(BaseProcessingObj):
             self._filename = tag_template
         else:
             self._filename = output_tag
+        self._overwrite = overwrite
+            
         self.inputs['in_i'] = InputValue(type=Intensity)
 
     def trigger_code(self):
@@ -41,7 +44,7 @@ class ShSubapCalibrator(BaseProcessingObj):
             filename += '.fits'
         file_path = os.path.join(self._data_dir, filename)
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        self.subaps.save(os.path.join(self._data_dir, filename))
+        self.subaps.save(os.path.join(self._data_dir, filename), overwrite=self._overwrite)
 
     def _detect_subaps(self, image, energy_th):
         np = image.shape[0]
