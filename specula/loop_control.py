@@ -43,11 +43,8 @@ class LoopControl(BaseTimeObj):
                    profiling=profiling, speed_report=speed_report)
         while self._t < self._t0 + self._run_time:            
             if MPI_DBG: print(process_rank, 'before barrier iter', flush=True)
-            if process_comm is not None:
-                process_comm.barrier()
             if MPI_DBG: print(process_rank, 'after barrier iter', flush=True)
             if MPI_DBG: print(process_rank, 'NEW ITERATION', self._t,flush=True)
-            # time.sleep(1)
             self.iter()
             
         self.finish()
@@ -121,9 +118,9 @@ class LoopControl(BaseTimeObj):
         if self._stop_at_time and self._t >= self.seconds_to_t(self._stop_at_time):
             last_iter = True
 
-        for i in sorted(self._trigger_lists.keys()): 
+        for i in sorted(self._trigger_lists.keys()):
             # all the objects having this trigger order could be remote
-            if MPI_DBG: print(process_rank, 'before check_ready', flush=True)                
+            if MPI_DBG: print(process_rank, 'before check_ready', flush=True)
             for element in self._trigger_lists[i]:
                 try:
                     element.check_ready(self._t)
@@ -131,7 +128,7 @@ class LoopControl(BaseTimeObj):
                     print('Exception in', element.name, flush=True)
                     raise
 
-            if MPI_DBG: print(process_rank, 'before trigger', flush=True)                
+            if MPI_DBG: print(process_rank, 'before trigger', flush=True)
             for element in self._trigger_lists[i]:
                 try:
                     element.trigger()
@@ -139,7 +136,7 @@ class LoopControl(BaseTimeObj):
                     print('Exception in', element.name, flush=True)
                     raise
 
-            if MPI_DBG: print(process_rank, 'before post_trigger', flush=True)                
+            if MPI_DBG: print(process_rank, 'before post_trigger', flush=True)
             for element in self._trigger_lists[i]:
                 try:
                     element.post_trigger()

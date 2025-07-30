@@ -252,7 +252,7 @@ class CCD(BaseProcessingObj):
             if self._bg_remove_average and not self._do_not_remove_dark:
                 ccd_frame -= self._background_level
 
-        self._pixels.pixels = ccd_frame
+        self._pixels.pixels = ccd_frame.astype(self.dtype)
 
     def apply_binning(self):
         in_dim = self._integrated_i.i.shape
@@ -268,16 +268,16 @@ class CCD(BaseProcessingObj):
             tot_ccd_frame = self.xp.sum(ccd_frame)
             ccd_frame = ccd_frame.reshape(out_dim[0], self._binning, out_dim[1], self._binning).sum(axis=(1, 3))
             ccd_frame = ccd_frame * self._binning ** 2 * (tot_ccd_frame / self.xp.sum(ccd_frame))
-            self._pixels.pixels = ccd_frame
+            self._pixels.pixels = ccd_frame.astype(self.dtype)
         else:
-            self._pixels.pixels = ccd_frame
+            self._pixels.pixels = ccd_frame.astype(self.dtype)
 
     def apply_qe(self):
         if self._qe != 1:
             self._pixels.multiply(self._qe)
         if self._notUniformQe:
             ccd_frame = self._pixels.pixels * self._notUniformQeMatrix
-            self._pixels.pixels = ccd_frame
+            self._pixels.pixels = ccd_frame.astype(self.dtype)
 
     def setQuadrantGains(self, quadrantsGains):
         dim2d = self._pixels.pixels.shape

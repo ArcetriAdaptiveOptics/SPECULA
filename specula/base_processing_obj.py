@@ -123,7 +123,6 @@ class BaseProcessingObj(BaseTimeObj):
 
     def send_remote_output(self, item, dest_rank, dest_tag, first_mpi_send=True, out_name=''):
         if MPI_SEND_DBG: print(process_rank, f'SEND to rank {dest_rank} {dest_tag=} {(dest_tag in self.sent_valid)=} (from {self.name}.{out_name})', flush=True)
-        
         if first_mpi_send or not dest_tag in self.sent_valid:
             if MPI_SEND_DBG: print(process_rank, f'SEND with Pickle', dest_tag, flush=True)
             xp_orig = item.xp
@@ -134,17 +133,11 @@ class BaseProcessingObj(BaseTimeObj):
             buffer = item.get_value()
             if MPI_SEND_DBG:  print(process_rank, dest_tag, 'SEND .device', buffer.device)
             if MPI_SEND_DBG: print(process_rank, f'SEND with Buffer', dest_tag, type(buffer), buffer, flush=True)
-
-            if MPI_SEND_DBG and isinstance(item, ElectricField): print(process_rank, dest_tag, 'SEND VALUE', item.field[1, 100:105, 100:105], flush=True)
+            if MPI_SEND_DBG: print(process_rank, f'SEND with Buffer type', dest_tag, buffer.dtype, flush=True)
 
             process_comm.Ibsend(cpuArray(buffer), dest=dest_rank, tag=dest_tag)
 
-            if MPI_SEND_DBG and isinstance(item, ElectricField): print(process_rank, dest_tag, 'SEND TIME', flush=True)
-
             process_comm.ibsend(item.generation_time, dest=dest_rank, tag=dest_tag+1)
-
-            if MPI_SEND_DBG and isinstance(item, ElectricField): print(process_rank, dest_tag+1, 'TIME SENT', flush=True)
-
         if item.get_value() is not None:
             self.sent_valid[dest_tag] = True
 
@@ -178,7 +171,6 @@ class BaseProcessingObj(BaseTimeObj):
                     if MPI_SEND_DBG: print(process_rank, f'SKIPPED SEND to rank {dest_rank} {dest_tag=} due to delay={delay}', flush=True)
                     continue
                 if MPI_DBG: print(process_rank, 'Sending ', out_name, 'to ', dest_rank, 'with tag',  dest_tag, type(self.outputs[out_name]), flush=True)
-
                 # workaround because module objects cannot be pickled
                 for item in self.outputs[out_name] if isinstance(self.outputs[out_name], list) else [self.outputs[out_name]]:
                     self.send_remote_output(item, dest_rank, dest_tag, first_mpi_send, out_name)

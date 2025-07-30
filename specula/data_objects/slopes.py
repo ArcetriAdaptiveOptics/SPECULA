@@ -17,7 +17,7 @@ class Slopes(BaseDataObj):
                  precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         if slopes is not None:
-            self.slopes = slopes
+            self.slopes = self.to_xp(slopes, dtype=self.dtype)
         else:
             self.slopes = self.xp.zeros(length, dtype=self.dtype)
         self.interleave = interleave
@@ -181,7 +181,7 @@ class Slopes(BaseDataObj):
         if hdr['VERSION'] >= 3:
             slopes.set_value(fits.getdata(filename, ext=1))
         else:
-            slopes.slopes = fits.getdata(filename, ext=1)
+            slopes.slopes = slopes.to_xp(fits.getdata(filename, ext=1), dtype=slopes.dtype)
         return slopes
 
     def array_for_display(self):
