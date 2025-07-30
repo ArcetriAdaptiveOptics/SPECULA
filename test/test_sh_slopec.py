@@ -146,9 +146,10 @@ class TestShSlopec(unittest.TestCase):
         # pupil is 1m
         pixel_pupil = 20
         pixel_pitch = 0.05
-        t = 1
         subap_on_diameter = 2
         weight_int_pixel_dt = 3.0
+        t_seconds = 1.0
+        t = int(1e9)*t_seconds  # Convert 1 second to simulation time step
 
         ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx)
         ef.generation_time = t
