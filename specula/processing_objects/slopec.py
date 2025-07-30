@@ -12,7 +12,6 @@ from specula.data_objects.recmat import Recmat
 class Slopec(BaseProcessingObj):
     def __init__(self,
                  sn: Slopes=None,
-                 use_sn: bool=False,
                  recmat: Recmat=None,
                  filt_intmat: Intmat=None,
                  filt_recmat: Recmat=None,
@@ -23,15 +22,10 @@ class Slopec(BaseProcessingObj):
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        # TODO this can become a single parameter (no need for separate flag)
-        if use_sn and not sn:
-            raise ValueError('Slopes null are not valid')
-
         self.slopes = Slopes(2, target_device_idx=self.target_device_idx) # TODO resized in derived class
         self.sn = sn
         self.flux_per_subaperture_vector = BaseValue(target_device_idx=self.target_device_idx)
         self.max_flux_per_subaperture_vector = BaseValue(target_device_idx=self.target_device_idx)
-        self.use_sn = use_sn
         self.recmat = recmat
         if filtmat is not None:
             if filt_intmat:
@@ -56,14 +50,6 @@ class Slopec(BaseProcessingObj):
 
         self.inputs['in_pixels'] = InputValue(type=Pixels)
         self.outputs['out_slopes'] = self.slopes
-
-    @property
-    def sn_tag(self):
-        return self._sn_tag
-
-    @sn_tag.setter
-    def sn_tag(self, value):
-        self.load_sn(value)
 
     def build_and_save_filtmat(self, intmat, recmat, nmodes, filename):
         im = intmat[:nmodes, :]
@@ -128,6 +114,10 @@ class Slopec(BaseProcessingObj):
 
     def post_trigger(self):
         super().post_trigger()
+
+        if self.sn:
+            self.slopes.xslopes -= self.sn.xslopes
+            self.slopes.yslopes -= self.sn.yslopes
 
         if self.recmat:
             m = self.xp.dot(self.slopes.slopes, self.recmat.recmat)
