@@ -198,57 +198,79 @@ class PyrPupdataCalibrator(BaseProcessingObj):
 
         else:
             # SLOPES MODE: Identical areas obtained by simple translation
-            # Use average radius and define reference geometry
-            valid_radii = radii[radii > 0]
-            if valid_radii.shape[0] == 0:
+            # Use first valid pupil as reference geometry
+
+            # Find first valid pupil to use as reference
+            reference_pupil_idx = None
+            for i in range(4):
+                if radii[i] > 0:
+                    reference_pupil_idx = i
+                    break
+
+            if reference_pupil_idx is None:
                 raise ValueError("No valid pupils found for geometric mode")
-            
-            reference_radius = float(self.xp.mean(valid_radii))
-            
-            # Calculate reference mask at image center
-            center_x, center_y = w // 2, h // 2
-            r_ref = self.xp.sqrt((x_coords - center_x)**2 + (y_coords - center_y)**2)
-            
+
+            # Create reference mask using first valid pupil
+            ref_center = centers[reference_pupil_idx]
+            ref_radius = radii[reference_pupil_idx]
+
+            r_ref = self.xp.sqrt((x_coords - ref_center[0])**2 + (y_coords - ref_center[1])**2)
+
             if self.central_obstruction_ratio > 0:
-                reference_mask = (r_ref <= reference_radius) & (r_ref >= reference_radius * self.central_obstruction_ratio)
+                reference_mask = (r_ref <= ref_radius) & (r_ref >= ref_radius * self.central_obstruction_ratio)
             else:
-                reference_mask = r_ref <= reference_radius
-                
+                reference_mask = r_ref <= ref_radius
+
             # Find relative offsets from reference center
             reference_indices = self.xp.where(reference_mask.flatten())[0]
             ref_y, ref_x = self.xp.unravel_index(reference_indices, (h, w))
-            
-            # Calculate relative offsets
-            offset_x = ref_x - center_x
-            offset_y = ref_y - center_y
-            
+
+            # Calculate relative offsets from reference pupil center
+            offset_x = ref_x - ref_center[0]
+            offset_y = ref_y - ref_center[1]
+
             # Number of pixels per pupil (same for all)
             n_pixels = reference_indices.shape[0]
             ind_pup = self.xp.full((4, n_pixels), -1, dtype=int)
-            
+
             # Apply translation for each pupil
             for i in range(4):
                 if radii[i] <= 0:
                     continue
-                    
-                # Calculate translated coordinates
-                new_x = offset_x + centers[i, 0]
-                new_y = offset_y + centers[i, 1]
-                
+
+                # Calculate INTEGER translation vector
+                translation_x = self.xp.round(centers[i, 0] - ref_center[0]).astype(int)
+                translation_y = self.xp.round(centers[i, 1] - ref_center[1]).astype(int)
+
+                # Apply integer translation to the reference geometry
+                new_x = offset_x + ref_center[0] + translation_x  # Same as: offset_x + centers[i,0] rounded
+                new_y = offset_y + ref_center[1] + translation_y  # Same as: offset_y + centers[i,1] rounded
+
                 # Check that pixels are inside the image
                 valid_mask = (new_x >= 0) & (new_x < w) & (new_y >= 0) & (new_y < h)
-                
-                if self.xp.any(valid_mask):
-                    # Convert to linear indices
-                    valid_x = new_x[valid_mask].astype(int)
-                    valid_y = new_y[valid_mask].astype(int)
-                    valid_linear_indices = valid_y * w + valid_x
-                    
-                    # Fill array with valid indices
-                    n_valid = valid_linear_indices.shape[0]
-                    ind_pup[i, :n_valid] = valid_linear_indices
-                    
-                    # If fewer valid pixels, pad with -1 (already done by xp.full)
+
+                # Raise error if no pixels are inside the image
+                if not self.xp.any(valid_mask):
+                    raise ValueError(f"Pupil {i} after translation is completely outside the image bounds. "
+                                    f"Translation: ({translation_x}, {translation_y}), "
+                                    f"Image size: {w}x{h}")
+
+                # Convert to linear indices
+                valid_x = new_x[valid_mask].astype(int)
+                valid_y = new_y[valid_mask].astype(int)
+                valid_linear_indices = valid_y * w + valid_x
+
+                # Fill array with valid indices
+                n_valid = valid_linear_indices.shape[0]
+                ind_pup[i, :n_valid] = valid_linear_indices
+
+                # Warn if any pixel is lost
+                lost_pixels = n_pixels - n_valid
+                if lost_pixels > 0:
+                    print(f"Warning: Pupil {i} lost {lost_pixels}/{n_pixels} pixels "
+                        f"({100*lost_pixels/n_pixels:.1f}%) due to image boundaries")
+
+                # If fewer valid pixels, pad with -1 (already done by xp.full)
 
         # Look for any rows with all -1 and remove them
         valid_rows = self.xp.any(ind_pup != -1, axis=1)
