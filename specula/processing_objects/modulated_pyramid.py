@@ -11,7 +11,8 @@ from specula.data_objects.intensity import Intensity
 from specula.lib.make_mask import make_mask
 from specula.lib.toccd import toccd
 from specula.data_objects.simul_params import SimulParams
-
+from specula.lib.zernike_generator import ZernikeGenerator
+        
 @fuse(kernel_name='pyr1_fused')
 def pyr1_fused(u_fp, ffv, fpsf, masked_exp, xp):
     psf = xp.real(u_fp * xp.conj(u_fp))
@@ -50,6 +51,7 @@ class ModulatedPyramid(BaseProcessingObj):
                  rotAnglePhInDeg: float = 0.0,
                  xShiftPhInPixel: float = 0.0,    # same as SH
                  yShiftPhInPixel: float = 0.0,    # same as SH
+                 extended_source: ExtendedSource = None,
                  target_device_idx: int = None,
                  precision: int = None
                 ):
@@ -94,6 +96,13 @@ class ModulatedPyramid(BaseProcessingObj):
         self.xShiftPhInPixel = xShiftPhInPixel
         self.yShiftPhInPixel = yShiftPhInPixel
         self.pup_shifts = pup_shifts
+        self.extended_source = extended_source
+        if self.extended_source is not None:
+            self.extended_source_in_on = True
+            if self.extended_source.npoints <= 0:
+                raise ValueError('Extended source must have npoints > 0')
+        else:
+            self.extended_source_in_on = False
 
         # interpolation settings
         self.interp = None
@@ -136,24 +145,27 @@ class ModulatedPyramid(BaseProcessingObj):
         self.tilt_y = self.get_modulation_tilt(fft_sampling, Y=True)
         self.fp_mask = self.get_fp_mask(fft_totsize, fp_masking, obsratio=fp_obsratio)
 
-        self.extended_source_in_on = False
         iu = 1j  # complex unit
         myexp = self.xp.exp(-2 * self.xp.pi * iu * self.pyr_tlt, dtype=self.complex_dtype)
         self.shifted_masked_exp = self.xp.fft.fftshift(myexp * self.fp_mask)
-
-        # Pre-computation of ttexp will be done when mod_steps will be set or re-set
-        if int(mod_step) != mod_step:
-            raise ValueError('Modulation step number is not an integer')
 
         self.pup_pyr_tot = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.dtype)
         self.psf_bfm_arr = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.dtype)
         self.psf_tot_arr = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.dtype)
         self.mod_amp = mod_amp
-        self.mod_steps = int(mod_step)
+        if self.extended_source_in_on:
+            # Update modulation steps to match source points
+            self.mod_steps = self.extended_source.npoints
+            print(f'Setting up extended source with {self.mod_steps} points')
+        else:
+            # Pre-computation of ttexp will be done when mod_steps will be set or re-set
+            if int(mod_step) != mod_step:
+                raise ValueError('Modulation step number is not an integer')
+            self.mod_steps = int(mod_step)
         self.ttexp = None
         self.ttexp_shape = None
         self.cache_ttexp()
-        self.u_tlt = self.xp.zeros((self.mod_steps, self.fft_totsize, self.fft_totsize), dtype=self.complex_dtype)
+        self.u_tlt = self.xp.zeros((self.mod_steps, self.fft_totsize, self.fft_totsize), dtype=self.complex_dtype)      
         self.roll_array = [self.fft_padding//2, self.fft_padding//2]
         self.roll_axis = [0,1]
         self.ifft_norm = 1.0 / (self.fft_totsize * self.fft_totsize)
@@ -250,42 +262,6 @@ class ModulatedPyramid(BaseProcessingObj):
 
         return results
 
-    def set_extended_source(self, source):
-        self.extSource = source
-        self.extended_source_in_on = True
-
-        self.ext_xtilt = self.zern(2, make_xy(self.fft_sampling, 1.0), xp=self.xp)
-        self.ext_ytilt = self.zern(3, make_xy(self.fft_sampling, 1.0), xp=self.xp)
-        self.ext_focus = self.zern(4, make_xy(self.fft_sampling, 1.0), xp=self.xp)
-
-        if source.npoints <= 0:
-            raise ValueError('ERROR: number of points of extended source is <= 0!')
-        else:
-            self.mod_steps = source.npoints
-
-        print(f'modulated_pyramid --> Setting up extended source with {self.mod_steps} points')
-
-        iu = 1j  # complex unit
-        
-        self.ttexp = self.xp.ndarray(shape=(self.mod_steps, self.tilt_x.shape[0], self.tilt_x.shape[1]), dtype=self.complex_dtype)
-
-        for tt in range(self.mod_steps):
-            raise NotImplementedError("Extended source is not implemented")
-            # TODO does not work
-            angle = 2 * self.xp.pi * (tt / self.mod_steps)
-            pup_tt = source.coeff_tiltx[tt] * self.ext_xtilt + source.coeff_tilty[tt] * self.ext_ytilt
-            pup_focus = -1 * source.coeff_focus[tt] * self.ext_focus
-            self.ttexp[tt, :, :] = self.xp.exp(-iu * (pup_tt + pup_focus))
-
-        i = source.coeff_flux
-        idx = self.xp.where(self.xp.abs(i) < self.xp.max(self.xp.abs(i)) * 1e-5)[0]
-        if len(idx[0]) > 0:
-            i[idx] = 0
-        self.ttexp_shape = self.ttexp.shape
-        self.flux_factor_vector = i
-        self.ffv = self.flux_factor_vector[:, self.xp.newaxis, self.xp.newaxis]
-        self.factor = 1.0 / self.xp.sum(self.flux_factor_vector)
-
     def get_pyr_tlt(self, p, c):
         A = int((p + c) // 2)
         pyr_tlt = self.xp.zeros((2 * A, 2 * A), dtype=self.dtype)
@@ -370,24 +346,76 @@ class ModulatedPyramid(BaseProcessingObj):
             return tilt_y
 
     def cache_ttexp(self):
-        if not self.extended_source_in_on:
-            del self.ttexp
-            if self.mod_steps <= 0:
-                return
+        """Cache tip/tilt exponentials for modulation or extended source"""
+        
+        if self.mod_steps <= 0:
+            # Clear cache if no steps
+            self.ttexp = None
+            self.ttexp_shape = None
+            return
 
-            iu = 1j  # complex unit
+        iu = 1j  # complex unit
+        
+        # Initialize ttexp array
+        self.ttexp = self.xp.zeros((self.mod_steps, self.tilt_x.shape[0], self.tilt_x.shape[1]), 
+                                dtype=self.complex_dtype)
 
-            self.ttexp = self.xp.ndarray(shape=(self.mod_steps, self.tilt_x.shape[0], self.tilt_x.shape[1]), dtype=self.complex_dtype)
+        if self.extended_source_in_on:
+            # EXTENDED SOURCE MODE: Use source coefficients
+            if self.extended_source is None:
+                raise ValueError("Extended source is enabled but no source object provided")
+
+            source = self.extended_source
+
+            # Create Zernike generator for the pupil
+            zg = ZernikeGenerator(self.fft_sampling, xp=self.xp, dtype=self.dtype)
+
+            # Get tip, tilt, focus modes (Noll indices 2, 3, 4)
+            ext_xtilt = zg.getZernike(2)  # tip
+            ext_ytilt = zg.getZernike(3)  # tilt
+            ext_focus = zg.getZernike(4)  # focus
+
+            # Cache exponentials for each source point
+            for tt in range(self.mod_steps):
+                # Combine tip, tilt, and focus for this point
+                pup_phase = (source.coeff_tiltx[tt] * ext_xtilt +
+                            source.coeff_tilty[tt] * ext_ytilt +
+                            source.coeff_focus[tt] * ext_focus)
+
+                self.ttexp[tt, :, :] = self.xp.exp(-iu * pup_phase, dtype=self.complex_dtype)
+
+            # Set flux factor vector from source
+            self.flux_factor_vector = self.to_xp(source.coeff_flux)
+
+            # Clean up very small flux values
+            max_flux = self.xp.max(self.xp.abs(self.flux_factor_vector))
+            threshold = max_flux * 1e-5
+            small_idx = self.xp.abs(self.flux_factor_vector) < threshold
+            self.flux_factor_vector[small_idx] = 0.0
+
+        else:
+            # CIRCULAR MODULATION MODE: Standard pyramid modulation
             for tt in range(self.mod_steps):
                 angle = 2 * self.xp.pi * (tt / self.mod_steps)
-                pup_tt = self.mod_amp * self.xp.sin(angle) * self.tilt_x + \
-                         self.mod_amp * self.xp.cos(angle) * self.tilt_y
+                pup_tt = (self.mod_amp * self.xp.sin(angle) * self.tilt_x + 
+                        self.mod_amp * self.xp.cos(angle) * self.tilt_y)
+
                 self.ttexp[tt, :, :] = self.xp.exp(-iu * pup_tt, dtype=self.complex_dtype)
 
+            # Equal flux for all modulation steps
             self.flux_factor_vector = self.xp.ones(self.mod_steps, dtype=self.dtype)
-            self.ffv = self.flux_factor_vector[:, self.xp.newaxis, self.xp.newaxis]
-            self.factor = 1.0 / self.xp.sum(self.flux_factor_vector)
-            self.ttexp_shape = self.ttexp.shape
+
+        # Common setup for both modes
+        self.ffv = self.flux_factor_vector[:, self.xp.newaxis, self.xp.newaxis]
+        self.factor = 1.0 / self.xp.sum(self.flux_factor_vector)
+        self.ttexp_shape = self.ttexp.shape
+
+        if self.extended_source_in_on:
+            print(f'Cached extended source with {self.mod_steps} points, '
+                f'total flux: {self.xp.sum(self.flux_factor_vector):.3f}')
+        else:
+            print(f'Cached circular modulation with {self.mod_steps} steps, '
+                f'amplitude: {self.mod_amp:.2f}')
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
