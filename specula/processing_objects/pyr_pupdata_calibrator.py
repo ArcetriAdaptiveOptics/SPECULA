@@ -14,6 +14,7 @@ class PyrPupdataCalibrator(BaseProcessingObj):
                  auto_detect_obstruction: bool = True,
                  min_obstruction_ratio: float = 0.05,
                  display_debug: bool = False,
+                 overwrite: bool = False,
                  target_device_idx: int = None,
                  precision: int = None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
@@ -26,6 +27,7 @@ class PyrPupdataCalibrator(BaseProcessingObj):
         self._data_dir = data_dir
         self._filename = output_tag or "pupdata"
         self.central_obstruction_ratio = 0.0
+        self._overwrite = overwrite
 
         self.inputs['in_i'] = InputValue(type=Intensity)
         self.pupdata = None
@@ -238,7 +240,8 @@ class PyrPupdataCalibrator(BaseProcessingObj):
             filename += '.fits'
         file_path = os.path.join(self._data_dir, filename)
 
-        self.pupdata.save(file_path)
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        self.pupdata.save(file_path, overwrite=self._overwrite)
 
         if self.verbose:
             print(f'Saved pupil data: {file_path}')
