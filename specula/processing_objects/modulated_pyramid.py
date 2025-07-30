@@ -532,7 +532,7 @@ class ModulatedPyramid(BaseProcessingObj):
         in_ef = self.local_inputs['in_ef']
 
         # Determine if interpolation is needed (like in SH)
-        if self.rotAnglePhInDeg != 0 or self.xShiftPhInPixel != 0 or self.yShiftPhInPixel != 0:
+        if self.fov_res > 1 or self.rotAnglePhInDeg != 0 or self.xShiftPhInPixel != 0 or self.yShiftPhInPixel != 0:
             self._do_interpolation = True
 
             # Create the interpolated field (like SH does with self._wf1)
@@ -547,7 +547,7 @@ class ModulatedPyramid(BaseProcessingObj):
             # Create the interpolator (like in SH)
             self.interp = Interp2D(
                 in_ef.size,
-                in_ef.size,
+                (self.fft_sampling, self.fft_sampling),  # Output shape
                 self.rotAnglePhInDeg,
                 self.xShiftPhInPixel,
                 self.yShiftPhInPixel,
