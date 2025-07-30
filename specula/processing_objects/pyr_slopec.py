@@ -2,6 +2,7 @@ from specula import fuse
 from specula.processing_objects.slopec import Slopec
 from specula.base_value import BaseValue
 from specula.data_objects.pupdata import PupData
+from specula.data_objects.slopes import Slopes
 
 
 @fuse(kernel_name='clamp_generic_less')
@@ -26,14 +27,15 @@ def clamp_generic_more1(x, c, y, xp):
 class PyrSlopec(Slopec):
     def __init__(self,
                  pupdata: PupData,
+                 sn: Slopes=None,
                  shlike: bool=False,
                  norm_factor: float=None,   # TODO =1.0,
-                 thr_value: float=0.0,
+                 thr_value: float=0,
                  slopes_from_intensity: bool=False,
                  target_device_idx: int=None,
                  precision: int=None,
                 **kwargs): # is this needed??
-        super().__init__(target_device_idx=target_device_idx, precision=precision, **kwargs)
+        super().__init__(sn=sn, target_device_idx=target_device_idx, precision=precision, **kwargs)
 
         if shlike and slopes_from_intensity:
             raise ValueError('Both SHLIKE and SLOPES_FROM_INTENSITY parameters are set. Only one of these should be used.')
@@ -43,15 +45,15 @@ class PyrSlopec(Slopec):
 
         self.shlike = shlike
         self.norm_factor = norm_factor
-        self.thr_value = int(thr_value)
-        self.threshold = self.thr_value if self.thr_value != -1 else None
+        self.threshold = thr_value
         self.slopes_from_intensity = slopes_from_intensity
         self.pupdata = pupdata  # Property set
-        self.pup_idx  = self.pupdata.ind_pup.flatten().astype(self.xp.int64)
-        self.pup_idx0 = self.pupdata.ind_pup[:, 0]
-        self.pup_idx1 = self.pupdata.ind_pup[:, 1]
-        self.pup_idx2 = self.pupdata.ind_pup[:, 2]
-        self.pup_idx3 = self.pupdata.ind_pup[:, 3]
+        ind_pup = self.pupdata.ind_pup
+        self.pup_idx  = ind_pup.flatten().astype(self.xp.int64)[ind_pup.flatten() >= 0] # Exclude -1 padding
+        self.pup_idx0 = ind_pup[:, 0][ind_pup[:, 0] >= 0]  # Exclude -1 padding
+        self.pup_idx1 = ind_pup[:, 1][ind_pup[:, 1] >= 0]  # Exclude -1 padding
+        self.pup_idx2 = ind_pup[:, 2][ind_pup[:, 2] >= 0]  # Exclude -1 padding
+        self.pup_idx3 = ind_pup[:, 3][ind_pup[:, 3] >= 0]  # Exclude -1 padding
         self.n_pup = self.pupdata.ind_pup.shape[1]
         self.n_subap = self.pupdata.ind_pup.shape[0]
 
@@ -60,15 +62,6 @@ class PyrSlopec(Slopec):
         self.outputs['out_pupdata'] = self.pupdata
         self.outputs['total_counts'] = self.total_counts
         self.outputs['subap_counts'] = self.subap_counts
-
-
-    @property
-    def thr_value(self):
-        return self._thr_value
-
-    @thr_value.setter
-    def thr_value(self, value):
-        self._thr_value = int(value)
 
     @property
     def pupdata(self):
@@ -101,8 +94,7 @@ class PyrSlopec(Slopec):
 
         self.total_counts.value = self.xp.sum(self.flat_pixels[self.pup_idx])
 
-        if self.threshold is not None:
-            self.flat_pixels -= self.threshold
+        self.flat_pixels -= self.threshold
 
         clamp_generic_less(0,0,self.flat_pixels, xp=self.xp)
         A = self.flat_pixels[self.pup_idx0].astype(self.xp.float32)
