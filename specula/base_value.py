@@ -20,7 +20,10 @@ class BaseValue(BaseDataObj):
         return self._value
 
     def set_value(self, val, force_copy=False):
-        self._value[:] = self.to_xp(val)
+        if not self._value is None and not force_copy:
+            self._value[:] = self.to_xp(val)
+        else:
+            self._value = self.to_xp(val)
 
     @property
     def value(self):
