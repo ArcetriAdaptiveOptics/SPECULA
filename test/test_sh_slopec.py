@@ -28,7 +28,9 @@ class TestShSlopec(unittest.TestCase):
         wavelengthInNm = 500
         pxscale_arcsec = 0.1
         # big subaperture to avoid edge effects
-        subap_npx = 120
+        subap_npx = 12
+        t_seconds = 1.0
+        t = int(1e9)*t_seconds  # Convert 1 second to simulation time step
 
         # ------------------------------------------------------------------------------
         # Set up inputs for ShSlopec
@@ -50,7 +52,6 @@ class TestShSlopec(unittest.TestCase):
         for k, idx in idxs.items():
             v[k] = np.ravel_multi_index(idx, mask_subap.shape)
             m[k] = map[k]
-
 
         # "simple" SH
         if not with_laser_launch:
@@ -74,7 +75,12 @@ class TestShSlopec(unittest.TestCase):
                     laser_launch_tel=laser_launch_tel,
                     target_device_idx=target_device_idx)
 
-        return sh, v, m
+        flat_ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        flat_ef.generation_time = t
+
+        subapdata = SubapData(idxs=v, display_map = m, nx=subap_on_diameter, ny=subap_on_diameter, target_device_idx=target_device_idx)
+
+        return sh, v, m, flat_ef, subapdata
 
     @cpu_and_gpu
     def test_pixelscale_and_slopes(self, target_device_idx, xp):
@@ -87,14 +93,11 @@ class TestShSlopec(unittest.TestCase):
         pixel_pupil = 20
         pixel_pitch = 0.05
         t = 1
-        subap_on_diameter = 2
         pxscale_arcsec = 0.1
-        subap_npx = 120
+        subap_npx = 12
 
-        ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx)
-        ef.generation_time = t
-        sh, v, m = self.get_sh(target_device_idx, xp, with_laser_launch=True)
-        sh.inputs['in_ef'].set(ef)
+        sh, v, m, flat_ef, subapdata = self.get_sh(target_device_idx, xp, with_laser_launch=True)
+        sh.inputs['in_ef'].set(flat_ef)
         sh.setup()
         sh.check_ready(t)
         sh.trigger()
@@ -105,8 +108,8 @@ class TestShSlopec(unittest.TestCase):
         tilt = np.linspace(-tilt_value / 2, tilt_value / 2, pixel_pupil)
         
         # Tilted wavefront
-        ef.phaseInNm[:] = xp.array(np.broadcast_to(tilt, (pixel_pupil, pixel_pupil))) * 1e9
-        ef.generation_time = t+1
+        flat_ef.phaseInNm[:] = xp.array(np.broadcast_to(tilt, (pixel_pupil, pixel_pupil))) * 1e9
+        flat_ef.generation_time = t+1
 
         sh.check_ready(t+1)
         sh.trigger()
@@ -119,7 +122,6 @@ class TestShSlopec(unittest.TestCase):
         pixels.generation_time = t+1
 
         # Create the slope computer object
-        subapdata = SubapData(idxs=v, display_map=m, nx=subap_on_diameter, ny=subap_on_diameter, target_device_idx=target_device_idx)
         slopec = ShSlopec(subapdata, target_device_idx=target_device_idx)
         slopec.inputs['in_pixels'].set(pixels)
         slopec.check_ready(t+1)
@@ -140,19 +142,12 @@ class TestShSlopec(unittest.TestCase):
         with a specific weight_int_pixel_dt.
         """
         
-        # Flat wavefront
-        # pupil is 1m
-        pixel_pupil = 20
-        pixel_pitch = 0.05
-        subap_on_diameter = 2
         weight_int_pixel_dt = 3.0
         t_seconds = 1.0
         t = int(1e9)*t_seconds  # Convert 1 second to simulation time step
 
-        ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx)
-        ef.generation_time = t
-        sh, v, m = self.get_sh(target_device_idx, xp, with_laser_launch=True)
-        sh.inputs['in_ef'].set(ef)
+        sh, v, m, flat_ef, subapdata = self.get_sh(target_device_idx, xp, with_laser_launch=True)
+        sh.inputs['in_ef'].set(flat_ef)
         sh.setup()
         sh.check_ready(t)
         sh.trigger()
@@ -166,7 +161,6 @@ class TestShSlopec(unittest.TestCase):
         pixels.generation_time = t
 
         # Create the slope computer object with the given parameters
-        subapdata = SubapData(idxs=v, display_map=m, nx=subap_on_diameter, ny=subap_on_diameter, target_device_idx=target_device_idx)
         slopec = ShSlopec(subapdata, weight_int_pixel_dt=weight_int_pixel_dt, target_device_idx=target_device_idx)
         slopec.inputs['in_pixels'].set(pixels)
 
@@ -210,20 +204,13 @@ class TestShSlopec(unittest.TestCase):
         Test that verifies both slope computation and pixel accumulation
         with a specific weight_int_pixel_dt and window_int_pixel.
         """
-        pixel_pupil = 20
-        pixel_pitch = 0.05
-        subap_on_diameter = 2
-        weight_int_pixel_dt = 3.0
+        weight_int_pixel_dt = 2.0
 
-        sh, v, m = self.get_sh(target_device_idx, xp, with_laser_launch=True)
-        t = 1
-        # Flat wavefront
-        # pupil is 1m
-        pixel_pupil = 20
-        pixel_pitch = 0.05
-        ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx)
-        ef.generation_time = t
-        sh.inputs['in_ef'].set(ef)
+        sh, v, m, flat_ef, subapdata = self.get_sh(target_device_idx, xp, with_laser_launch=True)
+        t_seconds = 1.0
+        t = int(1e9)*t_seconds  # Convert 1 second to simulation time step
+
+        sh.inputs['in_ef'].set(flat_ef)
         sh.setup()
         sh.check_ready(t)
         sh.trigger()
@@ -237,7 +224,6 @@ class TestShSlopec(unittest.TestCase):
         pixels.generation_time = t
 
         # Create the slope computer object with the given parameters
-        subapdata = SubapData(idxs=v, display_map=m, nx=subap_on_diameter, ny=subap_on_diameter, target_device_idx=target_device_idx)
         slopec = ShSlopec(subapdata, weight_int_pixel_dt=weight_int_pixel_dt, window_int_pixel=True, target_device_idx=target_device_idx)
         slopec.inputs['in_pixels'].set(pixels)
 
@@ -264,7 +250,6 @@ class TestShSlopec(unittest.TestCase):
         expected_weights[4:8,   16:20] = 1.0
         expected_weights[16:20, 4:8] = 1.0
 
-        np.testing.assert_equal(last_weights_2d, expected_weights, err_msg="Weight map does not match expected values.")
         np.testing.assert_equal(cpuArray(last_weights_2d), cpuArray(expected_weights), err_msg="Weight map does not match expected values.")
 
 
@@ -275,15 +260,10 @@ class TestShSlopec(unittest.TestCase):
         '''
         # Flat wavefront
         # pupil is 1m
-        pixel_pupil = 20
-        pixel_pitch = 0.05
-        subap_on_diameter = 2
         t = 1
-        ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx)
-        ef.generation_time = t
-        sh, v, m = self.get_sh(target_device_idx, xp, with_laser_launch=False)
+        sh, v, m, flat_ef, subapdata = self.get_sh(target_device_idx, xp, with_laser_launch=False)
 
-        sh.inputs['in_ef'].set(ef)
+        sh.inputs['in_ef'].set(flat_ef)
         sh.setup()
         sh.check_ready(t)
         sh.trigger()
@@ -297,8 +277,6 @@ class TestShSlopec(unittest.TestCase):
         pixels.generation_time = t
 
         # Create the slope computer object with the given parameters
-        subapdata = SubapData(idxs=v, display_map = m, nx=subap_on_diameter, ny=subap_on_diameter, target_device_idx=target_device_idx)
-
         sn = Slopes(slopes=xp.arange(len(m)*2), interleave=False, target_device_idx=target_device_idx)
 
         slopec1 = ShSlopec(subapdata, target_device_idx=target_device_idx)
@@ -327,15 +305,10 @@ class TestShSlopec(unittest.TestCase):
 
         # Flat wavefront
         # pupil is 1m
-        pixel_pupil = 20
-        pixel_pitch = 0.05
-        subap_on_diameter = 2
         t=1
-        ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx)
-        ef.generation_time = t
-        sh, v, m = self.get_sh(target_device_idx, xp, with_laser_launch=False)
+        sh, v, m, flat_ef, subapdata = self.get_sh(target_device_idx, xp, with_laser_launch=False)
 
-        sh.inputs['in_ef'].set(ef)
+        sh.inputs['in_ef'].set(flat_ef)
         sh.setup()
         sh.check_ready(t)
         sh.trigger()
@@ -349,7 +322,6 @@ class TestShSlopec(unittest.TestCase):
         pixels.generation_time = t
 
         # Create the slope computer object with the given parameters
-        subapdata = SubapData(idxs=v, display_map = m, nx=subap_on_diameter, ny=subap_on_diameter, target_device_idx=target_device_idx)
 
         sn = Slopes(slopes=xp.arange(len(m)*2), interleave=True, target_device_idx=target_device_idx)
 
