@@ -11,6 +11,7 @@ from specula.data_objects.electric_field import ElectricField
 from specula.processing_objects.sh import SH
 from specula.data_objects.laser_launch_telescope import LaserLaunchTelescope
 from specula.data_objects.pixels import Pixels
+from specula.data_objects.slopes import Slopes
 from specula.data_objects.subap_data import SubapData
 from specula.processing_objects.sh_slopec import ShSlopec
 from test.specula_testlib import cpu_and_gpu
@@ -18,13 +19,7 @@ from test.specula_testlib import cpu_and_gpu
 
 class TestShSlopec(unittest.TestCase):
 
-    @cpu_and_gpu
-    def test_pixelscale_and_slopes(self, target_device_idx, xp):
-        """
-        Test that verifies both pixel scale and slope computation for SH.
-        A tilt that shifts the spot by 1 pixel should produce a slope of 1/(sh.subap_npx/2).
-        """
-        t = 1
+    def get_sh(self, target_device_idx, xp, with_laser_launch=False):
         # pupil is 1m
         pixel_pupil = 20
         pixel_pitch = 0.05
@@ -40,39 +35,66 @@ class TestShSlopec(unittest.TestCase):
         # Set up inputs for ShSlopec
         idxs = {}
         map = {}
-        mask_subap = xp.ones((subap_on_diameter*subap_npx, subap_on_diameter*subap_npx))
+        mask_subap = np.ones((subap_on_diameter*subap_npx, subap_on_diameter*subap_npx))
 
         count = 0
         for i in range(subap_on_diameter):
             for j in range(subap_on_diameter):
                 mask_subap *= 0
                 mask_subap[i*subap_npx:(i+1)*subap_npx,j*subap_npx:(j+1)*subap_npx] = 1
-                idxs[count] = xp.where(mask_subap == 1)
+                idxs[count] = np.where(mask_subap == 1)
                 map[count] = j * subap_on_diameter + i
                 count += 1
 
-        v = xp.zeros((len(idxs), subap_npx*subap_npx), dtype=int)
-        m = xp.zeros(len(idxs), dtype=int)
+        v = np.zeros((len(idxs), subap_npx*subap_npx), dtype=int)
+        m = np.zeros(len(idxs), dtype=int)
         for k, idx in idxs.items():
-            v[k] = xp.ravel_multi_index(idx, mask_subap.shape)
+            v[k] = np.ravel_multi_index(idx, mask_subap.shape)
             m[k] = map[k]
-        # ------------------------------------------------------------------------------
 
-        # Create the SH object
-        laser_launch_tel = LaserLaunchTelescope(spot_size=pxscale_arcsec,
-                             target_device_idx=target_device_idx)
 
-        sh = SH(wavelengthInNm=wavelengthInNm,
-                subap_wanted_fov=subap_npx * pxscale_arcsec,
-                sensor_pxscale=pxscale_arcsec,
-                subap_on_diameter=subap_on_diameter,
-                subap_npx=subap_npx,
-                laser_launch_tel=laser_launch_tel,
-                target_device_idx=target_device_idx)
+        # "simple" SH
+        if not with_laser_launch:
+            sh = SH(wavelengthInNm=wavelengthInNm,
+                    subap_wanted_fov=subap_npx * pxscale_arcsec,
+                    sensor_pxscale=pxscale_arcsec,
+                    subap_on_diameter=subap_on_diameter,
+                    subap_npx=subap_npx,
+                    target_device_idx=target_device_idx)
 
+        # SH with laser launch
+        else:
+            laser_launch_tel = LaserLaunchTelescope(spot_size=pxscale_arcsec,
+                                target_device_idx=target_device_idx)
+
+            sh = SH(wavelengthInNm=wavelengthInNm,
+                    subap_wanted_fov=subap_npx * pxscale_arcsec,
+                    sensor_pxscale=pxscale_arcsec,
+                    subap_on_diameter=subap_on_diameter,
+                    subap_npx=subap_npx,
+                    laser_launch_tel=laser_launch_tel,
+                    target_device_idx=target_device_idx)
+
+        return sh, v, m
+
+    @cpu_and_gpu
+    def test_pixelscale_and_slopes(self, target_device_idx, xp):
+        """
+        Test that verifies both pixel scale and slope computation for SH.
+        A tilt that shifts the spot by 1 pixel should produce a slope of 1/(sh.subap_npx/2).
+        """
         # Flat wavefront
+        # pupil is 1m
+        pixel_pupil = 20
+        pixel_pitch = 0.05
+        t = 1
+        subap_on_diameter = 2
+        pxscale_arcsec = 0.1
+        subap_npx = 120
+
         ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx)
         ef.generation_time = t
+        sh, v, m = self.get_sh(target_device_idx, xp, with_laser_launch=True)
         sh.inputs['in_ef'].set(ef)
         sh.setup()
         sh.check_ready(t)
@@ -119,64 +141,25 @@ class TestShSlopec(unittest.TestCase):
         Test that verifies both slope computation and pixel accumulation
         with a specific weight_int_pixel_dt.
         """
-        t_seconds = 1.0
-        t = int(1e9)*t_seconds  # Convert 1 second to simulation time step
+        
+        # Flat wavefront
         # pupil is 1m
         pixel_pupil = 20
         pixel_pitch = 0.05
-        # 2x2 subapertures
+        t = 1
         subap_on_diameter = 2
-        # lambda is 500 nm and lambda/D is 0.206 arcsec so 0.1 means 2 pixels per lambda/D
-        wavelengthInNm = 500
-        pxscale_arcsec = 0.1
-        # big subaperture to avoid edge effects
-        subap_npx = 12
         weight_int_pixel_dt = 3.0
 
-        # ------------------------------------------------------------------------------
-        # Set up inputs for ShSlopec
-        idxs = {}
-        map = {}
-        mask_subap = xp.ones((subap_on_diameter*subap_npx, subap_on_diameter*subap_npx))
-
-        count = 0
-        for i in range(subap_on_diameter):
-            for j in range(subap_on_diameter):
-                mask_subap *= 0
-                mask_subap[i*subap_npx:(i+1)*subap_npx,j*subap_npx:(j+1)*subap_npx] = 1
-                idxs[count] = xp.where(mask_subap == 1)
-                map[count] = j * subap_on_diameter + i
-                count += 1
-
-        v = xp.zeros((len(idxs), subap_npx*subap_npx), dtype=int)
-        m = xp.zeros(len(idxs), dtype=int)
-        for k, idx in idxs.items():
-            v[k] = xp.ravel_multi_index(idx, mask_subap.shape)
-            m[k] = map[k]
-        # ------------------------------------------------------------------------------
-
-        # Create the SH object
-        laser_launch_tel = LaserLaunchTelescope(spot_size=pxscale_arcsec,
-                             target_device_idx=target_device_idx)
-
-        sh = SH(wavelengthInNm=wavelengthInNm,
-                subap_wanted_fov=subap_npx * pxscale_arcsec,
-                sensor_pxscale=pxscale_arcsec,
-                subap_on_diameter=subap_on_diameter,
-                subap_npx=subap_npx,
-                laser_launch_tel=laser_launch_tel,
-                target_device_idx=target_device_idx)
-        
-        # Flat wavefront
         ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx)
         ef.generation_time = t
+        sh, v, m = self.get_sh(target_device_idx, xp, with_laser_launch=True)
         sh.inputs['in_ef'].set(ef)
         sh.setup()
         sh.check_ready(t)
         sh.trigger()
         sh.post_trigger()
 
-        intensity = sh.outputs['out_i'].i.copy()
+        intensity =sh.outputs['out_i'].i.copy()
 
         # Compute slopes using ShSlopec
         pixels = Pixels(*intensity.shape, target_device_idx=target_device_idx)
@@ -227,55 +210,17 @@ class TestShSlopec(unittest.TestCase):
         Test that verifies both slope computation and pixel accumulation
         with a specific weight_int_pixel_dt and window_int_pixel.
         """
-        t_seconds = 1.0
-        t = int(1e9)*t_seconds  # Convert 1 second to simulation time step
+        pixel_pupil = 20
+        pixel_pitch = 0.05
+        subap_on_diameter = 2
+        weight_int_pixel_dt = 3.0
+
+        sh, v, m = self.get_sh(target_device_idx, xp, with_laser_launch=True)
+        t = 1
+        # Flat wavefront
         # pupil is 1m
         pixel_pupil = 20
         pixel_pitch = 0.05
-        # 2x2 subapertures
-        subap_on_diameter = 2
-        # lambda is 500 nm and lambda/D is 0.206 arcsec so 0.1 means 2 pixels per lambda/D
-        wavelengthInNm = 500
-        pxscale_arcsec = 0.1
-        # big subaperture to avoid edge effects
-        subap_npx = 12
-        weight_int_pixel_dt = 2.0
-
-        # ------------------------------------------------------------------------------
-        # Set up inputs for ShSlopec
-        idxs = {}
-        map = {}
-        mask_subap = xp.ones((subap_on_diameter*subap_npx, subap_on_diameter*subap_npx))
-
-        count = 0
-        for i in range(subap_on_diameter):
-            for j in range(subap_on_diameter):
-                mask_subap *= 0
-                mask_subap[i*subap_npx:(i+1)*subap_npx,j*subap_npx:(j+1)*subap_npx] = 1
-                idxs[count] = xp.where(mask_subap == 1)
-                map[count] = j * subap_on_diameter + i
-                count += 1
-
-        v = xp.zeros((len(idxs), subap_npx*subap_npx), dtype=int)
-        m = xp.zeros(len(idxs), dtype=int)
-        for k, idx in idxs.items():
-            v[k] = xp.ravel_multi_index(idx, mask_subap.shape)
-            m[k] = map[k]
-        # ------------------------------------------------------------------------------
-
-        # Create the SH object
-        laser_launch_tel = LaserLaunchTelescope(spot_size=pxscale_arcsec,
-                             target_device_idx=target_device_idx)
-
-        sh = SH(wavelengthInNm=wavelengthInNm,
-                subap_wanted_fov=subap_npx * pxscale_arcsec,
-                sensor_pxscale=pxscale_arcsec,
-                subap_on_diameter=subap_on_diameter,
-                subap_npx=subap_npx,
-                laser_launch_tel=laser_launch_tel,
-                target_device_idx=target_device_idx)
-
-        # Flat wavefront
         ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx)
         ef.generation_time = t
         sh.inputs['in_ef'].set(ef)
@@ -319,3 +264,109 @@ class TestShSlopec(unittest.TestCase):
         expected_weights[16:20, 4:8] = 1.0
 
         np.testing.assert_equal(last_weights_2d, expected_weights, err_msg="Weight map does not match expected values.")
+
+
+    @cpu_and_gpu
+    def test_shslopec_slopesnull(self, target_device_idx, xp):
+        '''
+        Test that a SH Slopec correctly subtracts slope nulls (non-interleaved)
+        '''
+        # Flat wavefront
+        # pupil is 1m
+        pixel_pupil = 20
+        pixel_pitch = 0.05
+        subap_on_diameter = 2
+        t = 1
+        ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        ef.generation_time = t
+        sh, v, m = self.get_sh(target_device_idx, xp, with_laser_launch=False)
+
+        sh.inputs['in_ef'].set(ef)
+        sh.setup()
+        sh.check_ready(t)
+        sh.trigger()
+        sh.post_trigger()
+
+        intensity = sh.outputs['out_i'].i.copy()
+
+        # Compute slopes using ShSlopec
+        pixels = Pixels(*intensity.shape, target_device_idx=target_device_idx)
+        pixels.pixels = intensity
+        pixels.generation_time = t
+
+        # Create the slope computer object with the given parameters
+        subapdata = SubapData(idxs=v, display_map = m, nx=subap_on_diameter, ny=subap_on_diameter, target_device_idx=target_device_idx)
+
+        sn = Slopes(slopes=xp.arange(len(m)*2), interleave=False, target_device_idx=target_device_idx)
+
+        slopec1 = ShSlopec(subapdata, target_device_idx=target_device_idx)
+        slopec2 = ShSlopec(subapdata, sn=sn, target_device_idx=target_device_idx)
+
+        slopec1.inputs['in_pixels'].set(pixels)
+        slopec2.inputs['in_pixels'].set(pixels)
+        slopec1.check_ready(1)
+        slopec2.check_ready(1)
+        slopec1.trigger()
+        slopec2.trigger()
+        slopec1.post_trigger()
+        slopec2.post_trigger()
+        slopes1 = slopec1.outputs['out_slopes']
+        slopes2 = slopec2.outputs['out_slopes']
+
+        np.testing.assert_array_almost_equal(cpuArray(slopes2.slopes),
+                                             cpuArray(slopes1.slopes - sn.slopes))
+
+
+    @cpu_and_gpu
+    def test_shslopec_interleaved_slopesnull(self, target_device_idx, xp):
+        '''
+        Test that a SH Slopec correctly subtracts slope nulls (interleaved)
+        '''
+
+        # Flat wavefront
+        # pupil is 1m
+        pixel_pupil = 20
+        pixel_pitch = 0.05
+        subap_on_diameter = 2
+        t=1
+        ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        ef.generation_time = t
+        sh, v, m = self.get_sh(target_device_idx, xp, with_laser_launch=False)
+
+        sh.inputs['in_ef'].set(ef)
+        sh.setup()
+        sh.check_ready(t)
+        sh.trigger()
+        sh.post_trigger()
+
+        intensity = sh.outputs['out_i'].i.copy()
+
+        # Compute slopes using ShSlopec
+        pixels = Pixels(*intensity.shape, target_device_idx=target_device_idx)
+        pixels.pixels = intensity
+        pixels.generation_time = t
+
+        # Create the slope computer object with the given parameters
+        subapdata = SubapData(idxs=v, display_map = m, nx=subap_on_diameter, ny=subap_on_diameter, target_device_idx=target_device_idx)
+
+        sn = Slopes(slopes=xp.arange(len(m)*2), interleave=True, target_device_idx=target_device_idx)
+
+        slopec1 = ShSlopec(subapdata, target_device_idx=target_device_idx)
+        slopec2 = ShSlopec(subapdata, sn=sn, target_device_idx=target_device_idx)
+
+        slopec1.inputs['in_pixels'].set(pixels)
+        slopec2.inputs['in_pixels'].set(pixels)
+        slopec1.check_ready(1)
+        slopec2.check_ready(1)
+        slopec1.trigger()
+        slopec2.trigger()
+        slopec1.post_trigger()
+        slopec2.post_trigger()
+        slopes1 = slopec1.outputs['out_slopes']
+        slopes2 = slopec2.outputs['out_slopes']
+
+        np.testing.assert_array_almost_equal(cpuArray(slopes2.xslopes),
+                                             cpuArray(slopes1.xslopes - sn.xslopes))
+
+        np.testing.assert_array_almost_equal(cpuArray(slopes2.yslopes),
+                                             cpuArray(slopes1.yslopes - sn.yslopes))
