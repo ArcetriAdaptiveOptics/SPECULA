@@ -537,8 +537,8 @@ class ModulatedPyramid(BaseProcessingObj):
 
             # Create the interpolated field (like SH does with self._wf1)
             self._wf_interpolated = ElectricField(
-                in_ef.size[0],
-                in_ef.size[0],
+                self.fft_sampling,
+                self.fft_sampling,
                 in_ef.pixel_pitch,
                 target_device_idx=self.target_device_idx,
                 precision=self.precision
