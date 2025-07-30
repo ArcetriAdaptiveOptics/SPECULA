@@ -43,18 +43,15 @@ class LoopControl(BaseTimeObj):
                    profiling=profiling, speed_report=speed_report)
         while self._t < self._t0 + self._run_time:            
             if MPI_DBG: print(process_rank, 'before barrier iter', flush=True)
-            if process_comm is not None:
-                process_comm.barrier()
             if MPI_DBG: print(process_rank, 'after barrier iter', flush=True)
             if MPI_DBG: print(process_rank, 'NEW ITERATION', self._t,flush=True)
-            # time.sleep(1)
             self.iter()
             
         self.finish()
 
     def start(self, run_time, dt, t0=0, stop_on_data=None, stop_at_time=None,
               profiling=False, speed_report=False):
-
+        
         self._profiling = profiling
         self._speed_report = speed_report
         self._stop_at_time = stop_at_time if stop_at_time is not None else 0
@@ -63,17 +60,12 @@ class LoopControl(BaseTimeObj):
         self._run_time = self.seconds_to_t(run_time)
         self._dt = self.seconds_to_t(dt)
         self._t0 = self.seconds_to_t(t0)
-        
-        if process_comm is not None:
-            process_comm.barrier()
         if MPI_DBG: print(process_rank, 'Sending data pre-setup', flush=True)
 
         for i in sorted(self._trigger_lists.keys()):        
             # all the objects having this trigger order could be remote            
             for element in self._trigger_lists[i]:
-                element.send_outputs()
-            #if process_comm is not None:
-            #    process_comm.barrier()
+                element.send_outputs(skip_delayed=False, first_mpi_send=True)
 
         if process_comm is not None:
             process_comm.barrier()
@@ -97,14 +89,14 @@ class LoopControl(BaseTimeObj):
                     #  workaround for objects that need to send outputs
                     # before the first iter() call
                     # because their outputs are used with ":-1"
-                    element.send_outputs(delayed_only=True)
+                    element.send_outputs(delayed_only=True, first_mpi_send=False)
                 except:
                     print('Exception in', element.name, flush=True)
                     raise
-        if process_comm is not None:
-            process_comm.barrier()
         
         if MPI_DBG: print(process_rank, 'Setups DONE', flush=True)
+        if process_comm is not None:
+            process_comm.barrier()
         
         self._t = self._t0
 
@@ -126,9 +118,9 @@ class LoopControl(BaseTimeObj):
         if self._stop_at_time and self._t >= self.seconds_to_t(self._stop_at_time):
             last_iter = True
 
-        for i in sorted(self._trigger_lists.keys()): 
+        for i in sorted(self._trigger_lists.keys()):
             # all the objects having this trigger order could be remote
-            if MPI_DBG: print(process_rank, 'before check_ready', flush=True)                
+            if MPI_DBG: print(process_rank, 'before check_ready', flush=True)
             for element in self._trigger_lists[i]:
                 try:
                     element.check_ready(self._t)
@@ -136,10 +128,7 @@ class LoopControl(BaseTimeObj):
                     print('Exception in', element.name, flush=True)
                     raise
 
-            # if MPI_DBG: print(process_rank, 'at barrier check_ready', flush=True)                
-            # if MPI_DBG: print(process_rank, 'after barrier check_ready', flush=True)
-
-            if MPI_DBG: print(process_rank, 'before trigger', flush=True)                
+            if MPI_DBG: print(process_rank, 'before trigger', flush=True)
             for element in self._trigger_lists[i]:
                 try:
                     element.trigger()
@@ -147,17 +136,14 @@ class LoopControl(BaseTimeObj):
                     print('Exception in', element.name, flush=True)
                     raise
 
-            if MPI_DBG: print(process_rank, 'before post_trigger', flush=True)                
+            if MPI_DBG: print(process_rank, 'before post_trigger', flush=True)
             for element in self._trigger_lists[i]:
                 try:
                     element.post_trigger()
-                    element.send_outputs(skip_delayed=last_iter)
+                    element.send_outputs(skip_delayed=last_iter, first_mpi_send=False)
                 except:
                     print('Exception in', element.name, flush=True)
                     raise
-
-#            if process_comm is not None:
-#                process_comm.barrier()
 
         if self._stop_on_data and self._stop_on_data.generation_time == self._t:
             return
@@ -191,8 +177,6 @@ class LoopControl(BaseTimeObj):
                 except:
                     print('Exception in', element.name)
                     raise
-#            if process_comm is not None:
-#                process_comm.barrier()
 
         if self._profiling:
             self.stop_profiling()

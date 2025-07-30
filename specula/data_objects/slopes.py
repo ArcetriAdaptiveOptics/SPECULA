@@ -17,7 +17,7 @@ class Slopes(BaseDataObj):
                  precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         if slopes is not None:
-            self.slopes = slopes
+            self.slopes = self.to_xp(slopes, dtype=self.dtype)
         else:
             self.slopes = self.xp.zeros(length, dtype=self.dtype)
         self.interleave = interleave
@@ -39,7 +39,7 @@ class Slopes(BaseDataObj):
         '''
         return self.slopes
 
-    def set_value(self, v):
+    def set_value(self, v, force_copy=False):
         '''
         Set new slopes values.
         Arrays are not reallocated
@@ -47,7 +47,7 @@ class Slopes(BaseDataObj):
         assert v.shape == self.slopes.shape, \
             f"Error: input array shape {v.shape} does not match slopes shape {self.slopes.shape}"
 
-        self.slopes[:] = self.to_xp(v, dtype=self.dtype)
+        self.slopes[:] = self.to_xp(v, dtype=self.dtype, force_copy=force_copy)
 
     # TODO needed to support late SlopeC-derived class initialization
     # Replace with a full initialization in base class?
@@ -178,10 +178,12 @@ class Slopes(BaseDataObj):
     def restore(filename, target_device_idx=None):
         hdr = fits.getheader(filename)
         slopes = Slopes.from_header(hdr, target_device_idx=target_device_idx)
+        slopesdata = fits.getdata(filename, ext=1)
         if hdr['VERSION'] >= 3:
-            slopes.set_value(fits.getdata(filename, ext=1))
+            slopes.set_value(slopesdata)
         else:
-            slopes.slopes = fits.getdata(filename, ext=1)
+            slopes.resize(len(slopesdata))  # version 2 header does not have length information
+            slopes.slopes = slopes.to_xp(slopesdata, dtype=slopes.dtype)
         return slopes
 
     def array_for_display(self):

@@ -1,6 +1,7 @@
-from specula import process_rank, process_comm, MPI_DBG, MPI_SEND_DBG
+from specula import cpuArray, process_rank, process_comm, MPI_DBG, MPI_SEND_DBG
 from specula import np, cp
 from specula.lib.flatten import flatten
+from specula.data_objects.electric_field import ElectricField
 
 
 class _InputItem():
@@ -25,6 +26,30 @@ class _InputItem():
         self.tag = tag
         self.output_ref = value
 
+
+    def receive_new_value(self, first_mpi_receive=True):
+        if MPI_SEND_DBG: print(process_rank, f'RECV from rank {self.remote_rank} {self.tag=} type={self.output_ref_type})', flush=True)
+        if first_mpi_receive or self.cloned_value.get_value() is None:
+            if MPI_SEND_DBG: print(process_rank, f'recv with Pickle', self.tag, flush=True)
+            new_value = process_comm.recv(source=self.remote_rank, tag=self.tag)
+            if new_value.xp_str == 'cp':
+                new_value.xp = cp
+            else:
+                new_value.xp = np
+        else:            
+            if MPI_SEND_DBG: print(process_rank, f'Recv with Buffer', flush=True)
+            new_value = self.cloned_value
+            buffer = cpuArray(self.cloned_value.get_value())
+            if MPI_SEND_DBG:  print(process_rank, self.tag, 'RECV .buffer', type(buffer))
+            if MPI_SEND_DBG:  print(process_rank, self.tag, 'RECV .buffer dtype', buffer.dtype)
+            process_comm.Recv(buffer, source=self.remote_rank, tag=self.tag)
+            if MPI_SEND_DBG:  print(process_rank, self.tag+1, 'RECV .bufftimeer')
+            gen_time = process_comm.recv(source=self.remote_rank, tag=self.tag+1)
+            self.cloned_value.generation_time = gen_time
+            self.cloned_value.set_value(buffer)
+
+        return new_value        
+
     def get(self, target_device_idx):
         if self.remote_rank is None:
             if self.output_ref is None:
@@ -38,18 +63,12 @@ class _InputItem():
         if self.remote_rank is None:         
             value = self.output_ref
         else:
-            if MPI_SEND_DBG: print(process_rank, f'RECV from rank {self.remote_rank} {self.tag=} type={self.output_ref_type})', flush=True)
-            value = process_comm.recv(source=self.remote_rank, tag=self.tag)
-            if value.xp_str == 'cp':
-                value.xp = cp
-            else:
-                value.xp = np
+            value = self.receive_new_value(first_mpi_receive=self.cloned_value is None )
 
         if self.cloned_value is None:
             self.cloned_value = value.copyTo(target_device_idx)
         else:
             value.transferDataTo(self.cloned_value)
-
         return self.cloned_value
 
 
