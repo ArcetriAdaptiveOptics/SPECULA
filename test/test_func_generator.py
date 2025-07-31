@@ -103,3 +103,22 @@ class TestFuncGenerator(unittest.TestCase):
         value = f.outputs['output'].value
         np.testing.assert_allclose(cpuArray(value), cpuArray(data[1]))
 
+    @cpu_and_gpu
+    def test_func_generator_float(self, target_device_idx, xp):
+        simulParams = SimulParams(time_step=0.001)
+        constant = [4,3]
+        f = FuncGenerator(simulParams, 'SIN', target_device_idx=target_device_idx, precision=1, constant=constant)
+        f.check_ready(1)
+        f.trigger()
+        f.post_trigger()
+        assert f.outputs['output'].value.dtype == np.float32
+
+    @cpu_and_gpu
+    def test_func_generator_double(self, target_device_idx, xp):
+        simulParams = SimulParams(time_step=0.001)
+        constant = [4,3]
+        f = FuncGenerator(simulParams, 'SIN', target_device_idx=target_device_idx, precision=0, constant=constant)
+        f.check_ready(1)
+        f.trigger()
+        f.post_trigger()
+        assert f.outputs['output'].value.dtype == np.float64

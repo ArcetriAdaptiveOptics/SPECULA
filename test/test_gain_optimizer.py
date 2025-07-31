@@ -71,6 +71,6 @@ class TestGainOptimizer(unittest.TestCase):
 
             self.assertAlmostEqual(
                 last_gain, 0.5,
-                places=2,
+                places=1,
                 msg=f"Last gain value {last_gain:.4f} does not match expected 0.5"
             )

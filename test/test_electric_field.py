@@ -23,29 +23,26 @@ class TestElectricField(unittest.TestCase):
 
         ef = ElectricField(10,10, 0.1, S0=1, target_device_idx=target_device_idx)
 
-        id_A_before = id(ef.A)
-        id_p_before = id(ef.phaseInNm)
+        id_field_before = id(ef.field)        
 
         ef.reset()
 
-        id_A_after = id(ef.A)
-        id_p_after = id(ef.phaseInNm)
+        id_field_after = id(ef.field)
 
-        assert id_A_before == id_A_after
-        assert id_p_before == id_p_after
+        assert id_field_before == id_field_after
 
     @cpu_and_gpu
     def test_set_value_does_not_reallocate(self, target_device_idx, xp):
 
         ef = ElectricField(10,10, 0.1, S0=1, target_device_idx=target_device_idx)
 
-        id_A_before = id(ef.field)        
+        id_field_before = id(ef.field)        
 
         ef.set_value([xp.ones(100).reshape(10,10), xp.zeros(100).reshape(10,10)])
 
-        id_A_after = id(ef.field)
+        id_field_after = id(ef.field)
         
-        assert id_A_before == id_A_after
+        assert id_field_before == id_field_after
         
 
     @cpu_and_gpu
@@ -183,3 +180,29 @@ class TestElectricField(unittest.TestCase):
         # invalid amplitude shape
         with self.assertRaises(AssertionError):
             ef.set_value([xp.ones((5, 5)), xp.zeros((10, 10))])
+
+    @cpu_and_gpu
+    def test_float(self, target_device_idx, xp):
+        '''Test that precision=1 results in a single-precision ef'''
+
+        pixel_pupil = 10
+        pixel_pitch = 0.1
+        
+        ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch,
+                      target_device_idx=target_device_idx, precision=1)
+
+        assert ef.field.dtype == np.float32
+        assert ef.ef_at_lambda(500.0).dtype == np.complex64
+
+    @cpu_and_gpu
+    def test_double(self, target_device_idx, xp):
+        '''Test that precision=0 results in a double-precision ef'''
+
+        pixel_pupil = 10
+        pixel_pitch = 0.1
+        
+        ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch,
+                      target_device_idx=target_device_idx, precision=0)
+
+        assert ef.field.dtype == np.float64
+        assert ef.ef_at_lambda(500.0).dtype == np.complex128
