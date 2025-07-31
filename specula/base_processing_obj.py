@@ -1,11 +1,12 @@
 from collections import defaultdict
 from astropy.io import fits
 
-from specula import default_target_device, cp, MPI_DBG, MPI_SEND_DBG
+from specula import cpuArray, default_target_device, cp, MPI_DBG, MPI_SEND_DBG
 from specula import show_in_profiler
 from specula import process_comm, process_rank
 from specula.base_time_obj import BaseTimeObj
 from specula.data_objects.layer import Layer
+from specula.data_objects.electric_field import ElectricField
 
 
 class BaseProcessingObj(BaseTimeObj):
@@ -37,6 +38,7 @@ class BaseProcessingObj(BaseTimeObj):
         self.local_inputs = {}
         self.outputs = {}
         self.remote_outputs = defaultdict(list)
+        self.sent_valid = {}
 
         # Use the correct CUDA device for allocations in derived classes'  __init__
         if self.target_device_idx >= 0:
@@ -119,8 +121,29 @@ class BaseProcessingObj(BaseTimeObj):
             if self.cuda_graph:
                 self.stream.synchronize()
 
+    def send_remote_output(self, item, dest_rank, dest_tag, first_mpi_send=True, out_name=''):
+        if MPI_SEND_DBG: print(process_rank, f'SEND to rank {dest_rank} {dest_tag=} {(dest_tag in self.sent_valid)=} (from {self.name}.{out_name})', flush=True)
+        if first_mpi_send or not dest_tag in self.sent_valid:
+            if MPI_SEND_DBG: print(process_rank, f'SEND with Pickle', dest_tag, flush=True)
+            xp_orig = item.xp
+            item.xp = 0            
+            process_comm.ibsend(item, dest=dest_rank, tag=dest_tag)
+            item.xp = xp_orig
+        else:            
+            buffer = item.get_value()
+            if MPI_SEND_DBG:  print(process_rank, dest_tag, 'SEND .device', buffer.device)
+            if MPI_SEND_DBG: print(process_rank, f'SEND with Buffer', dest_tag, type(buffer), buffer, flush=True)
+            if MPI_SEND_DBG: print(process_rank, f'SEND with Buffer type', dest_tag, buffer.dtype, flush=True)
+
+            process_comm.Ibsend(cpuArray(buffer), dest=dest_rank, tag=dest_tag)
+
+            process_comm.ibsend(item.generation_time, dest=dest_rank, tag=dest_tag+1)
+        if item.get_value() is not None:
+            self.sent_valid[dest_tag] = True
+
+
     # this method implements the mpi send call of the outputs connected to remote inputs
-    def send_outputs(self, skip_delayed=False, delayed_only=False):
+    def send_outputs(self, skip_delayed=False, delayed_only=False, first_mpi_send=True):
         '''
         Send all remote outputs via MPI.
         If *skip_delayed* is True, skip sending all delayed outputs.
@@ -148,16 +171,9 @@ class BaseProcessingObj(BaseTimeObj):
                     if MPI_SEND_DBG: print(process_rank, f'SKIPPED SEND to rank {dest_rank} {dest_tag=} due to delay={delay}', flush=True)
                     continue
                 if MPI_DBG: print(process_rank, 'Sending ', out_name, 'to ', dest_rank, 'with tag',  dest_tag, type(self.outputs[out_name]), flush=True)
-
                 # workaround because module objects cannot be pickled
                 for item in self.outputs[out_name] if isinstance(self.outputs[out_name], list) else [self.outputs[out_name]]:
-                    xp_orig = item.xp
-                    item.xp = 0
-
-                    if MPI_SEND_DBG: print(process_rank, f'SEND to rank {dest_rank} {dest_tag=} (from {self.name}.{out_name})', flush=True)
-                    process_comm.ibsend(item, dest=dest_rank, tag=dest_tag)
-                
-                    item.xp = xp_orig                
+                    self.send_remote_output(item, dest_rank, dest_tag, first_mpi_send, out_name)
 
     @classmethod
     def device_stream(cls, target_device_idx):

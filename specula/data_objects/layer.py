@@ -28,8 +28,8 @@ class Layer(ElectricField):
         hdr = fits.Header()
         hdr['VERSION'] = 1
         hdr['OBJ_TYPE'] = 'Layer'
-        hdr['DIMX'] = self.A.shape[0]
-        hdr['DIMY'] = self.A.shape[1]
+        hdr['DIMX'] = self.field[0].shape[0]
+        hdr['DIMY'] = self.field[0].shape[1]
         hdr['PIXPITCH'] = self.pixel_pitch
         hdr['HEIGHT'] = self.height
         hdr['SHIFTX'] = float(self.shiftXYinPixel[0])
@@ -42,8 +42,8 @@ class Layer(ElectricField):
         hdr = self.get_fits_header()
         hdu = fits.PrimaryHDU(header=hdr)  # main HDU, empty, only header
         hdul = fits.HDUList([hdu])
-        hdul.append(fits.ImageHDU(data=cpuArray(self.A), name='AMPLITUDE'))
-        hdul.append(fits.ImageHDU(data=cpuArray(self.phaseInNm), name='PHASE'))
+        hdul.append(fits.ImageHDU(data=cpuArray(self.field[0]), name='AMPLITUDE'))
+        hdul.append(fits.ImageHDU(data=cpuArray(self.field[1]), name='PHASE'))
         hdul.writeto(filename, overwrite=overwrite)
         hdul.close()  # Force close for Windows
 
@@ -70,8 +70,8 @@ class Layer(ElectricField):
             raise ValueError(f"Error: file {filename} does not contain a Layer object")
         layer = Layer.from_header(hdr, target_device_idx=target_device_idx)
         with fits.open(filename) as hdul:
-            layer.A = layer.to_xp(hdul[1].data.copy())
-            layer.phaseInNm = layer.to_xp(hdul[2].data.copy())
+            layer.field[0] = layer.to_xp(hdul[1].data.copy())
+            layer.field[1] = layer.to_xp(hdul[2].data.copy())
         return layer
 
     # array_for_display is inherited from ElectricField

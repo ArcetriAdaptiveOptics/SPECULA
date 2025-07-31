@@ -79,7 +79,7 @@ class DistributedSH(SH):
             sh.name = f'subsh{i}'
             for k, v in self.inputs.items():
                 if len(v.input_values) > 0:
-                    sh.inputs[k].set(v.input_values[0].last_value)
+                    sh.inputs[k].set(v.input_values[0].cloned_value)
             sh.setup()
 
     def check_ready(self, t):
