@@ -154,31 +154,6 @@ class ZernikeGenerator():
         azimuthalFrequency = m
         return radialDegree, azimuthalFrequency
 
-    def _rnm_obsolete(self, radialDegree, azimuthalFrequency, rhoArray):
-        n = radialDegree
-        m = azimuthalFrequency
-        rho = rhoArray
-        if (n - m) % 2 != 0:
-            raise Exception("n-m must be even. Got %d-%d" % (n, m))
-        if abs(m) > n:
-            raise Exception("The following must be true |m|<=n. Got %d, %d" %
-                            (n, m))
-
-        if(n == 0 and m == 0):
-            return self.xp.ones(rho.shape, dtype=self.dtype)
-        rho = self.xp.where(rho < 0, 0, rho)
-        Rnm = self.xp.zeros(rho.shape, dtype=self.dtype)
-        S = (n - abs(m)) // 2
-        S = int(cpuArray(S))        
-        n = int(cpuArray(n))        
-        for s in range(0, S + 1):
-            CR = pow(-1, s) * factorial(n - s) / \
-                (factorial(s) * factorial(-s + (n + abs(m)) / 2) *
-                 factorial(-s + (n - abs(m)) / 2))
-            p = CR * pow(rho, n - 2 * s)
-            Rnm = Rnm + p
-        return Rnm
-
     def _rnm_jacobi(self, radialDegree, azimuthalFrequency, rhoArray):
         n = radialDegree
         m = azimuthalFrequency
