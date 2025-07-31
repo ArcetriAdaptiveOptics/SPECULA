@@ -183,17 +183,17 @@ sh_lgs1: &LGS_SH
   subap_on_diameter: 68                      # Number of subapertures in diameter
   wavelengthInNm:    589                     # [nm] Pyramid wavelength
   fov_ovs_coeff:     1.6                     # Force phase interpolation to a multiple of 68
-  rotAnglePhInDeg:   -6.2
+  rotAnglePhInDeg:   6.2
   laser_launch_tel_ref: 'launcher'
   inputs:
     in_ef: 'prop.out_source_lgs1_ef'
   outputs:  ['out_i']
 
-sh_lgs2: { <<: *LGS_SH, rotAnglePhInDeg: -14.2, inputs: {in_ef: 'prop.out_source_lgs2_ef' }}
-sh_lgs3: { <<: *LGS_SH, rotAnglePhInDeg: 6.2, inputs: {in_ef: 'prop.out_source_lgs3_ef' }}
-sh_lgs4: { <<: *LGS_SH, rotAnglePhInDeg:  -6.2, inputs: {in_ef: 'prop.out_source_lgs4_ef' }}
-sh_lgs5: { <<: *LGS_SH, rotAnglePhInDeg: -14.2, inputs: {in_ef: 'prop.out_source_lgs5_ef' }}
-sh_lgs6: { <<: *LGS_SH, rotAnglePhInDeg: 6.2, inputs: {in_ef: 'prop.out_source_lgs6_ef' }}
+sh_lgs2: { <<: *LGS_SH, rotAnglePhInDeg: 14.2, inputs: {in_ef: 'prop.out_source_lgs2_ef' }}
+sh_lgs3: { <<: *LGS_SH, rotAnglePhInDeg: -6.2, inputs: {in_ef: 'prop.out_source_lgs3_ef' }}
+sh_lgs4: { <<: *LGS_SH, rotAnglePhInDeg:  6.2, inputs: {in_ef: 'prop.out_source_lgs4_ef' }}
+sh_lgs5: { <<: *LGS_SH, rotAnglePhInDeg: 14.2, inputs: {in_ef: 'prop.out_source_lgs5_ef' }}
+sh_lgs6: { <<: *LGS_SH, rotAnglePhInDeg: -6.2, inputs: {in_ef: 'prop.out_source_lgs6_ef' }}
 
 detector_lgs1: &LGS_DETECTOR
   class:             'CCD'

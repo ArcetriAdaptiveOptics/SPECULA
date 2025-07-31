@@ -51,10 +51,7 @@ class SH(BaseProcessingObj):
                  fov_ovs_coeff: float = 0,
                  xShiftPhInPixel: float = 0,
                  yShiftPhInPixel: float = 0,
-                 aXShiftPhInPixel: float = 0,
-                 aYShiftPhInPixel: float = 0,
                  rotAnglePhInDeg: float = 0,
-                 aRotAnglePhInDeg: float = 0,
                  do_not_double_fov_ovs: bool = False,
                  set_fov_res_to_turbpxsc: bool = False,
                  laser_launch_tel: LaserLaunchTelescope = None,
@@ -75,11 +72,8 @@ class SH(BaseProcessingObj):
         self._debugOutput = False
         self._noprints = False
         self._rotAnglePhInDeg = rotAnglePhInDeg
-        self._aRotAnglePhInDeg = aRotAnglePhInDeg  # TODO if intended to change, call again calc_trigger_geometry()
         self._xShiftPhInPixel = xShiftPhInPixel
         self._yShiftPhInPixel = yShiftPhInPixel
-        self._aXShiftPhInPixel = aXShiftPhInPixel  # Same TODO as above
-        self._aYShiftPhInPixel = aYShiftPhInPixel
         self._set_fov_res_to_turbpxsc = set_fov_res_to_turbpxsc
         self._do_not_double_fov_ovs = do_not_double_fov_ovs
         # first item of laser_launch_tel_dict is the good one
@@ -248,8 +242,7 @@ class SH(BaseProcessingObj):
         sensor_pxscale = self._sensor_pxscale
         subap_npx = self._subap_npx
 
-        self._rotAnglePhInDeg = self._rotAnglePhInDeg + self._aRotAnglePhInDeg
-        self._xyShiftPhInPixel = np.array([self._xShiftPhInPixel + self._aXShiftPhInPixel, self._yShiftPhInPixel + self._aYShiftPhInPixel]) * self._fov_ovs
+        self._xyShiftPhInPixel = np.array([self._xShiftPhInPixel, self._yShiftPhInPixel]) * self._fov_ovs
 
         if not self._floatShifts:
             self._xyShiftPhInPixel = np.round(self._xyShiftPhInPixel).astype(int)
@@ -499,7 +492,12 @@ class SH(BaseProcessingObj):
         fov_oversample = self._fov_ovs
         shape_ovs = (int(in_ef.size[0] * fov_oversample), int(in_ef.size[1] * fov_oversample))
 
-        self.interp = Interp2D(in_ef.size, shape_ovs, self._rotAnglePhInDeg, self._xyShiftPhInPixel[0], self._xyShiftPhInPixel[1], dtype=self.dtype, xp=self.xp)
+        self.interp = Interp2D(in_ef.size,
+                               shape_ovs,
+                              -self._rotAnglePhInDeg,     # Negative angle for PASSATA compatibility
+                               self._xyShiftPhInPixel[0],
+                               self._xyShiftPhInPixel[1],
+                               dtype=self.dtype, xp=self.xp)
 
         if fov_oversample != 1 or self._rotAnglePhInDeg != 0 or np.sum(np.abs([self._xyShiftPhInPixel])) != 0:
             self._do_interpolation = True
