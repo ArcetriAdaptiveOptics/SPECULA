@@ -39,16 +39,14 @@ class TestElectricField(unittest.TestCase):
 
         ef = ElectricField(10,10, 0.1, S0=1, target_device_idx=target_device_idx)
 
-        id_A_before = id(ef.A)
-        id_p_before = id(ef.phaseInNm)
+        id_A_before = id(ef.field)        
 
         ef.set_value([xp.ones(100).reshape(10,10), xp.zeros(100).reshape(10,10)])
 
-        id_A_after = id(ef.A)
-        id_p_after = id(ef.phaseInNm)
-
+        id_A_after = id(ef.field)
+        
         assert id_A_before == id_A_after
-        assert id_p_before == id_p_after
+        
 
     @cpu_and_gpu
     def test_ef_combinator(self, target_device_idx, xp):
@@ -57,13 +55,13 @@ class TestElectricField(unittest.TestCase):
         simulParams = SimulParams(pixel_pupil=pixel_pupil,pixel_pitch=pixel_pitch)
         ef1 = ElectricField(pixel_pupil,pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx)
         ef2 = ElectricField(pixel_pupil,pixel_pupil, pixel_pitch, S0=2, target_device_idx=target_device_idx)
-
         A1 = xp.ones((pixel_pupil, pixel_pupil))
         ef1.A = A1
         ef1.phaseInNm = 1 * xp.ones((pixel_pupil, pixel_pupil))
+        
         A2 = xp.ones((pixel_pupil, pixel_pupil))
         A2[0, 0] = 0
-        A2[9, 9] = 0
+        A2[9, 9] = 0        
         ef2.A = A2
         ef2.phaseInNm = 3 * xp.ones((pixel_pupil, pixel_pupil))
 

@@ -4,12 +4,14 @@ from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.intensity import Intensity
 from specula.connections import InputValue
 from specula.data_objects.pupdata import PupData
+from specula import cpuArray
 
 class PyrPupdataCalibrator(BaseProcessingObj):
     def __init__(self,
                  data_dir: str,
                  thr1: float = 0.1,
                  thr2: float = 0.25,
+                 slopes_from_intensity: bool=False,
                  output_tag: str = None,
                  auto_detect_obstruction: bool = True,
                  min_obstruction_ratio: float = 0.05,
@@ -21,6 +23,7 @@ class PyrPupdataCalibrator(BaseProcessingObj):
 
         self.thr1 = thr1
         self.thr2 = thr2
+        self.slopes_from_intensity = slopes_from_intensity
         self.auto_detect_obstruction = auto_detect_obstruction
         self.min_obstruction_ratio = min_obstruction_ratio
         self.display_debug = display_debug
@@ -122,20 +125,23 @@ class PyrPupdataCalibrator(BaseProcessingObj):
             profile = self._radial_profile(image, centers[i], radii[i])
 
             # Look for central dip
-            if len(profile) > 5:
+            if profile.shape[0] > 5:
                 center_intensity = self.xp.mean(profile[:3])  # Inner 3 bins
                 edge_intensity = self.xp.mean(profile[-3:])   # Outer 3 bins
 
                 if edge_intensity > center_intensity * 1.5:  # 50% intensity drop
                     # Find where intensity starts rising
                     grad = self.xp.gradient(profile)
-                    max_grad_idx = self.xp.argmax(grad[:len(grad)//2])  # First half only
-                    obstruction_ratio = (max_grad_idx / len(profile)) * 0.8  # Conservative
+                    max_grad_idx = self.xp.argmax(grad[:grad.shape[0]//2])  # First half only
+                    obstruction_ratio = (float(max_grad_idx) / profile.shape[0]) * 0.8  # Conservative
 
                     if obstruction_ratio >= self.min_obstruction_ratio:
-                        obstruction_ratios.append(obstruction_ratio)
+                        obstruction_ratios.append(float(obstruction_ratio))
 
-        return self.xp.median(obstruction_ratios) if obstruction_ratios else 0.0
+        if obstruction_ratios:
+            return float(self.xp.median(self.xp.array(obstruction_ratios)))
+        else:
+            return 0.0
 
     def _radial_profile(self, image, center, max_radius, n_bins=20):
         """Extract radial intensity profile"""
@@ -158,30 +164,114 @@ class PyrPupdataCalibrator(BaseProcessingObj):
         h, w = image_shape
         y_coords, x_coords = self.xp.mgrid[0:h, 0:w]
 
-        # Estimate max pixels per pupil
-        max_pixels = int(self.xp.pi * self.xp.max(radii)**2 * (1 - self.central_obstruction_ratio**2)) + 100
-        ind_pup = self.xp.zeros((4, max_pixels), dtype=int)
+        if self.slopes_from_intensity:
+            # INTENSITY MODE: Adapt to real indices of each pupil
+            # Compute maximum number of pixels needed
+            max_pixels = 0
+            temp_indices = []
 
-        for i in range(4):
-            if radii[i] <= 0:
-                continue
+            for i in range(4):
+                if radii[i] <= 0:
+                    raise ValueError("Invalid radius detected on index {i}. "
+                                     "Check input image and parameters.")
 
-            # Distance from center
-            r = self.xp.sqrt((x_coords - centers[i, 0])**2 + (y_coords - centers[i, 1])**2)
+                # Distance from center
+                r = self.xp.sqrt((x_coords - centers[i, 0])**2 + (y_coords - centers[i, 1])**2)
 
-            # Create mask (annulus if obstruction detected)
+                # Create mask (annulus if obstruction detected)
+                if self.central_obstruction_ratio > 0:
+                    mask = (r <= radii[i]) & (r >= radii[i] * self.central_obstruction_ratio)
+                else:
+                    mask = r <= radii[i]
+
+                # Get flat indices
+                flat_indices = self.xp.where(mask.flatten())[0]
+                temp_indices.append(flat_indices)
+                max_pixels = max(max_pixels, flat_indices.shape[0])
+
+            # Create a 2D array with padding to -1
+            ind_pup = self.xp.full((4, max_pixels), -1, dtype=int)
+
+            for i, indices in enumerate(temp_indices):
+                if indices.shape[0] > 0:
+                    ind_pup[i, :indices.shape[0]] = indices
+
+        else:
+            # SLOPES MODE: Identical areas obtained by simple translation
+            # Use first valid pupil as reference geometry
+            valid_pupils = [i for i in range(4) if radii[i] > 0]
+            if len(valid_pupils) != 4:
+                raise ValueError("All four pupils must be valid (radius > 0) for geometric mode. "
+                                f"Found valid pupils: {valid_pupils}")
+
+            # Create reference mask using first valid pupil and maximum radius
+            reference_pupil_idx = valid_pupils[0]
+            ref_center = centers[reference_pupil_idx]
+            ref_radius = radii.max()
+
+            r_ref = self.xp.sqrt((x_coords - ref_center[0])**2 + (y_coords - ref_center[1])**2)
+
             if self.central_obstruction_ratio > 0:
-                mask = (r <= radii[i]) & (r >= radii[i] * self.central_obstruction_ratio)
+                reference_mask = (r_ref <= ref_radius) & (r_ref >= ref_radius * self.central_obstruction_ratio)
             else:
-                mask = r <= radii[i]
+                reference_mask = r_ref <= ref_radius
 
-            # Get flat indices
-            flat_indices = self.xp.where(mask.flatten())[0]
-            n_pixels = min(len(flat_indices), max_pixels)
+            # Find relative offsets from reference center
+            reference_indices = self.xp.where(reference_mask.flatten())[0]
+            ref_y, ref_x = self.xp.unravel_index(reference_indices, (h, w))
 
-            ind_pup[i, :n_pixels] = flat_indices[:n_pixels]
-            if n_pixels < max_pixels:
-                ind_pup[i, n_pixels:] = flat_indices[0] if n_pixels > 0 else 0
+            # Calculate relative offsets from reference pupil center
+            offset_x = ref_x - ref_center[0]
+            offset_y = ref_y - ref_center[1]
+
+            # Number of pixels per pupil (same for all)
+            n_pixels = reference_indices.shape[0]
+            ind_pup = self.xp.full((4, n_pixels), -1, dtype=int)
+
+            # Apply translation for each pupil
+            for i in range(4):
+
+                # Calculate INTEGER translation vector
+                translation_x = self.xp.round(centers[i, 0] - ref_center[0]).astype(int)
+                translation_y = self.xp.round(centers[i, 1] - ref_center[1]).astype(int)
+
+                # Apply integer translation to the reference geometry
+                new_x = offset_x + ref_center[0] + translation_x  # Same as: offset_x + centers[i,0] rounded
+                new_y = offset_y + ref_center[1] + translation_y  # Same as: offset_y + centers[i,1] rounded
+
+                # Check that pixels are inside the image
+                valid_mask = (new_x >= 0) & (new_x < w) & (new_y >= 0) & (new_y < h)
+
+                # Raise error if no pixels are inside the image
+                if not self.xp.any(valid_mask):
+                    raise ValueError(f"Pupil {i} after translation is completely outside the image bounds. "
+                                    f"Translation: ({translation_x}, {translation_y}), "
+                                    f"Image size: {w}x{h}")
+
+                # Convert to linear indices
+                valid_x = new_x[valid_mask].astype(int)
+                valid_y = new_y[valid_mask].astype(int)
+                valid_linear_indices = valid_y * w + valid_x
+
+                # Fill array with valid indices
+                n_valid = valid_linear_indices.shape[0]
+                ind_pup[i, :n_valid] = valid_linear_indices
+
+                # Warn if any pixel is lost
+                lost_pixels = n_pixels - n_valid
+                if lost_pixels > 0:
+                    print(f"Warning: Pupil {i} lost {lost_pixels}/{n_pixels} pixels "
+                        f"({100*lost_pixels/n_pixels:.1f}%) due to image boundaries")
+
+                # If fewer valid pixels, pad with -1 (already done by xp.full)
+
+        # Look for any rows with all -1 and remove them
+        valid_rows = self.xp.any(ind_pup != -1, axis=1)
+        # If no valid rows raise an error
+        if not self.xp.any(valid_rows):
+            raise ValueError("No valid pupil indices found. Check input image and parameters.")
+        # Filter out invalid rows
+        ind_pup = ind_pup[valid_rows]
 
         return ind_pup
 
@@ -193,12 +283,17 @@ class PyrPupdataCalibrator(BaseProcessingObj):
 
             plt.figure(figsize=(10, 5))
 
+            # Convert to CPU arrays for matplotlib
+            image_cpu = cpuArray(image)
+            centers_cpu = cpuArray(centers)
+            radii_cpu = cpuArray(radii)
+
             # Image with circles
             plt.subplot(1, 2, 1)
-            plt.imshow(image, origin='lower', cmap='gray')
+            plt.imshow(image_cpu, origin='lower', cmap='gray')
 
             colors = ['red', 'green', 'blue', 'orange']
-            for i, (center, radius) in enumerate(zip(centers, radii)):
+            for i, (center, radius) in enumerate(zip(centers_cpu, radii_cpu)):
                 if radius > 0:
                     circle = Circle(center, radius, fill=False, color=colors[i], linewidth=2)
                     plt.gca().add_patch(circle)
@@ -214,9 +309,10 @@ class PyrPupdataCalibrator(BaseProcessingObj):
             plt.subplot(1, 2, 2)
             if radii[0] > 0:
                 profile = self._radial_profile(image, centers[0], radii[0])
-                plt.plot(profile, 'b-', linewidth=2)
+                profile_cpu = cpuArray(profile)
+                plt.plot(profile_cpu, 'b-', linewidth=2)
                 if self.central_obstruction_ratio > 0:
-                    obs_idx = int(len(profile) * self.central_obstruction_ratio)
+                    obs_idx = int(profile_cpu.shape[0] * self.central_obstruction_ratio)
                     plt.axvline(obs_idx, color='red', linestyle='--', label='Obstruction')
                 plt.title('Radial Profile (Pupil 0)')
                 plt.xlabel('Radial bin')

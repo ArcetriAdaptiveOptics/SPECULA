@@ -42,13 +42,14 @@ class Pixels(BaseDataObj):
         '''Get the pixel values as a numpy/cupy array'''
         return self.pixels
     
-    def set_value(self, v):
+    def set_value(self, v, force_copy=False):
         '''Set new pixel values.
         Arrays are not reallocated.
         '''
         assert v.shape == self.pixels.shape, \
             f"Error: input array shape {v.shape} does not match pixel shape {self.pixels.shape}"
-        self.pixels[:] = self.to_xp(v, dtype=self.dtype)
+
+        self.pixels[:] = self.to_xp(v, force_copy=force_copy)
 
     @property
     def size(self):

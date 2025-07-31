@@ -39,9 +39,11 @@ class Pupilstop(Layer):
             mask_amp = self._input_mask
         else:
             mask_amp = make_mask(self.pixel_pupil, obs_diam, mask_diam, xp=self.xp)
-        # A dtype must be self.dtype
+            
+        # field dtype must be self.dtype
         if mask_amp.dtype != self.dtype:
             mask_amp = self.xp.asarray(mask_amp, dtype=self.dtype)
+                
         self.A = mask_amp
 
         # Initialise time for at least the first iteration
@@ -51,22 +53,22 @@ class Pupilstop(Layer):
         '''
         Get the amplitude mask as a numpy/cupy array
         '''
-        return self.A
+        return self.field[0]
 
-    def set_value(self, v):
+    def set_value(self, v, force_copy=False):
         '''
         Set a new amplitude mask.
         Arrays are not reallocated
         '''
-        assert v.shape == self.A.shape, \
-            f"Error: input array shape {v.shape} does not match pupilstop shape {self.A.shape}"
-        self.A[:]= self.to_xp(v, dtype=self.dtype)
+        assert v.shape == self.field[0].shape, \
+            f"Error: input array shape {v.shape} does not match pupilstop shape {self.field[0].shape}"
+        self.field[0][:]= self.to_xp(v, dtype=self.dtype, force_copy=force_copy)
 
     def get_fits_header(self):
         hdr = fits.Header()
         hdr['VERSION'] = 1
         hdr['OBJ_TYPE'] = 'Pupilstop'
-        hdr['PIXPUPIL'] = self.A.shape[0]
+        hdr['PIXPUPIL'] = self.field[0].shape[0]
         hdr['PIXPITCH'] = self.pixel_pitch
         hdr['SHIFTX'] = float(self.shiftXYinPixel[0])
         hdr['SHIFTY'] = float(self.shiftXYinPixel[1])
@@ -78,7 +80,7 @@ class Pupilstop(Layer):
         hdr = self.get_fits_header()
         hdu = fits.PrimaryHDU(header=hdr)  # main HDU, empty, only header
         hdul = fits.HDUList([hdu])
-        hdul.append(fits.ImageHDU(data=cpuArray(self.A), name='AMPLITUDE'))
+        hdul.append(fits.ImageHDU(data=cpuArray(self.field[0]), name='AMPLITUDE'))
         # phaseInNm is not used in Pupilstop
         hdul.writeto(filename, overwrite=overwrite)
         hdul.close()  # Force close for Windows
@@ -111,7 +113,7 @@ class Pupilstop(Layer):
 
         pupilstop = Pupilstop.from_header(hdr, target_device_idx=target_device_idx)
         with fits.open(filename) as hdul:
-            pupilstop.A = pupilstop.to_xp(hdul[1].data.copy(),dtype=pupilstop.dtype)
+            pupilstop.field[0] = pupilstop.to_xp(hdul[1].data.copy(), dtype=pupilstop.dtype)
             # phaseInNm is not used in Pupilstop
         return pupilstop
 

@@ -2,8 +2,10 @@ import os
 import shutil
 import yaml
 import specula
-from specula.simul import Simul
 specula.init(0)  # Default target device
+
+from specula import cpuArray
+from specula.simul import Simul
 
 import numpy as np
 import unittest
@@ -121,7 +123,7 @@ class TestDataBuffer(unittest.TestCase):
         store_data = np.array(list(store_obj.storage['gen'].values()))
 
         # Should be identical (buffer captured all data)
-        np.testing.assert_array_equal(buffer_data, store_data)
+        np.testing.assert_array_equal(cpuArray(buffer_data), cpuArray(store_data))
 
     @cpu_and_gpu
     def test_data_buffer_multiple_emissions(self, target_device_idx, xp):
