@@ -156,12 +156,14 @@ class AtmoEvolution(BaseProcessingObj):
             temp_screen -= self.xp.mean(temp_screen)
             # Convert to nm
             temp_screen *= self.wavelengthInNm / (2 * self.xp.pi)
-            
+            temp_screen = self.to_xp(temp_screen, dtype=self.dtype)
+
             self.phasescreens.append(temp_screen)
             self.phasescreens_sizes.append(temp_screen.shape[1])
 
         else:
             self.pixel_phasescreens = int(self.xp.max(self.pixel_layer))
+            temp_screens = []
 
             if len(self.xp.unique(self.L0)) == 1:
                 # Number of rectangular phase screens from a single square phasescreen
@@ -203,27 +205,10 @@ class AtmoEvolution(BaseProcessingObj):
                         square_ps_index += 1
                         ps_index = 0
 
-                    temp_screen = self.to_xp(square_phasescreens[square_ps_index][int(self.pixel_phasescreens) * ps_index:
-                                                                       int(self.pixel_phasescreens) * (ps_index + 1), :], dtype=self.dtype)
-                    # print('self.Cn2[i]', self.Cn2[i], type(self.Cn2[i]), type(self.Cn2))  # Verbose?
-                    # print('temp_screen', temp_screen, type(temp_screen))  # Verbose?
-
-                    temp_screen *= self.xp.sqrt(self.Cn2[i])
-                    temp_screen -= self.xp.mean(temp_screen)
-                    # Convert to nm
-                    temp_screen *= self.wavelengthInNm / (2 * np.pi)
-
-                    temp_screen = self.to_xp(temp_screen, dtype=self.dtype)
-
-                    # Flip x-axis for each odd phase-screen
-                    if i % 2 != 0:
-                        temp_screen = self.xp.flip(temp_screen, axis=1)
-
+                    temp_screen = square_phasescreens[square_ps_index][int(self.pixel_phasescreens) * ps_index:
+                                                                       int(self.pixel_phasescreens) * (ps_index + 1), :]
+                    temp_screens.append(temp_screen)
                     ps_index += 1
-
-                    self.phasescreens.append(temp_screen)
-                    self.phasescreens_sizes.append(temp_screen.shape[1])
-
 
             else:
                 seed = self.seed + self.xp.arange(self.n_phasescreens)
@@ -238,19 +223,30 @@ class AtmoEvolution(BaseProcessingObj):
                                                            verbose=self.verbose, xp=self.xp)
 
                 for i in range(self.n_phasescreens):
-                    temp_screen = square_phasescreens[i][:, :int(self.pixel_phasescreens)]
-                    temp_screen *= np.sqrt(self.Cn2[i])
-                    temp_screen -= self.xp.mean(temp_screen)
-                    # Convert to nm
-                    temp_screen *= self.wavelengthInNm / (2 * self.xp.pi)
-                    self.phasescreens.append(temp_screen)
-                    self.phasescreens_sizes.append(temp_screen.shape[1])
+                    temp_screen = square_phasescreens[i][ :int(self.pixel_phasescreens), :]
+                    temp_screens.append(temp_screen)
+
+
+            # Normalize all phasescreens
+
+            for i, temp_screen in enumerate(temp_screens):
+
+                temp_screen = self.to_xp(temp_screen, dtype=self.dtype)
+                temp_screen *= self.xp.sqrt(self.Cn2[i])
+                temp_screen -= self.xp.mean(temp_screen)
+
+                # Convert to nm
+                temp_screen *= self.wavelengthInNm / (2 * np.pi)
+
+                # Flip x-axis for each odd phase-screen
+                if i % 2 != 0:
+                    temp_screen = self.xp.flip(temp_screen, axis=1)
+
+                self.phasescreens.append(temp_screen)
+                self.phasescreens_sizes.append(temp_screen.shape[1])
 
         self.phasescreens_sizes_array = np.asarray(self.phasescreens_sizes)
     
-#        for p in self.phasescreens:
-        self.phasescreens_array = self.xp.asarray(self.phasescreens)
-
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
         self.delta_time = self.t_to_seconds(self.current_time - self.last_t) + self.extra_delta_time        

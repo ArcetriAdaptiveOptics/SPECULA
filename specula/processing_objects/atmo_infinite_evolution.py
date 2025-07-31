@@ -368,8 +368,6 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
 #        print('scale_r0', scale_r0)
 #        print('scale_coeff', scale_coeff)
 
-        ascreen = scale_coeff * self.infinite_phasescreens[0].scrn
-
         # Compute the delta position in pixels
         delta_position =  wind_speed * self.delta_time / self.pixel_pitch  # [pixel]
         new_position = self.last_position + delta_position
@@ -401,7 +399,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
                 phaseScreen.add_line(1, srf, False)
             if np.abs(frac_cols)>eps:
                 phaseScreen.add_line(0, scf, False)
-            phaseScreen1 = phaseScreen.scrnRawAll.copy()
+            phaseScreen1 = phaseScreen.scrnRawAll
             interpfactor = np.sqrt(frac_rows**2 + frac_cols**2 )
             layer_phase = interpfactor * phaseScreen1 + (1.0-interpfactor) * phaseScreen0
             phaseScreen.full_scrn = phaseScreen0
@@ -409,7 +407,9 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
             self.acc_cols[ii] = frac_cols
             # print('acc_rows', self.acc_rows)
             # print('acc_cols', self.acc_cols)
-            self.layer_list[ii].phaseInNm = layer_phase * scale_coeff
+            self.layer_list[ii].field[:] = self.xp.stack((layer_phase[:-1, :-1], layer_phase[:-1, :-1]))
+            self.layer_list[ii].phaseInNm *= scale_coeff
+            self.layer_list[ii].A = 1
             self.layer_list[ii].generation_time = self.current_time
         self.last_position = new_position
         self.last_t = self.current_time
