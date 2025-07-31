@@ -58,6 +58,6 @@ class TestAtmoInfiniteEvolution(unittest.TestCase):
             for obj in objlist:
                obj.post_trigger()
         
-        for ii in len(atmo.outputs['layer_list']):
+        for ii in range(len(atmo.outputs['layer_list'])):
             layer = atmo.outputs['layer_list'][ii]
             assert layer.size == (atmo.pixel_layer_size[ii], atmo.pixel_layer_size[ii])
