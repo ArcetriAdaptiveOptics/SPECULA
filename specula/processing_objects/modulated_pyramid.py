@@ -504,8 +504,7 @@ class ModulatedPyramid(BaseProcessingObj):
         in_ef = self.local_inputs['in_ef']
 
         # Determine if interpolation is needed (like in SH)
-        if (self.fft_sampling != in_ef.size[0] or
-            self.fft_sampling != in_ef.size[1] or
+        if (self.fov_res != 1 or
             self.rotAnglePhInDeg != 0 or
             self.xShiftPhInPixel != 0 or
             self.yShiftPhInPixel != 0):
