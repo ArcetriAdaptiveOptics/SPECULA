@@ -121,7 +121,7 @@ class TestPyramidSimulation(unittest.TestCase):
             plt.colorbar()
             plt.title('difference Intensity2 - Intensity1')
             plt.subplot(1, 2, 2)
-            plt.imshow(data2[0]-np.rot90(data1[0]), origin='lower')
+            plt.imshow(data2[0]-np.rot90(data1[0], k=-1, axes=(0, 1)), origin='lower')
             plt.colorbar()
             plt.title('difference Intensity2 - rotated Intensity1')
             plt.tight_layout()
@@ -132,7 +132,7 @@ class TestPyramidSimulation(unittest.TestCase):
             plt.colorbar()
             plt.title('difference Intensity3 - Intensity1')
             plt.subplot(1, 2, 2)
-            plt.imshow(data3[0]-np.roll(data1[0], shift=-1, axis=1), origin='lower')
+            plt.imshow(data3[0]-np.roll(data1[0], shift=-1, axis=0), origin='lower')
             plt.colorbar()
             plt.title('difference Intensity3 - shifted Intensity1')
             plt.tight_layout()
@@ -159,8 +159,8 @@ class TestPyramidSimulation(unittest.TestCase):
         #   (here we expect a relatively small RMS of the difference, less than 10% of the RMS of the values)
 
         # differences
-        diff21 = np.abs(data2 - np.rot90(data1, k=1, axes=(1,2)))
-        diff31 = np.abs(data3 - np.roll(data1, shift=-1, axis=2))
+        diff21 = np.abs(data2 - np.rot90(data1, k=-1, axes=(1,2)))
+        diff31 = np.abs(data3 - np.roll(data1, shift=-1, axis=1))
         diff41 = np.abs(data4 - np.roll(data1, shift=(1, -1), axis=(1, 2)))
         # RMS of data1
         rms1 = np.sqrt(np.mean(data1**2))
