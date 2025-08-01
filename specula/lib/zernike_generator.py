@@ -157,7 +157,7 @@ class ZernikeGenerator():
     def _rnm_jacobi(self, radialDegree, azimuthalFrequency, rhoArray):
         n = radialDegree
         m = azimuthalFrequency
-        rho = rhoArray
+        rho_cpu = cpuArray(rhoArray)
         if (n - m) % 2 != 0:
             raise Exception("n-m must be even. Got %d-%d" % (n, m))
         if abs(m) > n:
@@ -165,17 +165,17 @@ class ZernikeGenerator():
                             (n, m))
 
         if (n == 0 and m == 0):
-            return np.ones(rho.shape)
-        rho = np.where(rho < 0, 0, rho)
-        Rnm = np.zeros(rho.shape)
-        K = (n - abs(m)) / 2
-        const = 1 / eval_jacobi(K, 0, abs(m), 1.0)
-        cJ = eval_jacobi(K, 0, abs(m), 2 * rho**2 - 1)
-        Rnm = const * np.power(rho, abs(m)) * cJ
+            Rnm = np.ones(rho_cpu.shape)
+        else:
+            rho_cpu = np.where(rho_cpu < 0, 0, rho_cpu)
+            K = (n - abs(m)) // 2
+            const = 1 / eval_jacobi(K, 0, abs(m), 1.0)
+            cJ = eval_jacobi(K, 0, abs(m), 2 * rho_cpu**2 - 1)
+            Rnm = const * np.power(rho_cpu, abs(m)) * cJ
         #const = 1/jacobi(K, 0, m, monic=True)(1)  # BW pg 770, Magnus pg 210
         #cJ = jacobi(K, 0, m, monic=True)(2 * rho**2 - 1)
-        #Rnm = const * pow(rho, m) * cJ
-        return Rnm
+        #bibRnm = const * pow(rho, m) * cJ
+        return to_xp(self.xp, Rnm, dtype=self.dtype)
 
 
     def _polar(self, index, rhoArray, thetaArray):
