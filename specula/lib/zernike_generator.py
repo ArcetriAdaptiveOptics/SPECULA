@@ -4,7 +4,7 @@ import numpy as np
 from specula import cpuArray, to_xp
 
 from functools import lru_cache
-from scipy.special import factorial, jacobi
+from scipy.special import factorial, eval_jacobi
 from specula.lib.mask import CircularMask
 
 
@@ -169,9 +169,12 @@ class ZernikeGenerator():
         rho = np.where(rho < 0, 0, rho)
         Rnm = np.zeros(rho.shape)
         K = (n - abs(m)) / 2
-        const = 1/jacobi(K, 0, m, monic=True)(1)  # BW pg 770, Magnus pg 210
-        cJ = jacobi(K, 0, m, monic=True)(2 * rho**2 - 1)
-        Rnm = const * pow(rho, m) * cJ
+        const = 1 / eval_jacobi(K, 0, abs(m), 1.0)
+        cJ = eval_jacobi(K, 0, abs(m), 2 * rho**2 - 1)
+        Rnm = const * np.power(rho, abs(m)) * cJ
+        #const = 1/jacobi(K, 0, m, monic=True)(1)  # BW pg 770, Magnus pg 210
+        #cJ = jacobi(K, 0, m, monic=True)(2 * rho**2 - 1)
+        #Rnm = const * pow(rho, m) * cJ
         return Rnm
 
 
