@@ -50,8 +50,9 @@ class TestZernikeGenerator(unittest.TestCase):
         # Use the boolean mask from the generator (always numpy)
         mask = zg._boolean_mask
         tip_np = cpuArray(tip.data if hasattr(tip, 'data') else tip)
+        mask_np = cpuArray(mask)  # Ensure mask is also numpy
         # Outside the disk, values should be zero (by construction)
-        self.assertTrue(np.all(tip_np[mask] == 0))
+        self.assertTrue(np.all(tip_np[mask_np] == 0))
 
     @cpu_and_gpu
     def test_piston_constant(self, target_device_idx, xp):
@@ -59,7 +60,8 @@ class TestZernikeGenerator(unittest.TestCase):
         piston = zg.getZernike(1)
         mask = zg._boolean_mask
         piston_np = cpuArray(piston.data if hasattr(piston, 'data') else piston)
-        in_disk = ~mask
+        mask_np = cpuArray(mask)  # Ensure mask is also numpy
+        in_disk = ~mask_np
         # The value should be constant inside the disk
         self.assertAlmostEqual(float(np.std(piston_np[in_disk])), 0, places=10)
 
@@ -67,9 +69,10 @@ class TestZernikeGenerator(unittest.TestCase):
     def test_norm(self, target_device_idx, xp):
         zg = ZernikeGenerator(self.size, xp=xp, dtype=xp.float32)
         mask = zg._boolean_mask
+        mask_np = cpuArray(mask)  # Ensure mask is also numpy
         for idx in range(1, 5):
             z = zg.getZernike(idx)
             z_np = cpuArray(z.data if hasattr(z, 'data') else z)
-            in_disk = ~mask
+            in_disk = ~mask_np
             norm = float(np.sqrt(np.sum(z_np[in_disk]**2) / np.sum(in_disk)))
             self.assertAlmostEqual(norm, 1, places=2)
