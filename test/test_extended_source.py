@@ -20,8 +20,8 @@ class TestExtendedSource(unittest.TestCase):
         src = ExtendedSource(
             simul_params=self.simul_params,
             wavelength_in_nm=500.0,
-            multiples_fwhm=2.0,
             source_type='POINT_SOURCE',
+            sampling_lambda_over_d=1.0,
             size_obj=None,
             sampling_type='CARTESIAN'
         )
@@ -35,9 +35,9 @@ class TestExtendedSource(unittest.TestCase):
         src = ExtendedSource(
             simul_params=self.simul_params,
             wavelength_in_nm=500.0,
-            multiples_fwhm=2.0,
             source_type='TOPHAT',
-            size_obj=1.0,
+            sampling_lambda_over_d=1.0,
+            size_obj=0.5,
             sampling_type='CARTESIAN'
         )
         src.compute()
@@ -50,9 +50,9 @@ class TestExtendedSource(unittest.TestCase):
         src = ExtendedSource(
             simul_params=self.simul_params,
             wavelength_in_nm=500.0,
-            multiples_fwhm=2.0,
             source_type='GAUSS',
-            size_obj=1.0,
+            sampling_lambda_over_d=1.0,
+            size_obj=0.5,
             sampling_type='CARTESIAN'
         )
         src.compute()
@@ -68,9 +68,9 @@ class TestExtendedSource(unittest.TestCase):
             layer_height=[70000.0, 80000.0, 90000.0, 100000.0, 110000.0],
             intensity_profile=[0.1, 0.23, 0.34, 0.23, 0.1],
             wavelength_in_nm=500.0,
-            multiples_fwhm=2.0,
             source_type='GAUSS',
-            size_obj=1.0,
+            sampling_lambda_over_d=1.0,
+            size_obj=0.5,
             sampling_type='CARTESIAN'
         )
         src.compute()
@@ -84,9 +84,9 @@ class TestExtendedSource(unittest.TestCase):
         src = ExtendedSource(
             simul_params=self.simul_params,
             wavelength_in_nm=500.0,
-            multiples_fwhm=2.0,
             source_type='GAUSS',
-            size_obj=1.0,
+            sampling_lambda_over_d=1.0,
+            size_obj=0.5,
             sampling_type='CARTESIAN'
         )
         src.compute()

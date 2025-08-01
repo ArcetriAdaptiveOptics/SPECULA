@@ -8,9 +8,8 @@ class ExtendedSource(BaseProcessingObj):
     def __init__(self,
                  simul_params: SimulParams,
                  wavelength_in_nm: float,
-                 multiples_fwhm: float,                     # telescope diameter [m]
                  source_type: str,                      # 'POINT_SOURCE', 'TOPHAT', 'GAUSS', 'FROM_PSF'
-                 band: str = '',
+                 sampling_lambda_over_d: float = 1.0,   # Sampling factor in units of λ/D
                  size_obj: Optional[float] = None,      # size in arcsec
                  sampling_type: str = 'CARTESIAN',      # 'CARTESIAN', 'POLAR', 'RINGS'
                  layer_height: Optional[List[float]] = None,
@@ -34,10 +33,9 @@ class ExtendedSource(BaseProcessingObj):
         self.airmass = 1. / np.cos(np.radians(self.simul_params.zenithAngleInDeg), dtype=self.dtype)
         
         self.wavelength_in_nm = wavelength_in_nm
-        self.multiples_fwhm = multiples_fwhm
+        self.sampling_lambda_over_d = sampling_lambda_over_d
         self.d_tel = self.pixel_pupil * self.pixel_pitch
         self.source_type = source_type
-        self.band = band
         self.size_obj = size_obj
         self.sampling_type = sampling_type
         if layer_height is not None:
@@ -132,7 +130,7 @@ class ExtendedSource(BaseProcessingObj):
         """Compute 2D extended source"""
         # Object sampling in arcsec
         sec2rad = 4.848e-6
-        obj_sampling = self.multiples_fwhm * (self.wavelength_in_nm/1e9) / self.d_tel / sec2rad
+        obj_sampling = self.sampling_lambda_over_d * (self.wavelength_in_nm/1e9) / self.d_tel / sec2rad
 
         if self.source_type == 'POINT_SOURCE':
             return self._compute_point_source()
@@ -674,7 +672,7 @@ class ExtendedSource(BaseProcessingObj):
         self.psf = psf
         if self.source_type == 'FROM_PSF':
             self.compute()
-            
+
     def plot_source(self):
         """Plot the extended source distribution"""
         try:
@@ -691,7 +689,7 @@ class ExtendedSource(BaseProcessingObj):
             plt.ylabel('Y [arcsec]')
             plt.title(f'{self.source_type} - {self.sampling_type}\n{self.npoints} points')
             plt.axis('equal')
-    
+
             # Tip coefficients
             plt.subplot(132)
             plt.scatter(self.coeff_tiltx, self.coeff_tilty, 
