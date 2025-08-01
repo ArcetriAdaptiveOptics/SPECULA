@@ -23,7 +23,6 @@ class AtmoEvolution(BaseProcessingObj):
                  pixel_phasescreens: int=8192,
                  seed: int=1,
                  verbose: bool=False,
-                 make_cycle: bool=False,
                  fov_in_m: float=None,
                  pupil_position:list =[0,0],
                  target_device_idx: int=None,
@@ -89,7 +88,6 @@ class AtmoEvolution(BaseProcessingObj):
         self.Cn2 = np.array(Cn2, dtype=self.dtype)
         self.pixel_pupil = self.pixel_pupil
         self.data_dir = data_dir
-        self.make_cycle = make_cycle
         self.seeing = None
         self.wind_speed = None
         self.wind_direction = None
@@ -152,26 +150,15 @@ class AtmoEvolution(BaseProcessingObj):
             seed = self.xp.arange(self.seed, self.seed + int(n_ps))
 
             # Square phasescreens
-            if self.make_cycle:
-                raise NotImplementedError('make_cycle is not implemented')
-
-                #pixel_square_phasescreens = self.pixel_square_phasescreens - self.pixel_pupil
-                #ps_cycle = get_layers(1, pixel_square_phasescreens, pixel_square_phasescreens * self.pixel_pitch,
-                #                      500e-9, 1, L0=self.L0[0], par=par, START=start, SEED=seed, DIR=self.data_dir,
-                #                      FILE=filename, no_sha=True, verbose=self.verbose)
-                #ps_cycle = self.xp.vstack([ps_cycle, ps_cycle[:, :self.pixel_pupil]])
-                #ps_cycle = self.xp.hstack([ps_cycle, ps_cycle[:self.pixel_pupil, :]])
-                #square_phasescreens = [ps_cycle * 4 * self.xp.pi]  # 4 * π is added to get the correct amplitude
+            if hasattr(self.L0, '__len__'):
+                L0 = self.L0[0]
             else:
-                if hasattr(self.L0, '__len__'):
-                    L0 = self.L0[0]
-                else:
-                    L0 = self.L0
-                L0 = np.array([L0])
-                square_phasescreens = phasescreens_manager(L0, self.pixel_square_phasescreens,
-                                                            self.pixel_pitch, self.data_dir,
-                                                            seed=seed, precision=self.precision,
-                                                            verbose=self.verbose, xp=self.xp)
+                L0 = self.L0
+            L0 = np.array([L0])
+            square_phasescreens = phasescreens_manager(L0, self.pixel_square_phasescreens,
+                                                        self.pixel_pitch, self.data_dir,
+                                                        seed=seed, precision=self.precision,
+                                                        verbose=self.verbose, xp=self.xp)
 
             square_ps_index = -1
             ps_index = 0
