@@ -172,11 +172,7 @@ class ZernikeGenerator():
             const = 1 / eval_jacobi(K, 0, abs(m), 1.0)
             cJ = eval_jacobi(K, 0, abs(m), 2 * rho_cpu**2 - 1)
             Rnm = const * np.power(rho_cpu, abs(m)) * cJ
-        #const = 1/jacobi(K, 0, m, monic=True)(1)  # BW pg 770, Magnus pg 210
-        #cJ = jacobi(K, 0, m, monic=True)(2 * rho**2 - 1)
-        #bibRnm = const * pow(rho, m) * cJ
         return to_xp(self.xp, Rnm, dtype=self.dtype)
-
 
     def _polar(self, index, rhoArray, thetaArray):
         n, m = self.degree(index)
