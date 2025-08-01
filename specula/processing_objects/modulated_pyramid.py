@@ -504,13 +504,17 @@ class ModulatedPyramid(BaseProcessingObj):
         in_ef = self.local_inputs['in_ef']
 
         # Determine if interpolation is needed (like in SH)
-        if self.rotAnglePhInDeg != 0 or self.xShiftPhInPixel != 0 or self.yShiftPhInPixel != 0:
+        if (self.fov_res != 1 or
+            self.rotAnglePhInDeg != 0 or
+            self.xShiftPhInPixel != 0 or
+            self.yShiftPhInPixel != 0):
+
             self._do_interpolation = True
 
             # Create the interpolated field (like SH does with self._wf1)
             self._wf_interpolated = ElectricField(
-                in_ef.size[0],
-                in_ef.size[0],
+                self.fft_sampling,
+                self.fft_sampling,
                 in_ef.pixel_pitch,
                 target_device_idx=self.target_device_idx,
                 precision=self.precision
@@ -519,8 +523,8 @@ class ModulatedPyramid(BaseProcessingObj):
             # Create the interpolator (like in SH)
             self.interp = Interp2D(
                 in_ef.size,
-                in_ef.size,
-                self.rotAnglePhInDeg,
+                (self.fft_sampling, self.fft_sampling),
+                -self.rotAnglePhInDeg,  # Negative angle for PASSATA compatibility
                 self.xShiftPhInPixel,
                 self.yShiftPhInPixel,
                 dtype=self.dtype,

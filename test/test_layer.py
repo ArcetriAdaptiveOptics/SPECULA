@@ -2,6 +2,7 @@
 import specula
 specula.init(0)  # Default target device
 
+import numpy as np
 import unittest
 
 from specula.data_objects.layer import Layer
@@ -31,3 +32,31 @@ class TestLayer(unittest.TestCase):
         assert hdr['SHIFTY'] == 0.2
         assert hdr['ROTATION'] == 3
         assert hdr['MAGNIFIC'] == 4.0
+
+    @cpu_and_gpu
+    def test_float(self, target_device_idx, xp):
+        '''Test that precision=1 results in a single-precision layer'''
+
+        pixel_pupil = 10
+        pixel_pitch = 0.1
+        
+        layer = Layer(pixel_pupil, pixel_pupil, pixel_pitch, height=0,
+                      shiftXYinPixel=(0.1, 0.2), rotInDeg=3, magnification=4.0,
+                      target_device_idx=target_device_idx, precision=1)
+
+        assert layer.field.dtype == np.float32
+        assert layer.ef_at_lambda(500.0).dtype == np.complex64
+
+    @cpu_and_gpu
+    def test_double(self, target_device_idx, xp):
+        '''Test that precision=0 results in a double-precision layer'''
+
+        pixel_pupil = 10
+        pixel_pitch = 0.1
+        
+        layer = Layer(pixel_pupil, pixel_pupil, pixel_pitch, height=0,
+                      shiftXYinPixel=(0.1, 0.2), rotInDeg=3, magnification=4.0,
+                      target_device_idx=target_device_idx, precision=0)
+
+        assert layer.field.dtype == np.float64
+        assert layer.ef_at_lambda(500.0).dtype == np.complex128
