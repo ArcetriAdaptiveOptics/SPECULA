@@ -2,7 +2,6 @@ import numpy as np
 from typing import Optional, Union, Tuple, List
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_value import BaseValue
-from specula.connections import InputValue, OutputValue
 
 class ExtendedSource(BaseProcessingObj):
     def __init__(self,
@@ -22,7 +21,6 @@ class ExtendedSource(BaseProcessingObj):
                  focus_height: Optional[float] = None,
                  tt_profile: Optional[np.ndarray] = None,
                  n_rings: Optional[int] = None,
-                 show_source: bool = False,
                  flux_threshold: float = 0.0,
                  psf: Optional[np.ndarray] = None,
                  pixel_scale_psf: Optional[float] = None,
@@ -48,7 +46,6 @@ class ExtendedSource(BaseProcessingObj):
         self.focus_height = focus_height
         self.tt_profile = tt_profile
         self.n_rings = n_rings or 0
-        self.show_source = show_source
         self.flux_threshold = flux_threshold
         self.psf = psf
         self.pixel_scale_psf = pixel_scale_psf
@@ -675,9 +672,6 @@ class ExtendedSource(BaseProcessingObj):
             
     def plot_source(self):
         """Plot the extended source distribution"""
-        if not self.show_source:
-            return
-
         try:
             import matplotlib.pyplot as plt
 
