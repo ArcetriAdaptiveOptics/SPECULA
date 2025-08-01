@@ -5,6 +5,27 @@ from specula.data_objects.simul_params import SimulParams
 from specula.base_value import BaseValue
 
 class ExtendedSource(BaseProcessingObj):
+    """
+    ExtendedSource class to compute extended sources (list of 3D points) for pyramid wavefront sensing.
+
+    Args:
+        simul_params (SimulParams): Simulation parameters.
+        wavelength_in_nm (float): Wavelength in nanometers.
+        source_type (str): Type of source ('POINT_SOURCE', 'TOPHAT', 'GAUSS', 'FROM_PSF').
+        sampling_lambda_over_d (float): Sampling factor in units of λ/D. Larger values mean less points.
+        size_obj (Optional[float]): Size of the object in arcseconds. Required for 'TOPHAT' and 'GAUSS' sources.
+        sampling_type (str): Sampling type ('CARTESIAN', 'POLAR', 'RINGS').
+        layer_height (Optional[List[float]]): Heights of layers in meters. Used for 3D sources (sodium beacon).
+        intensity_profile (Optional[List[float]]): Intensity profile for each layer. Used for 3D sources (sodium beacon).
+        focus_height (Optional[float]): Height of the focus in meters. Used for 3D sources (sodium beacon).
+        tt_profile (Optional[np.ndarray]): Tip/tilt profile for each layer. Used for 3D sources (sodium beacon).
+        n_rings (Optional[int]): Number of rings for 'RINGS' sampling. Default is 0.
+        flux_threshold (float): Threshold for flux. Points with flux below this value are discarded.
+        psf (Optional[np.ndarray]): PSF array for 'FROM_PSF' source type.
+        pixel_scale_psf (Optional[float]): Pixel scale of the PSF in arcseconds. Required for 'FROM_PSF' source type.
+        target_device_idx (int): Index of the target device for computation. 0 is first GPU, -1 is CPU.
+        precision (int): Precision for computation (e.g., 32 or 64 bits). 1 is single precision, 0 is double precision.
+    """
     def __init__(self,
                  simul_params: SimulParams,
                  wavelength_in_nm: float,
@@ -12,7 +33,7 @@ class ExtendedSource(BaseProcessingObj):
                  sampling_lambda_over_d: float = 1.0,   # Sampling factor in units of λ/D
                  size_obj: Optional[float] = None,      # size in arcsec
                  sampling_type: str = 'CARTESIAN',      # 'CARTESIAN', 'POLAR', 'RINGS'
-                 layer_height: Optional[List[float]] = None,
+                 layer_height: Optional[List[float]] = None,    
                  intensity_profile: Optional[List[float]] = None,
                  focus_height: Optional[float] = None,
                  tt_profile: Optional[np.ndarray] = None,
