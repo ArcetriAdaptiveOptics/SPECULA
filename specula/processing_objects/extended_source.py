@@ -1,19 +1,16 @@
 import numpy as np
 from typing import Optional, Union, Tuple, List
 from specula.base_processing_obj import BaseProcessingObj
+from specula.data_objects.simul_params import SimulParams
 from specula.base_value import BaseValue
 
 class ExtendedSource(BaseProcessingObj):
     def __init__(self,
-                 polar_coordinate: Tuple[float, float],  # [arcsec, degree]
-                 height: float,                          # [m], use np.inf for infinite height
-                 magnitude: float,
+                 simul_params: SimulParams,
                  wavelength_in_nm: float,
-                 multiples_fwhm: float,
-                 d_tel: float,                          # telescope diameter [m]
+                 multiples_fwhm: float,                     # telescope diameter [m]
                  source_type: str,                      # 'POINT_SOURCE', 'TOPHAT', 'GAUSS', 'FROM_PSF'
                  band: str = '',
-                 zero_point: float = 0.0,
                  size_obj: Optional[float] = None,      # size in arcsec
                  sampling_type: str = 'CARTESIAN',      # 'CARTESIAN', 'POLAR', 'RINGS'
                  layer_height: Optional[List[float]] = None,
@@ -30,19 +27,27 @@ class ExtendedSource(BaseProcessingObj):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         # Store parameters
-        self.polar_coordinate = polar_coordinate
-        self.height = height
-        self.magnitude = magnitude
+        self.simul_params = simul_params
+        self.pixel_pupil = self.simul_params.pixel_pupil
+        self.pixel_pitch = self.simul_params.pixel_pitch
+        self.zenithAngleInDeg = self.simul_params.zenithAngleInDeg
+        self.airmass = 1. / np.cos(np.radians(self.simul_params.zenithAngleInDeg), dtype=self.dtype)
+        
         self.wavelength_in_nm = wavelength_in_nm
         self.multiples_fwhm = multiples_fwhm
-        self.d_tel = d_tel
+        self.d_tel = self.pixel_pupil * self.pixel_pitch
         self.source_type = source_type
         self.band = band
-        self.zero_point = zero_point
         self.size_obj = size_obj
         self.sampling_type = sampling_type
+        if layer_height is not None:
+            layer_height = [h * self.airmass for h in layer_height]
         self.layer_height = layer_height or []
         self.intensity_profile = intensity_profile or []
+        if focus_height is not None:
+            focus_height = focus_height * self.airmass
+        else:
+            focus_height = np.inf
         self.focus_height = focus_height
         self.tt_profile = tt_profile
         self.n_rings = n_rings or 0
@@ -658,7 +663,7 @@ class ExtendedSource(BaseProcessingObj):
         self.coeff_tilty = self.coeff_tilty[valid_mask]
         self.coeff_focus = self.coeff_focus[valid_mask]
         self.coeff_flux = self.coeff_flux[valid_mask]
-        
+
         self.npoints = len(self.coeff_flux)
 
     def update_psf(self, psf: np.ndarray):
@@ -691,14 +696,14 @@ class ExtendedSource(BaseProcessingObj):
             plt.subplot(132)
             plt.scatter(self.coeff_tiltx, self.coeff_tilty, 
                     c=self.coeff_flux, s=50, cmap='viridis')
-            plt.xlabel('Tip coefficient')
-            plt.ylabel('Tilt coefficient')
+            plt.xlabel('Tip coefficient [rad]')
+            plt.ylabel('Tilt coefficient [rad]')
             plt.title('Tip/Tilt coefficients')
 
             # Focus distribution
             plt.subplot(133)
             plt.hist(self.coeff_focus, bins=20, alpha=0.7)
-            plt.xlabel('Focus coefficient')
+            plt.xlabel('Focus coefficient [rad]')
             plt.ylabel('Count')
             plt.title('Focus distribution')
 

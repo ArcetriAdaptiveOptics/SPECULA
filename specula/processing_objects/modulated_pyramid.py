@@ -12,6 +12,7 @@ from specula.lib.make_mask import make_mask
 from specula.lib.toccd import toccd
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.zernike_generator import ZernikeGenerator
+from specula.processing_objects.extended_source import ExtendedSource
         
 @fuse(kernel_name='pyr1_fused')
 def pyr1_fused(u_fp, ffv, fpsf, masked_exp, xp):
