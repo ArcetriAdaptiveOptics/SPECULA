@@ -40,7 +40,7 @@ def cn2_to_seeing(cn2, wvl=500.e-9):
 
 class InfinitePhaseScreen(BaseDataObj):
 
-    def __init__(self, mx_size, pixel_scale, r0, L0, random_seed=None, stencil_size_factor=1, xp=np, target_device_idx=0, precision=0):
+    def __init__(self, mx_size, pixel_scale, r0, L0, l0, random_seed=None, stencil_size_factor=1, xp=np, target_device_idx=0, precision=0):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.random_data_col = None
@@ -50,6 +50,7 @@ class InfinitePhaseScreen(BaseDataObj):
         self.pixel_scale = pixel_scale
         self.r0 = r0
         self.L0 = L0
+        self.l0 = l0
         self.xp = xp
         self.stencil_size_factor = stencil_size_factor
         self.stencil_size = stencil_size_factor * self.mx_size
@@ -256,6 +257,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         self.delta_time = 1
         # fixed at generation time, then is a input -> rescales the screen?
         self.seeing = 0.8
+        self.l0 = 0.005
         self.wind_speed = 1
         self.wind_direction = 1
         self.airmass = 1
@@ -338,6 +340,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
                                                        self.pixel_pitch,
                                                        self.ref_r0,
                                                        self.L0[i],
+                                                       self.l0,
                                                        random_seed=int(seed[i]),
                                                        xp=self.xp,
                                                        target_device_idx=self.target_device_idx,
