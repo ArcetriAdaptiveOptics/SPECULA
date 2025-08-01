@@ -11,7 +11,7 @@ from specula import cpuArray
 class TestZernikeGenerator(unittest.TestCase):
     def setUp(self):
         self.size = 64
-        self.plot_debug = True  # Set to True to enable plotting for debugging
+        self.plot_debug = False  # Set to True to enable plotting for debugging
 
     @cpu_and_gpu
     def test_tip_and_tilt_shape(self, target_device_idx, xp):
@@ -19,17 +19,13 @@ class TestZernikeGenerator(unittest.TestCase):
         tip = zg.getZernike(2)
         tilt = zg.getZernike(3)
         coma = zg.getZernike(7)
+        
         if self.plot_debug:
             import matplotlib.pyplot as plt
-            # Extract data properly for plotting
-            if hasattr(tip, 'data'):
-                tip_plot = cpuArray(tip.data)
-                tilt_plot = cpuArray(tilt.data)
-                coma_plot = cpuArray(coma.data)
-            else:
-                tip_plot = cpuArray(tip)
-                tilt_plot = cpuArray(tilt)
-                coma_plot = cpuArray(coma)
+            # Extract data properly for plotting - always convert to numpy
+            tip_plot = cpuArray(tip.data if hasattr(tip, 'data') else tip)
+            tilt_plot = cpuArray(tilt.data if hasattr(tilt, 'data') else tilt)
+            coma_plot = cpuArray(coma.data if hasattr(coma, 'data') else coma)
 
             plt.figure(figsize=(15, 5))
             plt.subplot(1, 3, 1)
@@ -54,15 +50,16 @@ class TestZernikeGenerator(unittest.TestCase):
     def test_masked_area(self, target_device_idx, xp):
         zg = ZernikeGenerator(self.size, xp=xp, dtype=xp.float32)
         tip = zg.getZernike(2)
-        mask = zg._boolean_mask
         
         # Handle both masked arrays (CPU) and regular arrays (GPU)
-        if hasattr(tip, 'data'):
+        if hasattr(tip, 'data') and hasattr(tip, 'mask'):
+            # CPU: masked array
             tip_np = cpuArray(tip.data)
-            mask_np = cpuArray(tip.mask)  # Use the mask from the masked array
+            mask_np = cpuArray(tip.mask)
         else:
+            # GPU: regular array
             tip_np = cpuArray(tip)
-            mask_np = cpuArray(mask)
+            mask_np = cpuArray(zg._boolean_mask)
         
         # Outside the disk, values should be zero
         self.assertTrue(np.all(tip_np[mask_np] == 0))
@@ -71,9 +68,17 @@ class TestZernikeGenerator(unittest.TestCase):
     def test_piston_constant(self, target_device_idx, xp):
         zg = ZernikeGenerator(self.size, xp=xp, dtype=xp.float32)
         piston = zg.getZernike(1)
-        mask = zg._boolean_mask
-        piston_np = cpuArray(piston.data if hasattr(piston, 'data') else piston)
-        mask_np = cpuArray(mask)  # Ensure mask is also numpy
+        
+        # Handle both masked arrays (CPU) and regular arrays (GPU)
+        if hasattr(piston, 'data') and hasattr(piston, 'mask'):
+            # CPU: masked array
+            piston_np = cpuArray(piston.data)
+            mask_np = cpuArray(piston.mask)
+        else:
+            # GPU: regular array
+            piston_np = cpuArray(piston)
+            mask_np = cpuArray(zg._boolean_mask)
+        
         in_disk = ~mask_np
         # The value should be constant inside the disk
         self.assertAlmostEqual(float(np.std(piston_np[in_disk])), 0, places=10)
@@ -81,11 +86,21 @@ class TestZernikeGenerator(unittest.TestCase):
     @cpu_and_gpu
     def test_norm(self, target_device_idx, xp):
         zg = ZernikeGenerator(self.size, xp=xp, dtype=xp.float32)
-        mask = zg._boolean_mask
-        mask_np = cpuArray(mask)  # Ensure mask is also numpy
+        
+        # Get the mask once
+        mask_np = cpuArray(zg._boolean_mask)
+        in_disk = ~mask_np
+        
         for idx in range(1, 5):
             z = zg.getZernike(idx)
-            z_np = cpuArray(z.data if hasattr(z, 'data') else z)
-            in_disk = ~mask_np
+            
+            # Handle both masked arrays (CPU) and regular arrays (GPU)
+            if hasattr(z, 'data') and hasattr(z, 'mask'):
+                # CPU: masked array
+                z_np = cpuArray(z.data)
+            else:
+                # GPU: regular array
+                z_np = cpuArray(z)
+            
             norm = float(np.sqrt(np.sum(z_np[in_disk]**2) / np.sum(in_disk)))
             self.assertAlmostEqual(norm, 1, places=2)
