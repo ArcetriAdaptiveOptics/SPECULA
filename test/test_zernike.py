@@ -21,10 +21,16 @@ class TestZernikeGenerator(unittest.TestCase):
         coma = zg.getZernike(7)
         if self.plot_debug:
             import matplotlib.pyplot as plt
-            # Always convert to numpy for plotting
-            tip_plot = cpuArray(tip.data if hasattr(tip, 'data') else tip)
-            tilt_plot = cpuArray(tilt.data if hasattr(tilt, 'data') else tilt)
-            coma_plot = cpuArray(coma.data if hasattr(coma, 'data') else coma)
+            # Extract data properly for plotting
+            if hasattr(tip, 'data'):
+                tip_plot = cpuArray(tip.data)
+                tilt_plot = cpuArray(tilt.data)
+                coma_plot = cpuArray(coma.data)
+            else:
+                tip_plot = cpuArray(tip)
+                tilt_plot = cpuArray(tilt)
+                coma_plot = cpuArray(coma)
+
             plt.figure(figsize=(15, 5))
             plt.subplot(1, 3, 1)
             plt.imshow(tip_plot, cmap='gray')
@@ -39,6 +45,7 @@ class TestZernikeGenerator(unittest.TestCase):
             plt.title('Coma')
             plt.colorbar()
             plt.show()
+
         self.assertEqual(tip.shape, (self.size, self.size))
         self.assertEqual(tilt.shape, (self.size, self.size))
         self.assertEqual(coma.shape, (self.size, self.size))
@@ -47,11 +54,17 @@ class TestZernikeGenerator(unittest.TestCase):
     def test_masked_area(self, target_device_idx, xp):
         zg = ZernikeGenerator(self.size, xp=xp, dtype=xp.float32)
         tip = zg.getZernike(2)
-        # Use the boolean mask from the generator (always numpy)
         mask = zg._boolean_mask
-        tip_np = cpuArray(tip.data if hasattr(tip, 'data') else tip)
-        mask_np = cpuArray(mask)  # Ensure mask is also numpy
-        # Outside the disk, values should be zero (by construction)
+        
+        # Handle both masked arrays (CPU) and regular arrays (GPU)
+        if hasattr(tip, 'data'):
+            tip_np = cpuArray(tip.data)
+            mask_np = cpuArray(tip.mask)  # Use the mask from the masked array
+        else:
+            tip_np = cpuArray(tip)
+            mask_np = cpuArray(mask)
+        
+        # Outside the disk, values should be zero
         self.assertTrue(np.all(tip_np[mask_np] == 0))
 
     @cpu_and_gpu
