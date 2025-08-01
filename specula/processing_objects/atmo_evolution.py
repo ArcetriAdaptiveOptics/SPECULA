@@ -11,6 +11,11 @@ from specula.connections import InputValue
 from specula import cpuArray, ASEC2RAD
 from specula.data_objects.simul_params import SimulParams
 
+
+# Phasescreens are always defined at 500 nm
+ATMO_WAVELENGTH = 500.0
+
+
 class AtmoEvolution(BaseProcessingObj):
     def __init__(self,
                  simul_params: SimulParams,
@@ -18,7 +23,6 @@ class AtmoEvolution(BaseProcessingObj):
                  heights: list,      # TODO =[0.0],
                  Cn2: list,          # TODO =[1.0],
                  data_dir: str,      # TODO ="",
-                 wavelengthInNm: float=500.0,                 
                  fov: float=0.0,
                  pixel_phasescreens: int=8192,
                  seed: int=1,
@@ -46,7 +50,6 @@ class AtmoEvolution(BaseProcessingObj):
         self.seeing = 1
         self.wind_speed = 1
         self.wind_direction = 1        
-        self.wavelengthInNm = wavelengthInNm
                 
         self.inputs['seeing'] = InputValue(type=BaseValue)
         self.inputs['wind_speed'] = InputValue(type=BaseValue)
@@ -200,7 +203,7 @@ class AtmoEvolution(BaseProcessingObj):
             temp_screen -= self.xp.mean(temp_screen)
 
             # Convert to nm
-            temp_screen *= self.wavelengthInNm / (2 * np.pi)
+            temp_screen *= ATMO_WAVELENGTH / (2 * np.pi)
 
             # Flip x-axis for each odd phase-screen
             if i % 2 != 0:
@@ -223,8 +226,7 @@ class AtmoEvolution(BaseProcessingObj):
         wind_speed = cpuArray(self.local_inputs['wind_speed'].value)
         wind_direction = cpuArray(self.local_inputs['wind_direction'].value)
         r0 = 0.9759 * 0.5 / (seeing * 4.848) * self.airmass**(-3./5.) # if seeing > 0 else 0.0
-        r0wavelength = r0 * (self.wavelengthInNm / 500.0)**(6./5.)
-        scale_coeff = (self.pixel_pitch / r0wavelength)**(5./6.) # if seeing > 0 else 0.0
+        scale_coeff = (self.pixel_pitch / r0)**(5./6.) # if seeing > 0 else 0.0
         # Compute the delta position in pixels
         delta_position =  wind_speed * self.delta_time / self.pixel_pitch  # [pixel]
         new_position = self.last_position + delta_position
