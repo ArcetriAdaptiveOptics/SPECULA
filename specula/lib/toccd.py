@@ -9,7 +9,7 @@
 #########################################################
 
 
-from specula import cp
+from specula import cp, cpuArray
 from specula.lib.rebin import rebin2d
 
 
@@ -36,7 +36,26 @@ def toccd(a, newshape, set_total=None, xp=None):
     to rebin an array similar to openvc's INTER_AREA interpolation.
 
     If a GPU is available, calculation is delegated to toccd_gpu()
+
+    Parameters
+    ----------
+    a : array
+        array to be resized
+    newshape : tuple, list or array
+        shape of resized array
+    set total : float, optional
+        if set, normalize the resized array to this total count.
+        if not set, the same total count as the input array is used.
+    xp : module
+        numpy or cupy module
+
+    Returns
+    -------
+    array
+        resized array
     '''
+    newshape = tuple(cpuArray(newshape))  # Works for lists, tuples and any cupy/numpy array
+
     if a.shape == newshape:
         return a
 

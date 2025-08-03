@@ -11,6 +11,11 @@ from specula.connections import InputValue
 from specula import cpuArray, ASEC2RAD
 from specula.data_objects.simul_params import SimulParams
 
+
+# Phasescreens are always defined at 500 nm
+ATMO_WAVELENGTH = 500.0
+
+
 class AtmoEvolution(BaseProcessingObj):
     def __init__(self,
                  simul_params: SimulParams,
@@ -18,13 +23,10 @@ class AtmoEvolution(BaseProcessingObj):
                  heights: list,      # TODO =[0.0],
                  Cn2: list,          # TODO =[1.0],
                  data_dir: str,      # TODO ="",
-                 wavelengthInNm: float=500.0,                 
                  fov: float=0.0,
                  pixel_phasescreens: int=8192,
                  seed: int=1,
                  verbose: bool=False,
-                 user_defined_phasescreen: str='',
-                 make_cycle: bool=False,
                  fov_in_m: float=None,
                  pupil_position:list =[0,0],
                  target_device_idx: int=None,
@@ -48,7 +50,6 @@ class AtmoEvolution(BaseProcessingObj):
         self.seeing = 1
         self.wind_speed = 1
         self.wind_direction = 1        
-        self.wavelengthInNm = wavelengthInNm
                 
         self.inputs['seeing'] = InputValue(type=BaseValue)
         self.inputs['wind_speed'] = InputValue(type=BaseValue)
@@ -90,7 +91,6 @@ class AtmoEvolution(BaseProcessingObj):
         self.Cn2 = np.array(Cn2, dtype=self.dtype)
         self.pixel_pupil = self.pixel_pupil
         self.data_dir = data_dir
-        self.make_cycle = make_cycle
         self.seeing = None
         self.wind_speed = None
         self.wind_direction = None
@@ -110,10 +110,6 @@ class AtmoEvolution(BaseProcessingObj):
         
         self.verbose = verbose
 
-        # Use a specific user-defined phase screen if provided
-        if user_defined_phasescreen is not None:
-            self.user_defined_phasescreen = user_defined_phasescreen
-        
         # Initialize layer list with correct heights
         self.layer_list = []
         for i in range(self.n_phasescreens):
@@ -144,113 +140,80 @@ class AtmoEvolution(BaseProcessingObj):
         self.phasescreens = []
         self.phasescreens_sizes = []
 
-        if self.user_defined_phasescreen:
-            temp_screen = fits.getdata(self.user_defined_phasescreen)
+        self.pixel_phasescreens = int(self.xp.max(self.pixel_layer))
+        temp_screens = []
 
-            if len(self.Cn2) > 1:
-                raise ValueError('The user-defined phasescreen works only if the total phasescreens are 1.')
+        if len(self.xp.unique(self.L0)) == 1:
+            # Number of rectangular phase screens from a single square phasescreen
+            n_ps_from_square_ps = self.xp.floor(self.pixel_square_phasescreens / self.pixel_phasescreens)
+            # Number of square phasescreens
+            n_ps = self.xp.ceil(float(self.n_phasescreens) / n_ps_from_square_ps)
 
-            if temp_screen.shape[0] < temp_screen.shape[1]:
-                temp_screen = temp_screen.T
+            # Seed vector
+            seed = self.xp.arange(self.seed, self.seed + int(n_ps))
 
+            # Square phasescreens
+            if hasattr(self.L0, '__len__'):
+                L0 = self.L0[0]
+            else:
+                L0 = self.L0
+            L0 = np.array([L0])
+            square_phasescreens = phasescreens_manager(L0, self.pixel_square_phasescreens,
+                                                        self.pixel_pitch, self.data_dir,
+                                                        seed=seed, precision=self.precision,
+                                                        verbose=self.verbose, xp=self.xp)
+
+            square_ps_index = -1
+            ps_index = 0
+
+            for i in range(self.n_phasescreens):
+                # Increase square phase-screen index
+                if i % n_ps_from_square_ps == 0:
+                    square_ps_index += 1
+                    ps_index = 0
+
+                temp_screen = square_phasescreens[square_ps_index][int(self.pixel_phasescreens) * ps_index:
+                                                                    int(self.pixel_phasescreens) * (ps_index + 1), :]
+                temp_screens.append(temp_screen)
+                ps_index += 1
+
+        else:
+            seed = self.seed + self.xp.arange(self.n_phasescreens)
+
+            if len(seed) != len(self.L0):
+                raise ValueError('Number of elements in seed and L0 must be the same!')
+
+            # Square phasescreens
+            square_phasescreens = phasescreens_manager(self.L0, self.pixel_square_phasescreens,
+                                                        self.pixel_pitch, self.data_dir,
+                                                        seed=seed, precision=self.precision,
+                                                        verbose=self.verbose, xp=self.xp)
+
+            for i in range(self.n_phasescreens):
+                temp_screen = square_phasescreens[i][ :int(self.pixel_phasescreens), :]
+                temp_screens.append(temp_screen)
+
+
+        # Normalize all phasescreens
+
+        for i, temp_screen in enumerate(temp_screens):
+
+            temp_screen = self.to_xp(temp_screen, dtype=self.dtype)
+            temp_screen *= self.xp.sqrt(self.Cn2[i])
             temp_screen -= self.xp.mean(temp_screen)
+
             # Convert to nm
-            temp_screen *= self.wavelengthInNm / (2 * self.xp.pi)
-            
+            temp_screen *= ATMO_WAVELENGTH / (2 * np.pi)
+
+            # Flip x-axis for each odd phase-screen
+            if i % 2 != 0:
+                temp_screen = self.xp.flip(temp_screen, axis=1)
+
             self.phasescreens.append(temp_screen)
             self.phasescreens_sizes.append(temp_screen.shape[1])
 
-        else:
-            self.pixel_phasescreens = int(self.xp.max(self.pixel_layer))
-
-            if len(self.xp.unique(self.L0)) == 1:
-                # Number of rectangular phase screens from a single square phasescreen
-                n_ps_from_square_ps = self.xp.floor(self.pixel_square_phasescreens / self.pixel_phasescreens)
-                # Number of square phasescreens
-                n_ps = self.xp.ceil(float(self.n_phasescreens) / n_ps_from_square_ps)
-
-                # Seed vector
-                seed = self.xp.arange(self.seed, self.seed + int(n_ps))
-
-                # Square phasescreens
-                if self.make_cycle:
-                    raise NotImplementedError('make_cycle is not implemented')
-
-                    #pixel_square_phasescreens = self.pixel_square_phasescreens - self.pixel_pupil
-                    #ps_cycle = get_layers(1, pixel_square_phasescreens, pixel_square_phasescreens * self.pixel_pitch,
-                    #                      500e-9, 1, L0=self.L0[0], par=par, START=start, SEED=seed, DIR=self.data_dir,
-                    #                      FILE=filename, no_sha=True, verbose=self.verbose)
-                    #ps_cycle = self.xp.vstack([ps_cycle, ps_cycle[:, :self.pixel_pupil]])
-                    #ps_cycle = self.xp.hstack([ps_cycle, ps_cycle[:self.pixel_pupil, :]])
-                    #square_phasescreens = [ps_cycle * 4 * self.xp.pi]  # 4 * π is added to get the correct amplitude
-                else:
-                    if hasattr(self.L0, '__len__'):
-                        L0 = self.L0[0]
-                    else:
-                        L0 = self.L0
-                    L0 = np.array([L0])
-                    square_phasescreens = phasescreens_manager(L0, self.pixel_square_phasescreens,
-                                                               self.pixel_pitch, self.data_dir,
-                                                               seed=seed, precision=self.precision,
-                                                               verbose=self.verbose, xp=self.xp)
-
-                square_ps_index = -1
-                ps_index = 0
-
-                for i in range(self.n_phasescreens):
-                    # Increase square phase-screen index
-                    if i % n_ps_from_square_ps == 0:
-                        square_ps_index += 1
-                        ps_index = 0
-
-                    temp_screen = self.to_xp(square_phasescreens[square_ps_index][int(self.pixel_phasescreens) * ps_index:
-                                                                       int(self.pixel_phasescreens) * (ps_index + 1), :], dtype=self.dtype)
-                    # print('self.Cn2[i]', self.Cn2[i], type(self.Cn2[i]), type(self.Cn2))  # Verbose?
-                    # print('temp_screen', temp_screen, type(temp_screen))  # Verbose?
-
-                    temp_screen *= self.xp.sqrt(self.Cn2[i])
-                    temp_screen -= self.xp.mean(temp_screen)
-                    # Convert to nm
-                    temp_screen *= self.wavelengthInNm / (2 * np.pi)
-
-                    temp_screen = self.to_xp(temp_screen, dtype=self.dtype)
-
-                    # Flip x-axis for each odd phase-screen
-                    if i % 2 != 0:
-                        temp_screen = self.xp.flip(temp_screen, axis=1)
-
-                    ps_index += 1
-
-                    self.phasescreens.append(temp_screen)
-                    self.phasescreens_sizes.append(temp_screen.shape[1])
-
-
-            else:
-                seed = self.seed + self.xp.arange(self.n_phasescreens)
-
-                if len(seed) != len(self.L0):
-                    raise ValueError('Number of elements in seed and L0 must be the same!')
-
-                # Square phasescreens
-                square_phasescreens = phasescreens_manager(self.L0, self.pixel_square_phasescreens,
-                                                           self.pixel_pitch, self.data_dir,
-                                                           seed=seed, precision=self.precision,
-                                                           verbose=self.verbose, xp=self.xp)
-
-                for i in range(self.n_phasescreens):
-                    temp_screen = square_phasescreens[i][:, :int(self.pixel_phasescreens)]
-                    temp_screen *= np.sqrt(self.Cn2[i])
-                    temp_screen -= self.xp.mean(temp_screen)
-                    # Convert to nm
-                    temp_screen *= self.wavelengthInNm / (2 * self.xp.pi)
-                    self.phasescreens.append(temp_screen)
-                    self.phasescreens_sizes.append(temp_screen.shape[1])
-
         self.phasescreens_sizes_array = np.asarray(self.phasescreens_sizes)
     
-#        for p in self.phasescreens:
-        self.phasescreens_array = self.xp.asarray(self.phasescreens)
-
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
         self.delta_time = self.t_to_seconds(self.current_time - self.last_t) + self.extra_delta_time        
@@ -263,8 +226,7 @@ class AtmoEvolution(BaseProcessingObj):
         wind_speed = cpuArray(self.local_inputs['wind_speed'].value)
         wind_direction = cpuArray(self.local_inputs['wind_direction'].value)
         r0 = 0.9759 * 0.5 / (seeing * 4.848) * self.airmass**(-3./5.) # if seeing > 0 else 0.0
-        r0wavelength = r0 * (self.wavelengthInNm / 500.0)**(6./5.)
-        scale_coeff = (self.pixel_pitch / r0wavelength)**(5./6.) # if seeing > 0 else 0.0
+        scale_coeff = (self.pixel_pitch / r0)**(5./6.) # if seeing > 0 else 0.0
         # Compute the delta position in pixels
         delta_position =  wind_speed * self.delta_time / self.pixel_pitch  # [pixel]
         new_position = self.last_position + delta_position
