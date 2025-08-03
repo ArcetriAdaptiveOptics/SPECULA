@@ -368,8 +368,6 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
 #        print('scale_r0', scale_r0)
 #        print('scale_coeff', scale_coeff)
 
-        ascreen = scale_coeff * self.infinite_phasescreens[0].scrn
-
         # Compute the delta position in pixels
         delta_position =  wind_speed * self.delta_time / self.pixel_pitch  # [pixel]
         new_position = self.last_position + delta_position
@@ -391,7 +389,8 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
             if np.abs(w_x_comp)>eps:
                 for r in range(int(np.abs(cols_to_add))):
                     phaseScreen.add_line(0, sc)
-            phaseScreen0 = phaseScreen.scrnRawAll.copy()
+            phaseScreen0All = phaseScreen.scrnRawAll.copy()
+            phaseScreen0 = phaseScreen.scrnRaw.copy()
             # print('w_y_comp, w_x_comp', w_y_comp, w_x_comp)
             # print('frac_rows, frac_cols', frac_rows, frac_cols)
             srf = int(np.sign(frac_rows) )
@@ -401,15 +400,15 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
                 phaseScreen.add_line(1, srf, False)
             if np.abs(frac_cols)>eps:
                 phaseScreen.add_line(0, scf, False)
-            phaseScreen1 = phaseScreen.scrnRawAll.copy()
+            phaseScreen1 = phaseScreen.scrnRaw
             interpfactor = np.sqrt(frac_rows**2 + frac_cols**2 )
             layer_phase = interpfactor * phaseScreen1 + (1.0-interpfactor) * phaseScreen0
-            phaseScreen.full_scrn = phaseScreen0
+            phaseScreen.full_scrn = phaseScreen0All
             self.acc_rows[ii] = frac_rows
             self.acc_cols[ii] = frac_cols
             # print('acc_rows', self.acc_rows)
             # print('acc_cols', self.acc_cols)
-            self.layer_list[ii].field = self.xp.stack((layer_phase, layer_phase))
+            self.layer_list[ii].field[:] = self.xp.stack((layer_phase, layer_phase))
             self.layer_list[ii].phaseInNm *= scale_coeff
             self.layer_list[ii].A = 1
             self.layer_list[ii].generation_time = self.current_time
