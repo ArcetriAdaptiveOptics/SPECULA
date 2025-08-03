@@ -179,7 +179,7 @@ class TestExtendedSource(unittest.TestCase):
         src.check_ready(1)
         original_flux = src.coeff_flux.copy()
 
-        src.trigger(1)  # This should update the PSF and recompute
+        src.trigger()  # This should update the PSF and recompute
         src.post_trigger()
 
         # Verify the flux coefficients changed

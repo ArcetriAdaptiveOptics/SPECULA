@@ -421,34 +421,27 @@ class ModulatedPyramid(BaseProcessingObj):
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
 
+        # Update input reference
+        in_ef = self.local_inputs['in_ef']
+
         # Check if extended source has been updated (e.g., new PSF)
         if self.extended_source_in_on:
             # Update flux factor vector in case the source was updated
             source = self.extended_source
-            if hasattr(source, 'outputs') and source.outputs['coeff_flux'].generation_time == self.current_time:
-                # Source was updated this timestep, refresh flux factors and ttexp
+            if source.outputs['coeff_flux'].generation_time == self.current_time:
+                # Source was updated this timestep, refresh ttexp, flux factors and ffv
                 self.mod_steps = source.npoints
-                self.cache_ttexp()  # This will update both ttexp and flux_factor_vector
-
-        # Update input reference
-        self.in_ef = self.local_inputs['in_ef']
-
-        #if self.extended_source_in_on and self.extSourcePsf is not None:
-        #    if self.extSourcePsf.generation_time == self.current_time:
-        #        if self.xp.sum(self.xp.abs(self.extSourcePsf.value)) > 0:
-        #            self.extSource.updatePsf(self.extSourcePsf.value)
-        #            self.flux_factor_vector = self.extSource.coeff_flux
-        #            self.ffv = self.flux_factor_vector[:, self.xp.newaxis, self.xp.newaxis]
-        #            self.factor = 1.0 / self.xp.sum(self.flux_factor_vector)
+                self.cache_ttexp()
 
         # Apply interpolation if needed (like SH)
         if self._do_interpolation:
 
             if self._edge_pixels is None:
                 # Compute once indices and coefficients
-                self._edge_pixels, self._reference_indices, self._coefficients, self._valid_indices = calculate_extrapolation_indices_coeffs(
-                    cpuArray(self.in_ef.A)
-                )
+                (self._edge_pixels,
+                self._reference_indices,
+                self._coefficients,
+                self._valid_indices) = calculate_extrapolation_indices_coeffs(cpuArray(in_ef.A))
 
                 # convert to xp
                 self._edge_pixels = self.to_xp(self._edge_pixels)
@@ -456,9 +449,9 @@ class ModulatedPyramid(BaseProcessingObj):
                 self._coefficients = self.to_xp(self._coefficients)
                 self._valid_indices = self.to_xp(self._valid_indices)
 
-            self.phase_extrapolated[:] = self.in_ef.phaseInNm
+            self.phase_extrapolated[:] = in_ef.phaseInNm
             _ = apply_extrapolation(
-                self.in_ef.phaseInNm,
+                in_ef.phaseInNm,
                 self._edge_pixels,
                 self._reference_indices,
                 self._coefficients,
@@ -468,12 +461,12 @@ class ModulatedPyramid(BaseProcessingObj):
             )
 
             # Interpolate amplitude and phase separately
-            self.interp.interpolate(self.in_ef.A, out=self._wf_interpolated.A)
+            self.interp.interpolate(in_ef.A, out=self._wf_interpolated.A)
             self.interp.interpolate(self.phase_extrapolated, out=self._wf_interpolated.phaseInNm)
 
             # Copy other properties
-            self._wf_interpolated.S0 = self.in_ef.S0
-            self._wf_interpolated.pixel_pitch = self.in_ef.pixel_pitch
+            self._wf_interpolated.S0 = in_ef.S0
+            self._wf_interpolated.pixel_pitch = in_ef.pixel_pitch
 
         # Always use self._wf_interpolated for calculations (like SH uses self._wf1)
         self._wf_interpolated.ef_at_lambda(self.wavelength_in_nm, out=self.ef)
@@ -600,7 +593,6 @@ class ModulatedPyramid(BaseProcessingObj):
             self._pup_pyr_interpolated = self.pup_pyr_tot
 
         # Store reference to input field (like SH does)
-        self.in_ef = in_ef
         if self._do_interpolation:
             self.phase_extrapolated = in_ef.phaseInNm.copy()
 
