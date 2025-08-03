@@ -3,6 +3,7 @@ from typing import Optional, Union, Tuple, List
 from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.simul_params import SimulParams
 from specula.base_value import BaseValue
+from specula.connections import InputValue
 
 class ExtendedSource(BaseProcessingObj):
     """
@@ -88,6 +89,9 @@ class ExtendedSource(BaseProcessingObj):
         self.coeff_flux = None
         self.xx_arcsec = None
         self.yy_arcsec = None
+
+        # Add input for PSF updates
+        self.inputs['psf'] = InputValue(type=BaseValue, optional=True)
 
         # Outputs
         self.outputs['coeff_tiltx'] = BaseValue(target_device_idx=self.target_device_idx)
@@ -685,14 +689,28 @@ class ExtendedSource(BaseProcessingObj):
 
         self.npoints = len(self.coeff_flux)
 
+    def trigger(self, t):
+        """Update PSF if new data is available and recompute if needed"""
+        # Check if PSF input is available and updated
+        psf = self.local_inputs.get('psf')
+        if psf is not None and psf.generation_time == self.current_time:
+            if np.sum(np.abs(psf.value)) > 0:
+                self.update_psf(psf.value)
+
     def update_psf(self, psf: np.ndarray):
-        """Update PSF for FROM_PSF source type"""
+        """Update PSF for FROM_PSF source type and recompute coefficients"""
         if self.pixel_scale_psf is None:
             raise ValueError("pixel_scale_psf must be set before updating PSF")
 
         self.psf = psf
         if self.source_type == 'FROM_PSF':
-            self.compute()
+            self.compute()  # Recompute all coefficients with new PSF
+
+            # Update outputs with new values
+            self.outputs['coeff_tiltx'].value = self.to_xp(self.coeff_tiltx)
+            self.outputs['coeff_tilty'].value = self.to_xp(self.coeff_tilty)
+            self.outputs['coeff_focus'].value = self.to_xp(self.coeff_focus)
+            self.outputs['coeff_flux'].value = self.to_xp(self.coeff_flux)
 
     def plot_source(self):
         """Plot the extended source distribution"""

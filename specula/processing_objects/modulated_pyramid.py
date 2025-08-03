@@ -385,7 +385,7 @@ class ModulatedPyramid(BaseProcessingObj):
 
                 self.ttexp[tt, :, :] = self.xp.exp(-iu * pup_phase, dtype=self.complex_dtype)
 
-            # Set flux factor vector from source
+            # Set flux factor vector from source (will be updated in trigger if PSF changes)
             self.flux_factor_vector = self.to_xp(source.coeff_flux)
 
             # Clean up very small flux values
@@ -420,9 +420,19 @@ class ModulatedPyramid(BaseProcessingObj):
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
+
+        # Check if extended source has been updated (e.g., new PSF)
+        if self.extended_source_in_on:
+            # Update flux factor vector in case the source was updated
+            source = self.extended_source
+            if hasattr(source, 'outputs') and source.outputs['coeff_flux'].generation_time == self.current_time:
+                # Source was updated this timestep, refresh flux factors and ttexp
+                self.mod_steps = source.npoints
+                self.cache_ttexp()  # This will update both ttexp and flux_factor_vector
+
         # Update input reference
         self.in_ef = self.local_inputs['in_ef']
-                
+
         #if self.extended_source_in_on and self.extSourcePsf is not None:
         #    if self.extSourcePsf.generation_time == self.current_time:
         #        if self.xp.sum(self.xp.abs(self.extSourcePsf.value)) > 0:

@@ -6,6 +6,7 @@ import numpy as np
 from specula.processing_objects.extended_source import ExtendedSource
 from specula.processing_objects.modulated_pyramid import ModulatedPyramid
 from specula.data_objects.electric_field import ElectricField
+from specula.base_value import BaseValue
 from specula.data_objects.simul_params import SimulParams
 from test.specula_testlib import cpu_and_gpu
 
@@ -147,3 +148,39 @@ class TestExtendedSource(unittest.TestCase):
         # Check that the max intensity is non-zero and minimum intensity is non-negative
         self.assertGreater(np.max(intensity), 0)
         self.assertGreaterEqual(np.min(intensity), 0)
+        
+    @cpu_and_gpu   
+    def test_extended_source_psf_update(self, target_device_idx, xp):
+        # Create PSF-based extended source
+        psf = np.random.random((64, 64))
+        psf /= np.sum(psf)  # Normalize
+        
+        src = ExtendedSource(
+            simul_params=self.simul_params,
+            wavelength_in_nm=self.wavelength_in_nm,
+            source_type='FROM_PSF',
+            sampling_lambda_over_d=self.sampling_lambda_over_d,
+            psf=psf,
+            pixel_scale_psf=0.1,
+            sampling_type='CARTESIAN'
+        )
+
+        # Create a new PSF to update with
+        new_psf = BaseValue(target_device_idx=target_device_idx)
+        new_psf.value = np.random.random((64, 64))
+        new_psf.value /= np.sum(new_psf.value)
+        new_psf.generation_time = 1
+
+        # Connect PSF input
+        src.inputs['psf'].set(new_psf)
+
+        # Setup and trigger
+        src.setup()
+        src.check_ready(1)
+        original_flux = src.coeff_flux.copy()
+
+        src.trigger(1)  # This should update the PSF and recompute
+        src.post_trigger()
+
+        # Verify the flux coefficients changed
+        self.assertFalse(np.allclose(original_flux, src.coeff_flux))
