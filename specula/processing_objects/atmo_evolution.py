@@ -43,13 +43,8 @@ class AtmoEvolution(BaseProcessingObj):
         self.n_phasescreens = len(heights)
         self.last_position = np.zeros(self.n_phasescreens)
         self.last_t = 0
-        self.extra_delta_time = 0
         self.cycle_screens = True
-
-        self.delta_time = 1
-        self.seeing = 1
-        self.wind_speed = 1
-        self.wind_direction = 1        
+        self.delta_time = None
                 
         self.inputs['seeing'] = InputValue(type=BaseValue)
         self.inputs['wind_speed'] = InputValue(type=BaseValue)
@@ -91,9 +86,6 @@ class AtmoEvolution(BaseProcessingObj):
         self.Cn2 = np.array(Cn2, dtype=self.dtype)
         self.pixel_pupil = self.pixel_pupil
         self.data_dir = data_dir
-        self.seeing = None
-        self.wind_speed = None
-        self.wind_direction = None
 
         # TODO old code
         self.pixel_square_phasescreens = pixel_phasescreens
@@ -214,15 +206,28 @@ class AtmoEvolution(BaseProcessingObj):
 
         self.phasescreens_sizes_array = np.asarray(self.phasescreens_sizes)
     
+    def setup(self):
+        super().setup()
+    
+        # check that seeing is a 1-element array
+        if len(self.local_inputs['seeing'].value) != 1:
+            raise ValueError('Seeing input must be a 1-element array')
+        
+        # Check that wind speed and direction have the correct length
+        if len(self.local_inputs['wind_speed'].value) != self.n_phasescreens:
+            raise ValueError('Wind speed input must be a {self.n_phasescreens}-elements array')
+        if len(self.local_inputs['wind_direction'].value) != self.n_phasescreens:
+            raise ValueError('Wind direction input must be a {self.n_phasescreens}-elements array')
+        
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
-        self.delta_time = self.t_to_seconds(self.current_time - self.last_t) + self.extra_delta_time        
-    
+        self.delta_time = self.t_to_seconds(self.current_time - self.last_t)
+            
     def trigger_code(self):
 
         # if len(self.phasescreens) != len(wind_speed) or len(self.phasescreens) != len(wind_direction):
         #     raise ValueError('Error: number of elements of wind speed and/or direction does not match the number of phasescreens')
-        seeing = float(cpuArray(self.local_inputs['seeing'].value))
+        seeing = float(cpuArray(self.local_inputs['seeing'].value[0]))
         wind_speed = cpuArray(self.local_inputs['wind_speed'].value)
         wind_direction = cpuArray(self.local_inputs['wind_direction'].value)
         r0 = 0.9759 * 0.5 / (seeing * 4.848) * self.airmass**(-3./5.) # if seeing > 0 else 0.0
