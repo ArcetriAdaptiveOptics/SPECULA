@@ -689,7 +689,7 @@ class ExtendedSource(BaseProcessingObj):
 
         self.npoints = len(self.coeff_flux)
 
-    def trigger(self, t):
+    def trigger(self):
         """Update PSF if new data is available and recompute if needed"""
         # Check if PSF input is available and updated
         psf = self.local_inputs.get('psf')
