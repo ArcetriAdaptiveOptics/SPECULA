@@ -26,6 +26,7 @@ class AtmoEvolution(BaseProcessingObj):
                  fov: float=0.0,
                  pixel_phasescreens: int=8192,
                  seed: int=1,
+                 extra_delta_time: float=0,
                  verbose: bool=False,
                  fov_in_m: float=None,
                  pupil_position:list =[0,0],
@@ -45,6 +46,7 @@ class AtmoEvolution(BaseProcessingObj):
         self.last_t = 0
         self.cycle_screens = True
         self.delta_time = None
+        self.extra_delta_time = extra_delta_time  # TODO to be used for speed-of-light corrections
                 
         self.inputs['seeing'] = InputValue(type=BaseValue)
         self.inputs['wind_speed'] = InputValue(type=BaseValue)
