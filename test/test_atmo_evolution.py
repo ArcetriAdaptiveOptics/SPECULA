@@ -21,7 +21,7 @@ class TestAtmoEvolution(unittest.TestCase):
 
     @cpu_and_gpu
     def test_atmo(self, target_device_idx, xp):
-
+        '''Test that a basic AtmoEvolution and AtmoPropagation setup executes without exceptions'''
         simulParams = SimulParams(pixel_pupil=160, pixel_pitch=0.05, time_step=1)
     
         data_dir = os.path.join(os.path.dirname(__file__), 'data')
@@ -50,17 +50,18 @@ class TestAtmoEvolution(unittest.TestCase):
         atmo.inputs['wind_speed'].set(wind_speed.output)
         prop.inputs['atmo_layer_list'].set(atmo.outputs['layer_list'])
 
-        for obj in [seeing, wind_speed, wind_direction, atmo, prop]:
-            obj.setup()
-        
-        for obj in [seeing, wind_speed, wind_direction, atmo, prop]:
-            obj.check_ready(1)
-       
-        for obj in [seeing, wind_speed, wind_direction, atmo, prop]:
-            obj.trigger()
+        for objlist in [[seeing, wind_speed, wind_direction], [atmo], [prop]]:
+            for obj in objlist:
+                obj.setup()
 
-        for obj in [seeing, wind_speed, wind_direction, atmo, prop]:
-            obj.post_trigger()
+            for obj in objlist:
+                obj.check_ready(1)
+
+            for obj in objlist:
+                obj.trigger()
+
+            for obj in objlist:
+               obj.post_trigger()
             
         ef_onaxis = cpuArray(prop.outputs['out_on_axis_source_ef'])
         ef_offaxis = cpuArray(prop.outputs['out_lgs1_source_ef'])
@@ -131,29 +132,31 @@ class TestAtmoEvolution(unittest.TestCase):
         atmo.inputs['wind_direction'].set(wind_direction.output)
         atmo.inputs['wind_speed'].set(wind_speed.output)
 
-        for obj in [seeing, wind_speed, wind_direction, atmo]:
-            obj.setup()
-        
-        for obj in [seeing, wind_speed, wind_direction, atmo]:
-            obj.check_ready(1)
-       
-        for obj in [seeing, wind_speed, wind_direction, atmo]:
-            obj.trigger()
+        for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
+            for obj in objlist:
+                obj.setup()
 
-        for obj in [seeing, wind_speed, wind_direction, atmo]:
-            obj.post_trigger()
+            for obj in objlist:
+                obj.check_ready(1)
+
+            for obj in objlist:
+                obj.trigger()
+
+            for obj in objlist:
+               obj.post_trigger()
 
         id_a1 = id(atmo.outputs['layer_list'][0].field)
         id_b1 = id(atmo.outputs['layer_list'][1].field)
 
-        for obj in [seeing, wind_speed, wind_direction, atmo]:
-            obj.check_ready(2)
-       
-        for obj in [seeing, wind_speed, wind_direction, atmo]:
-            obj.trigger()
+        for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
+            for obj in objlist:
+                obj.check_ready(2)
 
-        for obj in [seeing, wind_speed, wind_direction, atmo]:
-            obj.post_trigger()
+            for obj in objlist:
+                obj.trigger()
+
+            for obj in objlist:
+               obj.post_trigger()
 
         id_a2 = id(atmo.outputs['layer_list'][0].field)
         id_b2 = id(atmo.outputs['layer_list'][1].field)
