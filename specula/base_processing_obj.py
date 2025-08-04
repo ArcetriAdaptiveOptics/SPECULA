@@ -30,7 +30,7 @@ class BaseProcessingObj(BaseTimeObj):
 
         # Stream/input management
         self.stream  = None
-        self.ready = False
+        self.inputs_changed = False
         self.cuda_graph = None
 
         # Will be populated by derived class
@@ -117,11 +117,11 @@ class BaseProcessingObj(BaseTimeObj):
         CUDA graph has been synchronized
         '''
         # Double check that we can execute
-        if not self.ready:
-            raise RuntimeError('trigger() called when object is not ready')
+        if not self.inputs_changed:
+            raise RuntimeError("trigger() called when the object's inputs have not changed")
 
-        # Reset ready flag
-        self.ready = False
+        # Reset inputs flag
+        self.inputs_changed = False
 
         if self.target_device_idx>=0:
             self._target_device.use()
@@ -213,18 +213,18 @@ class BaseProcessingObj(BaseTimeObj):
         if self.checkInputTimes():
             if self.target_device_idx>=0:
                 self._target_device.use()
+            self.inputs_changed = True  # Signal ready for trigger and post_trigger()
             self.prepare_trigger(t)
-            self.ready = True  # Signal ready for trigger and post_trigger()
         else:
-            self.ready = False
+            self.inputs_changed = False
             if self.verbose:
                 print(f'No inputs have been refreshed, skipping trigger')
-        return self.ready
+        return self.inputs_changed
 
     def trigger(self):
         # Double check that we can execute
-        if not self.ready:
-            raise RuntimeError('trigger() called when object is not ready')
+        if not self.inputs_changed:
+            raise RuntimeError("trigger() called when the object's inputs have not changed")
 
         with show_in_profiler(self.__class__.__name__+'.trigger'):
             if self.target_device_idx>=0:

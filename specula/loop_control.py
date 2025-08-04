@@ -131,7 +131,7 @@ class LoopControl(BaseTimeObj):
             if MPI_DBG: print(process_rank, 'before trigger', flush=True)
             for element in self._trigger_lists[i]:
                 try:
-                    if element.ready:
+                    if element.inputs_changed:
                         element.trigger()
                 except:
                     print('Exception in', element.name, flush=True)
@@ -140,7 +140,7 @@ class LoopControl(BaseTimeObj):
             if MPI_DBG: print(process_rank, 'before post_trigger', flush=True)
             for element in self._trigger_lists[i]:
                 try:
-                    if element.ready:
+                    if element.inputs_changed:
                         element.post_trigger()
                     # Always send MPI outputs, regardless of whether
                     # an object was triggered or not

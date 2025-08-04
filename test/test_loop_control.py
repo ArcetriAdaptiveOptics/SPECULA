@@ -13,7 +13,7 @@ from test.specula_testlib import cpu_and_gpu
 class MockProcessingObjNotReady(BaseProcessingObj):
     '''Class that is never ready, and raises if trigger() or post_trigger() are called'''
     def check_ready(self, t):
-        self.ready = False
+        self.inputs_changed = False
 
     def trigger(self):
         raise RuntimeError('trigger called when check_ready returned False')
@@ -31,7 +31,7 @@ class MockProcessingObjReady(BaseProcessingObj):
         self.post_triggered = False
 
     def check_ready(self, t):
-        self.ready = True
+        self.inputs_changed = True
 
     def trigger(self):
         self.triggered = True
