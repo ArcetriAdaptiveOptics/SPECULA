@@ -161,6 +161,7 @@ class CCD(BaseProcessingObj):
         self._one_over_notUniformQeMatrix = None
         self._notUniformQe = False
         self._normNotUniformQe = False
+        self._gaussian_noise = None
 
     def trigger_code(self):
         if self.start_time > 0 and self.current_time < self.start_time:
