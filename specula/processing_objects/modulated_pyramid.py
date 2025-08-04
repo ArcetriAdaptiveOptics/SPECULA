@@ -108,23 +108,19 @@ class ModulatedPyramid(BaseProcessingObj):
         self._do_pup_shift = False
         self._pup_pyr_interpolated = None
 
-        if mod_step is not None and int(mod_step) != mod_step:
-            raise ValueError('Modulation step number is not an integer')
-
-        min_mod_step = round(max([1., mod_amp / 2. * 8.])) * 2.
         if mod_step is None:
-            mod_step = min_mod_step
-        else:
-            if mod_step < min_mod_step:
-                print(f' Attention mod_step={mod_step} is too low!')
-                print(f' Would you like to change it to {min_mod_step}? [y,n]')
-                ans = input()
-                if ans.lower() == 'y':
-                    print(' mod_step changed.')
-                    mod_step = min_mod_step
-
+            mod_step = round(max([1., mod_amp / 2. * 8.])) * 2.
+        elif int(mod_step) != mod_step:
+            raise ValueError('Modulation step number is not an integer')
+        elif mod_step < self.xp.around(2 * self.xp.pi * mod_amp):
+            raise Exception(
+                f'Number of modulation steps is too small ({mod_step}), '
+                f'it must be at least 2*pi times the modulation amplitude '
+                f'({self.xp.around(2 * self.xp.pi * mod_amp)})!'
+            )
         self.mod_steps = int(mod_step)
         self.mod_amp = mod_amp
+
         self.out_i = Intensity(final_ccd_side, final_ccd_side, precision=self.precision, target_device_idx=self.target_device_idx)
         self.psf_tot = BaseValue(self.xp.zeros((fft_totsize, fft_totsize), dtype=self.dtype), target_device_idx=self.target_device_idx)
         self.psf_bfm = BaseValue(self.xp.zeros((fft_totsize, fft_totsize), dtype=self.dtype), target_device_idx=self.target_device_idx)
@@ -587,7 +583,6 @@ class ModulatedPyramid(BaseProcessingObj):
             # Use the original pupil pyramid array directly
             self._pup_pyr_interpolated = self.pup_pyr_tot
 
-        # Store reference to input field (like SH does)
         if self._do_interpolation:
             self.phase_extrapolated = in_ef.phaseInNm.copy()
 
