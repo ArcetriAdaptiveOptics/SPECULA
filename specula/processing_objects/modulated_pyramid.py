@@ -99,11 +99,8 @@ class ModulatedPyramid(BaseProcessingObj):
         self.pup_shifts = pup_shifts
         self.extended_source = extended_source
         if self.extended_source is not None:
-            self.extended_source_in_on = True
             if self.extended_source.npoints <= 0:
                 raise ValueError('Extended source must have npoints > 0')
-        else:
-            self.extended_source_in_on = False
 
         # interpolation settings
         self.interp = None
@@ -157,7 +154,7 @@ class ModulatedPyramid(BaseProcessingObj):
         self.psf_bfm_arr = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.dtype)
         self.psf_tot_arr = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.dtype)
         self.mod_amp = mod_amp
-        if self.extended_source_in_on:
+        if self.extended_source is not None:
             # Update modulation steps to match source points
             self.mod_steps = self.extended_source.npoints
             print(f'Setting up extended source with {self.mod_steps} points')
@@ -366,7 +363,7 @@ class ModulatedPyramid(BaseProcessingObj):
         self.ttexp = self.xp.zeros((self.mod_steps, self.tilt_x.shape[0], self.tilt_x.shape[1]), 
                                 dtype=self.complex_dtype)
 
-        if self.extended_source_in_on:
+        if self.extended_source is not None:
             # EXTENDED SOURCE MODE: Use source coefficients
             if self.extended_source is None:
                 raise ValueError("Extended source is enabled but no source object provided")
@@ -416,7 +413,7 @@ class ModulatedPyramid(BaseProcessingObj):
         self.factor = 1.0 / self.xp.sum(self.flux_factor_vector)
         self.ttexp_shape = self.ttexp.shape
 
-        if self.extended_source_in_on:
+        if self.extended_source is not None:
             print(f'Cached extended source with {self.mod_steps} points, '
                 f'total flux: {self.xp.sum(self.flux_factor_vector):.3f}')
         else:
@@ -430,7 +427,7 @@ class ModulatedPyramid(BaseProcessingObj):
         in_ef = self.local_inputs['in_ef']
 
         # Check if extended source has been updated (e.g., new PSF)
-        if self.extended_source_in_on:
+        if self.extended_source is not None:
             # Update flux factor vector in case the source was updated
             source = self.extended_source
             if source.outputs['coeff_flux'].generation_time == self.current_time:

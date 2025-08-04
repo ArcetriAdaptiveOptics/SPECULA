@@ -115,7 +115,7 @@ class TestExtendedSource(unittest.TestCase):
         )
 
         # Check that the extended source is loaded and parameters are consistent
-        self.assertTrue(pyr.extended_source_in_on)
+        self.assertIsNotNone(pyr.extended_source)
         self.assertIs(pyr.extended_source, src)
         self.assertEqual(pyr.mod_steps, src.npoints)
         self.assertEqual(pyr.ttexp.shape[0], src.npoints)
@@ -160,7 +160,7 @@ class TestExtendedSource(unittest.TestCase):
             wavelengthInNm=self.wavelengthInNm,
             source_type='FROM_PSF',
             sampling_lambda_over_d=self.sampling_lambda_over_d,
-            psf=psf,
+            initial_psf=psf,
             pixel_scale_psf=0.1,
             sampling_type='CARTESIAN'
         )

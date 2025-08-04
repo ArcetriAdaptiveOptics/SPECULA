@@ -22,7 +22,7 @@ class ExtendedSource(BaseProcessingObj):
         tt_profile (Optional[np.ndarray]): Tip/tilt profile for each layer. Used for 3D sources (sodium beacon).
         n_rings (Optional[int]): Number of rings for 'RINGS' sampling. Default is 0.
         flux_threshold (float): Threshold for flux. Points with flux below this value are discarded.
-        psf (Optional[np.ndarray]): PSF array for 'FROM_PSF' source type.
+        initial_psf (Optional[np.ndarray]): PSF array for 'FROM_PSF' source type to be used for initialization.
         pixel_scale_psf (Optional[float]): Pixel scale of the PSF in arcseconds. Required for 'FROM_PSF' source type.
         target_device_idx (int): Index of the target device for computation. 0 is first GPU, -1 is CPU.
         precision (int): Precision for computation (e.g., 32 or 64 bits). 1 is single precision, 0 is double precision.
@@ -40,7 +40,7 @@ class ExtendedSource(BaseProcessingObj):
                  tt_profile: Optional[np.ndarray] = None,
                  n_rings: Optional[int] = None,
                  flux_threshold: float = 0.0,
-                 psf: Optional[np.ndarray] = None,
+                 initial_psf: Optional[np.ndarray] = None,
                  pixel_scale_psf: Optional[float] = None,
                  target_device_idx: int = None,
                  precision: int = None):
@@ -72,7 +72,11 @@ class ExtendedSource(BaseProcessingObj):
         self.tt_profile = tt_profile
         self.n_rings = n_rings or 0
         self.flux_threshold = flux_threshold
-        self.psf = psf
+        if initial_psf is not None:
+            self.psf = self.to_xp(initial_psf, dtype=self.dtype)
+        else:
+            self.psf = self.xp.zeros((3, 3), dtype=self.dtype)
+            self.psf[1, 1] = 1.0  # Default initial PSF is a delta function
         self.pixel_scale_psf = pixel_scale_psf
 
         # Validate parameters
