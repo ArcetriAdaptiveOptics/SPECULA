@@ -16,10 +16,10 @@ class MockProcessingObjNotReady(BaseProcessingObj):
         self.ready = False
 
     def trigger(self):
-        raise RuntimError('trigger called when check_ready returned False')
+        raise RuntimeError('trigger called when check_ready returned False')
 
     def post_trigger(self):
-        raise RuntimError('post_trigger called when check_ready returned False')
+        raise RuntimeError('post_trigger called when check_ready returned False')
 
 
 class MockProcessingObjReady(BaseProcessingObj):
