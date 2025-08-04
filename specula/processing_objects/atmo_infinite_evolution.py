@@ -238,6 +238,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
                  zenithAngleInDeg: float=0.0,
                  fov: float=0.0,
                  seed: int=1,
+                 extra_delta_time: float=0,
                  verbose: bool=False,
                  fov_in_m: float=None,
                  pupil_position:list =[0,0],
@@ -254,12 +255,13 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         self.n_infinite_phasescreens = len(heights)
         self.last_position = np.zeros(self.n_infinite_phasescreens)
         self.last_t = 0
-        self.delta_time = 1
+        self.delta_time = None
         # fixed at generation time, then is a input -> rescales the screen?
         self.seeing = 0.8
         self.l0 = 0.005
         self.airmass = 1
         self.ref_wavelengthInNm = 500
+        self.extra_delta_time = extra_delta_time
 
         self.inputs['seeing'] = InputValue(type=BaseValue)
         self.inputs['wind_speed'] = InputValue(type=BaseValue)
@@ -356,7 +358,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
-        self.delta_time = self.t_to_seconds(self.current_time - self.last_t)
+        self.delta_time = self.t_to_seconds(self.current_time - self.last_t) + self.extra_delta_time
 
     @show_in_profiler('atmo_evolution.trigger_code')
     def trigger_code(self):

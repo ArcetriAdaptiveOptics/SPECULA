@@ -46,7 +46,7 @@ class AtmoEvolution(BaseProcessingObj):
         self.last_t = 0
         self.cycle_screens = True
         self.delta_time = None
-        self.extra_delta_time = extra_delta_time  # TODO to be used for speed-of-light corrections
+        self.extra_delta_time = extra_delta_time
                 
         self.inputs['seeing'] = InputValue(type=BaseValue)
         self.inputs['wind_speed'] = InputValue(type=BaseValue)
@@ -223,7 +223,7 @@ class AtmoEvolution(BaseProcessingObj):
         
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
-        self.delta_time = self.t_to_seconds(self.current_time - self.last_t)
+        self.delta_time = self.t_to_seconds(self.current_time - self.last_t) + self.extra_delta_time
             
     def trigger_code(self):
 

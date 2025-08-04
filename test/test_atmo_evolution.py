@@ -8,6 +8,7 @@ import unittest
 from specula import cpuArray
 
 from specula.data_objects.source import Source
+from specula.base_time_obj import BaseTimeObj
 from specula.processing_objects.func_generator import FuncGenerator
 from specula.processing_objects.atmo_evolution import AtmoEvolution
 from specula.processing_objects.atmo_propagation import AtmoPropagation
@@ -244,3 +245,55 @@ class TestAtmoEvolution(unittest.TestCase):
             
         with self.assertRaises(ValueError):
             atmo.setup()
+
+
+    @cpu_and_gpu
+    def test_extra_delta_time(self, target_device_idx, xp):
+
+        simulParams = SimulParams(pixel_pupil=160, pixel_pitch=0.05, time_step=1)
+    
+        data_dir = os.path.join(os.path.dirname(__file__), 'data')
+        seeing = FuncGenerator(constant=0.65, target_device_idx=target_device_idx)
+        wind_speed = FuncGenerator(constant=[5.5, 2.3], target_device_idx=target_device_idx)
+        wind_direction = FuncGenerator(constant=[0, 90], target_device_idx=target_device_idx)
+
+        delta_time = 1.0
+        delta_t = BaseTimeObj().seconds_to_t(delta_time)
+        extra_delta_time = 0.1
+
+        atmo = AtmoEvolution(simulParams,
+                             L0=23,  # [m] Outer scale
+                             data_dir=data_dir,
+                             heights = [30.0000, 26500.0], # [m] layer heights at 0 zenith angle
+                             Cn2 = [0.5, 0.5], # Cn2 weights (total must be eq 1)
+                             fov = 120.0,
+                             extra_delta_time=extra_delta_time,
+                             target_device_idx=target_device_idx)
+
+        atmo.inputs['seeing'].set(seeing.output)
+        atmo.inputs['wind_direction'].set(wind_direction.output)
+        atmo.inputs['wind_speed'].set(wind_speed.output)
+
+        for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
+            for obj in objlist:
+                obj.setup()
+
+            for obj in objlist:
+                obj.check_ready(0)
+
+            for obj in objlist:
+                obj.trigger()
+
+            for obj in objlist:
+               obj.post_trigger()
+
+            for obj in objlist:
+                obj.check_ready(delta_t)
+
+            for obj in objlist:
+                obj.trigger()
+
+            for obj in objlist:
+               obj.post_trigger()
+
+        assert atmo.delta_time == delta_time + extra_delta_time
