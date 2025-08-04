@@ -17,7 +17,7 @@ seeing:
 
 wind_speed:
   class:             'FuncGenerator'
-  constant:          [20.] #,10.,20.,10.]      # [m/s] Wind speed value
+  constant:          [20.]                #,10.,20.,10.]      # [m/s] Wind speed value
   outputs: ['output']
 
 
@@ -38,6 +38,7 @@ pupilstop:                                 # Default parameters (circular pupil)
   class: 'Pupilstop'
   simul_params_ref:  'main'
   obs_diam:          0.2                    # Obstruction dimension ratio w.r.t. diameter
+
 
 atmo:
   class:                'AtmoEvolution'
@@ -68,6 +69,16 @@ launcher:
   spot_size:          0.5
 
 
+extended_source:
+  class:             'ExtendedSource'
+  simul_params_ref:  'main'
+  wavelength_in_nm:  750 # [nm] Wavelength of the extended source
+  source_type:       'TOPHAT'
+  sampling_lambda_over_d: 1.0 # Sampling in lambda/D units
+  size_obj:          0.5 # Size of the extended source in arcsec
+  sampling_type:     'POLAR' # Sampling type for the extended source
+
+
 pyramid:
   class:             'ModulatedPyramid'
   simul_params_ref:  'main'
@@ -77,6 +88,7 @@ pyramid:
   mod_amp:           3.0                     # Modulation radius (in lambda/D units)
   output_resolution: 80                      # Output sampling [usually corresponding to CCD pixels]
   wavelengthInNm:    750                     # [nm] Pyramid wavelength
+  extended_source_ref: 'extended_source'     # Reference to the extended source object
   inputs:
     in_ef: 'prop.out_on_axis_source_ef'
 
