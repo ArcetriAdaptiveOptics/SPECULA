@@ -58,9 +58,9 @@ class ImCalibrator(BaseProcessingObj):
             if self.verbose:
                 print(f"Initialized interaction matrix: {self._im.value.shape}")
 
-        idx = self.xp.nonzero(commands)
+        idx = self.xp.nonzero(commands)[0]
 
-        if len(idx[0])>0:
+        if len(idx)>0:
             mode = int(idx[0]) - self._first_mode
             if mode < self._nmodes:
                 self._im.value[mode] += slopes / commands[idx]
