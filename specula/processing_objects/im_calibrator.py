@@ -29,9 +29,15 @@ class ImCalibrator(BaseProcessingObj):
         self._overwrite = overwrite
 
         if im_tag is None or im_tag == 'auto':
-            self._im_filename = tag_template
+            im_filename = tag_template
         else:
-            self._im_filename = im_tag
+            im_filename = im_tag
+        self.im_path = os.path.join(self._data_dir, im_filename)
+        if not self.im_path.endswith('.fits'):
+            self.im_path += '.fits'
+        if os.path.exists(self.im_path) and not self._overwrite:
+            raise FileExistsError(f'IM file {self.im_path} already exists, please remove it')
+            
         self.inputs['in_slopes'] = InputValue(type=Slopes)
         self.inputs['in_commands'] = InputValue(type=BaseValue)
 
@@ -80,16 +86,7 @@ class ImCalibrator(BaseProcessingObj):
                     target_device_idx=self.target_device_idx, precision=self.precision)
 
         os.makedirs(self._data_dir, exist_ok=True)
+        
         # TODO add to IM the information about the first mode
-        if self._im_filename:
-            im.save(os.path.join(self._data_dir, self._im_filename), overwrite=self._overwrite)
+        im.save(self.im_path, overwrite=self._overwrite)
 
-    def setup(self):
-        super().setup()
-
-        if self._im_filename:
-            im_path = os.path.join(self._data_dir, self._im_filename)
-            if not im_path.endswith('.fits'):
-                im_path += '.fits'
-            if os.path.exists(im_path) and not self._overwrite:
-                raise FileExistsError(f'IM file {im_path} already exists, please remove it')

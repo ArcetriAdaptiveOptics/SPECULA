@@ -219,6 +219,9 @@ class AtmoPropagation(BaseProcessingObj):
         if self.atmo_layer_list is None:
             self.atmo_layer_list = []
 
+        if self.common_layer_list is None:
+            self.common_layer_list = []
+
         self.nAtmoLayers = len(self.atmo_layer_list)
 
         if len(self.atmo_layer_list) + len(self.common_layer_list) < 1:

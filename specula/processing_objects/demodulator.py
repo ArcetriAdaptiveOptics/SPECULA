@@ -34,6 +34,10 @@ class Demodulator(BaseProcessingObj):
 
         # Outputs
         self.output = BaseValue(target_device_idx=target_device_idx)
+        if len(self.mode_numbers) == 1:
+            self.output.value = self.dtype(0.0)
+        else:
+            self.output.value = self.xp.zeros(len(self.mode_numbers), dtype=self.dtype)
 
         # Inputs
         self.inputs['in_data'] = InputValue(type=BaseValue)
@@ -184,18 +188,3 @@ class Demodulator(BaseProcessingObj):
             print(f"Data length: {len(data)}, Time steps: {nt}, dt: {dt:.3f}s")
 
         return value
-
-    def setup(self):
-        """
-        Setup the demodulator.
-        """
-        super().setup()
-
-        # Initialize output
-        if len(self.mode_numbers) == 1:
-            self.output.value = self.dtype(0.0)
-        else:
-            self.output.value = self.xp.zeros(len(self.mode_numbers), dtype=self.dtype)
-
-    def post_trigger(self):
-        super().post_trigger()

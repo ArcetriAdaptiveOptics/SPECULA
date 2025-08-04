@@ -206,3 +206,20 @@ class TestElectricField(unittest.TestCase):
 
         assert ef.field.dtype == np.float64
         assert ef.ef_at_lambda(500.0).dtype == np.complex128
+        
+    @cpu_and_gpu
+    def tes_ef_resize(self, target_device_idx, xp):
+        pixel_pupil = 10
+        pixel_pitch = 0.1
+        
+        ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch,
+                      target_device_idx=target_device_idx)
+
+        # Resize to a larger size
+        new_dimx = 20
+        new_dimy = 20
+        ef.resize(dimx=new_dimx, dimy=new_dimy)
+
+        assert ef.field.shape == (2, new_dimx, new_dimy)
+        assert ef.A.shape == (new_dimx, new_dimy)
+        assert ef.phaseInNm.shape == (new_dimx, new_dimy)

@@ -29,6 +29,16 @@ class MultiImCalibrator(BaseProcessingObj):
         self._full_im_filename = self.tag_filename(full_im_tag, full_im_tag_template, prefix='full_im')
         self._overwrite = overwrite
 
+        # Existing file existence checks
+        for i in range(self._n_inputs):  # Use self._n_inputs instead of len(...)
+            im_path = self.im_path(i)
+            if im_path and os.path.exists(im_path) and not self._overwrite:
+                raise FileExistsError(f'IM file {im_path} already exists, please remove it')
+
+        full_im_path = self.full_im_path()
+        if full_im_path and os.path.exists(full_im_path) and not self._overwrite:
+            raise FileExistsError(f'IM file {full_im_path} already exists, please remove it')
+
         self.inputs['in_slopes_list'] = InputList(type=Slopes)
         self.inputs['in_commands_list'] = InputList(type=BaseValue)
 
@@ -120,12 +130,3 @@ class MultiImCalibrator(BaseProcessingObj):
                 f"Both slopes and commands lists must have the same length."
             )
 
-        # Existing file existence checks
-        for i in range(self._n_inputs):  # Use self._n_inputs instead of len(...)
-            im_path = self.im_path(i)
-            if im_path and os.path.exists(im_path) and not self._overwrite:
-                raise FileExistsError(f'IM file {im_path} already exists, please remove it')
-
-        full_im_path = self.full_im_path()
-        if full_im_path and os.path.exists(full_im_path) and not self._overwrite:
-            raise FileExistsError(f'IM file {full_im_path} already exists, please remove it')

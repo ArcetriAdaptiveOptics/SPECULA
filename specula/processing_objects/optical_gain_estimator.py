@@ -45,6 +45,10 @@ class OpticalGainEstimator(BaseProcessingObj):
             target_device_idx=target_device_idx
         )
 
+        # Initialize values
+        self.optical_gain.value = self.dtype(self.initial_optical_gain)
+        self.output.value = self.dtype(self.initial_optical_gain)
+
         # Inputs
         self.inputs['in_demod_delta_command'] = InputValue(type=BaseValue)
         self.inputs['in_demod_command'] = InputValue(type=BaseValue)
@@ -123,32 +127,3 @@ class OpticalGainEstimator(BaseProcessingObj):
 
         if self.verbose:
             print(f'Optical gain output: {output}')
-
-    def setup(self):
-        """
-        Setup the optical gain estimator.
-        """
-        super().setup()
-
-        # Initialize values
-        self.optical_gain.value = self.dtype(self.initial_optical_gain)
-        self.output.value = self.dtype(self.initial_optical_gain)
-
-    def reset_optical_gain(self, value=None):
-        """
-        Reset the optical gain to initial value or specified value.
-        """
-        if value is None:
-            value = self.initial_optical_gain
-
-        self.optical_gain.value = self.dtype(value)
-        self.output.value = self.dtype(value)
-
-    def get_current_optical_gain(self):
-        """
-        Get the current optical gain value.
-        """
-        return float(self.optical_gain.value)
-
-    def post_trigger(self):
-        super().post_trigger()
