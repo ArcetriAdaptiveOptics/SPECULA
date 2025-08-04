@@ -72,11 +72,12 @@ class ExtendedSource(BaseProcessingObj):
         self.tt_profile = tt_profile
         self.n_rings = n_rings or 0
         self.flux_threshold = flux_threshold
+        self.psf = BaseValue()
         if initial_psf is not None:
-            self.psf = self.to_xp(initial_psf, dtype=self.dtype)
+            self.psf.value = self.to_xp(initial_psf, dtype=self.dtype)
         else:
-            self.psf = self.xp.zeros((3, 3), dtype=self.dtype)
-            self.psf[1, 1] = 1.0  # Default initial PSF is a delta function
+            self.psf.value = self.xp.zeros((3, 3), dtype=self.dtype)
+            self.psf.value[1, 1] = 1.0  # Default initial PSF is a delta function
         self.pixel_scale_psf = pixel_scale_psf
 
         # Validate parameters
@@ -98,10 +99,7 @@ class ExtendedSource(BaseProcessingObj):
         self.inputs['psf'] = InputValue(type=BaseValue, optional=True)
 
         # Outputs
-        self.outputs['coeff_tiltx'] = BaseValue(target_device_idx=self.target_device_idx)
-        self.outputs['coeff_tilty'] = BaseValue(target_device_idx=self.target_device_idx)
-        self.outputs['coeff_focus'] = BaseValue(target_device_idx=self.target_device_idx)
-        self.outputs['coeff_flux'] = BaseValue(target_device_idx=self.target_device_idx)
+        self.outputs['coeff'] = BaseValue(target_device_idx=self.target_device_idx)
 
         # Compute coefficients
         self.compute()
@@ -118,7 +116,7 @@ class ExtendedSource(BaseProcessingObj):
             raise ValueError(f"{self.source_type} requires size_obj parameter")
 
         if self.source_type == 'FROM_PSF':
-            if self.psf is None:
+            if self.psf.value is None:
                 raise ValueError("FROM_PSF requires psf parameter")
             if self.pixel_scale_psf is None:
                 raise ValueError("FROM_PSF requires pixel_scale_psf parameter")
@@ -139,10 +137,10 @@ class ExtendedSource(BaseProcessingObj):
         # Store results
         self.xx_arcsec = result['xx_arcsec']
         self.yy_arcsec = result['yy_arcsec']
-        self.coeff_tiltx = result['coeff_tiltx']
-        self.coeff_tilty = result['coeff_tilty']
-        self.coeff_focus = result['coeff_focus']
-        self.coeff_flux = result['coeff_flux']
+        self.coeff_tiltx = self.to_xp(result['coeff_tiltx'])
+        self.coeff_tilty = self.to_xp(result['coeff_tilty'])
+        self.coeff_focus = self.to_xp(result['coeff_focus'])
+        self.coeff_flux = self.to_xp(result['coeff_flux'])
         self.npoints = len(self.coeff_tiltx)
 
         # Apply flux threshold if needed
@@ -150,10 +148,12 @@ class ExtendedSource(BaseProcessingObj):
             self._apply_flux_threshold()
 
         # Update outputs
-        self.outputs['coeff_tiltx'].value = self.to_xp(self.coeff_tiltx)
-        self.outputs['coeff_tilty'].value = self.to_xp(self.coeff_tilty)
-        self.outputs['coeff_focus'].value = self.to_xp(self.coeff_focus)
-        self.outputs['coeff_flux'].value = self.to_xp(self.coeff_flux)
+        self.outputs['coeff'].value = self.xp.column_stack([
+                                                    self.coeff_tiltx,
+                                                    self.coeff_tilty,
+                                                    self.coeff_focus,
+                                                    self.coeff_flux
+                                                ])
 
     def _compute_2d(self) -> dict:
         """Compute 2D extended source"""
@@ -469,12 +469,8 @@ class ExtendedSource(BaseProcessingObj):
 
     def _compute_from_psf(self, obj_sampling: float) -> dict:
         """Compute extended source from PSF"""
-        if self.pixel_scale_psf is None:
-            raise ValueError("FROM_PSF source requires pixel_scale_psf parameter")
-        if self.psf is None:
-            raise ValueError("FROM_PSF source requires psf parameter")
 
-        psf = self.psf
+        psf = self.psf.value
         sPSF = psf.shape
         sPSFarcsec = np.array(sPSF) * self.pixel_scale_psf
 
@@ -696,25 +692,12 @@ class ExtendedSource(BaseProcessingObj):
     def trigger(self):
         """Update PSF if new data is available and recompute if needed"""
         # Check if PSF input is available and updated
-        psf = self.local_inputs.get('psf')
-        if psf is not None and psf.generation_time == self.current_time:
-            if np.sum(np.abs(psf.value)) > 0:
-                self.update_psf(psf.value)
-
-    def update_psf(self, psf: np.ndarray):
-        """Update PSF for FROM_PSF source type and recompute coefficients"""
-        if self.pixel_scale_psf is None:
-            raise ValueError("pixel_scale_psf must be set before updating PSF")
-
-        self.psf = psf
         if self.source_type == 'FROM_PSF':
-            self.compute()  # Recompute all coefficients with new PSF
-
-            # Update outputs with new values
-            self.outputs['coeff_tiltx'].value = self.to_xp(self.coeff_tiltx)
-            self.outputs['coeff_tilty'].value = self.to_xp(self.coeff_tilty)
-            self.outputs['coeff_focus'].value = self.to_xp(self.coeff_focus)
-            self.outputs['coeff_flux'].value = self.to_xp(self.coeff_flux)
+            psf = self.local_inputs.get('psf')
+            if psf is not None and psf.generation_time == self.current_time:
+                if np.sum(self.xp.abs(psf.value)) > 0:
+                    self.psf = psf
+                    self.compute()  # Recompute all coefficients with new PSF
 
     def plot_source(self):
         """Plot the extended source distribution"""

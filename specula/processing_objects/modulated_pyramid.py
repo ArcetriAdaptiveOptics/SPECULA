@@ -52,7 +52,6 @@ class ModulatedPyramid(BaseProcessingObj):
                  rotAnglePhInDeg: float = 0.0,
                  xShiftPhInPixel: float = 0.0,    # same as SH
                  yShiftPhInPixel: float = 0.0,    # same as SH
-                 extended_source: ExtendedSource = None,
                  target_device_idx: int = None,
                  precision: int = None
                 ):
@@ -97,10 +96,6 @@ class ModulatedPyramid(BaseProcessingObj):
         self.xShiftPhInPixel = xShiftPhInPixel
         self.yShiftPhInPixel = yShiftPhInPixel
         self.pup_shifts = pup_shifts
-        self.extended_source = extended_source
-        if self.extended_source is not None:
-            if self.extended_source.npoints <= 0:
-                raise ValueError('Extended source must have npoints > 0')
 
         # interpolation settings
         self.interp = None
@@ -129,12 +124,15 @@ class ModulatedPyramid(BaseProcessingObj):
                     print(' mod_step changed.')
                     mod_step = min_mod_step
 
+        self.mod_steps = int(mod_step)
+        self.mod_amp = mod_amp
         self.out_i = Intensity(final_ccd_side, final_ccd_side, precision=self.precision, target_device_idx=self.target_device_idx)
         self.psf_tot = BaseValue(self.xp.zeros((fft_totsize, fft_totsize), dtype=self.dtype), target_device_idx=self.target_device_idx)
         self.psf_bfm = BaseValue(self.xp.zeros((fft_totsize, fft_totsize), dtype=self.dtype), target_device_idx=self.target_device_idx)
         self.out_transmission = BaseValue(0, target_device_idx=self.target_device_idx)
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
+        self.inputs['ext_source_coeff'] = InputValue(type=BaseValue, optional=True)
         self.outputs['out_i'] = self.out_i
         self.outputs['out_psf_tot'] = self.psf_tot
         self.outputs['out_psf_bfm'] = self.psf_bfm
@@ -153,22 +151,10 @@ class ModulatedPyramid(BaseProcessingObj):
         self.pup_pyr_tot = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.dtype)
         self.psf_bfm_arr = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.dtype)
         self.psf_tot_arr = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.dtype)
-        self.mod_amp = mod_amp
-        if self.extended_source is not None:
-            # Update modulation steps to match source points
-            self.mod_steps = self.extended_source.npoints
-            print(f'Setting up extended source with {self.mod_steps} points')
-        else:
-            # Pre-computation of ttexp will be done when mod_steps will be set or re-set
-            if int(mod_step) != mod_step:
-                raise ValueError('Modulation step number is not an integer')
-            self.mod_steps = int(mod_step)
-            if self.mod_steps < self.xp.around(2 * self.xp.pi * self.mod_amp):
-                raise Exception(f'Number of modulation steps is too small ({self.mod_steps}), it must be at least 2*pi times the modulation amplitude ({self.xp.around(2 * self.xp.pi * self.mod_amp)})!')
+
         self.ttexp = None
         self.ttexp_shape = None
-        self.cache_ttexp()
-        self.u_tlt = self.xp.zeros((self.mod_steps, self.fft_totsize, self.fft_totsize), dtype=self.complex_dtype)
+        self.u_tlt = None
         self.roll_array = [self.fft_padding//2, self.fft_padding//2]
         self.roll_axis = [0,1]
         self.ifft_norm = 1.0 / (self.fft_totsize * self.fft_totsize)
@@ -363,12 +349,12 @@ class ModulatedPyramid(BaseProcessingObj):
         self.ttexp = self.xp.zeros((self.mod_steps, self.tilt_x.shape[0], self.tilt_x.shape[1]), 
                                 dtype=self.complex_dtype)
 
-        if self.extended_source is not None:
+        if self.ext_source_coeff is not None:
             # EXTENDED SOURCE MODE: Use source coefficients
-            if self.extended_source is None:
-                raise ValueError("Extended source is enabled but no source object provided")
-
-            source = self.extended_source
+            coeff_tiltx = self.ext_source_coeff.value[:, 0]
+            coeff_tilty = self.ext_source_coeff.value[:, 1]
+            coeff_focus = self.ext_source_coeff.value[:, 2]
+            coeff_flux  = self.ext_source_coeff.value[:, 3]
 
             # Create Zernike generator for the pupil
             zg = ZernikeGenerator(self.fft_sampling, xp=self.xp, dtype=self.dtype)
@@ -381,20 +367,23 @@ class ModulatedPyramid(BaseProcessingObj):
             # Cache exponentials for each source point
             for tt in range(self.mod_steps):
                 # Combine tip, tilt, and focus for this point
-                pup_phase = (source.coeff_tiltx[tt] * ext_xtilt +
-                            source.coeff_tilty[tt] * ext_ytilt +
-                            source.coeff_focus[tt] * ext_focus)
+                pup_phase = (coeff_tiltx[tt] * ext_xtilt +
+                            coeff_tilty[tt] * ext_ytilt +
+                            coeff_focus[tt] * ext_focus)
 
                 self.ttexp[tt, :, :] = self.xp.exp(-iu * pup_phase, dtype=self.complex_dtype)
 
             # Set flux factor vector from source (will be updated in trigger if PSF changes)
-            self.flux_factor_vector = self.to_xp(source.coeff_flux)
+            self.flux_factor_vector = self.to_xp(coeff_flux)
 
             # Clean up very small flux values
             max_flux = self.xp.max(self.xp.abs(self.flux_factor_vector))
             threshold = max_flux * 1e-5
             small_idx = self.xp.abs(self.flux_factor_vector) < threshold
             self.flux_factor_vector[small_idx] = 0.0
+
+            print(f'Cached extended source with {self.mod_steps} points, '
+                f'total flux: {self.xp.sum(self.flux_factor_vector):.3f}')
 
         else:
             # CIRCULAR MODULATION MODE: Standard pyramid modulation
@@ -408,17 +397,13 @@ class ModulatedPyramid(BaseProcessingObj):
             # Equal flux for all modulation steps
             self.flux_factor_vector = self.xp.ones(self.mod_steps, dtype=self.dtype)
 
+            print(f'Cached circular modulation with {self.mod_steps} steps, '
+                f'amplitude: {self.mod_amp:.2f}')
+
         # Common setup for both modes
         self.ffv = self.flux_factor_vector[:, self.xp.newaxis, self.xp.newaxis]
         self.factor = 1.0 / self.xp.sum(self.flux_factor_vector)
         self.ttexp_shape = self.ttexp.shape
-
-        if self.extended_source is not None:
-            print(f'Cached extended source with {self.mod_steps} points, '
-                f'total flux: {self.xp.sum(self.flux_factor_vector):.3f}')
-        else:
-            print(f'Cached circular modulation with {self.mod_steps} steps, '
-                f'amplitude: {self.mod_amp:.2f}')
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
@@ -427,12 +412,12 @@ class ModulatedPyramid(BaseProcessingObj):
         in_ef = self.local_inputs['in_ef']
 
         # Check if extended source has been updated (e.g., new PSF)
-        if self.extended_source is not None:
-            # Update flux factor vector in case the source was updated
-            source = self.extended_source
-            if source.outputs['coeff_flux'].generation_time == self.current_time:
+        if self.ext_source_coeff is not None:
+            # Update tt cache in case the source was updated
+            if self.ext_source_coeff.generation_time == self.current_time:
                 # Source was updated this timestep, refresh ttexp, flux factors and ffv
-                self.mod_steps = source.npoints
+                self.mod_steps = int(self.ext_source_coeff.value.shape[0])
+                self.u_tlt = self.xp.zeros((self.mod_steps, self.fft_totsize, self.fft_totsize), dtype=self.complex_dtype)
                 self.cache_ttexp()
 
         # Apply interpolation if needed (like SH)
@@ -533,6 +518,15 @@ class ModulatedPyramid(BaseProcessingObj):
 
     def setup(self):
         super().setup()
+
+        self.ext_source_coeff = self.local_inputs['ext_source_coeff']
+        if self.ext_source_coeff is not None:
+            # Update modulation steps to match source points
+            self.mod_steps = int(self.ext_source_coeff.value.shape[0])
+            print(f'Setting up extended source with {self.mod_steps} points')
+    
+        self.u_tlt = self.xp.zeros((self.mod_steps, self.fft_totsize, self.fft_totsize), dtype=self.complex_dtype)
+        self.cache_ttexp()
 
         # Get input electric field
         in_ef = self.local_inputs['in_ef']

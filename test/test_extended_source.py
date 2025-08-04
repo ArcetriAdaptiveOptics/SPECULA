@@ -91,6 +91,11 @@ class TestExtendedSource(unittest.TestCase):
 
     @cpu_and_gpu   
     def test_extended_source_in_pyramid(self, target_device_idx, xp):
+        pixel_pupil = self.simul_params.pixel_pupil
+        pixel_pitch = self.simul_params.pixel_pitch
+        output_resolution = 80
+        t = 1
+        
         # Create an extended source
         src = ExtendedSource(
             simul_params=self.simul_params,
@@ -103,20 +108,24 @@ class TestExtendedSource(unittest.TestCase):
         src.compute()
 
         # Pass it to the pyramid
-        output_resolution = 80
         pyr = ModulatedPyramid(
             simul_params=self.simul_params,
             wavelengthInNm=self.wavelengthInNm,
             fov=2.0,
             pup_diam=30,
             output_resolution=output_resolution,
-            mod_amp=3.0,
-            extended_source=src
+            mod_amp=3.0
         )
 
+        # Flat wavefr
+        ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        ef.generation_time = t
+        pyr.inputs['in_ef'].set(ef)
+        pyr.inputs['ext_source_coeff'].set(src.outputs['coeff'])
+        pyr.setup()
+        pyr.check_ready(t)
+
         # Check that the extended source is loaded and parameters are consistent
-        self.assertIsNotNone(pyr.extended_source)
-        self.assertIs(pyr.extended_source, src)
         self.assertEqual(pyr.mod_steps, src.npoints)
         self.assertEqual(pyr.ttexp.shape[0], src.npoints)
         self.assertEqual(pyr.flux_factor_vector.shape[0], src.npoints)
