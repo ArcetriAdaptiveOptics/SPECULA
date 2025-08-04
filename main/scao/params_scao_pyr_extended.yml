@@ -72,7 +72,7 @@ launcher:
 extended_source:
   class:             'ExtendedSource'
   simul_params_ref:  'main'
-  wavelength_in_nm:  750 # [nm] Wavelength of the extended source
+  wavelengthInNm:     750 # [nm] Wavelength of the extended source
   source_type:       'TOPHAT'
   sampling_lambda_over_d: 1.0 # Sampling in lambda/D units
   size_obj:          0.5 # Size of the extended source in arcsec

@@ -11,7 +11,7 @@ class ExtendedSource(BaseProcessingObj):
 
     Args:
         simul_params (SimulParams): Simulation parameters.
-        wavelength_in_nm (float): Wavelength in nanometers.
+        wavelengthInNm (float): Wavelength in nanometers.
         source_type (str): Type of source ('POINT_SOURCE', 'TOPHAT', 'GAUSS', 'FROM_PSF').
         sampling_lambda_over_d (float): Sampling factor in units of λ/D. Larger values mean less points.
         size_obj (Optional[float]): Size of the object in arcseconds. Required for 'TOPHAT' and 'GAUSS' sources.
@@ -29,7 +29,7 @@ class ExtendedSource(BaseProcessingObj):
     """
     def __init__(self,
                  simul_params: SimulParams,
-                 wavelength_in_nm: float,
+                 wavelengthInNm: float,
                  source_type: str,                      # 'POINT_SOURCE', 'TOPHAT', 'GAUSS', 'FROM_PSF'
                  sampling_lambda_over_d: float = 1.0,   # Sampling factor in units of λ/D
                  size_obj: Optional[float] = None,      # size in arcsec
@@ -54,7 +54,7 @@ class ExtendedSource(BaseProcessingObj):
         self.zenithAngleInDeg = self.simul_params.zenithAngleInDeg
         self.airmass = 1. / np.cos(np.radians(self.simul_params.zenithAngleInDeg), dtype=self.dtype)
         
-        self.wavelength_in_nm = wavelength_in_nm
+        self.wavelengthInNm = wavelengthInNm
         self.sampling_lambda_over_d = sampling_lambda_over_d
         self.d_tel = self.pixel_pupil * self.pixel_pitch
         self.source_type = source_type
@@ -155,7 +155,7 @@ class ExtendedSource(BaseProcessingObj):
         """Compute 2D extended source"""
         # Object sampling in arcsec
         sec2rad = 4.848e-6
-        obj_sampling = self.sampling_lambda_over_d * (self.wavelength_in_nm/1e9) / self.d_tel / sec2rad
+        obj_sampling = self.sampling_lambda_over_d * (self.wavelengthInNm/1e9) / self.d_tel / sec2rad
 
         if self.source_type == 'POINT_SOURCE':
             return self._compute_point_source()
@@ -287,7 +287,7 @@ class ExtendedSource(BaseProcessingObj):
             n_rings = self.n_rings
         else:
             # Default: based on diffraction-limited resolution
-            n_rings = int(np.round(self.size_obj/2 / (5 * (self.wavelength_in_nm/1e9) / self.d_tel / 4.848e-6)))
+            n_rings = int(np.round(self.size_obj/2 / (5 * (self.wavelengthInNm/1e9) / self.d_tel / 4.848e-6)))
 
         # Ring geometry
         size_ring = (self.size_obj/2) / n_rings
@@ -404,7 +404,7 @@ class ExtendedSource(BaseProcessingObj):
             n_rings = self.n_rings
         else:
             # Default: based on diffraction-limited resolution
-            n_rings = int(np.round(max_extent / (5 * (self.wavelength_in_nm/1e9) / self.d_tel / 4.848e-6)))
+            n_rings = int(np.round(max_extent / (5 * (self.wavelengthInNm/1e9) / self.d_tel / 4.848e-6)))
 
         # Ring geometry
         size_ring = max_extent / n_rings
@@ -658,7 +658,7 @@ class ExtendedSource(BaseProcessingObj):
         # From IDL: angle2tip function
         sec2rad = 4.848e-6
         angle_rad = angle_arcsec * sec2rad
-        return angle_rad * self.d_tel / (self.wavelength_in_nm * 1e-9) / (2.0 * np.pi)
+        return angle_rad * self.d_tel / (self.wavelengthInNm * 1e-9) / (2.0 * np.pi)
 
     def _compute_focus_coefficient(self, layer_height: float) -> float:
         """Compute focus coefficient for a layer at given height"""
@@ -670,7 +670,7 @@ class ExtendedSource(BaseProcessingObj):
 
         # From IDL formula
         focus_coeff = delta_height / (2.0 * np.sqrt(3.0) * 8.0 * focal_ratio**2)
-        focus_coeff *= (2.0 * np.pi) / (self.wavelength_in_nm * 1e-9)
+        focus_coeff *= (2.0 * np.pi) / (self.wavelengthInNm * 1e-9)
 
         return focus_coeff
 

@@ -20,13 +20,13 @@ class TestExtendedSource(unittest.TestCase):
     )
     size_obj = 0.2
     sampling_lambda_over_d = 1.0
-    wavelength_in_nm = 589.0
+    wavelengthInNm = 589.0
 
     @cpu_and_gpu
     def test_point_source(self, target_device_idx, xp):
         src = ExtendedSource(
             simul_params=self.simul_params,
-            wavelength_in_nm=self.wavelength_in_nm,
+            wavelengthInNm=self.wavelengthInNm,
             source_type='POINT_SOURCE',
             sampling_lambda_over_d=self.sampling_lambda_over_d,
             size_obj=None,
@@ -42,7 +42,7 @@ class TestExtendedSource(unittest.TestCase):
     def test_tophat_cartesian(self, target_device_idx, xp):
         src = ExtendedSource(
             simul_params=self.simul_params,
-            wavelength_in_nm=self.wavelength_in_nm,
+            wavelengthInNm=self.wavelengthInNm,
             source_type='TOPHAT',
             sampling_lambda_over_d=self.sampling_lambda_over_d,
             size_obj=self.size_obj,
@@ -58,7 +58,7 @@ class TestExtendedSource(unittest.TestCase):
     def test_gauss_cartesian(self, target_device_idx, xp):
         src = ExtendedSource(
             simul_params=self.simul_params,
-            wavelength_in_nm=self.wavelength_in_nm,
+            wavelengthInNm=self.wavelengthInNm,
             source_type='GAUSS',
             sampling_lambda_over_d=self.sampling_lambda_over_d,
             size_obj=self.size_obj,
@@ -77,7 +77,7 @@ class TestExtendedSource(unittest.TestCase):
             focus_height=90000.0,
             layer_height=[70000.0, 80000.0, 90000.0, 100000.0, 110000.0],
             intensity_profile=[0.1, 0.23, 0.34, 0.23, 0.1],
-            wavelength_in_nm=self.wavelength_in_nm,
+            wavelengthInNm=self.wavelengthInNm,
             source_type='GAUSS',
             sampling_lambda_over_d=self.sampling_lambda_over_d,
             size_obj=self.size_obj,
@@ -94,7 +94,7 @@ class TestExtendedSource(unittest.TestCase):
         # Create an extended source
         src = ExtendedSource(
             simul_params=self.simul_params,
-            wavelength_in_nm=self.wavelength_in_nm,
+            wavelengthInNm=self.wavelengthInNm,
             source_type='GAUSS',
             sampling_lambda_over_d=self.sampling_lambda_over_d,
             size_obj=self.size_obj,
@@ -106,7 +106,7 @@ class TestExtendedSource(unittest.TestCase):
         output_resolution = 80
         pyr = ModulatedPyramid(
             simul_params=self.simul_params,
-            wavelengthInNm=self.wavelength_in_nm,
+            wavelengthInNm=self.wavelengthInNm,
             fov=2.0,
             pup_diam=30,
             output_resolution=output_resolution,
@@ -157,7 +157,7 @@ class TestExtendedSource(unittest.TestCase):
         
         src = ExtendedSource(
             simul_params=self.simul_params,
-            wavelength_in_nm=self.wavelength_in_nm,
+            wavelengthInNm=self.wavelengthInNm,
             source_type='FROM_PSF',
             sampling_lambda_over_d=self.sampling_lambda_over_d,
             psf=psf,
