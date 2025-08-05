@@ -29,7 +29,7 @@ class BaseProcessingObj(BaseTimeObj):
 
         # Stream/input management
         self.stream  = None
-        self.ready = False
+        self.inputs_changed = False
         self.cuda_graph = None
 
         # Will be populated by derived class
@@ -115,10 +115,18 @@ class BaseProcessingObj(BaseTimeObj):
         Make sure we are using the correct device and that any previous
         CUDA graph has been synchronized
         '''
+        # Double check that we can execute
+        if not self.inputs_changed:
+            raise RuntimeError("trigger() called when the object's inputs have not changed")
+
+        # Reset inputs flag
+        self.inputs_changed = False
+
         if self.target_device_idx>=0:
             self._target_device.use()
             if self.cuda_graph:
                 self.stream.synchronize()
+
 
     def send_remote_output(self, item, dest_rank, dest_tag, first_mpi_send=True, out_name=''):
         if MPI_SEND_DBG: print(process_rank, f'SEND to rank {dest_rank} {dest_tag=} {(dest_tag in self.sent_valid)=} (from {self.name}.{out_name})', flush=True)
@@ -204,23 +212,26 @@ class BaseProcessingObj(BaseTimeObj):
         if self.checkInputTimes():
             if self.target_device_idx>=0:
                 self._target_device.use()
+            self.inputs_changed = True  # Signal ready for trigger and post_trigger()
             self.prepare_trigger(t)
-            self.ready = True
         else:
+            self.inputs_changed = False
             if self.verbose:
                 print(f'No inputs have been refreshed, skipping trigger')
-        return self.ready
+        return self.inputs_changed
 
     def trigger(self):
-        if self.ready:
-            with show_in_profiler(self.__class__.__name__+'.trigger'):
-                if self.target_device_idx>=0:
-                    self._target_device.use()
-                if self.target_device_idx>=0 and self.cuda_graph:
-                    self.cuda_graph.launch(stream=self.stream)
-                else:
-                    self.trigger_code()
-            self.ready = False
+        # Double check that we can execute
+        if not self.inputs_changed:
+            raise RuntimeError("trigger() called when the object's inputs have not changed")
+
+        with show_in_profiler(self.__class__.__name__+'.trigger'):
+            if self.target_device_idx>=0:
+                self._target_device.use()
+            if self.target_device_idx>=0 and self.cuda_graph:
+                self.cuda_graph.launch(stream=self.stream)
+            else:
+                self.trigger_code()
              
     @property
     def verbose(self):

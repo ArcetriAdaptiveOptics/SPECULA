@@ -72,6 +72,17 @@ class ElectricField(BaseDataObj):
         self.field[0] += 1
         self.field[1] *= 0
 
+    def resize(self, dimx, dimy):
+        '''
+        Resize the electric field
+        
+        The pixel pitch and S0 are not changed
+        '''
+        dimx = int(dimx)
+        dimy = int(dimy)
+        self.field = self.xp.zeros((2, dimx, dimy), dtype=self.dtype)
+        self.reset()
+
     @property
     def size(self):
         return self.field[0].shape

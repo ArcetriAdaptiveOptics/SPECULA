@@ -28,9 +28,17 @@ class RecCalibrator(BaseProcessingObj):
         self._overwrite = overwrite
 
         if rec_tag is None or rec_tag == 'auto':
-            self._rec_filename = tag_template
+            rec_filename = tag_template
         else:
-            self._rec_filename = rec_tag
+            rec_filename = rec_tag
+
+        rec_path = os.path.join(self._data_dir, rec_filename)
+        if not rec_path.endswith('.fits'):
+            rec_path += '.fits'
+        if os.path.exists(rec_path) and not self._overwrite:
+            raise FileExistsError(f'REC file {rec_path} already exists, please remove it')
+        self.rec_path = rec_path
+
         self.inputs['in_intmat'] = InputValue(type=BaseValue)
 
     def trigger(self):
@@ -44,16 +52,5 @@ class RecCalibrator(BaseProcessingObj):
 
         os.makedirs(self._data_dir, exist_ok=True)
         # TODO add to RM the information about the first mode
-        if self._rec_filename:
-            rec = im.generate_rec(self._nmodes)
-            rec.save(os.path.join(self._data_dir, self._rec_filename), overwrite=self._overwrite)
-
-    def setup(self):
-        super().setup()
-
-        if self._rec_filename:
-            rec_path = os.path.join(self._data_dir, self._rec_filename)
-            if not rec_path.endswith('.fits'):
-                rec_path += '.fits'
-            if os.path.exists(rec_path) and not self._overwrite:
-                raise FileExistsError(f'REC file {rec_path} already exists, please remove it')
+        rec = im.generate_rec(self._nmodes)
+        rec.save(self.rec_path, overwrite=self._overwrite)

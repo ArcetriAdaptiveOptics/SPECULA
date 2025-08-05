@@ -108,7 +108,7 @@ class TestPupilstop(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             Pupilstop.restore(filename, target_device_idx=target_device_idx)
-
+    
     @cpu_and_gpu
     def test_set_value(self, target_device_idx, xp):
         pixel_pupil = 20
@@ -180,9 +180,10 @@ class TestPupilstop(unittest.TestCase):
         pixel_pitch = 0.1
         simul_params = SimulParams(pixel_pupil, pixel_pitch)
         pupilstop = Pupilstop(simul_params, target_device_idx=target_device_idx, precision=1)
-        new_mask = xp.ones((pixel_pupil, pixel_pupil), dtype=xp.float64)
-        pupilstop.set_value(new_mask)
-        assert pupilstop.A.dtype == np.float32
+        for dtype in [xp.float64, int, bool]:
+            new_mask = xp.ones((pixel_pupil, pixel_pupil), dtype=dtype)
+            pupilstop.set_value(new_mask)
+            assert pupilstop.A.dtype == np.float32
 
 
     @cpu_and_gpu
@@ -193,6 +194,7 @@ class TestPupilstop(unittest.TestCase):
         pixel_pitch = 0.1
         simul_params = SimulParams(pixel_pupil, pixel_pitch)
         pupilstop = Pupilstop(simul_params, target_device_idx=target_device_idx, precision=0)
-        new_mask = xp.ones((pixel_pupil, pixel_pupil), dtype=xp.float32)
-        pupilstop.set_value(new_mask)
-        assert pupilstop.A.dtype == np.float64
+        for dtype in [xp.float32, int, bool]:
+            new_mask = xp.ones((pixel_pupil, pixel_pupil), dtype=dtype)
+            pupilstop.set_value(new_mask)
+            assert pupilstop.A.dtype == np.float64
