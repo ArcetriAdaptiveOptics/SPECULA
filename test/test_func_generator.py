@@ -171,8 +171,8 @@ class TestFuncGenerator(unittest.TestCase):
         if display:
             import matplotlib.pyplot as plt
             plt.figure()
-            plt.plot(fr_psd, psd[0, :], label='mode 1')
-            plt.plot(fr_psd, psd[1, :], label='mode 2')
+            plt.plot(freq, psd[0, :], label='mode 1')
+            plt.plot(freq, psd[1, :], label='mode 2')
             plt.xlabel('Frequency (Hz)')
             plt.ylabel('PSD')
             plt.legend()
