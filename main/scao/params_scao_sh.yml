@@ -97,7 +97,7 @@ detector:
 slopec:
   class:             'ShSlopec'
   subapdata_object:  'scao_subaps_n20_th0.5'  # tag of the pyramid WFS pupils
-  sn_object:         'scao_sn'                # tag of the slope reference vector
+  #sn_object:         'scao_sn'                # tag of the slope reference vector
   inputs:
     in_pixels:        'detector.out_pixels'
   outputs:  ['out_slopes', 'out_subapdata']

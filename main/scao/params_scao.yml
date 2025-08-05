@@ -95,15 +95,15 @@ detector:
 
 slopec:
   class:             'PyrSlopec'  
-  pupdata_object:    'scao_pup'            # tag of the pyramid WFS pupils
-  sn_object:         'scao_sn'             # tag of the slope reference vector
+  pupdata_object:    'scao_pupdata'            # tag of the pyramid WFS pupils
+  #sn_object:         'scao_sn'             # tag of the slope reference vector
   inputs:
     in_pixels:        'detector.out_pixels'
 
 
 rec:
   class:              'Modalrec'  
-  recmat_object:      'scao_recmat'         # reconstruction matrix tag
+  recmat_object:      'scao_pyr_rec'         # reconstruction matrix tag
   inputs:
     in_slopes:        'slopec.out_slopes'
 
