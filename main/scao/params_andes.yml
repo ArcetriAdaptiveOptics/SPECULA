@@ -13,19 +13,19 @@ main:
 
 
 seeing:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          0.65                   # [arcsec] seeing value
   outputs: ['output']
 
 
 wind_speed:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          [8.0, 8.0, 8.0]       # [m/s] Wind speed value
   outputs: ['output']
 
 
 wind_direction:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          [-19.57, -174.84, 29.13]  # [degrees] Wind direction value
   outputs: ['output']
 
@@ -129,8 +129,7 @@ modalrec:
 
 
 gain_ramp:
-  class:             'FuncGenerator'
-  func_type:         'VALUE_SCHEDULE'
+  class:             'ScheduleGenerator'
   scheduled_values: [
       [3.0,  1.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0],
       [3.0,  1.0, 1.0,  0.0,  0.0,  0.0,  0.0,  0.0], 

@@ -36,7 +36,7 @@ class TestDataBuffer(unittest.TestCase):
                 'total_time': total_steps * 0.1
             },
             'generator': {
-                'class': 'FuncGenerator',
+                'class': 'WaveGenerator',
                 'target_device_idx': target_device_idx, 
                 'amp': 1, 
                 'freq': 1  # Generate constant values for simplicity
@@ -88,7 +88,7 @@ class TestDataBuffer(unittest.TestCase):
                 'total_time': total_steps * 0.1
             },
             'generator': {
-                'class': 'FuncGenerator',
+                'class': 'WaveGenerator',
                 'target_device_idx': target_device_idx,
                 'amp': 2,
                 'freq': 0
@@ -132,11 +132,11 @@ class TestDataBuffer(unittest.TestCase):
         total_steps = 5
 
         # Create objects manually
-        from specula.processing_objects.func_generator import FuncGenerator
+        from specula.processing_objects.wave_generator import WaveGenerator
         from specula.processing_objects.data_buffer import DataBuffer
 
         # Create generator
-        generator = FuncGenerator(target_device_idx=target_device_idx, amp=1, freq=0)
+        generator = WaveGenerator(target_device_idx=target_device_idx, amp=1, freq=0)
         generator.setup()
 
         # Create buffer with manual input setup

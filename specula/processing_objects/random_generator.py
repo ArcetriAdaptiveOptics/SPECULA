@@ -7,10 +7,11 @@ class RandomGenerator(FuncGenerator):
     Generates random signals (normal or uniform distribution).
     """
     def __init__(self,
-                 distribution='normal',  # 'normal' or 'uniform'
+                 distribution='NORMAL',  # 'NORMAL' or 'UNIFORM'
                  amp: float = 1.0,
                  constant: float = 0.0,
                  seed: int = None,
+                 vsize: int = 1,
                  output_size: int = 1,
                  target_device_idx: int = None,
                  precision: int = None):
@@ -29,11 +30,11 @@ class RandomGenerator(FuncGenerator):
             precision=precision
         )
         
-        self.distribution = distribution.lower()
+        self.distribution = distribution.upper()
         self.amp = self.to_xp(amp, dtype=self.dtype)
         
         # Validate array sizes
-        self._validate_array_sizes(self.amp, [self.constant], names=['amp', 'constant'])
+        self._validate_array_sizes(self.amp, self.constant, names=['amp', 'constant'])
         
         # Setup random number generator
         if seed is not None:
@@ -47,11 +48,11 @@ class RandomGenerator(FuncGenerator):
             self.rng = self.xp.random
 
     def trigger_code(self):
-        if self.distribution == 'normal':
+        if self.distribution == 'NORMAL':
             self.output.value[:] = (
                 self.rng.standard_normal(size=self.output_size) * self.amp + self.constant
             )
-        elif self.distribution == 'uniform':
+        elif self.distribution == 'UNIFORM':
             lowv = self.constant - self.amp / 2
             highv = self.constant + self.amp / 2
             self.output.value[:] = self.rng.uniform(low=lowv, high=highv, size=self.output_size)

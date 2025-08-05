@@ -18,17 +18,17 @@ class FuncGenerator(BaseProcessingObj, ABC):
                  target_device_idx: int = None,
                  precision: int = None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-        
+
         self.constant = self.to_xp(constant, dtype=self.dtype)
         self.output_size = output_size
-        
+
         # Create output
         self.output = BaseValue(
             target_device_idx=target_device_idx, 
             value=self.xp.zeros(output_size, dtype=self.dtype)
         )
         self.outputs['output'] = self.output
-        
+
         # Time tracking
         self.iter_counter = 0
         self.current_time_gpu = self.xp.zeros(1, dtype=self.dtype)
@@ -50,16 +50,16 @@ class FuncGenerator(BaseProcessingObj, ABC):
     def _validate_array_sizes(self, *arrays, names=None):
         """Utility to validate that arrays have consistent sizes"""
         from specula.lib.utils import is_scalar
-        
+
         if names is None:
             names = [f"param_{i}" for i in range(len(arrays))]
-            
+
         vector_lengths = [arr.shape[0] for arr in arrays if not is_scalar(arr, self.xp)]
-        
+
         if len(vector_lengths) > 0:
             unique_lengths = set(vector_lengths)
             if len(unique_lengths) > 1:
-                details = [f"{name}={arr.shape[0]}" for arr, name in zip(arrays, names) 
+                details = [f"{name}={arr.shape[0]}" for arr, name in zip(arrays, names)
                           if not is_scalar(arr, self.xp)]
                 raise ValueError(
                     f"Shape mismatch: parameter lengths are {details} (must all be equal if not scalar)"
