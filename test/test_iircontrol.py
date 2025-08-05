@@ -59,7 +59,7 @@ class TestIirFilter(unittest.TestCase):
                 [1.0, 1.0],  # gain_mod for t < 0.001s
                 [2.0, 0.5]   # gain_mod for t >= 0.001s
             ],
-            time_intervals=[0.002],  # change at 0.002s
+            scheduled_times=[0.002],  # change at 0.002s
             modes_per_group=[1, 1],  # 1 mode per value
             target_device_idx=target_device_idx
         )

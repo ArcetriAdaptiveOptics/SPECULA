@@ -112,7 +112,7 @@ class FuncGenerator(BaseProcessingObj):
         For VALUE_SCHEDULE type only. List of value arrays for each time interval.
         Each element should be a list/array with length matching modes_per_group.
         Example: [[0.1, 0.0], [0.5, 1.0], [0.2, 0.3]]
-    time_intervals : list, optional
+    scheduled_times : list, optional
         For VALUE_SCHEDULE type only. List of time limits (in seconds) for each interval.
         Length must match scheduled_values.
         Example: [0.1, 0.2, 0.5] means:
@@ -142,7 +142,7 @@ class FuncGenerator(BaseProcessingObj):
     ...         [0.5, 0.2],    # Medium gain 
     ...         [1.0, 0.8]     # High gain
     ...     ],
-    ...     time_intervals=[0.1, 0.3],  # Only 2 values for 3 sets of scheduled_values
+    ...     scheduled_times=[0.1, 0.3],  # Only 2 values for 3 sets of scheduled_values
     ...     modes_per_group=[2, 3]    # 2 modes for first value, 3 for second
     ... )
     >>> # Output will be:
@@ -152,9 +152,9 @@ class FuncGenerator(BaseProcessingObj):
     
     Notes
     -----
-    - For VALUE_SCHEDULE, all three parameters (scheduled_values, time_intervals, modes_per_group) are mandatory
+    - For VALUE_SCHEDULE, all three parameters (scheduled_values, scheduled_times, modes_per_group) are mandatory
     - The expansion logic follows numpy.repeat behavior: each value is repeated modes_per_group[i] times
-    - Time intervals define upper bounds: values change when current_time >= time_intervals[i]
+    - Time intervals define upper bounds: values change when current_time >= scheduled_times[i]
     - After the last time interval, the last set of values is maintained indefinitely
     """
     def __init__(self,
@@ -175,7 +175,7 @@ class FuncGenerator(BaseProcessingObj):
                  ncycles: int=1,
                  vsize: int=1,
                  scheduled_values: list=None,
-                 time_intervals: list=None,
+                 scheduled_times: list=None,
                  modes_per_group: list=None,
                  target_device_idx: int=None,
                  precision: int=None
@@ -228,7 +228,7 @@ class FuncGenerator(BaseProcessingObj):
             elif nmodes is not None:
                 output_size = nmodes
         elif self.type in ['VALUE_SCHEDULE']:
-            if scheduled_values is None or time_intervals is None or modes_per_group is None:
+            if scheduled_values is None or scheduled_times is None or modes_per_group is None:
                 raise ValueError('SCHEDULED_VALUES, TIME_INTERVALS and MODES_PER_GROUP keywords are mandatory for type VALUE_SCHEDULE')
             output_size = np.sum(modes_per_group)
         else:
@@ -295,10 +295,10 @@ class FuncGenerator(BaseProcessingObj):
             self.time_hist = self.to_xp(time_hist.time_history)
 
         elif self.type == 'VALUE_SCHEDULE':
-            if scheduled_values is None or time_intervals is None or modes_per_group is None:
+            if scheduled_values is None or scheduled_times is None or modes_per_group is None:
                 raise ValueError('SCHEDULED_VALUES, TIME_INTERVALS and MODES_PER_GROUP keywords are mandatory for type VALUE_SCHEDULE')
 
-            if len(scheduled_values) != len(time_intervals) + 1:
+            if len(scheduled_values) != len(scheduled_times) + 1:
                 raise ValueError('LENGTH of SCHEDULED_VALUES must be LENGTH of TIME_INTERVALS + 1')
 
             # Expand scheduled_values according to modes_per_group
@@ -314,7 +314,7 @@ class FuncGenerator(BaseProcessingObj):
 
             self.value_schedule = {
                 'values': self.to_xp(expanded_values, dtype=self.dtype),
-                'times': self.to_xp(time_intervals, dtype=self.dtype)
+                'times': self.to_xp(scheduled_times, dtype=self.dtype)
             }
 
         else:
