@@ -1,4 +1,6 @@
 
+from astropy.io import fits
+
 from specula import cpuArray
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_value import BaseValue
@@ -7,6 +9,18 @@ from specula.data_objects.pixels import Pixels
 from specula.data_objects.slopes import Slopes
 from specula.data_objects.intmat import Intmat
 from specula.data_objects.recmat import Recmat
+
+
+def build_and_save_filtmat(intmat, recmat, nmodes, filename, xp):
+    '''
+    Helper functon to produce a filtering matrix,
+    joining an intmat and a recmat.
+    '''
+    im = intmat[:nmodes, :]
+    rm = recmat[:, :nmodes]
+    filtmat = xp.stack((im, xp.transpose(rm)), axis=-1)
+    fits.writeto(filename, cpuArray(filtmat))
+    print(f'saved {filename}')
 
 
 class Slopec(BaseProcessingObj):
@@ -65,15 +79,6 @@ class Slopec(BaseProcessingObj):
     def nslopes(self):
         raise NotImplementedError
 
-    def build_and_save_filtmat(self, intmat, recmat, nmodes, filename):
-        # TODO not used. Remove?
-        im = intmat[:nmodes, :]
-        rm = recmat[:, :nmodes]
-
-        output = self.xp.stack((im, self.xp.transpose(rm)), axis=-1)
-        self.writefits(filename, cpuArray(output))
-        print(f'saved {filename}')
-
     def do_accumulation(self, t):
         """
         Perform pixel accumulation based on the IDL version.
@@ -117,12 +122,6 @@ class Slopec(BaseProcessingObj):
 
         if self.verbose:
             print(f'Accumulation factor is: {factor}')
-
-    def _compute_flux_per_subaperture(self):
-        raise NotImplementedError('abstract method must be implemented')
-
-    def _compute_max_flux_per_subaperture(self):
-        raise NotImplementedError('abstract method must be implemented')
 
     def trigger_code(self):
         raise NotImplementedError(f'{self.__class__.__name__}: please implement trigger_code() in your derived class!')
