@@ -37,6 +37,7 @@ class PyrSlopec(Slopec):
                 **kwargs): # is this needed??
 
         # Set subaperture data before initializing base class
+        # because we need to know the number of subapertures
         self.pupdata = pupdata
         self.slopes_from_intensity = slopes_from_intensity
 
