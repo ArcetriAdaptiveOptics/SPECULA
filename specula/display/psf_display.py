@@ -54,7 +54,7 @@ class PsfDisplay(BaseDisplay):
 
         if self.img is None:
             # First time: create image
-            self.img = self.ax.imshow(image, aspect='auto')
+            self.img = self.ax.imshow(image)
             self._add_colorbar_if_needed(self.img)
         else:
             # Update existing image

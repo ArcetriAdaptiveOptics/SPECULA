@@ -33,7 +33,7 @@ class SlopecDisplay(BaseDisplay):
         
         if self.img is None:
             # First time: create image
-            self.img = self.ax.imshow(frame2d, aspect='auto')
+            self.img = self.ax.imshow(frame2d)
             self._add_colorbar_if_needed(self.img)
             
             # Set axis labels for clarity

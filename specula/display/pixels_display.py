@@ -49,7 +49,7 @@ class PixelsDisplay(BaseDisplay):
             image = np.log10(np.maximum(image, 1e-10))
 
         if self.img is None:
-            self.img = self.ax.imshow(image, aspect='auto')
+            self.img = self.ax.imshow(image)
 
             if not self._colorbar_added:
                 plt.colorbar(self.img, ax=self.ax)

@@ -52,7 +52,7 @@ class PhaseDisplay(BaseDisplay):
         frame = self._process_phase_data(phase)
 
         if self.img is None:
-            self.img = self.ax.imshow(frame, aspect='auto')
+            self.img = self.ax.imshow(frame)
             self._add_colorbar_if_needed(self.img)
         else:
             self._update_image_data(self.img, frame)
