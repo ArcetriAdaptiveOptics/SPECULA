@@ -51,7 +51,7 @@ class PhaseFlattening(BaseProcessingObj):
         self._out_ef.S0 = in_ef.S0
 
         # Process phase: remove mean only where amplitude > 0
-        phase = in_ef.phaseInNm.copy()
+        phase = in_ef.phaseInNm
         valid_mask = in_ef.A > 0
 
         if self.xp.any(valid_mask):
