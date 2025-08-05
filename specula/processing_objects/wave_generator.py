@@ -19,7 +19,7 @@ class WaveGenerator(FuncGenerator):
                  precision: int = None):
 
         # Determine output size from arrays
-        arrays = [np.atleast_1d(x) if not np.isscalar(x) else np.array([x]) 
+        arrays = [np.atleast_1d(x) if not np.isscalar(x) else np.array([x])
                  for x in [amp, freq, offset, constant]]
         if output_size == 1:
             output_size = max(len(arr) for arr in arrays)

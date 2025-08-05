@@ -48,7 +48,7 @@ class RandomGenerator(FuncGenerator):
             self.rng = self.xp.random
 
         # Create vsize_array like in original
-        self.vsize_array = self.xp.ones(vsize, dtype=self.dtype) 
+        self.vsize_array = self.xp.ones(vsize, dtype=self.dtype)
 
     def trigger_code(self):
         if self.distribution == 'NORMAL':
