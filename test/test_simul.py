@@ -37,7 +37,7 @@ class TestSimul(unittest.TestCase):
           root_dir: dummy
           
         test:
-          class: 'FuncGenerator'
+          class: 'WaveGenerator'
           nmodes_object: null
         '''
         simul = Simul([])
@@ -142,17 +142,17 @@ class TestSimul(unittest.TestCase):
         '''
         pars = {
             'obj1': {
-                'class': 'FuncGenerator',
+                'class': 'WaveGenerator',
                 'outputs': ['output']
             },
             'obj2': {
-                'class': 'FuncGenerator',
+                'class': 'WaveGenerator',
                 'inputs': {
                     'in2': 'obj1.output:-1'
                 }
             },
             'obj3': {
-                'class': 'FuncGenerator',
+                'class': 'WaveGenerator',
                 'inputs': {
                     'in2': 'obj1.output'
                 }
@@ -167,17 +167,17 @@ class TestSimul(unittest.TestCase):
 
         pars = {
             'obj1': {
-                'class': 'FuncGenerator',
+                'class': 'WaveGenerator',
                 'outputs': ['output']
             },
             'obj2': {
-                'class': 'FuncGenerator',
+                'class': 'WaveGenerator',
                 'inputs': {
                     'in2': 'obj1.output:-1'
                 }
             },
             'obj3': {
-                'class': 'FuncGenerator',
+                'class': 'WaveGenerator',
                 'inputs': {
                     'in2': 'obj1.output'
                 }
@@ -191,14 +191,14 @@ class TestSimul(unittest.TestCase):
         # These outputs depend on each other
         pars = {
             'obj1': {
-                'class': 'FuncGenerator',
+                'class': 'WaveGenerator',
                 'inputs': {
                     'in1': 'obj2.output:-1'
                 },
                 'outputs': ['output']
             },
             'obj2': {
-                'class': 'FuncGenerator',
+                'class': 'WaveGenerator',
                 'inputs': {
                     'in2': 'obj1.output:-1'
                 }

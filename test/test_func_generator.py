@@ -68,6 +68,25 @@ class TestFuncGenerator(unittest.TestCase):
         np.testing.assert_almost_equal(min(value), -amp)
 
     @cpu_and_gpu
+    def test_wave_generator_linear(self, target_device_idx, xp):
+        """Test WaveGenerator linear functionality"""
+        slope = 2.0  # freq è usato come slope
+        constant = 1.0
+        f = WaveGenerator('LINEAR', freq=slope, constant=constant, 
+                        target_device_idx=target_device_idx)
+        f.setup()
+
+        # Test multiple time points
+        for t_sec in [0.1, 0.2, 0.3]:
+            t = f.seconds_to_t(t_sec)
+            f.check_ready(t)
+            f.trigger()
+            f.post_trigger()
+            value = cpuArray(f.outputs['output'].value)
+            expected = slope * t_sec + constant
+            np.testing.assert_almost_equal(value, expected)
+
+    @cpu_and_gpu
     def test_random_generator_normal(self, target_device_idx, xp):
         amp = 1.0
         constant = 2.0
