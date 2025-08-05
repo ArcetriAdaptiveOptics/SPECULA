@@ -38,13 +38,16 @@ class TestSimul(unittest.TestCase):
           
         test:
           class: 'WaveGenerator'
-          nmodes_object: null
+          wave_type: 'SIN'
+          amp_object: null
         '''
         simul = Simul([])
         params = yaml.safe_load(yml)
         simul.build_objects(params)
-        
-        assert simul.objs['test'].nmodes is None
+
+        assert hasattr(simul.objs['test'], 'amp')
+        # simul.objs['test'].amp is None, but then is converted with to_xp and becomes NaN
+        assert simul.objs['test'].xp.isnan(simul.objs['test'].amp)
 
     def test_scalar_input_reference(self):
         '''Test that an input is correctly connected'''

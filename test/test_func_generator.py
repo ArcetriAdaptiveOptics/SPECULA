@@ -24,11 +24,14 @@ class TestFuncGenerator(unittest.TestCase):
     def test_func_generator_constant(self, target_device_idx, xp):
         constant = [4,3]
         f = WaveGenerator('SIN', target_device_idx=target_device_idx, constant=constant)
-        f.check_ready(1)
-        f.trigger()
-        f.post_trigger()
-        value = cpuArray(f.outputs['output'].value)
-        np.testing.assert_allclose(value, constant)
+        f.setup()
+
+        for t in [f.seconds_to_t(x) for x in [0.1, 0.2, 0.3, 0.4, 0.5]]:
+            f.check_ready(t)
+            f.trigger()
+            f.post_trigger()
+            value = cpuArray(f.outputs['output'].value)
+            np.testing.assert_allclose(value, constant)
 
     @cpu_and_gpu
     def test_func_generator_sin(self, target_device_idx, xp):
@@ -70,9 +73,9 @@ class TestFuncGenerator(unittest.TestCase):
     @cpu_and_gpu
     def test_wave_generator_linear(self, target_device_idx, xp):
         """Test WaveGenerator linear functionality"""
-        slope = 2.0  # freq è usato come slope
+        slope = 2.0
         constant = 1.0
-        f = WaveGenerator('LINEAR', freq=slope, constant=constant, 
+        f = WaveGenerator('LINEAR', slope=slope, constant=constant,
                         target_device_idx=target_device_idx)
         f.setup()
 
