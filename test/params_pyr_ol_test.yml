@@ -15,7 +15,7 @@ seeing:
   class:             'RandomGenerator'
   amp:               0.1
   constant:          0.6                  # range of [0.5, 0.7]
-  func_type:         'UNIFORM'
+  distribution:      'UNIFORM'
   outputs: ['output']
 
 

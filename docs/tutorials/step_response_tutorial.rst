@@ -41,7 +41,7 @@ Create a configuration file, for example ``params_control_lpf.yml``:
 
    disturbance:
      class:             'WaveGenerator'
-     func_type:         'SQUARE'
+     wave_type:         'SQUARE'
      amp:               [5.0]
      freq:              [50.0] 
 

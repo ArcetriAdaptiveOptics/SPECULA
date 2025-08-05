@@ -16,7 +16,7 @@ pupilstop:                                 # Default parameters (circular pupil)
 seeing:
   class:             'WaveGenerator'
   constant:          0.8                  # ["] seeing value
-  func_type:         'SIN'                 # TODO necessary for factory.py line 217
+  wave_type:         'SIN'                 # TODO necessary for factory.py line 217
   outputs: ['output']
 
 

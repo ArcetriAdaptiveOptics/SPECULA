@@ -10,14 +10,14 @@ main:
 
 disturbance1:
   class:             'WaveGenerator'
-  func_type:         'SIN'
+  wave_type:         'SIN'
   amp:               [5.0]
   freq:              [50.0]
   outputs: ['output']
 
 disturbance2:
   class:             'WaveGenerator'
-  func_type:         'SIN'
+  wave_type:         'SIN'
   amp:               [10.0]
   freq:              [50.0]
   outputs: ['output']

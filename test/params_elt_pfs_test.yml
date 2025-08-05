@@ -34,7 +34,6 @@ time_hist:
 disturbance:
   class:             'TimeHistoryGenerator'
   time_hist_ref:     time_hist
-  nmodes:            2
   outputs: ['output']
 
 dm_windshake:

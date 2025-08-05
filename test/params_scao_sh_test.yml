@@ -11,7 +11,7 @@ main:
 seeing:
   class:             'WaveGenerator'
   constant:          0.6                   # ["] seeing value
-  func_type:         'SIN'
+  wave_type:         'SIN'
   outputs: ['output']
 
 wind_speed:
