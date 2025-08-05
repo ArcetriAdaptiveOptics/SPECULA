@@ -84,7 +84,7 @@ class BaseOperation(BaseProcessingObj):
             else:
                 self.v2[:] = 0.0
 
-    def trigger(self):
+    def trigger_code(self):
 
         value1 = self.local_inputs['in_value1'].value
 

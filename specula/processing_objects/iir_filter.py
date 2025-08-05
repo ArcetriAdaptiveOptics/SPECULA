@@ -24,8 +24,7 @@ class IirFilter(BaseProcessingObj):
                  precision=None
                  ):
 
-        self.simul_params = simul_params
-        self.time_step = self.simul_params.time_step
+        self.time_step = simul_params.time_step
 
         self._verbose = True
         self.iir_filter_data = iir_filter_data
@@ -64,7 +63,6 @@ class IirFilter(BaseProcessingObj):
         self._skipOneStep = False  # TODO
         self._StepIsNotGood = False  # TODO
         self._start_time = 0  # TODO
-
 
     def set_state_buffer_length(self, total_length):
         self._total_length = total_length
