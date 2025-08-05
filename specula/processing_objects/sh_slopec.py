@@ -33,14 +33,14 @@ class ShSlopec(Slopec):
                  window_int_pixel: bool=False,
                  target_device_idx: int = None,
                  precision: int = None):
+
+        # Set subaperture data before initializing base class
+        self.subapdata = subapdata
+
         super().__init__(sn=sn, filtmat=filtmat, weight_int_pixel_dt=weight_int_pixel_dt,
                          target_device_idx=target_device_idx, precision=precision)
         self.thr_value = thr_value
         self.thr_mask_cube = BaseValue(target_device_idx=self.target_device_idx)
-        self.total_counts = BaseValue(target_device_idx=self.target_device_idx)
-        self.subap_counts = BaseValue(target_device_idx=self.target_device_idx)
-        self.exp_weight = None
-        self.subapdata = None
         self.xweights = None
         self.yweights = None
         self.xcweights = None
@@ -55,18 +55,21 @@ class ShSlopec(Slopec):
         self.quadcell_mode = False
         self.two_steps_cog = False
         self.cog_2ndstep_size = 0
-        self.store_thr_mask_cube = False
+        self.store_thr_mask_cube = False   # Todo should it become a parameter?
 
         self.exp_weight = exp_weight
-        self.subapdata = subapdata
         self.window_int_pixel = window_int_pixel
         self.int_pixels_weight = None
 
-        # TODO replace this resize with an earlier initialization
-        self.slopes.resize(subapdata.n_subaps * 2)
-        self.accumulated_slopes = Slopes(subapdata.n_subaps * 2, target_device_idx=self.target_device_idx)
+        self.accumulated_slopes = Slopes(self.nslopes(), target_device_idx=self.target_device_idx)
         self.set_xy_weights()
         self.outputs['out_subapdata'] = self.subapdata
+
+    def nsubaps(self):
+        return self.subapdata.n_subaps
+
+    def nslopes(self):
+        return self.subapdata.n_subaps * 2
 
     @property
     def subap_idx(self):
@@ -266,14 +269,10 @@ class ShSlopec(Slopec):
         self.slopes.yslopes = sy
         self.slopes.single_mask = self.subapdata.single_mask()
         self.slopes.display_map = self.subapdata.display_map
-        self.slopes.generation_time = self.current_time
 
-        self.flux_per_subaperture_vector.value = flux_per_subaperture
-        self.flux_per_subaperture_vector.generation_time = self.current_time
-        self.total_counts.value = self.xp.sum(self.flux_per_subaperture_vector.value)
-        self.total_counts.generation_time = self.current_time
-        self.subap_counts.value = self.xp.mean(self.flux_per_subaperture_vector.value)
-        self.subap_counts.generation_time = self.current_time
+        self.flux_per_subaperture_vector.value[:] = flux_per_subaperture
+        self.total_counts.value[0] = self.xp.sum(flux_per_subaperture)
+        self.subap_counts.value[0] = self.xp.mean(flux_per_subaperture)
 
         if self.verbose:
             print(f"Slopes min, max and rms : {self.xp.min(sx)}, {self.xp.max(sx)}, {self.xp.sqrt(self.xp.mean(sx ** 2))}")
@@ -396,12 +395,9 @@ class ShSlopec(Slopec):
         self.slopes.display_map = self.subapdata.display_map
         self.slopes.generation_time = self.current_time
 
-        self.flux_per_subaperture_vector.value = flux_per_subaperture_vector
-        self.flux_per_subaperture_vector.generation_time = self.current_time
-        self.total_counts.value = self.xp.sum(self.flux_per_subaperture_vector.value)
-        self.total_counts.generation_time = self.current_time
-        self.subap_counts.value = self.xp.mean(self.flux_per_subaperture_vector.value)
-        self.subap_counts.generation_time = self.current_time
+        self.flux_per_subaperture_vector.value[:] = flux_per_subaperture_vector
+        self.total_counts.value[0] = self.xp.sum(flux_per_subaperture_vector)
+        self.subap_counts.value[0] = self.xp.mean(flux_per_subaperture_vector)
 
         if self.verbose:
             print(f"Slopes min, max and rms : {self.xp.min(sx)}, {self.xp.max(sx)}, {self.xp.sqrt(self.xp.mean(sx ** 2))}")
@@ -412,3 +408,7 @@ class ShSlopec(Slopec):
         x, y = np.meshgrid(x, y)
         gaussian = np.exp(-4 * np.log(2) * (x ** 2 + y ** 2) / fwhm[0] ** 2, dtype=self.dtype)
         return gaussian
+
+    def post_trigger(self):
+        super().post_trigger()
+        self.outputs['out_subapdata'].generation_time = self.current_time

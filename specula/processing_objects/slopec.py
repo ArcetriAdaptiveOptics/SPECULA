@@ -22,10 +22,13 @@ class Slopec(BaseProcessingObj):
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        self.slopes = Slopes(2, target_device_idx=self.target_device_idx) # TODO resized in derived class
         self.sn = sn
-        self.flux_per_subaperture_vector = BaseValue(target_device_idx=self.target_device_idx)
-        self.max_flux_per_subaperture_vector = BaseValue(target_device_idx=self.target_device_idx)
+        self.slopes = Slopes(self.nslopes(), target_device_idx=self.target_device_idx) 
+        self.flux_per_subaperture_vector = BaseValue(value=self.xp.zeros(self.nsubaps(), dtype=self.dtype),
+                                                     target_device_idx=self.target_device_idx)
+
+        self.total_counts = BaseValue(value=self.xp.zeros(1, dtype=self.dtype), target_device_idx=self.target_device_idx)
+        self.subap_counts = BaseValue(value=self.xp.zeros(1, dtype=self.dtype), target_device_idx=self.target_device_idx)
         self.recmat = recmat
         if filtmat is not None:
             if filt_intmat:
@@ -50,8 +53,20 @@ class Slopec(BaseProcessingObj):
 
         self.inputs['in_pixels'] = InputValue(type=Pixels)
         self.outputs['out_slopes'] = self.slopes
+        self.outputs['out_flux_per_subaperture'] = self.flux_per_subaperture_vector
+        self.outputs['out_total_counts'] = self.total_counts
+        self.outputs['out_subap_counts'] = self.subap_counts
+
+    # Derived classes must implement this method
+    def nsubaps(self):
+        raise NotImplementedError
+
+    # Derived classes must implement this method
+    def nslopes(self):
+        raise NotImplementedError
 
     def build_and_save_filtmat(self, intmat, recmat, nmodes, filename):
+        # TODO not used. Remove?
         im = intmat[:nmodes, :]
         rm = recmat[:, :nmodes]
 
@@ -128,7 +143,12 @@ class Slopec(BaseProcessingObj):
             sl0 = m @ self.filt_intmat.intmat.T
             self.slopes.slopes -= sl0
 
-            #rms = self.xp.sqrt(self.xp.mean(self.slopes.slopes**2))
-            #print('Slopes have been filtered. '
-            #      'New slopes min, max and rms: '
-            #      f'{self.slopes.slopes.min()}, {self.slopes.slopes.max()}, {rms}')
+        self.outputs['out_slopes'].generation_time = self.current_time
+        self.outputs['out_flux_per_subaperture'].generation_time = self.current_time
+        self.outputs['out_total_counts'].generation_time = self.current_time
+        self.outputs['out_subap_counts'].generation_time = self.current_time
+
+        #rms = self.xp.sqrt(self.xp.mean(self.slopes.slopes**2))
+        #print('Slopes have been filtered. '
+        #      'New slopes min, max and rms: '
+        #      f'{self.slopes.slopes.min()}, {self.slopes.slopes.max()}, {rms}')
