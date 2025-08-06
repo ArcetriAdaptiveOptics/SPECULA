@@ -22,8 +22,8 @@ class ElectricFieldCombinator(BaseProcessingObj):
         self.inputs['in_ef2'] = InputValue(type=ElectricField)
 
         self._out_ef = ElectricField(
-                dimx=self.simul_params.pixel_pupil,
-                dimy=self.simul_params.pixel_pupil,
+                dimx=1,  # Will be replaced in setup()
+                dimy=1,
                 pixel_pitch=self.pixel_pitch,
                 S0=1,
                 target_device_idx=self.target_device_idx,
@@ -42,8 +42,10 @@ class ElectricFieldCombinator(BaseProcessingObj):
         if in_ef1.A.shape != in_ef2.A.shape:
             raise ValueError(f"Input electric field no. 1 shape {in_ef1.A.shape} does not match electric field no. 2 shape {in_ef2.A.shape}")
 
-        self._out_ef.phaseInNm = in_ef1.phaseInNm*0.
-        self._out_ef.A = in_ef1.A*0.
+        self._out_ef.resize(
+            dimx=in_ef1.A.shape[0],
+            dimy=in_ef1.A.shape[1],
+        )
 
     def trigger(self):
         # Get the input electric fields

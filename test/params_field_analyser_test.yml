@@ -9,19 +9,19 @@ main:
   time_step:         0.001                  # [s] Simulation time step
 
 seeing:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          0.000001                   # ["] seeing value
-  func_type:         'SIN'
+  wave_type:         'SIN'
   outputs: ['output']
 
 wind_speed:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          [5.]                  # [m/s] Wind speed value
   outputs: ['output']
 
 
 wind_direction:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          [0.]                  # [degrees] Wind direction value
   outputs: ['output']
 

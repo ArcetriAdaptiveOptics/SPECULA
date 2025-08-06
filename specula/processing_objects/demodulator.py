@@ -1,4 +1,3 @@
-from specula import to_xp
 from specula.base_processing_obj import BaseProcessingObj
 from specula.connections import InputValue
 from specula.base_value import BaseValue
@@ -34,6 +33,10 @@ class Demodulator(BaseProcessingObj):
 
         # Outputs
         self.output = BaseValue(target_device_idx=target_device_idx)
+        if len(self.mode_numbers) == 1:
+            self.output.value = self.dtype(0.0)
+        else:
+            self.output.value = self.xp.zeros(len(self.mode_numbers), dtype=self.dtype)
 
         # Inputs
         self.inputs['in_data'] = InputValue(type=BaseValue)
@@ -101,7 +104,7 @@ class Demodulator(BaseProcessingObj):
         This implements the demodulation algorithm from demodulate_passata.pro
         """
         # Convert to numpy/cupy for processing
-        data = to_xp(self.xp, signal_data)
+        data = self.to_xp(signal_data)
 
         # Parameters
         dt = self.t_to_seconds(self.loop_dt)
@@ -176,7 +179,7 @@ class Demodulator(BaseProcessingObj):
         pphi += pphi0
 
         # Convert back to target device if needed
-        value = to_xp(self.xp, value, dtype=self.dtype)
+        value = self.to_xp(value, dtype=self.dtype)
 
         if self.verbose:
             print(f"Demodulated value: {value}, Phase: {pphi}")
@@ -184,18 +187,3 @@ class Demodulator(BaseProcessingObj):
             print(f"Data length: {len(data)}, Time steps: {nt}, dt: {dt:.3f}s")
 
         return value
-
-    def setup(self):
-        """
-        Setup the demodulator.
-        """
-        super().setup()
-
-        # Initialize output
-        if len(self.mode_numbers) == 1:
-            self.output.value = self.dtype(0.0)
-        else:
-            self.output.value = self.xp.zeros(len(self.mode_numbers), dtype=self.dtype)
-
-    def post_trigger(self):
-        super().post_trigger()

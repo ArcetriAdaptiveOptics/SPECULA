@@ -13,6 +13,8 @@ import sys
 # AtmoRandomPhase.yml        DataSource.yml         Factory.yml        IirFilter.yml      MirrorCommandsCombinator.yml  
 # ModulatedPyramid.yml  PyrSlopec.yml             SH.yml                 WindowedIntegration.yml
 
+
+# TODO new generator classes not 
 exposed_classes = [ 'Source', 'Pupilstop',                    
                     'FuncGenerator', 'BaseOperation', 'AtmoEvolution', 'AtmoInfiniteEvolution', 'AtmoPropagation',
                     'ModulatedPyramid', 'CCD', 'Slopec', 'PyrSlopec', 'Modalrec', 'Integrator', 'IirFilter', 'DM', 'PSF', 'DataStore'                

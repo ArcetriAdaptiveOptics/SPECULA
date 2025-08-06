@@ -15,12 +15,12 @@ from test.specula_testlib import cpu_and_gpu
 
 
 class TestDataStore(unittest.TestCase):
-   
+
     def setUp(self):
         self.tmp_dir = os.path.join(os.path.dirname(__file__), 'tmp_data_store')
         if not os.path.exists(self.tmp_dir):
             os.mkdir(self.tmp_dir)
-    
+
     def tearDown(self):
        shutil.rmtree(self.tmp_dir, ignore_errors=True)
 
@@ -28,7 +28,7 @@ class TestDataStore(unittest.TestCase):
     def test_data_store(self, target_device_idx, xp):
         params = {'main': {'class': 'SimulParams', 'root_dir': self.tmp_dir,
                            'time_step': 0.1, 'total_time': 0.2},
-                  'generator': {'class': 'FuncGenerator', 'target_device_idx': target_device_idx, 'amp': 1, 'freq': 2},
+                  'generator': {'class': 'WaveGenerator', 'target_device_idx': target_device_idx, 'amp': 1, 'freq': 2},
                   'store': {'class': 'DataStore', 'store_dir': self.tmp_dir,
                             'inputs': {'input_list': ['gen-generator.output']},
                             }

@@ -103,7 +103,11 @@ class PupData(BaseDataObj):
             ind_pup = hdul[1].data
             radius = hdul[2].data
             cx = hdul[3].data
-            cy = hdul[4].data
+            # Workaround for ANDES pupil files missing the last HDU
+            if len(hdul) >= 5:
+                cy = hdul[4].data
+            else:
+                cy = None
 
         return PupData(ind_pup=ind_pup, radius=radius, cx=cx, cy=cy, framesize=framesize,
                 target_device_idx=target_device_idx)

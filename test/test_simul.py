@@ -37,14 +37,17 @@ class TestSimul(unittest.TestCase):
           root_dir: dummy
           
         test:
-          class: 'FuncGenerator'
-          nmodes_object: null
+          class: 'WaveGenerator'
+          wave_type: 'SIN'
+          amp_object: null
         '''
         simul = Simul([])
         params = yaml.safe_load(yml)
         simul.build_objects(params)
-        
-        assert simul.objs['test'].nmodes is None
+
+        assert hasattr(simul.objs['test'], 'amp')
+        # simul.objs['test'].amp is None, but then is converted with to_xp and becomes NaN
+        assert simul.objs['test'].xp.isnan(simul.objs['test'].amp)
 
     def test_scalar_input_reference(self):
         '''Test that an input is correctly connected'''
@@ -142,17 +145,17 @@ class TestSimul(unittest.TestCase):
         '''
         pars = {
             'obj1': {
-                'class': 'FuncGenerator',
+                'class': 'WaveGenerator',
                 'outputs': ['output']
             },
             'obj2': {
-                'class': 'FuncGenerator',
+                'class': 'WaveGenerator',
                 'inputs': {
                     'in2': 'obj1.output:-1'
                 }
             },
             'obj3': {
-                'class': 'FuncGenerator',
+                'class': 'WaveGenerator',
                 'inputs': {
                     'in2': 'obj1.output'
                 }
@@ -167,17 +170,17 @@ class TestSimul(unittest.TestCase):
 
         pars = {
             'obj1': {
-                'class': 'FuncGenerator',
+                'class': 'WaveGenerator',
                 'outputs': ['output']
             },
             'obj2': {
-                'class': 'FuncGenerator',
+                'class': 'WaveGenerator',
                 'inputs': {
                     'in2': 'obj1.output:-1'
                 }
             },
             'obj3': {
-                'class': 'FuncGenerator',
+                'class': 'WaveGenerator',
                 'inputs': {
                     'in2': 'obj1.output'
                 }
@@ -191,14 +194,14 @@ class TestSimul(unittest.TestCase):
         # These outputs depend on each other
         pars = {
             'obj1': {
-                'class': 'FuncGenerator',
+                'class': 'WaveGenerator',
                 'inputs': {
                     'in1': 'obj2.output:-1'
                 },
                 'outputs': ['output']
             },
             'obj2': {
-                'class': 'FuncGenerator',
+                'class': 'WaveGenerator',
                 'inputs': {
                     'in2': 'obj1.output:-1'
                 }

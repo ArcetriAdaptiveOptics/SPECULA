@@ -32,10 +32,8 @@ time_hist:
                  [10, 0]]
 
 disturbance:
-  class:             'FuncGenerator'
-  func_type:         'TIME_HIST'
+  class:             'TimeHistoryGenerator'
   time_hist_ref:     time_hist
-  nmodes:            2
   outputs: ['output']
 
 dm_windshake:
@@ -51,17 +49,17 @@ dm_windshake:
   outputs:  ['out_layer']
 
 seeing:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          0.65                  # ["] seeing value
   outputs: ['output']
 
 wind_speed:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          [5.5, 7.5, 22.0, 8.5]      # [m/s] Wind speed value
   outputs: ['output']
 
 wind_direction:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          [0, 10, -10, 90]   # [degrees] Wind direction value
   outputs: ['output']
 
@@ -134,8 +132,7 @@ modal_analysis_ngs:
   outputs: ['out_modes']
 
 random_ngs:
-  class:            'FuncGenerator'
-  func_type:        'random'
+  class:            'RandomGenerator'
   amp:              [10,10.]
   outputs: ['output']
 
@@ -167,8 +164,7 @@ sum_operation:
   outputs:  ['out_value']
 
 random_pfs:
-  class:            'FuncGenerator'
-  func_type:        'random'
+  class:            'RandomGenerator'
   amp:              [10,10.,0,0,0, 0,0,0,0,0, 0,0,0,0,0, 0,0,0,0,0, 0,0,0,0,0, 0,0,0,0,0, 0,0,0,0,0, 0,0,0,0,0, 0,0,0,0,0, 0,0,0,0,0]
   outputs: ['output']
 

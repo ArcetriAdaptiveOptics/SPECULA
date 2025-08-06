@@ -1,4 +1,3 @@
-from astropy.io import fits
 
 from specula.lib.make_xy import make_xy
 from specula.base_processing_obj import BaseProcessingObj
@@ -6,7 +5,7 @@ from specula.lib.interp2d import Interp2D
 from specula.data_objects.electric_field import ElectricField
 from specula.connections import InputList
 from specula.data_objects.layer import Layer
-from specula import cpuArray, show_in_profiler, ASEC2RAD
+from specula import cpuArray, show_in_profiler
 from specula.data_objects.simul_params import SimulParams
 
 import numpy as np
@@ -219,6 +218,9 @@ class AtmoPropagation(BaseProcessingObj):
         if self.atmo_layer_list is None:
             self.atmo_layer_list = []
 
+        if self.common_layer_list is None:
+            self.common_layer_list = []
+
         self.nAtmoLayers = len(self.atmo_layer_list)
 
         if len(self.atmo_layer_list) + len(self.common_layer_list) < 1:
@@ -238,15 +240,4 @@ class AtmoPropagation(BaseProcessingObj):
         self.setup_interpolators()
         self.build_stream()
 
-    def save(self, filename):
-        hdr = fits.Header()
-        hdr['VERSION'] = 1
-        super().save(filename, hdr)
-
-        with fits.open(filename, mode='append') as hdul:
-            hdul.append(fits.ImageHDU(data=self.phasescreens))
-
-    def read(self, filename):
-        super().read(filename)
-        self.phasescreens = fits.getdata(filename, ext=1)
 

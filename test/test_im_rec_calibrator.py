@@ -35,15 +35,9 @@ class TestImRecCalibrator(unittest.TestCase):
         with open(im_path, 'w') as f:
             f.write('')
 
-        slopes = Slopes(2)
-        cmd = BaseValue(value=2)
-        calibrator = ImCalibrator(nmodes=10, data_dir=self.test_dir, im_tag=im_tag)
-        calibrator.inputs['in_slopes'].set(slopes)
-        calibrator.inputs['in_commands'].set(cmd)
-
         with self.assertRaises(FileExistsError):
-            calibrator.setup()
-
+            _ = ImCalibrator(nmodes=10, data_dir=self.test_dir, im_tag=im_tag)
+ 
     def test_existing_im_file_with_overwrite(self):
         """Test that overwrite=True allows overwriting existing files"""
         im_tag = 'test_im_overwrite'
@@ -54,14 +48,8 @@ class TestImRecCalibrator(unittest.TestCase):
         with open(im_path, 'w') as f:
             f.write('')
 
-        slopes = Slopes(2)
-        cmd = BaseValue(value=2)
-        calibrator = ImCalibrator(nmodes=10, data_dir=self.test_dir, im_tag=im_tag, overwrite=True)
-        calibrator.inputs['in_slopes'].set(slopes)
-        calibrator.inputs['in_commands'].set(cmd)
-
         # Should not raise
-        calibrator.setup()
+        _ = ImCalibrator(nmodes=10, data_dir=self.test_dir, im_tag=im_tag, overwrite=True)
 
     def test_existing_rec_file_is_detected(self):
         """Test that RecCalibrator detects existing REC files"""
@@ -73,14 +61,9 @@ class TestImRecCalibrator(unittest.TestCase):
         with open(rec_path, 'w') as f:
             f.write('')
 
-        # Create mock interaction matrix
-        intmat = BaseValue(value=specula.np.array([[1, 2], [3, 4]]))
-        rec_calibrator = RecCalibrator(nmodes=2, data_dir=self.test_dir, rec_tag=rec_tag)
-        rec_calibrator.inputs['in_intmat'].set(intmat)
-
         with self.assertRaises(FileExistsError):
-            rec_calibrator.setup()
-
+            _ = RecCalibrator(nmodes=2, data_dir=self.test_dir, rec_tag=rec_tag)
+  
     @cpu_and_gpu
     def test_triggered_by_slopes_only(self, target_device_idx, xp):
         """Test that calibrator only triggers when slopes are updated"""

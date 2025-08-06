@@ -17,12 +17,14 @@ class Slopes(BaseDataObj):
                  precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         if slopes is not None:
-            self.slopes = slopes
+            self.slopes = self.to_xp(slopes, dtype=self.dtype)
         else:
             self.slopes = self.xp.zeros(length, dtype=self.dtype)
         self.interleave = interleave
         self.single_mask = None
         self.display_map = None
+        self.pupdata_tag = None
+        self.subapdata_tag = None
 
         if self.interleave:
             self.indicesX = self.xp.arange(0, self.size // 2) * 2
@@ -37,7 +39,7 @@ class Slopes(BaseDataObj):
         '''
         return self.slopes
 
-    def set_value(self, v):
+    def set_value(self, v, force_copy=False):
         '''
         Set new slopes values.
         Arrays are not reallocated
@@ -45,7 +47,7 @@ class Slopes(BaseDataObj):
         assert v.shape == self.slopes.shape, \
             f"Error: input array shape {v.shape} does not match slopes shape {self.slopes.shape}"
 
-        self.slopes[:] = self.to_xp(v, dtype=self.dtype)
+        self.slopes[:] = self.to_xp(v, dtype=self.dtype, force_copy=force_copy)
 
     # TODO needed to support late SlopeC-derived class initialization
     # Replace with a full initialization in base class?
@@ -138,44 +140,51 @@ class Slopes(BaseDataObj):
         self.xslopes = self.xp.cos(alpha) * modulus * signx
         self.yslopes = self.xp.sin(alpha) * modulus * signy
 
-    def save(self, filename, hdr=None):
-        if hdr is None:
-            hdr = fits.Header()
-        hdr['VERSION'] = 2
+    def get_fits_header(self):
+        hdr = fits.Header()
+        hdr['VERSION'] = 3
+        hdr['OBJ_TYPE'] = 'Intensity'
         hdr['INTRLVD'] = int(self.interleave)
-        if hasattr(self, 'pupdata_tag') and self.pupdata_tag is not None:
-            hdr['PUPD_TAG'] = self.pupdata_tag
-        if hasattr(self, 'subapdata_tag') and self.subapdata_tag is not None:
-            hdr['SUBAP_TAG'] = self.subapdata_tag
-        fits.writeto(filename, np.zeros(2), hdr)
-        fits.append(filename, cpuArray(self.slopes))
+        hdr['LENGTH'] = self.size
+        hdr['PUPD_TAG'] = self.pupdata_tag if self.pupdata_tag is not None else ''
+        hdr['SUBAP_TAG'] = self.subapdata_tag if self.subapdata_tag is not None else ''
+        return hdr
 
-    def read(self, filename, hdr=None, exten=1):
-        super().read(filename)
-        self.slopes = fits.getdata(filename, ext=exten)
+    def save(self, filename, overwrite=True):
+        hdr = self.get_fits_header()
+        hdu = fits.PrimaryHDU(header=hdr)  # main HDU, empty, only header
+        hdul = fits.HDUList([hdu])
+        hdul.append(fits.ImageHDU(data=cpuArray(self.slopes), name='SLOPES'))
+        hdul.writeto(filename, overwrite=overwrite)
+        hdul.close()  # Force close for Windows
 
+    @staticmethod
+    def from_header(hdr, target_device_idx=None):
+        version = hdr['VERSION']
+        if version not in [1, 2, 3]:
+            raise ValueError(f"Error: unknown version {version} in header")
+        interleave = bool(hdr['INTRLVD'])
+        if version == 3:
+            length = hdr['LENGTH']
+            slopes = Slopes(length=length, interleave=interleave, target_device_idx=target_device_idx)
+        else:
+            slopes = Slopes(length=1, interleave=interleave, target_device_idx=target_device_idx)
+        if version >= 2:
+            slopes.pupdata_tag = hdr.get('PUPD_TAG', None)
+            slopes.subapdata_tag = hdr.get('SUBAP_TAG', None)
+        return slopes
+    
     @staticmethod
     def restore(filename, target_device_idx=None):
         hdr = fits.getheader(filename)
-        version = int(hdr['VERSION'])
-
-        if version > 2:
-            raise ValueError(f"Error: unknown version {version} in file {filename}")
-
-        s = Slopes(length=1, target_device_idx=target_device_idx)
-        s.interleave = bool(hdr['INTRLVD'])
-        if version >= 2:
-            # Read optional tags if present
-            for tag_key, attr_name in [('PUPD_TAG', 'pupdata_tag'), ('SUBAP_TAG', 'subapdata_tag')]:
-                if tag_key in hdr:
-                    try:
-                        tag_value = str(hdr[tag_key]).strip()
-                        if tag_value:  # Non-empty
-                            setattr(s, attr_name, tag_value)
-                    except (ValueError, TypeError):
-                        pass  # Skip invalid tag values
-        s.read(filename, hdr)
-        return s
+        slopes = Slopes.from_header(hdr, target_device_idx=target_device_idx)
+        slopesdata = fits.getdata(filename, ext=1)
+        if hdr['VERSION'] >= 3:
+            slopes.set_value(slopesdata)
+        else:
+            slopes.resize(len(slopesdata))  # version 2 header does not have length information
+            slopes.slopes = slopes.to_xp(slopesdata, dtype=slopes.dtype)
+        return slopes
 
     def array_for_display(self):
         return self.xp.hstack(self.get2d())

@@ -15,17 +15,17 @@ main:
 #  port:              3000                   # Use zero for auto-selection
 
 seeing:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          0.8                   # ["] seeing value
 
 
 wind_speed:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          [20.]                #,10.,20.,10.]      # [m/s] Wind speed value
 
 
 wind_direction:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          [0.] #,270.,270.,90.]   # [degrees] Wind direction value
 
 
@@ -96,7 +96,7 @@ detector:
 slopec:
   class:             'PyrSlopec'  
   pupdata_object:    'scao_pup'            # tag of the pyramid WFS pupils
-  sn_object:         'scao_sn'             # tag of the slope reference vector
+  #sn_object:         'scao_sn'             # tag of the slope reference vector
   inputs:
     in_pixels:        'detector.out_pixels'
 

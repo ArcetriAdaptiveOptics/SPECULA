@@ -201,7 +201,7 @@ class Modalrec(BaseProcessingObj):
         if slopes is None:
             self.slopes = self.xp.hstack([x.slopes for x in slopes_list])
         else:
-            self.slopes = slopes.slopes.copy()
+            self.slopes = self.to_xp(slopes.slopes.copy())
 
         if self.polc:
             commands = self.local_inputs['in_commands']
