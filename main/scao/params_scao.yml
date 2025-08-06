@@ -103,7 +103,7 @@ slopec:
 
 rec:
   class:              'Modalrec'  
-  recmat_object:      'scao_pyr_rec'         # reconstruction matrix tag
+  recmat_object:      'scao_recmat'         # reconstruction matrix tag
   inputs:
     in_slopes:        'slopec.out_slopes'
 
