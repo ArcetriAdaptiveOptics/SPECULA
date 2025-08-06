@@ -11,16 +11,16 @@ class TimeHistoryGenerator(BaseGenerator):
                  time_hist: TimeHistory,
                  target_device_idx: int = None,
                  precision: int = None):
-        
+
         time_history_array = time_hist.time_history
         output_size = time_history_array.shape[1] if time_history_array.ndim > 1 else 1
-        
+
         super().__init__(
             output_size=output_size,
             target_device_idx=target_device_idx,
             precision=precision
         )
-        
+
         self.time_hist = self.to_xp(time_history_array)
 
     def trigger_code(self):

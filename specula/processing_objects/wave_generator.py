@@ -26,7 +26,6 @@ class WaveGenerator(BaseGenerator):
 
         super().__init__(
             output_size=output_size,
-            constant=constant,
             target_device_idx=target_device_idx,
             precision=precision
         )
@@ -37,6 +36,7 @@ class WaveGenerator(BaseGenerator):
         self.freq = self.to_xp(freq, dtype=self.dtype)
         self.offset = self.to_xp(offset, dtype=self.dtype)
         self.slope = self.to_xp(slope, dtype=self.dtype)
+        self.constant = self.to_xp(constant, dtype=self.dtype)
 
         # Create vsize_array like in original
         self.vsize_array = self.xp.ones(vsize, dtype=self.dtype)

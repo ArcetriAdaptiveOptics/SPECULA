@@ -25,13 +25,13 @@ class RandomGenerator(BaseGenerator):
 
         super().__init__(
             output_size=output_size,
-            constant=constant,
             target_device_idx=target_device_idx,
             precision=precision
         )
 
         self.distribution = distribution.upper()
         self.amp = self.to_xp(amp, dtype=self.dtype)
+        self.constant = self.to_xp(constant, dtype=self.dtype)
 
         # Validate array sizes
         self._validate_array_sizes(self.amp, self.constant, names=['amp', 'constant'])

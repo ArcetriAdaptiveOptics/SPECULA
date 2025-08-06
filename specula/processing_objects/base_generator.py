@@ -10,12 +10,10 @@ class BaseGenerator(BaseProcessingObj):
     """
     def __init__(self,
                  output_size: int = 1,
-                 constant: float = 0.0,
                  target_device_idx: int = None,
                  precision: int = None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        self.constant = self.to_xp(constant, dtype=self.dtype)
         self.output_size = output_size
 
         # Create output
