@@ -10,10 +10,10 @@ from specula.base_value import BaseValue
 
 class Slopes(BaseDataObj):
     def __init__(self, 
-                 length: int=None, 
-                 slopes=None, 
-                 interleave: bool=False, 
-                 target_device_idx: int=None, 
+                 length: int=None,
+                 slopes=None,
+                 interleave: bool=False,
+                 target_device_idx: int=None,
                  precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         if slopes is not None:
@@ -103,7 +103,7 @@ class Slopes(BaseDataObj):
 
     def x_remap2d(self, frame, idx):
         if len(idx.shape) == 1:
-            frame.flat[idx] = self.slopes[self.indx()]
+            self.xp.put(frame, idx, self.slopes[self.indx()])
         elif len(idx.shape) == 2:
             frame[idx] = self.slopes[self.indx()]
         else:
@@ -111,7 +111,7 @@ class Slopes(BaseDataObj):
 
     def y_remap2d(self, frame, idx):
         if len(idx.shape) == 1:
-            frame.flat[idx] = self.slopes[self.indy()]
+            self.xp.put(frame, idx, self.slopes[self.indy()])
         elif len(idx.shape) == 2:
             frame[idx] = self.slopes[self.indy()]
         else:
@@ -124,11 +124,20 @@ class Slopes(BaseDataObj):
             raise ValueError('Slopes display_map has not been set')
         mask = self.single_mask
         idx = self.display_map
-        fx = self.xp.zeros_like(mask, dtype=self.dtype)
-        fy = self.xp.zeros_like(mask, dtype=self.dtype)
-        self.x_remap2d(fx, idx)
-        self.y_remap2d(fy, idx)
-        return self.to_xp([fx, fy], dtype=self.dtype)
+        if self.slopes.size == len(idx):
+            # slopes from intensity case
+            f = self.xp.zeros_like(mask, dtype=self.dtype)
+            if len(idx.shape) == 1:
+                self.xp.put(f.ravel(), idx, self.slopes)
+            elif len(idx.shape) == 2:
+                f[idx] = self.slopes
+            return self.to_xp(f, dtype=self.dtype)
+        else:
+            fx = self.xp.zeros_like(mask, dtype=self.dtype)
+            fy = self.xp.zeros_like(mask, dtype=self.dtype)
+            self.x_remap2d(fx, idx)
+            self.y_remap2d(fy, idx)
+            return self.to_xp([fx, fy], dtype=self.dtype)
 
     def rotate(self, angle, flipx=False, flipy=False):
         sx = self.xslopes

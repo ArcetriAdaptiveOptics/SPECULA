@@ -48,6 +48,8 @@ class PyrSlopec(Slopec):
         self.threshold = thr_value
         self.slopes_from_intensity = slopes_from_intensity
         self.pupdata = pupdata  # Property set
+        if self.slopes_from_intensity:
+            self.pupdata.set_slopes_from_intensity(slopes_from_intensity)
         ind_pup = self.pupdata.ind_pup
         self.pup_idx  = ind_pup.flatten().astype(self.xp.int64)[ind_pup.flatten() >= 0] # Exclude -1 padding
         self.pup_idx0 = ind_pup[:, 0][ind_pup[:, 0] >= 0]  # Exclude -1 padding
@@ -141,6 +143,9 @@ class PyrSlopec(Slopec):
         self.subap_counts.value = self.total_counts.value / self.pupdata.n_subap
         self.total_counts.generation_time = self.current_time
         self.subap_counts.generation_time = self.current_time
-        self.slopes.single_mask = self.pupdata.single_mask()
+        if self.slopes_from_intensity:
+            self.slopes.single_mask = self.pupdata.complete_mask()
+        else:
+            self.slopes.single_mask = self.pupdata.single_mask()
         self.slopes.display_map = self.pupdata.display_map
         self.slopes.generation_time = self.current_time

@@ -49,6 +49,8 @@ class PupData(BaseDataObj):
         else:
             self.framesize = np.zeros(2, dtype=int)
 
+        self.slopes_from_intensity = False
+
     @property
     def n_subap(self):
         return self.ind_pup.shape[1] // 4
@@ -58,10 +60,25 @@ class PupData(BaseDataObj):
         tmp[:, 2], tmp[:, 3] = indpup[:, 3], indpup[:, 2]
         return tmp
 
+    def set_slopes_from_intensity(self, value: bool = True):
+        self.slopes_from_intensity = value
+
     @property
     def display_map(self):
-        mask = self.single_mask()
-        return self.xp.ravel_multi_index(self.xp.where(mask), mask.shape)
+        if self.slopes_from_intensity:
+            # Returns the indices of the pupils in the order A, B, C, D
+            # where A, B, C, D are the first, second, third and fourth
+            # pupils respectively. This is the order expected by PyrSlopec,
+            # and it is the correct order for slopes_from_intensity.
+            return self.xp.concatenate([
+                self.ind_pup[:, 0][self.ind_pup[:, 0] >= 0],  # A
+                self.ind_pup[:, 1][self.ind_pup[:, 1] >= 0],  # B  
+                self.ind_pup[:, 2][self.ind_pup[:, 2] >= 0],  # C
+                self.ind_pup[:, 3][self.ind_pup[:, 3] >= 0]   # D
+            ])
+        else:
+            mask = self.single_mask()
+            return self.xp.ravel_multi_index(self.xp.where(mask), mask.shape)
 
     def single_mask(self):
         f = self.xp.zeros(self.framesize[0]*self.framesize[1], dtype=self.dtype)
