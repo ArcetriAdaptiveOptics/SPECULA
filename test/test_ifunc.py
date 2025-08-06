@@ -60,6 +60,11 @@ class TestIFunv(unittest.TestCase):
     def test_ifunc_inv_restore(self, target_device_idx, xp):
         '''Test that data saved and restored is the same as data obtained from IFunc.inverse()'''
 
+        try:
+            os.unlink(self.inv_filename)
+        except FileNotFoundError:
+            pass
+
         inv = IFuncInv(self.inv_data, mask=self.mask, target_device_idx=target_device_idx)
         inv.save(self.inv_filename)
 
