@@ -21,13 +21,13 @@ class M2C(BaseDataObj):
 
     def get_value(self):
         '''
-        Get the intensity field as a numpy/cupy array
+        Get the m2c matrix field as a numpy/cupy array
         '''
         return self.m2c
 
     def set_value(self, v, force_copy=True):
         '''
-        Set new values for the intensity field    
+        Set new values for the m2c matrix field    
         Arrays are not reallocated
         '''
         assert v.shape == self.m2c.shape, \

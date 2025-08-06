@@ -1,4 +1,9 @@
 
+
+import numpy as np
+from astropy.io import fits
+
+
 from specula.lib.make_xy import make_xy
 from specula.base_data_obj import BaseDataObj
 
@@ -51,7 +56,7 @@ class Lenslet(BaseDataObj):
         hdr['N_LENSES'] = self.n_lenses
         return hdr
 
-    def save(self, filename, hdr):
+    def save(self, filename, overwrite=False):
         hdr = self.get_fits_header()
         fits.writeto(filename, np.zeros(2), hdr, overwrite=overwrite)
 
