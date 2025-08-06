@@ -102,19 +102,19 @@ Create a YAML configuration file, for example ``params_scao_pyr_basic.yml``:
 
    # Atmospheric seeing (approx. inverse of Fried parameter r0). Here is a static value,
    # but it can be a function of time. The full list of parameters can be found in the
-   # init method of the FuncGenerator class.
+   # init method of the WaveGenerator class.
    seeing:
-     class:             'FuncGenerator'
+     class:             'WaveGenerator'
      constant:          0.8                   # ["] seeing value
 
    # Wind speed and direction, also static in this example.
    # These can be functions of time or vary per layer in more complex setups.
    wind_speed:
-     class:             'FuncGenerator'
+     class:             'WaveGenerator'
      constant:          [20.]                 # [m/s] Wind speed value
 
    wind_direction:
-     class:             'FuncGenerator'
+     class:             'WaveGenerator'
      constant:          [0.]                  # [degrees] Wind direction value
 
    # Source definition. This defines the direction of the propagation the electromagnetic field
@@ -348,8 +348,7 @@ Create a YAML file, for example ``params_scao_pyr_test_rec.yml``:
    # this block generates a positive and negative push-pull signal
    # to command the DM and compute the interaction matrix
    pushpull:
-     class:     'FuncGenerator'
-     func_type: 'PUSHPULL'
+     class:     'PushPullGenerator'
      amplitude: [50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0,
                  50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0,
                  50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0,

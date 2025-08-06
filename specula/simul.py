@@ -262,6 +262,9 @@ class Simul():
                             self.objs[key].inputs[output.input_name] = InputValue(type=type(output.ref))
                     params[key]['inputs'][output.input_name] = single_output_name
                 del params[key]['inputs']['input_list']
+
+            if pars['class'] == 'DataBuffer':
+                self.objs[key].setOutputs()
    
     def build_objects(self, params):
 

@@ -13,19 +13,19 @@ main:
 
 
 seeing:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          0.65                   # [arcsec] seeing value
   outputs: ['output']
 
 
 wind_speed:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          [8.0, 8.0, 8.0]       # [m/s] Wind speed value
   outputs: ['output']
 
 
 wind_direction:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          [-19.57, -174.84, 29.13]  # [degrees] Wind direction value
   outputs: ['output']
 
@@ -128,18 +128,31 @@ modalrec:
   outputs: ['out_modes', 'out_pseudo_ol_modes']
 
 
+gain_ramp:
+  class:             'ScheduleGenerator'
+  scheduled_values: [
+      [3.0,  1.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0],
+      [3.0,  1.0, 1.0,  0.0,  0.0,  0.0,  0.0,  0.0], 
+      [2.5,  1.0, 1.0,  1.0,  0.0,  0.0,  0.0,  0.0],
+      [2.5,  1.0, 1.0,  1.0,  1.0,  0.0,  0.0,  0.0],
+      [2.0,  1.0,  1.0,  1.0,  1.0,  1.0,  0.0,  0.0],
+      [1.5,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  0.0],
+      [1.5,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0],
+      [1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0]
+  ]
+  scheduled_times: [0.05,0.1,0.15,0.2,0.25,0.3,0.35]
+  modes_per_group: [2, 1078, 350, 399, 448, 497, 546, 680]
+
+
 control:
-  #class:             'IirFilter'
-  #simul_params_ref:  'main'
-  #delay:             2                       # Total temporal delay in time steps
-  #iir_filter_data_object: 'IIR_test2_500Hz_d4ms_2modes_INT_g0.50_3998modes'
   class:             'Integrator'
   simul_params_ref:  'main'
   delay:             2                      # Total temporal delay in time steps
-  int_gain:          [0.001]
+  int_gain:          [0.5]
   n_modes:           [4000]
   inputs:
     delta_comm: 'modalrec.out_modes'
+    gain_mod: 'gain_ramp.output'
   outputs: ['out_comm']
 
 
@@ -177,8 +190,10 @@ data_store:
   class:             'DataStore'
   store_dir:         './output'             # Data result directory: 'store_dir'/TN/
   inputs:
-    input_list: ['phase-prop.out_wfs_source_ef',
-                 'res-modal_analysis.out_modes',
-                 'pixels-detector.out_pixels',
-                 'slopes-slopec.out_slopes',
-                 'modes-modalrec.out_modes']
+    input_list: ['resMod-modal_analysis.out_modes',
+                 'deltaComm-modalrec.out_modes',
+                 'comm-control.out_comm',
+                 'srRes-psf.out_sr',
+                 #'phase-prop.out_wfs_source_ef',
+                 #'pixels-detector.out_pixels',
+                 'slopes-slopec.out_slopes']

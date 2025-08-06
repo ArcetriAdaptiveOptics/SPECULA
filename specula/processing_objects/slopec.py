@@ -1,4 +1,6 @@
 
+from astropy.io import fits
+
 from specula import cpuArray
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_value import BaseValue
@@ -7,6 +9,18 @@ from specula.data_objects.pixels import Pixels
 from specula.data_objects.slopes import Slopes
 from specula.data_objects.intmat import Intmat
 from specula.data_objects.recmat import Recmat
+
+
+def build_and_save_filtmat(intmat, recmat, nmodes, filename, xp):
+    '''
+    Helper functon to produce a filtering matrix,
+    joining an intmat and a recmat.
+    '''
+    im = intmat[:nmodes, :]
+    rm = recmat[:, :nmodes]
+    filtmat = xp.stack((im, xp.transpose(rm)), axis=-1)
+    fits.writeto(filename, cpuArray(filtmat))
+    print(f'saved {filename}')
 
 
 class Slopec(BaseProcessingObj):
@@ -22,10 +36,13 @@ class Slopec(BaseProcessingObj):
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        self.slopes = Slopes(2, target_device_idx=self.target_device_idx) # TODO resized in derived class
         self.sn = sn
-        self.flux_per_subaperture_vector = BaseValue(target_device_idx=self.target_device_idx)
-        self.max_flux_per_subaperture_vector = BaseValue(target_device_idx=self.target_device_idx)
+        self.slopes = Slopes(self.nslopes(), target_device_idx=self.target_device_idx) 
+        self.flux_per_subaperture_vector = BaseValue(value=self.xp.zeros(self.nsubaps(), dtype=self.dtype),
+                                                     target_device_idx=self.target_device_idx)
+
+        self.total_counts = BaseValue(value=self.xp.zeros(1, dtype=self.dtype), target_device_idx=self.target_device_idx)
+        self.subap_counts = BaseValue(value=self.xp.zeros(1, dtype=self.dtype), target_device_idx=self.target_device_idx)
         self.recmat = recmat
         if filtmat is not None:
             if filt_intmat:
@@ -50,14 +67,17 @@ class Slopec(BaseProcessingObj):
 
         self.inputs['in_pixels'] = InputValue(type=Pixels)
         self.outputs['out_slopes'] = self.slopes
+        self.outputs['out_flux_per_subaperture'] = self.flux_per_subaperture_vector
+        self.outputs['out_total_counts'] = self.total_counts
+        self.outputs['out_subap_counts'] = self.subap_counts
 
-    def build_and_save_filtmat(self, intmat, recmat, nmodes, filename):
-        im = intmat[:nmodes, :]
-        rm = recmat[:, :nmodes]
+    # Derived classes must implement this method
+    def nsubaps(self):
+        raise NotImplementedError
 
-        output = self.xp.stack((im, self.xp.transpose(rm)), axis=-1)
-        self.writefits(filename, cpuArray(output))
-        print(f'saved {filename}')
+    # Derived classes must implement this method
+    def nslopes(self):
+        raise NotImplementedError
 
     def do_accumulation(self, t):
         """
@@ -103,12 +123,6 @@ class Slopec(BaseProcessingObj):
         if self.verbose:
             print(f'Accumulation factor is: {factor}')
 
-    def _compute_flux_per_subaperture(self):
-        raise NotImplementedError('abstract method must be implemented')
-
-    def _compute_max_flux_per_subaperture(self):
-        raise NotImplementedError('abstract method must be implemented')
-
     def trigger_code(self):
         raise NotImplementedError(f'{self.__class__.__name__}: please implement trigger_code() in your derived class!')
 
@@ -128,7 +142,12 @@ class Slopec(BaseProcessingObj):
             sl0 = m @ self.filt_intmat.intmat.T
             self.slopes.slopes -= sl0
 
-            #rms = self.xp.sqrt(self.xp.mean(self.slopes.slopes**2))
-            #print('Slopes have been filtered. '
-            #      'New slopes min, max and rms: '
-            #      f'{self.slopes.slopes.min()}, {self.slopes.slopes.max()}, {rms}')
+        self.outputs['out_slopes'].generation_time = self.current_time
+        self.outputs['out_flux_per_subaperture'].generation_time = self.current_time
+        self.outputs['out_total_counts'].generation_time = self.current_time
+        self.outputs['out_subap_counts'].generation_time = self.current_time
+
+        #rms = self.xp.sqrt(self.xp.mean(self.slopes.slopes**2))
+        #print('Slopes have been filtered. '
+        #      'New slopes min, max and rms: '
+        #      f'{self.slopes.slopes.min()}, {self.slopes.slopes.max()}, {rms}')

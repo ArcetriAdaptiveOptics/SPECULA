@@ -121,7 +121,7 @@ class Pupilstop(Layer):
     def restore_from_passata(filename, target_device_idx=None):
         with fits.open(filename) as hdul:
             if len(hdul) == 4:
-                pixel_pitch = float(hdul[3].data)
+                pixel_pitch = float(hdul[3].data[0])
                 A = hdul[1].data.copy()
                 pixel_pupil = A.shape[0]
                 simul_params = SimulParams(pixel_pupil, pixel_pitch)

@@ -1,5 +1,5 @@
 
-from specula import fuse, show_in_profiler
+from specula import fuse
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_value import BaseValue
 from specula.data_objects.electric_field import ElectricField
@@ -188,18 +188,6 @@ class PSF(BaseProcessingObj):
             psf /= self.xp.sum(psf)
 
         return psf
-
-    @property
-    def size(self):
-        in_ef = self.local_inputs['in_ef']
-        return in_ef.size if in_ef else None
-
-    def reset_integration(self):
-        self.count = 0
-        in_ef = self.local_inputs['in_ef']
-        if in_ef:
-            self.int_psf.value *= 0
-        self.int_sr.value = 0
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)

@@ -1,8 +1,7 @@
 
 
 pushpull:
-  class:     'FuncGenerator'
-  func_type: 'PUSHPULLREPEAT'
+  class:     'PushPullGenerator'
   ncycles:    2
   nmodes:     10
   vect_amplitude_data:  'data50_1127'

@@ -1,10 +1,10 @@
 import os
-import numpy as np
 from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.intensity import Intensity
 from specula.connections import InputValue
 from specula.data_objects.pupdata import PupData
 from specula import cpuArray
+
 
 class PyrPupdataCalibrator(BaseProcessingObj):
     def __init__(self,

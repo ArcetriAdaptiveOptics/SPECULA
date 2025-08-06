@@ -1,14 +1,10 @@
 import numpy as np
 from specula import show_in_profiler
 
-from astropy.io import fits
-
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_data_obj import BaseDataObj
 from specula.base_value import BaseValue
 from specula.data_objects.layer import Layer
-from specula.lib.cv_coord import cv_coord
-from specula.lib.phasescreen_manager import phasescreens_manager
 from specula.connections import InputValue
 from specula import cpuArray, ASEC2RAD, RAD2ASEC
 from specula.data_objects.simul_params import SimulParams
@@ -17,7 +13,7 @@ from seeing.sympyHelpers import *
 from seeing.formulary import *
 from seeing.integrator import *
 
-from scipy.special import gamma, kv
+
 from symao.turbolence import createTurbolenceFormulary, ft_phase_screen0, ft_ft2
 
 turbolenceFormulas = createTurbolenceFormulary()
@@ -238,6 +234,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
                  zenithAngleInDeg: float=0.0,
                  fov: float=0.0,
                  seed: int=1,
+                 extra_delta_time: float=0,
                  verbose: bool=False,
                  fov_in_m: float=None,
                  pupil_position:list =[0,0],
@@ -254,14 +251,13 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         self.n_infinite_phasescreens = len(heights)
         self.last_position = np.zeros(self.n_infinite_phasescreens)
         self.last_t = 0
-        self.delta_time = 1
+        self.delta_time = None
         # fixed at generation time, then is a input -> rescales the screen?
         self.seeing = 0.8
         self.l0 = 0.005
-        self.wind_speed = 1
-        self.wind_direction = 1
         self.airmass = 1
         self.ref_wavelengthInNm = 500
+        self.extra_delta_time = extra_delta_time
 
         self.inputs['seeing'] = InputValue(type=BaseValue)
         self.inputs['wind_speed'] = InputValue(type=BaseValue)
@@ -297,9 +293,6 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
             raise ValueError(f"L0 must have the same length as heights ({len(self.heights)}), got {len(self.L0)}")
 
         self.Cn2 = np.array(Cn2, dtype=self.dtype)
-        self.wind_speed = None
-        self.wind_direction = None
-
         self.verbose = verbose if verbose is not None else False
 
         # Initialize layer list with correct heights
@@ -347,14 +340,25 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
                                                        precision=self.precision )
             self.infinite_phasescreens.append(temp_infinite_screen)
 
+    def setup(self):
+        super().setup()
+        # check that seeing is a 1-element array
+        if len(self.local_inputs['seeing'].value) != 1:
+            raise ValueError('Seeing input must be a 1-element array')
+        
+        # Check that wind speed and direction have the correct length
+        if len(self.local_inputs['wind_speed'].value) != self.n_infinite_phasescreens:
+            raise ValueError('Wind speed input must be a {self.n_infinite_phasescreens}-elements array')
+        if len(self.local_inputs['wind_direction'].value) != self.n_infinite_phasescreens:
+            raise ValueError('Wind direction input must be a {self.n_infinite_phasescreens}-elements array')
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
-        self.delta_time = self.t_to_seconds(self.current_time - self.last_t)
+        self.delta_time = self.t_to_seconds(self.current_time - self.last_t) + self.extra_delta_time
 
     @show_in_profiler('atmo_evolution.trigger_code')
     def trigger_code(self):
-        seeing = float(cpuArray(self.local_inputs['seeing'].value))
+        seeing = float(cpuArray(self.local_inputs['seeing'].value[0]))
         wind_speed = cpuArray(self.local_inputs['wind_speed'].value)
         wind_direction = cpuArray(self.local_inputs['wind_direction'].value)
 
@@ -367,8 +371,6 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
 
 #        print('scale_r0', scale_r0)
 #        print('scale_coeff', scale_coeff)
-
-        ascreen = scale_coeff * self.infinite_phasescreens[0].scrn
 
         # Compute the delta position in pixels
         delta_position =  wind_speed * self.delta_time / self.pixel_pitch  # [pixel]
@@ -391,7 +393,8 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
             if np.abs(w_x_comp)>eps:
                 for r in range(int(np.abs(cols_to_add))):
                     phaseScreen.add_line(0, sc)
-            phaseScreen0 = phaseScreen.scrnRawAll.copy()
+            phaseScreen0All = phaseScreen.scrnRawAll.copy()
+            phaseScreen0 = phaseScreen.scrnRaw.copy()
             # print('w_y_comp, w_x_comp', w_y_comp, w_x_comp)
             # print('frac_rows, frac_cols', frac_rows, frac_cols)
             srf = int(np.sign(frac_rows) )
@@ -401,37 +404,17 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
                 phaseScreen.add_line(1, srf, False)
             if np.abs(frac_cols)>eps:
                 phaseScreen.add_line(0, scf, False)
-            phaseScreen1 = phaseScreen.scrnRawAll.copy()
+            phaseScreen1 = phaseScreen.scrnRaw
             interpfactor = np.sqrt(frac_rows**2 + frac_cols**2 )
             layer_phase = interpfactor * phaseScreen1 + (1.0-interpfactor) * phaseScreen0
-            phaseScreen.full_scrn = phaseScreen0
+            phaseScreen.full_scrn = phaseScreen0All
             self.acc_rows[ii] = frac_rows
             self.acc_cols[ii] = frac_cols
             # print('acc_rows', self.acc_rows)
             # print('acc_cols', self.acc_cols)
-            self.layer_list[ii].field = self.xp.stack((layer_phase, layer_phase))
+            self.layer_list[ii].field[:] = self.xp.stack((layer_phase, layer_phase))
             self.layer_list[ii].phaseInNm *= scale_coeff
             self.layer_list[ii].A = 1
             self.layer_list[ii].generation_time = self.current_time
         self.last_position = new_position
         self.last_t = self.current_time
-
-    def save(self, filename):
-        hdr = fits.Header()
-        hdr['VERSION'] = 1
-        hdr['INTRLVD'] = int(self.interleave)
-        hdr['PUPD_TAG'] = self.pupdata_tag
-        super().save(filename, hdr)
-
-        with fits.open(filename, mode='append') as hdul:
-            hdul.append(fits.ImageHDU(data=self.infinite_phasescreens))
-
-    def read(self, filename):
-        super().read(filename)
-        self.infinite_phasescreens = fits.getdata(filename, ext=1)
-
-    def set_last_position(self, last_position):
-        self.last_position = last_position
-
-    def set_last_t(self, last_t):
-        self.last_t = last_t

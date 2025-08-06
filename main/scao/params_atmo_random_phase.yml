@@ -9,19 +9,18 @@ main:
   time_step:         0.001                  # [s] Simulation time step
 
 seeing:
-  class:             'FuncGenerator'
+  class:             'RandomGenerator'
   amp:               0.4                  # This 2 values result in a 
   constant:          0.3                  # range of [0.1, 0.5]
-  func_type:         'RANDOM_UNIFORM'
+  distribution:      'UNIFORM'
   outputs: ['output']
 
 #sin_seeing:
-#  class:             'FuncGenerator'
+#  class:             'WaveGenerator'
 #  amp:               0.8                  # This 2 values result in a 
 #  constant:          0.8                  # range of [0.4, 1.2]
 #  freq:              50
 #  offset:            0
-#  func_type:         'SIN'
 
 on_axis_source:
   class:             'Source'

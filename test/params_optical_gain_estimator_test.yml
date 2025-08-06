@@ -9,15 +9,15 @@ main:
   time_step:         0.001                  # [s] Simulation time step
 
 disturbance1:
-  class:             'FuncGenerator'
-  func_type:         'SIN'
+  class:             'WaveGenerator'
+  wave_type:         'SIN'
   amp:               [5.0]
   freq:              [50.0]
   outputs: ['output']
 
 disturbance2:
-  class:             'FuncGenerator'
-  func_type:         'SIN'
+  class:             'WaveGenerator'
+  wave_type:         'SIN'
   amp:               [10.0]
   freq:              [50.0]
   outputs: ['output']

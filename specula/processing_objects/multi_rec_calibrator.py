@@ -26,6 +26,10 @@ class MultiRecCalibrator(BaseProcessingObj):
         self._full_rec_filename = self.tag_filename(full_rec_tag, full_rec_tag_template, prefix='full_rec')
         self._overwrite = overwrite
 
+        full_rec_path = self.full_rec_path()
+        if full_rec_path and os.path.exists(full_rec_path) and not self._overwrite:
+            raise FileExistsError(f'Rec file {full_rec_path} already exists, please remove it')
+
         self.inputs['intmat_list'] = InputList(type=BaseValue)
         self.inputs['full_intmat'] = InputValue(type=BaseValue)
 
@@ -80,9 +84,5 @@ class MultiRecCalibrator(BaseProcessingObj):
 
         for i in range(len(self.local_inputs['intmat_list'])):
             rec_path = self.rec_path(i)
-            full_rec_path = self.full_rec_path()
             if rec_path and os.path.exists(rec_path) and not self._overwrite:
                 raise FileExistsError(f'Rec file {rec_path} already exists, please remove it')
-
-        if full_rec_path and os.path.exists(full_rec_path) and not self._overwrite:
-            raise FileExistsError(f'Rec file {full_rec_path} already exists, please remove it')
