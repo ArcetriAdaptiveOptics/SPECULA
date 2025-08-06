@@ -1,3 +1,7 @@
+
+import numpy as np
+from astropy.io import fits
+
 from specula.base_data_obj import BaseDataObj
 
 class LaserLaunchTelescope(BaseDataObj):
@@ -42,9 +46,9 @@ class LaserLaunchTelescope(BaseDataObj):
         hdr = fits.Header()
         hdr['VERSION'] = 1
         hdr['SPOTSIZE'] = self.spot_size
-        hdr['TELPOS_X'] = self.tel_position[0]
-        hdr['TELPOS_Y'] = self.tel_position[1]
-        hdr['TELPOS_Z'] = self.tel_position[2]
+        hdr['TELPOS_X'] = self.tel_pos[0]
+        hdr['TELPOS_Y'] = self.tel_pos[1]
+        hdr['TELPOS_Z'] = self.tel_pos[2]
         hdr['BEAC_FOC'] = self.beacon_focus
         hdr['BEAC_TT0'] = self.beacon_tt[0]
         hdr['BEAC_TT1'] = self.beacon_tt[1]

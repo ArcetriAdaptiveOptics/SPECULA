@@ -21,15 +21,18 @@ class IFuncInv(BaseDataObj):
     def size(self):
         return self.ifunc_inv.shape
 
-    def save(self, filename, hdr=None):
-        hdr = hdr if hdr is not None else fits.Header()
+    def get_fits_header(self):
+        hdr = fits.Header()
         hdr['VERSION'] = 1
+        return hdr
 
+    def save(self, filename, overwrite=False):
+        hdr = self.get_fits_header()
         hdu = fits.PrimaryHDU(header=hdr)
         hdul = fits.HDUList([hdu])
         hdul.append(fits.ImageHDU(data=cpuArray(self.ifunc_inv.T), name='INFLUENCE_FUNCTION_INV'))
         hdul.append(fits.ImageHDU(data=cpuArray(self.mask_inf_func), name='MASK_INF_FUNC'))
-        hdul.writeto(filename, overwrite=True)
+        hdul.writeto(filename, overwrite=overwrite)
 
     @staticmethod
     def restore(filename, target_device_idx=None, exten=1):

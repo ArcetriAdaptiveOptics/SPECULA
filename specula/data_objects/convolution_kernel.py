@@ -277,17 +277,8 @@ class ConvolutionKernel(BaseDataObj):
                 else:
                     self.kernels[j * self.dimx + i, :, :] = subap_kern
 
-    def save(self, filename, hdr=None):
-        """
-        Save the kernel to a FITS file.
-        
-        Parameters:
-            filename (str): Path to save the FITS file
-            hdr (fits.Header, optional): Additional header information
-        """
-        if hdr is None:
-            hdr = fits.Header()
-
+    def get_fits_header(self):
+        hdr = fits.Header()
         hdr['VERSION'] = 1.1
         hdr['PXSCALE'] = self.pxscale
         hdr['DIM'] = self.dimension
@@ -296,6 +287,17 @@ class ConvolutionKernel(BaseDataObj):
         hdr['SPOTSIZE'] = float(self.spot_size)
         hdr['DIMX'] = self.dimx
         hdr['DIMY'] = self.dimy
+        return hdr
+
+    def save(self, filename):
+        """
+        Save the kernel to a FITS file.
+        
+        Parameters:
+            filename (str): Path to save the FITS file
+            hdr (fits.Header, optional): Additional header information
+        """
+        hdr = self.get_fits_header()
 
         # Create a primary HDU with just the header
         primary_hdu = fits.PrimaryHDU(header=hdr)

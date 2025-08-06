@@ -88,13 +88,15 @@ class PupData(BaseDataObj):
             f.flat[self.ind_pup[:, i]] = 1
         return f
 
-    def save(self, filename, hdr=None, overwrite=False):
-        if hdr is None:
-            hdr = fits.Header()
+    def get_fits_header(self):
+        hdr = fits.Header()
         hdr['VERSION'] = 2
         hdr['FSIZEX'] = self.framesize[0]
         hdr['FSIZEY'] = self.framesize[1]
+        return hdr
 
+    def save(self, filename, overwrite=False):
+        hdr = self.get_fits_header()
         fits.writeto(filename, np.zeros(2), hdr, overwrite=overwrite)
         fits.append(filename, cpuArray(self.ind_pup.T))
         fits.append(filename, cpuArray(self.radius))
