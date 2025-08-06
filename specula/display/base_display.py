@@ -1,9 +1,8 @@
 from specula.base_processing_obj import BaseProcessingObj
-from abc import ABC, abstractmethod
 import matplotlib.pyplot as plt
 
 
-class BaseDisplay(BaseProcessingObj, ABC):
+class BaseDisplay(BaseProcessingObj):
     def __init__(self,
                  window=None,
                  title='',
@@ -39,10 +38,9 @@ class BaseDisplay(BaseProcessingObj, ABC):
         self.fig.show()
         self._opened = True
 
-    @abstractmethod
     def _update_display(self, data):
         """Update the display with new data"""
-        pass
+        raise NotImplementedError("Subclasses should implement this method")
 
     def trigger_code(self):
         try:
