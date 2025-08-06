@@ -1,9 +1,9 @@
 import numpy as np
-from specula.processing_objects.func_generator import FuncGenerator
+from specula.processing_objects.base_generator import BaseGenerator
 from specula.data_objects.time_history import TimeHistory
 
 
-class TimeHistoryGenerator(FuncGenerator):
+class TimeHistoryGenerator(BaseGenerator):
     """
     Generates signals from pre-computed time history data.
     """

@@ -1,12 +1,10 @@
-import numpy as np
 from abc import ABC, abstractmethod
 
 from specula.base_value import BaseValue
 from specula.base_processing_obj import BaseProcessingObj
-from specula.data_objects.simul_params import SimulParams
 
 
-class FuncGenerator(BaseProcessingObj, ABC):
+class BaseGenerator(BaseProcessingObj, ABC):
     """
     Base class for function generators.
     

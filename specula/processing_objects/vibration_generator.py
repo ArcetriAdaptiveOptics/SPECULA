@@ -1,5 +1,5 @@
 import numpy as np
-from specula.processing_objects.func_generator import FuncGenerator
+from specula.processing_objects.base_generator import BaseGenerator
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.utils import psd_to_signal
 
@@ -51,7 +51,7 @@ class Vibrations:
         return time_hist
 
 
-class VibrationGenerator(FuncGenerator):
+class VibrationGenerator(BaseGenerator):
     """
     Generates vibration signals from PSD specifications.
     """

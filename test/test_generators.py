@@ -18,7 +18,7 @@ from specula.processing_objects.wave_generator import WaveGenerator
 
 from test.specula_testlib import cpu_and_gpu
 
-class TestFuncGenerator(unittest.TestCase):
+class TestGenerators(unittest.TestCase):
 
     @cpu_and_gpu
     def test_func_generator_constant(self, target_device_idx, xp):
@@ -75,7 +75,7 @@ class TestFuncGenerator(unittest.TestCase):
         """Test WaveGenerator linear functionality"""
         slope = 2.0
         constant = 1.0
-        f = WaveGenerator('LINEAR', slope=slope, constant=constant,
+        f = WaveGenerator('SIN', slope=slope, constant=constant,
                         target_device_idx=target_device_idx)
         f.setup()
 

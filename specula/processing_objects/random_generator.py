@@ -1,8 +1,8 @@
 import numpy as np
-from specula.processing_objects.func_generator import FuncGenerator
+from specula.processing_objects.base_generator import BaseGenerator
 
 
-class RandomGenerator(FuncGenerator):
+class RandomGenerator(BaseGenerator):
     """
     Generates random signals (normal or uniform distribution).
     """

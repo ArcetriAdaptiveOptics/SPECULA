@@ -1,13 +1,13 @@
 import numpy as np
-from specula.processing_objects.func_generator import FuncGenerator
+from specula.processing_objects.base_generator import BaseGenerator
 from specula.lib.modal_pushpull_signal import modal_pushpull_signal
 
 
-class PushPullGenerator(FuncGenerator):
+class PushPullGenerator(BaseGenerator):
     """
     Generates push-pull signals for modal calibration.
     
-    Extracted from FuncGenerator's PUSH and PUSHPULL types.
+    Extracted from BaseGenerator's PUSH and PUSHPULL types.
     """
     def __init__(self,
                  nmodes: int,
@@ -61,5 +61,5 @@ class PushPullGenerator(FuncGenerator):
         self.output.value[:] = self.get_time_hist_at_current_time()
 
     def get_time_hist_at_current_time(self):
-        """From original FuncGenerator"""
+        """From original BaseGenerator"""
         return self.to_xp(self.time_hist[self.iter_counter])
