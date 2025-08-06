@@ -1,10 +1,8 @@
-from abc import ABC, abstractmethod
-
 from specula.base_value import BaseValue
 from specula.base_processing_obj import BaseProcessingObj
 
 
-class BaseGenerator(BaseProcessingObj, ABC):
+class BaseGenerator(BaseProcessingObj):
     """
     Base class for function generators.
     
@@ -35,10 +33,9 @@ class BaseGenerator(BaseProcessingObj, ABC):
         super().prepare_trigger(t)
         self.current_time_gpu[:] = self.current_time_seconds
 
-    @abstractmethod
     def trigger_code(self):
         """Implement signal generation logic in subclasses"""
-        pass
+        raise NotImplementedError("Subclasses must implement the trigger_code method to generate signals.")
 
     def post_trigger(self):
         super().post_trigger()

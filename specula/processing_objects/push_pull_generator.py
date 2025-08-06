@@ -19,22 +19,21 @@ class PushPullGenerator(BaseGenerator):
                  repeat_cycles: bool = False,
                  target_device_idx: int = None,
                  precision: int = None):
-        
+
         if amp is None and vect_amplitude is None:
             raise ValueError('AMP or VECT_AMPLITUDE keyword is mandatory for type PUSH/PUSHPULL')
-        
+
         if nsamples != 1 and push_pull_type != 'PUSHPULL':
             raise ValueError('nsamples can only be used with PUSHPULL type')
-        
+
         super().__init__(
             output_size=nmodes,
             target_device_idx=target_device_idx,
             precision=precision
         )
-        
-        self.nmodes = nmodes
+
         self.push_pull_type = push_pull_type.upper()
-        
+
         # Generate the time history using modal_pushpull_signal (from original)
         if self.push_pull_type == 'PUSH':
             self.time_hist = modal_pushpull_signal(
