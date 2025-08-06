@@ -28,7 +28,7 @@ class TestDataStore(unittest.TestCase):
     def test_data_store(self, target_device_idx, xp):
         params = {'main': {'class': 'SimulParams', 'root_dir': self.tmp_dir,
                            'time_step': 0.1, 'total_time': 0.2},
-                  'generator': {'class': 'FuncGenerator', 'target_device_idx': target_device_idx, 'amp': 1, 'freq': 2},
+                  'generator': {'class': 'WaveGenerator', 'target_device_idx': target_device_idx, 'amp': 1, 'freq': 2},
                   'store': {'class': 'DataStore', 'store_dir': self.tmp_dir,
                             'inputs': {'input_list': ['gen-generator.output']},
                             }

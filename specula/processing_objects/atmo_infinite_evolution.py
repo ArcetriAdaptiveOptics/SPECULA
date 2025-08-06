@@ -1,14 +1,10 @@
 import numpy as np
 from specula import show_in_profiler
 
-from astropy.io import fits
-
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_data_obj import BaseDataObj
 from specula.base_value import BaseValue
 from specula.data_objects.layer import Layer
-from specula.lib.cv_coord import cv_coord
-from specula.lib.phasescreen_manager import phasescreens_manager
 from specula.connections import InputValue
 from specula import cpuArray, ASEC2RAD, RAD2ASEC
 from specula.data_objects.simul_params import SimulParams
@@ -17,7 +13,7 @@ from seeing.sympyHelpers import *
 from seeing.formulary import *
 from seeing.integrator import *
 
-from scipy.special import gamma, kv
+
 from symao.turbolence import createTurbolenceFormulary, ft_phase_screen0, ft_ft2
 
 turbolenceFormulas = createTurbolenceFormulary()
@@ -422,23 +418,3 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
             self.layer_list[ii].generation_time = self.current_time
         self.last_position = new_position
         self.last_t = self.current_time
-
-    def save(self, filename):
-        hdr = fits.Header()
-        hdr['VERSION'] = 1
-        hdr['INTRLVD'] = int(self.interleave)
-        hdr['PUPD_TAG'] = self.pupdata_tag
-        super().save(filename, hdr)
-
-        with fits.open(filename, mode='append') as hdul:
-            hdul.append(fits.ImageHDU(data=self.infinite_phasescreens))
-
-    def read(self, filename):
-        super().read(filename)
-        self.infinite_phasescreens = fits.getdata(filename, ext=1)
-
-    def set_last_position(self, last_position):
-        self.last_position = last_position
-
-    def set_last_t(self, last_t):
-        self.last_t = last_t

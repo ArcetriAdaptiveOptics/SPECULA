@@ -13,8 +13,7 @@ mytimehist:
   tag:               'timehistory_test'
 
 generator:
-  class:             'FuncGenerator'
-  func_type:         'TIME_HIST'
+  class:             'TimeHistoryGenerator'
   time_hist_ref:     'mytimehist'
   outputs: ['output']
 

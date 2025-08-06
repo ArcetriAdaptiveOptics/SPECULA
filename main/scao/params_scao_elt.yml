@@ -10,19 +10,19 @@ main:
 
 
 seeing:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          0.8                  # ["] seeing value
   outputs: ['output']
 
 
 wind_speed:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          [20.]                #,10.,20.,10.]      # [m/s] Wind speed value
   outputs: ['output']
 
 
 wind_direction:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          [0.]#,270.,270.,90.]   # [degrees] Wind direction value
   outputs: ['output']
 

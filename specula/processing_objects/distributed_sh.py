@@ -1,10 +1,5 @@
 import copy
 
-from specula import cpuArray
-from specula.connections import InputValue
-from specula.data_objects.electric_field import ElectricField
-from specula.data_objects.intensity import Intensity
-from specula.base_value import BaseValue
 from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.laser_launch_telescope import LaserLaunchTelescope
 from specula.processing_objects.sh import SH

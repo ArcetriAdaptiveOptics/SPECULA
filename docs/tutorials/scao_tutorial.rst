@@ -370,17 +370,17 @@ Create ``config/scao_tutorial.yml``:
    
    # Atmospheric conditions
    seeing:
-     class:             'FuncGenerator'
+     class:             'WaveGenerator'
      constant:          0.65                  # [arcsec] Good seeing conditions (r0 about 15cm)
      outputs:           ['output']
    
    wind_speed:
-     class:             'FuncGenerator'
+     class:             'WaveGenerator'
      constant:          [10.0, 12.0, 8.0]    # [m/s] Multi-layer wind speeds
      outputs:           ['output']
    
    wind_direction:
-     class:             'FuncGenerator'
+     class:             'WaveGenerator'
      constant:          [45.0, 135.0, -30.0] # [deg] Wind directions for each layer
      outputs:           ['output']
    
@@ -711,8 +711,7 @@ Create ``calib_im_rec.yml``:
    
    # Push-pull command generator
    pushpull:
-     class:     'FuncGenerator'
-     func_type: 'PUSHPULL'
+     class:     'PushPullGenerator'
      nmodes:    1129                         # Number of DM actuators
      vect_amplitude_data: 'pushpull_1129modes_amp50'  # Amplitude vector
      outputs:   ['output']

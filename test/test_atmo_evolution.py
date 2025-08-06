@@ -9,7 +9,7 @@ from specula import cpuArray
 
 from specula.data_objects.source import Source
 from specula.base_time_obj import BaseTimeObj
-from specula.processing_objects.func_generator import FuncGenerator
+from specula.processing_objects.wave_generator import WaveGenerator
 from specula.processing_objects.atmo_evolution import AtmoEvolution
 from specula.processing_objects.atmo_propagation import AtmoPropagation
 from specula.data_objects.layer import Layer
@@ -26,9 +26,9 @@ class TestAtmoEvolution(unittest.TestCase):
         simulParams = SimulParams(pixel_pupil=160, pixel_pitch=0.05, time_step=1)
     
         data_dir = os.path.join(os.path.dirname(__file__), 'data')
-        seeing = FuncGenerator(constant=0.65, target_device_idx=target_device_idx)
-        wind_speed = FuncGenerator(constant=[5.5, 2.5], target_device_idx=target_device_idx)
-        wind_direction = FuncGenerator(constant=[0, 90], target_device_idx=target_device_idx)
+        seeing = WaveGenerator(constant=0.65, target_device_idx=target_device_idx)
+        wind_speed = WaveGenerator(constant=[5.5, 2.5], target_device_idx=target_device_idx)
+        wind_direction = WaveGenerator(constant=[0, 90], target_device_idx=target_device_idx)
 
         on_axis_source = Source(polar_coordinates=[0.0, 0.0], magnitude=8, wavelengthInNm=750)
         lgs1_source = Source( polar_coordinates=[45.0, 0.0], height=90000, magnitude=5, wavelengthInNm=589)
@@ -117,9 +117,9 @@ class TestAtmoEvolution(unittest.TestCase):
         simulParams = SimulParams(pixel_pupil=160, pixel_pitch=0.05, time_step=1)
     
         data_dir = os.path.join(os.path.dirname(__file__), 'data')
-        seeing = FuncGenerator(constant=0.65, target_device_idx=target_device_idx)
-        wind_speed = FuncGenerator(constant=[5.5, 2.3], target_device_idx=target_device_idx)
-        wind_direction = FuncGenerator(constant=[0, 90], target_device_idx=target_device_idx)
+        seeing = WaveGenerator(constant=0.65, target_device_idx=target_device_idx)
+        wind_speed = WaveGenerator(constant=[5.5, 2.3], target_device_idx=target_device_idx)
+        wind_direction = WaveGenerator(constant=[0, 90], target_device_idx=target_device_idx)
 
         atmo = AtmoEvolution(simulParams,
                              L0=23,  # [m] Outer scale
@@ -171,9 +171,9 @@ class TestAtmoEvolution(unittest.TestCase):
         simulParams = SimulParams(pixel_pupil=160, pixel_pitch=0.05, time_step=1)
     
         data_dir = os.path.join(os.path.dirname(__file__), 'data')
-        seeing = FuncGenerator(constant=[0.65, 0.1], target_device_idx=target_device_idx)
-        wind_speed = FuncGenerator(constant=[5.5, 2.3], target_device_idx=target_device_idx)
-        wind_direction = FuncGenerator(constant=[0, 90], target_device_idx=target_device_idx)
+        seeing = WaveGenerator(constant=[0.65, 0.1], target_device_idx=target_device_idx)
+        wind_speed = WaveGenerator(constant=[5.5, 2.3], target_device_idx=target_device_idx)
+        wind_direction = WaveGenerator(constant=[0, 90], target_device_idx=target_device_idx)
 
         atmo = AtmoEvolution(simulParams,
                              L0=23,  # [m] Outer scale
@@ -199,9 +199,9 @@ class TestAtmoEvolution(unittest.TestCase):
         simulParams = SimulParams(pixel_pupil=160, pixel_pitch=0.05, time_step=1)
     
         data_dir = os.path.join(os.path.dirname(__file__), 'data')
-        seeing = FuncGenerator(constant=0.2, target_device_idx=target_device_idx)
-        wind_speed = FuncGenerator(constant=[8.5, 5.5, 2.3], target_device_idx=target_device_idx)
-        wind_direction = FuncGenerator(constant=[0, 90], target_device_idx=target_device_idx)
+        seeing = WaveGenerator(constant=0.2, target_device_idx=target_device_idx)
+        wind_speed = WaveGenerator(constant=[8.5, 5.5, 2.3], target_device_idx=target_device_idx)
+        wind_direction = WaveGenerator(constant=[0, 90], target_device_idx=target_device_idx)
 
         atmo = AtmoEvolution(simulParams,
                              L0=23,  # [m] Outer scale
@@ -227,9 +227,9 @@ class TestAtmoEvolution(unittest.TestCase):
         simulParams = SimulParams(pixel_pupil=160, pixel_pitch=0.05, time_step=1)
     
         data_dir = os.path.join(os.path.dirname(__file__), 'data')
-        seeing = FuncGenerator(constant=0.2, target_device_idx=target_device_idx)
-        wind_speed = FuncGenerator(constant=[5.5, 2.3], target_device_idx=target_device_idx)
-        wind_direction = FuncGenerator(constant=[90, 0, 90], target_device_idx=target_device_idx)
+        seeing = WaveGenerator(constant=0.2, target_device_idx=target_device_idx)
+        wind_speed = WaveGenerator(constant=[5.5, 2.3], target_device_idx=target_device_idx)
+        wind_direction = WaveGenerator(constant=[90, 0, 90], target_device_idx=target_device_idx)
 
         atmo = AtmoEvolution(simulParams,
                              L0=23,  # [m] Outer scale
@@ -256,9 +256,9 @@ class TestAtmoEvolution(unittest.TestCase):
         simulParams = SimulParams(pixel_pupil=160, pixel_pitch=0.05, time_step=1)
     
         data_dir = os.path.join(os.path.dirname(__file__), 'data')
-        seeing = FuncGenerator(constant=0.65, target_device_idx=target_device_idx)
-        wind_speed = FuncGenerator(constant=[5.5, 2.3], target_device_idx=target_device_idx)
-        wind_direction = FuncGenerator(constant=[0, 90], target_device_idx=target_device_idx)
+        seeing = WaveGenerator(constant=0.65, target_device_idx=target_device_idx)
+        wind_speed = WaveGenerator(constant=[5.5, 2.3], target_device_idx=target_device_idx)
+        wind_direction = WaveGenerator(constant=[0, 90], target_device_idx=target_device_idx)
 
         delta_time = 1.0
         delta_t = BaseTimeObj().seconds_to_t(delta_time)

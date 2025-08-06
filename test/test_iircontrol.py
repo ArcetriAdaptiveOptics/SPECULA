@@ -11,7 +11,7 @@ from specula import cpuArray
 from specula.data_objects.iir_filter_data import IirFilterData
 from specula.processing_objects.iir_filter import IirFilter
 from specula.processing_objects.integrator import Integrator
-from specula.processing_objects.func_generator import FuncGenerator
+from specula.processing_objects.schedule_generator import ScheduleGenerator
 from specula.data_objects.simul_params import SimulParams
 from specula.base_value import BaseValue
 
@@ -53,8 +53,7 @@ class TestIirFilter(unittest.TestCase):
                             target_device_idx=target_device_idx)
 
         # Create VALUE_SCHEDULE gain_mod that changes after 0.001s
-        gain_mod_generator = FuncGenerator(
-            func_type='VALUE_SCHEDULE',
+        gain_mod_generator = ScheduleGenerator(
             scheduled_values=[
                 [1.0, 1.0],  # gain_mod for t < 0.001s
                 [2.0, 0.5]   # gain_mod for t >= 0.001s

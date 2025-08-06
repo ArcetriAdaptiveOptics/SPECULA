@@ -14,20 +14,20 @@ pupilstop:                                 # Default parameters (circular pupil)
   simul_params_ref:     'main'
 
 seeing:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          0.8                  # ["] seeing value
-  func_type:         'SIN'                 # TODO necessary for factory.py line 217
+  wave_type:         'SIN'                 # TODO necessary for factory.py line 217
   outputs: ['output']
 
 
 wind_speed:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          [1000] #, 10, 5, 30]                #,10.,20.,10.]      # [m/s] Wind speed value
   outputs: ['output']
 
 
 wind_direction:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          [0.] #,270.,180.,90.]   # [degrees] Wind direction value
   outputs: ['output']
 
