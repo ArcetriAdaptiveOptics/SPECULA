@@ -59,11 +59,3 @@ class PsfDisplay(BaseDisplay):
             self._update_image_data(self.img, image)
 
         self._safe_draw()
-
-    def set_log_scale(self, log_scale: bool):
-        """Enable/disable logarithmic scaling"""
-        self._log_scale = log_scale
-
-    def set_p2v_threshold(self, p2v_value: float):
-        """Set P2V threshold value"""
-        self._image_p2v = p2v_value
