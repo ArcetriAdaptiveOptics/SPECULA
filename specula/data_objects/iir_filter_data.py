@@ -14,6 +14,16 @@ except ImportError:
     control = None
 
 class IirFilterData(BaseDataObj):
+    """IIR Filter Data representation.
+    
+    This class stores IIR filter coefficients in the following format:
+    - Coefficients are stored with highest order terms first
+    - num[i, :] contains numerator coefficients for filter i
+    - den[i, :] contains denominator coefficients for filter i
+    - ordnum[i] and ordden[i] specify the actual order of each filter
+    
+    Transfer function: H(z) = (num[0] + num[1]*z^-1 + ...) / (den[0] + den[1]*z^-1 + ...)
+    """
     def __init__(self,
                  ordnum: list,
                  ordden: list,
@@ -129,120 +139,241 @@ class IirFilterData(BaseDataObj):
         if verbose:
             print('new gain:', self.gain)
 
-    def complexRTF(self, mode, fs, delay, freq=None, verbose=False):
-        if delay > 1:
-            dm = self.xp.array([0.0, 1.0], dtype=self.dtype)
-            nm = self.xp.array([1.0, 0.0], dtype=self.dtype)
-            nw, dw = self.discrete_delay_tf(delay - 1)
-        else:
-            dm = self.xp.array([1.0], dtype=self.dtype)
-            nm = self.xp.array([1.0], dtype=self.dtype)
-            nw, dw = self.discrete_delay_tf(delay)
-
-        complex_yt_tf = self.plot_iirfilter_tf(
-            self.num[mode, :], self.den[mode, :], fs, 
-            dm=dm, nw=nw, dw=dw, freq=freq, noplot=True, verbose=verbose
-        )
-        return complex_yt_tf
-
-    def RTF(self, mode, fs, freq=None, tf=None, dm=None, nw=None, dw=None, verbose=False, title=None, overplot=False, **extra):
-        """Plot Rejection Transfer Function."""
+    def RTF(self, mode, fs, freq=None, tf=None, dm=None, nw=None, dw=None, verbose=False, title=None, plot=True, overplot=False, **extra):
+        """Plot Rejection Transfer Function: RTF = 1 / (1 - CP)"""
         plotTitle = title if title else 'Rejection Transfer Function'
 
         # Generate frequency vector if not provided
         if freq is None:
             freq = np.logspace(-1, np.log10(fs/2), 1000)
 
-        # Get complex transfer function
-        complex_tf = self.plot_iirfilter_tf(
-            self.num[mode, :], self.den[mode, :], fs, 
-            dm=dm, nw=nw, dw=dw, freq=freq, noplot=True, verbose=verbose
-        )
+        # Get controller coefficients C
+        C_num = self.num[mode, :]
+        C_den = self.den[mode, :]
 
-        # Convert to magnitude
-        tf_mag = np.abs(complex_tf)
-
-        import matplotlib.pyplot as plt
-        if overplot:
-            color = extra.get('color', 'blue')
-            plt.plot(freq, tf_mag, color=color, **extra)
+        # Get plant coefficients P from dm, nw, dw
+        if dm is not None and nw is not None and dw is not None:
+            P_num = nw
+            P_den = np.convolve(dm, dw)
         else:
-            plt.figure()
-            plt.loglog(freq, tf_mag, label=plotTitle)
-            plt.xlabel('Frequency [Hz]')
-            plt.ylabel('Magnitude')
-            plt.title(plotTitle)
-            plt.grid(True)
-            plt.legend()
-            plt.show()
+            P_num = np.array([1])  # Unity plant numerator
+            P_den = np.array([1])  # Unity plant denominator
 
-        return tf_mag
+        # if P_num is shorter than P_den, pad with zeros
+        if len(P_num) < len(P_den):
+            P_num = np.pad(P_num, (0, len(P_den) - len(P_num)), mode='constant')
 
-    def NTF(self, mode, fs, freq=None, tf=None, dm=None, nw=None, dw=None, verbose=False, title=None, overplot=False, **extra):
-        """Plot Noise Transfer Function."""
+        # Calculate CP = C * P
+        CP_num = np.convolve(C_num, P_num)
+        CP_den = np.convolve(C_den, P_den)
+
+        # Ensure same length by padding with zeros
+        max_len = max(len(CP_num), len(CP_den))
+        CP_num = np.pad(CP_num, (max_len - len(CP_num), 0), mode='constant')
+        CP_den = np.pad(CP_den, (max_len - len(CP_den), 0), mode='constant')
+
+        # Calculate RTF = 1 / (1 + CP) = CP_den / (CP_den + CP_num)
+        rtf_num = CP_den
+        rtf_den = CP_den + CP_num
+
+        if verbose:
+            print(f"RTF numerator: {rtf_num}")
+            print(f"RTF denominator: {rtf_den}")
+
+        # Calculate frequency response
+        rtf_complex = self.frequency_response(rtf_num, rtf_den, fs, freq=freq)
+        rtf_mag = np.abs(rtf_complex)
+
+        if plot:
+            import matplotlib.pyplot as plt
+            if overplot:
+                color = extra.get('color', 'blue')
+                plt.plot(freq, rtf_mag, color=color, **extra)
+            else:
+                plt.figure()
+                plt.loglog(freq, rtf_mag, label=plotTitle)
+                plt.xlabel('Frequency [Hz]')
+                plt.ylabel('Magnitude')
+                plt.title(plotTitle)
+                plt.grid(True)
+                plt.legend()
+                plt.show()
+
+        return rtf_mag
+
+    def NTF(self, mode, fs, freq=None, tf=None, dm=None, nw=None, dw=None, verbose=False, title=None, plot=True, overplot=False, **extra):
+        """Plot Noise Transfer Function: NTF = CP / (1 - CP)"""
         plotTitle = title if title else 'Noise Transfer Function'
 
         # Generate frequency vector if not provided
         if freq is None:
             freq = np.logspace(-1, np.log10(fs/2), 1000)
 
-        # Get complex transfer function
-        complex_tf = self.plot_iirfilter_tf(
-            self.num[mode, :], self.den[mode, :], fs, 
-            dm=dm, nw=nw, dw=dw, freq=freq, noplot=True, verbose=verbose
-        )
+        # Get controller coefficients C
+        C_num = self.num[mode, :]
+        C_den = self.den[mode, :]
 
-        # Convert to magnitude
-        tf_mag = np.abs(complex_tf)
-
-        import matplotlib.pyplot as plt
-        if overplot:
-            color = extra.get('color', 'red')
-            plt.plot(freq, tf_mag, color=color, **extra)
+        # Get plant coefficients P from dm, nw, dw
+        if dm is not None and nw is not None and dw is not None:
+            P_num = nw
+            P_den = np.convolve(dm, dw)
         else:
-            plt.figure()
-            plt.loglog(freq, tf_mag, label=plotTitle)
-            plt.xlabel('Frequency [Hz]')
-            plt.ylabel('Magnitude')
-            plt.title(plotTitle)
-            plt.grid(True)
-            plt.legend()
-            plt.show()
+            P_num = np.array([1])  # Unity plant numerator
+            P_den = np.array([1])  # Unity plant denominator
 
-        return tf_mag
+        # if P_num is shorter than P_den, pad with zeros
+        if len(P_num) < len(P_den):
+            P_num = np.pad(P_num, (0, len(P_den) - len(P_num)), mode='constant')
+        
+        # Calculate CP = C * P
+        CP_num = np.convolve(C_num, P_num)
+        CP_den = np.convolve(C_den, P_den)
 
-    def is_stable(self, mode, nm=None, dm=None, nw=None, dw=None, gain=None, no_margin=False, verbose=False):
-        nm = nm if nm is not None else self.xp.array([1, 0], dtype=self.dtype)
-        nw = nw if nw is not None else self.xp.array([1, 0], dtype=self.dtype)
-        dm = dm if dm is not None else self.xp.array([0, 1], dtype=self.dtype)
-        dw = dw if dw is not None else self.xp.array([0, 1], dtype=self.dtype)
+        # Ensure same length by padding with zeros
+        max_len = max(len(CP_num), len(CP_den))
+        CP_num = np.pad(CP_num, (max_len - len(CP_num), 0), mode='constant')
+        CP_den = np.pad(CP_den, (max_len - len(CP_den), 0), mode='constant')
 
-        temp1 = self.xp.polymul(dm, dw)
-        while temp1[-1] == 0:
-            temp1 = temp1[:-1]
-        DDD = self.xp.polymul(temp1, self.den[mode, :])
-        while DDD[-1] == 0:
-            DDD = DDD[:-1]
-
-        temp2 = self.xp.polymul(nm, nw)
-        while temp2[-1] == 0:
-            temp2 = temp2[:-1]
-        NNN = self.xp.polymul(temp2, self.num[mode, :])
-        if self.xp.sum(self.xp.abs(NNN)) != 0:
-            while NNN[-1] == 0:
-                NNN = NNN[:-1]
-
-        if gain is not None:
-            NNN *= gain / self.gain[mode]
-
-        stable, ph_margin, g_margin, mroot, m_one_dist = self.nyquist(NNN, DDD, no_margin=no_margin)
+        # Calculate NTF = CP / (1 + CP) = CP_num / (CP_den + CP_num)
+        ntf_num = CP_num
+        ntf_den = CP_den + CP_num
 
         if verbose:
-            print('max root (closed loop) =', mroot)
-            print('phase margin =', ph_margin)
-            print('gain margin =', g_margin)
-            print('min. distance from (-1;0) =', m_one_dist)
-        return stable
+            print(f"NTF numerator: {ntf_num}")
+            print(f"NTF denominator: {ntf_den}")
+
+        # Calculate frequency response
+        ntf_complex = self.frequency_response(ntf_num, ntf_den, fs, freq=freq)
+        ntf_mag = np.abs(ntf_complex)
+
+        if plot:
+            import matplotlib.pyplot as plt
+            if overplot:
+                color = extra.get('color', 'red')
+                plt.plot(freq, ntf_mag, color=color, **extra)
+            else:
+                plt.figure()
+                plt.loglog(freq, ntf_mag, label=plotTitle)
+                plt.xlabel('Frequency [Hz]')
+                plt.ylabel('Magnitude')
+                plt.title(plotTitle)
+                plt.grid(True)
+                plt.legend()
+                plt.show()
+
+        return ntf_mag
+
+    def frequency_response(self, num, den, fs, freq=None):
+        """Compute complex frequency response of IIR filter.
+        
+        Args:
+            num: Numerator coefficients
+            den: Denominator coefficients
+            fs: Sampling frequency
+            freq: Frequency vector (if None, auto-generated)
+            
+        Returns:
+            Complex frequency response values at specified frequencies
+        """
+
+        # Convert to CPU arrays
+        num_cpu = cpuArray(num)
+        den_cpu = cpuArray(den)
+
+        # Remove initial zeros (coefficients are stored highest order first)
+        while len(num_cpu) > 1 and num_cpu[0] == 0 and len(den_cpu) > 1 and den_cpu[0] == 0:
+            num_cpu = num_cpu[1:]
+            den_cpu = den_cpu[1:]
+
+        # Ensure we have at least one coefficient
+        if len(num_cpu) == 0:
+            num_cpu = np.array([0])
+        if len(den_cpu) == 0:
+            den_cpu = np.array([1])
+
+        # Generate frequency vector if not provided
+        if freq is None:
+            freq = np.logspace(-3, np.log10(fs/2), 1000)
+
+        x = freq.copy() / (fs/2) * np.pi
+        z = np.exp(1j * x)
+
+        complex_tf = np.zeros(len(freq), dtype=complex)
+        for i, zi in enumerate(z):
+            num_val = np.polyval(num_cpu[::-1], zi)
+            den_val = np.polyval(den_cpu[::-1], zi)
+            complex_tf[i] = num_val / den_val if abs(den_val) > 1e-15 else np.inf + 1j * np.inf
+
+        return complex_tf
+
+    def is_stable(self, mode, dm=None, nw=None, dw=None, verbose=False):
+        """Check stability by analyzing poles of the closed-loop system.
+        
+        Args:
+            mode: Filter mode index
+            dm, nw, dw: Plant coefficients (optional)
+            verbose: Print debug information
+            
+        Returns:
+            bool: True if stable, False otherwise
+        """
+
+        # Get controller coefficients C
+        C_num = cpuArray(self.num[mode, :])
+        C_den = cpuArray(self.den[mode, :])
+
+        # Get plant coefficients P from dm, nw, dw
+        if dm is not None and nw is not None and dw is not None:
+            P_num = cpuArray(nw)
+            P_den = cpuArray(np.convolve(cpuArray(dm), cpuArray(dw)))
+        else:
+            P_num = np.array([1])  # Unity plant numerator
+            P_den = np.array([1])  # Unity plant denominator
+
+        # if P_num is shorter than P_den, pad with zeros
+        if len(P_num) < len(P_den):
+            P_num = np.pad(P_num, (0, len(P_den) - len(P_num)), mode='constant')
+
+        # Calculate CP = C * P
+        CP_num = np.convolve(C_num, P_num)
+        CP_den = np.convolve(C_den, P_den)
+
+        # Ensure same length by padding with zeros
+        max_len = max(len(CP_num), len(CP_den))
+        CP_num = np.pad(CP_num, (max_len - len(CP_num), 0), mode='constant')
+        CP_den = np.pad(CP_den, (max_len - len(CP_den), 0), mode='constant')
+
+        # Calculate closed-loop denominator: CP_den + CP_num (from RTF/NTF)
+        closed_loop_den = CP_den + CP_num
+
+        if verbose:
+            print(f"Closed-loop denominator: {closed_loop_den}")
+
+        # Find poles (roots of denominator)
+        try:
+            if len(closed_loop_den) > 1:
+                poles = np.roots(closed_loop_den[::-1])
+            else:
+                # Constant denominator - system might be unstable
+                return False
+
+            if verbose:
+                print(f"Poles: {poles}")
+
+            # Check stability: for discrete-time systems, all poles must be inside unit circle: |pole| < 1
+            stable = np.all(np.abs(poles) < 1.0)
+            max_pole_mag = np.max(np.abs(poles)) if len(poles) > 0 else 0
+
+            if verbose:
+                print(f"Maximum pole magnitude: {max_pole_mag}")
+                print(f"Stable (discrete): {stable}")
+
+            return stable
+
+        except Exception as e:
+            if verbose:
+                print(f"Error computing poles: {e}")
+            return False
 
     def save(self, filename):
         hdr = fits.Header()
@@ -307,6 +438,7 @@ class IirFilterData(BaseDataObj):
             num[0] = 1.
 
         return num, den
+
 
     @staticmethod
     def from_gain_and_ff(gain, ff=None, target_device_idx=None):
@@ -400,7 +532,7 @@ class IirFilterData(BaseDataObj):
             # Assicurati che i coefficienti si adattino all'array pre-allocato
             if len(num_total) > n_coeff:
                 raise ValueError(f"Filter coefficients longer than expected: {len(num_total)} > {n_coeff}")
-            
+
             # Pad with zeros at the beginning (highest order terms first)
             num[i, n_coeff - len(num_total):] = num_total
             den[i, n_coeff - len(den_total):] = den_total
@@ -495,12 +627,19 @@ class IirFilterData(BaseDataObj):
             raise ValueError(f"Mode {mode} exceeds number of filters {self.nfilter}")
 
         # Extract numerator and denominator for the specified mode
-        num_coeffs = cpuArray(self.num[mode, :])
-        den_coeffs = cpuArray(self.den[mode, :])
+        num_coeffs = cpuArray(self.num[mode, ::-1])
+        den_coeffs = cpuArray(self.den[mode, ::-1])
 
-        # Remove trailing zeros
-        num_coeffs = num_coeffs[num_coeffs != 0] if np.any(num_coeffs != 0) else np.array([0])
-        den_coeffs = den_coeffs[den_coeffs != 0] if np.any(den_coeffs != 0) else np.array([1])
+        # Remove final zeros (highest order first)
+        while len(num_coeffs) > 1 and num_coeffs[-1] == 0 and len(den_coeffs) > 1 and den_coeffs[-1] == 0:
+            num_coeffs = num_coeffs[:-1]
+            den_coeffs = den_coeffs[:-1]
+
+        # Ensure we have at least one coefficient
+        if len(num_coeffs) == 0:
+            num_coeffs = np.array([0])
+        if len(den_coeffs) == 0:
+            den_coeffs = np.array([1])
 
         return control.TransferFunction(num_coeffs, den_coeffs, dt=dt)
 
@@ -569,238 +708,10 @@ class IirFilterData(BaseDataObj):
             ord_den[i] = len(den_coeffs)
 
             # Pad with zeros at the beginning (highest order terms first)
-            num[i, max_len - len(num_coeffs):] = num_coeffs
-            den[i, max_len - len(den_coeffs):] = den_coeffs
+            num[i, max_len - len(num_coeffs):] = num_coeffs[::-1]
+            den[i, max_len - len(den_coeffs):] = den_coeffs[::-1]
 
         return IirFilterData(ord_num, ord_den, num, den, target_device_idx=target_device_idx)
-
-    def plot_iirfilter_tf(self, num, den, fs, dm=None, nw=None, dw=None, freq=None, noplot=True, verbose=False):
-        """Compute IIR filter transfer function using control library or fallback implementation."""
-        
-        # Convert to CPU arrays for processing
-        num_cpu = cpuArray(num)
-        den_cpu = cpuArray(den)
-
-        # Remove leading zeros
-        num_cpu = num_cpu[num_cpu != 0] if np.any(num_cpu != 0) else np.array([0])
-        den_cpu = den_cpu[den_cpu != 0] if np.any(den_cpu != 0) else np.array([1])
-
-        # Apply additional filters if provided
-        if dm is not None and nw is not None and dw is not None:
-            dm_cpu = cpuArray(dm)
-            nw_cpu = cpuArray(nw)
-            dw_cpu = cpuArray(dw)
-
-            # Multiply polynomials
-            num_total = np.convolve(num_cpu, nw_cpu)
-            den_total = np.convolve(den_cpu, np.convolve(dm_cpu, dw_cpu))
-        else:
-            num_total = num_cpu
-            den_total = den_cpu
-
-        # Generate frequency vector if not provided
-        if freq is None:
-            freq = np.logspace(-3, np.log10(fs/2), 1000)
-
-        # Use control library if available
-        if CONTROL_AVAILABLE:
-            try:
-                # Create discrete-time transfer function
-                dt = 1.0 / fs
-                tf = control.TransferFunction(num_total, den_total, dt=dt)
-
-                # Convert frequency to angular frequency for discrete systems
-                omega = 2 * np.pi * freq / fs
-                
-                # Limit omega to avoid Nyquist frequency warning
-                omega = np.clip(omega, 0, np.pi - 1e-6)
-
-                # Use the new frequency_response method instead of freqresp
-                if hasattr(control, 'frequency_response'):
-                    response = control.frequency_response(tf, omega)
-                    complex_tf = response[0].flatten()  # Get complex response
-                else:
-                    # Fallback to freqresp for older versions
-                    response = control.freqresp(tf, omega)
-                    complex_tf = response[0].flatten()
-
-                if verbose:
-                    print(f"Transfer function computed using control library")
-                    print(f"Numerator: {num_total}")
-                    print(f"Denominator: {den_total}")
-
-                return complex_tf
-
-            except Exception as e:
-                if verbose:
-                    print(f"Control library evaluation failed: {e}")
-                    print("Falling back to manual computation")
-
-        # Fallback: manual computation using numpy
-        if verbose:
-            print("Computing transfer function manually")
-
-        # Convert to z-domain evaluation
-        complex_tf = np.zeros(len(freq), dtype=complex)
-
-        for i, f in enumerate(freq):
-            # z = exp(j*2*pi*f/fs) for discrete-time systems
-            z = np.exp(1j * 2 * np.pi * f / fs)
-
-            # Evaluate polynomials at z
-            num_val = np.polyval(num_total, z)
-            den_val = np.polyval(den_total, z)
-
-            # Avoid division by zero
-            if abs(den_val) > 1e-15:
-                complex_tf[i] = num_val / den_val
-            else:
-                complex_tf[i] = np.inf + 1j * np.inf
-
-        if verbose:
-            print(f"Numerator: {num_total}")
-            print(f"Denominator: {den_total}")
-            print(f"Frequency range: {freq[0]:.3f} - {freq[-1]:.3f} Hz")
-
-        return complex_tf
-
-    def nyquist(self, NNN, DDD, no_margin=False, verbose=False):
-        """Nyquist stability analysis using control library or fallback implementation.
-        
-        Args:
-            NNN: Numerator coefficients
-            DDD: Denominator coefficients  
-            no_margin: If True, skip margin calculations
-            verbose: If True, print detailed information
-
-        Returns:
-            tuple: (stable, ph_margin, g_margin, mroot, m_one_dist)
-        """
-
-        # Convert to CPU arrays
-        num_cpu = cpuArray(NNN)
-        den_cpu = cpuArray(DDD)
-
-        # Use control library if available
-        if CONTROL_AVAILABLE:
-            try:
-                # Create transfer function (assume discrete-time for stability analysis)
-                tf = control.TransferFunction(num_cpu, den_cpu, dt=True)
-
-                # Check stability using poles
-                poles = control.pole(tf)
-                stable = np.all(np.abs(poles) < 1.0)  # For discrete-time: |poles| < 1
-
-                if no_margin:
-                    return stable, 0, 0, np.max(np.abs(poles)), 0
-
-                # Calculate stability margins
-                try:
-                    gm, pm, wg, wp = control.margin(tf)
-
-                    # Convert gain margin from linear to dB if needed
-                    if gm is not None and gm > 0:
-                        g_margin = 20 * np.log10(gm)
-                    else:
-                        g_margin = np.inf if stable else -np.inf
-
-                    ph_margin = pm if pm is not None else (180 if stable else 0)
-
-                except:
-                    g_margin = np.inf if stable else -np.inf
-                    ph_margin = 180 if stable else 0
-
-                # Calculate distance from (-1, 0) using Nyquist data
-                try:
-                    # Generate frequency response
-                    omega = np.logspace(-3, 3, 1000)
-                    _, response = control.freqresp(tf, omega)
-
-                    # Find minimum distance from (-1, 0)
-                    distances = np.abs(response + 1)
-                    m_one_dist = np.min(distances)
-
-                except:
-                    m_one_dist = 1.0 if stable else 0.0
-
-                mroot = np.max(np.abs(poles))
-
-                return stable, ph_margin, g_margin, mroot, m_one_dist
-       
-            except Exception as e:
-                if verbose:
-                    print(f"Control library Nyquist analysis failed: {e}")
-                    print("Falling back to manual computation")
-
-        # Fallback: manual implementation
-        return self._nyquist_manual(num_cpu, den_cpu, no_margin)
-    
-    def _nyquist_manual(self, NNN, DDD, no_margin=False):
-        """Manual Nyquist stability analysis fallback implementation."""
-
-        # Find roots of denominator (poles of closed-loop system)
-        try:
-            # For closed-loop stability analysis: 1 + G(z) = 0
-            # So we need to analyze DDD + NNN = 0
-            closed_loop_char = DDD + NNN
-            roots = np.roots(closed_loop_char)
-
-            # For discrete-time systems: stable if |roots| < 1
-            mroot = np.max(np.abs(roots)) if len(roots) > 0 else 0
-            stable = mroot < 1.0
-
-        except:
-            # If root finding fails, assume unstable
-            stable = False
-            mroot = np.inf
-
-        if no_margin:
-            return stable, 0, 0, mroot, 0
-
-        # Calculate margins manually
-        try:
-            # Generate frequency response for open-loop system G(z) = NNN/DDD
-            omega = np.logspace(-3, 3, 1000)
-            z = np.exp(1j * omega)
-            
-            # Evaluate transfer function
-            G = np.zeros(len(omega), dtype=complex)
-            for i, zi in enumerate(z):
-                num_val = np.polyval(NNN, zi)
-                den_val = np.polyval(DDD, zi)
-                if abs(den_val) > 1e-15:
-                    G[i] = num_val / den_val
-                else:
-                    G[i] = np.inf
-
-            # Find gain margin: frequency where phase = -180°
-            phases = np.angle(G) * 180 / np.pi
-            phase_180_idx = np.argmin(np.abs(phases + 180))
-
-            if abs(phases[phase_180_idx] + 180) < 5:  # Within 5 degrees
-                g_margin = -20 * np.log10(np.abs(G[phase_180_idx]))
-            else:
-                g_margin = np.inf if stable else -np.inf
-
-            # Find phase margin: frequency where |G| = 1 (0 dB)
-            magnitudes = np.abs(G)
-            unity_gain_idx = np.argmin(np.abs(magnitudes - 1))
-
-            if abs(magnitudes[unity_gain_idx] - 1) < 0.1:  # Within 0.1 of unity
-                ph_margin = 180 + phases[unity_gain_idx]
-            else:
-                ph_margin = 180 if stable else 0
-
-            # Find minimum distance from (-1, 0)
-            distances = np.abs(G + 1)
-            m_one_dist = np.min(distances)
-
-        except:
-            g_margin = np.inf if stable else -np.inf
-            ph_margin = 180 if stable else 0
-            m_one_dist = 1.0 if stable else 0.0
-
-        return stable, ph_margin, g_margin, mroot, m_one_dist
 
     def bode_plot(self, mode: int = 0, dt: float = None, omega: np.ndarray = None,
                   plot: bool = True, **kwargs):

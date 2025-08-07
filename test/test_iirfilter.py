@@ -36,12 +36,11 @@ class TestIirFilterData(unittest.TestCase):
         debug_plot = False
         if debug_plot:
             self._debug_plot_filter(f, "numerator_gain_ff", target_device_idx)
-
-        # Debug print
-        print(f"\nDEBUG - test_numerator_from_gain_and_ff (device {target_device_idx}):")
-        print(f"Numerator shape: {f.num.shape}")
-        print(f"Numerator coefficients:\n{cpuArray(f.num)}")
-        print(f"Expected: all num[:, 0] = 0, all num[:, 1] = {gain}")
+            # Debug print
+            print(f"\nDEBUG - test_numerator_from_gain_and_ff (device {target_device_idx}):")
+            print(f"Numerator shape: {f.num.shape}")
+            print(f"Numerator coefficients:\n{cpuArray(f.num)}")
+            print(f"Expected: all num[:, 0] = 0, all num[:, 1] = {gain}")
 
     @cpu_and_gpu
     def test_denominator_from_gain_and_ff_num(self, target_device_idx, xp):
@@ -146,19 +145,19 @@ class TestIirFilterData(unittest.TestCase):
 
         # Compare all filters using frequency response instead of direct coefficient comparison
         freq = np.logspace(-2, 0, 100)  # Test frequencies
-        
+
         for mode in range(len(gains)):
             # Get frequency responses
-            original_response = original_filter.plot_iirfilter_tf(
-                original_filter.num[mode, :], original_filter.den[mode, :], 
-                fs=1.0, freq=freq, verbose=False
+            original_response = original_filter.frequency_response(
+                original_filter.num[mode, :], original_filter.den[mode, :],
+                fs=1.0, freq=freq
             )
-            
-            reconstructed_response = reconstructed_filter.plot_iirfilter_tf(
-                reconstructed_filter.num[mode, :], reconstructed_filter.den[mode, :], 
-                fs=1.0, freq=freq, verbose=False
+
+            reconstructed_response = reconstructed_filter.frequency_response(
+                reconstructed_filter.num[mode, :], reconstructed_filter.den[mode, :],
+                fs=1.0, freq=freq
             )
-            
+
             # Compare frequency responses (which should be identical)
             np.testing.assert_allclose(
                 np.abs(original_response), np.abs(reconstructed_response), 
@@ -205,41 +204,58 @@ class TestIirFilterData(unittest.TestCase):
         fc = 100  # Hz
         fs = 1000  # Hz
         filter_data = IirFilterData.lpf_from_fc(fc, fs, n_ord=2, target_device_idx=target_device_idx)
-
         # Frequency vector for testing - limit to avoid Nyquist frequency warnings
         freq = np.logspace(0, np.log10(fs/2 - 10), 100)  # 1 to 490 Hz (avoid Nyquist at 500 Hz)
 
         # Get transfer function using control library
         tf_control = filter_data.to_control_tf(mode=0, dt=1.0/fs)
-        omega = 2 * np.pi * freq / fs
 
-        # Use the new frequency_response method if available
-        if hasattr(control, 'frequency_response'):
-            response_control = control.frequency_response(tf_control, omega)[0].flatten()
-        else:
-            response_control = control.freqresp(tf_control, omega)[0].flatten()
+        # Calculate frequency response using control library
+        omega = 2 * np.pi * freq
+        response_control = tf_control.frequency_response(omega)
 
         # Get transfer function using manual computation
-        response_manual = filter_data.plot_iirfilter_tf(
-            filter_data.num[0, :], filter_data.den[0, :], fs, 
-            freq=freq, verbose=False
+        response_manual = filter_data.frequency_response(
+            filter_data.num[0, :], filter_data.den[0, :], fs,
+            freq=freq
         )
+        
+        plot_debug = False  # Set to True to enable plotting for debugging
+        if plot_debug:
+            import matplotlib.pyplot as plt
+            plt.figure()
+            plt.plot(freq, np.abs(response_control.magnitude), label='Control Response')
+            plt.plot(freq, np.abs(response_manual), label='Manual Response', linestyle='--')
+            plt.xlabel('Frequency [Hz]')
+            plt.ylabel('Magnitude')
+            plt.title('Frequency Response Comparison')
+            plt.legend()
+            plt.grid()
+            plt.figure()
+            plt.plot(freq, response_control.phase, label='Control Response')
+            plt.plot(freq, np.angle(response_manual), label='Manual Response', linestyle='--')
+            plt.xlabel('Frequency [Hz]')
+            plt.ylabel('Phase [radians]')
+            plt.title('Phase Response Comparison')
+            plt.legend()
+            plt.grid()
+            plt.show()
 
         # Compare responses (allowing for small numerical differences)
         np.testing.assert_allclose(
-            np.abs(response_control), np.abs(response_manual), 
+            np.abs(response_control.magnitude), np.abs(response_manual),
             rtol=1e-10, atol=1e-12,
             err_msg="Magnitude response mismatch between control and manual computation"
         )
         np.testing.assert_allclose(
-            np.angle(response_control), np.angle(response_manual), 
+            response_control.phase, np.angle(response_manual),
             rtol=1e-10, atol=1e-12,
             err_msg="Phase response mismatch between control and manual computation"
         )
 
     def test_has_control_support_property(self):
         """Test the has_control_support property"""
-        
+
         filter_data = IirFilterData.from_gain_and_ff([0.5])
         
         # The property should return the same as the global flag
@@ -346,7 +362,57 @@ class TestIirFilterData(unittest.TestCase):
         extracted_gains = cpuArray(original_filter.gain)
         np.testing.assert_allclose(extracted_gains, gains, rtol=1e-12, atol=1e-14,
                                  err_msg="Gains extraction failed")
-        
+
+    @cpu_and_gpu
+    def test_rtf_ntf_output_shape(self, target_device_idx, xp):
+        """Test RTF and NTF output shape and basic values"""
+        gains = [0.5]
+        ff = [1.0]
+        filter_data = IirFilterData.from_gain_and_ff(gains, ff, target_device_idx=target_device_idx)
+        fs = 1000
+        delay = 2
+        freq = np.linspace(1/10, fs/2, 20*fs)
+        dm = xp.array([0.0, 1.0], dtype=xp.float32)
+        nw, dw = filter_data.discrete_delay_tf(delay - 1)
+        rtf = filter_data.RTF(0, fs, freq=freq, nw=nw, dw=dw, dm=dm, plot=False)
+        ntf = filter_data.NTF(0, fs, freq=freq, nw=nw, dw=dw, dm=dm, plot=False)
+        self.assertEqual(rtf.shape, freq.shape)
+        self.assertEqual(ntf.shape, freq.shape)
+        self.assertTrue(np.all(np.isfinite(rtf)))
+        self.assertTrue(np.all(np.isfinite(ntf)))
+
+    @cpu_and_gpu
+    def test_is_stable(self, target_device_idx, xp):
+        """Test is_stable for a stable and unstable filter"""
+        # Stable: pole inside unit circle
+        gains = [0.3]
+        ff = [1.0]
+        stable_filter = IirFilterData.from_gain_and_ff(gains, ff, target_device_idx=target_device_idx)
+        # Plant TF
+        delay = 3
+        dm = xp.array([0.0, 1.0], dtype=xp.float32)
+        nw, dw = stable_filter.discrete_delay_tf(delay - 1)
+        self.assertTrue(stable_filter.is_stable(0, nw=nw, dw=dw, dm=dm))
+        # Unstable: pole outside unit circle
+        gains = [0.7]
+        ff = [1.0]
+        unstable_filter = IirFilterData.from_gain_and_ff(gains, ff, target_device_idx=target_device_idx)
+        self.assertFalse(unstable_filter.is_stable(0, nw=nw, dw=dw, dm=dm))
+
+    @unittest.skipIf(not CONTROL_AVAILABLE, "Control library not available")
+    @cpu_and_gpu
+    def test_stability_margins(self, target_device_idx, xp):
+        """Test stability margins for a simple filter"""
+        # Use a clearly stable filter
+        gains = [0.1]
+        ff = [0.5]  # Well inside unit circle
+        filter_data = IirFilterData.from_gain_and_ff(gains, ff, target_device_idx=target_device_idx)
+        gm, pm, wg, wp = filter_data.stability_margins(0, dt=1.0)  # Add dt parameter
+
+        # For a stable system, margins should be finite and positive
+        self.assertTrue(gm > 0 or np.isinf(gm))  # Gain margin can be infinite
+        self.assertTrue(pm > 0)  # Phase margin should be positive
+
 # --- debugging utility for filter tests ---
 
     def _debug_plot_filter(self, filter_data, test_name, target_device_idx, max_modes=3):
@@ -363,9 +429,9 @@ class TestIirFilterData(unittest.TestCase):
         # Magnitude response
         plt.subplot(2, 3, 1)
         for mode in range(nmodes):
-            response = filter_data.plot_iirfilter_tf(
-                filter_data.num[mode, :], filter_data.den[mode, :], fs, 
-                freq=freq, verbose=False
+            response = filter_data.frequency_response(
+                filter_data.num[mode, :], filter_data.den[mode, :], fs,
+                freq=freq
             )
             plt.loglog(freq, np.abs(response), label=f'Mode {mode}')
         plt.xlabel('Frequency (Hz)')
@@ -378,8 +444,8 @@ class TestIirFilterData(unittest.TestCase):
         plt.subplot(2, 3, 2)
         for mode in range(nmodes):
             response = filter_data.plot_iirfilter_tf(
-                filter_data.num[mode, :], filter_data.den[mode, :], fs, 
-                freq=freq, verbose=False
+                filter_data.num[mode, :], filter_data.den[mode, :], fs,
+                freq=freq
             )
             plt.semilogx(freq, np.angle(response) * 180/np.pi, label=f'Mode {mode}')
         plt.xlabel('Frequency (Hz)')
@@ -408,7 +474,7 @@ class TestIirFilterData(unittest.TestCase):
         plt.subplot(2, 3, 4)
         num_coeffs = cpuArray(filter_data.num)[:nmodes, :]
         for i in range(num_coeffs.shape[1]):
-            plt.bar(np.arange(nmodes) + i*0.3, num_coeffs[:, i], 
+            plt.bar(np.arange(nmodes) + i*0.3, num_coeffs[:, i],
                     width=0.25, label=f'num[{i}]', alpha=0.7)
         plt.xlabel('Mode')
         plt.ylabel('Coefficient')
@@ -420,7 +486,7 @@ class TestIirFilterData(unittest.TestCase):
         plt.subplot(2, 3, 5)
         den_coeffs = cpuArray(filter_data.den)[:nmodes, :]
         for i in range(den_coeffs.shape[1]):
-            plt.bar(np.arange(nmodes) + i*0.3, den_coeffs[:, i], 
+            plt.bar(np.arange(nmodes) + i*0.3, den_coeffs[:, i],
                     width=0.25, label=f'den[{i}]', alpha=0.7)
         plt.xlabel('Mode')
         plt.ylabel('Coefficient')
