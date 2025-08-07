@@ -216,7 +216,7 @@ class AtmoPropagation(BaseProcessingObj):
 
         self.atmo_layer_list = self.local_inputs['atmo_layer_list']
         if self.reverse_atmo_layer_list:
-            self.atmo_layer_list = self.atmo_layer_list.reverse()
+            self.atmo_layer_list.reverse()
         self.common_layer_list = self.local_inputs['common_layer_list']
 
         if self.atmo_layer_list is None:
