@@ -5,6 +5,13 @@ from specula.base_data_obj import BaseDataObj
 
 from astropy.io import fits
 
+# Try to import control library, but make it optional
+try:
+    import control
+    CONTROL_AVAILABLE = True
+except ImportError:
+    CONTROL_AVAILABLE = False
+    control = None
 
 class IirFilterData(BaseDataObj):
     def __init__(self,
@@ -26,7 +33,7 @@ class IirFilterData(BaseDataObj):
     @property
     def nfilter(self):
         return len(self.num)
-    
+
     def zeros(self):
         if self.zeros is None:
             snum1 = self.num.shape[1]
@@ -48,7 +55,7 @@ class IirFilterData(BaseDataObj):
                     poles[i, :int(self.ordden[i]) - 1] = self.xp.roots(self._den[i, sden1 - int(self.ordden[i]):])
             self.poles = poles
         return self.poles
-        
+
     def set_num(self, num):
         snum1 = num.shape[1]
         mynum = num.copy()
@@ -280,7 +287,7 @@ class IirFilterData(BaseDataObj):
         ord_num = np.zeros(n)
         den = np.zeros((n, 2))
         ord_den = np.zeros(n)
-        
+
         for i in range(n):
             num[i, 0] = 0
             num[i, 1] = gain[i]
@@ -288,7 +295,7 @@ class IirFilterData(BaseDataObj):
             den[i, 0] = -ff[i]
             den[i, 1] = 1
             ord_den[i] = 2
-        
+
         return IirFilterData(ord_num, ord_den, num, den, target_device_idx=target_device_idx)
 
     @staticmethod
@@ -301,12 +308,12 @@ class IirFilterData(BaseDataObj):
 
         fc = np.array(fc)
         n = len(fc)
-        
+
         if n_ord == 1:
             n_coeff = 2
         else:
             n_coeff = 2*n_ord + 1
-        
+
         # Filter initialization
         num = np.zeros((n, n_coeff))
         ord_num = np.zeros(n)
@@ -318,7 +325,7 @@ class IirFilterData(BaseDataObj):
                 raise ValueError('Cut-off frequency must be less than half the sampling frequency')
             fr = fc[i] / fs  # Normalized frequency
             omega = np.tan(np.pi * fr)
-        
+
             if n_ord == 1:
                 # Butterworth filter of order 1
                 a0 = omega / (1 + omega)
@@ -330,25 +337,25 @@ class IirFilterData(BaseDataObj):
                 #Butterworth filter of order >=2
                 num_total = np.array([1.0])
                 den_total = np.array([1.0])
-                
+
                 for k in range(n_ord // 2):  # Iterations on poles
                     ck = 1 + 2 * np.cos(np.pi * (2*k+1) / (2*n_ord)) * omega + omega**2
-                    
+
                     a0 = omega**2 / ck
                     a1 = 2 * a0
                     a2 = a0
-                    
+
                     b1 = 2 * (omega**2 - 1) / ck
                     b2 = (1 - 2 * np.cos(np.pi * (2*k+1) / (2*n_ord)) * omega + omega**2) / ck
-                    
+
                     # coefficients of the single filter of order 2
                     num_k = np.asarray([a2.item(), a1.item(), a0.item()], dtype=float)
                     den_k = np.asarray([b2.item(), b1.item(), 1], dtype=float)
-                    
+
                     # ploynomials convolution to get total filter
                     num_total = np.convolve(num_total, num_k)
                     den_total = np.convolve(den_total, den_k)
-                    
+
             num[i, :] = num_total
             den[i, :] = den_total
             ord_num[i] = len(num_total)
@@ -370,7 +377,7 @@ class IirFilterData(BaseDataObj):
             ampl = np.array(ampl)
 
         n_coeff = 3
-        
+
         # Filter initialization
         num = np.zeros((n, n_coeff))
         ord_num = np.zeros(n)
@@ -396,13 +403,287 @@ class IirFilterData(BaseDataObj):
             a2 /= b0
             b1 /= b0
             b2 /= b0
-            
+
             num_total = np.asarray([a2.item(), a1.item(), a0.item()], dtype=float)
             den_total = np.asarray([b2.item(), b1.item(), 1], dtype=float)
-            
+
             num[i, :] = num_total
             den[i, :] = den_total
             ord_num[i] = len(num_total)
             ord_den[i] = len(den_total)
 
         return IirFilterData(ord_num, ord_den, num, den, target_device_idx=target_device_idx)
+
+# -- Additional methods for control library integration - -
+
+    def _check_control_available(self):
+        """Check if control library is available and raise error if not."""
+        if not CONTROL_AVAILABLE:
+            raise ImportError(
+                "The 'control' library is required for this functionality. "
+                "Install it with: pip install control"
+            )
+
+    def to_control_tf(self, mode: int = 0, dt: float = None):
+        """Convert a single filter to a control.TransferFunction object.
+        
+        Args:
+            mode: Index of the filter to convert (default: 0)
+            dt: Sampling time for discrete-time system (default: None for continuous-time)
+            
+        Returns:
+            control.TransferFunction: The transfer function object
+            
+        Raises:
+            ImportError: If control library is not installed
+        """
+        self._check_control_available()
+
+        if mode >= self.nfilter:
+            raise ValueError(f"Mode {mode} exceeds number of filters {self.nfilter}")
+
+        # Extract numerator and denominator for the specified mode
+        num_coeffs = cpuArray(self.num[mode, :])
+        den_coeffs = cpuArray(self.den[mode, :])
+
+        # Remove trailing zeros
+        num_coeffs = num_coeffs[num_coeffs != 0] if np.any(num_coeffs != 0) else np.array([0])
+        den_coeffs = den_coeffs[den_coeffs != 0] if np.any(den_coeffs != 0) else np.array([1])
+
+        return control.TransferFunction(num_coeffs, den_coeffs, dt=dt)
+
+    def to_control_tf_list(self, dt: float = None):
+        """Convert all filters to a list of control.TransferFunction objects.
+        
+        Args:
+            dt: Sampling time for discrete-time system (default: None for continuous-time)
+            
+        Returns:
+            list: List of control.TransferFunction objects
+            
+        Raises:
+            ImportError: If control library is not installed
+        """
+        self._check_control_available()
+
+        tf_list = []
+        for i in range(self.nfilter):
+            tf_list.append(self.to_control_tf(mode=i, dt=dt))
+        return tf_list
+
+    @staticmethod
+    def from_control_tf(tf_list, target_device_idx: int = None):
+        """Create IirFilterData from control.TransferFunction objects.
+        
+        Args:
+            tf_list: Single control.TransferFunction or list of control.TransferFunction objects
+            target_device_idx: Target device index (default: None)
+            
+        Returns:
+            IirFilterData: New IirFilterData object
+            
+        Raises:
+            ImportError: If control library is not installed
+        """
+        self._check_control_available()
+
+        # Handle single transfer function
+        if isinstance(tf_list, control.TransferFunction):
+            tf_list = [tf_list]
+
+        n_filters = len(tf_list)
+
+        # Find maximum coefficient lengths
+        max_num_len = max(len(tf.num[0][0]) for tf in tf_list)
+        max_den_len = max(len(tf.den[0][0]) for tf in tf_list)
+
+        # Initialize arrays
+        num = np.zeros((n_filters, max_num_len))
+        den = np.zeros((n_filters, max_den_len))
+        ord_num = np.zeros(n_filters, dtype=int)
+        ord_den = np.zeros(n_filters, dtype=int)
+
+        for i, tf in enumerate(tf_list):
+            # Get coefficients
+            num_coeffs = tf.num[0][0]
+            den_coeffs = tf.den[0][0]
+
+            # Store order
+            ord_num[i] = len(num_coeffs)
+            ord_den[i] = len(den_coeffs)
+
+            # Pad with zeros at the beginning (highest order terms first)
+            num[i, max_num_len - len(num_coeffs):] = num_coeffs
+            den[i, max_den_len - len(den_coeffs):] = den_coeffs
+
+        return IirFilterData(ord_num, ord_den, num, den, target_device_idx=target_device_idx)
+
+    def bode_plot(self, mode: int = 0, dt: float = None, omega: np.ndarray = None, 
+                  plot: bool = True, **kwargs):
+        """Create Bode plot for a specific filter using control library.
+        
+        Args:
+            mode: Index of the filter to plot (default: 0)
+            dt: Sampling time for discrete-time system (default: None)
+            omega: Frequency vector (default: auto-generated)
+            plot: Whether to display the plot (default: True)
+            **kwargs: Additional arguments passed to control.bode_plot
+            
+        Returns:
+            tuple: (magnitude, phase, frequency) arrays
+            
+        Raises:
+            ImportError: If control library is not installed
+        """
+        self._check_control_available()
+
+        tf = self.to_control_tf(mode=mode, dt=dt)
+
+        if omega is None:
+            # Auto-generate frequency vector
+            if dt is not None:
+                # Discrete-time system
+                omega = np.logspace(-3, np.log10(np.pi/dt), 1000)
+            else:
+                # Continuous-time system
+                omega = np.logspace(-2, 4, 1000)
+
+        mag, phase, freq = control.bode_plot(tf, omega=omega, plot=plot, **kwargs)
+        return mag, phase, freq
+
+    def nyquist_plot(self, mode: int = 0, dt: float = None, omega: np.ndarray = None,
+                     plot: bool = True, **kwargs):
+        """Create Nyquist plot for a specific filter using control library.
+        
+        Args:
+            mode: Index of the filter to plot (default: 0)
+            dt: Sampling time for discrete-time system (default: None)
+            omega: Frequency vector (default: auto-generated)
+            plot: Whether to display the plot (default: True)
+            **kwargs: Additional arguments passed to control.nyquist_plot
+            
+        Returns:
+            tuple: (real, imaginary, frequency) arrays
+            
+        Raises:
+            ImportError: If control library is not installed
+        """
+        self._check_control_available()
+
+        tf = self.to_control_tf(mode=mode, dt=dt)
+
+        if omega is None:
+            # Auto-generate frequency vector
+            if dt is not None:
+                # Discrete-time system
+                omega = np.logspace(-3, np.log10(np.pi/dt), 1000)
+            else:
+                # Continuous-time system
+                omega = np.logspace(-2, 4, 1000)
+
+        real, imag, freq = control.nyquist_plot(tf, omega=omega, plot=plot, **kwargs)
+        return real, imag, freq
+
+    def step_response(self, mode: int = 0, dt: float = None, T: np.ndarray = None, **kwargs):
+        """Compute step response for a specific filter using control library.
+        
+        Args:
+            mode: Index of the filter (default: 0)
+            dt: Sampling time for discrete-time system (default: None)
+            T: Time vector (default: auto-generated)
+            **kwargs: Additional arguments passed to control.step_response
+            
+        Returns:
+            tuple: (time, response) arrays
+            
+        Raises:
+            ImportError: If control library is not installed
+        """
+        self._check_control_available()
+
+        tf = self.to_control_tf(mode=mode, dt=dt)
+
+        if T is None:
+            if dt is not None:
+                # Discrete-time system
+                T = np.arange(0, 100) * dt
+            else:
+                # Continuous-time system
+                T = np.linspace(0, 10, 1000)
+        
+        time, response = control.step_response(tf, T=T, **kwargs)
+        return time, response
+    
+    def impulse_response(self, mode: int = 0, dt: float = None, T: np.ndarray = None, **kwargs):
+        """Compute impulse response for a specific filter using control library.
+        
+        Args:
+            mode: Index of the filter (default: 0)
+            dt: Sampling time for discrete-time system (default: None)
+            T: Time vector (default: auto-generated)
+            **kwargs: Additional arguments passed to control.impulse_response
+            
+        Returns:
+            tuple: (time, response) arrays
+            
+        Raises:
+            ImportError: If control library is not installed
+        """
+        self._check_control_available()
+
+        tf = self.to_control_tf(mode=mode, dt=dt)
+
+        if T is None:
+            if dt is not None:
+                # Discrete-time system
+                T = np.arange(0, 100) * dt
+            else:
+                # Continuous-time system
+                T = np.linspace(0, 10, 1000)
+
+        time, response = control.impulse_response(tf, T=T, **kwargs)
+        return time, response
+
+    def stability_margins(self, mode: int = 0, dt: float = None):
+        """Compute stability margins for a specific filter using control library.
+        
+        Args:
+            mode: Index of the filter (default: 0)
+            dt: Sampling time for discrete-time system (default: None)
+            
+        Returns:
+            tuple: (gain_margin, phase_margin, wg, wp) where:
+                   - gain_margin: Gain margin in dB
+                   - phase_margin: Phase margin in degrees
+                   - wg: Frequency at gain margin
+                   - wp: Frequency at phase margin
+            
+        Raises:
+            ImportError: If control library is not installed
+        """
+        self._check_control_available()
+
+        tf = self.to_control_tf(mode=mode, dt=dt)
+        gm, pm, wg, wp = control.margin(tf)
+        return gm, pm, wg, wp
+
+    def pole_zero_map(self, mode: int = 0, dt: float = None, plot: bool = True, **kwargs):
+        """Create pole-zero map for a specific filter using control library.
+        
+        Args:
+            mode: Index of the filter (default: 0)
+            dt: Sampling time for discrete-time system (default: None)
+            plot: Whether to display the plot (default: True)
+            **kwargs: Additional arguments passed to control.pzmap
+            
+        Returns:
+            tuple: (poles, zeros) arrays
+            
+        Raises:
+            ImportError: If control library is not installed
+        """
+        self._check_control_available()
+
+        tf = self.to_control_tf(mode=mode, dt=dt)
+        poles, zeros = control.pzmap(tf, plot=plot, **kwargs)
+        return poles, zeros
