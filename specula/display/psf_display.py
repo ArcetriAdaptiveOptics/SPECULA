@@ -1,56 +1,58 @@
 import numpy as np
 
-from specula import xp
 from specula import cpuArray
 
-import matplotlib.pyplot as plt
-
-from specula.base_processing_obj import BaseProcessingObj
-from specula.base_value import BaseValue
+from specula.display.base_display import BaseDisplay
 from specula.connections import InputValue
+from specula.base_value import BaseValue
 
 
-class PsfDisplay(BaseProcessingObj):
-    def __init__(self, disp_factor=1, wsize=[600, 600], window=25, title='PSF', log10=False):
-        super().__init__()
-        self._psf = None
-        self._wsize = wsize
-        self._window = window
-        self._log = log10
-        self._image_p2v = 0.0
-        self._title = title
-        self._opened = False
-        self._first = True
-        self._disp_factor = disp_factor
+class PsfDisplay(BaseDisplay):
+    def __init__(self,
+                 title='PSF Display',
+                 figsize=(6, 6),
+                 log_scale=False,
+                 image_p2v=0.0):
+
+        super().__init__(
+            title=title,
+            figsize=figsize
+        )
+
+        self._log_scale = log_scale
+        self._image_p2v = image_p2v
+
+        # Setup input
+        self.input_key = 'psf'  # Used by base class
         self.inputs['psf'] = InputValue(type=BaseValue)
 
-    def set_w(self):
-#        plt.figure(self._window, figsize=(self._wsize[0] / 100, self._wsize[1] / 100))
-#        plt.title(self._title)
-        self.fig = plt.figure(self._window, figsize=(self._wsize[0] / 100, self._wsize[1] / 100))
-        self.ax = self.fig.add_subplot(111)
-
-    def trigger_code(self):
-        psf = self.local_inputs['psf']
+    def _process_psf_data(self, psf):
+        """Process PSF data: apply P2V threshold and log scaling"""
         image = cpuArray(psf.value)
 
+        # Apply P2V threshold if specified
         if self._image_p2v > 0:
-            image = np.maximum(image, self._image_p2v**(-1.) * np.max(image))
-        
-        if self._log:
-             image = np.log10(image)
+            threshold = self._image_p2v**(-1.) * np.max(image)
+            image = np.maximum(image, threshold)
 
+        # Apply logarithmic scaling if requested
+        if self._log_scale:
+            # Avoid log(0) by ensuring minimum positive value
+            image = np.maximum(image, 1e-10)
+            image = np.log10(image)
 
-        if not self._opened:
-            self.set_w()
-            self._opened = True
-        if self._first:
+        return image
+
+    def _update_display(self, psf):
+        """Override base method to implement PSF-specific display"""
+        image = self._process_psf_data(psf)
+
+        if self.img is None:
+            # First time: create image
             self.img = self.ax.imshow(image)
-            self._first = False
+            self._add_colorbar_if_needed(self.img)
         else:
-            self.img.set_data(image)
-            self.img.set_clim(image.min(), image.max())
-#            plt.colorbar()
-        self.fig.canvas.draw()
-        plt.pause(0.001)
+            # Update existing image
+            self._update_image_data(self.img, image)
 
+        self._safe_draw()

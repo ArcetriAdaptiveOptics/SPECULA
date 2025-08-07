@@ -1,4 +1,9 @@
 
+
+import numpy as np
+from astropy.io import fits
+
+
 from specula.lib.make_xy import make_xy
 from specula.base_data_obj import BaseDataObj
 
@@ -26,6 +31,13 @@ class Lenslet(BaseDataObj):
                 row.append([x[i, j], y[i, j], subap_size])
             self._lenses.append(row)
 
+    # There is no value to get/set
+    def get_value(self):
+        raise NotImplementedError
+
+    def set_value(self, v, force_copy=True):
+        raise NotImplementedError
+
     @property
     def dimx(self):
         return len(self._lenses)
@@ -38,30 +50,27 @@ class Lenslet(BaseDataObj):
         """Returns the subaperture information at (x, y)"""
         return self._lenses[x][y]
 
-    def save(self, filename, hdr):
-        """TODO Invalid code. To be updated.
-
-        Saves the lenslet data to a file with the header information"""
+    def get_fits_header(self):
+        hdr = fits.Header()
         hdr['VERSION'] = 1
-        super().save(filename, hdr)
-        self.xp.save(filename, self.to_xp(self._lenses))
+        hdr['N_LENSES'] = self.n_lenses
+        return hdr
 
-    def read(self, filename, hdr, exten=0):
-        """TODO Invalid code. To be updated.
-
-        Reads lenslet data from a file and updates object state"""
-        super().read(filename, hdr, exten)
-        self._lenses = self.xp.load(filename, allow_pickle=True).tolist()
-        exten += 1
+    def save(self, filename, overwrite=False):
+        hdr = self.get_fits_header()
+        fits.writeto(filename, np.zeros(2), hdr, overwrite=overwrite)
 
     @staticmethod
-    def restore(filename):
-        """TODO Invalid code. To be updated.
+    def from_header(hdr, target_device_idx=None):
+        version = hdr['VERSION']
+        if version != 1:
+            raise ValueError(f'Error: unknown version {version} in header')
+        return Lenslet(hdr['N_LENSES'], target_device_idx=target_device_idx)
 
-        Restores a lenslet object from a file"""
+    @staticmethod
+    def restore(filename, target_device_idx=None):
+        hdr = fits.getheader(filename)
+        return Lenslet.from_header(hdr, target_device_idx=target_device_idx)
 
-        p = Lenslet()
-        p.read(filename, hdr={})
-        return p
 
 

@@ -1,69 +1,53 @@
+
 import numpy as np
 
-from specula import xp
 from specula import cpuArray
 
-import matplotlib.pyplot as plt
-
-from specula.base_processing_obj import BaseProcessingObj
+from specula.display.base_display import BaseDisplay
 from specula.connections import InputValue
 from specula.data_objects.electric_field import ElectricField
 
+class PhaseDisplay(BaseDisplay):
+    def __init__(self,
+                 title='Phase Display',
+                 figsize=(8, 6)):  # Default size in inches
+        super().__init__(
+            title=title,
+            figsize=figsize
+        )
 
-class PhaseDisplay(BaseProcessingObj):
-    def __init__(self, disp_factor=1, doImage=False, window=24, title='phase'):
-        super().__init__()
-
-        self._phase = None
-        self._doImage = doImage
-        self._window = window
-        self._disp_factor = disp_factor
-        self._title = title
-        self._opened = False
-        self._size_frame = (0, 0)
-        self._first = True
-        self._disp_factor = disp_factor
+        # Setup input
+        self.input_key = 'phase'  # Used by base class
         self.inputs['phase'] = InputValue(type=ElectricField)
 
-    def set_w(self, size_frame):
-        self.fig = plt.figure(self._window, figsize=(size_frame[0] * self._disp_factor / 100, size_frame[1] * self._disp_factor / 100))
-        self.ax = self.fig.add_subplot(111)
-#        plt.figure(self._window, figsize=(size_frame[0] * self._disp_factor / 100, size_frame[1] * self._disp_factor / 100))
-#        plt.title(self._title)
-
-    def trigger_code(self):
-        phase = self.local_inputs['phase']
-
+    def _process_phase_data(self, phase):
+        """Process phase data: mask and remove average"""
         frame = cpuArray(phase.phaseInNm * (phase.A > 0).astype(float))
-        idx = np.where(cpuArray(phase.A) > 0)[0]
-        frame[idx] -= np.mean(frame[idx])
 
-        if self._verbose:
-            print('removing average phase in phase_display')
+        # Get valid indices (where amplitude > 0)
+        valid_mask = cpuArray(phase.A) > 0
 
-        if np.sum(self._size_frame) == 0:
-            size_frame = frame.shape
-        else:
-            size_frame = self._size_frame
+        if np.any(valid_mask):
+            # Remove average phase only from valid pixels
+            frame[valid_mask] -= np.mean(frame[valid_mask])
 
-        if not self._opened:
-            self.set_w(size_frame)
-            self._opened = True
-        if self._first:
+            if self._verbose:
+                print('Removing average phase in phase_display')
+
+        return frame
+
+    def _reset_elements(self):
+        """Reset phase-specific elements"""
+        self.img = None
+        self._colorbar_added = False
+
+    def _update_display(self, phase):
+        frame = self._process_phase_data(phase)
+
+        if self.img is None:
             self.img = self.ax.imshow(frame)
-            self._first = False
+            self._add_colorbar_if_needed(self.img)
         else:
-            self.img.set_data(frame)
-            self.img.set_clim(frame.min(), frame.max())
-        self.fig.canvas.draw()
-        plt.pause(0.001)
+            self._update_image_data(self.img, frame)
 
-        # plt.figure(self._window)
-
-        # if self._doImage:
-        #     plt.imshow(frame, aspect='auto')
-        # else:
-        #     plt.imshow(np.repeat(np.repeat(frame, self._disp_factor, axis=0), self._disp_factor, axis=1), cmap='gray')
-        # plt.draw()
-        # plt.pause(0.01)
-
+        self._safe_draw()

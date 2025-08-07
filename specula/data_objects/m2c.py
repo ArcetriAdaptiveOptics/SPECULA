@@ -19,6 +19,21 @@ class M2C(BaseDataObj):
             self.set_nmodes(nmodes)
         self.norm_factor = norm_factor
 
+    def get_value(self):
+        '''
+        Get the m2c matrix field as a numpy/cupy array
+        '''
+        return self.m2c
+
+    def set_value(self, v, force_copy=True):
+        '''
+        Set new values for the m2c matrix field    
+        Arrays are not reallocated
+        '''
+        assert v.shape == self.m2c.shape, \
+            f"Error: input array shape {v.shape} does not match m2c shape {self.m2c.shape}"
+        self.m2c[:]= self.to_xp(v, dtype=self.dtype, force_copy=force_copy)
+
     @property
     def nmodes(self):
         return self.m2c.shape[1]
@@ -48,10 +63,18 @@ class M2C(BaseDataObj):
         else:
             self.m2c = self.m2c[:, start_mode:nmodes]
 
-    def save(self, filename):
-        """Saves the M2C to a file."""
+    @staticmethod
+    def from_header(self, hdr, target_device_idx=None):
+        raise NotImplementedError
+
+    def get_fits_header(self):
         hdr = fits.Header()
         hdr['VERSION'] = 1
+        return hdr
+
+    def save(self, filename):
+        """Saves the M2C to a file."""
+        hdr = self.get_fits_header()
         fits.writeto(filename, np.zeros(2), hdr)
         fits.append(filename, cpuArray(self.m2c))
 

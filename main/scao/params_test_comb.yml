@@ -50,19 +50,16 @@ test_disp1:
    class:            'ModesDisplay'
    inputs:
      modes:       "combinator.out_result_commands1"
-   window:           11
    title:            'test'
 
 test_disp2:
    class:            'ModesDisplay'
    inputs:
      modes:       "combinator.out_result_commands2"
-   window:           12
    title:            'test'
 
 test_disp3:
    class:            'ModesDisplay'
    inputs:
      modes:       "combinator.out_result_commands3"
-   window:           13
    title:            'test'

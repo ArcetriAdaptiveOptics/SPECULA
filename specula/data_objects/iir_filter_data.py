@@ -409,6 +409,18 @@ class IirFilterData(BaseDataObj):
         # TODO
         raise NotImplementedError()
 
+    def get_value(self):
+        # TODO
+        raise NotImplementedError()
+    
+    def set_value(self, v, force_copy=False):
+        # TODO
+        raise NotImplementedError()
+
+    @staticmethod
+    def from_header(hdr):
+        raise NotImplementedError
+
     def discrete_delay_tf(self, delay):
         """Generate transfer function for discrete delay.
         

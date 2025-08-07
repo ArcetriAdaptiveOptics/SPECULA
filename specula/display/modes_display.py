@@ -1,41 +1,71 @@
-import matplotlib.pyplot as plt
+import numpy as np
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.display.base_display import BaseDisplay
 from specula.connections import InputValue
 from specula.base_value import BaseValue
 
 
-class ModesDisplay(BaseProcessingObj):
-    def __init__(self, wsize=(600, 300), window=22, yrange=(-500, 500), oplot=False, color=1, title=''):
-        super().__init__(target_device_idx=-1)
+class ModesDisplay(BaseDisplay):
+    def __init__(self, 
+                 title='Modes Display',
+                 figsize=(6, 3),
+                 yrange=(-500, 500)):
 
-        self._wsize = wsize
-        self._window = window
+        super().__init__(
+            title=title,
+            figsize=figsize
+        )
+
         self._yrange = yrange
-        self._oplot = oplot
-        self._color = color
-        self._title = title
-        self._opened = False
-        self._first = True
+        self.line = None
+
+        # Setup input
+        self.input_key = 'modes' # Used by base class
         self.inputs['modes'] = InputValue(type=BaseValue)
 
-    def set_w(self):
-        plt.figure(self._window, figsize=(self._wsize[0] / 100, self._wsize[1] / 100))
-        plt.title(self._title if self._title != '' else 'modes')
+    def _update_display(self, modes):
+        """Override base method to implement modes-specific display"""
+        # Get the modes vector
+        y = modes.value
+        x = np.arange(len(y))
 
-    def trigger_code(self):
-        m = self.local_inputs['modes']
-        if not self._opened and not self._oplot:
-            self.set_w()
-            self._opened = True
+        if self.line is None:
+            # First time: create line
+            self.line = self.ax.plot(x, y, '.-')[0]
 
-        plt.figure(self._window)
-        if self._first:
-            self._line = plt.plot(m.value, '.-')
-            plt.title(self._title)
-            plt.ylim(self._yrange)
-            self._first = False
+            # Set fixed Y range if specified
+            if np.sum(np.abs(self._yrange)) > 0:
+                self.ax.set_ylim(self._yrange[0], self._yrange[1])
+            else:
+                # Auto-scale based on data
+                self.ax.set_ylim(y.min() * 1.1, y.max() * 1.1)
+
+            # Add reference line at y=0
+            self.ax.axhline(y=0, color='grey', linestyle='--',
+                          dashes=(4, 8), linewidth=0.5, alpha=0.7)
+
+            # Set labels
+            self.ax.set_xlabel('Mode Index')
+            self.ax.set_ylabel('Mode Value')
         else:
-            self._line[0].set_ydata(m.value)
-        plt.draw()
-        plt.pause(0.01)
+            # Update existing line
+            self.line.set_xdata(x)
+            self.line.set_ydata(y)
+
+            # Update X limits if vector size changed
+            if len(x) > 0:
+                self.ax.set_xlim(0, len(x) - 1)
+
+            # Update Y limits if auto-scaling
+            if np.sum(np.abs(self._yrange)) == 0:
+                self.ax.set_ylim(y.min() * 1.1, y.max() * 1.1)
+
+        # Draw efficiently
+        self._safe_draw()
+
+    def set_y_range(self, ymin, ymax):
+        """Set fixed Y axis range"""
+        self._yrange = (ymin, ymax)
+        if self.line is not None:
+            self.ax.set_ylim(ymin, ymax)
+            self._safe_draw()
