@@ -67,11 +67,3 @@ class PsfDisplay(BaseDisplay):
     def set_p2v_threshold(self, p2v_value: float):
         """Set P2V threshold value"""
         self._image_p2v = p2v_value
-
-    def get_display_info(self):
-        """Get current display configuration"""
-        return {
-            'log_scale': self._log_scale,
-            'p2v_threshold': self._image_p2v,
-            'title': self._title
-        }
