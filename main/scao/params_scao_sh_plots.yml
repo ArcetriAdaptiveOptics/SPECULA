@@ -23,7 +23,7 @@ wind_speed:
 
 wind_direction:
   class:             'WaveGenerator'
-  constant:          [0.]#,270.,270.,90.]   # [degrees] Wind direction value
+  constant:          [0.] #,270.,270.,90.]   # [degrees] Wind direction value
   outputs: ['output']
 
 
@@ -194,8 +194,6 @@ pixels_disp:
   window:           15
   title:            "Pixels"
   figsize:       [8, 6]  # Default size in inches
-  #sh_as_pyr:        false
-  #subapdata_object:  'scao_subaps_n20_th0.5'
 
 data_store:
   class:             'DataStore'

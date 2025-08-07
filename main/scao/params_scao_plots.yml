@@ -165,7 +165,7 @@ sc_disp:
   class:            'SlopecDisplay'
   inputs:
     slopes:       'slopec.out_slopes'
-  disp_factor:      4
+  figsize:       [8, 6]  # Default size in inches
 sr_disp:
   class:            'PlotDisplay'
   inputs:

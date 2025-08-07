@@ -70,18 +70,29 @@ class PlotDisplay(BaseDisplay):
         for i in range(nValues):
             v = data_list[i]
 
+            # Extract scalar value from potentially array-like value
+            if hasattr(v.value, 'item'):
+                # For numpy arrays, use .item() to extract scalar
+                scalar_value = v.value.item()
+            elif hasattr(v.value, '__len__') and len(v.value) == 1:
+                # For single-element sequences
+                scalar_value = v.value[0]
+            else:
+                # Already a scalar
+                scalar_value = v.value
+
             # Store new value in history
             if self._history.ndim == 1:
-                self._history[self._count] = v.value
+                self._history[self._count] = scalar_value
                 y = self._history[:self._count + 1]
             else:
-                self._history[self._count, i] = v.value
+                self._history[self._count, i] = scalar_value
                 y = self._history[:self._count + 1, i]
 
             if self.lines is None:
                 # First time: create lines list and reference line
                 self.lines = []
-                self.ax.axhline(y=0, color='grey', linestyle='--', 
+                self.ax.axhline(y=0, color='grey', linestyle='--',
                               dashes=(4, 8), linewidth=0.5, alpha=0.7)
 
             # Create or update line
@@ -103,11 +114,12 @@ class PlotDisplay(BaseDisplay):
 
         # Update axes limits
         if len(self.lines) > 0:
-            self.ax.set_xlim(min(xmin), max(xmax))
+            if xmin != xmax:
+                self.ax.set_xlim(min(xmin), max(xmax))
 
             if np.sum(np.abs(self._yrange)) > 0:
                 self.ax.set_ylim(self._yrange[0], self._yrange[1])
-            else:
+            elif ymin != ymax:
                 self.ax.set_ylim(min(ymin), max(ymax))
 
         self._safe_draw()

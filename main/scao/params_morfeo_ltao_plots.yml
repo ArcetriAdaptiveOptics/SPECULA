@@ -375,14 +375,14 @@ psf:
 #  inputs:
 #    slopes:       'slopec1.out_slopes'
 #    subapdata:    'slopec1.out_subapdata'
-#  disp_factor:      1
+#    figsize:       [8, 6]  # Default size in inches
 
 # sc3_disp:
 #  class:            'SlopecDisplay'
 #  inputs:
 #    slopes:       'slopec3.out_slopes'
 #    subapdata:    'slopec3.out_subapdata'
-#  disp_factor:      1
+#  figsize:       [8, 6]  # Default size in inches
 #  window:           12
 
 # psf_disp:
@@ -391,7 +391,7 @@ psf:
 #    psf:       "psf.out_psf"
 #  window:           14
 #  title:            'PSF'
-#  disp_factor:      1
+#  figsize:       [8, 6]  # Default size in inches
 
 sr_disp:
   class:            'PlotDisplay'
@@ -406,7 +406,7 @@ sr_disp:
 #     phase:       "dm.out_layer"
 #   window:           13
 #   title:            'DM'
-#   disp_factor:      2
+#   figsize:       [8, 6]  # Default size in inches
 
 # ph1_disp:
 #   class:            'PhaseDisplay'
@@ -414,7 +414,7 @@ sr_disp:
 #     phase:       "prop.out_on_axis_source_ef"
 #   window:           15
 #   title:            'PHASE ON AXIS'
-#   disp_factor:      2
+#   figsize:       [8, 6]  # Default size in inches
 
 # ph2_disp:
 #   class:            'PhaseDisplay'
@@ -422,7 +422,7 @@ sr_disp:
 #     phase:       "prop.out_ngs1_source_ef"
 #   window:           14
 #   title:            'PHASE OFF AXIS'
-#   disp_factor:      2
+#   figsize:       [8, 6]  # Default size in inches
 
 # cmd_disp:
 #   class:            'ModesDisplay'

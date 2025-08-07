@@ -93,7 +93,7 @@ ph_disp:
     phase:       "atmo.out_on_axis_source_ef"
   window:           12
   title:            'PUPIL PHASE'
-  disp_factor:      2
+  figsize:       [8, 6]  # Default size in inches
 
 
 test_disp:
@@ -109,7 +109,7 @@ test_disp:
 #     slopes:       'slopec.out_slopes'
 #     pupdata:      'slopec.out_pupdata'
 #   window:           16
-#   disp_factor:      4
+#   figsize:       [8, 6]  # Default size in inches
 
 
 data_store:

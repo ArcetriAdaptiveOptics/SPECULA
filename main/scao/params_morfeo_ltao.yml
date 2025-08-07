@@ -391,7 +391,7 @@ psf:
 #  inputs:
 #    slopes:       'slopec1.out_slopes'
 #    subapdata:    'slopec1.out_subapdata'
-#  disp_factor:      1
+#  figsize:       [8, 6]  # Default size in inches
 
 # sr_disp:
 #   class:            'PlotDisplay'
@@ -407,9 +407,7 @@ psf:
 #     pixels:      "detector1.out_pixels"
 #   window:           25
 #   title:            "Pixels"
-#   disp_factor:      1
-#   subapdata_object:  'morfeo_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.25'
-#  sh_as_pyr:        true
+#   figsize:       [8, 6]  # Default size in inches
 
 
 # psf_disp:
@@ -418,7 +416,7 @@ psf:
 #    psf:       "psf.out_psf"
 #  window:           14
 #  title:            'PSF'
-#  disp_factor:      1
+#  figsize:       [8, 6]  # Default size in inches
 
 
 
@@ -435,7 +433,7 @@ psf:
 #     phase:       "dm.out_layer"
 #   window:           13
 #   title:            'DM'
-#   disp_factor:      2
+#   figsize:       [8, 6]  # Default size in inches
 
 # ph1_disp:
 #   class:            'PhaseDisplay'
@@ -443,5 +441,5 @@ psf:
 #     phase:       "prop.out_on_axis_source_ef"
 #   window:           15
 #   title:            'PHASE ON AXIS'
-#   disp_factor:      2
+#   figsize:       [8, 6]  # Default size in inches
 

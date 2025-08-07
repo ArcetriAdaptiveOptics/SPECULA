@@ -44,7 +44,7 @@ class ModesDisplay(BaseDisplay):
                 self.ax.set_ylim(y.min() * 1.1, y.max() * 1.1)
 
             # Add reference line at y=0
-            self.ax.axhline(y=0, color='grey', linestyle='--', 
+            self.ax.axhline(y=0, color='grey', linestyle='--',
                           dashes=(4, 8), linewidth=0.5, alpha=0.7)
 
             # Set labels
