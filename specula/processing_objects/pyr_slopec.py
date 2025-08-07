@@ -53,7 +53,6 @@ class PyrSlopec(Slopec):
         self.norm_factor = norm_factor
         self.threshold = thr_value
         self.slopes_from_intensity = slopes_from_intensity
-        self.pupdata = pupdata  # Property set
         if self.slopes_from_intensity:
             self.pupdata.set_slopes_from_intensity(slopes_from_intensity)
         ind_pup = self.pupdata.ind_pup
