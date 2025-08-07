@@ -9,12 +9,10 @@ from specula.data_objects.slopes import Slopes
 
 class SlopecDisplay(BaseDisplay):
     def __init__(self,
-                 window=None,
                  title='Slopes Display',
                  figsize=(6, 6)):
 
         super().__init__(
-            window=window,
             title=title,
             figsize=figsize
         )

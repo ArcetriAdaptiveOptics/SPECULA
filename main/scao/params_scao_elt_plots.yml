@@ -149,34 +149,29 @@ sr_disp:
   class:            'PlotDisplay'
   inputs:
     value:       'psf.out_sr'
-  window:           11
   title:            'SR'
 ph_disp:
   class:            'PhaseDisplay'
   inputs:
     phase:       "prop.out_on_axis_source_ef"
-  window:           12
   title:            'PUPIL PHASE'
   figsize:       [8, 6]  # Default size in inches
 dm_disp:
   class:            'PhaseDisplay'
   inputs:
     phase:       "dm.out_layer"
-  window:           13
   title:            'DM'
   figsize:       [8, 6]  # Default size in inches
 psf_disp:
   class:            'PsfDisplay'
   inputs:
     psf:       "psf.out_psf"
-  window:           14
   title:            'PSF'
   figsize:       [8, 6]  # Default size in inches
 test_disp:
   class:            'ModesDisplay'
   inputs:
     modes:       "rec.out_modes"
-  window:           15
   title:            'test'
 
 

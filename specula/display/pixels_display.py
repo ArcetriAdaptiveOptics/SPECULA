@@ -12,8 +12,7 @@ from specula.data_objects.subap_data import SubapData
 
 
 class PixelsDisplay(BaseDisplay):
-    def __init__(self, 
-                 window=None, 
+    def __init__(self,
                  title='Pixels Display',
                  figsize=(6, 6),
                  sh_as_pyr=False, 
@@ -21,7 +20,6 @@ class PixelsDisplay(BaseDisplay):
                  log_scale=False):
 
         super().__init__(
-            window=window,
             title=title,
             figsize=figsize
         )

@@ -13,22 +13,20 @@ from symao.turbolence import ft_ft2
 
 class DoublePhaseDisplay(BaseDisplay):
     def __init__(self,
-                 window=None,
                  title='Double Phase Display',
                  figsize=(12, 3)):  # 4 subplots side by side
-        
+
         super().__init__(
-            window=window,
             title=title,
             figsize=figsize
         )
-        
+
         self.img1 = None
         self.img2 = None
         self.nframes = 0
         self.psd_statTot1 = None
         self.psd_statTot2 = None
-        
+
         # Setup inputs - two phase inputs
         self.inputs['phase1'] = InputValue(type=ElectricField)
         self.inputs['phase2'] = InputValue(type=ElectricField)
@@ -48,17 +46,17 @@ class DoublePhaseDisplay(BaseDisplay):
     def _process_phase_data(self, phase):
         """Process phase data: mask and remove average"""
         frame = cpuArray(phase.phaseInNm * (phase.A > 0).astype(float))
-        
+
         # Get valid indices (where amplitude > 0)
         valid_mask = cpuArray(phase.A) > 0
-        
+
         if np.any(valid_mask):
             # Remove average phase only from valid pixels
             frame[valid_mask] -= np.mean(frame[valid_mask])
-            
+
             if self._verbose:
                 print('Removing average phase in double_phase_display')
-        
+
         return frame
 
     def _calculate_psd(self, frame):
@@ -69,10 +67,10 @@ class DoublePhaseDisplay(BaseDisplay):
         """Get both phases - this signals BaseDisplay to use special logic"""
         phase1 = self.local_inputs.get('phase1')
         phase2 = self.local_inputs.get('phase2')
-        
+
         if phase1 is None or phase2 is None:
             return []  # BaseDisplay will show error
-        
+
         return [phase1, phase2]
 
     def _update_display(self, data_list):
@@ -80,9 +78,9 @@ class DoublePhaseDisplay(BaseDisplay):
         if len(data_list) != 2:
             self._show_error("Need both phase1 and phase2 inputs")
             return
-            
+
         phase1, phase2 = data_list
-        
+
         # Process both phases
         frame1 = self._process_phase_data(phase1)
         frame2 = self._process_phase_data(phase2)
@@ -131,13 +129,13 @@ class DoublePhaseDisplay(BaseDisplay):
         # Clear and update PSD plots
         self.ax3.clear()
         self.ax4.clear()
-        
+
         # Plot instantaneous PSDs with low alpha
         self.ax3.loglog(psd_stat1[ss//2, ss//2+1:], alpha=0.025, color='r', label='Phase 1')
         self.ax3.loglog(psd_stat2[ss//2, ss//2+1:], alpha=0.025, color='b', label='Phase 2')
         self.ax3.set_title('PSD Instantaneous')
         self.ax3.legend()
-        
+
         # Plot averaged PSDs
         self.ax4.loglog(self.psd_statTot1[ss//2, ss//2+1:], color='r', label='Phase 1')
         self.ax4.loglog(self.psd_statTot2[ss//2, ss//2+1:], color='b', label='Phase 2')
@@ -156,17 +154,3 @@ class DoublePhaseDisplay(BaseDisplay):
             self._update_display()
         except Exception as e:
             self._show_error(f"Double phase display error: {str(e)}")
-
-    def reset_statistics(self):
-        """Reset PSD statistics"""
-        self.nframes = 0
-        self.psd_statTot1 = None
-        self.psd_statTot2 = None
-
-    def get_statistics(self):
-        """Get current statistics"""
-        return {
-            'nframes': self.nframes,
-            'psd_avg1': self.psd_statTot1,
-            'psd_avg2': self.psd_statTot2
-        }

@@ -73,7 +73,6 @@ rec_calibrator:
 #  class:            'PixelsDisplay'
 #  inputs:
 #    pixels:      "detector1.out_pixels"
-#  window:           15
 #  title:            "Pixels"
 #  figsize:       [8, 6]  # Default size in inches
 

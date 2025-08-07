@@ -8,15 +8,13 @@ from specula.base_value import BaseValue
 
 
 class PlotDisplay(BaseDisplay):
-    def __init__(self, 
-                 window=None,
+    def __init__(self,
                  title='Plot Display',
                  figsize=(8, 6),
                  histlen=200,
                  yrange=(0, 0)):
 
         super().__init__(
-            window=window,
             title=title,
             figsize=figsize
         )

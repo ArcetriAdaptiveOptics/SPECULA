@@ -4,11 +4,9 @@ import matplotlib.pyplot as plt
 
 class BaseDisplay(BaseProcessingObj):
     def __init__(self,
-                 window=None,
                  title='',
                  figsize=(8, 6)):
         super().__init__()
-        self._window = window or self._get_next_window_id()
         self._title = title
         self._figsize = figsize
         self._opened = False
@@ -19,19 +17,12 @@ class BaseDisplay(BaseProcessingObj):
         self.img = None
         self.line = None
 
-    @staticmethod
-    def _get_next_window_id():
-        if not hasattr(BaseDisplay, '_window_counter'):
-            BaseDisplay._window_counter = 1
-        BaseDisplay._window_counter += 1
-        return BaseDisplay._window_counter
-
     def _create_figure(self):
         """Create the matplotlib figure and axes"""
         if self._opened:
             return
 
-        self.fig = plt.figure(self._window, figsize=self._figsize)
+        self.fig = plt.figure(figsize=self._figsize)
         self.ax = self.fig.add_subplot(111)
         if self._title:
             self.fig.suptitle(self._title)

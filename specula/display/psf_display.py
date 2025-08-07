@@ -10,15 +10,13 @@ from specula.base_value import BaseValue
 
 
 class PsfDisplay(BaseDisplay):
-    def __init__(self, 
-                 window=None, 
+    def __init__(self,
                  title='PSF Display',
                  figsize=(6, 6),
                  log_scale=False,
                  image_p2v=0.0):
 
         super().__init__(
-            window=window,
             title=title,
             figsize=figsize
         )
@@ -75,6 +73,5 @@ class PsfDisplay(BaseDisplay):
         return {
             'log_scale': self._log_scale,
             'p2v_threshold': self._image_p2v,
-            'window': self._window,
             'title': self._title
         }

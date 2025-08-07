@@ -55,7 +55,6 @@ pixels_disp:
   class:            'PixelsDisplay'
   inputs:
     pixels:      "detector.out_pixels"
-  window:           15
   title:            "Pixels"
   figsize:       [8, 6]  # Default size in inches
 

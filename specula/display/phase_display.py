@@ -11,11 +11,9 @@ from specula.data_objects.electric_field import ElectricField
 
 class PhaseDisplay(BaseDisplay):
     def __init__(self,
-                 window=None, 
                  title='Phase Display',
                  figsize=(8, 6)):  # Default size in inches
         super().__init__(
-            window=window,
             title=title,
             figsize=figsize
         )

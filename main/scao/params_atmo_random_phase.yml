@@ -91,7 +91,6 @@ ph_disp:
   class:         'PhaseDisplay'
   inputs:
     phase:       "atmo.out_on_axis_source_ef"
-  window:           12
   title:            'PUPIL PHASE'
   figsize:       [8, 6]  # Default size in inches
 
@@ -100,7 +99,6 @@ test_disp:
    class:            'ModesDisplay'
    inputs:
      modes:       "modal_analysis.out_modes"
-   window:           15
    title:            'test'
 
 #sc_disp:
@@ -108,7 +106,6 @@ test_disp:
 #   inputs:
 #     slopes:       'slopec.out_slopes'
 #     pupdata:      'slopec.out_pupdata'
-#   window:           16
 #   figsize:       [8, 6]  # Default size in inches
 
 

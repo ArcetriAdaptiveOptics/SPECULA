@@ -8,13 +8,11 @@ from specula.base_value import BaseValue
 
 class ModesDisplay(BaseDisplay):
     def __init__(self, 
-                 window=None,
                  title='Modes Display',
                  figsize=(6, 3),
                  yrange=(-500, 500)):
 
         super().__init__(
-            window=window,
             title=title,
             figsize=figsize
         )
