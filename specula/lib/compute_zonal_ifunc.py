@@ -13,7 +13,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom=False, an
         mask, idx = make_mask(dim, obsratio, diaratio, get_idx=True, xp=xp)
     else:
         mask = mask.astype(float)
-        idx = xp.where(mask)[0]
+        idx = xp.where(mask)#[0] # bug for custom mask from idx comparison in make_mask
 
     step = float(dim) / float(n_act)
 

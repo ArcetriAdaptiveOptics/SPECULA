@@ -41,6 +41,8 @@ class DM(BaseProcessingObj):
                            nmodes=nmodes, start_mode=start_mode, idx_modes=idx_modes,
                            target_device_idx=target_device_idx, precision=precision)
         self._ifunc = ifunc
+        #andrebbe commentata perche se no gli zernike non funzionano
+        self._ifunc.influence_function=self._ifunc.influence_function.T
         #print(f'{self._ifunc.influence_function.shape=}')
         
         s = self._ifunc.mask_inf_func.shape
@@ -73,11 +75,11 @@ class DM(BaseProcessingObj):
             cmd = input_commands
             
         self.if_commands[:len(cmd)] = self.sign * cmd
-        # print(f'{self.if_commands.shape=}')
-        # print(f'{self._ifunc.influence_function.shape=}')
-        # print(f'{self._ifunc.idx_inf_func[0].shape=}')
-        # print(f'{self._ifunc.idx_inf_func[1].shape=}')
-        # print(f'{self.layer.phaseInNm.shape=}')
+        print(f'{self.if_commands.shape=}')
+        print(f'{self._ifunc.influence_function.shape=}')
+        print(f'{self._ifunc.idx_inf_func[0].shape=}')
+        print(f'{self._ifunc.idx_inf_func[1].shape=}')
+        print(f'{self.layer.phaseInNm.shape=}')
         #self.layer.phaseInNm[self._ifunc.idx_inf_func] = np.dot(self.if_commands, self._ifunc.influence_function)
         self.layer.phaseInNm[self._ifunc.idx_inf_func] = self.if_commands @ self._ifunc.influence_function
         self.layer.generation_time = self.current_time

@@ -61,4 +61,5 @@ def modal_pushpull_signal(n_modes, amplitude=None, vect_amplitude=None,
                 for j in range(ncycles):
                     time_hist[2*(ncycles*i+j):2*(ncycles*i+j)+2,i] = xp.array([vect_amplitude[i],-vect_amplitude[i]])
 
+    time_hist = xp.vstack((time_hist, time_hist))
     return time_hist
