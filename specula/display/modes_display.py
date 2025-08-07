@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 
 from specula.display.base_display import BaseDisplay
 from specula.connections import InputValue
@@ -21,7 +20,7 @@ class ModesDisplay(BaseDisplay):
         self.line = None
 
         # Setup input
-        self.input_key = 'modes'
+        self.input_key = 'modes' # Used by base class
         self.inputs['modes'] = InputValue(type=BaseValue)
 
     def _update_display(self, modes):

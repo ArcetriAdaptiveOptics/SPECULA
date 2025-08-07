@@ -1,7 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from specula import xp
 from specula.display.base_display import BaseDisplay
 from specula.connections import InputValue, InputList
 from specula.base_value import BaseValue
@@ -25,14 +24,12 @@ class PlotDisplay(BaseDisplay):
         self._yrange = yrange
         self.lines = None
 
-        self.input_key = 'value'
-
         # Setup inputs - can handle both single value and list of values
         self.inputs['value'] = InputValue(type=BaseValue, optional=True)
         self.inputs['value_list'] = InputList(type=BaseValue, optional=True)
 
-    def _get_data_list(self):
-        """Get unified list of values - this signals BaseDisplay to use special logic"""
+    def _get_data(self):
+        """Get unified list of values"""
         if len(self.local_inputs['value_list']) > 0:
             return self.local_inputs['value_list']
         elif self.local_inputs['value'] is not None:

@@ -9,7 +9,7 @@ dataplotter_cache = {}
 
 class DataPlotter():
     '''
-    Plot any kind of data
+    Plot any kind of data in a memory backend
     '''
     def __init__(self, disp_factor=1, histlen=200, wsize=(400, 300), yrange=(-10, 10), title=''):
         super().__init__()
