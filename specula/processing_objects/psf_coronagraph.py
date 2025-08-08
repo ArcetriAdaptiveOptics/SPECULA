@@ -52,8 +52,8 @@ class PsfCoronagraph(PSF):
         A_pc(ρ, t) = A(ρ, t) - √SR(t) * A_dl(ρ, t)
         
         Where:
-        - A(ρ, t) is the complex amplitude with phase and amplitude
-        - A_dl(ρ, t) is the diffraction-limited reference amplitude
+        - A(ρ, t) is the FFT transform of the complex amplitude with phase and amplitude
+        - A_dl(ρ, t) is the FFT transform of the diffraction-limited reference amplitude
         - SR(t) is the instantaneous Strehl Ratio
         
         Parameters:
@@ -82,7 +82,8 @@ class PsfCoronagraph(PSF):
             sr_instant = 0.0
   
         # Perfect coronagraph subtraction
-        coronagraph_amplitude = current_amplitude - self.xp.sqrt(sr_instant) * ref_amp
+        #coronagraph_amplitude = current_amplitude - self.xp.sqrt(sr_instant) * ref_amp
+        coronagraph_amplitude = self.xp.fft.fft2(current_amplitude) - self.xp.sqrt(sr_instant) * self.xp.fft.fft2(ref_amp)
 
         return coronagraph_amplitude
 
@@ -111,23 +112,38 @@ class PsfCoronagraph(PSF):
         # Get coronagraph complex amplitude
         coronagraph_amplitude = self.calc_perfect_coronagraph_amplitude(phase, amp, ref_amp)
 
-        # Set up the complex array for FFT
-        if imwidth is not None:
-            u_ef = self.xp.zeros((imwidth, imwidth), dtype=self.complex_dtype)
-            s = coronagraph_amplitude.shape
-            u_ef[:s[0], :s[1]] = coronagraph_amplitude
-        else:
-            u_ef = coronagraph_amplitude
+        # # Set up the complex array for FFT
+        # if imwidth is not None:
+        #     u_ef = self.xp.zeros((imwidth, imwidth), dtype=self.complex_dtype)
+        #     s = coronagraph_amplitude.shape
+        #     u_ef[:s[0], :s[1]] = coronagraph_amplitude
+        # else:
+        #     u_ef = coronagraph_amplitude
 
-        # Compute FFT
-        u_fp = self.xp.fft.fft2(u_ef)
+        # # Compute FFT
+        # u_fp = self.xp.fft.fft2(u_ef)
 
+        # # Center if required
+        # if not nocenter:
+        #     u_fp = self.xp.fft.fftshift(u_fp)
+
+        # # Calculate PSF as intensity
+        # coronagraph_psf = psf_abs2(u_fp, xp=self.xp)
+
+        # # Normalize if required
+        # if normalize:
+        #     total = self.xp.sum(coronagraph_psf)
+        #     if total > 0:
+        #         coronagraph_psf /= total
+
+        # return coronagraph_psf
+    
         # Center if required
         if not nocenter:
-            u_fp = self.xp.fft.fftshift(u_fp)
+            coronagraph_amplitude = self.xp.fft.fftshift(coronagraph_amplitude)
 
-        # Calculate PSF as intensity
-        coronagraph_psf = psf_abs2(u_fp, xp=self.xp)
+        # Calculate PSF as intensity directly from coronagraph amplitude
+        coronagraph_psf = psf_abs2(coronagraph_amplitude, xp=self.xp)
 
         # Normalize if required
         if normalize:
