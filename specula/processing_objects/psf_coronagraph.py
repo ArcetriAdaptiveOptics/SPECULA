@@ -94,6 +94,8 @@ class PsfCoronagraph(PSF):
         else:
             sr_instant = 0.0
 
+        print(f'Instantaneous Strehl Ratio: {sr_instant:.6f}', flush=True)
+
         # Perfect coronagraph subtraction
         coronagraph_amplitude = self.xp.fft.fft2(u_ef) - self.xp.sqrt(sr_instant) * self.xp.fft.fft2(u_ref)
 
@@ -122,7 +124,8 @@ class PsfCoronagraph(PSF):
             2D coronagraph PSF
         """
         # Get coronagraph complex amplitude
-        coronagraph_amplitude = self.calc_perfect_coronagraph_amplitude(phase, amp, ref_amp, imwidth=imwidth)
+        coronagraph_amplitude = self.calc_perfect_coronagraph_amplitude(phase, amp, amp, imwidth=imwidth)
+        #coronagraph_amplitude = self.calc_perfect_coronagraph_amplitude(phase, amp, ref_amp, imwidth=imwidth)
 
         # Center if required
         if not nocenter:
@@ -144,11 +147,11 @@ class PsfCoronagraph(PSF):
 
         in_ef = self.local_inputs['in_ef']
 
-        # Calculate reference diffraction-limited complex amplitude (first time only)
-        if self.ref_complex_amplitude is None:
-            # Create perfect amplitude (no phase errors)
-            perfect_phase = self.xp.zeros_like(in_ef.A)
-            self.ref_complex_amplitude = in_ef.A * self.xp.exp(1j * perfect_phase, dtype=self.complex_dtype)
+        # # Calculate reference diffraction-limited complex amplitude (first time only)
+        # if self.ref_complex_amplitude is None and in_ef.phaseInNm.sum() > 0:
+        #     # Create perfect amplitude (no phase errors)
+        #     perfect_phase = self.xp.zeros_like(in_ef.A)
+        #     self.ref_complex_amplitude = in_ef.A * self.xp.exp(1j * perfect_phase, dtype=self.complex_dtype)
 
     def trigger_code(self):
         # Call parent trigger_code for standard PSF calculation
