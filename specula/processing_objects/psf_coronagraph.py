@@ -73,17 +73,6 @@ class PsfCoronagraph(PSF):
         # Calculate current complex amplitude
         current_amplitude = amp * self.xp.exp(1j * phase, dtype=self.complex_dtype)
 
-        # Set up the complex arrays based on input dimensions and data type
-        if imwidth is not None:
-            u_ef = self.xp.zeros((imwidth, imwidth), dtype=self.complex_dtype)
-            u_ref = self.xp.zeros((imwidth, imwidth), dtype=self.complex_dtype)
-            s = current_amplitude.shape
-            u_ef[:s[0], :s[1]] = current_amplitude
-            u_ref[:s[0], :s[1]] = ref_amp
-        else:
-            u_ef = current_amplitude
-            u_ref = ref_amp
-
         # Calculate instantaneous Strehl Ratio
         # SR = |∫ A(ρ,t) * A_dl*(ρ) dρ|² / (∫ |A(ρ,t)|² dρ * ∫ |A_dl(ρ)|² dρ)
         numerator = self.xp.abs(self.xp.sum(current_amplitude * self.xp.conj(ref_amp)))**2
@@ -96,8 +85,38 @@ class PsfCoronagraph(PSF):
 
         print(f'Instantaneous Strehl Ratio: {sr_instant:.6f}', flush=True)
 
+        # Set up the complex arrays based on input dimensions and data type
+        if imwidth is not None:
+            u_ef = self.xp.zeros((imwidth, imwidth), dtype=self.complex_dtype)
+            u_ref = self.xp.zeros((imwidth, imwidth), dtype=self.complex_dtype)
+            s = current_amplitude.shape
+            u_ef[:s[0], :s[1]] = current_amplitude
+            u_ref[:s[0], :s[1]] = ref_amp
+        else:
+            u_ef = current_amplitude
+            u_ref = ref_amp
+
+        # Transform to focal plane
+        A_focal = self.xp.fft.fft2(u_ef)
+        A_ref_focal = self.xp.fft.fft2(u_ref)
+
         # Perfect coronagraph subtraction
-        coronagraph_amplitude = self.xp.fft.fft2(u_ef) - self.xp.sqrt(sr_instant) * self.xp.fft.fft2(u_ref)
+        coronagraph_amplitude = A_focal - self.xp.sqrt(sr_instant) * A_ref_focal
+
+        plot_debug = True  # Set to True to enable debugging plots
+        if plot_debug:
+            from specula import cpuArray
+            import matplotlib.pyplot as plt
+            from matplotlib.colors import LogNorm
+            plt.figure()
+            plt.subplot(121)
+            plt.imshow(cpuArray(psf_abs2(A_focal, xp=self.xp)), norm=LogNorm())
+            plt.title('Coronagraph Amplitude')
+            plt.colorbar()
+            plt.subplot(122)
+            plt.imshow(cpuArray(psf_abs2(A_ref_focal, xp=self.xp)), norm=LogNorm())
+            plt.title('Reference Amplitude')
+            plt.colorbar()
 
         return coronagraph_amplitude
 
