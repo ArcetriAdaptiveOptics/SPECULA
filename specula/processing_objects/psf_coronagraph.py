@@ -46,7 +46,7 @@ class PsfCoronagraph(PSF):
         # Initialize integrated coronagraph PSF
         self.int_coronagraph_psf.value = self.xp.zeros_like(self.int_psf.value)
 
-    def calc_perfect_coronagraph_amplitude(self, phase, amp, ref_amp):
+    def calc_perfect_coronagraph_amplitude(self, phase, amp, ref_amp, imwidth=None):
         """
         Calculate the perfect coronagraph complex amplitude according to:
         A_pc(ρ, t) = A(ρ, t) - √SR(t) * A_dl(ρ, t)
@@ -63,6 +63,8 @@ class PsfCoronagraph(PSF):
             2D amplitude array
         ref_amp : ndarray
             2D reference diffraction-limited amplitude
+        imwidth : int, optional
+            Width of output image
             
         Returns:
         coronagraph_amplitude : ndarray
@@ -70,6 +72,17 @@ class PsfCoronagraph(PSF):
         """
         # Calculate current complex amplitude
         current_amplitude = amp * self.xp.exp(1j * phase, dtype=self.complex_dtype)
+
+        # Set up the complex arrays based on input dimensions and data type
+        if imwidth is not None:
+            u_ef = self.xp.zeros((imwidth, imwidth), dtype=self.complex_dtype)
+            u_ref = self.xp.zeros((imwidth, imwidth), dtype=self.complex_dtype)
+            s = current_amplitude.shape
+            u_ef[:s[0], :s[1]] = current_amplitude
+            u_ref[:s[0], :s[1]] = ref_amp
+        else:
+            u_ef = current_amplitude
+            u_ref = ref_amp
 
         # Calculate instantaneous Strehl Ratio
         # SR = |∫ A(ρ,t) * A_dl*(ρ) dρ|² / (∫ |A(ρ,t)|² dρ * ∫ |A_dl(ρ)|² dρ)
@@ -80,10 +93,9 @@ class PsfCoronagraph(PSF):
             sr_instant = numerator / denominator
         else:
             sr_instant = 0.0
-  
+
         # Perfect coronagraph subtraction
-        #coronagraph_amplitude = current_amplitude - self.xp.sqrt(sr_instant) * ref_amp
-        coronagraph_amplitude = self.xp.fft.fft2(current_amplitude) - self.xp.sqrt(sr_instant) * self.xp.fft.fft2(ref_amp)
+        coronagraph_amplitude = self.xp.fft.fft2(u_ef) - self.xp.sqrt(sr_instant) * self.xp.fft.fft2(u_ref)
 
         return coronagraph_amplitude
 
@@ -110,34 +122,8 @@ class PsfCoronagraph(PSF):
             2D coronagraph PSF
         """
         # Get coronagraph complex amplitude
-        coronagraph_amplitude = self.calc_perfect_coronagraph_amplitude(phase, amp, ref_amp)
+        coronagraph_amplitude = self.calc_perfect_coronagraph_amplitude(phase, amp, ref_amp, imwidth=imwidth)
 
-        # # Set up the complex array for FFT
-        # if imwidth is not None:
-        #     u_ef = self.xp.zeros((imwidth, imwidth), dtype=self.complex_dtype)
-        #     s = coronagraph_amplitude.shape
-        #     u_ef[:s[0], :s[1]] = coronagraph_amplitude
-        # else:
-        #     u_ef = coronagraph_amplitude
-
-        # # Compute FFT
-        # u_fp = self.xp.fft.fft2(u_ef)
-
-        # # Center if required
-        # if not nocenter:
-        #     u_fp = self.xp.fft.fftshift(u_fp)
-
-        # # Calculate PSF as intensity
-        # coronagraph_psf = psf_abs2(u_fp, xp=self.xp)
-
-        # # Normalize if required
-        # if normalize:
-        #     total = self.xp.sum(coronagraph_psf)
-        #     if total > 0:
-        #         coronagraph_psf /= total
-
-        # return coronagraph_psf
-    
         # Center if required
         if not nocenter:
             coronagraph_amplitude = self.xp.fft.fftshift(coronagraph_amplitude)
