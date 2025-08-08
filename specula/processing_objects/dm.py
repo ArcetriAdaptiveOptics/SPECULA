@@ -41,8 +41,10 @@ class DM(BaseProcessingObj):
                            nmodes=nmodes, start_mode=start_mode, idx_modes=idx_modes,
                            target_device_idx=target_device_idx, precision=precision)
         self._ifunc = ifunc
-        #andrebbe commentata perche se no gli zernike non funzionano
-        self._ifunc.influence_function=self._ifunc.influence_function.T
+        #added by idi92 to temorarly overcame ifs matrix dimensioning issues
+        #idealy  self._ifunc.influence_function.shape  == (Nmodes_or_act, Nvalid_puppoints)
+        if self._ifunc.influence_function.shape[0] > self._ifunc.influence_function.shape[1]:
+            self._ifunc.influence_function=self._ifunc.influence_function.T
         #print(f'{self._ifunc.influence_function.shape=}')
         
         s = self._ifunc.mask_inf_func.shape
