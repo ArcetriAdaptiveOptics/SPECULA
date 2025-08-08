@@ -4,8 +4,6 @@ from specula.processing_objects.psf import PSF
 from specula.base_value import BaseValue
 from specula.data_objects.simul_params import SimulParams
 
-import numpy as np
-
 
 @fuse(kernel_name='psf_abs2')
 def psf_abs2(v, xp):
@@ -46,95 +44,16 @@ class PsfCoronagraph(PSF):
         # Initialize integrated coronagraph PSF
         self.int_coronagraph_psf.value = self.xp.zeros_like(self.int_psf.value)
 
-    def calc_perfect_coronagraph_amplitude(self, phase, amp, ref_amp, imwidth=None):
-        """
-        Calculate the perfect coronagraph complex amplitude according to:
-        A_pc(ρ, t) = A(ρ, t) - √SR(t) * A_dl(ρ, t)
-        
-        Where:
-        - A(ρ, t) is the FFT transform of the complex amplitude with phase and amplitude
-        - A_dl(ρ, t) is the FFT transform of the diffraction-limited reference amplitude
-        - SR(t) is the instantaneous Strehl Ratio
-        
-        Parameters:
-        phase : ndarray
-            2D phase array
-        amp : ndarray  
-            2D amplitude array
-        ref_amp : ndarray
-            2D reference diffraction-limited amplitude
-        imwidth : int, optional
-            Width of output image
-            
-        Returns:
-        coronagraph_amplitude : ndarray
-            Complex amplitude after perfect coronagraph subtraction
-        """
-        # Calculate current complex amplitude
-        current_amplitude = amp * self.xp.exp(1j * phase, dtype=self.complex_dtype)
-
-        # Calculate instantaneous Strehl Ratio
-        # SR = |∫ A(ρ,t) * A_dl*(ρ) dρ|² / (∫ |A(ρ,t)|² dρ * ∫ |A_dl(ρ)|² dρ)
-        numerator = self.xp.abs(self.xp.sum(current_amplitude * self.xp.conj(ref_amp)))**2
-        denominator = self.xp.sum(self.xp.abs(current_amplitude)**2) * self.xp.sum(self.xp.abs(ref_amp)**2)
-
-        if denominator > 0:
-            sr_instant = numerator / denominator
-        else:
-            sr_instant = 0.0
-
-        print(f'Instantaneous Strehl Ratio: {sr_instant:.6f}', flush=True)
-
-        # Set up the complex arrays based on input dimensions and data type
-        if imwidth is not None:
-            u_ef = self.xp.zeros((imwidth, imwidth), dtype=self.complex_dtype)
-            u_ref = self.xp.zeros((imwidth, imwidth), dtype=self.complex_dtype)
-            s = current_amplitude.shape
-            u_ef[:s[0], :s[1]] = current_amplitude
-            u_ref[:s[0], :s[1]] = ref_amp
-        else:
-            u_ef = current_amplitude
-            u_ref = ref_amp
-
-        # Transform to focal plane
-        A_focal = self.xp.fft.fft2(u_ef)
-        A_ref_focal = self.xp.fft.fft2(u_ref)
-
-        # Perfect coronagraph subtraction
-        coronagraph_amplitude = A_focal - self.xp.sqrt(sr_instant) * A_ref_focal
-
-        plot_debug = True  # Set to True to enable debugging plots
-        if plot_debug:
-            from specula import cpuArray
-            AAA = cpuArray(psf_abs2(self.xp.fft.fftshift(A_focal), xp=self.xp))
-            BBB = cpuArray(psf_abs2(self.xp.fft.fftshift(A_ref_focal), xp=self.xp))
-            import matplotlib.pyplot as plt
-            from matplotlib.colors import LogNorm
-            plt.figure(figsize=(14,6))
-            plt.subplot(121)
-            plt.imshow(AAA, norm=LogNorm())
-            plt.title('Coronagraph Amplitude')
-            plt.colorbar()
-            plt.subplot(122)
-            plt.imshow(BBB, norm=LogNorm())
-            plt.title('Reference Amplitude')
-            plt.colorbar()
-            print('maxs and SR: ', AAA.max(), BBB.max(), AAA.max()/BBB.max(), sr_instant)
-            plt.show()
-
-        return coronagraph_amplitude
-
-    def calc_coronagraph_psf(self, phase, amp, ref_amp, imwidth=None, normalize=False, nocenter=False):
+    def calc_coronagraph_psf(self, phase, amp, imwidth=None, normalize=False, nocenter=False):
         """
         Calculate coronagraph PSF using perfect coronagraph theory.
+        The perfect coronagraph subtracts the average electric field over the pupil.
         
         Parameters:
         phase : ndarray
             2D phase array
         amp : ndarray
-            2D amplitude array  
-        ref_amp : ndarray
-            2D reference diffraction-limited amplitude
+            2D amplitude array
         imwidth : int, optional
             Width of output image
         normalize : bool, optional
@@ -146,35 +65,41 @@ class PsfCoronagraph(PSF):
         coronagraph_psf : ndarray
             2D coronagraph PSF
         """
-        # Get coronagraph complex amplitude
-        coronagraph_amplitude = self.calc_perfect_coronagraph_amplitude(phase, amp, amp, imwidth=imwidth)
-        #coronagraph_amplitude = self.calc_perfect_coronagraph_amplitude(phase, amp, ref_amp, imwidth=imwidth)
+        # Step 1: Calculate electric field from incoming phase screen
+        electric_field = amp * self.xp.exp(1j * phase, dtype=self.complex_dtype)
+
+        # Step 2: Calculate and subtract the average electric field over the pupil
+        # Only consider pixels where amplitude > 0 (inside pupil)
+        pupil_mask = amp > 0
+        if self.xp.sum(pupil_mask) > 0:
+            avg_electric_field = self.xp.sum(electric_field * pupil_mask) / self.xp.sum(pupil_mask)
+            electric_field_corrected = electric_field - avg_electric_field * pupil_mask
+        else:
+            electric_field_corrected = electric_field
+
+        # Set up the complex array based on input dimensions and data type
+        if imwidth is not None:
+            u_ef = self.xp.zeros((imwidth, imwidth), dtype=self.complex_dtype)
+            s = electric_field_corrected.shape
+            u_ef[:s[0], :s[1]] = electric_field_corrected
+        else:
+            u_ef = electric_field_corrected
+
+        # Step 3: Optical Fourier transform to focal plane
+        focal_field = self.xp.fft.fft2(u_ef)
 
         # Center if required
         if not nocenter:
-            coronagraph_amplitude = self.xp.fft.fftshift(coronagraph_amplitude)
+            focal_field = self.xp.fft.fftshift(focal_field)
 
-        # Calculate PSF as intensity directly from coronagraph amplitude
-        coronagraph_psf = psf_abs2(coronagraph_amplitude, xp=self.xp)
+        # Calculate PSF as square modulus
+        coronagraph_psf = psf_abs2(focal_field, xp=self.xp)
 
         # Normalize if required
         if normalize:
-            total = self.xp.sum(coronagraph_psf)
-            if total > 0:
-                coronagraph_psf /= total
+            coronagraph_psf /= self.total_psf
 
         return coronagraph_psf
-
-    def prepare_trigger(self, t):
-        super().prepare_trigger(t)
-
-        in_ef = self.local_inputs['in_ef']
-
-        # # Calculate reference diffraction-limited complex amplitude (first time only)
-        # if self.ref_complex_amplitude is None and in_ef.phaseInNm.sum() > 0:
-        #     # Create perfect amplitude (no phase errors)
-        #     perfect_phase = self.xp.zeros_like(in_ef.A)
-        #     self.ref_complex_amplitude = in_ef.A * self.xp.exp(1j * perfect_phase, dtype=self.complex_dtype)
 
     def trigger_code(self):
         # Call parent trigger_code for standard PSF calculation
@@ -186,7 +111,6 @@ class PsfCoronagraph(PSF):
         self.coronagraph_psf.value = self.calc_coronagraph_psf(
             in_ef.phi_at_lambda(self.wavelengthInNm),
             in_ef.A,
-            self.ref_complex_amplitude,
             imwidth=self.out_size[0],
             normalize=True
         )
