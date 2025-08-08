@@ -106,17 +106,21 @@ class PsfCoronagraph(PSF):
         plot_debug = True  # Set to True to enable debugging plots
         if plot_debug:
             from specula import cpuArray
+            AAA = cpuArray(psf_abs2(self.xp.fft.fftshift(A_focal), xp=self.xp))
+            BBB = cpuArray(psf_abs2(self.xp.fft.fftshift(A_ref_focal), xp=self.xp))
             import matplotlib.pyplot as plt
             from matplotlib.colors import LogNorm
-            plt.figure()
+            plt.figure(figsize=(14,6))
             plt.subplot(121)
-            plt.imshow(cpuArray(psf_abs2(A_focal, xp=self.xp)), norm=LogNorm())
+            plt.imshow(AAA, norm=LogNorm())
             plt.title('Coronagraph Amplitude')
             plt.colorbar()
             plt.subplot(122)
-            plt.imshow(cpuArray(psf_abs2(A_ref_focal, xp=self.xp)), norm=LogNorm())
+            plt.imshow(BBB, norm=LogNorm())
             plt.title('Reference Amplitude')
             plt.colorbar()
+            print('maxs and SR: ', AAA.max(), BBB.max(), AAA.max()/BBB.max(), sr_instant)
+            plt.show()
 
         return coronagraph_amplitude
 
@@ -187,7 +191,7 @@ class PsfCoronagraph(PSF):
             normalize=True
         )
 
-        print(f'SR: {self.sr.value:.6f}, Coronagraph peak suppression: {self.coronagraph_psf.value.max():.2e}', flush=True)
+        print(f'SR: {self.sr.value:.6f}, Coronagraph peak suppression: {self.coronagraph_psf.value.max()/self.psf.value.max():.2e}', flush=True)
 
     def post_trigger(self):
         super().post_trigger()
