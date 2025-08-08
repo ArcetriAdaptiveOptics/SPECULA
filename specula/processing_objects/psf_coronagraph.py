@@ -126,7 +126,7 @@ class PsfCoronagraph(PSF):
             normalize=True
         )
 
-        print(f'SR: {self.sr.value:.6f}, Coronagraph peak suppression: {self.coronagraph_psf.value.max()/self.psf.value.max():.2e}', flush=True)
+        print(f'Coronagraph peak suppression: {self.coronagraph_psf.value.max()/self.psf.value.max():.2e}', flush=True)
 
     def post_trigger(self):
         super().post_trigger()
