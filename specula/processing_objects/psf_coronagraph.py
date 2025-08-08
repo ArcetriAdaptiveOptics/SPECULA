@@ -10,6 +10,17 @@ def psf_abs2(v, xp):
     return xp.real(v * xp.conj(v))
 
 class PsfCoronagraph(PSF):
+    """
+    Perfect coronagraph implementation.
+    It includes the standard PSF calculation since it inherits from the PSF class.
+
+    Args:
+        simul_params (SimulParams): Simulation parameters.
+        wavelengthInNm (float): Wavelength in nanometers.
+        nd (float, optional): Numerical aperture.
+        pixel_size_mas (float, optional): Pixel size in milliarcseconds.
+        start_time (float, optional): Start time for the integration.
+    """
     def __init__(self,
                  simul_params: SimulParams,
                  wavelengthInNm: float,
