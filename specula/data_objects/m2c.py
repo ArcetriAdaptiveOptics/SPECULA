@@ -25,14 +25,14 @@ class M2C(BaseDataObj):
         '''
         return self.m2c
 
-    def set_value(self, v, force_copy=True):
+    def set_value(self, v):
         '''
         Set new values for the m2c matrix field    
         Arrays are not reallocated
         '''
         assert v.shape == self.m2c.shape, \
             f"Error: input array shape {v.shape} does not match m2c shape {self.m2c.shape}"
-        self.m2c[:]= self.to_xp(v, dtype=self.dtype, force_copy=force_copy)
+        self.m2c[:]= self.to_xp(v)
 
     @property
     def nmodes(self):

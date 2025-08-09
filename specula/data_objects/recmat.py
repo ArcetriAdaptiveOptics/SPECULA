@@ -26,14 +26,14 @@ class Recmat(BaseDataObj):
         '''
         return self.recmat
 
-    def set_value(self, v, force_copy=True):
+    def set_value(self, v):
         '''
         Set new values for the recmat
         Arrays are not reallocated
         '''
         assert v.shape == self.recmat.shape, \
             f"Error: input array shape {v.shape} does not match recmat shape {self.recmat.shape}"
-        self.recmat[:]= self.to_xp(v, dtype=self.dtype, force_copy=force_copy)
+        self.recmat[:]= self.to_xp(v)
 
     def set_modes2recLayer(self, modes2recLayer):
         if modes2recLayer is not None:

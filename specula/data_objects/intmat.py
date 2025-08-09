@@ -28,14 +28,14 @@ class Intmat(BaseDataObj):
         '''
         return self.intmat
 
-    def set_value(self, v, force_copy=True):
+    def set_value(self, v):
         '''
         Set new values for the intmat
         Arrays are not reallocated
         '''
         assert v.shape == self.intmat.shape, \
             f"Error: input array shape {v.shape} does not match intmat shape {self.intmat.shape}"
-        self.intmat[:]= self.to_xp(v, dtype=self.dtype, force_copy=force_copy)
+        self.intmat[:]= self.to_xp(v)
 
     def reduce_size(self, n_modes_to_be_discarded):
         nmodes = self.intmat.shape[0]

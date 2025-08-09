@@ -40,7 +40,7 @@ class TestPhaseFlattening(unittest.TestCase):
         radius = pixel_pupil // 3
         mask = (x - center)**2 + (y - center)**2 <= radius**2
 
-        ef_in.A[:] = mask.astype(ef_in.dtype)
+        ef_in.A[:] = mask
         valid_mask = cpuArray(ef_in.A) > 0
   
         # Set phase with known mean
@@ -101,7 +101,7 @@ class TestPhaseFlattening(unittest.TestCase):
         mask[::2, ::2] = 1  # Only some pixels are valid
         mask[1::2, 1::2] = 1
         
-        ef_in1.A[:] = mask.astype(ef_in1.dtype)
+        ef_in1.A[:] = mask
         
         # Set different phase values for valid and invalid pixels
         ef_in1.phaseInNm[:] = 50.0  # Valid pixels will have mean removed

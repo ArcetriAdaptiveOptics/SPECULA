@@ -118,5 +118,5 @@ class Interp2D():
             from scipy.interpolate import RegularGridInterpolator
             points = (self.xp.arange( self.input_shape[0], dtype=self.dtype), self.xp.arange( self.input_shape[1], dtype=self.dtype))
             interp = RegularGridInterpolator(points,value, method='linear')
-            out[:] = interp((self.yy, self.xx)).reshape(self.output_shape).astype(self.dtype)
+            out[:] = interp((self.yy, self.xx)).reshape(self.output_shape)
             return out

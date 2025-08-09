@@ -35,7 +35,7 @@ class Lenslet(BaseDataObj):
     def get_value(self):
         raise NotImplementedError
 
-    def set_value(self, v, force_copy=True):
+    def set_value(self, v):
         raise NotImplementedError
 
     @property

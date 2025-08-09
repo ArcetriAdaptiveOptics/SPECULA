@@ -30,7 +30,7 @@ class ElectricField(BaseDataObj):
 
     @A.setter
     def A(self, value):
-        self.field[0, :, :] = self.to_xp(value, dtype=self.dtype)
+        self.field[0, :, :] = self.to_xp(value)
 
     @property
     def phaseInNm(self):
@@ -38,12 +38,12 @@ class ElectricField(BaseDataObj):
 
     @phaseInNm.setter
     def phaseInNm(self, value):
-        self.field[1, :, :] = self.to_xp(value, dtype=self.dtype)
+        self.field[1, :, :] = self.to_xp(value)
 
     def __str__(self):
         return 'A: '+ str(self.field[0]) + 'Phase: ' + str(self.field[1])
 
-    def set_value(self, v, force_copy=False):
+    def set_value(self, v):
         '''
         Set new values for phase and amplitude
         
@@ -57,7 +57,7 @@ class ElectricField(BaseDataObj):
         assert v[1].shape == self.phaseInNm.shape, \
             f"Error: input array shape {v[1].shape} does not match phase shape {self.field[1].shape}"
 
-        self.field[:] = self.to_xp(v, dtype=self.dtype, force_copy=force_copy)
+        self.field[:] = self.to_xp(v)
 
     def get_value(self):
         return self.field
