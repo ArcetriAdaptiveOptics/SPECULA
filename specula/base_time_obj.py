@@ -82,19 +82,7 @@ class BaseTimeObj:
         return float(t) / float(self._time_resolution)
 
     def seconds_to_t(self, seconds):
-        if self._time_resolution == 0:
-            return 0
-
-        ss = f"{float(seconds):.9f}".rstrip('0').rstrip('.')
-        if '.' not in ss:
-            ss += '.0'
-
-        dotpos = ss.find('.')
-        intpart = ss[:dotpos]
-        fracpart = ss[dotpos + 1:]
-
-        return (int(intpart) * self._time_resolution +
-                int(fracpart) * (self._time_resolution // (10 ** len(fracpart))))
+        return int(round(seconds, ndigits=9) * self._time_resolution)
 
     def startMemUsageCount(self):
         if hasattr(self, 'target_device_idx') and self.target_device_idx >= 0:

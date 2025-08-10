@@ -63,7 +63,7 @@ class BaseProcessingObj(BaseTimeObj):
             if type(input_obj) is not list:
                 input_obj = [input_obj]
 
-            tt_list = [x.generation_time if x is not None else None for x in input_obj]
+            tt_list = [x.generation_time for x in input_obj if x is not None]
             for tt in tt_list:
                 if tt is not None and tt >= self.current_time:
                     return True
@@ -76,9 +76,6 @@ class BaseProcessingObj(BaseTimeObj):
         Remote inputs, if any, are received via MPI.
         Data is transferred between devices if necessary.
         '''
-        if self.target_device_idx >= 0:
-            self._target_device.use()
-
         for input_name, input_obj in self.inputs.items():
             if MPI_DBG: print(process_rank, 'get_all_inputs(): getting InputValue:', input_name, flush=True)
             self.local_inputs[input_name] = input_obj.get(self.target_device_idx)
@@ -209,9 +206,9 @@ class BaseProcessingObj(BaseTimeObj):
 
     def check_ready(self, t):
         self.current_time = t
+        if self.target_device_idx >= 0:
+            self._target_device.use()
         if self.checkInputTimes():
-            if self.target_device_idx>=0:
-                self._target_device.use()
             self.inputs_changed = True  # Signal ready for trigger and post_trigger()
             self.prepare_trigger(t)
         else:

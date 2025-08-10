@@ -62,15 +62,15 @@ class BaseDataObj(BaseTimeObj):
                 print(f'Warning: destination attribute is not a cupy/numpy array, forcing reallocation ({destobj}.{attr})')
                 force_reallocation = True
 
-            # Detect whether the array types are correct for all three cases:
-            # Device to CPU, CPU to device, and device-to-device.
-            DtD = (self_type == cp.ndarray) and (dest_type == cp.ndarray) and destobj.target_device_idx >= 0
-            DtH = (self_type == cp.ndarray) and (dest_type == np.ndarray) and destobj.target_device_idx == -1
-            HtD = (self_type == np.ndarray) and (dest_type == cp.ndarray) and destobj.target_device_idx >= 0
-            HtH = (self_type == np.ndarray) and (dest_type == np.ndarray) and destobj.target_device_idx == -1
-
             # Destination array had the correct type: perform in-place data copy
             if not force_reallocation:
+                # Detect whether the array types are correct for all four cases:
+                # Device to CPU, CPU to device, device-to-device, and CPU-CPU. Also check whether
+                # the target_device_idx is set correctly for the destination object.
+                DtD = (self_type == cp.ndarray) and (dest_type == cp.ndarray) and destobj.target_device_idx >= 0
+                DtH = (self_type == cp.ndarray) and (dest_type == np.ndarray) and destobj.target_device_idx == -1
+                HtD = (self_type == np.ndarray) and (dest_type == cp.ndarray) and destobj.target_device_idx >= 0
+                HtH = (self_type == np.ndarray) and (dest_type == np.ndarray) and destobj.target_device_idx == -1
                 if DtD:
                     # Performance warnings here are expected, because we might
                     # trigger a peer-to-peer transfer between devices
