@@ -367,7 +367,6 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
 
         scale_wvl = ( self.ref_wavelengthInNm / (2 * np.pi) )
         self.scale_coeff = scale_r0 * scale_wvl
-        self.scale_coeff = scale_wvl
 
     @show_in_profiler('atmo_evolution.trigger_code')
     def trigger_code(self):
