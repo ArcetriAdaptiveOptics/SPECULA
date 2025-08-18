@@ -126,6 +126,12 @@ class PlotDisplay(BaseDisplay):
             elif ymin != ymax:
                 self.ax.set_ylim(min(ymin), max(ymax))
 
+        # Set x axis label
+        if self._x_axis == 'time':
+            self.ax.set_xlabel('Time [s]')
+        else:
+            self.ax.set_xlabel('Iteration')
+
         self._safe_draw()
         self._count += 1
 
