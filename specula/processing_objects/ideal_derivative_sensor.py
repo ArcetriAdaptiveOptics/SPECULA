@@ -3,6 +3,7 @@ from specula.connections import InputValue
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.slopes import Slopes
 from specula.data_objects.subap_data import SubapData
+from specula.data_objects.simul_params import SimulParams
 from specula.lib.extrapolation_2d import calculate_extrapolation_indices_coeffs, apply_extrapolation
 from specula import cpuArray, RAD2ASEC
 
@@ -16,8 +17,8 @@ class IdealDerivativeSensor(BaseProcessingObj):
     """
 
     def __init__(self,
+                 simul_params: SimulParams,
                  subapdata: SubapData,
-                 pixel_pitch: float,
                  fov: float,
                  obs: float = 0.0,
                  target_device_idx: int = None,
@@ -34,7 +35,8 @@ class IdealDerivativeSensor(BaseProcessingObj):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.subapdata = subapdata
-        self.pixel_pitch = pixel_pitch
+        self.simul_params = simul_params
+        self.pixel_pitch = self.simul_params.pixel_pitch
         if fov <= 0:
             raise ValueError("Field of view must be positive.")
         self.fov = fov
@@ -49,6 +51,8 @@ class IdealDerivativeSensor(BaseProcessingObj):
                            interleave=False,
                            target_device_idx=target_device_idx,
                            precision=precision)
+        self.slopes.single_mask = self.subapdata.single_mask()
+        self.slopes.display_map = self.subapdata.display_map
 
         # Cache for extrapolation
         self._edge_pixels = None

@@ -7,6 +7,7 @@ import numpy as np
 from specula import cpuArray, RAD2ASEC
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.pixels import Pixels
+from specula.data_objects.simul_params import SimulParams
 from specula.data_objects.subap_data import SubapData
 from specula.lib.make_mask import make_mask
 from specula.processing_objects.ideal_derivative_sensor import IdealDerivativeSensor
@@ -28,6 +29,8 @@ class TestIdealDerivativeSensor(unittest.TestCase):
         subap_npx = 24
         pxscale_arcsec = 0.1
         fov_arcsec = subap_npx * pxscale_arcsec
+
+        simul_params = SimulParams(pixel_pupil=pixel_pupil, pixel_pitch=pixel_pitch)
 
         # Create electric field
         ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1,
@@ -67,8 +70,8 @@ class TestIdealDerivativeSensor(unittest.TestCase):
                               ny=subap_on_diameter, target_device_idx=target_device_idx)
 
         # Create IdealDerivativeSensor
-        ideal_sensor = IdealDerivativeSensor(subapdata=subapdata,
-                                        pixel_pitch=pixel_pitch,
+        ideal_sensor = IdealDerivativeSensor(simul_params=simul_params,
+                                        subapdata=subapdata,
                                         fov=fov_arcsec,
                                         target_device_idx=target_device_idx)
 
