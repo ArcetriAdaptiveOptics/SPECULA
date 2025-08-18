@@ -46,7 +46,7 @@ class TestGainOptimizer(unittest.TestCase):
         latest_data_dir = data_dirs[-1]
 
         # Check if gain optimizer output file exists
-        gain_file = os.path.join(latest_data_dir, 'optgain.fits')
+        gain_file = os.path.join(latest_data_dir, 'optimized_gain.fits')
         self.assertTrue(os.path.exists(gain_file), f"Gain optimizer output file not found: {gain_file}")
 
         # Read gain optimizer output
