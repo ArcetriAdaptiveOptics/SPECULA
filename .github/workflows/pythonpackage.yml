@@ -60,4 +60,9 @@ jobs:
       uses: codecov/codecov-action@v4
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        fail_ci_if_error: true
+        file: ./coverage.xml
+        flags: unittests
+        override_branch: ${{ github.head_ref || github.ref_name }}
+        override_commit: ${{ github.sha }}
+        fail_ci_if_error: false
+        verbose: true
