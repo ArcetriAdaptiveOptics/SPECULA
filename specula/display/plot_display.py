@@ -63,7 +63,7 @@ class PlotDisplay(BaseDisplay):
 
         # X axis for current data
         if self._x_axis == 'time':
-            self._time_history.append(self.current_time)
+            self._time_history.append(self.current_time_seconds)
             x = np.array(self._time_history)
         else:
             x = np.arange(self._count + 1)
