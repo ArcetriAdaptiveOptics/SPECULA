@@ -57,9 +57,7 @@ class PlotDisplay(BaseDisplay):
                 self._history[:-1] = self._history[1:]
             else:
                 self._history[:-1, :] = self._history[1:, :]
-            #self._count = n - 1
-            if self._x_axis == 'time':
-                self._time_history = self._time_history[1:]
+            self._time_history = self._time_history[1:]
 
         # X axis for current data
         if self._x_axis == 'time':
