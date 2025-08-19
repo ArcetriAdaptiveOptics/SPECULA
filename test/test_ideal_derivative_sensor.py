@@ -186,7 +186,7 @@ class TestIdealDerivativeSensor(unittest.TestCase):
         # For X-tilt, average X slopes should be close to the expected value
         expected_value = (ef.phaseInNm.max() - ef.phaseInNm.min()) * 1e-9 / \
                          (ef.pixel_pitch*ef.A.shape[0]) * RAD2ASEC / (ideal_sensor.fov/2)
-        np.testing.assert_allclose(ideal_avg_x, expected_value, rtol=1e-2)
+        np.testing.assert_allclose(ideal_avg_x, float(expected_value), rtol=1e-2)
 
         np.testing.assert_allclose(ideal_avg_x, sh_avg_x, rtol=1e-1)
 
