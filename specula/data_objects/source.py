@@ -1,4 +1,5 @@
 import numpy as np
+from astropy.io import fits
 
 from specula.base_data_obj import BaseDataObj
 from specula.lib.n_phot import n_phot
@@ -17,9 +18,13 @@ class Source(BaseDataObj):
                  band: str='',
                  zeroPoint: float=0,
                  error_coord: tuple=(0., 0.),
-                 verbose: bool=False):
-        super().__init__()
+                 verbose: bool=False,
+                 target_device_idx: int=None,
+                 precision: int=None):
+        super().__init__(target_device_idx=target_device_idx, precision=precision)
         
+        self.orig_polar_coordinates = np.array(polar_coordinates).copy()
+
         polar_coordinates = np.array(polar_coordinates, dtype=self.dtype) + np.array(error_coord, dtype=self.dtype)
         if any(error_coord):
             print(f'there is a desired error ({error_coord[0]},{error_coord[1]}) on source coordinates.')
@@ -32,6 +37,28 @@ class Source(BaseDataObj):
         self.zeroPoint = zeroPoint
         self.band = band
         self.verbose = verbose
+        self.error_coord = error_coord
+
+    def get_fits_header(self):
+        hdr = fits.Header()
+        hdr['VERSION'] = 1
+        hdr['PCOORD0'] = self.orig_polar_coordinates[0]
+        hdr['PCOORD1'] = self.orig_polar_coordinates[1]
+        hdr['MAGNITUD'] = self.magnitude
+        hdr['WAVELENG'] = self.wavelengthInNm
+        hdr['HEIGHT'] = self.height
+        hdr['BAND'] = self.band
+        hdr['ZEROPNT'] = self.zeroPoint
+        hdr['ERR_CRD0'] = self.error_coord[0]
+        hdr['ERR_CRD1'] = self.error_coord[1]
+        return hdr
+
+    # There is no value to get/set
+    def get_value(self):
+        raise NotImplementedError
+
+    def set_value(self, v, force_copy=True):
+        raise NotImplementedError
 
     @property
     def polar_coordinates(self):
@@ -83,3 +110,26 @@ class Source(BaseDataObj):
         if self.verbose:
             print(f'source.phot_density: magnitude is {self.magnitude}, and flux (output of n_phot with width=1e-9, surf=1) is {res[0]}')
         return res[0]
+
+    def save(self, filename, overwrite=False):
+        hdr = self.get_fits_header()
+        fits.writeto(filename, np.zeros(2), hdr, overwrite=overwrite)
+
+    @staticmethod
+    def from_header(hdr, target_device_idx=None):
+        version = hdr['VERSION']
+        if version != 1:
+            raise ValueError(f'Error: unknown version {version} in header')
+        return Source(polar_coordinates=[ hdr['PCOORD0'], hdr['PCOORD1']],
+                 magnitude=hdr['MAGNITUD'],
+                 wavelengthInNm=hdr['WAVELENG'],
+                 height=hdr['HEIGHT'],
+                 band=hdr['BAND'],
+                 zeroPoint=hdr['ZEROPNT'],
+                 error_coord=[ hdr['ERR_CRD0'], hdr['ERR_CRD1']],
+                 target_device_idx=target_device_idx)
+
+    @staticmethod
+    def restore(filename, target_device_idx=None):
+        hdr = fits.getheader(filename)
+        return Source.from_header(hdr, target_device_idx=target_device_idx)

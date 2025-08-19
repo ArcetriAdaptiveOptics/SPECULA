@@ -94,6 +94,9 @@ setup(name=NAME,
                         "python-socketio",
                         "requests"
                         ],
+      extras_require={
+          'control': ["iircontrol"]
+      },
       include_package_data=True,
       test_suite='test',
       cmdclass={'upload': UploadCommand, },

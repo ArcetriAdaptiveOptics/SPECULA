@@ -22,6 +22,21 @@ class Intmat(BaseDataObj):
         self.pupdata_tag = pupdata_tag
         self.norm_factor = norm_factor
 
+    def get_value(self):
+        '''
+        Get the intmat as a numpy/cupy array
+        '''
+        return self.intmat
+
+    def set_value(self, v, force_copy=True):
+        '''
+        Set new values for the intmat
+        Arrays are not reallocated
+        '''
+        assert v.shape == self.intmat.shape, \
+            f"Error: input array shape {v.shape} does not match intmat shape {self.intmat.shape}"
+        self.intmat[:]= self.to_xp(v, dtype=self.dtype, force_copy=force_copy)
+
     def reduce_size(self, n_modes_to_be_discarded):
         nmodes = self.intmat.shape[0]
         if n_modes_to_be_discarded >= nmodes:
@@ -40,14 +55,17 @@ class Intmat(BaseDataObj):
             raise ValueError(f'start_mode should be less than nmodes (<{nmodes})')
         self.intmat = self.intmat[start_mode:, :]
 
-    def save(self, filename, hdr=None, overwrite=False):
-        if not filename.endswith('.fits'):
-            filename += '.fits'
-        if hdr is None:
-            hdr = fits.Header()
+    def get_fits_header(self):
+        hdr = fits.Header()
         hdr['VERSION'] = 1
         hdr['PUP_TAG'] = self.pupdata_tag
         hdr['NORMFACT'] = self.norm_factor
+        return hdr
+
+    def save(self, filename, overwrite=False):
+        if not filename.endswith('.fits'):
+            filename += '.fits'
+        hdr = self.get_fits_header()
         # Save fits file
         fits.writeto(filename, np.zeros(2), hdr, overwrite=overwrite)
         fits.append(filename, cpuArray(self.intmat))
@@ -57,7 +75,11 @@ class Intmat(BaseDataObj):
             fits.append(filename, self.slope_rms)
 
     @staticmethod
-    def restore(filename, hdr=None, target_device_idx=None):
+    def from_header(hdr, target_device_idx=None):
+        raise NotImplementedError
+    
+    @staticmethod
+    def restore(filename, target_device_idx=None):
         hdr = fits.getheader(filename, ext=0)
         intmat = fits.getdata(filename, ext=1)
         norm_factor = float(hdr.get('NORMFACT', 0.0))
@@ -71,7 +93,6 @@ class Intmat(BaseDataObj):
         else:
             slope_mm = slope_rms = None
         return Intmat(intmat, slope_mm, slope_rms, pupdata_tag, norm_factor, target_device_idx=target_device_idx)
-
 
     def generate_rec(self, nmodes=None, cut_modes=0, w_vec=None, interactive=False):
         if nmodes is not None:

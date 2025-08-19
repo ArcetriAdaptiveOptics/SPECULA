@@ -1,9 +1,9 @@
 import numpy as np
-import matplotlib.pyplot as plt
 
 from specula.display.base_display import BaseDisplay
 from specula.connections import InputValue
 from specula.base_value import BaseValue
+from specula import cpuArray
 
 
 class ModesDisplay(BaseDisplay):
@@ -21,13 +21,13 @@ class ModesDisplay(BaseDisplay):
         self.line = None
 
         # Setup input
-        self.input_key = 'modes'
+        self.input_key = 'modes' # Used by base class
         self.inputs['modes'] = InputValue(type=BaseValue)
 
     def _update_display(self, modes):
         """Override base method to implement modes-specific display"""
         # Get the modes vector
-        y = modes.value
+        y = cpuArray(modes.value)
         x = np.arange(len(y))
 
         if self.line is None:

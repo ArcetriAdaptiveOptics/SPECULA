@@ -1,7 +1,5 @@
 import numpy as np
-import matplotlib.pyplot as plt
 
-from specula import xp
 from specula import cpuArray
 
 from specula.display.base_display import BaseDisplay
@@ -23,10 +21,9 @@ class PsfDisplay(BaseDisplay):
 
         self._log_scale = log_scale
         self._image_p2v = image_p2v
-        self.img = None
 
         # Setup input
-        self.input_key = 'psf'
+        self.input_key = 'psf'  # Used by base class
         self.inputs['psf'] = InputValue(type=BaseValue)
 
     def _process_psf_data(self, psf):

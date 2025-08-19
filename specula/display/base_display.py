@@ -33,23 +33,21 @@ class BaseDisplay(BaseProcessingObj):
         """Update the display with new data"""
         raise NotImplementedError("Subclasses should implement this method")
 
+    def _get_data(self):
+        """Get data from input. Derived classes can override this method
+        in case of complex data"""
+        data = self.local_inputs.get(self.input_key)
+        if data is None:
+            self._show_error(f"No {self.input_key} data available")
+            return
+        return data
+
     def trigger_code(self):
         try:
             if not self._opened:
                 self._create_figure()
-
-            if hasattr(self, '_get_data_list'):
-                data_list = self._get_data_list()
-                if not data_list:
-                    self._show_error("No data available")
-                    return
-                self._update_display(data_list)
-            else:
-                data = self.local_inputs.get(self.input_key)
-                if data is None:
-                    self._show_error(f"No {self.input_key} data available")
-                    return
-                self._update_display(data)
+            data = self._get_data()
+            self._update_display(data)
         except Exception as e:
             self._show_error(f"Display error: {str(e)}")
 

@@ -27,11 +27,9 @@ class PixelsDisplay(BaseDisplay):
         self._sh_as_pyr = sh_as_pyr
         self._subapdata = subapdata
         self._log_scale = log_scale
-        self.img = None
-        self._colorbar_added = False
 
         # Setup input
-        self.input_key = 'pixels'
+        self.input_key = 'pixels'  # Used by base class
         self.inputs['pixels'] = InputValue(type=Pixels)
 
     def _update_display(self, pixels):

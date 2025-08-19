@@ -253,7 +253,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         self.last_t = 0
         self.delta_time = None
         # fixed at generation time, then is a input -> rescales the screen?
-        self.seeing = 0.8
+        self.seeing = 1.0
         self.l0 = 0.005
         self.airmass = 1
         self.ref_wavelengthInNm = 500
@@ -305,6 +305,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         self.initScreens(seed)
 
         self.last_position = np.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
+        self.scale_coeff = 1.0
 
         if not np.isclose(np.sum(self.Cn2), 1.0, atol=1e-6):
             raise ValueError(f' Cn2 total must be 1. Instead is: {np.sum(self.Cn2)}.')
@@ -345,7 +346,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         # check that seeing is a 1-element array
         if len(self.local_inputs['seeing'].value) != 1:
             raise ValueError('Seeing input must be a 1-element array')
-        
+
         # Check that wind speed and direction have the correct length
         if len(self.local_inputs['wind_speed'].value) != self.n_infinite_phasescreens:
             raise ValueError('Wind speed input must be a {self.n_infinite_phasescreens}-elements array')
@@ -355,22 +356,22 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
         self.delta_time = self.t_to_seconds(self.current_time - self.last_t) + self.extra_delta_time
+        seeing = float(cpuArray(self.local_inputs['seeing'].value[0]))
+
+        if seeing > 0:
+            r0 = 0.9759 * 0.5 / (seeing * 4.848) * self.airmass**(-3./5.)
+            r0 *= (self.ref_wavelengthInNm / 500)**(6./5.)
+            scale_r0 = (self.ref_r0 / r0)**(5./6.)
+        else:
+            scale_r0 = 0.0
+
+        scale_wvl = ( self.ref_wavelengthInNm / (2 * np.pi) )
+        self.scale_coeff = scale_r0 * scale_wvl
 
     @show_in_profiler('atmo_evolution.trigger_code')
     def trigger_code(self):
-        seeing = float(cpuArray(self.local_inputs['seeing'].value[0]))
         wind_speed = cpuArray(self.local_inputs['wind_speed'].value)
         wind_direction = cpuArray(self.local_inputs['wind_direction'].value)
-
-        r0 = 0.9759 * 0.5 / (seeing * 4.848) * self.airmass**(-3./5.)
-        r0 *= (self.ref_wavelengthInNm / 500)**(6./5.)
-        scale_r0 = (self.ref_r0 / r0)**(5./6.)
-
-        scale_wvl = ( self.ref_wavelengthInNm / (2 * np.pi) )
-        scale_coeff = scale_wvl
-
-#        print('scale_r0', scale_r0)
-#        print('scale_coeff', scale_coeff)
 
         # Compute the delta position in pixels
         delta_position =  wind_speed * self.delta_time / self.pixel_pitch  # [pixel]
@@ -413,7 +414,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
             # print('acc_rows', self.acc_rows)
             # print('acc_cols', self.acc_cols)
             self.layer_list[ii].field[:] = self.xp.stack((layer_phase, layer_phase))
-            self.layer_list[ii].phaseInNm *= scale_coeff
+            self.layer_list[ii].phaseInNm *= self.scale_coeff
             self.layer_list[ii].A = 1
             self.layer_list[ii].generation_time = self.current_time
         self.last_position = new_position

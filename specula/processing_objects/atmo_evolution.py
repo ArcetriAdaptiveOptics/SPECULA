@@ -100,7 +100,7 @@ class AtmoEvolution(BaseProcessingObj):
         # Error if phase-screens dimension is smaller than maximum layer dimension
         if self.pixel_square_phasescreens < max(self.pixel_layer):
             raise ValueError('Error: phase-screens dimension must be greater than layer dimension!')
-        
+
         self.verbose = verbose
 
         # Initialize layer list with correct heights
@@ -109,13 +109,14 @@ class AtmoEvolution(BaseProcessingObj):
             layer = Layer(self.pixel_layer[i], self.pixel_layer[i], self.pixel_pitch, heights[i], precision=self.precision, target_device_idx=self.target_device_idx)
             self.layer_list.append(layer)
         self.outputs['layer_list'] = self.layer_list
-        
+
         self.seed = seed
         self.last_position = np.zeros(self.n_phasescreens, dtype=self.dtype)
+        self.scale_coeff = 1.0
 
         if self.seed <= 0:
             raise ValueError('seed must be >0')
-        
+
         if not np.isclose(np.sum(self.Cn2), 1.0, atol=1e-6):
             raise ValueError(f' Cn2 total must be 1. Instead is: {np.sum(self.Cn2)}.')
 
@@ -223,16 +224,19 @@ class AtmoEvolution(BaseProcessingObj):
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
         self.delta_time = self.t_to_seconds(self.current_time - self.last_t) + self.extra_delta_time
-            
+        seeing = float(cpuArray(self.local_inputs['seeing'].value[0]))
+        if seeing > 0:
+            r0 = 0.9759 * 0.5 / (seeing * 4.848) * self.airmass**(-3./5.)
+            self.scale_coeff = (self.pixel_pitch / r0)**(5./6.)
+        else:
+            self.scale_coeff = 0.0
+
     def trigger_code(self):
 
         # if len(self.phasescreens) != len(wind_speed) or len(self.phasescreens) != len(wind_direction):
         #     raise ValueError('Error: number of elements of wind speed and/or direction does not match the number of phasescreens')
-        seeing = float(cpuArray(self.local_inputs['seeing'].value[0]))
         wind_speed = cpuArray(self.local_inputs['wind_speed'].value)
         wind_direction = cpuArray(self.local_inputs['wind_direction'].value)
-        r0 = 0.9759 * 0.5 / (seeing * 4.848) * self.airmass**(-3./5.) # if seeing > 0 else 0.0
-        scale_coeff = (self.pixel_pitch / r0)**(5./6.) # if seeing > 0 else 0.0
         # Compute the delta position in pixels
         delta_position =  wind_speed * self.delta_time / self.pixel_pitch  # [pixel]
         new_position = self.last_position + delta_position
@@ -248,7 +252,7 @@ class AtmoEvolution(BaseProcessingObj):
 #        for ii, p in enumerate(self.phasescreens):
         #    print(f'phasescreens size: {np.around(p.shape[0], 2)}')
         #    print(f'requested position: {np.around(new_position[ii], 2)}')
-        #    raise ValueError(f'phasescreens_shift cannot go out of the {ii}-th phasescreen!')            
+        #    raise ValueError(f'phasescreens_shift cannot go out of the {ii}-th phasescreen!')
         # print(pos, self.pixel_layer) # Verbose?
 
         for ii, p in enumerate(self.phasescreens):
@@ -259,7 +263,7 @@ class AtmoEvolution(BaseProcessingObj):
             layer_phase = self.xp.rot90(layer_phase, wdi[ii])
             if not wdf_full[ii]==0:
                 layer_phase = self.rotate(layer_phase, wdf_full[ii], reshape=False, order=1)
-            self.layer_list[ii].phaseInNm[:] = layer_phase * scale_coeff
+            self.layer_list[ii].phaseInNm[:] = layer_phase * self.scale_coeff
             self.layer_list[ii].generation_time = self.current_time
 
         # print(f'Phasescreen_shift: {new_position=}') # Verbose?

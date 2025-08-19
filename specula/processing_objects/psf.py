@@ -24,7 +24,7 @@ class PSF(BaseProcessingObj):
                  nd: float=None,
                  pixel_size_mas: float=None,
                  start_time: float=0.0,
-                 target_device_idx: int = None, 
+                 target_device_idx: int = None,
                  precision: int = None
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
@@ -104,7 +104,8 @@ class PSF(BaseProcessingObj):
         psf = psf_abs2(u_fp, xp=self.xp)
         # Normalize if required
         if normalize:
-            psf /= self.xp.sum(psf)
+            self.total_psf = self.xp.sum(psf)
+            psf /= self.total_psf
 
         return psf
 

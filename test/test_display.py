@@ -177,8 +177,8 @@ class TestDisplays(unittest.TestCase):
         # Test multiple triggers to build history
         for i in range(5):
             value.generation_time = i+1
-            display.check_ready(i+1)
             value.set_value([10 * i + xp.random.random()])
+            display.check_ready(i+1)
             display.trigger_code()
 
         self.assertTrue(display._opened)

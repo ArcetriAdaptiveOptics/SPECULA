@@ -102,6 +102,15 @@ All required dependencies will be installed automatically, including:
 Environment Management
 ----------------------
 
+**Transfer function system management:**
+
+* **control**: Library for control system analysis and design
+
+.. code-block:: bash
+
+   # Install control library
+   pip install control
+
 **Useful conda commands:**
 
 .. code-block:: bash

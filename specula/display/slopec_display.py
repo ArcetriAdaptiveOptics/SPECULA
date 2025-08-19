@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 
 from specula import cpuArray
 from specula.display.base_display import BaseDisplay
@@ -20,7 +19,7 @@ class SlopecDisplay(BaseDisplay):
         self.img = None
 
         # Setup input
-        self.input_key = 'slopes'
+        self.input_key = 'slopes'  # Used by base class
         self.inputs['slopes'] = InputValue(type=Slopes)
 
     def _update_display(self, slopes_obj):

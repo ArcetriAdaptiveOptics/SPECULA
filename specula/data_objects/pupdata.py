@@ -51,6 +51,19 @@ class PupData(BaseDataObj):
 
         self.slopes_from_intensity = False
 
+    def get_value(self):
+        '''Get the pixel values as a numpy/cupy array'''
+        return self.ind_pup
+    
+    def set_value(self, v, force_copy=False):
+        '''Set new ind_pup values.
+        Arrays are not reallocated.
+        '''
+        assert v.shape == self.ind_pup.shape, \
+            f"Error: input array shape {v.shape} does not match ind_pup shape {self.ind_pup.shape}"
+
+        self.ind_pup[:] = self.to_xp(v, force_copy=force_copy)
+
     @property
     def n_subap(self):
         return self.ind_pup.shape[1] // 4
@@ -92,13 +105,15 @@ class PupData(BaseDataObj):
             f.flat[self.ind_pup[:, i]] = 1
         return f
 
-    def save(self, filename, hdr=None, overwrite=False):
-        if hdr is None:
-            hdr = fits.Header()
+    def get_fits_header(self):
+        hdr = fits.Header()
         hdr['VERSION'] = 2
         hdr['FSIZEX'] = self.framesize[0]
         hdr['FSIZEY'] = self.framesize[1]
+        return hdr
 
+    def save(self, filename, overwrite=False):
+        hdr = self.get_fits_header()
         fits.writeto(filename, np.zeros(2), hdr, overwrite=overwrite)
         fits.append(filename, cpuArray(self.ind_pup.T))
         fits.append(filename, cpuArray(self.radius))
@@ -128,3 +143,7 @@ class PupData(BaseDataObj):
 
         return PupData(ind_pup=ind_pup, radius=radius, cx=cx, cy=cy, framesize=framesize,
                 target_device_idx=target_device_idx)
+
+    @staticmethod
+    def from_header(filename, target_device_idx=None):
+        raise NotImplementedError
