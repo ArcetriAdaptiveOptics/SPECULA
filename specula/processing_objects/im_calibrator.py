@@ -190,7 +190,6 @@ class ImCalibrator(BaseProcessingObj):
             if self.count_commands[i] > 0:
                 self._im.value[i] /= self.count_commands[i]
 
-
         im = Intmat(self._im.value, pupdata_tag = self.pupdata_tag, subapdata_tag=self.subapdata_tag,
                     target_device_idx=self.target_device_idx, precision=self.precision)
 
