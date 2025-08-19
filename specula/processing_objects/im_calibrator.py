@@ -1,11 +1,17 @@
 import os
 
 from specula.base_processing_obj import BaseProcessingObj
+from specula.processing_objects.dm import DM
+from specula.processing_objects.sh import SH
+from specula.processing_objects.modulated_pyramid import ModulatedPyramid
+from specula.processing_objects.pyr_slopec import PyrSlopec
+from specula.processing_objects.sh_slopec import ShSlopec
 from specula.data_objects.slopes import Slopes
+from specula.data_objects.source import Source
 from specula.data_objects.intmat import Intmat
 from specula.base_value import BaseValue
 from specula.connections import InputValue
-
+from specula import RAD2ASEC
 
 class ImCalibrator(BaseProcessingObj):
     def __init__(self,
@@ -13,9 +19,11 @@ class ImCalibrator(BaseProcessingObj):
                  data_dir: str,       # TODO = "",         # Set by main simul object
                  im_tag: str='',
                  first_mode: int = 0,
-                 pupdata_tag: str = None,
-                 tag_template: str = None,
                  overwrite: bool = False,
+                 source: Source = None,
+                 dm: DM = None,
+                 sensor: BaseProcessingObj = None,
+                 slopec: BaseProcessingObj = None,
                  target_device_idx: int = None,
                  precision: int = None
                 ):
@@ -23,15 +31,38 @@ class ImCalibrator(BaseProcessingObj):
         self._nmodes = nmodes
         self._first_mode = first_mode
         self._data_dir = data_dir
-        if tag_template is None and (im_tag is None or im_tag == 'auto'):
-            raise ValueError('At least one of tag_template and im_tag must be set')
-        self.pupdata_tag = pupdata_tag
+        if im_tag is None or im_tag == 'auto':
+            im_tag = 'im'
+            # SOURCE coordinates
+            im_tag += f'_{source.polar_coordinates[0]:.6f}r{source.polar_coordinates[0]:.6f}a'
+            if source.height != float('inf'):
+                im_tag += f'_{source.height:.6f}h'
+            # WFS related
+            if isinstance(sensor, SH):
+                im_tag += '_sh'
+                im_tag += f'_{sensor._wavelengthInNm}nm'
+                im_tag += f'_{sensor._lenslet.n_lenses}x{sensor._lenslet.n_lenses}sa'
+                im_tag += f'_{sensor._subap_wanted_fov * RAD2ASEC}asec'
+            if isinstance(sensor, ModulatedPyramid):
+                im_tag += '_pyr'
+                im_tag += f'_{sensor.wavelength_in_nm}nm'
+                im_tag += f'_{sensor.pup_diam}x{sensor.pup_diam}sa' # TODO THIS IS NOT PRESENT
+                im_tag += f'_{sensor.fov}asec' # TODO THIS IS NOT PRESENT
+            # SLOPEC related
+            if isinstance(slopec, ShSlopec):
+                if slopec.quadcell_mode:
+                    im_tag += f'_qc'
+            if isinstance(slopec, PyrSlopec):
+                if slopec.slopes_from_intensity:
+                    im_tag += f'_slint'
+            # TODO DM related keys
+            im_tag = f'_{self._nmodes}modes'
+            if self._first_mode != 0:
+                im_tag += f'_firstmode{self._first_mode}'
+            
         self._overwrite = overwrite
 
-        if im_tag is None or im_tag == 'auto':
-            im_filename = tag_template
-        else:
-            im_filename = im_tag
+        im_filename = im_tag
         self.im_path = os.path.join(self._data_dir, im_filename)
         if not self.im_path.endswith('.fits'):
             self.im_path += '.fits'

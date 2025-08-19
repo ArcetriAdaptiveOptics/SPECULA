@@ -60,7 +60,7 @@ class SH(BaseProcessingObj):
                  precision: int = None,
         ):
 
-        super().__init__(target_device_idx=target_device_idx, precision=precision)     
+        super().__init__(target_device_idx=target_device_idx, precision=precision)    
         self._wavelengthInNm = wavelengthInNm
         self._lenslet = Lenslet(subap_on_diameter, target_device_idx=target_device_idx)
         self._subap_wanted_fov = subap_wanted_fov / RAD2ASEC
