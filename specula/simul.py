@@ -268,6 +268,8 @@ class Simul():
    
     def build_objects(self, params):
 
+        self.setSimulParams(params)
+
         cm = CalibManager(self.mainParams['root_dir'])
         skip_pars = 'class inputs outputs'.split()
 
@@ -685,7 +687,6 @@ class Simul():
 
         # Actual creation code
         self.apply_overrides(params)
-        self.setSimulParams(params)
 
         self.trigger_order, self.trigger_order_idx = self.trigger_order(params)
         print(f'{self.trigger_order=}')
