@@ -98,10 +98,10 @@ class IdealDerivativeSensor(BaseProcessingObj):
             y_center = np_sub / 2.0 + np_sub * i_row
 
             # Create mask for this subaperture
-            x_start = int(round(x_center - np_sub / 2.0))
-            x_end = int(round(x_center + np_sub / 2.0))
-            y_start = int(round(y_center - np_sub / 2.0))
-            y_end = int(round(y_center + np_sub / 2.0))
+            x_start = int(self.xp.round(x_center - np_sub / 2.0))
+            x_end = int(self.xp.round(x_center + np_sub / 2.0))
+            y_start = int(self.xp.round(y_center - np_sub / 2.0))
+            y_end = int(self.xp.round(y_center + np_sub / 2.0))
 
             # Create indices for this subaperture
             y_indices, x_indices = self.xp.meshgrid(
