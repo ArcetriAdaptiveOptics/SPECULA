@@ -693,14 +693,17 @@ class Simul():
 
         if not self.isReplay(params):
             replay_params = self.build_replay(params)
+        else:
+            replay_params = None
 
         self.build_objects(params)
         self.create_input_list_inputs(params)
         self.connect_objects(params)
 
-        for obj in self.objs.values():
-            if type(obj) is DataStore:
-                obj.setReplayParams(replay_params)
+        if replay_params is not None:
+            for obj in self.objs.values():
+                if type(obj) is DataStore:
+                    obj.setReplayParams(replay_params)
 
         # Initialize housekeeping objects
         self.loop = LoopControl()

@@ -227,29 +227,18 @@ class FieldAnalyser:
             print(f"Original DataStore input_list: {original_input_list}")
             print(f"Reduced to DM commands only: {dm_command_inputs}")
 
-        # Create Simul instance by bypassing the constructor
-        temp_simul = object.__new__(Simul)  # Create instance without calling __init__
-
-        # Initialize essential attributes
-        temp_simul.params = modified_params
-        temp_simul.verbose = self.verbose
-        temp_simul.overrides = []
-        temp_simul.diagram = False
-        temp_simul.diagram_title = None
-        temp_simul.diagram_filename = None
-        temp_simul.objs = {}
-        temp_simul.replay_params = {}
+        temp_simul = Simul(['dummy.yml'])
 
         # Build objects and connections (needed for build_replay)
-        temp_simul.build_replay(modified_params)
+        replay_params = temp_simul.build_replay(modified_params)
 
         # Update DataSource store_dir to point to correct tracking number directory
-        if 'data_source' in temp_simul.replay_params:
-            temp_simul.replay_params['data_source']['store_dir'] = str(self.tn_dir)
+        if 'data_source' in replay_params:
+            replay_params['data_source']['store_dir'] = str(self.tn_dir)
             if self.verbose:
                 print(f"Updated DataSource store_dir to: {self.tn_dir}")
 
-        return temp_simul.replay_params
+        return replay_params
 
     def _find_dm_input_sources(self, params: dict) -> set:
         """
