@@ -12,6 +12,7 @@ class Intmat(BaseDataObj):
                  slope_mm: list = None,
                  slope_rms: list = None,
                  pupdata_tag: str = '',
+                 subapdata_tag: str = '',
                  norm_factor: float= 0.0,
                  target_device_idx: int=None,
                  precision: int=None):
@@ -20,7 +21,10 @@ class Intmat(BaseDataObj):
         self.slope_mm = slope_mm
         self.slope_rms = slope_rms
         self.pupdata_tag = pupdata_tag
+        self.subapdata_tag = subapdata_tag
         self.norm_factor = norm_factor
+
+        self.tag = ''
 
     def get_value(self):
         '''
@@ -59,6 +63,7 @@ class Intmat(BaseDataObj):
         hdr = fits.Header()
         hdr['VERSION'] = 1
         hdr['PUP_TAG'] = self.pupdata_tag
+        hdr['SA_TAG'] = self.subapdata_tag
         hdr['NORMFACT'] = self.norm_factor
         return hdr
 
@@ -84,6 +89,7 @@ class Intmat(BaseDataObj):
         intmat = fits.getdata(filename, ext=1)
         norm_factor = float(hdr.get('NORMFACT', 0.0))
         pupdata_tag = hdr.get('PUP_TAG', '')
+        subapdata_tag = hdr.get('SA_TAG', '')
         # Reading additional fits extensions
         with fits.open(filename) as hdul:
             num_ext = len(hdul)
@@ -92,7 +98,7 @@ class Intmat(BaseDataObj):
             slope_rms = fits.getdata(filename, ext=3)
         else:
             slope_mm = slope_rms = None
-        return Intmat(intmat, slope_mm, slope_rms, pupdata_tag, norm_factor, target_device_idx=target_device_idx)
+        return Intmat(intmat, slope_mm, slope_rms, pupdata_tag, subapdata_tag, norm_factor, target_device_idx=target_device_idx)
 
     def generate_rec(self, nmodes=None, cut_modes=0, w_vec=None, interactive=False):
         if nmodes is not None:

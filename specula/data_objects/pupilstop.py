@@ -39,15 +39,17 @@ class Pupilstop(Layer):
             mask_amp = self._input_mask
         else:
             mask_amp = make_mask(self.pixel_pupil, obs_diam, mask_diam, xp=self.xp)
-            
+
         # field dtype must be self.dtype
         if mask_amp.dtype != self.dtype:
             mask_amp = self.xp.asarray(mask_amp, dtype=self.dtype)
-                
+
         self.A = mask_amp
 
         # Initialise time for at least the first iteration
         self.generation_time = 0
+
+        self.tag = ''
 
     def get_value(self):
         '''
