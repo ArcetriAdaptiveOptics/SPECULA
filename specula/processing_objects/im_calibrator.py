@@ -2,10 +2,11 @@ import os
 
 from specula.base_processing_obj import BaseProcessingObj
 from specula.processing_objects.dm import DM
-from specula.processing_objects.sh import SH
 from specula.processing_objects.modulated_pyramid import ModulatedPyramid
 from specula.processing_objects.pyr_slopec import PyrSlopec
+from specula.processing_objects.sh import SH
 from specula.processing_objects.sh_slopec import ShSlopec
+from specula.data_objects.pupilstop import Pupilstop
 from specula.data_objects.slopes import Slopes
 from specula.data_objects.source import Source
 from specula.data_objects.intmat import Intmat
@@ -20,6 +21,7 @@ class ImCalibrator(BaseProcessingObj):
                  im_tag: str='',
                  first_mode: int = 0,
                  overwrite: bool = False,
+                 pupilstop: Pupilstop = None,
                  source: Source = None,
                  dm: DM = None,
                  sensor: BaseProcessingObj = None,
@@ -31,10 +33,35 @@ class ImCalibrator(BaseProcessingObj):
         self._nmodes = nmodes
         self._first_mode = first_mode
         self._data_dir = data_dir
+
+        self.subapdata_tag = None
+        self.pupdata_tag = None
+        if slopec is not None:
+            if isinstance(slopec, ShSlopec):
+                if slopec.subapdata.tag is not None:
+                    self.subapdata_tag = slopec.subapdata.tag
+            if isinstance(slopec, PyrSlopec):
+                if slopec.pupdata.tag is not None:
+                    self.pupdata_tag = slopec.pupdata.tag
+
         if im_tag is None or im_tag == 'auto':
             im_tag = 'im'
             # no. pixel and pixel pitch
             im_tag += f'_{dm.simul_params.pixel_pupil}x{dm.simul_params.pixel_pupil}p_{dm.simul_params.pixel_pitch}m'
+            # Pupilstop
+            if pupilstop.tag is not None and pupilstop.tag != '':
+                im_tag += f'_{pupilstop.tag}'
+                if pupilstop.shiftXYinPixel != (0.0, 0.0):
+                    im_tag += f'_s{pupilstop.shiftXYinPixel[0]:.1f}x{pupilstop.shiftXYinPixel[1]:.1f}pix'
+                if pupilstop.rotInDeg is not None:
+                    im_tag += f'_r{pupilstop.rotInDeg:.1f}deg'
+                if pupilstop.magnification != 1.0:
+                    im_tag += f'_m{pupilstop.magnification:.1f}'
+            else:
+                if pupilstop.mask_diam is not None:
+                    im_tag += f'_d{pupilstop.mask_diam:.1f}'
+                if pupilstop.obs_diam is not None:
+                    im_tag += f'_o{pupilstop.obs_diam:.1f}'
             # SOURCE coordinates
             if source.polar_coordinates[0] != 0:
                 im_tag += f'_r{source.polar_coordinates[0]:.1f}asec_a{source.polar_coordinates[0]:.1f}deg'
@@ -51,13 +78,6 @@ class ImCalibrator(BaseProcessingObj):
                 im_tag += f'_w{sensor.wavelength_in_nm}nm'
                 im_tag += f'_{sensor.pup_diam}x{sensor.pup_diam}sa' # TODO THIS IS NOT PRESENT
                 im_tag += f'_f{sensor.fov}asec'
-            # SLOPEC related
-            if isinstance(slopec, ShSlopec):
-                if slopec.quadcell_mode:
-                    im_tag += f'_qc'
-            if isinstance(slopec, PyrSlopec):
-                if slopec.slopes_from_intensity:
-                    im_tag += f'_slint'
             # DM related keys
             if dm._ifunc.type_str is not None:
                 im_tag += '_'+dm._ifunc.type_str
@@ -68,6 +88,18 @@ class ImCalibrator(BaseProcessingObj):
             im_tag += f'_{min(nmodes_dm,self._nmodes)}modes'
             if self._first_mode != 0:
                 im_tag += f'_firstmode{self._first_mode}'
+            # SLOPEC related
+            im_tag += f'_ns{slopec.nsubaps()}'
+            if isinstance(slopec, ShSlopec):
+                if slopec.quadcell_mode:
+                    im_tag += f'_qc'
+                if slopec.subapdata.tag is not None and slopec.subapdata.tag != '':
+                    im_tag += f'_{slopec.subapdata.tag}'
+            if isinstance(slopec, PyrSlopec):
+                if slopec.slopes_from_intensity:
+                    im_tag += f'_slint'
+                if slopec.pupdata.tag is not None and slopec.pupdata.tag != '':
+                    im_tag += f'_{slopec.pupdata.tag}'
         self.im_tag = im_tag
 
         self._overwrite = overwrite
@@ -130,6 +162,7 @@ class ImCalibrator(BaseProcessingObj):
         for i in range(self._nmodes):
             if self.count_commands[i] > 0:
                 self._im.value[i] /= self.count_commands[i]
+
 
         im = Intmat(self._im.value, pupdata_tag = self.pupdata_tag,
                     target_device_idx=self.target_device_idx, precision=self.precision)

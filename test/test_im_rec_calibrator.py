@@ -7,8 +7,15 @@ import unittest
 import uuid
 import shutil
 
-from specula.data_objects.slopes import Slopes
 from specula.base_value import BaseValue
+from specula.data_objects.pupilstop import Pupilstop
+from specula.data_objects.slopes import Slopes
+from specula.data_objects.source import Source
+from specula.data_objects.subap_data import SubapData
+from specula.data_objects.simul_params import SimulParams
+from specula.processing_objects.dm import DM
+from specula.processing_objects.sh import SH
+from specula.processing_objects.sh_slopec import ShSlopec
 from specula.processing_objects.im_calibrator import ImCalibrator
 from specula.processing_objects.rec_calibrator import RecCalibrator
 
@@ -158,18 +165,18 @@ class TestImRecCalibrator(unittest.TestCase):
     @cpu_and_gpu
     def test_automatic_im_tag_generation(self, target_device_idx, xp):
         """Test that ImCalibrator generates automatic im_tag when not specified"""
-        from specula.data_objects.source import Source
-        from specula.data_objects.subap_data import SubapData
-        from specula.data_objects.simul_params import SimulParams
-        from specula.processing_objects.dm import DM
-        from specula.processing_objects.sh import SH
-        from specula.processing_objects.sh_slopec import ShSlopec
 
         # Create SimulParams (needed for DM and SH)
         simul_params = SimulParams(
             pixel_pupil=64,
             pixel_pitch=0.1
         )
+
+        # create a Pupilstop
+        pupilstop = Pupilstop(simul_params,
+                              mask_diam=0.9,
+                              obs_diam=0.1,
+                              target_device_idx=target_device_idx)
 
         # Create Source
         source = Source(
@@ -239,6 +246,7 @@ class TestImRecCalibrator(unittest.TestCase):
             nmodes=10, 
             data_dir=self.test_dir,
             im_tag='auto',
+            pupilstop=pupilstop,
             source=source,
             dm=dm,
             sensor=sensor,
