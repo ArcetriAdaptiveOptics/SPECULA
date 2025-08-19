@@ -1,6 +1,5 @@
 
-from specula import fuse
-from specula.lib.calc_psf_geometry import calc_psf_geometry
+from specula.lib.calc_psf import calc_psf, calc_psf_geometry
 
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_value import BaseValue
@@ -10,11 +9,6 @@ from specula.connections import InputValue
 from specula.data_objects.simul_params import SimulParams
 
 import numpy as np
-
-
-@fuse(kernel_name='psf_abs2')
-def psf_abs2(v, xp):
-    return xp.real(v * xp.conj(v))
 
 
 class PSF(BaseProcessingObj):
@@ -66,49 +60,6 @@ class PSF(BaseProcessingObj):
         self.out_size = [int(np.around(dim * self.nd/2)*2) for dim in in_ef.size]
         self.ref = Intensity(self.out_size[0], self.out_size[1], target_device_idx=self.target_device_idx)
 
-    def calc_psf(self, phase, amp, imwidth=None, normalize=False, nocenter=False):
-        """
-        Calculates a PSF from an electrical field phase and amplitude.
-
-        Parameters:
-        phase : ndarray
-            2D phase array.
-        amp : ndarray
-            2D amplitude array (same dimensions as phase).
-        imwidth : int, optional
-            Width of the output image. If provided, the output will be of shape (imwidth, imwidth).
-        normalize : bool, optional
-            If set, the PSF is normalized to total(psf).
-        nocenter : bool, optional
-            If set, avoids centering the PSF and leaves the maximum pixel at [0,0].
-
-        Returns:
-        psf : ndarray
-            2D PSF (same dimensions as phase).
-        """
-
-        # Set up the complex array based on input dimensions and data type
-        if imwidth is not None:
-            u_ef = self.xp.zeros((imwidth, imwidth), dtype=self.complex_dtype)
-            result = amp * self.xp.exp(1j * phase, dtype=self.complex_dtype)
-            s = result.shape
-            u_ef[:s[0], :s[1]] = result
-        else:
-            u_ef = amp * self.xp.exp(1j * phase, dtype=self.complex_dtype)
-        # Compute FFT (forward)
-        u_fp = self.xp.fft.fft2(u_ef)
-        # Center the PSF if required
-        if not nocenter:
-            u_fp = self.xp.fft.fftshift(u_fp)
-        # Compute the PSF as the square modulus of the Fourier transform
-        psf = psf_abs2(u_fp, xp=self.xp)
-        # Normalize if required
-        if normalize:
-            self.total_psf = self.xp.sum(psf)
-            psf /= self.total_psf
-
-        return psf
-
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
 
@@ -116,12 +67,14 @@ class PSF(BaseProcessingObj):
 
         # First time, calculate reference PSF.
         if self.first:
-            self.ref.i[:] = self.calc_psf(in_ef.A * 0.0, in_ef.A, imwidth=self.out_size[0], normalize=True)
+            self.ref.i[:] = calc_psf(in_ef.A * 0.0, in_ef.A, imwidth=self.out_size[0], normalize=True,
+                                     xp=self.xp, complex_dtype=self.complex_dtype)
             self.first = False
 
     def trigger_code(self):
         in_ef = self.local_inputs['in_ef']
-        self.psf.value = self.calc_psf(in_ef.phi_at_lambda(self.wavelengthInNm), in_ef.A, imwidth=self.out_size[0], normalize=True)
+        self.psf.value, self.total_psf = calc_psf(in_ef.phi_at_lambda(self.wavelengthInNm), in_ef.A, imwidth=self.out_size[0], normalize=True,
+                                                  xp=self.xp, complex_dtype=self.complex_dtype, return_total=True)
         self.sr.value = self.psf.value[self.out_size[0] // 2, self.out_size[1] // 2] / self.ref.i[self.out_size[0] // 2, self.out_size[1] // 2]
         print('SR:', self.sr.value, flush=True)
 

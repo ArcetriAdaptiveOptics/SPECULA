@@ -6,7 +6,6 @@ import numpy as np
 
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.simul_params import SimulParams
-from specula.lib.calc_psf_geometry import calc_psf_sampling
 from specula.processing_objects.psf import PSF
 from specula.processing_objects.psf_coronagraph import PsfCoronagraph
 from test.specula_testlib import cpu_and_gpu
@@ -219,28 +218,3 @@ class TestPSF(unittest.TestCase):
 
         # Should still have suppression, though not perfect
         self.assertLess(suppression_ratio, 1.0)
-
-    @cpu_and_gpu
-    def test_calc_psf_method(self, target_device_idx, xp):
-        """Test the calc_psf method directly"""
-        simul_params, ef, wavelengthInNm = self.get_basic_setup(target_device_idx)
-
-        psf = PSF(simul_params=simul_params, wavelengthInNm=wavelengthInNm,
-                  nd=1.0, target_device_idx=target_device_idx)
-
-        # Create test phase and amplitude
-        phase = xp.zeros((10, 10))
-        amp = xp.ones((10, 10))
-
-        # Test basic PSF calculation
-        result = psf.calc_psf(phase, amp, normalize=True)
-        self.assertEqual(result.shape, (10, 10))
-        self.assertAlmostEqual(float(xp.sum(result)), 1.0, places=6)
-
-        # Test with different output size
-        result_big = psf.calc_psf(phase, amp, imwidth=20, normalize=True)
-        self.assertEqual(result_big.shape, (20, 20))
-
-        # Test without centering
-        result_nocenter = psf.calc_psf(phase, amp, nocenter=True)
-        self.assertEqual(result_nocenter.shape, (10, 10))

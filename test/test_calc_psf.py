@@ -4,11 +4,31 @@ specula.init(0)  # Default target device
 import unittest
 import numpy as np
 
-from specula.lib.calc_psf_geometry import calc_psf_sampling
+from specula.lib.calc_psf import calc_psf, calc_psf_sampling
 from test.specula_testlib import cpu_and_gpu
 
 
-class TestPsfGeometry(unittest.TestCase):
+class TestCalcPsf(unittest.TestCase):
+
+    @cpu_and_gpu
+    def test_calc_psf(self, target_device_idx, xp):
+
+        # Create test phase and amplitude
+        phase = xp.zeros((10, 10))
+        amp = xp.ones((10, 10))
+
+        # Test basic PSF calculation
+        result = calc_psf(phase, amp, normalize=True, xp=xp)
+        self.assertEqual(result.shape, (10, 10))
+        self.assertAlmostEqual(float(xp.sum(result)), 1.0, places=6)
+
+        # Test with different output size
+        result_big = calc_psf(phase, amp, imwidth=20, normalize=True, xp=xp)
+        self.assertEqual(result_big.shape, (20, 20))
+
+        # Test without centering
+        result_nocenter = calc_psf(phase, amp, nocenter=True, xp=xp)
+        self.assertEqual(result_nocenter.shape, (10, 10))
 
     @cpu_and_gpu
     def test_calc_psf_sampling(self, target_device_idx, xp):
