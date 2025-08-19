@@ -6,6 +6,7 @@ import numpy as np
 
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.simul_params import SimulParams
+from specula.lib.calc_psf_geometry import calc_psf_sampling
 from specula.processing_objects.psf import PSF
 from specula.processing_objects.psf_coronagraph import PsfCoronagraph
 from test.specula_testlib import cpu_and_gpu
@@ -60,7 +61,7 @@ class TestPSF(unittest.TestCase):
         wavelength_nm = 500.0
 
         # Test normal case
-        sampling = PSF.calc_psf_sampling(pixel_pupil, pixel_pitch, wavelength_nm, 10.0)
+        sampling = calc_psf_sampling(pixel_pupil, pixel_pitch, wavelength_nm, 10.0)
         self.assertIsInstance(sampling, float)
         self.assertGreater(sampling, 0)
 
@@ -69,7 +70,7 @@ class TestPSF(unittest.TestCase):
         max_pixel_size_mas = (wavelength_nm * 1e-9 / dim_pup_in_m * 3600 * 180 / np.pi) * 1000
 
         with self.assertRaises(ValueError):
-            PSF.calc_psf_sampling(pixel_pupil, pixel_pitch, wavelength_nm, max_pixel_size_mas * 2)
+            calc_psf_sampling(pixel_pupil, pixel_pitch, wavelength_nm, max_pixel_size_mas * 2)
 
     @cpu_and_gpu
     def test_psf_with_zero_phase(self, target_device_idx, xp):
