@@ -50,8 +50,8 @@ class IirFilterData(BaseDataObj):
             ordden = np.repeat(ordden, n_modes)
             if len(n_modes) != len(num) or len(n_modes) != len(den):
                 raise ValueError("n_modes must have the same length as num and den")
-            num = np.repeat(num, n_modes, axis=0)
-            den = np.repeat(den, n_modes, axis=0)
+            num = np.repeat(cpuArray(num), n_modes, axis=0)
+            den = np.repeat(cpuArray(den), n_modes, axis=0)
         self.ordnum = self.to_xp(ordnum, dtype=int)
         self.ordden = self.to_xp(ordden, dtype=int)
         self.zeros = None
@@ -131,6 +131,7 @@ class IirFilterData(BaseDataObj):
         self.den = den
 
     def set_gain(self, gain, verbose=False):
+        gain = self.to_xp(gain, dtype=self.dtype)
         if verbose:
             print('original gain:', self.gain)
         if self.xp.size(gain) < self.nfilter:
@@ -168,11 +169,14 @@ class IirFilterData(BaseDataObj):
             freq = np.logspace(-1, np.log10(fs/2), 1000)
 
         # Get controller coefficients C
-        C_num = self.num[mode, :]
-        C_den = self.den[mode, :]
+        C_num = cpuArray(self.num[mode, :])
+        C_den = cpuArray(self.den[mode, :])
 
         # Get plant coefficients P from dm, nw, dw
         if dm is not None and nw is not None and dw is not None:
+            nw = cpuArray(nw)
+            dm = cpuArray(dm)
+            dw = cpuArray(dw)
             P_num = nw
             P_den = np.convolve(dm, dw)
         else:
@@ -230,11 +234,14 @@ class IirFilterData(BaseDataObj):
             freq = np.logspace(-1, np.log10(fs/2), 1000)
 
         # Get controller coefficients C
-        C_num = self.num[mode, :]
-        C_den = self.den[mode, :]
+        C_num = cpuArray(self.num[mode, :])
+        C_den = cpuArray(self.den[mode, :])
 
         # Get plant coefficients P from dm, nw, dw
         if dm is not None and nw is not None and dw is not None:
+            nw = cpuArray(nw)
+            dm = cpuArray(dm)
+            dw = cpuArray(dw)
             P_num = nw
             P_den = np.convolve(dm, dw)
         else:
