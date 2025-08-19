@@ -23,18 +23,14 @@ class BaseDataObj(BaseTimeObj):
         Initialize the base data object.
 
         Parameters:
-        precision (int, optional):if None will use the global_precision, otherwise pass 0 for double, 1 for single
+        target_device_idx: int, optional
+            device to be targeted for data storage. Set to -1 for CPU,
+            to 0 for the first GPU device, 1 for the second GPU device, etc.
+        precision: int, optional
+            if None will use the global_precision, otherwise set to 0 for double, 1 for single
         """
         super().__init__(target_device_idx, precision)
-        self._generation_time = -1
-
-    @property
-    def generation_time(self):
-        return self._generation_time
-
-    @generation_time.setter
-    def generation_time(self, value):
-        self._generation_time = value
+        self.generation_time = -1
 
     def transferDataTo(self, destobj, force_reallocation=False):
         '''
