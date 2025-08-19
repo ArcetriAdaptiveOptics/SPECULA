@@ -29,9 +29,29 @@ class IirFilterData(BaseDataObj):
                  ordden: list,
                  num,
                  den,
+                 n_modes=None,
                  target_device_idx: int=None,
                  precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
+        # Handle filter setup (ordnum, ordden, num and den) based on n_modes:
+        # - If n_modes is provided, it specifies how many modes (channels) to use.
+        # - n_modes length must match ordnum, ordden, num and den.
+        # - Each ordnum[i], ordden[i], num[i] and den[i] is expanded into a block of size n_modes[i].
+        #   Example: n_modes=[2,3], num=[[0.0, 0.5],[0.0, 0.4]]
+        #            -> num = [[0.0, 0.5],[0.0, 0.5],[0.0, 0.4],[0.0, 0.4],[0.0, 0.4]]
+        # - Raises ValueError if the lengths do not match.
+        if n_modes is not None:
+            n_modes = np.atleast_1d(n_modes)
+            if len(n_modes) != len(ordnum):
+                raise ValueError("n_modes must have the same length as ordnum")
+            ordnum = np.repeat(ordnum, n_modes)
+            if len(n_modes) != len(ordden):
+                raise ValueError("n_modes must have the same length as ordden")
+            ordden = np.repeat(ordden, n_modes)
+            if len(n_modes) != len(num) or len(n_modes) != len(den):
+                raise ValueError("n_modes must have the same length as num and den")
+            num = np.repeat(num, n_modes, axis=0)
+            den = np.repeat(den, n_modes, axis=0)
         self.ordnum = self.to_xp(ordnum, dtype=int)
         self.ordden = self.to_xp(ordden, dtype=int)
         self.zeros = None
@@ -224,7 +244,7 @@ class IirFilterData(BaseDataObj):
         # if P_num is shorter than P_den, pad with zeros
         if len(P_num) < len(P_den):
             P_num = np.pad(P_num, (0, len(P_den) - len(P_num)), mode='constant')
-        
+
         # Calculate CP = C * P
         CP_num = np.convolve(C_num, P_num)
         CP_den = np.convolve(C_den, P_den)

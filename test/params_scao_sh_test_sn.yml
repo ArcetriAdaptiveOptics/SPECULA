@@ -5,10 +5,15 @@ sncalib:
   output_tag: 'scao_sn_n8_th0.5'
 
 main_override:
-  total_time: 0.001
+  total_time: 0.005
+
+# set seeing to zero to test slope null computation on multiple frames
+seeing_override:
+  constant:          0.0 
 
 prop_override:
   inputs:
+    atmo_layer_list: ['atmo.layer_list']
     common_layer_list: ['pupilstop']
 
 detector_override:
@@ -18,4 +23,4 @@ detector_override:
 slopec_override:
   weightedPixRad: 0.0
 
-remove: ['atmo', 'rec', 'control', 'dm', 'data_store']
+remove: ['rec', 'control', 'dm', 'data_store']

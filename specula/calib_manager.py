@@ -27,6 +27,7 @@ class CalibManager():
             'subapdata': 'subapdata/',
             'ShSubapCalibrator': 'subapdata/',
             'iir_filter_data': 'filter/',
+            'IirFilterData': 'filter/',
             'rec': 'rec/',
             'recmat': 'rec/',
             'intmat': 'im/',
