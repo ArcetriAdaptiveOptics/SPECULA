@@ -35,8 +35,10 @@ See the documentation here: [specula.readthedocs.io](https://specula.readthedocs
 Some features require additional libraries:
 - **pycairo**: needed for block diagram generation with `orthogram`
 - **orthogram**: for automatic block diagram creation (see [orthogram](https://pypi.org/project/orthogram/))
+- **control**: for conversion of transfer function system in SPECULA format and vice-versa and analysis of transfer function
 
 Install optional dependencies with:
 ```bash
 pip install pycairo orthogram
+pip install control
 ```

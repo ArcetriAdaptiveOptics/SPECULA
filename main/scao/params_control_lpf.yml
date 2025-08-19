@@ -56,6 +56,5 @@ all_disp:
                  'diff.out_value',
                  'control.out_comm',
                  'lowpass.out_comm']
-  window:           11
   yrange:           [-10,10]
   title:            'input'

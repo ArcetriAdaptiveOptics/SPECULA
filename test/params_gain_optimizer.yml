@@ -70,10 +70,10 @@ gain_optimizer:
   inputs:
       delta_comm: 'sum_operation_noise.out_value'
       out_comm: 'control.out_comm'
-  outputs: ['optgain']
+  outputs: ['optimized_gain']
 
 data_store:
   class:             'DataStore'
   store_dir:         './data'             # Data result directory: 'store_dir'/TN/
   inputs:
-    input_list: ['res-diff.out_value','optgain-gain_optimizer.optgain']
+    input_list: ['res-diff.out_value','optimized_gain-gain_optimizer.optimized_gain']

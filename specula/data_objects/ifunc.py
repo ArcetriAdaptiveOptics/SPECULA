@@ -130,19 +130,37 @@ class IFunc(BaseDataObj):
     def type(self):
         return self._influence_function.dtype
 
+    def get_value(self):
+        return self._influence_function
+    
+    def set_value(self, v, force_copy=False):
+        '''Set a new influence function.
+        Arrays are not reallocated.'''
+        assert v.shape == self._influence_function.shape, \
+            f"Error: input array shape {v.shape} does not match influence function shape {self._influence_function.shape}"
+
+        self._influence_function[:] = self.to_xp(v, force_copy=force_copy)
+
+    @staticmethod
+    def from_header(hdr):
+        raise NotImplementedError
+
     def inverse(self):
         inv = self.xp.linalg.pinv(self._influence_function)
         return IFuncInv(inv, mask=self._mask_inf_func, precision=self.precision, target_device_idx=self.target_device_idx)
 
-    def save(self, filename, hdr=None):
-        hdr = hdr if hdr is not None else fits.Header()
+    def get_fits_header(self):
+        hdr = fits.Header()
         hdr['VERSION'] = 1
+        return hdr
 
+    def save(self, filename, overwrite=False):
+        hdr = self.get_fits_header()
         hdu = fits.PrimaryHDU(header=hdr)
         hdul = fits.HDUList([hdu])
         hdul.append(fits.ImageHDU(data=cpuArray(self._influence_function.T), name='INFLUENCE_FUNCTION'))
         hdul.append(fits.ImageHDU(data=cpuArray(self._mask_inf_func), name='MASK_INF_FUNC'))
-        hdul.writeto(filename, overwrite=True)
+        hdul.writeto(filename, overwrite=overwrite)
 
     def cut(self, start_mode=None, nmodes=None, idx_modes=None):
 

@@ -87,15 +87,13 @@ ph_disp:
   inputs:
     phase1:       "propF.out_on_axis_source_ef"
     phase2:       "propI.out_on_axis_source_ef"
-  window:           12
   title:            'PUPIL PHASE COMPARE'
-  disp_factor:      2
+  figsize:       [8, 6]  # Default size in inches
 
 #ph_dispI:
 #  class:            'PhaseDisplay'
 #  inputs:
 #    phase:       "propI.out_on_axis_source_ef"
-#  window:           13
 #  title:            'PUPIL PHASE INFINITE'
-#  disp_factor:      2
+#  figsize:       [8, 6]  # Default size in inches
 

@@ -5,6 +5,7 @@ specula.init(0)  # Default target device
 import os
 import unittest
 import numpy as np
+from astropy.io import fits
 
 from specula import cpuArray
 from specula.data_objects.slopes import Slopes
@@ -65,6 +66,25 @@ class TestSlopes(unittest.TestCase):
         new_slopes_data = xp.ones(10)
         slopes.set_value(new_slopes_data)
         slopes.save(self.filename)
+
+        slopes2 = Slopes.restore(self.filename)
+
+        np.testing.assert_array_equal(cpuArray(slopes.slopes), cpuArray(slopes2.slopes))
+        np.testing.assert_array_equal(cpuArray(slopes.indicesX), cpuArray(slopes2.indicesX))
+        np.testing.assert_array_equal(cpuArray(slopes.indicesY), cpuArray(slopes2.indicesY))
+
+
+    @cpu_and_gpu
+    def test_slopes_save_restore_roundtrip_version2(self, target_device_idx, xp):
+        
+        slopes = Slopes(10, target_device_idx=target_device_idx)
+        new_slopes_data = xp.ones(10)
+        slopes.set_value(new_slopes_data)
+        slopes.save(self.filename)
+
+        with fits.open(self.filename, mode="update") as f:
+            f[0].header["VERSION"] = 2
+            del f[0].header["LENGTH"]
 
         slopes2 = Slopes.restore(self.filename)
 

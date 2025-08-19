@@ -1,52 +1,47 @@
 import numpy as np
-import matplotlib.pyplot as plt
 
-from specula.base_processing_obj import BaseProcessingObj
-from specula.data_objects.pupdata import PupData
-from specula.data_objects.subap_data import SubapData
+from specula import cpuArray
+from specula.display.base_display import BaseDisplay
+from specula.connections import InputValue
 from specula.data_objects.slopes import Slopes
 
-from specula.connections import InputValue
-from specula import cpuArray
 
-
-class SlopecDisplay(BaseProcessingObj):
+class SlopecDisplay(BaseDisplay):
     def __init__(self,
-                 window=27,
-                 disp_factor=1):
-        super().__init__(target_device_idx=-1)
+                 title='Slopes Display',
+                 figsize=(6, 6)):
 
-        self._disp_factor = disp_factor
-        self._window = window
-        self._title = ''
-        self._opened = False
-        self._first = True
-        self.fig = self.ax = None
-      
+        super().__init__(
+            title=title,
+            figsize=figsize
+        )
+
+        self.img = None
+
+        # Setup input
+        self.input_key = 'slopes'  # Used by base class
         self.inputs['slopes'] = InputValue(type=Slopes)
 
-    def set_w(self, size_frame):
-        self.fig = plt.figure(self._window, figsize=(size_frame[0] * self._disp_factor / 100, size_frame[1] * self._disp_factor / 100))
-        self.ax = self.fig.add_subplot(111)
-
-    def trigger_code(self):
-
-        slopes_obj = self.local_inputs['slopes']
-
+    def _update_display(self, slopes_obj):
+        """Override base method to implement slopes-specific display"""
+        # Get 2D slopes data and convert to displayable format
         frame3d = slopes_obj.get2d()
-
-        frame2d = np.hstack(cpuArray(frame3d))
-        title = self._title if self._title else 'Slope Display'
-
-        if not self._opened:
-            self.set_w(frame2d.shape)
-            self._opened = True
-        if self._first:
-            self.ax.set_title(title)
-            self.img = self.ax.imshow(frame2d)
-            self._first = False
+        if len(frame3d.shape) == 3:
+            frame2d = np.hstack(cpuArray(frame3d))
         else:
-            self.img.set_data(frame2d)
-            self.img.set_clim(frame2d.min(), frame2d.max())
-        self.fig.canvas.draw()
-        plt.pause(0.001)
+            # slopes from intensity case
+            frame2d = frame3d
+
+        if self.img is None:
+            # First time: create image
+            self.img = self.ax.imshow(frame2d)
+            self._add_colorbar_if_needed(self.img)
+
+            # Set axis labels for clarity
+            self.ax.set_xlabel('Slope Components')
+            self.ax.set_ylabel('Subapertures')
+        else:
+            # Update existing image
+            self._update_image_data(self.img, frame2d)
+
+        self._safe_draw()

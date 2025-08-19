@@ -82,7 +82,6 @@ detector:
 slopec:
   class:             'PyrSlopec'
   pupdata_object:    'scao_40x40_pupdata'            # tag of the pyramid WFS pupils
-  use_sn:            False
   inputs:
     in_pixels:        'detector.out_pixels'
   outputs:  ['out_slopes', 'out_pupdata', 'total_counts', 'subap_counts']
@@ -91,16 +90,14 @@ ph_disp:
   class:         'PhaseDisplay'
   inputs:
     phase:       "atmo.out_on_axis_source_ef"
-  window:           12
   title:            'PUPIL PHASE'
-  disp_factor:      2
+  figsize:       [8, 6]  # Default size in inches
 
 
 test_disp:
    class:            'ModesDisplay'
    inputs:
      modes:       "modal_analysis.out_modes"
-   window:           15
    title:            'test'
 
 #sc_disp:
@@ -108,8 +105,7 @@ test_disp:
 #   inputs:
 #     slopes:       'slopec.out_slopes'
 #     pupdata:      'slopec.out_pupdata'
-#   window:           16
-#   disp_factor:      4
+#   figsize:       [8, 6]  # Default size in inches
 
 
 data_store:
