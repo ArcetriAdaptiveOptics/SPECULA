@@ -5,6 +5,7 @@ specula.init(0)  # Default target device
 
 import unittest
 
+from specula import cpuArray
 from specula.base_time_obj import BaseTimeObj
 from specula.data_objects.source import Source
 from specula.processing_objects.wave_generator import WaveGenerator
