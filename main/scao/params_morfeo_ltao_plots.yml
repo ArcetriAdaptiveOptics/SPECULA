@@ -13,13 +13,13 @@ main:
 
 
 seeing:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          0.65                  # ["] seeing value
   outputs: ['output']
 
 
 wind_speed:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          [5.5, 5.5, 5.1, 5.5, 5.6, 5.7, 5.8, 6.0, 6.5, 7.0,
                       7.5, 8.5, 9.5, 11.5, 17.5, 23.0, 26.0, 29.0, 32.0, 27.0,
                       22.0, 14.5, 9.5, 6.3, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0,
@@ -28,7 +28,7 @@ wind_speed:
 
 
 wind_direction:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          [0, -180, 0, 0, 90, 180, 0, 0, 0, -180,
                       0, 0, -90, 0, 90, -180, 90, 0, -90, -90,
                       0, -90, 0, 0, 180, 180, 0, -180, 90, 0,
@@ -375,58 +375,51 @@ psf:
 #  inputs:
 #    slopes:       'slopec1.out_slopes'
 #    subapdata:    'slopec1.out_subapdata'
-#  disp_factor:      1
+#    figsize:       [8, 6]  # Default size in inches
 
 # sc3_disp:
 #  class:            'SlopecDisplay'
 #  inputs:
 #    slopes:       'slopec3.out_slopes'
 #    subapdata:    'slopec3.out_subapdata'
-#  disp_factor:      1
-#  window:           12
+#  figsize:       [8, 6]  # Default size in inches
 
 # psf_disp:
 #  class:            'PsfDisplay'
 #  inputs:
 #    psf:       "psf.out_psf"
-#  window:           14
 #  title:            'PSF'
-#  disp_factor:      1
+#  figsize:       [8, 6]  # Default size in inches
 
 sr_disp:
   class:            'PlotDisplay'
   inputs:
     value:       'psf.out_sr'
-  window:           11
   title:            'SR'
 
 # dm_disp:
 #   class:            'PhaseDisplay'
 #   inputs:
 #     phase:       "dm.out_layer"
-#   window:           13
 #   title:            'DM'
-#   disp_factor:      2
+#   figsize:       [8, 6]  # Default size in inches
 
 # ph1_disp:
 #   class:            'PhaseDisplay'
 #   inputs:
 #     phase:       "prop.out_on_axis_source_ef"
-#   window:           15
 #   title:            'PHASE ON AXIS'
-#   disp_factor:      2
+#   figsize:       [8, 6]  # Default size in inches
 
 # ph2_disp:
 #   class:            'PhaseDisplay'
 #   inputs:
 #     phase:       "prop.out_ngs1_source_ef"
-#   window:           14
 #   title:            'PHASE OFF AXIS'
-#   disp_factor:      2
+#   figsize:       [8, 6]  # Default size in inches
 
 # cmd_disp:
 #   class:            'ModesDisplay'
 #   inputs:
 #     modes:       "rec.out_modes"
-#   window:           16
 #   title:            'rec.out_modes'

@@ -10,19 +10,19 @@ main:
 
 
 seeing:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          0.8                  # ["] seeing value
   outputs: ['output']
 
 
 wind_speed:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          [20.]                #,10.,20.,10.]      # [m/s] Wind speed value
   outputs: ['output']
 
 
 wind_direction:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          [0.]#,270.,270.,90.]   # [degrees] Wind direction value
   outputs: ['output']
 
@@ -144,40 +144,34 @@ sc_disp:
   class:            'SlopecDisplay'
   inputs:
     slopes:       'slopec.out_slopes'
-    pupdata:      'slopec.out_pupdata'
-  disp_factor:      4
+  figsize:       [8, 6]  # Default size in inches
 sr_disp:
   class:            'PlotDisplay'
   inputs:
     value:       'psf.out_sr'
-  window:           11
   title:            'SR'
 ph_disp:
   class:            'PhaseDisplay'
   inputs:
     phase:       "prop.out_on_axis_source_ef"
-  window:           12
   title:            'PUPIL PHASE'
-  disp_factor:      2
+  figsize:       [8, 6]  # Default size in inches
 dm_disp:
   class:            'PhaseDisplay'
   inputs:
     phase:       "dm.out_layer"
-  window:           13
   title:            'DM'
-  disp_factor:      2
+  figsize:       [8, 6]  # Default size in inches
 psf_disp:
   class:            'PsfDisplay'
   inputs:
     psf:       "psf.out_psf"
-  window:           14
   title:            'PSF'
-  disp_factor:      2
+  figsize:       [8, 6]  # Default size in inches
 test_disp:
   class:            'ModesDisplay'
   inputs:
     modes:       "rec.out_modes"
-  window:           15
   title:            'test'
 
 

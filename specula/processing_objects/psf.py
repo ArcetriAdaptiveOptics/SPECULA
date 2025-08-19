@@ -1,5 +1,5 @@
 
-from specula import fuse, show_in_profiler
+from specula import fuse
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_value import BaseValue
 from specula.data_objects.electric_field import ElectricField
@@ -22,7 +22,7 @@ class PSF(BaseProcessingObj):
                  nd: float=None,
                  pixel_size_mas: float=None,
                  start_time: float=0.0,
-                 target_device_idx: int = None, 
+                 target_device_idx: int = None,
                  precision: int = None
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
@@ -42,9 +42,9 @@ class PSF(BaseProcessingObj):
             self.nd = nd
         elif pixel_size_mas is not None:
             self.nd = PSF.calc_psf_sampling(
-                self.pixel_pupil, 
-                self.pixel_pitch, 
-                self.wavelengthInNm, 
+                self.pixel_pupil,
+                self.pixel_pitch,
+                self.wavelengthInNm,
                 pixel_size_mas
             )
         else:
@@ -91,7 +91,7 @@ class PSF(BaseProcessingObj):
         Returns:
             psf_sampling: The calculated sampling factor
         """
-        
+
         # Calculate pupil diameter in meters
         dim_pup_in_m = pixel_pupil * pixel_pitch
 
@@ -142,9 +142,9 @@ class PSF(BaseProcessingObj):
         Returns:
             pixel_size_mas 
         """
-        
+
         pixel_size_mas = (self.wavelengthInNm * 1e-9 / self.dim_pup_in_m * 3600 * 180 / np.pi) * 1000 / self.nd
-        
+
         return pixel_size_mas
 
     def calc_psf(self, phase, amp, imwidth=None, normalize=False, nocenter=False):
@@ -185,7 +185,8 @@ class PSF(BaseProcessingObj):
         psf = psf_abs2(u_fp, xp=self.xp)
         # Normalize if required
         if normalize:
-            psf /= self.xp.sum(psf)
+            self.total_psf = self.xp.sum(psf)
+            psf /= self.total_psf
 
         return psf
 

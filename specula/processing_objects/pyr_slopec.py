@@ -35,6 +35,12 @@ class PyrSlopec(Slopec):
                  target_device_idx: int=None,
                  precision: int=None,
                 **kwargs): # is this needed??
+
+        # Set subaperture data before initializing base class
+        # because we need to know the number of subapertures
+        self.pupdata = pupdata
+        self.slopes_from_intensity = slopes_from_intensity
+
         super().__init__(sn=sn, target_device_idx=target_device_idx, precision=precision, **kwargs)
 
         if shlike and slopes_from_intensity:
@@ -47,7 +53,8 @@ class PyrSlopec(Slopec):
         self.norm_factor = norm_factor
         self.threshold = thr_value
         self.slopes_from_intensity = slopes_from_intensity
-        self.pupdata = pupdata  # Property set
+        if self.slopes_from_intensity:
+            self.pupdata.set_slopes_from_intensity(slopes_from_intensity)
         ind_pup = self.pupdata.ind_pup
         self.pup_idx  = ind_pup.flatten().astype(self.xp.int64)[ind_pup.flatten() >= 0] # Exclude -1 padding
         self.pup_idx0 = ind_pup[:, 0][ind_pup[:, 0] >= 0]  # Exclude -1 padding
@@ -56,43 +63,25 @@ class PyrSlopec(Slopec):
         self.pup_idx3 = ind_pup[:, 3][ind_pup[:, 3] >= 0]  # Exclude -1 padding
         self.n_pup = self.pupdata.ind_pup.shape[1]
         self.n_subap = self.pupdata.ind_pup.shape[0]
-
-        self.total_counts = BaseValue(target_device_idx=self.target_device_idx)
-        self.subap_counts = BaseValue(target_device_idx=self.target_device_idx)
         self.outputs['out_pupdata'] = self.pupdata
-        self.outputs['total_counts'] = self.total_counts
-        self.outputs['subap_counts'] = self.subap_counts
 
-    @property
-    def pupdata(self):
-        return self._pupdata
+    def nsubaps(self):
+        return self.pupdata.ind_pup.shape[0]
 
-    @pupdata.setter
-    def pupdata(self, p):
-        if p is not None:
-            self._pupdata = p
-            # TODO replace this resize with an earlier initialization
-            if self.slopes_from_intensity:
-                self.slopes.resize(len(self.pupdata.ind_pup) * 4)
-            else:
-                self.slopes.resize(len(self.pupdata.ind_pup) * 2)
+    def nslopes(self):
+        if self.slopes_from_intensity:
+            return self.pupdata.ind_pup.shape[0] * 4
+        else:
+            return self.pupdata.ind_pup.shape[0] * 2
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
         self.flat_pixels = self.local_inputs['in_pixels'].pixels.flatten()
 
     def trigger_code(self):
-        # outpus:
-        # total_counts : computed here
-        # subap_counts : computed in post_trigger
-        # slopes : computed here
 
-#        if not self.pupdata:
-#            return
-#        if self.verbose:
-#            print('Average pixel counts:', self.xp.sum(pixels) / len(self.pupdata.ind_pup))
-
-        self.total_counts.value = self.xp.sum(self.flat_pixels[self.pup_idx])
+        self.total_counts.value[0] = self.xp.sum(self.flat_pixels[self.pup_idx])
+        self.subap_counts.value[0] = self.total_counts.value[0] / self.pupdata.n_subap
 
         self.flat_pixels -= self.threshold
 
@@ -134,13 +123,13 @@ class PyrSlopec(Slopec):
         self.slopes.xslopes = self.sx
         self.slopes.yslopes = self.sy
 
-
     def post_trigger(self):
         super().post_trigger()
 
-        self.subap_counts.value = self.total_counts.value / self.pupdata.n_subap
-        self.total_counts.generation_time = self.current_time
-        self.subap_counts.generation_time = self.current_time
-        self.slopes.single_mask = self.pupdata.single_mask()
+        self.outputs['out_pupdata'].generation_time = self.current_time
+        if self.slopes_from_intensity:
+            self.slopes.single_mask = self.pupdata.complete_mask()
+        else:
+            self.slopes.single_mask = self.pupdata.single_mask()
         self.slopes.display_map = self.pupdata.display_map
-        self.slopes.generation_time = self.current_time
+

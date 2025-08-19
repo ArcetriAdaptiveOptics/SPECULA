@@ -14,13 +14,13 @@ main:
 
 
 seeing:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          0.65                  # ["] seeing value
   outputs: ['output']
 
 
 wind_speed:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          [5.5, 5.5, 5.1, 5.5, 5.6, 5.7, 5.8, 6.0, 6.5, 7.0,
                       7.5, 8.5, 9.5, 11.5, 17.5, 23.0, 26.0, 29.0, 32.0, 27.0,
                       22.0, 14.5, 9.5, 6.3, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0,
@@ -29,7 +29,7 @@ wind_speed:
 
 
 wind_direction:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          [0, -180, 0, 0, 90, 180, 0, 0, 0, -180,
                       0, 0, -90, 0, 90, -180, 90, 0, -90, -90,
                       0, -90, 0, 0, 180, 180, 0, -180, 90, 0,
@@ -349,6 +349,7 @@ rec:
   projmat_object: '/raid1/guido/PASSATA/MAORYC/rec/p20241127_110943.0/projmat1'
 
   polc: True
+  in_commands_size: 4519
   inputs:
     in_slopes_list:        ['slopec1.out_slopes','slopec2.out_slopes','slopec3.out_slopes','slopec4.out_slopes','slopec5.out_slopes','slopec6.out_slopes']
     in_commands: 'control.out_comm:-1'
@@ -391,13 +392,12 @@ psf:
 #  inputs:
 #    slopes:       'slopec1.out_slopes'
 #    subapdata:    'slopec1.out_subapdata'
-#  disp_factor:      1
+#  figsize:       [8, 6]  # Default size in inches
 
 # sr_disp:
 #   class:            'PlotDisplay'
 #   inputs:
 #     value:       'psf.out_sr'
-#   window:           11
 #   title:            'SR'
 
 
@@ -405,20 +405,16 @@ psf:
 #   class:            'PixelsDisplay'
 #   inputs:
 #     pixels:      "detector1.out_pixels"
-#   window:           25
 #   title:            "Pixels"
-#   disp_factor:      1
-#   subapdata_object:  'morfeo_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.25'
-#  sh_as_pyr:        true
+#   figsize:       [8, 6]  # Default size in inches
 
 
 # psf_disp:
 #  class:            'PsfDisplay'
 #  inputs:
 #    psf:       "psf.out_psf"
-#  window:           14
 #  title:            'PSF'
-#  disp_factor:      1
+#  figsize:       [8, 6]  # Default size in inches
 
 
 
@@ -426,22 +422,19 @@ psf:
 #   class:            'ModesDisplay'
 #   inputs:
 #     modes:       "rec.out_modes"
-#   window:           16
 #   title:            'rec.out_modes'
 
 # dm_disp:
 #   class:            'PhaseDisplay'
 #   inputs:
 #     phase:       "dm.out_layer"
-#   window:           13
 #   title:            'DM'
-#   disp_factor:      2
+#   figsize:       [8, 6]  # Default size in inches
 
 # ph1_disp:
 #   class:            'PhaseDisplay'
 #   inputs:
 #     phase:       "prop.out_on_axis_source_ef"
-#   window:           15
 #   title:            'PHASE ON AXIS'
-#   disp_factor:      2
+#   figsize:       [8, 6]  # Default size in inches
 

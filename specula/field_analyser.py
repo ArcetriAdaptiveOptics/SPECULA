@@ -519,7 +519,13 @@ class FieldAnalyser:
             'DataStore',
             'DM',
             'ElectricFieldCombinator',
-            'FuncGenerator'
+            # all generators
+            'PushPullGenerator',
+            'RandomGenerator',
+            'ScheduleGenerator',
+            'TimeHistoryGenerator',
+            'VibrationGenerator',
+            'WaveGenerator'
             # Add other processing objects as needed
         }
 

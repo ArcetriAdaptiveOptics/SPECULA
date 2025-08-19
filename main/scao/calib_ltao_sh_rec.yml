@@ -1,8 +1,7 @@
 
 
 pushpull:
-  class:     'FuncGenerator'
-  func_type: 'PUSHPULL'
+  class:     'PushPullGenerator'
   nmodes:   4519
   vect_amplitude_data:  'pushpull_4519modes_amp50'
   outputs: ['output']
@@ -74,11 +73,8 @@ rec_calibrator:
 #  class:            'PixelsDisplay'
 #  inputs:
 #    pixels:      "detector1.out_pixels"
-#  window:           15
 #  title:            "Pixels"
-#  disp_factor:      1
-#  sh_as_pyr:        true
-#  subapdata_object:  'morfeo_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.25'
+#  figsize:       [8, 6]  # Default size in inches
 
 remove: ['atmo', 'rec', 'control', 'psf']
  

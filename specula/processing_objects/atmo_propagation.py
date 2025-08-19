@@ -1,4 +1,3 @@
-from astropy.io import fits
 
 from specula.lib.make_xy import make_xy
 from specula.base_processing_obj import BaseProcessingObj
@@ -6,7 +5,7 @@ from specula.lib.interp2d import Interp2D
 from specula.data_objects.electric_field import ElectricField
 from specula.connections import InputList
 from specula.data_objects.layer import Layer
-from specula import cpuArray, show_in_profiler, ASEC2RAD
+from specula import cpuArray, show_in_profiler
 from specula.data_objects.simul_params import SimulParams
 
 import numpy as np
@@ -21,14 +20,15 @@ class AtmoPropagation(BaseProcessingObj):
                  doFresnel: bool=False,
                  wavelengthInNm: float=500.0,
                  pupil_position=None,
-                 mergeLayersContrib=True,
+                 mergeLayersContrib: bool=True,
+                 reverse_atmo_layer_list: bool=False,
                  target_device_idx=None,
                  precision=None):
 
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.simul_params = simul_params
-       
+
         self.pixel_pupil = self.simul_params.pixel_pupil
         self.pixel_pitch = self.simul_params.pixel_pitch
 
@@ -40,8 +40,9 @@ class AtmoPropagation(BaseProcessingObj):
 
         if not (self.pixel_pupil > 0):
             raise ValueError('Pixel pupil must be >0')
-        
+
         self.mergeLayersContrib = mergeLayersContrib
+        self.reverse_atmo_layer_list = reverse_atmo_layer_list
         self.pixel_pupil_size = self.pixel_pupil        
         self.source_dict = source_dict
         if pupil_position is not None:
@@ -167,7 +168,7 @@ class AtmoPropagation(BaseProcessingObj):
                         self.interpolators[source][layer] = li
                 else:
                     raise ValueError('Invalid layer/source geometry')
- 
+
     def layer_interpolator(self, source, layer):
         pixel_layer = layer.size[0]
         half_pixel_layer = np.array([(pixel_layer - 1) / 2., (pixel_layer - 1) / 2.]) 
@@ -214,6 +215,8 @@ class AtmoPropagation(BaseProcessingObj):
         super().setup()
 
         self.atmo_layer_list = self.local_inputs['atmo_layer_list']
+        if self.reverse_atmo_layer_list:
+            self.atmo_layer_list.reverse()
         self.common_layer_list = self.local_inputs['common_layer_list']
 
         if self.atmo_layer_list is None:
@@ -240,16 +243,3 @@ class AtmoPropagation(BaseProcessingObj):
 
         self.setup_interpolators()
         self.build_stream()
-
-    def save(self, filename):
-        hdr = fits.Header()
-        hdr['VERSION'] = 1
-        super().save(filename, hdr)
-
-        with fits.open(filename, mode='append') as hdul:
-            hdul.append(fits.ImageHDU(data=self.phasescreens))
-
-    def read(self, filename):
-        super().read(filename)
-        self.phasescreens = fits.getdata(filename, ext=1)
-

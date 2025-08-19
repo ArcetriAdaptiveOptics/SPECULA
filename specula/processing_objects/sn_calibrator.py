@@ -10,15 +10,11 @@ class SnCalibrator(BaseProcessingObj):
                  data_dir: str,         # Set by main simul object
                  output_tag: str = None,
                  tag_template: str = None,
-                 pupdata_tag: str = None,
-                 subapdata_tag: str = None,
                  target_device_idx: int = None,
                  precision: int = None
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         self._data_dir = data_dir
-        self._pupdata_tag = pupdata_tag
-        self._subapdata_tag = subapdata_tag
 
         if tag_template is None and (output_tag is None or output_tag == 'auto'):
             raise ValueError('At least one of tag_template and output_tag must be set')
@@ -28,20 +24,20 @@ class SnCalibrator(BaseProcessingObj):
         else:
             self._filename = output_tag
 
+        self.slopes = None
+        self._n_iter = 0
         self.inputs['in_slopes'] = InputValue(type=Slopes)
 
     def trigger_code(self):
-        self.slopes = Slopes(slopes=self.local_inputs['in_slopes'].slopes, target_device_idx=self.target_device_idx)
-        self.slopes.generation_time = self.local_inputs['in_slopes'].generation_time
-
-        # Set tags if provided
-        if self._pupdata_tag is not None:
-            self.slopes.pupdata_tag = self._pupdata_tag
-
-        if self._subapdata_tag is not None:
-            self.slopes.subapdata_tag = self._subapdata_tag
+        if self.slopes is None:
+            self.slopes = Slopes(slopes=self.local_inputs['in_slopes'].slopes.copy(), target_device_idx=self.target_device_idx)
+        else:
+            self.slopes.slopes += self.local_inputs['in_slopes'].slopes.copy()
+        self._n_iter += 1
 
     def finalize(self):
+        # n_iter is used to normalize a slope null computed as average of several slopes
+        self.slopes.slopes /= self._n_iter
         filename = self._filename
         if not filename.endswith('.fits'):
             filename += '.fits'

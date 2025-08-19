@@ -3,8 +3,6 @@ import warnings
 from copy import copy
 from functools import lru_cache
 
-from astropy.io import fits
-
 from specula import cp, np
 from specula.base_time_obj import BaseTimeObj
 

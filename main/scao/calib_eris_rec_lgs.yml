@@ -1,8 +1,7 @@
 
 
 pushpull:
-  class:     'FuncGenerator'
-  func_type: 'PUSHPULL'
+  class:     'PushPullGenerator'
   nmodes:     1127
   vect_amplitude_data:  'data50_1127'
   outputs: ['output']

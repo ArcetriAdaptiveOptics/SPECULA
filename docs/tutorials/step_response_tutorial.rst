@@ -40,8 +40,8 @@ Create a configuration file, for example ``params_control_lpf.yml``:
      time_step:         0.0001
 
    disturbance:
-     class:             'FuncGenerator'
-     func_type:         'SQUARE_WAVE'
+     class:             'WaveGenerator'
+     wave_type:         'SQUARE'
      amp:               [5.0]
      freq:              [50.0] 
 
@@ -84,7 +84,6 @@ Create a configuration file, for example ``params_control_lpf.yml``:
                     'diff.out_value',
                     'control.out_comm',
                     'lowpass.out_comm']
-     window:           11
      yrange:           [-10,10]
      title:            'Step Response'
 

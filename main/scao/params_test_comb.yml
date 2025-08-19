@@ -9,25 +9,25 @@ main:
   time_step:         0.001                  # [s] Simulation time step
 
 vector1:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   vsize:              5994
   constant:          [100]
   outputs: ['output']
 
 vector2:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   vsize:              5
   constant:          [400]
   outputs: ['output']
 
 vector3:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   vsize:              1
   constant:          [1000]
   outputs: ['output']
 
 vector4:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   vsize:              6
   constant:          [8000]
   outputs: ['output']
@@ -50,19 +50,16 @@ test_disp1:
    class:            'ModesDisplay'
    inputs:
      modes:       "combinator.out_result_commands1"
-   window:           11
    title:            'test'
 
 test_disp2:
    class:            'ModesDisplay'
    inputs:
      modes:       "combinator.out_result_commands2"
-   window:           12
    title:            'test'
 
 test_disp3:
    class:            'ModesDisplay'
    inputs:
      modes:       "combinator.out_result_commands3"
-   window:           13
    title:            'test'

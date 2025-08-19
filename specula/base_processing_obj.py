@@ -265,14 +265,5 @@ class BaseProcessingObj(BaseTimeObj):
         '''
         pass
 
-    def save(self, filename):
-        with fits.open(filename, mode='update') as hdul:
-            hdr = hdul[0].header
-            hdr['VERBOSE'] = self._verbose
-            hdul.flush()
 
-    def read(self, filename):        
-        with fits.open(filename) as hdul:
-            hdr = hdul[0].header
-            self._verbose = hdr.get('VERBOSE', 0)
 

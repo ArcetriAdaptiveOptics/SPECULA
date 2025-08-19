@@ -5,15 +5,15 @@ from specula.data_objects.simul_params import SimulParams
 
 
 class Integrator(IirFilter):
-    def __init__(self, 
+    def __init__(self,
                  simul_params: SimulParams,
-                 int_gain: float, #  TODO =1.0,
+                 int_gain: float,
                  ff: list=None,
                  n_modes: int=None,
-                 delay: float=0,    #  TODO =0.0, 
-                 offset: float=None, 
-                 og_shaper=None,                 
-                 target_device_idx: int=None, 
+                 delay: float=0,
+                 offset: float=None,
+                 og_shaper=None,         
+                 target_device_idx: int=None,
                  precision: int=None
                 ):
         """
