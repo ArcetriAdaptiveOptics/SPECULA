@@ -34,9 +34,10 @@ class ImCalibrator(BaseProcessingObj):
         if im_tag is None or im_tag == 'auto':
             im_tag = 'im'
             # SOURCE coordinates
-            im_tag += f'_{source.polar_coordinates[0]:.6f}r{source.polar_coordinates[0]:.6f}a'
+            if source.polar_coordinates[0] != 0:
+                im_tag += f'_{source.polar_coordinates[0]:.1f}r{source.polar_coordinates[0]:.1f}a'
             if source.height != float('inf'):
-                im_tag += f'_{source.height:.6f}h'
+                im_tag += f'_{source.height:.1f}h'
             # WFS related
             if isinstance(sensor, SH):
                 im_tag += '_sh'
