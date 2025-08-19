@@ -47,7 +47,6 @@ class Simul():
         self.objs = {}
         self.simul_idx = simul_idx
         self.verbose = False  #TODO
-        self.isReplay = False
         self.mainParams = None
         if overrides is None:
             self.overrides = []
@@ -303,7 +302,6 @@ class Simul():
             build_this_object = (process_rank == target_rank) or \
                                 (issubclass(klass, BaseDataObj) and (par_target_rank == None)) or \
                                 (issubclass(klass, BaseDataObj) and (par_target_rank == process_rank)) or \
-                                (classname=='SimulParams') or \
                                 (process_rank == None)
 
             # If not build, remember the remote rank of this object (needed for connections setup)
@@ -326,8 +324,6 @@ class Simul():
 
             pars2 = {}
             for name, value in pars.items():
-                if key == 'data_source':
-                    self.isReplay = True
 
                 if key != 'data_source' and name in skip_pars:
                     continue
@@ -511,8 +507,11 @@ class Simul():
 #                    a_connection['end_label'] = self.objs[dest_object].inputs[use_input_name]
                     self.connections.append(a_connection)
 
+    def isReplay(self, params):
+        return 'data_source' in params
+
     def build_replay(self, params):
-        self.replay_params = deepcopy(params)
+        replay_params = deepcopy(params)
         obj_to_remove = []
         data_source_outputs = {}
         for key, pars in params.items():
@@ -522,9 +521,9 @@ class Simul():
                 raise KeyError(f'Object {key} does not define the "class" parameter')
 
             if classname=='DataStore':
-                self.replay_params['data_source'] = self.replay_params[key]
-                self.replay_params['data_source']['class'] = 'DataSource'
-                del self.replay_params[key]
+                replay_params['data_source'] = replay_params[key]
+                replay_params['data_source']['class'] = 'DataSource'
+                del replay_params[key]
                 for output_name_full in pars['inputs']['input_list']:
                     input_name, output_name = output_name_full.split('-')
                     output_obj, output_name_small = output_name.split('.')                     
@@ -532,9 +531,9 @@ class Simul():
                     obj_to_remove.append(output_obj)
 
         for obj_name in set(obj_to_remove):
-            del self.replay_params[obj_name]
+            del replay_params[obj_name]
 
-        for key, pars in self.replay_params.items():
+        for key, pars in replay_params.items():
             if not key=='data_source':
                 if 'inputs' in pars.keys():
                     for input_name, output_name_full in pars['inputs'].items():
@@ -542,18 +541,15 @@ class Simul():
                             print('TODO: list of inputs is not handled in output replay')
                             continue
                         if output_name_full in data_source_outputs.keys():
-                            self.replay_params[key]['inputs'][input_name] = data_source_outputs[output_name_full]
+                            replay_params[key]['inputs'][input_name] = data_source_outputs[output_name_full]
 
             if key=='data_source':
-                self.replay_params[key]['outputs'] = []
-                for v in self.replay_params[key]['inputs']['input_list']:
+                replay_params[key]['outputs'] = []
+                for v in replay_params[key]['inputs']['input_list']:
                     kk, vv = v.split('-')
-                    self.replay_params[key]['outputs'].append(kk)
-                del self.replay_params[key]['inputs']
-
-        for obj in self.objs.values():
-            if type(obj) is DataStore:
-                obj.setReplayParams(self.replay_params)
+                    replay_params[key]['outputs'].append(kk)
+                del replay_params[key]['inputs']
+        return replay_params
 
     def remove_inputs(self, params, obj_to_remove):
         '''
@@ -687,18 +683,24 @@ class Simul():
 
         # Actual creation code
         self.apply_overrides(params)
-        self.setSimulParams(params)
 
         self.trigger_order, self.trigger_order_idx = self.trigger_order(params)
         print(f'{self.trigger_order=}')
         print(f'{self.trigger_order_idx=}')
 
-        if not self.isReplay:
-            self.build_replay(params)
+        if not self.isReplay(params):
+            replay_params = self.build_replay(params)
+        else:
+            replay_params = None
 
         self.build_objects(params)
         self.create_input_list_inputs(params)
         self.connect_objects(params)
+
+        if replay_params is not None:
+            for obj in self.objs.values():
+                if type(obj) is DataStore:
+                    obj.setReplayParams(replay_params)
 
         # Initialize housekeeping objects
         self.loop = LoopControl()

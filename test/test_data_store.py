@@ -53,3 +53,7 @@ class TestDataStore(unittest.TestCase):
         # Make sure times are in int64
         gen_times = fits.getdata(gen_file, ext=1)
         assert gen_times.dtype == np.uint64
+
+        # Make sure replay_params.yml exists
+        replay_file = os.path.join(last_tn_dir, 'replay_params.yml')
+        assert os.path.exists(replay_file), f"File {replay_file} does not exist"
