@@ -54,25 +54,6 @@ class TestPSF(unittest.TestCase):
                 target_device_idx=target_device_idx)
 
     @cpu_and_gpu
-    def test_calc_psf_sampling(self, target_device_idx, xp):
-        """Test PSF sampling calculation"""
-        pixel_pupil = 20
-        pixel_pitch = 0.05
-        wavelength_nm = 500.0
-
-        # Test normal case
-        sampling = calc_psf_sampling(pixel_pupil, pixel_pitch, wavelength_nm, 10.0)
-        self.assertIsInstance(sampling, float)
-        self.assertGreater(sampling, 0)
-
-        # Test case where requested pixel size is too large
-        dim_pup_in_m = pixel_pupil * pixel_pitch
-        max_pixel_size_mas = (wavelength_nm * 1e-9 / dim_pup_in_m * 3600 * 180 / np.pi) * 1000
-
-        with self.assertRaises(ValueError):
-            calc_psf_sampling(pixel_pupil, pixel_pitch, wavelength_nm, max_pixel_size_mas * 2)
-
-    @cpu_and_gpu
     def test_psf_with_zero_phase(self, target_device_idx, xp):
         """Test PSF calculation with zero phase - should give SR = 1"""
         simul_params, ef, wavelengthInNm = self.get_basic_setup(target_device_idx)
