@@ -191,11 +191,10 @@ class ImCalibrator(BaseProcessingObj):
                 self._im.value[i] /= self.count_commands[i]
 
 
-        im = Intmat(self._im.value, pupdata_tag = self.pupdata_tag,
+        im = Intmat(self._im.value, pupdata_tag = self.pupdata_tag, subapdata_tag=self.subapdata_tag,
                     target_device_idx=self.target_device_idx, precision=self.precision)
 
         os.makedirs(self._data_dir, exist_ok=True)
 
         # TODO add to IM the information about the first mode
         im.save(self.im_path, overwrite=self._overwrite)
-
