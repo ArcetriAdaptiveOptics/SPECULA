@@ -11,7 +11,7 @@ from specula.data_objects.source import Source
 from specula.data_objects.intmat import Intmat
 from specula.base_value import BaseValue
 from specula.connections import InputValue
-from specula import RAD2ASEC
+
 
 class ImCalibrator(BaseProcessingObj):
     def __init__(self,
@@ -33,22 +33,24 @@ class ImCalibrator(BaseProcessingObj):
         self._data_dir = data_dir
         if im_tag is None or im_tag == 'auto':
             im_tag = 'im'
+            # no. pixel and pixel pitch
+            im_tag += f'_{dm.simul_params.pixel_pupil}x{dm.simul_params.pixel_pupil}p_{dm.simul_params.pixel_pitch}m'
             # SOURCE coordinates
             if source.polar_coordinates[0] != 0:
-                im_tag += f'_{source.polar_coordinates[0]:.1f}r{source.polar_coordinates[0]:.1f}a'
+                im_tag += f'_r{source.polar_coordinates[0]:.1f}asec_a{source.polar_coordinates[0]:.1f}deg'
             if source.height != float('inf'):
-                im_tag += f'_{source.height:.1f}h'
+                im_tag += f'_h{source.height:.1f}m'
             # WFS related
             if isinstance(sensor, SH):
                 im_tag += '_sh'
-                im_tag += f'_{sensor._wavelengthInNm}nm'
-                im_tag += f'_{sensor._lenslet.n_lenses}x{sensor._lenslet.n_lenses}sa'
-                im_tag += f'_{sensor._subap_wanted_fov * RAD2ASEC}asec'
+                im_tag += f'_w{sensor.wavelength_in_nm}nm'
+                im_tag += f'_{sensor.subap_on_diameter}x{sensor.subap_on_diameter}sa'
+                im_tag += f'_f{sensor.subap_wanted_fov}asec'
             if isinstance(sensor, ModulatedPyramid):
                 im_tag += '_pyr'
-                im_tag += f'_{sensor.wavelength_in_nm}nm'
+                im_tag += f'_w{sensor.wavelength_in_nm}nm'
                 im_tag += f'_{sensor.pup_diam}x{sensor.pup_diam}sa' # TODO THIS IS NOT PRESENT
-                im_tag += f'_{sensor.fov}asec' # TODO THIS IS NOT PRESENT
+                im_tag += f'_f{sensor.fov}asec'
             # SLOPEC related
             if isinstance(slopec, ShSlopec):
                 if slopec.quadcell_mode:
@@ -56,15 +58,21 @@ class ImCalibrator(BaseProcessingObj):
             if isinstance(slopec, PyrSlopec):
                 if slopec.slopes_from_intensity:
                     im_tag += f'_slint'
-            # TODO DM related keys
-            im_tag = f'_{self._nmodes}modes'
+            # DM related keys
+            if dm._ifunc.type_str is not None:
+                im_tag += '_'+dm._ifunc.type_str
+                im_tag += f'_{dm._ifunc.mask_inf_func.shape[0]}x{dm._ifunc.mask_inf_func.shape[1]}p'
+            elif dm._ifunc.tag is not None:
+                im_tag += '_'+dm._ifunc.tag
+            nmodes_dm = dm._ifunc.size[0]
+            im_tag += f'_{min(nmodes_dm,self._nmodes)}modes'
             if self._first_mode != 0:
                 im_tag += f'_firstmode{self._first_mode}'
-            
+        self.im_tag = im_tag
+
         self._overwrite = overwrite
 
-        im_filename = im_tag
-        self.im_path = os.path.join(self._data_dir, im_filename)
+        self.im_path = os.path.join(self._data_dir, self.im_tag)
         if not self.im_path.endswith('.fits'):
             self.im_path += '.fits'
         if os.path.exists(self.im_path) and not self._overwrite:
