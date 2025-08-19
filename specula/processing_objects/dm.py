@@ -132,3 +132,11 @@ class DM(BaseProcessingObj):
     @property
     def mask(self):
         return self._ifunc.mask_inf_func
+
+    @property
+    def tag(self):
+        return self._ifunc.tag
+
+    @property
+    def type_str(self):
+        return self._ifunc.type_str

@@ -38,10 +38,10 @@ class ImCalibrator(BaseProcessingObj):
         self.pupdata_tag = None
         if slopec is not None:
             if isinstance(slopec, ShSlopec):
-                if slopec.subapdata.tag is not None:
+                if slopec.subapdata.tag is not None and slopec.subapdata.tag != '':
                     self.subapdata_tag = slopec.subapdata.tag
             if isinstance(slopec, PyrSlopec):
-                if slopec.pupdata.tag is not None:
+                if slopec.pupdata.tag is not None and slopec.pupdata.tag != '':
                     self.pupdata_tag = slopec.pupdata.tag
 
         if im_tag is None or im_tag == 'auto':
@@ -51,17 +51,17 @@ class ImCalibrator(BaseProcessingObj):
             # Pupilstop
             if pupilstop.tag is not None and pupilstop.tag != '':
                 im_tag += f'_{pupilstop.tag}'
-                if pupilstop.shiftXYinPixel != (0.0, 0.0):
-                    im_tag += f'_s{pupilstop.shiftXYinPixel[0]:.1f}x{pupilstop.shiftXYinPixel[1]:.1f}pix'
-                if pupilstop.rotInDeg is not None:
-                    im_tag += f'_r{pupilstop.rotInDeg:.1f}deg'
-                if pupilstop.magnification != 1.0:
-                    im_tag += f'_m{pupilstop.magnification:.1f}'
             else:
                 if pupilstop.mask_diam is not None:
                     im_tag += f'_d{pupilstop.mask_diam:.1f}'
                 if pupilstop.obs_diam is not None:
                     im_tag += f'_o{pupilstop.obs_diam:.1f}'
+            if pupilstop.shiftXYinPixel.any() != 0.0:
+                im_tag += f'_s{pupilstop.shiftXYinPixel[0]:.1f}x{pupilstop.shiftXYinPixel[1]:.1f}pix'
+            if pupilstop.rotInDeg is not None:
+                im_tag += f'_r{pupilstop.rotInDeg:.1f}deg'
+            if pupilstop.magnification != 1.0:
+                im_tag += f'_m{pupilstop.magnification:.1f}'
             # SOURCE coordinates
             if source.polar_coordinates[0] != 0:
                 im_tag += f'_r{source.polar_coordinates[0]:.1f}asec_a{source.polar_coordinates[0]:.1f}deg'
@@ -79,12 +79,12 @@ class ImCalibrator(BaseProcessingObj):
                 im_tag += f'_{sensor.pup_diam}x{sensor.pup_diam}sa' # TODO THIS IS NOT PRESENT
                 im_tag += f'_f{sensor.fov}asec'
             # DM related keys
-            if dm._ifunc.type_str is not None:
-                im_tag += '_'+dm._ifunc.type_str
-                im_tag += f'_{dm._ifunc.mask_inf_func.shape[0]}x{dm._ifunc.mask_inf_func.shape[1]}p'
-            elif dm._ifunc.tag is not None:
-                im_tag += '_'+dm._ifunc.tag
-            nmodes_dm = dm._ifunc.size[0]
+            if dm.type_str is not None:
+                im_tag += '_'+dm.type_str
+                im_tag += f'_{dm.mask.shape[0]}x{dm.mask.shape[1]}p'
+            elif dm.tag is not None and dm.tag != '':
+                im_tag += '_'+dm.tag
+            nmodes_dm = dm.ifunc.shape[0]
             im_tag += f'_{min(nmodes_dm,self._nmodes)}modes'
             if self._first_mode != 0:
                 im_tag += f'_firstmode{self._first_mode}'
