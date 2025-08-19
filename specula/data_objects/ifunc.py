@@ -40,6 +40,7 @@ class IFunc(BaseDataObj):
                  precision=None
                 ):
         super().__init__(precision=precision, target_device_idx=target_device_idx)
+        self.type_str = type_str
         self._doZeroPad = False
 
         if ifunc is None:
