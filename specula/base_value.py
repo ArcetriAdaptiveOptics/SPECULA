@@ -1,4 +1,5 @@
 
+from specula import np, cp, cpuArray
 from astropy.io import fits
 from specula.base_data_obj import BaseDataObj
 
@@ -24,24 +25,32 @@ class BaseValue(BaseDataObj):
         else:
             self.value = self.to_xp(val)
 
-    def save(self, filename):
-        hdr = fits.Header()
-        if self.value is not None:
-            hdr['VALUE'] = str(self.value)  # Store as string for simplicity
-        super().save(filename)
-        with fits.open(filename, mode='update') as hdul:
-            hdr = hdul[0].header
-            if self.value is not None:
-                hdr['VALUE'] = str(self.value)
-            hdul.flush()
+    def save(self, filename, overwrite=False):
+        hdr = self.get_fits_header()
 
-    def read(self, filename):
-        super().read(filename)
-        with fits.open(filename) as hdul:
-            hdr = hdul[0].header
+        if type(self.value) in [cp.ndarray, np.ndarray]:
+            data = cpuArray(self.value)
+            hdr['NDARRAY'] = 1
+        else:
+            data = np.zeros(2)
+            hdr['NDARRAY'] = 0
+            if self.value is not None:
+                hdr['VALUE'] = str(self.value)  # Store as string for simplicity
+        fits.writeto(filename, data, hdr, overwrite=overwrite)
+
+    @staticmethod
+    def restore(filename, target_device_idx=None):
+        hdr = fits.getheader(filename)
+        data = fits.getdata(filename)
+        v = BaseValue(target_device_idx=target_device_idx)
+
+        if hdr['NDARRAY']:
+            v.value = data
+        else:
             value_str = hdr.get('VALUE', None)
             if value_str is not None:
                 self.value = eval(value_str)  # Convert back from string to original type
+        return v
 
     def array_for_display(self):
         return self.value
