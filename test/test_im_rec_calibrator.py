@@ -269,4 +269,7 @@ class TestImRecCalibrator(unittest.TestCase):
 
         # Check that the generated tag contains expected components
         self.assertIn('_sh', calibrator.im_tag)  # Should contain sensor type
-        self.assertIn('modes', calibrator.im_tag)  # Should contain modes info
+        self.assertIn('pup', calibrator.im_tag)  # Should contain pupil info
+        self.assertIn('coor', calibrator.im_tag)  # Should contain coordinates info
+        self.assertIn('mds', calibrator.im_tag)  # Should contain modes info
+        self.assertIn('stop', calibrator.im_tag)  # Should contain pupilstop info
