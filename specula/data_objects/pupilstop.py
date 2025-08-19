@@ -25,14 +25,19 @@ class Pupilstop(Layer):
         self.simul_params = simul_params
         self.pixel_pupil = self.simul_params.pixel_pupil
         self.pixel_pitch = self.simul_params.pixel_pitch
+        self.shiftXYinPixel = shiftXYinPixel
+        self.rotInDeg = rotInDeg
+        self.magnification = magnification
 
         super().__init__(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, height=0,
-                        shiftXYinPixel=shiftXYinPixel, rotInDeg=rotInDeg, magnification=magnification,
+                        shiftXYinPixel=self.shiftXYinPixel,
+                        rotInDeg=self.rotInDeg,
+                        magnification=self.magnification,
                         target_device_idx=target_device_idx, precision=precision)
 
         self._input_mask = input_mask
-        self._mask_diam = mask_diam
-        self._obs_diam = obs_diam
+        self.mask_diam = mask_diam
+        self.obs_diam = obs_diam
 
         if self._input_mask is not None:
             self._input_mask = self.to_xp(input_mask,dtype=self.dtype)
