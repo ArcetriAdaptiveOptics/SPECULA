@@ -195,11 +195,13 @@ class ModulatedDoubleRoof(ModulatedPyramid):
         # Shift and rotate by 90 degrees roof2_image
         roof2_rotated = self.xp.rot90(self.roof2_image)
         shift2_value = 0.5*self.fft_totsize/self.toccd_side*self.pup_dist
-        roof2_shifted = self.xp.roll(roof2_rotated, shift2_value, axis=0)
+        # self.shift is defined in base_time_obj from scipy or cupyx.scipy ndimage
+        roof2_shifted = self.shift(roof2_rotated, (shift2_value, 0), order=1, mode='wrap')
 
         # Shift roof1_image horizontally (left/right separation)
         shift1_value = -0.5*self.fft_totsize/self.toccd_side*self.pup_dist
-        roof1_shifted = self.xp.roll(self.roof1_image, shift1_value, axis=0)
+        # self.shift is defined in base_time_obj from scipy or cupyx.scipy ndimage
+        roof1_shifted = self.shift(self.roof1_image, (shift1_value, 0), order=1, mode='wrap')
 
         plot_debug = False
         if plot_debug:
