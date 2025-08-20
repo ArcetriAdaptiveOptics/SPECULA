@@ -9,7 +9,6 @@ import unittest
 from astropy.io import fits
 
 from specula import np
-from specula import cpuArray
 from specula.calib_manager import CalibManager
 
 class TestCalibManager(unittest.TestCase):
@@ -48,7 +47,6 @@ class TestCalibManager(unittest.TestCase):
         '''Test that the *filename()* method correctly adds .fits'''
 
         name = 'bar'
-
         calib_manager = CalibManager(self.rootdir)
         real_subdir = calib_manager._subdirs[self.subdir]
         
@@ -90,7 +88,7 @@ class TestCalibManager(unittest.TestCase):
         expected = os.path.join(self.rootdir, real_subdir, name)+'.fits'
         np.testing.assert_array_equal(fits.getdata(expected), data)
 
-    def test_calibmanager_readfits(self):
+    def test_calibmanager_readdata(self):
 
         calib_manager = CalibManager(self.rootdir)
         real_subdir = calib_manager._subdirs['data']
