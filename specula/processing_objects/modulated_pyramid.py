@@ -331,7 +331,7 @@ class ModulatedPyramid(BaseProcessingObj):
 
     def cache_ttexp(self):
         """Cache tip/tilt exponentials for modulation or extended source"""
-        
+
         if self.mod_steps <= 0:
             # Clear cache if no steps
             self.ttexp = None
@@ -339,7 +339,7 @@ class ModulatedPyramid(BaseProcessingObj):
             return
 
         iu = 1j  # complex unit
-        
+
         # Initialize ttexp array
         self.ttexp = self.xp.zeros((self.mod_steps, self.tilt_x.shape[0], self.tilt_x.shape[1]), 
                                 dtype=self.complex_dtype)
