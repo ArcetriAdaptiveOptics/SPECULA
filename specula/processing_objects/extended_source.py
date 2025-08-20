@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Optional, Union, Tuple, List
+from typing import Optional, Union, List
 
 from specula import cpuArray
 from specula.base_processing_obj import BaseProcessingObj

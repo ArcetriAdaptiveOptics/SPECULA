@@ -6,8 +6,6 @@ import inspect
 
 import specula.data_objects
 
-from specula.base_data_obj import BaseDataObj
-
 
 class TestDataObjects(unittest.TestCase):
 

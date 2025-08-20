@@ -3,7 +3,7 @@ import warnings
 from copy import copy
 from functools import lru_cache
 
-from specula import cp, np
+from specula import cp, np, array_types
 from specula.base_time_obj import BaseTimeObj
 
 
@@ -48,21 +48,21 @@ class BaseDataObj(BaseTimeObj):
         for attr in attr_list:
             self_attr = getattr(self, attr)
             self_type = type(self_attr)
-            if self_type not in [cp.ndarray, np.ndarray]:
+            if self_type not in array_types:
                 continue
 
             dest_attr = getattr(destobj, attr)
             dest_type = type(dest_attr)
 
-            if dest_type not in [cp.ndarray, np.ndarray]:
+            if dest_type not in array_types:
                 print(f'Warning: destination attribute is not a cupy/numpy array, forcing reallocation ({destobj}.{attr})')
                 force_reallocation = True
 
             # Detect whether the array types are correct for all three cases:
             # Device to CPU, CPU to device, and device-to-device.
-            DtD = (self_type == cp.ndarray) and (dest_type == cp.ndarray) and destobj.target_device_idx >= 0
-            DtH = (self_type == cp.ndarray) and (dest_type == np.ndarray) and destobj.target_device_idx == -1
-            HtD = (self_type == np.ndarray) and (dest_type == cp.ndarray) and destobj.target_device_idx >= 0
+            DtD = cp is not None and (self_type == cp.ndarray) and (dest_type == cp.ndarray) and destobj.target_device_idx >= 0
+            DtH = cp is not None and (self_type == cp.ndarray) and (dest_type == np.ndarray) and destobj.target_device_idx == -1
+            HtD = cp is not None and (self_type == np.ndarray) and (dest_type == cp.ndarray) and destobj.target_device_idx >= 0
             HtH = (self_type == np.ndarray) and (dest_type == np.ndarray) and destobj.target_device_idx == -1
 
             # Destination array had the correct type: perform in-place data copy
@@ -88,8 +88,8 @@ class BaseDataObj(BaseTimeObj):
 
             # Otherwise, reallocate
             if force_reallocation:
-                DtD = (self_type == cp.ndarray) and destobj.target_device_idx >= 0
-                DtH = (self_type == cp.ndarray) and destobj.target_device_idx == -1
+                DtD = cp is not None and (self_type == cp.ndarray) and destobj.target_device_idx >= 0
+                DtH = cp is not None and (self_type == cp.ndarray) and destobj.target_device_idx == -1
                 HtD = (self_type == np.ndarray) and destobj.target_device_idx >= 0
                 HtH = (self_type == np.ndarray) and destobj.target_device_idx == -1
 

@@ -1,11 +1,10 @@
-import sys
 import typing
 import inspect
 import itertools
 from copy import deepcopy
 from pathlib import Path
 from collections import Counter, namedtuple
-from specula import process_comm, process_rank, MPI_DBG
+from specula import process_rank, MPI_DBG
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_data_obj import BaseDataObj
 

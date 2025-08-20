@@ -1,15 +1,13 @@
-import os
-import re
+
 import numpy as np
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple
 import yaml
 from astropy.io import fits
 from copy import deepcopy
 
 from specula.simul import Simul
-from specula.data_objects.simul_params import SimulParams
-from specula.processing_objects.psf import PSF
+from specula.lib.calc_psf import calc_psf_geometry
 
 class FieldAnalyser:
     """
@@ -624,19 +622,18 @@ class FieldAnalyser:
         if not main_config:
             raise RuntimeError("No 'main' configuration found in parameters")
 
-        # Create a temporary SimulParams object to initialize PSF
-        temp_simul_params = SimulParams(pixel_pitch = self.params['main']['pixel_pitch'],
-                                        pixel_pupil = self.params['main']['pixel_pupil'])
+        pixel_pitch = self.params['main']['pixel_pitch']
+        pixel_pupil = self.params['main']['pixel_pupil']
 
-        temp_psf = PSF(
-            simul_params=temp_simul_params,
-            wavelengthInNm=self.wavelength_nm,
-            nd=psf_sampling,
-            pixel_size_mas=psf_pixel_size_mas,
-            start_time=self.start_time
-        )
-        self.psf_sampling = temp_psf.nd
-        self.psf_pixel_size_mas = temp_psf.psf_pixel_size
+        psf_geometry = calc_psf_geometry(
+                                    pixel_pupil,
+                                    pixel_pitch,
+                                    self.wavelength_nm,
+                                    nd=psf_sampling,
+                                    pixel_size_mas=psf_pixel_size_mas)
+        
+        self.psf_sampling = psf_geometry.nd
+        self.psf_pixel_size_mas = psf_geometry.pixel_size_mas
 
         # Check if all individual PSF files exist
         all_exist = True

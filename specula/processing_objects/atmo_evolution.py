@@ -1,7 +1,5 @@
 import numpy as np
 
-from astropy.io import fits
-
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_value import BaseValue
 from specula.data_objects.layer import Layer
@@ -243,18 +241,12 @@ class AtmoEvolution(BaseProcessingObj):
         # Get quotient and remainder
         wdf, wdi = np.modf(wind_direction/90.0)
         wdf_full, wdi_full = np.modf(wind_direction)
-        # Check if we need to cycle the screens
-        # print(ii, new_position[ii], self.pixel_layer[ii], p.shape[1]) # Verbose?
+
         if self.cycle_screens:
             new_position = np.where(new_position + self.pixel_layer >= self.phasescreens_sizes_array,  0, new_position)
         new_position_quo = np.floor(new_position).astype(np.int64)
         new_position_rem = (new_position - new_position_quo).astype(self.dtype)
-#        for ii, p in enumerate(self.phasescreens):
-        #    print(f'phasescreens size: {np.around(p.shape[0], 2)}')
-        #    print(f'requested position: {np.around(new_position[ii], 2)}')
-        #    raise ValueError(f'phasescreens_shift cannot go out of the {ii}-th phasescreen!')
-        # print(pos, self.pixel_layer) # Verbose?
-
+        
         for ii, p in enumerate(self.phasescreens):
             pos = int(new_position_quo[ii])
             ipli = int(self.pixel_layer[ii])

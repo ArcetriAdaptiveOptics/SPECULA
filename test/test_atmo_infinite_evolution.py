@@ -6,12 +6,10 @@ specula.init(0)  # Default target device
 import unittest
 
 from specula import cpuArray
-
 from specula.base_time_obj import BaseTimeObj
 from specula.data_objects.source import Source
 from specula.processing_objects.wave_generator import WaveGenerator
 from specula.processing_objects.atmo_infinite_evolution import AtmoInfiniteEvolution
-from specula.data_objects.layer import Layer
 from specula.data_objects.simul_params import SimulParams
 
 from test.specula_testlib import cpu_and_gpu

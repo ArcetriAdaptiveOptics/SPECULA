@@ -5,7 +5,7 @@ from collections import defaultdict
 
 from specula.base_time_obj import BaseTimeObj
 from specula import process_comm, process_rank, MPI_DBG
-from specula.processing_objects.dm import DM
+
 
 class LoopControl(BaseTimeObj):
     def __init__(self, verbose=False):

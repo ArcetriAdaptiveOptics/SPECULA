@@ -14,7 +14,7 @@ class ModalAnalysis(BaseProcessingObj):
                 ifunc_inv: IFuncInv=None,
                 type_str: str=None,
                 npixels: int=None,
-                nzern: int=None,
+                nzern: int=None,            # TODO not used
                 obsratio: float=None,
                 diaratio: float=None,
                 pupilstop: Pupilstop=None,

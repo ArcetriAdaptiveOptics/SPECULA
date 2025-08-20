@@ -4,7 +4,10 @@ from specula import cpuArray
 from specula.data_objects.electric_field import ElectricField
 
 class Layer(ElectricField):
-    '''Layer'''
+    '''
+    A Layer is an ElectricField with some more features: a mandatory height,
+    and optional X/Y shifts, rotation and magnification
+    '''
 
     def __init__(self,
                  dimx: int,

@@ -1,6 +1,5 @@
 from specula import fuse
 from specula.processing_objects.slopec import Slopec
-from specula.base_value import BaseValue
 from specula.data_objects.pupdata import PupData
 from specula.data_objects.slopes import Slopes
 
@@ -9,19 +8,10 @@ from specula.data_objects.slopes import Slopes
 def clamp_generic_less(x, c, y, xp):
     y[:] = xp.where(y < x, c, y)
 
-@fuse(kernel_name='clamp_generic_less1')
-def clamp_generic_less1(x, c, y, xp):
-    y = xp.where(y < x, c, y)
-
 
 @fuse(kernel_name='clamp_generic_more')
 def clamp_generic_more(x, c, y, xp):
     y[:] = xp.where(y > x, c, y)
-
-
-@fuse(kernel_name='clamp_generic_more1')
-def clamp_generic_more1(x, c, y, xp):
-    y = xp.where(y > x, c, y)
 
 
 class PyrSlopec(Slopec):

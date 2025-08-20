@@ -74,13 +74,11 @@ class CalibManager():
         filename = self.filename(subdir, name)
         fits.writeto(filename, data, overwrite=True)
 
-    def readfits(self, subdir, name, get_filename=False):
+    def readfits(self, subdir, name):
         """
         Read data from a FITS file.
         """
         filename = self.filename(subdir, name)
-        if get_filename:
-            return filename
         print('Reading:', filename)
         if not os.path.exists(filename):
             raise FileNotFoundError(filename)
@@ -89,8 +87,8 @@ class CalibManager():
     def write_data(self, name, data):
         self.writefits('data', name, data)
 
-    def read_data(self, name, get_filename=False):
-        return self.readfits('data', name, get_filename)
+    def read_data(self, name):
+        return self.readfits('data')
 
     def __repr__(self):
         return 'Calibration manager'

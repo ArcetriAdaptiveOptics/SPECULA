@@ -53,25 +53,6 @@ class TestPSF(unittest.TestCase):
                 target_device_idx=target_device_idx)
 
     @cpu_and_gpu
-    def test_calc_psf_sampling(self, target_device_idx, xp):
-        """Test PSF sampling calculation"""
-        pixel_pupil = 20
-        pixel_pitch = 0.05
-        wavelength_nm = 500.0
-
-        # Test normal case
-        sampling = PSF.calc_psf_sampling(pixel_pupil, pixel_pitch, wavelength_nm, 10.0)
-        self.assertIsInstance(sampling, float)
-        self.assertGreater(sampling, 0)
-
-        # Test case where requested pixel size is too large
-        dim_pup_in_m = pixel_pupil * pixel_pitch
-        max_pixel_size_mas = (wavelength_nm * 1e-9 / dim_pup_in_m * 3600 * 180 / np.pi) * 1000
-
-        with self.assertRaises(ValueError):
-            PSF.calc_psf_sampling(pixel_pupil, pixel_pitch, wavelength_nm, max_pixel_size_mas * 2)
-
-    @cpu_and_gpu
     def test_psf_with_zero_phase(self, target_device_idx, xp):
         """Test PSF calculation with zero phase - should give SR = 1"""
         simul_params, ef, wavelengthInNm = self.get_basic_setup(target_device_idx)
@@ -237,28 +218,3 @@ class TestPSF(unittest.TestCase):
 
         # Should still have suppression, though not perfect
         self.assertLess(suppression_ratio, 1.0)
-
-    @cpu_and_gpu
-    def test_calc_psf_method(self, target_device_idx, xp):
-        """Test the calc_psf method directly"""
-        simul_params, ef, wavelengthInNm = self.get_basic_setup(target_device_idx)
-
-        psf = PSF(simul_params=simul_params, wavelengthInNm=wavelengthInNm,
-                  nd=1.0, target_device_idx=target_device_idx)
-
-        # Create test phase and amplitude
-        phase = xp.zeros((10, 10))
-        amp = xp.ones((10, 10))
-
-        # Test basic PSF calculation
-        result = psf.calc_psf(phase, amp, normalize=True)
-        self.assertEqual(result.shape, (10, 10))
-        self.assertAlmostEqual(float(xp.sum(result)), 1.0, places=6)
-
-        # Test with different output size
-        result_big = psf.calc_psf(phase, amp, imwidth=20, normalize=True)
-        self.assertEqual(result_big.shape, (20, 20))
-
-        # Test without centering
-        result_nocenter = psf.calc_psf(phase, amp, nocenter=True)
-        self.assertEqual(result_nocenter.shape, (10, 10))
