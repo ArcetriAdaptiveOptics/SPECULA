@@ -102,7 +102,7 @@ class PupData(BaseDataObj):
     def complete_mask(self):
         f = self.xp.zeros(self.framesize, dtype=self.dtype)
         for i in range(4):
-            f.flat[self.ind_pup[:, i]] = 1
+            self.xp.put(f, self.ind_pup[:, i], 1)
         return f
 
     def get_fits_header(self):
