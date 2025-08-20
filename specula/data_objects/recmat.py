@@ -20,8 +20,6 @@ class Recmat(BaseDataObj):
         self.modes2recLayer = None
 #        self.set_modes2recLayer(modes2recLayer) # TODO
 
-        self.tag = ''
-
     def get_value(self):
         '''
         Get the recmat as a numpy/cupy array

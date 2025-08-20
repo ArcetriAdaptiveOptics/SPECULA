@@ -17,8 +17,6 @@ class IFuncInv(BaseDataObj):
         self.mask_inf_func = self.to_xp(mask)
         self.idx_inf_func = self.xp.where(self.mask_inf_func)
 
-        self.tag = ''
-
     @property
     def size(self):
         return self.ifunc_inv.shape

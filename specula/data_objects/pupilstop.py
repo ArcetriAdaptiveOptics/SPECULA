@@ -54,8 +54,6 @@ class Pupilstop(Layer):
         # Initialise time for at least the first iteration
         self.generation_time = 0
 
-        self.tag = ''
-
     def get_value(self):
         '''
         Get the amplitude mask as a numpy/cupy array

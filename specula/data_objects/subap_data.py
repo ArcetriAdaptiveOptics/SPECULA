@@ -28,7 +28,6 @@ class SubapData(BaseDataObj):
         self.nx = int(nx)
         self.ny = int(ny)
         self.energy_th = float(energy_th)
-        self.tag = ''
 
     @property
     def n_subaps(self):

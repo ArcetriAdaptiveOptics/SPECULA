@@ -18,7 +18,6 @@ class M2C(BaseDataObj):
         if nmodes is not None:
             self.set_nmodes(nmodes)
         self.norm_factor = norm_factor
-        self.tag = ''
 
     def get_value(self):
         '''

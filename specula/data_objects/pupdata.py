@@ -50,7 +50,6 @@ class PupData(BaseDataObj):
             self.framesize = np.zeros(2, dtype=int)
 
         self.slopes_from_intensity = False
-        self.tag = ''
 
     def get_value(self):
         '''Get the pixel values as a numpy/cupy array'''

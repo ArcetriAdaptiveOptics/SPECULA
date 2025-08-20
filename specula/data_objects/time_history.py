@@ -16,8 +16,6 @@ class TimeHistory(BaseDataObj):
 
         self.time_history = self.to_xp(time_history)
 
-        self.tag = ''
-
     def save(self, filename):
         """Saves the subaperture data to a file."""
         hdr = fits.Header()

@@ -158,8 +158,6 @@ class ConvolutionKernel(BaseDataObj):
         self.kernels = self.xp.zeros((self.dimx*self.dimy, self.dimension, self.dimension), dtype=dtype)
         self._kernel_fn = None
 
-        self.tag = ''
-
     def build(self):
         if len(self.zlayer) != len(self.zprofile):
             raise ValueError("Number of elements of zlayer and zprofile must be the same")

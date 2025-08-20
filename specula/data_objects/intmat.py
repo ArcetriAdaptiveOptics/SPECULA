@@ -24,8 +24,6 @@ class Intmat(BaseDataObj):
         self.subapdata_tag = subapdata_tag
         self.norm_factor = norm_factor
 
-        self.tag = ''
-
     def get_value(self):
         '''
         Get the intmat as a numpy/cupy array

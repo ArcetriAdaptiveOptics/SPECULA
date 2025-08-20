@@ -35,8 +35,6 @@ class GaussianConvolutionKernel(ConvolutionKernel):
         )
         self.spot_size = spot_size
 
-        self.tag = ''
-
     def build(self):
         """
         Recalculates the Gaussian kernel based on current settings.
