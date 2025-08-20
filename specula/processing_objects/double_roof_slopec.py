@@ -114,7 +114,7 @@ class DoubleRoofSlopec(Slopec):
                 factor = 1.0 / inv_factor[0]
 
             # DOUBLE ROOF SLOPE CALCULATION:
-            # roof2 (rotated) separates horizontally: B vs A, D vs C 
+            # roof2 (rotated) separates horizontally: B vs A, D vs C
             # roof1 separates vertically: (B+D) vs (A+C)
             self.sx = (B - A) * factor  # roof2 horizontal separation
             self.sy = (D - C) * factor  # roof1 vertical separation after shift
