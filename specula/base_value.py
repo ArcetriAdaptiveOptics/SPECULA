@@ -1,5 +1,5 @@
 
-from specula import np, cp, cpuArray
+from specula import np, array_types, cpuArray
 from astropy.io import fits
 from specula.base_data_obj import BaseDataObj
 
@@ -28,7 +28,7 @@ class BaseValue(BaseDataObj):
     def save(self, filename, overwrite=False):
         hdr = self.get_fits_header()
 
-        if type(self.value) in [cp.ndarray, np.ndarray]:
+        if type(self.value) in array_types:
             data = cpuArray(self.value)
             hdr['NDARRAY'] = 1
         else:
