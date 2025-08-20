@@ -6,6 +6,7 @@ specula.init(0)  # Default target device
 import unittest
 
 import yaml
+import copy
 from specula.simul import Simul
 from specula.connections import InputValue, InputList
 
@@ -210,3 +211,38 @@ class TestSimul(unittest.TestCase):
         # Raises ValueError
         with self.assertRaises(ValueError):
             _ = simul.trigger_order(pars)
+
+
+    def test_combine_params(self):
+
+        original_params = {
+            'dm': { 'foo' : 'bar'},
+            'dm2': { 'foo2': 'bar2'},
+        }
+        params2 = copy.deepcopy(original_params)
+        additional_params1 = {'dm_override_2': { 'foo': 'bar3' } }
+        additional_params2 = {'remove_3': ['dm2'] }
+
+        simul = Simul([])
+
+        # Nothing happens for simul_idx=1 (not referenced in additional_params)
+        simul.simul_idx = 1
+        params = copy.deepcopy(original_params)
+        simul.combine_params(params, additional_params1)
+        assert params == original_params
+
+        # DM is overridden
+        simul.simul_idx = 2
+        params = copy.deepcopy(original_params)
+        simul.combine_params(params, additional_params1)
+        assert params['dm']['foo'] == 'bar3'              # Changed
+        assert params['dm2'] == original_params['dm2']    # Unchanged
+
+        # DM2 is removed
+        simul.simul_idx = 3
+        params = copy.deepcopy(original_params)
+        simul.combine_params(params, additional_params2)
+        assert params['dm'] == original_params['dm']      # Unchanged
+        assert 'dm2' not in params
+
+
