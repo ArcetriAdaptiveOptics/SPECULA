@@ -321,8 +321,7 @@ class Simul():
                 self.objs[key] = klass.restore(filename, target_device_idx=target_device_idx)
                 self.objs[key].printMemUsage()
                 self.objs[key].name = key
-                if hasattr(self.objs[key], 'tag'):
-                    self.objs[key].tag = pars['tag']
+                self.objs[key].tag = pars['tag']
                 continue
 
             pars2 = {}
@@ -372,9 +371,8 @@ class Simul():
                         parobj = partype.restore(filename, target_device_idx=target_device_idx)
                         parobj.printMemUsage()
 
-                        # Set data_tag if the object has this argument
-                        if hasattr(parobj, 'tag'):
-                            parobj.tag = value
+                        # Set data_tag 
+                        parobj.tag = value
 
                         pars2[parname] = parobj
                     else:
