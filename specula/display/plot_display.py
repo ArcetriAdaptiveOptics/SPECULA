@@ -11,7 +11,8 @@ class PlotDisplay(BaseDisplay):
                  title='Plot Display',
                  figsize=(8, 6),
                  histlen=200,
-                 yrange=(0, 0)):
+                 yrange=(0, 0),
+                 x_axis='time'):  # can be time or iteration
 
         super().__init__(
             title=title,
@@ -23,6 +24,8 @@ class PlotDisplay(BaseDisplay):
         self._count = 0
         self._yrange = yrange
         self.lines = None
+        self._x_axis = x_axis
+        self._time_history = []
 
         # Setup inputs - can handle both single value and list of values
         self.inputs['value'] = InputValue(type=BaseValue, optional=True)
@@ -55,9 +58,14 @@ class PlotDisplay(BaseDisplay):
             else:
                 self._history[:-1, :] = self._history[1:, :]
             self._count = n - 1
+            self._time_history = self._time_history[1:]
 
         # X axis for current data
-        x = np.arange(self._count + 1)
+        if self._x_axis == 'time':
+            self._time_history.append(self.current_time_seconds)
+        else:
+            self._time_history.append(self._time_history[-1]+1 if self._time_history else 1)
+        x = np.array(self._time_history)
 
         # Update data and plots
         xmin, xmax, ymin, ymax = [], [], [], []
@@ -116,6 +124,12 @@ class PlotDisplay(BaseDisplay):
                 self.ax.set_ylim(self._yrange[0], self._yrange[1])
             elif ymin != ymax:
                 self.ax.set_ylim(min(ymin), max(ymax))
+
+        # Set x axis label
+        if self._x_axis == 'time':
+            self.ax.set_xlabel('Time [s]')
+        else:
+            self.ax.set_xlabel('Iteration')
 
         self._safe_draw()
         self._count += 1

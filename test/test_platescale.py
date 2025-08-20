@@ -4,7 +4,6 @@ import yaml
 import specula
 specula.init(-1,precision=1)  # Default target device
 
-from specula import np
 from specula.simul import Simul
 from specula.lib.platescale_coeff import platescale_coeff
 

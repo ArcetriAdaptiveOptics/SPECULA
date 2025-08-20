@@ -7,7 +7,7 @@ specula.init(0)  # Default target device
 
 import unittest
 
-from specula import np, cp
+from specula import np, cp, array_types
 from specula import cpuArray
 
 
@@ -24,3 +24,14 @@ class TestInit(unittest.TestCase):
         assert isinstance(data_cpu, np.ndarray)
         np.testing.assert_array_equal(np.arange(3), data_cpu)
 
+    @unittest.skipIf(cp is None, 'GPU not available')
+    def test_array_types_with_gpu(self):
+        '''Test that the array_types list contains both numpy and cupy arrays'''
+        assert len(array_types) == 2
+        assert np.ndarray in array_types
+        assert cp.ndarray in array_types
+
+    @unittest.skipIf(cp is not None, 'Test for non-GPU configurations')
+    def test_array_types_no_gpu(self):
+        '''Test that the array_types list contains numpy arrays only'''
+        assert array_types == [np.ndarray]

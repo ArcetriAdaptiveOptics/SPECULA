@@ -1,9 +1,6 @@
 import specula
 specula.init(0)  # Default target device
 
-import tempfile
-import os
-import gc
 import unittest
 
 from specula import np

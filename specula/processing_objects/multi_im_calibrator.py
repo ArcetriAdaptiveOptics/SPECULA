@@ -29,6 +29,9 @@ class MultiImCalibrator(BaseProcessingObj):
         self._full_im_filename = self.tag_filename(full_im_tag, full_im_tag_template, prefix='full_im')
         self._overwrite = overwrite
 
+        # Add counts tracking for each input, this is used to normalize the IM
+        self.count_commands = [self.xp.zeros(nmodes, dtype=self.xp.int32) for _ in range(n_inputs)]
+
         # Existing file existence checks
         for i in range(self._n_inputs):  # Use self._n_inputs instead of len(...)
             im_path = self.im_path(i)
@@ -85,12 +88,17 @@ class MultiImCalibrator(BaseProcessingObj):
                 mode = int(idx[0])
                 if mode < self._nmodes:
                     im.value[mode] += ss / cc[idx]
+                    self.count_commands[i][mode] += 1
             im.generation_time = self.current_time
 
     def finalize(self):
         os.makedirs(self._data_dir, exist_ok=True)
 
         for i, im in enumerate(self.outputs['out_intmat_list']):
+            # Normalize by counts before saving
+            for mode in range(self._nmodes):
+                if self.count_commands[i][mode] > 0:
+                    im.value[mode] /= self.count_commands[i][mode]
             intmat = Intmat(im.value, target_device_idx=self.target_device_idx, precision=self.precision)
             if self.im_path(i):
                 intmat.save(os.path.join(self._data_dir, self.im_path(i)), overwrite=self._overwrite)

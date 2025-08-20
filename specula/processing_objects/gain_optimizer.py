@@ -55,25 +55,27 @@ class GainOptimizer(BaseProcessingObj):
         self.comm_hist = []
         self.optical_gain_hist = []
         self.psd_ol = None
-        self.prev_optgain = None
-        
+        self.prev_optimized_gain = None
+
         self.plot_debug = False  # Enable plotting for debugging
 
         # Outputs
-        self.optgain = BaseValue(
+        self.optimized_gain = BaseValue(
             value=self.xp.ones(self.nmodes, dtype=self.dtype),
             target_device_idx=target_device_idx
         )
         # Initialize optimal gain to ones
-        self.optgain.value = self.xp.ones(self.nmodes, dtype=self.dtype)
-        
+        self.optimized_gain.value = self.xp.ones(self.nmodes, dtype=self.dtype)
+
+        self.optimization_done = False
+
         # Inputs
         self.inputs['delta_comm'] = InputValue(type=BaseValue)
         self.inputs['out_comm'] = InputValue(type=BaseValue)
         self.inputs['optical_gain'] = InputValue(type=BaseValue, optional=True)
 
         # Outputs
-        self.outputs['optgain'] = self.optgain
+        self.outputs['optimized_gain'] = self.optimized_gain
 
         self.verbose = True
 
@@ -102,6 +104,9 @@ class GainOptimizer(BaseProcessingObj):
         # Check if it's time to optimize
         if t >= self.opt_dt and (t % self.opt_dt) == 0:
             self._optimize_gains(t)
+            self.optimization_done = True
+        else:
+            self.optimization_done = False
 
     def _optimize_gains(self, t):
         """
@@ -140,9 +145,9 @@ class GainOptimizer(BaseProcessingObj):
             plt.show()
 
         # Apply increment limiting
-        if self.limit_inc and self.prev_optgain is not None:
-            opt_gains = (self.prev_optgain +
-                        self.max_inc * (opt_gains - self.prev_optgain))
+        if self.limit_inc and self.prev_optimized_gain is not None:
+            opt_gains = (self.prev_optimized_gain +
+                        self.max_inc * (opt_gains - self.prev_optimized_gain))
 
         # Apply optical gain compensation
         if len(self.optical_gain_hist) >= 2:
@@ -154,8 +159,8 @@ class GainOptimizer(BaseProcessingObj):
         opt_gains = self.xp.minimum(opt_gains, gmax_vec)
 
         # Store results
-        self.prev_optgain = opt_gains.copy()
-        self.optgain.value[:] = opt_gains
+        self.prev_optimized_gain = opt_gains.copy()
+        self.optimized_gain.value[:] = opt_gains
 
         if self.verbose:
             print(f"Optimized gains at t={self.t_to_seconds(t):.3f}s: "
@@ -226,7 +231,7 @@ class GainOptimizer(BaseProcessingObj):
 
         # Calculate PSD of pseudo open-loop signal
         psd_pseudo_ol, freq = self._calculate_psd(pseudo_ol_mode, t_int)
-        
+
         if self.plot_debug:
             plt.figure()
             plt.plot(freq, psd_pseudo_ol, label='PSD of Pseudo Open-Loop Signal')
@@ -251,7 +256,7 @@ class GainOptimizer(BaseProcessingObj):
             h_rej = self._calculate_rejection_tf(freq, t_int, gain, num, den)
             # Calculate total residual variance
             totals[i] = self.xp.sum(self.xp.nan_to_num(self.xp.abs(h_rej)**2 * psd_pseudo_ol))
-        
+
         if self.plot_debug:
             plt.figure()
             plt.plot(gains, totals, marker='o')
@@ -337,6 +342,6 @@ class GainOptimizer(BaseProcessingObj):
     def post_trigger(self):
         super().post_trigger()
 
-        # Always set generation time, even if no optimization was done
-        # so that the output is always valid
-        self.optgain.generation_time = self.current_time
+        if self.optimization_done:
+            self.optimized_gain.generation_time = self.current_time
+            self.iir_filter_data.set_gain(self.optimized_gain.value)
