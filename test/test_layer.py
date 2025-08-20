@@ -17,13 +17,13 @@ class TestLayer(unittest.TestCase):
     def test_fits_header(self, target_device_idx, xp):
         pixel_pupil = 10
         pixel_pitch = 0.1
-        
+
         layer = Layer(pixel_pupil, pixel_pupil, pixel_pitch, height=0,
                       shiftXYinPixel=(0.1, 0.2), rotInDeg=3, magnification=4.0,
                       target_device_idx=target_device_idx)
-        
+
         hdr = layer.get_fits_header()
-        
+
         assert hdr['VERSION'] == 1
         assert hdr['OBJ_TYPE'] == 'Layer'
         assert hdr['DIMX'] == pixel_pupil
@@ -41,7 +41,7 @@ class TestLayer(unittest.TestCase):
 
         pixel_pupil = 10
         pixel_pitch = 0.1
-        
+
         layer = Layer(pixel_pupil, pixel_pupil, pixel_pitch, height=0,
                       shiftXYinPixel=(0.1, 0.2), rotInDeg=3, magnification=4.0,
                       target_device_idx=target_device_idx, precision=1)
@@ -55,7 +55,7 @@ class TestLayer(unittest.TestCase):
 
         pixel_pupil = 10
         pixel_pitch = 0.1
-        
+
         layer = Layer(pixel_pupil, pixel_pupil, pixel_pitch, height=0,
                       shiftXYinPixel=(0.1, 0.2), rotInDeg=3, magnification=4.0,
                       target_device_idx=target_device_idx, precision=0)
