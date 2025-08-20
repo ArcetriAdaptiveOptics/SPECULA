@@ -94,7 +94,7 @@ class ModulatedDoubleRoof(ModulatedPyramid):
         self.roof1_image = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.dtype)
         self.roof2_image = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.dtype)
         self.roof2_factor = self.xp.ones((self.fft_totsize, self.fft_totsize), dtype=self.dtype)
-        
+
         # Pre-calculate mid points
         self.mid_h = self.fft_totsize // 2
         self.mid_w = self.fft_totsize // 2
@@ -118,6 +118,12 @@ class ModulatedDoubleRoof(ModulatedPyramid):
 
             # Second roof: vertical separation (top/bottom)
             roof2_tlt = self.xp.rot90(roof1_tlt)
+
+            # add to roof1_tlt a tilt in the other direction to shift the image on one side
+            roof1_tlt += A - 1 - 0.5*y
+
+            # add to roof2_tlt a tilt in the other direction to shift the image on one side
+            roof2_tlt += A - 1 - 0.5*x
 
         # Apply edge and tip defects to both roofs
         xx, yy = make_xy(A * 2, A, xp=self.xp)
@@ -192,16 +198,8 @@ class ModulatedDoubleRoof(ModulatedPyramid):
         # Clear the output image
         self.pyr_image *= 0
 
-        # Shift and rotate by 90 degrees roof2_image
+        # rotate by 90 degrees roof2_image
         roof2_rotated = self.xp.rot90(self.roof2_image)
-        shift2_value = 0.5*self.fft_totsize/self.toccd_side*self.pup_dist
-        # self.shift is defined in base_time_obj from scipy or cupyx.scipy ndimage
-        roof2_shifted = self.shift(roof2_rotated, (shift2_value, 0), order=1, mode='wrap')
-
-        # Shift roof1_image horizontally (left/right separation)
-        shift1_value = -0.5*self.fft_totsize/self.toccd_side*self.pup_dist
-        # self.shift is defined in base_time_obj from scipy or cupyx.scipy ndimage
-        roof1_shifted = self.shift(self.roof1_image, (shift1_value, 0), order=1, mode='wrap')
 
         plot_debug = False
         if plot_debug:
@@ -219,18 +217,10 @@ class ModulatedDoubleRoof(ModulatedPyramid):
             plt.colorbar()
             plt.title("Roof 2 Image Rotated")
             plt.figure(figsize=(10, 5))
-            plt.imshow(roof2_shifted)
-            plt.colorbar()
-            plt.title("Roof 2 Image Shifted")
-            plt.figure(figsize=(10, 5))
-            plt.imshow(roof1_shifted)
-            plt.colorbar()
-            plt.title("Roof 1 Image Shifted")
-            plt.figure(figsize=(10, 5))
-            plt.imshow(roof1_shifted + roof2_shifted)
+            plt.imshow(self.roof1_image + roof2_rotated)
             plt.colorbar()
             plt.title("Combined Roof Images")
             plt.show()
 
         # Combine the shifted images
-        self.pyr_image[:] = roof1_shifted + roof2_shifted 
+        self.pyr_image[:] = self.roof1_image + roof2_rotated 
