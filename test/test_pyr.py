@@ -248,9 +248,11 @@ class TestModulatedPyramid(unittest.TestCase):
         self.assertEqual(pyramid.ttexp.shape, expected_ttexp_shape,
                         f"ttexp shape {pyramid.ttexp.shape} doesn't match expected {expected_ttexp_shape}")
 
-        # Test 3: Check flux_factor_vector dimensions and values
+        # Test 3: Check flux_factor_vector dimensions and values (they must be >0 and <inf)
         self.assertEqual(len(pyramid.flux_factor_vector), pyramid.mod_steps,
                         f"flux_factor_vector length {len(pyramid.flux_factor_vector)} doesn't match mod_steps {pyramid.mod_steps}")
+        self.assertTrue(np.all(cpuArray(pyramid.flux_factor_vector) > 0) and np.all(cpuArray(pyramid.flux_factor_vector) < np.inf),
+                        "flux_factor_vector values must be >0 and <inf")
 
         # Test 4: Check flux_factor_vector is symmetric for linear modulation
         ffv_cpu = cpuArray(pyramid.flux_factor_vector)
