@@ -116,7 +116,7 @@ class ModulatedPyramid(BaseProcessingObj):
             raise ValueError(f"mod_type must be one of {valid_mod_types}, got {mod_type}")
         self.mod_type = mod_type
         # Add iteration counter for alternating modulation
-        self.iter = 0
+        self.iter = self.to_xp([0])
 
         if mod_step is None:
             if mod_type == 'circular':
@@ -535,7 +535,7 @@ class ModulatedPyramid(BaseProcessingObj):
 
     def trigger_code(self):
         # Select rotation based on current iteration for alternating modulation
-        rotation_idx = self.iter % 2
+        rotation_idx = self.iter[0] % 2
 
         # Select the appropriate ttexp slice (no rotation needed!)
         ttexp_current = self.ttexp[rotation_idx]
@@ -599,7 +599,7 @@ class ModulatedPyramid(BaseProcessingObj):
 
         if self.mod_type == 'alternating':
             # Increment iteration counter at the end
-            self.iter += 1
+            self.iter[0] += 1
 
     def setup(self):
         super().setup()
