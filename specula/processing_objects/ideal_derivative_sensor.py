@@ -20,7 +20,6 @@ class IdealDerivativeSensor(BaseProcessingObj):
                  simul_params: SimulParams,
                  subapdata: SubapData,
                  fov: float,
-                 obs: float = 0.0,
                  target_device_idx: int = None,
                  precision: int = None):
         """
@@ -30,7 +29,6 @@ class IdealDerivativeSensor(BaseProcessingObj):
             subapdata: Subaperture data object defining the geometry
             pixel_pitch: Pixel pitch in meters
             fov: Field of view in arcseconds (radius). This is used to get the same scale factor of a SH sensor
-            obs: Central obscuration ratio
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
@@ -40,7 +38,6 @@ class IdealDerivativeSensor(BaseProcessingObj):
         if fov <= 0:
             raise ValueError("Field of view must be positive.")
         self.fov = fov
-        self.obs = obs
 
         # Conversion factor from derivative to slopes
         # slope_value = derivative [nm] * 1e-9 / pixel_pitch [m] * rad2asec / FoV [asec] (radius)
