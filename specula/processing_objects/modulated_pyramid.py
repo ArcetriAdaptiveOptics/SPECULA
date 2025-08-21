@@ -76,7 +76,7 @@ class ModulatedPyramid(BaseProcessingObj):
         toccd_side = result['toccd_side']
         final_ccd_side = result['final_ccd_side']
 
-        # Compute focal plane central obstruction dimension ratio                 
+        # Compute focal plane central obstruction dimension ratio            
         fp_obsratio = fp_obs / (fft_totsize / fft_res) if fp_obs is not None else 0
 
         self.wavelength_in_nm = wavelengthInNm
@@ -365,8 +365,15 @@ class ModulatedPyramid(BaseProcessingObj):
 
         iu = 1j  # complex unit
 
-        # Initialize ttexp array
-        self.ttexp = self.xp.zeros((self.mod_steps, self.tilt_x.shape[0], self.tilt_x.shape[1]),
+        # Determine number of rotation variants needed
+        if self.mod_type == 'alternating':
+            n_rotations = 2  # Both vertical and horizontal
+        else:
+            n_rotations = 1  # Only one orientation
+    
+        # Initialize ttexp array with rotation dimension
+        # Shape: (n_rotations, mod_steps, height, width)
+        self.ttexp = self.xp.zeros((n_rotations, self.mod_steps, self.tilt_x.shape[0], self.tilt_x.shape[1]),
                                 dtype=self.complex_dtype)
 
         if self.ext_source_coeff is not None:
@@ -391,7 +398,7 @@ class ModulatedPyramid(BaseProcessingObj):
                             coeff_tilty[tt] * ext_ytilt +
                             coeff_focus[tt] * ext_focus)
 
-                self.ttexp[tt, :, :] = self.xp.exp(-iu * pup_phase, dtype=self.complex_dtype)
+                self.ttexp[0, tt, :, :] = self.xp.exp(-iu * pup_phase, dtype=self.complex_dtype)
 
             # Set flux factor vector from source (will be updated in trigger if PSF changes)
             self.flux_factor_vector = self.to_xp(coeff_flux)
@@ -414,23 +421,25 @@ class ModulatedPyramid(BaseProcessingObj):
                     pup_tt = (self.mod_amp * self.xp.sin(angle) * self.tilt_x + 
                             self.mod_amp * self.xp.cos(angle) * self.tilt_y)
 
-                    self.ttexp[tt, :, :] = self.xp.exp(-iu * pup_tt, dtype=self.complex_dtype)
+                    self.ttexp[0, tt, :, :] = self.xp.exp(-iu * pup_tt, dtype=self.complex_dtype)
 
                 # Equal flux for all modulation steps
                 self.flux_factor_vector = self.xp.ones(self.mod_steps, dtype=self.dtype)
             elif self.mod_type in ['vertical', 'horizontal', 'alternating']:
                 # LINEAR MODULATION: Generate vertical case first
-                for tt in range(self.mod_steps):
-                    # Linear modulation from -mod_amp to +mod_amp
-                    tilt_value = self.mod_amp * (2 * tt / (self.mod_steps - 1) - 1)
-                    if self.mod_type == 'horizontal':
-                        # Horizontal modulation uses tilt_x
-                        pup_tt = tilt_value * self.tilt_x
-                    else:
-                        # Vertical modulation uses tilt_y
-                        pup_tt = tilt_value * self.tilt_y
+                for rotation_idx in range(n_rotations):
+                    for tt in range(self.mod_steps):
+                        # Linear modulation from -mod_amp to +mod_amp
+                        tilt_value = self.mod_amp * (2 * tt / (self.mod_steps - 1) - 1)
+                        
+                        if self.mod_type == 'horizontal' or (self.mod_type == 'alternating' and rotation_idx == 1):
+                            # Horizontal modulation uses tilt_x
+                            pup_tt = tilt_value * self.tilt_x
+                        else:
+                            # Vertical modulation uses tilt_y
+                            pup_tt = tilt_value * self.tilt_y
 
-                    self.ttexp[tt, :, :] = self.xp.exp(-iu * pup_tt, dtype=self.complex_dtype)
+                        self.ttexp[rotation_idx, tt, :, :] = self.xp.exp(-iu * pup_tt, dtype=self.complex_dtype)
 
                 # Calculate flux correction for linear modulation
                 # Use integrated intensity over each step interval
@@ -469,7 +478,7 @@ class ModulatedPyramid(BaseProcessingObj):
         # Common setup for both modes
         self.ffv = self.flux_factor_vector[:, self.xp.newaxis, self.xp.newaxis]
         self.factor = 1.0 / self.xp.sum(self.flux_factor_vector)
-        self.ttexp_shape = self.ttexp.shape
+        self.ttexp_shape = self.ttexp.shape[1:]
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
@@ -525,12 +534,14 @@ class ModulatedPyramid(BaseProcessingObj):
         self._wf_interpolated.ef_at_lambda(self.wavelength_in_nm, out=self.ef)
 
     def trigger_code(self):
-        # Rotate ttexp for alternating modulation, for standard modulation self.rotation_k = 0
-        # self.ttexp is 3D and we rotate on the last two axes
-        ttexp_rotated = self.xp.rot90(self.ttexp, k=self.rotation_k[self.iter % 2], axes=(-2, -1))
+        # Select rotation based on current iteration for alternating modulation
+        rotation_idx = self.iter % 2
+
+        # Select the appropriate ttexp slice (no rotation needed!)
+        ttexp_current = self.ttexp[rotation_idx]
 
         u_tlt_const = self.ef * self.tlt_f
-        tmp = u_tlt_const[self.xp.newaxis, :, :] * ttexp_rotated
+        tmp = u_tlt_const[self.xp.newaxis, :, :] * ttexp_current
         self.u_tlt[:, 0:self.ttexp_shape[1], 0:self.ttexp_shape[2]] = tmp
         self.pyr_image *=0
         self.fpsf *=0
@@ -587,8 +598,9 @@ class ModulatedPyramid(BaseProcessingObj):
         self.out_transmission.value = self.transmission
         self.out_transmission.generation_time = self.current_time
 
-        # Increment iteration counter at the end
-        self.iter += 1
+        if self.mod_type == 'alternating':
+            # Increment iteration counter at the end
+            self.iter += 1
 
     def setup(self):
         super().setup()
@@ -664,14 +676,6 @@ class ModulatedPyramid(BaseProcessingObj):
 
         if self._do_interpolation:
             self.phase_extrapolated = in_ef.phaseInNm.copy()
-
-        # Create rotation array for alternating modulation only
-        if self.mod_type == 'alternating':
-            # For alternating: [0, 1] to alternate between vertical and horizontal
-            self.rotation_k = self.xp.array([0, 1], dtype=int)
-        else:
-            # All other cases: no rotation needed (handled in cache_ttexp)
-            self.rotation_k = self.xp.array([0, 0], dtype=int)
 
         if self.stream_enable:
             super().build_stream()

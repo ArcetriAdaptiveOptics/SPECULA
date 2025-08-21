@@ -170,7 +170,7 @@ class TestModulatedPyramid(unittest.TestCase):
                         f"Expected {expected_mod_steps} mod_steps for vertical modulation, got {pyramid.mod_steps}")
 
         # Test 2: Check ttexp dimensions
-        expected_ttexp_shape = (pyramid.mod_steps, pyramid.tilt_x.shape[0], pyramid.tilt_x.shape[1])
+        expected_ttexp_shape = (1, pyramid.mod_steps, pyramid.tilt_x.shape[0], pyramid.tilt_x.shape[1])
         self.assertEqual(pyramid.ttexp.shape, expected_ttexp_shape,
                         f"ttexp shape {pyramid.ttexp.shape} doesn't match expected {expected_ttexp_shape}")
 
@@ -265,10 +265,10 @@ class TestModulatedPyramid(unittest.TestCase):
             plt.title("Intensity for Horizontal Modulation")
             plt.show()
 
-        # Test 1: Check that rotation_k is [0, 0] for horizontal (no rotation in trigger)
-        expected_rotation_k = [0, 0]
-        np.testing.assert_array_equal(cpuArray(pyramid.rotation_k), expected_rotation_k,
-                                    err_msg="rotation_k should be [0, 0] for horizontal modulation")
+        # Test 1: Check ttexp shape
+        expected_ttexp_shape = (1, pyramid.mod_steps, pyramid.tilt_x.shape[0], pyramid.tilt_x.shape[1])
+        self.assertEqual(pyramid.ttexp.shape, expected_ttexp_shape,
+                        f"ttexp shape {pyramid.ttexp.shape} doesn't match expected {expected_ttexp_shape}")
 
         # Test 2: Check mod_steps and dimensions (same as vertical)
         expected_mod_steps = int(round(mod_amp) * 2 + 1)
@@ -290,7 +290,6 @@ class TestModulatedPyramid(unittest.TestCase):
                         "Output shape incorrect for horizontal modulation")
 
         print(f"Horizontal modulation test passed: mod_steps = {pyramid.mod_steps}, "
-              f"rotation_k = {cpuArray(pyramid.rotation_k)}, "
               f"flux_factor range = [{ffv_cpu.min():.3f}, {ffv_cpu.max():.3f}]")
 
     @cpu_and_gpu
@@ -335,10 +334,10 @@ class TestModulatedPyramid(unittest.TestCase):
         pyramid.inputs['in_ef'].set(ef)
         pyramid.setup()
 
-        # Test 1: Check that rotation_k is [0, 1] for alternating
-        expected_rotation_k = [0, 1]
-        np.testing.assert_array_equal(cpuArray(pyramid.rotation_k), expected_rotation_k,
-                                    err_msg="rotation_k should be [0, 1] for alternating modulation")
+        # Test 1: Check ttexp shape
+        expected_ttexp_shape = (2, pyramid.mod_steps, pyramid.tilt_x.shape[0], pyramid.tilt_x.shape[1])
+        self.assertEqual(pyramid.ttexp.shape, expected_ttexp_shape,
+                        f"ttexp shape {pyramid.ttexp.shape} doesn't match expected {expected_ttexp_shape}")
 
         # Test 2: Check iteration counter initialization
         self.assertEqual(pyramid.iter, 0, "Iteration counter should start at 0")
@@ -397,5 +396,4 @@ class TestModulatedPyramid(unittest.TestCase):
         print(f"Intensity difference 0-1 (vert-horiz): {diff_0_1:.2e}")
 
         print(f"Alternating modulation test passed: mod_steps = {pyramid.mod_steps}, "
-              f"rotation_k = {cpuArray(pyramid.rotation_k)}, "
               f"final iter = {pyramid.iter}")
