@@ -50,6 +50,7 @@ class CalibManager():
             'TimeHistory': 'data/',
             'time_hist': 'data/',
             'vibrations': 'vibrations/',
+            'Layer': 'layers/',
             'data': 'data/',
             'projection': 'popt/'
         }
