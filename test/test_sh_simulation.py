@@ -2,7 +2,6 @@ import unittest
 import os
 import shutil
 import subprocess
-import sys
 import glob
 import specula
 specula.init(0,precision=1)

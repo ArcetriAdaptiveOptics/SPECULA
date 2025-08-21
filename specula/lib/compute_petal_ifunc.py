@@ -1,6 +1,7 @@
 import numpy as np
 from specula.lib.make_mask import make_mask
 
+
 def compute_petal_ifunc(dim, n_petals, xp=np, dtype=np.float32, angle_offset=0,
                         obsratio=0.0, diaratio=1.0, mask=None, spider=False,
                         spider_width=2, add_tilts=False, return_coordinates=False,

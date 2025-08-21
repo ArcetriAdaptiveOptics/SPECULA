@@ -1,0 +1,20 @@
+
+pyr_pupdata:
+  class: 'PyrPupdataCalibrator'
+  thr1: 0.1
+  thr2: 0.25
+  output_tag:        'scao_dr_pupdata'
+  inputs:
+    in_i: 'double_roof.out_i'
+
+prop_override:
+  inputs:
+    common_layer_list: ['pupilstop']
+
+main_override:
+  total_time:  0.001
+
+double_roof_override:
+  mod_amp:           10.0                     # Modulation radius (in lambda/D units)
+
+remove: ['atmo', 'slopec', 'rec','control','dm', 'data_store']

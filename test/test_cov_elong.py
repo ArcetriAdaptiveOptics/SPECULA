@@ -4,7 +4,7 @@ specula.init(0)  # Default target device
 
 import unittest
 
-from specula import cp, np
+from specula import np
 from specula import cpuArray
 
 from specula.lib.calc_noise_cov_elong import calc_noise_cov_elong

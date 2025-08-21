@@ -23,6 +23,25 @@ except ImportError:
 class TestIirFilterData(unittest.TestCase):
 
     @cpu_and_gpu
+    def test_init_with_n_modes_expansion(self, target_device_idx, xp):
+        """Test that n_modes expands filter blocks correctly in IirFilterData.__init__"""
+        ordnum = [2, 2]
+        ordden = [2, 2]
+        num = xp.array([[0.0, 0.5], [0.0, 0.3]])
+        den = xp.array([[-1.0, 1.0], [-0.9, 1.0]])
+        n_modes = [3, 2]
+
+        filt = IirFilterData(ordnum, ordden, num, den, n_modes=n_modes, target_device_idx=target_device_idx)
+
+        # There should be 5 filters: 3 with the first coeffs, 2 with the second
+        self.assertEqual(filt.num.shape, (5, 2))
+        self.assertEqual(filt.den.shape, (5, 2))
+        np.testing.assert_allclose(cpuArray(filt.num[:3]), [cpuArray(num[0])]*3)
+        np.testing.assert_allclose(cpuArray(filt.num[3:]), [cpuArray(num[1])]*2)
+        np.testing.assert_allclose(cpuArray(filt.den[:3]), [cpuArray(den[0])]*3)
+        np.testing.assert_allclose(cpuArray(filt.den[3:]), [cpuArray(den[1])]*2)
+
+    @cpu_and_gpu
     def test_numerator_from_gain_and_ff(self, target_device_idx, xp):
         gain = 0.2
         nmodes = 10
@@ -173,7 +192,7 @@ class TestIirFilterData(unittest.TestCase):
     @unittest.skipIf(not CONTROL_AVAILABLE, "Control library not available")
     def test_control_conversion_error_handling(self):
         """Test error handling when control library methods are called without control"""
-        
+
         # Use unittest.mock to temporarily disable control
         import unittest.mock
         import specula.data_objects.iir_filter_data as iir_module
@@ -219,7 +238,7 @@ class TestIirFilterData(unittest.TestCase):
             filter_data.num[0, :], filter_data.den[0, :], fs,
             freq=freq
         )
-        
+
         plot_debug = False  # Set to True to enable plotting for debugging
         if plot_debug:
             import matplotlib.pyplot as plt
@@ -257,7 +276,7 @@ class TestIirFilterData(unittest.TestCase):
         """Test the has_control_support property"""
 
         filter_data = IirFilterData.from_gain_and_ff([0.5])
-        
+
         # The property should return the same as the global flag
         self.assertEqual(filter_data.has_control_support, CONTROL_AVAILABLE)
 

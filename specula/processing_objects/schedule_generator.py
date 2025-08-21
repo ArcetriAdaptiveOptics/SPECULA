@@ -1,4 +1,3 @@
-import numpy as np
 from specula.processing_objects.base_generator import BaseGenerator
 
 

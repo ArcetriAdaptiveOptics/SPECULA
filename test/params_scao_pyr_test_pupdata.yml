@@ -17,4 +17,4 @@ main_override:
 pyramid_override:
   mod_amp:           10.0                     # Modulation radius (in lambda/D units)
 
-remove: ['atmo', 'slopec', 'rec','control','dm', 'data_store']
+remove: ['atmo', 'slopec', 'rec', 'control', 'dm', 'data_store']
