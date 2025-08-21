@@ -23,6 +23,7 @@ Getting Started
    Simulation basics <simulation_basics>
    Running simulations <running_simulations>
    Diagrams <simul_diagrams>
+   Calibration manager <calibration_manager>
 
 Tutorials
 ---------
