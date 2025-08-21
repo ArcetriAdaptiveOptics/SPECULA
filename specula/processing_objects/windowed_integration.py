@@ -11,37 +11,35 @@ class WindowedIntegration(BaseProcessingObj):
                  simul_params: SimulParams,
                  n_elem: int,
                  dt: float,
+                 start_time: float=0,
                  target_device_idx: int=None,
                  precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.loop_dt = self.seconds_to_t(simul_params.time_step)
 
-        self._dt = self.seconds_to_t(dt)
-        self._start_time = self.seconds_to_t(0)
+        self.dt = self.seconds_to_t(dt)
+        self.start_time = self.seconds_to_t(start_time)
 
-        if self._dt <= 0:
+        if self.dt <= 0:
             raise ValueError(f'dt (integration time) is {dt} and must be greater than zero')
-        if self._dt % self.loop_dt != 0:
+        if self.dt % self.loop_dt != 0:
             raise ValueError(f'integration time dt={dt} must be a multiple of the basic simulation time_step={simul_params.time_step}')
 
         self.inputs['input'] = InputValue(type=BaseValue)
 
-        self.n_elem = n_elem
-        self.output = BaseValue(target_device_idx=target_device_idx, value=self.xp.zeros(self.n_elem, dtype=self.dtype))
+        self.output = BaseValue(value=self.xp.zeros(n_elem, dtype=self.dtype), target_device_idx=target_device_idx)
         self.outputs['output'] = self.output
-        self.output_value = self.xp.zeros(self.n_elem, dtype=self.dtype)
+        self.integrated_value = self.xp.zeros(n_elem, dtype=self.dtype)
 
-    def trigger(self):
-        if self._start_time <= 0 or self.current_time >= self._start_time:
+    def trigger_code(self):
+        if self.start_time <= 0 or self.current_time >= self.start_time:
             input = self.local_inputs['input']
-            if input.generation_time == self.current_time:
-                self.output.value *= 0.0
-                self.output.generation_time = self.current_time
-                self.output_value += input.value * self.loop_dt / self._dt
+            self.output.value *= 0.0
+            self.integrated_value += input.value * self.loop_dt / self.dt
 
-            if (self.current_time + self.loop_dt - self._dt - self._start_time) % self._dt == 0:
-                self.output.value = self.output_value.copy()
-                self.output.generation_time = self.current_time
-                self.output_value *= 0.0
+            if (self.current_time + self.loop_dt - self.dt - self.start_time) % self.dt == 0:
+                self.output.value[:] = self.integrated_value
+                self.integrated_value *= 0.0
                 
+        self.output.generation_time = self.current_time

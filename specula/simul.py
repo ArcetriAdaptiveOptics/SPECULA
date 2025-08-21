@@ -1,3 +1,4 @@
+import re
 import typing
 import inspect
 import itertools
@@ -55,7 +56,7 @@ class Simul():
         self.diagram = diagram
         self.diagram_title = diagram_title
         self.diagram_filename = diagram_filename
-    
+
     def split_output(self, output_name, get_ref=False, use_inputs=False):
         '''
         Split the output name into object name and output key.
@@ -99,7 +100,7 @@ class Simul():
             ref = None
 
         return Output(obj_name, output_key, delay, ref, input_name)
-            
+
     def output_owner(self, output_name):
         output = self.split_output(output_name)
         return output.obj_name
@@ -125,7 +126,7 @@ class Simul():
         '''
         output = self.split_output(input_name, get_ref=True, use_inputs=True)
         return output.ref
-        
+
     def output_delay(self, output_name):
         return self.split_output(output_name).delay
 
@@ -148,7 +149,7 @@ class Simul():
             if maxdelay == 0:
                 return False
         return True
-    
+
     def has_delayed_output(self, obj_name, params):
         '''
         Find out if an object has an output
@@ -263,7 +264,7 @@ class Simul():
 
             if pars['class'] == 'DataBuffer':
                 self.objs[key].setOutputs()
-   
+
     def build_objects(self, params):
 
         self.setSimulParams(params)
@@ -286,15 +287,15 @@ class Simul():
             hints = get_type_hints(klass)
 
             target_device_idx = pars.get('target_device_idx', None)
-                        
+ 
             par_target_rank = pars.get('target_rank', None)
             if par_target_rank is None:
                 target_rank = 0
                 self.all_objs_ranks[key] = 0
             else:
-                target_rank = par_target_rank     
+                target_rank = par_target_rank
                 self.all_objs_ranks[key] = par_target_rank
-                del pars['target_rank']        
+                del pars['target_rank']
 
             # create the simulations objects for this process. Data Objects are created
             # on all ranks (processes) by default, unless a specific rank has been specified.
@@ -320,6 +321,7 @@ class Simul():
                 self.objs[key] = klass.restore(filename, target_device_idx=target_device_idx)
                 self.objs[key].printMemUsage()
                 self.objs[key].name = key
+                self.objs[key].tag = pars['tag']
                 continue
 
             pars2 = {}
@@ -368,6 +370,9 @@ class Simul():
                         print('Restoring:', filename)
                         parobj = partype.restore(filename, target_device_idx=target_device_idx)
                         parobj.printMemUsage()
+
+                        # Set data_tag 
+                        parobj.tag = value
 
                         pars2[parname] = parobj
                     else:
@@ -582,27 +587,19 @@ class Simul():
         Add/update/remove params with additional_params
         '''
         for name, values in additional_params.items():
-            doRemoveIdx = False            
-            if '_' in name:
-                ri = name.split('_')
-                # check for a remove (with simulation index) list, something of the form:  remove_3: ['atmo', 'rec', 'dm2']                
-                if len(ri) == 2:
-                    if ri[0] == 'remove':
-                        if int(ri[1]) == self.simul_idx:
-                            doRemoveIdx = True
-                        else:
-                            continue
-                # check for a override (with simulation index) parameters structure, something of the form:  dm_override_2: { ... }                
-                if ri[-1].isnumeric() and ri[-2] == 'override':
-                    if int(ri[-1]) == self.simul_idx:
-                        separator = "_"
-                        objname = separator.join(ri[:-2])                        
-                        if objname not in params:
-                            raise ValueError(f'Parameter file has no object named {objname}')
-                        params[objname].update(values)
+            # Check if "name" ends with _ followed by a number, in that case 
+            # the number is a simulation index and we skip these parameters
+            # if our simul_idx is not equal to the number.
+            # e.g. dm_override_2: { ... } or remove_3: ['atmo', 'rec', 'dm2']
+            match = re.search(r'^(.*)_(\d+)$', name)
+            if match:
+                idx = int(match.group(2))
+                if idx != self.simul_idx:
                     continue
+                else:
+                    name = match.group(1)
 
-            if name == 'remove' or doRemoveIdx:
+            if name == 'remove':
                 for objname in values:
                     if objname not in params:
                         raise ValueError(f'Parameter file has no object named {objname}')

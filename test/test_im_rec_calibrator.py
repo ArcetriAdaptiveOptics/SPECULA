@@ -7,8 +7,15 @@ import unittest
 import uuid
 import shutil
 
-from specula.data_objects.slopes import Slopes
 from specula.base_value import BaseValue
+from specula.data_objects.pupilstop import Pupilstop
+from specula.data_objects.slopes import Slopes
+from specula.data_objects.source import Source
+from specula.data_objects.subap_data import SubapData
+from specula.data_objects.simul_params import SimulParams
+from specula.processing_objects.dm import DM
+from specula.processing_objects.sh import SH
+from specula.processing_objects.sh_slopec import ShSlopec
 from specula.processing_objects.im_calibrator import ImCalibrator
 from specula.processing_objects.rec_calibrator import RecCalibrator
 
@@ -154,3 +161,115 @@ class TestImRecCalibrator(unittest.TestCase):
         # Check that file was created
         rec_path = os.path.join(self.test_dir, f'{rec_tag}.fits')
         self.assertTrue(os.path.exists(rec_path))
+
+    @cpu_and_gpu
+    def test_automatic_im_tag_generation(self, target_device_idx, xp):
+        """Test that ImCalibrator generates automatic im_tag when not specified"""
+
+        # Create SimulParams (needed for DM and SH)
+        simul_params = SimulParams(
+            pixel_pupil=64,
+            pixel_pitch=0.1
+        )
+
+        # create a Pupilstop
+        pupilstop = Pupilstop(simul_params,
+                              mask_diam=0.9,
+                              obs_diam=0.1,
+                              target_device_idx=target_device_idx)
+
+        # Create Source
+        source = Source(
+            polar_coordinates=[10.0, 0.0],
+            magnitude=5,
+            wavelengthInNm=600,
+            target_device_idx=target_device_idx
+        )
+
+        # Create DM with proper initialization
+        dm = DM(
+            simul_params=simul_params,
+            type_str='zernike',
+            nmodes=40,
+            obsratio=0.1,
+            height=0,
+            target_device_idx=target_device_idx
+        )
+
+        # Create SH sensor with proper initialization
+        sensor = SH(
+            subap_wanted_fov=4.0,
+            sensor_pxscale=0.5,
+            subap_npx=8,
+            subap_on_diameter=8,
+            wavelengthInNm=600,
+            target_device_idx=target_device_idx
+        )
+
+        # ------------------------------------------------------------------------------
+        # Set up inputs for ShSlopec
+        subap_on_diameter = 2
+        subap_npx = 100
+        idxs = {}
+        map = {}
+        mask_subap = xp.ones((subap_on_diameter*subap_npx, subap_on_diameter*subap_npx))
+
+        count = 0
+        for i in range(subap_on_diameter):
+            for j in range(subap_on_diameter):
+                mask_subap *= 0
+                mask_subap[i*subap_npx:(i+1)*subap_npx,j*subap_npx:(j+1)*subap_npx] = 1
+                idxs[count] = xp.where(mask_subap == 1)
+                map[count] = j * subap_on_diameter + i
+                count += 1
+
+        v = xp.zeros((len(idxs), subap_npx*subap_npx), dtype=int)
+        m = xp.zeros(len(idxs), dtype=int)
+        for k, idx in idxs.items():
+            v[k] = xp.ravel_multi_index(idx, mask_subap.shape)
+            m[k] = map[k]
+
+        subapdata = SubapData(idxs=v, display_map = m, nx=subap_on_diameter, ny=subap_on_diameter, target_device_idx=target_device_idx)
+
+        # Create SH slope computer
+        slopec = ShSlopec(
+            subapdata=subapdata,  # Use a test tag
+            weightedPixRad=4.0,
+            target_device_idx=target_device_idx
+        )
+
+        slopes = Slopes(2, target_device_idx=target_device_idx)
+        cmd = BaseValue(value=xp.zeros(2), target_device_idx=target_device_idx)
+
+        # Create calibrator with im_tag='auto' to trigger automatic generation
+        calibrator = ImCalibrator(
+            nmodes=10, 
+            data_dir=self.test_dir,
+            im_tag='auto',
+            pupilstop=pupilstop,
+            source=source,
+            dm=dm,
+            sensor=sensor,
+            slopec=slopec,
+            overwrite=True,
+            target_device_idx=target_device_idx
+        )
+
+        calibrator.inputs['in_slopes'].set(slopes)
+        calibrator.inputs['in_commands'].set(cmd)
+        calibrator.setup()
+
+        print(f"Generated IM tag: {calibrator.im_tag}")
+
+        # Check that im_tag was automatically generated
+        self.assertIsNotNone(calibrator.im_tag)
+        self.assertIsInstance(calibrator.im_tag, str)
+        self.assertTrue(len(calibrator.im_tag) > 0)
+        self.assertNotEqual(calibrator.im_tag, 'auto')
+
+        # Check that the generated tag contains expected components
+        self.assertIn('_sh', calibrator.im_tag)  # Should contain sensor type
+        self.assertIn('pup', calibrator.im_tag)  # Should contain pupil info
+        self.assertIn('coor', calibrator.im_tag)  # Should contain coordinates info
+        self.assertIn('mds', calibrator.im_tag)  # Should contain modes info
+        self.assertIn('stop', calibrator.im_tag)  # Should contain pupilstop info

@@ -55,14 +55,14 @@ class PupData(BaseDataObj):
         '''Get the pixel values as a numpy/cupy array'''
         return self.ind_pup
     
-    def set_value(self, v, force_copy=False):
+    def set_value(self, v):
         '''Set new ind_pup values.
         Arrays are not reallocated.
         '''
         assert v.shape == self.ind_pup.shape, \
             f"Error: input array shape {v.shape} does not match ind_pup shape {self.ind_pup.shape}"
 
-        self.ind_pup[:] = self.to_xp(v, force_copy=force_copy)
+        self.ind_pup[:] = self.to_xp(v)
 
     @property
     def n_subap(self):

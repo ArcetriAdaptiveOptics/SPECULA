@@ -12,7 +12,7 @@ class IFuncInv(BaseDataObj):
                 ):
         super().__init__(precision=precision, target_device_idx=target_device_idx)
         self._doZeroPad = False
-        
+
         self.ifunc_inv = self.to_xp(ifunc_inv)
         self.mask_inf_func = self.to_xp(mask)
         self.idx_inf_func = self.xp.where(self.mask_inf_func)
@@ -44,13 +44,13 @@ class IFuncInv(BaseDataObj):
     def get_value(self):
         return self.ifunc_inv
     
-    def set_value(self, v, force_copy=False):
+    def set_value(self, v):
         '''Set a new influence function.
         Arrays are not reallocated.'''
         assert v.shape == self.ifunc_inv.shape, \
             f"Error: input array shape {v.shape} does not match inverse influence function shape {self.ifunc_inv.shape}"
 
-        self.ifunc_inv[:] = self.to_xp(v, force_copy=force_copy)
+        self.ifunc_inv[:] = self.to_xp(v)
 
     @staticmethod
     def from_header(hdr):

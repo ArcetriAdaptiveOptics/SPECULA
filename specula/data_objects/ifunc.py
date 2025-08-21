@@ -40,6 +40,7 @@ class IFunc(BaseDataObj):
                  precision=None
                 ):
         super().__init__(precision=precision, target_device_idx=target_device_idx)
+        self.type_str = type_str
         self._doZeroPad = False
 
         if ifunc is None:
@@ -133,13 +134,13 @@ class IFunc(BaseDataObj):
     def get_value(self):
         return self._influence_function
     
-    def set_value(self, v, force_copy=False):
+    def set_value(self, v):
         '''Set a new influence function.
         Arrays are not reallocated.'''
         assert v.shape == self._influence_function.shape, \
             f"Error: input array shape {v.shape} does not match influence function shape {self._influence_function.shape}"
 
-        self._influence_function[:] = self.to_xp(v, force_copy=force_copy)
+        self._influence_function[:] = self.to_xp(v)
 
     @staticmethod
     def from_header(hdr):

@@ -31,6 +31,7 @@ class BaseDataObj(BaseTimeObj):
         """
         super().__init__(target_device_idx, precision)
         self.generation_time = -1
+        self.tag = ''
 
     def transferDataTo(self, destobj, force_reallocation=False):
         '''

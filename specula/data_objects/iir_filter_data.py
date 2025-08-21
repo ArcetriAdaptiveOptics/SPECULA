@@ -440,7 +440,7 @@ class IirFilterData(BaseDataObj):
         # TODO
         raise NotImplementedError()
     
-    def set_value(self, v, force_copy=False):
+    def set_value(self, v):
         # TODO
         raise NotImplementedError()
 

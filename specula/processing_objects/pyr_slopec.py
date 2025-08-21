@@ -54,6 +54,12 @@ class PyrSlopec(Slopec):
         self.n_pup = self.pupdata.ind_pup.shape[1]
         self.n_subap = self.pupdata.ind_pup.shape[0]
         self.outputs['out_pupdata'] = self.pupdata
+        
+        if self.slopes_from_intensity:
+            self.slopes.single_mask = self.pupdata.complete_mask()
+        else:
+            self.slopes.single_mask = self.pupdata.single_mask()
+        self.slopes.display_map = self.pupdata.display_map
 
     def nsubaps(self):
         return self.pupdata.ind_pup.shape[0]
@@ -117,9 +123,4 @@ class PyrSlopec(Slopec):
         super().post_trigger()
 
         self.outputs['out_pupdata'].generation_time = self.current_time
-        if self.slopes_from_intensity:
-            self.slopes.single_mask = self.pupdata.complete_mask()
-        else:
-            self.slopes.single_mask = self.pupdata.single_mask()
-        self.slopes.display_map = self.pupdata.display_map
 

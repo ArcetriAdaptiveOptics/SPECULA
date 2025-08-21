@@ -11,7 +11,6 @@ from specula import np
 from specula import cpuArray
 
 from specula.data_objects.electric_field import ElectricField
-from specula.data_objects.simul_params import SimulParams
 from specula.processing_objects.electric_field_combinator import ElectricFieldCombinator
 
 from test.specula_testlib import cpu_and_gpu
@@ -49,7 +48,6 @@ class TestElectricField(unittest.TestCase):
     def test_ef_combinator(self, target_device_idx, xp):
         pixel_pitch = 0.1
         pixel_pupil = 10
-        simulParams = SimulParams(pixel_pupil=pixel_pupil,pixel_pitch=pixel_pitch)
         ef1 = ElectricField(pixel_pupil,pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx)
         ef2 = ElectricField(pixel_pupil,pixel_pupil, pixel_pitch, S0=2, target_device_idx=target_device_idx)
         A1 = xp.ones((pixel_pupil, pixel_pupil))
@@ -63,7 +61,6 @@ class TestElectricField(unittest.TestCase):
         ef2.phaseInNm = 3 * xp.ones((pixel_pupil, pixel_pupil))
 
         ef_combinator = ElectricFieldCombinator(
-            simul_params=simulParams,
             target_device_idx=target_device_idx
         )
 
@@ -208,7 +205,7 @@ class TestElectricField(unittest.TestCase):
         assert ef.ef_at_lambda(500.0).dtype == np.complex128
         
     @cpu_and_gpu
-    def tes_ef_resize(self, target_device_idx, xp):
+    def test_ef_resize(self, target_device_idx, xp):
         pixel_pupil = 10
         pixel_pitch = 0.1
         
@@ -223,3 +220,23 @@ class TestElectricField(unittest.TestCase):
         assert ef.field.shape == (2, new_dimx, new_dimy)
         assert ef.A.shape == (new_dimx, new_dimy)
         assert ef.phaseInNm.shape == (new_dimx, new_dimy)
+        assert ef.pixel_pitch == pixel_pitch  # Unchanged by resize
+
+    @cpu_and_gpu
+    def test_ef_resize_with_pitch(self, target_device_idx, xp):
+        pixel_pupil = 10
+        pixel_pitch = 0.1
+        
+        ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch,
+                      target_device_idx=target_device_idx)
+
+        # Resize with a new pixel pitch
+        new_dimx = 15
+        new_dimy = 15
+        new_pixel_pitch = 0.2
+        ef.resize(dimx=new_dimx, dimy=new_dimy, pitch=new_pixel_pitch)
+
+        assert ef.field.shape == (2, new_dimx, new_dimy)
+        assert ef.A.shape == (new_dimx, new_dimy)
+        assert ef.phaseInNm.shape == (new_dimx, new_dimy)
+        assert ef.pixel_pitch == new_pixel_pitch

@@ -398,10 +398,10 @@ class ConvolutionKernel(BaseDataObj):
     def get_value(self):
         return self.real_kernels
     
-    def set_value(self, v, force_copy=False):
+    def set_value(self, v):
         '''Set new kernels.
         Arrays are not reallocated.'''
         assert v.shape == self.real_kernels.shape, \
             f"Error: input array shape {v.shape} does not match real_kernels shape {self.real_kernels.shape}"
 
-        self.real_kernels[:] = self.to_xp(v, force_copy=force_copy)
+        self.real_kernels[:] = self.to_xp(v)

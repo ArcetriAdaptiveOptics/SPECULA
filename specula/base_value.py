@@ -19,11 +19,11 @@ class BaseValue(BaseDataObj):
     def get_value(self):
         return self.value
 
-    def set_value(self, val, force_copy=False):
-        if not self.value is None and not force_copy:
+    def set_value(self, val):
+        if self.value is not None:
             self.value[:] = self.to_xp(val)
         else:
-            self.value = self.to_xp(val)
+            self.value = self.to_xp(val, force_copy=True, dtype=self.dtype)
 
     def save(self, filename, overwrite=False):
         hdr = self.get_fits_header()

@@ -56,7 +56,7 @@ class DM(BaseProcessingObj):
                            nmodes=nmodes, start_mode=start_mode, idx_modes=idx_modes,
                            target_device_idx=target_device_idx, precision=precision)
         self._ifunc = ifunc
-
+        self.tag = self._ifunc.tag
 
         if idx_modes is not None:
             if start_mode is not None:
@@ -132,3 +132,7 @@ class DM(BaseProcessingObj):
     @property
     def mask(self):
         return self._ifunc.mask_inf_func
+
+    @property
+    def type_str(self):
+        return self._ifunc.type_str

@@ -60,10 +60,12 @@ class SH(BaseProcessingObj):
                  precision: int = None,
         ):
 
-        super().__init__(target_device_idx=target_device_idx, precision=precision)     
-        self._wavelengthInNm = wavelengthInNm
-        self._lenslet = Lenslet(subap_on_diameter, target_device_idx=target_device_idx)
-        self._subap_wanted_fov = subap_wanted_fov / RAD2ASEC
+        super().__init__(target_device_idx=target_device_idx, precision=precision)
+        self.wavelength_in_nm = wavelengthInNm
+        self.subap_wanted_fov = subap_wanted_fov
+        self.subap_on_diameter = subap_on_diameter
+        self._lenslet = Lenslet(self.subap_on_diameter, target_device_idx=target_device_idx)
+        self._subap_wanted_fov_rad = self.subap_wanted_fov / RAD2ASEC
         self._sensor_pxscale = sensor_pxscale / RAD2ASEC
         self._subap_npx = subap_npx
         self._fov_ovs_coeff = fov_ovs_coeff
@@ -120,8 +122,8 @@ class SH(BaseProcessingObj):
 
         sensor_pxscale_arcsec = self._sensor_pxscale * RAD2ASEC
         dSubApInM = np_sub * in_ef.pixel_pitch
-        turbulence_pxscale = self._wavelengthInNm * 1e-9 / dSubApInM * RAD2ASEC
-        subap_wanted_fov_arcsec = self._subap_wanted_fov * RAD2ASEC
+        turbulence_pxscale = self.wavelength_in_nm * 1e-9 / dSubApInM * RAD2ASEC
+        subap_wanted_fov_arcsec = self.subap_wanted_fov
         subap_real_fov_arcsec = self._sensor_pxscale * self._subap_npx * RAD2ASEC
 
         if self._fov_resolution_arcsec == 0:
@@ -154,7 +156,7 @@ class SH(BaseProcessingObj):
                 for i in range(nTry):
                     resTry[i] = turbulence_pxscale / (iMin + i + 2)
                     scaleTry[i] = round(turbulence_pxscale / resTry[i])
-                    fftScaleTry[i] = self._wavelengthInNm / 1e9 * self._lenslet.dimx / (ef_size * in_ef.pixel_pitch * scaleTry[i]) * RAD2ASEC
+                    fftScaleTry[i] = self.wavelength_in_nm / 1e9 * self._lenslet.dimx / (ef_size * in_ef.pixel_pitch * scaleTry[i]) * RAD2ASEC
                     subapRealTry[i] = round(subap_wanted_fov_arcsec / fftScaleTry[i] / 2.0) * 2
                     mcmxTry[i] = np.lcm(int(self._subap_npx), int(subapRealTry[i]))
 
@@ -183,7 +185,7 @@ class SH(BaseProcessingObj):
 
         dTelPaddedInM = ef_size * in_ef.pixel_pitch * scale_ovs
         dSubApPaddedInM = dTelPaddedInM / self._lenslet.dimx
-        fft_pxscale_arcsec = self._wavelengthInNm * 1e-9 / dSubApPaddedInM * RAD2ASEC
+        fft_pxscale_arcsec = self.wavelength_in_nm * 1e-9 / dSubApPaddedInM * RAD2ASEC
 
         # Compute real FoV
         subap_real_fov_pix = round(subap_real_fov_arcsec / fft_pxscale_arcsec / 2.0) * 2.0
@@ -238,7 +240,7 @@ class SH(BaseProcessingObj):
         Calculate the geometry of the SH
         '''
 
-        subap_wanted_fov = self._subap_wanted_fov
+        subap_wanted_fov = self._subap_wanted_fov_rad
         sensor_pxscale = self._sensor_pxscale
         subap_npx = self._subap_npx
 
@@ -261,7 +263,7 @@ class SH(BaseProcessingObj):
         self._wf3 = self._zeros_common((self._lenslet.dimy, fft_size, fft_size), dtype=self.complex_dtype)
 
         # Focal plane result from FFT
-        fp4_pixel_pitch = self._wavelengthInNm / 1e9 / (wf1.pixel_pitch * fft_size)
+        fp4_pixel_pitch = self.wavelength_in_nm / 1e9 / (wf1.pixel_pitch * fft_size)
         fov_complete = fft_size * fp4_pixel_pitch
 
         sensor_subap_fov = sensor_pxscale * subap_npx
@@ -405,7 +407,7 @@ class SH(BaseProcessingObj):
         for i in range(self.subap_rows_slice.start, self.subap_rows_slice.stop):
 
             # Extract 2D subap row
-            self._wf1.ef_at_lambda(self._wavelengthInNm,
+            self._wf1.ef_at_lambda(self.wavelength_in_nm,
                                    slicey=np.s_[i * self._ovs_np_sub: (i+1) * self._ovs_np_sub],
                                    slicex=np.s_[:],
                                    out=self.ef_row)

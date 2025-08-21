@@ -1,27 +1,23 @@
 from specula.connections import InputValue
 from specula.data_objects.electric_field import ElectricField
 from specula.base_processing_obj import BaseProcessingObj
-from specula.data_objects.simul_params import SimulParams
+
 
 class PhaseFlattening(BaseProcessingObj):
     """
     Removes the mean phase from an electric field.
     """
     def __init__(self,
-                 simul_params: SimulParams,
                  target_device_idx: int = None,
                  precision: int = None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-
-        self.simul_params = simul_params
-        self.pixel_pitch = self.simul_params.pixel_pitch
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
 
         self._out_ef = ElectricField(
             dimx=1,  # Will be replaced in setup()
             dimy=1,
-            pixel_pitch=self.pixel_pitch,
+            pixel_pitch=1,
             S0=1,
             target_device_idx=self.target_device_idx,
             precision=self.precision
@@ -38,6 +34,7 @@ class PhaseFlattening(BaseProcessingObj):
         self._out_ef.resize(
             dimx=in_ef.A.shape[0],
             dimy=in_ef.A.shape[1],
+            pitch=in_ef.pixel_pitch,
         )
 
     def trigger_code(self):
@@ -51,7 +48,8 @@ class PhaseFlattening(BaseProcessingObj):
         self._out_ef.S0 = in_ef.S0
 
         # Process phase: remove mean only where amplitude > 0
-        phase = in_ef.phaseInNm.copy()
+        phase = self._out_ef.phaseInNm            # Work on the output array in-place
+        phase[:] = in_ef.phaseInNm
         valid_mask = in_ef.A > 0
 
         if self.xp.any(valid_mask):
@@ -60,8 +58,6 @@ class PhaseFlattening(BaseProcessingObj):
 
             # Remove mean phase from all pixels
             phase[valid_mask] -= mean_phase
-
-        self._out_ef.phaseInNm[:] = phase
 
         # Set the generation time to the current time
         self._out_ef.generation_time = self.current_time
