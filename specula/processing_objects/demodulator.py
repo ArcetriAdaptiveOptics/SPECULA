@@ -1,4 +1,3 @@
-from specula import to_xp
 from specula.base_processing_obj import BaseProcessingObj
 from specula.connections import InputValue
 from specula.base_value import BaseValue
@@ -79,12 +78,11 @@ class Demodulator(BaseProcessingObj):
         # Convert history to array
         data_array = self.xp.array(self.data_history)
 
-        n_time, n_modes = data_array.shape
-        values = self.xp.zeros(n_modes, dtype=self.dtype)
+        values = self.xp.zeros(len(self.mode_numbers), dtype=self.dtype)
 
-        for i in range(n_modes):
+        for i, mode in enumerate(self.mode_numbers):
             values[i] = self._demodulate_signal(
-                data_array[:, i],
+                data_array[:, mode],
                 self.carrier_frequencies[i]
             )
 
@@ -105,7 +103,7 @@ class Demodulator(BaseProcessingObj):
         This implements the demodulation algorithm from demodulate_passata.pro
         """
         # Convert to numpy/cupy for processing
-        data = to_xp(self.xp, signal_data)
+        data = self.to_xp(signal_data)
 
         # Parameters
         dt = self.t_to_seconds(self.loop_dt)
@@ -180,7 +178,7 @@ class Demodulator(BaseProcessingObj):
         pphi += pphi0
 
         # Convert back to target device if needed
-        value = to_xp(self.xp, value, dtype=self.dtype)
+        value = self.to_xp(value, dtype=self.dtype)
 
         if self.verbose:
             print(f"Demodulated value: {value}, Phase: {pphi}")

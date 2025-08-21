@@ -156,7 +156,7 @@ class TestShSimulation(unittest.TestCase):
 
         # Compute PSF using FieldAnalyser with same sampling as original
         # Extract sampling from original simulation parameters
-        psf_sampling =7  # Same as 'nd' parameter in params_scao_sh_test.yml
+        psf_sampling =7  # Same as 'nd' parameter in params_field_analyser_test.yml
 
         psf_results = analyzer.compute_field_psf(
             psf_sampling=psf_sampling,

@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Optional, Union, Tuple, List
+from typing import Optional, Union, List
 
 from specula import cpuArray
 from specula.base_processing_obj import BaseProcessingObj
@@ -693,7 +693,6 @@ class ExtendedSource(BaseProcessingObj):
 
     def trigger(self):
         """Update PSF if new data is available and recompute if needed"""
-        # Check if PSF input is available and updated
         if self.source_type == 'FROM_PSF':
             psf = self.local_inputs.get('psf')
             if np.sum(self.xp.abs(psf.value)) > 0:

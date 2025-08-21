@@ -1,60 +1,64 @@
 
 import numpy as np
+import matplotlib.pyplot as plt
+
 from specula import xp
 from specula import cpuArray
 
-import matplotlib.pyplot as plt
-
-from specula.base_processing_obj import BaseProcessingObj
+from specula.display.base_display import BaseDisplay
 from specula.connections import InputValue
 from specula.data_objects.pixels import Pixels
 from specula.data_objects.subap_data import SubapData
 
 
-class PixelsDisplay(BaseProcessingObj):
-    def __init__(self, disp_factor=1, wsize=[600, 600], window=25, title='Pixels', sh_as_pyr=False, subapdata: SubapData =None):
-        super().__init__()
-        self._psf = None
-        self._wsize = wsize
-        self._window = window
-        self._log = False
-        self._title = title
-        self._opened = False
-        self._first = True
-        self._disp_factor = disp_factor
+class PixelsDisplay(BaseDisplay):
+    def __init__(self,
+                 title='Pixels Display',
+                 figsize=(6, 6),
+                 sh_as_pyr=False, 
+                 subapdata: SubapData = None,
+                 log_scale=False):
+
+        super().__init__(
+            title=title,
+            figsize=figsize
+        )
+
         self._sh_as_pyr = sh_as_pyr
         self._subapdata = subapdata
+        self._log_scale = log_scale
+
+        # Setup input
+        self.input_key = 'pixels'  # Used by base class
         self.inputs['pixels'] = InputValue(type=Pixels)
 
-    def set_w(self):
-        self.fig = plt.figure(self._window, figsize=(self._wsize[0] / 100, self._wsize[1] / 100))
-        self.ax = self.fig.add_subplot(111)
-
-    def trigger_code(self):
-        pixels = self.local_inputs['pixels']
+    def _update_display(self, pixels):
+        """Override base method to implement pixels-specific display"""
+        # Process image data
         image = cpuArray(pixels.pixels)
 
-        if self._sh_as_pyr:
-            image = self.reformat_as_pyramid(image, self._subapdata)
-        if self._log:
-            image = xp.log10(image)
+        if self._sh_as_pyr and self._subapdata is not None:
+            image = self._reformat_as_pyramid(image, self._subapdata)
 
-        if not self._opened:
-            self.set_w()
-            self._opened = True
-        if self._first:
+        if self._log_scale:
+            # Avoid log(0) by adding small epsilon
+            image = np.log10(np.maximum(image, 1e-10))
+
+        if self.img is None:
             self.img = self.ax.imshow(image)
-            self._first = False
+
+            if not self._colorbar_added:
+                plt.colorbar(self.img, ax=self.ax)
+                self._colorbar_added = True
         else:
             self.img.set_data(image)
             self.img.set_clim(image.min(), image.max())
-#            plt.colorbar()
-        self.fig.canvas.draw()
-        plt.pause(0.001)
-        
-    def reformat_as_pyramid(self, pixels, subapdata):
+
+        self._safe_draw()
+
+    def reformat_as_pyramid(self, pixels, subapdata):    
         pupil = subapdata.copyTo(-1).single_mask()
-        idx2d = self.xp.unravel_index(subapdata.idxs, pixels.shape)
+        idx2d = xp.unravel_index(subapdata.idxs, pixels.shape)
         A, B, C, D = pupil.copy(), pupil.copy(), pupil.copy(), pupil.copy()
         pix_idx = subapdata.display_map
         half_sub = subapdata.np_sub // 2
@@ -64,6 +68,6 @@ class PixelsDisplay(BaseProcessingObj):
             B.flat[pix_idx[i]] = subap[:half_sub, half_sub:].sum()
             C.flat[pix_idx[i]] = subap[half_sub:, :half_sub].sum()
             D.flat[pix_idx[i]] = subap[half_sub:, half_sub:].sum()
-            
+   
         pyr_pixels = np.vstack((np.hstack((A, B)), np.hstack((C, D))))
         return pyr_pixels

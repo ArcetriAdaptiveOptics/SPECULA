@@ -2,13 +2,8 @@
 Copied from arte.types.mask
 Commenting out unused imports
 '''
-import numpy as np
 
 from specula import xp
-#from arte.types.region_of_interest import RegionOfInterest
-#from arte.utils.image_moments import ImageMoments
-#from skimage import feature
-#from skimage import measure, draw
 from scipy import optimize
 import warnings
 import matplotlib.pyplot as plt

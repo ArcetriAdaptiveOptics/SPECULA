@@ -1,0 +1,140 @@
+---
+
+main:
+  class:             'SimulParams'
+  root_dir:          './calib/'             # Root directory for calibration manager  
+  pixel_pupil:       160                    # Linear dimension of pupil phase array
+  pixel_pitch:       0.05                   # [m] Pitch of the pupil phase array
+  total_time:        0.050                  # [s] Total simulation running time
+  time_step:         0.001                  # [s] Simulation time step
+
+
+seeing:
+  class:             'WaveGenerator'
+  constant:          0.8                   # ["] seeing value
+
+
+wind_speed:
+  class:             'WaveGenerator'
+  constant:          [20.]      # [m/s] Wind speed value
+
+
+wind_direction:
+  class:             'WaveGenerator'
+  constant:          [0.]   # [degrees] Wind direction value
+
+
+on_axis_source:
+  class:             'Source'
+  polar_coordinates:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  magnitude:         8                    # source magnitude
+  wavelengthInNm:    750                   # [nm] wavelength
+
+
+pupilstop:                                 # Default parameters (circular pupil)
+  class: 'Pupilstop'
+  simul_params_ref: 'main'
+
+
+atmo:
+  class:                'AtmoEvolution'
+  simul_params_ref:     'main'
+  L0:                   40                   # [m] Outer scale
+  heights:              [0.]                 # [m] layer heights at 0 zenith angle
+  Cn2:                  [1.00]               # Cn2 weights (total must be eq 1)
+  fov:                  0.0
+  inputs:
+    seeing: 'seeing.output'
+    wind_speed: 'wind_speed.output'
+    wind_direction: 'wind_direction.output'
+  outputs: ['layer_list']
+
+
+prop:
+  class:                'AtmoPropagation'
+  simul_params_ref:     'main'
+  source_dict_ref:      ['on_axis_source']
+  inputs:
+    atmo_layer_list: ['atmo.layer_list']
+    common_layer_list: ['pupilstop',
+                  'dm.out_layer:-1']
+  outputs: ['out_on_axis_source_ef']
+
+
+double_roof:
+  class:             'ModulatedDoubleRoof'
+  simul_params_ref:  'main'
+  pup_diam:          30.                     # Pupil diameter in subaps.
+  pup_dist:          36.                     # Separation between pupil centers in subaps.
+  fov:               2.0                     # Requested field-of-view [arcsec]
+  mod_amp:           3.0                     # Modulation radius (in lambda/D units)
+  output_resolution: 80                      # Output sampling [usually corresponding to CCD pixels]
+  wavelengthInNm:    750                     # [nm] Pyramid wavelength
+  inputs:
+    in_ef: 'prop.out_on_axis_source_ef'
+
+
+detector:
+  class:             'CCD'
+  simul_params_ref:  'main'
+  size:              [80,80]                 # Detector size in pixels
+  dt:                0.001                   # [s] Detector integration time
+  bandw:             300                     # [nm] Sensor bandwidth
+  photon_noise:      True                    # activate photon noise
+  readout_noise:     True                    # activate readout noise
+  readout_level:     1.0                     # readout noise in [e-/pix/frame]
+  quantum_eff:       0.32                    # quantum efficiency * total transmission
+  inputs:
+    in_i: 'double_roof.out_i'
+
+
+slopec:
+  class:             'DoubleRoofSlopec'  
+  pupdata_object:    'scao_dr_pupdata'        # tag of the double roof WFS pupils
+  inputs:
+    in_pixels:       'detector.out_pixels'
+
+
+rec:
+  class:              'Modalrec'  
+  recmat_object:      'scao_recmat'         # reconstruction matrix tag
+  inputs:
+    in_slopes:        'slopec.out_slopes'
+
+
+control:
+  class:             'Integrator'
+  simul_params_ref:  'main'
+  delay:             2                      # Total temporal delay in time steps
+  int_gain:          [0.5]
+  n_modes:           [54]
+  inputs:
+      delta_comm: 'rec.out_modes'
+
+
+dm:
+  class:             'DM'
+  simul_params_ref:  'main'
+  type_str:          'zernike'              # modes type
+  nmodes:            54                     # number of modes
+  obsratio:          0.1                    # obstruction dimension ratio w.r.t. diameter
+  height:            0                      # DM height [m]
+  inputs:
+      in_command: 'control.out_comm'
+
+
+psf:
+  class:             'PSF'
+  simul_params_ref:  'main'
+  wavelengthInNm:    1650                 # [nm] Imaging wavelength
+  nd:                8                    # padding coefficient for PSF computation
+  start_time:        0.05                # PSF integration start time
+  inputs:
+      in_ef:  'prop.out_on_axis_source_ef'
+
+
+data_store:
+  class:             'DataStore'
+  store_dir:         './data'             # Data result directory: 'store_dir'/TN/
+  inputs:    
+    input_list: [ 'res_ef-prop.out_on_axis_source_ef']

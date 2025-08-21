@@ -1,8 +1,7 @@
 
 
 pushpull:
-  class:     'FuncGenerator'
-  func_type: 'PUSHPULL'
+  class:     'PushPullGenerator'
   nmodes:     54
   vect_amplitude:  [50,50,50,50,50,50,50,50,50,50,
                       50,50,50,50,50,50,50,50,50,50,
@@ -56,9 +55,8 @@ pixels_disp:
   class:            'PixelsDisplay'
   inputs:
     pixels:      "detector.out_pixels"
-  window:           15
   title:            "Pixels"
-  disp_factor:      1
+  figsize:       [8, 6]  # Default size in inches
 
 remove: ['atmo', 'rec','control']
  

@@ -12,8 +12,8 @@ main:
   time_step:         0.0001                 # [s] Simulation time step
 
 disturbance:
-  class:             'FuncGenerator'
-  func_type:         'SQUARE_WAVE'
+  class:             'WaveGenerator'
+  wave_type:         'SQUARE'
   amp:               [5.0]
   freq:              [50.0] 
 
@@ -56,6 +56,5 @@ all_disp:
                  'diff.out_value',
                  'control.out_comm',
                  'lowpass.out_comm']
-  window:           11
   yrange:           [-10,10]
   title:            'input'

@@ -33,14 +33,15 @@ class ShSlopec(Slopec):
                  window_int_pixel: bool=False,
                  target_device_idx: int = None,
                  precision: int = None):
+
+        # Set subaperture data before initializing base class
+        # because we need to know the number of subapertures
+        self.subapdata = subapdata
+
         super().__init__(sn=sn, filtmat=filtmat, weight_int_pixel_dt=weight_int_pixel_dt,
                          target_device_idx=target_device_idx, precision=precision)
         self.thr_value = thr_value
         self.thr_mask_cube = BaseValue(target_device_idx=self.target_device_idx)
-        self.total_counts = BaseValue(target_device_idx=self.target_device_idx)
-        self.subap_counts = BaseValue(target_device_idx=self.target_device_idx)
-        self.exp_weight = None
-        self.subapdata = None
         self.xweights = None
         self.yweights = None
         self.xcweights = None
@@ -55,18 +56,21 @@ class ShSlopec(Slopec):
         self.quadcell_mode = False
         self.two_steps_cog = False
         self.cog_2ndstep_size = 0
-        self.store_thr_mask_cube = False
+        self.store_thr_mask_cube = False   # Todo should it become a parameter?
 
         self.exp_weight = exp_weight
-        self.subapdata = subapdata
         self.window_int_pixel = window_int_pixel
         self.int_pixels_weight = None
 
-        # TODO replace this resize with an earlier initialization
-        self.slopes.resize(subapdata.n_subaps * 2)
-        self.accumulated_slopes = Slopes(subapdata.n_subaps * 2, target_device_idx=self.target_device_idx)
+        self.accumulated_slopes = Slopes(self.nslopes(), target_device_idx=self.target_device_idx)
         self.set_xy_weights()
         self.outputs['out_subapdata'] = self.subapdata
+
+    def nsubaps(self):
+        return self.subapdata.n_subaps
+
+    def nslopes(self):
+        return self.subapdata.n_subaps * 2
 
     @property
     def subap_idx(self):
@@ -146,137 +150,7 @@ class ShSlopec(Slopec):
         if self.weight_int_pixel_dt > 0:
             self.do_accumulation(self.current_time)
 
-        if self.two_steps_cog:
-            self.calc_slopes_for()
-        else:
-            self.calc_slopes_nofor()
-
-    def calc_slopes_for(self):
-        """
-        TODO Obsoleted by calc_slopes_nofor(). Remove this method?
-
-        Calculate slopes using a for loop over subapertures.
-        """
-        if self.verbose and self.subapdata is None:
-            print('subapdata is not valid.')
-            return
-
-        pixels = self.local_inputs['in_pixels'].pixels
-
-        n_subaps = self.subapdata.n_subaps
-        np_sub = self.subapdata.np_sub
-
-        sx = self.xp.zeros(n_subaps, dtype=self.dtype)
-        sy = self.xp.zeros(n_subaps, dtype=self.dtype)
-
-        if self.store_thr_mask_cube:
-            thr_mask_cube = self.xp.zeros((np_sub, np_sub, n_subaps), dtype=int)
-            thr_mask = self.xp.zeros((np_sub, np_sub), dtype=int)
-
-        flux_per_subaperture = self.xp.zeros(n_subaps, dtype=self.dtype)
-        max_flux_per_subaperture = self.xp.zeros(n_subaps, dtype=self.dtype)
-
-        if self.thr_value > 0 and self.thr_ratio_value > 0:
-            raise ValueError('Only one between _thr_value and _thr_ratio_value can be set.')
-
-        if self.weight_int_pixel:
-            n_weight_applied = 0
-            if self.int_pixels_weight is None:
-                self.int_pixels_weight = self.xp.ones_like(pixels)
-
-        for i in range(n_subaps):
-            idx = self.subap_idx[i, :]
-            subap = pixels[idx].reshape(np_sub, np_sub)
-
-            if self.weight_int_pixel:
-                if self.int_pixels is not None and self.int_pixels.generation_time == self.current_time:
-                    int_pixels_weight = self.int_pixels.pixels[idx].reshape(np_sub, np_sub)
-                    int_pixels_weight -= self.xp.min(int_pixels_weight)
-                    max_temp = self.xp.max(int_pixels_weight)
-                    if max_temp > 0:
-                        if self.window_int_pixel:
-                            window_threshold = 0.05
-                            over_threshold = self.xp.where(
-                                (int_pixels_weight >= max_temp * window_threshold) |
-                                (self.xp.flip(self.xp.flip(int_pixels_weight, axis=0), axis=1) >= max_temp * window_threshold)
-                            )
-                            if len(over_threshold[0]) > 0:
-                                int_pixels_weight.fill(0)
-                                int_pixels_weight[over_threshold] = 1.0
-                                n_weight_applied += 1
-                            else:
-                                int_pixels_weight.fill(1.0)
-                        else:
-                            int_pixels_weight *= 1.0 / max_temp
-                            n_weight_applied += 1
-
-                    # Store the current int_pixels_weight for debugging or further processing
-                    self.int_pixels_weight[idx] = int_pixels_weight.copy()
-
-                # Apply weights to pixels
-                subap *= self.int_pixels_weight[idx]
-
-            flux_per_subaperture[i] = self.xp.sum(subap)
-            max_flux_per_subaperture[i] = self.xp.max(subap)
-
-            thr = 0
-            if self.thr_value > 0:
-                thr = self.thr_value
-            if self.thr_ratio_value > 0:
-                thr = self.thr_ratio_value * self.xp.max(subap)
-
-            if self.thr_pedestal:
-                thr_idx = self.xp.where(subap < thr)
-            else:
-                subap -= thr
-                thr_idx = self.xp.where(subap < 0)
-
-            if len(thr_idx[0]) > 0:
-                subap[thr_idx] = 0
-
-            if self.store_thr_mask_cube:
-                thr_mask.fill(0)
-                if len(thr_idx[0]) > 0:
-                    thr_mask[thr_idx] = 1
-                thr_mask_cube[:, :, i] = thr_mask
-
-            # CoG in two steps logic (simplified here)
-            if self.two_steps_cog:
-                pass  # Further logic for two-step centroid calculation can go here.
-
-            subap_total = self.xp.sum(subap * self.mask_weighted)
-            factor = 1.0 / subap_total if subap_total > (self.xp.mean(flux_per_subaperture) * 1e-3) else 0
-
-            sx[i] = self.xp.sum(subap * self.xweights) * factor
-            sy[i] = self.xp.sum(subap * self.yweights) * factor
-
-        if self.weight_int_pixel and self.verbose:
-            print(f"Weights mask has been applied to {n_weight_applied} sub-apertures")
-
-        if self.mult_factor != 0:
-            sx *= self.mult_factor
-            sy *= self.mult_factor
-            print("WARNING: multiplication factor in the slope computer!")
-
-        if self.store_thr_mask_cube:
-            self.thr_mask_cube.value = thr_mask_cube
-            self.thr_mask_cube.generation_time = self.current_time
-
-        self.slopes.xslopes = sx
-        self.slopes.yslopes = sy
-        self.slopes.single_mask = self.subapdata.single_mask()
-        self.slopes.display_map = self.subapdata.display_map
-        self.slopes.generation_time = self.current_time
-
-        self.flux_per_subaperture_vector.value = flux_per_subaperture
-        self.flux_per_subaperture_vector.generation_time = self.current_time
-        self.total_counts.value = self.xp.sum(self.flux_per_subaperture_vector.value)
-        self.total_counts.generation_time = self.current_time
-        self.subap_counts.value = self.xp.mean(self.flux_per_subaperture_vector.value)
-        self.subap_counts.generation_time = self.current_time
-
-        if self.verbose:
-            print(f"Slopes min, max and rms : {self.xp.min(sx)}, {self.xp.max(sx)}, {self.xp.sqrt(self.xp.mean(sx ** 2))}")
+        self.calc_slopes_nofor()
 
     def calc_slopes_nofor(self):
         """
@@ -396,12 +270,9 @@ class ShSlopec(Slopec):
         self.slopes.display_map = self.subapdata.display_map
         self.slopes.generation_time = self.current_time
 
-        self.flux_per_subaperture_vector.value = flux_per_subaperture_vector
-        self.flux_per_subaperture_vector.generation_time = self.current_time
-        self.total_counts.value = self.xp.sum(self.flux_per_subaperture_vector.value)
-        self.total_counts.generation_time = self.current_time
-        self.subap_counts.value = self.xp.mean(self.flux_per_subaperture_vector.value)
-        self.subap_counts.generation_time = self.current_time
+        self.flux_per_subaperture_vector.value[:] = flux_per_subaperture_vector
+        self.total_counts.value[0] = self.xp.sum(flux_per_subaperture_vector)
+        self.subap_counts.value[0] = self.xp.mean(flux_per_subaperture_vector)
 
         if self.verbose:
             print(f"Slopes min, max and rms : {self.xp.min(sx)}, {self.xp.max(sx)}, {self.xp.sqrt(self.xp.mean(sx ** 2))}")
@@ -412,3 +283,7 @@ class ShSlopec(Slopec):
         x, y = np.meshgrid(x, y)
         gaussian = np.exp(-4 * np.log(2) * (x ** 2 + y ** 2) / fwhm[0] ** 2, dtype=self.dtype)
         return gaussian
+
+    def post_trigger(self):
+        super().post_trigger()
+        self.outputs['out_subapdata'].generation_time = self.current_time

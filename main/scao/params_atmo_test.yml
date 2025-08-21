@@ -14,20 +14,20 @@ pupilstop:                                 # Default parameters (circular pupil)
   simul_params_ref:     'main'
 
 seeing:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          0.8                  # ["] seeing value
-  func_type:         'SIN'                 # TODO necessary for factory.py line 217
+  wave_type:         'SIN'                 # TODO necessary for factory.py line 217
   outputs: ['output']
 
 
 wind_speed:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          [1000] #, 10, 5, 30]                #,10.,20.,10.]      # [m/s] Wind speed value
   outputs: ['output']
 
 
 wind_direction:
-  class:             'FuncGenerator'
+  class:             'WaveGenerator'
   constant:          [0.] #,270.,180.,90.]   # [degrees] Wind direction value
   outputs: ['output']
 
@@ -87,15 +87,13 @@ ph_disp:
   inputs:
     phase1:       "propF.out_on_axis_source_ef"
     phase2:       "propI.out_on_axis_source_ef"
-  window:           12
   title:            'PUPIL PHASE COMPARE'
-  disp_factor:      2
+  figsize:       [8, 6]  # Default size in inches
 
 #ph_dispI:
 #  class:            'PhaseDisplay'
 #  inputs:
 #    phase:       "propI.out_on_axis_source_ef"
-#  window:           13
 #  title:            'PUPIL PHASE INFINITE'
-#  disp_factor:      2
+#  figsize:       [8, 6]  # Default size in inches
 

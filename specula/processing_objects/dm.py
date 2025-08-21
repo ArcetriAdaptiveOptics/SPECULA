@@ -1,4 +1,4 @@
-import numpy as np
+
 from specula.base_value import BaseValue
 from specula.connections import InputValue
 

@@ -1,11 +1,10 @@
-from astropy.io import fits
 
 import os
 import pickle
+from astropy.io import fits
 
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_value import BaseValue
-from specula.base_data_obj import BaseDataObj
 from specula.lib.utils import import_class
 
 

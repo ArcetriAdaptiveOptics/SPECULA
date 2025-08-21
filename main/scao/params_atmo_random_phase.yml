@@ -9,19 +9,18 @@ main:
   time_step:         0.001                  # [s] Simulation time step
 
 seeing:
-  class:             'FuncGenerator'
+  class:             'RandomGenerator'
   amp:               0.4                  # This 2 values result in a 
   constant:          0.3                  # range of [0.1, 0.5]
-  func_type:         'RANDOM_UNIFORM'
+  distribution:      'UNIFORM'
   outputs: ['output']
 
 #sin_seeing:
-#  class:             'FuncGenerator'
+#  class:             'WaveGenerator'
 #  amp:               0.8                  # This 2 values result in a 
 #  constant:          0.8                  # range of [0.4, 1.2]
 #  freq:              50
 #  offset:            0
-#  func_type:         'SIN'
 
 on_axis_source:
   class:             'Source'
@@ -83,7 +82,6 @@ detector:
 slopec:
   class:             'PyrSlopec'
   pupdata_object:    'scao_40x40_pupdata'            # tag of the pyramid WFS pupils
-  use_sn:            False
   inputs:
     in_pixels:        'detector.out_pixels'
   outputs:  ['out_slopes', 'out_pupdata', 'total_counts', 'subap_counts']
@@ -92,16 +90,14 @@ ph_disp:
   class:         'PhaseDisplay'
   inputs:
     phase:       "atmo.out_on_axis_source_ef"
-  window:           12
   title:            'PUPIL PHASE'
-  disp_factor:      2
+  figsize:       [8, 6]  # Default size in inches
 
 
 test_disp:
    class:            'ModesDisplay'
    inputs:
      modes:       "modal_analysis.out_modes"
-   window:           15
    title:            'test'
 
 #sc_disp:
@@ -109,8 +105,7 @@ test_disp:
 #   inputs:
 #     slopes:       'slopec.out_slopes'
 #     pupdata:      'slopec.out_pupdata'
-#   window:           16
-#   disp_factor:      4
+#   figsize:       [8, 6]  # Default size in inches
 
 
 data_store:

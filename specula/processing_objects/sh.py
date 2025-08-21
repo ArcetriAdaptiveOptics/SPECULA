@@ -1,6 +1,6 @@
 import numpy as np
 
-from specula import cpuArray, fuse, show_in_profiler, RAD2ASEC, process_rank
+from specula import cpuArray, fuse, show_in_profiler, RAD2ASEC
 from specula.lib.extrapolation_2d import calculate_extrapolation_indices_coeffs, apply_extrapolation
 from specula.lib.toccd import toccd
 from specula.lib.interp2d import Interp2D
@@ -215,7 +215,7 @@ class SH(BaseProcessingObj):
         self._ovs_np_sub = int(ef_size * self._fov_ovs * lens[2] * 0.5)
         self._fft_size = self._ovs_np_sub * scale_ovs
 
-        if self._verbose:
+        if self.verbose:
             print('\n-->     FoV resolution [asec], {}'.format(self._fov_resolution_arcsec))
             print('-->     turb. pix. sc.,        {}'.format(turbulence_pxscale))
             print('-->     sc. over sampl.,       {}'.format(scale_ovs))
