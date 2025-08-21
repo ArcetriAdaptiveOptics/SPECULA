@@ -15,6 +15,7 @@ class ZernikeSensor(ModulatedPyramid):
                  pup_diam,
                  output_resolution,
                  spot_radius_lambda=0.5,  # Spot radius in λ/D units
+                 fft_res: float = 16.0,
                  target_device_idx=None,
                  precision=None):
 
@@ -29,6 +30,7 @@ class ZernikeSensor(ModulatedPyramid):
             output_resolution=output_resolution,
             mod_amp=0.0,
             mod_step=1,
+            fft_res=fft_res,
             target_device_idx=target_device_idx,
             precision=precision
         )
@@ -44,7 +46,7 @@ class ZernikeSensor(ModulatedPyramid):
         fov_errsup=0.5,         # accepted error in enlarging FoV, default = 0.5 (+50%)
         pup_dist=None,          # pupil distance in subapertures, optional
         pup_margin=2,           # zone of respect around pupils for margins, optional, default=2px
-        fft_res=3.0,            # requested minimum PSF sampling, 1.0 = 1 pixel / PSF, default=3.0
+        fft_res=5.0,            # requested minimum PSF sampling, 1.0 = 1 pixel / PSF, default=3.0
         min_pup_dist=None,
         NOTEST=False            # skip the time estimation done with a test pyramid
     ):
@@ -129,8 +131,8 @@ class ZernikeSensor(ModulatedPyramid):
         xx, yy = self.xp.mgrid[-A:A, -A:A].astype(self.dtype)
 
         # Convert radius from λ/D units to pixels
-        # In focal plane, 1 λ/D corresponds to approximately A/fft_res pixels
-        spot_radius_pixels = self.spot_radius_lambda * A / self.fft_res
+        # In focal plane, 1 λ/D corresponds to self.fft_padding/self.fft_sampling pixels
+        spot_radius_pixels = self.spot_radius_lambda * self.fft_padding/self.fft_sampling
 
         # Calculate distance from center
         rr = self.xp.sqrt(xx**2 + yy**2)

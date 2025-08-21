@@ -28,7 +28,7 @@ class TestZernikeSensor(unittest.TestCase):
         fov = 2.0
         pup_diam = 70
         output_resolution = 80
-        spot_radius_lambda = 0.5
+        spot_radius_lambda = 1.06
         ref_S0 = 100
 
         # Create simulation parameters
@@ -93,7 +93,7 @@ class TestZernikeSensor(unittest.TestCase):
         fov = 2.0
         pup_diam = 70
         output_resolution = 80
-        spot_radius_lambda = 1.0
+        spot_radius_lambda = 1.06
         ref_S0 = 100
 
         # Create simulation parameters
