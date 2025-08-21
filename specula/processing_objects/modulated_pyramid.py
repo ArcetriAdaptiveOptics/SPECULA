@@ -557,7 +557,6 @@ class ModulatedPyramid(BaseProcessingObj):
         self.psf_bfm_arr[:] = self.xp.fft.fftshift(self.fpsf)
         self.psf_tot_arr[:] = self.psf_bfm_arr * self.fp_mask
         self.pup_pyr_tot[:] = self.xp.roll(self.pyr_image, self.roll_array, self.roll_axis )
-        print('sum of pup_pyr_tot:', self.xp.sum(self.pup_pyr_tot))
         self.pup_pyr_tot *= self.factor
         self.psf_tot_arr *= self.factor
         self.psf_bfm_arr *= self.factor
