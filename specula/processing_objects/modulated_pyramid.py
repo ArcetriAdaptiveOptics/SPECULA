@@ -110,33 +110,37 @@ class ModulatedPyramid(BaseProcessingObj):
 
         if mod_step is None:
             mod_step = round(max([1., mod_amp / 2. * 8.])) * 2.
+        elif mod_step == 0:
+            raise ValueError('mod_step cannot be zero')
+        elif mod_step < 0:
+            raise ValueError('mod_step must be a positive integer')
         elif int(mod_step) != mod_step:
             raise ValueError('Modulation step number is not an integer')
         elif mod_step < self.xp.around(2 * self.xp.pi * mod_amp):
-            raise Exception(
+            raise ValueError(
                 f'Number of modulation steps is too small ({mod_step}), '
                 f'it must be at least 2*pi times the modulation amplitude '
                 f'({self.xp.around(2 * self.xp.pi * mod_amp)})!'
             )
+
         self.mod_steps = int(mod_step)
         self.mod_amp = mod_amp
 
         self.out_i = Intensity(final_ccd_side, final_ccd_side, precision=self.precision, target_device_idx=self.target_device_idx)
-        self.psf_tot = BaseValue(self.xp.zeros((fft_totsize, fft_totsize), dtype=self.dtype), target_device_idx=self.target_device_idx)
-        self.psf_bfm = BaseValue(self.xp.zeros((fft_totsize, fft_totsize), dtype=self.dtype), target_device_idx=self.target_device_idx)
-        self.out_transmission = BaseValue(0, target_device_idx=self.target_device_idx)
+        self.psf_tot = BaseValue(value=self.xp.zeros((fft_totsize, fft_totsize), dtype=self.dtype), target_device_idx=self.target_device_idx)
+        self.psf_bfm = BaseValue(value=self.xp.zeros((fft_totsize, fft_totsize), dtype=self.dtype), target_device_idx=self.target_device_idx)
+        self.transmission = BaseValue(value=self.xp.zeros(1, dtype=self.dtype), target_device_idx=self.target_device_idx)
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
         self.inputs['ext_source_coeff'] = InputValue(type=BaseValue, optional=True)
         self.outputs['out_i'] = self.out_i
         self.outputs['out_psf_tot'] = self.psf_tot
         self.outputs['out_psf_bfm'] = self.psf_bfm
-        self.outputs['out_transmission'] = self.out_transmission
+        self.outputs['out_transmission'] = self.transmission
 
         self.pyr_tlt = self.get_pyr_tlt(fft_sampling, fft_padding)
         self.tlt_f = self.get_tlt_f(fft_sampling, fft_padding)
-        self.tilt_x = self.get_modulation_tilt(fft_sampling, X=True)
-        self.tilt_y = self.get_modulation_tilt(fft_sampling, Y=True)
+        self.tilt_x, self.tilt_y = self.get_modulation_tilts(fft_sampling)
         self.fp_mask = self.get_fp_mask(fft_totsize, fp_masking, obsratio=fp_obsratio)
 
         iu = 1j  # complex unit
@@ -144,8 +148,6 @@ class ModulatedPyramid(BaseProcessingObj):
         self.shifted_masked_exp = self.xp.fft.fftshift(myexp * self.fp_mask)
 
         self.pup_pyr_tot = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.dtype)
-        self.psf_bfm_arr = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.dtype)
-        self.psf_tot_arr = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.dtype)
 
         self.ttexp = None
         self.ttexp_shape = None
@@ -156,7 +158,6 @@ class ModulatedPyramid(BaseProcessingObj):
         # These two are used in the graph-launched trigger code and we manage them separately
         self.pyr_image = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.dtype)
         self.fpsf = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.dtype)
-        self.transmission = self.xp.zeros(1, dtype=self.dtype)
         self.ef = self.xp.zeros((fft_sampling, fft_sampling), dtype=self.complex_dtype)
 
         # Derived classes can disable streams
@@ -320,26 +321,17 @@ class ModulatedPyramid(BaseProcessingObj):
     def get_fp_mask(self, totsize, mask_ratio, obsratio=0):
         return make_mask(totsize, diaratio=mask_ratio, obsratio=obsratio, xp=self.xp)
 
-    def get_modulation_tilt(self, p, X=False, Y=False):
+    def get_modulation_tilts(self, p):
         p = int(p)
         xx, yy = make_xy(p, p // 2, xp=self.xp)
-        mm = self.minmax(xx)
-        tilt_x = xx * self.xp.pi / ((mm[1] - mm[0]) / 2)
-        tilt_y = yy * self.xp.pi / ((mm[1] - mm[0]) / 2)
-
-        if X:
-            return tilt_x
-        if Y:
-            return tilt_y
+        xmin = self.xp.min(xx)
+        xmax = self.xp.max(xx)
+        tilt_x = xx * self.xp.pi / ((xmax - xmin) / 2)
+        tilt_y = yy * self.xp.pi / ((xmax - xmin) / 2)
+        return tilt_x, tilt_y
 
     def cache_ttexp(self):
         """Cache tip/tilt exponentials for modulation or extended source"""
-
-        if self.mod_steps <= 0:
-            # Clear cache if no steps
-            self.ttexp = None
-            self.ttexp_shape = None
-            return
 
         iu = 1j  # complex unit
 
@@ -471,20 +463,19 @@ class ModulatedPyramid(BaseProcessingObj):
             pyr_ef = self.xp.fft.ifft2(u_fp_pyr, axes=(-2, -1), norm='forward')
             self.pyr_image += pyr1_abs2(pyr_ef, self.ifft_norm , self.ffv[i], xp=self.xp)
 
-        self.psf_bfm_arr[:] = self.xp.fft.fftshift(self.fpsf)
-        self.psf_tot_arr[:] = self.psf_bfm_arr * self.fp_mask
+        self.psf_bfm.value[:] = self.xp.fft.fftshift(self.fpsf)
+        self.psf_tot.value[:] = self.psf_bfm.value * self.fp_mask
         self.pup_pyr_tot[:] = self.xp.roll(self.pyr_image, self.roll_array, self.roll_axis )
-        self.pup_pyr_tot *= self.factor
-        self.psf_tot_arr *= self.factor
-        self.psf_bfm_arr *= self.factor
-        self.transmission[:] = self.xp.sum(self.psf_tot_arr) / self.xp.sum(self.psf_bfm_arr)
+        self.psf_tot.value *= self.factor
+        self.psf_bfm.value *= self.factor
+        self.transmission.value[:] = self.xp.sum(self.psf_tot.value) / self.xp.sum(self.psf_bfm.value)
 
     def post_trigger(self):
         super().post_trigger()
 
         # Always use the working field (like SH always uses self._wf1)
         phot = self._wf_interpolated.S0 * self.xp.sum(self._wf_interpolated.A) * (self._wf_interpolated.pixel_pitch ** 2)
-        self.pup_pyr_tot *= (phot / self.xp.sum(self.pup_pyr_tot)) * self.transmission
+        self.pup_pyr_tot *= (phot / self.xp.sum(self.pup_pyr_tot)) * self.transmission.value
         
 #        if phot == 0: slows down?
 #            print('WARNING: total intensity at PYR entrance is zero')
@@ -493,26 +484,25 @@ class ModulatedPyramid(BaseProcessingObj):
         # Note: this is a static shift, not a time-varying one as in PASSATA
         if self._do_pup_shift:
             self.pup_shift_interp.interpolate(self.pup_pyr_tot, out=self._pup_pyr_interpolated)
+        else:
+            # Use the original pupil pyramid array directly
+            self._pup_pyr_interpolated = self.pup_pyr_tot
 
         ccd_internal = toccd(self._pup_pyr_interpolated, (self.toccd_side, self.toccd_side), xp=self.xp)
 
         if self.final_ccd_side > self.toccd_side:
             delta = (self.final_ccd_side - self.toccd_side) // 2
-            ccd = self.xp.zeros((self.final_ccd_side, self.final_ccd_side), dtype=self.dtype)
-            ccd[delta:delta + ccd_internal.shape[0], delta:delta + ccd_internal.shape[1]] = ccd_internal
+            self.out_i.i[delta:delta + ccd_internal.shape[0], delta:delta + ccd_internal.shape[1]] = ccd_internal
         elif self.final_ccd_side < self.toccd_side:
             delta = (self.toccd_side - self.final_ccd_side) // 2
-            ccd = ccd_internal[delta:delta + self.final_ccd_side, delta:delta + self.final_ccd_side]
+            self.out_i.i[:] = ccd_internal[delta:delta + self.final_ccd_side, delta:delta + self.final_ccd_side]
         else:
-            ccd = ccd_internal
-        self.out_i.i = ccd
+            self.out_i.i[:] = ccd_internal
+
         self.out_i.generation_time = self.current_time
-        self.psf_tot.value = self.psf_tot_arr
         self.psf_tot.generation_time = self.current_time
-        self.psf_bfm.value = self.psf_bfm_arr
         self.psf_bfm.generation_time = self.current_time
-        self.out_transmission.value = self.transmission
-        self.out_transmission.generation_time = self.current_time
+        self.transmission.generation_time = self.current_time
 
     def setup(self):
         super().setup()
@@ -583,8 +573,6 @@ class ModulatedPyramid(BaseProcessingObj):
             self._do_pup_shift = True
         else:
             self._do_pup_shift = False
-            # Use the original pupil pyramid array directly
-            self._pup_pyr_interpolated = self.pup_pyr_tot
 
         if self._do_interpolation:
             self.phase_extrapolated = in_ef.phaseInNm.copy()
@@ -592,20 +580,3 @@ class ModulatedPyramid(BaseProcessingObj):
         if self.stream_enable:
             super().build_stream()
  
-    def minmax(self, array):
-        return self.xp.min(array), self.xp.max(array)
-
-    # TODO needed for extended source
-    @staticmethod
-    def zern(mode, xx, yy):
-        raise NotImplementedError
-
-    # TODO needed for shifts
-    @staticmethod
-    def interpolate(image, x, y, grid=False, missing=0):
-        raise NotImplementedError
-
-    # TODO needed for image rotation
-    @staticmethod
-    def ROT_AND_SHIFT_IMAGE(image, angle, shift, scale, use_interpolate=False):
-        raise NotImplementedError
