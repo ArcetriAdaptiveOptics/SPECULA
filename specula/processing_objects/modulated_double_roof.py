@@ -188,11 +188,11 @@ class ModulatedDoubleRoof(ModulatedPyramid):
         self._combine_roof_images()
 
         self.psf_bfm.value[:] = self.xp.fft.fftshift(self.fpsf)
-        self.psf_tot.value[:] = self.psf_bfm * self.fp_mask
+        self.psf_tot.value[:] = self.psf_bfm.value * self.fp_mask
         self.pup_pyr_tot[:] = self.pyr_image
         self.psf_tot.value *= self.factor
         self.psf_bfm.value *= self.factor
-        self.transmission[:] = self.xp.sum(self.psf_tot.value) / self.xp.sum(self.psf_bfm.value)
+        self.transmission.value[:] = self.xp.sum(self.psf_tot.value) / self.xp.sum(self.psf_bfm.value)
 
     def _combine_roof_images(self):
         """Combine two roof images into a 4-quadrant pyramid-like pattern"""
