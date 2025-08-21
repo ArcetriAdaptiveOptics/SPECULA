@@ -119,7 +119,7 @@ class ModulatedPyramid(BaseProcessingObj):
         self.iter = 0
 
         if mod_step is None:
-            if mod_type is 'circular':
+            if mod_type == 'circular':
                 # In the circular case we want to ensure:
                 # - 1 point for mod_amp = 0
                 # - a multiple of 4 points for mod_amp > 0
