@@ -37,7 +37,7 @@ class DoubleRoofSlopec(Slopec):
         if shlike and slopes_from_intensity:
             raise ValueError('Both SHLIKE and SLOPES_FROM_INTENSITY parameters are set. Only one of these should be used.')
 
-        if shlike and self.norm_factor != 0:
+        if shlike and norm_factor != 0:
             raise ValueError('Both SHLIKE and NORM_FACTOR parameters are set. Only one of these should be used.')
 
         self.shlike = shlike
@@ -105,9 +105,13 @@ class DoubleRoofSlopec(Slopec):
                 factor = 1.0 / inv_factor[0]
 
             # DOUBLE ROOF SLOPE CALCULATION:
-            # roof2 (rotated) separates horizontally: B vs A, D vs C
-            # roof1 separates vertically: (B+D) vs (A+C)
-            self.sx = (B - A) * factor  # roof2 horizontal separation
+            # When axis origin is in bottom-left corner:
+            # - A is bottom-right
+            # - B is bottom-left
+            # - C is top-left
+            # - D is top-right
+            # So, A - B and D - C gives the same sign
+            self.sx = (A - B) * factor  # roof2 horizontal separation
             self.sy = (D - C) * factor  # roof1 vertical separation after shift
 
         clamp_generic_more(0, 1, inv_factor, xp=self.xp)

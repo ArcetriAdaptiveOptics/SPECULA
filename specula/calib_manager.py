@@ -88,7 +88,7 @@ class CalibManager():
         self.writefits('data', name, data)
 
     def read_data(self, name):
-        return self.readfits('data')
+        return self.readfits('data', name)
 
     def __repr__(self):
         return 'Calibration manager'

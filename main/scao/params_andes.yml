@@ -84,7 +84,7 @@ pyramid:
   rotAnglePhInDeg:   15.0
   inputs:
     in_ef: 'prop.out_wfs_source_ef'
-  outputs: ['out_i', 'out_wf_interpolated']
+  outputs: ['out_i']
 
 
 detector:

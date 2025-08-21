@@ -740,8 +740,8 @@ class Simul():
     def get_info(self):
         '''Quick info string intended for web interfaces'''
         name= f'{self.param_files[0]}'
-        curtime= f'{self.loop._t / self.loop._time_resolution:.3f}'
-        stoptime= f'{self.loop._run_time / self.loop._time_resolution:.3f}'
+        curtime= f'{self.loop.t / self.loop._time_resolution:.3f}'
+        stoptime= f'{self.loop.run_time / self.loop._time_resolution:.3f}'
 
         info = f'{curtime}/{stoptime}s'
         return name, info

@@ -33,7 +33,7 @@ class TestDrSlopec(unittest.TestCase):
         slopes = slopec.outputs['out_slopes']
 
         s1 = cpuArray(slopes.slopes)
-        np.testing.assert_array_almost_equal(s1, np.array([0.042553, 0.021277, 0.042553, 0.06383]))
+        np.testing.assert_array_almost_equal(s1, np.array([-0.042553, -0.021277, 0.042553, 0.06383]))
 
     @cpu_and_gpu
     def test_drslopec_slopesnull(self, target_device_idx, xp):

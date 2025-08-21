@@ -62,7 +62,7 @@ class Layer(ElectricField):
         shiftX = float(hdr['SHIFTX'])
         shiftY = float(hdr['SHIFTY'])
         rotInDeg = float(hdr['ROTATION'])
-        magnification = float(hdr['MAGNIFICATION'])
+        magnification = float(hdr['MAGNIFIC'])
         layer = Layer(dimx, dimy, pitch, height, (shiftX, shiftY), rotInDeg, magnification, target_device_idx=target_device_idx)
         return layer
 

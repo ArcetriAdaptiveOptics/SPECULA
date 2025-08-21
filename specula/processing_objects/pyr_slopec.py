@@ -36,7 +36,7 @@ class PyrSlopec(Slopec):
         if shlike and slopes_from_intensity:
             raise ValueError('Both SHLIKE and SLOPES_FROM_INTENSITY parameters are set. Only one of these should be used.')
 
-        if shlike and self.norm_factor != 0:
+        if shlike and norm_factor != 0:
             raise ValueError('Both SHLIKE and NORM_FACTOR parameters are set. Only one of these should be used.')
 
         self.shlike = shlike
