@@ -181,6 +181,9 @@ class ModulatedPyramid(BaseProcessingObj):
         self.transmission = self.xp.zeros(1, dtype=self.dtype)
         self.ef = self.xp.zeros((fft_sampling, fft_sampling), dtype=self.complex_dtype)
 
+        # Derived classes can disable streams
+        self.stream_enable = True
+
     def calc_geometry(self,
         DpupPix,                # number of pixels of input phase array
         pixel_pitch,            # pixel sampling [m] of DpupPix
@@ -670,7 +673,8 @@ class ModulatedPyramid(BaseProcessingObj):
             # All other cases: no rotation needed (handled in cache_ttexp)
             self.rotation_k = self.xp.array([0, 0], dtype=int)
 
-        super().build_stream()
+        if self.stream_enable:
+            super().build_stream()
  
     def minmax(self, array):
         return self.xp.min(array), self.xp.max(array)
