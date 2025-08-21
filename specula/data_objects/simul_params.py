@@ -1,7 +1,8 @@
-from dataclasses import dataclass
 
-@dataclass
-class SimulParams:
+from specula.base_data_obj import BaseDataObj
+
+
+class SimulParams(BaseDataObj):
     '''
     Simulation Parameters 
     
@@ -22,10 +23,19 @@ class SimulParams:
     display_server : bool
         Activate web server for simulation display
     '''
-    pixel_pupil: int = None
-    pixel_pitch: float = None
-    root_dir: str = '.'
-    total_time: float = 0.1
-    time_step: float = 0.001
-    zenithAngleInDeg: float = 0
-    display_server: bool = False
+    def __init__(self,
+                pixel_pupil: int = None,
+                pixel_pitch: float = None,
+                root_dir: str = '.',
+                total_time: float = 0.1,
+                time_step: float = 0.001,
+                zenithAngleInDeg: float = 0,
+                display_server: bool = False,
+    ):
+        self.pixel_pupil = pixel_pupil
+        self.pixel_pitch = pixel_pitch
+        self.root_dir = root_dir
+        self.total_time = total_time
+        self.time_step = time_step
+        self.zenithAngleInDeg = zenithAngleInDeg
+        self.display_server = display_server

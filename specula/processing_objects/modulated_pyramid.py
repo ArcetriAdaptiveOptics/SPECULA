@@ -159,6 +159,9 @@ class ModulatedPyramid(BaseProcessingObj):
         self.transmission = self.xp.zeros(1, dtype=self.dtype)
         self.ef = self.xp.zeros((fft_sampling, fft_sampling), dtype=self.complex_dtype)
 
+        # Derived classes can disable streams
+        self.stream_enable = True
+
     def calc_geometry(self,
         DpupPix,                # number of pixels of input phase array
         pixel_pitch,            # pixel sampling [m] of DpupPix
@@ -331,7 +334,7 @@ class ModulatedPyramid(BaseProcessingObj):
 
     def cache_ttexp(self):
         """Cache tip/tilt exponentials for modulation or extended source"""
-        
+
         if self.mod_steps <= 0:
             # Clear cache if no steps
             self.ttexp = None
@@ -339,7 +342,7 @@ class ModulatedPyramid(BaseProcessingObj):
             return
 
         iu = 1j  # complex unit
-        
+
         # Initialize ttexp array
         self.ttexp = self.xp.zeros((self.mod_steps, self.tilt_x.shape[0], self.tilt_x.shape[1]), 
                                 dtype=self.complex_dtype)
@@ -586,7 +589,8 @@ class ModulatedPyramid(BaseProcessingObj):
         if self._do_interpolation:
             self.phase_extrapolated = in_ef.phaseInNm.copy()
 
-        super().build_stream()
+        if self.stream_enable:
+            super().build_stream()
  
     def minmax(self, array):
         return self.xp.min(array), self.xp.max(array)

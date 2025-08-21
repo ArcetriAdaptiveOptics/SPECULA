@@ -4,7 +4,7 @@ import numpy as np
 from specula import cpuArray, to_xp
 
 from functools import lru_cache
-from scipy.special import factorial, eval_jacobi
+from scipy.special import eval_jacobi
 from specula.lib.mask import CircularMask
 
 

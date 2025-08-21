@@ -31,7 +31,7 @@ class PhaseDisplay(BaseDisplay):
             # Remove average phase only from valid pixels
             frame[valid_mask] -= np.mean(frame[valid_mask])
 
-            if self._verbose:
+            if self.verbose:
                 print('Removing average phase in phase_display')
 
         return frame

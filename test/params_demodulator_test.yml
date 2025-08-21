@@ -11,13 +11,13 @@ main:
 disturbance:
   class:             'WaveGenerator'
   wave_type:         'SIN'
-  amp:               [5.0]
-  freq:              [50.0]
+  amp:               [5.0,  5.0]
+  freq:              [50.0, 50.0]
   outputs: ['output']
 
 noise:
   class:            'RandomGenerator'
-  amp:              [1.]
+  amp:              [1.0, 1.0]
   seed:             1342
   outputs: ['output']
 

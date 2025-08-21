@@ -37,7 +37,10 @@ class ImCalibrator(BaseProcessingObj):
             self.im_path += '.fits'
         if os.path.exists(self.im_path) and not self._overwrite:
             raise FileExistsError(f'IM file {self.im_path} already exists, please remove it')
-            
+
+        # Add counts tracking, this is used to normalize the IM
+        self.count_commands = self.xp.zeros(nmodes, dtype=self.xp.int32)
+
         self.inputs['in_slopes'] = InputValue(type=Slopes)
         self.inputs['in_commands'] = InputValue(type=BaseValue)
 
@@ -70,6 +73,7 @@ class ImCalibrator(BaseProcessingObj):
             mode = int(idx[0]) - self._first_mode
             if mode < self._nmodes:
                 self._im.value[mode] += slopes / commands[idx]
+                self.count_commands[mode] += 1
 
         in_slopes_object = self.local_inputs['in_slopes']
 
@@ -82,11 +86,16 @@ class ImCalibrator(BaseProcessingObj):
         self._im.generation_time = self.current_time
 
     def finalize(self):
+        # normalize by counts
+        for i in range(self._nmodes):
+            if self.count_commands[i] > 0:
+                self._im.value[i] /= self.count_commands[i]
+
         im = Intmat(self._im.value, pupdata_tag = self.pupdata_tag,
                     target_device_idx=self.target_device_idx, precision=self.precision)
 
         os.makedirs(self._data_dir, exist_ok=True)
-        
+
         # TODO add to IM the information about the first mode
         im.save(self.im_path, overwrite=self._overwrite)
 

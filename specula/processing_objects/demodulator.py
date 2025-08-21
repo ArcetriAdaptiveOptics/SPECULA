@@ -78,12 +78,11 @@ class Demodulator(BaseProcessingObj):
         # Convert history to array
         data_array = self.xp.array(self.data_history)
 
-        n_time, n_modes = data_array.shape
-        values = self.xp.zeros(n_modes, dtype=self.dtype)
+        values = self.xp.zeros(len(self.mode_numbers), dtype=self.dtype)
 
-        for i in range(n_modes):
+        for i, mode in enumerate(self.mode_numbers):
             values[i] = self._demodulate_signal(
-                data_array[:, i],
+                data_array[:, mode],
                 self.carrier_frequencies[i]
             )
 

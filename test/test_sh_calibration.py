@@ -84,7 +84,7 @@ class TestShCalibration(unittest.TestCase):
         print("Running reconstruction calibration...")
         yml_files = ['params_scao_sh_test.yml', 'params_scao_sh_test_rec.yml']
         simul_rec = Simul(*yml_files)
-        simul_rec.run() 
+        simul_rec.run()
 
         # Check if the files were generated
         self.assertTrue(os.path.exists(self.subap_path),

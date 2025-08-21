@@ -1,5 +1,4 @@
 from collections import defaultdict
-from astropy.io import fits
 
 from specula import cpuArray, default_target_device, cp, MPI_DBG, MPI_SEND_DBG
 from specula import show_in_profiler
@@ -25,7 +24,7 @@ class BaseProcessingObj(BaseTimeObj):
         self.current_time = 0
         self.current_time_seconds = 0
 
-        self._verbose = 0
+        self.verbose = 0
 
         # Stream/input management
         self.stream  = None
@@ -233,14 +232,6 @@ class BaseProcessingObj(BaseTimeObj):
             else:
                 self.trigger_code()
              
-    @property
-    def verbose(self):
-        return self._verbose
-
-    @verbose.setter
-    def verbose(self, value):
-        self._verbose = value
-
     def setup(self):
         """
         Override this method to perform any setup

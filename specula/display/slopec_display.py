@@ -30,7 +30,7 @@ class SlopecDisplay(BaseDisplay):
             frame2d = np.hstack(cpuArray(frame3d))
         else:
             # slopes from intensity case
-            frame2d = frame3d
+            frame2d = cpuArray(frame3d)
 
         if self.img is None:
             # First time: create image

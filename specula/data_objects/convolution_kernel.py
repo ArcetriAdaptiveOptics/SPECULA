@@ -355,7 +355,7 @@ class ConvolutionKernel(BaseDataObj):
             raise ValueError(f'Unknown version {version}. Only version=1.1 is supported')
 
         if kernel_obj is None:
-            kernel_obj = ConvolutionKernel.from_header(hdr)
+            kernel_obj = ConvolutionKernel.from_header(hdr, target_device_idx=target_device_idx)
         else:
             # If a kernel object is provided, use it
             # check if the dimensions match
