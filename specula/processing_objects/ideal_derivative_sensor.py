@@ -62,8 +62,8 @@ class IdealDerivativeSensor(BaseProcessingObj):
         self._subap_indices = None
 
         n_subaps = self.subapdata.n_subaps
-        sx = self.xp.zeros(n_subaps, dtype=self.dtype)
-        sy = self.xp.zeros(n_subaps, dtype=self.dtype)
+        self.sx = self.xp.zeros(n_subaps, dtype=self.dtype)
+        self.sy = self.xp.zeros(n_subaps, dtype=self.dtype)
 
         # Setup inputs and outputs
         self.inputs['in_ef'] = InputValue(type=ElectricField)
@@ -211,23 +211,23 @@ class IdealDerivativeSensor(BaseProcessingObj):
         # Avoid division by zero
         valid_counts = self.xp.where(valid_counts > 0, valid_counts, 1)
 
-        sx[:] = (dx_sums / valid_counts) * self.slope_factor
-        sy[:] = (dy_sums / valid_counts) * self.slope_factor
+        self.sx[:] = (dx_sums / valid_counts) * self.slope_factor
+        self.sy[:] = (dy_sums / valid_counts) * self.slope_factor
 
         # Set slopes to 0 where no valid pixels
         no_valid = self.xp.sum(valid_masks, axis=1) == 0
-        sx[no_valid] = 0.0
-        sy[no_valid] = 0.0
+        self.sx[no_valid] = 0.0
+        self.sy[no_valid] = 0.0
 
         if plot_debug:
             plt.figure(figsize=(10, 5))
             plt.subplot(1, 2, 1)
-            plt.imshow(sx.reshape((self.subapdata.nx, self.subapdata.ny)), cmap='jet', interpolation='nearest')
+            plt.imshow(self.sx.reshape((self.subapdata.nx, self.subapdata.ny)), cmap='jet', interpolation='nearest')
             plt.colorbar(label='X Slope [nm]')
             plt.title('X Slope')
 
             plt.subplot(1, 2, 2)
-            plt.imshow(sy.reshape((self.subapdata.nx, self.subapdata.ny)), cmap='jet', interpolation='nearest')
+            plt.imshow(self.sy.reshape((self.subapdata.nx, self.subapdata.ny)), cmap='jet', interpolation='nearest')
             plt.colorbar(label='Y Slope [nm]')
             plt.title('Y Slope')
 
@@ -236,8 +236,8 @@ class IdealDerivativeSensor(BaseProcessingObj):
     def post_trigger(self):
         super().post_trigger()
         # Store slopes
-        self.slopes.xslopes = sx
-        self.slopes.yslopes = sy
+        self.slopes.xslopes = self.sx
+        self.slopes.yslopes = self.sy
         # Update generation time
         self.slopes.generation_time = self.current_time
 
