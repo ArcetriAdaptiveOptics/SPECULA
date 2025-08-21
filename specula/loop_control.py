@@ -128,7 +128,7 @@ class LoopControl(BaseTimeObj):
             if self.iter_counter == self.last_reported_counter + self.report_interval:
                 cur_time = time.time()
                 elapsed_time = cur_time - self.last_reported_time
-                msg = f"{1.0 / elapsed_time:.2f} Hz"
+                msg = f"{self.report_interval / elapsed_time:.2f} Hz"
                 print(f't={self.t_to_seconds(self.t):.6f} {msg}')
                 self.last_reported_time = cur_time
                 self.last_reported_counter = self.iter_counter
