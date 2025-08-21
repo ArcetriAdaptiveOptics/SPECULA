@@ -79,7 +79,7 @@ class ModulatedDoubleRoof(ModulatedPyramid):
                  target_device_idx=target_device_idx,
                  precision=precision)
 
-        self.stream_enable = False
+        self.stream_enable = True
 
         self.pup_diam = pup_diam
         self.pup_dist = pup_dist
