@@ -455,12 +455,12 @@ class ModulatedPyramid(BaseProcessingObj):
                         # Step boundaries in tilt space
                         if tt == 0:
                             # First point: from -mod_amp to midpoint with next
-                            tilt_mid = self.mod_amp * (2 * 0.5 / (self.mod_steps - 1) - 1)
-                            avg_tilt = (-self.mod_amp + tilt_mid) / 2
+                            tilt_mid = self.mod_amp * (2 * 0.5 / (self.mod_steps - 1) - 1) # this is > - self.mod_amp
+                            avg_tilt = (-self.mod_amp + tilt_mid) / 2 # this means that normalized_angle cannot be - pi/2
                         elif tt == self.mod_steps - 1:
                             # Last point: from midpoint with previous to +mod_amp
-                            tilt_mid = self.mod_amp * (2 * (tt - 0.5) / (self.mod_steps - 1) - 1)
-                            avg_tilt = (tilt_mid + self.mod_amp) / 2
+                            tilt_mid = self.mod_amp * (2 * (tt - 0.5) / (self.mod_steps - 1) - 1) # this is < self.mod_amp
+                            avg_tilt = (tilt_mid + self.mod_amp) / 2 # this means that normalized_angle cannot be pi/2
                         else:
                             # Middle points: average over symmetric interval
                             avg_tilt = self.mod_amp * (2 * tt / (self.mod_steps - 1) - 1)
