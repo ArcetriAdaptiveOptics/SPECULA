@@ -106,6 +106,17 @@ class TestBaseDataObj(unittest.TestCase):
         np.testing.assert_array_equal(b.value.get(), [2, 3])
         assert b.target_device_idx == 1
 
+    def test_tranfer_from_cpu_to_cpu(self):
+        '''
+        Test that transferDataTo() from CPU to CPU works fine
+        '''
+        a = BaseValue(value=np.arange(2), target_device_idx=-1)
+        b = BaseValue(value=np.zeros(2), target_device_idx=-1)
+        a.transferDataTo(b)
+
+        assert type(b.value) == np.ndarray
+        assert b.target_device_idx == -1
+        np.testing.assert_array_equal(b.value, [0, 1])
 
 if __name__ == '__main__':
     unittest.main()
