@@ -220,6 +220,7 @@ class TestElectricField(unittest.TestCase):
         assert ef.field.shape == (2, new_dimx, new_dimy)
         assert ef.A.shape == (new_dimx, new_dimy)
         assert ef.phaseInNm.shape == (new_dimx, new_dimy)
+        assert ef.pixel_pitch == pixel_pitch  # Unchanged by resize
 
     @cpu_and_gpu
     def test_ef_resize_with_pitch(self, target_device_idx, xp):
