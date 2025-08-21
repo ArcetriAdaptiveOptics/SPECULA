@@ -468,9 +468,7 @@ class ModulatedPyramid(BaseProcessingObj):
                         # Convert to flux factor - INVERTED: more weight at the edges
                         normalized_angle = self.xp.abs(avg_tilt) * self.xp.pi / (2 * self.mod_amp)
                         # Use 1/cos(angle) to compensate for intensity loss at large tilts
-                        # Add small epsilon to avoid division by zero
-                        epsilon = 1e-8
-                        self.flux_factor_vector[tt] = 1.0 / (self.xp.cos(normalized_angle) + epsilon)
+                        self.flux_factor_vector[tt] = 1.0 / self.xp.cos(normalized_angle)
 
             print(f'Cached circular modulation with {self.mod_steps} steps, '
                 f'amplitude: {self.mod_amp:.2f}')
