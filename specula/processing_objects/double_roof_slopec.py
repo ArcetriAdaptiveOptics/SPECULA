@@ -91,8 +91,8 @@ class DoubleRoofSlopec(Slopec):
         if self.slopes_from_intensity:
             inv_factor[0] = self.total_intensity / (4 * self.n_subap)
             factor = 1.0 / inv_factor[0]
-            self.sx = factor * self.xp.concatenate([A, B])
-            self.sy = factor * self.xp.concatenate([C, D])
+            sx = factor * self.xp.concatenate([A, B])
+            sy = factor * self.xp.concatenate([C, D])
         else:
             if self.norm_factor is not None:
                 inv_factor[0] = self.norm_factor
@@ -111,15 +111,15 @@ class DoubleRoofSlopec(Slopec):
             # - C is top-left
             # - D is top-right
             # So, A - B and D - C gives the same sign
-            self.sx = (A - B) * factor  # roof2 horizontal separation
-            self.sy = (D - C) * factor  # roof1 vertical separation after shift
+            sx = (A - B) * factor  # roof2 horizontal separation
+            sy = (D - C) * factor  # roof1 vertical separation after shift
 
         clamp_generic_more(0, 1, inv_factor, xp=self.xp)
-        self.sx *= inv_factor[0]
-        self.sy *= inv_factor[0]
+        sx *= inv_factor[0]
+        sy *= inv_factor[0]
 
-        self.slopes.xslopes = self.sx
-        self.slopes.yslopes = self.sy
+        self.slopes.xslopes = sx
+        self.slopes.yslopes = sy
 
     def post_trigger(self):
         super().post_trigger()

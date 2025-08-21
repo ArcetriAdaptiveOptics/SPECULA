@@ -90,8 +90,8 @@ class PyrSlopec(Slopec):
         if self.slopes_from_intensity:
             inv_factor[0] = self.total_intensity / (4 * self.n_subap)
             factor = 1.0 / inv_factor[0]
-            self.sx = factor * self.xp.concatenate([A, B])
-            self.sy = factor * self.xp.concatenate([C, D])
+            sx = factor * self.xp.concatenate([A, B])
+            sy = factor * self.xp.concatenate([C, D])
         else:
             if self.norm_factor is not None:
                 inv_factor[0] = self.norm_factor
@@ -103,15 +103,15 @@ class PyrSlopec(Slopec):
                 inv_factor[0] = self.xp.sum(self.flat_pixels[self.pup_idx])
                 factor = 1.0 / inv_factor[0]
 
-            self.sx = (A+B-C-D) * factor
-            self.sy = (B+C-A-D) * factor
+            sx = (A+B-C-D) * factor
+            sy = (B+C-A-D) * factor
 
         clamp_generic_more(0, 1, inv_factor, xp=self.xp)
-        self.sx *= inv_factor[0]
-        self.sy *= inv_factor[0]
+        sx *= inv_factor[0]
+        sy *= inv_factor[0]
 
-        self.slopes.xslopes = self.sx
-        self.slopes.yslopes = self.sy
+        self.slopes.xslopes = sx
+        self.slopes.yslopes = sy
 
     def post_trigger(self):
         super().post_trigger()
