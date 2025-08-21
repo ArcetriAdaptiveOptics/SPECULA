@@ -127,10 +127,10 @@ class TestExtendedSource(unittest.TestCase):
 
         # Check that the extended source is loaded and parameters are consistent
         self.assertEqual(pyr.mod_steps, src.npoints)
-        self.assertEqual(pyr.ttexp.shape[0], src.npoints)
+        self.assertEqual(pyr.ttexp.shape[1], src.npoints)
         self.assertEqual(pyr.flux_factor_vector.shape[0], src.npoints)
         self.assertAlmostEqual(float(np.sum(specula.cpuArray(pyr.flux_factor_vector))), 1.0, places=6)
-        self.assertEqual(pyr.ttexp.shape[1:], pyr.tilt_x.shape)
+        self.assertEqual(pyr.ttexp.shape[2:], pyr.tilt_x.shape)
 
         # Optionally, plot for debug
         if self.debug_plot:
