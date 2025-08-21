@@ -49,7 +49,8 @@ One common use case is saving pupil stop configurations and masks:
     from specula.data_objects.simul_params import SimulParams
     from specula.calib_manager import CalibManager
     
-    # Initialize calibration manager with root_dir (same as root_dir in main section of the yml file)
+    # Initialize calibration manager with root_dir
+    # (same as root_dir in main section of the yml file)
     calib = CalibManager('/data/specula_calibrations')
     
     # Create simulation parameters

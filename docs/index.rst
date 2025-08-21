@@ -53,6 +53,11 @@ Detailed API documentation:
 .. toctree::
    :maxdepth: 1
 
+   Base Classes API <api/base_classes>
+   Processing Objects API <api/processing_objects>
+   Data Objects API <api/data_objects>
+   Utility Functions API <api/lib>
+
 Indices and tables
 ==================
 
