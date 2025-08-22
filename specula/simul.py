@@ -641,7 +641,7 @@ class Simul():
 
     def remove_inputs(self, params, obj_to_remove):
         '''
-        Modify params removing all references to the specificed object name
+        Modify params removing all references to the specified object name
         '''
         for objname, obj in params.items():
             for key in ['inputs']:
