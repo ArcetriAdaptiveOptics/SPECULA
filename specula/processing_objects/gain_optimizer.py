@@ -136,11 +136,20 @@ class GainOptimizer(BaseProcessingObj):
 
         # Optimize gains for each mode
         opt_gains = self.xp.zeros(self.nmodes, dtype=self.dtype)
+        total_cache_hits = 0
+        total_cache_misses = 0
 
         for mode in range(self.nmodes):
-            opt_gains[mode] = self._optimize_single_mode(
+            opt_gains[mode], mode_hits, mode_misses = self._optimize_single_mode(
                 mode, pseudo_ol[:, mode], self.time_step, gmax_vec[mode]
             )
+            total_cache_hits += mode_hits
+            total_cache_misses += mode_misses
+
+        # Print cache summary once for all modes
+        if self.verbose and (total_cache_hits + total_cache_misses) > 0:
+            hit_rate = total_cache_hits / (total_cache_hits + total_cache_misses) * 100
+            print(f"Cache stats: {total_cache_hits}/{total_cache_hits + total_cache_misses} hits ({hit_rate:.1f}%)")
 
         if self.plot_debug:
             plt.figure()
@@ -300,10 +309,6 @@ class GainOptimizer(BaseProcessingObj):
         mode_hits = self._cache_hits - mode_cache_hits
         mode_misses = self._cache_misses - mode_cache_misses
 
-        if self.verbose and (mode_hits + mode_misses) > 0:
-            hit_rate = mode_hits / (mode_hits + mode_misses) * 100
-            print(f"Mode {mode} optimization: cache hits={mode_hits}, misses={mode_misses}, hit rate={hit_rate:.1f}%")
-
         if self.plot_debug:
             plt.figure()
             plt.plot(gains, totals, marker='o')
@@ -317,7 +322,7 @@ class GainOptimizer(BaseProcessingObj):
         min_idx = self.xp.argmin(totals)
         optimal_gain = gains[min_idx]
 
-        return optimal_gain
+        return optimal_gain, mode_hits, mode_misses
 
     def _calculate_psd(self, data, t_int):
         """
