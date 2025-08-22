@@ -21,7 +21,7 @@ class BaseValue(BaseDataObj):
 
     def set_value(self, val):
         if self.value is not None:
-            self.value[:] = self.to_xp(val)
+            self.value[...] = self.to_xp(val)
         else:
             self.value = self.to_xp(val, force_copy=True, dtype=self.dtype)
 

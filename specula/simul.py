@@ -165,7 +165,7 @@ class Simul():
                 elif isinstance(output_name, list):
                     outputs_list = output_name
                 else:
-                    raise ValueError('Malformed output: must be either str or list')
+                    raise ValueError('Malformed output: must be either str or list: '+str(output_name))
 
                 for x in outputs_list:
                     owner = self.output_owner(x)
@@ -515,6 +515,32 @@ class Simul():
     def isReplay(self, params):
         return 'data_source' in params
 
+    def data_store_to_data_source(self, datastore_pars, set_store_dir=None):
+        '''
+        Convert data store parameters to data source.
+
+        Returns a tuple (pars, refs), where:
+        - pars is a parameter dictionary for a DataSource object
+        - objnames is a list of objects referenced by original DataStore inpus
+        '''
+        data_source_pars = {}
+        data_source_pars['class'] = 'DataSource'
+        data_source_pars['outputs'] = []
+        if 'data_format' in datastore_pars:
+            data_source_pars['data_format'] = datastore_pars['data_format']
+        if set_store_dir:
+            data_source_pars['store_dir'] = set_store_dir
+        else:
+            data_source_pars['store_dir'] = datastore_pars['store_dir']
+
+        objnames = []
+        for _, fullname in self.iterate_inputs(datastore_pars):
+            output = self.split_output(fullname)
+            data_source_pars['outputs'].append(output.input_name)
+            objnames.append(output.obj_name)
+
+        return data_source_pars, objnames
+
     def build_replay(self, params):
         replay_params = deepcopy(params)
         obj_to_remove = []
@@ -526,14 +552,8 @@ class Simul():
                 raise KeyError(f'Object {key} does not define the "class" parameter')
 
             if classname=='DataStore':
-                replay_params['data_source'] = replay_params[key]
-                replay_params['data_source']['class'] = 'DataSource'
-                del replay_params[key]
-                for output_name_full in pars['inputs']['input_list']:
-                    input_name, output_name = output_name_full.split('-')
-                    output_obj, output_name_small = output_name.split('.')                     
-                    data_source_outputs[output_name] = 'data_source.' + input_name # 'source.' + output_obj + '-' + output_name_small                    
-                    obj_to_remove.append(output_obj)
+                data_source_pars, obj_to_remove = self.data_store_to_data_source(pars)
+                replay_params['data_source'] = data_source_pars
 
         for obj_name in set(obj_to_remove):
             del replay_params[obj_name]
@@ -548,13 +568,77 @@ class Simul():
                         if output_name_full in data_source_outputs.keys():
                             replay_params[key]['inputs'][input_name] = data_source_outputs[output_name_full]
 
-            if key=='data_source':
-                replay_params[key]['outputs'] = []
-                for v in replay_params[key]['inputs']['input_list']:
-                    kk, vv = v.split('-')
-                    replay_params[key]['outputs'].append(kk)
-                del replay_params[key]['inputs']
         return replay_params
+
+    def build_targeted_replay(self, params, *target_object_names, set_store_dir=None):
+        '''
+        Build a replay file making sure that the target objects
+        still exist, and therefore all their inputs are either loaded
+        from disk or computed, recursively.
+        
+        SimulParams parameters are replicated unchanged.
+        DataStore parameters are converted to DataSource
+        '''
+        # Create new parameter dict and copy SimulParams without changes
+        replay_params = {}
+        datastore_outputs = {}
+
+        for key, pars in params.items():
+            if pars['class'] == 'SimulParams':
+                main_pars = pars
+                break
+        else:
+            raise ValueError('Parameter file does not contain a SimulParams class')
+
+        replay_params[key] = main_pars.copy()
+
+        # Copy DataStore params and convert it to DataSource
+        for key, pars in params.items():
+            if pars['class'] == 'DataStore':
+                data_source_pars, _ = self.data_store_to_data_source(pars, set_store_dir=set_store_dir)
+                replay_params['data_source'] = data_source_pars
+
+                # Remember all datastore outputs
+                for _, fullname in self.iterate_inputs(pars):
+                    output = self.split_output(fullname)
+                    datastore_outputs[output.output_key] = output.input_name
+    
+        def add_key(key):
+            if key in replay_params:
+                return
+            replay_params[key] = params[key].copy()  
+            for k, _input in self.iterate_inputs(params[key]):
+                desc = self.split_output(_input)
+                if desc.output_key in datastore_outputs:
+                    replay_params[key]['inputs'][k] = 'data_source.' + datastore_outputs[desc.output_key]
+                    continue
+                else:
+                    add_key(desc.obj_name)
+
+        for key in target_object_names:
+            add_key(key)
+        
+        return replay_params
+
+    def iterate_inputs(self, pars):
+        '''
+        Iterate over all inputs of a parameter dictionary.
+        Yields a series of (key, value) tuples suitable
+        for dictionary-like iteration.
+        '''
+        if 'inputs' not in pars:
+            return
+        inputs = pars['inputs']
+        if 'input_list' in inputs:
+            for x in inputs['input_list']:
+                yield ('input_list', x)
+        else:
+            for k, v in inputs.items():
+                if type(v) is list:
+                    for xx in v:
+                        yield (k, xx)
+                else:
+                    yield (k, v)
 
     def remove_inputs(self, params, obj_to_remove):
         '''

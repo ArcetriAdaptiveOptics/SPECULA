@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Dict, Optional, Tuple
 import yaml
 from astropy.io import fits
-from copy import deepcopy
 
 from specula.simul import Simul
 from specula.lib.calc_psf import calc_psf_geometry
@@ -94,57 +93,34 @@ class FieldAnalyser:
             self.sources.append(source_dict)
             self.distances.append(r)
 
-    def _get_source_coordinates(self, source_idx: int) -> Tuple[float, float]:
-        """
-        Get polar coordinates (r, theta) for a specific source index
-
-        Args:
-            source_idx: Index of the source
-            
-        Returns:
-            Tuple of (r, theta) in polar coordinates
-        """
-        if len(self.polar_coordinates.shape) == 2:
-            if self.polar_coordinates.shape[0] == 2:
-                # Format: [[r1, r2, ...], [theta1, theta2, ...]]
-                r, theta = self.polar_coordinates[0, source_idx], self.polar_coordinates[1, source_idx]
-            else:
-                # Format: [[r1, theta1], [r2, theta2], ...]
-                r, theta = self.polar_coordinates[source_idx, 0], self.polar_coordinates[source_idx, 1]
-        else:
-            # 1D array case
-            r, theta = self.polar_coordinates[source_idx]
-
-        return float(r), float(theta)
-
-    def _get_psf_filenames(self, source_idx: int) -> Tuple[str, str]:
+    def _get_psf_filenames(self, source_dict: dict) -> Tuple[str, str]:
         """
         Generate PSF and SR filenames for a given source
 
         Args:
-            source_idx: Index of the source
+            source_dict: source parameter dict
             pixel_size_mas: PSF pixel size in milliarcseconds
             
         Returns:
             Tuple of (psf_filename, sr_filename) without .fits extension
         """
-        r, theta = self._get_source_coordinates(source_idx)
+        r, theta = source_dict['polar_coordinates']
         psf_filename = f"psf_r{r:.1f}t{theta:.1f}_pix{self.psf_pixel_size_mas:.2f}mas_wl{self.wavelength_nm:.0f}nm"
         sr_filename = f"sr_r{r:.1f}t{theta:.1f}_pix{self.psf_pixel_size_mas:.2f}mas_wl{self.wavelength_nm:.0f}nm"
         return psf_filename, sr_filename
 
-    def _get_modal_filename(self, source_idx: int, modal_params: dict) -> str:
+    def _get_modal_filename(self, source_dict: dict, modal_params: dict) -> str:
         """
         Generate modal analysis filename for a given source
         
         Args:
-            source_idx: Index of the source
+            source_dict: source parameter dict
             modal_params: Modal analysis parameters
             
         Returns:
             Filename without .fits extension
         """
-        r, theta = self._get_source_coordinates(source_idx)
+        r, theta = source_dict['polar_coordinates']
         modal_filename = f"modal_r{r:.1f}t{theta:.1f}"
 
         # Add modal parameters to filename
@@ -161,17 +137,17 @@ class FieldAnalyser:
 
         return modal_filename
 
-    def _get_cube_filename(self, source_idx: int) -> str:
+    def _get_cube_filename(self, source_dict: dict) -> str:
         """
         Generate phase cube filename for a given source
 
         Args:
-            source_idx: Index of the source
+            source_dict: source parameter dict
 
         Returns:
             Filename without .fits extension
         """
-        r, theta = self._get_source_coordinates(source_idx)
+        r, theta = source_dict['polar_coordinates']
         cube_filename = f"cube_r{r:.1f}t{theta:.1f}_wl{self.wavelength_nm:.0f}nm"
         return cube_filename
 
@@ -180,109 +156,8 @@ class FieldAnalyser:
         Build replay params using the existing build_replay mechanism in Simul
         but with modified DataStore input_list containing only DM commands
         """
-        if self.params is None:
-            raise RuntimeError("Simulation parameters not loaded")
-
-        # Create modified params with reduced DataStore input_list
-        modified_params = deepcopy(self.params)
-
-        # Find and modify DataStore object
-        datastore_obj = None
-        datastore_key = None
-
-        for key, config in modified_params.items():
-            if isinstance(config, dict) and config.get('class') == 'DataStore':
-                datastore_obj = config
-                datastore_key = key
-                break
-
-        if datastore_obj is None:
-            raise RuntimeError("No DataStore object found in original parameters")
-
-        # Find DM objects and their input sources
-        dm_input_sources = self._find_dm_input_sources(modified_params)
-
-        if self.verbose:
-            print(f"Found DM input sources: {dm_input_sources}")
-
-        # Extract only DM command inputs from original DataStore input_list
-        original_input_list = datastore_obj.get('inputs', {}).values()
-        dm_command_inputs = []
-
-        for input_ref in original_input_list:
-            if isinstance(input_ref, str) and self._is_dm_command_in_datastore(input_ref, dm_input_sources):
-                dm_command_inputs.append(input_ref)
-
-        if not dm_command_inputs:
-            raise RuntimeError(f"No DM command inputs found in DataStore configuration. "
-                            f"DM input sources: {dm_input_sources}, "
-                            f"Original input_list: {original_input_list}")
-
-        # Update DataStore with reduced input_list
-        modified_params[datastore_key]['inputs']['input_list'] = dm_command_inputs
-
-        if self.verbose:
-            print(f"Original DataStore input_list: {original_input_list}")
-            print(f"Reduced to DM commands only: {dm_command_inputs}")
-
-        temp_simul = Simul(['dummy.yml'])
-
-        # Build objects and connections (needed for build_replay)
-        replay_params = temp_simul.build_replay(modified_params)
-
-        # Update DataSource store_dir to point to correct tracking number directory
-        if 'data_source' in replay_params:
-            replay_params['data_source']['store_dir'] = str(self.tn_dir)
-            if self.verbose:
-                print(f"Updated DataSource store_dir to: {self.tn_dir}")
-
-        return replay_params
-
-    def _find_dm_input_sources(self, params: dict) -> set:
-        """
-        Find all objects that provide inputs to DM objects
-        Returns set of object names that feed into DMs
-        """
-        dm_input_sources = set()
-
-        for obj_name, obj_config in params.items():
-            if isinstance(obj_config, dict) and obj_config.get('class') == 'DM':
-                # Look at DM inputs to find source objects
-                if 'inputs' in obj_config:
-                    for input_name, output_ref in obj_config['inputs'].items():
-                        if isinstance(output_ref, str):
-                            # Extract source object name
-                            if '.' in output_ref:
-                                source_obj = output_ref.split('.')[0]
-                                dm_input_sources.add(source_obj)
-                                if self.verbose:
-                                    print(f"DM '{obj_name}' gets input from '{source_obj}'")
-
-        return dm_input_sources
-
-    def _is_dm_command_in_datastore(self, input_ref: str, dm_input_sources: set) -> bool:
-        """
-        Check if a DataStore input reference corresponds to a DM command
-        by checking if it references one of the known DM input sources
-        
-        Args:
-            input_ref: DataStore input reference (format: 'filename-object.output')
-            dm_input_sources: Set of object names that provide inputs to DMs
-        """
-        if '-' in input_ref:
-            # DataStore format: 'filename-object.output'
-            filename_part, object_output = input_ref.split('-', 1)
-
-            if '.' in object_output:
-                source_obj = object_output.split('.')[0]
-
-                # Check if this object is one that feeds into DMs
-                if source_obj in dm_input_sources:
-                    if self.verbose:
-                        print(f"Identified DM command: {input_ref} (source: {source_obj})")
-                    return True
-
-        return False
+        simul = Simul([])
+        return simul.build_targeted_replay(self.params, 'prop', set_store_dir=str(self.tn_dir))
 
     def _build_replay_params_psf(self) -> dict:
         """
@@ -293,9 +168,6 @@ class FieldAnalyser:
 
         if self.verbose:
             print(f"Base replay_params keys: {list(replay_params.keys())}")
-
-        # Remove conflicting objects
-        self._remove_conflicting_objects(replay_params)
 
         # Add field sources to existing parameters
         self._add_field_sources_to_params(replay_params)
@@ -321,7 +193,7 @@ class FieldAnalyser:
             replay_params[psf_name] = psf_config
 
             # Create input_list entries with desired filenames
-            psf_filename, sr_filename = self._get_psf_filenames(i)
+            psf_filename, sr_filename = self._get_psf_filenames(source_dict)
             psf_input_list.extend([
                 f'{psf_filename}-{psf_name}.out_int_psf',
                 f'{sr_filename}-{psf_name}.out_int_sr'
@@ -350,9 +222,6 @@ class FieldAnalyser:
         """
         # Get base replay params from DataStore mechanism
         replay_params = self._build_replay_params_from_datastore()
-
-        # Remove conflicting objects
-        self._remove_conflicting_objects(replay_params)
 
         # Add field sources to existing parameters
         self._add_field_sources_to_params(replay_params)
@@ -391,7 +260,7 @@ class FieldAnalyser:
             replay_params[modal_name] = modal_config
 
             # Create filename for this source
-            modal_filename = self._get_modal_filename(i, modal_params)
+            modal_filename = self._get_modal_filename(source_dict, modal_params)
             modal_input_list.append(f'{modal_filename}-{modal_name}.out_modes')
 
         # Add DataStore to save results
@@ -417,16 +286,13 @@ class FieldAnalyser:
         # Get base replay params from DataStore mechanism
         replay_params = self._build_replay_params_from_datastore()
 
-        # Remove conflicting objects
-        self._remove_conflicting_objects(replay_params)
-
         # Add field sources to existing parameters
         self._add_field_sources_to_params(replay_params)
 
         # Build input_list for phase cubes
         cube_input_list = []
-        for i in range(len(self.sources)):
-            cube_filename = self._get_cube_filename(i)
+        for i, source_dict in enumerate(self.sources):
+            cube_filename = self._get_cube_filename(source_dict)
             cube_input_list.append(f'{cube_filename}-prop.out_field_source_{i}_ef')
 
         # Add DataStore to save phase cubes
@@ -490,75 +356,6 @@ class FieldAnalyser:
             print(f"Updated propagation object '{prop_key}':")
             print(f"  Sources: {source_refs}")
             print(f"  Outputs: {output_list}")
-
-    def _remove_conflicting_objects(self, replay_params: dict):
-        """
-        Remove objects that are NOT in the whitelist of allowed classes
-        Uses a whitelist approach to keep only essential objects for field analysis
-        """
-        # Whitelist of allowed processing object classes
-        allowed_processing_classes = {
-            'AtmoEvolution',
-            'AtmoInfiniteEvolution', 
-            'AtmoPropagation',
-            'AtmoRandomPhase',
-            'DataSource',
-            'DataStore',
-            'DM',
-            'ElectricFieldCombinator',
-            # all generators
-            'PushPullGenerator',
-            'RandomGenerator',
-            'ScheduleGenerator',
-            'TimeHistoryGenerator',
-            'VibrationGenerator',
-            'WaveGenerator'
-            # Add other processing objects as needed
-        }
-
-        # Whitelist of allowed data object classes
-        allowed_data_classes = {
-            'Source',
-            'ElectricField',
-            'IFunc',
-            'Pupilstop',
-            'Layer',
-            'SimulParams'
-            # Add other data objects as needed
-        }
-
-        # Combined whitelist
-        allowed_classes = allowed_processing_classes | allowed_data_classes
-
-        objects_to_remove = []
-
-        for obj_name, obj_config in replay_params.items():
-            # Skip non-dict objects
-            if not isinstance(obj_config, dict):
-                continue
-
-            # If object has a 'class' field, check if it's in whitelist
-            if 'class' in obj_config:
-                obj_class = obj_config['class']
-
-                # Remove if NOT in whitelist
-                if obj_class not in allowed_classes:
-                    objects_to_remove.append(obj_name)
-                    if self.verbose:
-                        print(f"Removing non-whitelisted object: {obj_name} (class: {obj_class})")
-
-        # Remove the objects
-        for obj_name in objects_to_remove:
-            del replay_params[obj_name]
-
-        if self.verbose:
-            remaining_classes = set()
-            for obj_config in replay_params.values():
-                if isinstance(obj_config, dict) and 'class' in obj_config:
-                    remaining_classes.add(obj_config['class'])
-
-            print(f"Removed {len(objects_to_remove)} objects")
-            print(f"Remaining classes: {sorted(remaining_classes)}")
 
     def _run_simulation_with_params(self, params_dict: dict, output_dir: Path) -> Simul:
         """
@@ -638,8 +435,8 @@ class FieldAnalyser:
         # Check if all individual PSF files exist
         all_exist = True
         if not force_recompute:
-            for i in range(len(self.sources)):
-                psf_filename, sr_filename = self._get_psf_filenames(i)
+            for source_dict in self.sources:
+                psf_filename, sr_filename = self._get_psf_filenames(source_dict)
                 psf_path = self.psf_output_dir / f"{psf_filename}.fits"
                 sr_path = self.psf_output_dir / f"{sr_filename}.fits"
 
@@ -692,8 +489,8 @@ class FieldAnalyser:
         # Check if files exist
         all_exist = True
         if not force_recompute:
-            for i in range(len(self.sources)):
-                modal_filename = self._get_modal_filename(i, modal_params)
+            for source_dict in self.sources:
+                modal_filename = self._get_modal_filename(source_dict, modal_params)
                 modal_path = self.modal_output_dir / f"{modal_filename}.fits"
                 if not modal_path.exists():
                     all_exist = False
@@ -723,8 +520,8 @@ class FieldAnalyser:
         # Check if all individual cube files exist
         all_exist = True
         if not force_recompute:
-            for i in range(len(self.sources)):
-                cube_filename = self._get_cube_filename(i)
+            for source_dict in self.sources:
+                cube_filename = self._get_cube_filename(source_dict)
                 cube_path = self.cube_output_dir / f"{cube_filename}.fits"
 
                 if not cube_path.exists():
@@ -761,8 +558,8 @@ class FieldAnalyser:
         }
 
         # Load PSF and SR data from saved files
-        for i in range(len(self.sources)):
-            psf_filename, sr_filename = self._get_psf_filenames(i)
+        for source_dict in self.sources:
+            psf_filename, sr_filename = self._get_psf_filenames(source_dict)
 
             # Load PSF
             psf_path = self.psf_output_dir / f"{psf_filename}.fits"
@@ -788,8 +585,8 @@ class FieldAnalyser:
             'modal_params': modal_params
         }
 
-        for i in range(len(self.sources)):
-            modal_filename = self._get_modal_filename(i, modal_params)
+        for source_dict in self.sources:
+            modal_filename = self._get_modal_filename(source_dict, modal_params)
             modal_path = self.modal_output_dir / f"{modal_filename}.fits"
 
             with fits.open(modal_path) as hdul:
@@ -817,8 +614,8 @@ class FieldAnalyser:
             'wavelength_nm': self.wavelength_nm
         }
 
-        for i in range(len(self.sources)):
-            cube_filename = self._get_cube_filename(i)
+        for source_dict in self.sources:
+            cube_filename = self._get_cube_filename(source_dict)
             cube_path = self.cube_output_dir / f"{cube_filename}.fits"
 
             with fits.open(cube_path) as hdul:
