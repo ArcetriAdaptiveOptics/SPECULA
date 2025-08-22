@@ -304,7 +304,7 @@ class GainOptimizer(BaseProcessingObj):
 
         return freq_rounded, t_int_rounded, gain_rounded, num_rounded, den_rounded, delay_rounded
 
-    @lru_cache(maxsize=2048)
+    @lru_cache(maxsize=16384)
     def _calculate_rejection_tf_cached(self, freq_tuple, t_int, gain, num_tuple, den_tuple, delay):
         """
         Calculate rejection transfer function using lru_cache.
@@ -353,7 +353,7 @@ class GainOptimizer(BaseProcessingObj):
 
         # Try to get from cache
         h_rej = self._calculate_rejection_tf_cached(
-            freq_rounded, t_int_rounded, gain_rounded, 
+            freq_rounded, t_int_rounded, gain_rounded,
             num_rounded, den_rounded, delay_rounded
         )
         return h_rej

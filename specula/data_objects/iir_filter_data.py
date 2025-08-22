@@ -411,7 +411,7 @@ class IirFilterData(BaseDataObj):
                 print(f"Error computing poles: {e}")
             return False
 
-    @lru_cache(maxsize=128)
+    @lru_cache(maxsize=16384)
     def _compute_max_stable_gain_internal(self, num_tuple, den_tuple, delay=None, dm_tuple=None, nw_tuple=None, dw_tuple=None,
                                         max_gain=20.0, n_gain=10000, tolerance=1e-6):
         """Internal computation of maximum stable gain."""
