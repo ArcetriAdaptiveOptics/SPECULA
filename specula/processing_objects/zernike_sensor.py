@@ -1,4 +1,3 @@
-from specula import RAD2ASEC
 from specula.processing_objects.modulated_pyramid import ModulatedPyramid
 
 class ZernikeSensor(ModulatedPyramid):
@@ -54,15 +53,14 @@ class ZernikeSensor(ModulatedPyramid):
     ):
         """
         Geometry calculation for Zernike sensor.
-        Usa la versione della piramide ma senza vincoli di separazione pupille,
-        con pup_margin=1 e pup_dist=1, e controllo fft_res_min.
+        It uses the same geometric principles as the pyramid but adapts them for the Zernike sensor.
         """
-        # Forza i parametri specifici Zernike
+        # Force parameters specific to Zernike
         pup_margin = 1
         pup_dist = 1
         min_pup_dist = 1
 
-        # Chiama direttamente il metodo della classe padre con i parametri modificati
+        # Call parent class method with modified parameters
         results = super().calc_geometry(
             DpupPix=DpupPix,
             pixel_pitch=pixel_pitch,
