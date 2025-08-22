@@ -58,7 +58,7 @@ class GainOptimizer(BaseProcessingObj):
         self.comm_hist = []
         self.optical_gain_hist = []
         self.psd_ol = None
-        self.prev_optimized_gain = None
+        self.prev_optimized_gain = self.iir_filter_data.gain.copy()
 
         self.plot_debug = False  # Enable plotting for debugging
 
