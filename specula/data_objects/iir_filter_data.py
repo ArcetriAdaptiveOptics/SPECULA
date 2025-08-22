@@ -1,6 +1,5 @@
 import numpy as np
 from functools import lru_cache
-import hashlib
 
 from specula import cpuArray
 from specula.base_data_obj import BaseDataObj
@@ -411,25 +410,6 @@ class IirFilterData(BaseDataObj):
             if verbose:
                 print(f"Error computing poles: {e}")
             return False
-
-    def _filter_hash(self, mode, dm=None, nw=None, dw=None, delay=None):
-        """Create a hash for caching based on filter coefficients and plant parameters."""
-        # Get filter coefficients
-        num_cpu = cpuArray(self.num[mode, :])
-        den_cpu = cpuArray(self.den[mode, :])
-
-        # Create string representation for hashing
-        filter_str = f"num_{num_cpu.tolist()}_den_{den_cpu.tolist()}"
-
-        if delay is not None:
-            filter_str += f"_delay_{delay}"
-        elif dm is not None and nw is not None and dw is not None:
-            dm_cpu = cpuArray(dm)
-            nw_cpu = cpuArray(nw)
-            dw_cpu = cpuArray(dw)
-            filter_str += f"_dm_{dm_cpu.tolist()}_nw_{nw_cpu.tolist()}_dw_{dw_cpu.tolist()}"
-
-        return hashlib.md5(filter_str.encode()).hexdigest()
 
     @lru_cache(maxsize=128)
     def _compute_max_stable_gain_internal(self, num_tuple, den_tuple, delay=None, dm_tuple=None, nw_tuple=None, dw_tuple=None,

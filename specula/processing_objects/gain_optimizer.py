@@ -311,9 +311,9 @@ class GainOptimizer(BaseProcessingObj):
         All parameters must be hashable (tuples, not arrays).
         """
         # Convert tuples back to arrays
-        freq = self.to_xp(np.array(freq_tuple), dtype=self.dtype)
-        num = self.to_xp(np.array(num_tuple), dtype=self.dtype)
-        den = self.to_xp(np.array(den_tuple), dtype=self.dtype)
+        freq = self.to_xp(freq_tuple, dtype=self.dtype)
+        num = self.to_xp(num_tuple, dtype=self.dtype)
+        den = self.to_xp(den_tuple, dtype=self.dtype)
 
         # Calculate transfer function
         omega = 2 * np.pi * freq * t_int
