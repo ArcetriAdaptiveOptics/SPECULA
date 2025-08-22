@@ -23,12 +23,12 @@ class TestPolyChromSH(unittest.TestCase):
         # Test parameters - use single subaperture for simplicity
         wavelengths = [500, 600, 700]
         flux_factors = [0.8, 1.0, 0.6]
-        xy_tilts = [[0, 0], [0.5, 0.2], [-0.3, 0.8]]
+        xy_tilts = [[0, 0], [0.05, 0.02], [-0.03, 0.08]]
 
         poly_sh = PolyChromSH(
             wavelengthInNm=wavelengths,
             flux_factor=flux_factors,
-            xy_tilts_in_pixels=xy_tilts,
+            xy_tilts_in_arcsec=xy_tilts,
             subap_wanted_fov=2,
             sensor_pxscale=0.1,
             subap_on_diameter=1,  # Single subaperture
@@ -69,7 +69,7 @@ class TestPolyChromSH(unittest.TestCase):
         poly_sh = PolyChromSH(
             wavelengthInNm=wavelengths,
             flux_factor=flux_factors,
-            xy_tilts_in_pixels=xy_tilts,
+            xy_tilts_in_arcsec=xy_tilts,
             subap_wanted_fov=2,
             sensor_pxscale=0.1,
             subap_on_diameter=1,
@@ -132,12 +132,12 @@ class TestPolyChromSH(unittest.TestCase):
         # Create two identical wavelengths, one with tilt, one without
         wavelengths = [500, 500]
         flux_factors = [1.0, 1.0]
-        xy_tilts = [[0, 0], [10.0, 0]]  # 10 pixels tilt in x direction
+        xy_tilts = [[0, 0], [10.0*pxscale_arcsec, 0]]  # 10 pixels tilt in x direction
 
         poly_sh = PolyChromSH(
             wavelengthInNm=wavelengths,
             flux_factor=flux_factors,
-            xy_tilts_in_pixels=xy_tilts,
+            xy_tilts_in_arcsec=xy_tilts,
             subap_wanted_fov=sh_npix * pxscale_arcsec,
             sensor_pxscale=pxscale_arcsec,
             subap_on_diameter=1,
@@ -158,7 +158,6 @@ class TestPolyChromSH(unittest.TestCase):
         # Get individual contributions
         flat_contrib = poly_sh.get_wavelength_contribution(0)
         tilted_contrib = poly_sh.get_wavelength_contribution(1)
-
 
         # Manually shift the flat contribution by 10 pixels to compare
         flat_shifted = xp.roll(flat_contrib, 10, axis=1)
@@ -203,7 +202,7 @@ class TestPolyChromSH(unittest.TestCase):
         poly_sh = PolyChromSH(
             wavelengthInNm=wavelengths,
             flux_factor=flux_factors,
-            xy_tilts_in_pixels=xy_tilts,
+            xy_tilts_in_arcsec=xy_tilts,
             subap_wanted_fov=1.0,
             sensor_pxscale=0.01,
             subap_on_diameter=1,
@@ -251,12 +250,12 @@ class TestPolyChromSH(unittest.TestCase):
         ref_S0 = 100
         wavelengths = [500, 600, 700]
         flux_factors = [0.3, 0.4, 0.3]
-        xy_tilts = [[0, 0], [0.1, -0.2], [0.2, 0.1]]
+        xy_tilts = [[0, 0], [0.01, -0.02], [0.02, 0.01]]
 
         poly_sh = PolyChromSH(
             wavelengthInNm=wavelengths,
             flux_factor=flux_factors,
-            xy_tilts_in_pixels=xy_tilts,
+            xy_tilts_in_arcsec=xy_tilts,
             subap_wanted_fov=3,
             sensor_pxscale=0.5,
             subap_on_diameter=1,

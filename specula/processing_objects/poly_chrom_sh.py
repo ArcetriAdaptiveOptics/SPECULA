@@ -16,7 +16,7 @@ class PolyChromSH(BaseProcessingObj):
     def __init__(self,
                  wavelengthInNm: list,           # List of wavelengths for each SH
                  flux_factor: list,                 # Flux factor for each wavelength
-                 xy_tilts_in_pixels: list = None,   # Optional differential tilts [dx, dy] for each SH
+                 xy_tilts_in_arcsec: list = None,   # Optional differential tilts [dx, dy] for each SH
                  # SH parameters (shared by all SH instances)
                  subap_wanted_fov: float = 1.0,
                  sensor_pxscale: float = 1.0,
@@ -33,14 +33,14 @@ class PolyChromSH(BaseProcessingObj):
         if len(flux_factor) != n_wavelengths:
             raise ValueError("wavelengthInNm and flux_factor must have the same length")
 
-        if xy_tilts_in_pixels is None:
-            xy_tilts_in_pixels = [[0.0, 0.0]] * n_wavelengths
-        elif len(xy_tilts_in_pixels) != n_wavelengths:
-            raise ValueError("xy_tilts_in_pixels must have the same length as wavelengthInNm")
+        if xy_tilts_in_arcsec is None:
+            xy_tilts_in_arcsec = [[0.0, 0.0]] * n_wavelengths
+        elif len(xy_tilts_in_arcsec) != n_wavelengths:
+            raise ValueError("xy_tilts_in_arcsec must have the same length as wavelengthInNm")
 
         self.wavelengths_in_nm = wavelengthInNm
         self.flux_factor = self.to_xp(flux_factor)
-        self.xy_tilts_in_pixels = xy_tilts_in_pixels
+        self.xy_tilts_in_arcsec = xy_tilts_in_arcsec
         self.n_wavelengths = n_wavelengths
 
         # Store SH parameters
@@ -79,7 +79,7 @@ class PolyChromSH(BaseProcessingObj):
         self._unit_tilt_x = None  # Unit tilt in x direction (in nm)
         self._unit_tilt_y = None  # Unit tilt in y direction (in nm)
         self._modified_efs = []
-        self._has_tilts = any(tilt[0] != 0.0 or tilt[1] != 0.0 for tilt in xy_tilts_in_pixels)
+        self._has_tilts = any(tilt[0] != 0.0 or tilt[1] != 0.0 for tilt in xy_tilts_in_arcsec)
 
     def _create_unit_tilts(self, in_ef_size, in_ef_pixel_pitch):
         """Create unit tilt phase arrays (1 pixel tilt) in nm."""
@@ -89,13 +89,10 @@ class PolyChromSH(BaseProcessingObj):
         # Calculate pupil diameter in meters
         pupil_diameter = in_ef_size * in_ef_pixel_pitch
 
-        # Convert 1 pixel tilt to arcseconds
-        unit_tilt_arcsec = self.sensor_pxscale
-
         # Convert arcseconds to nm RMS:
         # 1 nm RMS = 4e-9/diam * RAD2ASEC arcsec
         nm_to_arcsec = 4e-9 / pupil_diameter * RAD2ASEC
-        unit_tilt_nm = unit_tilt_arcsec / nm_to_arcsec
+        unit_tilt_nm = 1 / nm_to_arcsec
 
         # Create linear tilt phase across pupil
         # Normalize coordinates to [-2, 2] range
@@ -163,7 +160,7 @@ class PolyChromSH(BaseProcessingObj):
             modified_ef.pixel_pitch = in_ef.pixel_pitch
 
             # Apply tilt if present
-            tilt_x, tilt_y = self.xy_tilts_in_pixels[i]
+            tilt_x, tilt_y = self.xy_tilts_in_arcsec[i]
             if tilt_x != 0.0 or tilt_y != 0.0:
                 # Scale unit tilts by the desired amounts (no wavelength scaling needed)
                 tilt_phase_nm = tilt_x * self._unit_tilt_x + tilt_y * self._unit_tilt_y
