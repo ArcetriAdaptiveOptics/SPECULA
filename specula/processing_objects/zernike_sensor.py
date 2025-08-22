@@ -97,8 +97,10 @@ class ZernikeSensor(ModulatedPyramid):
         xx, yy = self.xp.mgrid[-A:A, -A:A].astype(self.dtype)
 
         # Convert radius from λ/D units to pixels
-        # In focal plane, 1 λ/D corresponds to self.fft_padding/self.fft_sampling pixels
-        spot_radius_pixels = self.spot_radius_lambda * self.fft_padding/self.fft_sampling
+        # In focal plane, 1 λ/D corresponds to fft_padding/fft_sampling pixels
+        fft_sampling = p
+        fft_padding = c
+        spot_radius_pixels = self.spot_radius_lambda * fft_padding/fft_sampling
 
         # Calculate distance from center
         rr = self.xp.sqrt(xx**2 + yy**2)
