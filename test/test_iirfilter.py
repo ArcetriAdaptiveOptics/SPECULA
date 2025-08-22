@@ -431,6 +431,245 @@ class TestIirFilterData(unittest.TestCase):
         # For a stable system, margins should be finite and positive
         self.assertTrue(gm > 0 or np.isinf(gm))  # Gain margin can be infinite
         self.assertTrue(pm > 0)  # Phase margin should be positive
+        
+    @cpu_and_gpu
+    def test_max_stable_gain_integrator_known_values(self, target_device_idx, xp):
+        """Test maximum stable gain for integrator with known delay values"""
+
+        # Create integrator filter (gain=1, ff=1 gives perfect integrator)
+        integrator = IirFilterData.from_gain_and_ff([1.0], [1.0], target_device_idx=target_device_idx)
+
+        # Test delay = 2 frames -> max gain should be ~1.0
+        max_gain_delay2 = integrator.max_stable_gain(mode=0, delay=2, n_gain=50000)
+        self.assertAlmostEqual(max_gain_delay2, 1.0, places=2)
+
+        # Test delay = 3 frames -> max gain should be ~0.618
+        max_gain_delay3 = integrator.max_stable_gain(mode=0, delay=3, n_gain=50000)
+        self.assertAlmostEqual(max_gain_delay3, 0.618, places=2)
+
+        # Verify that max gain decreases with increasing delay
+        max_gain_delay4 = integrator.max_stable_gain(mode=0, delay=4, n_gain=50000)
+        self.assertLess(max_gain_delay4, max_gain_delay3)
+
+    @cpu_and_gpu
+    def test_max_stable_gain_all_modes(self, target_device_idx, xp):
+        """Test maximum stable gain calculation for all modes"""
+
+        # Create multiple identical integrators
+        gains = [1.0, 1.0, 1.0]
+        ff = [1.0, 1.0, 1.0]
+        filters = IirFilterData.from_gain_and_ff(gains, ff, target_device_idx=target_device_idx)
+
+        # Test with delay=3 for all modes
+        max_gains = filters.max_stable_gain(delay=3, n_gain=20000)
+
+        # All should be approximately 0.618
+        for i, max_gain in enumerate(max_gains):
+            self.assertAlmostEqual(max_gain, 0.618, places=1,
+                                msg=f"Mode {i} max gain incorrect")
+
+        # All should be identical (same filter)
+        np.testing.assert_allclose(max_gains, max_gains[0], rtol=1e-10)
+
+    @cpu_and_gpu
+    def test_max_stable_gain_caching(self, target_device_idx, xp):
+        """Test that caching works correctly for identical filters"""
+
+        # Create filters with some identical and some different
+        gains = [0.5, 1.0, 0.5, 1.0]  # Two pairs of identical filters
+        ff = [0.9, 1.0, 0.9, 1.0]
+        filters = IirFilterData.from_gain_and_ff(gains, ff, target_device_idx=target_device_idx)
+
+        # Calculate twice
+        max_gains_cached1 = filters.max_stable_gain(delay=3, n_gain=10000)
+        max_gains_cached2 = filters.max_stable_gain(delay=3, n_gain=10000)
+
+        # Results should be identical
+        np.testing.assert_allclose(max_gains_cached1, max_gains_cached2, rtol=1e-12)
+
+        # Identical filters should have identical results
+        self.assertAlmostEqual(max_gains_cached1[0], max_gains_cached1[2], places=10)
+        self.assertAlmostEqual(max_gains_cached2[1], max_gains_cached2[3], places=10)
+
+    @cpu_and_gpu
+    def test_resonance_frequency_delay_relationship(self, target_device_idx, xp):
+        """Test that resonance frequency decreases with increasing delay"""
+
+        integrator = IirFilterData.from_gain_and_ff([1.0], [1.0], target_device_idx=target_device_idx)
+        fs = 1000.0  # Hz
+
+        delays = [2, 3, 4, 5]
+        resonance_freqs = []
+
+        for delay in delays:
+            # Use 80% of max stable gain
+            max_gain = integrator.max_stable_gain(mode=0, delay=delay, n_gain=20000)
+            gain_factor = max_gain * 0.8
+
+            if gain_factor > 0:
+                res_freq, res_amp = integrator.resonance_frequency(
+                    mode=0, gain_factor=gain_factor, delay=delay, fs=fs
+                )
+                resonance_freqs.append(res_freq)
+            else:
+                resonance_freqs.append(0)
+
+        # Verify decreasing trend
+        for i in range(1, len(resonance_freqs)):
+            if resonance_freqs[i-1] > 0 and resonance_freqs[i] > 0:
+                self.assertLess(resonance_freqs[i], resonance_freqs[i-1], 
+                            f"Resonance frequency should decrease with delay: "
+                            f"delay={delays[i-1]} -> {resonance_freqs[i-1]:.1f} Hz, "
+                            f"delay={delays[i]} -> {resonance_freqs[i]:.1f} Hz")
+
+    @cpu_and_gpu
+    def test_stability_analysis_comprehensive(self, target_device_idx, xp):
+        """Test comprehensive stability analysis"""
+
+        # Create integrator
+        integrator = IirFilterData.from_gain_and_ff([1.0], [1.0], target_device_idx=target_device_idx)
+
+        # Single mode analysis
+        result = integrator.stability_analysis(mode=0, delay=3, fs=1000.0, n_gain=20000)
+
+        # Check result structure
+        self.assertIn('mode', result)
+        self.assertIn('max_stable_gain', result)
+        self.assertIn('resonance_frequency', result)
+        self.assertIn('resonance_amplitude', result)
+        self.assertIn('is_stable_at_max', result)
+
+        # Check values
+        self.assertEqual(result['mode'], 0)
+        self.assertAlmostEqual(result['max_stable_gain'], 0.618, places=1)
+        self.assertGreater(result['resonance_frequency'], 0)
+        self.assertTrue(result['is_stable_at_max'])
+
+    @cpu_and_gpu
+    def test_stability_analysis_all_modes(self, target_device_idx, xp):
+        """Test stability analysis for all modes"""
+
+        gains = [0.5, 1.0]
+        ff = [0.9, 1.0]
+        filters = IirFilterData.from_gain_and_ff(gains, ff, target_device_idx=target_device_idx)
+
+        # All modes analysis
+        results = filters.stability_analysis(delay=3, fs=1000.0, n_gain=10000)
+
+        # Should have results for both modes
+        self.assertEqual(len(results), 2)
+
+        # Check each result
+        for i, result in enumerate(results):
+            self.assertEqual(result['mode'], i)
+            self.assertGreater(result['max_stable_gain'], 0)
+            self.assertGreater(result['resonance_frequency'], 0)
+            self.assertTrue(result['is_stable_at_max'])
+
+    @cpu_and_gpu
+    def test_max_stable_gain_with_plant_dynamics(self, target_device_idx, xp):
+        """Test max stable gain with explicit plant dynamics"""
+
+        integrator = IirFilterData.from_gain_and_ff([1.0], [1.0], target_device_idx=target_device_idx)
+
+        # Create plant dynamics using discrete_delay_tf
+        delay = 3
+        dm = xp.array([0.0, 1.0])  # Pure delay in dm
+        nw, dw = integrator.discrete_delay_tf(delay - 1)  # Additional delay
+
+        # Test with explicit plant dynamics
+        max_gain_plant = integrator.max_stable_gain(
+            mode=0, dm=dm, nw=nw, dw=dw, n_gain=20000
+        )
+
+        # Test with equivalent delay
+        max_gain_delay = integrator.max_stable_gain(mode=0, delay=delay, n_gain=20000)
+
+        # Should be approximately equal
+        self.assertAlmostEqual(max_gain_plant, max_gain_delay, places=1)
+
+    @cpu_and_gpu
+    def test_resonance_frequency_gain_scaling(self, target_device_idx, xp):
+        """Test that resonance frequency changes with gain factor"""
+
+        integrator = IirFilterData.from_gain_and_ff([1.0], [1.0], target_device_idx=target_device_idx)
+        delay = 3
+        fs = 1000.0
+
+        # Test different gain factors
+        gain_factors = [0.1, 0.3, 0.5]
+        resonance_freqs = []
+
+        for gain_factor in gain_factors:
+            res_freq, res_amp = integrator.resonance_frequency(
+                mode=0, gain_factor=gain_factor, delay=delay, fs=fs
+            )
+            resonance_freqs.append(res_freq)
+
+        # Higher gain should generally give higher resonance frequency
+        # (though this depends on the specific system)
+        for i in range(len(resonance_freqs)):
+            self.assertGreater(resonance_freqs[i], 0, f"Invalid resonance frequency for gain {gain_factors[i]}")
+
+    @cpu_and_gpu
+    def test_discrete_delay_tf_implementation(self, target_device_idx, xp):
+        """Test discrete delay transfer function implementation in detail"""
+
+        filter_data = IirFilterData.from_gain_and_ff([1.0], target_device_idx=target_device_idx)
+
+        # Test integer delays
+        for delay in [1, 2, 3, 4]:
+            num, den = filter_data.discrete_delay_tf(delay)
+
+            # For integer delay: num = [1, 0, 0, ..., 0], den = [0, 0, ..., 0, 1]
+            expected_num = np.zeros(delay + 1)
+            expected_num[0] = 1.0
+            expected_den = np.zeros(delay + 1)
+            expected_den[-1] = 1.0
+
+            np.testing.assert_array_almost_equal(num, expected_num)
+            np.testing.assert_array_almost_equal(den, expected_den)
+
+        # Test fractional delays
+        delay = 2.3
+        num, den = filter_data.discrete_delay_tf(delay)
+
+        # For delay = 2.3: ceil(2.3) = 3, so length = 4
+        # num[0] = 2.3 - 2.0 = 0.3, num[1] = 1 - 0.3 = 0.7
+        expected_num = np.array([0.3, 0.7, 0.0, 0.0])
+        expected_den = np.array([0.0, 0.0, 0.0, 1.0])
+
+        np.testing.assert_array_almost_equal(num, expected_num)
+        np.testing.assert_array_almost_equal(den, expected_den)
+
+    def test_stability_methods_consistency(self):
+        """Test consistency between different stability analysis methods"""
+
+        # Create test filter
+        filter_data = IirFilterData.from_gain_and_ff([0.1], [1.0])
+        delay = 3
+
+        # Test is_stable at different gain levels
+        dm = np.array([1.0])
+        nw, dw = filter_data.discrete_delay_tf(delay)
+
+        # Should be stable at low gain
+        is_stable_low = filter_data.is_stable(0, dm=dm, nw=nw, dw=dw)
+        self.assertTrue(is_stable_low)
+
+        # Find max stable gain
+        max_gain = filter_data.max_stable_gain(mode=0, delay=delay, n_gain=10000)
+
+        # Should be stable at 95% of max gain
+        filter_data.set_gain([max_gain * 0.95])
+        is_stable_near_max = filter_data.is_stable(0, dm=dm, nw=nw, dw=dw)
+        self.assertTrue(is_stable_near_max)
+
+        # Should be unstable at 110% of max gain (if max_gain < max possible gain)
+        if max_gain < 10.0:  # Only test if we found a reasonable max gain
+            filter_data.set_gain([max_gain * 1.1])
+            is_stable_over_max = filter_data.is_stable(0, dm=dm, nw=nw, dw=dw)
+            self.assertFalse(is_stable_over_max)
 
 # --- debugging utility for filter tests ---
 

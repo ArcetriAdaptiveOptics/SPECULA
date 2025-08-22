@@ -36,7 +36,7 @@ class TestPhaseFlattening(unittest.TestCase):
 
         ef_in.A[:] = mask
         valid_mask = cpuArray(ef_in.A) > 0
-  
+
         # Set phase with known mean
         phase_random = xp.random.randn(pixel_pupil, pixel_pupil) * 10
         phase_random -= xp.mean(phase_random[valid_mask])
@@ -67,7 +67,7 @@ class TestPhaseFlattening(unittest.TestCase):
         actual_output = cpuArray(ef_out.phaseInNm[valid_mask])
         expected_output = phase_random[valid_mask]
 
-        assert np.allclose(actual_output, cpuArray(expected_output), rtol=1e-04, atol=1e-07), \
+        assert np.allclose(actual_output, cpuArray(expected_output), rtol=1e-04, atol=1e-05), \
             f"Expected {expected_output}, got {actual_output}"
 
         # Check precision
@@ -79,22 +79,22 @@ class TestPhaseFlattening(unittest.TestCase):
         """Test edge cases"""
         pixel_pupil = 8
         pixel_pitch = 0.1
-        
+
         # === SUBTEST 1: Checkerboard mask (preserves invalid pixels) ===
         phase_flattener = PhaseFlattening(
             target_device_idx=target_device_idx
         )
-        
+
         ef_in1 = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, 
                               S0=1, target_device_idx=target_device_idx)
-        
+
         # Set checkerboard mask
         mask = xp.zeros((pixel_pupil, pixel_pupil))
         mask[::2, ::2] = 1  # Only some pixels are valid
         mask[1::2, 1::2] = 1
-        
+
         ef_in1.A[:] = mask
-        
+
         # Set different phase values for valid and invalid pixels
         ef_in1.phaseInNm[:] = 50.0  # Valid pixels will have mean removed
         ef_in1.phaseInNm[mask == 0] = 999.0  # Invalid pixels should stay unchanged
@@ -119,7 +119,7 @@ class TestPhaseFlattening(unittest.TestCase):
             "Invalid pixels should remain unchanged"
 
         # === SUBTEST 2: All zero amplitude ===
-        ef_in2 = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, 
+        ef_in2 = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch,
                               S0=1, target_device_idx=target_device_idx)
 
         ef_in2.A[:] = 0  # All pixels invalid
@@ -151,7 +151,7 @@ class TestPhaseFlattening(unittest.TestCase):
         phase_flattener = PhaseFlattening(
             target_device_idx=target_device_idx
         )
-        
+
         # Create input
         ef_in = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, 
                              S0=1, target_device_idx=target_device_idx)

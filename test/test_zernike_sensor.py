@@ -166,14 +166,14 @@ class TestZernikeSensor(unittest.TestCase):
             plt.show()
 
         # store max value of horizontal cut of intensity
-        max_input_intensity = xp.max(intensity_diff[intensity_diff.shape[0] // 2, :])
-        max_input_intensity_index = xp.argmax(intensity_diff[intensity_diff.shape[0] // 2, :])
+        max_input_intensity = float(xp.max(intensity_diff[intensity_diff.shape[0] // 2, :]))
+        max_input_intensity_index = int(xp.argmax(intensity_diff[intensity_diff.shape[0] // 2, :]))
         # store first minimum of horizontal cut
-        min_input_intensity = xp.min(intensity_diff[intensity_diff.shape[0] // 2, :])
-        min_input_intensity_index = xp.argmin(intensity_diff[intensity_diff.shape[0] // 2, :])
+        min_input_intensity = float(xp.min(intensity_diff[intensity_diff.shape[0] // 2, :]))
+        min_input_intensity_index = int(xp.argmin(intensity_diff[intensity_diff.shape[0] // 2, :]))
         # search value in between the min and max
         index_mean = round((min_input_intensity_index + max_input_intensity_index) // 2)
-        mean_input_intensity = intensity_diff[intensity_diff.shape[0] // 2, index_mean]
+        mean_input_intensity = float(intensity_diff[intensity_diff.shape[0] // 2, index_mean])
 
         # this three points should fit a quadratic
         coeffs = np.polyfit([max_input_intensity_index, min_input_intensity_index, index_mean],
@@ -181,7 +181,7 @@ class TestZernikeSensor(unittest.TestCase):
 
         # Compare fitting and values, i.e. error
         fit = np.polyval(coeffs, [max_input_intensity_index, min_input_intensity_index, index_mean])
-        error = xp.abs(fit - [max_input_intensity, min_input_intensity, mean_input_intensity])
+        error = np.abs(fit - [max_input_intensity, min_input_intensity, mean_input_intensity])
 
         verbose = False
         if verbose:
@@ -190,4 +190,4 @@ class TestZernikeSensor(unittest.TestCase):
                 print(f" {f:.5f}, {v:.5f}, {e:.5f}")
 
         # Fitting error must be lower than 1e-4 (it should be true with a small aberration)
-        assert xp.all(error < 1e-4), "Fitting error is too high!"
+        assert np.all(error < 1e-4), "Fitting error is too high!"

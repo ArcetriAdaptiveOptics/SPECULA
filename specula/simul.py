@@ -327,10 +327,9 @@ class Simul():
             pars2 = {}
             for name, value in pars.items():
 
-                if key != 'data_source' and name in skip_pars:
-                    continue
-
-                if key == 'data_source' and name in ['class']:
+                # Skip special parameters, unless explictly present in __init__
+                # e.g. "outputs" in DataSource
+                if name in skip_pars and name not in args:
                     continue
 
                 # dict_ref field contains a dictionary of names and associated data objects (defined in the same yml file)

@@ -1,11 +1,13 @@
 import numpy as np
 from scipy import signal
+from functools import lru_cache
 
 from specula.base_processing_obj import BaseProcessingObj
 from specula.connections import InputValue
 from specula.base_value import BaseValue
 from specula.data_objects.iir_filter_data import IirFilterData
 from specula.data_objects.simul_params import SimulParams
+from specula import cpuArray
 
 import matplotlib.pyplot as plt
 
@@ -27,6 +29,7 @@ class GainOptimizer(BaseProcessingObj):
                  limit_inc: bool = True,         # Limit gain increments
                  ngains: int = 20,               # Number of gain values to test
                  running_mean: bool = False,     # Use running mean for PSD
+                 verbose: bool = True,          # Verbose output
                  target_device_idx: int = None,
                  precision: int = None):
 
@@ -55,7 +58,7 @@ class GainOptimizer(BaseProcessingObj):
         self.comm_hist = []
         self.optical_gain_hist = []
         self.psd_ol = None
-        self.prev_optimized_gain = None
+        self.prev_optimized_gain = self.iir_filter_data.gain.copy()
 
         self.plot_debug = False  # Enable plotting for debugging
 
@@ -77,7 +80,7 @@ class GainOptimizer(BaseProcessingObj):
         # Outputs
         self.outputs['optimized_gain'] = self.optimized_gain
 
-        self.verbose = True
+        self.verbose = verbose
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
@@ -137,7 +140,7 @@ class GainOptimizer(BaseProcessingObj):
 
         if self.plot_debug:
             plt.figure()
-            plt.plot(opt_gains, marker='o')
+            plt.plot(cpuArray(opt_gains), marker='o')
             plt.xlabel('Mode Index')
             plt.ylabel('Optimized Gain')
             plt.title('Optimized Gains for Each Mode')
@@ -166,16 +169,13 @@ class GainOptimizer(BaseProcessingObj):
             print(f"Optimized gains at t={self.t_to_seconds(t):.3f}s: "
                   f"mean={float(self.xp.mean(opt_gains)):.4f}")
 
-        # Clear history
-        self._clear_history()
-
     def _calculate_pseudo_open_loop(self, delta_comm_hist, comm_hist):
         """
         Calculate pseudo open-loop signal from delta commands and output commands.
         pseudo_ol[t] = comm[t-1] + delta_comm[t]
         """
-        n_modes, n_time = delta_comm_hist.shape
-        pseudo_ol = self.xp.zeros((n_modes, n_time), dtype=self.dtype)
+        n_time, n_modes = delta_comm_hist.shape
+        pseudo_ol = self.xp.zeros((n_time, n_modes), dtype=self.dtype)
 
         # First time step: use delta command only
         pseudo_ol[0, :] = delta_comm_hist[0, :]
@@ -185,9 +185,9 @@ class GainOptimizer(BaseProcessingObj):
 
         if self.plot_debug:
             plt.figure()
-            plt.plot(comm_hist[:,0], label='Output Command')
-            plt.plot(delta_comm_hist[:,0], label='Delta Command')
-            plt.plot(pseudo_ol[:,0], label='Pseudo Open-Loop Signal')
+            plt.plot(cpuArray(comm_hist[:,0]), label='Output Command')
+            plt.plot(cpuArray(delta_comm_hist[:,0]), label='Delta Command')
+            plt.plot(cpuArray(pseudo_ol[:,0]), label='Pseudo Open-Loop Signal')
             plt.legend()
             plt.xlabel('Time Step')
             plt.ylabel('Signal Value')
@@ -199,18 +199,24 @@ class GainOptimizer(BaseProcessingObj):
 
     def _calculate_max_gains(self):
         """
-        Calculate maximum stable gains for each mode.
+        Calculate maximum stable gains for each mode using IirFilterData stability analysis.
         """
-        # Default maximum gains based on delay (simplified)
-        if self.delay <= 1.5:
-            base_gmax = 2.0
-        elif self.delay <= 2.5:
-            base_gmax = 1.0
-        else:
-            base_gmax = 0.61
+        # Use the new max_stable_gain method from IirFilterData
+        gmax_vec = self.iir_filter_data.max_stable_gain(
+            delay=self.delay,
+            max_gain=20.0,  # Maximum gain to test
+            n_gain=20000,   # Number of gain values to test for high precision
+        )
 
-        gmax_vec = self.xp.full(self.nmodes, base_gmax * self.max_gain_factor,
-                               dtype=self.dtype)
+        # Apply the maximum gain factor safety margin
+        gmax_vec = self.to_xp(gmax_vec) * self.max_gain_factor
+
+        if self.verbose:
+            print(f"Maximum stable gains calculated:")
+            print(f"  Raw max gains: mean={float(self.xp.mean(gmax_vec/self.max_gain_factor)):.4f}, "
+                f"std={float(self.xp.std(gmax_vec/self.max_gain_factor)):.4f}")
+            print(f"  With safety factor ({self.max_gain_factor}): mean={float(self.xp.mean(gmax_vec)):.4f}, "
+                f"std={float(self.xp.std(gmax_vec)):.4f}")
 
         return gmax_vec
 
@@ -218,29 +224,16 @@ class GainOptimizer(BaseProcessingObj):
         """
         Optimize gain for a single mode using PSD minimization.
         """
-        # Get filter coefficients for this mode
-        if hasattr(self.iir_filter_data, 'ordden') and len(self.iir_filter_data.ordden) > mode:
-            # Use forgetting factor if available
-            ff = self._get_forgetting_factor(mode)
-            num = self.xp.array([0.0, 1.0], dtype=self.dtype)
-            den = self.xp.array([-ff, 1.0], dtype=self.dtype)
-        else:
-            # Default integrator
-            num = self.xp.array([0.0, 1.0], dtype=self.dtype)
-            den = self.xp.array([-1.0, 1.0], dtype=self.dtype)
+
+        # Get filter coefficients for this mode from iir_filter_data
+        num = cpuArray(self.iir_filter_data.num.copy()[mode, :])
+        den = cpuArray(self.iir_filter_data.den.copy()[mode, :])
+        # normalize numerator by the gain
+        # This is done because _calculate_rejection_tf wants a num with unitary gain
+        num /= cpuArray(self.iir_filter_data.gain[mode])
 
         # Calculate PSD of pseudo open-loop signal
         psd_pseudo_ol, freq = self._calculate_psd(pseudo_ol_mode, t_int)
-
-        if self.plot_debug:
-            plt.figure()
-            plt.plot(freq, psd_pseudo_ol, label='PSD of Pseudo Open-Loop Signal')
-            plt.xlabel('Frequency (Hz)')
-            plt.ylabel('Power Spectral Density')
-            plt.title(f'PSD for Mode {mode}')
-            plt.grid()
-            plt.legend()
-            plt.show()
 
         # Apply running mean if enabled
         if self.running_mean and self.psd_ol is not None:
@@ -255,11 +248,30 @@ class GainOptimizer(BaseProcessingObj):
             # Calculate rejection transfer function
             h_rej = self._calculate_rejection_tf(freq, t_int, gain, num, den)
             # Calculate total residual variance
-            totals[i] = self.xp.sum(self.xp.nan_to_num(self.xp.abs(h_rej)**2 * psd_pseudo_ol))
+            psd_res = self.xp.nan_to_num(self.xp.abs(h_rej)**2 * psd_pseudo_ol)
+            totals[i] = self.xp.sum(psd_res)
 
         if self.plot_debug:
             plt.figure()
-            plt.plot(gains, totals, marker='o')
+            plt.plot(cpuArray(freq), cpuArray(psd_pseudo_ol), label='Pseudo Open-Loop PSD')
+            plt.plot(cpuArray(freq), cpuArray(psd_res), label='Residual PSD')
+            plt.xlabel('Frequency (Hz)')
+            plt.ylabel('Power Spectral Density')
+            plt.title(f'PSDs for Mode {mode}')
+            plt.xscale('log')
+            plt.yscale('log')
+            plt.grid()
+            plt.legend()
+            plt.figure()
+            plt.plot(cpuArray(freq), cpuArray(self.xp.nan_to_num(self.xp.abs(h_rej))))
+            plt.xlabel('Frequency (Hz)')
+            plt.ylabel('Amplitude')
+            plt.title(f'RTF for Mode {mode}')
+            plt.xscale('log')
+            plt.yscale('log')
+            plt.grid()
+            plt.figure()
+            plt.plot(cpuArray(gains), cpuArray(totals), marker='o')
             plt.xlabel('Gain')
             plt.ylabel('Total Residual Variance')
             plt.title(f'Mode {mode} Gain Optimization')
@@ -271,18 +283,6 @@ class GainOptimizer(BaseProcessingObj):
         optimal_gain = gains[min_idx]
 
         return optimal_gain
-
-    def _get_forgetting_factor(self, mode):
-        """
-        Extract forgetting factor for a specific mode from filter coefficients.
-        """
-        if (hasattr(self.iir_filter_data, 'den') and
-            self.iir_filter_data.den.shape[0] > mode and
-            self.iir_filter_data.den.shape[1] >= 2):
-            # ff = -den[0] for integrator with forgetting factor
-            return float(-self.iir_filter_data.den[mode, 0])
-        else:
-            return 1.0  # Perfect integrator
 
     def _calculate_psd(self, data, t_int):
         """
@@ -302,10 +302,36 @@ class GainOptimizer(BaseProcessingObj):
 
         return psd, freq
 
-    def _calculate_rejection_tf(self, freq, t_int, gain, num, den):
+    def _round_values_for_cache(self, freq, t_int, gain, num, den):
+        """Round values to reasonable precision for cache key consistency."""
+        # Round frequency to avoid floating point precision issues
+        freq_rounded = tuple(np.round(cpuArray(freq), 8))
+
+        # Round other parameters
+        t_int_rounded = round(float(t_int), 10)
+        gain_rounded = round(float(gain), 8)
+        num_rounded = tuple(np.round(cpuArray(num), 10))
+        den_rounded = tuple(np.round(cpuArray(den), 10))
+        delay_rounded = round(float(self.delay), 6)
+
+        return freq_rounded, t_int_rounded, gain_rounded, num_rounded, den_rounded, delay_rounded
+
+    @lru_cache(maxsize=16384)
+    def _calculate_rejection_tf_cached(self, freq_tuple, t_int, gain, num_tuple, den_tuple, delay):
+        """
+        Calculate rejection transfer function using lru_cache.
+        All parameters must be hashable (tuples, not arrays).
+        """
+        # Convert tuples back to arrays
+        freq = self.to_xp(freq_tuple, dtype=self.dtype)
+        num = self.to_xp(num_tuple, dtype=self.dtype)
+        den = self.to_xp(den_tuple, dtype=self.dtype)
+
+        # Calculate transfer function
         omega = 2 * np.pi * freq * t_int
         z = self.xp.exp(1j * omega)
 
+        # Calculate controller transfer function
         num_val = self.xp.polyval(num[::-1], z)
         den_val = self.xp.polyval(den[::-1], z)
 
@@ -313,31 +339,36 @@ class GainOptimizer(BaseProcessingObj):
         den_val = self.xp.where(self.xp.abs(den_val) < 1e-12, 1e-12, den_val)
         c_tf = num_val / den_val
 
-        delay_tf = z**(-self.delay)
+        # Add delay
+        delay_tf = z**(-delay)
+
+        # Open-loop transfer function
         ol_tf = gain * c_tf * delay_tf
 
+        # Closed-loop rejection transfer function: 1/(1 + L)
         denom = 1.0 + ol_tf
         denom = self.xp.where(self.xp.abs(denom) < 1e-12, 1e-12, denom)
         h_rej = 1.0 / denom
 
         # Clean up any NaN/Inf
         h_rej = self.xp.nan_to_num(h_rej, nan=0.0, posinf=0.0, neginf=0.0)
+
         return h_rej
 
-    def _clear_history(self):
+    def _calculate_rejection_tf(self, freq, t_int, gain, num, den):
         """
-        Clear accumulated history after optimization.
+        Calculate rejection transfer function with lru_cache.
         """
-        # Store PSD for running mean
-        if self.running_mean:
-            if self.psd_ol is None:
-                self.psd_ol = self.xp.zeros((256, self.nmodes), dtype=self.dtype)
-            # Update stored PSD (simplified)
+        # Round values for consistent cache keys
+        freq_rounded, t_int_rounded, gain_rounded, num_rounded, den_rounded, delay_rounded = \
+            self._round_values_for_cache(freq, t_int, gain, num, den)
 
-        # Clear history lists
-        self.time_hist = []
-        self.delta_comm_hist = []
-        self.comm_hist = []
+        # Try to get from cache
+        h_rej = self._calculate_rejection_tf_cached(
+            freq_rounded, t_int_rounded, gain_rounded,
+            num_rounded, den_rounded, delay_rounded
+        )
+        return h_rej
 
     def post_trigger(self):
         super().post_trigger()
