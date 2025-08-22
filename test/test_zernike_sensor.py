@@ -114,7 +114,8 @@ class TestZernikeSensor(unittest.TestCase):
         ef.A = make_mask(pixel_pupil)
         # Create Zernike generator for focus
         zg = ZernikeGenerator(ef.size[0], xp=xp, dtype=ef.dtype)
-        ef.phaseInNm = zg.getZernike(4)*10.
+        phaseInNm = zg.getZernike(4)*10
+        ef.phaseInNm = phaseInNm
         ef.generation_time = t
 
         # Connect input
@@ -128,16 +129,51 @@ class TestZernikeSensor(unittest.TestCase):
 
         # Get output intensity
         intensity = zernike_sensor.outputs['out_i']
+        intensity_diff = intensity.i.copy()
+
+        ef.phaseInNm[:] = phaseInNm*0.
+        ef.generation_time = 2*t
+
+        zernike_sensor.check_ready(2*t)
+        zernike_sensor.trigger()
+        zernike_sensor.post_trigger()
+
+        intensity_diff -= intensity.i.copy()
+
+        plot_debug = False
+        if plot_debug:
+            import matplotlib.pyplot as plt
+            plt.figure()
+            plt.imshow(phaseInNm)
+            plt.title("Input Phase")
+            plt.colorbar()
+            plt.figure()
+            plt.imshow(intensity_diff)
+            plt.title("Output Intensity")
+            plt.colorbar()
+            # horizontal cut of phase
+            plt.figure()
+            plt.plot(phaseInNm[ef.phaseInNm.shape[0] // 2, :])
+            plt.title("Horizontal Cut of Input Phase")
+            plt.xlabel("Pixel")
+            plt.ylabel("Phase (nm)")
+            # horizontal cut of output intensity
+            plt.figure()
+            plt.plot(intensity_diff[intensity_diff.shape[0] // 2, :])
+            plt.title("Horizontal Cut of Output Intensity")
+            plt.xlabel("Pixel")
+            plt.ylabel("Intensity")
+            plt.show()
 
         # store max value of horizontal cut of intensity
-        max_input_intensity = xp.max(intensity.i[intensity.i.shape[0] // 2, :])
-        max_input_intensity_index = xp.argmax(intensity.i[intensity.i.shape[0] // 2, :])
+        max_input_intensity = xp.max(intensity_diff[intensity_diff.shape[0] // 2, :])
+        max_input_intensity_index = xp.argmax(intensity_diff[intensity_diff.shape[0] // 2, :])
         # store first minimum of horizontal cut
-        min_input_intensity = xp.min(intensity.i[intensity.i.shape[0] // 2, :])
-        min_input_intensity_index = xp.argmin(intensity.i[intensity.i.shape[0] // 2, :])
+        min_input_intensity = xp.min(intensity_diff[intensity_diff.shape[0] // 2, :])
+        min_input_intensity_index = xp.argmin(intensity_diff[intensity_diff.shape[0] // 2, :])
         # search value in between the min and max
         index_mean = round((min_input_intensity_index + max_input_intensity_index) // 2)
-        mean_input_intensity = intensity.i[intensity.i.shape[0] // 2, index_mean]
+        mean_input_intensity = intensity_diff[intensity_diff.shape[0] // 2, index_mean]
 
         # this three points should fit a quadratic
         coeffs = np.polyfit([max_input_intensity_index, min_input_intensity_index, index_mean],
@@ -146,37 +182,12 @@ class TestZernikeSensor(unittest.TestCase):
         # Compare fitting and values, i.e. error
         fit = np.polyval(coeffs, [max_input_intensity_index, min_input_intensity_index, index_mean])
         error = xp.abs(fit - [max_input_intensity, min_input_intensity, mean_input_intensity])
-        
+
         verbose = False
         if verbose:
             print('Fit, Values and Fitting error:')
             for f, v, e in zip(fit, [max_input_intensity, min_input_intensity, mean_input_intensity], error):
                 print(f" {f:.5f}, {v:.5f}, {e:.5f}")
 
-        # Fitting error must be lower than 1e-4
+        # Fitting error must be lower than 1e-4 (it should be true with a small aberration)
         assert xp.all(error < 1e-4), "Fitting error is too high!"
-
-        plot_debug = True
-        if plot_debug:
-            import matplotlib.pyplot as plt
-            plt.figure()
-            plt.imshow(ef.phaseInNm)
-            plt.title("Input Phase")
-            plt.colorbar()
-            plt.figure()
-            plt.imshow(intensity.i)
-            plt.title("Output Intensity")
-            plt.colorbar()
-            # horizontal cut of phase
-            plt.figure()
-            plt.plot(ef.phaseInNm[ef.phaseInNm.shape[0] // 2, :])
-            plt.title("Horizontal Cut of Input Phase")
-            plt.xlabel("Pixel")
-            plt.ylabel("Phase (nm)")
-            # horizontal cut of output intensity
-            plt.figure()
-            plt.plot(intensity.i[intensity.i.shape[0] // 2, :])
-            plt.title("Horizontal Cut of Output Intensity")
-            plt.xlabel("Pixel")
-            plt.ylabel("Intensity")
-            plt.show()
