@@ -226,12 +226,11 @@ class GainOptimizer(BaseProcessingObj):
         """
 
         # Get filter coefficients for this mode from iir_filter_data
-        num = cpuArray(self.iir_filter_data.num[mode, :])
-        den = cpuArray(self.iir_filter_data.den[mode, :])
+        num = cpuArray(self.iir_filter_data.num.copy()[mode, :])
+        den = cpuArray(self.iir_filter_data.den.copy()[mode, :])
         # normalize numerator by the gain
         # This is done because _calculate_rejection_tf wants a num with unitary gain
-        gain = cpuArray(self.iir_filter_data.gain[mode])
-        num /= gain
+        num /= cpuArray(self.iir_filter_data.gain[mode])
 
         # Calculate PSD of pseudo open-loop signal
         psd_pseudo_ol, freq = self._calculate_psd(pseudo_ol_mode, t_int)
