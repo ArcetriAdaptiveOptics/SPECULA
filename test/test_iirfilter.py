@@ -480,18 +480,16 @@ class TestIirFilterData(unittest.TestCase):
         ff = [0.9, 1.0, 0.9, 1.0]
         filters = IirFilterData.from_gain_and_ff(gains, ff, target_device_idx=target_device_idx)
 
-        # Calculate with caching enabled
-        max_gains_cached = filters.max_stable_gain(delay=3, use_cache=True, n_gain=10000)
-
-        # Calculate without caching
-        max_gains_no_cache = filters.max_stable_gain(delay=3, use_cache=False, n_gain=10000)
+        # Calculate twice
+        max_gains_cached1 = filters.max_stable_gain(delay=3, n_gain=10000)
+        max_gains_cached2 = filters.max_stable_gain(delay=3, n_gain=10000)
 
         # Results should be identical
-        np.testing.assert_allclose(max_gains_cached, max_gains_no_cache, rtol=1e-12)
+        np.testing.assert_allclose(max_gains_cached1, max_gains_cached2, rtol=1e-12)
 
         # Identical filters should have identical results
-        self.assertAlmostEqual(max_gains_cached[0], max_gains_cached[2], places=10)
-        self.assertAlmostEqual(max_gains_cached[1], max_gains_cached[3], places=10)
+        self.assertAlmostEqual(max_gains_cached1[0], max_gains_cached1[2], places=10)
+        self.assertAlmostEqual(max_gains_cached2[1], max_gains_cached2[3], places=10)
 
     @cpu_and_gpu
     def test_resonance_frequency_delay_relationship(self, target_device_idx, xp):

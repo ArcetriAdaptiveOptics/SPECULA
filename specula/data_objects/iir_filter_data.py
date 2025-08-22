@@ -432,22 +432,15 @@ class IirFilterData(BaseDataObj):
         return hashlib.md5(filter_str.encode()).hexdigest()
 
     @lru_cache(maxsize=128)
-    def _cached_max_stable_gain(self, filter_hash, num_tuple, den_tuple, delay=None, dm_tuple=None, nw_tuple=None, dw_tuple=None,
-                            max_gain=20.0, n_gain=10000, tolerance=1e-6):
-        """Cached computation of maximum stable gain."""
-        # Convert tuples back to arrays
+    def _compute_max_stable_gain_internal(self, num_tuple, den_tuple, delay=None, dm_tuple=None, nw_tuple=None, dw_tuple=None,
+                                        max_gain=20.0, n_gain=10000, tolerance=1e-6):
+        """Internal computation of maximum stable gain."""
+
         num_coeffs = np.array(num_tuple)
         den_coeffs = np.array(den_tuple)
         dm = np.array(dm_tuple) if dm_tuple is not None else None
         nw = np.array(nw_tuple) if nw_tuple is not None else None
         dw = np.array(dw_tuple) if dw_tuple is not None else None
-
-        return self._compute_max_stable_gain_internal(num_coeffs, den_coeffs, delay=delay, dm=dm, nw=nw, dw=dw,
-                                                    max_gain=max_gain, n_gain=n_gain, tolerance=tolerance)
-
-    def _compute_max_stable_gain_internal(self, num_coeffs, den_coeffs, delay=None, dm=None, nw=None, dw=None,
-                                        max_gain=20.0, n_gain=10000, tolerance=1e-6):
-        """Internal computation of maximum stable gain."""
 
         # Create plant transfer function
         if delay is not None:
@@ -493,7 +486,7 @@ class IirFilterData(BaseDataObj):
         return max_stable
 
     def max_stable_gain(self, mode=None, delay=None, dm=None, nw=None, dw=None, 
-                    max_gain=20.0, n_gain=10000, tolerance=1e-6, use_cache=True):
+                    max_gain=20.0, n_gain=10000, tolerance=1e-6):
         """Calculate maximum stable gain for closed-loop system.
         
         This function finds the maximum controller gain that maintains stability
@@ -506,7 +499,6 @@ class IirFilterData(BaseDataObj):
             max_gain: Maximum gain to test (default: 20.0)
             n_gain: Number of gain values to test (default: 10000)
             tolerance: Minimum gain to test (default: 1e-6)
-            use_cache: Whether to use caching for identical filters (default: True)
             
         Returns:
             float or array: Maximum stable gain(s)
@@ -530,70 +522,36 @@ class IirFilterData(BaseDataObj):
             num_coeffs = cpuArray(self.num[mode, :])
             den_coeffs = cpuArray(self.den[mode, :])
 
-            if use_cache:
-                # Create hashable tuples for caching
-                filter_hash = self._filter_hash(mode, dm=dm, nw=nw, dw=dw, delay=delay)
+            # Create hashable tuples for caching
+            num_tuple = tuple(num_coeffs)
+            den_tuple = tuple(den_coeffs)
+            dm_tuple = tuple(cpuArray(dm)) if dm is not None else None
+            nw_tuple = tuple(cpuArray(nw)) if nw is not None else None
+            dw_tuple = tuple(cpuArray(dw)) if dw is not None else None
+
+            return self._compute_max_stable_gain_internal(
+                num_tuple, den_tuple, delay=delay, dm_tuple=dm_tuple, nw_tuple=nw_tuple, dw_tuple=dw_tuple,
+                max_gain=max_gain, n_gain=n_gain, tolerance=tolerance
+            )
+        else:
+            # All modes calculation
+            max_gains = np.zeros(self.nfilter)
+
+            # Calculate for each mode separately
+            for i in range(self.nfilter):
+                num_coeffs = cpuArray(self.num[i, :])
+                den_coeffs = cpuArray(self.den[i, :])
+
                 num_tuple = tuple(num_coeffs)
                 den_tuple = tuple(den_coeffs)
                 dm_tuple = tuple(cpuArray(dm)) if dm is not None else None
                 nw_tuple = tuple(cpuArray(nw)) if nw is not None else None
                 dw_tuple = tuple(cpuArray(dw)) if dw is not None else None
 
-                return self._cached_max_stable_gain(
-                    filter_hash, num_tuple, den_tuple, delay=delay,
-                    dm_tuple=dm_tuple, nw_tuple=nw_tuple, dw_tuple=dw_tuple,
+                max_gains[i] = self._compute_max_stable_gain_internal(
+                    num_tuple, den_tuple, delay=delay, dm_tuple=dm_tuple, nw_tuple=nw_tuple, dw_tuple=dw_tuple,
                     max_gain=max_gain, n_gain=n_gain, tolerance=tolerance
                 )
-            else:
-                return self._compute_max_stable_gain_internal(
-                    num_coeffs, den_coeffs, delay=delay, dm=dm, nw=nw, dw=dw,
-                    max_gain=max_gain, n_gain=n_gain, tolerance=tolerance
-                )
-        else:
-            # All modes calculation
-            max_gains = np.zeros(self.nfilter)
-
-            if use_cache:
-                # Group identical filters to avoid redundant calculations
-                filter_groups = {}
-                for i in range(self.nfilter):
-                    filter_hash = self._filter_hash(i, dm=dm, nw=nw, dw=dw, delay=delay)
-                    if filter_hash not in filter_groups:
-                        filter_groups[filter_hash] = []
-                    filter_groups[filter_hash].append(i)
-
-                # Calculate for each unique filter
-                for filter_hash, mode_list in filter_groups.items():
-                    # Use first mode of the group for calculation
-                    representative_mode = mode_list[0]
-                    num_coeffs = cpuArray(self.num[representative_mode, :])
-                    den_coeffs = cpuArray(self.den[representative_mode, :])
-
-                    num_tuple = tuple(num_coeffs)
-                    den_tuple = tuple(den_coeffs)
-                    dm_tuple = tuple(cpuArray(dm)) if dm is not None else None
-                    nw_tuple = tuple(cpuArray(nw)) if nw is not None else None
-                    dw_tuple = tuple(cpuArray(dw)) if dw is not None else None
-
-                    max_gain_result = self._cached_max_stable_gain(
-                        filter_hash, num_tuple, den_tuple, delay=delay, 
-                        dm_tuple=dm_tuple, nw_tuple=nw_tuple, dw_tuple=dw_tuple,
-                        max_gain=max_gain, n_gain=n_gain, tolerance=tolerance
-                    )
-
-                    # Apply result to all modes in the group
-                    for mode_idx in mode_list:
-                        max_gains[mode_idx] = max_gain_result
-            else:
-                # Calculate for each mode separately
-                for i in range(self.nfilter):
-                    num_coeffs = cpuArray(self.num[i, :])
-                    den_coeffs = cpuArray(self.den[i, :])
-
-                    max_gains[i] = self._compute_max_stable_gain_internal(
-                        num_coeffs, den_coeffs, delay=delay, dm=dm, nw=nw, dw=dw,
-                        max_gain=max_gain, n_gain=n_gain, tolerance=tolerance
-                    )
 
             return max_gains
 

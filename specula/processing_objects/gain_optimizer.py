@@ -82,10 +82,6 @@ class GainOptimizer(BaseProcessingObj):
 
         self.verbose = verbose
 
-        # Cache statistics for debugging
-        self._cache_hits = 0
-        self._cache_misses = 0
-
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
 
@@ -136,20 +132,11 @@ class GainOptimizer(BaseProcessingObj):
 
         # Optimize gains for each mode
         opt_gains = self.xp.zeros(self.nmodes, dtype=self.dtype)
-        total_cache_hits = 0
-        total_cache_misses = 0
 
         for mode in range(self.nmodes):
-            opt_gains[mode], mode_hits, mode_misses = self._optimize_single_mode(
+            opt_gains[mode] = self._optimize_single_mode(
                 mode, pseudo_ol[:, mode], self.time_step, gmax_vec[mode]
             )
-            total_cache_hits += mode_hits
-            total_cache_misses += mode_misses
-
-        # Print cache summary once for all modes
-        if self.verbose and (total_cache_hits + total_cache_misses) > 0:
-            hit_rate = total_cache_hits / (total_cache_hits + total_cache_misses) * 100
-            print(f"Cache stats: {total_cache_hits}/{total_cache_hits + total_cache_misses} hits ({hit_rate:.1f}%)")
 
         if self.plot_debug:
             plt.figure()
@@ -181,13 +168,6 @@ class GainOptimizer(BaseProcessingObj):
         if self.verbose:
             print(f"Optimized gains at t={self.t_to_seconds(t):.3f}s: "
                   f"mean={float(self.xp.mean(opt_gains)):.4f}")
-
-        # Optionally clear cache periodically to avoid memory buildup
-        cache_info = self.get_cache_info()
-        if cache_info['currsize'] > cache_info['maxsize'] * 0.9:
-            if self.verbose:
-                print(f"Clearing LRU cache to manage memory (current size: {cache_info['currsize']})")
-            self.clear_cache()
 
     def _calculate_pseudo_open_loop(self, delta_comm_hist, comm_hist):
         """
@@ -221,57 +201,29 @@ class GainOptimizer(BaseProcessingObj):
         """
         Calculate maximum stable gains for each mode using IirFilterData stability analysis.
         """
-        try:
-            # Use the new max_stable_gain method from IirFilterData
-            gmax_vec = self.iir_filter_data.max_stable_gain(
-                delay=self.delay,
-                max_gain=20.0,  # Maximum gain to test
-                n_gain=20000,   # Number of gain values to test for high precision
-                use_cache=True  # Use caching for identical filters
-            )
+        # Use the new max_stable_gain method from IirFilterData
+        gmax_vec = self.iir_filter_data.max_stable_gain(
+            delay=self.delay,
+            max_gain=20.0,  # Maximum gain to test
+            n_gain=20000,   # Number of gain values to test for high precision
+        )
 
-            # Apply the maximum gain factor safety margin
-            gmax_vec = self.to_xp(gmax_vec) * self.max_gain_factor
+        # Apply the maximum gain factor safety margin
+        gmax_vec = self.to_xp(gmax_vec) * self.max_gain_factor
 
-            if self.verbose:
-                print(f"Maximum stable gains calculated:")
-                print(f"  Raw max gains: mean={float(self.xp.mean(gmax_vec/self.max_gain_factor)):.4f}, "
-                    f"std={float(self.xp.std(gmax_vec/self.max_gain_factor)):.4f}")
-                print(f"  With safety factor ({self.max_gain_factor}): mean={float(self.xp.mean(gmax_vec)):.4f}, "
-                    f"std={float(self.xp.std(gmax_vec)):.4f}")
+        if self.verbose:
+            print(f"Maximum stable gains calculated:")
+            print(f"  Raw max gains: mean={float(self.xp.mean(gmax_vec/self.max_gain_factor)):.4f}, "
+                f"std={float(self.xp.std(gmax_vec/self.max_gain_factor)):.4f}")
+            print(f"  With safety factor ({self.max_gain_factor}): mean={float(self.xp.mean(gmax_vec)):.4f}, "
+                f"std={float(self.xp.std(gmax_vec)):.4f}")
 
-            return gmax_vec
-
-        except Exception as e:
-            if self.verbose:
-                print(f"Warning: Failed to calculate max stable gains using IirFilterData: {e}")
-                print("Falling back to simplified delay-based calculation")
-
-            # Fallback to simplified calculation based on delay
-            if self.delay <= 1.5:
-                base_gmax = 2.0
-            elif self.delay <= 2.5:
-                base_gmax = 1.0
-            elif self.delay <= 3.5:
-                base_gmax = 0.618
-            else:
-                base_gmax = 0.4
-
-            gmax_vec = self.xp.full(self.nmodes, base_gmax * self.max_gain_factor,
-                                dtype=self.dtype)
-
-            if self.verbose:
-                print(f"Using fallback max gain: {base_gmax * self.max_gain_factor:.4f} for all modes")
-
-            return gmax_vec
+        return gmax_vec
 
     def _optimize_single_mode(self, mode, pseudo_ol_mode, t_int, gmax):
         """
         Optimize gain for a single mode using PSD minimization.
         """
-        # Reset cache statistics for this mode
-        mode_cache_hits = self._cache_hits
-        mode_cache_misses = self._cache_misses
 
         # Get filter coefficients for this mode from iir_filter_data
         num = cpuArray(self.iir_filter_data.num[mode, :])
@@ -305,10 +257,6 @@ class GainOptimizer(BaseProcessingObj):
             # Calculate total residual variance
             totals[i] = self.xp.sum(self.xp.nan_to_num(self.xp.abs(h_rej)**2 * psd_pseudo_ol))
 
-        # Calculate cache stats for this mode
-        mode_hits = self._cache_hits - mode_cache_hits
-        mode_misses = self._cache_misses - mode_cache_misses
-
         if self.plot_debug:
             plt.figure()
             plt.plot(gains, totals, marker='o')
@@ -322,7 +270,7 @@ class GainOptimizer(BaseProcessingObj):
         min_idx = self.xp.argmin(totals)
         optimal_gain = gains[min_idx]
 
-        return optimal_gain, mode_hits, mode_misses
+        return optimal_gain
 
     def _calculate_psd(self, data, t_int):
         """
@@ -403,60 +351,12 @@ class GainOptimizer(BaseProcessingObj):
         freq_rounded, t_int_rounded, gain_rounded, num_rounded, den_rounded, delay_rounded = \
             self._round_values_for_cache(freq, t_int, gain, num, den)
 
-        try:
-            # Try to get from cache
-            h_rej = self._calculate_rejection_tf_cached(
-                freq_rounded, t_int_rounded, gain_rounded, 
-                num_rounded, den_rounded, delay_rounded
-            )
-            self._cache_hits += 1
-            return h_rej
-
-        except Exception as e:
-            # Fallback to direct calculation if cache fails
-            self._cache_misses += 1
-            if self.verbose:
-                print(f"Cache miss, calculating directly: {e}")
-
-            # Direct calculation
-            omega = 2 * np.pi * freq * t_int
-            z = self.xp.exp(1j * omega)
-
-            num_val = self.xp.polyval(num[::-1], z)
-            den_val = self.xp.polyval(den[::-1], z)
-
-            den_val = self.xp.where(self.xp.abs(den_val) < 1e-12, 1e-12, den_val)
-            c_tf = num_val / den_val
-
-            delay_tf = z**(-self.delay)
-            ol_tf = gain * c_tf * delay_tf
-
-            denom = 1.0 + ol_tf
-            denom = self.xp.where(self.xp.abs(denom) < 1e-12, 1e-12, denom)
-            h_rej = 1.0 / denom
-
-            h_rej = self.xp.nan_to_num(h_rej, nan=0.0, posinf=0.0, neginf=0.0)
-
-            return h_rej
-
-    def clear_cache(self):
-        """Clear the rejection transfer function cache."""
-        self._calculate_rejection_tf_cached.cache_clear()
-        self._cache_hits = 0
-        self._cache_misses = 0
-        if self.verbose:
-            print("LRU cache cleared")
-
-    def get_cache_info(self):
-        """Get LRU cache statistics."""
-        cache_info = self._calculate_rejection_tf_cached.cache_info()
-        return {
-            'hits': cache_info.hits,
-            'misses': cache_info.misses,
-            'maxsize': cache_info.maxsize,
-            'currsize': cache_info.currsize,
-            'hit_rate': cache_info.hits / (cache_info.hits + cache_info.misses) * 100 if (cache_info.hits + cache_info.misses) > 0 else 0
-        }
+        # Try to get from cache
+        h_rej = self._calculate_rejection_tf_cached(
+            freq_rounded, t_int_rounded, gain_rounded, 
+            num_rounded, den_rounded, delay_rounded
+        )
+        return h_rej
 
     def post_trigger(self):
         super().post_trigger()

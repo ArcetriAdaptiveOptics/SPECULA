@@ -214,18 +214,9 @@ class TestGainOptimizer(unittest.TestCase):
         num = optimizer.to_xp(np.array([0.0, 0.5]))
         den = optimizer.to_xp(np.array([-0.9, 1.0]))
 
-        # Clear cache
-        optimizer.clear_cache()
-        initial_cache_info = optimizer.get_cache_info()
-        self.assertEqual(initial_cache_info['currsize'], 0)
-
         # Calculate twice (should use cache on second call)
         h_rej1 = optimizer._calculate_rejection_tf(freq, t_int, gain, num, den)
         h_rej2 = optimizer._calculate_rejection_tf(freq, t_int, gain, num, den)
-
-        # Check cache usage
-        cache_info = optimizer.get_cache_info()
-        self.assertGreater(cache_info['hits'], 0)
 
         # Results should be identical
         np.testing.assert_array_almost_equal(
@@ -313,62 +304,3 @@ class TestGainOptimizer(unittest.TestCase):
         # Check safety factor application
         expected = 1.0 * 0.8
         self.assertAlmostEqual(float(final_gains[0]), expected, places=5)
-
-    def test_cache_memory_management(self):
-        """Test cache clearing for memory management"""
-        simul_params = Mock(spec=SimulParams)
-        simul_params.time_step = 0.001
-
-        iir_filter = IirFilterData.from_gain_and_ff([0.5], [0.9])
-
-        optimizer = GainOptimizer(
-            simul_params=simul_params,
-            iir_filter_data=iir_filter
-        )
-
-        # Fill cache with many entries
-        freq = optimizer.to_xp(np.linspace(0.1, 100, 20))
-        num = optimizer.to_xp(np.array([0.0, 0.5]))
-        den = optimizer.to_xp(np.array([-0.9, 1.0]))
-
-        for i in range(100):
-            gain = 0.1 + i * 0.01  # Different gains to avoid cache hits
-            optimizer._calculate_rejection_tf(freq, 0.001, gain, num, den)
-
-        cache_info = optimizer.get_cache_info()
-        self.assertGreater(cache_info['currsize'], 0)
-
-        # Clear cache
-        optimizer.clear_cache()
-
-        cache_info_after = optimizer.get_cache_info()
-        self.assertEqual(cache_info_after['currsize'], 0)
-
-    def test_error_handling_in_max_gain_calculation(self):
-        """Test error handling when max gain calculation fails"""
-        simul_params = Mock(spec=SimulParams)
-        simul_params.time_step = 0.001
-
-        # Create a mock filter that will cause max_stable_gain to fail
-        iir_filter = Mock(spec=IirFilterData)
-        iir_filter.nfilter = 2
-        iir_filter.max_stable_gain.side_effect = Exception("Test error")
-
-        optimizer = GainOptimizer(
-            simul_params=simul_params,
-            iir_filter_data=iir_filter,
-            delay=2.5,
-            verbose=False
-        )
-
-        # Should fall back to delay-based calculation
-        max_gains = optimizer._calculate_max_gains()
-
-        # Check fallback worked
-        self.assertEqual(len(max_gains), 2)
-        self.assertTrue(all(g > 0 for g in max_gains))
-
-        # For delay=2.5, expect fallback to use base_gmax=1.0
-        expected = 1.0 * optimizer.max_gain_factor
-        for gain in max_gains:
-            self.assertAlmostEqual(float(gain), expected, places=5)
