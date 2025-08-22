@@ -76,14 +76,12 @@ class FieldAnalyser:
         """Setup field sources"""
         if self.polar_coordinates.shape[0] == 2:
             # Format: [[r1, r2, ...], [theta1, theta2, ...]]
-            n_sources = self.polar_coordinates.shape[1]
             coords = self.polar_coordinates.T
         else:
             # Format: [[r1, theta1], [r2, theta2], ...]
-            n_sources = self.polar_coordinates.shape[0]
             coords = self.polar_coordinates
 
-        for i, (r, theta) in enumerate(coords):
+        for r, theta in coords:
             source_dict = {
                 'polar_coordinates': [float(r), float(theta)],
                 'height': float('inf'),  # star
