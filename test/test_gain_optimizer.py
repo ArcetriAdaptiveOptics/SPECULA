@@ -347,3 +347,29 @@ class TestGainOptimizer(unittest.TestCase):
 
         # Verify that prev_optimized_gain is equal to the initial gain
         np.testing.assert_allclose(cpuArray(optimizer.prev_optimized_gain), cpuArray(initial_gain), rtol=1e-6, atol=1e-8)
+
+    def test_plot_debug_triggers_matplotlib(self):
+        """Test that enabling plot_debug triggers matplotlib plotting functions"""
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+        from unittest.mock import patch
+
+        simul_params = Mock(spec=SimulParams)
+        simul_params.time_step = 0.001
+
+        iir_filter = IirFilterData.from_gain_and_ff([0.5], [0.9])
+        optimizer = GainOptimizer(
+            simul_params=simul_params,
+            iir_filter_data=iir_filter
+        )
+        optimizer.plot_debug = True
+
+        pseudo_ol_mode = np.random.randn(100)
+        t_int = 0.001
+        gmax = 0.5
+
+        # Patch plt.show to check if it is called
+        with patch.object(plt, "show") as mock_show:
+            optimizer._optimize_single_mode(0, pseudo_ol_mode, t_int, gmax)
+            self.assertTrue(mock_show.called, "Matplotlib show() was not called with plot_debug=True")
