@@ -3,6 +3,7 @@ from specula.base_processing_obj import BaseProcessingObj
 from specula.connections import InputValue
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.intensity import Intensity
+from specula.data_objects.laser_launch_telescope import LaserLaunchTelescope
 from specula.processing_objects.sh import SH
 from specula.lib.make_xy import make_xy
 
@@ -16,17 +17,28 @@ class PolyChromSH(BaseProcessingObj):
     def __init__(self,
                  wavelengthInNm: list,           # List of wavelengths for each SH
                  flux_factor: list,                 # Flux factor for each wavelength
-                 xy_tilts_in_arcsec: list = None,   # Optional differential tilts [dx, dy] for each SH
                  # SH parameters (shared by all SH instances)
-                 subap_wanted_fov: float = 1.0,
-                 sensor_pxscale: float = 1.0,
-                 subap_on_diameter: int = 1,
-                 subap_npx: int = 10,
-                 **sh_kwargs                        # Additional SH parameters
+                 subap_wanted_fov: float,
+                 sensor_pxscale: float,
+                 subap_on_diameter: int,
+                 subap_npx: int,
+                 FoVres30mas: bool = False,
+                 squaremask: bool = True,
+                 fov_ovs_coeff: float = 0,
+                 xShiftPhInPixel: float = 0,
+                 yShiftPhInPixel: float = 0,
+                 rotAnglePhInDeg: float = 0,
+                 do_not_double_fov_ovs: bool = False,
+                 set_fov_res_to_turbpxsc: bool = False,
+                 laser_launch_tel: LaserLaunchTelescope = None,
+                 subap_rows_slice = None,
+                 xy_tilts_in_arcsec: list = None,   # Optional differential tilts [dx, dy] for each SH
+                 target_device_idx: int = None,
+                 precision: int = None,
                 ):
 
-        super().__init__(target_device_idx=sh_kwargs.get('target_device_idx'),
-                        precision=sh_kwargs.get('precision'))
+        super().__init__(target_device_idx=target_device_idx,
+                        precision=precision)
 
         # Validate input lists
         n_wavelengths = len(wavelengthInNm)
@@ -48,7 +60,6 @@ class PolyChromSH(BaseProcessingObj):
         self.sensor_pxscale = sensor_pxscale
         self.subap_on_diameter = subap_on_diameter
         self.subap_npx = subap_npx
-        self.sh_kwargs = sh_kwargs
 
         # Calculate output size
         self._ccd_side = subap_on_diameter * subap_npx
@@ -67,7 +78,18 @@ class PolyChromSH(BaseProcessingObj):
                 sensor_pxscale=sensor_pxscale,
                 subap_on_diameter=subap_on_diameter,
                 subap_npx=subap_npx,
-                **sh_kwargs
+                FoVres30mas=FoVres30mas,
+                squaremask=squaremask,
+                fov_ovs_coeff=fov_ovs_coeff,
+                xShiftPhInPixel=xShiftPhInPixel,
+                yShiftPhInPixel=yShiftPhInPixel,
+                rotAnglePhInDeg=rotAnglePhInDeg,
+                do_not_double_fov_ovs=do_not_double_fov_ovs,
+                set_fov_res_to_turbpxsc=set_fov_res_to_turbpxsc,
+                laser_launch_tel=laser_launch_tel,
+                subap_rows_slice=subap_rows_slice,
+                target_device_idx=target_device_idx,
+                precision=precision,
             )
             self._sh_instances.append(sh)
 
