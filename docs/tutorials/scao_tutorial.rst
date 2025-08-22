@@ -187,7 +187,7 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
       )
       ifunc_filename = calib_manager.filename('ifunc', ifunc_tag)
       ifunc_obj.save(ifunc_filename)
-      print("✓ " + ifunc_filename + " (zonal influence functions)")
+      print("OK: " + ifunc_filename + " (zonal influence functions)")
 
       # Create M2C object for mode-to-command matrix and save
       m2c_obj = M2C(
@@ -195,7 +195,7 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
       )
       m2c_filename = calib_manager.filename('m2c', m2c_tag)
       m2c_obj.save(m2c_filename)
-      print("✓ " + m2c_filename + " (KL modal basis)")
+      print("OK: " + m2c_filename + " (KL modal basis)")
 
       # inverse influence function object for modal analysis
       print(f"\nSaving inverse modal base...")
@@ -205,7 +205,7 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
       )
       base_inv_filename = calib_manager.filename('ifunc', base_inv_tag)
       ifunc_inv_obj.save(base_inv_filename)
-      print("✓ " + base_inv_filename + " (inverse modal base)")
+      print("OK: " + base_inv_filename + " (inverse modal base)")
 
       # Step 5: Optional visualization
       try:
@@ -269,12 +269,12 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
           # Test IFunc loading
           loaded_ifunc = IFunc.restore(ifunc_filename)
           assert loaded_ifunc.influence_function.shape == influence_functions.shape
-          print("✓ IFunc loading test passed")
+          print("OK: IFunc loading test passed")
 
           # Test M2C loading
           loaded_m2c = M2C.restore(m2c_filename)
           assert loaded_m2c.m2c.shape == kl_basis.shape
-          print("✓ M2C loading test passed")
+          print("OK: M2C loading test passed")
           
       except Exception as e:
           print(f"⚠ File loading test failed: {e}")
@@ -316,10 +316,10 @@ Expected output:
   Number of KL modes: 1129
 
   Saving influence functions and modal basis...
-  ✓ ./calibration/ifunc/tutorial_ifunc.fits (zonal influence functions)
-  ✓ ./calibration/m2c/tutorial_m2c.fits (KL modal basis)
+  OK: ./calibration/ifunc/tutorial_ifunc.fits (zonal influence functions)
+  OK: ./calibration/m2c/tutorial_m2c.fits (KL modal basis)
   Saving inverse modal base...
-  ✓ ./calibration/ifunc/tutorial_base_inv.fits (inverse modal base)
+  OK: ./calibration/ifunc/tutorial_base_inv.fits (inverse modal base)
 
   Generating visualization...
 
@@ -332,8 +332,8 @@ Expected output:
     ifunc/tutorial_base_inv.fits   - Inverse modal base
 
   Testing file loading...
-  ✓ IFunc loading test passed
-  ✓ M2C loading test passed
+  OK: IFunc loading test passed
+  OK: M2C loading test passed
 
 .. image:: /_static/tutorial/singular_values.png
    :width: 100%
@@ -705,13 +705,13 @@ The interaction matrix calibration requires amplitude values for each actuator p
       output_file = calib_manager.filename('data', data_filename)
 
       fits.writeto(output_file, amplitudes, overwrite=True)
-      print(f"\n✓ Saved scaled amplitude vector: {output_file}")
+      print(f"\nOK: Saved scaled amplitude vector: {output_file}")
       
       # Create comparison with uniform amplitudes
       uniform_amplitudes = np.full(n_actuators, base_amplitude)
       uniform_file = calib_manager.filename('data', data_uniform_filename)
       fits.writeto(uniform_file, uniform_amplitudes, overwrite=True)
-      print(f"✓ Saved uniform amplitude vector: {uniform_file}")
+      print(f"OK: Saved uniform amplitude vector: {uniform_file}")
       
       return amplitudes
 

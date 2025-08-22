@@ -35,6 +35,30 @@ Initialize the calibration manager with a root directory:
 
 The manager will automatically create subdirectories under this root path as needed.
 
+Automatic data_dir Handling in Simul
+------------------------------------
+
+When using the `Simul` class to build your simulation from a YAML file, any object parameter named `data_dir` is automatically replaced with a path managed by the `CalibrationManager`. This ensures that all calibration and data files are stored in the correct subdirectory of your calibration root.
+
+**Example: Using ImCalibrator with automatic data_dir**
+
+.. code-block:: yaml
+
+    im_calibrator:
+      class: ImCalibrator
+      nmodes: 100
+      # data_dir: ""   # This will be replaced automatically
+      im_tag: auto
+      # ... other parameters ...
+
+When the simulation is built, `data_dir` will be set to something like:
+
+.. code-block:: text
+
+    /your/calibration/root/im/
+
+This is handled transparently by Simul and the CalibrationManager.
+
 Saving and Loading Pupil Stops
 -------------------------------
 
