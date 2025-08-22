@@ -10,6 +10,7 @@ from specula.simul import Simul
 from specula.processing_objects.gain_optimizer import GainOptimizer
 from specula.data_objects.iir_filter_data import IirFilterData
 from specula.data_objects.simul_params import SimulParams
+from specula import cpuArray
 from astropy.io import fits
 import numpy as np
 
@@ -304,3 +305,45 @@ class TestGainOptimizer(unittest.TestCase):
         # Check safety factor application
         expected = 1.0 * 0.8
         self.assertAlmostEqual(float(final_gains[0]), expected, places=5)
+
+    def test_optimize_single_mode_does_not_modify_num(self):
+        """Test that _optimize_single_mode does not modify iir_filter_data.num"""
+        simul_params = Mock(spec=SimulParams)
+        simul_params.time_step = 0.001
+
+        # Create simple IIR filter
+        iir_filter = IirFilterData.from_gain_and_ff([0.5], [0.9])
+        optimizer = GainOptimizer(
+            simul_params=simul_params,
+            iir_filter_data=iir_filter
+        )
+
+        # Save a deep copy of the original numerator
+        original_num = optimizer.iir_filter_data.num.copy()
+
+        # Create a dummy signal for the test
+        pseudo_ol_mode = np.random.randn(100)
+        t_int = 0.001
+        gmax = 0.5
+
+        # Call the method
+        optimizer._optimize_single_mode(0, pseudo_ol_mode, t_int, gmax)
+
+        # Verify that the numerator has not been modified with single precision
+        np.testing.assert_allclose(cpuArray(optimizer.iir_filter_data.num), cpuArray(original_num), rtol=1e-6, atol=1e-8)
+
+    def test_prev_optimized_gain_initialization(self):
+        """Test that prev_optimized_gain is initialized to iir_filter_data.gain"""
+        simul_params = Mock(spec=SimulParams)
+        simul_params.time_step = 0.001
+
+        # Create simple IIR filter
+        initial_gain = np.array([0.5, 0.7])
+        iir_filter = IirFilterData.from_gain_and_ff(initial_gain, [0.9, 0.8])
+        optimizer = GainOptimizer(
+            simul_params=simul_params,
+            iir_filter_data=iir_filter
+        )
+
+        # Verify that prev_optimized_gain is equal to the initial gain
+        np.testing.assert_allclose(cpuArray(optimizer.prev_optimized_gain), cpuArray(initial_gain), rtol=1e-6, atol=1e-8)
