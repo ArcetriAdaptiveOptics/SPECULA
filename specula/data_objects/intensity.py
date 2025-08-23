@@ -11,6 +11,9 @@ class Intensity(BaseDataObj):
                  dimy: int, 
                  target_device_idx: int=None, 
                  precision: int=None):
+        """
+        Initialize an :class:`~specula.data_objects.intensity.Intensity` object.
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
                 
         self.i = self.xp.zeros((dimx, dimy), dtype=self.dtype)

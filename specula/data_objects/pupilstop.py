@@ -113,8 +113,8 @@ class Pupilstop(Layer):
             # Maybe it's a PASSATA object
             try:
                 return Pupilstop.restore_from_passata(filename, target_device_idx)
-            except ValueError:
-                raise ValueError(f"Error: file {filename} does not contain a SPECULA or PASSATA Pupilstop object")
+            except ValueError as exc:
+                raise ValueError(f"Error: file {filename} does not contain a SPECULA or PASSATA Pupilstop object") from exc
 
         pupilstop = Pupilstop.from_header(hdr, target_device_idx=target_device_idx)
         with fits.open(filename) as hdul:
@@ -124,6 +124,7 @@ class Pupilstop(Layer):
 
     @staticmethod
     def restore_from_passata(filename, target_device_idx=None):
+        """Restore a :class:`~specula.data_objects.pupilstop.Pupilstop` object from a PASSATA format file."""
         with fits.open(filename) as hdul:
             if len(hdul) == 4:
                 pixel_pitch = float(hdul[3].data[0])

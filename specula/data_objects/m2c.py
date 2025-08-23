@@ -13,6 +13,9 @@ class M2C(BaseDataObj):
                  norm_factor: float=None,
                  target_device_idx: int=None,
                  precision: int=None):
+        """
+        Initialize a :class:`~specula.data_objects.m2c.M2C` object.
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         self.m2c = self.to_xp(m2c, dtype=self.dtype)
         if nmodes is not None:
@@ -80,7 +83,7 @@ class M2C(BaseDataObj):
 
     @staticmethod
     def restore(filename, target_device_idx=None):
-        """Restores the M2C from a file."""
+        """Restores the :class:`~specula.data_objects.m2c.M2C` from a file."""
         with fits.open(filename) as hdul:
             hdr = hdul[0].header
             version = hdr.get('VERSION')

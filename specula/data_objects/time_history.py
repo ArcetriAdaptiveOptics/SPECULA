@@ -12,19 +12,22 @@ class TimeHistory(BaseDataObj):
                  time_history,
                  target_device_idx: int=None,
                  precision:int =None):
+        """
+        Initialize a :class:`~specula.data_objects.time_history.TimeHistory` object.
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.time_history = self.to_xp(time_history)
 
     def save(self, filename):
-        """Saves the subaperture data to a file."""
+        """Saves the :class:`~specula.data_objects.time_history.TimeHistory` data to a file."""
         hdr = fits.Header()
         hdr['VERSION'] = 1
         fits.writeto(filename, cpuArray(self.time_history), hdr)
 
     @staticmethod
     def restore(filename, target_device_idx=None):
-        """Restores the time history data from a file."""
+        """Restores the :class:`~specula.data_objects.time_history.TimeHistory` data from a file."""
         hdr = fits.getheader(filename)
         version = hdr.get('VERSION')
         if version != 1:

@@ -32,6 +32,7 @@ class SimulParams(BaseDataObj):
                 zenithAngleInDeg: float = 0,
                 display_server: bool = False,
     ):
+        super().__init__()
         self.pixel_pupil = pixel_pupil
         self.pixel_pitch = pixel_pitch
         self.root_dir = root_dir

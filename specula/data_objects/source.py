@@ -11,16 +11,42 @@ class Source(BaseDataObj):
     '''source'''
 
     def __init__(self,
-                 polar_coordinates: list, # TODO =[0.0,0.0],
-                 magnitude: float,        # TODO =10.0,
-                 wavelengthInNm: float,   # TODO =500.0,
-                 height: float=float('inf'),
-                 band: str='',
-                 zeroPoint: float=0,
-                 error_coord: tuple=(0., 0.),
-                 verbose: bool=False,
-                 target_device_idx: int=None,
-                 precision: int=None):
+                 polar_coordinates: list,
+                 magnitude: float,
+                 wavelengthInNm: float,
+                 height: float = float('inf'),
+                 band: str = '',
+                 zero_point: float = 0,
+                 error_coord: tuple = (0., 0.),
+                 verbose: bool = False,
+                 target_device_idx: int = None,
+                 precision: int = None):
+        """
+        Initialize a :class:`~specula.data_objects.source.Source` object.
+
+        Parameters
+        ----------
+        polar_coordinates : list
+            The polar coordinates [radius, angle] of the source (in arcseconds and degrees).
+        magnitude : float
+            The magnitude of the source.
+        wavelengthInNm : float
+            The wavelength of the source in nanometers.
+        height : float, optional
+            The height of the source (default: infinity, i.e., astronomical source).
+        band : str, optional
+            The photometric band of the source (default: '').
+        zero_point : float, optional
+            The photometric zero point (default: 0).
+        error_coord : tuple, optional
+            Error to add to the polar coordinates (default: (0., 0.)).
+        verbose : bool, optional
+            If True, print verbose output (default: False).
+        target_device_idx : int, optional
+            Device index for computation (default: None).
+        precision : int, optional
+            Precision for computation (default: None).
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         
         self.orig_polar_coordinates = np.array(polar_coordinates).copy()
@@ -34,7 +60,7 @@ class Source(BaseDataObj):
         self.height = height
         self.magnitude = magnitude
         self.wavelengthInNm = wavelengthInNm
-        self.zeroPoint = zeroPoint
+        self.zero_point = zero_point
         self.band = band
         self.verbose = verbose
         self.error_coord = error_coord
@@ -48,7 +74,7 @@ class Source(BaseDataObj):
         hdr['WAVELENG'] = self.wavelengthInNm
         hdr['HEIGHT'] = self.height
         hdr['BAND'] = self.band
-        hdr['ZEROPNT'] = self.zeroPoint
+        hdr['ZEROPNT'] = self.zero_point
         hdr['ERR_CRD0'] = self.error_coord[0]
         hdr['ERR_CRD1'] = self.error_coord[1]
         return hdr
@@ -70,35 +96,56 @@ class Source(BaseDataObj):
 
     @property
     def r(self):
+        """
+        Get the radius of the source in radians.
+        """
         return self._polar_coordinates[0] * ASEC2RAD
 
     @property
     def r_arcsec(self):
+        """
+        Get the radius of the source in arcseconds.
+        """
         return self._polar_coordinates[0]
 
     @property
     def phi(self):
+        """
+        Get the angle of the source in radians.
+        """
         return self._polar_coordinates[1] * degree2rad
 
     @property
     def phi_deg(self):
+        """
+        Get the angle of the source in degrees.
+        """
         return self._polar_coordinates[1]
 
     @property
     def x_coord(self):
+        """
+        Get the x coordinate of the source in meters.
+        """
         alpha = self._polar_coordinates[0] * ASEC2RAD
         d = self.height * np.sin(alpha)
         return np.cos(np.radians(self._polar_coordinates[1])) * d
 
     @property
     def y_coord(self):
+        """
+        Get the y coordinate of the source in meters.
+        """
         alpha = self._polar_coordinates[0] * ASEC2RAD
         d = self.height * np.sin(alpha)
         return np.sin(np.radians(self._polar_coordinates[1])) * d
 
     def phot_density(self):
-        if self.zeroPoint > 0:
-            e0 = self.zeroPoint
+        """
+        Get the photometric density of the source.
+        """
+        if self.zero_point > 0:
+            e0 = self.zero_point
         else:
             e0 = None
         if self.band:
@@ -125,7 +172,7 @@ class Source(BaseDataObj):
                  wavelengthInNm=hdr['WAVELENG'],
                  height=hdr['HEIGHT'],
                  band=hdr['BAND'],
-                 zeroPoint=hdr['ZEROPNT'],
+                 zero_point=hdr['ZEROPNT'],
                  error_coord=[ hdr['ERR_CRD0'], hdr['ERR_CRD1']],
                  target_device_idx=target_device_idx)
 

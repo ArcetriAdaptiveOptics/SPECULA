@@ -125,6 +125,9 @@ class ConvolutionKernel(BaseDataObj):
                  positive_shift_tt: bool=True,
                  target_device_idx: int=None,
                  precision: int=None):
+        """
+        Initialize a :class:`~specula.data_objects.convolution_kernel.ConvolutionKernel` object.
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.dimx = dimx

@@ -70,8 +70,8 @@ class TestSlopes(unittest.TestCase):
         slopes2 = Slopes.restore(self.filename)
 
         np.testing.assert_array_equal(cpuArray(slopes.slopes), cpuArray(slopes2.slopes))
-        np.testing.assert_array_equal(cpuArray(slopes.indicesX), cpuArray(slopes2.indicesX))
-        np.testing.assert_array_equal(cpuArray(slopes.indicesY), cpuArray(slopes2.indicesY))
+        np.testing.assert_array_equal(cpuArray(slopes.indices_x), cpuArray(slopes2.indices_x))
+        np.testing.assert_array_equal(cpuArray(slopes.indices_y), cpuArray(slopes2.indices_y))
 
 
     @cpu_and_gpu
@@ -89,5 +89,5 @@ class TestSlopes(unittest.TestCase):
         slopes2 = Slopes.restore(self.filename)
 
         np.testing.assert_array_equal(cpuArray(slopes.slopes), cpuArray(slopes2.slopes))
-        np.testing.assert_array_equal(cpuArray(slopes.indicesX), cpuArray(slopes2.indicesX))
-        np.testing.assert_array_equal(cpuArray(slopes.indicesY), cpuArray(slopes2.indicesY))
+        np.testing.assert_array_equal(cpuArray(slopes.indices_x), cpuArray(slopes2.indices_x))
+        np.testing.assert_array_equal(cpuArray(slopes.indices_y), cpuArray(slopes2.indices_y))

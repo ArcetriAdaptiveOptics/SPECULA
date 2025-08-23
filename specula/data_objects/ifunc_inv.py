@@ -10,6 +10,9 @@ class IFuncInv(BaseDataObj):
                  target_device_idx=None,
                  precision=None
                 ):
+        """
+        Initialize an :class:`~specula.data_objects.ifunc_inv.IFuncInv` object.
+        """
         super().__init__(precision=precision, target_device_idx=target_device_idx)
         self._doZeroPad = False
 

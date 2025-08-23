@@ -23,12 +23,34 @@ class LoopControl(BaseTimeObj):
         self.iter_counter = 0
 
     def add(self, obj, idx):
+        """
+        Add an object to the trigger list for a given index.
+
+        Parameters:
+            obj (object): The object to be added to the trigger list.
+            idx (int): The index of the trigger list to which the object should be added.
+        """
         self.trigger_lists[idx].append(obj)
         
     def niters(self):
+        """
+        Calculate the number of iterations based on the run time and time step.
+
+        Returns:
+            int: The number of iterations.
+        """
         return int((self.run_time + self.t0) / self.dt) if self.dt != 0 else 0
 
     def run(self, run_time, dt, t0=0, speed_report=False):
+        """
+        Run the loop control for a given run time, time step, and initial time.
+
+        Parameters:
+            run_time (float): The total run time in seconds.
+            dt (float): The time step in seconds.
+            t0 (float): The initial time in seconds (default: 0).
+            speed_report (bool): Whether to report the speed of the loop (default: False).
+        """
         self.start(run_time, dt, t0=t0, speed_report=speed_report)
         while self.t < self.t0 + self.run_time:            
             if MPI_DBG: print(process_rank, 'before barrier iter', flush=True)
