@@ -7,6 +7,9 @@ from specula.base_data_obj import BaseDataObj
 from specula.data_objects.recmat import Recmat
 
 class Intmat(BaseDataObj):
+    '''
+    An Interaction Matrix is a matrix with shape [nmodes, nslopes]
+    '''
     def __init__(self,
                  intmat,
                  slope_mm: list = None,
