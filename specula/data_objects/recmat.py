@@ -7,12 +7,18 @@ from specula.base_data_obj import BaseDataObj
 
 
 class Recmat(BaseDataObj):
+    '''
+    A Reconstruction Matrix is a matrix with shape [nslopes, nmodes]
+    '''
     def __init__(self,
                  recmat,
                  modes2recLayer=None,
                  norm_factor: float=0,
                  target_device_idx: int=None,
                  precision: int=None):
+        """
+        Initialize a :class:`~specula.data_objects.recmat.Recmat` object.
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         self.recmat = self.to_xp(recmat)
         self.norm_factor = norm_factor
@@ -63,7 +69,7 @@ class Recmat(BaseDataObj):
             filename += '.fits'
         hdr = self.get_fits_header()
         fits.writeto(filename, np.zeros(2), hdr, overwrite=overwrite)
-        fits.append(filename, cpuArray(self.recmat.T))
+        fits.append(filename, cpuArray(self.recmat))
         if self.modes2recLayer is not None:
             fits.append(filename, cpuArray(self.modes2recLayer))
 

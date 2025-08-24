@@ -44,15 +44,15 @@ class PyrSlopec(Slopec):
         self.threshold = thr_value
         self.slopes_from_intensity = slopes_from_intensity
         if self.slopes_from_intensity:
-            self.pupdata.set_slopes_from_intensity(slopes_from_intensity)
-        ind_pup = self.pupdata.ind_pup
-        self.pup_idx  = ind_pup.flatten().astype(self.xp.int64)[ind_pup.flatten() >= 0] # Exclude -1 padding
-        self.pup_idx0 = ind_pup[:, 0][ind_pup[:, 0] >= 0]  # Exclude -1 padding
-        self.pup_idx1 = ind_pup[:, 1][ind_pup[:, 1] >= 0]  # Exclude -1 padding
-        self.pup_idx2 = ind_pup[:, 2][ind_pup[:, 2] >= 0]  # Exclude -1 padding
-        self.pup_idx3 = ind_pup[:, 3][ind_pup[:, 3] >= 0]  # Exclude -1 padding
-        self.n_pup = self.pupdata.ind_pup.shape[1]
-        self.n_subap = self.pupdata.ind_pup.shape[0]
+            self.pupdata.set_slopes_from_intensity(slopes_from_intensity)   # TODO we should not modify an external object,
+                                                                            # since it could be used elsewhere
+        pupil_idx = self.pupdata.pupil_idx
+        all_idx = self.xp.concatenate([pupil_idx(i) for i in range(4)]).astype(self.xp.int64)
+        self.pup_idx  = all_idx[all_idx >= 0] # Exclude -1 padding
+        self.pup_idx0 = pupil_idx(0)[pupil_idx(0) >= 0]  # Exclude -1 padding
+        self.pup_idx1 = pupil_idx(1)[pupil_idx(1) >= 0]   # Exclude -1 padding
+        self.pup_idx2 = pupil_idx(2)[pupil_idx(2) >= 0]   # Exclude -1 padding
+        self.pup_idx3 = pupil_idx(3)[pupil_idx(3) >= 0]   # Exclude -1 padding
         self.outputs['out_pupdata'] = self.pupdata
         
         if self.slopes_from_intensity:
@@ -62,22 +62,27 @@ class PyrSlopec(Slopec):
         self.slopes.display_map = self.pupdata.display_map
 
     def nsubaps(self):
-        return self.pupdata.ind_pup.shape[0]
+        return self.pupdata.n_subap
 
     def nslopes(self):
         if self.slopes_from_intensity:
-            return self.pupdata.ind_pup.shape[0] * 4
+            return len(self.pupdata.pupil_idx(0)) * 4
         else:
-            return self.pupdata.ind_pup.shape[0] * 2
+            return len(self.pupdata.pupil_idx(0)) * 2
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
         self.flat_pixels = self.local_inputs['in_pixels'].pixels.flatten()
 
+    def _compute_pyr_slopes(self, A, B, C, D, factor):
+        sx = (A+B-C-D) * factor
+        sy = (B+C-A-D) * factor
+        return sx, sy
+
     def trigger_code(self):
 
         self.total_counts.value[0] = self.xp.sum(self.flat_pixels[self.pup_idx])
-        self.subap_counts.value[0] = self.total_counts.value[0] / self.pupdata.n_subap
+        self.subap_counts.value[0] = self.total_counts.value[0] / self.nsubaps()
 
         self.flat_pixels -= self.threshold
 
@@ -94,7 +99,7 @@ class PyrSlopec(Slopec):
         inv_factor = self.xp.zeros(1, dtype=self.dtype)
 
         if self.slopes_from_intensity:
-            inv_factor[0] = self.total_intensity / (4 * self.n_subap)
+            inv_factor[0] = self.total_intensity / (4 * self.nsubaps())
             factor = 1.0 / inv_factor[0]
             self.sx = factor * self.xp.concatenate([A, B])
             self.sy = factor * self.xp.concatenate([C, D])
@@ -103,14 +108,13 @@ class PyrSlopec(Slopec):
                 inv_factor[0] = self.norm_factor
                 factor = 1.0 / inv_factor[0]
             elif not self.shlike:
-                inv_factor[0] = self.total_intensity /  self.n_subap
+                inv_factor[0] = self.total_intensity /  self.nsubaps()
                 factor = 1.0 / inv_factor
             else:
                 inv_factor[0] = self.xp.sum(self.flat_pixels[self.pup_idx])
                 factor = 1.0 / inv_factor[0]
 
-            self.sx = (A+B-C-D) * factor
-            self.sy = (B+C-A-D) * factor
+            self.sx, self.sy = self._compute_pyr_slopes(A, B, C, D, factor)
 
         clamp_generic_more(0, 1, inv_factor, xp=self.xp)
         self.sx *= inv_factor[0]
