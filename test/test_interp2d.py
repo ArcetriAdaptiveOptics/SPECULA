@@ -58,3 +58,13 @@ class TestInterp2D(unittest.TestCase):
         interpolator = Interp2D(input_shape=(10, 20), output_shape=(5,5), rotInDeg=45, xp=xp, dtype=xp.float32)
         result = interpolator.interpolate(array[:10])
         assert xp.isnan(result).sum() == 0
+
+    @cpu_and_gpu
+    def test_interp2d_wrong_shape(self, target_device_idx, xp):
+        '''
+        Test that the interpolate method raises if the
+        array to be interpolated has the wrong shape
+        '''
+        interpolator = Interp2D(input_shape=(10, 10), output_shape=(5,5), rotInDeg=45, xp=xp, dtype=xp.float32)
+        with self.assertRaises(ValueError):
+            _ = interpolator.interpolate(xp.zeros((20,20)))
