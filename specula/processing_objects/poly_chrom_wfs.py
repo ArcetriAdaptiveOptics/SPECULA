@@ -152,7 +152,7 @@ class PolyChromWFS(BaseProcessingObj):
         self._out_i.i[:] = 0.0
 
         # Trigger each SH and accumulate results
-        for i, wfs in enumerate(self._wfs_instances):
+        for wfs in self._wfs_instances:
             wfs.trigger_code()
 
     def post_trigger(self):
