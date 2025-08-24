@@ -7,7 +7,7 @@ from specula.lib.make_xy import make_xy
 
 class PolyChromWFS(BaseProcessingObj):
     """
-    Base class for polychromatic wavefront sensors (WFS).
+    Base (abstract) class for polychromatic wavefront sensors (WFS).
     Handles multiple wavelengths, flux factors, tilts, and output normalization.
     """
 

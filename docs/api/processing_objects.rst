@@ -139,6 +139,15 @@ Dm
    :show-inheritance:
 
 
+Double Roof Slopec
+------------------
+
+.. automodule:: specula.processing_objects.double_roof_slopec
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Electric Field Combinator
 -------------------------
 
@@ -161,6 +170,15 @@ Gain Optimizer
 --------------
 
 .. automodule:: specula.processing_objects.gain_optimizer
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Ideal Derivative Sensor
+-----------------------
+
+.. automodule:: specula.processing_objects.ideal_derivative_sensor
    :members:
    :undoc-members:
    :show-inheritance:
@@ -247,6 +265,15 @@ Modalrec Implicit Polc
    :show-inheritance:
 
 
+Modulated Double Roof
+---------------------
+
+.. automodule:: specula.processing_objects.modulated_double_roof
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Modulated Pyramid
 -----------------
 
@@ -292,10 +319,46 @@ Phase Flattening
    :show-inheritance:
 
 
+Poly Chrom Sh
+-------------
+
+.. automodule:: specula.processing_objects.poly_chrom_sh
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Poly Chrom Wfs
+--------------
+
+.. automodule:: specula.processing_objects.poly_chrom_wfs
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Poly Crom Pyramid
+-----------------
+
+.. automodule:: specula.processing_objects.poly_crom_pyramid
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Psf
 ---
 
 .. automodule:: specula.processing_objects.psf
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Psf Coronagraph
+---------------
+
+.. automodule:: specula.processing_objects.psf_coronagraph
    :members:
    :undoc-members:
    :show-inheritance:
@@ -440,6 +503,15 @@ Windowed Integration
 --------------------
 
 .. automodule:: specula.processing_objects.windowed_integration
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Zernike Sensor
+--------------
+
+.. automodule:: specula.processing_objects.zernike_sensor
    :members:
    :undoc-members:
    :show-inheritance:
