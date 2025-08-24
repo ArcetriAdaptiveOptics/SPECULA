@@ -38,6 +38,7 @@ class PolyChromWFS(BaseProcessingObj):
         self._has_tilts = any(tilt[0] != 0.0 or tilt[1] != 0.0 for tilt in xy_tilts_in_arcsec)
         self._unit_tilt_x = None
         self._unit_tilt_y = None
+        self.flux_factor_normalized = None
         self._modified_efs = []
         self._wfs_instances = []
 
@@ -196,5 +197,6 @@ class PolyChromWFS(BaseProcessingObj):
             raise IndexError(f"Wavelength index {index} out of range [0, {self.n_wavelengths-1}]")
 
     # This method must be implemented in subclasses!
+    # It exists to make this base class abstract
     def _check_subwfs(self):
         raise NotImplementedError("Subclasses must implement _check_subwfs()")
