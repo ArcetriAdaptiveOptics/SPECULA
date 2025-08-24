@@ -13,24 +13,6 @@ Elt M1 Ifunc Calculator
    :show-inheritance:
 
 
-Calc Detector Noise
--------------------
-
-.. automodule:: specula.lib.calc_detector_noise
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-
-Calc Loop Delay
----------------
-
-.. automodule:: specula.lib.calc_loop_delay
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-
 Calc Noise Cov Elong
 --------------------
 
@@ -89,15 +71,6 @@ Compute Zonal Ifunc
 -------------------
 
 .. automodule:: specula.lib.compute_zonal_ifunc
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-
-Cv Coord
---------
-
-.. automodule:: specula.lib.cv_coord
    :members:
    :undoc-members:
    :show-inheritance:
@@ -193,15 +166,6 @@ Phasescreen Manager
    :show-inheritance:
 
 
-Phasescreens Shift
-------------------
-
-.. automodule:: specula.lib.phasescreens_shift
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-
 Platescale Coeff
 ----------------
 
@@ -215,15 +179,6 @@ Process Utils
 -------------
 
 .. automodule:: specula.lib.process_utils
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-
-Pyr Compute Slopes
-------------------
-
-.. automodule:: specula.lib.pyr_compute_slopes
    :members:
    :undoc-members:
    :show-inheritance:
