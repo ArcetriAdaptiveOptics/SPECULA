@@ -63,9 +63,18 @@ class ModulatedPyramid(BaseProcessingObj):
         self.fov = fov
         self.pup_diam = pup_diam
 
-        result = self.calc_geometry(self.pixel_pupil, self.pixel_pitch, wavelengthInNm, self.fov, self.pup_diam, ccd_side=output_resolution,
-                                            fov_errinf=fov_errinf, fov_errsup=fov_errsup, pup_dist=pup_dist, pup_margin=pup_margin,
-                                            fft_res=fft_res, min_pup_dist=min_pup_dist)
+        result = self.calc_geometry(self.pixel_pupil,
+                                    self.pixel_pitch,
+                                    wavelengthInNm,
+                                    self.fov,
+                                    self.pup_diam,
+                                    ccd_side=output_resolution,
+                                    fov_errinf=fov_errinf,
+                                    fov_errsup=fov_errsup,
+                                    pup_dist=pup_dist,
+                                    pup_margin=pup_margin,
+                                    fft_res=fft_res,
+                                    min_pup_dist=min_pup_dist)
 
         wavelengthInNm = result['wavelengthInNm']
         fov_res = result['fov_res']
