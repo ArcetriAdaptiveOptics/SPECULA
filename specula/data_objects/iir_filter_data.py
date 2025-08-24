@@ -683,6 +683,7 @@ class IirFilterData(BaseDataObj):
         hdul.append(fits.ImageHDU(data=cpuArray(self.num), name='NUM'))
         hdul.append(fits.ImageHDU(data=cpuArray(self.den), name='DEN'))
         hdul.writeto(filename, overwrite=True)
+        hdul.close()  # Force close for Windows
 
     @staticmethod
     def restore(filename, target_device_idx=None):

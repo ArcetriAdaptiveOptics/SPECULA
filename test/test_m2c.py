@@ -108,6 +108,7 @@ class TestM2C(unittest.TestCase):
             hdu = fits.PrimaryHDU(header=hdr, data=np.zeros(2))
             hdul = fits.HDUList([hdu, fits.ImageHDU(data=np.zeros(self.shape))])
             hdul.writeto(filename, overwrite=True)
+            hdul.close()  # Force close for Windows
 
             with self.assertRaises(ValueError):
                 M2C.restore(filename, target_device_idx=target_device_idx)

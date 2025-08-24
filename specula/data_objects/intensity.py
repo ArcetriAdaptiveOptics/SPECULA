@@ -48,7 +48,7 @@ class Intensity(BaseDataObj):
         hdul.append(fits.ImageHDU(data=cpuArray(self.i), name='INTENSITY'))
         hdul.writeto(filename, overwrite=overwrite)
         hdul.close()  # Force close for Windows
-        
+
     @staticmethod
     def from_header(hdr, target_device_idx=None):
         version = hdr['VERSION']

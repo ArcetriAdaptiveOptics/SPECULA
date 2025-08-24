@@ -33,6 +33,7 @@ class IFuncInv(BaseDataObj):
         hdul.append(fits.ImageHDU(data=cpuArray(self.ifunc_inv.T), name='INFLUENCE_FUNCTION_INV'))
         hdul.append(fits.ImageHDU(data=cpuArray(self.mask_inf_func), name='MASK_INF_FUNC'))
         hdul.writeto(filename, overwrite=overwrite)
+        hdul.close()  # Force close for Windows
 
     @staticmethod
     def restore(filename, target_device_idx=None, exten=1):
