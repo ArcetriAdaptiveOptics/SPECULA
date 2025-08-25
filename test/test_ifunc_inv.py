@@ -12,6 +12,18 @@ class TestIFuncInv(unittest.TestCase):
     def setUp(self):
         # Shape used in all tests
         self.shape = (4, 4)
+        self.datadir = os.path.join(os.path.dirname(__file__), 'data')
+        self.inv_filename = os.path.join(self.datadir, 'ifunc_inv.fits')
+        try:
+            os.unlink(self.inv_filename)
+        except FileNotFoundError:
+            pass
+
+    def tearDown(self):
+        try:
+            os.unlink(self.inv_filename)
+        except FileNotFoundError:
+            pass
 
     @cpu_and_gpu
     def test_size_property(self, target_device_idx, xp):
@@ -66,15 +78,12 @@ class TestIFuncInv(unittest.TestCase):
         mask = xp.random.choice([0, 1], size=self.shape).astype(xp.uint8)
         obj = IFuncInv(ifunc_inv, mask, target_device_idx=target_device_idx)
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            filename = os.path.join(tmpdir, "test_ifuncinv.fits")
-            obj.save(filename, overwrite=True)
+        obj.save(self.inv_filename, overwrite=True)
+        restored = IFuncInv.restore(self.inv_filename, target_device_idx=target_device_idx)
 
-            restored = IFuncInv.restore(filename, target_device_idx=target_device_idx)
-
-            np.testing.assert_array_equal(cpuArray(restored.ifunc_inv), cpuArray(obj.ifunc_inv))
-            np.testing.assert_array_equal(cpuArray(restored.mask_inf_func), cpuArray(obj.mask_inf_func))
-            self.assertEqual(restored.size, obj.size)
+        np.testing.assert_array_equal(cpuArray(restored.ifunc_inv), cpuArray(obj.ifunc_inv))
+        np.testing.assert_array_equal(cpuArray(restored.mask_inf_func), cpuArray(obj.mask_inf_func))
+        self.assertEqual(restored.size, obj.size)
 
     @cpu_and_gpu
     def test_restore_exten_offset(self, target_device_idx, xp):
@@ -82,14 +91,11 @@ class TestIFuncInv(unittest.TestCase):
         mask = xp.random.choice([0, 1], size=self.shape).astype(xp.uint8)
         obj = IFuncInv(ifunc_inv, mask, target_device_idx=target_device_idx)
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            filename = os.path.join(tmpdir, "test_ifuncinv_offset.fits")
-            obj.save(filename, overwrite=True)
+        obj.save(self.inv_filename, overwrite=True)
+        restored = IFuncInv.restore(self.inv_filename, target_device_idx=target_device_idx, exten=1)
 
-            restored = IFuncInv.restore(filename, target_device_idx=target_device_idx, exten=1)
-
-            np.testing.assert_array_equal(cpuArray(restored.ifunc_inv), cpuArray(obj.ifunc_inv))
-            np.testing.assert_array_equal(cpuArray(restored.mask_inf_func), cpuArray(obj.mask_inf_func))
+        np.testing.assert_array_equal(cpuArray(restored.ifunc_inv), cpuArray(obj.ifunc_inv))
+        np.testing.assert_array_equal(cpuArray(restored.mask_inf_func), cpuArray(obj.mask_inf_func))
 
     @cpu_and_gpu
     def test_from_header_raises(self, target_device_idx, xp):
