@@ -68,71 +68,71 @@ class MaskTest(unittest.TestCase):
             orig_mask.center(), retrieved_mask.center(), atol=0.5)
         np.testing.assert_equal(orig_mask.shape(), retrieved_mask.shape())
 
-    @unittest.skip('Masked array not working')
-    def testCreateCircularMaskFromMaskedArrayWithCircleParametersEstimationCOG(self):
-        shape= (140, 100)
-        aMask= CircularMask(shape, maskRadius=20, maskCenter=(60, 45))
-        maskedArray= np.ma.masked_array(np.ones(shape), mask=aMask.mask())
-        retrievedMask= CircularMask.fromMaskedArray(maskedArray,method='COG')
-        self._from_masked_array_test(aMask, retrievedMask)
+    # @unittest.skip('Masked array not working')
+    # def testCreateCircularMaskFromMaskedArrayWithCircleParametersEstimationCOG(self):
+    #     shape= (140, 100)
+    #     aMask= CircularMask(shape, maskRadius=20, maskCenter=(60, 45))
+    #     maskedArray= np.ma.masked_array(np.ones(shape), mask=aMask.mask())
+    #     retrievedMask= CircularMask.fromMaskedArray(maskedArray,method='COG')
+    #     self._from_masked_array_test(aMask, retrievedMask)
 
-    @unittest.skip('Masked array not working')
-    def testCreateCircularMaskFromMaskedArrayWithCircleParametersEstimationImageMoments(self):
-        shape= (140, 100)
-        aMask= CircularMask(shape, maskRadius=20, maskCenter=(60, 45))
-        maskedArray= np.ma.masked_array(np.ones(shape), mask=aMask.mask())
-        retrievedMask= CircularMask.fromMaskedArray(maskedArray,method='ImageMoments')
-        self._from_masked_array_test(aMask, retrievedMask)
-        self.assertTrue(np.isin(retrievedMask.in_mask_indices(),
-                        aMask.in_mask_indices()).all())
+    # @unittest.skip('Masked array not working')
+    # def testCreateCircularMaskFromMaskedArrayWithCircleParametersEstimationImageMoments(self):
+    #     shape= (140, 100)
+    #     aMask= CircularMask(shape, maskRadius=20, maskCenter=(60, 45))
+    #     maskedArray= np.ma.masked_array(np.ones(shape), mask=aMask.mask())
+    #     retrievedMask= CircularMask.fromMaskedArray(maskedArray,method='ImageMoments')
+    #     self._from_masked_array_test(aMask, retrievedMask)
+    #     self.assertTrue(np.isin(retrievedMask.in_mask_indices(),
+    #                     aMask.in_mask_indices()).all())
 
-    @unittest.skip('Masked array not working')
-    def testCreateCircularMaskFromMaskedArrayWithCircleParametersEstimationCorrelation(self):
-        shape= (140, 100)
-        aMask= CircularMask(shape, maskRadius=20, maskCenter=(60, 45))
-        maskedArray= np.ma.masked_array(np.ones(shape), mask=aMask.mask())
-        retrievedMask= CircularMask.fromMaskedArray(maskedArray,method='correlation')
-        self._from_masked_array_test(aMask, retrievedMask)
+    # @unittest.skip('Masked array not working')
+    # def testCreateCircularMaskFromMaskedArrayWithCircleParametersEstimationCorrelation(self):
+    #     shape= (140, 100)
+    #     aMask= CircularMask(shape, maskRadius=20, maskCenter=(60, 45))
+    #     maskedArray= np.ma.masked_array(np.ones(shape), mask=aMask.mask())
+    #     retrievedMask= CircularMask.fromMaskedArray(maskedArray,method='correlation')
+    #     self._from_masked_array_test(aMask, retrievedMask)
 
-    @unittest.skip('Masked array not working')
-    def testCreateCircularMaskFromMaskedArrayWithCircleParametersEstimationRANSAC(self):
-        shape= (140, 100)
-        aMask= CircularMask(shape, maskRadius=20, maskCenter=(60, 45))
-        maskedArray= np.ma.masked_array(np.ones(shape), mask=aMask.mask())
-        retrievedMask= CircularMask.fromMaskedArray(maskedArray,method='RANSAC')
-        self._from_masked_array_test(aMask, retrievedMask)
+    # @unittest.skip('Masked array not working')
+    # def testCreateCircularMaskFromMaskedArrayWithCircleParametersEstimationRANSAC(self):
+    #     shape= (140, 100)
+    #     aMask= CircularMask(shape, maskRadius=20, maskCenter=(60, 45))
+    #     maskedArray= np.ma.masked_array(np.ones(shape), mask=aMask.mask())
+    #     retrievedMask= CircularMask.fromMaskedArray(maskedArray,method='RANSAC')
+    #     self._from_masked_array_test(aMask, retrievedMask)
 
-    @unittest.skip('Masked array not working')
-    def testCreateCircularMaskFromMaskedArrayWithAReallyCircularMask(self):
-        shape= (140, 100)
-        aMask= CircularMask(shape, maskRadius=20, maskCenter=(60, 40))
-        maskedArray= np.ma.masked_array(np.ones(shape), mask=aMask.mask())
-        retrievedMask= CircularMask.fromMaskedArray(maskedArray)
-        self._from_masked_array_test(aMask, retrievedMask)
-        self.assertTrue(np.isin(retrievedMask.in_mask_indices(),
-                        aMask.in_mask_indices()).all())
+    # @unittest.skip('Masked array not working')
+    # def testCreateCircularMaskFromMaskedArrayWithAReallyCircularMask(self):
+    #     shape= (140, 100)
+    #     aMask= CircularMask(shape, maskRadius=20, maskCenter=(60, 40))
+    #     maskedArray= np.ma.masked_array(np.ones(shape), mask=aMask.mask())
+    #     retrievedMask= CircularMask.fromMaskedArray(maskedArray)
+    #     self._from_masked_array_test(aMask, retrievedMask)
+    #     self.assertTrue(np.isin(retrievedMask.in_mask_indices(),
+    #                     aMask.in_mask_indices()).all())
 
-    @unittest.skip('Masked array not working')
-    def testCreateCircularMaskFromMaskedArrayWithFloats(self):
-        aMask = CircularMask((486, 640), 126.32, (235.419, 309.468))
-        marray = np.ma.array(data=np.ones((486, 640)), mask=aMask.mask())
+    # @unittest.skip('Masked array not working')
+    # def testCreateCircularMaskFromMaskedArrayWithFloats(self):
+    #     aMask = CircularMask((486, 640), 126.32, (235.419, 309.468))
+    #     marray = np.ma.array(data=np.ones((486, 640)), mask=aMask.mask())
         
-        retrievedMask = CircularMask.fromMaskedArray(marray)
-        self._from_masked_array_test(aMask, retrievedMask)
-        self.assertTrue(np.isin(retrievedMask.in_mask_indices(),
-                        aMask.in_mask_indices()).all())
+    #     retrievedMask = CircularMask.fromMaskedArray(marray)
+    #     self._from_masked_array_test(aMask, retrievedMask)
+    #     self.assertTrue(np.isin(retrievedMask.in_mask_indices(),
+    #                     aMask.in_mask_indices()).all())
 
-    @unittest.skip('Masked array not working')
-    def testCreateCircularMaskFromMaskedArrayWithNonCircularMask(self):
-        shape= (140, 100)
-        aSquareMask= np.ones((shape))
-        aSquareMask[40:80, 20:60]= 0
-        maskedArray= np.ma.masked_array(np.ones(shape),
-                                        mask=aSquareMask.astype(bool))
-        retrievedMask= CircularMask.fromMaskedArray(maskedArray)
-        self.assertTrue(
-            np.in1d(retrievedMask.in_mask_indices(),
-                    np.argwhere(aSquareMask.flatten() == False)).all())
+    # @unittest.skip('Masked array not working')
+    # def testCreateCircularMaskFromMaskedArrayWithNonCircularMask(self):
+    #     shape= (140, 100)
+    #     aSquareMask= np.ones((shape))
+    #     aSquareMask[40:80, 20:60]= 0
+    #     maskedArray= np.ma.masked_array(np.ones(shape),
+    #                                     mask=aSquareMask.astype(bool))
+    #     retrievedMask= CircularMask.fromMaskedArray(maskedArray)
+    #     self.assertTrue(
+    #         np.in1d(retrievedMask.in_mask_indices(),
+    #                 np.argwhere(aSquareMask.flatten() == False)).all())
 
     def testRegionOfInterest(self):
         shape= (140, 100)
