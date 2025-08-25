@@ -22,6 +22,8 @@ class RandomGenerator(BaseGenerator):
 
         if output_size == 1:
             output_size = max(len(temp_amp), len(temp_const), output_size)
+        if output_size == 1:
+            output_size = vsize
 
         super().__init__(
             output_size=output_size,
@@ -47,7 +49,6 @@ class RandomGenerator(BaseGenerator):
         else:
             self.rng = self.xp.random
 
-        # Create vsize_array like in original
         self.vsize_array = self.xp.ones(vsize, dtype=self.dtype)
 
     def trigger_code(self):

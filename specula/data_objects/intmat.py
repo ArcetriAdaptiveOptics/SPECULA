@@ -57,6 +57,14 @@ class Intmat(BaseDataObj):
             raise ValueError(f'start_mode should be less than nmodes (<{nmodes})')
         self.intmat = self.intmat[start_mode:, :]
 
+    @property
+    def nmodes(self):
+        return self.intmat.shape[0]
+
+    @property
+    def nslopes(self):
+        return self.intmat.shape[1]
+
     def get_fits_header(self):
         hdr = fits.Header()
         hdr['VERSION'] = 1
@@ -71,7 +79,7 @@ class Intmat(BaseDataObj):
         hdr = self.get_fits_header()
         # Save fits file
         fits.writeto(filename, np.zeros(2), hdr, overwrite=overwrite)
-        fits.append(filename, cpuArray(self.intmat))
+        fits.append(filename, cpuArray(self.intmat.T))
         if self.slope_mm is not None:
             fits.append(filename, self.slope_mm)
         if self.slope_rms is not None:
@@ -84,7 +92,7 @@ class Intmat(BaseDataObj):
     @staticmethod
     def restore(filename, target_device_idx=None):
         hdr = fits.getheader(filename, ext=0)
-        intmat = fits.getdata(filename, ext=1)
+        intmat = fits.getdata(filename, ext=1).T
         norm_factor = float(hdr.get('NORMFACT', 0.0))
         pupdata_tag = hdr.get('PUP_TAG', '')
         subapdata_tag = hdr.get('SA_TAG', '')

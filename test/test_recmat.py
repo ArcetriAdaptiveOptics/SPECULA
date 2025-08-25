@@ -38,6 +38,13 @@ class TestRecmat(unittest.TestCase):
             obj.set_value(xp.ones((2, 2), dtype=np.float32))
 
     @cpu_and_gpu
+    def test_nmodes(self, target_device_idx, xp):
+        """Test that set_value raises AssertionError for wrong shape."""
+        data = xp.ones((2, 3), dtype=np.float32)
+        obj = Recmat(data.copy(), target_device_idx=target_device_idx)
+        assert obj.nmodes == 3
+
+    @cpu_and_gpu
     def test_get_fits_header(self, target_device_idx, xp):
         """Test FITS header creation."""
         obj = Recmat(xp.zeros((2,2)))

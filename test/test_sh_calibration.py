@@ -135,7 +135,7 @@ class TestShCalibration(unittest.TestCase):
         if os.path.exists(self.subap_path):
             os.remove(self.subap_path)
 
-    @unittest.skip("This test is only used to create reference files")
+    @unittest.skipIf(int(os.getenv('CREATE_REF', 0)) < 1, "This test is only used to create reference files")
     def test_create_reference_files(self):
         """
         This test is used to create reference files for the first time.

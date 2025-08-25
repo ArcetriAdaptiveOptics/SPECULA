@@ -93,9 +93,9 @@ class Modalrec(BaseProcessingObj):
         else:
             self.output_slice = slice(None, None, None)
             if polc:
-                nmodes = self.projmat.recmat.shape[0]
+                nmodes = self.projmat.nmodes
             else:
-                nmodes = self.recmat.recmat.shape[0]
+                nmodes = self.recmat.nmodes
 
         if input_modes_slice is not None:
             self.input_modes_slice = slice(*input_modes_slice)
@@ -174,17 +174,17 @@ class Modalrec(BaseProcessingObj):
             else:
                 commands = self.commands
 
-            comm_slopes = self.intmat.intmat @ commands
-            self.pseudo_ol_modes.value = self.recmat.recmat @ (self.slopes + comm_slopes)
+            comm_slopes = commands @ self.intmat.intmat
+            self.pseudo_ol_modes.value = (self.slopes + comm_slopes) @ self.recmat.recmat
             self.pseudo_ol_modes.generation_time = self.current_time
             if self.projmat is None:
                 output_modes = self.pseudo_ol_modes.value
             else:
-                output_modes = self.projmat.recmat @ self.pseudo_ol_modes.value
+                output_modes = self.pseudo_ol_modes.value @ self.projmat.recmat
             output_modes -= commands
             
         else:
-            output_modes = self.recmat.recmat @ self.slopes
+            output_modes = self.slopes @ self.recmat.recmat
 
         self.modes.value = output_modes[self.output_slice]
         self.modes.generation_time = self.current_time

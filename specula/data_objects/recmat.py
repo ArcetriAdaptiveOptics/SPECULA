@@ -64,12 +64,16 @@ class Recmat(BaseDataObj):
         hdr['NORMFACT'] = self.norm_factor
         return hdr
 
+    @property
+    def nmodes(self):
+        return self.recmat.shape[1]
+
     def save(self, filename, overwrite=False):
         if not filename.endswith('.fits'):
             filename += '.fits'
         hdr = self.get_fits_header()
         fits.writeto(filename, np.zeros(2), hdr, overwrite=overwrite)
-        fits.append(filename, cpuArray(self.recmat))
+        fits.append(filename, cpuArray(self.recmat.T))
         if self.modes2recLayer is not None:
             fits.append(filename, cpuArray(self.modes2recLayer))
 
@@ -85,7 +89,7 @@ class Recmat(BaseDataObj):
             raise ValueError(f"Error: unknown version {version} in file {filename}")
 
         norm_factor = float(hdr['NORMFACT'])
-        recmat = fits.getdata(filename, ext=1)
+        recmat = fits.getdata(filename, ext=1).T
         with fits.open(filename) as hdul:
             num_ext = len(hdul)
         if num_ext >= 3:                

@@ -155,7 +155,7 @@ class TestPyrPupdataCalibration(unittest.TestCase):
             self.assertTrue(are_translation_equivalent(ind_pup_slopes[:, 0], ind_pup_slopes[:, i], image_shape, xp=xp), 
                         f"SLOPES mode: Pupil {i} should be translation-equivalent to Pupil 0")
 
-    @unittest.skip("This test is only used to create reference files")
+    @unittest.skipIf(int(os.getenv('CREATE_REF', 0)) < 1, "This test is only used to create reference files")
     def test_create_reference_file(self):
         """Create reference file for Pyramid PupData calibration"""
 
