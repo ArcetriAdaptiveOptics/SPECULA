@@ -26,7 +26,7 @@ class TestIntmat(unittest.TestCase):
         except FileNotFoundError:
             pass
 
-        im_data = xp.arange(9).reshape((3,3))
+        im_data = xp.arange(10).reshape((5,2))
         im = Intmat(im_data, target_device_idx=target_device_idx)
         
         im.save(self.filename)
@@ -73,15 +73,15 @@ class TestIntmat(unittest.TestCase):
 
         # Reduce modes
         intmat.reduce_size(2)
-        assert intmat.intmat.shape == (4, 5)
+        assert intmat.intmat.shape == (6, 3)
 
         # Reduce slopes
         intmat.reduce_slopes(1)
-        assert intmat.intmat.shape == (4, 4)
+        assert intmat.intmat.shape == (5, 3)
 
         # Set start mode
         intmat.set_start_mode(1)
-        assert intmat.intmat.shape == (3, 4)
+        assert intmat.intmat.shape == (5, 2)
 
     @cpu_and_gpu
     def test_reduce_size_and_slopes_raises(self, target_device_idx, xp):
@@ -99,8 +99,8 @@ class TestIntmat(unittest.TestCase):
     def test_nmodes_and_nslopes_properties(self, target_device_idx, xp):
         mat = xp.zeros((7, 9))
         intmat = Intmat(mat, target_device_idx=target_device_idx)
-        assert intmat.nmodes == 7
-        assert intmat.nslopes == 9
+        assert intmat.nmodes == 9
+        assert intmat.nslopes == 7
 
     @cpu_and_gpu
     def test_generate_rec_and_pseudo_invert(self, target_device_idx, xp):
@@ -123,4 +123,4 @@ class TestIntmat(unittest.TestCase):
         im = intmat.build_from_slopes(slopes, disturbance)
         assert isinstance(im, Intmat)
         assert im.intmat.shape == (3, 3)
-        assert xp.all(im.intmat[0] != 0)
+        assert xp.all(im.intmat[:, 0] != 0)

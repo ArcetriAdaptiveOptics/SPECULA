@@ -174,13 +174,13 @@ class Modalrec(BaseProcessingObj):
             else:
                 commands = self.commands
 
-            comm_slopes = commands @ self.intmat.intmat
-            self.pseudo_ol_modes.value = (self.slopes + comm_slopes) @ self.recmat.recmat
+            comm_slopes = self.intmat.intmat @ commands
+            self.pseudo_ol_modes.value = self.recmat.recmat @ (self.slopes + comm_slopes)
             self.pseudo_ol_modes.generation_time = self.current_time
             if self.projmat is None:
                 output_modes = self.pseudo_ol_modes.value
             else:
-                output_modes = self.pseudo_ol_modes.value @ self.projmat.recmat
+                output_modes = self.projmat.recmat @ self.pseudo_ol_modes.value
             output_modes -= commands
             
         else:

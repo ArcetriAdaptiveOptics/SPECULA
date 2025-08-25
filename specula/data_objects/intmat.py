@@ -7,6 +7,9 @@ from specula.base_data_obj import BaseDataObj
 from specula.data_objects.recmat import Recmat
 
 class Intmat(BaseDataObj):
+    '''
+    Interaction matrix axes are [slopes, modes]
+    '''
     def __init__(self,
                  intmat,
                  slope_mm: list = None,
@@ -40,30 +43,28 @@ class Intmat(BaseDataObj):
         self.intmat[:]= self.to_xp(v)
 
     def reduce_size(self, n_modes_to_be_discarded):
-        nmodes = self.intmat.shape[0]
-        if n_modes_to_be_discarded >= nmodes:
-            raise ValueError(f'nModesToBeDiscarded should be less than nmodes (<{nmodes})')
-        self.intmat = self.intmat[:nmodes - n_modes_to_be_discarded, :]
+        if n_modes_to_be_discarded >= self.nmodes:
+            raise ValueError(f'nModesToBeDiscarded should be less than nmodes (<{self.nmodes})')
+        self.intmat = self.intmat[:, :self.nmodes - n_modes_to_be_discarded]
 
     def reduce_slopes(self, n_slopes_to_be_discarded):
-        nslopes = self.intmat.shape[1]
-        if n_slopes_to_be_discarded >= nslopes:
-            raise ValueError(f'nSlopesToBeDiscarded should be less than nslopes (<{nslopes})')
-        self.intmat = self.intmat[:, :nslopes - n_slopes_to_be_discarded]
+        if n_slopes_to_be_discarded >= self.nslopes:
+            raise ValueError(f'nSlopesToBeDiscarded should be less than nslopes (<{self.nslopes})')
+        self.intmat = self.intmat[:self.nslopes - n_slopes_to_be_discarded, :]
 
     def set_start_mode(self, start_mode):
-        nmodes = self.intmat.shape[0]
+        nmodes = self.intmat.shape[1]
         if start_mode >= nmodes:
             raise ValueError(f'start_mode should be less than nmodes (<{nmodes})')
-        self.intmat = self.intmat[start_mode:, :]
+        self.intmat = self.intmat[:, start_mode:]
 
     @property
     def nmodes(self):
-        return self.intmat.shape[0]
+        return self.intmat.shape[1]
 
     @property
     def nslopes(self):
-        return self.intmat.shape[1]
+        return self.intmat.shape[0]
 
     def get_fits_header(self):
         hdr = fits.Header()
@@ -79,7 +80,7 @@ class Intmat(BaseDataObj):
         hdr = self.get_fits_header()
         # Save fits file
         fits.writeto(filename, np.zeros(2), hdr, overwrite=overwrite)
-        fits.append(filename, cpuArray(self.intmat.T))
+        fits.append(filename, cpuArray(self.intmat))
         if self.slope_mm is not None:
             fits.append(filename, self.slope_mm)
         if self.slope_rms is not None:
@@ -92,7 +93,7 @@ class Intmat(BaseDataObj):
     @staticmethod
     def restore(filename, target_device_idx=None):
         hdr = fits.getheader(filename, ext=0)
-        intmat = fits.getdata(filename, ext=1).T
+        intmat = fits.getdata(filename, ext=1)
         norm_factor = float(hdr.get('NORMFACT', 0.0))
         pupdata_tag = hdr.get('PUP_TAG', '')
         subapdata_tag = hdr.get('SA_TAG', '')
@@ -108,7 +109,7 @@ class Intmat(BaseDataObj):
 
     def generate_rec(self, nmodes=None, cut_modes=0, w_vec=None, interactive=False):
         if nmodes is not None:
-            intmat = self.intmat[:nmodes, :]
+            intmat = self.intmat[:, :nmodes]
         else:
             intmat = self.intmat
         recmat = self.pseudo_invert(intmat, n_modes_to_drop=cut_modes, w_vec=w_vec, interactive=interactive)
@@ -124,7 +125,7 @@ class Intmat(BaseDataObj):
         times = list(slopes.keys())
         nslopes = len(slopes[times[0]])
         nmodes = len(disturbance[times[0]])
-        intmat = self.xp.zeros((nmodes, nslopes), dtype=self.dtype)
+        intmat = self.xp.zeros((nslopes, nmodes), dtype=self.dtype)
         iter_per_mode = self.xp.zeros(nmodes, dtype=self.dtype)
         slope_mm = self.xp.zeros((nmodes, 2), dtype=self.dtype)
         slope_rms = self.xp.zeros(nmodes, dtype=self.dtype)
@@ -132,12 +133,12 @@ class Intmat(BaseDataObj):
         for t in times:
             amp = disturbance[t]
             mode = self.xp.where(amp)[0][0]
-            intmat[mode, :] += slopes[t] / amp[mode]
+            intmat[:, mode] += slopes[t] / amp[mode]
             iter_per_mode[mode] += 1
 
         for m in range(nmodes):
             if iter_per_mode[m] > 0:
-                intmat[m, :] /= iter_per_mode[m]
+                intmat[:, m] /= iter_per_mode[m]
 
         im = Intmat(intmat)
         im._slope_mm = slope_mm

@@ -42,7 +42,7 @@ class TestRecmat(unittest.TestCase):
         """Test that set_value raises AssertionError for wrong shape."""
         data = xp.ones((2, 3), dtype=np.float32)
         obj = Recmat(data.copy(), target_device_idx=target_device_idx)
-        assert obj.nmodes == 3
+        assert obj.nmodes == 2
 
     @cpu_and_gpu
     def test_get_fits_header(self, target_device_idx, xp):
@@ -56,7 +56,7 @@ class TestRecmat(unittest.TestCase):
         """Test saving and restoring Recmat."""
         with tempfile.TemporaryDirectory() as tmpdir:
             filename = os.path.join(tmpdir, "test_recmat.fits")
-            data = np.arange(9).reshape((3, 3)).astype(np.float32)
+            data = np.arange(10).reshape((5, 2)).astype(np.float32)
             obj = Recmat(data, norm_factor=2.0)
 
             obj.save(filename)
