@@ -4,11 +4,20 @@ from specula.data_objects.recmat import Recmat
 from specula import cpuArray
 from astropy.io import fits
 import os
-import tempfile
 
 from test.specula_testlib import cpu_and_gpu
 
 class TestRecmat(unittest.TestCase):
+
+    def setUp(self):
+        datadir = os.path.join(os.path.dirname(__file__), 'data')
+        self.filename = os.path.join(datadir, 'test_recmat.fits')
+
+    def tearDown(self):
+        try:
+            os.unlink(self.filename)
+        except FileNotFoundError:
+            pass
 
     @cpu_and_gpu
     def test_initialization(self, target_device_idx, xp):
@@ -54,17 +63,20 @@ class TestRecmat(unittest.TestCase):
     @cpu_and_gpu
     def test_save_and_restore(self, target_device_idx, xp):
         """Test saving and restoring Recmat."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            filename = os.path.join(tmpdir, "test_recmat.fits")
-            data = np.arange(10).reshape((5, 2)).astype(np.float32)
-            obj = Recmat(data, norm_factor=2.0)
+        try:
+            os.unlink(self.filename)
+        except FileNotFoundError:
+            pass
 
-            obj.save(filename)
-            self.assertTrue(os.path.exists(filename))
+        data = np.arange(10).reshape((5, 2)).astype(np.float32)
+        obj = Recmat(data, norm_factor=2.0)
 
-            restored = Recmat.restore(filename)
-            np.testing.assert_array_equal(cpuArray(restored.recmat), data)
-            self.assertEqual(restored.norm_factor, 2.0)
+        obj.save(self.filename)
+        self.assertTrue(os.path.exists(self.filename))
+
+        restored = Recmat.restore(self.filename)
+        np.testing.assert_array_equal(cpuArray(restored.recmat), data)
+        self.assertEqual(restored.norm_factor, 2.0)
 
 
 if __name__ == "__main__":
