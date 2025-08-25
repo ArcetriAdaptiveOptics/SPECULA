@@ -4,7 +4,7 @@ import subprocess
 import os
 import sys
 
-from specula.lib.process_utils import daemonize, killProcessByName  # Replace with your module name
+from specula.lib.process_utils import daemonize, killProcessByName
 
 
 class TestDaemonize(unittest.TestCase):
