@@ -4,18 +4,10 @@ specula.init(0)  # Default target device
 import os
 import tempfile
 import unittest
-import uuid
 import shutil
 
 from specula.base_value import BaseValue
-from specula.data_objects.pupilstop import Pupilstop
 from specula.data_objects.slopes import Slopes
-from specula.data_objects.source import Source
-from specula.data_objects.subap_data import SubapData
-from specula.data_objects.simul_params import SimulParams
-from specula.processing_objects.dm import DM
-from specula.processing_objects.sh import SH
-from specula.processing_objects.sh_slopec import ShSlopec
 from specula.processing_objects.multi_im_calibrator import MultiImCalibrator
 
 from test.specula_testlib import cpu_and_gpu
