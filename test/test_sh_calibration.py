@@ -23,6 +23,7 @@ class TestShCalibration(unittest.TestCase):
 
         self.subap_ref_path = os.path.join(self.datadir, 'scao_subaps_n8_th0.5_ref.fits')
         self.sn_ref_path = os.path.join(self.datadir, 'scao_sn_n8_th0.5_ref.fits')
+        self.im_ref_path = os.path.join(self.datadir, 'scao_im_n8_th0.5_ref.fits')
         self.rec_ref_path = os.path.join(self.datadir, 'scao_rec_n8_th0.5_ref.fits')
 
         self.subap_path = os.path.join(self.calibdir, 'subapdata', 'scao_subaps_n8_th0.5.fits')
@@ -62,6 +63,7 @@ class TestShCalibration(unittest.TestCase):
         # Check if reference files exist
         self.assertTrue(os.path.exists(self.subap_ref_path), f"Reference file {self.subap_path} does not exist")
         self.assertTrue(os.path.exists(self.sn_ref_path), f"Reference file {self.sn_path} does not exist")
+        self.assertTrue(os.path.exists(self.im_ref_path), f"Reference file {self.im_path} does not exist")
         self.assertTrue(os.path.exists(self.rec_ref_path), f"Reference file {self.rec_path} does not exist")
 
         # Run the simulations using subprocess
@@ -91,6 +93,8 @@ class TestShCalibration(unittest.TestCase):
                        "Subaperture data file was not generated")
         self.assertTrue(os.path.exists(self.sn_path),
                     "Slope nulls file was not generated")
+        self.assertTrue(os.path.exists(self.im_path),
+                       "Interaction matrix file was not generated")
         self.assertTrue(os.path.exists(self.rec_path),
                        "Reconstruction matrix file was not generated")
 
@@ -118,6 +122,17 @@ class TestShCalibration(unittest.TestCase):
                             err_msg=f"Data in HDU #{i} does not match reference"
                         )
 
+        print("Comparing interaction matrix with reference...")
+        with fits.open(self.im_path) as gen_rec:
+            with fits.open(self.im_ref_path) as ref_rec:
+                for i, (gen_hdu, ref_hdu) in enumerate(zip(gen_rec, ref_rec)):
+                    if hasattr(gen_hdu, 'data') and hasattr(ref_hdu, 'data') and gen_hdu.data is not None:
+                        np.testing.assert_array_almost_equal(
+                            gen_hdu.data, ref_hdu.data,
+                            decimal=3,
+                            err_msg=f"Data in HDU #{i} does not match reference"
+                        )
+
         print("Comparing reconstruction matrix with reference...")
         with fits.open(self.rec_path) as gen_rec:
             with fits.open(self.rec_ref_path) as ref_rec:
@@ -135,7 +150,7 @@ class TestShCalibration(unittest.TestCase):
         if os.path.exists(self.subap_path):
             os.remove(self.subap_path)
 
-    @unittest.skip("This test is only used to create reference files")
+    @unittest.skipIf(int(os.getenv('CREATE_REF', 0)) < 1, "This test is only used to create reference files")
     def test_create_reference_files(self):
         """
         This test is used to create reference files for the first time.
@@ -167,6 +182,8 @@ class TestShCalibration(unittest.TestCase):
                        "Subaperture data file was not generated")
         self.assertTrue(os.path.exists(self.sn_path),
                     "Slope nulls file was not generated")
+        self.assertTrue(os.path.exists(self.im_path),
+                       "Interaction matrix file was not generated")
         self.assertTrue(os.path.exists(self.rec_path),
                        "Reconstruction matrix file was not generated")
 
@@ -176,6 +193,7 @@ class TestShCalibration(unittest.TestCase):
         # Copy files to reference directory
         shutil.copy(self.subap_path, self.subap_ref_path)
         shutil.copy(self.sn_path, self.sn_ref_path)
+        shutil.copy(self.im_path, self.im_ref_path)
         shutil.copy(self.rec_path, self.rec_ref_path)
 
         print("Reference files created and saved to test/data/")

@@ -56,7 +56,7 @@ class PyrPupdataCalibrator(BaseProcessingObj):
         # Create PupData (reorder to match IDL)
         pup_order = [1, 0, 2, 3]
         self.pupdata = PupData(
-            ind_pup=ind_pup[pup_order, :],
+            ind_pup=ind_pup[:, pup_order],
             radius=radii[pup_order],
             cx=centers[pup_order, 0],
             cy=centers[pup_order, 1],
@@ -190,11 +190,11 @@ class PyrPupdataCalibrator(BaseProcessingObj):
                 max_pixels = max(max_pixels, flat_indices.shape[0])
 
             # Create a 2D array with padding to -1
-            ind_pup = self.xp.full((4, max_pixels), -1, dtype=int)
+            ind_pup = self.xp.full((max_pixels, 4), -1, dtype=int)
 
             for i, indices in enumerate(temp_indices):
                 if indices.shape[0] > 0:
-                    ind_pup[i, :indices.shape[0]] = indices
+                    ind_pup[:indices.shape[0], i] = indices
 
         else:
             # SLOPES MODE: Identical areas obtained by simple translation
@@ -226,7 +226,7 @@ class PyrPupdataCalibrator(BaseProcessingObj):
 
             # Number of pixels per pupil (same for all)
             n_pixels = reference_indices.shape[0]
-            ind_pup = self.xp.full((4, n_pixels), -1, dtype=int)
+            ind_pup = self.xp.full((n_pixels, 4), -1, dtype=int)
 
             # Apply translation for each pupil
             for i in range(4):
@@ -255,7 +255,7 @@ class PyrPupdataCalibrator(BaseProcessingObj):
 
                 # Fill array with valid indices
                 n_valid = valid_linear_indices.shape[0]
-                ind_pup[i, :n_valid] = valid_linear_indices
+                ind_pup[:n_valid, i] = valid_linear_indices
 
                 # Warn if any pixel is lost
                 lost_pixels = n_pixels - n_valid

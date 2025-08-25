@@ -59,7 +59,7 @@ class TestLowPassFilterSimulation(unittest.TestCase):
                 err_msg="diff.fits does not match diff_ref.fits"
             )
 
-    @unittest.skip("This test is only used to create reference diff_ref.fits")
+    @unittest.skipIf(int(os.getenv('CREATE_REF', 0)) < 1, "This test is only used to create reference files")
     def test_create_reference_diff(self):
         """
         This test is used to create diff_ref.fits for the first time.
