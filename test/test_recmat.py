@@ -47,6 +47,23 @@ class TestRecmat(unittest.TestCase):
             obj.set_value(xp.ones((2, 2), dtype=np.float32))
 
     @cpu_and_gpu
+    def test_reduce_size(self, target_device_idx, xp):
+        mat = xp.arange(30).reshape(6, 5)
+        recmat = Recmat(mat, target_device_idx=target_device_idx)
+
+        # Reduce modes
+        recmat.reduce_size(2)
+        assert recmat.recmat.shape == (4, 5)
+
+    @cpu_and_gpu
+    def test_reduce_size_raises(self, target_device_idx, xp):
+        mat = xp.ones((5, 5))
+        recmat = Recmat(mat, target_device_idx=target_device_idx)
+
+        with self.assertRaises(ValueError):
+            recmat.reduce_size(5)
+
+    @cpu_and_gpu
     def test_nmodes(self, target_device_idx, xp):
         """Test that set_value raises AssertionError for wrong shape."""
         data = xp.ones((2, 3), dtype=np.float32)
