@@ -80,14 +80,14 @@ class MultiImCalibrator(BaseProcessingObj):
         # First iteration
         if self.outputs['out_intmat_list'][0].value is None:
             for i, (im, ss) in enumerate(zip(self.outputs['out_intmat_list'], slopes)):
-                im.value = self.xp.zeros((self._nmodes, len(ss)), dtype=self.dtype)
+                im.value = self.xp.zeros((len(ss), self._nmodes), dtype=self.dtype)
 
         for im, ss, cc in zip(self.outputs['out_intmat_list'], slopes, commands):
             idx = self.xp.nonzero(cc)
             if len(idx[0])>0:
                 mode = int(idx[0])
                 if mode < self._nmodes:
-                    im.value[mode] += ss / cc[idx]
+                    im.value[:, mode] += ss / cc[idx]
                     self.count_commands[i][mode] += 1
             im.generation_time = self.current_time
 
@@ -98,7 +98,7 @@ class MultiImCalibrator(BaseProcessingObj):
             # Normalize by counts before saving
             for mode in range(self._nmodes):
                 if self.count_commands[i][mode] > 0:
-                    im.value[mode] /= self.count_commands[i][mode]
+                    im.value[:, mode] /= self.count_commands[i][mode]
             intmat = Intmat(im.value, target_device_idx=self.target_device_idx, precision=self.precision)
             if self.im_path(i):
                 intmat.save(os.path.join(self._data_dir, self.im_path(i)), overwrite=self._overwrite)
@@ -109,7 +109,7 @@ class MultiImCalibrator(BaseProcessingObj):
             if not self.outputs['out_intmat_list']:
                 full_im = self.xp.array([])
             else:
-                full_im = self.xp.hstack([im.value for im in self.outputs['out_intmat_list']])
+                full_im = self.xp.vstack([im.value for im in self.outputs['out_intmat_list']])
             full_intmat = Intmat(full_im, target_device_idx=self.target_device_idx, precision=self.precision)
             if full_im_path:
                 full_intmat.save(os.path.join(self._data_dir, full_im_path), overwrite=self._overwrite)
