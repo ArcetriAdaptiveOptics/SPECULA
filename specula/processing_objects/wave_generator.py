@@ -23,6 +23,8 @@ class WaveGenerator(BaseGenerator):
                  for x in [amp, freq, offset, slope, constant]]
         if output_size == 1:
             output_size = max(len(arr) for arr in arrays)
+        if output_size == 1 and vsize > 1:
+            output_size = vsize
 
         super().__init__(
             output_size=output_size,
@@ -37,8 +39,6 @@ class WaveGenerator(BaseGenerator):
         self.offset = self.to_xp(offset, dtype=self.dtype)
         self.slope = self.to_xp(slope, dtype=self.dtype)
         self.constant = self.to_xp(constant, dtype=self.dtype)
-
-        # Create vsize_array like in original
         self.vsize_array = self.xp.ones(vsize, dtype=self.dtype)
 
         # Validate array sizes

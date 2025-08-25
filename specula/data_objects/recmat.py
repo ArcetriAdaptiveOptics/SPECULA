@@ -7,12 +7,18 @@ from specula.base_data_obj import BaseDataObj
 
 
 class Recmat(BaseDataObj):
+    '''
+    Reconstruction matrix axes are [modes, slopes]
+    '''
     def __init__(self,
                  recmat,
                  modes2recLayer=None,
                  norm_factor: float=0,
                  target_device_idx: int=None,
                  precision: int=None):
+        """
+        Initialize a :class:`~specula.data_objects.recmat.Recmat` object.
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         self.recmat = self.to_xp(recmat)
         self.norm_factor = norm_factor
@@ -47,10 +53,9 @@ class Recmat(BaseDataObj):
             self.modes2recLayer = modes2recLayer
             
     def reduce_size(self, nModesToBeDiscarded):
-        nmodes = self.recmat.shape[1]
-        if nModesToBeDiscarded >= nmodes:
-            raise ValueError(f"nModesToBeDiscarded should be less than nmodes (<{nmodes})")
-        self.recmat = self.recmat[:, :nmodes - nModesToBeDiscarded]
+        if nModesToBeDiscarded >= self.nmodes:
+            raise ValueError(f"nModesToBeDiscarded should be less than nmodes (<{self.nmodes})")
+        self.recmat = self.recmat[:self.nmodes - nModesToBeDiscarded, :]
 
     def get_fits_header(self):
         hdr = fits.Header()
@@ -58,12 +63,16 @@ class Recmat(BaseDataObj):
         hdr['NORMFACT'] = self.norm_factor
         return hdr
 
+    @property
+    def nmodes(self):
+        return self.recmat.shape[0]
+
     def save(self, filename, overwrite=False):
         if not filename.endswith('.fits'):
             filename += '.fits'
         hdr = self.get_fits_header()
         fits.writeto(filename, np.zeros(2), hdr, overwrite=overwrite)
-        fits.append(filename, cpuArray(self.recmat.T))
+        fits.append(filename, cpuArray(self.recmat))
         if self.modes2recLayer is not None:
             fits.append(filename, cpuArray(self.modes2recLayer))
 

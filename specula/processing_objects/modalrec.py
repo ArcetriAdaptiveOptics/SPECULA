@@ -93,9 +93,9 @@ class Modalrec(BaseProcessingObj):
         else:
             self.output_slice = slice(None, None, None)
             if polc:
-                nmodes = self.projmat.recmat.shape[0]
+                nmodes = self.projmat.nmodes
             else:
-                nmodes = self.recmat.recmat.shape[0]
+                nmodes = self.recmat.nmodes
 
         if input_modes_slice is not None:
             self.input_modes_slice = slice(*input_modes_slice)

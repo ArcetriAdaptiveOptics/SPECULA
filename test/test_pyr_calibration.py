@@ -103,8 +103,8 @@ class TestPyrPupdataCalibration(unittest.TestCase):
             pup_slopes = np.zeros(image_shape, dtype=int)
             for i in range(4):
                 # 2D array needs to be flattened for indexing
-                pup_intensity.ravel()[ind_pup_intensity[i]] = i + 1
-                pup_slopes.ravel()[ind_pup_slopes[i]] = i + 1
+                pup_intensity.ravel()[ind_pup_intensity[:, i]] = i + 1
+                pup_slopes.ravel()[ind_pup_slopes[:, i]] = i + 1
             plt.figure(figsize=(12, 6))
             plt.subplot(1, 2, 1)
             plt.title("INTENSITY Mode Pupils")
@@ -146,16 +146,16 @@ class TestPyrPupdataCalibration(unittest.TestCase):
             return np.allclose(cpuArray(x2), cpuArray(expected_x)) and np.allclose(cpuArray(y2), cpuArray(expected_y))
 
         # Test INTENSITY mode: should have DIFFERENT geometries due to different radii
-        intensity_pixel_counts = [len(ind_pup_intensity[i][ind_pup_intensity[i] >= 0]) for i in range(4)]
+        intensity_pixel_counts = [len(ind_pup_intensity[:, i][ind_pup_intensity[:, i] >= 0]) for i in range(4)]
         self.assertGreater(len(set(intensity_pixel_counts)), 1, 
                         "INTENSITY mode should produce different geometries with different radii")
 
         # Test SLOPES mode: all should be translation-equivalent
         for i in range(1, 4):
-            self.assertTrue(are_translation_equivalent(ind_pup_slopes[0], ind_pup_slopes[i], image_shape, xp=xp), 
+            self.assertTrue(are_translation_equivalent(ind_pup_slopes[:, 0], ind_pup_slopes[:, i], image_shape, xp=xp), 
                         f"SLOPES mode: Pupil {i} should be translation-equivalent to Pupil 0")
 
-    @unittest.skip("This test is only used to create reference files")
+    @unittest.skipIf(int(os.getenv('CREATE_REF', 0)) < 1, "This test is only used to create reference files")
     def test_create_reference_file(self):
         """Create reference file for Pyramid PupData calibration"""
 

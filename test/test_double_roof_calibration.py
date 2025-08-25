@@ -130,7 +130,7 @@ class TestDoubleRoofCalibration(unittest.TestCase):
 
         print("All Double Roof calibration files match reference files!")
 
-    @unittest.skip("This test is only used to create reference files")
+    @unittest.skipIf(int(os.getenv('CREATE_REF', 0)) < 1, "This test is only used to create reference files")
     def test_create_reference_files(self):
         """Create reference files for Double Roof calibration"""
 
