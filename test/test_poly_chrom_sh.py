@@ -53,7 +53,7 @@ class TestPolyChromSH(unittest.TestCase):
         self.assertEqual(output_intensity.i.shape[1], expected_size)
 
         # Verify individual SH instances have same output size
-        for i, sh in enumerate(poly_sh._sh_instances):
+        for i, sh in enumerate(poly_sh._wfs_instances):
             sh_output = sh.outputs['out_i']
             self.assertEqual(sh_output.i.shape, output_intensity.i.shape)
 
@@ -110,11 +110,11 @@ class TestPolyChromSH(unittest.TestCase):
         np.testing.assert_allclose(cpuArray(total_600), cpuArray(expected_600), rtol=1e-10)
         np.testing.assert_allclose(cpuArray(total_700), cpuArray(expected_700), rtol=1e-10)
 
-        # Since no tilts are applied and no _has_tilts, all SH should receive the same EF
-        ref_ef = poly_sh._sh_instances[0].local_inputs['in_ef']
+        # Since no tilts are applied and no _has_tilts, all WFS should receive the same EF
+        ref_ef = poly_sh._wfs_instances[0].local_inputs['in_ef']
 
-        for i in range(1, len(poly_sh._sh_instances)):
-            test_ef = poly_sh._sh_instances[i].local_inputs['in_ef']
+        for i in range(1, len(poly_sh._wfs_instances)):
+            test_ef = poly_sh._wfs_instances[i].local_inputs['in_ef']
 
             # phaseInNm from ef should match
             self.assertTrue(np.array_equal(cpuArray(ref_ef.phaseInNm), cpuArray(test_ef.phaseInNm)))

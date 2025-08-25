@@ -90,6 +90,19 @@ class TestGenerators(unittest.TestCase):
             np.testing.assert_almost_equal(value, expected)
 
     @cpu_and_gpu
+    def test_wave_generator_vsize(self, target_device_idx, xp):
+        """Test WaveGenerator vsize parameter"""
+        slope = 2.0
+        constant = 1.0
+        f = WaveGenerator('SIN', slope=slope, constant=constant,
+                        target_device_idx=target_device_idx)
+        assert f.outputs['output'].value.shape == (1,)
+
+        f = WaveGenerator('SIN', slope=slope, vsize=10, constant=constant,
+                        target_device_idx=target_device_idx)
+        assert f.outputs['output'].value.shape == (10,)
+
+    @cpu_and_gpu
     def test_random_generator_normal(self, target_device_idx, xp):
         amp = 1.0
         constant = 2.0
@@ -141,6 +154,19 @@ class TestGenerators(unittest.TestCase):
         
         self.assertTrue(np.all(values >= expected_min))
         self.assertTrue(np.all(values <= expected_max))
+
+    @cpu_and_gpu
+    def test_random_generator_vsize(self, target_device_idx, xp):
+        """Test RandomGenerator vsize parameter"""
+        amp = 2.0
+        constant = 1.0
+        f = RandomGenerator(distribution='UNIFORM', amp=amp, constant=constant,
+                        target_device_idx=target_device_idx)
+        assert f.outputs['output'].value.shape == (1,)
+
+        f = RandomGenerator(distribution='UNIFORM', amp=amp, constant=constant, vsize=10,
+                        target_device_idx=target_device_idx)
+        assert f.outputs['output'].value.shape == (10,)
 
     @cpu_and_gpu
     def test_vibration(self, target_device_idx, xp):

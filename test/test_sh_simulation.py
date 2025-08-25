@@ -125,7 +125,7 @@ class TestShSimulation(unittest.TestCase):
                     )
                     print(f"Max SR: {max_sr}, Reference Max SR: {max_ref_sr}, Relative diff: {rel_diff:.2%}")
 
-    @unittest.skip("This test is only used to create reference files")
+    @unittest.skipIf(int(os.getenv('CREATE_REF', 0)) < 1, "This test is only used to create reference files")
     def test_create_reference_sr(self):
         """
         This test is used to create reference SR file for the first time.

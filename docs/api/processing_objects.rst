@@ -328,6 +328,15 @@ Poly Chrom Sh
    :show-inheritance:
 
 
+Poly Crom Pyramid
+-----------------
+
+.. automodule:: specula.processing_objects.poly_crom_pyramid
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Psf
 ---
 
