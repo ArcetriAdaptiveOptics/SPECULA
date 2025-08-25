@@ -160,9 +160,9 @@ class ImCalibrator(BaseProcessingObj):
 
         # First iteration initialization
         if self._im.value is None:
-            self._im.value = self.xp.zeros((self._nmodes, len(slopes)), dtype=self.dtype)
+            self._im.value = self.xp.zeros((len(slopes), self._nmodes), dtype=self.dtype)
             for i in range(self._nmodes):
-                self.output_im[i].resize(len(self._im.value[i]))
+                self.output_im[i].resize(len(slopes))
             if self.verbose:
                 print(f"Initialized interaction matrix: {self._im.value.shape}")
 
@@ -171,13 +171,13 @@ class ImCalibrator(BaseProcessingObj):
         if len(idx)>0:
             mode = int(idx[0]) - self._first_mode
             if mode < self._nmodes:
-                self._im.value[mode] += slopes / commands[idx]
+                self._im.value[:, mode] += slopes / commands[idx]
                 self.count_commands[mode] += 1
 
         in_slopes_object = self.local_inputs['in_slopes']
 
         for i in range(self._nmodes):
-            self.output_im[i].slopes[:] = self._im.value[i].copy()
+            self.output_im[i].slopes[:] = self._im.value[:, i].copy()
             self.output_im[i].single_mask = in_slopes_object.single_mask
             self.output_im[i].display_map = in_slopes_object.display_map
             self.output_im[i].generation_time = self.current_time
@@ -188,7 +188,7 @@ class ImCalibrator(BaseProcessingObj):
         # normalize by counts
         for i in range(self._nmodes):
             if self.count_commands[i] > 0:
-                self._im.value[i] /= self.count_commands[i]
+                self._im.value[:, i] /= self.count_commands[i]
 
         im = Intmat(self._im.value, pupdata_tag = self.pupdata_tag, subapdata_tag=self.subapdata_tag,
                     target_device_idx=self.target_device_idx, precision=self.precision)

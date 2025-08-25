@@ -8,7 +8,7 @@ from specula.base_data_obj import BaseDataObj
 
 class Recmat(BaseDataObj):
     '''
-    Interaction matrix axes are [modes, slopes]
+    Reconstruction matrix axes are [modes, slopes]
     '''
     def __init__(self,
                  recmat,

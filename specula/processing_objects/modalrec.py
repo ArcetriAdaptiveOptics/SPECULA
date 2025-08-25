@@ -184,7 +184,7 @@ class Modalrec(BaseProcessingObj):
             output_modes -= commands
             
         else:
-            output_modes = self.slopes @ self.recmat.recmat
+            output_modes = self.recmat.recmat @ self.slopes
 
         self.modes.value = output_modes[self.output_slice]
         self.modes.generation_time = self.current_time
