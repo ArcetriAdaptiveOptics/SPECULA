@@ -35,7 +35,6 @@ class PolyChromWFS(BaseProcessingObj):
         self.xy_tilts_in_arcsec = xy_tilts_in_arcsec
         self.n_wavelengths = n_wavelengths
 
-        self._has_tilts = any(tilt[0] != 0.0 or tilt[1] != 0.0 for tilt in xy_tilts_in_arcsec)
         self._unit_tilt_x = None
         self._unit_tilt_y = None
         self.flux_factor_normalized = None
@@ -48,8 +47,6 @@ class PolyChromWFS(BaseProcessingObj):
         self.outputs['out_i'] = self._out_i
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
-
-        self._check_subwfs()
 
     def _create_unit_tilts(self, in_ef_size, in_ef_pixel_pitch):
         """Create unit tilt phase arrays (1 pixel tilt) in nm."""
@@ -83,10 +80,9 @@ class PolyChromWFS(BaseProcessingObj):
         in_ef = self.local_inputs['in_ef']
 
         # Create unit tilts (will be scaled later)
-        if self._has_tilts:
-            self._unit_tilt_x, self._unit_tilt_y = self._create_unit_tilts(
-                in_ef.size[0], in_ef.pixel_pitch
-            )
+        self._unit_tilt_x, self._unit_tilt_y = self._create_unit_tilts(
+            in_ef.size[0], in_ef.pixel_pitch
+        )
 
         # Create modified EFs for each SH (always create them for consistency)
         self._modified_efs = []
@@ -131,15 +127,12 @@ class PolyChromWFS(BaseProcessingObj):
 
             # Apply tilt if present
             tilt_x, tilt_y = self.xy_tilts_in_arcsec[i]
-            if tilt_x != 0.0 or tilt_y != 0.0:
-                # Scale unit tilts by the desired amounts (no wavelength scaling needed)
-                tilt_phase_nm = tilt_x * self._unit_tilt_x + tilt_y * self._unit_tilt_y
 
-                # Add the tilt phase to the original phase
-                modified_ef.phaseInNm[:] = in_ef.phaseInNm + tilt_phase_nm
-            else:
-                # No tilt, just copy original phase
-                modified_ef.phaseInNm[:] = in_ef.phaseInNm
+            # Scale unit tilts by the desired amounts (no wavelength scaling needed)
+            tilt_phase_nm = tilt_x * self._unit_tilt_x + tilt_y * self._unit_tilt_y
+
+            # Add the tilt phase to the original phase
+            modified_ef.phaseInNm[:] = in_ef.phaseInNm + tilt_phase_nm
 
             # update generation time
             modified_ef.generation_time = in_ef.generation_time
@@ -152,7 +145,7 @@ class PolyChromWFS(BaseProcessingObj):
         # Reset output intensity
         self._out_i.i[:] = 0.0
 
-        # Trigger each SH and accumulate results
+        # Trigger each SH
         for wfs in self._wfs_instances:
             wfs.trigger_code()
 
@@ -174,18 +167,10 @@ class PolyChromWFS(BaseProcessingObj):
 
         # Optional: normalize total intensity to match input photon flux
         in_ef = self.local_inputs['in_ef']
-        if hasattr(in_ef, 'S0') and in_ef.S0 > 0:
-            total_input_flux = in_ef.S0 * in_ef.masked_area()
-            current_total = self.xp.sum(self._out_i.i)
-            if current_total > 0:
-                self._out_i.i *= total_input_flux / current_total
-
-    def get_wfs_instance(self, index):
-        """Get a specific WFS instance for debugging or analysis."""
-        if 0 <= index < self.n_wavelengths:
-            return self._wfs_instances[index]
-        else:
-            raise IndexError(f"WFS index {index} out of range [0, {self.n_wavelengths-1}]")
+        total_input_flux = in_ef.S0 * in_ef.masked_area()
+        current_total = self.xp.sum(self._out_i.i)
+        if current_total > 0:
+            self._out_i.i *= total_input_flux / current_total
 
     def get_wavelength_contribution(self, index):
         """Get the intensity contribution from a specific wavelength."""
@@ -195,8 +180,3 @@ class PolyChromWFS(BaseProcessingObj):
             return wfs.outputs['out_i'].i * flux_factor
         else:
             raise IndexError(f"Wavelength index {index} out of range [0, {self.n_wavelengths-1}]")
-
-    # This method must be implemented in subclasses!
-    # It exists to make this base class abstract
-    def _check_subwfs(self):
-        raise NotImplementedError("Subclasses must implement _check_subwfs()")

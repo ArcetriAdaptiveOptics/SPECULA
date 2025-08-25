@@ -66,8 +66,3 @@ class PolyChromSH(PolyChromWFS):
             )
             self._wfs_instances.append(sh)
 
-    # this method is not present in the base class, it is used to check the type of sub-WFS instances
-    def _check_subwfs(self):
-        for wfs in self._wfs_instances:
-            if not isinstance(wfs, SH):
-                raise TypeError("All sub-WFS instances must be of type SH")
