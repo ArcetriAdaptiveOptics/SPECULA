@@ -162,6 +162,7 @@ class IFunc(BaseDataObj):
         hdul.append(fits.ImageHDU(data=cpuArray(self._influence_function.T), name='INFLUENCE_FUNCTION'))
         hdul.append(fits.ImageHDU(data=cpuArray(self._mask_inf_func), name='MASK_INF_FUNC'))
         hdul.writeto(filename, overwrite=overwrite)
+        hdul.close()  # Force close for Windows
 
     def cut(self, start_mode=None, nmodes=None, idx_modes=None):
 

@@ -36,6 +36,7 @@ class TestDataSource(unittest.TestCase):
         time_hdu = fits.ImageHDU(times, header=hdr)
         hdul = fits.HDUList([data_hdu, time_hdu])
         hdul.writeto(gen_file, overwrite=True)
+        hdul.close()  # Force close for Windows
 
     def test_data_source(self):
         self._create_test_files()

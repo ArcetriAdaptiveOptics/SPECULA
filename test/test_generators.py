@@ -230,11 +230,12 @@ class TestGenerators(unittest.TestCase):
         np.testing.assert_allclose(cpuArray(value), cpuArray(data[1]))
 
         # Test beyond data (should use last values)
-        f.check_ready(10)
-        f.trigger()
-        f.post_trigger()
-        value = f.outputs['output'].value
-        np.testing.assert_allclose(cpuArray(value), cpuArray(data[-1]))
+        for i in range(3, 5):
+            f.check_ready(i)
+            f.trigger()
+            f.post_trigger()
+            value = f.outputs['output'].value
+            np.testing.assert_allclose(cpuArray(value), cpuArray(data[-1]))
 
     @cpu_and_gpu
     def test_schedule_generator(self, target_device_idx, xp):

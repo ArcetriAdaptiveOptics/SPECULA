@@ -12,6 +12,29 @@
 def rebin2d(a, shape, sample=False, xp=None):
     '''
     Replacement of IDL's rebin() function for 2d arrays.
+
+    Parameters
+    ----------
+    a : array-like
+        The input array to be rebinned.
+    shape : tuple of int
+        The desired shape of the output array.
+    sample : bool, optional
+        If True, the output array is sampled at the new shape.
+    xp : module, optional
+        Array module to use (default: numpy).
+
+    Returns
+    -------
+    array-like
+        The rebinned array.
+
+    Raises
+    ------
+    ValueError
+        If the resampling factors are not integers.
+        If upsampling with sample=False is attempted.
+        If upsampling and downsampling in different axes is attempted.
     '''
     if a.shape == shape:
         return a

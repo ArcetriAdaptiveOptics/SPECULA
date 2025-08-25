@@ -19,6 +19,34 @@ def camelcase_to_snakecase(s):
     return ''.join([x.lower() for x in result])
 
 def import_class(classname):
+    '''
+    Dynamically import a class by name from the appropriate specula submodule.
+
+    Given a class name in CamelCase, this function attempts to import the class
+    from one of the following submodules (in order):
+        - specula.processing_objects
+        - specula.data_objects
+        - specula.display
+
+    The module name is inferred by converting the class name from CamelCase to snake_case.
+
+    Parameters
+    ----------
+    classname : str
+        The name of the class to import (in CamelCase).
+
+    Returns
+    -------
+    type
+        The class object corresponding to `classname`.
+
+    Raises
+    ------
+    ImportError
+        If the module containing the class cannot be found.
+    AttributeError
+        If the class is not found in the located module.
+    '''
     modulename = camelcase_to_snakecase(classname)
     try:
         try:
@@ -30,7 +58,7 @@ def import_class(classname):
                 mod = importlib.import_module(f'specula.display.{modulename}')
     except ModuleNotFoundError:
         raise ImportError(f'Class {classname} must be defined in a file called {modulename}.py but it cannot be found')
-    
+
     try:
         return getattr(mod, classname)
     except AttributeError:
@@ -38,7 +66,20 @@ def import_class(classname):
 
 
 def get_type_hints(type):
-    hints ={}
+    """
+    Collects and returns type hints for the __init__ methods of a class and all its base classes.
+
+    Parameters
+    ----------
+    type : type
+        The class whose __init__ type hints are to be collected.
+
+    Returns
+    -------
+    dict
+        A dictionary mapping parameter names to type hints for all __init__ methods in the class hierarchy.
+    """
+    hints = {}
     for x in type.__mro__:
         hints.update(typing.get_type_hints(getattr(x, '__init__')))
     return hints
@@ -50,7 +91,7 @@ def unravel_index_2d(idxs, shape, xp):
     '''
     if len(shape) != 2:
         raise ValueError('shape must be 2d')
-    
+
     idxs = xp.array(idxs).astype(int)
     _, ncols = shape
     row_idx = idxs // ncols

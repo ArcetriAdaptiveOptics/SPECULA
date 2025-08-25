@@ -17,6 +17,8 @@ class SubapData(BaseDataObj):
                  target_device_idx: int=None,
                  precision: int=None):
         '''
+        Initialize a :class:`~specula.data_objects.subap_data.SubapData` object.
+        
         idxs: np.array[n_subaps, n_pixels] of pixel indices in a flattened pixel array for each subaperture
         display_map: np.array[n_subaps] of subaperture indices on a flattened nx * ny array, used for display only
         nx: number of subapertures in the X (horizontal) direction
@@ -51,7 +53,7 @@ class SubapData(BaseDataObj):
         return self.display_map[n]
 
     def save(self, filename, overwrite=False):
-        """Saves the subaperture data to a file."""
+        """Saves the :class:`~specula.data_objects.subap_data.SubapData` to a file."""
         hdr = fits.Header()
         hdr['VERSION'] = 1
         hdr['ENRGYTH'] = self.energy_th
@@ -64,7 +66,7 @@ class SubapData(BaseDataObj):
 
     @staticmethod
     def restore(filename, target_device_idx=None):
-        """Restores the subaperture data from a file."""
+        """Restores the :class:`~specula.data_objects.subap_data.SubapData` from a file."""
         with fits.open(filename) as hdul:
             hdr = hdul[0].header
             version = hdr.get('VERSION')

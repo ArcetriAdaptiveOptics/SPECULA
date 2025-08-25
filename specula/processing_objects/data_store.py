@@ -71,6 +71,7 @@ class DataStore(BaseProcessingObj):
             hdu_data = fits.PrimaryHDU(data[k], header=hdr)
             hdul = fits.HDUList([hdu_data, hdu_time])
             hdul.writeto(filename, overwrite=True)
+            hdul.close()  # Force close for Windows
 
     def create_TN_folder(self):
         today = time.strftime("%Y%m%d_%H%M%S")

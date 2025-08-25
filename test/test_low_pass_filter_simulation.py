@@ -77,6 +77,3 @@ class TestLowPassFilterSimulation(unittest.TestCase):
         self.assertTrue(os.path.exists(diff_path), f"{diff_path} not found")
         shutil.copy(diff_path, self.diff_ref_path)
         print(f"Reference diff_ref.fits created at {self.diff_ref_path}")
-
-if __name__ == "__main__":
-    unittest.main()

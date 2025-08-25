@@ -35,14 +35,14 @@ class TestSlopes(unittest.TestCase):
         id_slopes_after = id(slopes.slopes)
 
         assert id_slopes_before == id_slopes_after
-        
+
     @cpu_and_gpu
     def test_set_value_shape_mismatch(self, target_device_idx, xp):
         slopes = Slopes(10, target_device_idx=target_device_idx)
         with self.assertRaises(AssertionError):
             new_slopes_data = xp.ones(11)
             slopes.set_value(new_slopes_data)
-            
+
     @cpu_and_gpu
     def test_get_value(self, target_device_idx, xp):
         slopes = Slopes(10, target_device_idx=target_device_idx)
@@ -50,7 +50,7 @@ class TestSlopes(unittest.TestCase):
         slopes.set_value(expected_value)
 
         np.testing.assert_array_equal(cpuArray(slopes.slopes), cpuArray(expected_value))
-        
+
     @cpu_and_gpu
     def test_set_value(self, target_device_idx, xp):
         slopes = Slopes(10, target_device_idx=target_device_idx)
@@ -70,9 +70,8 @@ class TestSlopes(unittest.TestCase):
         slopes2 = Slopes.restore(self.filename)
 
         np.testing.assert_array_equal(cpuArray(slopes.slopes), cpuArray(slopes2.slopes))
-        np.testing.assert_array_equal(cpuArray(slopes.indicesX), cpuArray(slopes2.indicesX))
-        np.testing.assert_array_equal(cpuArray(slopes.indicesY), cpuArray(slopes2.indicesY))
-
+        np.testing.assert_array_equal(cpuArray(slopes.indices_x), cpuArray(slopes2.indices_x))
+        np.testing.assert_array_equal(cpuArray(slopes.indices_y), cpuArray(slopes2.indices_y))
 
     @cpu_and_gpu
     def test_slopes_save_restore_roundtrip_version2(self, target_device_idx, xp):
@@ -89,5 +88,23 @@ class TestSlopes(unittest.TestCase):
         slopes2 = Slopes.restore(self.filename)
 
         np.testing.assert_array_equal(cpuArray(slopes.slopes), cpuArray(slopes2.slopes))
-        np.testing.assert_array_equal(cpuArray(slopes.indicesX), cpuArray(slopes2.indicesX))
-        np.testing.assert_array_equal(cpuArray(slopes.indicesY), cpuArray(slopes2.indicesY))
+        np.testing.assert_array_equal(cpuArray(slopes.indices_x), cpuArray(slopes2.indices_x))
+        np.testing.assert_array_equal(cpuArray(slopes.indices_y), cpuArray(slopes2.indices_y))
+
+    @cpu_and_gpu
+    def test_resize(self, target_device_idx, xp):
+        slopes = Slopes(10, target_device_idx=target_device_idx)
+        slopes.resize(20)
+        assert slopes.size == 20
+        slopes_ref = Slopes(20, target_device_idx=target_device_idx)
+        np.testing.assert_array_equal(cpuArray(slopes.indices_x), cpuArray(slopes_ref.indices_x))
+        np.testing.assert_array_equal(cpuArray(slopes.indices_y), cpuArray(slopes_ref.indices_y))
+
+    @cpu_and_gpu
+    def test_resize_with_interleave(self, target_device_idx, xp):
+        slopes = Slopes(10, interleave=True, target_device_idx=target_device_idx)
+        slopes.resize(20)
+        assert slopes.size == 20
+        slopes_ref = Slopes(20, interleave=True, target_device_idx=target_device_idx)
+        np.testing.assert_array_equal(cpuArray(slopes.indices_x), cpuArray(slopes_ref.indices_x))
+        np.testing.assert_array_equal(cpuArray(slopes.indices_y), cpuArray(slopes_ref.indices_y))

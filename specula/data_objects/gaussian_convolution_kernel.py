@@ -59,7 +59,7 @@ class GaussianConvolutionKernel(ConvolutionKernel):
     @staticmethod
     def restore(filename, target_device_idx=None, kernel_obj=None, return_fft=False):
         """
-        Restore a ConvolutionKernel object from a FITS file.
+        Restore a :class:`~specula.data_objects.gaussian_convolution_kernel.GaussianConvolutionKernel` object from a FITS file.
 
         Parameters:
             filename (str): Path to the FITS file
@@ -67,7 +67,7 @@ class GaussianConvolutionKernel(ConvolutionKernel):
             return_fft (bool, optional): Whether to return FFT of the kernel
     
         Returns:
-            ConvolutionKernel: The restored ConvolutionKernel object
+            :class:`~specula.data_objects.gaussian_convolution_kernel.GaussianConvolutionKernel`: The restored ConvolutionKernel object
         """
         hdr = fits.getheader(filename, ext=0)  # Get header from primary HDU
 

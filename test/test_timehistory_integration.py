@@ -28,7 +28,6 @@ class TestTimeHistoryIntegration(unittest.TestCase):
         # Change back to original directory
         os.chdir(self.cwd)
     
-    @unittest.skip
     def test_timehistory_integration(self):
         """Run the simulation and check the results"""
         

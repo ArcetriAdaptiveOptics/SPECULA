@@ -328,15 +328,6 @@ Poly Chrom Sh
    :show-inheritance:
 
 
-Poly Chrom Wfs
---------------
-
-.. automodule:: specula.processing_objects.poly_chrom_wfs
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-
 Poly Crom Pyramid
 -----------------
 

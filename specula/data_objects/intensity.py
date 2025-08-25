@@ -11,6 +11,9 @@ class Intensity(BaseDataObj):
                  dimy: int, 
                  target_device_idx: int=None, 
                  precision: int=None):
+        """
+        Initialize an :class:`~specula.data_objects.intensity.Intensity` object.
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
                 
         self.i = self.xp.zeros((dimx, dimy), dtype=self.dtype)
@@ -48,7 +51,7 @@ class Intensity(BaseDataObj):
         hdul.append(fits.ImageHDU(data=cpuArray(self.i), name='INTENSITY'))
         hdul.writeto(filename, overwrite=overwrite)
         hdul.close()  # Force close for Windows
-        
+
     @staticmethod
     def from_header(hdr, target_device_idx=None):
         version = hdr['VERSION']

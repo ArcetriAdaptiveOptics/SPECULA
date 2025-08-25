@@ -15,7 +15,7 @@ except ImportError:
     control = None
 
 class IirFilterData(BaseDataObj):
-    """IIR Filter Data representation.
+    """:class:`~specula.data_objects.iir_filter_data.IirFilterData` - IIR Filter Data representation.
     
     This class stores IIR filter coefficients in the following format:
     - Coefficients are stored with highest order terms first
@@ -683,6 +683,7 @@ class IirFilterData(BaseDataObj):
         hdul.append(fits.ImageHDU(data=cpuArray(self.num), name='NUM'))
         hdul.append(fits.ImageHDU(data=cpuArray(self.den), name='DEN'))
         hdul.writeto(filename, overwrite=True)
+        hdul.close()  # Force close for Windows
 
     @staticmethod
     def restore(filename, target_device_idx=None):

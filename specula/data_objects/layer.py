@@ -5,7 +5,7 @@ from specula.data_objects.electric_field import ElectricField
 
 class Layer(ElectricField):
     '''
-    A Layer is an ElectricField with some more features: a mandatory height,
+    A :class:`~specula.data_objects.layer.Layer` is an :class:`~specula.data_objects.electric_field.ElectricField` with some more features: a mandatory height,
     and optional X/Y shifts, rotation and magnification
     '''
 
@@ -19,6 +19,30 @@ class Layer(ElectricField):
                  magnification: float=1.0,
                  target_device_idx: int=None,
                  precision: int=None):
+        '''
+        Initialize a :class:`~specula.data_objects.layer.Layer` object.
+
+        Parameters
+        ----------
+        dimx : int
+            Number of pixels along the x-axis (width).
+        dimy : int
+            Number of pixels along the y-axis (height).
+        pixel_pitch : float
+            The dimension in meters of a pixel.
+        height : float
+            The height of the layer in meters.
+        shiftXYinPixel : tuple, optional
+            The (x, y) shift of the layer in pixel units (default: (0.0, 0.0)).
+        rotInDeg : float, optional
+            The rotation of the layer in degrees (default: 0.0).
+        magnification : float, optional
+            The magnification factor of the layer (default: 1.0).
+        target_device_idx : int, optional
+            Device index for computation (default: None).
+        precision : int, optional
+            Precision for computation (default: None).
+        '''
         super().__init__(dimx, dimy, pixel_pitch, target_device_idx=target_device_idx, precision=precision)
         self.height = height
         self.shiftXYinPixel = self.to_xp(shiftXYinPixel).astype(self.dtype)

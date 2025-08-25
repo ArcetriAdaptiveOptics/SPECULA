@@ -10,6 +10,9 @@ class IFuncInv(BaseDataObj):
                  target_device_idx=None,
                  precision=None
                 ):
+        """
+        Initialize an :class:`~specula.data_objects.ifunc_inv.IFuncInv` object.
+        """
         super().__init__(precision=precision, target_device_idx=target_device_idx)
         self._doZeroPad = False
 
@@ -33,6 +36,7 @@ class IFuncInv(BaseDataObj):
         hdul.append(fits.ImageHDU(data=cpuArray(self.ifunc_inv.T), name='INFLUENCE_FUNCTION_INV'))
         hdul.append(fits.ImageHDU(data=cpuArray(self.mask_inf_func), name='MASK_INF_FUNC'))
         hdul.writeto(filename, overwrite=overwrite)
+        hdul.close()  # Force close for Windows
 
     @staticmethod
     def restore(filename, target_device_idx=None, exten=1):

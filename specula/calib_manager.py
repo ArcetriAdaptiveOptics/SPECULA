@@ -57,11 +57,27 @@ class CalibManager():
         self.root_dir = root_dir
 
     def root_subdir(self, type):
+        """
+        Returns the full path to the subdirectory corresponding to the given type.
+
+        Parameters:
+            type (str): The key representing the calibration data type.
+
+        Returns:
+            str: The absolute path to the subdirectory for the specified type.
+        """
         return os.path.join(self.root_dir, self._subdirs[type])
 
     def filename(self, subdir, name):
         """
-        Build the filename for a given subdir and name.
+        Construct the full file path for a calibration file.
+
+        Parameters:
+            subdir (str): The key representing the calibration data type or subdirectory.
+            name (str): The base name of the file (without extension).
+
+        Returns:
+            str: The absolute path to the FITS file, ensuring the '.fits' extension is present.
         """
         fname = os.path.join(self.root_dir, self._subdirs[subdir], name)
         if not fname.endswith('.fits'):
@@ -71,6 +87,11 @@ class CalibManager():
     def writefits(self, subdir, name, data):
         """
         Write data to a FITS file.
+
+        Parameters:
+            subdir (str): The key representing the calibration data type or subdirectory.
+            name (str): The base name of the file (without extension).
+            data (array-like): The data to be written to the file.
         """
         filename = self.filename(subdir, name)
         fits.writeto(filename, data, overwrite=True)
@@ -78,6 +99,13 @@ class CalibManager():
     def readfits(self, subdir, name):
         """
         Read data from a FITS file.
+
+        Parameters:
+            subdir (str): The key representing the calibration data type or subdirectory.
+            name (str): The base name of the file (without extension).
+
+        Returns:
+            array-like: The data read from the file.
         """
         filename = self.filename(subdir, name)
         print('Reading:', filename)
@@ -86,9 +114,25 @@ class CalibManager():
         return fits.getdata(filename)
 
     def write_data(self, name, data):
+        """
+        Write data to a FITS file in the 'data' subdirectory.
+
+        Parameters:
+            name (str): The base name of the file (without extension).
+            data (array-like): The data to be written to the file.
+        """
         self.writefits('data', name, data)
 
     def read_data(self, name):
+        """
+        Read data from a FITS file in the 'data' subdirectory.
+
+        Parameters:
+            name (str): The base name of the file (without extension).
+
+        Returns:
+            array-like: The data read from the file.
+        """
         return self.readfits('data', name)
 
     def __repr__(self):

@@ -11,18 +11,6 @@ from specula.data_objects.intmat import Intmat
 from specula.data_objects.recmat import Recmat
 
 
-def build_and_save_filtmat(intmat, recmat, nmodes, filename, xp):
-    '''
-    Helper functon to produce a filtering matrix,
-    joining an intmat and a recmat.
-    '''
-    im = intmat[:nmodes, :]
-    rm = recmat[:, :nmodes]
-    filtmat = xp.stack((im, xp.transpose(rm)), axis=-1)
-    fits.writeto(filename, cpuArray(filtmat))
-    print(f'saved {filename}')
-
-
 class Slopec(BaseProcessingObj):
     def __init__(self,
                  sn: Slopes=None,

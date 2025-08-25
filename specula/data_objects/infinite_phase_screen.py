@@ -41,6 +41,9 @@ class InfinitePhaseScreen(BaseDataObj):
                  stencil_size_factor=1, 
                  target_device_idx=0, 
                  precision=0):
+        """
+        Initialize an :class:`~specula.data_objects.infinite_phase_screen.InfinitePhaseScreen` object.
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         
         self.random_data_col = None

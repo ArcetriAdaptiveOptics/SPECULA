@@ -125,6 +125,9 @@ class ConvolutionKernel(BaseDataObj):
                  positive_shift_tt: bool=True,
                  target_device_idx: int=None,
                  precision: int=None):
+        """
+        Initialize a :class:`~specula.data_objects.convolution_kernel.ConvolutionKernel` object.
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.dimx = dimx
@@ -309,6 +312,7 @@ class ConvolutionKernel(BaseDataObj):
         # Create an HDUList and write to file
         hdul = fits.HDUList([primary_hdu, kernel_hdu])
         hdul.writeto(filename, overwrite=True)   
+        hdul.close()  # Force close for Windows
 
     def prepare_for_sh(self, sodium_altitude=None, sodium_intensity=None, current_time=None):
         # Update the kernel parameters if provided
