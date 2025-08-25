@@ -24,13 +24,7 @@ class TimeHistoryGenerator(BaseGenerator):
 
     def trigger_code(self):
         if self.iter_counter < self.time_hist.shape[0]:
-            if self.time_hist.ndim == 1:
-                self.output.value[:] = self.time_hist[self.iter_counter]
-            else:
-                self.output.value[:] = self.time_hist[self.iter_counter, :]
+            self.output.value[:] = self.time_hist[self.iter_counter]
         else:
             # Beyond available data, use last values
-            if self.time_hist.ndim == 1:
-                self.output.value[:] = self.time_hist[-1]
-            else:
-                self.output.value[:] = self.time_hist[-1, :]
+            self.output.value[:] = self.time_hist[-1]
