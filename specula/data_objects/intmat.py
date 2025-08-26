@@ -37,7 +37,7 @@ class Intmat(BaseDataObj):
 
     Members .modes and .slopes allow numpy-like access, for example:
 
-    intmat.modes[3:5] += 1
+    intmat_obj.modes[3:5] += 1
     '''
     def __init__(self,
                  intmat = None,
