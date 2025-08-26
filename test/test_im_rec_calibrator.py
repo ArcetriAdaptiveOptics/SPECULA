@@ -11,6 +11,7 @@ from specula.base_value import BaseValue
 from specula.data_objects.pupilstop import Pupilstop
 from specula.data_objects.slopes import Slopes
 from specula.data_objects.source import Source
+from specula.data_objects.intmat import Intmat
 from specula.data_objects.subap_data import SubapData
 from specula.data_objects.simul_params import SimulParams
 from specula.processing_objects.dm import DM
@@ -91,8 +92,7 @@ class TestImRecCalibrator(unittest.TestCase):
         calibrator.post_trigger()
 
         # Check that output was created and updated
-        if len(calibrator.outputs['out_im']) > 0:
-            self.assertEqual(calibrator.outputs['out_im'][0].generation_time, 1)
+        self.assertEqual(calibrator.outputs['out_intmat'].generation_time, 1)
 
         # Do not advance slopes.generation_time
         slopes.generation_time = 1
@@ -103,8 +103,7 @@ class TestImRecCalibrator(unittest.TestCase):
         calibrator.post_trigger()
 
         # Check that trigger was not executed (output time unchanged)
-        if len(calibrator.outputs['out_im']) > 0:
-            self.assertEqual(calibrator.outputs['out_im'][0].generation_time, 1)
+        self.assertEqual(calibrator.outputs['out_intmat'].generation_time, 1)
 
         # Advance both
         slopes.generation_time = 3
@@ -115,8 +114,7 @@ class TestImRecCalibrator(unittest.TestCase):
         calibrator.post_trigger()
 
         # Check that trigger was executed
-        if len(calibrator.outputs['out_im']) > 0:
-            self.assertEqual(calibrator.outputs['out_im'][0].generation_time, 3)
+        self.assertEqual(calibrator.outputs['out_intmat'].generation_time, 3)
 
     def test_existing_rec_file_with_overwrite(self):
         """Test that overwrite=True allows overwriting existing files"""
@@ -128,7 +126,7 @@ class TestImRecCalibrator(unittest.TestCase):
         with open(rec_path, 'w') as f:
             f.write('')
 
-        intmat = BaseValue(value=specula.np.array([[1, 2], [3, 4]]))
+        intmat = Intmat(intmat=specula.np.array([[1, 2], [3, 4]]))
         calibrator = RecCalibrator(nmodes=2, data_dir=self.test_dir, rec_tag=rec_tag, overwrite=True)
         calibrator.inputs['in_intmat'].set(intmat)
 
@@ -144,7 +142,7 @@ class TestImRecCalibrator(unittest.TestCase):
         n_slopes = 6
         n_modes = 3
         mock_im = xp.random.random((n_slopes, n_modes)).astype(xp.float32)
-        intmat = BaseValue(value=mock_im, target_device_idx=target_device_idx)
+        intmat = Intmat(intmat=mock_im, target_device_idx=target_device_idx)
 
         # Set generation time BEFORE setup
         intmat.generation_time = 1

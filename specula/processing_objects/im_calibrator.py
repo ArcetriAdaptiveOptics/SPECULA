@@ -30,9 +30,9 @@ class ImCalibrator(BaseProcessingObj):
                  precision: int = None
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-        self._nmodes = nmodes
-        self._first_mode = first_mode
-        self._data_dir = data_dir
+        self.nmodes = nmodes
+        self.first_mode = first_mode
+        self.data_dir = data_dir
 
         self.subapdata_tag = None
         self.pupdata_tag = None
@@ -48,12 +48,12 @@ class ImCalibrator(BaseProcessingObj):
             im_tag = self._generate_im_tag(pupilstop, source, dm, sensor, slopec)
         self.im_tag = im_tag
 
-        self._overwrite = overwrite
+        self.overwrite = overwrite
 
-        self.im_path = os.path.join(self._data_dir, self.im_tag)
+        self.im_path = os.path.join(self.data_dir, self.im_tag)
         if not self.im_path.endswith('.fits'):
             self.im_path += '.fits'
-        if os.path.exists(self.im_path) and not self._overwrite:
+        if os.path.exists(self.im_path) and not self.overwrite:
             raise FileExistsError(f'IM file {self.im_path} already exists, please remove it')
 
         # Add counts tracking, this is used to normalize the IM
@@ -62,10 +62,11 @@ class ImCalibrator(BaseProcessingObj):
         self.inputs['in_slopes'] = InputValue(type=Slopes)
         self.inputs['in_commands'] = InputValue(type=BaseValue)
 
-        self.output_im = [Slopes(length=2, target_device_idx=self.target_device_idx) for _ in range(nmodes)]
-        self.outputs['out_im'] = self.output_im
-        self._im = BaseValue('intmat', target_device_idx=self.target_device_idx)
-        self.outputs['out_intmat'] = self._im
+        self.intmat = Intmat(nmodes=nmodes, nslopes=0, target_device_idx=self.target_device_idx)
+        self.outputs['out_intmat'] = self.intmat
+
+        self.single_im = [Intmat(nmodes=1, nslopes=0, target_device_idx=self.target_device_idx) for i in range(nmodes)]
+        self.outputs['out_single_im'] = self.single_im
 
     def _generate_im_tag(self, pupilstop, source, dm, sensor, slopec):
         """Generate automatic im_tag based on configuration parameters retrieved from other objects."""
@@ -126,9 +127,9 @@ class ImCalibrator(BaseProcessingObj):
         elif dm.tag is not None and dm.tag != '':
             im_tag += '_'+dm.tag
         nmodes_dm = dm.ifunc.shape[0]
-        im_tag += f'_{min(nmodes_dm,self._nmodes)}mds'
-        if self._first_mode != 0:
-            im_tag += f'_firstm{self._first_mode}'
+        im_tag += f'_{min(nmodes_dm,self.nmodes)}mds'
+        if self.first_mode != 0:
+            im_tag += f'_firstm{self.first_mode}'
 
         # Pupilstop
         im_tag += f'_stop'
@@ -159,41 +160,40 @@ class ImCalibrator(BaseProcessingObj):
         commands = self.local_inputs['in_commands'].value
 
         # First iteration initialization
-        if self._im.value is None:
-            self._im.value = self.xp.zeros((len(slopes), self._nmodes), dtype=self.dtype)
-            for i in range(self._nmodes):
-                self.output_im[i].resize(len(slopes))
+        if self.intmat.nslopes == 0:
+            self.intmat.set_nslopes(len(slopes))
             if self.verbose:
-                print(f"Initialized interaction matrix: {self._im.value.shape}")
+                print(f"Initialized interaction matrix: {self.im.value.shape}")
+            for i in range(self.nmodes):
+                self.single_im[i].set_nslopes(len(slopes))
 
         idx = self.xp.nonzero(commands)[0]
 
         if len(idx)>0:
-            mode = int(idx[0]) - self._first_mode
-            if mode < self._nmodes:
-                self._im.value[:, mode] += slopes / commands[idx]
+            mode = int(idx[0]) - self.first_mode
+            if mode < self.nmodes:
+                self.intmat.modes[mode] += slopes / commands[idx]
                 self.count_commands[mode] += 1
 
         in_slopes_object = self.local_inputs['in_slopes']
 
-        for i in range(self._nmodes):
-            self.output_im[i].slopes[:] = self._im.value[:, i].copy()
-            self.output_im[i].single_mask = in_slopes_object.single_mask
-            self.output_im[i].display_map = in_slopes_object.display_map
-            self.output_im[i].generation_time = self.current_time
+        for mode in range(self.nmodes):
+            self.single_im[mode].modes[0] = self.intmat.modes[mode].copy()
+            self.single_im[mode].single_mask = in_slopes_object.single_mask
+            self.single_im[mode].display_map = in_slopes_object.display_map
+            self.single_im[mode].generation_time = self.current_time
 
-        self._im.generation_time = self.current_time
+        self.intmat.single_mask = in_slopes_object.single_mask
+        self.intmat.display_map = in_slopes_object.display_map
+        self.intmat.generation_time = self.current_time
 
     def finalize(self):
         # normalize by counts
-        for i in range(self._nmodes):
-            if self.count_commands[i] > 0:
-                self._im.value[:, i] /= self.count_commands[i]
+        for mode in range(self.nmodes):
+            if self.count_commands[mode] > 0:
+                self.intmat.modes[mode] /= self.count_commands[mode]
 
-        im = Intmat(self._im.value, pupdata_tag = self.pupdata_tag, subapdata_tag=self.subapdata_tag,
-                    target_device_idx=self.target_device_idx, precision=self.precision)
-
-        os.makedirs(self._data_dir, exist_ok=True)
+        os.makedirs(self.data_dir, exist_ok=True)
 
         # TODO add to IM the information about the first mode
-        im.save(self.im_path, overwrite=self._overwrite)
+        self.intmat.save(self.im_path, overwrite=self.overwrite)

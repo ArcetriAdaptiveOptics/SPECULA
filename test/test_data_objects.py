@@ -28,7 +28,7 @@ class TestDataObjects(unittest.TestCase):
                 classes = [value for name, value in inspect.getmembers(module, inspect.isclass) if name not in skip]
 
                 # Filter: only classes whose __module__ matches the submodule (not external ones)
-                classes = [cls for cls in classes if cls.__module__ == module.__name__]
+                classes = [cls for cls in classes if cls.__module__ == module.__name__ and cls.__name__[0] != '_']
 
                 for c in classes:
                     yield c
