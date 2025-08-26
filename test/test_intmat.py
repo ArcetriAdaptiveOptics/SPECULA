@@ -52,6 +52,51 @@ class TestIntmat(unittest.TestCase):
         assert intmat.norm_factor == 0.0
 
     @cpu_and_gpu
+    def test_init_with_intmat(self, target_device_idx, xp):
+        """Test initializing Intmat with an existing intmat array"""
+        intmat = xp.array([[1, 2], [3, 4]])
+        im = Intmat(intmat=intmat, target_device_idx=target_device_idx)
+
+        # The intmat should match the input values
+        xp.testing.assert_array_equal(im.intmat, intmat)
+
+        # Other default attributes should be set
+        self.assertIsNone(im.slope_mm)
+        self.assertIsNone(im.slope_rms)
+        self.assertEqual(im.pupdata_tag, "")
+        self.assertEqual(im.subapdata_tag, "")
+        self.assertEqual(im.norm_factor, 0.0)
+
+        # Modes and slopes views should exist
+        self.assertTrue(hasattr(im, "modes"))
+        self.assertTrue(hasattr(im, "slopes"))
+
+    @cpu_and_gpu
+    def test_init_with_nmodes_and_nslopes(self, target_device_idx, xp):
+        """Test initializing Intmat with nmodes and nslopes when intmat is not provided"""
+        nmodes = 3
+        nslopes = 5
+        im = Intmat(nmodes=nmodes, nslopes=nslopes, target_device_idx=target_device_idx)
+
+        # Shape should match nslopes x nmodes
+        self.assertEqual(im.intmat.shape, (nslopes, nmodes))
+
+        # The array should be zeros initially
+        xp.testing.assert_array_equal(im.intmat, xp.zeros((nslopes, nmodes), dtype=im.dtype))
+
+    @cpu_and_gpu
+    def test_init_without_intmat_and_missing_nmodes_raises(self, target_device_idx, xp):
+        """Test that missing nmodes raises ValueError when intmat is not provided"""
+        with self.assertRaises(ValueError):
+            Intmat(nmodes=None, nslopes=5, target_device_idx=target_device_idx)
+
+    @cpu_and_gpu
+    def test_init_without_intmat_and_missing_nslopes_raises(self, target_device_idx, xp):
+        """Test that missing nslopes raises ValueError when intmat is not provided"""
+        with self.assertRaises(ValueError):
+            Intmat(nmodes=3, nslopes=None, target_device_idx=target_device_idx)
+
+    @cpu_and_gpu
     def test_get_and_set_value(self, target_device_idx, xp):
         mat = xp.ones((4, 4))
         intmat = Intmat(mat, target_device_idx=target_device_idx)
@@ -142,7 +187,7 @@ class TestIntmatViews(unittest.TestCase):
             ("slopes", [0, 2]),
         ]
 
-        intmat_obj = Intmat(intmat=xp.arange(1, 13).reshape(3, 4))
+        intmat_obj = Intmat(intmat=xp.arange(1, 13).reshape(3, 4), target_device_idx=target_device_idx)
         for view_attr, key in test_cases:
             with self.subTest(view=view_attr, key=key):
                 view = getattr(intmat_obj, view_attr)
@@ -169,7 +214,7 @@ class TestIntmatViews(unittest.TestCase):
             ("slopes", [0, 2], [[5, 5, 5, 5], [7, 7, 7, 7]]),
         ]
 
-        intmat_obj = Intmat(intmat=xp.arange(1, 13).reshape(3, 4))
+        intmat_obj = Intmat(intmat=xp.arange(1, 13).reshape(3, 4), target_device_idx=target_device_idx)
         for view_attr, key, value in test_cases:
             with self.subTest(view=view_attr, key=key):
                 view = getattr(intmat_obj, view_attr)
@@ -194,7 +239,7 @@ class TestIntmatViews(unittest.TestCase):
             ("slopes", [-1, -3]),
         ]
 
-        intmat_obj = Intmat(intmat=xp.arange(1, 13).reshape(3, 4))
+        intmat_obj = Intmat(intmat=xp.arange(1, 13).reshape(3, 4), target_device_idx=target_device_idx)
         for view_attr, key in test_cases:
             with self.subTest(view=view_attr, key=key):
                 view = getattr(intmat_obj, view_attr)
@@ -216,7 +261,7 @@ class TestIntmatViews(unittest.TestCase):
             ("slopes", slice(0, 2), 5),
         ]
 
-        intmat_obj = Intmat(intmat=xp.arange(1, 13).reshape(3, 4))
+        intmat_obj = Intmat(intmat=xp.arange(1, 13).reshape(3, 4), target_device_idx=target_device_idx)
         for view_attr, key, value in test_cases:
             with self.subTest(view=view_attr, key=key):
                 view = getattr(intmat_obj, view_attr)
@@ -232,7 +277,7 @@ class TestIntmatViews(unittest.TestCase):
 
     @cpu_and_gpu
     def test_numpy_array_indexing(self, target_device_idx, xp):
-        intmat_obj = Intmat(intmat=xp.arange(1, 13).reshape(3, 4))
+        intmat_obj = Intmat(intmat=xp.arange(1, 13).reshape(3, 4), target_device_idx=target_device_idx)
         for view_attr in ["modes", "slopes"]:
             with self.subTest(view=view_attr):
                 view = getattr(intmat_obj, view_attr)
@@ -248,7 +293,7 @@ class TestIntmatViews(unittest.TestCase):
 
     @cpu_and_gpu
     def test_numpy_array_assignment(self, target_device_idx, xp):
-        intmat_obj = Intmat(intmat=xp.arange(1, 13).reshape(3, 4))
+        intmat_obj = Intmat(intmat=xp.arange(1, 13).reshape(3, 4), target_device_idx=target_device_idx)
         for view_attr in ["modes", "slopes"]:
             with self.subTest(view=view_attr):
                 view = getattr(intmat_obj, view_attr)
@@ -271,7 +316,7 @@ class TestIntmatViews(unittest.TestCase):
 
     @cpu_and_gpu
     def test_empty_indexing(self, target_device_idx, xp):
-        intmat_obj = Intmat(intmat=xp.arange(1, 13).reshape(3, 4))
+        intmat_obj = Intmat(intmat=xp.arange(1, 13).reshape(3, 4), target_device_idx=target_device_idx)
         for view_attr in ["modes", "slopes"]:
             with self.subTest(view=view_attr):
                 view = getattr(intmat_obj, view_attr)
@@ -290,7 +335,7 @@ class TestIntmatViews(unittest.TestCase):
     @cpu_and_gpu
     def test_set_nmodes_increase(self, target_device_idx, xp):
         """When increasing nmodes, new columns should be zero-initialized."""
-        intmat_obj = Intmat(intmat=xp.arange(1, 13).reshape(3, 4))
+        intmat_obj = Intmat(intmat=xp.arange(1, 13).reshape(3, 4), target_device_idx=target_device_idx)
         old_nmodes = intmat_obj.intmat.shape[1]
         intmat_obj.set_nmodes(6)
 
@@ -306,7 +351,7 @@ class TestIntmatViews(unittest.TestCase):
     @cpu_and_gpu
     def test_set_nmodes_decrease(self, target_device_idx, xp):
         """When decreasing nmodes, columns should be truncated."""
-        intmat_obj = Intmat(intmat=xp.arange(1, 13).reshape(3, 4))
+        intmat_obj = Intmat(intmat=xp.arange(1, 13).reshape(3, 4), target_device_idx=target_device_idx)
         intmat_obj.set_nmodes(2)
 
         # Check new shape
@@ -322,7 +367,7 @@ class TestIntmatViews(unittest.TestCase):
     @cpu_and_gpu
     def test_set_nslopes_increase(self, target_device_idx, xp):
         """When increasing nslopes, new rows should be zero-initialized."""
-        intmat_obj = Intmat(intmat=xp.arange(1, 13).reshape(3, 4))
+        intmat_obj = Intmat(intmat=xp.arange(1, 13).reshape(3, 4), target_device_idx=target_device_idx)
         old_nslopes = intmat_obj.intmat.shape[0]
         intmat_obj.set_nslopes(5)
 
@@ -338,7 +383,7 @@ class TestIntmatViews(unittest.TestCase):
     @cpu_and_gpu
     def test_set_nslopes_decrease(self, target_device_idx, xp):
         """When decreasing nslopes, rows should be truncated."""
-        intmat_obj = Intmat(intmat=xp.arange(1, 13).reshape(3, 4))
+        intmat_obj = Intmat(intmat=xp.arange(1, 13).reshape(3, 4), target_device_idx=target_device_idx)
         intmat_obj.set_nslopes(2)
 
         # Check new shape
