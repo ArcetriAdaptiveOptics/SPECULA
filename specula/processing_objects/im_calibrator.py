@@ -35,16 +35,6 @@ class ImCalibrator(BaseProcessingObj):
         self.first_mode = first_mode
         self.data_dir = data_dir
 
-        self.subapdata_tag = None
-        self.pupdata_tag = None
-        if slopec is not None:
-            if isinstance(slopec, ShSlopec):
-                if slopec.subapdata.tag is not None and slopec.subapdata.tag != '':
-                    self.subapdata_tag = slopec.subapdata.tag
-            if isinstance(slopec, PyrSlopec):
-                if slopec.pupdata.tag is not None and slopec.pupdata.tag != '':
-                    self.pupdata_tag = slopec.pupdata.tag
-
         if im_tag is None or im_tag == 'auto':
             im_tag = self._generate_im_tag(pupilstop, source, dm, sensor, slopec)
         self.im_tag = im_tag
