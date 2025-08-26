@@ -5,6 +5,7 @@ import specula
 specula.init(0)
 
 from specula.simul import Simul
+from test.specula_testlib import assert_HDU_contents_match
 from astropy.io import fits
 import numpy as np
 
@@ -62,15 +63,7 @@ class TestDoubleRoofCalibration(unittest.TestCase):
         self.assertTrue(os.path.exists(self.pupdata_path), "Double Roof PupData calibration file was not generated")
 
         # Compare the generated file with the reference file
-        with fits.open(self.pupdata_path) as gen_pup:
-            with fits.open(self.pupdata_ref_path) as ref_pup:
-                for i, (gen_hdu, ref_hdu) in enumerate(zip(gen_pup, ref_pup)):
-                    if hasattr(gen_hdu, 'data') and hasattr(ref_hdu, 'data') and gen_hdu.data is not None:
-                        np.testing.assert_array_almost_equal(
-                            gen_hdu.data, ref_hdu.data,
-                            decimal=5,
-                            err_msg=f"Data in HDU #{i} does not match reference"
-                        )
+        assert_HDU_contents_match(self.pupdata_path, self.pupdata_ref_path)
 
         print("Double Roof PupData calibration matches reference!")
 
@@ -104,29 +97,8 @@ class TestDoubleRoofCalibration(unittest.TestCase):
         self.assertTrue(os.path.exists(self.im_path), "Interaction matrix file was not generated")
         self.assertTrue(os.path.exists(self.rec_path), "Reconstruction matrix file was not generated")
 
-        # Compare the generated interaction matrix with reference file
-        print("Comparing interaction matrix with reference...")
-        with fits.open(self.im_path) as gen_im:
-            with fits.open(self.im_ref_path) as ref_im:
-                for i, (gen_hdu, ref_hdu) in enumerate(zip(gen_im, ref_im)):
-                    if hasattr(gen_hdu, 'data') and hasattr(ref_hdu, 'data') and gen_hdu.data is not None:
-                        np.testing.assert_array_almost_equal(
-                            gen_hdu.data, ref_hdu.data,
-                            decimal=5,
-                            err_msg=f"Interaction matrix data in HDU #{i} does not match reference"
-                        )
-
-        # Compare the generated reconstruction matrix with reference file
-        print("Comparing reconstruction matrix with reference...")
-        with fits.open(self.rec_path) as gen_rec:
-            with fits.open(self.rec_ref_path) as ref_rec:
-                for i, (gen_hdu, ref_hdu) in enumerate(zip(gen_rec, ref_rec)):
-                    if hasattr(gen_hdu, 'data') and hasattr(ref_hdu, 'data') and gen_hdu.data is not None:
-                        np.testing.assert_array_almost_equal(
-                            gen_hdu.data, ref_hdu.data,
-                            decimal=3,
-                            err_msg=f"Reconstruction matrix data in HDU #{i} does not match reference"
-                        )
+        assert_HDU_contents_match(self.im_path, self.im_ref_path)
+        assert_HDU_contents_match(self.rec_path, self.rec_ref_path)
 
         print("All Double Roof calibration files match reference files!")
 

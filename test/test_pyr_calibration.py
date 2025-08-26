@@ -5,7 +5,7 @@ import specula
 specula.init(0)
 
 from specula.simul import Simul
-from test.specula_testlib import cpu_and_gpu
+from test.specula_testlib import cpu_and_gpu, assert_HDU_contents_match
 from specula.processing_objects.pyr_pupdata_calibrator import PyrPupdataCalibrator
 from specula import cpuArray
 from astropy.io import fits
@@ -54,15 +54,7 @@ class TestPyrPupdataCalibration(unittest.TestCase):
         self.assertTrue(os.path.exists(self.pupdata_path), "Pyramid PupData calibration file was not generated")
 
         # Compare the generated file with the reference file
-        with fits.open(self.pupdata_path) as gen_pup:
-            with fits.open(self.pupdata_ref_path) as ref_pup:
-                for i, (gen_hdu, ref_hdu) in enumerate(zip(gen_pup, ref_pup)):
-                    if hasattr(gen_hdu, 'data') and hasattr(ref_hdu, 'data') and gen_hdu.data is not None:
-                        np.testing.assert_array_almost_equal(
-                            gen_hdu.data, ref_hdu.data,
-                            decimal=5,
-                            err_msg=f"Data in HDU #{i} does not match reference"
-                        )
+        assert_HDU_contents_match(self.pupdata_path, self.pupdata_ref_path)
 
         print("Pyramid PupData calibration matches reference!")
 
@@ -159,7 +151,7 @@ class TestPyrPupdataCalibration(unittest.TestCase):
     def test_create_reference_file(self):
         """Create reference file for Pyramid PupData calibration"""
 
-        # Change to test directory
+        # Change to test directory 
         os.chdir(os.path.dirname(__file__))
 
         # Run the simulation for calibration

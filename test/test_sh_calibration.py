@@ -6,6 +6,7 @@ specula.init(-1,precision=1)  # Default target device
 
 from specula import np
 from specula.simul import Simul
+from test.specula_testlib import assert_HDU_contents_match
 from astropy.io import fits
 
 class TestShCalibration(unittest.TestCase):
@@ -98,51 +99,10 @@ class TestShCalibration(unittest.TestCase):
         self.assertTrue(os.path.exists(self.rec_path),
                        "Reconstruction matrix file was not generated")
 
-        # Compare the generated files with reference files
-        print("Comparing subaperture data with reference...")
-        with fits.open(self.subap_path) as gen_subap:
-            with fits.open(self.subap_ref_path) as ref_subap:
-                for i, (gen_hdu, ref_hdu) in enumerate(zip(gen_subap, ref_subap)):
-                    if hasattr(gen_hdu, 'data') and hasattr(ref_hdu, 'data') and gen_hdu.data is not None:
-                        np.testing.assert_array_almost_equal(
-                            gen_hdu.data, ref_hdu.data,
-                            decimal=5,
-                            err_msg=f"Data in HDU #{i} does not match reference"
-                        )
-
-        # Compare the generated file with reference file
-        print("Comparing slope nulls with reference...")
-        with fits.open(self.sn_path) as gen_sn:
-            with fits.open(self.sn_ref_path) as ref_sn:
-                for i, (gen_hdu, ref_hdu) in enumerate(zip(gen_sn, ref_sn)):
-                    if hasattr(gen_hdu, 'data') and hasattr(ref_hdu, 'data') and gen_hdu.data is not None:
-                        np.testing.assert_array_almost_equal(
-                            gen_hdu.data, ref_hdu.data,
-                            decimal=5, 
-                            err_msg=f"Data in HDU #{i} does not match reference"
-                        )
-
-        print("Comparing interaction matrix with reference...")
-        with fits.open(self.im_path) as gen_rec:
-            with fits.open(self.im_ref_path) as ref_rec:
-                for i, (gen_hdu, ref_hdu) in enumerate(zip(gen_rec, ref_rec)):
-                    if hasattr(gen_hdu, 'data') and hasattr(ref_hdu, 'data') and gen_hdu.data is not None:
-                        np.testing.assert_array_almost_equal(
-                            gen_hdu.data, ref_hdu.data,
-                            decimal=3,
-                            err_msg=f"Data in HDU #{i} does not match reference"
-                        )
-
-        print("Comparing reconstruction matrix with reference...")
-        with fits.open(self.rec_path) as gen_rec:
-            with fits.open(self.rec_ref_path) as ref_rec:
-                for i, (gen_hdu, ref_hdu) in enumerate(zip(gen_rec, ref_rec)):
-                    if hasattr(gen_hdu, 'data') and hasattr(ref_hdu, 'data') and gen_hdu.data is not None:
-                        np.testing.assert_array_almost_equal(
-                            gen_hdu.data, ref_hdu.data,
-                            decimal=3,
-                            err_msg=f"Data in HDU #{i} does not match reference"
-                        )
+        assert_HDU_contents_match(self.subap_path, self.subap_ref_path)
+        assert_HDU_contents_match(self.sn_path, self.sn_ref_path)
+        assert_HDU_contents_match(self.im_path, self.im_ref_path)
+        assert_HDU_contents_match(self.rec_path, self.rec_ref_path)
 
         print("All calibration files match reference files!")
 
