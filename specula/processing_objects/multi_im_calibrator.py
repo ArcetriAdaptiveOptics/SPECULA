@@ -1,4 +1,5 @@
 import os
+import numpy as np
 
 from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.slopes import Slopes
@@ -30,7 +31,7 @@ class MultiImCalibrator(BaseProcessingObj):
         self._overwrite = overwrite
 
         # Add counts tracking for each input, this is used to normalize the IM
-        self.count_commands = [self.xp.zeros(nmodes, dtype=self.xp.int32) for _ in range(n_inputs)]
+        self.count_commands = [np.zeros(nmodes, dtype=int) for _ in range(n_inputs)]
 
         # Existing file existence checks
         for i in range(self._n_inputs):  # Use self._n_inputs instead of len(...)

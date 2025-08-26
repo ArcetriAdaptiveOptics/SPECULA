@@ -35,10 +35,10 @@ class PupData(BaseDataObj):
             framesize = np.zeros(2)
 
         self.ind_pup = self.to_xp(ind_pup).astype(int)
-        self.radius = self.to_xp(radius).astype(self.dtype)
-        self.cx = self.to_xp(cx).astype(self.dtype)
-        self.cy = self.to_xp(cy).astype(self.dtype)
-        self.framesize = np.array(framesize, dtype=int)
+        self.radius = cpuArray(radius, dtype=self.dtype)
+        self.cx = cpuArray(cx, dtype=self.dtype)
+        self.cy = cpuArray(cy, dtype=self.dtype)
+        self.framesize = cpuArray(framesize, dtype=int)
         self.slopes_from_intensity = False
 
     def get_value(self):
@@ -109,9 +109,9 @@ class PupData(BaseDataObj):
         hdr = self.get_fits_header()
         fits.writeto(filename, np.zeros(2), hdr, overwrite=overwrite)
         fits.append(filename, cpuArray(self.ind_pup))
-        fits.append(filename, cpuArray(self.radius))
-        fits.append(filename, cpuArray(self.cx))
-        fits.append(filename, cpuArray(self.cy))
+        fits.append(filename, self.radius)
+        fits.append(filename, self.cx)
+        fits.append(filename, self.cy)
 
     @staticmethod
     def restore(filename, target_device_idx=None):

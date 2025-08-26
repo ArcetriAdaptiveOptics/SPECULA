@@ -1,4 +1,5 @@
 import os
+import numpy as np
 
 from specula.base_processing_obj import BaseProcessingObj
 from specula.processing_objects.dm import DM
@@ -57,7 +58,7 @@ class ImCalibrator(BaseProcessingObj):
             raise FileExistsError(f'IM file {self.im_path} already exists, please remove it')
 
         # Add counts tracking, this is used to normalize the IM
-        self.count_commands = self.xp.zeros(nmodes, dtype=self.xp.int32)
+        self.count_commands = np.zeros(nmodes, dtype=int)
 
         self.inputs['in_slopes'] = InputValue(type=Slopes)
         self.inputs['in_commands'] = InputValue(type=BaseValue)
