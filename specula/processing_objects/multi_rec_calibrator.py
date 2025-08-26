@@ -2,7 +2,6 @@ import os
 
 from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.intmat import Intmat
-from specula.base_value import BaseValue
 from specula.connections import InputValue
 from specula.connections import InputList
 
@@ -30,8 +29,8 @@ class MultiRecCalibrator(BaseProcessingObj):
         if full_rec_path and os.path.exists(full_rec_path) and not self._overwrite:
             raise FileExistsError(f'Rec file {full_rec_path} already exists, please remove it')
 
-        self.inputs['intmat_list'] = InputList(type=BaseValue)
-        self.inputs['full_intmat'] = InputValue(type=BaseValue)
+        self.inputs['intmat_list'] = InputList(type=Intmat)
+        self.inputs['full_intmat'] = InputValue(type=Intmat)
 
     def tag_filename(self, tag, tag_template, prefix):
         if tag == 'auto' and tag_template is None:
@@ -56,28 +55,24 @@ class MultiRecCalibrator(BaseProcessingObj):
 
     def trigger_code(self):
         # Do nothing, the computation is done in finalize
-        self._full_im = self.local_inputs['full_intmat']
-        self._ims = self.local_inputs['intmat_list']
+        pass
 
     def finalize(self):
         self._ims = self.local_inputs['intmat_list']
 
-        for i, im in enumerate(self._ims):
-            intmat = Intmat(im.value, target_device_idx=self.target_device_idx, precision=self.precision)
+        for i, intmat in enumerate(self._ims):
             if self.rec_path(i):
                 rec = intmat.generate_rec(self._nmodes)
                 rec.save(os.path.join(self._data_dir, self.rec_path(i)), overwrite=self._overwrite)
 
-        self._full_im = self.local_inputs['full_intmat']
+        full_intmat = self.local_inputs['full_intmat']
 
         os.makedirs(self._data_dir, exist_ok=True)
 
         full_rec_path = self.full_rec_path()
-        if full_rec_path and self._full_im.value is not None:
-            full_intmat = Intmat(self._full_im.value, target_device_idx=self.target_device_idx, precision=self.precision)
-            if full_rec_path:
-                fullrec = full_intmat.generate_rec(self._nmodes)
-                fullrec.save(os.path.join(self._data_dir, full_rec_path), overwrite=self._overwrite)
+        if full_rec_path:
+            fullrec = full_intmat.generate_rec(self._nmodes)
+            fullrec.save(os.path.join(self._data_dir, full_rec_path), overwrite=self._overwrite)
 
     def setup(self):
         super().setup()

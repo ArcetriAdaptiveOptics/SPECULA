@@ -47,9 +47,9 @@ class MultiImCalibrator(BaseProcessingObj):
 
         self.outputs['out_intmat_list'] = []
         for i in range(self._n_inputs):
-            im = BaseValue(f'intmat_{i}', target_device_idx=self.target_device_idx)
+            im = Intmat(nmodes=nmodes, nslopes=0, target_device_idx=self.target_device_idx)
             self.outputs['out_intmat_list'].append(im)
-        self.outputs['out_intmat_full'] = BaseValue('full_intmat', target_device_idx=self.target_device_idx)
+        self.outputs['out_intmat_full'] = Intmat(nmodes=nmodes, nslopes=0, target_device_idx=self.target_device_idx)
 
     def tag_filename(self, tag, tag_template, prefix):
         if tag == 'auto' and tag_template is None:
@@ -78,16 +78,16 @@ class MultiImCalibrator(BaseProcessingObj):
         commands = [x.value for x in self.local_inputs['in_commands_list']]
 
         # First iteration
-        if self.outputs['out_intmat_list'][0].value is None:
-            for i, (im, ss) in enumerate(zip(self.outputs['out_intmat_list'], slopes)):
-                im.value = self.xp.zeros((len(ss), self._nmodes), dtype=self.dtype)
+        if self.outputs['out_intmat_list'][0].nslopes is None:
+            for im, ss in zip(self.outputs['out_intmat_list'], slopes):
+                im.set_nslopes(len(ss))
 
         for im, ss, cc in zip(self.outputs['out_intmat_list'], slopes, commands):
             idx = self.xp.nonzero(cc)
             if len(idx[0])>0:
                 mode = int(idx[0])
                 if mode < self._nmodes:
-                    im.value[:, mode] += ss / cc[idx]
+                    im.modes[mode] += ss / cc[idx]
                     self.count_commands[i][mode] += 1
             im.generation_time = self.current_time
 
@@ -98,10 +98,9 @@ class MultiImCalibrator(BaseProcessingObj):
             # Normalize by counts before saving
             for mode in range(self._nmodes):
                 if self.count_commands[i][mode] > 0:
-                    im.value[:, mode] /= self.count_commands[i][mode]
-            intmat = Intmat(im.value, target_device_idx=self.target_device_idx, precision=self.precision)
+                    im.modes[mode] /= self.count_commands[i][mode]
             if self.im_path(i):
-                intmat.save(os.path.join(self._data_dir, self.im_path(i)), overwrite=self._overwrite)
+                im.save(os.path.join(self._data_dir, self.im_path(i)), overwrite=self._overwrite)
             im.generation_time = self.current_time
 
         full_im_path = self.full_im_path()
@@ -109,13 +108,12 @@ class MultiImCalibrator(BaseProcessingObj):
             if not self.outputs['out_intmat_list']:
                 full_im = self.xp.array([])
             else:
-                full_im = self.xp.vstack([im.value for im in self.outputs['out_intmat_list']])
-            full_intmat = Intmat(full_im, target_device_idx=self.target_device_idx, precision=self.precision)
-            if full_im_path:
-                full_intmat.save(os.path.join(self._data_dir, full_im_path), overwrite=self._overwrite)
+                full_im = self.xp.vstack([im.intmat for im in self.outputs['out_intmat_list']])
 
-            self.outputs['out_intmat_full'].value = full_im
+            self.outputs['out_intmat_full'].intmat = full_im
             self.outputs['out_intmat_full'].generation_time = self.current_time
+            if full_im_path:
+                self.outputs['out_intmat_full'].save(os.path.join(self._data_dir, full_im_path), overwrite=self._overwrite)
 
     def setup(self):
         super().setup()
