@@ -53,7 +53,7 @@ im_calibrator1:  &IM_CALIBRATOR
   inputs:
     in_slopes: 'slopec_lgs1.out_slopes'
     in_commands: 'pushpull.output'
-  outputs: ['out_im','out_intmat']
+  outputs: ['out_intmat']
 
 im_calibrator2: { <<: *IM_CALIBRATOR, im_tag: 'morfeo2_im_lgs', inputs: {in_slopes: 'slopec_lgs2.out_slopes', in_commands: 'pushpull.output' }}
 im_calibrator3: { <<: *IM_CALIBRATOR, im_tag: 'morfeo3_im_lgs', inputs: {in_slopes: 'slopec_lgs3.out_slopes', in_commands: 'pushpull.output' }}

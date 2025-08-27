@@ -42,7 +42,7 @@ im_calibrator_lo:
   inputs:
     in_slopes: 'slopec_lo.out_slopes'
     in_commands: 'pushpull.output'
-  outputs: ['out_im','out_intmat']
+  outputs: ['out_intmat']
 
 
 rec_calibrator_lo:
@@ -65,7 +65,7 @@ im_calibrator_truth:
   inputs:
     in_slopes: 'slopec_lo.out_slopes'
     in_commands: 'pushpull.output'
-  outputs: ['out_im','out_intmat']
+  outputs: ['out_intmat']
 
 
 rec_calibrator_truth:
