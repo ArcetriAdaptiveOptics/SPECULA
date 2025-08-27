@@ -33,7 +33,12 @@ class TestIntmat(unittest.TestCase):
         im2 = Intmat.restore(self.filename)
 
         np.testing.assert_array_equal(cpuArray(im.intmat), cpuArray(im2.intmat))
-        
+
+        try:
+            os.unlink(self.filename)
+        except FileNotFoundError:
+            pass
+
     def tearDown(self):
         try:
             os.unlink(self.filename)
