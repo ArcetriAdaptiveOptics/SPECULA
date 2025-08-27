@@ -143,6 +143,18 @@ class Intmat(BaseDataObj):
         if self.slope_rms is not None:
             fits.append(filename, self.slope_rms)
 
+    def save(self, filename, overwrite=True):
+        hdr = self.get_fits_header()
+        hdu = fits.PrimaryHDU(header=hdr)  # main HDU, empty, only header
+        hdul = fits.HDUList([hdu])
+        hdul.append(fits.ImageHDU(data=cpuArray(self.intmat), name='INTMAT'))
+        if self.slope_mm is not None:
+            hdul.append(fits.ImageHDU(data=cpuArray(self.slope_mm), name='SLOPEMM'))
+        if self.slope_rms is not None:
+            hdul.append(fits.ImageHDU(data=cpuArray(self.slope_rms), name='SLOPERMS'))
+        hdul.writeto(filename, overwrite=overwrite)
+        hdul.close()  # Force close for Windows
+
     @staticmethod
     def from_header(hdr, target_device_idx=None):
         raise NotImplementedError
