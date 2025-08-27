@@ -83,7 +83,7 @@ class MultiImCalibrator(BaseProcessingObj):
             for im, ss in zip(self.outputs['out_intmat_list'], slopes):
                 im.set_nslopes(len(ss))
 
-        for im, ss, cc in zip(self.outputs['out_intmat_list'], slopes, commands):
+        for i, (im, ss, cc) in enumerate(zip(self.outputs['out_intmat_list'], slopes, commands)):
             idx = self.xp.nonzero(cc)
             if len(idx[0])>0:
                 mode = int(idx[0])
