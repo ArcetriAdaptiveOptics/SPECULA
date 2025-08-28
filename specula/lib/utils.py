@@ -18,7 +18,7 @@ def camelcase_to_snakecase(s):
         result.append(t)
     return ''.join([x.lower() for x in result])
 
-def import_class(classname):
+def import_class(classname, additional_modules=[]):
     '''
     Dynamically import a class by name from the appropriate specula submodule.
 
@@ -27,6 +27,7 @@ def import_class(classname):
         - specula.processing_objects
         - specula.data_objects
         - specula.display
+        - user-defined additional modules, if any
 
     The module name is inferred by converting the class name from CamelCase to snake_case.
 
@@ -34,6 +35,8 @@ def import_class(classname):
     ----------
     classname : str
         The name of the class to import (in CamelCase).
+    additional_modules: list[str]
+        List of additional module names to try
 
     Returns
     -------
@@ -48,21 +51,22 @@ def import_class(classname):
         If the class is not found in the located module.
     '''
     modulename = camelcase_to_snakecase(classname)
-    try:
+    module_paths = ['specula.processing_objects',
+                    'specula.data_objects',
+                    'specula.display'] + additional_modules
+    
+    for module_path in module_paths:
         try:
-            mod = importlib.import_module(f'specula.processing_objects.{modulename}')
-        except ModuleNotFoundError:
+            mod = importlib.import_module(f'{module_path}.{modulename}')
             try:
-                mod = importlib.import_module(f'specula.data_objects.{modulename}')
-            except ModuleNotFoundError:
-                mod = importlib.import_module(f'specula.display.{modulename}')
-    except ModuleNotFoundError:
-        raise ImportError(f'Class {classname} must be defined in a file called {modulename}.py but it cannot be found')
+                return getattr(mod, classname)
+            except AttributeError:
+                raise AttributeError(f'Class {classname} not found in file {modulename}.py')
+        except ModuleNotFoundError:
+            # import_module failed, try with next module
+            pass
 
-    try:
-        return getattr(mod, classname)
-    except AttributeError:
-        raise AttributeError(f'Class {classname} not found in file {modulename}.py')
+    raise ImportError(f'Class {classname} must be defined in a file called {modulename}.py but it cannot be found')
 
 
 def get_type_hints(type):

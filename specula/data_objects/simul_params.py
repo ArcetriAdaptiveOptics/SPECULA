@@ -1,6 +1,6 @@
 
 from specula.base_data_obj import BaseDataObj
-
+from typing import List
 
 class SimulParams(BaseDataObj):
     '''
@@ -31,6 +31,7 @@ class SimulParams(BaseDataObj):
                 time_step: float = 0.001,
                 zenithAngleInDeg: float = 0,
                 display_server: bool = False,
+                add_modules: List[str] = [],
     ):
         super().__init__()
         self.pixel_pupil = pixel_pupil
@@ -40,3 +41,4 @@ class SimulParams(BaseDataObj):
         self.time_step = time_step
         self.zenithAngleInDeg = zenithAngleInDeg
         self.display_server = display_server
+        self.add_modules = add_modules

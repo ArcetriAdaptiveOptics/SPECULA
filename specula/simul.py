@@ -282,7 +282,8 @@ class Simul():
             except KeyError:
                 raise KeyError(f'Object {key} does not define the "class" parameter')
 
-            klass = import_class(classname)
+            additional_modules = self.mainParams['add_modules']
+            klass = import_class(classname, additional_modules)
             args = inspect.getfullargspec(getattr(klass, '__init__')).args
             hints = get_type_hints(klass)
 
