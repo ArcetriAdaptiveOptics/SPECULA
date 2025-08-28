@@ -253,11 +253,11 @@ class ElectricField(BaseDataObj):
         """
         if idx is not None:
             idx = self.xp.unravel_index(idx, self.field[0].shape)
-            xfrom, xto = self.xp.min(idx[0]), self.xp.max(idx[0] +1)
-            yfrom, yto = self.xp.min(idx[1]), self.xp.max(idx[1] +1)
-        sub_ef = ElectricField(xto - xfrom + 1, yto - yfrom + 1, self.pixel_pitch)
-        sub_ef.field[0] = self.field[0, xfrom:xto, yfrom:yto]
-        sub_ef.field[1] = self.field[1, xfrom:xto, yfrom:yto]
+            xfrom, xto = self.xp.min(idx[0]), self.xp.max(idx[0])
+            yfrom, yto = self.xp.min(idx[1]), self.xp.max(idx[1])
+        sub_ef = ElectricField(xto - xfrom, yto - yfrom, self.pixel_pitch, target_device_idx=self.target_device_idx)
+        sub_ef.field[0, :] = self.field[0, xfrom:xto, yfrom:yto]
+        sub_ef.field[1, :] = self.field[1, xfrom:xto, yfrom:yto]
         sub_ef.S0 = self.S0
         return sub_ef
 

@@ -240,3 +240,102 @@ class TestElectricField(unittest.TestCase):
         assert ef.A.shape == (new_dimx, new_dimy)
         assert ef.phaseInNm.shape == (new_dimx, new_dimy)
         assert ef.pixel_pitch == new_pixel_pitch
+
+    @cpu_and_gpu
+    def test_area(self, target_device_idx, xp):
+        """
+        Test that ElectricField.area() returns the correct total area based on pixel_pitch.
+        """
+        ef = ElectricField(4, 5, pixel_pitch=0.2, target_device_idx=target_device_idx)
+        expected_area = ef.field[0].size * (ef.pixel_pitch ** 2)
+        self.assertAlmostEqual(ef.area(), expected_area)
+
+    @cpu_and_gpu
+    def test_square_modulus(self, target_device_idx, xp):
+        """
+        Test that ElectricField.square_modulus() computes |E|^2 correctly.
+        """
+        ef = ElectricField(3, 3, pixel_pitch=1.0, target_device_idx=target_device_idx)
+        wavelength = 500.0  # nm
+
+        # Set amplitude = 2 everywhere, zero phase
+        ef.field[0] = xp.full((3, 3), 2.0, dtype=ef.dtype)
+        ef.field[1] = xp.zeros((3, 3), dtype=ef.dtype)
+
+        # Expected intensity = amplitude^2 = 4
+        expected = xp.full((3, 3), 4.0, dtype=ef.dtype)
+        result = ef.square_modulus(wavelength)
+
+        self.assertTrue(xp.allclose(result, expected))
+
+    @cpu_and_gpu
+    def test_sub_ef_with_indices(self, target_device_idx, xp):
+        """
+        Test ElectricField.sub_ef() when extracting a subregion using explicit indices.
+        """
+        ef = ElectricField(6, 6, pixel_pitch=0.5, target_device_idx=target_device_idx)
+        ef.field[0] = xp.arange(36, dtype=ef.dtype).reshape(6, 6)
+        ef.field[1] = ef.field[0] * 2
+
+        sub_ef = ef.sub_ef(xfrom=2, xto=5, yfrom=1, yto=4)
+        expected_amplitude = ef.field[0, 2:5, 1:4]
+        expected_phase = ef.field[1, 2:5, 1:4]
+
+        self.assertTrue(xp.allclose(sub_ef.field[0], expected_amplitude))
+        self.assertTrue(xp.allclose(sub_ef.field[1], expected_phase))
+        self.assertEqual(sub_ef.pixel_pitch, ef.pixel_pitch)
+        self.assertEqual(sub_ef.S0, ef.S0)
+
+    @cpu_and_gpu
+    def test_sub_ef_with_flat_indices(self, target_device_idx, xp):
+        """
+        Test ElectricField.sub_ef() when using a flat array of indices.
+        """
+        ef = ElectricField(4, 4, pixel_pitch=0.1, target_device_idx=target_device_idx)
+        ef.field[0] = xp.arange(16, dtype=ef.dtype).reshape(4, 4)
+        ef.field[1] = ef.field[0] * 2
+
+        # Select three arbitrary points in flat indexing
+        idx = xp.array([0, 5, 10])
+        sub_ef = ef.sub_ef(idx=idx)
+
+        # Bounds should match min/max idx selection
+        min_x, max_x = xp.min(xp.unravel_index(idx, ef.field[0].shape)[0]), xp.max(xp.unravel_index(idx, ef.field[0].shape)[0])
+        min_y, max_y = xp.min(xp.unravel_index(idx, ef.field[0].shape)[1]), xp.max(xp.unravel_index(idx, ef.field[0].shape)[1])
+
+        expected_amplitude = ef.field[0, min_x:max_x, min_y:max_y]
+        expected_phase = ef.field[1, min_x:max_x, min_y:max_y]
+
+        self.assertTrue(xp.allclose(sub_ef.field[0], expected_amplitude))
+        self.assertTrue(xp.allclose(sub_ef.field[1], expected_phase))
+
+    @cpu_and_gpu
+    def test_check_other_success(self, target_device_idx, xp):
+        """
+        Test ElectricField.checkOther() when ef2 has matching size.
+        """
+        ef1 = ElectricField(4, 4, pixel_pitch=1.0, target_device_idx=target_device_idx)
+        ef2 = ElectricField(4, 4, pixel_pitch=1.0, target_device_idx=target_device_idx)
+
+        subrect = ef1.checkOther(ef2)
+        self.assertEqual(subrect, [0, 0])
+
+    @cpu_and_gpu
+    def test_check_other_invalid_type(self, target_device_idx, xp):
+        """
+        Test ElectricField.checkOther() raises ValueError if ef2 is not an ElectricField.
+        """
+        ef1 = ElectricField(4, 4, pixel_pitch=1.0, target_device_idx=target_device_idx)
+        with self.assertRaises(ValueError):
+            ef1.checkOther("not an ElectricField")
+
+    @cpu_and_gpu
+    def test_check_other_size_mismatch(self, target_device_idx, xp):
+        """
+        Test ElectricField.checkOther() raises ValueError when ef2 has incompatible size.
+        """
+        ef1 = ElectricField(4, 4, pixel_pitch=1.0, target_device_idx=target_device_idx)
+        ef2 = ElectricField(2, 2, pixel_pitch=1.0, target_device_idx=target_device_idx)
+
+        with self.assertRaises(ValueError):
+            ef1.checkOther(ef2)
