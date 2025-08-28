@@ -63,7 +63,7 @@ class DataSource(BaseProcessingObj):
         self.storage[name] = { t:data[i] for i, t in enumerate(times.tolist())}
 
     def size(self, name, dimensions=False):
-        if not self.has_key(name):
+        if name not in self.storage:
             print(f'The key: {name} is not stored in the object!')
             return -1
         h = self.storage[name]
