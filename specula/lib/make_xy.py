@@ -162,9 +162,9 @@ def make_xy(sampling, ratio, xp, dtype=None, polar=False, vector=False,
 
     if fft and not quarter:
         if even_sampling:
-            x = xp.roll(x, -sampling / 2)
+            x = xp.roll(x, -sampling // 2)
         else:
-            x = xp.roll(x, -(sampling - 1) / 2)
+            x = xp.roll(x, -(sampling - 1) // 2)
 
     if vector:
         return x
