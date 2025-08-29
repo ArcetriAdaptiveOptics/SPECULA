@@ -4,7 +4,7 @@ from specula import cp, np
 
 def cpu_and_gpu(f):
     '''
-    Decorator to run a test function first on GPU (if available)
+    Decorator to run a test method first on GPU (if available)
     and the on CPU. If the GPU is not available, it will be
     skipped silently.
     '''
@@ -21,6 +21,24 @@ def cpu_and_gpu(f):
         
     return test_both
 
+def cpu_and_gpu_noself(f):
+    '''
+    Decorator to run a test function first on GPU (if available)
+    and the on CPU. If the GPU is not available, it will be
+    skipped silently.
+    '''
+    def test_gpu():
+        return f(xp=cp)
+    
+    def test_cpu():
+        return f(xp=np)
+    
+    def test_both():
+        if cp is not None:
+            test_gpu()
+        test_cpu()
+        
+    return test_both
 
 def assert_HDU_contents_match(data_path, ref_path, decimal=5):
     '''
