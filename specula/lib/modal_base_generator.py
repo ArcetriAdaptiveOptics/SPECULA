@@ -182,13 +182,13 @@ def make_modal_base_from_ifs_fft(pupil_mask, diameter, influence_functions, r0, 
     pupil_mask : 2D array
         Pupil mask
     diameter : float
-        Telescope diameter
+        Telescope diameter in meters
     influence_functions : 2D array
         Influence functions
     r0 : float
-        Fried parameter
+        Fried parameter in meters
     L0 : float
-        Outer scale
+        Outer scale in meters
     zern_modes : int
         Number of Zernike modes to be used as first modes
     oversampling : int

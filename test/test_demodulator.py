@@ -68,5 +68,3 @@ class TestDemodulator(unittest.TestCase):
             )
             print(f"Demodulator output OK: mean={mean_demod:.3f}, expected={self.expected_amplitude:.3f}")
 
-if __name__ == '__main__':
-    unittest.main()

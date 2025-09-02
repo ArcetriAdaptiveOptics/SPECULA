@@ -14,8 +14,6 @@ from specula.data_objects.electric_field import ElectricField
 from specula.processing_objects.psf import PSF
 from specula.data_objects.pixels import Pixels
 from specula.data_objects.slopes import Slopes
-from specula.data_objects.subap_data import SubapData
-from specula.processing_objects.sh import SH
 from specula.display.phase_display import PhaseDisplay
 from specula.display.pixels_display import PixelsDisplay
 from specula.display.slopec_display import SlopecDisplay
