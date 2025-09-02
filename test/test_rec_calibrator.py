@@ -311,7 +311,8 @@ class TestRecCalibrator(unittest.TestCase):
             data_dir=self.test_dir,
             rec_tag='test_device1'
         )
-        self.assertEqual(calibrator1.target_device_idx, 0)  # Default GPU device
+        default_device_idx = specula.default_target_device_idx
+        self.assertEqual(calibrator1.target_device_idx, default_device_idx)
         
         # Test with custom target device
         calibrator2 = RecCalibrator(
