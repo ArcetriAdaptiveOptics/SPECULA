@@ -79,7 +79,7 @@ class MultiImCalibrator(BaseProcessingObj):
         commands = [x.value for x in self.local_inputs['in_commands_list']]
 
         # First iteration
-        if self.outputs['out_intmat_list'][0].nslopes is None:
+        if self.outputs['out_intmat_list'][0].nslopes == 0:
             for im, ss in zip(self.outputs['out_intmat_list'], slopes):
                 im.set_nslopes(len(ss))
 
