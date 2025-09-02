@@ -1,6 +1,7 @@
 import specula
 specula.init(0)  # Default target device
 
+import pytest
 import unittest
 import numpy as np
 
@@ -80,6 +81,7 @@ class TestIdealDerivativeSensor(unittest.TestCase):
 
         return ef, sh, ideal_sensor, slopec, subapdata
 
+    @pytest.mark.filterwarnings('ignore:.*divide by zero encountered*:RuntimeWarning')
     @cpu_and_gpu
     def test_flat_wavefront(self, target_device_idx, xp):
         """Test that both sensors give zero slopes for flat wavefront"""
@@ -127,6 +129,7 @@ class TestIdealDerivativeSensor(unittest.TestCase):
         np.testing.assert_allclose(ideal_slopes_x, 0, atol=1e-3)
         np.testing.assert_allclose(ideal_slopes_y, 0, atol=1e-3)
 
+    @pytest.mark.filterwarnings('ignore:.*divide by zero encountered*:RuntimeWarning')
     @cpu_and_gpu
     def test_tilt_comparison(self, target_device_idx, xp):
         """Test tilt case: compare SH and IdealDerivativeSensor slopes"""

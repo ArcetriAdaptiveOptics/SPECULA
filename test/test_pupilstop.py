@@ -86,7 +86,7 @@ class TestPupilstop(unittest.TestCase):
     # This decorator suppress the warning in pytest output,
     # but the "with pytest.warns(...)" instruction below still checks
     # that it is raised.
-    @pytest.mark.filterwarnings('ignore:^.+PASSATA.+$:RuntimeWarning')
+    @pytest.mark.filterwarnings('ignore:.*Detected PASSATA pupilstop file.*:RuntimeWarning')
     @cpu_and_gpu
     def test_PASSATA_pupilstop_file(self, target_device_idx, xp):
         '''Test that old pupilstop files from PASSATA are loaded correctly'''
