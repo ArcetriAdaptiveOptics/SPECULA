@@ -112,7 +112,7 @@ class TestExtendedSource(unittest.TestCase):
         pixel_pitch = self.simul_params.pixel_pitch
         output_resolution = 80
         t = 1
-        
+
         # Create an extended source
         src = ExtendedSource(
             simul_params=self.simul_params,
@@ -175,13 +175,13 @@ class TestExtendedSource(unittest.TestCase):
         # Check that the max intensity is non-zero and minimum intensity is non-negative
         self.assertGreater(np.max(intensity), 0)
         self.assertGreaterEqual(np.min(intensity), 0)
-        
-    @cpu_and_gpu   
+
+    @cpu_and_gpu
     def test_extended_source_psf_update(self, target_device_idx, xp):
         # Create PSF-based extended source
         psf = np.random.random((64, 64))
         psf /= np.sum(psf)  # Normalize
-        
+
         src = ExtendedSource(
             simul_params=self.simul_params,
             wavelengthInNm=self.wavelengthInNm,
@@ -303,18 +303,42 @@ class TestExtendedSource(unittest.TestCase):
                              sampling_type='RINGS', n_rings=3, target_device_idx=target_device_idx)
         self.assertGreater(len(src.xx_arcsec), 0)
 
-    # TODO fails because of problems with PSF interpolation at extended_source.py line 590
-    # @cpu_and_gpu
-    # def test_compute_from_psf_polar(self, target_device_idx, xp):
-    #     simul_params = make_simul_params()
-    #     psf = xp.ones((7, 7))
+    @cpu_and_gpu
+    def test_compute_from_psf_polar(self, target_device_idx, xp):
+        simul_params = make_simul_params()
+        psf = xp.ones((7, 7))
 
-    #     src = ExtendedSource(simul_params, 500, 'FROM_PSF',
-    #                          initial_psf=psf,
-    #                          pixel_scale_psf=0.1,
-    #                          sampling_type='POLAR',
-    #                          target_device_idx=target_device_idx)
-    #     self.assertGreater(len(src.xx_arcsec), 0)
+        src = ExtendedSource(simul_params, 500, 'FROM_PSF',
+                             initial_psf=psf,
+                             pixel_scale_psf=0.1,
+                             sampling_type='POLAR',
+                             target_device_idx=target_device_idx)
+        self.assertGreater(len(src.xx_arcsec), 0)
+
+    @cpu_and_gpu
+    def test_from_psf_polar_with_sampl_dist_step(self, target_device_idx, xp):
+        simul_params = make_simul_params()
+        psf = xp.ones((11, 11))
+        psf /= xp.sum(psf)
+        src = ExtendedSource(
+            simul_params=simul_params,
+            wavelengthInNm=500,
+            source_type='FROM_PSF',
+            initial_psf=psf,
+            pixel_scale_psf=0.1,
+            sampling_type='POLAR',
+            target_device_idx=target_device_idx,
+        )
+        # Set a sampling distance step to reduce points
+        src.sampl_dist_step = 2
+        src.compute()
+        # All arrays must have the same length
+        n = len(src.xx_arcsec)
+        self.assertEqual(len(src.yy_arcsec), n)
+        self.assertEqual(len(src.coeff_tiltx), n)
+        self.assertEqual(len(src.coeff_tilty), n)
+        self.assertEqual(len(src.coeff_flux), n)
+        self.assertAlmostEqual(float(np.sum(src.coeff_flux)), 1.0, places=6)
 
     @cpu_and_gpu
     def test_apply_flux_threshold(self, target_device_idx, xp):
