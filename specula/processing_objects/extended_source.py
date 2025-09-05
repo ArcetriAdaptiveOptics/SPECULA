@@ -36,7 +36,7 @@ class ExtendedSource(BaseProcessingObj):
                  sampling_lambda_over_d: float = 1.0,   # Sampling factor in units of λ/D
                  size_obj: Optional[float] = None,      # size in arcsec
                  sampling_type: str = 'CARTESIAN',      # 'CARTESIAN', 'POLAR', 'RINGS'
-                 layer_height: Optional[List[float]] = None,    
+                 layer_height: Optional[List[float]] = None,
                  intensity_profile: Optional[List[float]] = None,
                  focus_height: Optional[float] = None,
                  tt_profile: Optional[np.ndarray] = None,
@@ -55,7 +55,7 @@ class ExtendedSource(BaseProcessingObj):
         self.pixel_pitch = self.simul_params.pixel_pitch
         self.zenithAngleInDeg = self.simul_params.zenithAngleInDeg
         self.airmass = 1. / np.cos(np.radians(self.simul_params.zenithAngleInDeg), dtype=self.dtype)
-        
+
         self.wavelengthInNm = wavelengthInNm
         self.sampling_lambda_over_d = sampling_lambda_over_d
         self.d_tel = self.pixel_pupil * self.pixel_pitch
@@ -473,10 +473,10 @@ class ExtendedSource(BaseProcessingObj):
         """Compute extended source from PSF"""
 
         psf = self.psf.value
-        sPSF = psf.shape
-        sPSFarcsec = np.array(sPSF) * self.pixel_scale_psf
+        s_psf = psf.shape
+        s_psf_arcsec = np.array(s_psf) * self.pixel_scale_psf
 
-        extobj_maxpix = int(np.round(sPSFarcsec[0] / obj_sampling))
+        extobj_maxpix = int(np.round(s_psf_arcsec[0] / obj_sampling))
         extobj_maxarcsec = extobj_maxpix * obj_sampling
 
         if self.sampling_type == 'CARTESIAN':
@@ -494,15 +494,15 @@ class ExtendedSource(BaseProcessingObj):
             yy_arcsec = yy.flatten()
 
             # Convert to PSF pixel coordinates for interpolation
-            xx_psf = xx_arcsec / self.pixel_scale_psf + sPSF[0]/2
-            yy_psf = yy_arcsec / self.pixel_scale_psf + sPSF[0]/2
+            xx_psf = xx_arcsec / self.pixel_scale_psf + s_psf[0]/2
+            yy_psf = yy_arcsec / self.pixel_scale_psf + s_psf[0]/2
 
             # Interpolate PSF values
             from scipy.interpolate import RectBivariateSpline
-    
+
             # Create interpolation function
-            x_psf = np.arange(sPSF[1])
-            y_psf = np.arange(sPSF[0])
+            x_psf = np.arange(s_psf[1])
+            y_psf = np.arange(s_psf[0])
             interp_func = RectBivariateSpline(y_psf, x_psf, cpuArray(psf), kx=1, ky=1)
 
             # Interpolate at desired points (with boundary check)
@@ -515,7 +515,7 @@ class ExtendedSource(BaseProcessingObj):
                 y_coord = yy_psf[i]
 
                 # Check if coordinates are within PSF bounds
-                if (0 <= x_coord < sPSF[1]-1) and (0 <= y_coord < sPSF[0]-1):
+                if (0 <= x_coord < s_psf[1]-1) and (0 <= y_coord < s_psf[0]-1):
                     flux_val = float(interp_func(y_coord, x_coord)[0, 0])
                     flux_percent.append(flux_val)
                     valid_xx.append(xx_arcsec[i])
@@ -527,68 +527,52 @@ class ExtendedSource(BaseProcessingObj):
 
         elif self.sampling_type == 'POLAR':
             # Polar sampling similar to IDL version
-            rPol = np.arange(int(np.round((extobj_maxpix + 1) / 2)))
-            naPol = rPol * 6
-            naPol[0] = 1  # Central point
+            r_pol = np.arange(int(np.round((extobj_maxpix + 1) / 2)))
+            na_pol = r_pol * 6
+            na_pol[0] = 1  # Central point
 
             # Handle sampling distance step if specified
-            if hasattr(self, 'sampl_dist_step') and self.sampl_dist_step > 1:
-                idxSDS = np.where(rPol % self.sampl_dist_step == 0)[0]
-                idxGood = []
+            sampl_dist_step = getattr(self, 'sampl_dist_step', 1)
+            if sampl_dist_step > 1:
+                idx_rings = np.where(r_pol % sampl_dist_step == 0)[0]
+            else:
+                idx_rings = np.arange(len(r_pol))
 
-            npointTot = int(np.sum(naPol))
-            pol_coords = np.zeros((2, npointTot))
+            npoint_tot = int(np.sum(na_pol[idx_rings]))
+            pol_coords = np.zeros((2, npoint_tot))
 
-            kaPol = 0
-            for iaPol in range(len(naPol)):
-                for jaPol in range(int(naPol[iaPol])):
-                    pol_coords[0, kaPol] = 360.0 / naPol[iaPol] * jaPol  # angle
-                    pol_coords[1, kaPol] = iaPol * sPSF[0] / (2 * len(naPol) - 1)  # radius
-
-                    if hasattr(self, 'sampl_dist_step') and self.sampl_dist_step > 1:
-                        if np.min(np.abs(iaPol - idxSDS)) == 0:
-                            idxGood.append(kaPol)
-
-                    kaPol += 1
+            ka_pol = 0
+            for ia_pol in idx_rings:
+                for ja_pol in range(int(na_pol[ia_pol])):
+                    pol_coords[0, ka_pol] = 360.0 / na_pol[ia_pol] * ja_pol  # angle
+                    pol_coords[1, ka_pol] = ia_pol * s_psf[0] / (2 * len(na_pol) - 1)  # radius
+                    ka_pol += 1
 
             # Convert polar to rectangular coordinates
             angles_rad = np.deg2rad(pol_coords[0, :])
             radii = pol_coords[1, :]
 
-            xxInterpol = radii * np.cos(angles_rad)
-            yyInterpol = radii * np.sin(angles_rad)
+            xx_interpol = radii * np.cos(angles_rad)
+            yy_interpol = radii * np.sin(angles_rad)
 
             # Convert to arcsec
-            xx_arcsec = xxInterpol * self.pixel_scale_psf
-            yy_arcsec = yyInterpol * self.pixel_scale_psf
+            xx_arcsec = xx_interpol * self.pixel_scale_psf
+            yy_arcsec = yy_interpol * self.pixel_scale_psf
 
             # Adjust for PSF indexing
-            xxInterpol += sPSF[0] / 2
-            yyInterpol += sPSF[0] / 2
+            xx_interpol += s_psf[0] / 2
+            yy_interpol += s_psf[0] / 2
 
-            # Apply sampling distance step filtering if needed
-            if hasattr(self, 'sampl_dist_step') and self.sampl_dist_step > 1:
-                xx_arcsec = xx_arcsec[idxGood]
-                yy_arcsec = yy_arcsec[idxGood]
-                xxInterpol = xxInterpol[idxGood]
-                yyInterpol = yyInterpol[idxGood]
-
-            # Interpolate PSF values
+            # Interpolate PSF values, clamping out-of-bounds to nearest edge
             from scipy.interpolate import RectBivariateSpline
-            x_psf = np.arange(sPSF[1])
-            y_psf = np.arange(sPSF[0])
+            x_psf = np.arange(s_psf[1])
+            y_psf = np.arange(s_psf[0])
             interp_func = RectBivariateSpline(y_psf, x_psf, cpuArray(psf), kx=1, ky=1)
 
-            flux_percent = []
-            for i in range(len(xx_arcsec)):
-                x_coord = xxInterpol[i]
-                y_coord = yyInterpol[i]
+            x_clipped = np.clip(xx_interpol, 0, s_psf[1] - 1)
+            y_clipped = np.clip(yy_interpol, 0, s_psf[0] - 1)
 
-                if (0 <= x_coord < sPSF[1]-1) and (0 <= y_coord < sPSF[0]-1):
-                    flux_val = float(interp_func(y_coord, x_coord)[0, 0])
-                    flux_percent.append(flux_val)
-
-            flux_percent = np.array(flux_percent)
+            flux_percent = np.array([float(interp_func(yc, xc)[0, 0]) for xc, yc in zip(x_clipped, y_clipped)])
 
         else:
             raise ValueError(f"FROM_PSF sampling type {self.sampling_type} not implemented")
