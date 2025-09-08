@@ -91,12 +91,12 @@ class ImCalibrator(BaseProcessingObj):
         im_tag += f'_ns{slopec.nsubaps()}'
         if isinstance(slopec, ShSlopec):
             if slopec.quadcell_mode:
-                im_tag += f'_qc'
+                im_tag += '_qc'
             if slopec.subapdata.tag is not None and slopec.subapdata.tag != '':
                 im_tag += f'_{slopec.subapdata.tag}'
         if isinstance(slopec, PyrSlopec):
             if slopec.slopes_from_intensity:
-                im_tag += f'_slint'
+                im_tag += '_slint'
             if slopec.pupdata.tag is not None and slopec.pupdata.tag != '':
                 im_tag += f'_{slopec.pupdata.tag}'
 
@@ -110,7 +110,7 @@ class ImCalibrator(BaseProcessingObj):
             im_tag += f'_h{source.height:.1f}m'
 
         # DM related keys
-        im_tag += f'_dm'
+        im_tag += '_dm'
         if dm.mask.shape[0] != dm.simul_params.pixel_pupil:
             im_tag += f'{dm.mask.shape[0]}x{dm.mask.shape[1]}p'
         if dm.type_str is not None:
@@ -123,7 +123,7 @@ class ImCalibrator(BaseProcessingObj):
             im_tag += f'_firstm{self.first_mode}'
 
         # Pupilstop
-        im_tag += f'_stop'
+        im_tag += '_stop'
         if pupilstop.tag is not None and pupilstop.tag != '':
             im_tag += f'_{pupilstop.tag}'
         else:

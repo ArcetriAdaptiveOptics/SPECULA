@@ -5,10 +5,8 @@ import os
 import tempfile
 import unittest
 import shutil
-import numpy as np
 from unittest.mock import MagicMock, patch
 
-from specula.base_value import BaseValue
 from specula.data_objects.intmat import Intmat
 from specula.processing_objects.multi_rec_calibrator import MultiRecCalibrator
 

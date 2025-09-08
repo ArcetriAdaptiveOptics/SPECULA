@@ -67,6 +67,8 @@ class SubapData(BaseDataObj):
     @staticmethod
     def restore(filename, target_device_idx=None):
         """Restores the :class:`~specula.data_objects.subap_data.SubapData` from a file."""
+
+        # pylint: disable=no-member
         with fits.open(filename) as hdul:
             hdr = hdul[0].header
             version = hdr.get('VERSION')

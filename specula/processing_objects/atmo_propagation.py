@@ -233,7 +233,7 @@ class AtmoPropagation(BaseProcessingObj):
         if not self.mergeLayersContrib:
             for name, source in self.source_dict.items():
                 self.outputs['out_'+name+'_ef'] = []
-                for n in range(self.nAtmoLayers):
+                for _ in range(self.nAtmoLayers):
                     ef = ElectricField(self.pixel_pupil_size, self.pixel_pupil_size, self.pixel_pitch, target_device_idx=self.target_device_idx)
                     ef.S0 = source.phot_density()
                     self.outputs['out_'+name+'_ef'].append(ef)

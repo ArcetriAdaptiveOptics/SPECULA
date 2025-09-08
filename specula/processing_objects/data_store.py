@@ -43,7 +43,7 @@ class DataStore(BaseProcessingObj):
     def setReplayParams(self, replay_params):
         self.replay_params = replay_params
 
-    def save_pickle(self, compress=False):
+    def save_pickle(self):
         times = {k: np.array(list(v.keys()), dtype=self.dtype) for k, v in self.storage.items() if isinstance(v, OrderedDict)}
         data = {k: np.array(list(v.values()), dtype=self.dtype) for k, v in self.storage.items() if isinstance(v, OrderedDict)}
         for k,v in times.items():            
@@ -69,7 +69,7 @@ class DataStore(BaseProcessingObj):
             if self.verbose:
                 print("Warning: replay_params not available, skipping replay_params.yml creation")
 
-    def save_fits(self, compress=False):
+    def save_fits(self):
         times = {k: np.array(list(v.keys()), dtype=np.uint64) for k, v in self.storage.items() if isinstance(v, OrderedDict)}
         data = {k: np.array(list(v.values()), dtype=self.dtype) for k, v in self.storage.items() if isinstance(v, OrderedDict)}
 

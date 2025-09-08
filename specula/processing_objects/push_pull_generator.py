@@ -1,4 +1,3 @@
-import numpy as np
 from specula.processing_objects.base_generator import BaseGenerator
 from specula.lib.modal_pushpull_signal import modal_pushpull_signal
 

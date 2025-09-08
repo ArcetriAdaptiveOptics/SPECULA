@@ -44,7 +44,7 @@ class PolyChromSH(PolyChromWFS):
                         precision=precision)
 
         # Create SH instances
-        for i, wavelength in enumerate(self.wavelengths_in_nm):
+        for wavelength in self.wavelengths_in_nm:
             sh = SH(
                 wavelengthInNm=wavelength,
                 subap_wanted_fov=subap_wanted_fov,

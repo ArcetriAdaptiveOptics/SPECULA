@@ -12,7 +12,8 @@ from specula.lib.make_mask import make_mask
 from specula.lib.toccd import toccd
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.zernike_generator import ZernikeGenerator
-        
+
+
 @fuse(kernel_name='pyr1_fused')
 def pyr1_fused(u_fp, ffv, fpsf, masked_exp, xp):
     psf = xp.real(u_fp * xp.conj(u_fp))
@@ -87,7 +88,7 @@ class ModulatedPyramid(BaseProcessingObj):
         toccd_side = result['toccd_side']
         final_ccd_side = result['final_ccd_side']
 
-        # Compute focal plane central obstruction dimension ratio            
+        # Compute focal plane central obstruction dimension ratio
         fp_obsratio = fp_obs / (fft_totsize / fft_res) if fp_obs is not None else 0
 
         self.wavelength_in_nm = wavelengthInNm
@@ -209,7 +210,6 @@ class ModulatedPyramid(BaseProcessingObj):
         pup_margin=2,           # zone of respect around pupils for margins, optional, default=2px
         fft_res=3.0,            # requested minimum PSF sampling, 1.0 = 1 pixel / PSF, default=3.0
         min_pup_dist=None,
-        NOTEST=False            # skip the time estimation done with a test pyramid
     ):
         # Calculate pup_distance if not given, using the pup_margin
         if pup_dist is None:
@@ -421,7 +421,7 @@ class ModulatedPyramid(BaseProcessingObj):
                 # CIRCULAR MODULATION MODE: Standard pyramid modulation
                 for tt in range(self.mod_steps):
                     angle = 2 * self.xp.pi * (tt / self.mod_steps)
-                    pup_tt = (self.mod_amp * self.xp.sin(angle) * self.tilt_x + 
+                    pup_tt = (self.mod_amp * self.xp.sin(angle) * self.tilt_x +
                             self.mod_amp * self.xp.cos(angle) * self.tilt_y)
 
                     self.ttexp[0, tt, :, :] = self.xp.exp(-iu * pup_tt, dtype=self.complex_dtype)
@@ -434,7 +434,7 @@ class ModulatedPyramid(BaseProcessingObj):
                     for tt in range(self.mod_steps):
                         # Linear modulation from -mod_amp to +mod_amp
                         tilt_value = self.mod_amp * (2 * tt / (self.mod_steps - 1) - 1)
-                        
+
                         if self.mod_type == 'horizontal' or (self.mod_type == 'alternating' and rotation_idx == 1):
                             # Horizontal modulation uses tilt_x
                             pup_tt = tilt_value * self.tilt_x
@@ -674,4 +674,4 @@ class ModulatedPyramid(BaseProcessingObj):
 
         if self.stream_enable:
             super().build_stream()
- 
+

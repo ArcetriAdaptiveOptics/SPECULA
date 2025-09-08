@@ -127,7 +127,7 @@ class BaseProcessingObj(BaseTimeObj):
     def send_remote_output(self, item, dest_rank, dest_tag, first_mpi_send=True, out_name=''):
         if MPI_SEND_DBG: print(process_rank, f'SEND to rank {dest_rank} {dest_tag=} {(dest_tag in self.sent_valid)=} (from {self.name}.{out_name})', flush=True)
         if first_mpi_send or not dest_tag in self.sent_valid:
-            if MPI_SEND_DBG: print(process_rank, f'SEND with Pickle', dest_tag, flush=True)
+            if MPI_SEND_DBG: print(process_rank, 'SEND with Pickle', dest_tag, flush=True)
             xp_orig = item.xp
             item.xp = 0            
             process_comm.ibsend(item, dest=dest_rank, tag=dest_tag)
@@ -135,8 +135,8 @@ class BaseProcessingObj(BaseTimeObj):
         else:            
             buffer = item.get_value()
             if MPI_SEND_DBG:  print(process_rank, dest_tag, 'SEND .device', buffer.device)
-            if MPI_SEND_DBG: print(process_rank, f'SEND with Buffer', dest_tag, type(buffer), buffer, flush=True)
-            if MPI_SEND_DBG: print(process_rank, f'SEND with Buffer type', dest_tag, buffer.dtype, flush=True)
+            if MPI_SEND_DBG: print(process_rank, 'SEND with Buffer', dest_tag, type(buffer), buffer, flush=True)
+            if MPI_SEND_DBG: print(process_rank, 'SEND with Buffer type', dest_tag, buffer.dtype, flush=True)
 
             process_comm.Ibsend(cpuArray(buffer), dest=dest_rank, tag=dest_tag)
 
@@ -213,7 +213,7 @@ class BaseProcessingObj(BaseTimeObj):
         else:
             self.inputs_changed = False
             if self.verbose:
-                print(f'No inputs have been refreshed, skipping trigger')
+                print('No inputs have been refreshed, skipping trigger')
         return self.inputs_changed
 
     def trigger(self):

@@ -47,18 +47,14 @@ class MirrorCommandsCombinator(BaseProcessingObj):
         self.outputs['out_result_commands1'] = self.result_commands1       # could be 4000, out_dims[0]
         self.outputs['out_result_commands2'] = self.result_commands2       # could be 1000, out_dims[1]
         self.outputs['out_result_commands3'] = self.result_commands3       # could be 1000, out_dims[2]
-        
+
         # Pre-Allocate output data
         self.result_commands1.value = self.xp.zeros(self.out_dims[0], dtype=self.dtype)
         self.result_commands2.value = self.xp.zeros(self.out_dims[1], dtype=self.dtype)
         self.result_commands3.value = self.xp.zeros(self.out_dims[2], dtype=self.dtype)        
-        
+
         self.z1 = self.xp.zeros( self.dims_LO[0], dtype=self.dtype)
         self.z2 = self.xp.zeros( self.out_dims[0]-self.dims_LO[0]-self.dims_LO[2], dtype=self.dtype)
-
-    def prepare_trigger(self, t):
-        super().prepare_trigger(t)
-
 
     def trigger_code(self):
         x_HO = self.local_inputs['in_commandsHO'].value
@@ -77,10 +73,10 @@ class MirrorCommandsCombinator(BaseProcessingObj):
 
         v11 = self.xp.concatenate( ( x_LO1, x_F, x_HO1 ) )
         v12 = self.xp.concatenate( ( self.z1, self.k_vector * x_LO3, self.z2 ) )
-        
+
         y1 = v11 + v12
         if self.dims_P > 0:
-             y1 += self.A_matrix.recmat[:self.out_dims[0],:] @ x_P        
+            y1 += self.A_matrix.recmat[:self.out_dims[0],:] @ x_P        
         y2 = x_HO2
         y3 = self.xp.concatenate( ( x_LO3, x_HO3 ) )
 
@@ -89,17 +85,9 @@ class MirrorCommandsCombinator(BaseProcessingObj):
         self.result_commands2.value[:] = y2
         self.result_commands3.value[:] = y3
 
-
     def post_trigger(self):
         super().post_trigger()
         # note that this cannot be done in the trigger when stream is used
         self.result_commands1.generation_time = self.current_time
         self.result_commands2.generation_time = self.current_time
         self.result_commands3.generation_time = self.current_time
-
-
-    def setup(self):
-        super().setup()
-            
-
-

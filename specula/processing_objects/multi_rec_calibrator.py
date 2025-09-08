@@ -18,7 +18,7 @@ class MultiRecCalibrator(BaseProcessingObj):
                  target_device_idx: int = None,
                  precision: int = None
                 ):
-        super().__init__(target_device_idx=target_device_idx, precision=precision)        
+        super().__init__(target_device_idx=target_device_idx, precision=precision)
         self._nmodes = nmodes
         self._data_dir = data_dir
         self._rec_filename = self.tag_filename(rec_tag, rec_tag_template, prefix='rec')
@@ -58,9 +58,9 @@ class MultiRecCalibrator(BaseProcessingObj):
         pass
 
     def finalize(self):
-        self._ims = self.local_inputs['intmat_list']
+        ims = self.local_inputs['intmat_list']
 
-        for i, intmat in enumerate(self._ims):
+        for i, intmat in enumerate(ims):
             if self.rec_path(i):
                 rec = intmat.generate_rec(self._nmodes)
                 rec.save(os.path.join(self._data_dir, self.rec_path(i)), overwrite=self._overwrite)

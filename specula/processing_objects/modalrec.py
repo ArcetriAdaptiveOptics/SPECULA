@@ -109,11 +109,11 @@ class Modalrec(BaseProcessingObj):
         self.inputs['in_slopes_list'] = InputList(type=Slopes, optional=True)
         self.outputs['out_modes'] = self.modes
         self.outputs['out_pseudo_ol_modes'] = self.pseudo_ol_modes
-        
+
         # TODO static allocation but polc not supported (should use projmat)
         self.modes.value = self.xp.zeros(nmodes, dtype=self.dtype)
         self.pseudo_ol_modes.value = self.xp.zeros(nmodes, dtype=self.dtype)
-        
+
         if self.polc:
             self.out_comm = BaseValue('output commands from modal reconstructor', target_device_idx=target_device_idx)
             self.inputs['in_commands'] = InputValue(type=BaseValue, optional=True)

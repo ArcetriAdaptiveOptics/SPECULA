@@ -49,7 +49,6 @@ class ZernikeSensor(ModulatedPyramid):
         pup_margin=None,
         fft_res=16.0,
         min_pup_dist=None,
-        NOTEST=False
     ):
         """
         Geometry calculation for Zernike sensor.
@@ -74,7 +73,6 @@ class ZernikeSensor(ModulatedPyramid):
             pup_margin=pup_margin,
             fft_res=fft_res,
             min_pup_dist=min_pup_dist,
-            NOTEST=NOTEST
         )
         return results
 

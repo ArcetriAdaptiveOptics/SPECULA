@@ -1,6 +1,5 @@
 
 import time
-import numpy as np
 from collections import defaultdict
 
 from specula.base_time_obj import BaseTimeObj

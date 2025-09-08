@@ -11,6 +11,7 @@ from specula import cpuArray
 
 import matplotlib.pyplot as plt
 
+
 class GainOptimizer(BaseProcessingObj):
     """
     Gain optimizer for IIR filters based on modal gain optimization (GENDRON 1994).
@@ -212,7 +213,7 @@ class GainOptimizer(BaseProcessingObj):
         gmax_vec = self.to_xp(gmax_vec) * self.max_gain_factor
 
         if self.verbose:
-            print(f"Maximum stable gains calculated:")
+            print("Maximum stable gains calculated:")
             print(f"  Raw max gains: mean={float(self.xp.mean(gmax_vec/self.max_gain_factor)):.4f}, "
                 f"std={float(self.xp.std(gmax_vec/self.max_gain_factor)):.4f}")
             print(f"  With safety factor ({self.max_gain_factor}): mean={float(self.xp.mean(gmax_vec)):.4f}, "

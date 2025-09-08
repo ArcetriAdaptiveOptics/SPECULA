@@ -1,5 +1,6 @@
-import numpy as np
 from typing import Optional, Union, List
+
+import numpy as np
 
 from specula import cpuArray
 from specula.base_processing_obj import BaseProcessingObj
@@ -302,9 +303,6 @@ class ExtendedSource(BaseProcessingObj):
         # Number of points per ring (based on circumference)
         np_rings = np.ceil(2 * np.pi * radius_rings / obj_sampling).astype(int)
 
-        # Total number of points (rings + central point)
-        total_points = int(np.sum(np_rings)) + 1
-
         # Initialize arrays
         xx_arcsec = [0.0]  # Central point
         yy_arcsec = [0.0]
@@ -359,7 +357,6 @@ class ExtendedSource(BaseProcessingObj):
         """Compute Gaussian with Cartesian sampling"""
         # Convert FWHM to sigma
         sigma_arcsec = self.size_obj / (2.0 * np.sqrt(2.0 * np.log(2.0)))
-        sigma_pix = sigma_arcsec / obj_sampling
 
         # Compute up to 3 sigma
         max_extent = 3.0 * sigma_arcsec
@@ -421,9 +418,6 @@ class ExtendedSource(BaseProcessingObj):
 
         # Number of points per ring (based on circumference)
         np_rings = np.ceil(2 * np.pi * radius_rings / obj_sampling).astype(int)
-
-        # Total number of points (rings + central point)
-        total_points = int(np.sum(np_rings)) + 1
 
         # Initialize arrays
         xx_arcsec = [0.0]  # Central point

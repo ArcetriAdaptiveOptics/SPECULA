@@ -246,6 +246,3 @@ class CCD(BaseProcessingObj):
             self._pixels.multiply(self._qe)
         if self._notUniformQe:
             self._pixels.multiply(self._notUniformQeMatrix)
-
-    def setup(self):
-        super().setup()

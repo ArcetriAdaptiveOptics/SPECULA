@@ -80,7 +80,6 @@ class IdealDerivativeSensor(BaseProcessingObj):
         """Pre-compute indices for each subaperture."""
         npixels = ef_size[0]
         nx = self.subapdata.nx
-        ny = self.subapdata.ny
         np_sub = npixels // nx  # pixels per subaperture
 
         self._subap_indices = []

@@ -14,7 +14,7 @@ from seeing.formulary import *
 from seeing.integrator import *
 
 
-from symao.turbolence import createTurbolenceFormulary, ft_phase_screen0, ft_ft2
+from symao.turbolence import createTurbolenceFormulary, ft_phase_screen0
 
 turbolenceFormulas = createTurbolenceFormulary()
 
@@ -138,7 +138,7 @@ class InfinitePhaseScreen(BaseDataObj):
         # Now use sqrt(eigenvalues) to get B matrix
         B_mat = u.dot(L_mat)
         return A_mat, B_mat
-    
+
     def setup(self):
         # set X coords
         self.new_col_coords1 = self.xp.zeros((self.stencil_size, 2))
@@ -179,10 +179,10 @@ class InfinitePhaseScreen(BaseDataObj):
         if row:
             self.prepare_random_data_row()
             stencil_data = self.xp.asarray(self.full_scrn[self.stencil_coords[after][:, 1], self.stencil_coords[after][:, 0]])
-            new_line = self.A_mat[after].dot(stencil_data) + self.B_mat[after].dot(self.random_data_row)  
+            new_line = self.A_mat[after].dot(stencil_data) + self.B_mat[after].dot(self.random_data_row)
         else:
             self.prepare_random_data_col()
-            stencil_data = self.xp.asarray(self.full_scrn[self.stencil_coords[after][:, 0], self.stencil_coords[after][:, 1]])            
+            stencil_data = self.xp.asarray(self.full_scrn[self.stencil_coords[after][:, 0], self.stencil_coords[after][:, 1]])
             new_line = self.A_mat[after].dot(stencil_data) + self.B_mat[after].dot(self.random_data_col)
         return new_line
 
@@ -365,7 +365,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         else:
             scale_r0 = 0.0
 
-        scale_wvl = ( self.ref_wavelengthInNm / (2 * np.pi) )
+        scale_wvl = self.ref_wavelengthInNm / (2 * np.pi)
         self.scale_coeff = scale_r0 * scale_wvl
 
     @show_in_profiler('atmo_evolution.trigger_code')

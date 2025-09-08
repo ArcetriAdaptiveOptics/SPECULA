@@ -1,4 +1,4 @@
-from specula import cpuArray, process_rank, process_comm, MPI_DBG, MPI_SEND_DBG
+from specula import cpuArray, process_rank, process_comm, MPI_SEND_DBG
 from specula import np, cp
 from specula.lib.flatten import flatten
 

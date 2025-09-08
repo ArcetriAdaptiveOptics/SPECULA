@@ -12,7 +12,7 @@ class Recmat(BaseDataObj):
     '''
     def __init__(self,
                  recmat,
-                 modes2recLayer=None,
+                 modes2recLayer=None,  # TODO not used
                  norm_factor: float=0,
                  target_device_idx: int=None,
                  precision: int=None):

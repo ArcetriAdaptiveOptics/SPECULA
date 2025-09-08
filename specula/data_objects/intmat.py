@@ -131,18 +131,6 @@ class Intmat(BaseDataObj):
         hdr['NORMFACT'] = self.norm_factor
         return hdr
 
-    def save(self, filename, overwrite=False):
-        if not filename.endswith('.fits'):
-            filename += '.fits'
-        hdr = self.get_fits_header()
-        # Save fits file
-        fits.writeto(filename, np.zeros(2), hdr, overwrite=overwrite)
-        fits.append(filename, cpuArray(self.intmat))
-        if self.slope_mm is not None:
-            fits.append(filename, self.slope_mm)
-        if self.slope_rms is not None:
-            fits.append(filename, self.slope_rms)
-
     def save(self, filename, overwrite=True):
         hdr = self.get_fits_header()
         hdu = fits.PrimaryHDU(header=hdr)  # main HDU, empty, only header

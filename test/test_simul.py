@@ -92,7 +92,7 @@ class TestSimul(unittest.TestCase):
         val = simul.objs['b'].inputs['in'].get(-1)
         assert isinstance(val, list)
         assert all(isinstance(x, DummyOutputDerived) for x in val)
-        
+
     def test_missing_output_raises(self):
         simul = Simul([])
         simul.objs = {'a': DummyObj()}
@@ -102,7 +102,7 @@ class TestSimul(unittest.TestCase):
             simul.connect_objects({
                 'a': {'outputs': ['missing']}
             })
-        
+
     def test_invalid_input_type(self):
         simul = Simul([])
         simul.objs = {
@@ -160,7 +160,7 @@ class TestSimul(unittest.TestCase):
                 'inputs': {
                     'in2': 'obj1.output'
                 }
-            }      
+            }
         }
 
         simul = Simul([])
@@ -190,7 +190,7 @@ class TestSimul(unittest.TestCase):
         simul = Simul([])
 
         # Does not raise
-        _ = simul.trigger_order(pars)
+        _ = simul.build_trigger_order(pars)
 
         # These outputs depend on each other
         pars = {
@@ -210,7 +210,7 @@ class TestSimul(unittest.TestCase):
         }
         # Raises ValueError
         with self.assertRaises(ValueError):
-            _ = simul.trigger_order(pars)
+            _ = simul.build_trigger_order(pars)
 
 
     def test_combine_params(self):
@@ -219,7 +219,6 @@ class TestSimul(unittest.TestCase):
             'dm': { 'foo' : 'bar'},
             'dm2': { 'foo2': 'bar2'},
         }
-        params2 = copy.deepcopy(original_params)
         additional_params1 = {'dm_override_2': { 'foo': 'bar3' } }
         additional_params2 = {'remove_3': ['dm2'] }
 

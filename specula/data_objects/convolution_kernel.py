@@ -1,14 +1,12 @@
-from specula.base_data_obj import BaseDataObj
+import os
+import hashlib, json
 
+import numpy as np
 from astropy.io import fits
 
 from specula import cpuArray, ASEC2RAD
+from specula.base_data_obj import BaseDataObj
 from specula.lib.rebin import rebin2d
-
-import os
-import numpy as np
-
-import hashlib, json
 
 
 def lgs_map_sh(nsh, diam, rl, zb, dz, profz, fwhmb, ps, ssp,

@@ -562,12 +562,12 @@ class FieldAnalyser:
             # Load PSF
             psf_path = self.psf_output_dir / f"{psf_filename}.fits"
             with fits.open(psf_path) as hdul:
-                results['psf_list'].append(hdul[0].data)
+                results['psf_list'].append(hdul[0].data)   # pylint: disable=no-member
 
             # Load SR
             sr_path = self.psf_output_dir / f"{sr_filename}.fits"
             with fits.open(sr_path) as hdul:
-                results['sr_list'].append(hdul[0].data)
+                results['sr_list'].append(hdul[0].data)   # pylint: disable=no-member
 
         return results
 
@@ -588,7 +588,7 @@ class FieldAnalyser:
             modal_path = self.modal_output_dir / f"{modal_filename}.fits"
 
             with fits.open(modal_path) as hdul:
-                modal_coeffs = hdul[0].data
+                modal_coeffs = hdul[0].data     # pylint: disable=no-member
                 results['modal_coeffs'].append(modal_coeffs)
 
                 # Calculate statistics from time series
@@ -617,10 +617,10 @@ class FieldAnalyser:
             cube_path = self.cube_output_dir / f"{cube_filename}.fits"
 
             with fits.open(cube_path) as hdul:
-                results['phase_cubes'].append(hdul[0].data)
+                results['phase_cubes'].append(hdul[0].data)   # pylint: disable=no-member
 
                 if results['times'] is None and len(hdul) > 1:
-                    results['times'] = hdul[1].data
+                    results['times'] = hdul[1].data           # pylint: disable=no-member
 
         return results
 

@@ -8,6 +8,20 @@ from specula import cpu_float_dtype_list, gpu_float_dtype_list
 from specula import cpu_complex_dtype_list, gpu_complex_dtype_list
 
 
+def monitorMem(f):
+
+    @wraps(f)
+    def monitorMem_wrapper(*args, **kwargs):
+        self = args[0]
+        self.startMemUsageCount()
+        retval = f(*args, **kwargs)
+        self.stopMemUsageCount()
+        return retval
+
+    monitorMem_wrapper.__signature__ = signature(f)    # Needed to track type hints in __init__ for object creation
+    return monitorMem_wrapper
+
+
 class BaseTimeObj:
     def __init__(self, target_device_idx=None, precision=None):
         """
@@ -88,26 +102,13 @@ class BaseTimeObj:
         if hasattr(self, 'target_device_idx') and self.target_device_idx >= 0:
             print(process_rank, f'\tcupy memory used by {self.__class__.__name__}: {self.gpu_bytes_used / (1024*1024)} MB')
 
-    def monitorMem(f):
-
-        @wraps(f)
-        def monitorMem_wrapper(*args, **kwargs):
-            self = args[0]
-            self.startMemUsageCount()
-            retval = f(*args, **kwargs)
-            self.stopMemUsageCount()
-            return retval
-
-        monitorMem_wrapper.__signature__ = signature(f)    # Needed to track type hints in __init__ for object creation
-        return monitorMem_wrapper
-
     def __init_subclass__(cls, /, **kwargs):
         super().__init_subclass__(**kwargs)
         methods = ['__init__', 'setup']
 
         for name, attr in cls.__dict__.items():
             if name in methods:
-                setattr(cls, name, BaseTimeObj.monitorMem(attr))
+                setattr(cls, name, monitorMem(attr))
 
     def to_xp(self, v, dtype=None, force_copy=False):
         '''

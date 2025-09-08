@@ -1,7 +1,4 @@
 
-from astropy.io import fits
-
-from specula import cpuArray
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_value import BaseValue
 from specula.connections import InputValue
@@ -88,7 +85,6 @@ class Slopec(BaseProcessingObj):
 
         # Initialize accumulated pixels if not exists
         if self.int_pixels is None:
-            from specula.data_objects.pixels import Pixels
             self.int_pixels = Pixels(
                 current_pixels.shape[0],
                 current_pixels.shape[1],

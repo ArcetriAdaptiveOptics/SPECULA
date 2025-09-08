@@ -687,8 +687,9 @@ class IirFilterData(BaseDataObj):
 
     @staticmethod
     def restore(filename, target_device_idx=None):
+        # pylint: disable=no-member # members of HDUList[i] are created dynamically by pyfits
         with fits.open(filename) as hdul:
-            hdr = hdul[0].header
+            hdr = hdul[0].header     
             version = hdr['VERSION']
             if version != 1:
                 raise ValueError(f"Error: unknown version {version} in file {filename}")
@@ -714,10 +715,6 @@ class IirFilterData(BaseDataObj):
     def set_value(self, v):
         # TODO
         raise NotImplementedError()
-
-    @staticmethod
-    def from_header(hdr):
-        raise NotImplementedError
 
     def discrete_delay_tf(self, delay):
         """Generate transfer function for discrete delay.

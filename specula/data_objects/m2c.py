@@ -67,7 +67,7 @@ class M2C(BaseDataObj):
             self.m2c = self.m2c[:, start_mode:nmodes]
 
     @staticmethod
-    def from_header(self, hdr, target_device_idx=None):
+    def from_header(hdr, target_device_idx=None):
         raise NotImplementedError
 
     def get_fits_header(self):
@@ -84,6 +84,7 @@ class M2C(BaseDataObj):
     @staticmethod
     def restore(filename, target_device_idx=None):
         """Restores the :class:`~specula.data_objects.m2c.M2C` from a file."""
+        # pylint: disable=no-member
         with fits.open(filename) as hdul:
             hdr = hdul[0].header
             version = hdr.get('VERSION')

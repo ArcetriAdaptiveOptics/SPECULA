@@ -15,7 +15,6 @@ class Intensity(BaseDataObj):
         Initialize an :class:`~specula.data_objects.intensity.Intensity` object.
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-                
         self.i = self.xp.zeros((dimx, dimy), dtype=self.dtype)
 
     def get_value(self):
@@ -69,7 +68,7 @@ class Intensity(BaseDataObj):
             raise ValueError(f"Error: file {filename} does not contain an Intensity object")
         intensity = Intensity.from_header(hdr, target_device_idx=target_device_idx)
         with fits.open(filename) as hdul:
-            intensity.i = intensity.to_xp(hdul[1].data.copy())
+            intensity.i = intensity.to_xp(hdul[1].data.copy())  # pylint: disable=no-member
         return intensity
 
     def array_for_display(self):

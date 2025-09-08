@@ -1,18 +1,10 @@
-from specula import cpuArray, fuse, RAD2ASEC
-from specula.lib.extrapolation_2d import calculate_extrapolation_indices_coeffs, apply_extrapolation
-from specula.lib.interp2d import Interp2D 
+from specula import fuse
 
 from specula.processing_objects.modulated_pyramid import ModulatedPyramid
-from specula.base_value import BaseValue
-from specula.connections import InputValue
-from specula.data_objects.electric_field import ElectricField
 from specula.lib.make_xy import make_xy
-from specula.data_objects.intensity import Intensity
-from specula.lib.make_mask import make_mask
-from specula.lib.toccd import toccd
 from specula.data_objects.simul_params import SimulParams
-from specula.lib.zernike_generator import ZernikeGenerator
-        
+
+
 @fuse(kernel_name='pyr1_fused')
 def pyr1_fused(u_fp, ffv, fpsf, masked_exp, xp):
     psf = xp.real(u_fp * xp.conj(u_fp))
@@ -224,4 +216,4 @@ class ModulatedDoubleRoof(ModulatedPyramid):
             plt.show()
 
         # Combine the shifted images
-        self.pyr_image[:] = self.roof1_image + roof2_rotated 
+        self.pyr_image[:] = self.roof1_image + roof2_rotated

@@ -51,7 +51,7 @@ class PolyCromPyramid(PolyChromWFS):
                         precision=precision)
 
         # Create pyramid instances
-        for i, wavelength in enumerate(self.wavelengths_in_nm):
+        for wavelength in self.wavelengths_in_nm:
             pyr = ModulatedPyramid(
                 simul_params=simul_params,
                 wavelengthInNm=wavelength,

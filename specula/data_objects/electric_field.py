@@ -315,8 +315,8 @@ class ElectricField(BaseDataObj):
             raise ValueError(f"Error: file {filename} does not contain an ElectricField object")
         ef = ElectricField.from_header(hdr, target_device_idx=target_device_idx)
         with fits.open(filename) as hdul:
-            ef.field[0] = ef.to_xp(hdul[1].data.copy())
-            ef.field[1] = ef.to_xp(hdul[2].data.copy())
+            ef.field[0] = ef.to_xp(hdul[1].data.copy())   # pylint: disable=no-member # created dyamically by pyfits
+            ef.field[1] = ef.to_xp(hdul[2].data.copy())   # pylint: disable=no-member # created dyamically by pyfits
         return ef
 
     def array_for_display(self):

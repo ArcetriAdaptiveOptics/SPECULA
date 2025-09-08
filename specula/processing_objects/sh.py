@@ -22,7 +22,7 @@ if hasattr(np, 'exceptions'):
 
 @fuse(kernel_name='abs2')
 def abs2(u_fp, out, xp):
-     out[:] = xp.real(u_fp * xp.conj(u_fp))
+    out[:] = xp.real(u_fp * xp.conj(u_fp))
 
 
 class SH(BaseProcessingObj):

@@ -197,7 +197,7 @@ class Simul():
                         return True
         return False
 
-    def trigger_order(self, params_orig):
+    def build_trigger_order(self, params_orig):
         '''
         Work on a copy of the parameter file.
         1. Find leaves, add them to trigger
@@ -441,7 +441,7 @@ class Simul():
             try:
                 self.objs[key] = klass(**my_params)
             except Exception:
-                print(f'Exception building', key)
+                print('Exception building', key)
                 raise
             if classname != 'SimulParams':
                 self.objs[key].stopMemUsageCount()
@@ -771,7 +771,7 @@ class Simul():
         return rows
     
     def buildDiagram(self, params):
-        from orthogram import Color, DiagramDef, write_png, Side,  FontWeight, FontStyle, TextOrientation
+        from orthogram import Color, DiagramDef, write_png, Side,  FontWeight, FontStyle
 
         print('Building diagram...')        
 
@@ -884,7 +884,7 @@ class Simul():
         # Actual creation code
         self.apply_overrides(params)
 
-        self.trigger_order, self.trigger_order_idx = self.trigger_order(params)
+        self.trigger_order, self.trigger_order_idx = self.build_trigger_order(params)
         print(f'{self.trigger_order=}')
         print(f'{self.trigger_order_idx=}')
 

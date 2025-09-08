@@ -118,7 +118,7 @@ class Pupilstop(Layer):
 
         pupilstop = Pupilstop.from_header(hdr, target_device_idx=target_device_idx)
         with fits.open(filename) as hdul:
-            pupilstop.field[0] = pupilstop.to_xp(hdul[1].data.copy(), dtype=pupilstop.dtype)
+            pupilstop.field[0] = pupilstop.to_xp(hdul[1].data.copy(), dtype=pupilstop.dtype)  # pylint: disable=no-member
             # phaseInNm is not used in Pupilstop
         return pupilstop
 
@@ -127,8 +127,8 @@ class Pupilstop(Layer):
         """Restore a :class:`~specula.data_objects.pupilstop.Pupilstop` object from a PASSATA format file."""
         with fits.open(filename) as hdul:
             if len(hdul) == 4:
-                pixel_pitch = float(hdul[3].data[0])
-                A = hdul[1].data.copy()
+                pixel_pitch = float(hdul[3].data[0])   # pylint: disable=no-member
+                A = hdul[1].data.copy()                # pylint: disable=no-member
                 pixel_pupil = A.shape[0]
                 simul_params = SimulParams(pixel_pupil, pixel_pitch)
                 pupilstop = Pupilstop(simul_params, input_mask=A, target_device_idx=target_device_idx)

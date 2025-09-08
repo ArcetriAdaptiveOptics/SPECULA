@@ -94,7 +94,7 @@ class IFunc(BaseDataObj):
     @influence_function.setter
     def influence_function(self, ifunc):
         if self._doZeroPad:
-            raise ValueError("zeroPad is not working.")
+            raise NotImplementedError("zeroPad is not implemented")
             if self._mask_inf_func is None:
                 raise ValueError("if doZeroPad is set, mask_inf_func must be set before setting ifunc.")
             sIfunc = ifunc.shape

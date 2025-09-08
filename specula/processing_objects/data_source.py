@@ -56,10 +56,10 @@ class DataSource(BaseProcessingObj):
     def load_fits(self, name):
         filename = os.path.join(self.tn_dir, name+'.fits')
         with fits.open(filename) as hdul:
-            self.headers[name] = dict(hdul[0].header)
+            self.headers[name] = dict(hdul[0].header)  # pylint: disable=no-member # (created dynamically by pyfits)
             self.obj_type[name] = self.headers[name]['OBJ_TYPE']
-            times = hdul[1].data.copy()
-            data = hdul[0].data.copy()
+            times = hdul[1].data.copy()                # pylint: disable=no-member # (created dynamically by pyfits)
+            data = hdul[0].data.copy()                 # pylint: disable=no-member # (created dynamically by pyfits)
         self.storage[name] = { t:data[i] for i, t in enumerate(times.tolist())}
 
     def size(self, name, dimensions=False):
