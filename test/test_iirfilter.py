@@ -258,12 +258,12 @@ class TestIirFilterData(unittest.TestCase):
 
         # Compare responses (allowing for small numerical differences)
         np.testing.assert_allclose(
-            np.abs(response_control.magnitude), np.abs(response_manual),
+            np.abs(np.squeeze(response_control.magnitude)), np.abs(response_manual),
             rtol=1e-10, atol=1e-12,
             err_msg="Magnitude response mismatch between control and manual computation"
         )
         np.testing.assert_allclose(
-            response_control.phase, np.angle(response_manual),
+            np.squeeze(response_control.phase), np.angle(response_manual),
             rtol=1e-10, atol=1e-12,
             err_msg="Phase response mismatch between control and manual computation"
         )
