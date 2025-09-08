@@ -112,8 +112,8 @@ class TestDM(unittest.TestCase):
         dm2.trigger()
         dm2.post_trigger()
 
-        with self.assertRaises(Exception):
+        with self.assertRaises(ValueError):
             dm3 = DM(simul_params, height=0, type_str='zernike', nmodes=6, idx_modes=idx_modes, target_device_idx=target_device_idx)
 
-        with self.assertRaises(Exception):
+        with self.assertRaises(ValueError):
             dm4 = DM(simul_params, height=0, type_str='zernike', start_mode=3, idx_modes=idx_modes, target_device_idx=target_device_idx)
