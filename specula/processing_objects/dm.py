@@ -50,19 +50,23 @@ class DM(BaseProcessingObj):
         if mask is None and ifunc is None and npixels is None:
             npixels = self.pixel_pupil
 
-        if not ifunc:
-            ifunc = IFunc(type_str=type_str, mask=mask, npixels=npixels,
-                           obsratio=obsratio, diaratio=diaratio, nzern=nzern,
-                           nmodes=nmodes, start_mode=start_mode, idx_modes=idx_modes,
-                           target_device_idx=target_device_idx, precision=precision)
-        self._ifunc = ifunc
-        self.tag = self._ifunc.tag
-
         if idx_modes is not None:
             if start_mode is not None:
                 raise ValueError('start_mode cannot be set together with idx_modes. Setting to None start_mode.')
             if nmodes is not None:
                 raise ValueError('nmodes cannot be set together with idx_modes. Setting to None nmodes.')
+
+        if not ifunc:
+            if nmodes is None and idx_modes is not None:
+                nmodes = max(idx_modes) + 1
+            # start_mode and idx_modes are not passed to IFunc because they are handled by self._valid_modes
+            ifunc = IFunc(type_str=type_str, mask=mask, npixels=npixels,
+                           obsratio=obsratio, diaratio=diaratio, nzern=nzern,
+                           nmodes=nmodes,
+                           target_device_idx=target_device_idx, precision=precision)
+        self._ifunc = ifunc
+        self.tag = self._ifunc.tag
+
         if start_mode is None:
             start_mode = 0
         if nmodes is None:
