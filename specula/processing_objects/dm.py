@@ -52,9 +52,9 @@ class DM(BaseProcessingObj):
 
         if idx_modes is not None:
             if start_mode is not None:
-                raise ValueError('start_mode cannot be set together with idx_modes. Setting to None start_mode.')
+                raise ValueError('start_mode cannot be set together with idx_modes.')
             if nmodes is not None:
-                raise ValueError('nmodes cannot be set together with idx_modes. Setting to None nmodes.')
+                raise ValueError('nmodes cannot be set together with idx_modes.')
 
         if not ifunc:
             if nmodes is None and idx_modes is not None:
