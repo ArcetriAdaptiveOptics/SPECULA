@@ -29,9 +29,9 @@ class TestDiagrams(unittest.TestCase):
         # This is not really executed, just the objects are built in one of the tests
         self.dummy_params = {
             "main": { "class": "SimulParams", "root_dir": "/tmp", "total_time": 1, "time_step": 1 },
-            "A": { "class": "WaveGenerator", "target_device_idx": 0, "constant": 1 },
-            "B": { "class": "WaveGenerator", "target_device_idx": 1, "constant": 2 },
-            "C": { "class": "WaveGenerator", "target_device_idx": 0, "constant": 3 },
+            "A": { "class": "WaveGenerator", "target_device_idx": -1, "constant": 1 },
+            "B": { "class": "WaveGenerator", "target_device_idx": -1, "constant": 2 },
+            "C": { "class": "WaveGenerator", "target_device_idx": -1, "constant": 3 },
         }
 
     def tearDown(self):
