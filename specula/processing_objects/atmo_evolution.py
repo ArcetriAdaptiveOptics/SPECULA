@@ -254,7 +254,7 @@ class AtmoEvolution(BaseProcessingObj):
             layer_phase = (1.0 - new_position_rem[ii]) * p[0: ipli, pos: ipli_p] + new_position_rem[ii] * p[0: ipli, pos+1: ipli_p+1]
             layer_phase = self.xp.rot90(layer_phase, wdi[ii])
             if not wdf_full[ii]==0:
-                layer_phase = self.rotate(layer_phase, wdf_full[ii], reshape=False, order=1)
+                layer_phase = self.ndimage_rotate(layer_phase, wdf_full[ii], reshape=False, order=1)
             self.layer_list[ii].phaseInNm[:] = layer_phase * self.scale_coeff
             self.layer_list[ii].generation_time = self.current_time
 

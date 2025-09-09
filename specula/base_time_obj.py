@@ -8,20 +8,6 @@ from specula import cpu_float_dtype_list, gpu_float_dtype_list
 from specula import cpu_complex_dtype_list, gpu_complex_dtype_list
 
 
-def monitorMem(f):
-
-    @wraps(f)
-    def monitorMem_wrapper(*args, **kwargs):
-        self = args[0]
-        self.startMemUsageCount()
-        retval = f(*args, **kwargs)
-        self.stopMemUsageCount()
-        return retval
-
-    monitorMem_wrapper.__signature__ = signature(f)    # Needed to track type hints in __init__ for object creation
-    return monitorMem_wrapper
-
-
 class BaseTimeObj:
     def __init__(self, target_device_idx=None, precision=None):
         """
@@ -30,7 +16,6 @@ class BaseTimeObj:
         Parameters:
         precision (int, optional): if None will use the global_precision, otherwise pass 0 for double, 1 for single
         target_device_idx (int, optional): if None will use the default_target_device_idx, otherwise pass -1 for cpu, i for GPU of index i
-
         """
         self._time_resolution = int(1e9)
         self.gpu_bytes_used = 0
@@ -59,7 +44,7 @@ class BaseTimeObj:
             self.xp_str = 'np'
 
         if self.target_device_idx>=0:
-            from cupyx.scipy.ndimage import rotate
+            from cupyx.scipy.ndimage import rotate as ndimage_rotate
             from cupyx.scipy.ndimage import shift
             from cupyx.scipy.fft import ifft2 as scipy_ifft2
             from cupyx.scipy.linalg import lu_factor, lu_solve
@@ -69,14 +54,13 @@ class BaseTimeObj:
             from cupy._util import PerformanceWarning
             self.PerformanceWarning = PerformanceWarning
         else:
-            from scipy.ndimage import rotate
+            from scipy.ndimage import rotate as ndimage_rotate
             from scipy.ndimage import shift
             from scipy.fft import ifft2 as scipy_ifft2
             from scipy.linalg import lu_factor, lu_solve
             self.PerformanceWarning = None
 
-        if not hasattr(self, 'rotate'):
-            self.rotate = rotate
+        self.ndimage_rotate = ndimage_rotate
         self.shift = shift
         self._lu_factor = lu_factor
         self._lu_solve = lu_solve
@@ -102,13 +86,26 @@ class BaseTimeObj:
         if hasattr(self, 'target_device_idx') and self.target_device_idx >= 0:
             print(process_rank, f'\tcupy memory used by {self.__class__.__name__}: {self.gpu_bytes_used / (1024*1024)} MB')
 
+    def monitorMem(f):
+
+        @wraps(f)
+        def monitorMem_wrapper(*args, **kwargs):
+            self = args[0]
+            self.startMemUsageCount()
+            retval = f(*args, **kwargs)
+            self.stopMemUsageCount()
+            return retval
+
+        monitorMem_wrapper.__signature__ = signature(f)    # Needed to track type hints in __init__ for object creation
+        return monitorMem_wrapper
+
     def __init_subclass__(cls, /, **kwargs):
         super().__init_subclass__(**kwargs)
         methods = ['__init__', 'setup']
 
         for name, attr in cls.__dict__.items():
             if name in methods:
-                setattr(cls, name, monitorMem(attr))
+                setattr(cls, name, BaseTimeObj.monitorMem(attr))
 
     def to_xp(self, v, dtype=None, force_copy=False):
         '''

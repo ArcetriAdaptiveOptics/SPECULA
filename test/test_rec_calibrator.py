@@ -305,7 +305,10 @@ class TestRecCalibrator(unittest.TestCase):
 
     def test_target_device_handling(self):
         """Test that target_device_idx is properly handled"""
-        # Test with default target device (should be 0 for GPU, not None)
+        # Test with default target device (should be 0 for GPU or -1 for CPU, not None)
+
+        specula.init(device_idx=0)
+
         calibrator1 = RecCalibrator(
             nmodes=10,
             data_dir=self.test_dir,

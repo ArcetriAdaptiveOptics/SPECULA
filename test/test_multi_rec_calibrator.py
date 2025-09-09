@@ -448,7 +448,10 @@ class TestMultiRecCalibrator(unittest.TestCase):
 
     def test_target_device_handling(self):
         """Test that target_device_idx is properly handled"""
-        # Test with default target device (should be 0 for GPU, not None)
+        # Test with default target device (should be 0 for GPU or -1 for CPU, not None)
+
+        specula.init(device_idx=0)
+
         calibrator1 = MultiRecCalibrator(
             nmodes=10,
             data_dir=self.test_dir,
@@ -456,7 +459,7 @@ class TestMultiRecCalibrator(unittest.TestCase):
         )
         default_device_idx = specula.default_target_device_idx
         self.assertEqual(calibrator1.target_device_idx, default_device_idx)
-        
+
         # Test with custom target device
         calibrator2 = MultiRecCalibrator(
             nmodes=10,
