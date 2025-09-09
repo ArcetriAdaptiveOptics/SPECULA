@@ -39,10 +39,9 @@ class GaussianConvolutionKernel(ConvolutionKernel):
         """
         Recalculates the Gaussian kernel based on current settings.
         """
-        self.orig_dimx = self.dimx
         self.dimx = max(self.dimx, 2)
-        self.lgs_tt = [-0.5, -0.5] if not self.positive_shift_tt else [0.5, 0.5]
-        self.lgs_tt = [x * self.pxscale for x in self.lgs_tt]
+        lgs_tt = [-0.5, -0.5] if not self.positive_shift_tt else [0.5, 0.5]
+        self.lgs_tt = [x * self.pxscale for x in lgs_tt]
         items = [
             self.dimx, self.pupil_size_m, 90e3, self.spot_size, self.dtype,
             self.pxscale, self.dimension, 3, self.lgs_tt, [0, 0, 0], [90e3], [1.0],
@@ -105,5 +104,3 @@ class GaussianConvolutionKernel(ConvolutionKernel):
         kernel_obj.real_kernels[:] = data
         kernel_obj.process_kernels(return_fft=return_fft)
         return kernel_obj
-
-
