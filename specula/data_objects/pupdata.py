@@ -117,7 +117,7 @@ class PupData(BaseDataObj):
     def restore(filename, target_device_idx=None):
         """Restores the pupil data from a file."""
 
-        #pylint: disable=no-member
+        # pylint: disable=no-member
         with fits.open(filename) as hdul:
             hdr = hdul[0].header
             version = hdr.get('VERSION')
