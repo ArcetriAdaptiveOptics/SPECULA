@@ -45,7 +45,7 @@ class BaseTimeObj:
 
         if self.target_device_idx>=0:
             from cupyx.scipy.ndimage import rotate as ndimage_rotate
-            from cupyx.scipy.ndimage import shift
+            from cupyx.scipy.ndimage import shift as ndimage_shift
             from cupyx.scipy.fft import ifft2 as scipy_ifft2
             from cupyx.scipy.linalg import lu_factor, lu_solve
 
@@ -55,13 +55,13 @@ class BaseTimeObj:
             self.PerformanceWarning = PerformanceWarning
         else:
             from scipy.ndimage import rotate as ndimage_rotate
-            from scipy.ndimage import shift
+            from scipy.ndimage import shift as ndimage_shift
             from scipy.fft import ifft2 as scipy_ifft2
             from scipy.linalg import lu_factor, lu_solve
             self.PerformanceWarning = None
 
         self.ndimage_rotate = ndimage_rotate
-        self.shift = shift
+        self.ndimage_shift = ndimage_shift
         self._lu_factor = lu_factor
         self._lu_solve = lu_solve
         self._scipy_ifft2 = scipy_ifft2

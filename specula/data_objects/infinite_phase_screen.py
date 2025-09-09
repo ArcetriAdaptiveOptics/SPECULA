@@ -195,21 +195,21 @@ class InfinitePhaseScreen(BaseDataObj):
             new_line = new_line[:,self.xp.newaxis]
             if after:
                 self.full_scrn = self.xp.concatenate((self.full_scrn, new_line), axis=row)[:self.stencil_size, 1:]
-            #    self.shift(self.full_scrn, [-1, 0], self.full_scrn, order=0, mode='constant', cval=0.0, prefilter=False)
+            #    self.ndimage_shift(self.full_scrn, [-1, 0], self.full_scrn, order=0, mode='constant', cval=0.0, prefilter=False)
             #    self.full_scrn[-1, :] = new_line
             else:
                 self.full_scrn = self.xp.concatenate((new_line, self.full_scrn), axis=row)[:self.stencil_size, :self.stencil_size]
-            #    self.shift(self.full_scrn, [1, 0], self.full_scrn, order=0, mode='constant', cval=0.0, prefilter=False)
+            #    self.ndimage_shift(self.full_scrn, [1, 0], self.full_scrn, order=0, mode='constant', cval=0.0, prefilter=False)
             #    self.full_scrn[0, :] = new_line
         else:
             new_line = new_line[self.xp.newaxis, :]
             if after:
                 self.full_scrn = self.xp.concatenate((self.full_scrn, new_line), axis=row)[1:, :self.stencil_size]
-            #    self.shift(self.full_scrn, [0, -1], self.full_scrn, order=0, mode='constant', cval=0.0, prefilter=False)
+            #    self.ndimage_shift(self.full_scrn, [0, -1], self.full_scrn, order=0, mode='constant', cval=0.0, prefilter=False)
             #    self.full_scrn[:, -1] = new_line
             else:
                 self.full_scrn = self.xp.concatenate((new_line, self.full_scrn), axis=row)[:self.stencil_size, :self.stencil_size]
-            #    self.shift(self.full_scrn, [0, 1], self.full_scrn, order=0, mode='constant', cval=0.0, prefilter=False)
+            #    self.ndimage_shift(self.full_scrn, [0, 1], self.full_scrn, order=0, mode='constant', cval=0.0, prefilter=False)
             #    self.full_scrn[:, 0] = new_line
         if flush:
             self.random_data_col = None

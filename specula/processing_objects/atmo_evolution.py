@@ -240,7 +240,7 @@ class AtmoEvolution(BaseProcessingObj):
         new_position = self.last_position + delta_position
         # Get quotient and remainder
         wdf, wdi = np.modf(wind_direction/90.0)
-        wdf_full, wdi_full = np.modf(wind_direction)
+        wdf_full = wdf * 90
 
         if self.cycle_screens:
             new_position = np.where(new_position + self.pixel_layer >= self.phasescreens_sizes_array,  0, new_position)
@@ -253,7 +253,7 @@ class AtmoEvolution(BaseProcessingObj):
             ipli_p = int(pos + self.pixel_layer[ii])
             layer_phase = (1.0 - new_position_rem[ii]) * p[0: ipli, pos: ipli_p] + new_position_rem[ii] * p[0: ipli, pos+1: ipli_p+1]
             layer_phase = self.xp.rot90(layer_phase, wdi[ii])
-            if not wdf_full[ii]==0:
+            if not wdf_full[ii] == 0:
                 layer_phase = self.ndimage_rotate(layer_phase, wdf_full[ii], reshape=False, order=1)
             self.layer_list[ii].phaseInNm[:] = layer_phase * self.scale_coeff
             self.layer_list[ii].generation_time = self.current_time
