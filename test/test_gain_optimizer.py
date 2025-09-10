@@ -175,21 +175,30 @@ class TestGainOptimizer(unittest.TestCase):
         simul_params.time_step = 0.001
 
         iir_filter = IirFilterData.from_gain_and_ff([0.5, 0.7], [0.9, 0.8])
-        optimizer = GainOptimizer(
+        optimizer1 = GainOptimizer(
             simul_params=simul_params,
             iir_filter_data=iir_filter,
             running_mean=True
         )
 
+        optimizer2 = GainOptimizer(
+            simul_params=simul_params,
+            iir_filter_data=iir_filter,
+            running_mean=False
+        )
+
         # Simulate some historical data
         n_time = 100
-        n_modes = optimizer.nmodes
+        n_modes = optimizer1.nmodes
         for _ in range(n_time):
-            optimizer.delta_comm_hist.append(np.random.randn(n_modes))
-            optimizer.comm_hist.append(np.random.randn(n_modes))
+            optimizer1.delta_comm_hist.append(np.random.randn(n_modes))
+            optimizer1.comm_hist.append(np.random.randn(n_modes))
+            optimizer2.delta_comm_hist.append(np.random.randn(n_modes))
+            optimizer2.comm_hist.append(np.random.randn(n_modes))
 
         # Force the call to _optimize_gains
-        optimizer._optimize_gains(t=1.0)
+        optimizer1._optimize_gains(t=1.0)
+        optimizer2._optimize_gains(t=1.0)
 
         # Calculate expected PSD size
         nperseg = min(n_time, 256)
@@ -198,8 +207,11 @@ class TestGainOptimizer(unittest.TestCase):
         _, psd = signal.welch(dummy_data, fs=fs, window='hann', nperseg=nperseg)
         expected_shape = (len(psd), n_modes)
 
-        self.assertIsNotNone(optimizer.psd_ol, "psd_ol was not initialized")
-        self.assertEqual(optimizer.psd_ol.shape, expected_shape)
+        self.assertEqual(optimizer1.nperseg_psd, nperseg)
+        self.assertEqual(optimizer2.nperseg_psd, nperseg)
+        self.assertIsNotNone(optimizer1.psd_ol, "psd_ol was not initialized")
+        self.assertIsNone(optimizer2.psd_ol, "psd_ol was initialized")
+        self.assertEqual(optimizer1.psd_ol.shape, expected_shape)
 
     def test_max_stable_gain_calculation(self):
         """Test maximum stable gain calculation"""
