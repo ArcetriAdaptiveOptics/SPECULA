@@ -57,8 +57,7 @@ class AtmoEvolution(BaseProcessingObj):
             self.airmass = 1.0
 
         heights = np.array(heights, dtype=self.dtype)
-        self.heights = heights  # geometric heights
-        self.pupil_distances = self.heights * self.airmass  # distances from the pupil accounting for zenith angle
+        self.pupil_distances = heights * self.airmass  # distances from the pupil accounting for zenith angle
 
         fov_rad = fov * ASEC2RAD
         self.pixel_layer = np.ceil(
@@ -67,7 +66,7 @@ class AtmoEvolution(BaseProcessingObj):
         ) * 2.0
 
         if fov_in_m is not None:
-            self.pixel_layer = np.full_like(self.heights, int(fov_in_m / self.pixel_pitch / 2.0) * 2)
+            self.pixel_layer = np.full_like(heights, int(fov_in_m / self.pixel_pitch / 2.0) * 2)
 
         self.L0 = L0
         self.Cn2 = np.array(Cn2, dtype=self.dtype)

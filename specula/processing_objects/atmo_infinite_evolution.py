@@ -273,8 +273,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         else:
             self.airmass = 1.0
 
-        self.heights = np.array(heights, dtype=self.dtype)  # geometric heights
-        self.pupil_distances = self.heights * self.airmass  # distances from the pupil accounting for zenith angle
+        self.pupil_distances = heights * self.airmass  # distances from the pupil accounting for zenith angle
 
         alpha_fov = fov / 2.0
 
@@ -287,14 +286,14 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
             2.0 * abs(self.pupil_distances) / self.pixel_pitch * rad_alpha_fov) / 2.0
         ) * 2.0
         if fov_in_m is not None:
-            self.pixel_layer_size = np.full_like(self.heights, int(fov_in_m / self.pixel_pitch / 2.0) * 2)
+            self.pixel_layer_size = np.full_like(heights, int(fov_in_m / self.pixel_pitch / 2.0) * 2)
 
         self.L0 = L0
 
         if np.isscalar(self.L0):
-            self.L0 = [self.L0] * len(self.heights)
-        elif len(self.L0) != len(self.heights):
-            raise ValueError(f"L0 must have the same length as heights ({len(self.heights)}), got {len(self.L0)}")
+            self.L0 = [self.L0] * len(heights)
+        elif len(self.L0) != len(heights):
+            raise ValueError(f"L0 must have the same length as heights ({len(heights)}), got {len(self.L0)}")
 
         self.Cn2 = np.array(Cn2, dtype=self.dtype)
         self.verbose = verbose if verbose is not None else False
@@ -302,7 +301,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         # Initialize layer list with correct heights
         self.layer_list = []
         for i in range(self.n_infinite_phasescreens):
-            layer = Layer(self.pixel_layer_size[i], self.pixel_layer_size[i], self.pixel_pitch, self.heights[i],
+            layer = Layer(self.pixel_layer_size[i], self.pixel_layer_size[i], self.pixel_pitch, heights[i],
                           precision=self.precision, target_device_idx=self.target_device_idx)
             self.layer_list.append(layer)
         self.outputs['layer_list'] = self.layer_list
