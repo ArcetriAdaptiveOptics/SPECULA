@@ -231,7 +231,6 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
                  L0: list=[1.0],
                  heights: list=[0.0],
                  Cn2: list=[1.0],
-                 zenithAngleInDeg: float=0.0,
                  fov: float=0.0,
                  seed: int=1,
                  extra_delta_time: float=0,
@@ -247,6 +246,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
 
         self.pixel_pupil = self.simul_params.pixel_pupil
         self.pixel_pitch = self.simul_params.pixel_pitch
+        self.zenithAngleInDeg = self.simul_params.zenithAngleInDeg
 
         self.n_infinite_phasescreens = len(heights)
         self.last_position = np.zeros(self.n_infinite_phasescreens)
@@ -266,13 +266,15 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         if pupil_position is None:
             pupil_position = [0, 0]
 
-        if zenithAngleInDeg is not None:
-            self.airmass = 1.0 / np.cos(np.radians(zenithAngleInDeg), dtype=self.dtype)
-            print(f'Atmo_Evolution: zenith angle is defined as: {zenithAngleInDeg} deg')
+        if self.zenithAngleInDeg is not None:
+            self.airmass = 1.0 / np.cos(np.radians(self.zenithAngleInDeg), dtype=self.dtype)
+            print(f'Atmo_Evolution: zenith angle is defined as: {self.zenithAngleInDeg} deg')
             print(f'Atmo_Evolution: airmass is: {self.airmass}')
         else:
-            self.airmass = np.array(1.0, dtype=self.dtype)
-        self.heights = np.array(heights, dtype=self.dtype) * self.airmass
+            self.airmass = 1.0
+
+        self.heights = np.array(heights, dtype=self.dtype)  # geometric heights
+        self.pupil_distances = self.heights * self.airmass  # distances from the pupil accounting for zenith angle
 
         alpha_fov = fov / 2.0
 
@@ -280,8 +282,10 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         rad_alpha_fov = alpha_fov * ASEC2RAD
 
         # Compute layers dimension in pixels
-        self.pixel_layer_size = np.ceil((self.pixel_pupil + 2 * np.sqrt(np.sum(np.array(pupil_position, dtype=self.dtype) * 2)) / self.pixel_pitch + 
-                               2.0 * abs(self.heights) / self.pixel_pitch * rad_alpha_fov) / 2.0) * 2.0
+        self.pixel_layer_size = np.ceil(
+            (self.pixel_pupil + 2 * np.sqrt(np.sum(np.array(pupil_position, dtype=self.dtype) * 2)) / self.pixel_pitch +
+            2.0 * abs(self.pupil_distances) / self.pixel_pitch * rad_alpha_fov) / 2.0
+        ) * 2.0
         if fov_in_m is not None:
             self.pixel_layer_size = np.full_like(self.heights, int(fov_in_m / self.pixel_pitch / 2.0) * 2)
 
@@ -298,7 +302,8 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         # Initialize layer list with correct heights
         self.layer_list = []
         for i in range(self.n_infinite_phasescreens):
-            layer = Layer(self.pixel_layer_size[i], self.pixel_layer_size[i], self.pixel_pitch, self.heights[i], precision=self.precision, target_device_idx=self.target_device_idx)
+            layer = Layer(self.pixel_layer_size[i], self.pixel_layer_size[i], self.pixel_pitch, self.heights[i],
+                          precision=self.precision, target_device_idx=self.target_device_idx)
             self.layer_list.append(layer)
         self.outputs['layer_list'] = self.layer_list
 

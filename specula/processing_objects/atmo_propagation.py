@@ -147,7 +147,7 @@ class AtmoPropagation(BaseProcessingObj):
             self.outputs['out_'+source_name+'_ef'].generation_time = self.current_time
 
     def setup_interpolators(self):
-        
+
         self.interpolators = {}
         for source in self.source_dict.values():
             self.interpolators[source] = {}
@@ -171,7 +171,7 @@ class AtmoPropagation(BaseProcessingObj):
 
     def layer_interpolator(self, source, layer):
         pixel_layer = layer.size[0]
-        half_pixel_layer = np.array([(pixel_layer - 1) / 2., (pixel_layer - 1) / 2.]) 
+        half_pixel_layer = np.array([(pixel_layer - 1) / 2., (pixel_layer - 1) / 2.])
         cos_sin_phi =  np.array( [np.cos(source.phi), np.sin(source.phi)])
         half_pixel_layer -= cpuArray(layer.shiftXYinPixel)
 

@@ -6,6 +6,7 @@ specula.init(0)  # Default target device
 import unittest
 
 from specula import cpuArray
+from specula import np
 
 from specula.data_objects.source import Source
 from specula.base_time_obj import BaseTimeObj
@@ -338,3 +339,23 @@ class TestAtmoEvolution(unittest.TestCase):
 
         assert reversed_layers != original_layers
         assert reversed_layers == original_layers[::-1]
+
+    @cpu_and_gpu
+    def test_pupil_distances_are_scaled_by_airmass(self, target_device_idx, xp):
+        """
+        Test that pupil_distances are correctly computed as heights * airmass
+        """
+        pixel_pupil = 160
+        zenith = 30.0  # degrees
+        simul_params = SimulParams(pixel_pupil=pixel_pupil, pixel_pitch=0.05, zenithAngleInDeg=zenith, time_step=1)
+        heights = [1000.0, 5000.0, 12000.0]
+        airmass = 1.0 / np.cos(np.radians(zenith))
+        atmo = AtmoEvolution(simul_params,
+                             L0=23,
+                             data_dir=self.data_dir,
+                             heights=heights,
+                             Cn2=[1/3, 1/3, 1/3],
+                             fov=120.0,
+                             target_device_idx=target_device_idx)
+        expected = cpuArray(heights) * airmass
+        np.testing.assert_allclose(atmo.pupil_distances, expected, rtol=1e-8)
