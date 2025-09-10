@@ -13,6 +13,7 @@ from specula.data_objects.simul_params import SimulParams
 from specula import cpuArray
 from astropy.io import fits
 import numpy as np
+import scipy.signal as signal
 
 
 class TestGainOptimizer(unittest.TestCase):
@@ -167,6 +168,38 @@ class TestGainOptimizer(unittest.TestCase):
         self.assertEqual(len(psd), len(freq))
         self.assertGreater(float(freq[-1]), 0)  # Max frequency > 0
         self.assertGreaterEqual(float(freq[0]), 0)  # Min frequency >= 0
+
+    def test_psd_ol_shape(self):
+        """Test that psd_ol has the correct shape after optimization with running_mean=True"""
+        simul_params = Mock(spec=SimulParams)
+        simul_params.time_step = 0.001
+
+        iir_filter = IirFilterData.from_gain_and_ff([0.5, 0.7], [0.9, 0.8])
+        optimizer = GainOptimizer(
+            simul_params=simul_params,
+            iir_filter_data=iir_filter,
+            running_mean=True
+        )
+
+        # Simulate some historical data
+        n_time = 100
+        n_modes = optimizer.nmodes
+        for _ in range(n_time):
+            optimizer.delta_comm_hist.append(np.random.randn(n_modes))
+            optimizer.comm_hist.append(np.random.randn(n_modes))
+
+        # Force the call to _optimize_gains
+        optimizer._optimize_gains(t=1.0)
+
+        # Calculate expected PSD size
+        nperseg = min(n_time, 256)
+        dummy_data = np.zeros(n_time)
+        fs = 1.0 / simul_params.time_step
+        _, psd = signal.welch(dummy_data, fs=fs, window='hann', nperseg=nperseg)
+        expected_shape = (len(psd), n_modes)
+
+        self.assertIsNotNone(optimizer.psd_ol, "psd_ol was not initialized")
+        self.assertEqual(optimizer.psd_ol.shape, expected_shape)
 
     def test_max_stable_gain_calculation(self):
         """Test maximum stable gain calculation"""

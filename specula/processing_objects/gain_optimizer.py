@@ -58,6 +58,7 @@ class GainOptimizer(BaseProcessingObj):
         self.delta_comm_hist = []
         self.comm_hist = []
         self.optical_gain_hist = []
+        self.nperseg_psd = None
         self.psd_ol = None
         self.prev_optimized_gain = self.iir_filter_data.gain.copy()
 
@@ -133,6 +134,11 @@ class GainOptimizer(BaseProcessingObj):
 
         # Optimize gains for each mode
         opt_gains = self.xp.zeros(self.nmodes, dtype=self.dtype)
+
+        if self.nperseg_psd is None:
+            self.nperseg_psd = min(len(pseudo_ol), 256)
+        if self.running_mean and self.psd_ol is None:
+            self.psd_ol = self.xp.zeros((self.nperseg_psd // 2 + 1, self.nmodes), dtype=self.dtype)
 
         for mode in range(self.nmodes):
             opt_gains[mode] = self._optimize_single_mode(
@@ -295,7 +301,8 @@ class GainOptimizer(BaseProcessingObj):
         # Use Welch's method with Hanning window
         fs = 1.0 / t_int
         freq, psd = signal.welch(data_cpu, fs=fs, window='hann',
-                                nperseg=min(len(data_cpu), 256))
+                                nperseg=self.nperseg_psd)
+                                #nperseg=min(len(data_cpu), 256))
 
         # Convert back to target device
         freq = self.to_xp(freq, dtype=self.dtype)
