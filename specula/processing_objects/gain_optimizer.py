@@ -302,7 +302,6 @@ class GainOptimizer(BaseProcessingObj):
         fs = 1.0 / t_int
         freq, psd = signal.welch(data_cpu, fs=fs, window='hann',
                                 nperseg=self.nperseg_psd)
-                                #nperseg=min(len(data_cpu), 256))
 
         # Convert back to target device
         freq = self.to_xp(freq, dtype=self.dtype)
