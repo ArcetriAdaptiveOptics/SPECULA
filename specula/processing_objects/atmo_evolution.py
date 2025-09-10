@@ -60,26 +60,11 @@ class AtmoEvolution(BaseProcessingObj):
         self.heights = heights  # geometric heights
         self.pupil_distances = self.heights * self.airmass  # distances from the pupil accounting for zenith angle
 
-        # TODO old code
         fov_rad = fov * ASEC2RAD
         self.pixel_layer = np.ceil(
             (self.pixel_pupil + 2 * np.sqrt(np.sum(np.array(pupil_position, dtype=self.dtype) * 2)) / self.pixel_pitch +
                                abs(self.pupil_distances) / self.pixel_pitch * fov_rad) / 2.0
         ) * 2.0
-
-        # TODO new code to be tested
-        #
-        #  # Conversion coefficient from arcseconds to radians
-        #  sec2rad = 4.848e-6
-        #
-        #  alpha_fov = fov / 2.0
-        #
-        #  # Max star angle from arcseconds to radians
-        #  rad_alpha_fov = alpha_fov * sec2rad
-        #
-        #  # Compute layers dimension in pixels
-        #  self.pixel_layer = np.ceil((pixel_pupil + 2 * np.sqrt(np.sum(np.array(pupil_position, dtype=self.dtype) * 2)) / pixel_pitch +
-        #                         2.0 * abs(pupil_distances) / pixel_pitch * rad_alpha_fov) / 2.0) * 2.0
 
         if fov_in_m is not None:
             self.pixel_layer = np.full_like(self.heights, int(fov_in_m / self.pixel_pitch / 2.0) * 2)
@@ -89,14 +74,7 @@ class AtmoEvolution(BaseProcessingObj):
         self.pixel_pupil = self.pixel_pupil
         self.data_dir = data_dir
 
-        # TODO old code
         self.pixel_square_phasescreens = pixel_phasescreens
-
-        # TODO new code to be tested
-        # if pixel_phasescreens is None:
-        #     self.pixel_square_phasescreens = 8192
-        # else:
-        #     self.pixel_square_phasescreens = pixel_phasescreens
 
         # Error if phase-screens dimension is smaller than maximum layer dimension
         if self.pixel_square_phasescreens < max(self.pixel_layer):
