@@ -273,6 +273,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         else:
             self.airmass = 1.0
 
+        heights = np.array(heights, dtype=self.dtype)
         self.pupil_distances = heights * self.airmass  # distances from the pupil accounting for zenith angle
 
         alpha_fov = fov / 2.0
