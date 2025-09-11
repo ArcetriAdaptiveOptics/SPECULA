@@ -9,10 +9,10 @@ class LinearCombination(BaseProcessingObj):
                  no_focus: bool = False,
                  no_lift: bool = False,
                  plate_scale_idx: int = None,
-                 target_device_idx: int = None, 
+                 target_device_idx: int = None,
                  precision: int = None
                 ):
-        super().__init__(target_device_idx=target_device_idx, precision=precision)       
+        super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.no_focus = no_focus
         self.no_lift = no_lift
@@ -35,7 +35,8 @@ class LinearCombination(BaseProcessingObj):
             idx += 1
         ngs = in_vectors[idx].value
 
-        lgs[0:2] = ngs[0:1]
+        # TIP / TILT
+        lgs[0:2] = ngs[0:2]
         if not self.no_focus:
             lgs[2] = focus[0]
         if self.plate_scale_idx is not None:
@@ -54,15 +55,12 @@ class LinearCombination(BaseProcessingObj):
         lgs = in_vectors[idx].value
         idx += 1
         if not self.no_focus:
-            focus = in_vectors[idx].value
             idx += 1
-        else:
-            focus = self.xp.zeros(0,dtype=self.dtype)
         if not self.no_lift:
             lift = in_vectors[idx].value
             idx += 1
         else:
             lift = self.xp.zeros(0,dtype=self.dtype)
-        ngs = in_vectors[idx].value
 
-        self.out_vector.value = np.concatenate([lgs, focus, lift, ngs]) * 0.0
+        # Note: NGS and FOCUS override LGS values
+        self.out_vector.value = np.concatenate([lgs, lift]) * 0.0
