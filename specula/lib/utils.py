@@ -18,6 +18,7 @@ def camelcase_to_snakecase(s):
         result.append(t)
     return ''.join([x.lower() for x in result])
 
+
 def import_class(classname, additional_modules=[]):
     '''
     Dynamically import a class by name from the appropriate specula submodule.
@@ -56,15 +57,23 @@ def import_class(classname, additional_modules=[]):
                     'specula.display'] + additional_modules
     
     for module_path in module_paths:
+        module_to_import = f'{module_path}.{modulename}'
         try:
-            mod = importlib.import_module(f'{module_path}.{modulename}')
+            mod = importlib.import_module(module_to_import)
             try:
                 return getattr(mod, classname)
             except AttributeError:
                 raise AttributeError(f'Class {classname} not found in file {modulename}.py')
-        except ModuleNotFoundError:
-            # import_module failed, try with next module
-            pass
+        except ModuleNotFoundError as e:
+            match = re.search(r"No module named '([^']+)'", str(e))
+            # Check if the failed import was for the wanted module,
+            # or something else (e.g. imports of missing third-party
+            # packages inside that module)
+            if match:
+                this_module = match.group(1)
+                if this_module != module_to_import:
+                    # This is not an exception for our module, re-raise it
+                    raise
 
     raise ImportError(f'Class {classname} must be defined in a file called {modulename}.py but it cannot be found')
 

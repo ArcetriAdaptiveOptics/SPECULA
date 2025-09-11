@@ -1,3 +1,4 @@
+import types
 import unittest
 from unittest.mock import patch, MagicMock
 from specula.lib.utils import import_class
@@ -77,33 +78,6 @@ class TestImportClass(unittest.TestCase):
             self.assertTrue(mock_snake.called)
             mock_import.assert_any_call("custom.module.my_class")
 
-
-    def test_class_not_found_in_module(self):
-        """
-        Test that `import_class` raises AttributeError when the module exists
-        but does not contain the expected class.
-
-        This test mocks import_module to return a MagicMock that does not
-        include the class attribute. It verifies that AttributeError is raised
-        and that camelcase_to_snakecase and import_module are called.
-        """
-        with patch("specula.lib.utils.camelcase_to_snakecase", return_value="my_class") as mock_snake, \
-             patch("specula.lib.utils.importlib.import_module") as mock_import:
-
-            mock_module = MagicMock()
-            # Ensure MyClass does not exist
-            if hasattr(mock_module, "MyClass"):
-                del mock_module.MyClass
-            mock_import.return_value = mock_module
-
-            mock_import.return_value = mock_module
-
-            with self.assertRaises(AttributeError):
-                import_class("MyClass")
-
-            self.assertTrue(mock_snake.called)
-            mock_import.assert_called_with("specula.processing_objects.my_class")
-
     def test_module_not_found_raises_import_error(self):
         """
         Test that `import_class` raises ImportError when the class cannot
@@ -153,3 +127,36 @@ class TestImportClass(unittest.TestCase):
             self.assertEqual(result.__name__, "MyClass")
             self.assertTrue(mock_snake.called)
             mock_import.assert_any_call("specula.display.my_class")
+
+    @patch("importlib.import_module")
+    def test_module_not_found_for_dependency_inside_module(self, mock_import):
+        """If a dependency inside the module is missing, the error should be re-raised."""
+        # Simulate failure due to missing 'numpy' while loading target module
+        mock_import.side_effect = ModuleNotFoundError("No module named 'numpy'")
+
+        with self.assertRaises(ModuleNotFoundError) as ctx:
+            import_class("FakeClass")
+
+        self.assertIn("numpy", str(ctx.exception))  # ensure dependency error bubbles up
+
+    @patch("importlib.import_module")
+    def test_class_not_in_module_raises_attribute_error(self, mock_import):
+        """If module loads but class is missing, raise AttributeError."""
+        fake_module = types.SimpleNamespace()
+        mock_import.return_value = fake_module  # empty module, no classes
+
+        with self.assertRaises(AttributeError) as ctx:
+            import_class("FakeClass")
+
+        self.assertIn("Class FakeClass not found", str(ctx.exception))
+
+    @patch("importlib.import_module")
+    def test_successful_import(self, mock_import):
+        """Successfully imports class if it exists in module."""
+        class Dummy:
+            pass
+        fake_module = types.SimpleNamespace(Dummy=Dummy)
+        mock_import.return_value = fake_module
+
+        result = import_class("Dummy")
+        self.assertIs(result, Dummy)
