@@ -41,7 +41,6 @@ class LaserLaunchTelescope(BaseDataObj):
         self.simul_params = simul_params
         self.zenithAngleInDeg = self.simul_params.zenithAngleInDeg
 
-
         if self.zenithAngleInDeg is not None:
             self.airmass = 1.0 / np.cos(np.radians(self.zenithAngleInDeg), dtype=self.dtype)
             print(f'AtmoEvolution: zenith angle is defined as: {self.zenithAngleInDeg} deg')
