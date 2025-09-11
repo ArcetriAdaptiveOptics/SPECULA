@@ -61,8 +61,10 @@ class ModesDisplay(BaseDisplay):
             self.line.set_xdata(x)
             self.line.set_ydata(y)
 
-            # Update X limits if vector size changed
-            if len(x) > 0:
+            # Update X limits if vector size changed or xrange is set
+            if self._xrange is not None:
+                self.ax.set_xlim(self._xrange[0], self._xrange[1])
+            elif len(x) > 0:
                 self.ax.set_xlim(0, len(x) - 1)
 
             # Update Y limits if auto-scaling
