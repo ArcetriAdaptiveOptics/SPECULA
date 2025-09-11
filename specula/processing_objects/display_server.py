@@ -1,5 +1,6 @@
 
 import io
+import os
 import socket
 import threading
 import time
@@ -124,9 +125,14 @@ class DisplayServer(BaseProcessingObj):
     def finalize(self):
         self.p.terminate()
 
+
+base_dir = os.path.abspath(os.path.dirname(__file__))
+templates_dir = os.path.join(base_dir, "..", "scripts", "templates")
+
 # Global variables used by Flask-SocketIO            
-app = Flask('Specula_display_server')
+app = Flask('Specula_display_server', template_folder=templates_dir)
 sio = SocketIO(app)
+print("Template search paths:", app.jinja_loader.searchpath)
 server = None
 
 
