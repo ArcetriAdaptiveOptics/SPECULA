@@ -31,7 +31,7 @@ def platescale_coeff(dm_list, start_modes, pixel_pupil, verbose=False):
     aIfunc = cpuArray(dm_list[0].ifunc)
     # The first DM is the ground DM, so we always skip the tip-tilt modes
     if dm_list[0].m2c is not None:
-        aIfunc = np.dot(dm_list[0].m2c[2:2+n_modes_ps, :], aIfunc)
+        aIfunc = np.dot(cpuArray(dm_list[0].m2c[:,2:2+n_modes_ps]).T, aIfunc)
     else:
         aIfunc = aIfunc[2:2+n_modes_ps, :]  # Skip tip-tilt modes
 
@@ -60,7 +60,7 @@ def platescale_coeff(dm_list, start_modes, pixel_pupil, verbose=False):
 
             bIfunc = cpuArray(dm_list[i].ifunc)
             if hasattr(dm_list[i], 'm2c') and dm_list[i].m2c is not None:
-                bIfunc = np.dot(dm_list[i].m2c[idx0:n_modes_ps+idx0, :], bIfunc)
+                bIfunc = np.dot(cpuArray(dm_list[i].m2c[:, idx0:n_modes_ps+idx0]).T, bIfunc)
             else:
                 bIfunc = bIfunc[idx0:n_modes_ps+idx0, :]
 
@@ -97,6 +97,15 @@ def platescale_coeff(dm_list, start_modes, pixel_pupil, verbose=False):
 
                 cubeb[:, :, icubes] = tempb
                 cubeb2D[:, icubes] = tempb[mask_indices[0], mask_indices[1]]
+
+            plot_debug = False
+            if plot_debug:
+                import matplotlib.pyplot as plt
+                plt.figure()
+                plt.imshow(cubea[:,:,0])
+                plt.figure()
+                plt.imshow(cubeb[:,:,0])
+                plt.show()
 
             # Calculate projection matrices
             cubea2D_inv = pinv(cubea2D)
