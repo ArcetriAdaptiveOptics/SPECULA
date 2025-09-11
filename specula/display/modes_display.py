@@ -71,3 +71,17 @@ class ModesDisplay(BaseDisplay):
 
         # Draw efficiently
         self._safe_draw()
+
+    def set_x_range(self, xmin, xmax):
+        """Set fixed X axis range"""
+        self._xrange = (xmin, xmax)
+        if self.line is not None:
+            self.ax.set_xlim(xmin, xmax)
+            self._safe_draw()
+
+    def set_y_range(self, ymin, ymax):
+        """Set fixed Y axis range"""
+        self._yrange = (ymin, ymax)
+        if self.line is not None:
+            self.ax.set_ylim(ymin, ymax)
+            self._safe_draw()
