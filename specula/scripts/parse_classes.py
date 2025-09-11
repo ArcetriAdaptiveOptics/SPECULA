@@ -5,7 +5,7 @@ import sys
 
 # All the classes are:
 # AtmoEvolution.yml          BaseOperation.yml      DataStore.yml      FlaskServer.yml    ImRecCalibrator.yml           
-# ModalAnalysisWFS.yml  MultiImRecCalibrator.yml  ShShift.yml            Slopec.yml
+# ModalAnalysisWFS.yml  MultiImRecCalibrator.yml    Slopec.yml
 # AtmoInfiniteEvolution.yml  BaseProcessingObj.yml  DisplayServer.yml  FuncGenerator.yml  Integrator.yml                
 # ModalAnalysis.yml     ProcessingContainer.yml   ShSlopec.yml           SnCalibrator.yml
 # AtmoPropagation.yml        CCD.yml                DM.yml             IdealWFS.yml       LowPassFilter.yml             

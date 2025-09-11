@@ -418,15 +418,6 @@ Sh
    :show-inheritance:
 
 
-Sh Shift
---------
-
-.. automodule:: specula.processing_objects.sh_shift
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-
 Sh Slopec
 ---------
 
