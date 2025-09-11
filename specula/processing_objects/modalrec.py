@@ -105,13 +105,13 @@ class Modalrec(BaseProcessingObj):
                     if isinstance(s, slice):
                         indices.extend(range(
                             s.start if s.start is not None else 0,
-                            s.stop,
+                            s.stop if s.stop is not None else self.in_commands_size,
                             s.step if s.step is not None else 1
                         ))
                     else:
                         # s is a list/tuple like [start, stop, step]
                         start = s[0]
-                        stop = s[1]
+                        stop = s[1] if s[1] is not None else self.in_commands_size
                         step = s[2] if len(s) > 2 else 1
                         indices.extend(range(start, stop, step))
                 self.input_modes_slice = indices  # will be a list of indices
