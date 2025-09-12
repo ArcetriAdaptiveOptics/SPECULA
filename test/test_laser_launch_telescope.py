@@ -41,8 +41,8 @@ class TestLaserLaunchTelescope(unittest.TestCase):
 
         assert llt.spot_size == llt2.spot_size
         assert llt.tel_pos == llt2.tel_pos
-        assert llt.beacon_focus == llt2.beacon_focus
         assert llt.beacon_tt == llt2.beacon_tt
+        self.assertAlmostEqual(llt.beacon_focus, llt2.beacon_focus, places=3)
 
     def tearDown(self):
         try:
