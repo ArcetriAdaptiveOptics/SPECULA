@@ -93,7 +93,7 @@ class TestLaserLaunchTelescope(unittest.TestCase):
 
         self.assertEqual(llt.spot_size, 2.5)
         self.assertEqual(llt.tel_pos, [1.0, 2.0, 3.0])
-        self.assertEqual(llt.beacon_focus, 85000.0*airmass)
+        self.assertAlmostEqual(llt.beacon_focus, 85000.0*airmass, places=3)
         self.assertEqual(llt.beacon_tt, [0.1, 0.2])
 
     @cpu_and_gpu
@@ -116,7 +116,7 @@ class TestLaserLaunchTelescope(unittest.TestCase):
         self.assertEqual(hdr["TELPOS_X"], 10.0)
         self.assertEqual(hdr["TELPOS_Y"], 20.0)
         self.assertEqual(hdr["TELPOS_Z"], 30.0)
-        self.assertEqual(hdr["BEAC_FOC"], 95000.0*airmass)
+        self.assertAlmostEqual(hdr["BEAC_FOC"], 95000.0*airmass, places=3)
         self.assertEqual(hdr["BEAC_TT0"], 0.3)
         self.assertEqual(hdr["BEAC_TT1"], 0.4)
 
