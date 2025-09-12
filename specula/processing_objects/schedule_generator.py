@@ -1,4 +1,5 @@
 from specula.processing_objects.base_generator import BaseGenerator
+import numpy as np
 
 
 class ScheduleGenerator(BaseGenerator):
