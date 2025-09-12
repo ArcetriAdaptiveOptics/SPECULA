@@ -127,4 +127,4 @@ class TestLinearCombination(unittest.TestCase):
         lc.trigger_code()
         out = cpuArray(lc.outputs['out_vector'].value)
         # Check that the plate_scale_idx block is overwritten by ngs[2:]
-        np.testing.assert_array_equal(out[3:6], ngs.value[2:5])
+        np.testing.assert_array_equal(out[3:6], cpuArray(ngs.value[2:5]))
