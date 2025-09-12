@@ -11,6 +11,8 @@ class LaserLaunchTelescope(BaseDataObj):
     
     args:
     ----------
+    simul_params : SimulParams
+        The simulation parameters object, required to get the zenith angle.
     spot_size : float
         The size of the laser spot in arcsec.
     tel_position : list
@@ -27,7 +29,7 @@ class LaserLaunchTelescope(BaseDataObj):
     '''
 
     def __init__(self,
-                 simul_params: SimulParams,
+                 simul_params: SimulParams = None,
                  spot_size: float = 0.0,
                  tel_position: list = [],
                  beacon_focus: float = 90e3,
@@ -39,7 +41,10 @@ class LaserLaunchTelescope(BaseDataObj):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.simul_params = simul_params
-        self.zenithAngleInDeg = self.simul_params.zenithAngleInDeg
+        if self.simul_params is not None:
+            self.zenithAngleInDeg = self.simul_params.zenithAngleInDeg
+        else:
+            self.zenithAngleInDeg = 0.0
 
         if self.zenithAngleInDeg is not None:
             self.airmass = 1.0 / np.cos(np.radians(self.zenithAngleInDeg), dtype=self.dtype)
@@ -93,7 +98,7 @@ class LaserLaunchTelescope(BaseDataObj):
             beacon_tt = [hdr['BEAC_TT0'], hdr['BEAC_TT1']],
             target_device_idx=target_device_idx)
         return llt
-    
+
     @staticmethod
     def restore(filename, target_device_idx=None):
         hdr = fits.getheader(filename)
