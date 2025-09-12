@@ -83,8 +83,8 @@ class TestSlopes(unittest.TestCase):
         slopes.save(self.filename)
 
         with fits.open(self.filename, mode="update") as f:
-            f[0].header["VERSION"] = 2
-            del f[0].header["LENGTH"]
+            f[0].header["VERSION"] = 2   # pylint: disable=no-member
+            del f[0].header["LENGTH"]    # pylint: disable=no-member
 
         slopes2 = Slopes.restore(self.filename)
 
@@ -283,3 +283,20 @@ class TestSlopes(unittest.TestCase):
         xp.testing.assert_allclose(
             slopes.yslopes, xp.array([1, 0]), atol=1e-5
         )
+
+    @cpu_and_gpu
+    def test_fits_header(self, target_device_idx, xp):
+
+        slopes = Slopes(length=4, interleave=True, target_device_idx=target_device_idx)
+        slopes.pupdata_tag = 'test_tag1'
+        slopes.subapdata_tag = 'test_tag2'
+
+        hdr = slopes.get_fits_header()
+
+        assert hdr['OBJ_TYPE'] == 'Slopes'
+        assert hdr['VERSION'] == 3
+        assert hdr['INTRLVD'] == 1
+        assert hdr['LENGTH'] == 4
+        assert hdr['PUPDTAG'] == 'test_tag1'
+        assert hdr['SUBAPTAG'] == 'test_tag2'
+
