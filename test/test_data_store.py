@@ -10,7 +10,11 @@ specula.init(0)  # Default target device
 from astropy.io import fits
 import numpy as np
 import unittest
+from unittest.mock import patch
 
+from specula.connections import InputValue
+from specula.base_data_obj import BaseDataObj
+from specula.processing_objects.data_store import DataStore
 from test.specula_testlib import cpu_and_gpu
 
 
@@ -53,3 +57,129 @@ class TestDataStore(unittest.TestCase):
         # Make sure times are in int64
         gen_times = fits.getdata(gen_file, ext=1)
         assert gen_times.dtype == np.uint64
+
+        # Make sure replay_params.yml exists
+        replay_file = os.path.join(last_tn_dir, 'replay_params.yml')
+        assert os.path.exists(replay_file), f"File {replay_file} does not exist"
+
+    def test_data_store_fails_early(self):
+        """Test that DataStore fails during setup() if a class without get_value() is set as an input"""
+        buffer_size = 2
+
+        # Create buffer with manual input setup
+        store = DataStore(store_dir='/tmp')
+        data = BaseDataObj()
+
+        # Manually create input for buffer (simulate what simul.py does)
+        store.inputs['gen'] = InputValue(type=BaseDataObj)
+        store.inputs['gen'].set(data)
+
+        with self.assertRaises(TypeError):
+            store.setup()
+
+    def test_trigger_code_saves_at_correct_intervals_and_suffixes(self):
+        """
+        Verify that DataStore.save() is called only when iter_counter reaches multiples of split_size,
+        and that TN folder suffixes are correct.
+        """
+        with patch.object(DataStore, "save") as mock_save, \
+             patch.object(DataStore, "create_TN_folder") as mock_create_tn, \
+             patch("os.makedirs"), \
+             patch("os.path.exists", return_value=False):
+
+            ds = DataStore(store_dir="/tmp", split_size=2, data_format="fits")
+            ds.local_inputs = {}  # Avoid real inputs
+            ds.current_time = 0
+
+            # First trigger → iter_counter=1 → no save
+            ds.trigger_code()
+            self.assertEqual(mock_save.call_count, 0)
+            self.assertEqual(mock_create_tn.call_count, 0)
+
+            # Second trigger → iter_counter=2 → first save
+            ds.trigger_code()
+            self.assertEqual(mock_save.call_count, 1)
+            mock_create_tn.assert_called_with(suffix="_0")
+
+            # Third trigger → iter_counter=3 → no save
+            ds.trigger_code()
+            self.assertEqual(mock_save.call_count, 1)
+
+            # Fourth trigger → iter_counter=4 → second save
+            ds.trigger_code()
+            self.assertEqual(mock_save.call_count, 2)
+            mock_create_tn.assert_called_with(suffix="_2")
+
+            # Fifth trigger → iter_counter=5 → no save
+            ds.trigger_code()
+            self.assertEqual(mock_save.call_count, 2)
+
+            # Sixth trigger → iter_counter=6 → third save
+            ds.trigger_code()
+            self.assertEqual(mock_save.call_count, 3)
+            mock_create_tn.assert_called_with(suffix="_4")
+
+    def test_create_tn_folder_creates_unique_folder_with_suffix(self):
+        """
+        Verify that create_TN_folder() generates the correct TN folder name including suffix.
+        """
+        with patch("os.makedirs") as mock_makedirs, \
+             patch("os.path.exists", return_value=False), \
+             patch("time.strftime", return_value="20250101_120000"):
+
+            ds = DataStore(store_dir="/tmp", data_format="fits")
+            ds.create_TN_folder(suffix="_42")
+
+            expected_path = os.path.join("/tmp", "20250101_120000") + "_42"
+            self.assertEqual(ds.tn_dir, expected_path)
+            mock_makedirs.assert_called_once_with(expected_path)
+
+    def test_finalize_does_not_save_when_split_tn_set(self):
+        """
+        Verify that finalize() does not call save() when split_size > 0.
+        """
+        with patch.object(DataStore, "save") as mock_save, \
+             patch.object(DataStore, "create_TN_folder") as mock_create_tn, \
+             patch.object(DataStore, "trigger_code") as mock_trigger:
+
+            ds = DataStore(store_dir="/tmp", split_size=2, data_format="fits")
+            ds.local_inputs = {}
+            ds.finalize()
+
+            # finalize() always triggers once, but doesn't save when split TN enabled
+            mock_trigger.assert_called_once()
+            mock_create_tn.assert_not_called()
+            mock_save.assert_not_called()
+
+    def test_finalize_saves_whole_tn_when_split_tn_zero(self):
+        """
+        Verify that finalize() calls create_TN_folder() and save() when split_size = 0.
+        """
+        with patch.object(DataStore, "save") as mock_save, \
+             patch.object(DataStore, "create_TN_folder") as mock_create_tn, \
+             patch.object(DataStore, "trigger_code") as mock_trigger:
+
+            ds = DataStore(store_dir="/tmp", split_size=0, data_format="fits")
+            ds.local_inputs = {}
+            ds.finalize()
+
+            # finalize() always triggers once and saves entire TN when split TN disabled
+            mock_trigger.assert_called_once()
+            mock_create_tn.assert_called_once()
+            mock_save.assert_called_once()
+
+    def test_finalize_saves_whole_tn_when_split_tn_not_set(self):
+        """
+        Verify that finalize() behaves the same as split_size=0 if unset.
+        """
+        with patch.object(DataStore, "save") as mock_save, \
+             patch.object(DataStore, "create_TN_folder") as mock_create_tn, \
+             patch.object(DataStore, "trigger_code") as mock_trigger:
+
+            ds = DataStore(store_dir="/tmp", data_format="fits")
+            ds.local_inputs = {}
+            ds.finalize()
+
+            mock_trigger.assert_called_once()
+            mock_create_tn.assert_called_once()
+            mock_save.assert_called_once()

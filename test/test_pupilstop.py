@@ -6,6 +6,7 @@ import tempfile
 import os
 import gc
 import unittest
+import pytest
 
 from specula import np
 from specula import cpuArray
@@ -82,6 +83,10 @@ class TestPupilstop(unittest.TestCase):
             del pupilstop2
             gc.collect()
 
+    # This decorator suppress the warning in pytest output,
+    # but the "with pytest.warns(...)" instruction below still checks
+    # that it is raised.
+    @pytest.mark.filterwarnings('ignore:.*Detected PASSATA pupilstop file.*:RuntimeWarning')
     @cpu_and_gpu
     def test_PASSATA_pupilstop_file(self, target_device_idx, xp):
         '''Test that old pupilstop files from PASSATA are loaded correctly'''
@@ -89,7 +94,9 @@ class TestPupilstop(unittest.TestCase):
         filename = os.path.join(os.path.dirname(__file__), 'data', 'PASSATA_pupilstop_64pix.fits')
 
         # From custom PASSATA method
-        pupilstop = Pupilstop.restore_from_passata(filename, target_device_idx=target_device_idx)
+        with pytest.warns(RuntimeWarning):
+            pupilstop = Pupilstop.restore_from_passata(filename, target_device_idx=target_device_idx)
+
         assert pupilstop.A.shape == (64,64)
         self.assertAlmostEqual(pupilstop.pixel_pitch, 0.01)
 

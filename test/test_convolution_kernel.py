@@ -5,7 +5,7 @@ from astropy.io import fits
 
 import specula
 specula.init(0)  # Default target device
-from specula import cp, np
+from specula import np
 from specula import cpuArray
 
 from specula.data_objects.convolution_kernel import ConvolutionKernel, lgs_map_sh

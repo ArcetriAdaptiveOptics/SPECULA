@@ -1,7 +1,4 @@
 
-from astropy.io import fits
-
-from specula import cpuArray
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_value import BaseValue
 from specula.connections import InputValue
@@ -9,18 +6,6 @@ from specula.data_objects.pixels import Pixels
 from specula.data_objects.slopes import Slopes
 from specula.data_objects.intmat import Intmat
 from specula.data_objects.recmat import Recmat
-
-
-def build_and_save_filtmat(intmat, recmat, nmodes, filename, xp):
-    '''
-    Helper functon to produce a filtering matrix,
-    joining an intmat and a recmat.
-    '''
-    im = intmat[:nmodes, :]
-    rm = recmat[:, :nmodes]
-    filtmat = xp.stack((im, xp.transpose(rm)), axis=-1)
-    fits.writeto(filename, cpuArray(filtmat))
-    print(f'saved {filename}')
 
 
 class Slopec(BaseProcessingObj):
@@ -100,7 +85,6 @@ class Slopec(BaseProcessingObj):
 
         # Initialize accumulated pixels if not exists
         if self.int_pixels is None:
-            from specula.data_objects.pixels import Pixels
             self.int_pixels = Pixels(
                 current_pixels.shape[0],
                 current_pixels.shape[1],

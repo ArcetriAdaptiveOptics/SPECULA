@@ -20,8 +20,35 @@ The diagram is:
 
 Another example is the diagram corresponding to the parameters file ``main/scao/params_control_lpf.yml``:
 
-.. code-block:: bash
-
 .. image:: _static/diagrams/params_control_lpf.png
    :width: 100%
    :align: center
+
+Diagram options
+---------------
+
+The diagram generation supports several options:
+
+- ``--diagram``: generate a diagram of the simulation.
+- ``--diagram-title "My Title"``: set a custom title for the diagram.
+- ``--diagram-filename my_diagram.png``: set the output filename for the diagram.
+- ``--diagram-colors-on``: color blocks by device index and process rank for easier visualization of parallel/distributed simulations.
+
+You can also specify multiple parameter files and override parameters from the command line using the ``--override`` option.
+
+Example with custom options:
+
+.. code-block:: bash
+
+    specula params_scao_sh.yml --diagram --diagram-title "SCAO Simulation" --diagram-colors-on
+
+.. image:: _static/diagrams/params_scao_sh_colors.png
+   :width: 100%
+   :align: center
+
+Legend
+------
+
+If you use ``--diagram-colors-on``, a legend will be added to the diagram to indicate the meaning of the colors (device index and process rank).
+
+For more details, see the documentation of the :class:`specula.simul.Simul` class.

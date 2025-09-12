@@ -18,28 +18,84 @@ def camelcase_to_snakecase(s):
         result.append(t)
     return ''.join([x.lower() for x in result])
 
-def import_class(classname):
+
+def import_class(classname, additional_modules=[]):
+    '''
+    Dynamically import a class by name from the appropriate specula submodule.
+
+    Given a class name in CamelCase, this function attempts to import the class
+    from one of the following submodules (in order):
+        - specula.processing_objects
+        - specula.data_objects
+        - specula.display
+        - user-defined additional modules, if any
+
+    The module name is inferred by converting the class name from CamelCase to snake_case.
+
+    Parameters
+    ----------
+    classname : str
+        The name of the class to import (in CamelCase).
+    additional_modules: list[str]
+        List of additional module names to try
+
+    Returns
+    -------
+    type
+        The class object corresponding to `classname`.
+
+    Raises
+    ------
+    ImportError
+        If the module containing the class cannot be found.
+    AttributeError
+        If the class is not found in the located module.
+    '''
     modulename = camelcase_to_snakecase(classname)
-    try:
-        try:
-            mod = importlib.import_module(f'specula.processing_objects.{modulename}')
-        except ModuleNotFoundError:
-            try:
-                mod = importlib.import_module(f'specula.data_objects.{modulename}')
-            except ModuleNotFoundError:
-                mod = importlib.import_module(f'specula.display.{modulename}')
-    except ModuleNotFoundError:
-        raise ImportError(f'Class {classname} must be defined in a file called {modulename}.py but it cannot be found')
+    module_paths = ['specula.processing_objects',
+                    'specula.data_objects',
+                    'specula.display'] + additional_modules
     
-    try:
-        return getattr(mod, classname)
-    except AttributeError:
-        raise AttributeError(f'Class {classname} not found in file {modulename}.py')
+    for module_path in module_paths:
+        module_to_import = f'{module_path}.{modulename}'
+        try:
+            mod = importlib.import_module(module_to_import)
+            try:
+                return getattr(mod, classname)
+            except AttributeError:
+                raise AttributeError(f'Class {classname} not found in file {modulename}.py')
+        except ModuleNotFoundError as e:
+            match = re.search(r"No module named '([^']+)'", str(e))
+            # Check if the failed import was for the wanted module,
+            # or something else (e.g. imports of missing third-party
+            # packages inside that module)
+            if match:
+                this_module = match.group(1)
+                if this_module != module_to_import:
+                    # This is not an exception for our module, re-raise it
+                    raise
+
+    raise ImportError(f'Class {classname} must be defined in a file called {modulename}.py but it cannot be found')
 
 
 def get_type_hints(type):
-    hints ={}
-    for x in type.__mro__:
+    """
+    Collects and returns type hints for the __init__ methods of a class and all its base classes.
+
+    Parameters
+    ----------
+    type : type
+        The class whose __init__ type hints are to be collected.
+
+    Returns
+    -------
+    dict
+        A dictionary mapping parameter names to type hints for all __init__ methods in the class hierarchy.
+    """
+    hints = {}
+
+    # We iterate on reversed MRO so that child classes will override parent ones.
+    for x in reversed(type.__mro__):
         hints.update(typing.get_type_hints(getattr(x, '__init__')))
     return hints
 
@@ -50,7 +106,7 @@ def unravel_index_2d(idxs, shape, xp):
     '''
     if len(shape) != 2:
         raise ValueError('shape must be 2d')
-    
+
     idxs = xp.array(idxs).astype(int)
     _, ncols = shape
     row_idx = idxs // ncols

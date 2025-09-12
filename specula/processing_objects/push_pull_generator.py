@@ -1,4 +1,3 @@
-import numpy as np
 from specula.processing_objects.base_generator import BaseGenerator
 from specula.lib.modal_pushpull_signal import modal_pushpull_signal
 
@@ -9,8 +8,11 @@ class PushPullGenerator(BaseGenerator):
     """
     def __init__(self,
                  nmodes: int,
+                 first_mode: int=0,
                  push_pull_type: str = 'PUSHPULL',  # 'PUSH' or 'PUSHPULL'
                  amp: float = None,
+                 constant_amp: bool=False,
+                 pattern: list = [1, -1],
                  vect_amplitude: list = None,
                  ncycles: int = 1,
                  nsamples: int = 1,
@@ -36,7 +38,9 @@ class PushPullGenerator(BaseGenerator):
         if push_pull_type == 'PUSH':
             time_hist = modal_pushpull_signal(
                 nmodes,
+                first_mode=first_mode,
                 amplitude=amp,
+                constant=constant_amp,
                 vect_amplitude=vect_amplitude,
                 only_push=True,
                 ncycles=ncycles
@@ -44,8 +48,11 @@ class PushPullGenerator(BaseGenerator):
         elif push_pull_type == 'PUSHPULL':
             time_hist = modal_pushpull_signal(
                 nmodes,
+                first_mode=first_mode,
                 amplitude=amp,
+                constant=constant_amp,
                 vect_amplitude=vect_amplitude,
+                pattern=pattern,
                 ncycles=ncycles,
                 repeat_ncycles=repeat_cycles,
                 nsamples=nsamples

@@ -29,10 +29,7 @@ class DataBuffer(BaseProcessingObj):
         # Accumulate data (same logic as DataStore)
         for k, item in self.local_inputs.items():
             if item is not None and item.generation_time == self.current_time:
-                if hasattr(item, 'get_value'):
-                    v = item.get_value()
-                else:
-                    raise TypeError(f"Error: don't know how to buffer an object of type {type(item)}")                
+                v = item.get_value()
                 self.storage[k][self.step_counter] = v.copy()
 
         self.step_counter += 1
@@ -52,6 +49,13 @@ class DataBuffer(BaseProcessingObj):
                 self.buffered_outputs[output_name].generation_time = self.current_time
                 if self.verbose:
                     print(f"DataBuffer: emitted {len(values)} samples for {input_name}")
+
+    def setup(self):
+        # We check that all input items
+        for k, _input in self.inputs.items():
+            item = _input.get(target_device_idx=self.target_device_idx)
+            if item is not None and not hasattr(item, 'get_value'):
+                raise TypeError(f"Error: don't know how to buffer an object of type {type(item)}")                
 
     def reset_buffers(self):
         """Clear all buffers and reset counter"""

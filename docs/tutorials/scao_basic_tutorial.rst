@@ -289,6 +289,7 @@ This approach ensures that the simulation accurately reflects the real system's 
 Note that if you change the pupil geometry, WFS parameters, or DM configuration, you simply repeat the relevant calibration steps before running the full simulation.
 
 In this case we need to calibrate two components:
+
 1. **Pyramid WFS pupil geometry**: This defines the valid subapertures for the Pyramid WFS based on the pupil geometry.
 2. **Reconstruction matrix**: This defines how the wavefront slopes measured by the Pyramid WFS are converted into modal coefficients for control. The reconstruction matrix is the inverse of the interaction matrix, which is computed by applying a known push-pull signal to the DM and measuring the resulting slopes.
 

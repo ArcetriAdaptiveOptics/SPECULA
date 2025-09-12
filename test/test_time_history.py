@@ -39,3 +39,39 @@ class TestTimeHistory(unittest.TestCase):
     def tearDown(self):
         self._remove()
 
+    @cpu_and_gpu
+    def test_init_with_description_and_value(self, target_device_idx, xp):
+        """Test initializing BaseValue with description and initial value"""
+        data = xp.array([1, 2, 3])
+        th = TimeHistory(data, target_device_idx=target_device_idx)
+        xp.testing.assert_array_equal(th.time_history, data)
+
+    @cpu_and_gpu
+    def test_get_and_set_value(self, target_device_idx, xp):
+        """Test setting and getting a value"""
+        data = xp.zeros(3)
+        th = TimeHistory(data, target_device_idx=target_device_idx)
+
+        # Set value when value is None
+        val1 = xp.array([1, 2, 3])
+        th.set_value(val1)
+        xp.testing.assert_array_equal(th.get_value(), val1)
+
+        # Set value again when value already exists (in-place update)
+        val2 = xp.array([4, 5, 6])
+        th.set_value(val2)
+        xp.testing.assert_array_equal(th.get_value(), val2)
+
+    @cpu_and_gpu
+    def test_array_for_display(self, target_device_idx, xp):
+        """Test array_for_display rasies"""
+        data = xp.array([1, 2, 3])
+        th = TimeHistory(data, target_device_idx=target_device_idx)
+        xp.testing.assert_array_equal(th.array_for_display(), data)
+
+    @cpu_and_gpu
+    def test_from_header(self, target_device_idx, xp):
+        """Test array_for_display rasies"""
+        with self.assertRaises(NotImplementedError):
+            _ = TimeHistory.from_header({})
+

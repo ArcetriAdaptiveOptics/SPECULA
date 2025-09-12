@@ -11,8 +11,10 @@ class Intensity(BaseDataObj):
                  dimy: int, 
                  target_device_idx: int=None, 
                  precision: int=None):
+        """
+        Initialize an :class:`~specula.data_objects.intensity.Intensity` object.
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-                
         self.i = self.xp.zeros((dimx, dimy), dtype=self.dtype)
 
     def get_value(self):
@@ -21,14 +23,14 @@ class Intensity(BaseDataObj):
         '''
         return self.i
 
-    def set_value(self, v, force_copy=True):
+    def set_value(self, v):
         '''
         Set new values for the intensity field    
         Arrays are not reallocated
         '''
         assert v.shape == self.i.shape, \
             f"Error: input array shape {v.shape} does not match intensity field shape {self.i.shape}"
-        self.i[:]= self.to_xp(v, dtype=self.dtype, force_copy=force_copy)
+        self.i[:]= self.to_xp(v)
 
     def sum(self, i2, factor=1.0):
         self.i += i2.i * factor
@@ -48,7 +50,7 @@ class Intensity(BaseDataObj):
         hdul.append(fits.ImageHDU(data=cpuArray(self.i), name='INTENSITY'))
         hdul.writeto(filename, overwrite=overwrite)
         hdul.close()  # Force close for Windows
-        
+
     @staticmethod
     def from_header(hdr, target_device_idx=None):
         version = hdr['VERSION']
@@ -66,7 +68,7 @@ class Intensity(BaseDataObj):
             raise ValueError(f"Error: file {filename} does not contain an Intensity object")
         intensity = Intensity.from_header(hdr, target_device_idx=target_device_idx)
         with fits.open(filename) as hdul:
-            intensity.i = intensity.to_xp(hdul[1].data.copy())
+            intensity.i = intensity.to_xp(hdul[1].data.copy())  # pylint: disable=no-member
         return intensity
 
     def array_for_display(self):

@@ -9,11 +9,11 @@ dataplotter_cache = {}
 
 class DataPlotter():
     '''
-    Plot any kind of data
+    Plot any kind of data in a memory backend
     '''
     def __init__(self, disp_factor=1, histlen=200, wsize=(400, 300), yrange=(-10, 10), title=''):
         super().__init__()
-        
+
         self._wsize = wsize
         self._history = np.zeros(histlen)
         self._count = 0
@@ -23,7 +23,7 @@ class DataPlotter():
         self._w_is_set = False
         self._first = True
         self._disp_factor = disp_factor
-        
+
     def set_w(self, size_frame=None, nframes=1):
         if self._w_is_set:
             return
@@ -35,7 +35,7 @@ class DataPlotter():
         for i in range(nframes):
             self.ax.append(self.fig.add_subplot(1, nframes, i+1))
         self.fig.subplots_adjust(hspace=0.1, wspace=0.1)  # Adjust these values as needed
-            
+  
         self._w_is_set = True
 
     def multi_plot(self, obj_list):
@@ -64,7 +64,7 @@ class DataPlotter():
             return self.plot_text(f'Plot not implemented for class {obj_list[0].__class__.__name__}')
 
         frames = [x.array_for_display() for x in obj_list]
-        
+
         for f in frames:
             if f is None:
                 return self.plot_text(f'Cannot plot None values')
@@ -123,7 +123,7 @@ class DataPlotter():
         else:
             self._line[0].set_ydata(vector)
         return self.fig
-    
+
     def imshow(self, frames):
         if np.sum(self._wsize) == 0:
             size_frame = frames[0].shape[0]
@@ -154,7 +154,7 @@ class DataPlotter():
             self.text = self.ax[0].text(0, 0, text, fontsize=14)
         self.fig.canvas.draw()
         return self.fig
-    
+
 
     @staticmethod
     def plot_best_effort(plot_name, dataobj_or_list):
@@ -163,7 +163,7 @@ class DataPlotter():
         The plot_name is used to remember the DataPlotter instance and allow
         plot updates instead of expensive re-plots from scratch
         '''
-        
+
         if plot_name not in dataplotter_cache:
             dataplotter_cache[plot_name] = DataPlotter()
 

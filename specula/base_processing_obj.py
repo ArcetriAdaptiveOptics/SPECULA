@@ -1,5 +1,4 @@
 from collections import defaultdict
-from astropy.io import fits
 
 from specula import cpuArray, default_target_device, cp, MPI_DBG, MPI_SEND_DBG
 from specula import show_in_profiler
@@ -25,7 +24,7 @@ class BaseProcessingObj(BaseTimeObj):
         self.current_time = 0
         self.current_time_seconds = 0
 
-        self._verbose = 0
+        self.verbose = 0
 
         # Stream/input management
         self.stream  = None
@@ -63,7 +62,7 @@ class BaseProcessingObj(BaseTimeObj):
             if type(input_obj) is not list:
                 input_obj = [input_obj]
 
-            tt_list = [x.generation_time if x is not None else None for x in input_obj]
+            tt_list = [x.generation_time for x in input_obj if x is not None]
             for tt in tt_list:
                 if tt is not None and tt >= self.current_time:
                     return True
@@ -76,9 +75,6 @@ class BaseProcessingObj(BaseTimeObj):
         Remote inputs, if any, are received via MPI.
         Data is transferred between devices if necessary.
         '''
-        if self.target_device_idx >= 0:
-            self._target_device.use()
-
         for input_name, input_obj in self.inputs.items():
             if MPI_DBG: print(process_rank, 'get_all_inputs(): getting InputValue:', input_name, flush=True)
             self.local_inputs[input_name] = input_obj.get(self.target_device_idx)
@@ -131,7 +127,7 @@ class BaseProcessingObj(BaseTimeObj):
     def send_remote_output(self, item, dest_rank, dest_tag, first_mpi_send=True, out_name=''):
         if MPI_SEND_DBG: print(process_rank, f'SEND to rank {dest_rank} {dest_tag=} {(dest_tag in self.sent_valid)=} (from {self.name}.{out_name})', flush=True)
         if first_mpi_send or not dest_tag in self.sent_valid:
-            if MPI_SEND_DBG: print(process_rank, f'SEND with Pickle', dest_tag, flush=True)
+            if MPI_SEND_DBG: print(process_rank, 'SEND with Pickle', dest_tag, flush=True)
             xp_orig = item.xp
             item.xp = 0            
             process_comm.ibsend(item, dest=dest_rank, tag=dest_tag)
@@ -139,8 +135,8 @@ class BaseProcessingObj(BaseTimeObj):
         else:            
             buffer = item.get_value()
             if MPI_SEND_DBG:  print(process_rank, dest_tag, 'SEND .device', buffer.device)
-            if MPI_SEND_DBG: print(process_rank, f'SEND with Buffer', dest_tag, type(buffer), buffer, flush=True)
-            if MPI_SEND_DBG: print(process_rank, f'SEND with Buffer type', dest_tag, buffer.dtype, flush=True)
+            if MPI_SEND_DBG: print(process_rank, 'SEND with Buffer', dest_tag, type(buffer), buffer, flush=True)
+            if MPI_SEND_DBG: print(process_rank, 'SEND with Buffer type', dest_tag, buffer.dtype, flush=True)
 
             process_comm.Ibsend(cpuArray(buffer), dest=dest_rank, tag=dest_tag)
 
@@ -209,15 +205,15 @@ class BaseProcessingObj(BaseTimeObj):
 
     def check_ready(self, t):
         self.current_time = t
+        if self.target_device_idx >= 0:
+            self._target_device.use()
         if self.checkInputTimes():
-            if self.target_device_idx>=0:
-                self._target_device.use()
             self.inputs_changed = True  # Signal ready for trigger and post_trigger()
             self.prepare_trigger(t)
         else:
             self.inputs_changed = False
             if self.verbose:
-                print(f'No inputs have been refreshed, skipping trigger')
+                print('No inputs have been refreshed, skipping trigger')
         return self.inputs_changed
 
     def trigger(self):
@@ -233,14 +229,6 @@ class BaseProcessingObj(BaseTimeObj):
             else:
                 self.trigger_code()
              
-    @property
-    def verbose(self):
-        return self._verbose
-
-    @verbose.setter
-    def verbose(self, value):
-        self._verbose = value
-
     def setup(self):
         """
         Override this method to perform any setup

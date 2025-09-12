@@ -5,10 +5,9 @@ import specula
 specula.init(0)
 
 from specula.simul import Simul
-from test.specula_testlib import cpu_and_gpu
+from test.specula_testlib import cpu_and_gpu, assert_HDU_contents_match
 from specula.processing_objects.pyr_pupdata_calibrator import PyrPupdataCalibrator
 from specula import cpuArray
-from astropy.io import fits
 import numpy as np
 
 class TestPyrPupdataCalibration(unittest.TestCase):
@@ -54,15 +53,7 @@ class TestPyrPupdataCalibration(unittest.TestCase):
         self.assertTrue(os.path.exists(self.pupdata_path), "Pyramid PupData calibration file was not generated")
 
         # Compare the generated file with the reference file
-        with fits.open(self.pupdata_path) as gen_pup:
-            with fits.open(self.pupdata_ref_path) as ref_pup:
-                for i, (gen_hdu, ref_hdu) in enumerate(zip(gen_pup, ref_pup)):
-                    if hasattr(gen_hdu, 'data') and hasattr(ref_hdu, 'data') and gen_hdu.data is not None:
-                        np.testing.assert_array_almost_equal(
-                            gen_hdu.data, ref_hdu.data,
-                            decimal=5,
-                            err_msg=f"Data in HDU #{i} does not match reference"
-                        )
+        assert_HDU_contents_match(self.pupdata_path, self.pupdata_ref_path)
 
         print("Pyramid PupData calibration matches reference!")
 
@@ -103,8 +94,8 @@ class TestPyrPupdataCalibration(unittest.TestCase):
             pup_slopes = np.zeros(image_shape, dtype=int)
             for i in range(4):
                 # 2D array needs to be flattened for indexing
-                pup_intensity.ravel()[ind_pup_intensity[i]] = i + 1
-                pup_slopes.ravel()[ind_pup_slopes[i]] = i + 1
+                pup_intensity.ravel()[ind_pup_intensity[:, i]] = i + 1
+                pup_slopes.ravel()[ind_pup_slopes[:, i]] = i + 1
             plt.figure(figsize=(12, 6))
             plt.subplot(1, 2, 1)
             plt.title("INTENSITY Mode Pupils")
@@ -146,20 +137,20 @@ class TestPyrPupdataCalibration(unittest.TestCase):
             return np.allclose(cpuArray(x2), cpuArray(expected_x)) and np.allclose(cpuArray(y2), cpuArray(expected_y))
 
         # Test INTENSITY mode: should have DIFFERENT geometries due to different radii
-        intensity_pixel_counts = [len(ind_pup_intensity[i][ind_pup_intensity[i] >= 0]) for i in range(4)]
+        intensity_pixel_counts = [len(ind_pup_intensity[:, i][ind_pup_intensity[:, i] >= 0]) for i in range(4)]
         self.assertGreater(len(set(intensity_pixel_counts)), 1, 
                         "INTENSITY mode should produce different geometries with different radii")
 
         # Test SLOPES mode: all should be translation-equivalent
         for i in range(1, 4):
-            self.assertTrue(are_translation_equivalent(ind_pup_slopes[0], ind_pup_slopes[i], image_shape, xp=xp), 
+            self.assertTrue(are_translation_equivalent(ind_pup_slopes[:, 0], ind_pup_slopes[:, i], image_shape, xp=xp), 
                         f"SLOPES mode: Pupil {i} should be translation-equivalent to Pupil 0")
 
-    @unittest.skip("This test is only used to create reference files")
+    @unittest.skipIf(int(os.getenv('CREATE_REF', 0)) < 1, "This test is only used to create reference files")
     def test_create_reference_file(self):
         """Create reference file for Pyramid PupData calibration"""
 
-        # Change to test directory
+        # Change to test directory 
         os.chdir(os.path.dirname(__file__))
 
         # Run the simulation for calibration

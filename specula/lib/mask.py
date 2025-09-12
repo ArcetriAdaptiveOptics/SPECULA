@@ -2,13 +2,8 @@
 Copied from arte.types.mask
 Commenting out unused imports
 '''
-import numpy as np
 
 from specula import xp
-#from arte.types.region_of_interest import RegionOfInterest
-#from arte.utils.image_moments import ImageMoments
-#from skimage import feature
-#from skimage import measure, draw
 from scipy import optimize
 import warnings
 import matplotlib.pyplot as plt
@@ -127,7 +122,7 @@ class CircularMask(BaseMask):
             self._maskRadius = min(self._shape) / 2.
         if self._maskCenter is None:
             self._maskCenter = 0.5 * xp.array([self._shape[0],
-                                               self._shape[1]], dtype=self.dtype)
+                                               self._shape[1]])
 
         r = self._maskRadius
         cc = self._maskCenter
@@ -318,15 +313,6 @@ class CircularMask(BaseMask):
 
     def regionOfInterest(self):
         raise NotImplementedError('CircularMask.regionOfInterest is not implemented')
-
-        centerX = int(self.center()[1])
-        centerY = int(self.center()[0])
-        radius = int(self.radius())
-        # TODO declarations intended to remove warnings
-        class RegionOfInterest:
-            pass
-        return RegionOfInterest(centerX - radius, centerX + radius,
-                                centerY - radius, centerY + radius)
 
     def in_mask_indices(self):
         return self.asTransmissionValue().flatten().nonzero()[0]

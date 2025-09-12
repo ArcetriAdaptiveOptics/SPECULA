@@ -68,6 +68,7 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
   from specula.data_objects.ifunc import IFunc
   from specula.data_objects.ifunc_inv import IFuncInv
   from specula.data_objects.m2c import M2C
+  from specula.calib_manager import CalibManager
   from specula import cpuArray
 
   def compute_and_save_influence_functions():
@@ -75,6 +76,18 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
       Compute zonal influence functions and modal basis for the SCAO tutorial
       Follows the same approach as test_modal_basis.py
       """
+      # create calibration directory if it doesn't exist
+      root_dir = './calibration'
+      os.makedirs(root_dir, exist_ok=True)
+
+      # tags
+      ifunc_tag = 'tutorial_ifunc'
+      m2c_tag = 'tutorial_m2c'
+      base_inv_tag = 'tutorial_base_inv'
+
+      # initialize calibration manager
+      calib_manager = CalibManager(root_dir)
+
       # DM and pupil parameters for VLT-like telescope
       pupil_pixels = 160           # Pupil sampling resolution
       n_actuators = 41             # 41x41 = 1681 total actuators
@@ -161,10 +174,9 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
       kl_basis_inv = np.linalg.pinv(kl_basis)
 
       # Step 3: Create output directory
-      os.makedirs('calibration', exist_ok=True)
-      os.makedirs('calibration/ifunc', exist_ok=True)
-      os.makedirs('calibration/m2c', exist_ok=True)
-      
+      os.makedirs(os.path.join(root_dir, 'ifunc'), exist_ok=True)
+      os.makedirs(os.path.join(root_dir, 'm2c'), exist_ok=True)
+
       # Step 4: Save using SPECULA data objects
       print(f"\nSaving influence functions and modal basis...")
       
@@ -173,30 +185,33 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
           ifunc=influence_functions,
           mask=pupil_mask
       )
-      ifunc_obj.save('calibration/ifunc/tutorial_ifunc.fits')
-      print("✓ tutorial_ifunc.fits (zonal influence functions)")
-      
+      ifunc_filename = calib_manager.filename('ifunc', ifunc_tag)
+      ifunc_obj.save(ifunc_filename)
+      print("OK: " + ifunc_filename + " (zonal influence functions)")
+
       # Create M2C object for mode-to-command matrix and save
       m2c_obj = M2C(
           m2c=m2c
       )
-      m2c_obj.save('calibration/m2c/tutorial_m2c.fits')
-      print("✓ tutorial_m2c.fits (KL modal basis)")
-      
+      m2c_filename = calib_manager.filename('m2c', m2c_tag)
+      m2c_obj.save(m2c_filename)
+      print("OK: " + m2c_filename + " (KL modal basis)")
+
       # inverse influence function object for modal analysis
-      print("Saving inverse modal base...")
+      print(f"\nSaving inverse modal base...")
       ifunc_inv_obj = IFuncInv(
           ifunc_inv=kl_basis_inv,
           mask=pupil_mask
       )
-      ifunc_inv_obj.save('calibration/ifunc/tutorial_base_inv.fits')
-      print("✓ tutorial_base_inv.fits (inverse modal base)")
+      base_inv_filename = calib_manager.filename('ifunc', base_inv_tag)
+      ifunc_inv_obj.save(base_inv_filename)
+      print("OK: " + base_inv_filename + " (inverse modal base)")
 
       # Step 5: Optional visualization
       try:
         import matplotlib.pyplot as plt
 
-        print("\nGenerating visualization...")
+        print(f"\nGenerating visualization...")
 
         plt.figure(figsize=(10, 6))
         plt.semilogy(cpuArray(singular_values['S1']), 'o-', label='IF Covariance')
@@ -241,24 +256,25 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
           print("Matplotlib not available - skipping visualization")
       
       print(f"\nInfluence functions and modal basis computation completed!")
-      print(f"Files saved in: {os.path.abspath('calibration/')}")
+      print(f"Files saved using CalibManager in: {calib_manager.root_dir}")
       print(f"\nFiles created:")
-      print(f"  tutorial_ifunc.fits  - Zonal influence functions ({n_valid_actuators} actuators)")
-      print(f"  tutorial_m2c.fits    - KL modal basis ({kl_basis.shape[0]} modes)")
+      print(f"  ifunc/tutorial_ifunc.fits      - Zonal influence functions ({n_valid_actuators} actuators)")
+      print(f"  m2c/tutorial_m2c.fits          - KL modal basis ({kl_basis.shape[0]} modes)")
+      print(f"  ifunc/tutorial_base_inv.fits   - Inverse modal base")
       
       # Step 6: Test loading the saved files
       print(f"\nTesting file loading...")
       
       try:
           # Test IFunc loading
-          loaded_ifunc = IFunc.restore('calibration/ifunc/tutorial_ifunc.fits')
+          loaded_ifunc = IFunc.restore(ifunc_filename)
           assert loaded_ifunc.influence_function.shape == influence_functions.shape
-          print("✓ IFunc loading test passed")
-          
-          # Test M2C loading  
-          loaded_m2c = M2C.restore('calibration/m2c/tutorial_m2c.fits')
+          print("OK: IFunc loading test passed")
+
+          # Test M2C loading
+          loaded_m2c = M2C.restore(m2c_filename)
           assert loaded_m2c.m2c.shape == kl_basis.shape
-          print("✓ M2C loading test passed")
+          print("OK: M2C loading test passed")
           
       except Exception as e:
           print(f"⚠ File loading test failed: {e}")
@@ -300,24 +316,24 @@ Expected output:
   Number of KL modes: 1129
 
   Saving influence functions and modal basis...
-  ✓ tutorial_ifunc.fits (zonal influence functions)
-  ✓ tutorial_m2c.fits (KL modal basis)
-
+  OK: ./calibration/ifunc/tutorial_ifunc.fits (zonal influence functions)
+  OK: ./calibration/m2c/tutorial_m2c.fits (KL modal basis)
   Saving inverse modal base...
-  ✓ tutorial_base_inv.fits (inverse modal base)
+  OK: ./calibration/ifunc/tutorial_base_inv.fits (inverse modal base)
 
   Generating visualization...
 
   Influence functions and modal basis computation completed!
-  Files saved in: calibration
+  Files saved using CalibManager in: ./calibration
 
   Files created:
-    tutorial_ifunc.fits  - Zonal influence functions (1130 actuators)
-    tutorial_m2c.fits    - KL modal basis (1129 modes)
+    ifunc/tutorial_ifunc.fits      - Zonal influence functions (1130 actuators)
+    m2c/tutorial_m2c.fits          - KL modal basis (1129 modes)
+    ifunc/tutorial_base_inv.fits   - Inverse modal base
 
   Testing file loading...
-  ✓ IFunc loading test passed
-  ✓ M2C loading test passed
+  OK: IFunc loading test passed
+  OK: M2C loading test passed
 
 .. image:: /_static/tutorial/singular_values.png
    :width: 100%
@@ -360,7 +376,7 @@ Create ``config/scao_tutorial.yml``:
    # Main simulation parameters
    main:
      class:             'SimulParams'
-     root_dir:          './calibration'       # Directory containing influence functions
+     root_dir:          './calibration'       # CalibManager root directory (all the data are in subdirectories)
      pixel_pupil:       160                   # Must match influence function computation
      pixel_pitch:       0.0513                # [m] 8.2m / 160 pixels = 0.0513 m/pixel
      total_time:        2.000                 # [s] 2 seconds simulation
@@ -599,6 +615,10 @@ The interaction matrix calibration requires amplitude values for each actuator p
   import numpy as np
   from astropy.io import fits
 
+  import specula
+  specula.init(0)  # Use GPU device 0 (or -1 for CPU)
+  from specula.calib_manager import CalibManager 
+
   def create_scaled_amplitudes(n_actuators, base_amplitude=50):
       """
       Create amplitude vector with scaling pattern:
@@ -649,6 +669,15 @@ The interaction matrix calibration requires amplitude values for each actuator p
       return amplitudes
 
   def main():
+      root_dir = './calibration'
+
+      # Initialize calibration manager
+      calib_manager = CalibManager(root_dir)
+
+      # tags
+      data_filename = 'pushpull_1129modes_amp50'
+      data_uniform_filename = 'pushpull_1129modes_amp50_uniform'
+
       # Create scaled amplitudes for all valid actuators
       n_actuators = 1129  # Number of valid actuators -1 (from influence functions)
       base_amplitude = 50  # 50nm
@@ -671,18 +700,18 @@ The interaction matrix calibration requires amplitude values for each actuator p
       print(f"Last 10 amplitudes [nm]:  {amplitudes[-10:]}")
       
       # Save amplitude vector
-      os.makedirs('calibration/data', exist_ok=True)
+      os.makedirs(os.path.join(root_dir, 'data'), exist_ok=True)
 
-      output_file = 'calibration/data/pushpull_1140modes_amp50.fits'
+      output_file = calib_manager.filename('data', data_filename)
 
       fits.writeto(output_file, amplitudes, overwrite=True)
-      print(f"\n✓ Saved scaled amplitude vector: {output_file}")
+      print(f"\nOK: Saved scaled amplitude vector: {output_file}")
       
       # Create comparison with uniform amplitudes
       uniform_amplitudes = np.full(n_actuators, base_amplitude)
-      uniform_file = 'calibration/data/pushpull_1129modes_amp50_uniform.fits'
+      uniform_file = calib_manager.filename('data', data_uniform_filename)
       fits.writeto(uniform_file, uniform_amplitudes, overwrite=True)
-      print(f"✓ Saved uniform amplitude vector: {uniform_file}")
+      print(f"OK: Saved uniform amplitude vector: {uniform_file}")
       
       return amplitudes
 
@@ -721,7 +750,6 @@ Create ``calib_im_rec.yml``:
      class:     'ImCalibrator'
      nmodes:    1129                         # Number of modes to calibrate
      im_tag:    'tutorial_im'                # Output IM filename
-     data_dir:  './calibration/im'              # Output directory
      overwrite: true                         # Overwrite existing files
      inputs:
        in_slopes:   'slopec.out_slopes'      # WFS slopes input
@@ -732,7 +760,6 @@ Create ``calib_im_rec.yml``:
      class:     'RecCalibrator'
      nmodes:    800                          # Number of modes (reduced to keep noise propagation low and avoid numerical issues)
      rec_tag:   'tutorial_rec'               # Output REC filename
-     data_dir:  './calibration/rec'              # Output directory
      overwrite: true                         # Overwrite existing files
      inputs:
        in_intmat:   'im_calibrator.out_intmat'  # Connect to IM output

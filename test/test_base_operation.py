@@ -255,6 +255,3 @@ class TestBaseOperation(unittest.TestCase):
         op.trigger()
         op.post_trigger()
         assert op.inputs['in_value1'].get(target_device_idx=target_device_idx).value == 1.0
-
-if __name__ == '__main__':
-    unittest.main()

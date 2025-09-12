@@ -47,10 +47,33 @@ class Interp2D():
 
     def __init__(self, input_shape, output_shape, rotInDeg=0, rowShiftInPixels=0, colShiftInPixels=0, yy=None, xx=None, dtype=np.float32, xp=np):
         '''
-        Setup a resampling matrix from <input_shape> to <output_shape>,
-        with optional rotation and shift.
-        If xx and yy are given, they have to be the same shape as <output_shape>
-        and they will be used as sampling points over <input_shape>
+        Initialize an Interp2D object for 2D interpolation between arrays.
+
+        Parameters
+        ----------
+        input_shape : tuple of int
+            Shape (rows, cols) of the input array to be interpolated.
+        output_shape : tuple of int
+            Desired shape (rows, cols) of the output (interpolated) array.
+        rotInDeg : float, optional
+            Rotation angle in degrees to apply to the sampling grid (default: 0).
+        rowShiftInPixels : float, optional
+            Vertical shift (in pixels) to apply to the sampling grid (default: 0).
+        colShiftInPixels : float, optional
+            Horizontal shift (in pixels) to apply to the sampling grid (default: 0).
+        yy : array-like, optional
+            Precomputed y-coordinates for the output grid (same shape as output_shape).
+        xx : array-like, optional
+            Precomputed x-coordinates for the output grid (same shape as output_shape).
+        dtype : data-type, optional
+            Data type for interpolation (default: np.float32).
+        xp : module, optional
+            Array module to use (default: numpy).
+
+        Notes
+        -----
+        If `xx` and `yy` are not provided, they are generated to map the output grid
+        to the input grid, with optional rotation and shift applied.
         '''
         self.xp = xp
         self.dtype = dtype
@@ -93,19 +116,44 @@ class Interp2D():
         self.xx = to_xp(self.xp, xx, dtype=dtype).ravel()
 
     def interpolate(self, value, out=None):
+        """
+        Interpolates the input array to the output grid defined by the interpolator.
+
+        Parameters
+        ----------
+        value : array-like
+            The input array to be interpolated. Must have shape `input_shape`.
+        out : array-like, optional
+            Optional output array to store the result. If not provided, a new array is created.
+
+        Returns
+        -------
+        out : array-like
+            The interpolated array with shape `output_shape`.
+
+        Raises
+        ------
+        ValueError
+            If the input array does not have the expected shape.
+
+        Notes
+        -----
+        For CPU arrays, uses scipy's RegularGridInterpolator.
+        For GPU arrays (cupy), uses a custom CUDA kernel.
+        """
         if value.shape != self.input_shape:
             raise ValueError(f'Array to be interpolated must have shape {self.input_shape} instead of {value.shape}')
-        
+
         if out is None:
             out = self.xp.empty(shape=self.output_shape, dtype=self.dtype)
-        
+
         if self.xp == cp:
             block = (16, 16)
-            numBlocks2d = int(self.output_shape[0] // block[0])
+            num_blocks_2d = int(self.output_shape[0] // block[0])
             if self.output_shape[0] % block[0]:
-                numBlocks2d += 1
-            grid = (numBlocks2d, numBlocks2d)
-            
+                num_blocks_2d += 1
+            grid = (num_blocks_2d, num_blocks_2d)
+
             if self.dtype == cp.float32:
                 self.interp2_kernel_float(grid, block, (value, out, self.output_shape[1],  self.output_shape[0],  self.input_shape[1], self.input_shape[0], self.xx, self.yy))
             elif self.dtype == cp.float64:
@@ -118,5 +166,5 @@ class Interp2D():
             from scipy.interpolate import RegularGridInterpolator
             points = (self.xp.arange( self.input_shape[0], dtype=self.dtype), self.xp.arange( self.input_shape[1], dtype=self.dtype))
             interp = RegularGridInterpolator(points,value, method='linear')
-            out[:] = interp((self.yy, self.xx)).reshape(self.output_shape).astype(self.dtype)
+            out[:] = interp((self.yy, self.xx)).reshape(self.output_shape)
             return out

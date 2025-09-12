@@ -8,6 +8,7 @@ from specula import np
 from specula import cpuArray
 
 from specula.data_objects.simul_params import SimulParams
+from specula.lib.modal_pushpull_signal import modal_pushpull_signal
 from specula.processing_objects.push_pull_generator import PushPullGenerator
 from specula.processing_objects.random_generator import RandomGenerator
 from specula.processing_objects.schedule_generator import ScheduleGenerator
@@ -90,6 +91,19 @@ class TestGenerators(unittest.TestCase):
             np.testing.assert_almost_equal(value, expected)
 
     @cpu_and_gpu
+    def test_wave_generator_vsize(self, target_device_idx, xp):
+        """Test WaveGenerator vsize parameter"""
+        slope = 2.0
+        constant = 1.0
+        f = WaveGenerator('SIN', slope=slope, constant=constant,
+                        target_device_idx=target_device_idx)
+        assert f.outputs['output'].value.shape == (1,)
+
+        f = WaveGenerator('SIN', slope=slope, vsize=10, constant=constant,
+                        target_device_idx=target_device_idx)
+        assert f.outputs['output'].value.shape == (10,)
+
+    @cpu_and_gpu
     def test_random_generator_normal(self, target_device_idx, xp):
         amp = 1.0
         constant = 2.0
@@ -141,6 +155,19 @@ class TestGenerators(unittest.TestCase):
         
         self.assertTrue(np.all(values >= expected_min))
         self.assertTrue(np.all(values <= expected_max))
+
+    @cpu_and_gpu
+    def test_random_generator_vsize(self, target_device_idx, xp):
+        """Test RandomGenerator vsize parameter"""
+        amp = 2.0
+        constant = 1.0
+        f = RandomGenerator(distribution='UNIFORM', amp=amp, constant=constant,
+                        target_device_idx=target_device_idx)
+        assert f.outputs['output'].value.shape == (1,)
+
+        f = RandomGenerator(distribution='UNIFORM', amp=amp, constant=constant, vsize=10,
+                        target_device_idx=target_device_idx)
+        assert f.outputs['output'].value.shape == (10,)
 
     @cpu_and_gpu
     def test_vibration(self, target_device_idx, xp):
@@ -300,13 +327,37 @@ class TestGenerators(unittest.TestCase):
         )
         f.setup()
 
-        # Test that it generates some output
-        f.check_ready(1)
-        f.trigger()
-        f.post_trigger()
+        # Test multiple frames
+        outputs = []
+        for i in range(10):
+            f.check_ready(i)
+            f.trigger()
+            f.post_trigger()
+            outputs.append(f.outputs['output'].value.copy())
 
-        output = cpuArray(f.outputs['output'].value)
-        self.assertEqual(len(output), nmodes)
+        # Check agains reference signal
+        hist = modal_pushpull_signal(n_modes=nmodes, amplitude=amp, ncycles=ncycles, xp=np)
+        for i in range(10):
+            np.testing.assert_array_equal(cpuArray(outputs[i]), hist[i])
+
+    @cpu_and_gpu
+    def test_push_pull_generator_with_first_mode(self, target_device_idx, xp):
+        nmodes = 8
+        amp = 0.5
+        ncycles = 2
+        constant_amp = True
+        first_mode = 2
+
+        f = PushPullGenerator(
+            nmodes=nmodes,
+            first_mode=first_mode,
+            push_pull_type='PUSHPULL',
+            amp=amp,
+            constant_amp=constant_amp,
+            ncycles=ncycles,
+            target_device_idx=target_device_idx
+        )
+        f.setup()
 
         # Test multiple frames
         outputs = []
@@ -314,11 +365,12 @@ class TestGenerators(unittest.TestCase):
             f.check_ready(i)
             f.trigger()
             f.post_trigger()
-            outputs.append(cpuArray(f.outputs['output'].value))
+            outputs.append(f.outputs['output'].value.copy())
 
-        # Should see some variation in the signal
-        all_outputs = np.array(outputs)
-        self.assertTrue(np.var(all_outputs) > 0, "Push-pull signal should vary over time")
+        # Check agains reference signal
+        hist = modal_pushpull_signal(n_modes=nmodes, first_mode=first_mode, amplitude=amp, constant=constant_amp, ncycles=ncycles, xp=np)
+        for i in range(10):
+            np.testing.assert_array_equal(cpuArray(outputs[i]), hist[i])
 
     @cpu_and_gpu
     def test_push_pull_invalid_type(self, target_device_idx, xp):

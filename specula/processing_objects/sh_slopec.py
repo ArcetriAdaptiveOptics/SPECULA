@@ -66,6 +66,9 @@ class ShSlopec(Slopec):
         self.set_xy_weights()
         self.outputs['out_subapdata'] = self.subapdata
 
+        self.slopes.single_mask = self.subapdata.single_mask()
+        self.slopes.display_map = self.subapdata.display_map
+
     def nsubaps(self):
         return self.subapdata.n_subaps
 
@@ -266,8 +269,6 @@ class ShSlopec(Slopec):
 
         self.slopes.xslopes = sx
         self.slopes.yslopes = sy
-        self.slopes.single_mask = self.subapdata.single_mask()
-        self.slopes.display_map = self.subapdata.display_map
         self.slopes.generation_time = self.current_time
 
         self.flux_per_subaperture_vector.value[:] = flux_per_subaperture_vector

@@ -14,7 +14,7 @@ class ModalAnalysis(BaseProcessingObj):
                 ifunc_inv: IFuncInv=None,
                 type_str: str=None,
                 npixels: int=None,
-                nzern: int=None,
+                nzern: int=None,            # TODO not used
                 obsratio: float=None,
                 diaratio: float=None,
                 pupilstop: Pupilstop=None,
@@ -53,6 +53,8 @@ class ModalAnalysis(BaseProcessingObj):
             self.phase2modes = ifunc_inv
         elif ifunc is not None and ifunc_inv is None:
             # This is the case where only ifunc is provided
+            if nmodes is not None and nmodes != ifunc.size[0]:
+                ifunc.cut(nmodes=nmodes)
             self.phase2modes = ifunc.inverse()
         else:  # Both are provided
             # Prioritize ifunc_inv
@@ -77,7 +79,7 @@ class ModalAnalysis(BaseProcessingObj):
         self.outputs['out_modes'] = self.out_modes
         self.outputs['rms'] = self.rms
         self.outputs['out_modes_list'] = []
-        for i in range(self._n_inputs):
+        for _ in range(self._n_inputs):
             self.outputs['out_modes_list'].append(BaseValue('modes', target_device_idx=self.target_device_idx))
         self.out_modes_list = self.outputs['out_modes_list']
 

@@ -6,6 +6,9 @@ specula.init(0)  # Default target device
 
 from specula import cpuArray
 from specula.simul import Simul
+from specula.processing_objects.wave_generator import WaveGenerator
+from specula.processing_objects.data_buffer import DataBuffer
+from specula.base_data_obj import BaseDataObj
 
 import numpy as np
 import unittest
@@ -131,10 +134,6 @@ class TestDataBuffer(unittest.TestCase):
         buffer_size = 2
         total_steps = 5
 
-        # Create objects manually
-        from specula.processing_objects.wave_generator import WaveGenerator
-        from specula.processing_objects.data_buffer import DataBuffer
-
         # Create generator
         generator = WaveGenerator(target_device_idx=target_device_idx, amp=1, freq=0)
         generator.setup()
@@ -208,3 +207,25 @@ class TestDataBuffer(unittest.TestCase):
         self.assertIn('gen_buffered', buffer.outputs)
         final_output = buffer.outputs['gen_buffered'].value
         self.assertEqual(len(final_output), 1)  # Last emission
+
+
+    @cpu_and_gpu
+    def test_data_buffer_fails_early(self, target_device_idx, xp):
+        """Test that DataBuffer fails during Setup() if a class without get_value() is set as an input"""
+        buffer_size = 2
+
+
+        # Create buffer with manual input setup
+        buffer = DataBuffer(buffer_size=buffer_size)
+        buffer.target_device_idx = target_device_idx
+
+        data = BaseDataObj()
+
+        # Manually create input for buffer (simulate what simul.py does)
+        from specula.connections import InputValue
+        buffer.inputs['gen'] = InputValue(type=BaseDataObj)
+        buffer.inputs['gen'].set(data)
+
+        with self.assertRaises(TypeError):
+            buffer.setup()
+

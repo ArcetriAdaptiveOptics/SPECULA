@@ -1,10 +1,7 @@
 import unittest
 import os
 import shutil
-import subprocess
-import sys
 import glob
-import time
 import specula
 specula.init(-1,precision=1)  # Default target device
 
@@ -156,7 +153,7 @@ class TestShSimulation(unittest.TestCase):
 
         # Compute PSF using FieldAnalyser with same sampling as original
         # Extract sampling from original simulation parameters
-        psf_sampling =7  # Same as 'nd' parameter in params_scao_sh_test.yml
+        psf_sampling =7  # Same as 'nd' parameter in params_field_analyser_test.yml
 
         psf_results = analyzer.compute_field_psf(
             psf_sampling=psf_sampling,
@@ -284,7 +281,7 @@ class TestShSimulation(unittest.TestCase):
         psf_output_dir = analyzer.psf_output_dir
         self.assertTrue(psf_output_dir.exists(), "PSF output directory should exist")
 
-        psf_filename, sr_filename = analyzer._get_psf_filenames(source_idx=0)
+        psf_filename, sr_filename = analyzer._get_psf_filenames(source_dict = analyzer.sources[0])
         psf_path = psf_output_dir / f"{psf_filename}.fits"
         self.assertTrue(psf_path.exists(), f"PSF output file should exist: {psf_path}")
 

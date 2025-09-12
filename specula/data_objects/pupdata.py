@@ -6,8 +6,7 @@ from specula import cpuArray
 
 class PupData(BaseDataObj):
     '''
-    TODO change to have the pupil index in the second index
-    (for compatibility with existing PASSATA data)
+    PupData includes an ind_pup array with the pixel indexes of each pupil, of shape [index, pupil].
 
     TODO change by passing all the initializing arguments as __init__ parameters,
     to avoid the later initialization (see test/test_slopec.py for an example),
@@ -24,73 +23,101 @@ class PupData(BaseDataObj):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         # Initialize with provided data or defaults
-        if ind_pup is not None:
-            self.ind_pup = self.to_xp(ind_pup).astype(int)
-        else:
-            self.ind_pup = self.xp.empty((0, 4), dtype=int)
+        if ind_pup is None:
+            ind_pup = np.empty((0, 4))
+        if radius is None:
+            radius = np.zeros(4)
+        if cx is None:
+            cx = np.zeros(4)
+        if cy is None:
+            cy = np.zeros(4)
+        if framesize is None:
+            framesize = np.zeros(2)
 
-        if radius is not None:
-            self.radius = self.to_xp(radius).astype(self.dtype)
-        else:
-            self.radius = self.xp.zeros(4, dtype=self.dtype)
+        self.ind_pup = self.to_xp(ind_pup).astype(int)
+        self.radius = cpuArray(radius, dtype=self.dtype)
+        self.cx = cpuArray(cx, dtype=self.dtype)
+        self.cy = cpuArray(cy, dtype=self.dtype)
+        self.framesize = cpuArray(framesize, dtype=int)
+        self.slopes_from_intensity = False
 
-        if cx is not None:
-            self.cx = self.to_xp(cx).astype(self.dtype)
-        else:
-            self.cx = self.xp.zeros(4, dtype=self.dtype)
+    def get_value(self):
+        '''Get the pixel values as a numpy/cupy array'''
+        return self.ind_pup
+    
+    def set_value(self, v):
+        '''Set new ind_pup values.
+        Arrays are not reallocated.
+        '''
+        assert v.shape == self.ind_pup.shape, \
+            f"Error: input array shape {v.shape} does not match ind_pup shape {self.ind_pup.shape}"
 
-        if cy is not None:
-            self.cy = self.to_xp(cy).astype(self.dtype)
-        else:
-            self.cy = self.xp.zeros(4, dtype=self.dtype)
-
-        if framesize is not None:
-            self.framesize = np.array(framesize, dtype=int)
-        else:
-            self.framesize = np.zeros(2, dtype=int)
+        self.ind_pup[:] = self.to_xp(v)
 
     @property
     def n_subap(self):
-        return self.ind_pup.shape[1] // 4
+        return self.ind_pup.shape[0]
+
+    def pupil_idx(self, n):
+        return self.ind_pup[:, n]
 
     def zcorrection(self, indpup):
         tmp = indpup.copy()
         tmp[:, 2], tmp[:, 3] = indpup[:, 3], indpup[:, 2]
         return tmp
 
+    def set_slopes_from_intensity(self, value: bool = True):
+        self.slopes_from_intensity = value
+
     @property
     def display_map(self):
-        mask = self.single_mask()
-        return self.xp.ravel_multi_index(self.xp.where(mask), mask.shape)
+        if self.slopes_from_intensity:
+            # Returns the indices of the pupils in the order A, B, C, D
+            # where A, B, C, D are the first, second, third and fourth
+            # pupils respectively. This is the order expected by PyrSlopec,
+            # and it is the correct order for slopes_from_intensity.
+            return self.xp.concatenate([
+                self.pupil_idx(0)[self.pupil_idx(0) >= 0],  # A
+                self.pupil_idx(1)[self.pupil_idx(1) >= 0],  # B  
+                self.pupil_idx(2)[self.pupil_idx(2) >= 0],  # C
+                self.pupil_idx(3)[self.pupil_idx(3) >= 0]   # D
+            ])
+        else:
+            mask = self.single_mask()
+            return self.xp.ravel_multi_index(self.xp.where(mask), mask.shape)
 
     def single_mask(self):
         f = self.xp.zeros(self.framesize[0]*self.framesize[1], dtype=self.dtype)
-        self.xp.put(f, self.ind_pup[:, 0], 1)
+        self.xp.put(f, self.pupil_idx(0), 1)
         f2d = f.reshape(self.framesize)
         return f2d[:self.framesize[0]//2, self.framesize[1]//2:]
 
     def complete_mask(self):
         f = self.xp.zeros(self.framesize, dtype=self.dtype)
         for i in range(4):
-            f.flat[self.ind_pup[:, i]] = 1
+            self.xp.put(f, self.pupil_idx(i), 1)
         return f
 
-    def save(self, filename, hdr=None, overwrite=False):
-        if hdr is None:
-            hdr = fits.Header()
+    def get_fits_header(self):
+        hdr = fits.Header()
         hdr['VERSION'] = 2
         hdr['FSIZEX'] = self.framesize[0]
         hdr['FSIZEY'] = self.framesize[1]
+        return hdr
 
+    def save(self, filename, overwrite=False):
+        hdr = self.get_fits_header()
         fits.writeto(filename, np.zeros(2), hdr, overwrite=overwrite)
-        fits.append(filename, cpuArray(self.ind_pup.T))
-        fits.append(filename, cpuArray(self.radius))
-        fits.append(filename, cpuArray(self.cx))
-        fits.append(filename, cpuArray(self.cy))
+        fits.append(filename, cpuArray(self.ind_pup))
+        fits.append(filename, self.radius)
+        fits.append(filename, self.cx)
+        fits.append(filename, self.cy)
 
     @staticmethod
     def restore(filename, target_device_idx=None):
         """Restores the pupil data from a file."""
+
+        # pylint: disable=no-member
         with fits.open(filename) as hdul:
             hdr = hdul[0].header
             version = hdr.get('VERSION')
@@ -111,3 +138,7 @@ class PupData(BaseDataObj):
 
         return PupData(ind_pup=ind_pup, radius=radius, cx=cx, cy=cy, framesize=framesize,
                 target_device_idx=target_device_idx)
+
+    @staticmethod
+    def from_header(filename, target_device_idx=None):
+        raise NotImplementedError

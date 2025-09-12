@@ -93,9 +93,9 @@ class Modalrec(BaseProcessingObj):
         else:
             self.output_slice = slice(None, None, None)
             if polc:
-                nmodes = self.projmat.recmat.shape[0]
+                nmodes = self.projmat.nmodes
             else:
-                nmodes = self.recmat.recmat.shape[0]
+                nmodes = self.recmat.nmodes
 
         if input_modes_slice is not None:
             self.input_modes_slice = slice(*input_modes_slice)
@@ -109,11 +109,11 @@ class Modalrec(BaseProcessingObj):
         self.inputs['in_slopes_list'] = InputList(type=Slopes, optional=True)
         self.outputs['out_modes'] = self.modes
         self.outputs['out_pseudo_ol_modes'] = self.pseudo_ol_modes
-        
+
         # TODO static allocation but polc not supported (should use projmat)
         self.modes.value = self.xp.zeros(nmodes, dtype=self.dtype)
         self.pseudo_ol_modes.value = self.xp.zeros(nmodes, dtype=self.dtype)
-        
+
         if self.polc:
             self.out_comm = BaseValue('output commands from modal reconstructor', target_device_idx=target_device_idx)
             self.inputs['in_commands'] = InputValue(type=BaseValue, optional=True)

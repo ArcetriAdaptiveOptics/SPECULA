@@ -4,6 +4,7 @@ specula.init(0)  # Default target device
 
 import os
 import numpy as np
+import pytest
 import unittest
 
 from specula.lib.ELT_M1_ifunc_calculator import ELTM1IFuncCalculator
@@ -15,6 +16,8 @@ class TestELTM1IFuncCalculator(unittest.TestCase):
         self.dim = 64  # Use a small dimension for fast testing
         self.calculator = ELTM1IFuncCalculator(dim=self.dim,dtype=cpu_float_dtype_list[1])
 
+    @pytest.mark.filterwarnings('ignore:.*divide by zero encountered*:RuntimeWarning')
+    @pytest.mark.filterwarnings('ignore:.*invalid value encountered*:RuntimeWarning')
     def test_modal_base_shapes(self):
         self.calculator.M1_modal_base()
         print("size of M1 modal base: ", self.calculator.ifs_cube.shape)
@@ -39,6 +42,8 @@ class TestELTM1IFuncCalculator(unittest.TestCase):
             if os.path.exists(filename):
                 os.remove(filename)
 
+    @pytest.mark.filterwarnings('ignore:.*divide by zero encountered*:RuntimeWarning')
+    @pytest.mark.filterwarnings('ignore:.*invalid value encountered*:RuntimeWarning')
     def test_save_results(self):
         filename = "test_ifunc_elt_m1.fits"
         try:

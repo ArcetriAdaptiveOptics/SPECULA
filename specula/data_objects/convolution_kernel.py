@@ -1,14 +1,12 @@
-from specula.base_data_obj import BaseDataObj
+import os
+import hashlib, json
 
+import numpy as np
 from astropy.io import fits
 
 from specula import cpuArray, ASEC2RAD
+from specula.base_data_obj import BaseDataObj
 from specula.lib.rebin import rebin2d
-
-import os
-import numpy as np
-
-import hashlib, json
 
 
 def lgs_map_sh(nsh, diam, rl, zb, dz, profz, fwhmb, ps, ssp,
@@ -125,6 +123,9 @@ class ConvolutionKernel(BaseDataObj):
                  positive_shift_tt: bool=True,
                  target_device_idx: int=None,
                  precision: int=None):
+        """
+        Initialize a :class:`~specula.data_objects.convolution_kernel.ConvolutionKernel` object.
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.dimx = dimx
@@ -277,17 +278,8 @@ class ConvolutionKernel(BaseDataObj):
                 else:
                     self.kernels[j * self.dimx + i, :, :] = subap_kern
 
-    def save(self, filename, hdr=None):
-        """
-        Save the kernel to a FITS file.
-        
-        Parameters:
-            filename (str): Path to save the FITS file
-            hdr (fits.Header, optional): Additional header information
-        """
-        if hdr is None:
-            hdr = fits.Header()
-
+    def get_fits_header(self):
+        hdr = fits.Header()
         hdr['VERSION'] = 1.1
         hdr['PXSCALE'] = self.pxscale
         hdr['DIM'] = self.dimension
@@ -296,6 +288,17 @@ class ConvolutionKernel(BaseDataObj):
         hdr['SPOTSIZE'] = float(self.spot_size)
         hdr['DIMX'] = self.dimx
         hdr['DIMY'] = self.dimy
+        return hdr
+
+    def save(self, filename):
+        """
+        Save the kernel to a FITS file.
+        
+        Parameters:
+            filename (str): Path to save the FITS file
+            hdr (fits.Header, optional): Additional header information
+        """
+        hdr = self.get_fits_header()
 
         # Create a primary HDU with just the header
         primary_hdu = fits.PrimaryHDU(header=hdr)
@@ -307,6 +310,7 @@ class ConvolutionKernel(BaseDataObj):
         # Create an HDUList and write to file
         hdul = fits.HDUList([primary_hdu, kernel_hdu])
         hdul.writeto(filename, overwrite=True)   
+        hdul.close()  # Force close for Windows
 
     def prepare_for_sh(self, sodium_altitude=None, sodium_intensity=None, current_time=None):
         # Update the kernel parameters if provided
@@ -353,18 +357,7 @@ class ConvolutionKernel(BaseDataObj):
             raise ValueError(f'Unknown version {version}. Only version=1.1 is supported')
 
         if kernel_obj is None:
-            kernel_obj = ConvolutionKernel(
-                dimx=hdr['DIMX'],
-                dimy=hdr['DIMY'],
-                pxscale=hdr['PXSCALE'],
-                pupil_size_m=0.0,
-                dimension=hdr['DIM'],
-                launcher_pos=[0.0, 0.0, 0.0],
-                launcher_size=hdr['SPOTSIZE'],
-                oversampling=hdr['OVERSAMP'],
-                positive_shift_tt=hdr['POSTT'],
-                target_device_idx=target_device_idx)
-            kernel_obj.spot_size = hdr['SPOTSIZE']
+            kernel_obj = ConvolutionKernel.from_header(hdr, target_device_idx=target_device_idx)
         else:
             # If a kernel object is provided, use it
             # check if the dimensions match
@@ -382,3 +375,35 @@ class ConvolutionKernel(BaseDataObj):
         kernel_obj.real_kernels[:] = data
         kernel_obj.process_kernels(return_fft=return_fft)
         return kernel_obj
+
+    @staticmethod
+    def from_header(hdr, target_device_idx=None):
+        version = hdr['VERSION']
+        if version != 1.1:
+            raise ValueError(f'Unknown version {version}. Only version=1.1 is supported')
+
+        kernel_obj = ConvolutionKernel(
+            dimx=hdr['DIMX'],
+            dimy=hdr['DIMY'],
+            pxscale=hdr['PXSCALE'],
+            pupil_size_m=0.0,
+            dimension=hdr['DIM'],
+            launcher_pos=[0.0, 0.0, 0.0],
+            launcher_size=hdr['SPOTSIZE'],
+            oversampling=hdr['OVERSAMP'],
+            positive_shift_tt=hdr['POSTT'],
+            target_device_idx=target_device_idx)
+
+        kernel_obj.spot_size = hdr['SPOTSIZE']
+        return kernel_obj
+
+    def get_value(self):
+        return self.real_kernels
+    
+    def set_value(self, v):
+        '''Set new kernels.
+        Arrays are not reallocated.'''
+        assert v.shape == self.real_kernels.shape, \
+            f"Error: input array shape {v.shape} does not match real_kernels shape {self.real_kernels.shape}"
+
+        self.real_kernels[:] = self.to_xp(v)

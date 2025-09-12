@@ -20,14 +20,15 @@ class AtmoPropagation(BaseProcessingObj):
                  doFresnel: bool=False,
                  wavelengthInNm: float=500.0,
                  pupil_position=None,
-                 mergeLayersContrib=True,
+                 mergeLayersContrib: bool=True,
+                 reverse_atmo_layer_list: bool=False,
                  target_device_idx=None,
                  precision=None):
 
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.simul_params = simul_params
-       
+
         self.pixel_pupil = self.simul_params.pixel_pupil
         self.pixel_pitch = self.simul_params.pixel_pitch
 
@@ -39,8 +40,9 @@ class AtmoPropagation(BaseProcessingObj):
 
         if not (self.pixel_pupil > 0):
             raise ValueError('Pixel pupil must be >0')
-        
+
         self.mergeLayersContrib = mergeLayersContrib
+        self.reverse_atmo_layer_list = reverse_atmo_layer_list
         self.pixel_pupil_size = self.pixel_pupil        
         self.source_dict = source_dict
         if pupil_position is not None:
@@ -145,7 +147,7 @@ class AtmoPropagation(BaseProcessingObj):
             self.outputs['out_'+source_name+'_ef'].generation_time = self.current_time
 
     def setup_interpolators(self):
-        
+
         self.interpolators = {}
         for source in self.source_dict.values():
             self.interpolators[source] = {}
@@ -166,10 +168,10 @@ class AtmoPropagation(BaseProcessingObj):
                         self.interpolators[source][layer] = li
                 else:
                     raise ValueError('Invalid layer/source geometry')
- 
+
     def layer_interpolator(self, source, layer):
         pixel_layer = layer.size[0]
-        half_pixel_layer = np.array([(pixel_layer - 1) / 2., (pixel_layer - 1) / 2.]) 
+        half_pixel_layer = np.array([(pixel_layer - 1) / 2., (pixel_layer - 1) / 2.])
         cos_sin_phi =  np.array( [np.cos(source.phi), np.sin(source.phi)])
         half_pixel_layer -= cpuArray(layer.shiftXYinPixel)
 
@@ -213,6 +215,8 @@ class AtmoPropagation(BaseProcessingObj):
         super().setup()
 
         self.atmo_layer_list = self.local_inputs['atmo_layer_list']
+        if self.reverse_atmo_layer_list:
+            self.atmo_layer_list.reverse()
         self.common_layer_list = self.local_inputs['common_layer_list']
 
         if self.atmo_layer_list is None:
@@ -229,7 +233,7 @@ class AtmoPropagation(BaseProcessingObj):
         if not self.mergeLayersContrib:
             for name, source in self.source_dict.items():
                 self.outputs['out_'+name+'_ef'] = []
-                for n in range(self.nAtmoLayers):
+                for _ in range(self.nAtmoLayers):
                     ef = ElectricField(self.pixel_pupil_size, self.pixel_pupil_size, self.pixel_pitch, target_device_idx=self.target_device_idx)
                     ef.S0 = source.phot_density()
                     self.outputs['out_'+name+'_ef'].append(ef)
@@ -239,5 +243,3 @@ class AtmoPropagation(BaseProcessingObj):
 
         self.setup_interpolators()
         self.build_stream()
-
-

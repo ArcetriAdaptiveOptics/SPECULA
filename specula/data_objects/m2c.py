@@ -13,11 +13,29 @@ class M2C(BaseDataObj):
                  norm_factor: float=None,
                  target_device_idx: int=None,
                  precision: int=None):
+        """
+        Initialize a :class:`~specula.data_objects.m2c.M2C` object.
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         self.m2c = self.to_xp(m2c, dtype=self.dtype)
         if nmodes is not None:
             self.set_nmodes(nmodes)
         self.norm_factor = norm_factor
+
+    def get_value(self):
+        '''
+        Get the m2c matrix field as a numpy/cupy array
+        '''
+        return self.m2c
+
+    def set_value(self, v):
+        '''
+        Set new values for the m2c matrix field    
+        Arrays are not reallocated
+        '''
+        assert v.shape == self.m2c.shape, \
+            f"Error: input array shape {v.shape} does not match m2c shape {self.m2c.shape}"
+        self.m2c[:]= self.to_xp(v)
 
     @property
     def nmodes(self):
@@ -48,16 +66,25 @@ class M2C(BaseDataObj):
         else:
             self.m2c = self.m2c[:, start_mode:nmodes]
 
-    def save(self, filename):
-        """Saves the M2C to a file."""
+    @staticmethod
+    def from_header(hdr, target_device_idx=None):
+        raise NotImplementedError
+
+    def get_fits_header(self):
         hdr = fits.Header()
         hdr['VERSION'] = 1
+        return hdr
+
+    def save(self, filename):
+        """Saves the M2C to a file."""
+        hdr = self.get_fits_header()
         fits.writeto(filename, np.zeros(2), hdr)
         fits.append(filename, cpuArray(self.m2c))
 
     @staticmethod
     def restore(filename, target_device_idx=None):
-        """Restores the M2C from a file."""
+        """Restores the :class:`~specula.data_objects.m2c.M2C` from a file."""
+        # pylint: disable=no-member
         with fits.open(filename) as hdul:
             hdr = hdul[0].header
             version = hdr.get('VERSION')

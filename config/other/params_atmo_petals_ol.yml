@@ -1,0 +1,113 @@
+---
+
+main:
+  class:             'SimulParams'
+  root_dir:          './calib/SCAO'         # Root directory for calibration manager
+  pixel_pupil:       160                   # Must match influence function computation
+  pixel_pitch:       0.0513                # [m] 8.2m / 160 pixels = 0.0513 m/pixel
+  total_time:        0.100                  # [s] Total simulation running time
+  time_step:         0.001                  # [s] Simulation time step
+  zenithAngleInDeg:  30.000
+  display_server:    False
+
+
+seeing:
+  class:             'FuncGenerator'
+  amp:               0.6
+  constant:          0.6                  # range of [0.4, 1.2]
+  func_type:         'RANDOM_UNIFORM'
+  outputs: ['output']
+
+
+on_axis_source:
+  class:             'Source'
+  polar_coordinates:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  magnitude:         8                    # source magnitude
+  wavelengthInNm:    750                   # [nm] wavelength
+
+
+pupilstop:                                 # Default parameters (circular pupil)
+  class: 'Pupilstop'
+  tag: 'mask_160p_2petals'
+
+
+atmo:
+  class:                'AtmoRandomPhase'
+  simul_params_ref:  'main'
+  L0:                   25                   # [m] Outer scale
+  source_dict_ref:      ['on_axis_source']
+  inputs:
+    seeing: 'seeing.output'
+    pupilstop: 'pupilstop'
+  outputs: ['out_on_axis_source_ef']
+
+
+modal_analysis:
+  class:                'ModalAnalysis'
+  ifunc_inv_object:     'base_160p_41acts_2petals_inv'
+  inputs:
+    in_ef: 'atmo.out_on_axis_source_ef'
+  outputs: ['out_modes']
+
+petals:
+  class: 'IFunc'
+  tag: 'ifunc_160p_2petals'
+
+petals_error:
+  class: 'FuncGenerator'
+  func_type: 'RANDOM_UNIFORM'
+  constant: [0.0, 0.0]  # [nm] Average for each petal
+  amp: [0.0,1000.0]  # [nm] St. Dev. for each petal
+  outputs: ['output']
+
+dm_petals:
+  class:             'DM'
+  simul_params_ref:  'main'
+  ifunc_ref:         'petals'
+  nmodes:            2                    # Number of modes
+  height:            0                      # DM height [m]
+  inputs:
+    in_command:      'petals_error.output'
+  outputs: ['out_layer']
+
+ef_combinator:
+  class: 'ElectricFieldCombinator'
+  simul_params_ref:  'main'
+  inputs:
+    in_ef1: 'atmo.out_on_axis_source_ef'
+    in_ef2: 'dm_petals.out_layer'
+  outputs: ['out_ef']
+
+modal_combination:
+  class:               'BaseOperation'
+  concat:              true
+  inputs:        
+    in_value1: 'petals_error.output'
+    in_value2: 'modal_analysis.out_modes'    
+  outputs: ['out_value']
+
+phase_flat:
+  class: 'PhaseFlattening'
+  simul_params_ref:  'main'
+  inputs:
+    in_ef: 'ef_combinator.out_ef'
+  outputs: ['out_ef']
+
+
+# data_store:
+#  class:             'DataStore'
+#  store_dir:         './output'             # Data result directory: 'store_dir'/TN/
+#  data_format:       'fits'
+#  inputs:
+#    input_list: ['phase-atmo.out_on_axis_source_ef',
+#                 'phase_and_petals-ef_combinator.out_ef',
+#                 'modes-modal_analysis.out_modes',
+#                 'petal_modes-petals_error.output']
+
+#ph_disp:
+#  class:            'PhaseDisplay'
+#  inputs:
+#    phase:          'ef_combinator.out_ef'
+#  window:           12
+#  title:            'PUPIL PHASE'
+#  disp_factor:      2

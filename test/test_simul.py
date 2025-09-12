@@ -6,6 +6,7 @@ specula.init(0)  # Default target device
 import unittest
 
 import yaml
+import copy
 from specula.simul import Simul
 from specula.connections import InputValue, InputList
 
@@ -37,17 +38,17 @@ class TestSimul(unittest.TestCase):
           root_dir: dummy
           
         test:
-          class: 'WaveGenerator'
-          wave_type: 'SIN'
-          amp_object: null
+          class: 'Source'
+          polar_coordinates: [1, 2]
+          magnitude: null
+          wavelengthInNm: null
         '''
         simul = Simul([])
         params = yaml.safe_load(yml)
         simul.build_objects(params)
 
-        assert hasattr(simul.objs['test'], 'amp')
-        # simul.objs['test'].amp is None, but then is converted with to_xp and becomes NaN
-        assert simul.objs['test'].xp.isnan(simul.objs['test'].amp)
+        assert simul.objs['test'].magnitude is None
+        assert simul.objs['test'].wavelengthInNm is None
 
     def test_scalar_input_reference(self):
         '''Test that an input is correctly connected'''
@@ -91,7 +92,7 @@ class TestSimul(unittest.TestCase):
         val = simul.objs['b'].inputs['in'].get(-1)
         assert isinstance(val, list)
         assert all(isinstance(x, DummyOutputDerived) for x in val)
-        
+
     def test_missing_output_raises(self):
         simul = Simul([])
         simul.objs = {'a': DummyObj()}
@@ -101,7 +102,7 @@ class TestSimul(unittest.TestCase):
             simul.connect_objects({
                 'a': {'outputs': ['missing']}
             })
-        
+
     def test_invalid_input_type(self):
         simul = Simul([])
         simul.objs = {
@@ -159,7 +160,7 @@ class TestSimul(unittest.TestCase):
                 'inputs': {
                     'in2': 'obj1.output'
                 }
-            }      
+            }
         }
 
         simul = Simul([])
@@ -189,7 +190,7 @@ class TestSimul(unittest.TestCase):
         simul = Simul([])
 
         # Does not raise
-        _ = simul.trigger_order(pars)
+        _ = simul.build_trigger_order(pars)
 
         # These outputs depend on each other
         pars = {
@@ -209,4 +210,38 @@ class TestSimul(unittest.TestCase):
         }
         # Raises ValueError
         with self.assertRaises(ValueError):
-            _ = simul.trigger_order(pars)
+            _ = simul.build_trigger_order(pars)
+
+
+    def test_combine_params(self):
+
+        original_params = {
+            'dm': { 'foo' : 'bar'},
+            'dm2': { 'foo2': 'bar2'},
+        }
+        additional_params1 = {'dm_override_2': { 'foo': 'bar3' } }
+        additional_params2 = {'remove_3': ['dm2'] }
+
+        simul = Simul([])
+
+        # Nothing happens for simul_idx=1 (not referenced in additional_params)
+        simul.simul_idx = 1
+        params = copy.deepcopy(original_params)
+        simul.combine_params(params, additional_params1)
+        assert params == original_params
+
+        # DM is overridden
+        simul.simul_idx = 2
+        params = copy.deepcopy(original_params)
+        simul.combine_params(params, additional_params1)
+        assert params['dm']['foo'] == 'bar3'              # Changed
+        assert params['dm2'] == original_params['dm2']    # Unchanged
+
+        # DM2 is removed
+        simul.simul_idx = 3
+        params = copy.deepcopy(original_params)
+        simul.combine_params(params, additional_params2)
+        assert params['dm'] == original_params['dm']      # Unchanged
+        assert 'dm2' not in params
+
+

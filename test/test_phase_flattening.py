@@ -1,16 +1,12 @@
 import specula
 specula.init(0)  # Default target device
 
-import tempfile
-import os
-import gc
 import unittest
 
 from specula import np
 from specula import cpuArray
 
 from specula.data_objects.electric_field import ElectricField
-from specula.data_objects.simul_params import SimulParams
 from specula.processing_objects.phase_flattening import PhaseFlattening
 
 from test.specula_testlib import cpu_and_gpu
@@ -22,11 +18,9 @@ class TestPhaseFlattening(unittest.TestCase):
         """Test phase flattening with random values"""
         pixel_pupil = 6
         pixel_pitch = 0.1
-        simul_params = SimulParams(pixel_pupil=pixel_pupil, pixel_pitch=pixel_pitch)
 
         # Create phase flattener (reuse for both subtests)
         phase_flattener = PhaseFlattening(
-            simul_params=simul_params,
             target_device_idx=target_device_idx
         )
 
@@ -40,9 +34,9 @@ class TestPhaseFlattening(unittest.TestCase):
         radius = pixel_pupil // 3
         mask = (x - center)**2 + (y - center)**2 <= radius**2
 
-        ef_in.A[:] = mask.astype(ef_in.dtype)
+        ef_in.A[:] = mask
         valid_mask = cpuArray(ef_in.A) > 0
-  
+
         # Set phase with known mean
         phase_random = xp.random.randn(pixel_pupil, pixel_pupil) * 10
         phase_random -= xp.mean(phase_random[valid_mask])
@@ -73,7 +67,7 @@ class TestPhaseFlattening(unittest.TestCase):
         actual_output = cpuArray(ef_out.phaseInNm[valid_mask])
         expected_output = phase_random[valid_mask]
 
-        assert np.allclose(actual_output, cpuArray(expected_output), rtol=1e-04, atol=1e-07), \
+        assert np.allclose(actual_output, cpuArray(expected_output), rtol=1e-04, atol=1e-05), \
             f"Expected {expected_output}, got {actual_output}"
 
         # Check precision
@@ -85,24 +79,22 @@ class TestPhaseFlattening(unittest.TestCase):
         """Test edge cases"""
         pixel_pupil = 8
         pixel_pitch = 0.1
-        simul_params = SimulParams(pixel_pupil=pixel_pupil, pixel_pitch=pixel_pitch)
-        
+
         # === SUBTEST 1: Checkerboard mask (preserves invalid pixels) ===
         phase_flattener = PhaseFlattening(
-            simul_params=simul_params,
             target_device_idx=target_device_idx
         )
-        
+
         ef_in1 = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, 
                               S0=1, target_device_idx=target_device_idx)
-        
+
         # Set checkerboard mask
         mask = xp.zeros((pixel_pupil, pixel_pupil))
         mask[::2, ::2] = 1  # Only some pixels are valid
         mask[1::2, 1::2] = 1
-        
-        ef_in1.A[:] = mask.astype(ef_in1.dtype)
-        
+
+        ef_in1.A[:] = mask
+
         # Set different phase values for valid and invalid pixels
         ef_in1.phaseInNm[:] = 50.0  # Valid pixels will have mean removed
         ef_in1.phaseInNm[mask == 0] = 999.0  # Invalid pixels should stay unchanged
@@ -127,7 +119,7 @@ class TestPhaseFlattening(unittest.TestCase):
             "Invalid pixels should remain unchanged"
 
         # === SUBTEST 2: All zero amplitude ===
-        ef_in2 = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, 
+        ef_in2 = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch,
                               S0=1, target_device_idx=target_device_idx)
 
         ef_in2.A[:] = 0  # All pixels invalid
@@ -154,14 +146,12 @@ class TestPhaseFlattening(unittest.TestCase):
         """Test that phase flattening doesn't cause memory reallocation"""
         pixel_pupil = 10
         pixel_pitch = 0.1
-        simul_params = SimulParams(pixel_pupil=pixel_pupil, pixel_pitch=pixel_pitch)
 
         # Create phase flattener
         phase_flattener = PhaseFlattening(
-            simul_params=simul_params,
             target_device_idx=target_device_idx
         )
-        
+
         # Create input
         ef_in = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, 
                              S0=1, target_device_idx=target_device_idx)

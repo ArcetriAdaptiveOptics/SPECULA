@@ -15,6 +15,7 @@ def main():
     parser.add_argument('--diagram', action='store_true', help='Save image block diagram')
     parser.add_argument('--diagram-title', type=str, default=None, help='Block diagram title')
     parser.add_argument('--diagram-filename', type=str, default=None, help='Block diagram filename')
+    parser.add_argument('--diagram-colors-on', action='store_true')
     parser.add_argument('yml_files', nargs='+', type=str, help='YAML parameter files')
     
     args = parser.parse_args()

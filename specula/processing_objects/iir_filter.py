@@ -4,7 +4,6 @@ from specula.data_objects.iir_filter_data import IirFilterData
 from specula.base_processing_obj import BaseProcessingObj
 from specula.connections import InputValue
 from specula.base_value import BaseValue
-from specula.lib.calc_loop_delay import calc_loop_delay
 from specula.data_objects.simul_params import SimulParams
 
 class IirFilter(BaseProcessingObj):
@@ -26,7 +25,7 @@ class IirFilter(BaseProcessingObj):
 
         self.time_step = simul_params.time_step
 
-        self._verbose = True
+        self.verbose = True
         self.iir_filter_data = iir_filter_data
 
         self.integration = integration
@@ -69,24 +68,12 @@ class IirFilter(BaseProcessingObj):
         if self._n is not None and self._type is not None:
             self.state = self.xp.zeros((self._n, self._total_length), dtype=self.dtype)
 
-    def auto_params_management(self, control_params, detector_params, dm_params, slopec_params):
-        result = control_params.copy()
-
-        if str(result['delay']) == 'auto':
-            binning = detector_params.get('binning', 1)
-            computation_time = slopec_params.get('computation_time', 0) if slopec_params else 0
-            delay = calc_loop_delay(1.0 / detector_params['dt'], dm_set=dm_params['settling_time'],
-                                    type=detector_params['name'], bin=binning, comp_time=computation_time)
-            if delay == float('inf'):
-                raise ValueError("Delay calculation resulted in infinity")
-            result['delay'] = delay * (1.0 / self.time_step) - 1
-
-        return result
-
+    # TODO not used
     @property
     def last_state(self):
         return self.state[:, 0]
 
+    # TODO not used
     def set_modal_start_time(self, modal_start_time):
         modal_start_time_ = self.to_xp(modal_start_time, dtype=self.dtype)
         for i in range(len(modal_start_time)):

@@ -4,7 +4,10 @@ from specula import cpuArray
 from specula.data_objects.electric_field import ElectricField
 
 class Layer(ElectricField):
-    '''Layer'''
+    '''
+    A :class:`~specula.data_objects.layer.Layer` is an :class:`~specula.data_objects.electric_field.ElectricField` with some more features: a mandatory height,
+    and optional X/Y shifts, rotation and magnification
+    '''
 
     def __init__(self,
                  dimx: int,
@@ -16,6 +19,30 @@ class Layer(ElectricField):
                  magnification: float=1.0,
                  target_device_idx: int=None,
                  precision: int=None):
+        '''
+        Initialize a :class:`~specula.data_objects.layer.Layer` object.
+
+        Parameters
+        ----------
+        dimx : int
+            Number of pixels along the x-axis (width).
+        dimy : int
+            Number of pixels along the y-axis (height).
+        pixel_pitch : float
+            The dimension in meters of a pixel.
+        height : float
+            The height of the layer in meters.
+        shiftXYinPixel : tuple, optional
+            The (x, y) shift of the layer in pixel units (default: (0.0, 0.0)).
+        rotInDeg : float, optional
+            The rotation of the layer in degrees (default: 0.0).
+        magnification : float, optional
+            The magnification factor of the layer (default: 1.0).
+        target_device_idx : int, optional
+            Device index for computation (default: None).
+        precision : int, optional
+            Precision for computation (default: None).
+        '''
         super().__init__(dimx, dimy, pixel_pitch, target_device_idx=target_device_idx, precision=precision)
         self.height = height
         self.shiftXYinPixel = self.to_xp(shiftXYinPixel).astype(self.dtype)
@@ -59,7 +86,7 @@ class Layer(ElectricField):
         shiftX = float(hdr['SHIFTX'])
         shiftY = float(hdr['SHIFTY'])
         rotInDeg = float(hdr['ROTATION'])
-        magnification = float(hdr['MAGNIFICATION'])
+        magnification = float(hdr['MAGNIFIC'])
         layer = Layer(dimx, dimy, pitch, height, (shiftX, shiftY), rotInDeg, magnification, target_device_idx=target_device_idx)
         return layer
 
@@ -70,8 +97,8 @@ class Layer(ElectricField):
             raise ValueError(f"Error: file {filename} does not contain a Layer object")
         layer = Layer.from_header(hdr, target_device_idx=target_device_idx)
         with fits.open(filename) as hdul:
-            layer.field[0] = layer.to_xp(hdul[1].data.copy())
-            layer.field[1] = layer.to_xp(hdul[2].data.copy())
+            layer.field[0] = layer.to_xp(hdul[1].data.copy())  # pylint: disable=no-member
+            layer.field[1] = layer.to_xp(hdul[2].data.copy())  # pylint: disable=no-member
         return layer
 
     # array_for_display is inherited from ElectricField

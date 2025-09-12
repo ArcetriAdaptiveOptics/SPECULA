@@ -5,7 +5,7 @@ from specula.base_data_obj import BaseDataObj
 
 
 class Pixels(BaseDataObj):
-    '''Pixels'''
+    '''Pixels data object. Holds a 2d array of pixels, which can be signed or unsigned.'''
 
     def __init__(self, 
                  dimx: int,
@@ -14,6 +14,24 @@ class Pixels(BaseDataObj):
                  signed: int=0,
                  target_device_idx: int=None,
                  precision: int=None):
+        """
+        Initialize a :class:`~specula.data_objects.pixels.Pixels` data object.
+
+        Parameters
+        ----------
+        dimx : int
+            Number of pixels along the x-axis (width)
+        dimy : int
+            Number of pixels along the y-axis (height)
+        bits : int, optional
+            Number of bits per pixel (default: 16).
+        signed : int, optional
+            0 for unsigned, 1 for signed pixel values (default: 0).
+        target_device_idx : int, optional
+            Device index for computation (default: None).
+        precision : int, optional
+            Precision for computation (default: None).
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         if bits > 64:
@@ -26,6 +44,9 @@ class Pixels(BaseDataObj):
         self.bytespp = (bits + 7) // 8  # bits self.xp.arounded to the next multiple of 8
 
     def _get_type(self, bits, signed):
+        """
+        Get the dtype of the pixel values based on the number of bits and the sign.
+        """
         type_matrix = [
             [self.xp.uint8, self.xp.int8],
             [self.xp.uint16, self.xp.int16],
@@ -42,23 +63,32 @@ class Pixels(BaseDataObj):
         '''Get the pixel values as a numpy/cupy array'''
         return self.pixels
     
-    def set_value(self, v, force_copy=False):
+    def set_value(self, v):
         '''Set new pixel values.
         Arrays are not reallocated.
         '''
         assert v.shape == self.pixels.shape, \
             f"Error: input array shape {v.shape} does not match pixel shape {self.pixels.shape}"
 
-        self.pixels[:] = self.to_xp(v, force_copy=force_copy)
+        self.pixels[:] = self.to_xp(v)
 
     @property
     def size(self):
+        """
+        Get the shape of the pixels array.
+        """
         return self.pixels.shape
 
     def multiply(self, factor):
+        """
+        Multiply the pixels by a factor.
+        """
         self.pixels *= factor
 
     def set_size(self, size):
+        """
+        Set a new shape of the pixels array, discarding the old values.
+        """
         self.pixels = self.xp.zeros(size, dtype=self.dtype)
 
     def get_fits_header(self):

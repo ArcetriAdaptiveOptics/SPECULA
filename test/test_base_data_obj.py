@@ -7,9 +7,31 @@ import unittest
 from specula import np, cp
 from specula.base_value import BaseValue
 
-from test.specula_testlib import cpu_and_gpu
 
 class TestBaseDataObj(unittest.TestCase):
+
+    def test_copy_from_cpu_to_cpu(self):
+        '''
+        Test that copyTo() from CPU to CPU works fine
+        '''
+        a = BaseValue(value=np.arange(2), target_device_idx=-1)
+        b = a.copyTo(target_device_idx=-1)
+
+        assert type(b.value) == np.ndarray
+        assert b.target_device_idx == -1
+        np.testing.assert_array_equal(b.value, [0, 1])
+
+    def test_update_from_cpu_to_cpu(self):
+        '''
+        Test that transferDataTo() from CPU to CPU works fine
+        '''
+        a = BaseValue(value=np.arange(2), target_device_idx=-1)
+        b = BaseValue(value=np.zeros(2), target_device_idx=-1)
+        a.transferDataTo(b)
+
+        assert type(b.value) == np.ndarray
+        assert b.target_device_idx == -1
+        np.testing.assert_array_equal(b.value, [0, 1])
 
     @unittest.skipIf(cp is None, 'GPU not available')
     def test_copy_from_cpu_to_gpu(self):
@@ -94,7 +116,3 @@ class TestBaseDataObj(unittest.TestCase):
         assert type(b.value) == cp.ndarray
         np.testing.assert_array_equal(b.value.get(), [2, 3])
         assert b.target_device_idx == 1
-
-
-if __name__ == '__main__':
-    unittest.main()

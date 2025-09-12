@@ -22,7 +22,7 @@ wind_speed:
 
 wind_direction:
   class:             'WaveGenerator'
-  constant:          [0.]               # [degrees] Wind direction value
+  constant:          [91.5]               # [degrees] Wind direction value
   outputs: ['output']
 
 

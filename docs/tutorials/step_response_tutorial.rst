@@ -84,7 +84,6 @@ Create a configuration file, for example ``params_control_lpf.yml``:
                     'diff.out_value',
                     'control.out_comm',
                     'lowpass.out_comm']
-     window:           11
      yrange:           [-10,10]
      title:            'Step Response'
 

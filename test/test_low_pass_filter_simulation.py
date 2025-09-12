@@ -45,11 +45,6 @@ class TestLowPassFilterSimulation(unittest.TestCase):
         diff_path = os.path.join(latest_data_dir, 'diff.fits')
         self.assertTrue(os.path.exists(diff_path), f"{diff_path} not found")
 
-        # If reference does not exist, create it
-        if not os.path.exists(self.diff_ref_path):
-            shutil.copy(diff_path, self.diff_ref_path)
-            print(f"Reference file created at {self.diff_ref_path}")
-
         # Compare diff.fits with diff_ref.fits
         with fits.open(diff_path) as hdul, fits.open(self.diff_ref_path) as ref_hdul:
             data = hdul[0].data
@@ -59,7 +54,7 @@ class TestLowPassFilterSimulation(unittest.TestCase):
                 err_msg="diff.fits does not match diff_ref.fits"
             )
 
-    @unittest.skip("This test is only used to create reference diff_ref.fits")
+    @unittest.skipIf(int(os.getenv('CREATE_REF', 0)) < 1, "This test is only used to create reference files")
     def test_create_reference_diff(self):
         """
         This test is used to create diff_ref.fits for the first time.
@@ -77,6 +72,3 @@ class TestLowPassFilterSimulation(unittest.TestCase):
         self.assertTrue(os.path.exists(diff_path), f"{diff_path} not found")
         shutil.copy(diff_path, self.diff_ref_path)
         print(f"Reference diff_ref.fits created at {self.diff_ref_path}")
-
-if __name__ == "__main__":
-    unittest.main()

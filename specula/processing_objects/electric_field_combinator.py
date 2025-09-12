@@ -2,21 +2,17 @@ from specula.connections import InputValue
 
 from specula.data_objects.electric_field import ElectricField
 from specula.base_processing_obj import BaseProcessingObj
-from specula.data_objects.simul_params import SimulParams
+
 
 class ElectricFieldCombinator(BaseProcessingObj):
     """
     Combines two input electric fields.
     """
     def __init__(self,
-                 simul_params: SimulParams,
                  target_device_idx: int=None,
                  precision: int=None
                  ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-
-        self.simul_params = simul_params
-        self.pixel_pitch = self.simul_params.pixel_pitch
 
         self.inputs['in_ef1'] = InputValue(type=ElectricField)
         self.inputs['in_ef2'] = InputValue(type=ElectricField)
@@ -24,7 +20,7 @@ class ElectricFieldCombinator(BaseProcessingObj):
         self._out_ef = ElectricField(
                 dimx=1,  # Will be replaced in setup()
                 dimy=1,
-                pixel_pitch=self.pixel_pitch,
+                pixel_pitch=1,
                 S0=1,
                 target_device_idx=self.target_device_idx,
                 precision=self.precision
@@ -45,6 +41,7 @@ class ElectricFieldCombinator(BaseProcessingObj):
         self._out_ef.resize(
             dimx=in_ef1.A.shape[0],
             dimy=in_ef1.A.shape[1],
+            pitch=in_ef1.pixel_pitch,
         )
 
     def trigger(self):

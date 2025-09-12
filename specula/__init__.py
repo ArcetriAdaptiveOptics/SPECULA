@@ -5,6 +5,7 @@ from functools import wraps
 
 cpu_float_dtype_list = [np.float64, np.float32]
 cpu_complex_dtype_list = [np.complex128, np.complex64]
+array_types = []
 
 gpuEnabled = False
 cp = None
@@ -47,6 +48,7 @@ def init(device_idx=-1, precision=0, rank=None, comm=None, mpi_dbg=False):
     global complex_dtype_list
     global gpu_float_dtype_list
     global gpu_complex_dtype_list
+    global array_types
     global float_dtype
     global complex_dtype
     global default_target_device_idx
@@ -94,6 +96,11 @@ def init(device_idx=-1, precision=0, rank=None, comm=None, mpi_dbg=False):
     else:
         print('Default device is CPU')
         xp = np
+
+    if cp is not None:
+        array_types = [np.ndarray, cp.ndarray]
+    else:
+        array_types = [np.ndarray]
 
     float_dtype_list = [xp.float64, xp.float32]
     complex_dtype_list = [xp.complex128, xp.complex64]
@@ -212,7 +219,8 @@ def main_simul(yml_files: list,
                mpidbg: bool=False,
                diagram: bool=False,
                diagram_title: str=None,
-               diagram_filename: str=None):
+               diagram_filename: str=None,
+               diagram_colors_on: bool=False):
 
     if mpi:
         try:
@@ -258,6 +266,7 @@ def main_simul(yml_files: list,
             diagram=diagram,
             diagram_filename=diagram_filename,
             diagram_title=diagram_title,
+            diagram_colors_on=diagram_colors_on
         ).run()
 
     if profile:

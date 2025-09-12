@@ -25,10 +25,15 @@ extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.napoleon',
               'sphinx.ext.intersphinx',
               'sphinx_rtd_theme',        # ReadTheDocs theme
-              'm2r2',                    # mdinclude directive
+              'myst_parser',
               'nbsphinx',
               'numpydoc',
               ]
+
+source_suffix = {
+    '.rst': None,
+    '.md': None,
+}
 
 intersphinx_mapping = {
     'numpy': ('https://docs.scipy.org/doc/numpy/', None),
