@@ -56,6 +56,10 @@ class LinearCombination(BaseProcessingObj):
         if self.plate_scale_idx is not None:
             lgs[2:5] -= ngs[2:]*self.ps_coeff
             lgs[self.plate_scale_idx:self.plate_scale_idx+3] = ngs[2:]
+            
+        # LIFT
+        if not self.no_lift:
+            lgs = self.xp.concatenate([lgs, lift])
 
         self.out_vector.value *= 0.0
         self.out_vector.value[:len(lgs)] = lgs
