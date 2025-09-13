@@ -255,10 +255,10 @@ slopec_lgs6: { <<: *LGS_SLOPEC,
 
 sh_ngs1: &NGS_SH
   class:             'SH'
-  subap_on_diameter: 2                      # Number of subapertures in diameter
+  subap_on_diameter: 1                      # Number of subapertures in diameter
   subap_wanted_fov:  1.8                    # Requested field-of-view [arcsec]
-  sensor_pxscale:    0.015                    # Pixel scale in arcsec/pix
-  subap_npx:         120                      # Output sampling [usually corresponding to CCD pixels]
+  sensor_pxscale:    0.0075                    # Pixel scale in arcsec/pix
+  subap_npx:         240                      # Output sampling [usually corresponding to CCD pixels]
   wavelengthInNm:    1650                     # [nm] Pyramid wavelength
   inputs:
     in_ef: 'prop.out_source_ngs1_ef'
