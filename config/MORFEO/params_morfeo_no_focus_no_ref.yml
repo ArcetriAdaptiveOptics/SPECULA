@@ -165,27 +165,22 @@ sh_lgs1: &LGS_SH
   fov_ovs_coeff:     1.6                     # Force phase interpolation to a multiple of 68
   rotAnglePhInDeg:   6.2
   laser_launch_tel_ref: 'launcher1'
-  inputs:
+  inputs: &LGS_SH_INPUTS
     in_ef: 'prop.out_source_lgs1_ef'
     sodium_altitude: 'sodium_altitude.output'
     sodium_intensity: 'sodium_intensity.output'
   outputs:  ['out_i']
 
 sh_lgs2: { <<: *LGS_SH, rotAnglePhInDeg: 14.2, laser_launch_tel_ref: 'launcher1',
-          inputs: {in_ef: 'prop.out_source_lgs2_ef', 
-                   sodium_altitude: 'sodium_altitude.output', sodium_intensity: 'sodium_intensity.output'}}
+          inputs: { <<: *LGS_SH_INPUTS, in_ef: 'prop.out_source_lgs2_ef'}}
 sh_lgs3: { <<: *LGS_SH, rotAnglePhInDeg: -6.2, laser_launch_tel_ref: 'launcher3',
-          inputs: {in_ef: 'prop.out_source_lgs3_ef', 
-                   sodium_altitude: 'sodium_altitude.output', sodium_intensity: 'sodium_intensity.output'}}
+          inputs: { <<: *LGS_SH_INPUTS, in_ef: 'prop.out_source_lgs3_ef'}}
 sh_lgs4: { <<: *LGS_SH, rotAnglePhInDeg:  6.2, laser_launch_tel_ref: 'launcher4',
-          inputs: {in_ef: 'prop.out_source_lgs4_ef', 
-                   sodium_altitude: 'sodium_altitude.output', sodium_intensity: 'sodium_intensity.output'}}
+          inputs: { <<: *LGS_SH_INPUTS, in_ef: 'prop.out_source_lgs4_ef'}}
 sh_lgs5: { <<: *LGS_SH, rotAnglePhInDeg: 14.2, laser_launch_tel_ref: 'launcher5',
-          inputs: {in_ef: 'prop.out_source_lgs5_ef', 
-                   sodium_altitude: 'sodium_altitude.output', sodium_intensity: 'sodium_intensity.output'}}
+          inputs: { <<: *LGS_SH_INPUTS, in_ef: 'prop.out_source_lgs5_ef'}}
 sh_lgs6: { <<: *LGS_SH, rotAnglePhInDeg: -6.2, laser_launch_tel_ref: 'launcher6',
-          inputs: {in_ef: 'prop.out_source_lgs6_ef', 
-                   sodium_altitude: 'sodium_altitude.output', sodium_intensity: 'sodium_intensity.output'}}
+          inputs: { <<: *LGS_SH_INPUTS, in_ef: 'prop.out_source_lgs6_ef'}}
 
 
 detector_lgs1: &LGS_DETECTOR
