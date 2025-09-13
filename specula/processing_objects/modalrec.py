@@ -136,7 +136,7 @@ class Modalrec(BaseProcessingObj):
         if self.polc:
             self.out_comm = BaseValue('output commands from modal reconstructor', target_device_idx=target_device_idx)
             self.inputs['in_commands'] = InputValue(type=BaseValue, optional=True)
-            self.inputs['in_commands_list'] = InputList(type=BaseValue, optional=True)            
+            self.inputs['in_commands_list'] = InputList(type=BaseValue, optional=True)       
             # TODO complete static allocation above
 
     def prepare_trigger(self, t):
@@ -161,6 +161,14 @@ class Modalrec(BaseProcessingObj):
                     self.commands[:] = 0.0
                 else:
                     self.commands[:] = commands.value
+
+            if self.intmat is not None and self.intmat.intmat is not None:
+                # Check dimensions for slopes
+                expected_slopes_size = self.intmat.intmat.shape[0]
+                if expected_slopes_size != len(self.slopes):
+                    raise ValueError(f"Dimension mismatch in POLC mode: "
+                                f"intmat @ commands will produce {expected_slopes_size} slopes, "
+                                f"but input slopes has size {len(self.slopes)}")
 
     def trigger_code(self):
         if self.recmat.recmat is None:
