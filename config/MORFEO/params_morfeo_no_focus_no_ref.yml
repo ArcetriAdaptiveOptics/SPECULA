@@ -1,9 +1,4 @@
-
-# TODO:
-# - check that modes_first_step is the non-POLC output
-# All SH: double check threshold
-# LGS detector: double check readout level and quantum efficiency
-
+# MORFEO simulation without reference WFSs and focus controlled by LGSs
 
 main:
   class:             'SimulParams'
@@ -118,8 +113,7 @@ prop:
     common_layer_list: [ 'pupilstop',
                   'dm1.out_layer:-1',
                   'dm2.out_layer:-1',
-                  'dm3.out_layer:-1',
-  #               'dm_disturb.out_layer'
+                  'dm3.out_layer:-1'
                   ]
   outputs: ['out_source_on_axis_ef','out_source_lgs1_ef','out_source_lgs2_ef','out_source_lgs3_ef',
             'out_source_lgs4_ef','out_source_lgs5_ef','out_source_lgs6_ef',
