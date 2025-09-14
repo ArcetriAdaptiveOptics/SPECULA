@@ -70,6 +70,24 @@ class LinearCombination(BaseProcessingObj):
 
         in_vectors = self.local_inputs['in_vectors_list']
 
+        # Check input vectors consistency
+        num_inputs = len(in_vectors)
+
+        if num_inputs == 4:
+            # LGS, FOCUS, LIFT, NGS - both must be False
+            if self.no_focus or self.no_lift:
+                raise ValueError("With 4 input vectors, both no_focus and no_lift must be False")
+        elif num_inputs == 3:
+            # Only one between FOCUS and LIFT is missing - only one must be True
+            if self.no_focus == self.no_lift:
+                raise ValueError("With 3 input vectors, exactly one of no_focus or no_lift must be True")
+        elif num_inputs == 2:
+            # Only LGS and NGS - both must be True
+            if not self.no_focus or not self.no_lift:
+                raise ValueError("With 2 input vectors, both no_focus and no_lift must be True")
+        else:
+            raise ValueError(f"Invalid number of input vectors: {num_inputs}. Expected 2, 3, or 4")
+
         idx = 0
         lgs = in_vectors[idx].value
         idx += 1
