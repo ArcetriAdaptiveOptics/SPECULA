@@ -13,8 +13,8 @@ class FocalPlaneFilter(BaseProcessingObj):
                  simul_params: SimulParams,
                  wavelengthInNm: float,
                  fov: float,
-                 fov_errinf: float = 0.5,
-                 fov_errsup: float = 2,
+                 fov_errinf: float = 0.1,
+                 fov_errsup: float = 10,
                  fft_res: float = 3.0,
                  fp_masking: float = 1.0,
                  fp_obs: float = 0.0,
@@ -46,6 +46,7 @@ class FocalPlaneFilter(BaseProcessingObj):
                                     fft_res=fft_res)
 
         self.wavelength_in_nm = result['wavelengthInNm']
+        self.fp_masking = result['fp_masking']
         self.fov_res = result['fov_res']
         self.fft_res = result['fft_res']
         self.fft_sampling = result['fft_sampling']
@@ -54,7 +55,7 @@ class FocalPlaneFilter(BaseProcessingObj):
 
         # Focal plane mask
         fp_obsratio = fp_obs / self.fov_res if fp_obs else 0
-        self.fp_mask = make_mask(self.fft_totsize, diaratio=fp_masking, obsratio=fp_obsratio, xp=self.xp)
+        self.fp_mask = make_mask(self.fft_totsize, diaratio=self.fp_masking, obsratio=fp_obsratio, xp=self.xp)
 
         self.out_ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
                                     precision=self.precision, target_device_idx=self.target_device_idx)
@@ -79,7 +80,9 @@ class FocalPlaneFilter(BaseProcessingObj):
             if Fov_internal * fov_res < minfov:
                 fov_res += 1
         if Fov_internal > maxfov:
-            raise ValueError("FoV troppo grande rispetto ai parametri dati")
+            raise ValueError(f"FoV too large compared to the diffraction limit "
+                            f"(FoV: {FoV}, Fov_internal: {Fov_internal}, "
+                            f"fov_errsup: {fov_errsup}) and fov_errinf: {fov_errinf})")
         if fov_res > 1:
             Fov_internal *= fov_res
         fp_masking = FoV / Fov_internal

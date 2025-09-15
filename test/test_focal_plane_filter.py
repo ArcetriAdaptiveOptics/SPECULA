@@ -164,7 +164,7 @@ class TestFocalPlaneFilter(unittest.TestCase):
             fp_obs=0.0,
             target_device_idx=target_device_idx
         )
-        
+
         # Flat wavefront
         ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
         ef.A[:] = xp.array(self.mask)
@@ -215,3 +215,176 @@ class TestFocalPlaneFilter(unittest.TestCase):
         # Output amplitude should not be all zeros and should be approximately the same as the input one
         self.assertGreater(float(out_ef.A.sum()), 0.0)
         self.assertLess(float(out_ef.A.max()), 2.0*float(ef.A.max()))
+
+    @cpu_and_gpu
+    def test_s0_scaling_with_obstruction(self, target_device_idx, xp):
+        """Test that S0 is scaled correctly when using obstruction"""
+        # Test with obstruction - S0 should decrease
+        fpf_obs = FocalPlaneFilter(
+            simul_params=self.simul_params,
+            wavelengthInNm=self.wavelength_nm,
+            fov=self.fov,
+            fp_obs=2.0,  # 2 lambda/D obstruction
+            target_device_idx=target_device_idx
+        )
+
+        # Test without obstruction - S0 should remain similar
+        fpf_no_obs = FocalPlaneFilter(
+            simul_params=self.simul_params,
+            wavelengthInNm=self.wavelength_nm,
+            fov=self.fov,
+            fp_obs=0.0,
+            target_device_idx=target_device_idx
+        )
+
+        # Create input electric field
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, S0=100.0, target_device_idx=target_device_idx)
+        ef.A[:] = xp.array(self.mask)
+        ef.phaseInNm[:] = 0.0
+        ef.S0 = 100.0
+        ef.generation_time = 1
+
+        # Test with obstruction
+        fpf_obs.inputs['in_ef'].set(ef)
+        fpf_obs.setup()
+        fpf_obs.check_ready(1)
+        fpf_obs.prepare_trigger(1)
+        fpf_obs.trigger_code()
+        fpf_obs.post_trigger()
+        s0_with_obs = fpf_obs.outputs['out_ef'].S0
+
+        # Test without obstruction
+        fpf_no_obs.inputs['in_ef'].set(ef)
+        fpf_no_obs.setup()
+        fpf_no_obs.check_ready(1)
+        fpf_no_obs.prepare_trigger(1)
+        fpf_no_obs.trigger_code()
+        fpf_no_obs.post_trigger()
+        s0_no_obs = fpf_no_obs.outputs['out_ef'].S0
+
+        # S0 with obstruction should be less than without obstruction
+        self.assertLess(s0_with_obs, s0_no_obs, "S0 should decrease with obstruction!")
+
+        # Both should be less than or equal to original S0
+        self.assertLessEqual(s0_with_obs, 100.0)
+        self.assertLessEqual(s0_no_obs, 100.0)
+
+    @cpu_and_gpu
+    def test_interpolation_activation(self, target_device_idx, xp):
+        """Test that interpolation is activated when FoV is large"""
+
+        # Small FoV - should not trigger interpolation
+        fpf_small_fov = FocalPlaneFilter(
+            simul_params=self.simul_params,
+            wavelengthInNm=self.wavelength_nm,
+            fov=1.0,  # Small FoV
+            target_device_idx=target_device_idx
+        )
+
+        # Large FoV - should trigger interpolation
+        fpf_large_fov = FocalPlaneFilter(
+            simul_params=self.simul_params,
+            wavelengthInNm=self.wavelength_nm,
+            fov=5.0,  # Large FoV
+            fov_errinf=0.1,
+            fov_errsup=10.0,
+            target_device_idx=target_device_idx
+        )
+
+        # Create input electric field
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        ef.A[:] = xp.array(self.mask)
+        ef.phaseInNm[:] = 0.0
+        ef.generation_time = 1
+
+        # Setup both filters
+        fpf_small_fov.inputs['in_ef'].set(ef)
+        fpf_small_fov.setup()
+
+        fpf_large_fov.inputs['in_ef'].set(ef)
+        fpf_large_fov.setup()
+
+        # Check interpolation flags
+        self.assertFalse(fpf_small_fov._do_interpolation, "Small FoV should not require interpolation")
+        self.assertTrue(fpf_large_fov._do_interpolation, "Large FoV should require interpolation")
+
+        # Check fov_res values
+        self.assertEqual(fpf_small_fov.fov_res, 1.0, "Small FoV should have fov_res = 1")
+        self.assertGreater(fpf_large_fov.fov_res, 1.0, "Large FoV should have fov_res > 1")
+
+    @cpu_and_gpu
+    def test_fft_sampling_with_interpolation(self, target_device_idx, xp):
+        """Test that FFT sampling changes correctly with interpolation"""
+
+        # Large FoV that requires interpolation
+        fpf = FocalPlaneFilter(
+            simul_params=self.simul_params,
+            wavelengthInNm=self.wavelength_nm,
+            fov=5.0,  # Large FoV
+            fov_errinf=0.1,
+            fov_errsup=10.0,
+            target_device_idx=target_device_idx
+        )
+
+        # Create input electric field
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        ef.A[:] = xp.array(self.mask)
+        ef.phaseInNm[:] = 0.0
+        ef.generation_time = 1
+
+        fpf.inputs['in_ef'].set(ef)
+        fpf.setup()
+
+        # Check that fft_sampling is larger than pixel_pupil when interpolation is needed
+        if fpf._do_interpolation:
+            self.assertGreater(fpf.fft_sampling, self.pixel_pupil, 
+                             "FFT sampling should be larger than pixel_pupil when interpolation is used")
+            
+            # Check that the interpolated field has the correct size
+            self.assertEqual(fpf._wf_interpolated.A.shape[0], fpf.fft_sampling)
+            self.assertEqual(fpf._wf_interpolated.A.shape[1], fpf.fft_sampling)
+            
+    @cpu_and_gpu
+    def test_transmission_calculation(self, target_device_idx, xp):
+        """Test that transmission is calculated correctly"""
+
+        # Test with different FoV sizes
+        fovs = [1.0, 0.5, 0.2, 0.1]
+        transmissions = []
+
+        for fov in fovs:
+            fpf = FocalPlaneFilter(
+                simul_params=self.simul_params,
+                wavelengthInNm=self.wavelength_nm,
+                fov=fov,
+                fov_errinf=0.001,
+                fov_errsup=1000.0,
+                target_device_idx=target_device_idx
+            )
+
+            # Create input electric field
+            ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, S0=100.0, target_device_idx=target_device_idx)
+            ef.A[:] = xp.array(self.mask)
+            ef.phaseInNm[:] = 0.0
+            ef.S0 = 100.0
+            ef.generation_time = 1
+
+            fpf.inputs['in_ef'].set(ef)
+            fpf.setup()
+            fpf.check_ready(1)
+            fpf.prepare_trigger(1)
+            fpf.trigger_code()
+            fpf.post_trigger()
+
+            transmission = fpf.outputs['out_ef'].S0 / ef.S0
+            transmissions.append(float(transmission))
+
+        # Transmission should decrease as obstruction increases
+        for i in range(1, len(transmissions)):
+            self.assertLess(transmissions[i], transmissions[i-1],
+                          f"Transmission should decrease with larger FoV: {fovs[i]} vs {fovs[i-1]}")
+
+        # Transmission should be between 0 and 1
+        for t in transmissions:
+            self.assertGreater(t, 0.0, "Transmission should be positive")
+            self.assertLessEqual(t, 1.0, "Transmission should not exceed 1.0")
