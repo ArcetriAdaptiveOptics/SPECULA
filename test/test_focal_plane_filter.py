@@ -93,9 +93,9 @@ class TestFocalPlaneFilter(unittest.TestCase):
         ef_obs = fpf_obs.outputs['out_ef']
 
         # Compute PSF for both cases using calc_psf
-        psf = calc_psf(self.ef.phaseInNm, self.ef.A, xp=xp, normalize=True)
-        psf_nofilter = calc_psf(ef_nofilter.phaseInNm, ef_nofilter.A, xp=xp, normalize=True)
-        psf_obs = calc_psf(ef_obs.phaseInNm, ef_obs.A, xp=xp, normalize=True)
+        psf = calc_psf(self.ef.phaseInNm, self.ef.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
+        psf_nofilter = calc_psf(ef_nofilter.phaseInNm, ef_nofilter.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
+        psf_obs = calc_psf(ef_obs.phaseInNm, ef_obs.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
 
         max_psf = float(psf.max())
         max_psf_nofilter = float(psf_nofilter.max())
@@ -166,7 +166,7 @@ class TestFocalPlaneFilter(unittest.TestCase):
         fpf.post_trigger()
         out_ef = fpf.outputs['out_ef']
         # Output phase should be (almost) constant for a flat input
-        idx = xp.where(self.ef.A > 0)
+        idx = xp.where(cpuArray(self.ef.A) > 0)
         min_phase = float(xp.min(out_ef.phaseInNm[idx]))
         max_phase = float(xp.max(out_ef.phaseInNm[idx]))
 
