@@ -654,7 +654,7 @@ class Simul():
                     continue
                 else:
                     add_key(desc.obj_name)
-            # Add all refernces to other objects
+            # Add all references to other objects
             for k, v in params[key].items():
                 if k.endswith('_dict_ref'):
                     for objname in v:
