@@ -69,15 +69,15 @@ class TestIntensity(unittest.TestCase):
                 self.assertEqual(len(hdul), 2)
 
                 # Primary HDU: header only, no data
-                self.assertEqual(hdul[0].header["OBJ_TYPE"], "Intensity")
-                self.assertEqual(hdul[0].header["DIMX"], self.shape[0])
-                self.assertEqual(hdul[0].header["DIMY"], self.shape[1])
-                self.assertIsNone(hdul[0].data)
+                self.assertEqual(hdul[0].header["OBJ_TYPE"], "Intensity") # pylint: disable=no-member
+                self.assertEqual(hdul[0].header["DIMX"], self.shape[0])   # pylint: disable=no-member
+                self.assertEqual(hdul[0].header["DIMY"], self.shape[1])   # pylint: disable=no-member
+                self.assertIsNone(hdul[0].data)                           # pylint: disable=no-member
 
                 # Second HDU: intensity data
-                self.assertEqual(hdul[1].name, "INTENSITY")
-                self.assertEqual(hdul[1].data.shape, self.shape)
-                np.testing.assert_array_equal(hdul[1].data, cpuArray(data))
+                self.assertEqual(hdul[1].name, "INTENSITY")       # pylint: disable=no-member
+                self.assertEqual(hdul[1].data.shape, self.shape)  # pylint: disable=no-member
+                np.testing.assert_array_equal(hdul[1].data, cpuArray(data))    # pylint: disable=no-member
 
             # Now restore and check data consistency
             restored = Intensity.restore(filename, target_device_idx=target_device_idx)
@@ -119,3 +119,16 @@ class TestIntensity(unittest.TestCase):
         data = xp.random.rand(*self.shape).astype(xp.float32)
         obj.set_value(data)
         np.testing.assert_array_equal(cpuArray(obj.array_for_display()), cpuArray(data))
+
+
+    @cpu_and_gpu
+    def test_fits_header(self, target_device_idx, xp):
+
+        intensity = Intensity(dimx=2, dimy=3, target_device_idx=target_device_idx)
+
+        hdr = intensity.get_fits_header()
+
+        assert hdr['OBJ_TYPE'] == 'Intensity'
+        assert hdr['VERSION'] == 1
+        assert hdr['DIMX'] == 2
+        assert hdr['DIMY'] == 3
