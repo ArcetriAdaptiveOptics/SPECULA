@@ -157,6 +157,7 @@ class Intmat(BaseDataObj):
         # Reading additional fits extensions
         with fits.open(filename) as hdul:
             num_ext = len(hdul)
+        hdul.close() # Force close for Windows
         if num_ext >= 4:
             slope_mm = fits.getdata(filename, ext=2)
             slope_rms = fits.getdata(filename, ext=3)
