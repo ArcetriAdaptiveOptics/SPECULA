@@ -14,8 +14,7 @@ from test.specula_testlib import cpu_and_gpu
 
 class TestFocalPlaneFilter(unittest.TestCase):
 
-    @cpu_and_gpu
-    def setUp(self, target_device_idx, xp):
+    def setUp(self):
         # Basic simulation parameters
         self.pixel_pupil = 120
         self.pixel_pitch = 0.05
@@ -28,13 +27,7 @@ class TestFocalPlaneFilter(unittest.TestCase):
         )
 
         # make a round mask for the pupil
-        mask = make_mask(self.pixel_pupil, xp=xp)
-
-        # Flat wavefront
-        self.ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
-        self.ef.generation_time = 1
-        self.ef.A[:] = xp.array(mask)
-        self.ef.phaseInNm[:] = 0.0
+        self.mask = make_mask(self.pixel_pupil, obsratio=0.0, xp=np)
 
     @cpu_and_gpu
     def test_output_shape(self, target_device_idx, xp):
@@ -45,7 +38,14 @@ class TestFocalPlaneFilter(unittest.TestCase):
             fov=self.fov,
             target_device_idx=target_device_idx
         )
-        fpf.inputs['in_ef'].set(self.ef)
+
+        # Flat wavefront
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        ef.A[:] = xp.array(self.mask)
+        ef.phaseInNm[:] = 0.0
+        ef.generation_time = 1
+
+        fpf.inputs['in_ef'].set(ef)
         fpf.setup()
         fpf.check_ready(1)
         fpf.prepare_trigger(1)
@@ -66,7 +66,14 @@ class TestFocalPlaneFilter(unittest.TestCase):
             fp_obs=0.0,
             target_device_idx=target_device_idx
         )
-        fpf_nofilter.inputs['in_ef'].set(self.ef)
+
+        # Flat wavefront
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        ef.A[:] = xp.array(self.mask)
+        ef.phaseInNm[:] = 0.0
+        ef.generation_time = 1
+
+        fpf_nofilter.inputs['in_ef'].set(ef)
         fpf_nofilter.setup()
         fpf_nofilter.check_ready(1)
         fpf_nofilter.prepare_trigger(1)
@@ -84,7 +91,7 @@ class TestFocalPlaneFilter(unittest.TestCase):
             fp_obs=fp_obs,
             target_device_idx=target_device_idx
         )
-        fpf_obs.inputs['in_ef'].set(self.ef)
+        fpf_obs.inputs['in_ef'].set(ef)
         fpf_obs.setup()
         fpf_obs.check_ready(1)
         fpf_obs.prepare_trigger(1)
@@ -93,7 +100,7 @@ class TestFocalPlaneFilter(unittest.TestCase):
         ef_obs = fpf_obs.outputs['out_ef']
 
         # Compute PSF for both cases using calc_psf
-        psf = calc_psf(self.ef.phaseInNm, self.ef.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
+        psf = calc_psf(ef.phaseInNm, ef.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
         psf_nofilter = calc_psf(ef_nofilter.phaseInNm, ef_nofilter.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
         psf_obs = calc_psf(ef_obs.phaseInNm, ef_obs.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
 
@@ -157,8 +164,14 @@ class TestFocalPlaneFilter(unittest.TestCase):
             fp_obs=0.0,
             target_device_idx=target_device_idx
         )
-        self.ef.phaseInNm[:] = 0.0
-        fpf.inputs['in_ef'].set(self.ef)
+        
+        # Flat wavefront
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        ef.A[:] = xp.array(self.mask)
+        ef.phaseInNm[:] = 0.0
+        ef.generation_time = 1
+
+        fpf.inputs['in_ef'].set(ef)
         fpf.setup()
         fpf.check_ready(1)
         fpf.prepare_trigger(1)
@@ -166,7 +179,7 @@ class TestFocalPlaneFilter(unittest.TestCase):
         fpf.post_trigger()
         out_ef = fpf.outputs['out_ef']
         # Output phase should be (almost) constant for a flat input
-        mask = self.ef.A > 0
+        mask = ef.A > 0
         valid_phases = out_ef.phaseInNm[mask]
         min_phase = float(xp.min(valid_phases))
         max_phase = float(xp.max(valid_phases))
@@ -185,8 +198,14 @@ class TestFocalPlaneFilter(unittest.TestCase):
             fp_obs=0.0,
             target_device_idx=target_device_idx
         )
-        self.ef.A[:] = 1.0
-        fpf.inputs['in_ef'].set(self.ef)
+
+        # Flat wavefront
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        ef.A[:] = 1
+        ef.phaseInNm[:] = 0.0
+        ef.generation_time = 1
+
+        fpf.inputs['in_ef'].set(ef)
         fpf.setup()
         fpf.check_ready(1)
         fpf.prepare_trigger(1)
@@ -195,4 +214,4 @@ class TestFocalPlaneFilter(unittest.TestCase):
         out_ef = fpf.outputs['out_ef']
         # Output amplitude should not be all zeros and should be approximately the same as the input one
         self.assertGreater(float(out_ef.A.sum()), 0.0)
-        self.assertLess(float(out_ef.A.max()), 2.0*float(self.ef.A.max()))
+        self.assertLess(float(out_ef.A.max()), 2.0*float(ef.A.max()))
