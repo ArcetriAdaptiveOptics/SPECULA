@@ -5,8 +5,6 @@ from specula.lib.modal_pushpull_signal import modal_pushpull_signal
 class PushPullGenerator(BaseGenerator):
     """
     Generates push-pull signals for modal calibration.
-    
-    Extracted from BaseGenerator's PUSH and PUSHPULL types.
     """
     def __init__(self,
                  nmodes: int,
@@ -22,8 +20,10 @@ class PushPullGenerator(BaseGenerator):
                  target_device_idx: int = None,
                  precision: int = None):
 
+        push_pull_type = push_pull_type.upper()
+
         if amp is None and vect_amplitude is None:
-            raise ValueError('AMP or VECT_AMPLITUDE keyword is mandatory for type PUSH/PUSHPULL')
+            raise ValueError('Either "amp" or "vect_amplitude" parameters is mandatory for type PUSH/PUSHPULL')
 
         if nsamples != 1 and push_pull_type != 'PUSHPULL':
             raise ValueError('nsamples can only be used with PUSHPULL type')
@@ -34,10 +34,8 @@ class PushPullGenerator(BaseGenerator):
             precision=precision
         )
 
-        self.push_pull_type = push_pull_type.upper()
-
         # Generate the time history using modal_pushpull_signal (from original)
-        if self.push_pull_type == 'PUSH':
+        if push_pull_type == 'PUSH':
             time_hist = modal_pushpull_signal(
                 nmodes,
                 first_mode=first_mode,
@@ -47,7 +45,7 @@ class PushPullGenerator(BaseGenerator):
                 only_push=True,
                 ncycles=ncycles
             )
-        elif self.push_pull_type == 'PUSHPULL':
+        elif push_pull_type == 'PUSHPULL':
             time_hist = modal_pushpull_signal(
                 nmodes,
                 first_mode=first_mode,
@@ -60,9 +58,10 @@ class PushPullGenerator(BaseGenerator):
                 nsamples=nsamples
             )
         else:
-            raise ValueError(f'Unknown push_pull_type: {self.push_pull_type}')
-
-        self.time_hist = self.to_xp(time_hist, dtype=self.dtype)
+            raise ValueError(f'Unknown push_pull_type: {push_pull_type}')
+        
+        self.time_hist = self.to_xp(time_hist)
 
     def trigger_code(self):
         self.output.value[:] = self.time_hist[self.iter_counter]
+

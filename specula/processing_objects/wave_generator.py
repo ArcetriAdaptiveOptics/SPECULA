@@ -18,6 +18,10 @@ class WaveGenerator(BaseGenerator):
                  target_device_idx: int = None,
                  precision: int = None):
 
+        self.wave_type = wave_type.upper()
+        if self.wave_type not in ['SIN', 'SQUARE', 'TRIANGLE']:
+            raise ValueError(f"Unknown wave type: {wave_type}")
+
         # Determine output size from arrays
         arrays = [np.atleast_1d(x) if not np.isscalar(x) else np.array([x])
                  for x in [amp, freq, offset, slope, constant]]
@@ -31,8 +35,6 @@ class WaveGenerator(BaseGenerator):
             target_device_idx=target_device_idx,
             precision=precision
         )
-
-        self.wave_type = wave_type.upper()
 
         self.amp = self.to_xp(amp, dtype=self.dtype)
         self.freq = self.to_xp(freq, dtype=self.dtype)
@@ -51,7 +53,7 @@ class WaveGenerator(BaseGenerator):
         phase = self.freq * 2 * self.xp.pi * self.current_time_gpu + self.offset
         if self.wave_type == 'SIN':
             wave = self.xp.sin(phase, dtype=self.dtype)
-            self.output.value[:] = (self.slope * self.current_time_gpu +self.amp * wave + self.constant) * self.vsize_array
+            self.output.value[:] = (self.slope * self.current_time_gpu + self.amp * wave + self.constant) * self.vsize_array
 
         elif self.wave_type == 'SQUARE':
             wave = self.xp.sign(self.xp.sin(phase, dtype=self.dtype))
@@ -61,6 +63,3 @@ class WaveGenerator(BaseGenerator):
             # Triangle wave using arcsin
             wave = 2 * self.xp.arcsin(self.xp.sin(phase)) / self.xp.pi
             self.output.value[:] = (self.slope * self.current_time_gpu + self.amp * wave + self.constant) * self.vsize_array
-
-        else:
-            raise ValueError(f"Unknown wave type: {self.wave_type}")

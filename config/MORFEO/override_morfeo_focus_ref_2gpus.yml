@@ -1,0 +1,36 @@
+# Parallelization over 2 GPUs on a single node
+
+sh_lgs1_override: { target_device_idx: 0, target_rank: 0 }
+sh_lgs2_override: { target_device_idx: 0, target_rank: 0 }
+sh_lgs3_override: { target_device_idx: 0, target_rank: 0 }
+sh_lgs4_override: { target_device_idx: 1, target_rank: 1 }
+sh_lgs5_override: { target_device_idx: 1, target_rank: 1 }
+sh_lgs6_override: { target_device_idx: 1, target_rank: 1 }
+
+detector_lgs1_override: { target_device_idx: 0, target_rank: 0 }
+detector_lgs2_override: { target_device_idx: 0, target_rank: 0 }
+detector_lgs3_override: { target_device_idx: 0, target_rank: 0 }
+detector_lgs4_override: { target_device_idx: 1, target_rank: 1 }
+detector_lgs5_override: { target_device_idx: 1, target_rank: 1 }
+detector_lgs6_override: { target_device_idx: 1, target_rank: 1 }
+
+slopec_lgs1_override: { target_device_idx: 0, target_rank: 0 }
+slopec_lgs2_override: { target_device_idx: 0, target_rank: 0 }
+slopec_lgs3_override: { target_device_idx: 0, target_rank: 0 }
+slopec_lgs4_override: { target_device_idx: 1, target_rank: 1 }
+slopec_lgs5_override: { target_device_idx: 1, target_rank: 1 }
+slopec_lgs6_override: { target_device_idx: 1, target_rank: 1 }
+
+sh_ref1_override: { target_device_idx: 1, target_rank: 1 }
+sh_ref2_override: { target_device_idx: 1, target_rank: 1 }
+sh_ref3_override: { target_device_idx: 1, target_rank: 1 }
+
+detector_ref1_override: { target_device_idx: 1, target_rank: 1 }
+detector_ref2_override: { target_device_idx: 1, target_rank: 1 }
+detector_ref3_override: { target_device_idx: 1, target_rank: 1 }
+
+slopec_ref1_override: { target_device_idx: 1, target_rank: 1 }
+slopec_ref2_override: { target_device_idx: 1, target_rank: 1 }
+slopec_ref3_override: { target_device_idx: 1, target_rank: 1 }
+
+modal_analysis_override: { target_device_idx: 1, target_rank: 1 }

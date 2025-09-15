@@ -3,6 +3,7 @@ import numpy as np
 from astropy.io import fits
 
 from specula.base_data_obj import BaseDataObj
+from specula.data_objects.simul_params import SimulParams
 
 class LaserLaunchTelescope(BaseDataObj):
     '''
@@ -10,6 +11,8 @@ class LaserLaunchTelescope(BaseDataObj):
     
     args:
     ----------
+    simul_params : SimulParams
+        The simulation parameters object, required to get the zenith angle.
     spot_size : float
         The size of the laser spot in arcsec.
     tel_position : list
@@ -26,19 +29,33 @@ class LaserLaunchTelescope(BaseDataObj):
     '''
 
     def __init__(self,
+                 simul_params: SimulParams = None,
                  spot_size: float = 0.0,
                  tel_position: list = [],
                  beacon_focus: float = 90e3,
                  beacon_tt: list = [0.0, 0.0],
-                 target_device_idx: int = None, 
+                 target_device_idx: int = None,
                  precision: int = None
         ):
 
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
+        self.simul_params = simul_params
+        if self.simul_params is not None:
+            self.zenithAngleInDeg = self.simul_params.zenithAngleInDeg
+        else:
+            self.zenithAngleInDeg = 0.0
+
+        if self.zenithAngleInDeg is not None:
+            self.airmass = 1.0 / np.cos(np.radians(self.zenithAngleInDeg), dtype=self.dtype)
+            print(f'AtmoEvolution: zenith angle is defined as: {self.zenithAngleInDeg} deg')
+            print(f'AtmoEvolution: airmass is: {self.airmass}')
+        else:
+            self.airmass = 1.0
+
         self.spot_size = spot_size
         self.tel_pos = tel_position
-        self.beacon_focus = beacon_focus
+        self.beacon_focus = beacon_focus * self.airmass
         self.beacon_tt = beacon_tt
 
     def get_value(self):
@@ -81,7 +98,7 @@ class LaserLaunchTelescope(BaseDataObj):
             beacon_tt = [hdr['BEAC_TT0'], hdr['BEAC_TT1']],
             target_device_idx=target_device_idx)
         return llt
-    
+
     @staticmethod
     def restore(filename, target_device_idx=None):
         hdr = fits.getheader(filename)

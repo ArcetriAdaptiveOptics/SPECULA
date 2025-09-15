@@ -1,4 +1,5 @@
 from specula.processing_objects.base_generator import BaseGenerator
+import numpy as np
 
 
 class ScheduleGenerator(BaseGenerator):
@@ -23,7 +24,7 @@ class ScheduleGenerator(BaseGenerator):
         for value_set in scheduled_values:
             if len(modes_per_group) != len(value_set):
                 raise ValueError(f"Length of modes_per_group {len(modes_per_group)} must match length of each value set {len(value_set)}")
-            expanded_value = [val for i, val in enumerate(value_set) for _ in range(modes_per_group[i])]
+            expanded_value = np.repeat(value_set, modes_per_group)
             expanded_values.append(expanded_value)
 
         output_size = len(expanded_values[0])
@@ -34,20 +35,18 @@ class ScheduleGenerator(BaseGenerator):
             precision=precision
         )
 
-        self.value_schedule = {
-            'values': self.to_xp(expanded_values, dtype=self.dtype),
-            'times': self.to_xp(scheduled_times, dtype=self.dtype)
-        }
+        self.scheduled_values = self.to_xp(expanded_values, dtype=self.dtype)
+        self.scheduled_times = self.to_xp(scheduled_times, dtype=self.dtype)
 
     def trigger_code(self):
         # Find the index of the current time in the time schedule
         time_idx = self.xp.searchsorted(
-            self.value_schedule['times'],
+            self.scheduled_times,
             self.current_time_gpu,
             side='right'
         )
 
         # Clamp to valid bounds
-        time_idx = self.xp.clip(time_idx, 0, self.value_schedule['values'].shape[0] - 1)
+        time_idx = self.xp.clip(time_idx, 0, self.scheduled_values.shape[0] - 1)
 
-        self.output.value[:] = self.value_schedule['values'][time_idx, :]
+        self.output.value[:] = self.scheduled_values[time_idx, :]

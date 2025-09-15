@@ -10,6 +10,7 @@ class ModesDisplay(BaseDisplay):
     def __init__(self, 
                  title='Modes Display',
                  figsize=(6, 3),
+                 xrange=None,
                  yrange=(-500, 500)):
 
         super().__init__(
@@ -17,6 +18,7 @@ class ModesDisplay(BaseDisplay):
             figsize=figsize
         )
 
+        self._xrange = xrange
         self._yrange = yrange
         self.line = None
 
@@ -33,6 +35,12 @@ class ModesDisplay(BaseDisplay):
         if self.line is None:
             # First time: create line
             self.line = self.ax.plot(x, y, '.-')[0]
+
+            # Set fixed X range if specified
+            if self._xrange is not None:
+                self.ax.set_xlim(self._xrange[0], self._xrange[1])
+            elif len(x) > 0:
+                self.ax.set_xlim(0, len(x) - 1)
 
             # Set fixed Y range if specified
             if np.sum(np.abs(self._yrange)) > 0:
@@ -53,8 +61,10 @@ class ModesDisplay(BaseDisplay):
             self.line.set_xdata(x)
             self.line.set_ydata(y)
 
-            # Update X limits if vector size changed
-            if len(x) > 0:
+            # Update X limits if vector size changed or xrange is set
+            if self._xrange is not None:
+                self.ax.set_xlim(self._xrange[0], self._xrange[1])
+            elif len(x) > 0:
                 self.ax.set_xlim(0, len(x) - 1)
 
             # Update Y limits if auto-scaling
@@ -63,6 +73,13 @@ class ModesDisplay(BaseDisplay):
 
         # Draw efficiently
         self._safe_draw()
+
+    def set_x_range(self, xmin, xmax):
+        """Set fixed X axis range"""
+        self._xrange = (xmin, xmax)
+        if self.line is not None:
+            self.ax.set_xlim(xmin, xmax)
+            self._safe_draw()
 
     def set_y_range(self, ymin, ymax):
         """Set fixed Y axis range"""

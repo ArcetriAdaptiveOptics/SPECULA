@@ -208,35 +208,67 @@ class TestGenerators(unittest.TestCase):
             plt.plot(f.time_hist[:, 1], label='mode 2')
             plt.legend()
             plt.show()
+        
+    @cpu_and_gpu
+    def test_vibration_wrong_size(self, target_device_idx, xp):
+        
+        simulParams = SimulParams(time_step=0.001, total_time=1000.0)
+
+        # PSD array too small
+        with self.assertRaises(ValueError):
+            _ = VibrationGenerator(simulParams, nmodes=5, psd=np.zeros((3, 10)), freq=np.zeros((10, 5)), target_device_idx=target_device_idx)
+
+        # Freq array too small
+        with self.assertRaises(ValueError):
+            _ = VibrationGenerator(simulParams, nmodes=5, psd=np.zeros((5, 10)), freq=np.zeros((10, 3)), target_device_idx=target_device_idx)
 
     @cpu_and_gpu
-    def test_time_history(self, target_device_idx, xp):
-        data = xp.arange(12).reshape((3,4))
+    def test_time_history_2d(self, target_device_idx, xp):
+
+        niters = 3
+        data = xp.arange(niters * 4).reshape((niters, 4))
         time_hist = TimeHistory(data, target_device_idx=target_device_idx)
 
         f = TimeHistoryGenerator(time_hist, target_device_idx=target_device_idx)
 
         # Test first frame
-        f.check_ready(1)
-        f.trigger()
-        f.post_trigger()
-        value = f.outputs['output'].value
-        np.testing.assert_allclose(cpuArray(value), cpuArray(data[0]))
-
-        # Test second frame
-        f.check_ready(2)
-        f.trigger()
-        f.post_trigger()
-        value = f.outputs['output'].value
-        np.testing.assert_allclose(cpuArray(value), cpuArray(data[1]))
-
-        # Test beyond data (should use last values)
-        for i in range(3, 5):
-            f.check_ready(i)
+        for iter in range(niters):
+            f.check_ready(iter)
             f.trigger()
             f.post_trigger()
             value = f.outputs['output'].value
-            np.testing.assert_allclose(cpuArray(value), cpuArray(data[-1]))
+            np.testing.assert_allclose(cpuArray(value), cpuArray(data[iter]))
+
+        # Test beyond data (should use last values)
+        f.check_ready(iter+1)
+        f.trigger()
+        f.post_trigger()
+        value = f.outputs['output'].value
+        np.testing.assert_allclose(cpuArray(value), cpuArray(data[-1]))
+
+    @cpu_and_gpu
+    def test_time_history_1d(self, target_device_idx, xp):
+
+        niters = 3
+        data = xp.arange(niters)
+        time_hist = TimeHistory(data, target_device_idx=target_device_idx)
+
+        f = TimeHistoryGenerator(time_hist, target_device_idx=target_device_idx)
+
+        # Test first frame
+        for iter in range(niters):
+            f.check_ready(iter)
+            f.trigger()
+            f.post_trigger()
+            value = f.outputs['output'].value
+            np.testing.assert_allclose(cpuArray(value), cpuArray(data[iter]))
+
+        # Test beyond data (should use last values)
+        f.check_ready(iter+1)
+        f.trigger()
+        f.post_trigger()
+        value = f.outputs['output'].value
+        np.testing.assert_allclose(cpuArray(value), cpuArray(data[-1]))
 
     @cpu_and_gpu
     def test_schedule_generator(self, target_device_idx, xp):
@@ -339,6 +371,12 @@ class TestGenerators(unittest.TestCase):
         hist = modal_pushpull_signal(n_modes=nmodes, first_mode=first_mode, amplitude=amp, constant=constant_amp, ncycles=ncycles, xp=np)
         for i in range(10):
             np.testing.assert_array_equal(cpuArray(outputs[i]), hist[i])
+
+    @cpu_and_gpu
+    def test_push_pull_invalid_type(self, target_device_idx, xp):
+
+        with self.assertRaises(ValueError):
+            _ = PushPullGenerator(nmodes=1, push_pull_type='INVALID')
 
     @cpu_and_gpu
     def test_func_generator_float(self, target_device_idx, xp):

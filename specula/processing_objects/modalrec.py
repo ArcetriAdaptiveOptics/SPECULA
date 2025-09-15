@@ -98,7 +98,26 @@ class Modalrec(BaseProcessingObj):
                 nmodes = self.recmat.nmodes
 
         if input_modes_slice is not None:
-            self.input_modes_slice = slice(*input_modes_slice)
+            # If it is a list of lists/tuples, create multiple slices and concatenate the indices
+            if isinstance(input_modes_slice[0], (list, tuple, slice)):
+                indices = []
+                for s in input_modes_slice:
+                    if isinstance(s, slice):
+                        indices.extend(range(
+                            s.start if s.start is not None else 0,
+                            s.stop if s.stop is not None else self.in_commands_size,
+                            s.step if s.step is not None else 1
+                        ))
+                    else:
+                        # s is a list/tuple like [start, stop, step]
+                        start = s[0]
+                        stop = s[1] if s[1] is not None else self.in_commands_size
+                        step = s[2] if len(s) > 2 else 1
+                        indices.extend(range(start, stop, step))
+                self.input_modes_slice = indices  # will be a list of indices
+            else:
+                # Classic case: single slice
+                self.input_modes_slice = slice(*input_modes_slice)
         else:
             self.input_modes_slice = slice(None, None, None)
 
@@ -117,7 +136,7 @@ class Modalrec(BaseProcessingObj):
         if self.polc:
             self.out_comm = BaseValue('output commands from modal reconstructor', target_device_idx=target_device_idx)
             self.inputs['in_commands'] = InputValue(type=BaseValue, optional=True)
-            self.inputs['in_commands_list'] = InputList(type=BaseValue, optional=True)            
+            self.inputs['in_commands_list'] = InputList(type=BaseValue, optional=True)       
             # TODO complete static allocation above
 
     def prepare_trigger(self, t):
@@ -143,6 +162,14 @@ class Modalrec(BaseProcessingObj):
                 else:
                     self.commands[:] = commands.value
 
+            if self.intmat is not None and self.intmat.intmat is not None:
+                # Check dimensions for slopes
+                expected_slopes_size = self.intmat.intmat.shape[0]
+                if expected_slopes_size != len(self.slopes):
+                    raise ValueError(f"Dimension mismatch in POLC mode: "
+                                f"intmat @ commands will produce {expected_slopes_size} slopes, "
+                                f"but input slopes has size {len(self.slopes)}")
+
     def trigger_code(self):
         if self.recmat.recmat is None:
             print("WARNING: modalrec skipping reconstruction because recmat is NULL")
@@ -166,7 +193,7 @@ class Modalrec(BaseProcessingObj):
 
 
         if self.polc:
-   
+
             if self.input_modes_index is not None:
                 commands = self.commands[self.input_modes_index]
             elif self.input_modes_slice is not None:
@@ -182,7 +209,7 @@ class Modalrec(BaseProcessingObj):
             else:
                 output_modes = self.projmat.recmat @ self.pseudo_ol_modes.value
             output_modes -= commands
-            
+
         else:
             output_modes = self.recmat.recmat @ self.slopes
 
@@ -197,7 +224,7 @@ class Modalrec(BaseProcessingObj):
 
         if not slopes and (not slopes_list or not all(slopes_list)):
             raise ValueError("Either 'slopes' or 'slopes_list' must be given as an input")
-        
+
         if slopes is None:
             self.slopes = self.xp.hstack([x.slopes for x in slopes_list])
         else:
@@ -210,4 +237,3 @@ class Modalrec(BaseProcessingObj):
                 raise ValueError("When POLC is used, either 'commands' or 'commands_list' must be given as an input")
 
             self.commands = self.xp.zeros(self.in_commands_size, dtype=self.dtype)
-

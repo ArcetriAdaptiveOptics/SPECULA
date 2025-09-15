@@ -14,8 +14,6 @@ class BaseGenerator(BaseProcessingObj):
                  precision: int = None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        self.output_size = output_size
-
         # Create output
         self.output = BaseValue(
             target_device_idx=target_device_idx, 
@@ -46,6 +44,8 @@ class BaseGenerator(BaseProcessingObj):
 
         if names is None:
             names = [f"param_{i}" for i in range(len(arrays))]
+        if len(names) != len(arrays):
+            raise ValueError(f'names list has length {len(names)} while array list has length {len(arrays)}')
 
         vector_lengths = [arr.shape[0] for arr in arrays if not is_scalar(arr, self.xp)]
 
