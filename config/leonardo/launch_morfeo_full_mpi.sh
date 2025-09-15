@@ -1,1 +1,1 @@
-python $WORK/SPECULA/main/scao/main_mpi.py $WORK/SPECULA/main/scao/params_morfeo_full.yml $WORK/SPECULA/main/scao/leonardo_mpi.yml
+specula --mpi $WORK/SPECULA/config/MORFEO/params_morfeo_full.yml $WORK/SPECULA/config/MORFEO/leonardo_mpi.yml

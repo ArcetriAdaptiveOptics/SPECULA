@@ -43,12 +43,6 @@ We'll simulate a modern SCAO system similar to those used on 8-10m class telesco
 Part 1: System Configuration
 ----------------------------
 
-Notes on script running
-~~~~~~~~~~~~~~~~~~~~~~~
-
-This tutorial uses the *main_simul.py* script in several places, which is located in *SPECULA/main/scao*.
-It is assumed that the user will *cd* into this directory before starting.
-
 Calculate and save the influence functions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

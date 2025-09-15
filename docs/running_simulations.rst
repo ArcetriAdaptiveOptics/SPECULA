@@ -3,7 +3,7 @@
 Running Simulations
 ===================
 
-In the directory ``main/scao`` there are several example configuration / parameters files for SCAO systems.
+In ``config`` directory there are example configuration / parameters files for several systems.
 
 The main way to run a simulation is to use the ``specula`` command line tool, installed together
 with the SPECULA package, giving the configuration file as an argument, in addition to several
