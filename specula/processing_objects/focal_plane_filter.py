@@ -160,7 +160,7 @@ class FocalPlaneFilter(BaseProcessingObj):
         fp_mask_centered = self.xp.fft.fftshift(self.fp_mask)
         u_fp_masked = u_fp * fp_mask_centered
 
-        self.ef_out[:] = self.xp.fft.ifft2(u_fp_masked)#, norm='forward')
+        self.ef_out[:] = self.xp.fft.ifft2(u_fp_masked)
 
 
     def post_trigger(self):
