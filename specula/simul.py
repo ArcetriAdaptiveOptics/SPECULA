@@ -641,24 +641,25 @@ class Simul():
         # Copy DataStore params and convert it to DataSource
         for key, pars in params.items():
             if pars['class'] == 'DataStore':
-                data_source_pars, _, _ = self.data_store_to_data_source(pars, set_store_dir=set_store_dir)
+                data_source_pars, _, datastore_mapping = self.data_store_to_data_source(pars, set_store_dir=set_store_dir)
                 replay_params['data_source'] = data_source_pars
 
-                # Remember all datastore outputs
-                for _, fullname in self.iterate_inputs(pars):
-                    output = self.split_output(fullname)
-                    datastore_outputs[output.output_key] = output.input_name
+                # Merge all datastore outputs using the complete key (obj_name.output_key)
+                datastore_outputs.update(datastore_mapping)
 
         def add_key(key):
             if key in replay_params:
                 return
 
-            replay_params[key] = params[key].copy()  
+            replay_params[key] = params[key].copy()
+
             # Add all inputs
             for k, _input in self.iterate_inputs(params[key]):
                 desc = self.split_output(_input)
-                if desc.output_key in datastore_outputs:
-                    replay_params[key]['inputs'][k] = 'data_source.' + datastore_outputs[desc.output_key]
+                # Use the complete key for lookup
+                complete_key = f"{desc.obj_name}.{desc.output_key}"
+                if complete_key in datastore_outputs:
+                    replay_params[key]['inputs'][k] = 'data_source.' + datastore_outputs[complete_key]
                     continue
                 else:
                     add_key(desc.obj_name)
