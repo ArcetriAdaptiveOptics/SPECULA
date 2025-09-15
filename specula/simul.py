@@ -640,11 +640,13 @@ class Simul():
                 for _, fullname in self.iterate_inputs(pars):
                     output = self.split_output(fullname)
                     datastore_outputs[output.output_key] = output.input_name
-    
+
         def add_key(key):
             if key in replay_params:
                 return
+
             replay_params[key] = params[key].copy()  
+            # Add all inputs
             for k, _input in self.iterate_inputs(params[key]):
                 desc = self.split_output(_input)
                 if desc.output_key in datastore_outputs:
@@ -652,6 +654,13 @@ class Simul():
                     continue
                 else:
                     add_key(desc.obj_name)
+            # Add all refernces to other objects
+            for k, v in params[key].items():
+                if k.endswith('_dict_ref'):
+                    for objname in v:
+                        add_key(objname)
+                elif k.endswith('_ref'):
+                    add_key(v)
 
         for key in target_object_names:
             add_key(key)
