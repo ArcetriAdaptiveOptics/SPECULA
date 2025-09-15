@@ -33,7 +33,7 @@ class TestFocalPlaneFilter(unittest.TestCase):
         # Flat wavefront
         self.ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
         self.ef.generation_time = 1
-        self.ef.A[:] = mask
+        self.ef.A[:] = xp.array(mask)
         self.ef.phaseInNm[:] = 0.0
 
     @cpu_and_gpu
@@ -166,9 +166,10 @@ class TestFocalPlaneFilter(unittest.TestCase):
         fpf.post_trigger()
         out_ef = fpf.outputs['out_ef']
         # Output phase should be (almost) constant for a flat input
-        idx = xp.where(cpuArray(self.ef.A) > 0)
-        min_phase = float(xp.min(out_ef.phaseInNm[idx]))
-        max_phase = float(xp.max(out_ef.phaseInNm[idx]))
+        mask = self.ef.A > 0
+        valid_phases = out_ef.phaseInNm[mask]
+        min_phase = float(xp.min(valid_phases))
+        max_phase = float(xp.max(valid_phases))
 
         # max and min phase should be close to zero (within 5 nm)
         self.assertLess(np.abs(max_phase), 5)
