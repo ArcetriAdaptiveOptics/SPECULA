@@ -54,7 +54,7 @@ class FocalPlaneFilter(BaseProcessingObj):
         self.fft_totsize = result['fft_totsize']
 
         # Focal plane mask
-        fp_obsratio = fp_obs / self.fov_res if fp_obs else 0
+        fp_obsratio = fp_obs * self.fp_masking if fp_obs else 0
         self.fp_mask = make_mask(self.fft_totsize, diaratio=self.fp_masking, obsratio=fp_obsratio, xp=self.xp)
 
         self.out_ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
