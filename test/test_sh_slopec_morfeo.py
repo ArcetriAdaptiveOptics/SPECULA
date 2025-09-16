@@ -202,7 +202,7 @@ class TestShSlopecMorfeo(unittest.TestCase):
 
         # Generate frames
         for frame_idx in range(self.n_frames):
-            t = (frame_idx + 1) * 2e3
+            t = (frame_idx + 1) * 2e6
 
             print(f"  Generating atmospheric frame {frame_idx + 1}/{self.n_frames}")
 
