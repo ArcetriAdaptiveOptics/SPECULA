@@ -171,7 +171,7 @@ class TestShSlopecMorfeo(unittest.TestCase):
 
         # Create simple wind model (constant wind speed and direction for reproducibility)
         wind_speeds = np.full(len(self.atmo_heights), 10.0)  # 10 m/s for all layers
-        wind_directions = np.linspace(0, 360, len(self.atmo_heights))  # Different directions for each layer
+        wind_directions = np.zeros(len(self.atmo_heights))  # 0 degrees for all layers
 
         wind_speed_gen = WaveGenerator(constant=wind_speeds.tolist(), target_device_idx=target_device_idx)
         wind_direction_gen = WaveGenerator(constant=wind_directions.tolist(), target_device_idx=target_device_idx)
@@ -202,7 +202,7 @@ class TestShSlopecMorfeo(unittest.TestCase):
 
         # Generate frames
         for frame_idx in range(self.n_frames):
-            t = (frame_idx + 1) * 2e6
+            t = (frame_idx + 1) * 10e6
 
             print(f"  Generating atmospheric frame {frame_idx + 1}/{self.n_frames}")
 
