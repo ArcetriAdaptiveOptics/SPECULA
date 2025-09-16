@@ -202,7 +202,7 @@ class TestShSlopecMorfeo(unittest.TestCase):
 
         # Generate frames
         for frame_idx in range(self.n_frames):
-            t = frame_idx + 1
+            t = (frame_idx + 1) * 2e3
 
             print(f"  Generating atmospheric frame {frame_idx + 1}/{self.n_frames}")
 
@@ -256,7 +256,7 @@ class TestShSlopecMorfeo(unittest.TestCase):
                          target_device_idx=target_device_idx)
 
         # Create electric field with constant amplitude and phase from cube
-        ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, 
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
                             S0=self.S0, target_device_idx=target_device_idx)
 
         # Apply circular mask to simulate pupil
@@ -265,7 +265,7 @@ class TestShSlopecMorfeo(unittest.TestCase):
 
         sh.inputs['in_ef'].set(ef)
 
-        pixels = Pixels(intensity.i.shape[1], intensity.i.shape[0],
+        pixels = Pixels(self.subap_on_diameter*self.subap_npx, self.subap_on_diameter*self.subap_npx,
                         target_device_idx=target_device_idx)
 
         # Run slope computation
