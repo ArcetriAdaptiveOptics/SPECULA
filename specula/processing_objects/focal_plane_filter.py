@@ -16,7 +16,6 @@ class FocalPlaneFilter(BaseProcessingObj):
                  fov_errinf: float = 0.1,
                  fov_errsup: float = 10,
                  fft_res: float = 3.0,
-                 fp_masking: float = 1.0,
                  fp_obs: float = 0.0,
                  target_device_idx: int = None,
                  precision: int = None
