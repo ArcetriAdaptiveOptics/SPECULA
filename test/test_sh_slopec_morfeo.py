@@ -18,7 +18,7 @@ from specula.data_objects.simul_params import SimulParams
 from specula.lib.make_mask import make_mask
 from test.specula_testlib import cpu_and_gpu
 import os
-
+from astropy.io import fits
 
 class TestShSlopecMorfeo(unittest.TestCase):
 
@@ -123,9 +123,9 @@ class TestShSlopecMorfeo(unittest.TestCase):
     def get_phase_cube_filename(self):
         """Generate filename for atmospheric phase cube"""
         return os.path.join(
-            self.test_data_dir, 
+            self.test_data_dir,
             f"atmo_phase_cube_L0{self.atmo_L0}_seeing{self.seeing}_"
-            f"pupil{self.pixel_pupil}_frames{self.n_frames}.npy"
+            f"pupil{self.pixel_pupil}_frames{self.n_frames}.fits"
         )
 
     def load_or_create_atmospheric_phase_cube(self, target_device_idx, xp):
@@ -139,7 +139,8 @@ class TestShSlopecMorfeo(unittest.TestCase):
         # Try to load existing phase cube
         if os.path.exists(phase_cube_file):
             print(f"Loading existing atmospheric phase cube from: {phase_cube_file}")
-            phase_cube = np.load(phase_cube_file)
+            with fits.open(phase_cube_file) as hdul:
+                phase_cube = hdul[0].data
             print(f"Loaded phase cube with shape: {phase_cube.shape}")
             print(f"Phase RMS: {np.std(phase_cube):.1f} nm, Range: [{np.min(phase_cube):.1f}, {np.max(phase_cube):.1f}] nm")
             return phase_cube
@@ -149,7 +150,7 @@ class TestShSlopecMorfeo(unittest.TestCase):
             phase_cube = self.create_atmospheric_phase_cube(target_device_idx, xp)
 
             print(f"Saving atmospheric phase cube to: {phase_cube_file}")
-            np.save(phase_cube_file, phase_cube)
+            fits.writeto(phase_cube_file, phase_cube.astype(np.float32), overwrite=True)
             print(f"Phase cube saved successfully")
 
             return phase_cube
