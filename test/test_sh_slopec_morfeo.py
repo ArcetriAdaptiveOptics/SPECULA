@@ -212,31 +212,8 @@ class TestShSlopecMorfeo(unittest.TestCase):
                 obj.trigger()
                 obj.post_trigger()
 
-            # Combine all atmospheric layers into a single phase screen
-            total_phase = xp.zeros((self.pixel_pupil, self.pixel_pupil), dtype=xp.float64)
-
-            for layer in atmo.outputs['layer_list']:
-                # Get the phase from this layer (only the central pupil region)
-                layer_phase = layer.phaseInNm
-
-                # Extract the central region matching the pupil size
-                layer_size = layer_phase.shape[0]
-                start = (layer_size - self.pixel_pupil) // 2
-                end = start + self.pixel_pupil
-
-                if start >= 0:
-                    # Layer is larger than pupil, extract central region
-                    pupil_phase = layer_phase[start:end, start:end]
-                else:
-                    # Layer is smaller than pupil, pad with zeros
-                    pupil_phase = xp.zeros((self.pixel_pupil, self.pixel_pupil), dtype=layer_phase.dtype)
-                    layer_start = -start
-                    layer_end = layer_start + layer_size
-                    pupil_phase[layer_start:layer_end, layer_start:layer_end] = layer_phase
-
-                total_phase += pupil_phase
-
-            phase_cube.append(cpuArray(total_phase))
+            layer = atmo.outputs['layer_list'][0]  # Only one layer in this test
+            phase_cube.append(cpuArray(layer.phaseInNm))
 
         phase_cube = np.stack(phase_cube)
         print(f"Created atmospheric phase cube with shape: {phase_cube.shape}")
@@ -278,6 +255,22 @@ class TestShSlopecMorfeo(unittest.TestCase):
                          window_int_pixel=True,    # from slopec_lgs1
                          target_device_idx=target_device_idx)
 
+        # Create electric field with constant amplitude and phase from cube
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, 
+                            S0=self.S0, target_device_idx=target_device_idx)
+
+        # Apply circular mask to simulate pupil
+        mask = make_mask(self.pixel_pupil, obsratio=0.0, xp=np)
+        ef.A[:] = xp.array(mask)
+
+        sh.inputs['in_ef'].set(ef)
+
+        pixels = Pixels(intensity.i.shape[1], intensity.i.shape[0],
+                        target_device_idx=target_device_idx)
+
+        # Run slope computation
+        slopec.inputs['in_pixels'].set(pixels)
+
         # Storage for results
         intensities = []
         slopes_list = []
@@ -288,16 +281,9 @@ class TestShSlopecMorfeo(unittest.TestCase):
 
             print(f"Processing frame {frame_idx + 1}/{self.n_frames}")
 
-            # Create electric field with constant amplitude and phase from cube
-            ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, 
-                             S0=self.S0, target_device_idx=target_device_idx)
-            ef.A[:] = 1.0  # Constant amplitude
+            #  phase from cube
             ef.phaseInNm[:] = xp.array(phase_cube[frame_idx])  # Use i-th frame from phase cube
             ef.generation_time = t
-
-            # Apply circular mask to simulate pupil
-            mask = make_mask(self.pixel_pupil, obsratio=0.0, xp=np)
-            ef.A[:] = xp.array(mask)
 
             if plot_debug:
                 plt.figure(figsize=(12, 5))
@@ -311,7 +297,6 @@ class TestShSlopecMorfeo(unittest.TestCase):
                 plt.colorbar()
 
             # Run SH simulation
-            sh.inputs['in_ef'].set(ef)
             if frame_idx == 0:
                 sh.setup()
             sh.check_ready(t)
@@ -328,8 +313,6 @@ class TestShSlopecMorfeo(unittest.TestCase):
                 plt.title(f'Intensity Frame {frame_idx + 1}')
                 plt.show()
 
-            pixels = Pixels(intensity.i.shape[1], intensity.i.shape[0],
-                           target_device_idx=target_device_idx)
             pixels.set_value(intensity.i)
             pixels.generation_time = t
 
