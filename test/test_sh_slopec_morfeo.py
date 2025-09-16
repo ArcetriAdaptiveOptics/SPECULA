@@ -45,7 +45,7 @@ class TestShSlopecMorfeo(unittest.TestCase):
         self.test_data_dir = "test_data"
 
         # Calibration manager setup
-        self.root_dir = '/tmp/test_calib'  # Use temporary directory for test
+        self.root_dir = '/raid1/guido/PASSATA/MAORYC/'
         if not os.path.exists(self.root_dir):
             os.makedirs(self.root_dir)
 
