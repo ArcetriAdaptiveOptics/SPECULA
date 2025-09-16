@@ -294,7 +294,7 @@ tomo_polc_lgs:
   in_commands_size:   6258
   inputs:
     in_slopes_list:        ['slopec_lgs1.out_slopes','slopec_lgs2.out_slopes','slopec_lgs3.out_slopes','slopec_lgs4.out_slopes','slopec_lgs5.out_slopes','slopec_lgs6.out_slopes']
-    in_commands:            'modal_combination.out_vector:-1'
+    in_commands:            'iir_lgs.out_comm:-1'
   outputs:  ['out_modes', 'out_pseudo_ol_modes']
 
 
@@ -303,6 +303,7 @@ iir_lgs:
   simul_params_ref:  'main'
   int_gain: [0.0,0.25,0.0,0.25]
   n_modes:  [2,5232,3,1021]
+  delay: 1.75
   inputs:
     delta_comm: 'tomo_polc_lgs.out_modes'
   outputs:  ['out_comm']
@@ -324,6 +325,7 @@ iir_ngs:
   simul_params_ref:  'main'
   int_gain: [0.1,0.1]
   n_modes:  [2,3]
+  delay: 1.75
   inputs:
     delta_comm: 'tomo_ngs.out_modes'
   outputs:  ['out_comm']

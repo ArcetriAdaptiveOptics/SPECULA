@@ -407,6 +407,7 @@ iir_lgs:
   class:             'IirFilter'
   simul_params_ref:  'main'
   iir_filter_data_object: 'int0.25_6258'
+  delay: 1.75
   inputs:
       delta_comm: 'subtract_ref.out_value'     
   outputs:  ['out_comm']
@@ -514,6 +515,7 @@ iir_ngs:
   class:             'IirFilter'
   simul_params_ref:  'main'
   iir_filter_data_object: 'int0.1_5modes'
+  delay: 1.75
   inputs:
       delta_comm: 'tomo_ngs.out_modes'     
   outputs:  ['out_comm']
@@ -577,6 +579,7 @@ control_ref:
   delay:             2
   int_gain:          [0, 0.1, 0,  0.1, 0,  0, 0.1,  0]
   n_modes:           [3, 30,  67, 30,  65, 3, 30,  65]  # 30 modes/DM, and skip the 3 modes for plate scale
+  delay: 1.75
   inputs:
       delta_comm: 'tomo_polc_ref.out_modes'   
   outputs:  ['out_comm']
@@ -589,6 +592,7 @@ iir_lift:
   class:             'IirFilter'
   simul_params_ref:  'main'
   iir_filter_data_object: 'int0.0_5modes'   # TODO should be 6 modes
+  delay: 1.75
   inputs:
       delta_comm: 'lift.output'
   outputs:  ['out_comm']
