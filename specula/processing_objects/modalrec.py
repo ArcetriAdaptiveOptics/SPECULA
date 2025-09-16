@@ -194,20 +194,28 @@ class Modalrec(BaseProcessingObj):
 
         if self.polc:
 
+            # (1) Compute pseudo open loop modes
+            # (1.1) from commands to slopes
             if self.input_modes_index is not None:
                 commands = self.commands[self.input_modes_index]
             elif self.input_modes_slice is not None:
                 commands = self.commands[self.input_modes_slice]
             else:
                 commands = self.commands
-
             comm_slopes = self.intmat.intmat @ commands
+
+            # (1.2) from slopes to modes summing the measured slopes and the computed ones
+            #     (i.e., assuming that the DM perfectly reproduces the commands)
             self.pseudo_ol_modes.value = self.recmat.recmat @ (self.slopes + comm_slopes)
             self.pseudo_ol_modes.generation_time = self.current_time
+
+            # (2) from pseudo open loop modes to output modes
             if self.projmat is None:
                 output_modes = self.pseudo_ol_modes.value
             else:
                 output_modes = self.projmat.recmat @ self.pseudo_ol_modes.value
+
+            # (3) remove the effect of the commands
             output_modes -= commands
 
         else:
