@@ -375,19 +375,21 @@ class TestShSlopecMorfeo(unittest.TestCase):
         self.assertGreater(slopes_rms, 0.001, "Slopes should have non-trivial RMS due to atmospheric turbulence")
 
         # Save or compare reference data for intensities and slopes
-        ref_intensity_file = os.path.join(self.test_data_dir, "morfeo_lgs1_intensity_ref.npy")
-        ref_slopes_file = os.path.join(self.test_data_dir, "morfeo_lgs1_slopes_ref.npy")
+        ref_intensity_file = os.path.join(self.test_data_dir, "morfeo_lgs1_intensity_ref.fits")
+        ref_slopes_file = os.path.join(self.test_data_dir, "morfeo_lgs1_slopes_ref.fits")
 
         if not os.path.exists(ref_intensity_file):
-            np.save(ref_intensity_file, intensity_cube)
-            np.save(ref_slopes_file, slopes_cube)
+            fits.writeto(ref_intensity_file, intensity_cube.astype(np.float32), overwrite=True)
+            fits.writeto(ref_slopes_file, slopes_cube.astype(np.float32), overwrite=True)
             print(f"Saved reference data:")
             print(f"  Intensity: {ref_intensity_file}")
             print(f"  Slopes: {ref_slopes_file}")
         else:
             # Compare with reference data
-            ref_intensity = np.load(ref_intensity_file)
-            ref_slopes = np.load(ref_slopes_file)
+            with fits.open(ref_intensity_file) as hdul:
+                ref_intensity = hdul[0].data
+            with fits.open(ref_slopes_file) as hdul:
+                ref_slopes = hdul[0].data
 
             np.testing.assert_allclose(intensity_cube, ref_intensity, rtol=1e-10)
             np.testing.assert_allclose(slopes_cube, ref_slopes, rtol=1e-10)
