@@ -118,6 +118,7 @@ class SH(BaseProcessingObj):
         if self._np_sub * n_lenses > ef_size:
             self._np_sub -= 1
 
+        # this is the number of pixels per sub-aperture
         np_sub = (ef_size * lens[2]) / 2.0
 
         sensor_pxscale_arcsec = self._sensor_pxscale * RAD2ASEC
@@ -201,7 +202,7 @@ class SH(BaseProcessingObj):
                 self._fov_ovs = self._fov_ovs_coeff
         else:
             ratio = float(subap_real_fov_pix) / float(turbulence_fov_pix)
-            np_factor = 1 if abs(np_sub - int(np_sub)) < 1e-3 else int(np_sub)
+            np_factor = 1 if abs(np_sub - round(np_sub)) >= 1e-3 else round(np_sub)
             if self._do_not_double_fov_ovs and self._fov_ovs_coeff == 0.0:
                 self._fov_ovs_coeff = 1.0
                 self._fov_ovs = np.ceil(np_factor * ratio / 2.0) * 2.0 / float(np_factor)
@@ -214,7 +215,7 @@ class SH(BaseProcessingObj):
                     self._fov_ovs = np.ceil(np_factor * ratio * self._fov_ovs_coeff) / float(np_factor)
 
         self._sensor_pxscale = subap_real_fov_arcsec / self._subap_npx / RAD2ASEC
-        self._ovs_np_sub = int(ef_size * self._fov_ovs * lens[2] * 0.5)
+        self._ovs_np_sub = round(ef_size * self._fov_ovs * lens[2] * 0.5)
         self._fft_size = self._ovs_np_sub * scale_ovs
 
         if self.verbose:
