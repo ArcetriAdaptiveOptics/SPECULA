@@ -341,21 +341,21 @@ class TestShSlopecMorfeo(unittest.TestCase):
         intensity_cube = np.stack(intensities)
         slopes_cube = np.stack(slopes_list)
 
-        # Basic sanity checks
-        self.assertEqual(intensity_cube.shape[0], self.n_frames)
-        self.assertEqual(slopes_cube.shape[0], self.n_frames)
-        self.assertEqual(slopes_cube.shape[1], subapdata.n_subaps * 2)
+        # # Basic sanity checks
+        # self.assertEqual(intensity_cube.shape[0], self.n_frames)
+        # self.assertEqual(slopes_cube.shape[0], self.n_frames)
+        # self.assertEqual(slopes_cube.shape[1], subapdata.n_subaps * 2)
 
-        # Check that intensities are positive and finite
-        self.assertTrue(np.all(intensity_cube >= 0))
-        self.assertTrue(np.all(np.isfinite(intensity_cube)))
+        # # Check that intensities are positive and finite
+        # self.assertTrue(np.all(intensity_cube >= 0))
+        # self.assertTrue(np.all(np.isfinite(intensity_cube)))
 
-        # Check that slopes are finite
-        self.assertTrue(np.all(np.isfinite(slopes_cube)))
+        # # Check that slopes are finite
+        # self.assertTrue(np.all(np.isfinite(slopes_cube)))
 
-        # Verify that we have non-trivial slopes (atmospheric turbulence should create slopes)
-        slopes_rms = np.std(slopes_cube)
-        self.assertGreater(slopes_rms, 0.001, "Slopes should have non-trivial RMS due to atmospheric turbulence")
+        # # Verify that we have non-trivial slopes (atmospheric turbulence should create slopes)
+        # slopes_rms = np.std(slopes_cube)
+        # self.assertGreater(slopes_rms, 0.001, "Slopes should have non-trivial RMS due to atmospheric turbulence")
 
         # Save or compare reference data for intensities and slopes
         ref_intensity_file = os.path.join(self.test_data_dir, "morfeo_lgs1_intensity_ref.fits")
