@@ -135,7 +135,7 @@ sh_lgs1: &LGS_SH
   subap_npx:         14                      # Output sampling [usually corresponding to CCD pixels]
   subap_on_diameter: 68                      # Number of subapertures in diameter
   wavelengthInNm:    589                     # [nm] Pyramid wavelength
-  fov_ovs_coeff:     1.6                     # Force phase interpolation to a multiple of 68
+  fov_ovs_coeff:     1.52                    # Force phase interpolation to a multiple of 68
   rotAnglePhInDeg:   6.2
   laser_launch_tel_ref: 'launcher'
   inputs:

@@ -131,7 +131,7 @@ sh1:
   subap_npx:         14                      # Output sampling [usually corresponding to CCD pixels]
   subap_on_diameter: 68                      # Number of subapertures in diameter
   wavelengthInNm:    589                     # [nm] Pyramid wavelength
-  fov_ovs_coeff:     1.6                     # Force phase interpolation to a multiple of 68
+  fov_ovs_coeff:     1.52                    # Force phase interpolation to a multiple of 68
   laser_launch_tel_ref: 'launcher'
   inputs:
     in_ef: 'prop.out_ngs1_source_ef'
@@ -144,7 +144,7 @@ sh2:
   subap_npx:         14                      # Output sampling [usually corresponding to CCD pixels]
   subap_on_diameter: 68                      # Number of subapertures in diameter
   wavelengthInNm:    589                     # [nm] Pyramid wavelength
-  fov_ovs_coeff:     1.6                     # Force phase interpolation to a multiple of 68
+  fov_ovs_coeff:     1.52                    # Force phase interpolation to a multiple of 68
   laser_launch_tel_ref: 'launcher'
   inputs:
     in_ef: 'prop.out_ngs2_source_ef'
@@ -157,7 +157,7 @@ sh3:
   subap_npx:         14                      # Output sampling [usually corresponding to CCD pixels]
   subap_on_diameter: 68                      # Number of subapertures in diameter
   wavelengthInNm:    589                     # [nm] Pyramid wavelength
-  fov_ovs_coeff:     1.6                     # Force phase interpolation to a multiple of 68
+  fov_ovs_coeff:     1.52                    # Force phase interpolation to a multiple of 68
   laser_launch_tel_ref: 'launcher'
   inputs:
     in_ef: 'prop.out_ngs3_source_ef'
@@ -170,7 +170,7 @@ sh4:
   subap_npx:         14                      # Output sampling [usually corresponding to CCD pixels]
   subap_on_diameter: 68                      # Number of subapertures in diameter
   wavelengthInNm:    589                     # [nm] Pyramid wavelength
-  fov_ovs_coeff:     1.6                     # Force phase interpolation to a multiple of 68
+  fov_ovs_coeff:     1.52                    # Force phase interpolation to a multiple of 68
   laser_launch_tel_ref: 'launcher'
   inputs:
     in_ef: 'prop.out_ngs4_source_ef'
@@ -183,7 +183,7 @@ sh5:
   subap_npx:         14                      # Output sampling [usually corresponding to CCD pixels]
   subap_on_diameter: 68                      # Number of subapertures in diameter
   wavelengthInNm:    589                     # [nm] Pyramid wavelength
-  fov_ovs_coeff:     1.6                     # Force phase interpolation to a multiple of 68
+  fov_ovs_coeff:     1.52                    # Force phase interpolation to a multiple of 68
   laser_launch_tel_ref: 'launcher'
   inputs:
     in_ef: 'prop.out_ngs5_source_ef'
@@ -196,7 +196,7 @@ sh6:
   subap_npx:         14                      # Output sampling [usually corresponding to CCD pixels]
   subap_on_diameter: 68                      # Number of subapertures in diameter
   wavelengthInNm:    589                     # [nm] Pyramid wavelength
-  fov_ovs_coeff:     1.6                     # Force phase interpolation to a multiple of 68
+  fov_ovs_coeff:     1.52                    # Force phase interpolation to a multiple of 68
   laser_launch_tel_ref: 'launcher'
   inputs:
     in_ef: 'prop.out_ngs6_source_ef'
