@@ -19,10 +19,10 @@ seeing:
 
 wind_speed:
   class:             'WaveGenerator'
-  constant:          [5.5, 5.5, 5.1, 5.5, 5.6, 5.7, 5.8, 6.0, 6.5, 7.0,
-                      7.5, 8.5, 9.5, 11.5, 17.5, 23.0, 26.0, 29.0, 32.0, 27.0,
-                      22.0, 14.5, 9.5, 6.3, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0,
-                      8.5, 9.0, 9.5, 10.0, 10.0]      # [m/s] Wind speed value
+  constant:          [5.786,  5.786,  5.365, 5.786,  5.891, 5.996,  6.102,  6.312,  6.838,  7.364,
+                      7.89,   8.942,  9.994, 12.098, 18.41, 24.196, 27.352, 30.508, 33.664, 28.404,
+                      23.144, 15.254, 9.994, 6.6276, 5.786, 6.312,  6.838,  7.364,  7.89,   8.416,
+                      8.942,  9.468,  9.994, 10.52,  10.52] # [m/s] Wind speed value
   outputs: ['output']
 
 
@@ -37,14 +37,14 @@ wind_direction:
 
 source_on_axis:
   class:             'Source'
-  polar_coordinates:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  polar_coordinates:  [0.0, 0.0]          # [arcsec, degrees] source polar coordinates
   magnitude:         8                    # source magnitude
-  wavelengthInNm:    750                   # [nm] wavelength
+  wavelengthInNm:    750                  # [nm] wavelength
 
 
 source_lgs1: &LGS_SOURCE
   class:             'Source'
-  polar_coordinates:  [45.0, 30.0]           # [arcsec, degrees] source polar coordinates
+  polar_coordinates:  [45.0, 30.0]         # [arcsec, degrees] source polar coordinates
   height:            90000                 # Source height [m]
   magnitude:         5.0                   # source magnitude
   wavelengthInNm:    589                   # [nm] wavelength
@@ -132,7 +132,7 @@ launcher1: &LAUNCHER
 
 
 launcher2: { <<: *LAUNCHER}
-auncher3: { <<: *LAUNCHER}
+launcher3: { <<: *LAUNCHER}
 launcher4: { <<: *LAUNCHER}
 launcher5: { <<: *LAUNCHER}
 launcher6: { <<: *LAUNCHER}
@@ -238,9 +238,9 @@ sh_ngs1: &NGS_SH
   class:             'SH'
   subap_on_diameter: 1                      # Number of subapertures in diameter
   subap_wanted_fov:  1.8                    # Requested field-of-view [arcsec]
-  sensor_pxscale:    0.0075                    # Pixel scale in arcsec/pix
-  subap_npx:         240                      # Output sampling [usually corresponding to CCD pixels]
-  wavelengthInNm:    1650                     # [nm] Pyramid wavelength
+  sensor_pxscale:    0.0075                 # Pixel scale in arcsec/pix
+  subap_npx:         240                    # Output sampling [usually corresponding to CCD pixels]
+  wavelengthInNm:    1650                   # [nm] Pyramid wavelength
   inputs:
     in_ef: 'prop.out_source_ngs1_ef'
   outputs:  ['out_i']
@@ -409,7 +409,7 @@ psf:
 
 modal_analysis:
   class: 'ModalAnalysis'
-  ifunc_inv_object: 'MAORY_480pix_99nacts_cir_spiRouObsCen_5zern_10000.0cn_inv'
+  ifunc_inv_object: 'MAORY_480pix_99nacts_cir_spider2023_5zern_10000.0cn_inv'
   inputs:
     in_ef: 'prop.out_source_on_axis_ef'
   outputs: ['out_modes']

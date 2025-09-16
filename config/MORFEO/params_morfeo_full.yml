@@ -373,7 +373,7 @@ tomo_polc_lgs:
   intmat_object:      '20250325_000000.0/intmat.fits'
   polc:   true
   input_modes_slice:  [0, 6258]
-  in_commands_size:   6269
+  in_commands_size:   6264
   inputs:
     in_slopes_list:        ['slopec_lgs1.out_slopes','slopec_lgs2.out_slopes','slopec_lgs3.out_slopes','slopec_lgs4.out_slopes','slopec_lgs5.out_slopes','slopec_lgs6.out_slopes']
     in_commands:            'modal_combination.out_vector:-1'
@@ -456,7 +456,7 @@ modal_combination:
 zerocmd:
   class:             'WaveGenerator'
   constant:          0.0
-  vsize:             6269
+  vsize:             6264
   outputs: ['output']
 
 
