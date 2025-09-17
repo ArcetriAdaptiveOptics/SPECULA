@@ -88,6 +88,7 @@ class SH(BaseProcessingObj):
         self._reference_indices = None
         self._coefficients = None
         self._valid_indices = None
+        self._amplitude_is_binary = None
 
         # TODO these are fixed but should become parameters
         self._fov_ovs = 1
@@ -287,7 +288,7 @@ class SH(BaseProcessingObj):
 
         # set up kernel object
         if self._laser_launch_tel is not None:
-            if len(self._laser_launch_tel.tel_pos) == 0:                        
+            if len(self._laser_launch_tel.tel_pos) == 0:
                 self._kernelobj = GaussianConvolutionKernel(dimx = self._lenslet.dimx,
                                                             dimy = self._lenslet.dimy,
                                                             pxscale = fp4_pixel_pitch * RAD2ASEC,
@@ -326,6 +327,7 @@ class SH(BaseProcessingObj):
 
         if self._edge_pixels is None and self._do_interpolation:
             # Compute once indices and coefficients
+            # This considering the input amplitude is not changing during the simulation
             self._edge_pixels, self._reference_indices, self._coefficients, self._valid_indices = calculate_extrapolation_indices_coeffs(
                 cpuArray(self.in_ef.A)
             )
@@ -336,11 +338,24 @@ class SH(BaseProcessingObj):
             self._coefficients = self.to_xp(self._coefficients)
             self._valid_indices = self.to_xp(self._valid_indices)
 
+            # Check if input amplitude is binary (all values close to 0 or 1) with tolerance
+            unique_values = self.xp.unique(self.in_ef.A)
+            tol = 1e-3
+            is_binary = self.xp.all(
+                self.xp.logical_or(
+                    self.xp.abs(unique_values - 0) < tol,
+                    self.xp.abs(unique_values - 1) < tol
+                )
+            )
+
+            self._amplitude_is_binary = is_binary
+
         # Interpolation of input array if needed
         with show_in_profiler('interpolation'):
 
             if self._do_interpolation:
-                self.phase_extrapolated[:] = self.in_ef.phaseInNm
+                phase_in_nm = self.in_ef.phaseInNm * (self.in_ef.A >= 1e-3).astype(int)
+                self.phase_extrapolated[:] = phase_in_nm
                 _ = apply_extrapolation(
                     self.in_ef.phaseInNm,
                     self._edge_pixels,
@@ -356,7 +371,7 @@ class SH(BaseProcessingObj):
                     import matplotlib.pyplot as plt
                     plt.figure(figsize=(20, 5))
                     plt.subplot(1, 4, 1)
-                    plt.imshow(self.in_ef.phaseInNm, origin='lower', cmap='gray')
+                    plt.imshow(phase_in_nm, origin='lower', cmap='gray')
                     plt.title('Input Phase')
                     plt.colorbar()
                     plt.subplot(1, 4, 2)
@@ -364,7 +379,7 @@ class SH(BaseProcessingObj):
                     plt.title('Extrapolated Phase')
                     plt.colorbar()
                     plt.subplot(1, 4, 3)
-                    plt.imshow(self.phase_extrapolated - self.in_ef.phaseInNm, origin='lower', cmap='gray')
+                    plt.imshow(self.phase_extrapolated - phase_in_nm, origin='lower', cmap='gray')
                     plt.title('Phase Difference')
                     plt.colorbar()
                     plt.subplot(1, 4, 4)
@@ -374,6 +389,11 @@ class SH(BaseProcessingObj):
                     plt.show()
 
                 self.interp.interpolate(self.in_ef.A, out=self._wf1.A)
+
+                # Apply binary threshold if input amplitude was binary
+                if self._amplitude_is_binary:
+                    self._wf1.A[:] = (self._wf1.A > 0.5).astype(self.dtype)
+
                 self.interp.interpolate(self.phase_extrapolated, out=self._wf1.phaseInNm)
             else:
                 # self._wf1 already set to in_ef
@@ -485,9 +505,9 @@ class SH(BaseProcessingObj):
             plt.title('Intensity')
             plt.show()
 
-    def setup(self):        
-        super().setup()        
-        in_ef = self.local_inputs['in_ef']        
+    def setup(self):
+        super().setup()
+        in_ef = self.local_inputs['in_ef']
 
         self._set_in_ef(in_ef)
         self._calc_trigger_geometry(in_ef)
