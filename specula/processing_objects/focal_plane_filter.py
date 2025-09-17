@@ -122,7 +122,7 @@ class FocalPlaneFilter(BaseProcessingObj):
                 self._coefficients = self.to_xp(self._coefficients)
                 self._valid_indices = self.to_xp(self._valid_indices)
 
-            self.phase_extrapolated[:] = in_ef.phaseInNm
+            self.phase_extrapolated[:] = in_ef.phaseInNm * (in_ef.A >= 1e-3).astype(int)
             _ = apply_extrapolation(
                 in_ef.phaseInNm,
                 self._edge_pixels,
