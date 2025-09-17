@@ -4,18 +4,19 @@ specula.init(0)  # Default target device
 
 import numpy as np
 from specula import cpuArray
+from specula.calib_manager import CalibManager
 from specula.data_objects.electric_field import ElectricField
-from specula.processing_objects.sh import SH
 from specula.data_objects.pixels import Pixels
 from specula.data_objects.slopes import Slopes
 from specula.data_objects.subap_data import SubapData
-from specula.processing_objects.sh_slopec import ShSlopec
+from specula.data_objects.pupilstop import Pupilstop
+from specula.data_objects.simul_params import SimulParams
 from specula.data_objects.laser_launch_telescope import LaserLaunchTelescope
-from specula.calib_manager import CalibManager
+from specula.processing_objects.sh import SH
+from specula.processing_objects.sh_slopec import ShSlopec
 from specula.processing_objects.atmo_infinite_evolution import AtmoInfiniteEvolution
 from specula.processing_objects.wave_generator import WaveGenerator
-from specula.data_objects.simul_params import SimulParams
-from specula.lib.make_mask import make_mask
+
 from test.specula_testlib import cpu_and_gpu
 import os
 from astropy.io import fits
@@ -62,6 +63,41 @@ class TestShSlopecMorfeo(unittest.TestCase):
             spot_size=1.8,
             target_device_idx=target_device_idx
         )
+
+    def load_pupilstop(self, target_device_idx):
+        """Load Pupilstop from disk using calibration manager"""
+        try:
+            cm = CalibManager(self.root_dir)
+            # Load the pupilstop from MORFEO configuration
+            pupilstop_tag = 'EELT480pp0.0803m_obs0.283_spider2023'
+            pupilstop = Pupilstop.restore(
+                cm.filename('pupilstop', pupilstop_tag + '.fits'),
+                target_device_idx=target_device_idx
+            )
+            print(f"Loaded pupilstop from calibration: {pupilstop_tag}")
+            return pupilstop
+        except FileNotFoundError:
+            # If calibration file not found, create a simple circular mask
+            print("Warning: Pupilstop calibration file not found, creating simple circular mask")
+            return self.create_simple_pupilstop(target_device_idx)
+
+    def create_simple_pupilstop(self, target_device_idx):
+        """Create simple circular pupilstop for testing"""
+        from specula.data_objects.simul_params import SimulParams
+        
+        simul_params = SimulParams(
+            pixel_pupil=self.pixel_pupil,
+            pixel_pitch=self.pixel_pitch
+        )
+        
+        # Create pupilstop with central obstruction matching EELT (obs_diam=0.283)
+        pupilstop = Pupilstop(
+            simul_params=simul_params,
+            obs_diam=0.283,  # Central obstruction ratio
+            target_device_idx=target_device_idx
+        )
+        
+        return pupilstop
 
     def load_subap_data(self, target_device_idx):
         """Load SubapData from disk using calibration manager"""
@@ -232,6 +268,10 @@ class TestShSlopecMorfeo(unittest.TestCase):
         # Load or create atmospheric phase cube (will be saved/loaded from disk)
         phase_cube = self.load_or_create_atmospheric_phase_cube(target_device_idx, xp)
 
+        # Load pupilstop mask from calibration
+        pupilstop = self.load_pupilstop(target_device_idx)
+        mask = pupilstop.get_value()  # Get the amplitude mask
+
         # Create LaserLaunchTelescope
         launcher = self.create_launcher(target_device_idx)
 
@@ -259,8 +299,7 @@ class TestShSlopecMorfeo(unittest.TestCase):
         ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
                             S0=self.S0, target_device_idx=target_device_idx)
 
-        # Apply circular mask to simulate pupil
-        mask = make_mask(self.pixel_pupil, obsratio=0.0, xp=np)
+        # Apply pupilstop mask
         ef.A[:] = xp.array(mask)
 
         sh.inputs['in_ef'].set(ef)
