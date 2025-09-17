@@ -3,7 +3,7 @@
 
 #SBATCH --job-name=spSCAO                     # Descriptive job name
 #SBATCH --time=00:10:00                       # Maximum wall time (hh:mm:ss)
-#SBATCH --nodes=2                             # Number of nodes to use
+#SBATCH --nodes=1                             # Number of nodes to use
 #SBATCH --ntasks-per-node=4                   # Number of MPI tasks per node (e.g., 1 per GPU)
 #SBATCH --cpus-per-task=4                     # Number of CPU cores per task (adjust as needed)
 #SBATCH --gres=gpu:4                          # Number of GPUs per node (adjust to match hardware)
@@ -17,4 +17,4 @@ module load cuda/12.3                         # Load CUDA toolkit
 module load openmpi/4.1.6--nvhpc--23.11       # Load MPI implementation
 module load nvhpc/23.11
 
-srun --mpi=none bash -c 'specula --mpi $WORK//SPECULA/config/scao/params_scao_sh.yml $WORK/SPECULA/config/leonardo/overrides/ov_scao_leonardo.yml'
+srun --mpi=none bash -c 'specula --mpi --diagram-filename scao.png $WORK//SPECULA/config/scao/params_scao_sh.yml $WORK/SPECULA/config/leonardo/overrides/ov_scao_leonardo.yml'

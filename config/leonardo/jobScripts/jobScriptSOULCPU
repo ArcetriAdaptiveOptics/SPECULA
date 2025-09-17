@@ -16,4 +16,4 @@ module load cuda/12.3                         # Load CUDA toolkit
 module load openmpi/4.1.6--nvhpc--23.11       # Load MPI implementation
 module load nvhpc/23.11
 
-srun --mpi=none bash -c "specula --mpi $WORK/SPECULA/config/SOUL/params_pyr_soul.yml $WORK/SPECULA/config/leonardo/overrides/ov_SOUL_CPU_leonardo.yml"
+srun --mpi=none bash -c "specula --mpi --cpu --diagram-filename soulcpu.png $WORK/SPECULA/config/SOUL/params_pyr_soul.yml $WORK/SPECULA/config/leonardo/overrides/ov_SOUL_CPU_leonardo.yml"

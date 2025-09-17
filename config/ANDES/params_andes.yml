@@ -263,22 +263,22 @@ data_store:
                  'slopes-slopec.out_slopes',
                  'modes-modalrec.out_modes']
 
-sc_disp:
-  class:            'SlopecDisplay'
-  inputs:
-    slopes:       'slopec.out_slopes'
-sr_disp:
-  class:            'PlotDisplay'
-  inputs:
-    value:       'psf.out_sr'
-  title:            'SR'
-ph_disp:
-  class:            'PhaseDisplay'
-  inputs:
-    phase:       "prop.out_wfs_source_ef"
-  title:            'PUPIL PHASE'
-dm_disp:
-  class:            'PhaseDisplay'
-  inputs:
-    phase:       "dm.out_layer"
-  title:            'DM'
+#sc_disp:
+#  class:            'SlopecDisplay'
+#  inputs:
+#    slopes:       'slopec.out_slopes'
+#sr_disp:
+#  class:            'PlotDisplay'
+#  inputs:
+#    value:       'psf.out_sr'
+#  title:            'SR'
+#ph_disp:
+#  class:            'PhaseDisplay'
+#  inputs:
+#    phase:       "prop.out_wfs_source_ef"
+#  title:            'PUPIL PHASE'
+#dm_disp:
+#  class:            'PhaseDisplay'
+#  inputs:
+#    phase:       "dm.out_layer"
+#  title:            'DM'
