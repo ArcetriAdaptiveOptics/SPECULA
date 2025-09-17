@@ -150,7 +150,7 @@ class ShSlopec(Slopec):
                 if self.verbose:
                     print(f'self.weightedPixRad: {self.weightedPixRad}')
                 self.set_xy_weights()
-                
+
         if self.weight_int_pixel_dt > 0:
             self.do_accumulation(self.current_time)
 

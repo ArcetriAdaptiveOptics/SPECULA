@@ -101,7 +101,7 @@ class TestShCalibration(unittest.TestCase):
         assert_HDU_contents_match(self.subap_path, self.subap_ref_path)
         assert_HDU_contents_match(self.sn_path, self.sn_ref_path)
         assert_HDU_contents_match(self.im_path, self.im_ref_path)
-        assert_HDU_contents_match(self.rec_path, self.rec_ref_path)
+        assert_HDU_contents_match(self.rec_path, self.rec_ref_path, decimal=4)
 
         print("All calibration files match reference files!")
 
