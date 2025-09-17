@@ -57,6 +57,8 @@ class TestShSlopecMorfeo(unittest.TestCase):
         self.atmo_fov = 160  # arcsec
         self.seeing = 0.65  # arcsec
 
+        self.add_launcher = False
+
     def create_launcher(self, target_device_idx):
         """Create LaserLaunchTelescope matching MORFEO launcher1 configuration"""
         return LaserLaunchTelescope(
@@ -259,13 +261,19 @@ class TestShSlopecMorfeo(unittest.TestCase):
     def test_morfeo_lgs1_pipeline_with_3d_phase_array(self, target_device_idx, xp):
         """Test complete LGS1 pipeline with 3D phase array from disk"""
 
-        factor = 1
+        fnamei = "morfeo_lgs1_intensity_ref"
+        fnames = "morfeo_lgs1_slopes_ref"
+
+        factor = 10
         if factor != 1:
-            fnamei = "morfeo_lgs1_intensity_ref_f"+str(factor)+".fits"
-            fnames = "morfeo_lgs1_slopes_ref_f"+str(factor)+".fits"
-        else:
-            fnamei = "morfeo_lgs1_intensity_ref.fits"
-            fnames = "morfeo_lgs1_slopes_ref.fits"
+            fnamei += "_f"+str(factor)
+            fnames += "_f"+str(factor)
+        if not self.add_launcher:
+            fnamei += "_no_spots"
+            fnames += "_no_spots"
+
+        fnamei += ".fits"
+        fnames += ".fits"
 
         plot_debug = False
         if plot_debug:
@@ -279,7 +287,10 @@ class TestShSlopecMorfeo(unittest.TestCase):
         mask = pupilstop.get_value()  # Get the amplitude mask
 
         # Create LaserLaunchTelescope
-        launcher = self.create_launcher(target_device_idx)
+        if self.add_launcher:
+            launcher = self.create_launcher(target_device_idx)
+        else:
+            launcher = None
 
         # Initialize SH with MORFEO LGS1 parameters
         sh = SH(wavelengthInNm=self.wavelengthInNm,
