@@ -3,6 +3,7 @@ import numpy as np
 
 from specula import fuse
 from specula.lib.make_mask import make_mask
+from specula.lib.make_xy import make_xy
 from specula.lib.utils import unravel_index_2d
 from specula.data_objects.slopes import Slopes
 from specula.data_objects.subap_data import SubapData
@@ -104,7 +105,7 @@ class ShSlopec(Slopec):
         windowing (bool): Whether to apply windowing.
         """
         # Generate x, y coordinates
-        x, y = np.meshgrid(np.linspace(-1, 1, np_sub), np.linspace(-1, 1, np_sub))
+        x, y = make_xy(np_sub, 1.0, xp=np, dtype=self.dtype)
 
         # Compute weights in quadcell mode or otherwise
         if quadcell_mode:
