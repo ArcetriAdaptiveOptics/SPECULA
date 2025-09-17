@@ -83,20 +83,18 @@ class TestShSlopecMorfeo(unittest.TestCase):
 
     def create_simple_pupilstop(self, target_device_idx):
         """Create simple circular pupilstop for testing"""
-        from specula.data_objects.simul_params import SimulParams
-        
         simul_params = SimulParams(
             pixel_pupil=self.pixel_pupil,
             pixel_pitch=self.pixel_pitch
         )
-        
+
         # Create pupilstop with central obstruction matching EELT (obs_diam=0.283)
         pupilstop = Pupilstop(
             simul_params=simul_params,
             obs_diam=0.283,  # Central obstruction ratio
             target_device_idx=target_device_idx
         )
-        
+
         return pupilstop
 
     def load_subap_data(self, target_device_idx):
