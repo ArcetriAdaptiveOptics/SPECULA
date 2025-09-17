@@ -133,6 +133,10 @@ class TestShSlopecMorfeo(unittest.TestCase):
 
         return ref_phase_cube, ref_intensity_cube, ref_slopes_cube
 
+    @unittest.skipUnless(os.getenv('RUN_MORFEO_TEST', '0') == '1', 
+                        "Set RUN_MORFEO_TEST=1 to run this test")
+    # Example command to run this specific test:
+    # RUN_MORFEO_TEST=1 python -m pytest test_sh_slopec_morfeo.py::TestShSlopecMorfeo::test_morfeo_lgs1_pipeline_with_3d_phase_array
     @cpu_and_gpu
     def test_morfeo_lgs1_pipeline_with_3d_phase_array(self, target_device_idx, xp):
         """Test complete LGS1 pipeline with 3D phase array from reference data"""
