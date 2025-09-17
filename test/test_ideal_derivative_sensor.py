@@ -187,8 +187,14 @@ class TestIdealDerivativeSensor(unittest.TestCase):
         np.testing.assert_allclose(ideal_avg_y, 0, atol=1e-3)
 
         # For X-tilt, average X slopes should be close to the expected value
+        # Correction to ensure consistent scaling with SH
+        # make_xy (used in in the SH slope computer) has spacing 2.0/np_sub while linspace has 2.0/(np_sub-1)
+        np_sub = subapdata.np_sub
+        spacing_correction = (np_sub - 1) / np_sub
         expected_value = (ef.phaseInNm.max() - ef.phaseInNm.min()) * 1e-9 / \
-                         (ef.pixel_pitch*ef.A.shape[0]) * RAD2ASEC / (ideal_sensor.fov/2)
+                         (ef.pixel_pitch*ef.A.shape[0]) * RAD2ASEC / (ideal_sensor.fov/2) \
+                         * spacing_correction
+
         np.testing.assert_allclose(ideal_avg_x, float(expected_value), rtol=1e-2)
 
         np.testing.assert_allclose(ideal_avg_x, sh_avg_x, rtol=1e-1)
