@@ -108,7 +108,7 @@ class TestShSlopecMorfeo(unittest.TestCase):
             target_device_idx=target_device_idx
         )
 
-    def load_reference_data(self):
+    def load_reference_data(self, verbose=False):
         """Load reference phase cube, intensity and slopes from FITS files"""
         # Load reference phase cube
         phase_file = os.path.join(self.test_data_dir, 'ref_test_morfeo_phase.fits')
@@ -125,10 +125,11 @@ class TestShSlopecMorfeo(unittest.TestCase):
         with fits.open(slopes_file) as hdul:
             ref_slopes_cube = hdul[0].data.copy()
 
-        print("Loaded reference data:")
-        print(f"  Phase shape: {ref_phase_cube.shape}")
-        print(f"  Intensity shape: {ref_intensity_cube.shape}")
-        print(f"  Slopes shape: {ref_slopes_cube.shape}")
+        if verbose:
+            print("Loaded reference data:")
+            print(f"  Phase shape: {ref_phase_cube.shape}")
+            print(f"  Intensity shape: {ref_intensity_cube.shape}")
+            print(f"  Slopes shape: {ref_slopes_cube.shape}")
 
         return ref_phase_cube, ref_intensity_cube, ref_slopes_cube
 
@@ -136,12 +137,13 @@ class TestShSlopecMorfeo(unittest.TestCase):
     def test_morfeo_lgs1_pipeline_with_3d_phase_array(self, target_device_idx, xp):
         """Test complete LGS1 pipeline with 3D phase array from reference data"""
 
+        verbose = False
         plot_debug = False
         if plot_debug:
             import matplotlib.pyplot as plt
 
         # Load reference data from FITS files
-        ref_phase_cube, ref_intensity_cube, ref_slopes_cube = self.load_reference_data()
+        ref_phase_cube, ref_intensity_cube, ref_slopes_cube = self.load_reference_data(verbose=verbose)
 
         # Use the reference phase cube
         phase_cube = ref_phase_cube
@@ -245,8 +247,9 @@ class TestShSlopecMorfeo(unittest.TestCase):
             intensities.append(cpuArray(intensity.i.copy()))
             slopes_list.append(cpuArray(slopec.outputs['out_slopes'].slopes.copy()))
 
-            print(f"  Intensity sum = {np.sum(intensities[-1]):.2e}, "
-                  f"Slopes RMS = {np.std(slopes_list[-1]):.3f}")
+            if verbose:
+                print(f"  Intensity sum = {np.sum(intensities[-1]):.2e}, "
+                    f"Slopes RMS = {np.std(slopes_list[-1]):.3f}")
 
         # Convert to arrays
         intensity_cube = np.stack(intensities)
@@ -316,7 +319,6 @@ class TestShSlopecMorfeo(unittest.TestCase):
         slopes_max_ratio = slopes_max_diff / slopes_max_val
 
         # Compare with reference data
-        verbose = False
         if verbose:
             print("\nComparing with reference data...")
 
@@ -348,9 +350,10 @@ class TestShSlopecMorfeo(unittest.TestCase):
         # Test assertions with custom tolerances
 
         # (1) Max difference vs max value with different tolerances
-        print("\nMax difference tests:")
-        print(f"  Intensity max diff ratio: {intensity_max_ratio:.4f} (should be < 0.02)")
-        print(f"  Slopes max diff ratio: {slopes_max_ratio:.4f} (should be < 0.05)")
+        if verbose:
+            print("\nMax difference tests:")
+            print(f"  Intensity max diff ratio: {intensity_max_ratio:.4f} (should be < 0.02)")
+            print(f"  Slopes max diff ratio: {slopes_max_ratio:.4f} (should be < 0.05)")
 
         self.assertLess(intensity_max_ratio, 0.02,
                        f"Intensity max difference ({intensity_max_ratio:.4f}) exceeds 2% of max value")
@@ -358,13 +361,14 @@ class TestShSlopecMorfeo(unittest.TestCase):
                        f"Slopes max difference ({slopes_max_ratio:.4f}) exceeds 5% of max value")
 
         # (2) RMS vs RMS difference with different tolerances
-        print("\nRMS difference tests:")
-        print(f"  Intensity RMS diff ratio: {intensity_rms_ratio:.4f} (should be < 0.01)")
-        print(f"  Slopes RMS diff ratio: {slopes_rms_ratio:.4f} (should be < 0.002)")
+        if verbose:
+            print("\nRMS difference tests:")
+            print(f"  Intensity RMS diff ratio: {intensity_rms_ratio:.4f} (should be < 0.01)")
+            print(f"  Slopes RMS diff ratio: {slopes_rms_ratio:.4f} (should be < 0.002)")
 
         self.assertLess(intensity_rms_ratio, 0.01,
                        f"Intensity RMS difference ({intensity_rms_ratio:.4f}) exceeds 2% of reference RMS")
         self.assertLess(slopes_rms_ratio, 0.02,
                        f"Slopes RMS difference ({slopes_rms_ratio:.4f}) exceeds 2% of reference RMS")
-
-        print("OK: Successfully compared with reference data (custom tolerances)")
+        if verbose:
+            print("OK: Successfully compared with reference data (custom tolerances)")
