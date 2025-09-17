@@ -1,12 +1,12 @@
 main_override:
-  root_dir:        '/leonardo_work/try25_rossi/MORFEO_DATA0'         # Root directory for calibration manager
+  #root_dir:        '/leonardo_work/try25_rossi/MORFEO_DATA0'         # Root directory for calibration manager
   display_server:  false
 
-sh_lo_override: {target_device_idx:1, target_rank:1}
-detector_lo_override: {target_device_idx:1, target_rank:1}
-slopec_lo_override: {target_device_idx:1, target_rank:1}
-modalrec_truth_override: {target_device_idx:1, target_rank:1}
+sh_lo_override: {target_device_idx : 1, target_rank : 1}
+detector_lo_override: {target_device_idx : 1, target_rank : 1}
+slopec_lo_override: {target_device_idx : 1, target_rank : 1}
+modalrec_truth_override: {target_device_idx : 1, target_rank : 1}
 
-modalrec_lo_override: {target_device_idx:1, target_rank:1}
-integrator_truth_override: {target_device_idx:1, target_rank:1}
-integrator_lo_override: {target_device_idx:1, target_rank:1}
+modalrec_lo_override: {target_device_idx : 1, target_rank : 1}
+integrator_truth_override: {target_device_idx : 1, target_rank : 1}
+integrator_lo_override: {target_device_idx : 1, target_rank : 1}
