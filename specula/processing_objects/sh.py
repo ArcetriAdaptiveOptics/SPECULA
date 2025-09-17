@@ -367,6 +367,7 @@ class SH(BaseProcessingObj):
 
                 if self._debugOutput:
                     # compare input and extrapolated phase
+                    phase_in_nm = self.in_ef.phaseInNm * (self.in_ef.A >= 1e-3).astype(int)
                     import matplotlib.pyplot as plt
                     plt.figure(figsize=(20, 5))
                     plt.subplot(1, 4, 1)
