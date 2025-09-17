@@ -294,6 +294,27 @@ class TestShSlopecMorfeo(unittest.TestCase):
             plt.tight_layout()
             plt.show()
 
+        # Calculate RMS
+        intensity_rms = np.sqrt(np.mean(intensity_cube**2))
+        ref_intensity_rms = np.sqrt(np.mean(ref_intensity_cube**2))
+        intensity_diff_rms = np.sqrt(np.mean((intensity_cube - ref_intensity_cube)**2))
+
+        slopes_rms = np.sqrt(np.mean(slopes_cube**2))
+        ref_slopes_rms = np.sqrt(np.mean(ref_slopes_cube**2))
+        slopes_diff_rms = np.sqrt(np.mean((slopes_cube - ref_slopes_cube)**2))
+
+        intensity_rms_ratio = intensity_diff_rms / ref_intensity_rms
+        slopes_rms_ratio = slopes_diff_rms / ref_slopes_rms
+
+        # Calculate max
+        intensity_max_val = np.max(ref_intensity_cube)
+        intensity_max_diff = np.max(np.abs(intensity_cube - ref_intensity_cube))
+        intensity_max_ratio = intensity_max_diff / intensity_max_val
+
+        slopes_max_val = np.max(np.abs(ref_slopes_cube))
+        slopes_max_diff = np.max(np.abs(slopes_cube - ref_slopes_cube))
+        slopes_max_ratio = slopes_max_diff / slopes_max_val
+
         # Compare with reference data
         verbose = False
         if verbose:
@@ -306,11 +327,6 @@ class TestShSlopecMorfeo(unittest.TestCase):
             print(f"  Reference sum: {np.sum(ref_intensity_cube):.2e}")
             print(f"  Difference sum (with absolute values): {np.sum(np.abs(intensity_cube - ref_intensity_cube)):.2e}")
 
-            # Calculate RMS (not std)
-            intensity_rms = np.sqrt(np.mean(intensity_cube**2))
-            ref_intensity_rms = np.sqrt(np.mean(ref_intensity_cube**2))
-            intensity_diff_rms = np.sqrt(np.mean((intensity_cube - ref_intensity_cube)**2))
-
             print(f"  Current RMS: {intensity_rms:.6f}")
             print(f"  Reference RMS: {ref_intensity_rms:.6f}")
             print(f"  Difference RMS: {intensity_diff_rms:.6f}")
@@ -322,11 +338,6 @@ class TestShSlopecMorfeo(unittest.TestCase):
             print(f"  Current shape: {slopes_cube.shape}")
             print(f"  Reference shape: {ref_slopes_cube.shape}")
 
-            # Calculate RMS (not std)
-            slopes_rms = np.sqrt(np.mean(slopes_cube**2))
-            ref_slopes_rms = np.sqrt(np.mean(ref_slopes_cube**2))
-            slopes_diff_rms = np.sqrt(np.mean((slopes_cube - ref_slopes_cube)**2))
-
             print(f"  Current RMS: {slopes_rms:.6f}")
             print(f"  Reference RMS: {ref_slopes_rms:.6f}")
             print(f"  Difference RMS: {slopes_diff_rms:.6f}")
@@ -337,14 +348,6 @@ class TestShSlopecMorfeo(unittest.TestCase):
         # Test assertions with custom tolerances
 
         # (1) Max difference vs max value with different tolerances
-        intensity_max_diff = np.max(np.abs(intensity_cube - ref_intensity_cube))
-        intensity_max_val = np.max(ref_intensity_cube)
-        intensity_max_ratio = intensity_max_diff / intensity_max_val
-
-        slopes_max_diff = np.max(np.abs(slopes_cube - ref_slopes_cube))
-        slopes_max_val = np.max(np.abs(ref_slopes_cube))
-        slopes_max_ratio = slopes_max_diff / slopes_max_val
-
         print("\nMax difference tests:")
         print(f"  Intensity max diff ratio: {intensity_max_ratio:.4f} (should be < 0.02)")
         print(f"  Slopes max diff ratio: {slopes_max_ratio:.4f} (should be < 0.05)")
@@ -355,9 +358,6 @@ class TestShSlopecMorfeo(unittest.TestCase):
                        f"Slopes max difference ({slopes_max_ratio:.4f}) exceeds 5% of max value")
 
         # (2) RMS vs RMS difference with different tolerances
-        intensity_rms_ratio = intensity_diff_rms / ref_intensity_rms
-        slopes_rms_ratio = slopes_diff_rms / ref_slopes_rms
-
         print("\nRMS difference tests:")
         print(f"  Intensity RMS diff ratio: {intensity_rms_ratio:.4f} (should be < 0.01)")
         print(f"  Slopes RMS diff ratio: {slopes_rms_ratio:.4f} (should be < 0.002)")
