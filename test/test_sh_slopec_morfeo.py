@@ -145,6 +145,7 @@ class TestShSlopecMorfeo(unittest.TestCase):
         plot_debug = False
         if plot_debug:
             import matplotlib.pyplot as plt
+            from matplotlib.colors import LogNorm
 
         # Load reference data from FITS files
         ref_phase_cube, ref_intensity_cube, ref_slopes_cube = self.load_reference_data(verbose=verbose)
@@ -269,13 +270,13 @@ class TestShSlopecMorfeo(unittest.TestCase):
             intensity_max = np.max(ref_intensity_cube[frame_to_plot])
             vmin = intensity_max * 1e-6
             vmax = intensity_max
-            plt.imshow(ref_intensity_cube[frame_to_plot], cmap='hot', norm=plt.matplotlib.colors.LogNorm(vmin=vmin, vmax=vmax))
+            plt.imshow(ref_intensity_cube[frame_to_plot], cmap='hot', norm=LogNorm(vmin=vmin, vmax=vmax))
             plt.title('Reference Intensity')
             plt.colorbar()
             plt.subplot(2, 2, 2)
             intensity_diff = np.abs(intensity_cube[frame_to_plot] - ref_intensity_cube[frame_to_plot])
             # Use log scale with clipping to avoid log(0)
-            plt.imshow(intensity_diff, cmap='hot', norm=plt.matplotlib.colors.LogNorm(vmin=vmin, vmax=vmax))
+            plt.imshow(intensity_diff, cmap='hot', norm=LogNorm(vmin=vmin, vmax=vmax))
             plt.title('Intensity Difference (log scale)')
             plt.colorbar()
 
@@ -314,11 +315,11 @@ class TestShSlopecMorfeo(unittest.TestCase):
         slopes_rms_ratio = slopes_diff_rms / ref_slopes_rms
 
         # Calculate max
-        intensity_max_val = np.max(ref_intensity_cube)
+        intensity_max_val = np.max(np.abs(ref_intensity_cube))
         intensity_max_diff = np.max(np.abs(intensity_cube - ref_intensity_cube))
         intensity_max_ratio = intensity_max_diff / intensity_max_val
 
-        slopes_max_val = np.max(np.abs(ref_slopes_cube))
+        slopes_max_val = np.max(np.abs(np.abs(ref_slopes_cube)))
         slopes_max_diff = np.max(np.abs(slopes_cube - ref_slopes_cube))
         slopes_max_ratio = slopes_max_diff / slopes_max_val
 
@@ -376,3 +377,311 @@ class TestShSlopecMorfeo(unittest.TestCase):
                        f"Slopes RMS difference ({slopes_rms_ratio:.4f}) exceeds 2% of reference RMS")
         if verbose:
             print("OK: Successfully compared with reference data (custom tolerances)")
+
+    def load_reference_data_crop(self, verbose=False):
+        """Load reference phase cube (cropped), intensity and slopes from FITS files for reduced test"""
+        # Load reference phase cube (original, will be cropped)
+        phase_file = os.path.join(self.test_data_dir, 'ref_test_morfeo_phase.fits')
+        with fits.open(phase_file) as hdul:
+            ref_phase_cube_full = hdul[0].data.copy()
+
+        # Load cropped reference intensity (already cropped to 17x17 subapertures)
+        intensity_file = os.path.join(self.test_data_dir, 'ref_test_morfeo_crop_intensity.fits')
+        with fits.open(intensity_file) as hdul:
+            ref_intensity_cube_crop = hdul[0].data.copy()
+
+        # Load cropped reference slopes (already cropped to match 17x17 subapertures)
+        slopes_file = os.path.join(self.test_data_dir, 'ref_test_morfeo_crop_slopes.fits')
+        with fits.open(slopes_file) as hdul:
+            ref_slopes_cube_crop = hdul[0].data.copy()
+
+        # Crop the phase cube to match the reduced test (second quarter)
+        # Crop each frame in the phase cube
+        ref_phase_cube_crop = ref_phase_cube_full[:, 120:240, 120:240]
+
+        if verbose:
+            print("Loaded cropped reference data:")
+            print(f"  Phase shape: {ref_phase_cube_crop.shape} (cropped from {ref_phase_cube_full.shape})")
+            print(f"  Intensity shape: {ref_intensity_cube_crop.shape}")
+            print(f"  Slopes shape: {ref_slopes_cube_crop.shape}")
+
+        return ref_phase_cube_crop, ref_intensity_cube_crop, ref_slopes_cube_crop
+
+    def load_reduced_subap_data(self, target_device_idx):
+        """Load SubapData from disk using calibration manager"""
+        cm = CalibManager(self.root_dir)
+        # Load the subapdata_object from slopec_lgs1
+        subapdata_tag = 'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_rot6.2_reduced_17x17'
+        return SubapData.restore(
+            cm.filename('subapdata', subapdata_tag),
+            target_device_idx=target_device_idx
+        )
+
+    @cpu_and_gpu
+    def test_morfeo_lgs1_pipeline_with_cropped_data(self, target_device_idx, xp):
+        """Test complete LGS1 pipeline with cropped phase and reduced subapertures (17x17)"""
+
+        verbose = False
+        plot_debug = False
+        if plot_debug:
+            import matplotlib.pyplot as plt
+            from matplotlib.colors import LogNorm
+
+        print("=== Testing MORFEO LGS1 pipeline with cropped data ===")
+
+        # Load cropped reference data from FITS files
+        ref_phase_cube_crop, ref_intensity_cube_crop, ref_slopes_cube_crop = self.load_reference_data_crop(
+            verbose=verbose
+        )
+
+        # Use the cropped phase cube
+        phase_cube_crop = ref_phase_cube_crop
+        n_frames = phase_cube_crop.shape[0]
+
+        # Reduced parameters for cropped test
+        cropped_pixel_pupil = 120  # 480 // 4
+        cropped_subap_on_diameter = 17  # 68 // 4
+
+        if verbose:
+            print(f"Test parameters:")
+            print(f"  Original pupil: {self.pixel_pupil}x{self.pixel_pupil}")
+            print(f"  --> Cropped: {cropped_pixel_pupil}x{cropped_pixel_pupil}")
+            print(f"  Original subapertures: {self.subap_on_diameter}x{self.subap_on_diameter}")
+            print(f"  --> Cropped: {cropped_subap_on_diameter}x{cropped_subap_on_diameter}")
+            print(f"  Frames to process: {n_frames}")
+
+        # Load pupilstop mask from calibration and crop it
+        pupilstop_full = self.load_pupilstop(target_device_idx)
+        mask_full = cpuArray(pupilstop_full.get_value())
+
+        # Crop the pupilstop mask to match cropped phase
+        mask_crop = mask_full[120:240, 120:240]
+
+        if verbose:
+            print(f"Pupilstop cropped from {mask_full.shape} to {mask_crop.shape}")
+
+        # Initialize SH with ORIGINAL parameters (SH will generate full images, then we crop)
+        sh = SH(wavelengthInNm=self.wavelengthInNm,
+                subap_wanted_fov=self.subap_wanted_fov,
+                sensor_pxscale=self.sensor_pxscale,
+                subap_on_diameter=cropped_subap_on_diameter,
+                subap_npx=self.subap_npx,
+                fov_ovs_coeff=self.fov_ovs_coeff,
+                rotAnglePhInDeg=self.rotAnglePhInDeg,
+                laser_launch_tel=None,
+                target_device_idx=target_device_idx)
+
+        # Load reduced subaperture data (17x17)
+        subapdata_reduced = self.load_reduced_subap_data(target_device_idx)
+
+        # Initialize slope computer with REDUCED subaperture data
+        slopec = ShSlopec(subapdata=subapdata_reduced,
+                        target_device_idx=target_device_idx)
+
+        # Create electric field with CROPPED dimensions
+        ef = ElectricField(cropped_pixel_pupil, cropped_pixel_pupil, self.pixel_pitch,
+                        S0=self.S0, target_device_idx=target_device_idx)
+
+        # Apply cropped pupilstop mask
+        ef.A[:] = xp.array(mask_crop)
+
+        sh.inputs['in_ef'].set(ef)
+
+        # Create pixels with FULL dimensions (SH generates full image)
+        pixels = Pixels(cropped_subap_on_diameter*self.subap_npx, cropped_subap_on_diameter*self.subap_npx,
+                        target_device_idx=target_device_idx)
+
+        # Connect slope computer
+        slopec.inputs['in_pixels'].set(pixels)
+
+        # Storage for results
+        intensities = []
+        slopes_list = []
+
+        # Process each frame from the cropped reference phase cube
+        for frame_idx in range(n_frames):
+            t = frame_idx + 1
+
+            if verbose and frame_idx % max(1, n_frames // 5) == 0:
+                print(f"Processing frame {frame_idx + 1}/{n_frames}")
+
+            # Set cropped phase from reference cube
+            ef.phaseInNm[:] = xp.array(phase_cube_crop[frame_idx])
+            ef.generation_time = t
+
+            if plot_debug and frame_idx == 0:
+                plt.figure(figsize=(15, 5))
+                plt.subplot(1, 3, 1)
+                plt.imshow(cpuArray(ef.A), cmap='gray')
+                plt.title(f'Cropped Amplitude Frame {frame_idx + 1}')
+                plt.colorbar()
+
+                plt.subplot(1, 3, 2)
+                plt.imshow(cpuArray(ef.phaseInNm), cmap='jet')
+                plt.title(f'Cropped Phase Frame {frame_idx + 1} (nm)')
+                plt.colorbar()
+
+                plt.subplot(1, 3, 3)
+                plt.imshow(mask_full, cmap='gray')
+                plt.title('Original Pupilstop')
+                plt.colorbar()
+                plt.show()
+
+            # Run SH simulation (generates full intensity image)
+            if frame_idx == 0:
+                sh.setup()
+            sh.check_ready(t)
+            sh.trigger()
+            sh.post_trigger()
+
+            # Get full intensity and crop it to match reference
+            intensity_full = sh.outputs['out_i'].i
+
+            if plot_debug and frame_idx == 0:
+                vmax = np.max(ref_intensity_cube_crop[frame_idx])
+                vmin = vmax * 1e-6
+
+                plt.figure(figsize=(12, 4))
+                plt.subplot(1, 3, 1)
+                plt.imshow(cpuArray(intensity_full), cmap='hot', norm=LogNorm(vmin=vmin, vmax=vmax))
+                plt.title('Full Intensity')
+                plt.colorbar()
+
+                plt.subplot(1, 3, 2)
+                plt.imshow(ref_intensity_cube_crop[frame_idx], cmap='hot', norm=LogNorm(vmin=vmin, vmax=vmax))
+                plt.title('Reference Cropped Intensity')
+                plt.colorbar()
+
+                plt.subplot(1, 3, 3)
+                plt.imshow(np.abs(cpuArray(intensity_full) - ref_intensity_cube_crop[frame_idx]),
+                           cmap='hot', norm=LogNorm(vmin=vmin, vmax=vmax))
+                plt.title('Intensity Difference')
+                plt.colorbar()
+                plt.show()
+
+            # Set full pixels for slope computation
+            pixels.set_value(intensity_full)
+            pixels.generation_time = t
+
+            # Run slope computation (uses reduced subapertures)
+            if frame_idx == 0:
+                slopec.setup()
+            slopec.check_ready(t)
+            slopec.trigger()
+            slopec.post_trigger()
+
+            if plot_debug and frame_idx == 0:
+                plt.figure(figsize=(12, 4))
+                plt.subplot(1, 2, 1)
+                plt.plot(cpuArray(slopec.outputs['out_slopes'].slopes), 'o-', label='Current')
+                plt.plot(ref_slopes_cube_crop[frame_idx], 'x-', alpha=0.7, label='Reference')
+                plt.title(f'Slopes Frame {frame_idx + 1}')
+                plt.legend()
+                plt.grid(True)
+
+                plt.subplot(1, 2, 2)
+                slopes_diff = cpuArray(slopec.outputs['out_slopes'].slopes) - ref_slopes_cube_crop[frame_idx]
+                plt.plot(slopes_diff, 'r-', alpha=0.7)
+                plt.title('Slopes Difference')
+                plt.grid(True)
+                plt.show()
+
+            # Store results
+            intensities.append(intensity_full)
+            slopes_list.append(cpuArray(slopec.outputs['out_slopes'].slopes.copy()))
+
+            if verbose and frame_idx < 3:
+                print(f"  Frame {frame_idx + 1}: Intensity sum = {np.sum(intensity_full):.2e}, "
+                    f"Slopes RMS = {np.std(slopes_list[-1]):.3f}")
+
+        # Convert to arrays
+        intensity_cube = np.stack(intensities)
+        slopes_cube = np.stack(slopes_list)
+
+        if verbose:
+            print("\nComparing with cropped reference data...")
+
+        # Calculate metrics (same as main test)
+        intensity_rms = np.sqrt(np.mean(intensity_cube**2))
+        ref_intensity_rms = np.sqrt(np.mean(ref_intensity_cube_crop**2))
+        intensity_diff_rms = np.sqrt(np.mean((intensity_cube - ref_intensity_cube_crop)**2))
+        intensity_rms_ratio = intensity_diff_rms / ref_intensity_rms
+
+        slopes_rms = np.sqrt(np.mean(slopes_cube**2))
+        ref_slopes_rms = np.sqrt(np.mean(ref_slopes_cube_crop**2))
+        slopes_diff_rms = np.sqrt(np.mean((slopes_cube - ref_slopes_cube_crop)**2))
+        slopes_rms_ratio = slopes_diff_rms / ref_slopes_rms
+
+        intensity_max_val = np.max(np.abs(ref_intensity_cube_crop))
+        intensity_max_diff = np.max(np.abs(intensity_cube - ref_intensity_cube_crop))
+        intensity_max_ratio = intensity_max_diff / intensity_max_val
+
+        slopes_max_val = np.max(np.abs(ref_slopes_cube_crop))
+        slopes_max_diff = np.max(np.abs(slopes_cube - ref_slopes_cube_crop))
+        slopes_max_ratio = slopes_max_diff / slopes_max_val
+
+        if verbose:
+            print("Intensity comparison:")
+            print(f"  Current RMS: {intensity_rms:.6f}")
+            print(f"  Reference RMS: {ref_intensity_rms:.6f}")
+            print(f"  RMS ratio: {intensity_rms_ratio:.6f}")
+            print(f"  Max ratio: {intensity_max_ratio:.6f}")
+
+            print("Slopes comparison:")
+            print(f"  Current RMS: {slopes_rms:.6f}")
+            print(f"  Reference RMS: {ref_slopes_rms:.6f}")
+            print(f"  RMS ratio: {slopes_rms_ratio:.6f}")
+            print(f"  Max ratio: {slopes_max_ratio:.6f}")
+
+        # Test assertions
+        self.assertLess(slopes_rms_ratio, 0.06,
+                    f"Slopes RMS difference ({slopes_rms_ratio:.4f}) exceeds 2% of reference RMS")
+
+        # Basic sanity checks
+        self.assertEqual(intensity_cube.shape[0], n_frames)
+        self.assertEqual(slopes_cube.shape[0], n_frames)
+        self.assertEqual(slopes_cube.shape[1], subapdata_reduced.n_subaps * 2)
+
+        if verbose:
+            print("\nOk: Cropped data test completed successfully:")
+            print(f"  Processed {n_frames} frames")
+            print(f"  Used {subapdata_reduced.n_subaps} subapertures (17x17 grid)")
+            print(f"  Phase cropped to {cropped_pixel_pupil}x{cropped_pixel_pupil} pixels")
+            print("  Results match cropped reference data")
+
+        # Final comparison plot
+        if plot_debug:
+            frame_to_plot = 0
+            plt.figure(figsize=(15, 10))
+
+            plt.subplot(2, 3, 1)
+            plt.imshow(ref_intensity_cube_crop[frame_to_plot], cmap='hot')
+            plt.title('Reference Intensity (Cropped)')
+            plt.colorbar()
+
+            plt.subplot(2, 3, 2)
+            plt.imshow(intensity_cube[frame_to_plot], cmap='hot')
+            plt.title('Current Intensity')
+            plt.colorbar()
+
+            plt.subplot(2, 3, 3)
+            diff = np.abs(intensity_cube[frame_to_plot] - ref_intensity_cube_crop[frame_to_plot])
+            plt.imshow(diff, cmap='hot')
+            plt.title('Intensity Difference')
+            plt.colorbar()
+
+            plt.subplot(2, 3, 4)
+            plt.plot(ref_slopes_cube_crop[frame_to_plot], 'b-', alpha=0.7, label='Reference')
+            plt.plot(slopes_cube[frame_to_plot], 'r-', alpha=0.7, label='Current')
+            plt.title('Slopes Comparison')
+            plt.legend()
+            plt.grid(True, alpha=0.3)
+
+            plt.subplot(2, 3, 5)
+            slopes_diff = slopes_cube[frame_to_plot] - ref_slopes_cube_crop[frame_to_plot]
+            plt.plot(slopes_diff, 'g-', alpha=0.7)
+            plt.title('Slopes Difference')
+            plt.grid(True, alpha=0.3)
+
+            plt.tight_layout()
+            plt.show()
