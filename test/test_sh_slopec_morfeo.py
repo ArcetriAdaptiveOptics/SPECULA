@@ -587,11 +587,11 @@ class TestShSlopecMorfeo(unittest.TestCase):
                 plt.show()
 
             # Store results
-            intensities.append(intensity_full)
+            intensities.append(cpuArray(intensity_full))
             slopes_list.append(cpuArray(slopec.outputs['out_slopes'].slopes.copy()))
 
             if verbose and frame_idx < 3:
-                print(f"  Frame {frame_idx + 1}: Intensity sum = {np.sum(intensity_full):.2e}, "
+                print(f"  Frame {frame_idx + 1}: Intensity sum = {np.sum(intensities[-1]):.2e}, "
                     f"Slopes RMS = {np.std(slopes_list[-1]):.3f}")
 
         # Convert to arrays
