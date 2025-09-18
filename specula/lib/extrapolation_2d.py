@@ -2,12 +2,13 @@ import numpy as np
 from scipy.ndimage import binary_dilation
 from specula import cpuArray
 
-def calculate_extrapolation_indices_coeffs(mask):
+def calculate_extrapolation_indices_coeffs(mask, threshold=1e-3):
     """
     Calculates indices and coefficients for extrapolating edge pixels of a mask.
 
     Parameters:
         mask (ndarray): Binary mask (True/1 inside, False/0 outside).
+        threshold (float): Threshold below which values are considered 0/False.
 
     Returns:
         tuple: (edge_pixels, reference_indices, coefficients)
@@ -16,8 +17,8 @@ def calculate_extrapolation_indices_coeffs(mask):
             - coefficients: Coefficients for linear extrapolation.
     """
 
-    # Convert the mask to boolean
-    binary_mask = cpuArray(mask).astype(bool)
+    # Convert the mask to boolean with threshold
+    binary_mask = cpuArray(mask) >= threshold
 
     # Identify edge pixels (outside but adjacent to the mask) using binary dilation
     dilated_mask = binary_dilation(binary_mask)
