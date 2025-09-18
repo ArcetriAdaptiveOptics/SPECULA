@@ -182,6 +182,84 @@ class TestModulatedPyramid(unittest.TestCase):
                         f"ttexp shape {pyramid.ttexp.shape} doesn't match expected {expected_ttexp_shape}")
 
     @cpu_and_gpu
+    def test_zero_modulation_large_fov(self, target_device_idx, xp):
+        """Test ModulatedPyramid with zero modulation amplitude and large FOV"""
+        
+        # Test parameters
+        t = 1
+        pixel_pupil = 120
+        pixel_pitch = 0.05
+        wavelength_nm = 500
+        fov = 6.0
+        pup_diam = 30
+        output_resolution = 80
+        mod_amp = 0.0
+        ref_S0 = 100
+
+        # Create simulation parameters
+        simul_params = SimulParams(
+            pixel_pupil=pixel_pupil,
+            pixel_pitch=pixel_pitch
+        )
+
+        # Create ModulatedPyramid sensor with circular modulation
+        pyramid = ModulatedPyramid(
+            simul_params=simul_params,
+            wavelengthInNm=wavelength_nm,
+            fov=fov,
+            pup_diam=pup_diam,
+            output_resolution=output_resolution,
+            mod_amp=mod_amp,
+            mod_type='circular',
+            target_device_idx=target_device_idx
+        )
+
+        # fp_masking must be < 1 to avoid errors
+        self.assertLess(pyramid.fp_masking, 1.0,
+                       f"fp_masking is {pyramid.fp_masking}, must be < 1")
+
+        # Create flat wavefront (no phase)
+        ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=ref_S0, target_device_idx=target_device_idx)
+        ef.A = make_mask(pixel_pupil)
+        ef.generation_time = t
+
+        # Connect input
+        pyramid.inputs['in_ef'].set(ef)
+
+        # Setup and run
+        pyramid.setup()
+        pyramid.check_ready(t)
+        pyramid.trigger()
+        pyramid.post_trigger()
+
+        # Get output intensity
+        intensity = pyramid.outputs['out_i']
+
+        plot_debug = False
+        if plot_debug:
+            import matplotlib.pyplot as plt
+            plt.figure(figsize=[4,4])
+            plt.imshow(xp.real(pyramid.ttexp[0, 0, :, :]), cmap='gray')
+            plt.title("TTExp for Zero Modulation")
+            plt.figure()
+            plt.imshow(intensity.i)
+            plt.title("Intensity for Zero Modulation")
+            plt.show()
+
+        # Test 1: Check output dimensions
+        expected_shape = (output_resolution, output_resolution)
+        self.assertEqual(intensity.i.shape, expected_shape,
+                        f"Output intensity shape {intensity.i.shape} doesn't match expected {expected_shape}")
+
+        # Test 2: Check that output is positive (intensities should be non-negative)
+        self.assertTrue(xp.all(intensity.i >= 0), "Intensity values should be non-negative")
+
+        # Test 3: Check ttexp dimensions
+        expected_ttexp_shape = (1, 1, pyramid.tilt_x.shape[0], pyramid.tilt_x.shape[1])
+        self.assertEqual(pyramid.ttexp.shape, expected_ttexp_shape,
+                        f"ttexp shape {pyramid.ttexp.shape} doesn't match expected {expected_ttexp_shape}")
+
+    @cpu_and_gpu
     def test_vertical_modulation(self, target_device_idx, xp):
         """Test vertical modulation type"""
 

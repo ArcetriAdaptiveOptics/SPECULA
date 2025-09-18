@@ -89,6 +89,7 @@ class SH(BaseProcessingObj):
         self._coefficients = None
         self._valid_indices = None
         self._amplitude_is_binary = None
+        self._mask_threshold = 1e-3  # threshold to consider a pixel inside the mask
 
         # TODO these are fixed but should become parameters
         self._fov_ovs = 1
@@ -329,7 +330,7 @@ class SH(BaseProcessingObj):
             # Compute once indices and coefficients
             # This considering the input amplitude is not changing during the simulation
             self._edge_pixels, self._reference_indices, self._coefficients, self._valid_indices = calculate_extrapolation_indices_coeffs(
-                cpuArray(self.in_ef.A)
+                cpuArray(self.in_ef.A), threshold=self._mask_threshold
             )
 
             # convert to xp
@@ -354,7 +355,8 @@ class SH(BaseProcessingObj):
         with show_in_profiler('interpolation'):
 
             if self._do_interpolation:
-                self.phase_extrapolated[:] = self.in_ef.phaseInNm * (self.in_ef.A >= 1e-3).astype(int)
+                self.phase_extrapolated[:] = self.in_ef.phaseInNm * \
+                            (self.in_ef.A >= self._mask_threshold).astype(int)
                 _ = apply_extrapolation(
                     self.in_ef.phaseInNm,
                     self._edge_pixels,

@@ -79,7 +79,7 @@ class ModulatedPyramid(BaseProcessingObj):
 
         wavelengthInNm = result['wavelengthInNm']
         fov_res = result['fov_res']
-        fp_masking = result['fp_masking']
+        self.fp_masking = result['fp_masking']
         fft_res = result['fft_res']
         tilt_scale = result['tilt_scale']
         fft_sampling = result['fft_sampling']
@@ -120,7 +120,8 @@ class ModulatedPyramid(BaseProcessingObj):
         self.pup_shift_interp = None
         self._do_pup_shift = False
         self._pup_pyr_interpolated = None
-
+        self._amplitude_is_binary = None
+        self._mask_threshold = 1e-3  # threshold to consider a pixel inside the mask
 
         # Store modulation type
         valid_mod_types = ['circular', 'vertical', 'horizontal', 'alternating']
@@ -175,7 +176,7 @@ class ModulatedPyramid(BaseProcessingObj):
         self.pyr_tlt = self.get_pyr_tlt(fft_sampling, fft_padding)
         self.tlt_f = self.get_tlt_f(fft_sampling, fft_padding)
         self.tilt_x, self.tilt_y = self.get_modulation_tilts(fft_sampling)
-        self.fp_mask = self.get_fp_mask(fft_totsize, fp_masking, obsratio=fp_obsratio)
+        self.fp_mask = self.get_fp_mask(fft_totsize, self.fp_masking, obsratio=fp_obsratio)
 
         iu = 1j  # complex unit
         myexp = self.xp.exp(-2 * self.xp.pi * iu * self.pyr_tlt, dtype=self.complex_dtype)
@@ -249,6 +250,9 @@ class ModulatedPyramid(BaseProcessingObj):
             print(f"Interpolated FoV (arcsec): {Fov_internal:.2f}")
             print(f"Warning: reaching the requested FoV requires {fov_res}x interpolation of input phase array.")
             print("Consider revising the input phase dimension and/or pitch to improve performance.")
+
+        if fov_res > 1:
+            Fov_internal *= fov_res
 
         fp_masking = FoV / Fov_internal
 
@@ -504,7 +508,9 @@ class ModulatedPyramid(BaseProcessingObj):
                 (self._edge_pixels,
                 self._reference_indices,
                 self._coefficients,
-                self._valid_indices) = calculate_extrapolation_indices_coeffs(cpuArray(in_ef.A))
+                self._valid_indices) = calculate_extrapolation_indices_coeffs(
+                    cpuArray(in_ef.A), threshold=self._mask_threshold
+                )
 
                 # convert to xp
                 self._edge_pixels = self.to_xp(self._edge_pixels)
@@ -512,7 +518,20 @@ class ModulatedPyramid(BaseProcessingObj):
                 self._coefficients = self.to_xp(self._coefficients)
                 self._valid_indices = self.to_xp(self._valid_indices)
 
-            self.phase_extrapolated[:] = in_ef.phaseInNm * (in_ef.A >= 1e-3).astype(int)
+                # Check if input amplitude is binary (all values close to 0 or 1) with tolerance
+                unique_values = self.xp.unique(in_ef.A)
+                tol = 1e-3
+                is_binary = self.xp.all(
+                    self.xp.logical_or(
+                        self.xp.abs(unique_values - 0) < tol,
+                        self.xp.abs(unique_values - 1) < tol
+                    )
+                )
+
+                self._amplitude_is_binary = is_binary
+
+            self.phase_extrapolated[:] = in_ef.phaseInNm * \
+                (in_ef.A >= self._mask_threshold).astype(int)
             _ = apply_extrapolation(
                 in_ef.phaseInNm,
                 self._edge_pixels,
@@ -525,6 +544,11 @@ class ModulatedPyramid(BaseProcessingObj):
 
             # Interpolate amplitude and phase separately
             self.interp.interpolate(in_ef.A, out=self._wf_interpolated.A)
+
+            # Apply binary threshold if input amplitude was binary
+            if self._amplitude_is_binary:
+                self._wf_interpolated.A[:] = (self._wf_interpolated.A > 0.5).astype(self.dtype)
+
             self.interp.interpolate(self.phase_extrapolated, out=self._wf_interpolated.phaseInNm)
 
             # Copy other properties

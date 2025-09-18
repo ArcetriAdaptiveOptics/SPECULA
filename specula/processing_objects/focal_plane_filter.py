@@ -35,6 +35,8 @@ class FocalPlaneFilter(BaseProcessingObj):
         self._reference_indices = None
         self._coefficients = None
         self._valid_indices = None
+        self._amplitude_is_binary = None
+        self._mask_threshold = 1e-3  # threshold to consider a pixel inside the mask
 
         result = self.calc_geometry(self.pixel_pupil,
                                     self.pixel_pitch,
@@ -114,15 +116,30 @@ class FocalPlaneFilter(BaseProcessingObj):
                 (self._edge_pixels,
                 self._reference_indices,
                 self._coefficients,
-                self._valid_indices) = calculate_extrapolation_indices_coeffs(cpuArray(in_ef.A))
+                self._valid_indices) = calculate_extrapolation_indices_coeffs(
+                    cpuArray(in_ef.A), threshold=self._mask_threshold
+                )
 
                 # convert to xp
                 self._edge_pixels = self.to_xp(self._edge_pixels)
                 self._reference_indices = self.to_xp(self._reference_indices)
                 self._coefficients = self.to_xp(self._coefficients)
                 self._valid_indices = self.to_xp(self._valid_indices)
+                
+                # Check if input amplitude is binary (all values close to 0 or 1) with tolerance
+                unique_values = self.xp.unique(in_ef.A)
+                tol = 1e-3
+                is_binary = self.xp.all(
+                    self.xp.logical_or(
+                        self.xp.abs(unique_values - 0) < tol,
+                        self.xp.abs(unique_values - 1) < tol
+                    )
+                )
 
-            self.phase_extrapolated[:] = in_ef.phaseInNm * (in_ef.A >= 1e-3).astype(int)
+                self._amplitude_is_binary = is_binary
+
+            self.phase_extrapolated[:] = in_ef.phaseInNm * \
+                (in_ef.A >= self._mask_threshold).astype(int)
             _ = apply_extrapolation(
                 in_ef.phaseInNm,
                 self._edge_pixels,
@@ -135,6 +152,11 @@ class FocalPlaneFilter(BaseProcessingObj):
 
             # Interpolate amplitude and phase separately
             self.interp.interpolate(in_ef.A, out=self._wf_interpolated.A)
+            
+            # Apply binary threshold if input amplitude was binary
+            if self._amplitude_is_binary:
+                self._wf_interpolated.A[:] = (self._wf_interpolated.A > 0.5).astype(self.dtype)
+
             self.interp.interpolate(self.phase_extrapolated, out=self._wf_interpolated.phaseInNm)
 
             # Copy other properties
