@@ -100,7 +100,7 @@ To install these libraries, first install pkg-config and cairo with conda:
 
 .. code-block:: bash
 
-   # Install CuPy for GPU acceleration
+   # Install dependencies for optional diagramming tools
    conda install -c conda-forge pkg-config cairo
 
 and then install orthogram with pip.
