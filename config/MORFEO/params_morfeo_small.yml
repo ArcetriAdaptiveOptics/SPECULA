@@ -269,7 +269,7 @@ tomo_polc_lgs:
   class:              'Modalrec'
   recmat_object:      '20240606_200110.0/recmat'
   projmat_object:     'p20250519_195705.0/projmatAll.fits'
-  intmat_object:      '20250325_000000.0/intmat.fits'
+  intmat_object:      '20250911_000003.0/intmat.fits'
   polc:   true
   input_modes_slice:  [0, 6258]
   in_commands_size:   6269

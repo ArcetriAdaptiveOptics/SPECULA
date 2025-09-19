@@ -351,7 +351,7 @@ tomo_polc_lgs:
   class:              'Modalrec'
   recmat_object:      '20240606_200110.0/recmat' # 35015 modes, Tallon, focus filtered
   projmat_object:     'p20240607_025755.0/projmatAll' # 6564x35015 modes
-  intmat_object:      '20250911_000000.0/intmat' # 6564 modes
+  intmat_object:      '20250911_000002.0/intmat' # 6564 modes
   polc:   true
   input_modes_slice:  [0, 6564] 
   in_commands_size:   6564
