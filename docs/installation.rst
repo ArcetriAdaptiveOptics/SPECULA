@@ -87,22 +87,32 @@ All required dependencies will be installed automatically, including:
 * **flask-socketio**: Real-time web communication
 * **python-socketio**: WebSocket client support
 
-**Optional Libraries:**
+Optional Libraries
+^^^^^^^^^^^^^^^^^^
 
-**Block Diagram Generation:**
+Block Diagram Generation
+""""""""""""""""""""""""
 
 * **pycairo**: Graphics library for rendering diagrams
 * **orthogram**: Automatic block diagram creation from SPECULA configurations
 
+To install these libraries, first install pkg-config and cairo with conda:
+
+.. code-block:: bash
+
+   # Install CuPy for GPU acceleration
+   conda install -c conda-forge pkg-config cairo
+
+and then install orthogram with pip.
+pycairo will be installed as an orthogram dependency.
+
 .. code-block:: bash
 
    # Install optional diagram tools
-   pip install pycairo orthogram
+   pip install orthogram
 
-Environment Management
-----------------------
-
-**Transfer function system management:**
+Transfer function system management
+"""""""""""""""""""""""""""""""""""
 
 * **control**: Library for control system analysis and design
 
@@ -110,6 +120,9 @@ Environment Management
 
    # Install control library
    pip install control
+
+Environment Management
+----------------------
 
 **Useful conda commands:**
 
