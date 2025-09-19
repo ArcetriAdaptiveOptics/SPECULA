@@ -267,9 +267,11 @@ detector_ngs1: &NGS_DETECTOR
   simul_params_ref:  'main'
   size:              [240,240]               # Detector size in pixels
   dt:                0.002                   # [s] Detector integration time
-  bandw:             330                      # [nm] Sensor bandwidth
+  bandw:             330                     # [nm] Sensor bandwidth
   photon_noise:      True                    # activate photon noise
   readout_noise:     True                    # activate readout noise
+  excess_noise:      True                    # activate excess noise
+  excess_delta:      3.33
   readout_level:     1.0                     # readout noise in [e-/pix/frame]
   quantum_eff:       0.382                   # quantum efficiency * total transmission
   inputs:

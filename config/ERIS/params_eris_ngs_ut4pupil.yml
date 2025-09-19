@@ -1,0 +1,174 @@
+main:
+  class:             'SimulParams'
+  root_dir:          '/raid1/guido/PASSATA/VLT/'         # Root directory for calibration manager  
+  pixel_pupil:       160                    # Linear dimension of pupil phase array
+  pixel_pitch:       0.0507375              # [m] Pitch of the pupil phase array
+  total_time:        1.000                  # [s] Total simulation running time
+  time_step:         0.001                  # [s] Simulation time step
+  zenithAngleInDeg:  30.0                   # [deg] Airmass correction
+  display_server:    false                   # Display server on auto-selected port
+
+
+seeing:
+  class:             'WaveGenerator'
+  constant:          0.80                   # ["] seeing value
+  outputs: ['output']
+
+
+wind_speed:
+  class:             'WaveGenerator'
+  constant:          [6.6, 5.9, 5.1, 4.5, 5.1, 8.3, 16.3, 30.2, 34.3, 17.5]      # [m/s] Wind speed value
+  outputs: ['output']
+
+
+wind_direction:
+  class:             'WaveGenerator'
+  constant:          [0,0,0,0,0,90,-90,-90,90,0]   # [degrees] Wind direction value
+  outputs: ['output']
+
+
+source_on_axis:
+  class:             'Source'
+  polar_coordinates:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  magnitude:         8                    # source magnitude
+  wavelengthInNm:    768                  # [nm] wavelength
+  zero_point:        1.6995e-08
+
+
+source_ngs:
+  class:             'Source'
+  polar_coordinates:  [0.0, 0.0]         # [arcsec, degrees] source polar coordinates
+  height:            .inf                # Source height [m]
+  magnitude:         8.0                # source magnitude
+  wavelengthInNm:    768                # [nm] wavelength
+  zero_point:        1.6995e-08
+
+
+
+pupilstop:                                 # Default parameters (circular pupil)
+  class: 'Pupilstop'
+  tag: 'ut4pupilM3160noLB'
+
+atmo:
+  class:                'AtmoEvolution'
+  simul_params_ref:  'main'
+  L0:                   25                   # [m] Outer scale
+  heights:              [96, 207, 350, 633, 1201, 2336, 4605, 7884, 1117, 14188]
+  Cn2:                  [0.59, 0.02, 0.04, 0.06, 0.01, 0.05, 0.09, 0.04, 0.05, 0.05]
+  fov:                  120.0
+  seed:                 5
+  inputs:
+    seeing: 'seeing.output'
+    wind_speed: 'wind_speed.output'
+    wind_direction: 'wind_direction.output'
+  outputs: ['layer_list']
+
+prop:
+  class:                'AtmoPropagation'
+  simul_params_ref:  'main'
+  source_dict_ref:      ['source_on_axis', 'source_ngs' ]
+  inputs:
+    atmo_layer_list: ['atmo.layer_list']
+    common_layer_list: ['pupilstop', 'dm.out_layer:-1']
+
+  outputs: ['out_source_on_axis_ef', 'out_source_ngs_ef']
+
+# ---------------------------------------
+# LO WFS simulation and slope processing
+# ---------------------------------------
+
+sh:
+  class:             'SH'
+  subap_on_diameter: 40                     # Number of subapertures in diameter
+  subap_wanted_fov:  2.4                    # Requested field-of-view [arcsec]
+  sensor_pxscale:    0.4                    # Pixel scale in arcsec/pix
+  subap_npx:         6                      # Output sampling [usually corresponding to CCD pixels]
+  wavelengthInNm:    768                    # [nm] Sensor wavelength
+  inputs:
+    in_ef: 'prop.out_source_ngs_ef'
+  outputs:  ['out_i']
+
+detector:
+  class:             'CCD'
+  simul_params_ref:  'main'
+  size:              [240, 240]                # Detector size in pixels
+  dt:                0.001                   # [s] Detector integration time
+  bandw:             400                     # [nm] Sensor bandwidth
+  photon_noise:      True                    # activate photon noise
+  readout_noise:     True                    # activate readout noise
+  excess_noise:      True                    # activate readout noise
+  darkcurrent_noise: True
+  background_noise:  True
+  readout_level:     0.2                     # readout noise in [e-/pix/frame]
+  quantum_eff:       0.344                  # quantum efficiency * total transmission
+  darkcurrent_level: 0.00360
+  background_level:  0.000765
+  inputs:
+    in_i: 'sh.out_i'
+  outputs:  ['out_pixels']
+
+slopec:
+  class:             'ShSlopec'
+  weightedPixRad:    3
+  thr_value:         0
+  subapdata_object:  'eris_M3_noLB_ps160p0.051_shs40x40_wl768_fv2.5_np6_th0.50_chd'       # subaperture data tag
+  inputs:
+    in_pixels:        'detector.out_pixels'
+  outputs:  ['out_slopes']
+
+
+modalrec:
+  class:              'Modalrec'
+  recmat_object:      'eris_M3_noLB_ps160p0.051_shs40x40_wl768_fv2.5_np6_th0.50_chd_mn945_ce'              # reconstruction matrix tag
+  inputs:
+    in_slopes:        'slopec.out_slopes'
+  outputs:  ['out_modes']
+
+# -----------------------
+# LGS and LO integration
+
+integrator:
+  class:        'Integrator'
+  simul_params_ref:  'main'
+  delay:             2                      # Total temporal delay in time steps
+  int_gain:          [0.40]
+  n_modes:           [945]
+  inputs:
+      delta_comm: 'modalrec.out_modes'     
+  outputs:  ['out_comm']
+
+dm:
+  class:             'DM'
+  simul_params_ref:  'main'
+  ifunc_object:      'VLT_ifunc_160p_M3_noLB_v1'
+  nmodes:            945
+  height:            0                        # DM height [m]
+  inputs:
+      in_command: 'integrator.out_comm'
+  outputs:  ['out_layer']
+
+psf:
+  class:             'PSF'
+  simul_params_ref:  'main'
+  wavelengthInNm:    2200                 # [nm] Imaging wavelength
+  nd:                4                    # padding coefficient for PSF computation
+  start_time:        0.05                 # PSF integration start time
+  inputs:
+      in_ef:  'prop.out_source_on_axis_ef'
+  outputs:  ['out_psf', 'out_sr']
+
+modal_analysis:
+  class: 'ModalAnalysis'
+  ifunc_inv_object: 'VLT_ifunc_160p_M3_noLB_v1_inv'
+  inputs:
+    in_ef: 'prop.out_source_on_axis_ef'
+  outputs: ['out_modes']
+
+data_store:
+  class:             'DataStore'
+  store_dir:         '/raid1/guido/result4comparison/ERIS/'             # Data result directory: 'store_dir'/TN/
+  inputs:
+    input_list: ['resMod-modal_analysis.out_modes',
+                 'deltaComm-modalrec.out_modes',
+                 'comm-integrator.out_comm',
+                 'srRes-psf.out_sr']
