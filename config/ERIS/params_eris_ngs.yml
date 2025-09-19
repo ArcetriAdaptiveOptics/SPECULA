@@ -107,6 +107,7 @@ detector:
   bandw:             400                     # [nm] Sensor bandwidth
   photon_noise:      True                    # activate photon noise
   readout_noise:     True                    # activate readout noise
+  excess_noise:      True                    # activate excess noise
   readout_level:     0.2                     # readout noise in [e-/pix/frame]
   quantum_eff:       0.2916                  # quantum efficiency * total transmission
   inputs:
