@@ -25,6 +25,8 @@ class TestDiagrams(unittest.TestCase):
         self.tmp_png_file = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
         self.tmp_png_path = Path(self.tmp_png_file.name)
         self.tmp_png_file.close()
+        self.yml_path = Path(self.tmp_png_path).with_suffix(".yml")
+        self.tmp_png_path2 = Path(self.tmp_png_file.name + '2')
 
         # This is not really executed, just the objects are built in one of the tests
         self.dummy_params = {
@@ -35,9 +37,14 @@ class TestDiagrams(unittest.TestCase):
         }
 
     def tearDown(self):
-        """Clean up the temp file."""
+        """Clean up the temp files."""
         try:
             os.remove(self.tmp_png_path)
+        except FileNotFoundError:
+            pass
+
+        try:
+            os.remove(self.yml_path)
         except FileNotFoundError:
             pass
 
@@ -88,22 +95,36 @@ class TestDiagrams(unittest.TestCase):
 
     def test_main_simul_with_diagram(self):
         """Test main_simul() triggers diagram generation when enabled."""
-        yml_path = Path(self.tmp_png_path).with_suffix(".yml")
-        with open(yml_path, "w") as f:
+        with open(self.yml_path, "w") as f:
             yaml.dump(self.dummy_params, f)
 
         with patch("orthogram.write_png") as mock_write_png:
             main_simul(
-                yml_files=[str(yml_path)],
+                yml_files=[str(self.yml_path)],
                 nsimul=1,
                 cpu=True,
                 diagram=True,
-                diagram_filename=str(self.tmp_png_path),
+            )
+
+        mock_write_png.assert_called()
+
+    def test_main_simul_with_diagram_and_filename(self):
+        """Test main_simul() triggers diagram generation when enabled."""
+        yml_path = Path(self.tmp_png_path).with_suffix(".yml")
+        with open(self.yml_path, "w") as f:
+            yaml.dump(self.dummy_params, f)
+
+        with patch("orthogram.write_png") as mock_write_png:
+            main_simul(
+                yml_files=[str(self.yml_path)],
+                nsimul=1,
+                cpu=True,
+                diagram=True,
+                diagram_filename=str(self.tmp_png_path2),
                 diagram_title="MainSimul Diagram",
                 diagram_colors_on=True,
             )
 
         mock_write_png.assert_called()
-        os.remove(yml_path)
-
+        assert mock_write_png.call_args.args[1] == str(self.tmp_png_path2)
 
