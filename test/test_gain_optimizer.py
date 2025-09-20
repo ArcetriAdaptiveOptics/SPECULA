@@ -367,7 +367,7 @@ class TestGainOptimizer(unittest.TestCase):
         original_num = optimizer.iir_filter_data.num.copy()
 
         # Create a dummy signal for the test
-        pseudo_ol_mode = np.random.randn(100)
+        pseudo_ol_mode = np.random.randn(300)
         t_int = 0.001
         gmax = 0.5
 
@@ -410,7 +410,7 @@ class TestGainOptimizer(unittest.TestCase):
         )
         optimizer.plot_debug = True
 
-        pseudo_ol_mode = np.random.randn(100)
+        pseudo_ol_mode = np.random.randn(300)
         t_int = 0.001
         gmax = 0.5
 
