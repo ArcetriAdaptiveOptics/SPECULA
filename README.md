@@ -33,12 +33,23 @@ See the documentation here: [specula.readthedocs.io](https://specula.readthedocs
 ### Optional libraries
 
 Some features require additional libraries:
-- **pycairo**: needed for block diagram generation with `orthogram`
+- **pycairo**: needed for block diagram generation with orthogram
 - **orthogram**: for automatic block diagram creation (see [orthogram](https://pypi.org/project/orthogram/))
 - **control**: for conversion of transfer function system in SPECULA format and vice-versa and analysis of transfer function
 
-Install optional dependencies with:
+Install optional dependencies (pycairo will be installed as dependency of orthogram) with:
 ```bash
-pip install pycairo orthogram
+pip install orthogram
 pip install control
 ```
+
+## Contributing to SPECULA
+To contribute to SPECULA, follow these steps:
+
+1. Fork this repository.
+2. Create a branch: `git checkout -b <branch_name>`
+3. Make your changes and commit them: `git commit -m '<commit_message>'`
+4. Push to the branch: `git push`
+5. Create the pull request.
+
+**Please note: All pull requests must include tests for any new features to be accepted.**
