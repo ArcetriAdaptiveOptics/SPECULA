@@ -101,6 +101,23 @@ class AtmoPropagation(BaseProcessingObj):
                 
                 self.propagators.append(H)
 
+    def prepare_trigger(self, t):
+        super().prepare_trigger(t)
+
+        # this defines the area where the averaging is done to fill the missing values
+        kernel_size = 5
+        for layer in (self.atmo_layer_list + self.common_layer_list):
+            if self.magnification_list[layer] is not None and self.magnification_list[layer] != 1:
+                # update layer phase filling the missing values to avoid artifacts during interpolation
+                mask_valid = layer.A != 0
+                valid_phase = np.where(mask_valid, layer.phaseInNm, 0)
+                valid_count = self.ndimage_uniform_filter(mask_valid.astype(float), size=kernel_size)
+                valid_sum = self.ndimage_uniform_filter(valid_phase, size=kernel_size)
+                local_mean = self.xp.divide(valid_sum, valid_count,
+                                    out=self.xp.zeros_like(valid_sum),
+                                    where=valid_count > 0)
+                layer.phaseInNm[~mask_valid] = local_mean[~mask_valid]
+
     @show_in_profiler('atmo_propagation.trigger_code')
     def trigger_code(self):
         #if self.doFresnel:
@@ -124,15 +141,9 @@ class AtmoPropagation(BaseProcessingObj):
                     topleft = [(layer.size[0] - self.pixel_pupil_size) // 2, (layer.size[1] - self.pixel_pupil_size) // 2]
                     output_ef.product(layer, subrect=topleft)
                 else:
-                    if self.magnification_list[layer] is not None and self.magnification_list[layer] != 1:
-                        tempA = layer.A
-                        tempP = layer.phaseInNm
-                        tempP[tempA == 0] = self.xp.mean(tempP[tempA != 0])
-                        layer.phaseInNm = tempP
-
                     output_ef.A *= interpolator.interpolate(layer.A)
                     output_ef.phaseInNm += interpolator.interpolate(layer.phaseInNm)
-                
+
 #                if self.doFresnel:
 #                    if self.propagators:
 #                        propagator = self.propagators[i]
