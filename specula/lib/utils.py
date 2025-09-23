@@ -213,7 +213,7 @@ def local_mean_rebin(arr, mask, xp, block_size=5):
         result: 2D array of same shape as arr, filled with local means for invalid pixels
     """
     # Compute global mean only on valid pixels
-    global_mean = xp.mean(arr[mask])
+    global_mean = xp.mean(arr[mask]) if xp.any(mask) else xp.nan
 
     # Replace invalid pixels with NaN
     arr_valid = xp.where(mask, arr, xp.nan)
@@ -238,7 +238,7 @@ def local_mean_rebin(arr, mask, xp, block_size=5):
     local_mean = xp.repeat(xp.repeat(block_means, block_size, axis=0), block_size, axis=1)
 
     # Fill result array with local means, keep original shape
-    result = xp.full_like(arr, xp.nan)
+    result = xp.full_like(arr, xp.nan, dtype=arr.dtype)
     result[:h_crop, :w_crop] = local_mean
 
     return result
