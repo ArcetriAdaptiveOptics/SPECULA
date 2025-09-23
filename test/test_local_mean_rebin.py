@@ -36,7 +36,7 @@ class TestLocalMeanRebin(unittest.TestCase):
         block_size = 2
         result = local_mean_rebin(arr, mask, xp, block_size=block_size)
         # The mean for the top-left block should ignore arr[0,0]
-        expected_mean = cpuArray(xp.mean([arr[0,1], arr[1,0], arr[1,1]]))
+        expected_mean = cpuArray(xp.mean(xp.array([arr[0,1], arr[1,0], arr[1,1]])))
         self.assertAlmostEqual(result[0,0], expected_mean)
         self.assertAlmostEqual(result[0,1], expected_mean)
         self.assertAlmostEqual(result[1,0], expected_mean)
