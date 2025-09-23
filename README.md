@@ -48,8 +48,9 @@ To contribute to SPECULA, follow these steps:
 
 1. Fork this repository.
 2. Create a branch: `git checkout -b <branch_name>`
-3. Make your changes and commit them: `git commit -m '<commit_message>'`
-4. Push to the branch: `git push`
-5. Create the pull request.
+3. Make your changes and **add tests for the new functionality.**
+4. Commit your changes: `git commit -m '<commit_message>'`
+5. Push to the branch: `git push`
+6. Create the pull request.
 
-**Please note: All pull requests must include tests for any new features to be accepted.**
+We require tests for all new features to ensure the stability of the project.
