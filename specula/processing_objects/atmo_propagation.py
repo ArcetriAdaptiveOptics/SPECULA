@@ -12,6 +12,14 @@ import numpy as np
 
 degree2rad = np.pi / 180.
 
+def local_mean_convolve(arr, mask, xp, ndimage_convolve, kernel_size=5):
+    kernel = xp.ones((kernel_size, kernel_size), dtype=arr.dtype)
+    masked_arr = xp.where(mask, arr, 0)
+    count = ndimage_convolve(mask.astype(arr.dtype), kernel, mode='constant', cval=0)
+    summed = ndimage_convolve(masked_arr, kernel, mode='constant', cval=0)
+    mean = xp.divide(summed, count, out=xp.zeros_like(summed), where=count > 0)
+    return mean
+
 class AtmoPropagation(BaseProcessingObj):
     '''Atmospheric propagation'''
     def __init__(self,
@@ -110,12 +118,9 @@ class AtmoPropagation(BaseProcessingObj):
             if self.magnification_list[layer] is not None and self.magnification_list[layer] != 1:
                 # update layer phase filling the missing values to avoid artifacts during interpolation
                 mask_valid = layer.A != 0
-                valid_phase = np.where(mask_valid, layer.phaseInNm, 0)
-                valid_count = self.ndimage_uniform_filter(mask_valid.astype(float), size=kernel_size)
-                valid_sum = self.ndimage_uniform_filter(valid_phase, size=kernel_size)
-                local_mean = self.xp.divide(valid_sum, valid_count,
-                                    out=self.xp.zeros_like(valid_sum),
-                                    where=valid_count > 0)
+                local_mean = local_mean_convolve(
+                    layer.phaseInNm, mask_valid, self.xp, self.ndimage_convolve, kernel_size=5
+                )
                 layer.phaseInNm[~mask_valid] = local_mean[~mask_valid]
 
     @show_in_profiler('atmo_propagation.trigger_code')
