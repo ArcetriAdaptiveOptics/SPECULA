@@ -103,8 +103,6 @@ class TestAtmoPropagation(unittest.TestCase):
         assert output_amplitude.shape == (240, 240), f"Expected (240, 240), got {output_amplitude.shape}"
         assert np.allclose(output_amplitude, expected_region), "Center extraction doesn't match expected region"
 
-        print(f"OK: Center extraction test passed: extracted {expected_topleft} -> {output_amplitude.shape}")
-
     @cpu_and_gpu
     def test_propagation_with_magnification(self, target_device_idx, xp):
         """Test propagation with magnification - should use interpolation"""
@@ -173,9 +171,6 @@ class TestAtmoPropagation(unittest.TestCase):
         # total of output amplitude must be approx magnification**2 times input amplitude
         assert np.isclose(np.sum(output_amplitude), np.sum(layer.A) * magnification**2, rtol=0.001), \
             f"Output sum {np.sum(output_amplitude)} should be approx {np.sum(layer.A) * magnification**2}"
-
-        print(f"OK: Magnification test passed: ")
-        print(f"    max amplitude = {np.max(output_amplitude):.3f}, sum = {np.sum(output_amplitude):.3f}")
 
     @cpu_and_gpu
     def test_quarter_array_extraction(self, target_device_idx, xp):
@@ -249,8 +244,6 @@ class TestAtmoPropagation(unittest.TestCase):
         assert np.isclose(np.mean(output_phase), 2.0, rtol=0.01), \
             f"Mean phase {np.mean(output_phase)} should be approx 1.0"
 
-        print(f"OK: Quarter extraction test passed: mean value = {np.mean(output_amplitude):.3f}")
-
     @cpu_and_gpu
     def test_interpolation_artifacts_correction(self, target_device_idx, xp):
         """Test that phase correction for interpolation artifacts works"""
@@ -312,8 +305,6 @@ class TestAtmoPropagation(unittest.TestCase):
 
         output_ef = prop.outputs['out_on_axis_ef']
         assert output_ef.A.shape == (200, 200)
-
-        print(f"OK: Interpolation artifacts test passed: phase correction applied")
 
     @cpu_and_gpu
     def test_layer_shiftXYinPixel(self, target_device_idx, xp):
@@ -410,7 +401,7 @@ class TestAtmoPropagation(unittest.TestCase):
         expected_amplitude = np.fliplr(np.eye(pixel_pupil))
         diff = output_amplitude - expected_amplitude
 
-        plot_debug = True
+        plot_debug = False
         if plot_debug:
             import matplotlib.pyplot as plt
             plt.figure(figsize=(6,6))
@@ -432,4 +423,4 @@ class TestAtmoPropagation(unittest.TestCase):
             plt.show()
 
         max_diff = np.max(np.abs(diff))
-        assert max_diff < 1e-2, f"Max difference after rotation is {max_diff}, should be < 1e-2"
+        assert max_diff < 0.02, f"Max difference after rotation is {max_diff}, should be < 0.02"

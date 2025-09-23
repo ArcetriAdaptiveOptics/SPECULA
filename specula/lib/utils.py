@@ -2,7 +2,7 @@
 import re
 import typing
 import importlib
-
+import warnings
 
 def camelcase_to_snakecase(s):
     '''
@@ -226,7 +226,11 @@ def local_mean_rebin(arr, mask, xp, block_size=5):
     arr_blocks = arr_blocks.transpose(0, 2, 1, 3)  # shape: (h_blocks, w_blocks, block_size, block_size)
 
     # Compute mean ignoring NaN
-    block_means = xp.nanmean(arr_blocks, axis=(2, 3))
+    global_mean = xp.nanmean(arr_valid)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=RuntimeWarning)
+        block_means = xp.nanmean(arr_blocks, axis=(2, 3))
+    block_means = xp.where(xp.isnan(block_means), global_mean, block_means)
 
     # Expand block means back to original shape
     local_mean = xp.repeat(xp.repeat(block_means, block_size, axis=0), block_size, axis=1)
