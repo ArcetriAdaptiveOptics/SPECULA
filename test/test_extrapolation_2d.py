@@ -11,6 +11,8 @@ from specula.lib.mask import CircularMask
 
 from test.specula_testlib import cpu_and_gpu
 
+import warnings
+
 class TestExtrapolation2D(unittest.TestCase):
 
     def _create_test_data(self, shape, outer_radius, inner_radius, zernike_mode, xp):
@@ -205,6 +207,42 @@ class TestExtrapolation2D(unittest.TestCase):
         # Check that we have some valid edge pixels
         valid_pixels = xp.sum(edge_pixels >= 0)
         self.assertGreater(valid_pixels, 0)
+
+    def test_extrapolation_does_not_fail_with_many_edge_pixels(self):
+        """
+        Test that extrapolation does not fail when the mask has many edge pixels (multiple square perimeters)
+        """
+
+        n_pixels = 128
+        shape = (n_pixels, n_pixels)
+        mask = np.zeros(shape, dtype=bool)
+
+        # Add several square perimeters (concentric)
+        for r in range(2, n_pixels//2-1, 3):  # radii: 2, 5, 8, ...
+            mask[r:-r, r] = True
+            mask[r:-r, -r] = True
+            mask[r, r:-r] = True
+            mask[-r, r:-r] = True
+            mask[-r, -r] = True
+
+        plot_debug = False
+        if plot_debug:
+            import matplotlib.pyplot as plt
+            plt.imshow(mask)
+            plt.title('Test mask with many edge pixels')
+            plt.colorbar()
+            plt.show()
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            # Now mask has many edge pixels (all perimeters)
+            edge_pixels, reference_indices, coefficients, valid_indices = calculate_extrapolation_indices_coeffs(mask)
+            self.assertTrue(any(issubclass(warning.category, RuntimeWarning) for warning in w),
+                            "Should trigger a RuntimeWarning for too many edge pixels")
+
+        # Even if valid pixels are more than 25% of total, extrapolation should not fail
+        self.assertTrue(len(valid_indices) > 0.25 * (n_pixels * n_pixels),
+                        "Extrapolation should not fail completely, should have some valid indices.")
 
 if __name__ == '__main__':
     unittest.main()

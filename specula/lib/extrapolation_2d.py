@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.ndimage import binary_dilation
 from specula import cpuArray
+import warnings
 
 def calculate_extrapolation_indices_coeffs(mask, threshold=1e-3):
     """
@@ -23,9 +24,17 @@ def calculate_extrapolation_indices_coeffs(mask, threshold=1e-3):
     # Identify edge pixels (outside but adjacent to the mask) using binary dilation
     dilated_mask = binary_dilation(binary_mask)
     edge_pixels = np.where(dilated_mask & ~binary_mask)
+    n_edge_pixels = len(edge_pixels[0])
 
-    # No more than 50% of the overall pixel can be edge pixels
-    max_edge_pixels = int(0.5 * mask.shape[0] * mask.shape[1])
+    # By default we consider that no more than a fraction (between 100% and 25%) of the overall pixels
+    # can be edge pixels. This is used to allocate fixed-size arrays for GPU compatibility.
+    # Linear interpolation: 1.0 for side<=3, 0.25 for side>=128
+    edge_frac = 1.0 - 0.75 * min(max(max(mask.shape) - 3, 0) / 124, 1)
+    max_edge_pixels = int(round(edge_frac * mask.shape[0] * mask.shape[1]/2)*2)
+    # this if statement is used to avoid errors with peculiar masks with a very high count of edge pixels
+    if n_edge_pixels > max_edge_pixels:
+        max_edge_pixels = n_edge_pixels
+        warnings.warn(f"Number of edge pixels ({n_edge_pixels}) exceeds the estimated maximum ({max_edge_pixels}).", RuntimeWarning)
 
     # Arrays with fixed size
     edge_pixels_fixed = np.full(max_edge_pixels, -1, dtype=np.int32)
@@ -33,7 +42,6 @@ def calculate_extrapolation_indices_coeffs(mask, threshold=1e-3):
     coefficients_fixed = np.full((max_edge_pixels, 8), np.nan, dtype=np.float32)
 
     # Use the first n_edge_pixels to fill the fixed arrays
-    n_edge_pixels = len(edge_pixels[0])
     edge_pixels_linear = np.ravel_multi_index(edge_pixels, mask.shape)
     edge_pixels_fixed[:n_edge_pixels] = edge_pixels_linear
 
@@ -57,12 +65,12 @@ def calculate_extrapolation_indices_coeffs(mask, threshold=1e-3):
             y2, x2 = y + 2*dy, x + 2*dx
 
             # Check if the points are valid (inside the image and inside the mask)
-            valid_ref1 = (0 <= y1 < mask.shape[0] and 
-                          0 <= x1 < mask.shape[1] and 
+            valid_ref1 = (0 <= y1 < mask.shape[0] and
+                          0 <= x1 < mask.shape[1] and
                           binary_mask[y1, x1])
 
-            valid_ref2 = (0 <= y2 < mask.shape[0] and 
-                          0 <= x2 < mask.shape[1] and 
+            valid_ref2 = (0 <= y2 < mask.shape[0] and
+                          0 <= x2 < mask.shape[1] and
                           binary_mask[y2, x2])
 
             if valid_ref1:
