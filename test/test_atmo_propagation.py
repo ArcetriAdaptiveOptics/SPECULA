@@ -97,7 +97,7 @@ class TestAtmoPropagation(unittest.TestCase):
             plt.figure(figsize=(6,6))
             plt.imshow(output_amplitude, cmap='gray', vmin=0, vmax=1, origin='lower')
             plt.colorbar()
-            plt.title('Output Amplitude with Magnification')
+            plt.title('Output Amplitude without Magnification')
             plt.show()
 
         assert output_amplitude.shape == (240, 240), f"Expected (240, 240), got {output_amplitude.shape}"
@@ -236,7 +236,7 @@ class TestAtmoPropagation(unittest.TestCase):
             plt.figure(figsize=(6,6))
             plt.imshow(output_amplitude, cmap='gray', vmin=0, vmax=1, origin='lower')
             plt.colorbar()
-            plt.title('Output Amplitude with Magnification')
+            plt.title('Output Amplitude with off-axis Source')
             plt.show()
 
         # output amplitude must be 1
@@ -314,3 +314,122 @@ class TestAtmoPropagation(unittest.TestCase):
         assert output_ef.A.shape == (200, 200)
 
         print(f"OK: Interpolation artifacts test passed: phase correction applied")
+
+    @cpu_and_gpu
+    def test_layer_shiftXYinPixel(self, target_device_idx, xp):
+        """Test that layer shiftXYinPixel works correctly"""
+        pixel_pupil = 100
+        pixel_pitch = 0.1
+        simul_params = SimulParams(pixel_pupil, pixel_pitch)
+        dim_layer = 120  # Larger than pupil to allow shifting
+
+        # Layer with shift of 20 pixels in x and 10 in y
+        layer = Layer(
+            dimx=dim_layer, dimy=dim_layer,
+            pixel_pitch=pixel_pitch,
+            height=0.0,
+            shiftXYinPixel=(20.0, 10.0),
+            target_device_idx=target_device_idx
+        )
+        layer.A = xp.zeros((dim_layer, dim_layer))
+        layer.A[dim_layer//2-30:dim_layer//2+30, dim_layer//2-30:dim_layer//2+30] = xp.ones((60, 60))
+        layer.phaseInNm = xp.zeros((dim_layer, dim_layer))
+        layer.generation_time = 1
+
+        source = Source(polar_coordinates=[0.0, 0.0], magnitude=8, wavelengthInNm=750)
+        prop = AtmoPropagation(simul_params, source_dict={'on_axis': source}, target_device_idx=target_device_idx)
+        prop.inputs['atmo_layer_list'].set([])
+        prop.inputs['common_layer_list'].set([layer])
+        prop.setup()
+        prop.check_ready(1)
+        prop.trigger()
+        prop.post_trigger()
+
+        output_ef = prop.outputs['out_on_axis_ef']
+        output_amplitude = cpuArray(output_ef.A)
+
+        # The bright square should be shifted by (20,10) pixels in the output
+        expected_amplitude = (np.roll(np.roll(cpuArray(layer.A), 20, axis=1), 10, axis=0))
+        expected_amplitude = expected_amplitude[dim_layer//2 - pixel_pupil//2:dim_layer//2 + pixel_pupil//2, \
+                                                dim_layer//2 - pixel_pupil//2:dim_layer//2 + pixel_pupil//2]
+        diff = output_amplitude - expected_amplitude
+
+        plot_debug = False
+        if plot_debug:
+            import matplotlib.pyplot as plt
+            plt.figure(figsize=(6,6))
+            plt.imshow(cpuArray(layer.A), cmap='gray', vmin=0, vmax=1, origin='lower')
+            plt.colorbar()
+            plt.title('Layer Amplitude with Bright Square')
+            plt.figure(figsize=(6,6))
+            plt.imshow(output_amplitude, cmap='gray', vmin=0, vmax=1, origin='lower')
+            plt.colorbar()
+            plt.title('Output Amplitude with Shift')
+            plt.figure(figsize=(6,6))
+            plt.imshow(diff, cmap='gray', vmin=0, vmax=1, origin='lower')
+            plt.colorbar()
+            plt.title('Difference')
+            plt.show()
+
+        max_diff = np.max(np.abs(diff))
+        assert max_diff < 1e-5, f"Max difference after shift is {max_diff}, should be < 1e-5"
+        
+    @cpu_and_gpu
+    def test_layer_rotInDeg(self, target_device_idx, xp):
+        """Test that layer rotInDeg works correctly"""
+        pixel_pupil = 100
+        pixel_pitch = 0.1
+        simul_params = SimulParams(pixel_pupil, pixel_pitch)
+        dim_layer = 120  # Larger than pupil to allow shifting
+
+        # Layer with shift of 20 pixels in x and 10 in y
+        layer = Layer(
+            dimx=dim_layer, dimy=dim_layer,
+            pixel_pitch=pixel_pitch,
+            height=0.0,
+            rotInDeg=90.0,
+            target_device_idx=target_device_idx
+        )
+        layer.A = np.eye(dim_layer)
+        layer.phaseInNm = np.zeros((dim_layer, dim_layer))
+        layer.generation_time = 1
+
+        source = Source(polar_coordinates=[0.0, 0.0], magnitude=8, wavelengthInNm=750)
+        prop = AtmoPropagation(simul_params, source_dict={'on_axis': source}, target_device_idx=target_device_idx)
+        prop.inputs['atmo_layer_list'].set([])
+        prop.inputs['common_layer_list'].set([layer])
+        prop.setup()
+        prop.check_ready(1)
+        prop.trigger()
+        prop.post_trigger()
+
+        output_ef = prop.outputs['out_on_axis_ef']
+        output_amplitude = cpuArray(output_ef.A)
+
+        # check that the output amplitude has a diagonal line rotated by 90deg
+        expected_amplitude = np.fliplr(np.eye(pixel_pupil))
+        diff = output_amplitude - expected_amplitude
+
+        plot_debug = True
+        if plot_debug:
+            import matplotlib.pyplot as plt
+            plt.figure(figsize=(6,6))
+            plt.imshow(cpuArray(layer.A), cmap='gray', vmin=0, vmax=1, origin='lower')
+            plt.colorbar()
+            plt.title('Layer Amplitude with Bright Square')
+            plt.figure(figsize=(6,6))
+            plt.imshow(output_amplitude, cmap='gray', vmin=0, vmax=1, origin='lower')
+            plt.colorbar()
+            plt.title('Output Amplitude with Rotation')
+            plt.figure(figsize=(6,6))
+            plt.imshow(expected_amplitude, cmap='gray', vmin=0, vmax=1, origin='lower')
+            plt.colorbar()
+            plt.title('Expected Amplitude after 90deg Rotation')
+            plt.figure(figsize=(6,6))
+            plt.imshow(diff, cmap='gray', vmin=0, vmax=1, origin='lower')
+            plt.colorbar()
+            plt.title('Difference')
+            plt.show()
+
+        max_diff = np.max(np.abs(diff))
+        assert max_diff < 1e-2, f"Max difference after rotation is {max_diff}, should be < 1e-2"

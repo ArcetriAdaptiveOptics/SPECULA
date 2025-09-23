@@ -34,7 +34,8 @@ def calculate_extrapolation_indices_coeffs(mask, threshold=1e-3):
     # this if statement is used to avoid errors with peculiar masks with a very high count of edge pixels
     if n_edge_pixels > max_edge_pixels:
         max_edge_pixels = n_edge_pixels
-        warnings.warn(f"Number of edge pixels ({n_edge_pixels}) exceeds the estimated maximum ({max_edge_pixels}).", RuntimeWarning)
+        warnings.warn(f"Number of edge pixels ({n_edge_pixels}) exceeds the default maximum ({max_edge_pixels}).",
+                      RuntimeWarning)
 
     # Arrays with fixed size
     edge_pixels_fixed = np.full(max_edge_pixels, -1, dtype=np.int32)

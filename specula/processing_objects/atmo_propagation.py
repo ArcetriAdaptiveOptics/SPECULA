@@ -215,7 +215,7 @@ class AtmoPropagation(BaseProcessingObj):
             return None
 
         return Interp2D(layer.size, (self.pixel_pupil_size, self.pixel_pupil_size), xx=xx1, yy=yy1,
-                        rotInDeg=angle*180.0/np.pi, xp=self.xp, dtype=self.dtype)
+                        rotInDeg=angle, xp=self.xp, dtype=self.dtype)
 
     def setup(self):
         super().setup()
