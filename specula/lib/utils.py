@@ -196,3 +196,43 @@ def psd_to_signal(psd, fs, xp, dtype, complex_dtype, seed=1):
     out = xp.real(temp).astype(dtype)
     im = xp.imag(temp).astype(dtype)
     return out, im
+
+def local_mean_rebin(arr, mask, xp, block_size=5):
+    """
+    Compute the local mean over non-overlapping blocks of size block_size x block_size,
+    ignoring invalid pixels (where mask is False). Invalid pixels are replaced with NaN,
+    so the mean is computed only over valid pixels.
+
+    Parameters:
+        arr: 2D array of values (phase, etc.)
+        mask: 2D boolean array, True for valid pixels, False for invalid
+        xp: numpy or cupy module
+        block_size: size of the block for local averaging
+
+    Returns:
+        result: 2D array of same shape as arr, filled with local means for invalid pixels
+    """
+    # Replace invalid pixels with NaN
+    arr_valid = xp.where(mask, arr, xp.nan)
+    h, w = arr_valid.shape
+
+    # Crop array to be divisible by block_size
+    h_crop = h - (h % block_size)
+    w_crop = w - (w % block_size)
+    arr_valid = arr_valid[:h_crop, :w_crop]
+
+    # Reshape to blocks
+    arr_blocks = arr_valid.reshape(h_crop // block_size, block_size, w_crop // block_size, block_size)
+    arr_blocks = arr_blocks.transpose(0, 2, 1, 3)  # shape: (h_blocks, w_blocks, block_size, block_size)
+
+    # Compute mean ignoring NaN
+    block_means = xp.nanmean(arr_blocks, axis=(2, 3))
+
+    # Expand block means back to original shape
+    local_mean = xp.repeat(xp.repeat(block_means, block_size, axis=0), block_size, axis=1)
+
+    # Fill result array with local means, keep original shape
+    result = xp.full_like(arr, xp.nan)
+    result[:h_crop, :w_crop] = local_mean
+
+    return result

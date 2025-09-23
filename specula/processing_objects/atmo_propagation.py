@@ -1,5 +1,6 @@
 
 from specula.lib.make_xy import make_xy
+from specula.lib.utils import local_mean_rebin
 from specula.base_processing_obj import BaseProcessingObj
 from specula.lib.interp2d import Interp2D
 from specula.data_objects.electric_field import ElectricField
@@ -11,14 +12,6 @@ from specula.data_objects.simul_params import SimulParams
 import numpy as np
 
 degree2rad = np.pi / 180.
-
-def local_mean_convolve(arr, mask, xp, ndimage_convolve, kernel_size=5):
-    kernel = xp.ones((kernel_size, kernel_size), dtype=arr.dtype)
-    masked_arr = xp.where(mask, arr, 0)
-    count = ndimage_convolve(mask.astype(arr.dtype), kernel, mode='constant', cval=0)
-    summed = ndimage_convolve(masked_arr, kernel, mode='constant', cval=0)
-    mean = xp.divide(summed, count, out=xp.zeros_like(summed), where=count > 0)
-    return mean
 
 class AtmoPropagation(BaseProcessingObj):
     '''Atmospheric propagation'''
@@ -63,6 +56,7 @@ class AtmoPropagation(BaseProcessingObj):
         self.doFresnel = doFresnel
         self.wavelengthInNm = wavelengthInNm
         self.propagators = None
+        self._block_size = {}
 
         if self.mergeLayersContrib:
             for name, source in self.source_dict.items():
@@ -112,15 +106,11 @@ class AtmoPropagation(BaseProcessingObj):
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
 
-        # this defines the area where the averaging is done to fill the missing values
-        kernel_size = 5
         for layer in (self.atmo_layer_list + self.common_layer_list):
             if self.magnification_list[layer] is not None and self.magnification_list[layer] != 1:
                 # update layer phase filling the missing values to avoid artifacts during interpolation
                 mask_valid = layer.A != 0
-                local_mean = local_mean_convolve(
-                    layer.phaseInNm, mask_valid, self.xp, self.ndimage_convolve, kernel_size=5
-                )
+                local_mean = local_mean_rebin(layer.phaseInNm, mask_valid, self.xp, block_size=self._block_size[layer])
                 layer.phaseInNm[~mask_valid] = local_mean[~mask_valid]
 
     @show_in_profiler('atmo_propagation.trigger_code')
@@ -256,6 +246,13 @@ class AtmoPropagation(BaseProcessingObj):
 
         self.shiftXY_cond = {layer: np.any(layer.shiftXYinPixel) for layer in self.atmo_layer_list + self.common_layer_list}
         self.magnification_list = {layer: max(layer.magnification, 1.0) for layer in self.atmo_layer_list + self.common_layer_list}
+
+        self._block_size = {}
+        for layer in self.atmo_layer_list + self.common_layer_list:
+            for div in [5, 4, 3, 2]:
+                if layer.size[0] % div == 0:
+                    self._block_size[layer] = div
+                    break
 
         self.setup_interpolators()
         self.build_stream()
