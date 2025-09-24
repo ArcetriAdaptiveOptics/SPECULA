@@ -152,19 +152,6 @@ class TestAtmoPropagation(unittest.TestCase):
         output_ef = prop.outputs['out_on_axis_ef']
         output_amplitude = cpuArray(output_ef.A)
 
-        plot_debug = False
-        if plot_debug:
-            import matplotlib.pyplot as plt
-            plt.figure(figsize=(6,6))
-            plt.imshow(cpuArray(layer.A), cmap='gray', vmin=0, vmax=1, origin='lower')
-            plt.colorbar()
-            plt.title('Layer Amplitude with Bright Square')
-            plt.figure(figsize=(6,6))
-            plt.imshow(output_amplitude, cmap='gray', vmin=0, vmax=1, origin='lower')
-            plt.colorbar()
-            plt.title('Output Amplitude with Magnification')
-            plt.show()
-
         # With magnification, should use interpolation (not direct extraction)
         # The bright square should be visible but interpolated
         assert output_amplitude.shape == (240, 240)
@@ -220,19 +207,6 @@ class TestAtmoPropagation(unittest.TestCase):
         output_ef = prop.outputs['out_off_axis_ef']
         output_amplitude = cpuArray(output_ef.A)
         output_phase = cpuArray(output_ef.phaseInNm)
-
-        plot_debug = False
-        if plot_debug:
-            import matplotlib.pyplot as plt
-            plt.figure(figsize=(6,6))
-            plt.imshow(cpuArray(layer.A), cmap='gray', vmin=0, vmax=1, origin='lower')
-            plt.colorbar()
-            plt.title('Layer Amplitude with Bright Square')
-            plt.figure(figsize=(6,6))
-            plt.imshow(output_amplitude, cmap='gray', vmin=0, vmax=1, origin='lower')
-            plt.colorbar()
-            plt.title('Output Amplitude with off-axis Source')
-            plt.show()
 
         # output amplitude must be 1
         assert np.max(output_amplitude) > 0.99, f"Max amplitude {np.max(output_amplitude)} should be > 0.99"
@@ -345,23 +319,6 @@ class TestAtmoPropagation(unittest.TestCase):
                                                 dim_layer//2 - pixel_pupil//2:dim_layer//2 + pixel_pupil//2]
         diff = output_amplitude - expected_amplitude
 
-        plot_debug = False
-        if plot_debug:
-            import matplotlib.pyplot as plt
-            plt.figure(figsize=(6,6))
-            plt.imshow(cpuArray(layer.A), cmap='gray', vmin=0, vmax=1, origin='lower')
-            plt.colorbar()
-            plt.title('Layer Amplitude with Bright Square')
-            plt.figure(figsize=(6,6))
-            plt.imshow(output_amplitude, cmap='gray', vmin=0, vmax=1, origin='lower')
-            plt.colorbar()
-            plt.title('Output Amplitude with Shift')
-            plt.figure(figsize=(6,6))
-            plt.imshow(diff, cmap='gray', vmin=0, vmax=1, origin='lower')
-            plt.colorbar()
-            plt.title('Difference')
-            plt.show()
-
         max_diff = np.max(np.abs(diff))
         assert max_diff < 1e-5, f"Max difference after shift is {max_diff}, should be < 1e-5"
         
@@ -400,27 +357,6 @@ class TestAtmoPropagation(unittest.TestCase):
         # check that the output amplitude has a diagonal line rotated by 90deg
         expected_amplitude = np.fliplr(np.eye(pixel_pupil))
         diff = output_amplitude - expected_amplitude
-
-        plot_debug = False
-        if plot_debug:
-            import matplotlib.pyplot as plt
-            plt.figure(figsize=(6,6))
-            plt.imshow(cpuArray(layer.A), cmap='gray', vmin=0, vmax=1, origin='lower')
-            plt.colorbar()
-            plt.title('Layer Amplitude with Bright Square')
-            plt.figure(figsize=(6,6))
-            plt.imshow(output_amplitude, cmap='gray', vmin=0, vmax=1, origin='lower')
-            plt.colorbar()
-            plt.title('Output Amplitude with Rotation')
-            plt.figure(figsize=(6,6))
-            plt.imshow(expected_amplitude, cmap='gray', vmin=0, vmax=1, origin='lower')
-            plt.colorbar()
-            plt.title('Expected Amplitude after 90deg Rotation')
-            plt.figure(figsize=(6,6))
-            plt.imshow(diff, cmap='gray', vmin=0, vmax=1, origin='lower')
-            plt.colorbar()
-            plt.title('Difference')
-            plt.show()
 
         max_diff = np.max(np.abs(diff))
         assert max_diff < 0.02, f"Max difference after rotation is {max_diff}, should be < 0.02"

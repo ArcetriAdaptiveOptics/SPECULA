@@ -225,14 +225,6 @@ class TestExtrapolation2D(unittest.TestCase):
             mask[-r, r:-r] = True
             mask[-r, -r] = True
 
-        plot_debug = False
-        if plot_debug:
-            import matplotlib.pyplot as plt
-            plt.imshow(mask)
-            plt.title('Test mask with many edge pixels')
-            plt.colorbar()
-            plt.show()
-
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             # Now mask has many edge pixels (all perimeters)
@@ -243,6 +235,3 @@ class TestExtrapolation2D(unittest.TestCase):
         # Even if valid pixels are more than 25% of total, extrapolation should not fail
         self.assertTrue(len(valid_indices) > 0.25 * (n_pixels * n_pixels),
                         "Extrapolation should not fail completely, should have some valid indices.")
-
-if __name__ == '__main__':
-    unittest.main()
