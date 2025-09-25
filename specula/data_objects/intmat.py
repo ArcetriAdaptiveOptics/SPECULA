@@ -149,20 +149,18 @@ class Intmat(BaseDataObj):
     
     @staticmethod
     def restore(filename, target_device_idx=None):
-        hdr = fits.getheader(filename, ext=0)
-        intmat = fits.getdata(filename, ext=1)
-        norm_factor = float(hdr.get('NORMFACT', 0.0))
-        pupdata_tag = hdr.get('PUP_TAG', '')
-        subapdata_tag = hdr.get('SA_TAG', '')
-        # Reading additional fits extensions
         with fits.open(filename) as hdul:
-            num_ext = len(hdul)
-        hdul.close() # Force close for Windows
-        if num_ext >= 4:
-            slope_mm = fits.getdata(filename, ext=2)
-            slope_rms = fits.getdata(filename, ext=3)
-        else:
-            slope_mm = slope_rms = None
+            hdr = hdul[0].header
+            intmat = hdul[1].data.copy()
+            norm_factor = float(hdr.get('NORMFACT', 0.0))
+            pupdata_tag = hdr.get('PUP_TAG', '')
+            subapdata_tag = hdr.get('SA_TAG', '')
+            # Reading additional fits extensions
+            if len(hdul) >= 4:
+                slope_mm = hdul[2].data.copy()
+                slope_rms = hdul[3].data.copy()
+            else:
+                slope_mm = slope_rms = None
         return Intmat(intmat, slope_mm, slope_rms, pupdata_tag, subapdata_tag, norm_factor, target_device_idx=target_device_idx)
 
     def generate_rec(self, nmodes=None, cut_modes=0, w_vec=None, interactive=False):
