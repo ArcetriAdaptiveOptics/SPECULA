@@ -18,11 +18,11 @@ class TestInfinitePhaseScreen(unittest.TestCase):
         """Test that the phase covariance function matches theoretical values"""
 
         # Parameters
-        mx_size = 128
+        mx_size = 512
         pixel_scale = 0.1  # meters
         r0 = 0.2  # meters
         L0 = 25.0  # meters
-        l0 = 0.01  # meters
+        l0 = 0.005  # meters
         random_seed = 12345
 
         # Create infinite phase screen
@@ -47,11 +47,11 @@ class TestInfinitePhaseScreen(unittest.TestCase):
         """Compare statistics between InfinitePhaseScreen and calc_phasescreen (FFT method)"""
 
         # Parameters
-        mx_size = 128
-        pixel_scale = 0.05  # meters
+        mx_size = 512
+        pixel_scale = 0.02# meters
         r0 = 0.15  # meters
         L0 = 25.0  # meters
-        l0 = 0.01  # meters
+        l0 = 0.005  # meters
         random_seed = 42
 
         # Create infinite phase screen
@@ -60,7 +60,7 @@ class TestInfinitePhaseScreen(unittest.TestCase):
                                  target_device_idx=target_device_idx)
 
         # Get initial phase screen
-        infinite_screen = cpuArray(ips.scrn)
+        infinite_screen = cpuArray(ips.scrn) * 500 / (2 * np.pi)
 
         # Create FFT phase screen with same parameters
         fft_screen = calc_phasescreen(L0, mx_size, pixel_scale,
@@ -95,10 +95,10 @@ class TestInfinitePhaseScreen(unittest.TestCase):
 
         # Parameters
         mx_size = 512
-        pixel_scale = 0.05  # meters
+        pixel_scale = 0.05 # meters
         r0 = 0.2  # meters
         L0 = 20.0  # meters
-        l0 = 0.01  # meters
+        l0 = 0.005  # meters
         random_seed = 123
 
         # Create infinite phase screen
@@ -107,7 +107,7 @@ class TestInfinitePhaseScreen(unittest.TestCase):
                                  target_device_idx=target_device_idx)
 
         # Get the phase screen
-        screen = cpuArray(ips.scrn)
+        screen = cpuArray(ips.scrn) * 500 / (2 * np.pi)
 
         # Calculate empirical covariance at different lags
         center = mx_size // 2
@@ -142,9 +142,14 @@ class TestInfinitePhaseScreen(unittest.TestCase):
         theoretical_cov = np.array(theoretical_cov)
         separations = np.array(separations)
 
+        print(f"Infinite screen - Cov: {empirical_cov}")
+        print(f"Theoretical - Cov: {theoretical_cov}")
+
         # Plot for visual inspection (optional)
         display = False  # Set to True to see plots
         if display:
+            print("max ratio:", np.max(empirical_cov / theoretical_cov))
+            print("min ratio:", np.min(empirical_cov / theoretical_cov))
             plt.figure(figsize=(10, 6))
             plt.plot(separations, empirical_cov, 'o-', label='Empirical')
             plt.plot(separations, theoretical_cov, 's-', label='Theoretical')
@@ -178,7 +183,7 @@ class TestInfinitePhaseScreen(unittest.TestCase):
         pixel_scale = 0.1
         r0 = 0.2
         L0 = 25.0
-        l0 = 0.01
+        l0 = 0.005
         random_seed = 456
 
         # Create infinite phase screen
@@ -224,7 +229,7 @@ class TestInfinitePhaseScreen(unittest.TestCase):
         pixel_scale = 0.05
         r0 = 0.15
         L0 = 30.0
-        l0 = 0.01
+        l0 = 0.005
         random_seed = 789
 
         # Create two identical screens
