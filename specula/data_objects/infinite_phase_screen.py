@@ -149,7 +149,7 @@ class InfinitePhaseScreen(BaseDataObj):
         self.B_mat.append(B_mat)
         # make initial screen
         tmp, _, _ = ft_phase_screen0( turbolenceFormulas, self.r0, self.stencil_size, self.pixel_scale, self.L0, seed=self.random_seed)
-        self.full_scrn = self.xp.asarray(tmp) / 2
+        self.full_scrn = self.xp.asarray(tmp)
         self.full_scrn -= self.xp.mean(self.full_scrn)
         # print(self.full_scrn.shape)
 
