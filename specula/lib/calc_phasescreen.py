@@ -28,7 +28,7 @@ def calc_phasescreen(L0, dimension, pixel_pitch, xp, precision, seed=0, verbose=
     if verbose:
         print("Compute random matrices")
 
-    # "seed" must be a numpy array even when using CuPY   
+    # "seed" must be a numpy array even when using CuPY 
     rng = xp.random.RandomState(cpuArray(seed))
     u1 = rng.random((half_dim + 1, 2 * half_dim + 1))
     v1 = rng.random((half_dim + 1, 2 * half_dim + 1))

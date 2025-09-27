@@ -149,6 +149,7 @@ class InfinitePhaseScreen(BaseDataObj):
         # make initial screen
         tmp, _, _ = ft_phase_screen0( turbolenceFormulas, self.r0, self.stencil_size, self.pixel_scale, self.L0, seed=self.random_seed)
         self.full_scrn = self.xp.asarray(tmp)
+        self.full_scrn *= (2 * np.pi) ** (11/6) # this is to compensate SYMAO bug that uses PSD(k) instead of PSD(f)
         self.full_scrn -= self.xp.mean(self.full_scrn[:self.requested_mx_size, :self.requested_mx_size])
         # print(self.full_scrn.shape)
 
