@@ -102,7 +102,7 @@ class InfinitePhaseScreen(BaseDataObj):
         self.stencil_coords.append(self.to_xp(self.xp.where(self.stencilF == 1)).T)
         self.stencil_positions = []
         self.stencil_positions.append(self.stencil_coords[0] * self.pixel_scale)
-        self.stencil_positions.append(self.stencil_coords[1] * self.pixel_scale)        
+        self.stencil_positions.append(self.stencil_coords[1] * self.pixel_scale)
         self.n_stencils = self.stencil_coords[0].shape[0]
 
     def AB_from_positions(self, positions):
@@ -131,7 +131,7 @@ class InfinitePhaseScreen(BaseDataObj):
         # Now use sqrt(eigenvalues) to get B matrix
         B_mat = u.dot(L_mat)
         return A_mat, B_mat
-    
+
     def setup(self):
         # set X coords
         self.new_col_coords1 = self.xp.zeros((self.stencil_size, 2))
@@ -148,7 +148,7 @@ class InfinitePhaseScreen(BaseDataObj):
         self.B_mat.append(B_mat)
         # make initial screen
         tmp, _, _ = ft_phase_screen0( turbolenceFormulas, self.r0, self.stencil_size, self.pixel_scale, self.L0, seed=self.random_seed)
-        self.full_scrn = self.xp.asarray(tmp) / 2
+        self.full_scrn = self.xp.asarray(tmp)
         self.full_scrn -= self.xp.mean(self.full_scrn[:self.requested_mx_size, :self.requested_mx_size])
         # print(self.full_scrn.shape)
 
