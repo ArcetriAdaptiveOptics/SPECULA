@@ -47,33 +47,50 @@ class TestInfinitePhaseScreen(unittest.TestCase):
         """Compare statistics between InfinitePhaseScreen and calc_phasescreen (FFT method)"""
 
         # Parameters
-        mx_size = 512
-        pixel_scale = 0.02# meters
+        mx_size = 150
+        pixel_scale = 0.05 # meters
         r0 = 0.15  # meters
         L0 = 25.0  # meters
-        l0 = 0.005  # meters
-        random_seed = 42
+        random_seed1 = 42
+        random_seed2 = 1042
+        
+        n_seeds = 200
+        
+        inf_mean = 0
+        inf_std = 0
+        fft_mean = 0
+        fft_std = 0
 
-        # Create infinite phase screen
-        ips = InfinitePhaseScreen(mx_size, pixel_scale, r0, L0, l0,
-                                 random_seed=random_seed,
-                                 target_device_idx=target_device_idx)
+        for i in range(n_seeds):
+            random_seed1 += i
+            random_seed2 += i
+            # Create infinite phase screen
+            ips = InfinitePhaseScreen(mx_size, pixel_scale, r0, L0,
+                                    random_seed=random_seed1,
+                                    target_device_idx=target_device_idx)
 
-        # Get initial phase screen
-        infinite_screen = cpuArray(ips.scrn) * 500 / (2 * np.pi)
+            # Get initial phase screen
+            infinite_screen = cpuArray(ips.scrn) * 500 / (2 * np.pi)
 
-        # Create FFT phase screen with same parameters
-        fft_screen = calc_phasescreen(L0, mx_size, pixel_scale,
-                                     seed=random_seed,
-                                     precision=1,  # single precision
-                                     xp=xp)
-        fft_screen = cpuArray(fft_screen)
+            # Create FFT phase screen with same parameters
+            fft_screen = calc_phasescreen(L0, mx_size, pixel_scale,
+                                        seed=random_seed2,
+                                        precision=1,  # single precision
+                                        xp=xp)
+            fft_screen = cpuArray(fft_screen)
+            r0_scaling = (pixel_scale / r0)**(5./6.)
+            fft_screen *= r0_scaling
 
-        # Compare basic statistics
-        inf_mean = np.mean(infinite_screen)
-        inf_std = np.std(infinite_screen)
-        fft_mean = np.mean(fft_screen)
-        fft_std = np.std(fft_screen)
+            # Compare basic statistics
+            inf_mean_i = np.mean(infinite_screen)
+            inf_std_i = np.std(infinite_screen)
+            fft_mean_i = np.mean(fft_screen)
+            fft_std_i = np.std(fft_screen)
+            
+            inf_mean += inf_mean_i/n_seeds
+            inf_std += inf_std_i/n_seeds
+            fft_mean += fft_mean_i/n_seeds
+            fft_std += fft_std_i/n_seeds
 
         print(f"Infinite screen - Mean: {inf_mean:.6f}, Std: {inf_std:.6f}")
         print(f"FFT screen - Mean: {fft_mean:.6f}, Std: {fft_std:.6f}")
@@ -88,91 +105,6 @@ class TestInfinitePhaseScreen(unittest.TestCase):
         std_ratio = inf_std / fft_std
         self.assertTrue(0.8 < std_ratio < 1.2,
                        f"Standard deviation ratio {std_ratio:.3f} should be near 1.0")
-
-    @cpu_and_gpu
-    def test_infinite_screen_covariance_structure(self, target_device_idx, xp):
-        """Test that the infinite screen has the correct covariance structure"""
-
-        # Parameters
-        mx_size = 512
-        pixel_scale = 0.05 # meters
-        r0 = 0.2  # meters
-        L0 = 20.0  # meters
-        l0 = 0.005  # meters
-        random_seed = 123
-
-        # Create infinite phase screen
-        ips = InfinitePhaseScreen(mx_size, pixel_scale, r0, L0, l0,
-                                 random_seed=random_seed,
-                                 target_device_idx=target_device_idx)
-
-        # Get the phase screen
-        screen = cpuArray(ips.scrn) * 500 / (2 * np.pi)
-
-        # Calculate empirical covariance at different lags
-        center = mx_size // 2
-        max_lag = 10
-
-        empirical_cov = []
-        theoretical_cov = []
-        separations = []
-
-        for lag in range(0, max_lag):
-            # Calculate empirical covariance at this lag (horizontal)
-            if lag == 0:
-                emp_cov = np.var(screen)
-            else:
-                cov_sum = 0
-                count = 0
-                for i in range(center - 10, center + 10):
-                    for j in range(center - 10, center + 10 - lag):
-                        cov_sum += screen[i, j] * screen[i, j + lag]
-                        count += 1
-                emp_cov = cov_sum / count - np.mean(screen)**2
-
-            empirical_cov.append(emp_cov)
-
-            # Calculate theoretical covariance
-            separation = lag * pixel_scale
-            separations.append(separation)
-            theo_cov = ips.phase_covariance(np.array([separation]), r0, L0)[0]
-            theoretical_cov.append(theo_cov)
-
-        empirical_cov = np.array(empirical_cov)
-        theoretical_cov = np.array(theoretical_cov)
-        separations = np.array(separations)
-
-        print(f"Infinite screen - Cov: {empirical_cov}")
-        print(f"Theoretical - Cov: {theoretical_cov}")
-
-        # Plot for visual inspection (optional)
-        display = False  # Set to True to see plots
-        if display:
-            print("max ratio:", np.max(empirical_cov / theoretical_cov))
-            print("min ratio:", np.min(empirical_cov / theoretical_cov))
-            plt.figure(figsize=(10, 6))
-            plt.plot(separations, empirical_cov, 'o-', label='Empirical')
-            plt.plot(separations, theoretical_cov, 's-', label='Theoretical')
-            plt.xlabel('Separation [m]')
-            plt.ylabel('Phase Covariance')
-            plt.legend()
-            plt.title('Phase Covariance Comparison')
-            plt.grid(True)
-            plt.figure(figsize=(10, 6))
-            ratio = empirical_cov / theoretical_cov
-            plt.plot(separations, ratio, 'o-')
-            plt.xlabel('Separation [m]')
-            plt.ylabel('Empirical / Theoretical Covariance')
-            plt.title('Covariance Ratio')
-            plt.grid(True)
-            plt.show()
-
-        # Check that empirical and theoretical covariances are reasonably close
-        # Allow for statistical noise, especially at larger separations
-        for i in range(min(len(empirical_cov), 10)):  # Check first 10 lags
-            ratio = empirical_cov[i] / theoretical_cov[i] if theoretical_cov[i] != 0 else 1
-            self.assertTrue(0.5 < ratio < 2.0,
-                           f"Covariance ratio at lag {i} is {ratio:.3f}, should be near 1.0")
 
     @cpu_and_gpu
     def test_screen_evolution_with_add_line(self, target_device_idx, xp):

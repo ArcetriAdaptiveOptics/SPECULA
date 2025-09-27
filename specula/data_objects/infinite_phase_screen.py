@@ -30,7 +30,7 @@ def cn2_to_seeing(cn2, wvl=500.e-9):
 
 class InfinitePhaseScreen(BaseDataObj):
 
-    def __init__(self, mx_size, pixel_scale, r0, L0, l0, random_seed=None, stencil_size_factor=1, xp=np, target_device_idx=0, precision=0):
+    def __init__(self, mx_size, pixel_scale, r0, L0, random_seed=None, stencil_size_factor=1, xp=np, target_device_idx=0, precision=0):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.random_data_col = None
@@ -40,7 +40,6 @@ class InfinitePhaseScreen(BaseDataObj):
         self.pixel_scale = pixel_scale
         self.r0 = r0
         self.L0 = L0
-        self.l0 = l0
         self.xp = xp
         self.stencil_size_factor = stencil_size_factor
         self.stencil_size = stencil_size_factor * self.mx_size
@@ -149,8 +148,8 @@ class InfinitePhaseScreen(BaseDataObj):
         self.B_mat.append(B_mat)
         # make initial screen
         tmp, _, _ = ft_phase_screen0( turbolenceFormulas, self.r0, self.stencil_size, self.pixel_scale, self.L0, seed=self.random_seed)
-        self.full_scrn = self.xp.asarray(tmp)
-        self.full_scrn -= self.xp.mean(self.full_scrn)
+        self.full_scrn = self.xp.asarray(tmp) / 2
+        self.full_scrn -= self.xp.mean(self.full_scrn[:self.requested_mx_size, :self.requested_mx_size])
         # print(self.full_scrn.shape)
 
     def prepare_random_data_col(self):

@@ -40,7 +40,6 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         self.delta_time = None
         # fixed at generation time, then is a input -> rescales the screen?
         self.seeing = 1.0
-        self.l0 = 0.005
         self.airmass = 1
         self.ref_wavelengthInNm = 500
         self.extra_delta_time = extra_delta_time
@@ -125,7 +124,6 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
                                                        self.pixel_pitch,
                                                        self.ref_r0,
                                                        self.L0[i],
-                                                       self.l0,
                                                        random_seed=int(seed[i]),
                                                        xp=self.xp,
                                                        target_device_idx=self.target_device_idx,
