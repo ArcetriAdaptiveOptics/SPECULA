@@ -116,9 +116,10 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         # Square infinite_phasescreens
         for i in range(self.n_infinite_phasescreens):
             print('Creating phase screen..')
-            self.ref_r0 = 0.9759 * 0.5 / (self.seeing * 4.848) * self.airmass**(-3./5.) # if seeing > 0 else 0.0
-#            self.ref_r0 *= (self.ref_wavelengthInNm / 500.0 / ((2*np.pi)))**(6./5.)
-            self.ref_r0 *= (self.ref_wavelengthInNm / 500.0 )**(6./5.)
+#            self.ref_r0 = 0.9759 * 0.5 / (self.seeing * 4.848) * self.airmass**(-3./5.) # if seeing > 0 else 0.0
+##            self.ref_r0 *= (self.ref_wavelengthInNm / 500.0 / ((2*np.pi)))**(6./5.)
+#            self.ref_r0 *= (self.ref_wavelengthInNm / 500.0 )**(6./5.)
+            self.ref_r0 = self.pixel_pitch / 2
             print('self.ref_r0:', self.ref_r0)
             temp_infinite_screen = InfinitePhaseScreen(self.pixel_layer_size[i],
                                                        self.pixel_pitch,
