@@ -42,7 +42,12 @@ class InfinitePhaseScreen(BaseDataObj):
         self.L0 = L0
         self.xp = xp
         self.stencil_size_factor = stencil_size_factor
-        self.stencil_size = stencil_size_factor * self.mx_size
+        
+        # stencil size must be odd and >= 513
+        base_stencil_size = int(stencil_size_factor * self.mx_size/2)*2 + 1
+        min_stencil_size = 513
+        self.stencil_size = max(base_stencil_size, min_stencil_size)
+
         if random_seed is None:
             raise ValueError("random_seed must be provided")
         else:
