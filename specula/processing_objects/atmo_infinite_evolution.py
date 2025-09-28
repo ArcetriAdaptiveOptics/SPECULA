@@ -40,7 +40,6 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         self.delta_time = None
         # fixed at generation time, then is a input -> rescales the screen?
         self.seeing = 1.0
-        self.l0 = 0.005
         self.airmass = 1
         self.ref_wavelengthInNm = 500
         self.extra_delta_time = extra_delta_time
@@ -118,14 +117,12 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         for i in range(self.n_infinite_phasescreens):
             print('Creating phase screen..')
             self.ref_r0 = 0.9759 * 0.5 / (self.seeing * 4.848) * self.airmass**(-3./5.) # if seeing > 0 else 0.0
-#            self.ref_r0 *= (self.ref_wavelengthInNm / 500.0 / ((2*np.pi)))**(6./5.)
             self.ref_r0 *= (self.ref_wavelengthInNm / 500.0 )**(6./5.)
             print('self.ref_r0:', self.ref_r0)
             temp_infinite_screen = InfinitePhaseScreen(self.pixel_layer_size[i],
                                                        self.pixel_pitch,
                                                        self.ref_r0,
                                                        self.L0[i],
-                                                       self.l0,
                                                        random_seed=int(seed[i]),
                                                        xp=self.xp,
                                                        target_device_idx=self.target_device_idx,
@@ -205,7 +202,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
             # print('acc_rows', self.acc_rows)
             # print('acc_cols', self.acc_cols)
             self.layer_list[ii].field[:] = self.xp.stack((layer_phase, layer_phase))
-            self.layer_list[ii].phaseInNm *= self.scale_coeff
+            self.layer_list[ii].phaseInNm *= self.scale_coeff*self.xp.sqrt(self.Cn2[ii])
             self.layer_list[ii].A = 1
             self.layer_list[ii].generation_time = self.current_time
         self.last_position = new_position

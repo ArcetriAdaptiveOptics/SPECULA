@@ -30,7 +30,7 @@ def cn2_to_seeing(cn2, wvl=500.e-9):
 
 class InfinitePhaseScreen(BaseDataObj):
 
-    def __init__(self, mx_size, pixel_scale, r0, L0, l0, random_seed=None, stencil_size_factor=1, xp=np, target_device_idx=0, precision=0):
+    def __init__(self, mx_size, pixel_scale, r0, L0, random_seed=None, stencil_size_factor=1, xp=np, target_device_idx=0, precision=0):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.random_data_col = None
@@ -40,10 +40,14 @@ class InfinitePhaseScreen(BaseDataObj):
         self.pixel_scale = pixel_scale
         self.r0 = r0
         self.L0 = L0
-        self.l0 = l0
         self.xp = xp
         self.stencil_size_factor = stencil_size_factor
-        self.stencil_size = stencil_size_factor * self.mx_size
+        
+        # stencil size must be odd and >= 257
+        base_stencil_size = int(stencil_size_factor * self.mx_size/2)*2 + 1
+        min_stencil_size = 257
+        self.stencil_size = max(base_stencil_size, min_stencil_size)
+
         if random_seed is None:
             raise ValueError("random_seed must be provided")
         else:
@@ -69,7 +73,7 @@ class InfinitePhaseScreen(BaseDataObj):
 #        C = (((2 * self.xp.pi * r) / L0) ** (5. / 6)) * kv(5. / 6, (2 * self.xp.pi * r) / L0)
 #        cov = A * B1 * B2 * C / 2
 
-        cov = self.xp.asarray(cov)
+        cov = self.to_xp(cov)
 
         return cov
 
@@ -96,14 +100,14 @@ class InfinitePhaseScreen(BaseDataObj):
             col = n * self.mx_size - 1
             self.stencil[col, self.stencil_size // 2] = 1
             self.stencilF[self.stencil_size-col-1, self.stencil_size // 2] = 1
-        self.stencil = self.xp.asarray(self.stencil)
-        self.stencilF = self.xp.asarray(self.stencilF)
+        self.stencil = self.to_xp(self.stencil)
+        self.stencilF = self.to_xp(self.stencilF)
         self.stencil_coords = []
         self.stencil_coords.append(self.to_xp(self.xp.where(self.stencil == 1)).T)
         self.stencil_coords.append(self.to_xp(self.xp.where(self.stencilF == 1)).T)
         self.stencil_positions = []
         self.stencil_positions.append(self.stencil_coords[0] * self.pixel_scale)
-        self.stencil_positions.append(self.stencil_coords[1] * self.pixel_scale)        
+        self.stencil_positions.append(self.stencil_coords[1] * self.pixel_scale)
         self.n_stencils = self.stencil_coords[0].shape[0]
 
     def AB_from_positions(self, positions):
@@ -132,7 +136,7 @@ class InfinitePhaseScreen(BaseDataObj):
         # Now use sqrt(eigenvalues) to get B matrix
         B_mat = u.dot(L_mat)
         return A_mat, B_mat
-    
+
     def setup(self):
         # set X coords
         self.new_col_coords1 = self.xp.zeros((self.stencil_size, 2))
@@ -149,8 +153,9 @@ class InfinitePhaseScreen(BaseDataObj):
         self.B_mat.append(B_mat)
         # make initial screen
         tmp, _, _ = ft_phase_screen0( turbolenceFormulas, self.r0, self.stencil_size, self.pixel_scale, self.L0, seed=self.random_seed)
-        self.full_scrn = self.xp.asarray(tmp) / 2
-        self.full_scrn -= self.xp.mean(self.full_scrn)
+        self.full_scrn = self.to_xp(tmp)
+        self.full_scrn *= (2 * np.pi) ** (11/6) # this is to compensate SYMAO bug that uses PSD(k) instead of PSD(f)
+        self.full_scrn -= self.xp.mean(self.full_scrn[:self.requested_mx_size, :self.requested_mx_size])
         # print(self.full_scrn.shape)
 
     def prepare_random_data_col(self):
@@ -172,11 +177,11 @@ class InfinitePhaseScreen(BaseDataObj):
     def get_new_line(self, row, after):
         if row:
             self.prepare_random_data_row()
-            stencil_data = self.xp.asarray(self.full_scrn[self.stencil_coords[after][:, 1], self.stencil_coords[after][:, 0]])
+            stencil_data = self.to_xp(self.full_scrn[self.stencil_coords[after][:, 1], self.stencil_coords[after][:, 0]])
             new_line = self.A_mat[after].dot(stencil_data) + self.B_mat[after].dot(self.random_data_row)
         else:
             self.prepare_random_data_col()
-            stencil_data = self.xp.asarray(self.full_scrn[self.stencil_coords[after][:, 0], self.stencil_coords[after][:, 1]])
+            stencil_data = self.to_xp(self.full_scrn[self.stencil_coords[after][:, 0], self.stencil_coords[after][:, 1]])
             new_line = self.A_mat[after].dot(stencil_data) + self.B_mat[after].dot(self.random_data_col)
         return new_line
 
