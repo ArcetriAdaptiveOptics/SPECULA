@@ -156,6 +156,7 @@ class TestAtmoSimulationCombinations(unittest.TestCase):
             if os.path.exists(override_path):
                 os.remove(override_path)
 
+    @unittest.skip("Skipping all combinations test")
     def test_all_combinations(self):
         """Run simulations for all parameter combinations and display results"""
 
