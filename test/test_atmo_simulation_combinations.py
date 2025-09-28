@@ -14,7 +14,7 @@ import yaml
 import matplotlib.pyplot as plt
 
 class TestAtmoSimulationCombinations(unittest.TestCase):
-    """Test AtmoEvolution and AtmoInfiniteEvolution with different pupil sizes and pixel pitches"""
+    """Test AtmoEvolution and AtmoInfiniteEvolution with different pupil sizes, pixel pitches, and L0 values"""
 
     def setUp(self):
         """Set up test environment"""
@@ -27,23 +27,27 @@ class TestAtmoSimulationCombinations(unittest.TestCase):
         # Define test combinations
         self.pixel_pupils = [128, 256, 512]
         self.pupil_diameters = [1.0, 8.0, 40.0]  # meters
+        self.L0_values = [10.0, 25.0, 100.0]     # meters - outer scale
         
         # Calculate all combinations
         self.combinations = []
         for pixel_pupil in self.pixel_pupils:
             for diameter in self.pupil_diameters:
-                pixel_pitch = diameter / pixel_pupil
-                self.combinations.append({
-                    'pixel_pupil': pixel_pupil,
-                    'diameter': diameter,
-                    'pixel_pitch': pixel_pitch,
-                    'name': f'pp{pixel_pupil}_d{diameter:.0f}m'
-                })
+                for L0 in self.L0_values:
+                    pixel_pitch = diameter / pixel_pupil
+                    self.combinations.append({
+                        'pixel_pupil': pixel_pupil,
+                        'diameter': diameter,
+                        'pixel_pitch': pixel_pitch,
+                        'L0': L0,
+                        'name': f'pp{pixel_pupil}_d{diameter:.0f}m_L0{L0:.0f}m'
+                    })
         
         print(f"Testing {len(self.combinations)} combinations:")
         for combo in self.combinations:
             print(f"  {combo['name']}: pixel_pupil={combo['pixel_pupil']}, "
-                  f"diameter={combo['diameter']:.1f}m, pixel_pitch={combo['pixel_pitch']:.6f}m")
+                  f"diameter={combo['diameter']:.1f}m, pixel_pitch={combo['pixel_pitch']:.6f}m, "
+                  f"L0={combo['L0']:.1f}m")
 
     @classmethod
     def tearDownClass(cls):
@@ -81,6 +85,9 @@ class TestAtmoSimulationCombinations(unittest.TestCase):
             },
             'modal_analysis2_override': {
                 'npixels': combo['pixel_pupil']
+            },
+            'atmosphere_override': {
+                'L0': [combo['L0']]  # L0 is typically a list for multi-layer atmosphere
             }
         }
         
@@ -97,6 +104,7 @@ class TestAtmoSimulationCombinations(unittest.TestCase):
         print(f"  pixel_pupil: {combo['pixel_pupil']}")
         print(f"  diameter: {combo['diameter']:.1f}m")
         print(f"  pixel_pitch: {combo['pixel_pitch']:.6f}m")
+        print(f"  L0: {combo['L0']:.1f}m")
         print(f"{'='*60}")
         
         # Create override config
@@ -184,17 +192,36 @@ class TestAtmoSimulationCombinations(unittest.TestCase):
             print("No results to display")
             return
         
+        # Group results by L0 values for separate plots
+        results_by_L0 = {}
+        for result in all_results:
+            L0 = result['combo']['L0']
+            if L0 not in results_by_L0:
+                results_by_L0[L0] = []
+            results_by_L0[L0].append(result)
+        
+        # Create separate figure for each L0 value
+        for L0, L0_results in results_by_L0.items():
+            self.create_L0_plot(L0, L0_results)
+        
+        # Create overall summary plot
+        self.create_summary_plot(all_results)
+
+    def create_L0_plot(self, L0, L0_results):
+        """Create plot for a specific L0 value"""
+        if not L0_results:
+            return
+            
         # Create figure with subplots for each combination
-        n_results = len(all_results)
         n_cols = 3  # 3 columns (for 3 diameters)
         n_rows = 3  # 3 rows (for 3 pixel_pupils)
         
         fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 12))
-        fig.suptitle('RMS Modal Coefficients: AtmoEvolution vs AtmoInfiniteEvolution', fontsize=14)
+        fig.suptitle(f'RMS Modal Coefficients (L0 = {L0:.0f}m): AtmoEvolution vs AtmoInfiniteEvolution', fontsize=14)
         
         # Organize results by pixel_pupil and diameter
         result_grid = {}
-        for result in all_results:
+        for result in L0_results:
             pp = result['combo']['pixel_pupil']
             diam = result['combo']['diameter']
             result_grid[(pp, diam)] = result
@@ -215,10 +242,14 @@ class TestAtmoSimulationCombinations(unittest.TestCase):
                     ax.loglog(x, result['rms_modes2'], 'r-s', markersize=3, 
                              label='AtmoInfiniteEvolution', alpha=0.7)
                     
+                    # Calculate sampling ratio for subtitle
+                    D_phys = combo['diameter']
+                    sampling_ratio = D_phys / combo['L0']
+                    
                     # Formatting
-                    ax.set_title(f'{combo["name"]}\n'
-                               f'pp={pixel_pupil}, D={diameter:.0f}m\n'
-                               f'pitch={combo["pixel_pitch"]:.4f}m', fontsize=10)
+                    ax.set_title(f'pp={pixel_pupil}, D={diameter:.0f}m\n'
+                               f'pitch={combo["pixel_pitch"]:.4f}m\n'
+                               f'D/L0={sampling_ratio:.2f}', fontsize=10)
                     ax.grid(True, alpha=0.3)
                     
                     if row == n_rows - 1:  # Bottom row
@@ -239,31 +270,28 @@ class TestAtmoSimulationCombinations(unittest.TestCase):
         
         plt.tight_layout()
         plt.show()
-        
-        # Create summary comparison plot
-        self.create_summary_plot(all_results)
 
     def create_summary_plot(self, all_results):
         """Create summary comparison plot showing ratios between methods"""
         if len(all_results) < 2:
             return
             
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(18, 12))
         
         # Plot 1: RMS comparison for first few modes
         n_modes_show = min(20, min(len(r['rms_modes1']) for r in all_results))
         x = np.arange(n_modes_show) + 2
         
-        colors = plt.cm.tab10(np.linspace(0, 1, len(all_results)))
+        colors = plt.cm.tab20(np.linspace(0, 1, len(all_results)))
         
         for i, result in enumerate(all_results):
             combo = result['combo']
             label = f"{combo['name']}"
             
             ax1.loglog(x, result['rms_modes1'][:n_modes_show], 
-                      color=colors[i], linestyle='-', alpha=0.7)
+                      color=colors[i], linestyle='-', alpha=0.6, linewidth=1)
             ax1.loglog(x, result['rms_modes2'][:n_modes_show], 
-                      color=colors[i], linestyle='--', alpha=0.7)
+                      color=colors[i], linestyle='--', alpha=0.6, linewidth=1)
         
         ax1.set_xlabel('Zernike Mode')
         ax1.set_ylabel('RMS [rad]')
@@ -274,17 +302,71 @@ class TestAtmoSimulationCombinations(unittest.TestCase):
         for i, result in enumerate(all_results):
             combo = result['combo']
             ratio = result['rms_modes2'] / result['rms_modes1']
-            x = np.arange(len(ratio)) + 2
+            x_ratio = np.arange(len(ratio)) + 2
             
-            ax2.semilogx(x, ratio, color=colors[i], marker='o', markersize=2,
-                        label=combo['name'], alpha=0.7)
+            ax2.semilogx(x_ratio, ratio, color=colors[i], marker='o', markersize=2,
+                        label=combo['name'], alpha=0.6, linewidth=1)
         
         ax2.axhline(y=1.0, color='black', linestyle='-', alpha=0.5)
         ax2.set_xlabel('Zernike Mode')
         ax2.set_ylabel('Ratio (AtmoInfiniteEvolution / AtmoEvolution)')
         ax2.set_title('RMS Ratio Between Methods')
         ax2.grid(True, alpha=0.3)
-        ax2.legend(fontsize=8, bbox_to_anchor=(1.05, 1), loc='upper left')
+        ax2.legend(fontsize=6, bbox_to_anchor=(1.05, 1), loc='upper left')
+        
+        # Plot 3: Effect of L0 on ratio (for tip/tilt mode - mode 2)
+        L0_values = sorted(set(r['combo']['L0'] for r in all_results))
+        pixel_pupil_values = sorted(set(r['combo']['pixel_pupil'] for r in all_results))
+        diameter_values = sorted(set(r['combo']['diameter'] for r in all_results))
+        
+        for pp in pixel_pupil_values:
+            for diam in diameter_values:
+                ratios_vs_L0 = []
+                L0_list = []
+                for L0 in L0_values:
+                    matching_results = [r for r in all_results 
+                                      if r['combo']['pixel_pupil'] == pp 
+                                      and r['combo']['diameter'] == diam 
+                                      and r['combo']['L0'] == L0]
+                    if matching_results:
+                        result = matching_results[0]
+                        ratio_mode2 = result['rms_modes2'][0] / result['rms_modes1'][0]  # Mode 2 (tip)
+                        ratios_vs_L0.append(ratio_mode2)
+                        L0_list.append(L0)
+                
+                if len(ratios_vs_L0) > 1:
+                    ax3.plot(L0_list, ratios_vs_L0, 'o-', 
+                            label=f'pp={pp}, D={diam:.0f}m', alpha=0.7, linewidth=2)
+        
+        ax3.axhline(y=1.0, color='black', linestyle='-', alpha=0.5)
+        ax3.set_xlabel('L0 [m]')
+        ax3.set_ylabel('Ratio for Mode 2 (Tip)')
+        ax3.set_title('Effect of L0 on Ratio (Mode 2)')
+        ax3.grid(True, alpha=0.3)
+        ax3.legend(fontsize=8)
+        
+        # Plot 4: Effect of diameter/L0 ratio on overall performance
+        sampling_ratios = []
+        mean_ratios = []
+        
+        for result in all_results:
+            combo = result['combo']
+            D_phys = combo['diameter']
+            sampling_ratio = D_phys / combo['L0']
+            
+            # Calculate mean ratio for first 10 modes
+            ratio_modes = result['rms_modes2'][:10] / result['rms_modes1'][:10]
+            mean_ratio = np.mean(ratio_modes)
+            
+            sampling_ratios.append(sampling_ratio)
+            mean_ratios.append(mean_ratio)
+        
+        ax4.scatter(sampling_ratios, mean_ratios, alpha=0.6, s=50)
+        ax4.axhline(y=1.0, color='black', linestyle='-', alpha=0.5)
+        ax4.set_xlabel('D/L0 Sampling Ratio')
+        ax4.set_ylabel('Mean Ratio (first 10 modes)')
+        ax4.set_title('Performance vs Sampling Ratio')
+        ax4.grid(True, alpha=0.3)
         
         plt.tight_layout()
         plt.show()
