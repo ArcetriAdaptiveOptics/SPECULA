@@ -28,15 +28,15 @@ class TestInfinitePhaseScreen(unittest.TestCase):
                                  target_device_idx=target_device_idx)
 
         # Test covariance function at different separations
-        separations = np.array([0.1, 0.5, 1.0, 2.0, 5.0, 10.0])  # meters
-        cov_values = ips.phase_covariance(separations, r0, L0)
+        separations = xp.array([0.1, 0.5, 1.0, 2.0, 5.0, 10.0])  # meters
+        cov_values = cpuArray(ips.phase_covariance(separations, r0, L0))
 
         # Basic sanity checks
         self.assertTrue(all(cov_values >= 0), "Covariance values should be non-negative")
         self.assertTrue(cov_values[0] > cov_values[-1], "Covariance should decrease with separation")
 
         # Check that covariance at zero separation is finite and positive
-        cov_zero = ips.phase_covariance(np.array([1e-6]), r0, L0)[0]
+        cov_zero = cpuArray(ips.phase_covariance(xp.array([1e-6]), r0, L0)[0])
         self.assertTrue(cov_zero > 0, "Covariance at zero separation should be positive")
 
     @cpu_and_gpu
@@ -114,7 +114,7 @@ class TestInfinitePhaseScreen(unittest.TestCase):
                     'fft_std': fft_std,
                     'std_ratio': std_ratio
                 }
-                results.append(result)
+                results.append(cpuArray(result))
 
                 # Print current result
                 if verbose:
