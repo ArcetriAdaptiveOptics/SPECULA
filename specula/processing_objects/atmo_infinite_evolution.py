@@ -202,7 +202,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
             # print('acc_rows', self.acc_rows)
             # print('acc_cols', self.acc_cols)
             self.layer_list[ii].field[:] = self.xp.stack((layer_phase, layer_phase))
-            self.layer_list[ii].phaseInNm *= self.scale_coeff
+            self.layer_list[ii].phaseInNm *= self.scale_coeff*self.xp.sqrt(self.Cn2[i])
             self.layer_list[ii].A = 1
             self.layer_list[ii].generation_time = self.current_time
         self.last_position = new_position
