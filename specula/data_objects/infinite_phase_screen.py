@@ -100,8 +100,8 @@ class InfinitePhaseScreen(BaseDataObj):
             col = n * self.mx_size - 1
             self.stencil[col, self.stencil_size // 2] = 1
             self.stencilF[self.stencil_size-col-1, self.stencil_size // 2] = 1
-        self.stencil = self.xp.asarray(self.stencil)
-        self.stencilF = self.xp.asarray(self.stencilF)
+        self.stencil = self.to_xp(self.stencil)
+        self.stencilF = self.to_xp(self.stencilF)
         self.stencil_coords = []
         self.stencil_coords.append(self.to_xp(self.xp.where(self.stencil == 1)).T)
         self.stencil_coords.append(self.to_xp(self.xp.where(self.stencilF == 1)).T)
@@ -153,7 +153,7 @@ class InfinitePhaseScreen(BaseDataObj):
         self.B_mat.append(B_mat)
         # make initial screen
         tmp, _, _ = ft_phase_screen0( turbolenceFormulas, self.r0, self.stencil_size, self.pixel_scale, self.L0, seed=self.random_seed)
-        self.full_scrn = self.xp.asarray(tmp)
+        self.full_scrn = self.to_xp(tmp)
         self.full_scrn *= (2 * np.pi) ** (11/6) # this is to compensate SYMAO bug that uses PSD(k) instead of PSD(f)
         self.full_scrn -= self.xp.mean(self.full_scrn[:self.requested_mx_size, :self.requested_mx_size])
         # print(self.full_scrn.shape)
@@ -177,11 +177,11 @@ class InfinitePhaseScreen(BaseDataObj):
     def get_new_line(self, row, after):
         if row:
             self.prepare_random_data_row()
-            stencil_data = self.xp.asarray(self.full_scrn[self.stencil_coords[after][:, 1], self.stencil_coords[after][:, 0]])
+            stencil_data = self.to_xp(self.full_scrn[self.stencil_coords[after][:, 1], self.stencil_coords[after][:, 0]])
             new_line = self.A_mat[after].dot(stencil_data) + self.B_mat[after].dot(self.random_data_row)
         else:
             self.prepare_random_data_col()
-            stencil_data = self.xp.asarray(self.full_scrn[self.stencil_coords[after][:, 0], self.stencil_coords[after][:, 1]])
+            stencil_data = self.to_xp(self.full_scrn[self.stencil_coords[after][:, 0], self.stencil_coords[after][:, 1]])
             new_line = self.A_mat[after].dot(stencil_data) + self.B_mat[after].dot(self.random_data_col)
         return new_line
 
