@@ -133,7 +133,7 @@ class IFunc(BaseDataObj):
 
     def get_value(self):
         return self._influence_function
-    
+
     def set_value(self, v):
         '''Set a new influence function.
         Arrays are not reallocated.'''
@@ -142,13 +142,29 @@ class IFunc(BaseDataObj):
 
         self._influence_function[:] = self.to_xp(v)
 
-    @staticmethod
-    def from_header(hdr):
-        raise NotImplementedError
+    def ifunc_2d_to_3d(self, normalize=True):
+        '''Convert a 2D influence function to a 3D array using a mask.'''
+        npixels = self._mask_inf_func.shape[0]
+        nmodes = self._influence_function.shape[0]
+        ifunc_3d = self.xp.zeros((npixels, npixels, nmodes), dtype=self.dtype)
+        idx = self.xp.where(self._mask_inf_func > 0)
+
+        ifunc_3d[idx[0], idx[1], :] = self._influence_function.T
+
+        if normalize:
+            ifunc_rms = self.xp.sqrt(self.xp.mean(self._influence_function**2, axis=1))
+            # Broadcasting: divide each mode by its rms value
+            ifunc_3d[idx[0], idx[1], :] /= ifunc_rms[self.xp.newaxis, :]
+
+        return ifunc_3d
 
     def inverse(self):
         inv = self.xp.linalg.pinv(self._influence_function)
         return IFuncInv(inv, mask=self._mask_inf_func, precision=self.precision, target_device_idx=self.target_device_idx)
+
+    @staticmethod
+    def from_header(hdr):
+        raise NotImplementedError
 
     def get_fits_header(self):
         hdr = fits.Header()
