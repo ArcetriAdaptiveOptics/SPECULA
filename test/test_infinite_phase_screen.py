@@ -8,9 +8,6 @@ from specula.data_objects.infinite_phase_screen import InfinitePhaseScreen
 from specula.lib.calc_phasescreen import calc_phasescreen
 from test.specula_testlib import cpu_and_gpu
 
-import matplotlib.pyplot as plt
-
-
 class TestInfinitePhaseScreen(unittest.TestCase):
 
     @cpu_and_gpu

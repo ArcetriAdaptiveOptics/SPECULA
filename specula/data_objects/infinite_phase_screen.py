@@ -124,8 +124,6 @@ class InfinitePhaseScreen(BaseDataObj):
         self.cov_mat_zx = self.cov_mat[:self.n_stencils, self.n_stencils:]
         self.cov_mat_xz = self.cov_mat[self.n_stencils:, :self.n_stencils]
         # Cholesky solve can fail - so do brute force inversion
-        # print type of self.cov_mat_zz, self.cov_mat_zz.shape
-        print("Type of cov_mat_zz:", type(self.cov_mat_zz), "shape:", self.cov_mat_zz.shape)
         cf = self._lu_factor(self.cov_mat_zz)
         inv_cov_zz = self._lu_solve(cf, self.xp.identity(self.cov_mat_zz.shape[0]))
         A_mat = self.cov_mat_xz.dot(inv_cov_zz)
