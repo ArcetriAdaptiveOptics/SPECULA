@@ -73,7 +73,7 @@ class InfinitePhaseScreen(BaseDataObj):
 #        C = (((2 * self.xp.pi * r) / L0) ** (5. / 6)) * kv(5. / 6, (2 * self.xp.pi * r) / L0)
 #        cov = A * B1 * B2 * C / 2
 
-        cov = self.xp.asarray(cov)
+        cov = self.to_xp(cov)
 
         return cov
 
@@ -118,12 +118,14 @@ class InfinitePhaseScreen(BaseDataObj):
         delta_x_grid = delta_x_gridA - delta_x_gridB
         delta_y_grid = delta_y_gridA - delta_y_gridB
         seperations = self.xp.sqrt(delta_x_grid ** 2 + delta_y_grid ** 2)
-        self.cov_mat = self.to_xp(self.phase_covariance(seperations, self.r0, self.L0))
+        self.cov_mat = self.phase_covariance(seperations, self.r0, self.L0)
         self.cov_mat_zz = self.cov_mat[:self.n_stencils, :self.n_stencils]
         self.cov_mat_xx = self.cov_mat[self.n_stencils:, self.n_stencils:]
         self.cov_mat_zx = self.cov_mat[:self.n_stencils, self.n_stencils:]
         self.cov_mat_xz = self.cov_mat[self.n_stencils:, :self.n_stencils]
         # Cholesky solve can fail - so do brute force inversion
+        # print type of self.cov_mat_zz, self.cov_mat_zz.shape
+        print("Type of cov_mat_zz:", type(self.cov_mat_zz), "shape:", self.cov_mat_zz.shape)
         cf = self._lu_factor(self.cov_mat_zz)
         inv_cov_zz = self._lu_solve(cf, self.xp.identity(self.cov_mat_zz.shape[0]))
         A_mat = self.cov_mat_xz.dot(inv_cov_zz)
