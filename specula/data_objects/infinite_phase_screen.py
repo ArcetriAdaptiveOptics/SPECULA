@@ -43,9 +43,9 @@ class InfinitePhaseScreen(BaseDataObj):
         self.xp = xp
         self.stencil_size_factor = stencil_size_factor
         
-        # stencil size must be odd and >= 513
+        # stencil size must be odd and >= 257
         base_stencil_size = int(stencil_size_factor * self.mx_size/2)*2 + 1
-        min_stencil_size = 513
+        min_stencil_size = 257
         self.stencil_size = max(base_stencil_size, min_stencil_size)
 
         if random_seed is None:
