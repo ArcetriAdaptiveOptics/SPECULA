@@ -6,6 +6,8 @@ def compute_mmse_reconstructor(interaction_matrix, c_atm, xp, dtype,
     """
     Compute the Minimum Mean Square Error (MMSE) reconstructor.
     
+    W_mmse = (A' Cz^(-1) A + Cx^(-1))^(-1) A' Cz^(-1)
+    
     Args:
         interaction_matrix (numpy.ndarray): Interaction matrix A relating modes to slopes
         c_atm (numpy.ndarray): Covariance matrix of atmospheric modes (Cx)
@@ -24,17 +26,17 @@ def compute_mmse_reconstructor(interaction_matrix, c_atm, xp, dtype,
 
     # Setup matrices
     A = interaction_matrix
+    n_slopes, n_modes = A.shape
 
     # Handle noise covariance matrix
     if c_noise is None and noise_variance is not None:
-        n_slopes_total = A.shape[1]
         n_wfs = len(noise_variance)
-        n_slopes_per_wfs = n_slopes_total // n_wfs
+        n_slopes_per_wfs = n_slopes // n_wfs
 
         if verbose:
             print(f"Building noise covariance matrix for {n_wfs} WFSs with {n_slopes_per_wfs} slopes each")
 
-        c_noise = xp.zeros((n_slopes_total, n_slopes_total), dtype=dtype)
+        c_noise = xp.zeros((n_slopes, n_slopes), dtype=dtype)
         for i in range(n_wfs):
             # Set the diagonal elements for this WFS
             start_idx = i * n_slopes_per_wfs
