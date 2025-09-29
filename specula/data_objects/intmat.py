@@ -196,8 +196,12 @@ class Intmat(BaseDataObj):
             noise_variance = [float(c_noise)]
             c_noise_mat = None
         elif c_noise.shape[0] == 1:
-            noise_variance = [float(c_noise[0, 0])]
-            c_noise_mat = None
+            if c_noise.ndim == 1:
+                noise_variance = [float(c_noise[0])]
+                c_noise_mat = None
+            else:
+                noise_variance = [float(c_noise[0, 0])]
+                c_noise_mat = None
         elif c_noise.shape[0] != intmat.shape[0]:
             raise ValueError(f'c_noise shape {c_noise.shape} is not compatible with intmat shape {intmat.shape}')
         else:
