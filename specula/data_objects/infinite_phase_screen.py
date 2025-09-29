@@ -1,14 +1,8 @@
-import numpy as np
+from seeing.integrator import evaluateFormula, cpulib
+from symao.turbolence import createTurbolenceFormulary, ft_phase_screen0
 
 from specula.base_data_obj import BaseDataObj
-from specula import ASEC2RAD, RAD2ASEC, cpuArray
-
-from seeing.sympyHelpers import *
-from seeing.formulary import *
-from seeing.integrator import *
-
-# from scipy.special import gamma, kv
-from symao.turbolence import createTurbolenceFormulary, ft_phase_screen0
+from specula import ASEC2RAD, RAD2ASEC, cpuArray, np
 
 turbolenceFormulas = createTurbolenceFormulary()
 

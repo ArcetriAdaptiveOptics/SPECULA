@@ -5,14 +5,13 @@ specula.init(-1,precision=0)  # Default target device
 
 from specula import np
 from specula.lib.calc_phasescreen import calc_phasescreen
-
-@unittest.skipIf(os.environ.get('CI') == 'true', "Debugging CI issues")
+from specula.data_objects.infinite_phase_screen import InfinitePhaseScreen
+        
+#@unittest.skipIf(os.environ.get('CI') == 'true', "Debugging CI issues")
 class TestInfinitePhaseScreen(unittest.TestCase):
 
     def test_phase_covariance_matches_theory(self):
         """Test that the phase covariance function matches theoretical values"""
-
-        from specula.data_objects.infinite_phase_screen import InfinitePhaseScreen
 
         # Parameters
         mx_size = 512
@@ -41,8 +40,6 @@ class TestInfinitePhaseScreen(unittest.TestCase):
     def test_infinite_vs_fft_phase_screen_statistics(self):
         """Compare statistics between InfinitePhaseScreen and calc_phasescreen (FFT method)
         across multiple combinations of phase_size and pixel_scale"""
-
-        from specula.data_objects.infinite_phase_screen import InfinitePhaseScreen
 
         verbose = False
 
@@ -165,8 +162,6 @@ class TestInfinitePhaseScreen(unittest.TestCase):
 
     def test_reproducibility_with_same_seed(self):
         """Test that screens with same seed produce identical results"""
-
-        from specula.data_objects.infinite_phase_screen import InfinitePhaseScreen
 
         # Parameters
         mx_size = 64
