@@ -24,7 +24,8 @@ def cn2_to_seeing(cn2, wvl=500.e-9):
 
 class InfinitePhaseScreen(BaseDataObj):
 
-    def __init__(self, mx_size, pixel_scale, r0, L0, random_seed=None, stencil_size_factor=1, xp=np, target_device_idx=0, precision=0):
+    def __init__(self, mx_size, pixel_scale, r0, L0, random_seed=None, stencil_size_factor=1, xp=None,
+                 target_device_idx=0, precision=0):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.random_data_col = None
@@ -34,13 +35,27 @@ class InfinitePhaseScreen(BaseDataObj):
         self.pixel_scale = pixel_scale
         self.r0 = r0
         self.L0 = L0
-        self.xp = xp
+        if xp is not None:
+            self.xp = xp
         self.stencil_size_factor = stencil_size_factor
-        
+
         # stencil size must be odd and >= 257
         base_stencil_size = int(stencil_size_factor * self.mx_size/2)*2 + 1
         min_stencil_size = 257
         self.stencil_size = max(base_stencil_size, min_stencil_size)
+
+        self.stencil = None
+        self.stencil_coords = None
+        self.stencil_positions = None
+        self.n_stencils = 0
+        self.cov_mat = None
+        self.cov_mat_zz = None
+        self.cov_mat_xx = None
+        self.cov_mat_zx = None
+        self.cov_mat_xz = None
+        self.full_scrn = None
+        self.A_mat = None
+        self.B_mat = None
 
         if random_seed is None:
             raise ValueError("random_seed must be provided")
@@ -107,10 +122,10 @@ class InfinitePhaseScreen(BaseDataObj):
     def AB_from_positions(self, positions):
         seperations = self.xp.zeros((len(positions), len(positions)))
         px, py = positions[:,0], positions[:,1]
-        delta_x_gridA, delta_x_gridB = self.xp.meshgrid(px, px)
-        delta_y_gridA, delta_y_gridB = self.xp.meshgrid(py, py)
-        delta_x_grid = delta_x_gridA - delta_x_gridB
-        delta_y_grid = delta_y_gridA - delta_y_gridB
+        delta_x_grid_a, delta_x_grid_b = self.xp.meshgrid(px, px)
+        delta_y_grid_a, delta_y_grid_b = self.xp.meshgrid(py, py)
+        delta_x_grid = delta_x_grid_a - delta_x_grid_b
+        delta_y_grid = delta_y_grid_a - delta_y_grid_b
         seperations = self.xp.sqrt(delta_x_grid ** 2 + delta_y_grid ** 2)
         self.cov_mat = self.phase_covariance(seperations, self.r0, self.L0)
         self.cov_mat_zz = self.cov_mat[:self.n_stencils, :self.n_stencils]
