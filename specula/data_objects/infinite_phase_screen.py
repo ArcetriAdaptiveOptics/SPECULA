@@ -1,10 +1,10 @@
 from seeing.integrator import evaluateFormula, cpulib
 from symao.turbolence import createTurbolenceFormulary, ft_phase_screen0
 
+turbolenceFormulas = createTurbolenceFormulary()
+
 from specula.base_data_obj import BaseDataObj
 from specula import ASEC2RAD, RAD2ASEC, cpuArray, np
-
-turbolenceFormulas = createTurbolenceFormulary()
 
 def seeing_to_r0(seeing, wvl=500.e-9):
     return 0.9759*wvl/(seeing* ASEC2RAD)
@@ -25,7 +25,7 @@ def cn2_to_seeing(cn2, wvl=500.e-9):
 class InfinitePhaseScreen(BaseDataObj):
 
     def __init__(self, mx_size, pixel_scale, r0, L0, random_seed=None, stencil_size_factor=1, xp=None,
-                 target_device_idx=0, precision=0):
+                 target_device_idx=None, precision=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.random_data_col = None
