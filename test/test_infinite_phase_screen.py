@@ -4,6 +4,7 @@ import specula
 specula.init(-1,precision=0)  # Default target device
 
 from specula import np
+from specula.lib.calc_phasescreen import calc_phasescreen
 
 @unittest.skipIf(os.environ.get('CI') == 'true', "Debugging CI issues")
 class TestInfinitePhaseScreen(unittest.TestCase):
@@ -41,7 +42,6 @@ class TestInfinitePhaseScreen(unittest.TestCase):
         """Compare statistics between InfinitePhaseScreen and calc_phasescreen (FFT method)
         across multiple combinations of phase_size and pixel_scale"""
 
-        from specula.lib.calc_phasescreen import calc_phasescreen
         from specula.data_objects.infinite_phase_screen import InfinitePhaseScreen
 
         verbose = False
