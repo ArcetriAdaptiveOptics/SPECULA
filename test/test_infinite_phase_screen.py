@@ -8,7 +8,7 @@ from specula.lib.calc_phasescreen import calc_phasescreen
 
 from test.specula_testlib import cpu_and_gpu
 
-@unittest.skipIf(os.environ.get('CI') == 'true', "Disable for CI issues with Ubuntu and Python >=3.11")
+#@unittest.skipIf(os.environ.get('CI') == 'true', "Disable for CI issues with Ubuntu and Python >=3.11")
 class TestInfinitePhaseScreen(unittest.TestCase):
 
     @cpu_and_gpu
