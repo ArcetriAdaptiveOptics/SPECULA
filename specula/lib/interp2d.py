@@ -44,6 +44,73 @@ class Interp2D():
             '''
         interp2_kernel_float = cp.RawKernel(interp2_kernel.replace('TYPE', 'float'), name='interp2_kernel_float')
         interp2_kernel_double = cp.RawKernel(interp2_kernel.replace('TYPE', 'double'), name='interp2_kernel_double')
+        interp2_kernel_onthefly = r'''
+            extern "C" __global__
+            void interp2_kernel_onthefly_TYPE(TYPE *g_in, TYPE *g_out, int out_dx, int out_dy, int in_dx, int in_dy,
+                                            TYPE scale_x, TYPE scale_y, TYPE shift_x, TYPE shift_y,
+                                            TYPE cos_angle, TYPE sin_angle, TYPE center_x, TYPE center_y) {
+
+                int y = blockIdx.y * blockDim.y + threadIdx.y;
+                int x = blockIdx.x * blockDim.x + threadIdx.x;
+
+                if ((y < out_dy) && (x < out_dx)) {
+                    // Calcola le coordinate di base
+                    TYPE xx = x * scale_x;
+                    TYPE yy = y * scale_y;
+                    
+                    // Applica rotazione se necessaria
+                    if (cos_angle != 1.0 || sin_angle != 0.0) {
+                        TYPE xx_centered = xx - center_x;
+                        TYPE yy_centered = yy - center_y;
+                        TYPE xx_rot = xx_centered * cos_angle - yy_centered * sin_angle;
+                        TYPE yy_rot = xx_centered * sin_angle + yy_centered * cos_angle;
+                        xx = xx_rot + center_x;
+                        yy = yy_rot + center_y;
+                    }
+                    
+                    // Applica shift
+                    xx += shift_x;
+                    yy += shift_y;
+                    
+                    // Clamp ai limiti
+                    if (xx < 0) xx = 0;
+                    if (yy < 0) yy = 0;
+                    if (xx > in_dx - 1) xx = in_dx - 1;
+                    if (yy > in_dy - 1) yy = in_dy - 1;
+                    
+                    // Interpolazione bilineare
+                    int xin = floor(xx);
+                    int yin = floor(yy);
+                    int xin2 = xin + 1;
+                    int yin2 = yin + 1;
+
+                    TYPE xdist = xx - xin;
+                    TYPE ydist = yy - yin;
+
+                    int idx_a = yin * in_dx + xin;
+                    int idx_b = yin * in_dx + xin2;
+                    int idx_c = yin2 * in_dx + xin;
+                    int idx_d = yin2 * in_dx + xin2;
+
+                    TYPE value;
+                    if (yin2 < in_dy) {
+                        value = g_in[idx_a] * (1 - xdist) * (1 - ydist) +
+                                g_in[idx_b] * xdist * (1 - ydist) +
+                                g_in[idx_c] * ydist * (1 - xdist) +
+                                g_in[idx_d] * xdist * ydist;
+                    } else {
+                        value = g_in[idx_a] * (1 - xdist) * (1 - ydist) +
+                                g_in[idx_b] * xdist * (1 - ydist);
+                    }
+
+                    g_out[y * out_dx + x] = value;
+                }
+            }
+            '''
+        interp2_kernel_onthefly_float = cp.RawKernel(interp2_kernel_onthefly.replace('TYPE', 'float'),
+                                                     name='interp2_kernel_onthefly_float')
+        interp2_kernel_onthefly_double = cp.RawKernel(interp2_kernel_onthefly.replace('TYPE', 'double'),
+                                                      name='interp2_kernel_onthefly_double')
 
     def __init__(self, input_shape, output_shape, rotInDeg=0, rowShiftInPixels=0, colShiftInPixels=0, yy=None, xx=None, dtype=np.float32, xp=np):
         '''
@@ -80,40 +147,59 @@ class Interp2D():
         self.input_shape = input_shape
         self.output_shape = output_shape
 
-        if xx is None or yy is None:
-            yy, xx = map(self.dtype, np.mgrid[0:output_shape[0], 0:output_shape[1]])
-            # This -1 appears to be correct by comparing with IDL code
-            # It is not used in propagation, where xx and yy are set from the caller code
-            yy *= (input_shape[0]-1) / output_shape[0]
-            xx *= (input_shape[1]-1) / output_shape[1]
+        if cp:
+            self.use_precomputed = False
+            self.scale_x = (input_shape[1] - 1) / output_shape[1]
+            self.scale_y = (input_shape[0] - 1) / output_shape[0]
+            self.xx = None
+            self.yy = None
         else:
-            if yy.shape != output_shape or xx.shape != output_shape:
-                raise ValueError(f'yy and xx must have shape {output_shape}')
+            self.use_precomputed = True            
+            if xx is None or yy is None:
+                yy, xx = map(self.dtype, np.mgrid[0:output_shape[0], 0:output_shape[1]])
+                # This -1 appears to be correct by comparing with IDL code
+                # It is not used in propagation, where xx and yy are set from the caller code
+                yy *= (input_shape[0]-1) / output_shape[0]
+                xx *= (input_shape[1]-1) / output_shape[1]
             else:
-                yy = xp.array(yy, dtype=dtype)
-                xx = xp.array(xx, dtype=dtype)
+                if yy.shape != output_shape or xx.shape != output_shape:
+                    raise ValueError(f'yy and xx must have shape {output_shape}')
+                else:
+                    yy = xp.array(yy, dtype=dtype)
+                    xx = xp.array(xx, dtype=dtype)
 
-        if rotInDeg != 0:
-            yc = input_shape[0] / 2 - 0.5
-            xc = input_shape[1] / 2 - 0.5
-            cos_ = np.cos(rotInDeg * 3.1415 / 180.0)
-            sin_ = np.sin(rotInDeg * 3.1415 / 180.0)
-            xxr = (xx-xc)*cos_ - (yy-yc)*sin_
-            yyr = (xx-xc)*sin_ + (yy-yc)*cos_
-            xx = xxr + xc
-            yy = yyr + yc
+            if rotInDeg != 0:
+                yc = input_shape[0] / 2 - 0.5
+                xc = input_shape[1] / 2 - 0.5
+                cos_ = np.cos(rotInDeg * 3.1415 / 180.0)
+                sin_ = np.sin(rotInDeg * 3.1415 / 180.0)
+                xxr = (xx-xc)*cos_ - (yy-yc)*sin_
+                yyr = (xx-xc)*sin_ + (yy-yc)*cos_
+                xx = xxr + xc
+                yy = yyr + yc
+                
+            if rowShiftInPixels != 0 or colShiftInPixels != 0:
+                yy += rowShiftInPixels
+                xx += colShiftInPixels
+
+            yy[np.where(yy < 0)] = 0
+            xx[np.where(xx < 0)] = 0
+            yy[np.where(yy > input_shape[0] - 1)] = input_shape[0] - 1
+            xx[np.where(xx > input_shape[1] - 1)] = input_shape[1] - 1
+
+            self.yy = to_xp(self.xp, yy, dtype=dtype).ravel()
+            self.xx = to_xp(self.xp, xx, dtype=dtype).ravel()
             
-        if rowShiftInPixels != 0 or colShiftInPixels != 0:
-            yy += rowShiftInPixels
-            xx += colShiftInPixels
+            self.scale_x = None
+            self.scale_y = None
 
-        yy[np.where(yy < 0)] = 0
-        xx[np.where(xx < 0)] = 0
-        yy[np.where(yy > input_shape[0] - 1)] = input_shape[0] - 1
-        xx[np.where(xx > input_shape[1] - 1)] = input_shape[1] - 1
-
-        self.yy = to_xp(self.xp, yy, dtype=dtype).ravel()
-        self.xx = to_xp(self.xp, xx, dtype=dtype).ravel()
+        self.shift_x = colShiftInPixels
+        self.shift_y = rowShiftInPixels
+        self.rot_angle = rotInDeg * np.pi / 180.0
+        self.cos_angle = np.cos(self.rot_angle)
+        self.sin_angle = np.sin(self.rot_angle)
+        self.center_x = input_shape[1] / 2 - 0.5
+        self.center_y = input_shape[0] / 2 - 0.5
 
     def interpolate(self, value, out=None):
         """
@@ -154,12 +240,25 @@ class Interp2D():
                 num_blocks_2d += 1
             grid = (num_blocks_2d, num_blocks_2d)
 
-            if self.dtype == cp.float32:
-                self.interp2_kernel_float(grid, block, (value, out, self.output_shape[1],  self.output_shape[0],  self.input_shape[1], self.input_shape[0], self.xx, self.yy))
-            elif self.dtype == cp.float64:
-                self.interp2_kernel_double(grid, block, (value, out, self.output_shape[1],  self.output_shape[0],  self.input_shape[1], self.input_shape[0], self.xx, self.yy))
+            if not self.use_precomputed:
+                # Usa il kernel ottimizzato per memoria
+                if self.dtype == cp.float32:
+                    self.interp2_kernel_onthefly_float(grid, block, (
+                        value, out, 
+                        self.output_shape[1], self.output_shape[0],
+                        self.input_shape[1], self.input_shape[0],
+                        cp.float32(self.scale_x), cp.float32(self.scale_y),
+                        cp.float32(self.shift_x), cp.float32(self.shift_y),
+                        cp.float32(self.cos_angle), cp.float32(self.sin_angle),
+                        cp.float32(self.center_x), cp.float32(self.center_y)
             else:
-                raise ValueError('Unsupported dtype {self.dtype}')
+                if self.dtype == cp.float32:
+                    self.interp2_kernel_float(grid, block, (value, out, self.output_shape[1],  self.output_shape[0],  self.input_shape[1], self.input_shape[0], self.xx, self.yy))
+                elif self.dtype == cp.float64:
+                    self.interp2_kernel_double(grid, block, (value, out, self.output_shape[1],  self.output_shape[0],  self.input_shape[1], self.input_shape[0], self.xx, self.yy))
+                else:
+                    raise ValueError('Unsupported dtype {self.dtype}')
+
             return out
 
         else:
