@@ -199,15 +199,11 @@ class ShSlopec(Slopec):
                     normalized_weight = self.xp.zeros_like(int_pixels_weight)
                     normalized_weight[:, valid_mask] = int_pixels_weight[:, valid_mask] / max_temp[valid_mask]
 
-                    # Apply windowing condition exactly like IDL
+                    # Apply windowing condition exactly like IDL in 2D
                     above_threshold = normalized_weight >= window_threshold
 
                     # IDL: reverse(normalized_weight, 1) - flip only first dimension
-                    # Work on the 2D representation of each subaperture
-                    normalized_weight_2d = normalized_weight.reshape(np_sub, np_sub, n_subaps)
-                    normalized_weight_flipped_2d = self.xp.flip(normalized_weight_2d, axis=0)  # reverse(matrix, 1) in IDL
-                    normalized_weight_flipped = normalized_weight_flipped_2d.reshape(np_sub * np_sub, n_subaps)
-
+                    normalized_weight_flipped = self.xp.flip(normalized_weight, axis=0)
                     above_threshold_flipped = normalized_weight_flipped >= window_threshold
 
                     # Combine with OR
