@@ -248,8 +248,8 @@ class TestAtmoInfiniteEvolution(unittest.TestCase):
         seeing1, seeing2 = seeing_values
         result1, result2 = results
 
-        print(f"Seeing 1: {seeing1} arcsec, scale_coeff: {result1['scale_coeff']:.6f}")
-        print(f"Seeing 2: {seeing2} arcsec, scale_coeff: {result2['scale_coeff']:.6f}")
+        #print(f"Seeing 1: {seeing1} arcsec, scale_coeff: {result1['scale_coeff']:.6f}")
+        #print(f"Seeing 2: {seeing2} arcsec, scale_coeff: {result2['scale_coeff']:.6f}")
 
         # Test 1: Verify that scale_coeff is scaling with seeing
         seeing_ratio = result1['scale_coeff'] / result2['scale_coeff']
@@ -267,7 +267,7 @@ class TestAtmoInfiniteEvolution(unittest.TestCase):
             rms1 = float(xp.sqrt(xp.mean(phase1**2)))
             rms2 = float(xp.sqrt(xp.mean(phase2**2)))
 
-            print(f"Layer {i}: RMS phase seeing={seeing1}: {rms1:.3f}, seeing={seeing2}: {rms2:.3f}")
+            #print(f"Layer {i}: RMS phase seeing={seeing1}: {rms1:.3f}, seeing={seeing2}: {rms2:.3f}")
 
             # Check that the RMS ratio matches the expected seeing ratio
             self.assertAlmostEqual(rms1/rms2, expected_seeing_ratio, places=2,
@@ -291,3 +291,154 @@ class TestAtmoInfiniteEvolution(unittest.TestCase):
                                     target_device_idx=target_device_idx)
         expected = cpuArray(heights) * airmass
         np.testing.assert_allclose(atmo.pupil_distances, expected, rtol=1e-8)
+
+    @cpu_and_gpu
+    def test_cn2_scaling_applied_correctly(self, target_device_idx, xp):
+        """
+        Test that Cn2 weights are correctly applied to the phase screens
+        """
+        pixel_pupil = 160
+        simul_params = SimulParams(pixel_pupil=pixel_pupil, pixel_pitch=0.05, time_step=1)
+
+        # Test with different Cn2 values for two layers
+        cn2_values = [0.7, 0.3]  # Different weights for the layers
+        heights = [1000.0, 5000.0]
+
+        seeing = WaveGenerator(constant=0.8, target_device_idx=target_device_idx)
+        wind_speed = WaveGenerator(constant=[5.0, 3.0], target_device_idx=target_device_idx)
+        wind_direction = WaveGenerator(constant=[0, 45], target_device_idx=target_device_idx)
+
+        atmo = AtmoInfiniteEvolution(simul_params,
+                                    L0=1,
+                                    heights=heights,
+                                    Cn2=cn2_values,
+                                    fov=120.0,
+                                    target_device_idx=target_device_idx)
+
+        atmo.inputs['seeing'].set(seeing.output)
+        atmo.inputs['wind_direction'].set(wind_direction.output)
+        atmo.inputs['wind_speed'].set(wind_speed.output)
+
+        # Setup and run one iteration
+        for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
+            for obj in objlist:
+                obj.setup()
+
+            for obj in objlist:
+                obj.check_ready(1)
+
+            for obj in objlist:
+                obj.trigger()
+
+            for obj in objlist:
+                obj.post_trigger()
+
+        # Get phases from both layers
+        phase_layer0 = cpuArray(atmo.layer_list[0].phaseInNm)
+        phase_layer1 = cpuArray(atmo.layer_list[1].phaseInNm)
+
+        # Calculate RMS for each layer
+        rms_layer0 = float(np.sqrt(np.mean(phase_layer0**2)))
+        rms_layer1 = float(np.sqrt(np.mean(phase_layer1**2)))
+
+        #print(f"Layer 0 (Cn2={cn2_values[0]}): RMS = {rms_layer0:.3f} nm")
+        #print(f"Layer 1 (Cn2={cn2_values[1]}): RMS = {rms_layer1:.3f} nm")
+
+        # Test 1: Verify that the RMS ratio matches the sqrt(Cn2) ratio
+        # Since phase is scaled by scale_coeff * sqrt(Cn2[i])
+        expected_rms_ratio = np.sqrt(cn2_values[0]) / np.sqrt(cn2_values[1])
+        actual_rms_ratio = rms_layer0 / rms_layer1
+
+        self.assertAlmostEqual(actual_rms_ratio, expected_rms_ratio, places=1,
+            msg=f"RMS ratio {actual_rms_ratio:.3f} should equal sqrt(Cn2[0]/Cn2[1]) = {expected_rms_ratio:.3f}")
+
+        # Test 2: Verify that both layers have the same base variance (before Cn2 scaling)
+        # Base variance = (RMS / sqrt(Cn2))^2
+        base_variance_0 = (rms_layer0 / np.sqrt(cn2_values[0]))**2
+        base_variance_1 = (rms_layer1 / np.sqrt(cn2_values[1]))**2
+
+        #print(f"Base variance 0: {base_variance_0:.3f}")
+        #print(f"Base variance 1: {base_variance_1:.3f}")
+
+        # The base variances should be approximately equal (within tolerance for numerical differences)
+        self.assertAlmostEqual(base_variance_0, base_variance_1, delta=base_variance_0 * 0.1,
+            msg=f"Base variances should be approximately equal: {base_variance_0:.3f} vs {base_variance_1:.3f}")
+
+        # Test 3: Verify that the total Cn2-weighted variance makes sense
+        total_cn2_weighted_variance = cn2_values[0] * base_variance_0 + cn2_values[1] * base_variance_1
+        expected_total = base_variance_0  # Should be approximately equal to the base variance
+
+        self.assertAlmostEqual(total_cn2_weighted_variance, expected_total, delta=expected_total * 0.1,
+            msg=f"Total Cn2-weighted variance {total_cn2_weighted_variance:.3f} should equal base variance {expected_total:.3f}")
+
+    @cpu_and_gpu
+    def test_cn2_sum_validation(self, target_device_idx, xp):
+        """
+        Test that Cn2 values must sum to 1.0
+        """
+        pixel_pupil = 160
+        simul_params = SimulParams(pixel_pupil=pixel_pupil, pixel_pitch=0.05, time_step=1)
+
+        # Test with Cn2 values that don't sum to 1
+        with self.assertRaises(ValueError) as context:
+            atmo = AtmoInfiniteEvolution(simul_params,
+                                        L0=1,
+                                        heights=[1000.0, 5000.0],
+                                        Cn2=[0.6, 0.5],  # Sum = 1.1, not 1.0
+                                        fov=120.0,
+                                        target_device_idx=target_device_idx)
+
+        self.assertIn("Cn2 total must be 1", str(context.exception))
+
+    @cpu_and_gpu
+    def test_single_layer_cn2_scaling(self, target_device_idx, xp):
+        """
+        Test Cn2 scaling with a single layer
+        """
+        pixel_pupil = 160
+        simul_params = SimulParams(pixel_pupil=pixel_pupil, pixel_pitch=0.05, time_step=1)
+
+        cn2_values = [1.0]  # Single layer with all turbulence
+
+        seeing = WaveGenerator(constant=0.8, target_device_idx=target_device_idx)
+        wind_speed = WaveGenerator(constant=[4.0], target_device_idx=target_device_idx)
+        wind_direction = WaveGenerator(constant=[30], target_device_idx=target_device_idx)
+
+        atmo = AtmoInfiniteEvolution(simul_params,
+                                    L0=1,
+                                    heights=[2000.0],
+                                    Cn2=cn2_values,
+                                    fov=120.0,
+                                    target_device_idx=target_device_idx)
+
+        atmo.inputs['seeing'].set(seeing.output)
+        atmo.inputs['wind_direction'].set(wind_direction.output)
+        atmo.inputs['wind_speed'].set(wind_speed.output)
+
+        # Setup and run
+        for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
+            for obj in objlist:
+                obj.setup()
+
+            for obj in objlist:
+                obj.check_ready(1)
+
+            for obj in objlist:
+                obj.trigger()
+
+            for obj in objlist:
+                obj.post_trigger()
+
+        # Get phase from the single layer
+        phase_layer = cpuArray(atmo.layer_list[0].phaseInNm)
+        rms_phase = float(np.sqrt(np.mean(phase_layer**2)))
+
+        print(f"Single layer (Cn2=1.0): RMS = {rms_phase:.3f} nm")
+
+        # With Cn2=1.0, the phase should be scaled by sqrt(1.0) = 1.0
+        # So the RMS should be the base RMS from the infinite phase screen
+        self.assertGreater(rms_phase, 0, "Phase RMS should be positive")
+
+        # Verify that the layer has the correct generation time and amplitude
+        self.assertEqual(atmo.layer_list[0].generation_time, atmo.current_time)
+        np.testing.assert_array_equal(cpuArray(atmo.layer_list[0].A), 1)
