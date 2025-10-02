@@ -3,6 +3,8 @@ import numpy as np
 from astropy.io import fits
 from specula import cpuArray
 
+from specula.lib.modal_base_generator import compute_ifs_covmat
+from specula.lib.mmse_reconstructor import compute_mmse_reconstructor
 from specula.base_data_obj import BaseDataObj
 from specula.data_objects.recmat import Recmat
 
@@ -171,6 +173,46 @@ class Intmat(BaseDataObj):
         recmat = self.pseudo_invert(self.to_xp(intmat), n_modes_to_drop=cut_modes, w_vec=w_vec, interactive=interactive)
         rec = Recmat(recmat, target_device_idx=self.target_device_idx)
         rec.im_tag = self.norm_factor  # TODO wrong
+        return rec
+
+    def generate_rec_mmse(self, r0, L0, diameter, modal_base, c_noise, nmodes=None, m2c=None):
+        if nmodes is not None:
+            intmat = self.modes[:nmodes]
+        else:
+            intmat = self.intmat
+        # atmosphere covariance matrix
+        if m2c is not None:
+            influence_function = m2c.m2c.T @ modal_base.influence_function
+        else:
+            influence_function = modal_base.influence_function
+        c_atm = compute_ifs_covmat(
+            modal_base.mask_inf_func, diameter, influence_function, r0, L0,
+            oversampling=2, verbose=False
+        )
+        if c_atm.shape[0] > intmat.shape[1]:
+            c_atm = c_atm[:intmat.shape[1], :intmat.shape[1]]
+        # noise covariance matrix
+        if isinstance(c_noise, (int, float, np.number)) or (hasattr(c_noise, 'shape') and c_noise.shape == ()):
+            noise_variance = [float(c_noise)]
+            c_noise_mat = None
+        elif c_noise.shape[0] == 1:
+            if c_noise.ndim == 1:
+                noise_variance = [float(c_noise[0])]
+                c_noise_mat = None
+            else:
+                noise_variance = [float(c_noise[0, 0])]
+                c_noise_mat = None
+        elif c_noise.shape[0] != intmat.shape[0]:
+            raise ValueError(f'c_noise shape {c_noise.shape} is not compatible with intmat shape {intmat.shape}')
+        else:
+            noise_variance = None
+            c_noise_mat = c_noise
+        # compute MMSE reconstructor
+        recmat = compute_mmse_reconstructor(self.to_xp(intmat), c_atm, self.xp,
+                                            self.dtype, noise_variance=noise_variance,
+                                            c_noise=c_noise_mat,
+                                            c_inverse=False, verbose=False)
+        rec = Recmat(recmat, target_device_idx=self.target_device_idx)
         return rec
 
     def pseudo_invert(self, matrix, n_modes_to_drop=0, w_vec=None, interactive=False):

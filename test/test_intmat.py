@@ -161,6 +161,19 @@ class TestIntmat(unittest.TestCase):
         assert xp.allclose(rec.recmat, xp.linalg.pinv(mat))
 
     @cpu_and_gpu
+    def test_generate_rec_and_mmse(self, target_device_idx, xp):
+        mat = xp.eye(5)
+        intmat = Intmat(mat, target_device_idx=target_device_idx)
+        r0 = 0.2
+        L0 = 25.0
+        diameter = 8.0
+        from specula.data_objects.ifunc import IFunc
+        modal_base = IFunc(type_str='zernike', nmodes=mat.shape[1], npixels=64, target_device_idx=target_device_idx)
+        c_noise = 1
+        rec = intmat.generate_rec_mmse(r0, L0, diameter, modal_base, c_noise, nmodes=None, m2c=None)
+        assert isinstance(rec, Recmat)
+
+    @cpu_and_gpu
     def test_build_from_slopes(self, target_device_idx, xp):
         times = [0, 1, 2]
         slopes = {

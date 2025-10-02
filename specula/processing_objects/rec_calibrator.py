@@ -1,8 +1,13 @@
 import os
+from typing import Union
 
 from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.intmat import Intmat
+from specula.data_objects.ifunc import IFunc
+from specula.data_objects.m2c import M2C
+from specula.processing_objects.dm import DM
 from specula.connections import InputValue
+from specula import np
 
 
 class RecCalibrator(BaseProcessingObj):
@@ -14,6 +19,11 @@ class RecCalibrator(BaseProcessingObj):
                  pupdata_tag: str = None,
                  tag_template: str = None,
                  overwrite: bool = False,
+                 mmse: bool = False,
+                 r0: float = 0.15,
+                 L0: float = 25.0,
+                 dm: DM = None,
+                 noise_cov: Union[float, np.ndarray, list] = None,
                  target_device_idx: int = None,
                  precision: int = None
                 ):
@@ -25,6 +35,13 @@ class RecCalibrator(BaseProcessingObj):
             raise ValueError('At least one of tag_template and rec_tag must be set')
         self.pupdata_tag = pupdata_tag
         self.overwrite = overwrite
+
+        # Set the MMSE parameters
+        self.mmse = mmse
+        self.r0 = r0
+        self.L0 = L0
+        self.dm = dm
+        self.noise_cov = self.to_xp(noise_cov)
 
         if rec_tag is None or rec_tag == 'auto':
             rec_filename = tag_template
@@ -46,5 +63,17 @@ class RecCalibrator(BaseProcessingObj):
         os.makedirs(self.data_dir, exist_ok=True)
 
         # TODO add to RM the information about the first mode
-        rec = im.generate_rec(self.nmodes)
+        if self.mmse:
+            diameter = self.dm.pixel_pitch * self.dm.pixel_pupil
+            modal_base = IFunc(ifunc=self.dm.ifunc, mask=self.dm.mask,
+                               target_device_idx=self.target_device_idx, precision=self.precision)
+            if self.dm.m2c is not None:
+                m2c = M2C(self.dm.m2c,
+                        target_device_idx=self.target_device_idx, precision=self.precision)
+            else:
+                m2c = None
+            rec = im.generate_rec_mmse(self.r0, self.L0, diameter, modal_base,
+                                       self.noise_cov, nmodes=self.nmodes, m2c=m2c)
+        else:
+            rec = im.generate_rec(self.nmodes)
         rec.save(self.rec_path, overwrite=self.overwrite)
