@@ -195,43 +195,30 @@ class ShSlopec(Slopec):
                     int_pixels_weight.fill(1.0)
                 elif self.window_int_pixel:
                     window_threshold = 0.05
-                    # Create a mask for pixels above threshold
+                    # Create normalized weights for valid subapertures
                     normalized_weight = self.xp.zeros_like(int_pixels_weight)
                     normalized_weight[:, valid_mask] = int_pixels_weight[:, valid_mask] / max_temp[valid_mask]
 
-                    # Process each subaperture and apply windowing directly
-                    final_weights = self.xp.zeros_like(int_pixels_weight, dtype=self.dtype)
+                    # Apply windowing condition exactly like IDL
+                    above_threshold = normalized_weight >= window_threshold
 
-                    # Apply threshold and symmetry condition per subaperture
-                    for i in range(self.subapdata.n_subaps):
-                        if valid_mask[i]:  # Only process valid subapertures
-                            # Extract pixels for the i-th subaperture
-                            subap_weights = normalized_weight[:, i].reshape(self.subapdata.np_sub, self.subapdata.np_sub)
+                    # IDL: reverse(normalized_weight, 1) - flip only first dimension
+                    # Work on the 2D representation of each subaperture
+                    normalized_weight_2d = normalized_weight.reshape(np_sub, np_sub, n_subaps)
+                    normalized_weight_flipped_2d = self.xp.flip(normalized_weight_2d, axis=0)  # reverse(matrix, 1) in IDL
+                    normalized_weight_flipped = normalized_weight_flipped_2d.reshape(np_sub * np_sub, n_subaps)
 
-                            # Apply symmetry condition
-                            subap_weights_flipped = subap_weights[::-1, ::-1]
-                            symmetry_mask = (subap_weights >= window_threshold) | (subap_weights_flipped >= window_threshold)
+                    above_threshold_flipped = normalized_weight_flipped >= window_threshold
 
-                            # Convert boolean mask to float weights and store directly
-                            final_weights[:, i] = symmetry_mask.flatten().astype(self.dtype)
+                    # Combine with OR
+                    window_mask = above_threshold | above_threshold_flipped
 
-                            # PLOT DEBUGGING
-                            plot_debug = False
-                            if plot_debug:  # pragma: no cover
-                                import matplotlib.pyplot as plt
-                                from specula import cpuArray
-                                plt.figure()
-                                plt.imshow(cpuArray(subap_weights))
-                                plt.figure()
-                                plt.imshow(cpuArray(subap_weights_flipped))
-                                plt.figure()
-                                plt.imshow(cpuArray(symmetry_mask))
-                                plt.show()
-                        else:
-                            # For invalid subapertures, use uniform weights
-                            final_weights[:, i] = 1.0
+                    # Convert to weights
+                    int_pixels_weight = window_mask.astype(self.dtype)
 
-                    int_pixels_weight = final_weights
+                    # Handle invalid subapertures
+                    int_pixels_weight[:, ~valid_mask] = 1.0
+
                     n_weight_applied = self.xp.sum(self.xp.any(int_pixels_weight > 0, axis=0))
                 else:
                     # Normalize by max value for valid subapertures
