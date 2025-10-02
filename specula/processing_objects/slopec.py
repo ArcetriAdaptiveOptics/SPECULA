@@ -48,7 +48,7 @@ class Slopec(BaseProcessingObj):
         else:
             self.weight_int_pixel = False
         self.int_pixels = None
-        self.do_reset = False
+        self.do_reset_accumulation = False
 
         self.inputs['in_pixels'] = InputValue(type=Pixels)
         self.outputs['out_slopes'] = self.slopes
@@ -84,10 +84,10 @@ class Slopec(BaseProcessingObj):
             self.int_pixels.pixels = self.xp.zeros_like(current_pixels)
 
         # Check if we're at the start of a new accumulation period
-        if self.do_reset:
+        if self.do_reset_accumulation:
             # Reset accumulation
             self.int_pixels.pixels *= 0
-            self.do_reset = False
+            self.do_reset_accumulation = False
 
         # Add to existing accumulation
         self.int_pixels.pixels += current_pixels.astype(self.dtype)
@@ -95,7 +95,7 @@ class Slopec(BaseProcessingObj):
         if (t % self.weight_int_pixel_dt) == 0 and t >= self.weight_int_pixel_dt:
             # Update generation time
             self.int_pixels.generation_time = t
-            self.do_reset = True
+            self.do_reset_accumulation = True
 
     def trigger_code(self):
         raise NotImplementedError(f'{self.__class__.__name__}: please implement trigger_code() in your derived class!')
