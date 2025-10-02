@@ -71,7 +71,7 @@ class TestInfinitePhaseScreen(unittest.TestCase):
         # Store all results for summary
         results = []
 
-        if verbose:
+        if verbose:  # pragma: no cover
             print("\nTesting InfinitePhaseScreen vs FFT phase screen statistics")
             print("=" * 76)
             print(f"{'Phase Size':<12} {'Pixel Scale':<12} {'Inf Mean':<10} {'Inf Std':<10} {'FFT Mean':<10} {'FFT Std':<10} {'Ratio':<8}")
@@ -128,7 +128,7 @@ class TestInfinitePhaseScreen(unittest.TestCase):
                 results.append(result)
 
                 # Print current result
-                if verbose:
+                if verbose:  # pragma: no cover
                     print(f"{phase_size:<12} {pixel_scale:<12} {inf_mean:<10.6f} {inf_std:<10.1f} {fft_mean:<10.6f} {fft_std:<10.1f} {std_ratio:<8.3f}")
 
         # Overall statistics
