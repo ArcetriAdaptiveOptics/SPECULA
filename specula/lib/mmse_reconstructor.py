@@ -21,7 +21,7 @@ def compute_mmse_reconstructor(interaction_matrix, c_atm, xp, dtype,
     Returns:
         numpy.ndarray: MMSE reconstructor matrix
     """
-    if verbose:
+    if verbose:  # pragma: no cover
         print("Starting MMSE reconstructor computation")
 
     # Setup matrices
@@ -33,7 +33,7 @@ def compute_mmse_reconstructor(interaction_matrix, c_atm, xp, dtype,
         n_wfs = len(noise_variance)
         n_slopes_per_wfs = n_slopes // n_wfs
 
-        if verbose:
+        if verbose:  # pragma: no cover
             print(f"Building noise covariance matrix for {n_wfs} WFSs with {n_slopes_per_wfs} slopes each")
 
         c_noise = xp.zeros((n_slopes, n_slopes), dtype=dtype)
@@ -57,37 +57,37 @@ def compute_mmse_reconstructor(interaction_matrix, c_atm, xp, dtype,
             is_diag_noise = xp.all(xp.abs(xp.diag(xp.diag(c_noise)) - c_noise) < 1e-10)
 
             if is_diag_noise:
-                if verbose:
+                if verbose:  # pragma: no cover
                     print("c_noise is diagonal, using optimized inversion")
                 c_noise_inv = xp.diag(1.0 / xp.diag(c_noise))
             else:
-                if verbose:
+                if verbose:  # pragma: no cover
                     print("Inverting c_noise matrix")
                 try:
                     c_noise_inv = xp.linalg.inv(c_noise)
                 except xp.linalg.LinAlgError:
-                    if verbose:
+                    if verbose:  # pragma: no cover
                         print("Warning: c_noise inversion failed, using pseudo-inverse")
                     c_noise_inv = xp.linalg.pinv(c_noise)
         else:
             # Default: identity matrix (no noise)
-            if verbose:
+            if verbose:  # pragma: no cover
                 print("No c_noise provided, using identity matrix")
             c_noise_inv = xp.eye(A.shape[1], dtype=dtype)
 
         is_diag_atm = xp.all(xp.abs(xp.diag(xp.diag(c_atm)) - c_atm) < 1e-10)
 
         if is_diag_atm:
-            if verbose:
+            if verbose:  # pragma: no cover
                 print("c_atm is diagonal, using optimized inversion")
             c_atm_inv = xp.diag(1.0 / xp.diag(c_atm))
         else:
-            if verbose:
+            if verbose:  # pragma: no cover
                 print("Inverting c_atm matrix")
             try:
                 c_atm_inv = xp.linalg.inv(c_atm)
             except xp.linalg.LinAlgError:
-                if verbose:
+                if verbose:  # pragma: no cover
                     print("Warning: c_atm inversion failed, using pseudo-inverse")
                 c_atm_inv = xp.linalg.pinv(c_atm)
     else:
@@ -96,7 +96,7 @@ def compute_mmse_reconstructor(interaction_matrix, c_atm, xp, dtype,
         c_noise_inv = c_noise if c_noise is not None else xp.eye(A.shape[1], dtype=dtype)
 
     # Compute H = A' Cz^(-1) A + Cx^(-1)
-    if verbose:
+    if verbose:  # pragma: no cover
         print("Computing H = A' Cz^(-1) A + Cx^(-1)")
 
     # Check if c_noise_inv is scalar
@@ -106,7 +106,7 @@ def compute_mmse_reconstructor(interaction_matrix, c_atm, xp, dtype,
         H = xp.dot(A.T, xp.dot(c_noise_inv, A)) + c_atm_inv
 
     # Compute H^(-1)
-    if verbose:
+    if verbose:  # pragma: no cover
         print("Inverting H")
     try:
         H_inv = xp.linalg.inv(H)
@@ -116,7 +116,7 @@ def compute_mmse_reconstructor(interaction_matrix, c_atm, xp, dtype,
         H_inv = xp.linalg.pinv(H)
 
     # Compute W = H^(-1) A' Cz^(-1)
-    if verbose:
+    if verbose:  # pragma: no cover
         print("Computing W = H^(-1) A' Cz^(-1)")
 
     # Check if c_noise_inv is scalar
@@ -125,7 +125,7 @@ def compute_mmse_reconstructor(interaction_matrix, c_atm, xp, dtype,
     else:
         W_mmse = xp.dot(H_inv, xp.dot(A.T, c_noise_inv))
 
-    if verbose:
+    if verbose:  # pragma: no cover
         print("MMSE reconstruction matrix computed")
         print(f"Matrix shape: {W_mmse.shape}")
 
