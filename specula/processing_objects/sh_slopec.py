@@ -82,7 +82,7 @@ class ShSlopec(Slopec):
 
     def set_xy_weights(self):
         if self.subapdata:
-            out = self.computeXYweights(self.subapdata.np_sub, self.exp_weight, self.weightedPixRad, 
+            out = self.computeXYweights(self.subapdata.np_sub, self.exp_weight, self.weightedPixRad,
                                           self.quadcell_mode, self.windowing)
             self.mask_weighted = self.to_xp(out['mask_weighted'])
             self.xweights = self.to_xp(out['x'])
@@ -111,16 +111,16 @@ class ShSlopec(Slopec):
         if quadcell_mode:
             x = np.where(x > 0, 1.0, -1.0)
             y = np.where(y > 0, 1.0, -1.0)
-            xc, yc = x, y
+            xc, yc = x.copy(), y.copy()
         else:
-            xc, yc = x, y
+            xc, yc = x.copy(), y.copy()
             # Apply exponential weights if exp_weight is not 1
             x = np.where(x > 0, np.power(x, exp_weight), -np.power(np.abs(x), exp_weight))
             y = np.where(y > 0, np.power(y, exp_weight), -np.power(np.abs(y), exp_weight))
 
-        # Adjust xc, yc for centroid calculations in two steps
-        xc = np.where(x > 0, xc, -np.abs(xc))
-        yc = np.where(y > 0, yc, -np.abs(yc))
+        # Adjust xc, yc for centroid calculations in two steps (as in IDL)
+        xc = np.where(xc > 0, np.abs(xc), -np.abs(xc))
+        yc = np.where(yc > 0, np.abs(yc), -np.abs(yc))
 
         # Apply windowing or weighted pixel mask
         if weightedPixRad != 0:
@@ -199,8 +199,8 @@ class ShSlopec(Slopec):
                     normalized_weight = self.xp.zeros_like(int_pixels_weight)
                     normalized_weight[:, valid_mask] = int_pixels_weight[:, valid_mask] / max_temp[valid_mask]
 
-                    # Initialize over_threshold mask
-                    over_threshold = self.xp.zeros_like(normalized_weight, dtype=bool)
+                    # Process each subaperture and apply windowing directly
+                    final_weights = self.xp.zeros_like(int_pixels_weight, dtype=self.dtype)
 
                     # Apply threshold and symmetry condition per subaperture
                     for i in range(self.subapdata.n_subaps):
@@ -212,8 +212,8 @@ class ShSlopec(Slopec):
                             subap_weights_flipped = subap_weights[::-1, ::-1]
                             symmetry_mask = (subap_weights >= window_threshold) | (subap_weights_flipped >= window_threshold)
 
-                            # Update the mask for this subaperture
-                            over_threshold[:, i] = symmetry_mask.flatten()
+                            # Convert boolean mask to float weights and store directly
+                            final_weights[:, i] = symmetry_mask.flatten().astype(self.dtype)
 
                             # PLOT DEBUGGING
                             plot_debug = False
@@ -227,12 +227,11 @@ class ShSlopec(Slopec):
                                 plt.figure()
                                 plt.imshow(cpuArray(symmetry_mask))
                                 plt.show()
+                        else:
+                            # For invalid subapertures, use uniform weights
+                            final_weights[:, i] = 1.0
 
-                    # Reset weights and apply threshold mask
-                    int_pixels_weight.fill(0)
-                    int_pixels_weight[over_threshold] = 1.0
-
-                    # Count subapertures where weights were applied
+                    int_pixels_weight = final_weights
                     n_weight_applied = self.xp.sum(self.xp.any(int_pixels_weight > 0, axis=0))
                 else:
                     # Normalize by max value for valid subapertures
@@ -365,7 +364,7 @@ class ShSlopec(Slopec):
         self.total_counts.value[0] = self.xp.sum(flux_per_subaperture_vector)
         self.subap_counts.value[0] = self.xp.mean(flux_per_subaperture_vector)
 
-        if self.verbose:
+        if self.verbose:  # pragma: no cover
             print(f"Slopes min, max and rms : {self.xp.min(sx)}, {self.xp.max(sx)}, {self.xp.sqrt(self.xp.mean(sx ** 2))}")
 
     def psf_gaussian(self, np_sub, fwhm):
