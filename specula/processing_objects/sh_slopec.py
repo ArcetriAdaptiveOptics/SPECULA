@@ -132,7 +132,7 @@ class ShSlopec(Slopec):
                 mask_weighted = make_mask(np_sub, diaratio=(2.0 * weightedPixRad / np_sub), xp=np)
             else:
                 # Weighted Center of Gravity (WCoG)
-                mask_weighted = self.psf_gaussian(np_sub, [weightedPixRad, weightedPixRad])
+                mask_weighted = self.psf_gaussian(np_sub, [2*weightedPixRad/np_sub, 2*weightedPixRad/np_sub])
                 mask_weighted /= np.max(mask_weighted)
 
             mask_weighted[mask_weighted < 1e-6] = 0.0
