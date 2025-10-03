@@ -219,7 +219,7 @@ class ShSlopec(Slopec):
                     int_pixels_weight[:, ~valid_mask] = 1.0
                     n_weight_applied = self.xp.sum(valid_mask)
 
-                self.int_pixels_weight[:] = int_pixels_weight.astype(self.dtype)
+                self.int_pixels_weight[:] = int_pixels_weight
 
             # Apply weights to pixels
             pixels *= self.int_pixels_weight
