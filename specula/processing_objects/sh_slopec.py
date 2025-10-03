@@ -32,6 +32,7 @@ class ShSlopec(Slopec):
                  windowing: bool = False,
                  weight_int_pixel_dt: float=0,
                  window_int_pixel: bool=False,
+                 window_int_threshold: float=0,
                  target_device_idx: int = None,
                  precision: int = None):
 
@@ -61,6 +62,7 @@ class ShSlopec(Slopec):
 
         self.exp_weight = exp_weight
         self.window_int_pixel = window_int_pixel
+        self.window_int_threshold = window_int_threshold
         self.int_pixels_weight = None
 
         self.accumulated_slopes = Slopes(self.nslopes(), target_device_idx=self.target_device_idx)
@@ -194,17 +196,12 @@ class ShSlopec(Slopec):
                 if not self.xp.any(valid_mask):
                     int_pixels_weight.fill(1.0)
                 elif self.window_int_pixel:
-                    window_threshold = 0.05
-                    # Create normalized weights for valid subapertures
-                    normalized_weight = self.xp.zeros_like(int_pixels_weight)
-                    normalized_weight[:, valid_mask] = int_pixels_weight[:, valid_mask] / max_temp[valid_mask]
-
                     # Apply windowing condition exactly like IDL in 2D
-                    above_threshold = normalized_weight >= window_threshold
+                    above_threshold = int_pixels_weight >= self.window_int_threshold
 
-                    # IDL: reverse(normalized_weight, 1) - flip only first dimension
-                    normalized_weight_flipped = self.xp.flip(normalized_weight, axis=0)
-                    above_threshold_flipped = normalized_weight_flipped >= window_threshold
+                    # IDL: reverse(weight, 1) - flip only first dimension
+                    weight_flipped = self.xp.flip(int_pixels_weight, axis=0)
+                    above_threshold_flipped = weight_flipped >= self.window_int_threshold
 
                     # Combine with OR
                     window_mask = above_threshold | above_threshold_flipped
@@ -229,6 +226,103 @@ class ShSlopec(Slopec):
 
             if self.verbose:  # pragma: no cover
                 print(f"Weights mask has been applied to {n_weight_applied} sub-apertures")
+
+            # PLOT DEBUGGING
+            plot_debug = False
+            if plot_debug and self.int_pixels is not None and \
+                self.int_pixels.generation_time == self.current_time:  # pragma: no cover
+                import matplotlib.pyplot as plt
+                from specula import cpuArray
+
+                # 1. Plot diretto di int_pixels.pixels (già 2D)
+                int_pixels_cpu = cpuArray(self.int_pixels.pixels)
+
+                # 2. Plot di pixels (dopo l'applicazione dei pesi)
+                pixels_cpu = cpuArray(pixels)
+
+                # 3. Per int_pixels_weight, usa la stessa logica di come vengono estratti i pixel
+                # Crea una copia dell'immagine originale
+                int_pixels_weight_2d = cpuArray(self.int_pixels.pixels)  # Start with original shape
+                int_pixels_weight_cpu = cpuArray(int_pixels_weight)
+
+                # Reset to zeros and fill with weights
+                int_pixels_weight_2d.fill(0)
+
+                # 4. Crea anche una versione 2D di pixels per il plot
+                pixels_2d = cpuArray(self.int_pixels.pixels)  # Start with original shape
+                pixels_2d.fill(0)
+
+                # 5. Crea anche una versione 2D di pixels boolean per il plot
+                pixels_bool_2d = cpuArray(self.int_pixels.pixels)  # Start with original shape
+                pixels_bool_2d.fill(False)
+
+                # Usa la stessa logica di estrazione pixel per riempire i pesi e pixels
+                for i in range(self.subapdata.n_subaps):
+                    # Ottieni gli indici per la subapertura i-esima
+                    subap_indices = cpuArray(self.subap_idx[i])  # Indici dei pixel per questa subapertura
+
+                    # Ottieni i pesi per questa subapertura e convertili in 2D
+                    subap_weights = int_pixels_weight_cpu[:, i].reshape(self.subapdata.np_sub, self.subapdata.np_sub)
+                    
+                    # Ottieni i pixels per questa subapertura e convertili in 2D
+                    subap_pixels = pixels_cpu[:, i].reshape(self.subapdata.np_sub, self.subapdata.np_sub)
+                    
+                    # Crea la maschera booleana
+                    subap_pixels_bool = subap_pixels > 0
+
+                    # Converti gli indici lineari in coordinate 2D
+                    rows = subap_indices // int_pixels_weight_2d.shape[1]
+                    cols = subap_indices % int_pixels_weight_2d.shape[1]
+
+                    # Assegna i valori usando gli indici
+                    for pixel_idx, (r, c) in enumerate(zip(rows, cols)):
+                        pixel_r = pixel_idx // self.subapdata.np_sub
+                        pixel_c = pixel_idx % self.subapdata.np_sub
+                        int_pixels_weight_2d[r, c] = subap_weights[pixel_r, pixel_c]
+                        pixels_2d[r, c] = subap_pixels[pixel_r, pixel_c]
+                        pixels_bool_2d[r, c] = subap_pixels_bool[pixel_r, pixel_c]
+
+                # Create plots (2x2 grid)
+                fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
+
+                # Plot 1: int_pixels.pixels
+                im1 = ax1.imshow(int_pixels_cpu, cmap='viridis', origin='lower')
+                ax1.set_title(f'int_pixels.pixels (time={self.current_time})')
+                ax1.set_xlabel('X pixel')
+                ax1.set_ylabel('Y pixel')
+                plt.colorbar(im1, ax=ax1)
+
+                # Plot 2: int_pixels_weight (reshaped to 2D)
+                im2 = ax2.imshow(int_pixels_weight_2d, cmap='plasma', origin='lower')
+                ax2.set_title(f'int_pixels_weight ({"windowed" if self.window_int_pixel else "normalized"})')
+                ax2.set_xlabel('X pixel')
+                ax2.set_ylabel('Y pixel')
+                plt.colorbar(im2, ax=ax2)
+
+                # Plot 3: pixels (after weights applied)
+                im3 = ax3.imshow(pixels_2d, cmap='hot', origin='lower')
+                ax3.set_title(f'pixels (after weights applied)')
+                ax3.set_xlabel('X pixel')
+                ax3.set_ylabel('Y pixel')
+                plt.colorbar(im3, ax=ax3)
+
+                # Plot 4: pixels > 0 (boolean mask)
+                im4 = ax4.imshow(pixels_bool_2d, cmap='gray', origin='lower')
+                ax4.set_title(f'pixels > 0 (boolean mask)')
+                ax4.set_xlabel('X pixel')
+                ax4.set_ylabel('Y pixel')
+                plt.colorbar(im4, ax=ax4)
+
+                plt.tight_layout()
+                plt.savefig(f'int_pixels_debug_t{self.current_time}.png', dpi=150, bbox_inches='tight')
+                plt.show()
+
+                # Statistics
+                print(f"int_pixels stats: min={int_pixels_cpu.min():.3f}, max={int_pixels_cpu.max():.3f}, mean={int_pixels_cpu.mean():.3f}")
+                print(f"int_pixels_weight stats: min={int_pixels_weight_2d.min():.3f}, max={int_pixels_weight_2d.max():.3f}")
+                print(f"pixels stats: min={pixels_2d.min():.3f}, max={pixels_2d.max():.3f}, mean={pixels_2d.mean():.3f}")
+                print(f"pixels > 0: {np.sum(pixels_bool_2d)} pixels out of {pixels_bool_2d.size} total")
+                print(f"Number of subapertures with applied weights: {n_weight_applied}")
 
         # Calculate flux and max flux per subaperture
         flux_per_subaperture_vector = self.xp.sum(pixels, axis=0)
