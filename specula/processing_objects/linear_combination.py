@@ -39,7 +39,7 @@ class LinearCombination(BaseProcessingObj):
     def trigger_code(self):
         in_vectors = self.local_inputs['in_vectors_list']
         idx = 0
-        lgs = in_vectors[idx].value
+        lgs = in_vectors[idx].value.copy()
         idx += 1
         if not self.no_focus:
             focus = in_vectors[idx].value
@@ -56,7 +56,7 @@ class LinearCombination(BaseProcessingObj):
         if self.plate_scale_idx is not None:
             lgs[2:5] -= ngs[2:]*self.ps_coeff
             lgs[self.plate_scale_idx:self.plate_scale_idx+3] = ngs[2:]
-            
+
         # LIFT
         if not self.no_lift:
             lgs = self.xp.concatenate([lgs, lift])
