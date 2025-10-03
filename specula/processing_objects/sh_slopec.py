@@ -146,8 +146,7 @@ class ShSlopec(Slopec):
 
     def trigger_code(self):
         if self.vec_wei_pix_rad_t is not None:
-            time = self.current_time_seconds
-            idxW = self.xp.where(time > self.vec_wei_pix_rad_t[:, 1])[-1]
+            idxW = self.xp.where(self.current_time_seconds > self.vec_wei_pix_rad_t[:, 1])[-1]
             if len(idxW) > 0:
                 self.weighted_pix_rad = self.vec_wei_pix_rad_t[idxW, 0]
                 if self.verbose:
@@ -290,17 +289,24 @@ class ShSlopec(Slopec):
 
         Args:
             np_sub (int): Number of sub-apertures (pixels) in one dimension.
-            fwhm (list): Full width at half maximum (FWHM) in normalized units [0, 1]
-                         1 means the FWHM is equal to the size of the PSF.
+            fwhm (list): Full width at half maximum (FWHM) in pixels for x and y directions.
 
         Returns:
             np.ndarray: 2D array representing the Gaussian PSF.
         """
-        x = np.linspace(-1, 1, np_sub)
-        y = np.linspace(-1, 1, np_sub)
-        x, y = np.meshgrid(x, y)
-        gaussian = np.exp(-4 * np.log(2) * (x ** 2 + y ** 2) / fwhm[0] ** 2, dtype=self.dtype)
-        return gaussian
+        cntrd = (np_sub - 1) / 2.0
+
+        x = np.arange(np_sub) - cntrd  # da -(np_sub-1)/2 a +(np_sub-1)/2
+        y = np.arange(np_sub) - cntrd
+
+        st_dev_x = fwhm[0] / (2.0 * np.sqrt(2.0 * np.log(2.0)))
+        st_dev_y = fwhm[1] / (2.0 * np.sqrt(2.0 * np.log(2.0)))
+
+        gaussian_x = np.exp(-0.5 * (x / st_dev_x)**2)
+        gaussian_y = np.exp(-0.5 * (y / st_dev_y)**2)
+
+        gaussian = np.outer(gaussian_x, gaussian_y)
+        return gaussian.astype(self.dtype)
 
     def post_trigger(self):
         super().post_trigger()
