@@ -286,6 +286,16 @@ class ShSlopec(Slopec):
             print(f"Slopes min, max and rms : {self.xp.min(sx)}, {self.xp.max(sx)}, {self.xp.sqrt(self.xp.mean(sx ** 2))}")
 
     def psf_gaussian(self, np_sub, fwhm):
+        """Generates a 2D Gaussian PSF.
+
+        Args:
+            np_sub (int): Number of sub-apertures (pixels) in one dimension.
+            fwhm (list): Full width at half maximum (FWHM) in normalized units [0, 1]
+                         1 means the FWHM is equal to the size of the PSF.
+
+        Returns:
+            np.ndarray: 2D array representing the Gaussian PSF.
+        """
         x = np.linspace(-1, 1, np_sub)
         y = np.linspace(-1, 1, np_sub)
         x, y = np.meshgrid(x, y)
