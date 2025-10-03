@@ -200,8 +200,10 @@ detector_lgs6: { <<: *LGS_DETECTOR, inputs: {in_i: 'sh_lgs6.out_i' }}
 
 slopec_lgs1: &LGS_SLOPEC
   class:             'ShSlopec'
-  weight_int_pixel_dt: 0.2
-  window_int_pixel:    True
+  weight_int_pixel_dt:  0.2
+  window_int_pixel:     True
+  window_int_threshold: 300
+  thr_value:            0
   subapdata_object:  'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_rot6.2'  # tag of the pyramid WFS pupils
   sn_object:         'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_ce_rot6.2'  # tag of the slope reference vector
   filtmat_data:      'maory_np_filtmat_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_mn2_2_ce_rot6.2'

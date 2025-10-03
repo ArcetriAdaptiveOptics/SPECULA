@@ -414,6 +414,7 @@ iir_focus:
   simul_params_ref:  'main'
   int_gain:          [0.5]
   n_modes:           [1]
+  delay: 1.0
   inputs:
       delta_comm: 'slicer_focus.out_value'     
   outputs:  ['out_comm']
