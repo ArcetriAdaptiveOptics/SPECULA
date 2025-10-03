@@ -186,7 +186,7 @@ class ShSlopec(Slopec):
             n_weight_applied = 0
             if self.int_pixels is not None and self.int_pixels.generation_time == self.current_time:
                 # Reshape accumulated pixels to match the format
-                int_pixels_weight = self.int_pixels.pixels[idx2d].T
+                int_pixels_weight = self.int_pixels.pixels[idx2d].T.astype(self.dtype)
                 int_pixels_weight -= self.xp.min(int_pixels_weight, axis=0, keepdims=True)
                 max_temp = self.xp.max(int_pixels_weight, axis=0)
 
@@ -296,7 +296,7 @@ class ShSlopec(Slopec):
         """
         cntrd = (np_sub - 1) / 2.0
 
-        x = np.arange(np_sub) - cntrd  # da -(np_sub-1)/2 a +(np_sub-1)/2
+        x = np.arange(np_sub) - cntrd  # from -(np_sub-1)/2 to +(np_sub-1)/2
         y = np.arange(np_sub) - cntrd
 
         st_dev_x = fwhm[0] / (2.0 * np.sqrt(2.0 * np.log(2.0)))
@@ -306,7 +306,7 @@ class ShSlopec(Slopec):
         gaussian_y = np.exp(-0.5 * (y / st_dev_y)**2)
 
         gaussian = np.outer(gaussian_x, gaussian_y)
-        return gaussian.astype(self.dtype)
+        return gaussian
 
     def post_trigger(self):
         super().post_trigger()
