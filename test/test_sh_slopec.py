@@ -202,6 +202,7 @@ class TestShSlopec(unittest.TestCase):
         with a specific weight_int_pixel_dt and window_int_pixel.
         """
         weight_int_pixel_dt = 2.0
+        window_int_threshold = 1.0
 
         sh, v, m, flat_ef, subapdata = self.get_sh(target_device_idx, xp, with_laser_launch=True)
         t_seconds = 1.0
@@ -217,11 +218,12 @@ class TestShSlopec(unittest.TestCase):
 
         # Compute slopes using ShSlopec
         pixels = Pixels(*intensity.shape, target_device_idx=target_device_idx)
-        pixels.pixels = intensity
+        pixels.pixels = intensity/intensity.max()*10
         pixels.generation_time = t
 
         # Create the slope computer object with the given parameters
-        slopec = ShSlopec(subapdata, weight_int_pixel_dt=weight_int_pixel_dt, window_int_pixel=True, target_device_idx=target_device_idx)
+        slopec = ShSlopec(subapdata, weight_int_pixel_dt=weight_int_pixel_dt, window_int_threshold=window_int_threshold,
+                          window_int_pixel=True, target_device_idx=target_device_idx)
         slopec.inputs['in_pixels'].set(pixels)
 
         # Simulate 2 frames with known values
