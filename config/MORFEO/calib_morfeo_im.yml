@@ -9,18 +9,6 @@ pushpull_dm:
   vect_amplitude_data: 'pushpull_4519modes_amp50'
   outputs: ['output']
 
-zeros4519:
-  class:             'WaveGenerator'
-  constant:          0.0
-  vsize:             4519
-  outputs: ['output']
-
-zeros1026:
-  class:             'WaveGenerator'
-  constant:          0.0
-  vsize:             1026
-  outputs: ['output']
-
 # Launchers for all 6 LGS (same parameters)
 launcher1_override: &LAUNCHER
   class:             'LaserLaunchTelescope'
@@ -125,16 +113,6 @@ dm1_override_0:
   sign: 1
   inputs:
     in_command: 'pushpull_dm.output'
-dm2_override_0:
-  sign: 1
-  start_mode: 0
-  inputs:
-    in_command: 'zeros1026.output'
-dm3_override_0:
-  sign: 1
-  start_mode: 0
-  inputs:
-    in_command: 'zeros1026.output'
 
 # Calibrator multi-input
 multi_im_calibrator_0:
@@ -172,20 +150,11 @@ pushpull_dm_override_1:
   nmodes: 1026
   vect_amplitude_data: 'pushpull_1026modes_amp50'
 
-dm1_override_1:
-  sign: 1
-  inputs:
-    in_command: 'zeros4519.output'
 dm2_override_1:
   sign: 1
   start_mode: 0
   inputs:
     in_command: 'pushpull_dm.output'
-dm3_override_1:
-  sign: 1
-  start_mode: 0
-  inputs:
-    in_command: 'zeros1026.output'
 
 # Calibrator multi-input
 multi_im_calibrator_1:
@@ -223,15 +192,6 @@ pushpull_dm_override_2:
   nmodes: 1026
   vect_amplitude_data: 'pushpull_1026modes_amp50'
 
-dm1_override_2:
-  sign: 1
-  inputs:
-    in_command: 'zeros4519.output'
-dm2_override_2:
-  sign: 1
-  start_mode: 0
-  inputs:
-    in_command: 'zeros1026.output'
 dm3_override_2:
   sign: 1
   start_mode: 0
@@ -285,3 +245,7 @@ remove: ['atmo', 'seeing', 'wind_speed', 'wind_direction',
         'slicer1', 'slicer2', 'slicer3',
         'psf', 'modal_analysis', 'data_store', 'modes_disp'
   ]
+
+remove_0: ['dm2' , 'dm3']
+remove_1: ['dm1' , 'dm3', 'ifunc_m4', 'm2c_m4']
+remove_2: ['dm1' , 'dm2', 'ifunc_m4', 'm2c_m4']
