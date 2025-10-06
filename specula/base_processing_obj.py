@@ -78,7 +78,16 @@ class BaseProcessingObj(BaseTimeObj):
         for input_name, input_obj in self.inputs.items():
             if MPI_DBG: print(process_rank, 'get_all_inputs(): getting InputValue:',
                               input_name, flush=True)
-            self.local_inputs[input_name] = input_obj.get(self.target_device_idx)
+            try:
+                self.local_inputs[input_name] = input_obj.get(self.target_device_idx)
+            except Exception as e:
+                print(f"ERROR in object {self.name} ({self.__class__.__name__}) "
+                      f"getting input '{input_name}': {e}", flush=True)
+                print(f"Input object type: {type(input_obj)}", flush=True)
+                values_count = len(input_obj.input_values) if hasattr(input_obj, 'input_values') else 'N/A'
+                print(f"Input object details: optional={input_obj.optional}, "
+                      f"values_count={values_count}", flush=True)
+                raise
 
         if MPI_DBG:
             print(process_rank, self.name, 'My inputs are:')
