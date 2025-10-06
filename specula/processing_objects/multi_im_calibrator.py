@@ -34,7 +34,6 @@ class MultiImCalibrator(BaseProcessingObj):
         self.data_dir = data_dir
 
         if im_tag == 'auto':
-            print('dicts: ', source_dict, sensor_dict, slopec_dict)
             im_tag = self._generate_multi_im_tags(pupilstop, source_dict, dm, sensor_dict,
                                                 slopec_dict)
 
