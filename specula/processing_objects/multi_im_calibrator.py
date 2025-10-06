@@ -109,14 +109,18 @@ class MultiImCalibrator(BaseProcessingObj):
             for im, ss in zip(self.outputs['out_intmat_list'], slopes):
                 im.set_nslopes(len(ss))
 
-        for i, (im, ss, cc) in enumerate(zip(self.outputs['out_intmat_list'], slopes, commands)):
+        for cmd_idx, cc in enumerate(commands):
             idx = self.xp.nonzero(cc)[0]
-
-            if len(idx)>0:
+            if len(idx) > 0:
                 mode = int(idx[0])
                 if mode < self.nmodes:
-                    im.modes[mode] += ss / cc[idx]
-                    self.count_commands[i][mode] += 1
+                    # Update ALL interaction matrices for this command
+                    for i, (im, ss) in enumerate(zip(self.outputs['out_intmat_list'], slopes)):
+                        im.modes[mode] += ss / cc[idx]
+                        self.count_commands[i][mode] += 1
+
+        # Update generation time for all IMs
+        for im in self.outputs['out_intmat_list']:
             im.generation_time = self.current_time
 
     def finalize(self):
@@ -127,6 +131,15 @@ class MultiImCalibrator(BaseProcessingObj):
             for mode in range(self.nmodes):
                 if self.count_commands[i][mode] > 0:
                     im.modes[mode] /= self.count_commands[i][mode]
+            from specula import cpuArray
+            import matplotlib.pyplot as plt
+            plt.figure()
+            plt.plot(cpuArray(im.intmat[:,0]))
+            plt.title('First slopes received')
+            plt.figure()
+            plt.plot(cpuArray(im.intmat[0,:]))
+            plt.title('First slopes received')
+            plt.show()
             if self.im_paths[i]:
                 im.save(os.path.join(self.data_dir, self.im_paths[i]), overwrite=self.overwrite)
             im.generation_time = self.current_time
