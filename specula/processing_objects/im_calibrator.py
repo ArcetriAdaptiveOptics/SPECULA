@@ -23,8 +23,8 @@ class ImCalibrator(BaseProcessingObj):
                  first_mode: int = 0,
                  overwrite: bool = False,
                  pupilstop: Pupilstop = None,
-                 source: Source = None,
                  dm: DM = None,
+                 source: Source = None,
                  sensor: BaseProcessingObj = None,
                  slopec: BaseProcessingObj = None,
                  target_device_idx: int = None,
@@ -36,7 +36,8 @@ class ImCalibrator(BaseProcessingObj):
         self.data_dir = data_dir
 
         if im_tag is None or im_tag == 'auto':
-            im_tag = self._generate_im_tag(pupilstop, source, dm, sensor, slopec)
+            im_tag = ImCalibrator.generate_im_tag(pupilstop, source, dm, sensor,
+                                                  slopec, self.nmodes, self.first_mode)
         self.im_tag = im_tag
 
         self.overwrite = overwrite
@@ -56,11 +57,13 @@ class ImCalibrator(BaseProcessingObj):
         self.intmat = Intmat(nmodes=nmodes, nslopes=0, target_device_idx=self.target_device_idx)
         self.outputs['out_intmat'] = self.intmat
 
-        self.single_im = [Intmat(nmodes=1, nslopes=0, target_device_idx=self.target_device_idx) for i in range(nmodes)]
+        self.single_im = [Intmat(nmodes=1, nslopes=0,
+                                 target_device_idx=self.target_device_idx) for i in range(nmodes)]
         self.outputs['out_single_im'] = self.single_im
 
-    def _generate_im_tag(self, pupilstop, source, dm, sensor, slopec):
-        """Generate automatic im_tag based on configuration parameters retrieved from other objects."""
+    @staticmethod
+    def generate_im_tag(pupilstop, source, dm, sensor, slopec, nmodes, first_mode=0):
+        """Generate automatic im_tag based on configuration parameters."""
 
         if pupilstop is None:
             raise ValueError('Pupilstop must be provided if im_tag is not set')
@@ -101,7 +104,8 @@ class ImCalibrator(BaseProcessingObj):
                 im_tag += f'_{slopec.pupdata.tag}'
 
         # no. pixel and pixel pitch
-        im_tag += f'_pup{dm.simul_params.pixel_pupil}x{dm.simul_params.pixel_pupil}p{dm.simul_params.pixel_pitch}m'
+        im_tag += f'_pup{dm.simul_params.pixel_pupil}x{dm.simul_params.pixel_pupil}p'
+        im_tag += f'{dm.simul_params.pixel_pitch}m'
 
         # SOURCE coordinates
         if source.polar_coordinates[0] != 0:
@@ -118,9 +122,9 @@ class ImCalibrator(BaseProcessingObj):
         elif dm.tag is not None and dm.tag != '':
             im_tag += '_'+dm.tag
         nmodes_dm = dm.ifunc.shape[0]
-        im_tag += f'_{min(nmodes_dm,self.nmodes)}mds'
-        if self.first_mode != 0:
-            im_tag += f'_firstm{self.first_mode}'
+        im_tag += f'_{min(nmodes_dm,nmodes)}mds'
+        if first_mode != 0:
+            im_tag += f'_firstm{first_mode}'
 
         # Pupilstop
         im_tag += '_stop'
