@@ -131,15 +131,6 @@ class MultiImCalibrator(BaseProcessingObj):
             for mode in range(self.nmodes):
                 if self.count_commands[i][mode] > 0:
                     im.modes[mode] /= self.count_commands[i][mode]
-            from specula import cpuArray
-            import matplotlib.pyplot as plt
-            plt.figure()
-            plt.plot(cpuArray(im.intmat[:,0]))
-            plt.title('First slopes received')
-            plt.figure()
-            plt.plot(cpuArray(im.intmat[0,:]))
-            plt.title('First slopes received')
-            plt.show()
             if self.im_paths[i]:
                 im.save(os.path.join(self.data_dir, self.im_paths[i]), overwrite=self.overwrite)
             im.generation_time = self.current_time
