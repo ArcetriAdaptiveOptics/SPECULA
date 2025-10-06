@@ -135,6 +135,6 @@ class InputValue(InputList):
             if self.optional:
                 return None
             else:
-                raise ValueError(f'InputValue is empty and not optional. Input type: {
-                                 self.output_ref_type}')
+                raise ValueError(f'InputValue is empty and not optional. '
+                                 f'Input type: {self.output_ref_type}')
         return values_list[0]
