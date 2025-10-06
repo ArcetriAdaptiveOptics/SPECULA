@@ -3,26 +3,37 @@
 # =====================================
 
 # Push-pull generator for all simulations
-pushpull_dm1: &PUSHPULL_BASE
+pushpull_dm:
   class: 'PushPullGenerator'
   nmodes: 4519
   vect_amplitude_data: 'pushpull_4519modes_amp50'
   outputs: ['output']
 
-pushpull_dm2: {<<: *PUSHPULL_BASE, nmodes: 1026, vect_amplitude_data: 'pushpull_1026modes_amp50'}
-pushpull_dm3: {<<: *PUSHPULL_BASE, nmodes: 1026, vect_amplitude_data: 'pushpull_1026modes_amp50'}
+zeros4519:
+  class:             'WaveGenerator'
+  constant:          0.0
+  vsize:             4519
+  outputs: ['output']
+
+zeros1026:
+  class:             'WaveGenerator'
+  constant:          0.0
+  vsize:             1026
+  outputs: ['output']
 
 # Launchers for all 6 LGS (same parameters)
-launcher1: &LAUNCHER
+launcher1_override: &LAUNCHER
   class:             'LaserLaunchTelescope'
   simul_params_ref:  'main'
   spot_size:          1.8
+  tel_position:       []
+  beacon_focus:       .inf
 
-launcher2: { <<: *LAUNCHER}
-launcher3: { <<: *LAUNCHER}
-launcher4: { <<: *LAUNCHER}
-launcher5: { <<: *LAUNCHER}
-launcher6: { <<: *LAUNCHER}
+launcher2_override: { <<: *LAUNCHER}
+launcher3_override: { <<: *LAUNCHER}
+launcher4_override: { <<: *LAUNCHER}
+launcher5_override: { <<: *LAUNCHER}
+launcher6_override: { <<: *LAUNCHER}
 
 sh_lgs1_override:
   inputs:
@@ -62,27 +73,19 @@ detector_lgs6_override: {<<: *NOISE_OFF}
 # =====================================
 # Override for first simulation (DM1)
 # =====================================
-main_override_1:
+main_override_0:
   total_time: 18.076  # 4519 * 2 * 0.002
 
-prop_override_1:
+prop_override_0:
   inputs:
     common_layer_list: ['pupilstop', 'dm1.out_layer:-1']
 
-dm1_override_1:
+dm1_override_0:
   inputs:
-    in_command: 'pushpull_dm1.output'
-
-# Disable other DMs
-dm2_override_1:
-  inputs:
-    in_command: null
-dm3_override_1:
-  inputs:
-    in_command: null
+    in_command: 'pushpull_dm.output'
 
 # Calibrator multi-input
-multi_im_calibrator_1:
+multi_im_calibrator_0:
   class: 'MultiImCalibrator'
   nmodes: 4519  # Maximum number of modes (DM1)
   n_inputs: 6   # 6 LGS
@@ -91,9 +94,9 @@ multi_im_calibrator_1:
   overwrite: true
   pupilstop_ref: 'pupilstop'
   dm_ref: 'dm1'
-  source_list_ref: ['source_lgs1', 'source_lgs2', 'source_lgs3', 'source_lgs4', 'source_lgs5', 'source_lgs6']
-  sensor_list_ref: ['sh_lgs1', 'sh_lgs2', 'sh_lgs3', 'sh_lgs4', 'sh_lgs5', 'sh_lgs6']
-  slopec_list_ref: ['slopec_lgs1', 'slopec_lgs2', 'slopec_lgs3', 'slopec_lgs4', 'slopec_lgs5', 'slopec_lgs6']
+  source_dict_ref: ['source_lgs1', 'source_lgs2', 'source_lgs3', 'source_lgs4', 'source_lgs5', 'source_lgs6']
+  sensor_dict_ref: ['sh_lgs1', 'sh_lgs2', 'sh_lgs3', 'sh_lgs4', 'sh_lgs5', 'sh_lgs6']
+  slopec_dict_ref: ['slopec_lgs1', 'slopec_lgs2', 'slopec_lgs3', 'slopec_lgs4', 'slopec_lgs5', 'slopec_lgs6']
   inputs:
     in_slopes_list: ['slopec_lgs1.out_slopes',
                      'slopec_lgs2.out_slopes',
@@ -101,32 +104,28 @@ multi_im_calibrator_1:
                      'slopec_lgs4.out_slopes',
                      'slopec_lgs5.out_slopes',
                      'slopec_lgs6.out_slopes']
-    in_commands_list: ['pushpull_dm1.output']
+    in_commands_list: ['pushpull_dm.output']
 
 # =====================================
 # Override for second simulation (DM2)
 # =====================================
-main_override_2:
+main_override_1:
   total_time: 4.104  # 1026 * 2 * 0.002
 
-prop_override_2:
+prop_override_1:
   inputs:
     common_layer_list: ['pupilstop', 'dm2.out_layer:-1']
 
-dm2_override_2:
-  inputs:
-    in_command: 'pushpull_dm2.output'
+pushpull_dm_override_1:
+  nmodes: 1026
+  vect_amplitude_data: 'pushpull_1026modes_amp50'
 
-# Disable other DMs
-dm1_override_2:
+dm2_override_1:
   inputs:
-    in_command: null
-dm3_override_2:
-  inputs:
-    in_command: null
+    in_command: 'pushpull_dm.output'
 
 # Calibrator multi-input
-multi_im_calibrator_2:
+multi_im_calibrator_1:
   class: 'MultiImCalibrator'
   nmodes: 1026  # Maximum number of modes (DM2)
   n_inputs: 6   # 6 LGS
@@ -135,9 +134,9 @@ multi_im_calibrator_2:
   overwrite: true
   pupilstop_ref: 'pupilstop'
   dm_ref: 'dm2'
-  source_list_ref: ['source_lgs1', 'source_lgs2', 'source_lgs3', 'source_lgs4', 'source_lgs5', 'source_lgs6']
-  sensor_list_ref: ['sh_lgs1', 'sh_lgs2', 'sh_lgs3', 'sh_lgs4', 'sh_lgs5', 'sh_lgs6']
-  slopec_list_ref: ['slopec_lgs1', 'slopec_lgs2', 'slopec_lgs3', 'slopec_lgs4', 'slopec_lgs5', 'slopec_lgs6']
+  source_dict_ref: ['source_lgs1', 'source_lgs2', 'source_lgs3', 'source_lgs4', 'source_lgs5', 'source_lgs6']
+  sensor_dict_ref: ['sh_lgs1', 'sh_lgs2', 'sh_lgs3', 'sh_lgs4', 'sh_lgs5', 'sh_lgs6']
+  slopec_dict_ref: ['slopec_lgs1', 'slopec_lgs2', 'slopec_lgs3', 'slopec_lgs4', 'slopec_lgs5', 'slopec_lgs6']
   inputs:
     in_slopes_list: ['slopec_lgs1.out_slopes',
                      'slopec_lgs2.out_slopes',
@@ -145,32 +144,28 @@ multi_im_calibrator_2:
                      'slopec_lgs4.out_slopes',
                      'slopec_lgs5.out_slopes',
                      'slopec_lgs6.out_slopes']
-    in_commands_list: ['pushpull_dm2.output']
+    in_commands_list: ['pushpull_dm.output']
 
 # =====================================
 # Override for third simulation (DM3)
 # =====================================
-main_override_3:
+main_override_2:
   total_time: 4.104  # 1026 * 2 * 0.002
 
-prop_override_3:
+prop_override_2:
   inputs:
     common_layer_list: ['pupilstop', 'dm3.out_layer:-1']
 
+pushpull_dm_override_2:
+  nmodes: 1026
+  vect_amplitude_data: 'pushpull_1026modes_amp50'
+
 dm3_override_3:
   inputs:
-    in_command: 'pushpull_dm3.output'
-
-# Disable other DMs
-dm1_override_3:
-  inputs:
-    in_command: null
-dm2_override_3:
-  inputs:
-    in_command: null
+    in_command: 'pushpull_dm.output'
 
 # Calibrator multi-input
-multi_im_calibrator_3:
+multi_im_calibrator_2:
   class: 'MultiImCalibrator'
   nmodes: 1026  # Maximum number of modes (DM3)
   n_inputs: 6   # 6 LGS
@@ -179,9 +174,9 @@ multi_im_calibrator_3:
   overwrite: true
   pupilstop_ref: 'pupilstop'
   dm_ref: 'dm3'
-  source_list_ref: ['source_lgs1', 'source_lgs2', 'source_lgs3', 'source_lgs4', 'source_lgs5', 'source_lgs6']
-  sensor_list_ref: ['sh_lgs1', 'sh_lgs2', 'sh_lgs3', 'sh_lgs4', 'sh_lgs5', 'sh_lgs6']
-  slopec_list_ref: ['slopec_lgs1', 'slopec_lgs2', 'slopec_lgs3', 'slopec_lgs4', 'slopec_lgs5', 'slopec_lgs6']
+  source_dict_ref: ['source_lgs1', 'source_lgs2', 'source_lgs3', 'source_lgs4', 'source_lgs5', 'source_lgs6']
+  sensor_dict_ref: ['sh_lgs1', 'sh_lgs2', 'sh_lgs3', 'sh_lgs4', 'sh_lgs5', 'sh_lgs6']
+  slopec_dict_ref: ['slopec_lgs1', 'slopec_lgs2', 'slopec_lgs3', 'slopec_lgs4', 'slopec_lgs5', 'slopec_lgs6']
   inputs:
     in_slopes_list: ['slopec_lgs1.out_slopes',
                      'slopec_lgs2.out_slopes',
@@ -189,12 +184,12 @@ multi_im_calibrator_3:
                      'slopec_lgs4.out_slopes',
                      'slopec_lgs5.out_slopes',
                      'slopec_lgs6.out_slopes']
-    in_commands_list: ['pushpull_dm3.output']
+    in_commands_list: ['pushpull_dm.output']
 
 # =====================================
 # Remove control pipeline
 # =====================================
-remove: ['atmo',
+remove: ['atmo', 'seeing', 'wind_speed', 'wind_direction',
         'sodium_altitude', 'sodium_intensity',
         'tomo_polc_lgs', 'iir_lgs',
         'tomo_ngs', 'iir_ngs', 

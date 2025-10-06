@@ -20,10 +20,10 @@ class MultiImCalibrator(BaseProcessingObj):
                  full_im_tag: str = None,
                  overwrite: bool = False,
                  pupilstop: Pupilstop = None,
-                 source_list: list = None,
+                 source_dict: list = None,
                  dm: DM = None,
-                 sensor_list: list = None,
-                 slopec_list: list = None,
+                 sensor_dict: list = None,
+                 slopec_dict: list = None,
                  target_device_idx: int = None,
                  precision: int = None
                 ):
@@ -34,8 +34,9 @@ class MultiImCalibrator(BaseProcessingObj):
         self.data_dir = data_dir
 
         if im_tag == 'auto':
-            im_tag = self._generate_multi_im_tags(pupilstop, source_list, dm, sensor_list,
-                                                slopec_list)
+            print('dicts: ', source_dict, sensor_dict, slopec_dict)
+            im_tag = self._generate_multi_im_tags(pupilstop, source_dict, dm, sensor_dict,
+                                                slopec_dict)
 
         if full_im_tag == 'auto':
             raise NotImplementedError('full_im_tag auto generation not implemented yet')
@@ -69,22 +70,28 @@ class MultiImCalibrator(BaseProcessingObj):
         self.outputs['out_intmat_full'] = Intmat(nmodes=nmodes, nslopes=0,
                                                  target_device_idx=self.target_device_idx)
 
-    def _generate_multi_im_tags(self, pupilstop, source_list, dm, sensor_list, slopec_list):
+    def _generate_multi_im_tags(self, pupilstop, source_dict, dm, sensor_dict, slopec_dict):
         """Generate IM tags for multi-input configuration using static method."""
 
-        if source_list is None or len(source_list) != self.n_inputs:
-            raise ValueError(f'source_list must have {self.n_inputs} elements if im_tag is "auto"')
-        if sensor_list is None or len(sensor_list) != self.n_inputs:
-            raise ValueError(f'sensor_list must have {self.n_inputs} elements if im_tag is "auto"')
-        if slopec_list is None or len(slopec_list) != self.n_inputs:
-            raise ValueError(f'slopec_list must have {self.n_inputs} elements if im_tag is "auto"')
+        if source_dict is None or len(source_dict) != self.n_inputs:
+            raise ValueError(f'source_dict must have {self.n_inputs} elements if im_tag is "auto"')
+        if sensor_dict is None or len(sensor_dict) != self.n_inputs:
+            raise ValueError(f'sensor_dict must have {self.n_inputs} elements if im_tag is "auto"')
+        if slopec_dict is None or len(slopec_dict) != self.n_inputs:
+            raise ValueError(f'slopec_dict must have {self.n_inputs} elements if im_tag is "auto"')
 
         # Generate tag for each input using the static method
         tags = []
+        
+        # Get the keys from the dictionaries (should be the same order)
+        source_keys = list(source_dict.keys())
+        sensor_keys = list(sensor_dict.keys()) 
+        slopec_keys = list(slopec_dict.keys())
+    
         for i in range(self.n_inputs):
-            source = source_list[i]
-            sensor = sensor_list[i]
-            slopec = slopec_list[i]
+            source = source_dict[source_keys[i]]
+            sensor = sensor_dict[sensor_keys[i]]
+            slopec = slopec_dict[slopec_keys[i]]
 
             # Use static method
             tag = ImCalibrator.generate_im_tag(pupilstop, source, dm, sensor, slopec, self.nmodes)
