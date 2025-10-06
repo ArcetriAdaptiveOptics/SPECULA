@@ -541,7 +541,6 @@ modes_disp:
 #  class:            'SlopecDisplay'
 #  inputs:
 #    slopes:       'slopec_lgs1.out_slopes'
-#    subapdata:    'slopec_lgs1.out_subapdata'
 #  figsize:       [8, 6]  # Default size in inches
 
 # psf_disp:

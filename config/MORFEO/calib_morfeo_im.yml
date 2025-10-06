@@ -59,6 +59,47 @@ sh_lgs6_override:
   inputs:
     in_ef: 'prop.out_source_lgs6_ef'
 
+slopec_lgs1_override:
+  weight_int_pixel_dt:  0
+  window_int_pixel:     False
+  window_int_threshold: Null
+  thr_value:            -1
+  filtmat_data:         Null
+
+slopec_lgs2_override:
+  weight_int_pixel_dt:  0
+  window_int_pixel:     False
+  window_int_threshold: Null
+  thr_value:            -1
+  filtmat_data:         Null
+
+slopec_lgs3_override:
+  weight_int_pixel_dt:  0
+  window_int_pixel:     False
+  window_int_threshold: Null
+  thr_value:            -1
+  filtmat_data:         Null
+
+slopec_lgs4_override:
+  weight_int_pixel_dt:  0
+  window_int_pixel:     False
+  window_int_threshold: Null
+  thr_value:            -1
+  filtmat_data:         Null
+
+slopec_lgs5_override:
+  weight_int_pixel_dt:  0
+  window_int_pixel:     False
+  window_int_threshold: Null
+  thr_value:            -1
+  filtmat_data:         Null
+  
+slopec_lgs6_override:
+  weight_int_pixel_dt:  0
+  window_int_pixel:     False
+  window_int_threshold: Null
+  thr_value:            -1
+  filtmat_data:         Null
 
 # Disable noise for clean calibration
 detector_lgs1_override: &NOISE_OFF
@@ -78,11 +119,20 @@ main_override_0:
 
 prop_override_0:
   inputs:
-    common_layer_list: ['pupilstop', 'dm1.out_layer:-1']
+    common_layer_list: ['pupilstop', 'dm1.out_layer']
 
 dm1_override_0:
+  sign: 1
   inputs:
     in_command: 'pushpull_dm.output'
+dm2_override_0:
+  sign: 1
+  inputs:
+    in_command: 'zeros1026.output'
+dm3_override_0:
+  sign: 1
+  inputs:
+    in_command: 'zeros1026.output'
 
 # Calibrator multi-input
 multi_im_calibrator_0:
@@ -114,15 +164,24 @@ main_override_1:
 
 prop_override_1:
   inputs:
-    common_layer_list: ['pupilstop', 'dm2.out_layer:-1']
+    common_layer_list: ['pupilstop', 'dm2.out_layer']
 
 pushpull_dm_override_1:
   nmodes: 1026
   vect_amplitude_data: 'pushpull_1026modes_amp50'
 
+dm1_override_1:
+  sign: 1
+  inputs:
+    in_command: 'zeros4519.output'
 dm2_override_1:
+  sign: 1
   inputs:
     in_command: 'pushpull_dm.output'
+dm3_override_1:
+  sign: 1
+  inputs:
+    in_command: 'zeros1026.output'
 
 # Calibrator multi-input
 multi_im_calibrator_1:
@@ -154,13 +213,22 @@ main_override_2:
 
 prop_override_2:
   inputs:
-    common_layer_list: ['pupilstop', 'dm3.out_layer:-1']
+    common_layer_list: ['pupilstop', 'dm3.out_layer']
 
 pushpull_dm_override_2:
   nmodes: 1026
   vect_amplitude_data: 'pushpull_1026modes_amp50'
 
-dm3_override_3:
+dm1_override_2:
+  sign: 1
+  inputs:
+    in_command: 'zeros4519.output'
+dm2_override_2:
+  sign: 1
+  inputs:
+    in_command: 'zeros1026.output'
+dm3_override_2:
+  sign: 1
   inputs:
     in_command: 'pushpull_dm.output'
 
@@ -185,6 +253,19 @@ multi_im_calibrator_2:
                      'slopec_lgs5.out_slopes',
                      'slopec_lgs6.out_slopes']
     in_commands_list: ['pushpull_dm.output']
+
+# sc1_disp:
+#   class:            'SlopecDisplay'
+#   inputs:
+#     slopes:       'slopec_lgs1.out_slopes'
+#   figsize:       [8, 6]  # Default size in inches
+
+# dm_disp:
+#   class:            'PhaseDisplay'
+#   inputs:
+#     phase:       "dm1.out_layer"
+#   title:            'DM'
+#   figsize:       [8, 6]  # Default size in inches
 
 # =====================================
 # Remove control pipeline
