@@ -48,7 +48,7 @@ class MultiImCalibrator(BaseProcessingObj):
         # Path and existing file existence checks
         self.im_paths = []
         for i in range(self.n_inputs):
-            path = os.path.join(self.data_dir, f"{self.im_tag}{i}.fits")
+            path = os.path.join(self.data_dir, f"{self.im_tag[i]}.fits")
             self.im_paths.append(path)
             if os.path.exists(path) and not self.overwrite:
                 raise FileExistsError(f'IM file {path} already exists, please remove it')
@@ -99,10 +99,6 @@ class MultiImCalibrator(BaseProcessingObj):
 
         return tags
 
-    def im_path(self, i):
-        """Get path for individual IM file."""
-        return self.im_paths[i] if i < len(self.im_paths) else None
-
     def trigger_code(self):
 
         slopes = [x.slopes for x in self.local_inputs['in_slopes_list']]
@@ -131,8 +127,8 @@ class MultiImCalibrator(BaseProcessingObj):
             for mode in range(self.nmodes):
                 if self.count_commands[i][mode] > 0:
                     im.modes[mode] /= self.count_commands[i][mode]
-            if self.im_path(i):
-                im.save(os.path.join(self.data_dir, self.im_path(i)), overwrite=self.overwrite)
+            if self.im_paths[i]:
+                im.save(os.path.join(self.data_dir, self.im_paths[i]), overwrite=self.overwrite)
             im.generation_time = self.current_time
 
         if self.full_im_path:
@@ -144,8 +140,8 @@ class MultiImCalibrator(BaseProcessingObj):
             self.outputs['out_intmat_full'].intmat = full_im
             self.outputs['out_intmat_full'].generation_time = self.current_time
             if self.full_im_path:
-                self.outputs['out_intmat_full'].save(os.path.join(self.data_dir,
-                                                                  self.full_im_path), overwrite=self.overwrite)
+                self.outputs['out_intmat_full'].save(
+                    os.path.join(self.data_dir, self.full_im_path), overwrite=self.overwrite)
 
     def setup(self):
         super().setup()
@@ -157,13 +153,4 @@ class MultiImCalibrator(BaseProcessingObj):
                 f"Number of input slopes ({actual_n_inputs}) does not match "
                 f"expected n_inputs ({self.n_inputs}). "
                 f"Please check your configuration."
-            )
-
-        # Also validate commands list has the same length
-        actual_n_commands = len(self.local_inputs['in_commands_list'])
-        if actual_n_commands != self.n_inputs:
-            raise ValueError(
-                f"Number of input commands ({actual_n_commands}) does not match "
-                f"expected n_inputs ({self.n_inputs}). "
-                f"Both slopes and commands lists must have the same length."
             )
