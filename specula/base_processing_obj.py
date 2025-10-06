@@ -78,16 +78,10 @@ class BaseProcessingObj(BaseTimeObj):
         for input_name, input_obj in self.inputs.items():
             if MPI_DBG: print(process_rank, 'get_all_inputs(): getting InputValue:',
                               input_name, flush=True)
-            try:
-                self.local_inputs[input_name] = input_obj.get(self.target_device_idx)
-            except Exception as e:
-                print(f"ERROR in object {self.name} ({self.__class__.__name__}) "
-                      f"getting input '{input_name}': {e}", flush=True)
-                print(f"Input object type: {type(input_obj)}", flush=True)
-                values_count = len(input_obj.input_values) if hasattr(input_obj, 'input_values') else 'N/A'
-                print(f"Input object details: optional={input_obj.optional}, "
-                      f"values_count={values_count}", flush=True)
-                raise
+            # Set additional info for better error messages
+            input_obj.requesting_obj_name = self.name
+            input_obj.input_name = input_name
+            self.local_inputs[input_name] = input_obj.get(self.target_device_idx)
 
         if MPI_DBG:
             print(process_rank, self.name, 'My inputs are:')
@@ -257,12 +251,7 @@ class BaseProcessingObj(BaseTimeObj):
         if self.target_device_idx >= 0:
             self._target_device.use()
 
-        try:
-            self.get_all_inputs()
-        except Exception as e:
-            print(f"ERROR during setup of {self.name}: {e}", flush=True)
-            raise
-
+        self.get_all_inputs()
         for input_name, input in self.inputs.items():
             if self.local_inputs[input_name] is None and not input.optional:
                 raise ValueError(f'Input {input_name} for object {self} has not been set')
