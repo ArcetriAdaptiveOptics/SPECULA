@@ -39,14 +39,14 @@ sh_lgs6_override:
 sh_subaps_lgs1: &LGS_SA_SH
   class: 'ShSubapCalibrator'
   subap_on_diameter:  68
-  output_tag:        'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.20_rot6.2'
-  energy_th:         0.2
+  output_tag:        'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_rot6.2'
+  energy_th:         0.5
   inputs:
     in_i: 'sh_lgs1.out_i'
 
-sh_subaps_lgs2: {<<: *LGS_SA_SH, output_tag: 'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.20_rot14.2',
+sh_subaps_lgs2: {<<: *LGS_SA_SH, output_tag: 'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_rot14.2',
           inputs: {in_i: sh_lgs2.out_i}}
-sh_subaps_lgs3: {<<: *LGS_SA_SH, output_tag: 'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.20_rot-6.2',
+sh_subaps_lgs3: {<<: *LGS_SA_SH, output_tag: 'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_rot-6.2',
           inputs: {in_i: sh_lgs3.out_i}}
 # sh_subaps_lgs4, sh_subaps_lgs5, sh_subaps_lgs6 are not considered because they have the same subap configuration
 # as sh_subaps_lgs1, sh_subaps_lgs2, sh_subaps_lgs3 respectively
@@ -54,16 +54,16 @@ sh_subaps_lgs3: {<<: *LGS_SA_SH, output_tag: 'maory_np_ps480p0.080_shs68x68_wl58
 sh_subaps_ngs1:
   class: 'ShSubapCalibrator'
   subap_on_diameter:  1
-  output_tag:        'maory_ps480p0.080_shs1x1_wl1650_fv1.8_np240_th0.20_stopTEELT480pp0.0803m_obs0.283_spider2023'
-  energy_th:         0.2
+  output_tag:        'maory_ps480p0.080_shs1x1_wl1650_fv1.8_np240_th0.50_stopTEELT480pp0.0803m_obs0.283_spider2023'
+  energy_th:         0.5
   inputs:
     in_i: 'sh_ngs1.out_i'
 
 sh_subaps_ref1:
   class: 'ShSubapCalibrator'
   subap_on_diameter:  8
-  output_tag:        'maory_ps480p0.080_shs8x8_wl750_fv4.6_np30_th0.20_stopTEELT480pp0.0813spiderRoundObsCentered'
-  energy_th:         0.2
+  output_tag:        'maory_ps480p0.080_shs8x8_wl750_fv4.6_np30_th0.50_stopTEELT480pp0.0813spiderRoundObsCentered'
+  energy_th:         0.5
   inputs:
     in_i: 'sh_ref1.out_i'
 
