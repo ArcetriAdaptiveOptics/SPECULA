@@ -127,10 +127,12 @@ dm1_override_0:
     in_command: 'pushpull_dm.output'
 dm2_override_0:
   sign: 1
+  start_mode: 0
   inputs:
     in_command: 'zeros1026.output'
 dm3_override_0:
   sign: 1
+  start_mode: 0
   inputs:
     in_command: 'zeros1026.output'
 
@@ -176,10 +178,12 @@ dm1_override_1:
     in_command: 'zeros4519.output'
 dm2_override_1:
   sign: 1
+  start_mode: 0
   inputs:
     in_command: 'pushpull_dm.output'
 dm3_override_1:
   sign: 1
+  start_mode: 0
   inputs:
     in_command: 'zeros1026.output'
 
@@ -225,10 +229,12 @@ dm1_override_2:
     in_command: 'zeros4519.output'
 dm2_override_2:
   sign: 1
+  start_mode: 0
   inputs:
     in_command: 'zeros1026.output'
 dm3_override_2:
   sign: 1
+  start_mode: 0
   inputs:
     in_command: 'pushpull_dm.output'
 
