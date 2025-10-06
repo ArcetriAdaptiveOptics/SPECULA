@@ -82,12 +82,12 @@ class MultiImCalibrator(BaseProcessingObj):
 
         # Generate tag for each input using the static method
         tags = []
-        
+
         # Get the keys from the dictionaries (should be the same order)
         source_keys = list(source_dict.keys())
-        sensor_keys = list(sensor_dict.keys()) 
+        sensor_keys = list(sensor_dict.keys())
         slopec_keys = list(slopec_dict.keys())
-    
+
         for i in range(self.n_inputs):
             source = source_dict[source_keys[i]]
             sensor = sensor_dict[sensor_keys[i]]

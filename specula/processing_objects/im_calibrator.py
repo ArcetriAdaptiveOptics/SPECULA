@@ -109,7 +109,7 @@ class ImCalibrator(BaseProcessingObj):
 
         # SOURCE coordinates
         if source.polar_coordinates[0] != 0:
-            im_tag += f'_coor{source.polar_coordinates[0]:.1f}a{source.polar_coordinates[0]:.1f}d'
+            im_tag += f'_coor{source.polar_coordinates[0]:.1f}a{source.polar_coordinates[1]:.1f}d'
         if source.height != float('inf'):
             im_tag += f'_h{source.height:.1f}m'
 
