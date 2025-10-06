@@ -257,7 +257,12 @@ class BaseProcessingObj(BaseTimeObj):
         if self.target_device_idx >= 0:
             self._target_device.use()
 
-        self.get_all_inputs()
+        try:
+            self.get_all_inputs()
+        except Exception as e:
+            print(f"ERROR during setup of {self.name}: {e}", flush=True)
+            raise
+
         for input_name, input in self.inputs.items():
             if self.local_inputs[input_name] is None and not input.optional:
                 raise ValueError(f'Input {input_name} for object {self} has not been set')
