@@ -47,7 +47,7 @@ class _InputItem():
             self.cloned_value.generation_time = gen_time
             self.cloned_value.set_value(buffer)
 
-        return new_value        
+        return new_value
 
     def get(self, target_device_idx):
         if self.remote_rank is None:
@@ -59,10 +59,10 @@ class _InputItem():
                 self.cloned_value = self.output_ref
                 return self.cloned_value
 
-        if self.remote_rank is None:         
+        if self.remote_rank is None:
             value = self.output_ref
         else:
-            value = self.receive_new_value(first_mpi_receive=self.cloned_value is None )
+            value = self.receive_new_value(first_mpi_receive=self.cloned_value is None)
 
         if self.cloned_value is None:
             self.cloned_value = value.copyTo(target_device_idx)
@@ -135,6 +135,6 @@ class InputValue(InputList):
             if self.optional:
                 return None
             else:
-                raise ValueError('InputValue is empty and not optional')
+                raise ValueError(f'InputValue is empty and not optional. Input type: {
+                                 self.output_ref_type}')
         return values_list[0]
-
