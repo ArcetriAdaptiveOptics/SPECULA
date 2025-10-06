@@ -1,14 +1,16 @@
 
-launcher1: &LAUNCHER
+launcher1_override: &LAUNCHER
   class:             'LaserLaunchTelescope'
   simul_params_ref:  'main'
   spot_size:          1.8
+  tel_position:       []
+  beacon_focus:       .inf
 
-launcher2: { <<: *LAUNCHER}
-launcher3: { <<: *LAUNCHER}
-launcher4: { <<: *LAUNCHER}
-launcher5: { <<: *LAUNCHER}
-launcher6: { <<: *LAUNCHER}
+launcher2_override: { <<: *LAUNCHER}
+launcher3_override: { <<: *LAUNCHER}
+launcher4_override: { <<: *LAUNCHER}
+launcher5_override: { <<: *LAUNCHER}
+launcher6_override: { <<: *LAUNCHER}
 
 sh_lgs1_override:
   inputs:
@@ -42,11 +44,12 @@ sh_subaps_lgs1: &LGS_SA_SH
   inputs:
     in_i: 'sh_lgs1.out_i'
 
-sh_lgs2: {<<: *LGS_SA_SH, output_tag: 'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.20_rot14.2',
-          inputs: {in_ef: sh_lgs2.out_i}}
-sh_lgs3: {<<: *LGS_SA_SH, output_tag: 'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.20_rot-6.2',
-          inputs: {in_ef: sh_lgs3.out_i}}
-# sh_lgs4, sh_lgs5, sh_lgs6 are not considered because they have the same subap configuration as sh_lgs1, sh_lgs2, sh_lgs3
+sh_subaps_lgs2: {<<: *LGS_SA_SH, output_tag: 'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.20_rot14.2',
+          inputs: {in_i: sh_lgs2.out_i}}
+sh_subaps_lgs3: {<<: *LGS_SA_SH, output_tag: 'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.20_rot-6.2',
+          inputs: {in_i: sh_lgs3.out_i}}
+# sh_subaps_lgs4, sh_subaps_lgs5, sh_subaps_lgs6 are not considered because they have the same subap configuration
+# as sh_subaps_lgs1, sh_subaps_lgs2, sh_subaps_lgs3 respectively
 
 sh_subaps_ngs1:
   class: 'ShSubapCalibrator'
@@ -77,7 +80,7 @@ remove: ['atmo',
         'sh_lgs4', 'sh_lgs5', 'sh_lgs6',
         'detector_lgs1', 'detector_lgs2', 'detector_lgs3', 'detector_lgs4', 'detector_lgs5', 'detector_lgs6',
         'slopec_lgs1', 'slopec_lgs2', 'slopec_lgs3', 'slopec_lgs4', 'slopec_lgs5', 'slopec_lgs6',
-        'tomo_lgs',
+        'tomo_polc_lgs',
         'iir_lgs',
         'detector_ngs1', 'detector_ngs2', 'detector_ngs3',
         'slopec_ngs1', 'slopec_ngs2', 'slopec_ngs3',
