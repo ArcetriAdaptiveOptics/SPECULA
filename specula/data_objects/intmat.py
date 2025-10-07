@@ -202,10 +202,20 @@ class Intmat(BaseDataObj):
                 noise_variance = [float(c_noise[0])]
                 c_noise_mat = None
             elif len(c_noise) != intmat.shape[0]:
-                raise ValueError(f'c_noise length {len(c_noise)} is not compatible with intmat shape {intmat.shape}')
+                raise ValueError(f'c_noise length {len(c_noise)} is not compatible with '
+                                 f'intmat shape {intmat.shape}')
             else:
                 noise_variance = None
-                c_noise_mat = self.to_xp(c_noise)
+                diag_elements = []
+                for elem in c_noise:
+                    if hasattr(elem, '__len__') and not isinstance(elem, str):
+                        # array/list
+                        diag_elements.extend(elem)
+                    else:
+                        # scalar
+                        diag_elements.append(float(elem))
+                # Create diagonal noise covariance matrix
+                c_noise_mat = self.xp.diag(self.to_xp(diag_elements))
         elif c_noise.shape[0] == 1:
             if c_noise.ndim == 1:
                 noise_variance = [float(c_noise[0])]
@@ -214,7 +224,8 @@ class Intmat(BaseDataObj):
                 noise_variance = [float(c_noise[0, 0])]
                 c_noise_mat = None
         elif c_noise.shape[0] != intmat.shape[0]:
-            raise ValueError(f'c_noise shape {c_noise.shape} is not compatible with intmat shape {intmat.shape}')
+            raise ValueError(f'c_noise shape {c_noise.shape} is not compatible with '
+                             f'intmat shape {intmat.shape}')
         else:
             noise_variance = None
             c_noise_mat = c_noise
