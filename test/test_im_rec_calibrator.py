@@ -1,4 +1,3 @@
-from distutils import cmd
 import specula
 specula.init(0)  # Default target device
 
@@ -11,7 +10,6 @@ from specula.base_value import BaseValue
 from specula.data_objects.pupilstop import Pupilstop
 from specula.data_objects.slopes import Slopes
 from specula.data_objects.source import Source
-from specula.data_objects import intmat
 from specula.data_objects.intmat import Intmat
 from specula.data_objects.subap_data import SubapData
 from specula.data_objects.simul_params import SimulParams
