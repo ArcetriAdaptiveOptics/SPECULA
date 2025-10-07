@@ -4,13 +4,21 @@ specula.init(0)  # Default target device
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 import shutil
 import numpy as np
 
 from specula import cpuArray
 from specula.base_value import BaseValue
+from specula.data_objects.subap_data import SubapData
 from specula.data_objects.slopes import Slopes
 from specula.data_objects.intmat import Intmat
+from specula.data_objects.simul_params import SimulParams
+from specula.data_objects.pupilstop import Pupilstop
+from specula.data_objects.source import Source
+from specula.processing_objects.dm import DM
+from specula.processing_objects.sh import SH
+from specula.processing_objects.sh_slopec import ShSlopec
 from specula.processing_objects.multi_im_calibrator import MultiImCalibrator
 
 from test.specula_testlib import cpu_and_gpu
@@ -58,17 +66,178 @@ class TestMultiImCalibrator(unittest.TestCase):
         self.assertEqual(calibrator.im_tag, ['custom_im1', 'custom_im2'])
         self.assertEqual(calibrator.full_im_tag, 'custom_full_im')
 
-    def test_initialization_with_auto_tags(self):
-        """Test auto tag generation (skip for now)"""
-        self.skipTest("Auto tag generation requires complex mock setup")
+    @cpu_and_gpu
+    def test_initialization_with_auto_tags(self, target_device_idx, xp):
+        """Test auto tag generation with real SH configuration"""
+
+        # Usa file reali dal directory test/data
+        data_dir = os.path.join(os.path.dirname(__file__), 'data')
+
+        # Create SimulParams (needed for DM and SH)
+        simul_params = SimulParams(
+            pixel_pupil=64,
+            pixel_pitch=0.1
+        )
+
+        # Create Pupilstop
+        pupilstop = Pupilstop(
+            simul_params,
+            mask_diam=0.9,
+            obs_diam=0.1,
+            target_device_idx=-1
+        )
+        pupilstop.tag = 'test_pupil'
+
+        # Create Sources
+        source1 = Source(
+            polar_coordinates=[10.0, 0.0],
+            magnitude=5,
+            wavelengthInNm=600,
+            target_device_idx=-1
+        )
+        source2 = Source(
+            polar_coordinates=[10.0, 120.0],
+            magnitude=5,
+            wavelengthInNm=600,
+            target_device_idx=-1
+        )
+
+        # Create DM with zernike modes
+        dm = DM(
+            simul_params=simul_params,
+            type_str='zernike',
+            nmodes=40,
+            obsratio=0.1,
+            height=0,
+            target_device_idx=-1
+        )
+
+        # Create SH sensors
+        sensor1 = SH(
+            subap_wanted_fov=4.0,
+            sensor_pxscale=0.5,
+            subap_npx=8,
+            subap_on_diameter=8,
+            wavelengthInNm=600,
+            target_device_idx=-1
+        )
+        sensor2 = SH(
+            subap_wanted_fov=4.0,
+            sensor_pxscale=0.5,
+            subap_npx=8,
+            subap_on_diameter=8,
+            wavelengthInNm=600,
+            target_device_idx=-1
+        )
+
+        # Use real subapdata files if they exist
+        subapdata_file = os.path.join(data_dir, 'scao_subaps_n8_th0.5_ref.fits')
+        if os.path.exists(subapdata_file):
+            # Load subapdata from real file
+            subapdata1 = SubapData.restore(subapdata_file, target_device_idx=target_device_idx)
+            subapdata2 = SubapData.restore(subapdata_file, target_device_idx=target_device_idx)
+
+            slopec1 = ShSlopec(
+                subapdata=subapdata1,
+                weightedPixRad=4.0,
+                target_device_idx=-1
+            )
+            slopec2 = ShSlopec(
+                subapdata=subapdata2,
+                weightedPixRad=4.0,
+                target_device_idx=-1
+            )
+        else:
+            # Fallback: create simple subapdata for test
+            self.skipTest(f"Real subapdata file not found: {subapdata_file}")
+
+        # Create dictionaries for multi-input
+        source_dict = {'source1': source1, 'source2': source2}
+        sensor_dict = {'sensor1': sensor1, 'sensor2': sensor2}
+        slopec_dict = {'slopec1': slopec1, 'slopec2': slopec2}
+
+        # Mock the static method to return predictable tags
+        with patch('specula.processing_objects.im_calibrator.ImCalibrator.generate_im_tag') \
+            as mock_generate_tag:
+            mock_generate_tag.side_effect = [
+                'auto_tag_sh8x8sa_w600nm_f4.0asec_sensor1',
+                'auto_tag_sh8x8sa_w600nm_f4.0asec_sensor2'
+            ]
+
+            # Test MultiImCalibrator with auto tag generation
+            calibrator = MultiImCalibrator(
+                nmodes=10,
+                n_inputs=2,
+                data_dir=self.test_dir,
+                im_tag='auto',
+                full_im_tag='test_full_auto',
+                overwrite=True,
+                pupilstop=pupilstop,
+                source_dict=source_dict,
+                dm=dm,
+                sensor_dict=sensor_dict,
+                slopec_dict=slopec_dict,
+                target_device_idx=-1,
+                precision=1
+            )
+
+            # Verify that generate_im_tag was called twice (once for each input)
+            self.assertEqual(mock_generate_tag.call_count, 2)
+
+            # Check that auto-generated tags were set correctly
+            expected_tags = [
+                'auto_tag_sh8x8sa_w600nm_f4.0asec_sensor1',
+                'auto_tag_sh8x8sa_w600nm_f4.0asec_sensor2'
+            ]
+            self.assertEqual(calibrator.im_tag, expected_tags)
+
+            # Verify the call arguments for each tag generation
+            calls = mock_generate_tag.call_args_list
+            self.assertEqual(len(calls), 2)
+
+            # Check first call (source1, sensor1, slopec1)
+            args1 = calls[0][0]
+            self.assertEqual(args1[0], pupilstop)  # pupilstop
+            self.assertEqual(args1[1], source1)    # source
+            self.assertEqual(args1[2], dm)         # dm
+            self.assertEqual(args1[3], sensor1)    # sensor
+            self.assertEqual(args1[4], slopec1)    # slopec
+            self.assertEqual(args1[5], 10)         # nmodes
+
+            # Check second call (source2, sensor2, slopec2)
+            args2 = calls[1][0]
+            self.assertEqual(args2[0], pupilstop)  # pupilstop
+            self.assertEqual(args2[1], source2)    # source
+            self.assertEqual(args2[2], dm)         # dm
+            self.assertEqual(args2[3], sensor2)    # sensor
+            self.assertEqual(args2[4], slopec2)    # slopec
+            self.assertEqual(args2[5], 10)         # nmodes
+
+            # Verify calibrator properties
+            self.assertEqual(calibrator.nmodes, 10)
+            self.assertEqual(calibrator.n_inputs, 2)
+            self.assertEqual(len(calibrator.outputs['out_intmat_list']), 2)
+
+            # Check that paths were generated correctly
+            expected_path1 = os.path.join(self.test_dir,
+                                          'auto_tag_sh8x8sa_w600nm_f4.0asec_sensor1.fits')
+            expected_path2 = os.path.join(self.test_dir,
+                                          'auto_tag_sh8x8sa_w600nm_f4.0asec_sensor2.fits')
+            self.assertEqual(calibrator.im_paths[0], expected_path1)
+            self.assertEqual(calibrator.im_paths[1], expected_path2)
+
+            verbose = False
+            if verbose: #pragma: no cover
+                print(f"Generated IM tags: {calibrator.im_tag}")
+                print(f"Generated paths: {calibrator.im_paths}")
 
     def test_tag_filename_validation(self):
         """Test that tag_filename method validates parameters correctly"""
         with self.assertRaises(TypeError):
             MultiImCalibrator(
-                nmodes=5, 
-                n_inputs=2, 
-                data_dir=self.test_dir, 
+                nmodes=5,
+                n_inputs=2,
+                data_dir=self.test_dir,
                 # im_tag mancante
                 overwrite=True
             )
@@ -76,7 +245,7 @@ class TestMultiImCalibrator(unittest.TestCase):
     def test_existing_im_file_is_detected(self):
         """Test that MultiImCalibrator detects existing IM files"""
         im_tag = ['test_im1', 'test_im2']
-        
+
         # Create existing file for first tag
         existing_file = os.path.join(self.test_dir, 'test_im1.fits')
         with open(existing_file, 'w') as f:
@@ -97,9 +266,9 @@ class TestMultiImCalibrator(unittest.TestCase):
 
         with self.assertRaises(FileExistsError):
             _ = MultiImCalibrator(
-                nmodes=10, 
-                n_inputs=2, 
-                data_dir=self.test_dir, 
+                nmodes=10,
+                n_inputs=2,
+                data_dir=self.test_dir,
                 im_tag=['tag1', 'tag2'],
                 full_im_tag=full_im_tag
             )
