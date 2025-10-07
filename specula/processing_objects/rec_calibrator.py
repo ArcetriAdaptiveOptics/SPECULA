@@ -46,7 +46,7 @@ class RecCalibrator(BaseProcessingObj):
                 raise ValueError('noise_cov must be provided for MMSE reconstruction')
             self.noise_cov = None
         elif isinstance(noise_cov, list):
-            noise_cov = [self.to_xp(noise_cov_i) for noise_cov_i in noise_cov]
+            self.noise_cov = [self.to_xp(noise_cov_i) for noise_cov_i in noise_cov]
         else:
             self.noise_cov = self.to_xp(noise_cov)
 

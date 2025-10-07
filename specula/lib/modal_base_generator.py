@@ -75,7 +75,8 @@ def generate_distance_grid(N, M=None, xp=np, dtype=np.float32):
 
     return R
 
-def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0, oversampling=2, verbose=False, xp=np, dtype=np.float32):
+def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0,
+                       oversampling=2, verbose=False, xp=np, dtype=np.float32):
     """"
     Compute the covariance matrix of the influence functions
 
