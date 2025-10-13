@@ -1,7 +1,5 @@
 
 launcher1_override: &LAUNCHER
-  class:             'LaserLaunchTelescope'
-  simul_params_ref:  'main'
   spot_size:          1.8
   tel_position:       []
   beacon_focus:       .inf
