@@ -103,20 +103,20 @@ class TestIFunv(unittest.TestCase):
             # Get values at masked positions for this mode
             values_at_mask = result_3d_cpu[mask_idx[0], mask_idx[1], mode]
             expected_values = data[mode, :]  # All pixels for this mode
-            np.testing.assert_array_equal(values_at_mask, expected_values)
+            np.testing.assert_array_equal(cpuArray(values_at_mask), cpuArray(expected_values))
 
         # Check that values are zero where mask == 0
         mask_zero_idx = np.where(mask == 0)
         for mode in range(data.shape[0]):
             values_at_zero = result_3d_cpu[mask_zero_idx[0], mask_zero_idx[1], mode]
             expected_zeros = np.zeros(len(mask_zero_idx[0]))
-            np.testing.assert_array_equal(values_at_zero, expected_zeros)
+            np.testing.assert_array_equal(cpuArray(values_at_zero), expected_zeros)
 
         # Test with normalization
         result_norm = ifunc.ifunc_2d_to_3d(normalize=True)
 
         # Calculate expected RMS values for each mode
-        expected_rms = np.sqrt(np.mean(data**2, axis=1))
+        expected_rms = np.sqrt(np.mean(cpuArray(data)**2, axis=1))
 
         # Check that normalized result has correct scaling
         mask_idx = np.where(mask > 0)
