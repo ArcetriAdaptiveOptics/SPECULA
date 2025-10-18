@@ -35,10 +35,6 @@ class DataPrint(BaseProcessingObj):
 
         self.inputs['in_value'] = InputValue(type=BaseValue)
 
-    def check_ready(self, t):
-        print('check_ready called with t=', t, 'current_time=', self.current_time)
-        return super().check_ready(t)
-
     def trigger(self):
         # Check if it's time to print
         if (self.current_time - self.last_print_time) >= self.print_dt:
