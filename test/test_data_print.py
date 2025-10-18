@@ -126,10 +126,10 @@ class TestDataPrint(unittest.TestCase):
 
         with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
             # First trigger at t=0.1 - should print (first trigger always prints)
-            time = printer.seconds_to_t(1)
+            time = printer.seconds_to_t(0.1)
             data.generation_time = time
             printer.check_ready(time)
-            printer.current_time = printer.seconds_to_t(0.1)
+            printer.current_time = time
             printer.trigger()
             output1 = mock_stdout.getvalue()
             self.assertNotEqual(output1, '')
@@ -137,22 +137,17 @@ class TestDataPrint(unittest.TestCase):
             # Second trigger at t=0.2 - should NOT print (too soon)
             mock_stdout.truncate(0)
             mock_stdout.seek(0)
-            time = printer.seconds_to_t(2)
+            time = printer.seconds_to_t(0.2)
             data.generation_time = time
-            printer.current_time = printer.seconds_to_t(0.2)
-            printer.check_ready(printer.current_time)
+            printer.check_ready(time)
             printer.trigger()
             output2 = mock_stdout.getvalue()
-            # Instead of checking if empty, check that it doesn't contain our data print
-            # It will contain debug messages, but not "t=0.2" from DataPrint
-            self.assertNotIn('t=0.2', output2)
-            self.assertNotIn('[1.0000]', output2)
+            self.assertEqual(output2, '')
 
-            # Third trigger at t=0.5 - should print (>= print_dt elapsed)
-            time = printer.seconds_to_t(3)
+            # Third trigger at t=1.0 - should print (>= print_dt elapsed)
+            time = printer.seconds_to_t(1.0)
             data.generation_time = time
-            printer.current_time = printer.seconds_to_t(0.5)
-            printer.check_ready(printer.current_time)
+            printer.check_ready(time)
             printer.trigger()
             output3 = mock_stdout.getvalue()
             self.assertNotEqual(output3, '')
