@@ -377,7 +377,7 @@ class ModulatedPyramid(BaseProcessingObj):
             n_rotations = 2  # Both vertical and horizontal
         else:
             n_rotations = 1  # Only one orientation
-    
+
         # Initialize ttexp array with rotation dimension
         # Shape: (n_rotations, mod_steps, height, width)
         self.ttexp = self.xp.zeros((n_rotations, self.mod_steps, self.tilt_x.shape[0], self.tilt_x.shape[1]),
@@ -590,7 +590,8 @@ class ModulatedPyramid(BaseProcessingObj):
         super().post_trigger()
 
         # Always use the working field (like SH always uses self._wf1)
-        phot = self._wf_interpolated.S0 * self.xp.sum(self._wf_interpolated.A) * (self._wf_interpolated.pixel_pitch ** 2)
+        in_ef = self.local_inputs['in_ef']
+        phot = in_ef.S0 * self.xp.sum(in_ef.A) * (in_ef.pixel_pitch ** 2)
         self.pup_pyr_tot *= (phot / self.xp.sum(self.pup_pyr_tot)) * self.transmission.value
 #        if phot == 0: slows down?
 #            print('WARNING: total intensity at PYR entrance is zero')
