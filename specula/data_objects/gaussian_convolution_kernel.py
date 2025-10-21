@@ -18,6 +18,7 @@ class GaussianConvolutionKernel(ConvolutionKernel):
                  return_fft: bool=True,
                  positive_shift_tt: bool=True,
                  airmass: float=1.0,
+                 data_dir: str="",
                  target_device_idx: int=None,
                  precision: int=None):
         super().__init__(
@@ -30,6 +31,7 @@ class GaussianConvolutionKernel(ConvolutionKernel):
             oversampling=oversampling,
             return_fft=return_fft,
             positive_shift_tt=positive_shift_tt,
+            data_dir=data_dir,
             target_device_idx=target_device_idx,
             precision=precision
         )

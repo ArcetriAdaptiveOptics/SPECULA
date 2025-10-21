@@ -56,6 +56,7 @@ class SH(BaseProcessingObj):
                  set_fov_res_to_turbpxsc: bool = False,
                  laser_launch_tel: LaserLaunchTelescope = None,
                  subap_rows_slice = None,
+                 data_dir: str = "",
                  target_device_idx: int = None,
                  precision: int = None,
         ):
@@ -80,6 +81,7 @@ class SH(BaseProcessingObj):
         self._do_not_double_fov_ovs = do_not_double_fov_ovs
         # first item of laser_launch_tel_dict is the good one
         self._laser_launch_tel = laser_launch_tel
+        self.data_dir = data_dir
         self._np_sub = 0
         self._fft_size = 0
         self._trigger_geometry_calculated = False
@@ -96,7 +98,9 @@ class SH(BaseProcessingObj):
         self._floatShifts = False
 
         self._ccd_side = self._subap_npx * self._lenslet.n_lenses
-        self._out_i = Intensity(self._ccd_side, self._ccd_side, precision=self.precision, target_device_idx=self.target_device_idx)
+        self._out_i = Intensity(self._ccd_side, self._ccd_side,
+                                precision=self.precision,
+                                target_device_idx=self.target_device_idx)
 
         self.interp = None
         self.subap_rows_slice = subap_rows_slice
@@ -299,6 +303,7 @@ class SH(BaseProcessingObj):
                                                             oversampling = 1,
                                                             return_fft = True,
                                                             positive_shift_tt = True,
+                                                            data_dir=self.data_dir,
                                                             target_device_idx=self.target_device_idx)
             else:
                 if len(self._laser_launch_tel.beacon_tt) != 0:
@@ -318,6 +323,7 @@ class SH(BaseProcessingObj):
                                                     oversampling = 1,
                                                     return_fft = True,
                                                     positive_shift_tt = True,
+                                                    data_dir=self.data_dir,
                                                     target_device_idx=self.target_device_idx)
             self._kernel_fn = None
         else:
