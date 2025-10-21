@@ -343,3 +343,53 @@ class TestShSlopec(unittest.TestCase):
 
         np.testing.assert_array_almost_equal(cpuArray(slopes2.yslopes),
                                              cpuArray(slopes1.yslopes - sn.yslopes))
+
+    @cpu_and_gpu
+    def test_flux_outputs(self, target_device_idx, xp):
+        """
+        Test that verifies flux_per_subaperture, total_counts, and subap_counts outputs.
+        """
+        t = 1
+        sh, v, m, flat_ef, subapdata = self.get_sh(target_device_idx, xp, with_laser_launch=False)
+
+        sh.inputs['in_ef'].set(flat_ef)
+        sh.setup()
+        sh.check_ready(t)
+        sh.trigger()
+        sh.post_trigger()
+
+        intensity = sh.outputs['out_i'].i.copy()
+
+        # Compute slopes using ShSlopec
+        pixels = Pixels(*intensity.shape, target_device_idx=target_device_idx)
+        pixels.pixels = intensity
+        pixels.generation_time = t
+
+        slopec = ShSlopec(subapdata, target_device_idx=target_device_idx)
+        slopec.inputs['in_pixels'].set(pixels)
+        slopec.check_ready(t)
+        slopec.trigger()
+        slopec.post_trigger()
+
+        # Get outputs
+        flux_per_subap = slopec.outputs['out_flux_per_subaperture'].value
+        total_counts = slopec.outputs['out_total_counts'].value
+        subap_counts = slopec.outputs['out_subap_counts'].value
+
+        # Verify flux_per_subaperture has correct shape
+        self.assertEqual(flux_per_subap.shape[0], len(m))
+
+        # Verify total_counts is sum of all flux
+        expected_total = xp.sum(flux_per_subap)
+        np.testing.assert_almost_equal(cpuArray(total_counts[0]),
+                                       cpuArray(expected_total), decimal=5)
+
+        # Verify subap_counts is mean of flux_per_subaperture
+        expected_mean = xp.mean(flux_per_subap)
+        np.testing.assert_almost_equal(cpuArray(subap_counts[0]),
+                                       cpuArray(expected_mean), decimal=5)
+
+        # Verify all values are positive
+        self.assertTrue(xp.all(flux_per_subap >= 0))
+        self.assertTrue(total_counts[0] >= 0)
+        self.assertTrue(subap_counts[0] >= 0)
