@@ -58,6 +58,7 @@ class PSF(BaseProcessingObj):
         in_ef = self.local_inputs['in_ef']
         s = [int(np.around(dim * self.nd/2)*2) for dim in in_ef.size]
         self.int_psf.value = self.xp.zeros(s, dtype=self.dtype)
+        self._sum_psf_squared = self.xp.zeros(s, dtype=self.dtype)
         self.std_psf.value = self.xp.zeros(s, dtype=self.dtype)
         self.int_sr.value = 0
 
