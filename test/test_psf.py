@@ -380,7 +380,7 @@ class TestPSF(unittest.TestCase):
         psf_coro.finalize()
 
         plot_debug = False  # Set to True to enable plotting
-        if plot_debug:
+        if plot_debug: # pragma: no cover
             import matplotlib.pyplot as plt
             from matplotlib.colors import LogNorm
 
