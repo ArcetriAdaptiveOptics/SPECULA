@@ -43,17 +43,21 @@ class PsfCoronagraph(PSF):
         # Additional outputs for coronagraph
         self.coronagraph_psf = BaseValue(target_device_idx=self.target_device_idx)
         self.int_coronagraph_psf = BaseValue(target_device_idx=self.target_device_idx)
+        self.std_coronagraph_psf = BaseValue(target_device_idx=self.target_device_idx)
 
         self.outputs['out_coronagraph_psf'] = self.coronagraph_psf
         self.outputs['out_int_coronagraph_psf'] = self.int_coronagraph_psf
+        self.outputs['out_std_coronagraph_psf'] = self.std_coronagraph_psf
 
         # Reference complex amplitude for perfect coronagraph
         self.ref_complex_amplitude = None
+        self._sum_coronagraph_psf_squared = None # For std dev calculation
 
     def setup(self):
         super().setup()
         # Initialize integrated coronagraph PSF
         self.int_coronagraph_psf.value = self.xp.zeros_like(self.int_psf.value)
+        self.std_coronagraph_psf.value = self.xp.zeros_like(self.std_psf.value)
 
     def calc_coronagraph_psf(self, phase, amp, imwidth=None, normalize=False, nocenter=False):
         """
@@ -126,13 +130,16 @@ class PsfCoronagraph(PSF):
             normalize=True
         )
 
-        print(f'Coronagraph peak suppression: {self.coronagraph_psf.value.max()/self.psf.value.max():.2e}', flush=True)
+        print(f'Coronagraph peak suppression: '
+              f'{self.coronagraph_psf.value.max()/self.psf.value.max():.2e}',
+              flush=True)
 
     def post_trigger(self):
         super().post_trigger()
 
         if self.current_time_seconds >= self.start_time:
             self.int_coronagraph_psf.value += self.coronagraph_psf.value
+            self._sum_coronagraph_psf_squared += self.coronagraph_psf.value ** 2
 
         self.coronagraph_psf.generation_time = self.current_time
 
@@ -141,5 +148,9 @@ class PsfCoronagraph(PSF):
 
         if self.count > 0:
             self.int_coronagraph_psf.value /= self.count
+            self.std_coronagraph_psf.value = self.xp.sqrt(
+                self._sum_coronagraph_psf_squared / self.count - self.int_coronagraph_psf.value ** 2
+            )
 
         self.int_coronagraph_psf.generation_time = self.current_time
+        self.std_coronagraph_psf.generation_time = self.current_time
