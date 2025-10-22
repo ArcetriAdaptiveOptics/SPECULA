@@ -57,6 +57,7 @@ class PsfCoronagraph(PSF):
         super().setup()
         # Initialize integrated coronagraph PSF
         self.int_coronagraph_psf.value = self.xp.zeros_like(self.int_psf.value)
+        self._sum_coronagraph_psf_squared = self.xp.zeros_like(self.int_psf.value)
         self.std_coronagraph_psf.value = self.xp.zeros_like(self.std_psf.value)
 
     def calc_coronagraph_psf(self, phase, amp, imwidth=None, normalize=False, nocenter=False):
