@@ -195,7 +195,7 @@ class TestPSF(unittest.TestCase):
         suppression_ratio = coro_max / std_max
 
         plot_debug = False # Set to True to enable plotting
-        if plot_debug:
+        if plot_debug: # pragma: no cover
             import matplotlib.pyplot as plt
             from matplotlib.colors import LogNorm
             # Calculate common scale for both images
