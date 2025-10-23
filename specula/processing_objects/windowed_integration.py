@@ -12,6 +12,7 @@ class WindowedIntegration(BaseProcessingObj):
                  n_elem: int,
                  dt: float,
                  start_time: float=0,
+                 update_time_on_dt: bool=False,
                  target_device_idx: int=None,
                  precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
@@ -20,15 +21,18 @@ class WindowedIntegration(BaseProcessingObj):
 
         self.dt = self.seconds_to_t(dt)
         self.start_time = self.seconds_to_t(start_time)
+        self.update_time_on_dt = update_time_on_dt
 
         if self.dt <= 0:
             raise ValueError(f'dt (integration time) is {dt} and must be greater than zero')
         if self.dt % self.loop_dt != 0:
-            raise ValueError(f'integration time dt={dt} must be a multiple of the basic simulation time_step={simul_params.time_step}')
+            raise ValueError(f'integration time dt={dt} must be a multiple '
+                             f'of the basic simulation time_step={simul_params.time_step}')
 
         self.inputs['input'] = InputValue(type=BaseValue)
 
-        self.output = BaseValue(value=self.xp.zeros(n_elem, dtype=self.dtype), target_device_idx=target_device_idx)
+        self.output = BaseValue(value=self.xp.zeros(n_elem, dtype=self.dtype),
+                                target_device_idx=target_device_idx)
         self.outputs['output'] = self.output
         self.integrated_value = self.xp.zeros(n_elem, dtype=self.dtype)
 
@@ -41,5 +45,10 @@ class WindowedIntegration(BaseProcessingObj):
             if (self.current_time + self.loop_dt - self.dt - self.start_time) % self.dt == 0:
                 self.output.value[:] = self.integrated_value
                 self.integrated_value *= 0.0
-                
-        self.output.generation_time = self.current_time
+                # update generation time only when output is produced
+                if self.update_time_on_dt:
+                    self.output.generation_time = self.current_time
+
+        # update generation time at every step
+        if not self.update_time_on_dt:
+            self.output.generation_time = self.current_time
