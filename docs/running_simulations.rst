@@ -33,10 +33,91 @@ This is useful when we need to override, add and/or remove some parameters of th
 The other parameters, ``diagram``, ``diagram_filename``, ``diagram_title``, and ``diagram_colors_on``, are optional and can be used to generate a diagram of the simulation, which is useful for understanding and debugging the flow of data.
 The diagram is the graphical representation of the simulation, showing the objects and their connections.
 
-These arguments are similar to the ones used by ``specula`` itself, whose implementation can be find in the :py:func:`specula.__init__.main` function in file :file:`specula.__init__.py`.
+These arguments are similar to the ones used by ``specula`` itself, whose implementation can be found in the :py:func:`specula.scripts.specula_main.main` function in file :file:`specula/scripts/specula_main.py`.
 
 Examples of the diagram can be found in :doc:`simul_diagrams` page.
 A tutorial for running SCAO simulations is available in the :doc:`tutorials/scao_tutorial` page.
+
+Interactive Stepping Mode
+==========================
+
+SPECULA provides an interactive stepping mode that allows you to pause and manually control the simulation execution. This is particularly useful for debugging, analysis, and understanding the simulation flow.
+
+Enabling Stepping Mode
+-----------------------
+
+**Command Line:**
+
+.. code-block:: bash
+
+    specula config/my_simulation.yml --stepping
+
+**Python API:**
+
+.. code-block:: python
+
+    import specula
+    specula.init(0)
+    
+    from specula.simul import Simul
+    simul = Simul('config/my_simulation.yml', stepping=True)
+    simul.run()
+
+How Stepping Mode Works
+------------------------
+
+When stepping mode is enabled, the simulation will pause before each iteration and wait for user input in the terminal. You can then:
+
+- Press **Enter** to execute the next iteration
+- Type **c** and press Enter to continue without pausing (disable stepping)
+- Type **q** and press Enter to quit the simulation
+- Type a number **N** and press Enter to run N iterations automatically before pausing again
+
+This gives you fine-grained control over the simulation execution.
+
+Example Session
+---------------
+
+.. code-block:: text
+
+    $ specula config/scao.yml --stepping
+    Reading parameters from config/scao.yml
+    self.trigger_order=['atmo', 'wfs', 'rec', 'dm', 'psf']
+    Building diagram...
+    Diagram saved.
+    
+    --- Iteration 0 ---
+    Press Enter to continue, 'c' to run continuously, 'q' to quit, or number for N steps: 
+    
+    --- Iteration 1 ---
+    Press Enter to continue, 'c' to run continuously, 'q' to quit, or number for N steps: 5
+    
+    Running 5 iterations...
+    
+    --- Iteration 6 ---
+    Press Enter to continue, 'c' to run continuously, 'q' to quit, or number for N steps: c
+    
+    Running continuously...
+    Simulation finished
+
+Combining with Display and Display Server
+-----------------------------------------
+
+Stepping mode is particularly powerful when combined with displays or the display server:
+
+.. code-block:: yaml
+
+    main:
+      class: SimulParams
+      total_time: 100
+      time_step: 0.001
+      display_server: true
+
+.. code-block:: bash
+
+    specula config/my_simulation.yml --stepping
+
+This allows you to step through iterations one at a time and view updated plots and data after each step in your web browser.
 
 Multiple Simulations and Override System
 ========================================
@@ -91,7 +172,7 @@ Parameters with the ``_override_N`` suffix are applied **only** to simulation wi
       inputs:
         in_command: 'pushpull1_dm.output'
     
-    # Applied ONLY to simulation with simul_idx=2
+    # Applied ONLY to simulation with simul_idx=1
     main_override_1:
       total_time: 2
 
@@ -139,7 +220,7 @@ Use the ``--nsimul`` option to run multiple simulations automatically:
 
 .. code-block:: bash
 
-    # Run 3 simulations automatically (simul_idx = 0, 1, 2)
+    # Run 3 simulations automatically (simul_idx=0, 1, 2)
     specula config/base.yml config/override.yml --nsimul 3
     
     # Run single simulation (default)
