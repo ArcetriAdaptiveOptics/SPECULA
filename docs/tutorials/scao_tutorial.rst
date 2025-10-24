@@ -871,8 +871,9 @@ Create a script ``analyse_data.py``:
        res = data["res"]
        comm = data["comm"]
        init = 50
-       turb = res[init:-1, :].copy()
-       turb[:, :comm.shape[1]] += comm[init+1:, :]
+       turb = res[init+1:, :].copy()
+       # command is applied with a delay of 1 frame
+       turb[:, :comm.shape[1]] += comm[init:-1, :]
        x = np.arange(turb.shape[1])+1
        
        # Plot RMS of residuals, commands and turbulence
