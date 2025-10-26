@@ -393,3 +393,8 @@ class TestShSlopec(unittest.TestCase):
         self.assertTrue(xp.all(flux_per_subap >= 0))
         self.assertTrue(total_counts[0] >= 0)
         self.assertTrue(subap_counts[0] >= 0)
+
+        # Verify generation times are set
+        self.assertEqual(slopec.outputs['out_flux_per_subaperture'].generation_time, t)
+        self.assertEqual(slopec.outputs['out_total_counts'].generation_time, t)
+        self.assertEqual(slopec.outputs['out_subap_counts'].generation_time, t)

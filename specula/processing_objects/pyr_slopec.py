@@ -81,9 +81,6 @@ class PyrSlopec(Slopec):
 
     def trigger_code(self):
 
-        self.total_counts.value[0] = self.xp.sum(self.flat_pixels[self.pup_idx])
-        self.subap_counts.value[0] = self.total_counts.value[0] / self.nsubaps()
-
         self.flat_pixels -= self.threshold
 
         clamp_generic_less(0,0,self.flat_pixels, xp=self.xp)
@@ -99,7 +96,7 @@ class PyrSlopec(Slopec):
         # Compute total intensity
         self.total_intensity = self.xp.sum(flux_per_subap)
         self.total_counts.value[0] = self.total_intensity
-        self.subap_counts.value[0] = self.xp.mean(flux_per_subap)
+        self.subap_counts.value[0] = self.total_intensity / self.nsubaps()
 
         # Use 1-length array to allow clamp() on both GPU arrays and CPU scalars
         inv_factor = self.xp.zeros(1, dtype=self.dtype)
@@ -133,6 +130,3 @@ class PyrSlopec(Slopec):
         super().post_trigger()
 
         self.outputs['out_pupdata'].generation_time = self.current_time
-        self.outputs['out_flux_per_subaperture'].generation_time = self.current_time
-        self.outputs['out_total_counts'].generation_time = self.current_time
-        self.outputs['out_subap_counts'].generation_time = self.current_time

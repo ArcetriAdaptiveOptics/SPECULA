@@ -311,6 +311,3 @@ class ShSlopec(Slopec):
     def post_trigger(self):
         super().post_trigger()
         self.outputs['out_subapdata'].generation_time = self.current_time
-        self.outputs['out_flux_per_subaperture'].generation_time = self.current_time
-        self.outputs['out_total_counts'].generation_time = self.current_time
-        self.outputs['out_subap_counts'].generation_time = self.current_time
