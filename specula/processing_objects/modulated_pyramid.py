@@ -591,7 +591,8 @@ class ModulatedPyramid(BaseProcessingObj):
 
         # Always use the working field (like SH always uses self._wf1)
         in_ef = self.local_inputs['in_ef']
-        phot = in_ef.S0 * self.xp.sum(in_ef.A) * (in_ef.pixel_pitch ** 2)
+        phot = in_ef.S0 * in_ef.masked_area()
+
         self.pup_pyr_tot *= (phot / self.xp.sum(self.pup_pyr_tot)) * self.transmission.value
 #        if phot == 0: slows down?
 #            print('WARNING: total intensity at PYR entrance is zero')
