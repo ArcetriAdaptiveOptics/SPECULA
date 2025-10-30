@@ -121,21 +121,17 @@ class AtmoRandomPhase(BaseProcessingObj):
 
         new_position = self.last_position
 
-        # increment step counter and check if update is needed
-        self.step_counter += 1
-        should_update = (self.step_counter % self.update_interval == 0)
-
-        if should_update:
-            if new_position+1 > self.phasescreens.shape[0]:
-                self.seed += 1
-                self.initScreens()
-                new_position = 0
+        if new_position >= self.phasescreens.shape[0]:
+            self.seed += 1
+            self.initScreens()
+            new_position = 0
 
         for name, source in self.source_dict.items():
             self.outputs['out_'+name+'_ef'].phaseInNm = self.phasescreens[new_position,:,:] * scale_coeff
             self.outputs['out_'+name+'_ef'].A = self.pupilstop.A
             self.outputs['out_'+name+'_ef'].generation_time = self.current_time
 
-        # Update position only when needed
-        if should_update:
+        # increment step counter and check if update is needed
+        self.step_counter += 1
+        if self.step_counter % self.update_interval == 0:
             self.last_position = new_position+1
