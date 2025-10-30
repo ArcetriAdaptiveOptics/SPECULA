@@ -129,9 +129,6 @@ class AtmoRandomPhase(BaseProcessingObj):
             if new_position+1 > self.phasescreens.shape[0]:
                 self.seed += 1
                 self.initScreens()
-                new_position = 0
-            else:
-                new_position += 1
 
         for name, source in self.source_dict.items():
             self.outputs['out_'+name+'_ef'].phaseInNm = self.phasescreens[new_position,:,:] * scale_coeff
@@ -140,4 +137,4 @@ class AtmoRandomPhase(BaseProcessingObj):
 
         # Update position only when needed
         if should_update:
-            self.last_position = new_position
+            self.last_position = new_position+1
