@@ -18,6 +18,7 @@ class AtmoRandomPhase(BaseProcessingObj):
                  wavelengthInNm: float=500.0,
                  pixel_phasescreens=None,
                  seed: int=1,
+                 update_interval: int=1,
                  target_device_idx=None,
                  precision=None,
                  verbose=None):
@@ -26,20 +27,22 @@ class AtmoRandomPhase(BaseProcessingObj):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.simul_params = simul_params
-       
+
         self.pixel_pupil = self.simul_params.pixel_pupil
         self.pixel_pitch = self.simul_params.pixel_pitch
         self.zenithAngleInDeg = self.simul_params.zenithAngleInDeg
 
         self.source_dict = source_dict
         self.last_position = 0
+        self.update_interval = update_interval
+        self.step_counter = 0
         self.seeing = 1
         self.airmass = 1
         self.wavelengthInNm = wavelengthInNm
         self.seed = seed
-        
+
         self.inputs['seeing'] = InputValue(type=BaseValue)
-        
+
         if self.zenithAngleInDeg is not None:
             self.airmass = 1.0 / np.cos(np.radians(self.zenithAngleInDeg))
             print(f'AtmoRandomPhase: zenith angle is defined as: {self.zenithAngleInDeg} deg')
@@ -62,14 +65,14 @@ class AtmoRandomPhase(BaseProcessingObj):
         # Error if phase-screens dimension is smaller than maximum layer dimension
         if self.pixel_square_phasescreens < self.pixel_layer_size:
             raise ValueError('Error: phase-screens dimension must be greater than layer dimension!')
-        
+
         self.verbose = verbose if verbose is not None else False
-        
+
         # Initialize layer list with correct heights
         self.layer_list = []
         layer = Layer(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, 0, precision=self.precision, target_device_idx=self.target_device_idx)
         self.layer_list.append(layer)
-        
+
         for name, source in source_dict.items():
             ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, target_device_idx=self.target_device_idx)
             ef.S0 = source.phot_density()
@@ -81,7 +84,6 @@ class AtmoRandomPhase(BaseProcessingObj):
         self.initScreens()
 
         self.inputs['pupilstop'] = InputValue(type=Pupilstop)
-    
 
     def initScreens(self):
         # Seed
@@ -105,32 +107,37 @@ class AtmoRandomPhase(BaseProcessingObj):
         temp_screen *= self.wavelengthInNm / (2 * np.pi)
 
         temp_screen = self.to_xp(temp_screen, dtype=self.dtype)
-        
+
         self.phasescreens = temp_screen
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
         self.pupilstop = self.local_inputs['pupilstop']
-    
+
     def trigger_code(self):
         r0 = 0.9759 * 0.5 / (self.local_inputs['seeing'].value * 4.848) * self.airmass**(-3./5.) # if seeing > 0 else 0.0
         r0wavelength = r0 * (self.wavelengthInNm / 500.0)**(6./5.)
         scale_coeff = (self.pixel_pitch / r0wavelength)**(5./6.) # if seeing > 0 else 0.0
 
         new_position = self.last_position
-        if new_position+1 > self.phasescreens.shape[0]:
-            self.seed += 1
-            self.initScreens()
-            new_position = 0
+
+        # increment step counter and check if update is needed
+        self.step_counter += 1
+        should_update = (self.step_counter % self.update_interval == 0)
+
+        if should_update:
+            if new_position+1 > self.phasescreens.shape[0]:
+                self.seed += 1
+                self.initScreens()
+                new_position = 0
+            else:
+                new_position += 1
 
         for name, source in self.source_dict.items():
             self.outputs['out_'+name+'_ef'].phaseInNm = self.phasescreens[new_position,:,:] * scale_coeff
             self.outputs['out_'+name+'_ef'].A = self.pupilstop.A
             self.outputs['out_'+name+'_ef'].generation_time = self.current_time
 
-        # Update position output
-        self.last_position = new_position + 1
-
-
-                
-
+        # Update position only when needed
+        if should_update:
+            self.last_position = new_position
