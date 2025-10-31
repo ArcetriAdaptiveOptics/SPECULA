@@ -16,7 +16,7 @@ class TestM2C(unittest.TestCase):
         """Test that overwrite=True allows overwriting existing m2c files"""
         m2c_tag = 'test_m2c_overwrite'
         m2c_filename = f'{m2c_tag}.fits'
-        m2c_path = os.path.join(self.test_dir, m2c_filename)
+        m2c_path = os.path.join(tempfile.mkdtemp(), m2c_filename)
         with open(m2c_path, 'w') as f:
             f.write('')
         obj = M2C(m2c=np.random.rand(*self.shape))
