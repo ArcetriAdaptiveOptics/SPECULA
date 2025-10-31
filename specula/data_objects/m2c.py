@@ -75,10 +75,10 @@ class M2C(BaseDataObj):
         hdr['VERSION'] = 1
         return hdr
 
-    def save(self, filename):
+    def save(self, filename, overwrite:bool=False):
         """Saves the M2C to a file."""
         hdr = self.get_fits_header()
-        fits.writeto(filename, np.zeros(2), hdr)
+        fits.writeto(filename, np.zeros(2), hdr, overwrite=overwrite)
         fits.append(filename, cpuArray(self.m2c))
 
     @staticmethod

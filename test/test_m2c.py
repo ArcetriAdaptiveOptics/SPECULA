@@ -12,6 +12,16 @@ class TestM2C(unittest.TestCase):
     def setUp(self):
         self.shape = (6, 4)  # 6 actuators × 4 modes
 
+    def test_existing_m2c_file_with_overwrite(self):
+        """Test that overwrite=True allows overwriting existing m2c files"""
+        m2c_tag = 'test_m2c_overwrite'
+        m2c_filename = f'{m2c_tag}.fits'
+        m2c_path = os.path.join(tempfile.mkdtemp(), m2c_filename)
+        with open(m2c_path, 'w') as f:
+            f.write('')
+        obj = M2C(m2c=np.random.rand(*self.shape))
+        obj.save(m2c_filename,overwrite=True)
+
     @cpu_and_gpu
     def test_initialization_and_get_value(self, target_device_idx, xp):
         data = xp.random.rand(*self.shape).astype(xp.float32)
