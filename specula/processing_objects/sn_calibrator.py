@@ -35,7 +35,7 @@ class SnCalibrator(BaseProcessingObj):
             self.slopes.slopes += self.local_inputs['in_slopes'].slopes.copy()
         self._n_iter += 1
 
-    def finalize(self):
+    def finalize(self,overwrite:bool=False):
         # n_iter is used to normalize a slope null computed as average of several slopes
         self.slopes.slopes /= self._n_iter
         filename = self._filename
@@ -44,4 +44,4 @@ class SnCalibrator(BaseProcessingObj):
         file_path = os.path.join(self._data_dir, filename)
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
-        self.slopes.save(os.path.join(self._data_dir, filename))
+        self.slopes.save(os.path.join(self._data_dir, filename),overwrite=overwrite)
