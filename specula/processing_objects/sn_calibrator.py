@@ -9,12 +9,14 @@ class SnCalibrator(BaseProcessingObj):
     def __init__(self,
                  data_dir: str,         # Set by main simul object
                  output_tag: str = None,
+                 overwrite: bool = False,
                  tag_template: str = None,
                  target_device_idx: int = None,
                  precision: int = None
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         self._data_dir = data_dir
+        self.overwrite = overwrite
 
         if tag_template is None and (output_tag is None or output_tag == 'auto'):
             raise ValueError('At least one of tag_template and output_tag must be set')
@@ -23,7 +25,6 @@ class SnCalibrator(BaseProcessingObj):
             self._filename = tag_template
         else:
             self._filename = output_tag
-
         self.slopes = None
         self._n_iter = 0
         self.inputs['in_slopes'] = InputValue(type=Slopes)
@@ -35,7 +36,7 @@ class SnCalibrator(BaseProcessingObj):
             self.slopes.slopes += self.local_inputs['in_slopes'].slopes.copy()
         self._n_iter += 1
 
-    def finalize(self,overwrite:bool=False):
+    def finalize(self):
         # n_iter is used to normalize a slope null computed as average of several slopes
         self.slopes.slopes /= self._n_iter
         filename = self._filename
@@ -44,4 +45,4 @@ class SnCalibrator(BaseProcessingObj):
         file_path = os.path.join(self._data_dir, filename)
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
-        self.slopes.save(os.path.join(self._data_dir, filename),overwrite=overwrite)
+        self.slopes.save(os.path.join(self._data_dir, filename),overwrite=self.overwrite)
