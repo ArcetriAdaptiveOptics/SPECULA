@@ -31,7 +31,7 @@ class TestImRecCalibrator(unittest.TestCase):
             f.write('')
 
         with self.assertRaises(FileExistsError):
-            _ = SnCalibrator(data_dir=self.test_dir, sn_tag=sn_tag)
+            _ = SnCalibrator(data_dir=self.test_dir, output_tag=sn_tag)
  
     def test_existing_sn_file_with_overwrite(self):
         """Test that overwrite=True allows overwriting existing files"""
@@ -44,4 +44,4 @@ class TestImRecCalibrator(unittest.TestCase):
             f.write('')
 
         # Should not raise
-        _ = SnCalibrator(data_dir=self.test_dir, sn_tag=sn_tag, overwrite=True)
+        _ = SnCalibrator(data_dir=self.test_dir, output_tag=sn_tag, overwrite=True)
