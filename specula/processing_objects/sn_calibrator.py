@@ -29,6 +29,12 @@ class SnCalibrator(BaseProcessingObj):
         self._n_iter = 0
         self.inputs['in_slopes'] = InputValue(type=Slopes)
 
+        self.sn_path = os.path.join(self._data_dir, self._filename)
+        if not self.sn_path.endswith('.fits'):
+            self.sn_path += '.fits'
+        if os.path.exists(self.sn_path) and not self.overwrite:
+            raise FileExistsError(f'Slope null file {self.sn_path} already exists, please remove it')
+
     def trigger_code(self):
         if self.slopes is None:
             self.slopes = Slopes(slopes=self.local_inputs['in_slopes'].slopes.copy(), target_device_idx=self.target_device_idx)

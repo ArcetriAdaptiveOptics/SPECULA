@@ -23,7 +23,7 @@ class TestImRecCalibrator(unittest.TestCase):
     def test_existing_sn_file_is_detected(self):
         """Test that ImCalibrator detects existing IM files"""
         sn_tag = 'test_im'
-        sn_filename = f'{sn_tag}.fits'
+        sn_filename = f'{sn_tag}.fits' 
         sn_path = os.path.join(self.test_dir, sn_filename)
 
         # Create empty file
@@ -31,8 +31,7 @@ class TestImRecCalibrator(unittest.TestCase):
             f.write('')
 
         with self.assertRaises(FileExistsError):
-            obj = SnCalibrator(data_dir=self.test_dir, output_tag=sn_tag)
-            obj.slopes.save(sn_path,obj.overwrite)
+            _ = SnCalibrator(data_dir=self.test_dir, output_tag=sn_tag)
  
     def test_existing_sn_file_with_overwrite(self):
         """Test that overwrite=True allows overwriting existing files"""
@@ -45,5 +44,4 @@ class TestImRecCalibrator(unittest.TestCase):
             f.write('')
 
         # Should not raise
-        obj = SnCalibrator(data_dir=self.test_dir, output_tag=sn_tag)
-        obj.slopes.save(sn_path,obj.overwrite)
+        _ = SnCalibrator(data_dir=self.test_dir, output_tag=sn_tag)
