@@ -44,4 +44,4 @@ class TestImRecCalibrator(unittest.TestCase):
             f.write('')
 
         # Should not raise
-        _ = SnCalibrator(data_dir=self.test_dir, output_tag=sn_tag)
+        _ = SnCalibrator(data_dir=self.test_dir, output_tag=sn_tag, overwrite=True)
