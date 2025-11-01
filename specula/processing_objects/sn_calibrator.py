@@ -44,5 +44,4 @@ class SnCalibrator(BaseProcessingObj):
             filename += '.fits'
         file_path = os.path.join(self._data_dir, filename)
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
-
-        self.slopes.save(os.path.join(self._data_dir, filename),overwrite=self.overwrite)
+        self.slopes.save(file_path,overwrite=self.overwrite)
