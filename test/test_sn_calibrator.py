@@ -9,7 +9,7 @@ import shutil
 from specula.processing_objects.sn_calibrator import SnCalibrator
 
 
-class TestImRecCalibrator(unittest.TestCase):
+class TestSnCalibrator(unittest.TestCase):
 
     def setUp(self):
         """Create unique temporary directory for each test"""

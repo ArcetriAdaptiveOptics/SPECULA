@@ -144,3 +144,4 @@ main/scao/output/*
 # Nsys profiler repots
 *.nsys-rep
 
+.DS_Store
