@@ -50,6 +50,8 @@ class ModalAnalysis(BaseProcessingObj):
             self.phase2modes = ifunc.inverse()
         elif ifunc is None and ifunc_inv is not None:
             # Use ifunc_inv directly, don't attempt to call inverse() on None
+            if nmodes is not None and nmodes != ifunc_inv.size[0]:
+                ifunc_inv.cut(nmodes=nmodes)
             self.phase2modes = ifunc_inv
         elif ifunc is not None and ifunc_inv is None:
             # This is the case where only ifunc is provided
