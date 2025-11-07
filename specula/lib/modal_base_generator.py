@@ -124,6 +124,9 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0,
 
     mask_size = max(mask_shape)
 
+    if verbose:
+        print("Step 1: Computing Fourier transforms of influence functions...")
+
     # Fourier transform of the influence functions 3D array
     ft_shape = (oversampling * mask_size, oversampling * mask_size)
 
@@ -141,6 +144,9 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0,
         ft_support = xp.fft.fft2(support)
         ft_influence_functions[:, :, act_idx] = ft_support
 
+    if verbose:
+        print("Step 2: Generating phase spectrum and computing covariance matrix...")
+
     # Generation of Phase Spectrum
     sp_freq        = generate_distance_grid(oversampling*mask_size, xp=xp, dtype=dtype)/(oversampling*diameter)
     phase_spectrum = generate_phase_spectrum(sp_freq, r0, L0, xp=xp)
@@ -151,10 +157,19 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0,
     else:
         prod_ft_shape = xp.prod(ft_shape)
 
-    # Fourier transform of the influence functions
-    if_ft = xp.zeros((prod_ft_shape, n_actuators), dtype=cdtype)
-    for act_idx in range(n_actuators):
-        if_ft[:, act_idx] = (ft_influence_functions[:, :, act_idx] * phase_spectrum).flatten()
+    if verbose:
+        print("Step 3: Computing covariance matrix in Fourier domain...")
+
+    # Fourier transform of the influence functions (vectorized)
+    # Broadcasting phase_spectrum over all influence functions
+    # Shape: (ft_shape[0], ft_shape[1]) → (ft_shape[0], ft_shape[1], 1)
+    #        × (ft_shape[0], ft_shape[1], n_actuators)
+    #        → (ft_shape[0], ft_shape[1], n_actuators)
+    # Then reshape to (prod_ft_shape, n_actuators)
+    if_ft = (ft_influence_functions * phase_spectrum[:, :, xp.newaxis]).reshape(prod_ft_shape, n_actuators)
+
+    if verbose:
+        print("Step 4: Computing covariance matrix in spatial domain...")
 
     # Fourier transform of the influence functions conjugate
     if_ft_conj = xp.conj(ft_influence_functions.reshape(prod_ft_shape, n_actuators))
