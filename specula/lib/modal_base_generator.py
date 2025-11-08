@@ -59,19 +59,12 @@ def generate_distance_grid(N, M=None, xp=np, dtype=np.float32):
     if M is None:
         M = N
 
-    R = xp.zeros((M, N), dtype=dtype)
-    for x in range(N):
-        if x <= N/2:
-            f = x**2
-        else:
-            f = (N-x)**2
+    # "wrap" style indices like FFT: 0..N/2, -(N/2-1)..-1
+    kx = xp.abs(xp.fft.fftfreq(N) * N).astype(dtype)  # (N,)
+    ky = xp.abs(xp.fft.fftfreq(M) * M).astype(dtype)  # (M,)
 
-        for y in range(M):
-            if y <= M/2:
-                g = y**2
-            else:
-                g = (M-y)**2
-            R[y, x] = xp.sqrt(f + g)
+    KX, KY = xp.meshgrid(kx, ky, indexing='xy')
+    R = xp.sqrt(KX*KX + KY*KY, dtype=dtype)
 
     return R
 
@@ -109,15 +102,6 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0,
 
     if verbose:
         print("Computing turbulence covariance matrix...")
-        print(f"  r0={r0:.3f} m, L0={L0:.1f} m, diameter={diameter:.1f} m")
-
-    # Validate inputs
-    if r0 <= 0:
-        raise ValueError(f"r0 must be positive, got {r0}")
-    if L0 <= 0:
-        raise ValueError(f"L0 must be positive, got {L0}")
-    if diameter <= 0:
-        raise ValueError(f"diameter must be positive, got {diameter}")
 
     if dtype == xp.float32:
         cdtype = xp.complex64
@@ -131,16 +115,9 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0,
     n_actuators = influence_functions.shape[0]
     mask_shape = pupil_mask.shape
 
-    if influence_functions.shape[1] != npupil_mask:
-        raise ValueError(
-            f"influence_functions shape {influence_functions.shape} "
-            f"incompatible with pupil mask with {npupil_mask} pixels"
-        )
-
     mask_size = max(mask_shape)
 
     if verbose:
-        print(f"  n_actuators={n_actuators}, npupil={npupil_mask}, mask_size={mask_size}")
         print("Step 1: Computing Fourier transforms of influence functions...")
 
     # Fourier transform of the influence functions 3D array
@@ -161,62 +138,41 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0,
         ft_influence_functions[:, :, act_idx] = ft_support
 
     if verbose:
-        print("Step 2: Generating phase spectrum...")
+        print("Step 2: Generating phase spectrum and computing covariance matrix...")
 
     # Generation of Phase Spectrum
-    sp_freq = generate_distance_grid(
+    sp_freq        = generate_distance_grid(
         oversampling*mask_size, xp=xp, dtype=dtype
     )/(oversampling*diameter)
     phase_spectrum = generate_phase_spectrum(sp_freq, r0, L0, xp=xp, dtype=dtype)
-    norm_factor = npupil_mask**2 * (oversampling * diameter)**2
+    norm_factor    = npupil_mask**2 * (oversampling * diameter)**2
+
+    prod_ft_shape = ft_shape[0] * ft_shape[1]
 
     if verbose:
-        print(f"  phase_spectrum range: [{float(xp.min(phase_spectrum)):.3e}, "
-              f"{float(xp.max(phase_spectrum)):.3e}]")
-        print(f"  norm_factor={norm_factor:.6e}")
+        print("Step 3: Computing covariance matrix in Fourier domain...")
 
-    if xp.__name__ == "cupy":
-        prod_ft_shape = ft_shape[0] * ft_shape[1]
-    else:
-        prod_ft_shape = xp.prod(ft_shape)
-
-    if verbose:
-        print("Step 3: Computing weighted Fourier transforms...")
-
-    # Weight FT by phase spectrum and flatten
+    # Fourier transform of the influence functions
     ft_weighted = ft_influence_functions * phase_spectrum[:, :, xp.newaxis]
-    ft_weighted_2d = ft_weighted.reshape(prod_ft_shape, n_actuators)
+    if_ft = ft_weighted.reshape(prod_ft_shape, n_actuators).astype(cdtype, copy=False)
 
     if verbose:
-        print("Step 4: Computing covariance matrix...")
+        print("Step 4: Computing covariance matrix in spatial domain...")
 
-    # Compute covariance: conj(A).T @ A
-    # This is equivalent to the original manual calculation with real/imag parts
-    ft_conj = xp.conj(ft_weighted_2d)
+    # Fourier transform of the influence functions conjugate
+    if_ft_conj = xp.conj(
+        ft_influence_functions.reshape(prod_ft_shape, n_actuators)
+    ).astype(cdtype, copy=False)
 
-    ifft_covariance_complex = xp.matmul(ft_conj.T, ft_weighted_2d)
+    r_if_ft = xp.real(if_ft)
+    i_if_ft = xp.imag(if_ft)
+    r_if_ft_conj = xp.real(if_ft_conj)
+    i_if_ft_conj = xp.imag(if_ft_conj)
 
-    # Take real part and normalize
-    ifft_covariance = xp.real(ifft_covariance_complex) / norm_factor
+    r_ifft_cov = xp.matmul(r_if_ft.T, r_if_ft_conj)
+    i_ifft_cov = xp.matmul(i_if_ft.T, i_if_ft_conj)
 
-    if verbose:
-        # Validation
-        imag_part = xp.imag(ifft_covariance_complex)
-        max_imag = float(xp.max(xp.abs(imag_part)))
-        max_real = float(xp.max(xp.abs(ifft_covariance)))
-
-        print(f"  Covariance diagonal: [{float(xp.min(xp.diag(ifft_covariance))):.3e}, "
-              f"{float(xp.max(xp.diag(ifft_covariance))):.3e}]")
-        print(f"  Trace: {float(xp.trace(ifft_covariance)):.3e}")
-        print(f"  Max off-diagonal:"
-              f" {float(xp.max(xp.abs(ifft_covariance - xp.diag(xp.diag(ifft_covariance))))):.3e}")
-
-        if max_real > 0:
-            imag_ratio = max_imag / max_real
-            if imag_ratio > 1e-10:
-                print(f"  Warning: Imaginary part ratio = {imag_ratio:.2e}")
-            else:
-                print(f"  Hermiticity verified (imag/real = {imag_ratio:.2e})")
+    ifft_covariance = (r_ifft_cov - i_ifft_cov) / norm_factor
 
     return ifft_covariance
 
