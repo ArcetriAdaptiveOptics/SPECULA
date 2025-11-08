@@ -5,7 +5,7 @@ from specula import cpuArray
 
 def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom=False,  angle_offset=0,
                         do_mech_coupling=False, coupling_coeffs=[0.31, 0.05],
-                        do_slaving=False, slaving_thr=0.1, geom:str='square',
+                        do_slaving=False, slaving_thr=0.1, geom:str=None,
                         obsratio=0.0, diaratio=1.0, mask=None, return_coordinates=False):
     """ Computes the ifs_cube matrix with Influence Functions using Thin Plate Splines """
 
@@ -19,16 +19,20 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom=False,  a
 
     # ----------------------------------------------------------
     if circ_geom is True:
+        if geom is not None:
+            raise ValueError(f'Too many geometry inputs! Both circ_geom = {circ_geom} and geom = {geom} were given in input!')
         geom = 'circular' # added for retro-compatibility
-        # raise DeprecationWarning('The boolean argument circ_geom is deprecated, use the string input geom instead')
+    else:
+        if geom is None:
+            geom = 'square' # default geometry
                           
     # Actuator Coordinates
     if geom == 'circular':
         if n_act % 2 == 0:
-            na = xp.arange(round((n_act + 1) / 2)) * 6
+            na = xp.arange(xp.ceil((n_act + 1) / 2)) * 6
         else:
             step *= float(n_act) / float(n_act - 1)
-            na = xp.arange(round(n_act / 2)) * 6
+            na = xp.arange(xp.ceil(n_act / 2)) * 6
         na[0] = 1  # The first value is always 1
         
         n_act_tot = int(xp.sum(na))
