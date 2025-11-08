@@ -3,7 +3,7 @@ import numpy as np
 from specula.lib.make_mask import make_mask
 from specula import cpuArray
 
-def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, geom:str='default', angle_offset=0,
+def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, geom:str='square', angle_offset=0,
                         do_mech_coupling=False, coupling_coeffs=[0.31, 0.05],
                         do_slaving=False, slaving_thr=0.1,
                         obsratio=0.0, diaratio=1.0, mask=None, return_coordinates=False):
@@ -19,34 +19,33 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, geom:str='default',
 
     # ----------------------------------------------------------
     # Actuator Coordinates
-    match geom:
-        case 'circular':
-            if n_act % 2 == 0:
-                na = xp.arange(round((n_act + 1) / 2)) * 6
-            else:
-                step *= float(n_act) / float(n_act - 1)
-                na = xp.arange(round(n_act / 2)) * 6
-            na[0] = 1  # The first value is always 1
-        
-            n_act_tot = int(xp.sum(na))
-            pol_coords = xp.zeros((2, n_act_tot))
-            ka = 0
-            # Refactor this!
-            for ia in range(len(na)):
-                n_angles = int(na[ia])
-                for ja in range(n_angles):
-                    pol_coords[0, ka] = 360. / na[ia] * ja + angle_offset  # Angle in degrees
-                    pol_coords[1, ka] = ia * step  # Radial distance
-                    ka += 1
-        
-            # System center
-            x_c, y_c = dim / 2, dim / 2
-        
-            # Convert from polar to Cartesian coordinates
-            x = pol_coords[1] * xp.cos(xp.radians(pol_coords[0])) + x_c
+    if geom == 'circular':
+        if n_act % 2 == 0:
+            na = xp.arange(round((n_act + 1) / 2)) * 6
+        else:
+            step *= float(n_act) / float(n_act - 1)
+            na = xp.arange(round(n_act / 2)) * 6
+        na[0] = 1  # The first value is always 1
+    
+        n_act_tot = int(xp.sum(na))
+        pol_coords = xp.zeros((2, n_act_tot))
+        ka = 0
+        # Refactor this!
+        for ia in range(len(na)):
+            n_angles = int(na[ia])
+            for ja in range(n_angles):
+                pol_coords[0, ka] = 360. / na[ia] * ja + angle_offset  # Angle in degrees
+                pol_coords[1, ka] = ia * step  # Radial distance
+                ka += 1
+    
+        # System center
+        x_c, y_c = dim / 2, dim / 2
+    
+        # Convert from polar to Cartesian coordinates
+        x = pol_coords[1] * xp.cos(xp.radians(pol_coords[0])) + x_c
             y = pol_coords[1] * xp.sin(xp.radians(pol_coords[0])) + y_c
         
-        case 'alpao':
+    elif geom == 'alpao':
             x, y = xp.meshgrid(xp.linspace(0, dim, n_act), xp.linspace(0, dim, n_act))
             x, y = x.ravel(), y.ravel()
             x_c, y_c = dim / 2, dim / 2 # center
@@ -54,10 +53,12 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, geom:str='default',
             rho_max = (dim*(9/8-n_act/(24*16)))/2 # slightly larger than dim, depends on n_act
             x = x[rho<=rho_max]
             y = y[rho<=rho_max]
-        case _: # default
+    elif geom == 'square': # default
             x, y = xp.meshgrid(xp.linspace(0, dim, n_act), xp.linspace(0, dim, n_act))
             x, y = x.ravel(), y.ravel()
             n_act_tot = n_act ** 2
+    else:
+      raise ValueError("Unrecognized geometry type! Avaliable types are: 'circular', 'alpao', 'square'")
 
     coordinates = xp.vstack((x, y))
     grid_x, grid_y = xp.meshgrid(xp.arange(dim), xp.arange(dim))
