@@ -159,20 +159,11 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0,
     if verbose:
         print("Step 4: Computing covariance matrix in spatial domain...")
 
-    # Fourier transform of the influence functions conjugate
-    if_ft_conj = xp.conj(
-        ft_influence_functions.reshape(prod_ft_shape, n_actuators)
-    ).astype(cdtype, copy=False)
-
-    r_if_ft = xp.real(if_ft)
-    i_if_ft = xp.imag(if_ft)
-    r_if_ft_conj = xp.real(if_ft_conj)
-    i_if_ft_conj = xp.imag(if_ft_conj)
-
-    r_ifft_cov = xp.matmul(r_if_ft.T, r_if_ft_conj)
-    i_ifft_cov = xp.matmul(i_if_ft.T, i_if_ft_conj)
-
-    ifft_covariance = (r_ifft_cov - i_ifft_cov) / norm_factor
+    # # Fourier transform of the influence functions conjugate
+    b_2d = ft_influence_functions.reshape(prod_ft_shape, n_actuators)  # (P, M), complex
+    # One complex matmul, then take real part (exactly matches OLD math)
+    cov_complex = xp.matmul(if_ft.T, xp.conj(b_2d))
+    ifft_covariance = xp.real(cov_complex) / norm_factor
 
     return ifft_covariance
 

@@ -4,6 +4,7 @@ specula.init(0)  # Default target device
 import unittest
 import numpy as np
 from specula.lib.modal_base_generator import compute_ifs_covmat
+from specula.data_objects.ifunc import IFunc
 
 
 class TestComputeIfsCovmat(unittest.TestCase):
@@ -498,3 +499,200 @@ class TestComputeIfsCovmat(unittest.TestCase):
 
         self.assertEqual(result.shape, (n_actuators, n_actuators))
         self.assertTrue(np.all(np.isfinite(result)))
+
+    def test_zernike_variance_decay_with_radial_order(self):
+        """
+        Test that Zernike RMS (sqrt of variance) averaged over azimuthal orders 
+        decays with radial order n. When normalizing modes to unit variance,
+        we expect the covariance diagonal to scale as n^(-3) approximately.
+        """
+        # Parameters
+        diameter = 8.0
+        r0 = 0.16
+        L0 = 1000.0  # Large L0 for pure Kolmogorov
+        mask_size = 128
+        max_radial_order = 15
+        oversampling = 2
+
+        nmodes = (max_radial_order + 1) * (max_radial_order + 2) // 2
+
+        vebose = False
+        if vebose: # pragma: no cover
+            print(f"\n{'='*70}")
+            print(f"Testing Zernike variance decay with radial order")
+            print(f"{'='*70}")
+            print(f"Parameters: D={diameter}m, r0={r0}m, L0={L0}m")
+            print(f"D/r0 = {diameter/r0:.1f}")
+            print(f"Mask size: {mask_size}x{mask_size}, modes: {nmodes}")
+            print(f"With unit-variance normalization, expected: σ²(n) ∝ n^(-3)")
+            print(f"{'='*70}\n")
+
+        # Generate Zernike influence functions
+        ifunc = IFunc(
+            type_str='zernike',
+            nmodes=nmodes,
+            npixels=mask_size,
+            obsratio=0.0,
+            diaratio=1.0,
+            precision=1,
+            target_device_idx=-1
+        )
+        pupil_mask = ifunc.mask_inf_func.astype(np.float32)
+        z_if_3d = ifunc.ifunc_2d_to_3d(normalize=False)
+
+        # Flatten inside pupil
+        idx = np.where(pupil_mask.ravel() > 0.5)[0]
+        npupil = idx.size
+        influence_functions = np.zeros((nmodes, npupil), dtype=np.float32)
+
+        for k in range(nmodes):
+            mode_flat = z_if_3d[:, :, k].ravel()[idx]
+            # ✅ Normalize to unit variance
+            var = np.var(mode_flat)
+            if var > 1e-10:
+                mode_flat = mode_flat / np.sqrt(var)
+            influence_functions[k, :] = mode_flat
+
+        # Compute covariance
+        cov = compute_ifs_covmat(
+            pupil_mask,
+            diameter,
+            influence_functions,
+            r0,
+            L0,
+            oversampling=oversampling,
+            xp=np,
+            dtype=np.float32
+        )
+        diag = np.diag(cov)
+
+        plot_debug = False
+        if plot_debug: # pragma: no cover
+            import matplotlib.pyplot as plt
+
+            plt.figure(figsize=(14, 6))
+
+            plt.subplot(1, 2, 1)
+            plt.semilogy(range(1, nmodes + 1), diag, 'o', markersize=3, alpha=0.6, label='Individual modes')
+            plt.xlabel('Zernike mode index (Noll)')
+            plt.ylabel('Variance σ² [rad²]')
+            plt.title('Zernike Mode Variances')
+            plt.grid(True, alpha=0.3)
+            plt.legend()
+
+        # Map Zernike index to radial order n
+        def zernike_j_to_n(j):
+            """Convert Noll index j (1-based) to radial order n."""
+            if j == 1:
+                return 0
+            n = int(np.floor((-3 + np.sqrt(9 + 8*(j-1))) / 2))
+            # Verify and adjust
+            while (n + 1) * (n + 2) // 2 < j:
+                n += 1
+            while n * (n + 1) // 2 >= j:
+                n -= 1
+            return n
+
+        # Group variances by radial order
+        variances_by_n = {}
+        for j in range(1, nmodes + 1):
+            n = zernike_j_to_n(j)
+            if n not in variances_by_n:
+                variances_by_n[n] = []
+            variances_by_n[n].append(diag[j - 1])
+
+        # Average over azimuthal orders
+        radial_orders = sorted(variances_by_n.keys())
+        mean_variances = []
+        std_variances = []
+
+        if vebose: # pragma: no cover
+            print(f"{'n':<4} {'# modes':<10} {'Mean σ²':<15} {'Std σ²':<15}")
+            print("-" * 50)
+
+        for n in radial_orders:
+            vars_n = variances_by_n[n]
+            mean_var = np.mean(vars_n)
+            std_var = np.std(vars_n) if len(vars_n) > 1 else 0.0
+            mean_variances.append(mean_var)
+            std_variances.append(std_var)
+            if vebose: # pragma: no cover
+                print(f"{n:<4} {len(vars_n):<10} {mean_var:<15.6e} {std_var:<15.6e}")
+
+        if vebose: # pragma: no cover
+            print("-" * 50)
+
+        # Fit power law starting from n=4
+        fit_start = 4
+        n_fit = np.array(radial_orders[fit_start:], dtype=float)
+        var_fit = np.array(mean_variances[fit_start:], dtype=float)
+
+        log_n = np.log(n_fit)
+        log_var = np.log(var_fit)
+
+        A = np.vstack([np.ones_like(log_n), log_n]).T
+        coeffs, residuals, rank, s = np.linalg.lstsq(A, log_var, rcond=None)
+        intercept, slope = coeffs
+
+        # Expected slope with unit-variance normalization
+        theoretical_slope = -3.0
+
+        if vebose: # pragma: no cover
+            print(f"\nPower law fit (n >= {fit_start}): σ²(n) ∝ n^({slope:.3f})")
+            print(f"Expected (unit-var norm):   σ²(n) ∝ n^({theoretical_slope:.3f})")
+            print(f"Relative error: {abs(slope - theoretical_slope)/abs(theoretical_slope)*100:.1f}%")
+
+        var_pred = np.exp(intercept + slope * log_n)
+        ss_res = np.sum((var_fit - var_pred)**2)
+        ss_tot = np.sum((var_fit - np.mean(var_fit))**2)
+        r_squared = 1 - ss_res / ss_tot
+        if vebose: # pragma: no cover
+            print(f"R² of fit: {r_squared:.4f}")
+
+        if plot_debug: # pragma: no cover
+            plt.subplot(1, 2, 2)
+
+            plt.errorbar(radial_orders, mean_variances, yerr=std_variances,
+                        fmt='o', markersize=6, capsize=4, capthick=1.5,
+                        label='Mean ± std', color='C0', zorder=3)
+
+            plt.errorbar(radial_orders[fit_start:], mean_variances[fit_start:],
+                        yerr=std_variances[fit_start:],
+                        fmt='s', markersize=8, capsize=4, capthick=1.5,
+                        label=f'Fitted (n≥{fit_start})', color='C3', zorder=4)
+
+            n_plot = np.linspace(fit_start, max_radial_order, 100)
+            var_theory = np.exp(intercept) * n_plot**slope
+            var_expected = np.exp(intercept) * n_plot**theoretical_slope
+
+            plt.plot(n_plot, var_theory, '--', linewidth=2.5,
+                    label=f'Fit: n$^{{{slope:.2f}}}$', color='C1', zorder=2)
+            plt.plot(n_plot, var_expected, ':', linewidth=2.5,
+                    label=f'Expected: n$^{{{theoretical_slope:.1f}}}$', color='C2', zorder=1)
+
+            plt.xlabel('Radial order n')
+            plt.ylabel('Mean variance σ²(n) [rad²]')
+            plt.title(f'Variance Decay (R²={r_squared:.3f})')
+            plt.yscale('log')
+            plt.xscale('log')
+            plt.grid(True, alpha=0.3, which='both')
+            plt.legend()
+
+            plt.tight_layout()
+            plt.show()
+
+        print(f"\n{'='*70}\n")
+
+        # Assertions for slope ≈ -3
+        self.assertTrue(all(v > 0 for v in mean_variances[1:]),
+                       "All radial order variances should be positive")
+
+        # Check slope is close to -3.0 (allow 20% tolerance)
+        rel_error = abs(slope - theoretical_slope) / abs(theoretical_slope)
+        self.assertLess(rel_error, 0.20,
+            f"Power law exponent {slope:.3f} should be within 20% of {theoretical_slope:.3f}"
+        )
+
+        self.assertGreater(r_squared, 0.90,
+            f"Power law fit should be good (R²={r_squared:.3f} > 0.90)"
+        )
