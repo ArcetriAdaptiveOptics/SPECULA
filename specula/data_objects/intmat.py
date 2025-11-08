@@ -148,7 +148,7 @@ class Intmat(BaseDataObj):
     @staticmethod
     def from_header(hdr, target_device_idx=None):
         raise NotImplementedError
-    
+
     @staticmethod
     def restore(filename, target_device_idx=None):
         with fits.open(filename) as hdul:

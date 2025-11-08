@@ -364,7 +364,7 @@ class TestRecCalibratorMMSE(unittest.TestCase):
         self.nmodes = 10  # Primi 10 modi Zernike (escluso piston)
         self.npixels = 64
         self.diameter = 8.0
-        self.r0 = 0.15
+        self.r0 = 0.20
         self.L0 = 25.0
 
         # Create Zernike modal base
@@ -609,7 +609,7 @@ class TestRecCalibratorMMSE(unittest.TestCase):
         pinv_rec = Recmat.restore(pinv_calibrator.rec_path, target_device_idx=target_device_idx)
 
         # They should be different
-        diff = np.mean(np.abs(mmse_rec.recmat - pinv_rec.recmat))
+        diff = np.mean(np.abs(mmse_rec.recmat - pinv_rec.recmat)) / np.mean(np.abs(pinv_rec.recmat))
         self.assertGreater(diff, 1e-6)  # Should be significantly different
 
     @cpu_and_gpu
@@ -657,7 +657,7 @@ class TestRecCalibratorMMSE(unittest.TestCase):
         rec_good = Recmat.restore(calibrator_good.rec_path, target_device_idx=target_device_idx)
         rec_poor = Recmat.restore(calibrator_poor.rec_path, target_device_idx=target_device_idx)
 
-        diff = np.mean(np.abs(rec_good.recmat - rec_poor.recmat))
+        diff = np.mean(np.abs(rec_good.recmat - rec_poor.recmat)) / np.mean(np.abs(rec_poor.recmat))
         self.assertGreater(diff, 1e-6)  # Should be different
 
     @cpu_and_gpu
