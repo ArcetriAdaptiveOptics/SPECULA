@@ -3,9 +3,9 @@ import numpy as np
 from specula.lib.make_mask import make_mask
 from specula import cpuArray
 
-def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, geom:str='square', angle_offset=0,
+def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom=False,  angle_offset=0,
                         do_mech_coupling=False, coupling_coeffs=[0.31, 0.05],
-                        do_slaving=False, slaving_thr=0.1,
+                        do_slaving=False, slaving_thr=0.1, geom:str='square',
                         obsratio=0.0, diaratio=1.0, mask=None, return_coordinates=False):
     """ Computes the ifs_cube matrix with Influence Functions using Thin Plate Splines """
 
@@ -18,6 +18,12 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, geom:str='square', 
     step = float(dim) / float(n_act)
 
     # ----------------------------------------------------------
+    if circ_geom is True:
+        geom = 'circular' # added for retro-compatibility
+
+    if circ_geom is False and geom is 'circular':
+        raise ValueError(f'Incompatible geometries: circular geometry boolean is {circ_geom} but requested geometry is {geom}')
+                          
     # Actuator Coordinates
     if geom == 'circular':
         if n_act % 2 == 0:
