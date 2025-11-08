@@ -218,7 +218,7 @@ Create a YAML configuration file, for example ``params_scao_pyr_basic.yml``:
    # It uses a reconstruction matrix that is computed during the calibration phase.
    rec:
      class:              'Modalrec'  
-     recmat_object:      'scao_recmat'         # reconstruction matrix tag
+     recmat_object:      'scao_pyr_rec'         # reconstruction matrix tag
      inputs:
        in_slopes:        'slopec.out_slopes'
      outputs:  ['out_modes', 'out_pseudo_ol_modes'] 
@@ -310,6 +310,7 @@ Create a YAML file, for example ``params_scao_pyr_test_pupdata.yml``:
      class: 'PyrPupdataCalibrator'
      thr1: 0.1
      thr2: 0.25
+     display_debug: True
      output_tag:        'scao_pupdata'
      inputs:
        in_i: 'pyramid.out_i'
