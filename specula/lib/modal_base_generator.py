@@ -145,44 +145,50 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0,
         ft_influence_functions[:, :, act_idx] = ft_support
 
     if verbose:
-        print("Step 2: Generating phase spectrum and computing covariance matrix...")
+        print("Step 2: Generating phase spectrum...")
 
     # Generation of Phase Spectrum
-    sp_freq        = generate_distance_grid(oversampling*mask_size, xp=xp, dtype=dtype)/(oversampling*diameter)
+    sp_freq        = generate_distance_grid(
+        oversampling*mask_size, xp=xp, dtype=dtype
+    )/(oversampling*diameter)
     phase_spectrum = generate_phase_spectrum(sp_freq, r0, L0, xp=xp)
     norm_factor    = npupil_mask**2 * (oversampling * diameter)**2
 
+    if verbose:
+        print("Step 3: Computing covariance matrix (optimized)...")
+
+    # *** Using matmul (more compatible, still fast) ***
+    # Weight FT by phase spectrum
+    ft_weighted = ft_influence_functions * phase_spectrum[:, :, xp.newaxis]
+
+    # Reshape to 2D: (spatial_points, n_actuators)
     if xp.__name__ == "cupy":
         prod_ft_shape = ft_shape[0] * ft_shape[1]
     else:
         prod_ft_shape = xp.prod(ft_shape)
 
+    ft_weighted_2d = ft_weighted.reshape(prod_ft_shape, n_actuators)
+
+    # Compute Hermitian product: A^H @ A = conj(A).T @ A
     if verbose:
-        print("Step 3: Computing covariance matrix in Fourier domain...")
+        print("  Computing Hermitian product...")
 
-    # Fourier transform of the influence functions (vectorized)
-    # Broadcasting phase_spectrum over all influence functions
-    # Shape: (ft_shape[0], ft_shape[1]) → (ft_shape[0], ft_shape[1], 1)
-    #        × (ft_shape[0], ft_shape[1], n_actuators)
-    #        → (ft_shape[0], ft_shape[1], n_actuators)
-    # Then reshape to (prod_ft_shape, n_actuators)
-    if_ft = (ft_influence_functions * phase_spectrum[:, :, xp.newaxis]).reshape(prod_ft_shape, n_actuators)
+    ifft_covariance_complex = xp.matmul(xp.conj(ft_weighted_2d).T, ft_weighted_2d)
 
+    # Take real part
+    ifft_covariance = xp.real(ifft_covariance_complex) / norm_factor
+
+    # *** OPTIONAL: Validation ***
     if verbose:
-        print("Step 4: Computing covariance matrix in spatial domain...")
+        imag_part = xp.imag(ifft_covariance_complex)
+        max_imag = float(xp.max(xp.abs(imag_part)))
+        max_real = float(xp.max(xp.abs(ifft_covariance)))
+        imag_ratio = max_imag / max_real if max_real > 0 else 0
 
-    # Fourier transform of the influence functions conjugate
-    if_ft_conj = xp.conj(ft_influence_functions.reshape(prod_ft_shape, n_actuators))
-
-    r_if_ft = xp.real(if_ft)
-    i_if_ft = xp.imag(if_ft)
-    r_if_ft_conj = xp.real(if_ft_conj)
-    i_if_ft_conj = xp.imag(if_ft_conj)
-
-    r_ifft_cov = xp.matmul(r_if_ft.T, r_if_ft_conj)
-    i_ifft_cov = xp.matmul(i_if_ft.T, i_if_ft_conj)
-
-    ifft_covariance = (r_ifft_cov - i_ifft_cov) / norm_factor
+        if imag_ratio > 1e-10:
+            print(f"  Warning: Imaginary part ratio = {imag_ratio:.2e}")
+        else:
+            print(f"  Hermiticity verified (imag/real = {imag_ratio:.2e})")
 
     return ifft_covariance
 
