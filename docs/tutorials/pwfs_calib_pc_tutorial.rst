@@ -393,7 +393,7 @@ This tutorial demonstrated:
 
 
 .. [1] Agapito, G., et al. "Non-modulated pyramid wavefront sensor. Use in sensing and correcting atmospheric turbulence" 
-       A&A, 677, A168 (2023). `ADS <https://ui.adsabs.harvard.edu/abs/2023A%26A...677A..168A/abstract>`_
+       A&A, 677, A168 (2023). `ADS <https://ui.adsabs.harvard.edu/abs/2023A%26A...677A.168A/abstract>`_
 
 .. seealso::
 
