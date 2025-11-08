@@ -20,7 +20,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom=False,  a
     # ----------------------------------------------------------
     if circ_geom is True:
         geom = 'circular' # added for retro-compatibility
-        raise DeprecationWarning('The boolean argument circ_geom is deprecated, use the string input geom instead')
+        # raise DeprecationWarning('The boolean argument circ_geom is deprecated, use the string input geom instead')
                           
     # Actuator Coordinates
     if geom == 'circular':
