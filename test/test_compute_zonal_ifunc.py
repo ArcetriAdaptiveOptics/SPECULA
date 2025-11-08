@@ -5,7 +5,7 @@ import pytest
 import specula
 specula.init(0)
 
-from specula.lib.
+from specula.lib.compute_zonal_ifunc import compute_zonal_ifunc
 from test.specula_testlib import cpu_and_gpu
 
 
