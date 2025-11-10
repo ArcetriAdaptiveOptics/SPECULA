@@ -57,13 +57,16 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
 
         if self.zenithAngleInDeg is not None:
             self.airmass = 1.0 / np.cos(np.radians(self.zenithAngleInDeg), dtype=self.dtype)
-            print(f'AtmoInfiniteEvolution: zenith angle is defined as: {self.zenithAngleInDeg} deg')
+            print(f'AtmoInfiniteEvolution: zenith angle is defined as:'
+                  f' {self.zenithAngleInDeg} deg')
             print(f'AtmoInfiniteEvolution: airmass is: {self.airmass}')
         else:
             self.airmass = 1.0
 
         heights = np.array(heights, dtype=self.dtype)
-        self.pupil_distances = heights * self.airmass  # distances from the pupil accounting for zenith angle
+
+        # distances from the pupil accounting for zenith angle
+        self.pupil_distances = heights * self.airmass
 
         alpha_fov = fov / 2.0
 
@@ -72,18 +75,23 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
 
         # Compute layers dimension in pixels
         self.pixel_layer_size = np.ceil(
-            (self.pixel_pupil + 2 * np.sqrt(np.sum(np.array(pupil_position, dtype=self.dtype) * 2)) / self.pixel_pitch +
-            2.0 * abs(self.pupil_distances) / self.pixel_pitch * rad_alpha_fov) / 2.0
+            (self.pixel_pupil \
+                + 2 * np.sqrt(np.sum(np.array(pupil_position, dtype=self.dtype) * 2)) \
+                / self.pixel_pitch \
+                + 2.0 * abs(self.pupil_distances) / self.pixel_pitch * rad_alpha_fov) / 2.0
         ) * 2.0
         if fov_in_m is not None:
-            self.pixel_layer_size = np.full_like(heights, int(fov_in_m / self.pixel_pitch / 2.0) * 2)
+            self.pixel_layer_size = np.full_like(
+                heights, int(fov_in_m / self.pixel_pitch / 2.0) * 2
+            )
 
         self.L0 = L0
 
         if np.isscalar(self.L0):
             self.L0 = [self.L0] * len(heights)
         elif len(self.L0) != len(heights):
-            raise ValueError(f"L0 must have the same length as heights ({len(heights)}), got {len(self.L0)}")
+            raise ValueError(f"L0 must have the same length as heights"
+                             f" ({len(heights)}), got {len(self.L0)}")
 
         self.Cn2 = np.array(Cn2, dtype=self.dtype)
         self.verbose = verbose if verbose is not None else False
@@ -91,8 +99,11 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         # Initialize layer list with correct heights
         self.layer_list = []
         for i in range(self.n_infinite_phasescreens):
-            layer = Layer(self.pixel_layer_size[i], self.pixel_layer_size[i], self.pixel_pitch, heights[i],
-                          precision=self.precision, target_device_idx=self.target_device_idx)
+            layer = Layer(self.pixel_layer_size[i],
+                          self.pixel_layer_size[i],
+                          self.pixel_pitch, heights[i],
+                          precision=self.precision,
+                          target_device_idx=self.target_device_idx)
             self.layer_list.append(layer)
         self.outputs['layer_list'] = self.layer_list
 
@@ -120,11 +131,13 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         # Square infinite_phasescreens
         print('Creating phase screens..')
         for i in range(self.n_infinite_phasescreens):
-            self.ref_r0 = 0.9759 * 0.5 / (self.seeing * 4.848) * self.airmass**(-3./5.) # if seeing > 0 else 0.0
+            self.ref_r0 = 0.9759 * 0.5 / (self.seeing * 4.848) \
+                * self.airmass**(-3./5.) # if seeing > 0 else 0.0
             self.ref_r0 *= (self.ref_wavelengthInNm / 500.0 )**(6./5.)
             if self.verbose: # pragma: no cover
                 print(f'Creating {i}-th phase screen')
-                print(f'    r0: {self.ref_r0}, L0: {self.L0[i]}, size: {self.pixel_layer_size[i]}')
+                print(f'    r0: {self.ref_r0}, L0: {self.L0[i]},'
+                      f' size: {self.pixel_layer_size[i]}')
             temp_infinite_screen = InfinitePhaseScreen(self.pixel_layer_size[i],
                                                        self.pixel_pitch,
                                                        self.ref_r0,
@@ -143,13 +156,23 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
 
         # Check that wind speed and direction have the correct length
         if len(self.local_inputs['wind_speed'].value) != self.n_infinite_phasescreens:
-            raise ValueError('Wind speed input must be a {self.n_infinite_phasescreens}-elements array')
+            raise ValueError(f'Wind speed input must be a'
+                             f' {self.n_infinite_phasescreens}-elements array')
         if len(self.local_inputs['wind_direction'].value) != self.n_infinite_phasescreens:
-            raise ValueError('Wind direction input must be a {self.n_infinite_phasescreens}-elements array')
+            raise ValueError(f'Wind direction input must be a'
+                             f' {self.n_infinite_phasescreens}-elements array')
+
+        # Apply extra_delta_time as initial offset (matching PASSATA behavior)
+        # Convert extra time to position offset in pixels
+        wind_speed = cpuArray(self.local_inputs['wind_speed'].value)
+        initial_offset = wind_speed * self.extra_delta_time / self.pixel_pitch
+        self.last_position = initial_offset
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
-        self.delta_time = cpuArray(self.n_infinite_phasescreens*[self.t_to_seconds(self.current_time - self.last_t)]) + self.extra_delta_time
+        self.delta_time = cpuArray(
+            self.n_infinite_phasescreens*[self.t_to_seconds(self.current_time - self.last_t)]
+        )
         seeing = float(cpuArray(self.local_inputs['seeing'].value[0]))
 
         if seeing > 0:
