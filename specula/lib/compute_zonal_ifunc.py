@@ -20,7 +20,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom=False,  a
     # ----------------------------------------------------------
     if circ_geom is True:
         if geom is not None:
-            raise ValueError(f'Too many geometry inputs! Both circ_geom = {circ_geom} and geom = {geom} were given in input!')
+            raise ValueError(f'Too many geometry inputs! Both circ_geom = {circ_geom} and geom = {geom} were given')
         geom = 'circular' # added for retro-compatibility
     else:
         if geom is None:
@@ -34,8 +34,6 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom=False,  a
             step *= float(n_act) / float(n_act - 1)
             na = xp.arange(xp.ceil(n_act / 2)) * 6
         na[0] = 1  # The first value is always 1
-        
-        n_act_tot = int(xp.sum(na))
         pol_coords = xp.zeros((2, n_act_tot))
         ka = 0
         # Refactor this!
@@ -45,10 +43,8 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom=False,  a
                 pol_coords[0, ka] = 360. / na[ia] * ja + angle_offset  # Angle in degrees
                 pol_coords[1, ka] = ia * step  # Radial distance
                 ka += 1
-        
         # System center
         x_c, y_c = dim / 2, dim / 2
-        
         # Convert from polar to Cartesian coordinates
         x = pol_coords[1] * xp.cos(xp.radians(pol_coords[0])) + x_c
         y = pol_coords[1] * xp.sin(xp.radians(pol_coords[0])) + y_c
@@ -61,14 +57,16 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom=False,  a
         rho_max = (dim*(9/8-n_act/(24*16)))/2 # slightly larger than dim, depends on n_act
         x = x[rho<=rho_max]
         y = y[rho<=rho_max]
+      
     elif geom == 'square': # default
         x, y = xp.meshgrid(xp.linspace(0, dim, n_act), xp.linspace(0, dim, n_act))
         x, y = x.ravel(), y.ravel()
-        n_act_tot = n_act ** 2
+      
     else:
       raise ValueError("Unrecognized geometry type! Avaliable types are: 'circular', 'alpao', 'square'")
 
     coordinates = xp.vstack((x, y))
+    n_act_tot = xp.shape(coordinates)[1]
     grid_x, grid_y = xp.meshgrid(xp.arange(dim), xp.arange(dim))
 
     # ----------------------------------------------------------
