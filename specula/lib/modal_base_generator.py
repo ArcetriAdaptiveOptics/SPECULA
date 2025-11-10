@@ -103,6 +103,10 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0,
     if verbose:
         print("Computing turbulence covariance matrix...")
 
+    if oversampling < 2:
+        raise ValueError("Oversampling factor must be at least 2"
+                         " to avoid errors in FFT computations.")
+
     if dtype == xp.float32:
         cdtype = xp.complex64
     elif dtype == xp.float64:

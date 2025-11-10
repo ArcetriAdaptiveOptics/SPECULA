@@ -440,7 +440,7 @@ class TestComputeIfsCovmat(unittest.TestCase):
             self.influence_functions,
             self.r0,
             self.L0,
-            oversampling=1,
+            oversampling=2,
             xp=np,
             dtype=np.float32
         )
@@ -450,7 +450,7 @@ class TestComputeIfsCovmat(unittest.TestCase):
             self.influence_functions,
             self.r0,
             self.L0,
-            oversampling=3,
+            oversampling=4,
             xp=np,
             dtype=np.float32
         )
@@ -696,3 +696,51 @@ class TestComputeIfsCovmat(unittest.TestCase):
         self.assertGreater(r_squared, 0.90,
             f"Power law fit should be good (R²={r_squared:.3f} > 0.90)"
         )
+
+    def test_oversampling_too_low_raises_error(self):
+        """Test that oversampling < 2 raises ValueError."""
+        with self.assertRaises(ValueError) as context:
+            compute_ifs_covmat(
+                self.pupil_mask,
+                self.diameter,
+                self.influence_functions,
+                self.r0,
+                self.L0,
+                oversampling=1,  # Too low!
+                xp=np,
+                dtype=np.float32
+            )
+
+        self.assertIn("Oversampling factor must be at least 2", str(context.exception))
+
+    def test_oversampling_zero_raises_error(self):
+        """Test that oversampling = 0 raises ValueError."""
+        with self.assertRaises(ValueError) as context:
+            compute_ifs_covmat(
+                self.pupil_mask,
+                self.diameter,
+                self.influence_functions,
+                self.r0,
+                self.L0,
+                oversampling=0,
+                xp=np,
+                dtype=np.float32
+            )
+
+        self.assertIn("Oversampling factor must be at least 2", str(context.exception))
+
+    def test_oversampling_negative_raises_error(self):
+        """Test that negative oversampling raises ValueError."""
+        with self.assertRaises(ValueError) as context:
+            compute_ifs_covmat(
+                self.pupil_mask,
+                self.diameter,
+                self.influence_functions,
+                self.r0,
+                self.L0,
+                oversampling=-1,
+                xp=np,
+                dtype=np.float32
+            )
+
+        self.assertIn("Oversampling factor must be at least 2", str(context.exception))
