@@ -32,8 +32,12 @@ class TestAtmoInfiniteEvolution(unittest.TestCase):
         wind_speed = WaveGenerator(constant=[5.5, 2.5], target_device_idx=target_device_idx)
         wind_direction = WaveGenerator(constant=[0, 90], target_device_idx=target_device_idx)
 
-        on_axis_source = Source(polar_coordinates=[0.0, 0.0], magnitude=8, wavelengthInNm=750)
-        lgs1_source = Source( polar_coordinates=[45.0, 0.0], height=90000, magnitude=5, wavelengthInNm=589)
+        on_axis_source = Source(
+            polar_coordinates=[0.0, 0.0], magnitude=8, wavelengthInNm=750
+        )
+        lgs1_source = Source(
+            polar_coordinates=[45.0, 0.0], height=90000, magnitude=5, wavelengthInNm=589
+        )
 
         atmo = AtmoInfiniteEvolution(simul_params,
                              L0=23,  # [m] Outer scale
@@ -170,6 +174,7 @@ class TestAtmoInfiniteEvolution(unittest.TestCase):
         for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
             for obj in objlist:
                 obj.setup()
+            last_position = atmo.last_position.copy()
 
             for obj in objlist:
                 obj.check_ready(0)
@@ -189,7 +194,12 @@ class TestAtmoInfiniteEvolution(unittest.TestCase):
             for obj in objlist:
                obj.post_trigger()
 
-        assert atmo.delta_time[0] == delta_time + extra_delta_time
+        # extra delta time should be added to all layers only once
+        # so delta_time should be the same for all layers
+        # but the first last position is a function of extra delta time
+        assert atmo.delta_time[0] == delta_time
+        expected_time = last_position / wind_speed.constant * atmo.pixel_pitch
+        np.testing.assert_allclose(extra_delta_time, expected_time, rtol=1e-8)
 
     @cpu_and_gpu
     def test_extra_delta_time_vector(self, target_device_idx, xp):
@@ -197,8 +207,12 @@ class TestAtmoInfiniteEvolution(unittest.TestCase):
         simulParams = SimulParams(pixel_pupil=160, pixel_pitch=0.05, time_step=1)
 
         seeing = WaveGenerator(constant=0.65, target_device_idx=target_device_idx)
-        wind_speed = WaveGenerator(constant=[5.5, 2.3, 1.0, 1.0], target_device_idx=target_device_idx)
-        wind_direction = WaveGenerator(constant=[0, 90, 180, 90], target_device_idx=target_device_idx)
+        wind_speed = WaveGenerator(
+            constant=[5.5, 2.3, 1.0, 1.0], target_device_idx=target_device_idx
+            )
+        wind_direction = WaveGenerator(
+            constant=[0, 90, 180, 90], target_device_idx=target_device_idx
+            )
 
         delta_time = 1.0
         delta_t = BaseTimeObj().seconds_to_t(delta_time)
@@ -219,6 +233,7 @@ class TestAtmoInfiniteEvolution(unittest.TestCase):
         for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
             for obj in objlist:
                 obj.setup()
+            last_position = atmo.last_position.copy()
 
             for obj in objlist:
                 obj.check_ready(0)
@@ -238,7 +253,12 @@ class TestAtmoInfiniteEvolution(unittest.TestCase):
             for obj in objlist:
                 obj.post_trigger()
 
-        assert np.array_equal(atmo.delta_time, delta_time + cpuArray(extra_delta_time))
+        # extra delta time should be added to all layers only once
+        # so delta_time should be the same for all layers
+        # but the first last position is a function of extra delta time
+        assert np.all(atmo.delta_time == delta_time)
+        expected_time = last_position / wind_speed.constant * atmo.pixel_pitch
+        np.testing.assert_allclose(extra_delta_time, expected_time, rtol=1e-8)
 
     @cpu_and_gpu
     def test_scale_coeff_with_different_seeing(self, target_device_idx, xp):
@@ -320,7 +340,8 @@ class TestAtmoInfiniteEvolution(unittest.TestCase):
 
             # Check that the RMS ratio matches the expected seeing ratio
             self.assertAlmostEqual(rms1/rms2, expected_seeing_ratio, places=2,
-                msg=f"RMS phase ratio {rms1/rms2:.3f} should equal seeing_ratio^(6/5) = {expected_seeing_ratio:.3f}")
+                msg=f"RMS phase ratio {rms1/rms2:.3f} should equal"
+                    f" seeing_ratio^(6/5) = {expected_seeing_ratio:.3f}")
 
     @cpu_and_gpu
     def test_pupil_distances_are_scaled_by_airmass(self, target_device_idx, xp):
@@ -329,7 +350,9 @@ class TestAtmoInfiniteEvolution(unittest.TestCase):
         """
         pixel_pupil = 160
         zenith = 30.0  # degrees
-        simul_params = SimulParams(pixel_pupil=pixel_pupil, pixel_pitch=0.05, zenithAngleInDeg=zenith, time_step=1)
+        simul_params = SimulParams(
+            pixel_pupil=pixel_pupil, pixel_pitch=0.05, zenithAngleInDeg=zenith, time_step=1
+        )
         heights = [1000.0, 5000.0, 12000.0]
         airmass = 1.0 / np.cos(np.radians(zenith))
         atmo = AtmoInfiniteEvolution(simul_params,
@@ -399,7 +422,8 @@ class TestAtmoInfiniteEvolution(unittest.TestCase):
         actual_rms_ratio = rms_layer0 / rms_layer1
 
         self.assertAlmostEqual(actual_rms_ratio, expected_rms_ratio, places=1,
-            msg=f"RMS ratio {actual_rms_ratio:.3f} should equal sqrt(Cn2[0]/Cn2[1]) = {expected_rms_ratio:.3f}")
+            msg=f"RMS ratio {actual_rms_ratio:.3f} should"
+                f" equal sqrt(Cn2[0]/Cn2[1]) = {expected_rms_ratio:.3f}")
 
         # Test 2: Verify that both layers have the same base variance (before Cn2 scaling)
         # Base variance = (RMS / sqrt(Cn2))^2
@@ -411,14 +435,17 @@ class TestAtmoInfiniteEvolution(unittest.TestCase):
 
         # The base variances should be approximately equal (within tolerance for numerical differences)
         self.assertAlmostEqual(base_variance_0, base_variance_1, delta=base_variance_0 * 0.1,
-            msg=f"Base variances should be approximately equal: {base_variance_0:.3f} vs {base_variance_1:.3f}")
+            msg=f"Base variances should be approximately equal:"
+                f" {base_variance_0:.3f} vs {base_variance_1:.3f}")
 
         # Test 3: Verify that the total Cn2-weighted variance makes sense
         total_cn2_weighted_variance = cn2_values[0] * base_variance_0 + cn2_values[1] * base_variance_1
         expected_total = base_variance_0  # Should be approximately equal to the base variance
 
-        self.assertAlmostEqual(total_cn2_weighted_variance, expected_total, delta=expected_total * 0.1,
-            msg=f"Total Cn2-weighted variance {total_cn2_weighted_variance:.3f} should equal base variance {expected_total:.3f}")
+        self.assertAlmostEqual(total_cn2_weighted_variance,
+                               expected_total, delta=expected_total * 0.1,
+            msg=f"Total Cn2-weighted variance {total_cn2_weighted_variance:.3f}"
+                f" should equal base variance {expected_total:.3f}")
 
     @cpu_and_gpu
     def test_cn2_sum_validation(self, target_device_idx, xp):

@@ -284,6 +284,7 @@ class TestAtmoEvolution(unittest.TestCase):
         for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
             for obj in objlist:
                 obj.setup()
+            last_position = atmo.last_position.copy()
 
             for obj in objlist:
                 obj.check_ready(0)
@@ -303,7 +304,12 @@ class TestAtmoEvolution(unittest.TestCase):
             for obj in objlist:
                 obj.post_trigger()
 
-        assert atmo.delta_time[0] == delta_time + extra_delta_time
+        # extra delta time should be added to all layers only once
+        # so delta_time should be the same for all layers
+        # but the first last position is a function of extra delta time
+        assert atmo.delta_time[0] == delta_time
+        expected_time = last_position / wind_speed.constant * atmo.pixel_pitch
+        np.testing.assert_allclose(extra_delta_time, expected_time, rtol=1e-8)
 
     @cpu_and_gpu
     def test_extra_delta_time_vector(self, target_device_idx, xp):
@@ -311,8 +317,10 @@ class TestAtmoEvolution(unittest.TestCase):
         simulParams = SimulParams(pixel_pupil=160, pixel_pitch=0.05, time_step=1)
 
         seeing = WaveGenerator(constant=0.65, target_device_idx=target_device_idx)
-        wind_speed = WaveGenerator(constant=[5.5, 2.3, 1.0, 1.0], target_device_idx=target_device_idx)
-        wind_direction = WaveGenerator(constant=[0, 90, 180, 90], target_device_idx=target_device_idx)
+        wind_speed = WaveGenerator(constant=[5.5, 2.3, 1.0, 1.0],
+                                   target_device_idx=target_device_idx)
+        wind_direction = WaveGenerator(constant=[0, 90, 180, 90],
+                                       target_device_idx=target_device_idx)
 
         delta_time = 1.0
         delta_t = BaseTimeObj().seconds_to_t(delta_time)
@@ -334,6 +342,7 @@ class TestAtmoEvolution(unittest.TestCase):
         for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
             for obj in objlist:
                 obj.setup()
+            last_position = atmo.last_position.copy()
 
             for obj in objlist:
                 obj.check_ready(0)
@@ -353,7 +362,12 @@ class TestAtmoEvolution(unittest.TestCase):
             for obj in objlist:
                 obj.post_trigger()
 
-        assert np.array_equal(atmo.delta_time, delta_time + cpuArray(extra_delta_time))
+        # extra delta time should be added to all layers only once
+        # so delta_time should be the same for all layers
+        # but the first last position is a function of extra delta time
+        assert np.all(atmo.delta_time == delta_time)
+        expected_time = last_position / wind_speed.constant * atmo.pixel_pitch
+        np.testing.assert_allclose(extra_delta_time, expected_time, rtol=1e-8)
 
     @cpu_and_gpu
     def test_pupil_distances_are_scaled_by_airmass(self, target_device_idx, xp):
@@ -362,7 +376,9 @@ class TestAtmoEvolution(unittest.TestCase):
         """
         pixel_pupil = 160
         zenith = 30.0  # degrees
-        simul_params = SimulParams(pixel_pupil=pixel_pupil, pixel_pitch=0.05, zenithAngleInDeg=zenith, time_step=1)
+        simul_params = SimulParams(
+            pixel_pupil=pixel_pupil, pixel_pitch=0.05, zenithAngleInDeg=zenith, time_step=1
+        )
         heights = [1000.0, 5000.0, 12000.0]
         airmass = 1.0 / np.cos(np.radians(zenith))
         atmo = AtmoEvolution(simul_params,
