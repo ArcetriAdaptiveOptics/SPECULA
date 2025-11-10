@@ -504,8 +504,8 @@ class TestComputeIfsCovmat(unittest.TestCase):
             self.r0,
             self.L0,
             oversampling=2,
-            xp=np,
-            dtype=np.float32
+            xp=xp,
+            dtype=xp.float32
         )
         result2 = compute_ifs_covmat(
             pupil_mask,
@@ -514,8 +514,8 @@ class TestComputeIfsCovmat(unittest.TestCase):
             self.r0,
             self.L0,
             oversampling=4,
-            xp=np,
-            dtype=np.float32
+            xp=xp,
+            dtype=xp.float32
         )
         self.assertFalse(np.allclose(cpuArray(result1), cpuArray(result2)))
 

@@ -133,7 +133,9 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0,
         if_flat = influence_functions[act_idx, :]
 
         if_2d = xp.zeros(mask_shape, dtype=dtype)
-        if_2d.ravel()[idx_mask] = if_flat
+        if_2d_flat = if_2d.ravel()
+        if_2d_flat[idx_mask] = if_flat
+        if_2d = if_2d_flat.reshape(mask_shape)
 
         support = xp.zeros(ft_shape, dtype=dtype)
         support[:mask_shape[0], :mask_shape[1]] = if_2d
