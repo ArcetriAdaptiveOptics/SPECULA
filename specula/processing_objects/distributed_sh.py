@@ -3,7 +3,7 @@ import copy
 from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.laser_launch_telescope import LaserLaunchTelescope
 from specula.processing_objects.sh import SH
-from specula import xp, cp
+from specula import cp
 
 
 class DistributedSH(SH):
