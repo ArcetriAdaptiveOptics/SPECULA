@@ -39,7 +39,7 @@ class AtmoEvolution(BaseProcessingObj):
         self.zenithAngleInDeg = self.simul_params.zenithAngleInDeg
 
         self.n_phasescreens = len(heights)
-        self.last_position = np.zeros(self.n_phasescreens)
+        self.last_position = None
         self.last_t = 0
         self.cycle_screens = True
         self.delta_time = None
@@ -103,7 +103,6 @@ class AtmoEvolution(BaseProcessingObj):
         self.outputs['layer_list'] = self.layer_list
 
         self.seed = seed
-        self.last_position = np.zeros(self.n_phasescreens, dtype=self.dtype)
         self.scale_coeff = 1.0
 
         if self.seed <= 0:

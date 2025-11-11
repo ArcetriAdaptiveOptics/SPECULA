@@ -35,7 +35,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         self.zenithAngleInDeg = self.simul_params.zenithAngleInDeg
 
         self.n_infinite_phasescreens = len(heights)
-        self.last_position = np.zeros(self.n_infinite_phasescreens)
+        self.last_position = None
         self.last_t = 0
         self.delta_time = None
         # fixed at generation time, then is a input -> rescales the screen?
@@ -109,7 +109,6 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
 
         self.initScreens(seed)
 
-        self.last_position = np.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
         self.scale_coeff = 1.0
 
         if not np.isclose(np.sum(self.Cn2), 1.0, atol=1e-6):
