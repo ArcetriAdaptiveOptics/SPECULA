@@ -35,7 +35,8 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         self.zenithAngleInDeg = self.simul_params.zenithAngleInDeg
 
         self.n_infinite_phasescreens = len(heights)
-        self.last_position = None
+        self.last_position = np.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
+        self.last_effective_position = np.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
         self.last_t = 0
         self.delta_time = None
         # fixed at generation time, then is a input -> rescales the screen?
@@ -161,12 +162,6 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
             raise ValueError(f'Wind direction input must be a'
                              f' {self.n_infinite_phasescreens}-elements array')
 
-        # Apply extra_delta_time as initial offset (matching PASSATA behavior)
-        # Convert extra time to position offset in pixels
-        wind_speed = cpuArray(self.local_inputs['wind_speed'].value)
-        initial_offset = wind_speed * self.extra_delta_time / self.pixel_pitch
-        self.last_position = initial_offset
-
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
         self.delta_time = cpuArray(
@@ -191,40 +186,54 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
 
         # Compute the delta position in pixels
         delta_position =  wind_speed * self.delta_time / self.pixel_pitch  # [pixel]
-        new_position = self.last_position + delta_position
+
+        # Compute extra offset that doesn't get accumulated
+        extra_offset = wind_speed * self.extra_delta_time / self.pixel_pitch  # [pixel]
+
+        # Effective position = accumulated position + constant offset
+        # Note: extra_offset is added at each frame because it is a function of wind speed
+        effective_position = self.last_position + delta_position + extra_offset  # [pixel]
+
+        # Change in effective position since last frame
+        effective_delta_position = effective_position - self.last_effective_position  # [pixel]
+
         eps = 1e-4
 
-        for ii, phaseScreen in enumerate(self.infinite_phasescreens):
+        for ii, phase_screen in enumerate(self.infinite_phasescreens):
             w_y_comp = np.cos(2*np.pi*(wind_direction[ii])/360.0)
             w_x_comp = np.sin(2*np.pi*(wind_direction[ii])/360.0)
-            frac_rows, rows_to_add = np.modf( delta_position[ii] * w_y_comp + self.acc_rows[ii])
+            frac_rows, rows_to_add = np.modf(
+                effective_delta_position[ii] * w_y_comp + self.acc_rows[ii]
+            )
             #sr = int( (np.sign(rows_to_add) + 1) / 2 )
             sr = int(np.sign(rows_to_add) )
-            frac_cols, cols_to_add = np.modf( delta_position[ii] * w_x_comp + self.acc_cols[ii] )
+            frac_cols, cols_to_add = np.modf(
+                effective_delta_position[ii] * w_x_comp + self.acc_cols[ii]
+            )
             #sc = int( (-np.sign(cols_to_add) + 1) / 2 )
             sc = int(np.sign(cols_to_add) )
             # print('rows_to_add, cols_to_add', rows_to_add, cols_to_add)
             if np.abs(w_y_comp)>eps:
                 for r in range(int(np.abs(rows_to_add))):
-                    phaseScreen.add_line(1, sr)
+                    phase_screen.add_line(1, sr)
             if np.abs(w_x_comp)>eps:
                 for r in range(int(np.abs(cols_to_add))):
-                    phaseScreen.add_line(0, sc)
-            phaseScreen0All = phaseScreen.scrnRawAll.copy()
-            phaseScreen0 = phaseScreen.scrnRaw.copy()
+                    phase_screen.add_line(0, sc)
+            phase_screen0_all = phase_screen.scrnRawAll.copy()
+            phase_screen0 = phase_screen.scrnRaw.copy()
             # print('w_y_comp, w_x_comp', w_y_comp, w_x_comp)
             # print('frac_rows, frac_cols', frac_rows, frac_cols)
             srf = int(np.sign(frac_rows) )
             scf = int(np.sign(frac_cols) )
 
             if np.abs(frac_rows)>eps:
-                phaseScreen.add_line(1, srf, False)
+                phase_screen.add_line(1, srf, False)
             if np.abs(frac_cols)>eps:
-                phaseScreen.add_line(0, scf, False)
-            phaseScreen1 = phaseScreen.scrnRaw
+                phase_screen.add_line(0, scf, False)
+            phase_screen1 = phase_screen.scrnRaw
             interpfactor = np.sqrt(frac_rows**2 + frac_cols**2 )
-            layer_phase = interpfactor * phaseScreen1 + (1.0-interpfactor) * phaseScreen0
-            phaseScreen.full_scrn = phaseScreen0All
+            layer_phase = interpfactor * phase_screen1 + (1.0-interpfactor) * phase_screen0
+            phase_screen.full_scrn = phase_screen0_all
             self.acc_rows[ii] = frac_rows
             self.acc_cols[ii] = frac_cols
             # print('acc_rows', self.acc_rows)
@@ -233,5 +242,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
             self.layer_list[ii].phaseInNm *= self.scale_coeff*self.xp.sqrt(self.Cn2[ii])
             self.layer_list[ii].A = 1
             self.layer_list[ii].generation_time = self.current_time
-        self.last_position = new_position
+
+        self.last_position = self.last_position + delta_position
+        self.last_effective_position = effective_position.copy()
         self.last_t = self.current_time

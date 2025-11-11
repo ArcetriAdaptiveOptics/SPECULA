@@ -174,7 +174,6 @@ class TestAtmoInfiniteEvolution(unittest.TestCase):
         for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
             for obj in objlist:
                 obj.setup()
-            last_position = atmo.last_position.copy()
 
             for obj in objlist:
                 obj.check_ready(0)
@@ -185,6 +184,14 @@ class TestAtmoInfiniteEvolution(unittest.TestCase):
             for obj in objlist:
                obj.post_trigger()
 
+        # last_effective_position should contain the extra_offset
+        wind_speed_values = cpuArray(wind_speed.output.value)
+        expected_extra_offset = wind_speed_values * extra_delta_time / atmo.pixel_pitch
+        np.testing.assert_allclose(
+            atmo.last_effective_position, expected_extra_offset, rtol=1e-8
+        )
+
+        for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
             for obj in objlist:
                 obj.check_ready(delta_t)
 
@@ -194,12 +201,22 @@ class TestAtmoInfiniteEvolution(unittest.TestCase):
             for obj in objlist:
                obj.post_trigger()
 
-        # extra delta time should be added to all layers only once
-        # so delta_time should be the same for all layers
-        # but the first last position is a function of extra delta time
+        # After second trigger, verify that:
+        # 1. delta_time does not contain extra_delta_time
         assert atmo.delta_time[0] == delta_time
-        expected_time = last_position / wind_speed.constant * atmo.pixel_pitch
-        np.testing.assert_allclose(extra_delta_time, expected_time, rtol=1e-8)
+
+        # 2. last_position has accumulated only delta_position (not extra_offset)
+        expected_last_position = wind_speed_values * delta_time / atmo.pixel_pitch
+        np.testing.assert_allclose(
+            atmo.last_position, expected_last_position, rtol=1e-8
+        )
+
+        # 3. last_effective_position = last_position + extra_offset
+        expected_effective_position = expected_last_position + expected_extra_offset
+        np.testing.assert_allclose(
+            atmo.last_effective_position, expected_effective_position, rtol=1e-8
+        )
+    
 
     @cpu_and_gpu
     def test_extra_delta_time_vector(self, target_device_idx, xp):
@@ -233,7 +250,6 @@ class TestAtmoInfiniteEvolution(unittest.TestCase):
         for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
             for obj in objlist:
                 obj.setup()
-            last_position = atmo.last_position.copy()
 
             for obj in objlist:
                 obj.check_ready(0)
@@ -244,6 +260,18 @@ class TestAtmoInfiniteEvolution(unittest.TestCase):
             for obj in objlist:
                 obj.post_trigger()
 
+        # After first trigger, last_position should be approximately zero
+        np.testing.assert_allclose(atmo.last_position, 0.0, atol=1e-6)
+
+        # last_effective_position should contain the extra_offset
+        wind_speed_values = cpuArray(wind_speed.output.value)
+        expected_extra_offset = wind_speed_values * np.array(extra_delta_time) \
+                                / atmo.pixel_pitch
+        np.testing.assert_allclose(
+            atmo.last_effective_position, expected_extra_offset, rtol=1e-8
+        )
+
+        for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
             for obj in objlist:
                 obj.check_ready(delta_t)
 
@@ -253,12 +281,21 @@ class TestAtmoInfiniteEvolution(unittest.TestCase):
             for obj in objlist:
                 obj.post_trigger()
 
-        # extra delta time should be added to all layers only once
-        # so delta_time should be the same for all layers
-        # but the first last position is a function of extra delta time
+        # After second trigger, verify that:
+        # 1. delta_time does not contain extra_delta_time
         assert np.all(atmo.delta_time == delta_time)
-        expected_time = last_position / wind_speed.constant * atmo.pixel_pitch
-        np.testing.assert_allclose(extra_delta_time, expected_time, rtol=1e-8)
+
+        # 2. last_position has accumulated only delta_position (not extra_offset)
+        expected_last_position = wind_speed_values * delta_time / atmo.pixel_pitch
+        np.testing.assert_allclose(
+            atmo.last_position, expected_last_position, rtol=1e-8
+        )
+
+        # 3. last_effective_position = last_position + extra_offset
+        expected_effective_position = expected_last_position + expected_extra_offset
+        np.testing.assert_allclose(
+            atmo.last_effective_position, expected_effective_position, rtol=1e-8
+        )
 
     @cpu_and_gpu
     def test_scale_coeff_with_different_seeing(self, target_device_idx, xp):

@@ -39,7 +39,8 @@ class AtmoEvolution(BaseProcessingObj):
         self.zenithAngleInDeg = self.simul_params.zenithAngleInDeg
 
         self.n_phasescreens = len(heights)
-        self.last_position = None
+        self.last_position = np.zeros(self.n_phasescreens, dtype=self.dtype)
+        self.last_effective_position = cpuArray(np.zeros(self.n_phasescreens, dtype=self.dtype))
         self.last_t = 0
         self.cycle_screens = True
         self.delta_time = None
@@ -220,12 +221,6 @@ class AtmoEvolution(BaseProcessingObj):
         if len(self.local_inputs['wind_direction'].value) != self.n_phasescreens:
             raise ValueError('Wind direction input must be a {self.n_phasescreens}-elements array')
 
-        # Apply extra_delta_time as initial offset (matching PASSATA behavior)
-        # Convert extra time to position offset in pixels
-        wind_speed = cpuArray(self.local_inputs['wind_speed'].value)
-        initial_offset = wind_speed * self.extra_delta_time / self.pixel_pitch
-        self.last_position = initial_offset
-
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
         self.delta_time = cpuArray(
@@ -246,26 +241,41 @@ class AtmoEvolution(BaseProcessingObj):
         #                      'and/or direction does not match the number of phasescreens')
         wind_speed = cpuArray(self.local_inputs['wind_speed'].value)
         wind_direction = cpuArray(self.local_inputs['wind_direction'].value)
-        # Compute the delta position in pixels
-        delta_position =  wind_speed * self.delta_time / self.pixel_pitch  # [pixel]
-        new_position = self.last_position + delta_position
+
+        # Compute the delta position in pixels (time evolution)
+        delta_position = wind_speed * self.delta_time / self.pixel_pitch  # [pixel]
+
+        # Compute extra offset that doesn't get accumulated
+        extra_offset = wind_speed * self.extra_delta_time / self.pixel_pitch  # [pixel]
+
+        # Update last_position with delta_position
+        new_position = self.last_position + delta_position  # [pixel]
+
+        # cycle screens consider the effective position for checking boundary conditions
+        if self.cycle_screens:
+            new_position = np.where(
+                new_position + extra_offset + self.pixel_layer >= self.phasescreens_sizes_array,
+                0,
+                new_position
+            )
+
+        # Effective position = accumulated position + constant offset
+        # Note: extra_offset is added at each frame because it is a function of wind speed
+        effective_position = new_position + extra_offset  # [pixel]
+
         # Get quotient and remainder
         wdf, wdi = np.modf(wind_direction/90.0)
         wdf_full = wdf * 90
 
-        if self.cycle_screens:
-            new_position = np.where(
-                new_position + self.pixel_layer >= self.phasescreens_sizes_array, 0, new_position
-            )
-        new_position_quo = np.floor(new_position).astype(np.int64)
-        new_position_rem = (new_position - new_position_quo).astype(self.dtype)
+        effective_position_quo = np.floor(effective_position).astype(np.int64)
+        effective_position_rem = (effective_position - effective_position_quo).astype(self.dtype)
 
         for ii, p in enumerate(self.phasescreens):
-            pos = int(new_position_quo[ii])
+            pos = int(effective_position_quo[ii])
             ipli = int(self.pixel_layer[ii])
             ipli_p = int(pos + self.pixel_layer[ii])
-            layer_phase = (1.0 - new_position_rem[ii]) * p[0: ipli, pos: ipli_p] \
-                          + new_position_rem[ii] * p[0: ipli, pos+1: ipli_p+1]
+            layer_phase = (1.0 - effective_position_rem[ii]) * p[0: ipli, pos: ipli_p] \
+                          + effective_position_rem[ii] * p[0: ipli, pos+1: ipli_p+1]
             layer_phase = self.xp.rot90(layer_phase, wdi[ii])
             if not wdf_full[ii] == 0:
                 layer_phase = self.ndimage_rotate(
@@ -274,7 +284,7 @@ class AtmoEvolution(BaseProcessingObj):
             self.layer_list[ii].phaseInNm[:] = layer_phase * self.scale_coeff
             self.layer_list[ii].generation_time = self.current_time
 
-        # print(f'Phasescreen_shift: {new_position=}') # Verbose?
         # Update position output
         self.last_position = new_position
+        self.last_effective_position = effective_position.copy()
         self.last_t = self.current_time
