@@ -19,6 +19,8 @@ from specula.display.phase_display import PhaseDisplay
 from specula.display.pixels_display import PixelsDisplay
 from specula.display.slopec_display import SlopecDisplay
 from specula.display.psf_display import PsfDisplay
+from specula.display.plot_vector_display import PlotVectorDisplay
+from specula.base_value import BaseValue
 from test.specula_testlib import cpu_and_gpu
 
 
@@ -42,7 +44,7 @@ class TestDisplays(unittest.TestCase):
         ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
                           S0=self.S0, target_device_idx=target_device_idx)
         ef.generation_time = 1
-        
+
         display = PhaseDisplay(title='Test Phase Display')
         display.inputs['phase'].set(ef)
 
@@ -66,7 +68,7 @@ class TestDisplays(unittest.TestCase):
         """Test PixelsDisplay initialization and trigger"""
         pixels_data = xp.arange(9).reshape((3,3))
         pixels = Pixels(3, 3, bits=16, signed=0, target_device_idx=target_device_idx)
-        pixels.set_value(pixels_data)
+        pixels.value=pixels_data
         pixels.generation_time = 1
 
         display = PixelsDisplay(title='Test Pixels Display')
@@ -118,7 +120,9 @@ class TestDisplays(unittest.TestCase):
                           S0=self.S0, target_device_idx=target_device_idx)
         ef.generation_time = 1
 
-        simulParams = SimulParams(time_step=0.001, pixel_pupil=self.pixel_pupil, pixel_pitch=self.pixel_pitch)
+        simulParams = SimulParams(
+            time_step=0.001, pixel_pupil=self.pixel_pupil, pixel_pitch=self.pixel_pitch
+        )
 
         psf = PSF(simulParams, wavelengthInNm=500, target_device_idx=target_device_idx)
         psf.inputs['in_ef'].set(ef)
@@ -152,7 +156,7 @@ class TestDisplays(unittest.TestCase):
 
         # Create test modes data
         modes_data = xp.random.random(20) * 100 - 50  # Random values between -50 and 50
-        modes = BaseValue(modes_data, target_device_idx=target_device_idx)
+        modes = BaseValue(value=modes_data, target_device_idx=target_device_idx)
         modes.generation_time = 1
 
         display = ModesDisplay(title='Test Modes Display', yrange=(-100, 100))
@@ -178,7 +182,7 @@ class TestDisplays(unittest.TestCase):
         from specula.base_value import BaseValue
 
         # Create test scalar value for history plotting
-        value = BaseValue([42.5], target_device_idx=target_device_idx)
+        value = BaseValue(value=[42.5], target_device_idx=target_device_idx)
 
         display = PlotDisplay(title='Test Plot Display', histlen=50)
         display.inputs['value'].set(value)
@@ -188,7 +192,7 @@ class TestDisplays(unittest.TestCase):
         # Test multiple triggers to build history
         for i in range(5):
             value.generation_time = i+1
-            value.set_value([10 * i + xp.random.random()])
+            value.value=[10 * i + xp.random.random()]
             display.check_ready(i+1)
             display.trigger_code()
 
@@ -259,3 +263,264 @@ class TestDisplays(unittest.TestCase):
 
         for display, expected_title in zip(displays, custom_titles):
             self.assertEqual(display._title, expected_title)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_basic_vector_plot(self, target_device_idx, xp):
+        """Test basic vector plotting with 3 elements"""
+        display = PlotVectorDisplay(title='Test Vector', histlen=50)
+
+        # Create 3D vector
+        vec = BaseValue(value=xp.array([1.0, 2.0, 3.0]), target_device_idx=target_device_idx)
+        vec.generation_time = 1
+
+        display.inputs['vector'].set(vec)
+        display.setup()
+        display.check_ready(1)
+        display.trigger_code()
+
+        self.assertTrue(display._opened)
+        self.assertIsNotNone(display.lines)
+        self.assertEqual(len(display.lines), 3)  # 3 elements
+        self.assertEqual(display._count, 1)
+
+        display.close()
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_vector_with_selected_indices(self, target_device_idx, xp):
+        """Test plotting only selected elements"""
+        # Plot only indices 0 and 2 from a 5-element vector
+        display = PlotVectorDisplay(
+            title='Selected elements',
+            indices=[0, 2],
+            legend_labels=['X', 'Z']
+        )
+
+        vec = BaseValue(value=xp.array([1.0, 2.0, 3.0, 4.0, 5.0]),
+                       target_device_idx=target_device_idx)
+        vec.generation_time = 1
+
+        display.inputs['vector'].set(vec)
+        display.setup()
+        display.check_ready(1)
+        display.trigger_code()
+
+        # Should only have 2 lines (indices 0 and 2)
+        self.assertEqual(len(display.lines), 2)
+
+        # Check legend labels
+        labels = [line.get_label() for line in display.lines]
+        self.assertIn('X', labels)
+        self.assertIn('Z', labels)
+
+        display.close()
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_vector_history_accumulation(self, target_device_idx, xp):
+        """Test that vector history accumulates correctly"""
+        display = PlotVectorDisplay(histlen=10)
+
+        vec = BaseValue(value=xp.array([0.0, 0.0]), target_device_idx=target_device_idx)
+        display.inputs['vector'].set(vec)
+        display.setup()
+
+        # Add 5 samples
+        for i in range(5):
+            vec.value = xp.array([float(i), float(i * 2)])
+            vec.generation_time = i + 1
+            display.check_ready(i + 1)
+            display.trigger_code()
+
+        self.assertEqual(display._count, 5)
+        self.assertEqual(len(display._time_history), 5)
+
+        # Check history values
+        np.testing.assert_array_equal(display._history[0, :], [0.0, 0.0])
+        np.testing.assert_array_equal(display._history[4, :], [4.0, 8.0])
+
+        display.close()
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_vector_history_scrolling(self, target_device_idx, xp):
+        """Test that history scrolls when buffer is full"""
+        histlen = 5
+        display = PlotVectorDisplay(histlen=histlen)
+
+        vec = BaseValue(value=xp.array([0.0, 0.0]), target_device_idx=target_device_idx)
+        display.inputs['vector'].set(vec)
+        display.setup()
+
+        # Add more samples than buffer size
+        for i in range(10):
+            vec.generation_time = i + 1
+            vec.value=xp.array([float(i), float(i * 2)])
+            display.check_ready(i + 1)
+            display.trigger_code()
+
+        # Should have scrolled, keeping last 5
+        self.assertEqual(display._count, histlen)
+        self.assertEqual(len(display._time_history), histlen)
+
+        # Last value should be [9, 18]
+        np.testing.assert_array_equal(display._history[histlen-1, :], [9.0, 18.0])
+
+        display.close()
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_single_element_vector(self, target_device_idx, xp):
+        """Test with 1-element vector (scalar-like)"""
+        display = PlotVectorDisplay(title='Scalar Vector')
+
+        vec = BaseValue(value=xp.array([42.0]), target_device_idx=target_device_idx)
+        vec.generation_time = 1
+
+        display.inputs['vector'].set(vec)
+        display.setup()
+        display.check_ready(1)
+        display.trigger_code()
+
+        self.assertEqual(len(display.lines), 1)
+
+        display.close()
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_vector_from_list(self, target_device_idx, xp):
+        """Test vector created from Python list"""
+        display = PlotVectorDisplay()
+
+        vec = BaseValue(value=[1.5, 2.5, 3.5], target_device_idx=target_device_idx)
+        vec.generation_time = 1
+
+        display.inputs['vector'].set(vec)
+        display.setup()
+        display.check_ready(1)
+        display.trigger_code()
+
+        self.assertEqual(len(display.lines), 3)
+
+        display.close()
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_custom_legend_labels(self, target_device_idx, xp):
+        """Test custom legend labels"""
+        labels = ['Tip', 'Tilt', 'Focus']
+        display = PlotVectorDisplay(legend_labels=labels)
+
+        vec = BaseValue(value=xp.array([0.1, 0.2, 0.3]), target_device_idx=target_device_idx)
+        vec.generation_time = 1
+
+        display.inputs['vector'].set(vec)
+        display.setup()
+        display.check_ready(1)
+        display.trigger_code()
+
+        line_labels = [line.get_label() for line in display.lines]
+        self.assertEqual(line_labels, labels)
+
+        display.close()
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_fixed_y_range(self, target_device_idx, xp):
+        """Test fixed Y axis range"""
+        yrange = (-10, 10)
+        display = PlotVectorDisplay(yrange=yrange)
+
+        vec = BaseValue(value=xp.array([5.0, -5.0]), target_device_idx=target_device_idx)
+        vec.generation_time = 1
+
+        display.inputs['vector'].set(vec)
+        display.setup()
+        display.check_ready(1)
+        display.trigger_code()
+
+        ylim = display.ax.get_ylim()
+        self.assertEqual(ylim, yrange)
+
+        display.close()
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_iteration_x_axis(self, target_device_idx, xp):
+        """Test iteration mode for x-axis instead of time"""
+        display = PlotVectorDisplay(x_axis='iteration')
+
+        vec = BaseValue(value=xp.array([1.0, 2.0]), target_device_idx=target_device_idx)
+        display.inputs['vector'].set(vec)
+        display.setup()
+
+        for i in range(3):
+            vec.generation_time = i + 1
+            vec.value=xp.array([float(i), float(i * 2)])
+            display.check_ready(i + 1)
+            display.trigger_code()
+
+        # Check x values are iterations [1, 2, 3]
+        expected_x = [1, 2, 3]
+        np.testing.assert_array_equal(display._time_history, expected_x)
+
+        display.close()
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_reset_history(self, target_device_idx, xp):
+        """Test history reset functionality"""
+        display = PlotVectorDisplay()
+
+        vec = BaseValue(value=xp.array([1.0, 2.0]), target_device_idx=target_device_idx)
+        display.inputs['vector'].set(vec)
+        display.setup()
+
+        # Add some data
+        for i in range(5):
+            vec.generation_time = i + 1
+            display.check_ready(i + 1)
+            display.trigger_code()
+
+        self.assertEqual(display._count, 5)
+
+        # Reset
+        display.reset_history()
+
+        self.assertEqual(display._count, 0)
+        self.assertEqual(len(display._time_history), 0)
+        self.assertIsNone(display.lines)
+
+        display.close()
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_invalid_indices(self, target_device_idx, xp):
+        """Test with some invalid indices"""
+        # Indices [0, 5] but vector has only 3 elements
+        display = PlotVectorDisplay(indices=[0, 5])
+
+        vec = BaseValue(value=xp.array([1.0, 2.0, 3.0]), target_device_idx=target_device_idx)
+        vec.generation_time = 1
+
+        display.inputs['vector'].set(vec)
+        display.setup()
+        display.check_ready(1)
+        display.trigger_code()
+
+        # Should only plot valid index 0
+        self.assertEqual(len(display.lines), 1)
+
+        display.close()
