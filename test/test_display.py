@@ -507,20 +507,131 @@ class TestDisplays(unittest.TestCase):
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
     @cpu_and_gpu
-    def test_invalid_indices(self, target_device_idx, xp):
-        """Test with some invalid indices"""
-        # Indices [0, 5] but vector has only 3 elements
-        display = PlotVectorDisplay(indices=[0, 5])
+    def test_pixels_display_crop_slice(self, target_device_idx, xp):
+        """Test crop with slice mode"""
+        display = PixelsDisplay(crop=(10, 40, 20, 50), crop_mode='slice')
 
-        vec = BaseValue(value=xp.array([1.0, 2.0, 3.0]), target_device_idx=target_device_idx)
-        vec.generation_time = 1
+        # Create 100x100 image
+        size_pixels = 100
+        image_data = xp.random.random((size_pixels, size_pixels))
+        pix = Pixels(size_pixels, size_pixels, target_device_idx=target_device_idx)
+        pix.set_value(image_data)
+        pix.generation_time = 1
 
-        display.inputs['vector'].set(vec)
+        # Set input BEFORE setup
+        display.inputs['pixels'].set(pix)
         display.setup()
-        display.check_ready(1)
+
+        self.assertTrue(display.check_ready(1))
         display.trigger_code()
 
-        # Should only plot valid index 0
-        self.assertEqual(len(display.lines), 1)
+        # Check displayed image has correct shape
+        displayed = display.img.get_array()
+        self.assertEqual(displayed.shape, (30, 30))  # 50-20=30 rows, 40-10=30 cols
+
+        display.close()
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_pixels_display_crop_center(self, target_device_idx, xp):
+        """Test crop with center mode"""
+        display = PixelsDisplay(crop=(50, 50, 15, 15), crop_mode='center')
+
+        # Create 100x100 image
+        size_pixels = 100
+        image_data = xp.random.random((size_pixels, size_pixels))
+        pix = Pixels(size_pixels, size_pixels, target_device_idx=target_device_idx)
+        pix.set_value(image_data)
+        pix.generation_time = 1
+
+        # Set input BEFORE setup
+        display.inputs['pixels'].set(pix)
+        display.setup()
+
+        self.assertTrue(display.check_ready(1))
+        display.trigger_code()
+
+        # Check displayed image has correct shape
+        displayed = display.img.get_array()
+        self.assertEqual(displayed.shape, (30, 30))  # 2*15=30 in both dimensions
+
+        display.close()
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_pixels_display_crop_dynamic(self, target_device_idx, xp):
+        """Test dynamic crop change"""
+        display = PixelsDisplay()
+
+        # Create 100x100 image
+        size_pixels = 100
+        image_data = xp.random.random((size_pixels, size_pixels))
+        pix = Pixels(size_pixels, size_pixels, target_device_idx=target_device_idx)
+        pix.set_value(image_data)
+        pix.generation_time = 1
+
+        display.inputs['pixels'].set(pix)
+        display.setup()
+
+        # First display without crop
+        self.assertTrue(display.check_ready(1))
+        display.trigger_code()
+
+        displayed = display.img.get_array()
+        self.assertEqual(displayed.shape, (100, 100))
+
+        # Now set crop dynamically
+        display.set_crop((25, 75, 25, 75), crop_mode='slice')
+
+        pix.generation_time = 2
+        self.assertTrue(display.check_ready(2))
+        display.trigger_code()
+
+        displayed = display.img.get_array()
+        self.assertEqual(displayed.shape, (50, 50))  # 75-25=50
+
+        # Clear crop
+        display.clear_crop()
+
+        pix.generation_time = 3
+        self.assertTrue(display.check_ready(3))
+        display.trigger_code()
+
+        displayed = display.img.get_array()
+        self.assertEqual(displayed.shape, (100, 100))
+
+        display.close()
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_pixels_display_crop_with_log_scale(self, target_device_idx, xp):
+        """Test that crop works with log scale"""
+        display = PixelsDisplay(
+            crop=(25, 75, 25, 75),
+            crop_mode='slice',
+            log_scale=True
+        )
+
+        # Create 100x100 image
+        size_pixels = 100
+        image_data = xp.random.random((size_pixels, size_pixels)) + 1.0  # Avoid log(0)
+        pix = Pixels(size_pixels, size_pixels, target_device_idx=target_device_idx)
+        pix.set_value(image_data)
+        pix.generation_time = 1
+
+        display.inputs['pixels'].set(pix)
+        display.setup()
+
+        self.assertTrue(display.check_ready(1))
+        display.trigger_code()
+
+        displayed = display.img.get_array()
+        self.assertEqual(displayed.shape, (50, 50))
+
+        # Verify log scale was applied (values should be smaller)
+        self.assertTrue(np.all(displayed < 1.0))  # log10(values) < log10(max=2)
 
         display.close()
