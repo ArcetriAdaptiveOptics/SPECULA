@@ -182,7 +182,7 @@ class TestDisplays(unittest.TestCase):
         from specula.base_value import BaseValue
 
         # Create test scalar value for history plotting
-        value = BaseValue(value=[42.5], target_device_idx=target_device_idx)
+        value = BaseValue(value=xp.array([42.5]), target_device_idx=target_device_idx)
 
         display = PlotDisplay(title='Test Plot Display', histlen=50)
         display.inputs['value'].set(value)
