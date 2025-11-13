@@ -68,7 +68,7 @@ class TestDisplays(unittest.TestCase):
         """Test PixelsDisplay initialization and trigger"""
         pixels_data = xp.arange(9).reshape((3,3))
         pixels = Pixels(3, 3, bits=16, signed=0, target_device_idx=target_device_idx)
-        pixels.value=pixels_data
+        pixels.set_value(pixels_data)
         pixels.generation_time = 1
 
         display = PixelsDisplay(title='Test Pixels Display')
@@ -192,7 +192,7 @@ class TestDisplays(unittest.TestCase):
         # Test multiple triggers to build history
         for i in range(5):
             value.generation_time = i+1
-            value.value=[10 * i + xp.random.random()]
+            value.set_value([10 * i + xp.random.random()])
             display.check_ready(i+1)
             display.trigger_code()
 
@@ -331,7 +331,7 @@ class TestDisplays(unittest.TestCase):
 
         # Add 5 samples
         for i in range(5):
-            vec.value = xp.array([float(i), float(i * 2)])
+            vec.set_value(xp.array([float(i), float(i * 2)]))
             vec.generation_time = i + 1
             display.check_ready(i + 1)
             display.trigger_code()
@@ -360,7 +360,7 @@ class TestDisplays(unittest.TestCase):
         # Add more samples than buffer size
         for i in range(10):
             vec.generation_time = i + 1
-            vec.value=xp.array([float(i), float(i * 2)])
+            vec.set_value(xp.array([float(i), float(i * 2)]))
             display.check_ready(i + 1)
             display.trigger_code()
 
@@ -466,7 +466,7 @@ class TestDisplays(unittest.TestCase):
 
         for i in range(3):
             vec.generation_time = i + 1
-            vec.value=xp.array([float(i), float(i * 2)])
+            vec.set_value(xp.array([float(i), float(i * 2)]))
             display.check_ready(i + 1)
             display.trigger_code()
 
