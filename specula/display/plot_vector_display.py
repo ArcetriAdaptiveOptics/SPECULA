@@ -268,24 +268,3 @@ class PlotVectorDisplay(BaseDisplay):
 
         self._safe_draw()
         self._count += 1
-
-    def reset_history(self):
-        """Reset the plot history."""
-        if self._history is not None:
-            self._history.fill(0)
-        self._count = 0
-        self._time_history = []
-        self.lines = None
-        self._legend_set = False
-        if self._opened:
-            self.ax.clear()
-            self.ax.grid(True, alpha=0.3)
-
-    def close(self):
-        """Override to reset state when closing."""
-        super().close()
-        self.lines = None
-        self._count = 0
-        self._time_history = []
-        self._legend_set = False
-        self._history = None

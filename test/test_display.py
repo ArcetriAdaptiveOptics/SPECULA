@@ -59,7 +59,7 @@ class TestDisplays(unittest.TestCase):
         self.assertIsNotNone(display.fig)
         self.assertIsNotNone(display.ax)
 
-        display.close()
+        matplotlib.pyplot.close(display.fig)
 
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
@@ -84,7 +84,7 @@ class TestDisplays(unittest.TestCase):
         self.assertTrue(display._opened)
         self.assertIsNotNone(display.img)
 
-        display.close()
+        matplotlib.pyplot.close(display.fig)
 
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
@@ -109,7 +109,7 @@ class TestDisplays(unittest.TestCase):
         self.assertIsNotNone(display.fig)
         self.assertIsNotNone(display.ax)
 
-        display.close()
+        matplotlib.pyplot.close(display.fig)
 
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
@@ -144,7 +144,7 @@ class TestDisplays(unittest.TestCase):
         self.assertTrue(display._opened)
         self.assertIsNotNone(display.img)
 
-        display.close()
+        matplotlib.pyplot.close(display.fig)
 
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
@@ -171,7 +171,7 @@ class TestDisplays(unittest.TestCase):
         self.assertIsNotNone(display.fig)
         self.assertIsNotNone(display.ax)
 
-        display.close()
+        matplotlib.pyplot.close(display.fig)
 
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
@@ -200,7 +200,7 @@ class TestDisplays(unittest.TestCase):
         self.assertIsNotNone(display.lines)
         self.assertEqual(display._count, 5)
 
-        display.close()
+        matplotlib.pyplot.close(display.fig)
 
     def test_display_figsize_parameter(self):
         """Test that figsize parameter is properly handled"""
@@ -285,7 +285,7 @@ class TestDisplays(unittest.TestCase):
         self.assertEqual(len(display.lines), 3)  # 3 elements
         self.assertEqual(display._count, 1)
 
-        display.close()
+        matplotlib.pyplot.close(display.fig)
 
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
@@ -316,7 +316,7 @@ class TestDisplays(unittest.TestCase):
         self.assertIn('X', labels)
         self.assertIn('Z', labels)
 
-        display.close()
+        matplotlib.pyplot.close(display.fig)
 
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
@@ -343,7 +343,7 @@ class TestDisplays(unittest.TestCase):
         np.testing.assert_array_equal(display._history[0, :], [0.0, 0.0])
         np.testing.assert_array_equal(display._history[4, :], [4.0, 8.0])
 
-        display.close()
+        matplotlib.pyplot.close(display.fig)
 
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
@@ -371,7 +371,7 @@ class TestDisplays(unittest.TestCase):
         # Last value should be [9, 18]
         np.testing.assert_array_equal(display._history[histlen-1, :], [9.0, 18.0])
 
-        display.close()
+        matplotlib.pyplot.close(display.fig)
 
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
@@ -390,7 +390,7 @@ class TestDisplays(unittest.TestCase):
 
         self.assertEqual(len(display.lines), 1)
 
-        display.close()
+        matplotlib.pyplot.close(display.fig)
 
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
@@ -409,7 +409,7 @@ class TestDisplays(unittest.TestCase):
 
         self.assertEqual(len(display.lines), 3)
 
-        display.close()
+        matplotlib.pyplot.close(display.fig)
 
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
@@ -430,7 +430,7 @@ class TestDisplays(unittest.TestCase):
         line_labels = [line.get_label() for line in display.lines]
         self.assertEqual(line_labels, labels)
 
-        display.close()
+        matplotlib.pyplot.close(display.fig)
 
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
@@ -451,7 +451,7 @@ class TestDisplays(unittest.TestCase):
         ylim = display.ax.get_ylim()
         self.assertEqual(ylim, yrange)
 
-        display.close()
+        matplotlib.pyplot.close(display.fig)
 
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
@@ -474,35 +474,7 @@ class TestDisplays(unittest.TestCase):
         expected_x = [1, 2, 3]
         np.testing.assert_array_equal(display._time_history, expected_x)
 
-        display.close()
-
-    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
-    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
-    @cpu_and_gpu
-    def test_reset_history(self, target_device_idx, xp):
-        """Test history reset functionality"""
-        display = PlotVectorDisplay()
-
-        vec = BaseValue(value=xp.array([1.0, 2.0]), target_device_idx=target_device_idx)
-        display.inputs['vector'].set(vec)
-        display.setup()
-
-        # Add some data
-        for i in range(5):
-            vec.generation_time = i + 1
-            display.check_ready(i + 1)
-            display.trigger_code()
-
-        self.assertEqual(display._count, 5)
-
-        # Reset
-        display.reset_history()
-
-        self.assertEqual(display._count, 0)
-        self.assertEqual(len(display._time_history), 0)
-        self.assertIsNone(display.lines)
-
-        display.close()
+        matplotlib.pyplot.close(display.fig)
 
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
@@ -529,7 +501,7 @@ class TestDisplays(unittest.TestCase):
         displayed = display.img.get_array()
         self.assertEqual(displayed.shape, (30, 30))  # 50-20=30 rows, 40-10=30 cols
 
-        display.close()
+        matplotlib.pyplot.close(display.fig)
 
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
@@ -556,7 +528,7 @@ class TestDisplays(unittest.TestCase):
         displayed = display.img.get_array()
         self.assertEqual(displayed.shape, (30, 30))  # 2*15=30 in both dimensions
 
-        display.close()
+        matplotlib.pyplot.close(display.fig)
 
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
@@ -602,7 +574,7 @@ class TestDisplays(unittest.TestCase):
         displayed = display.img.get_array()
         self.assertEqual(displayed.shape, (100, 100))
 
-        display.close()
+        matplotlib.pyplot.close(display.fig)
 
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
@@ -634,4 +606,4 @@ class TestDisplays(unittest.TestCase):
         # Verify log scale was applied (values should be smaller)
         self.assertTrue(np.all(displayed < 1.0))  # log10(values) < log10(max=2)
 
-        display.close()
+        matplotlib.pyplot.close(display.fig)

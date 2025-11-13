@@ -133,17 +133,3 @@ class PlotDisplay(BaseDisplay):
 
         self._safe_draw()
         self._count += 1
-
-    def reset_history(self):
-        """Reset the plot history"""
-        self._history = np.zeros(self._histlen)
-        self._count = 0
-        self.lines = None  # ← Reset come img
-        if self._opened:
-            self.ax.clear()
-
-    def close(self):
-        """Override to reset lines when closing"""
-        super().close()
-        self.lines = None
-        self._count = 0
