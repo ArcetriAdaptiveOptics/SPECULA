@@ -21,7 +21,15 @@ class BaseValue(BaseDataObj):
 
     def set_value(self, val):
         if self.value is not None:
-            self.value[...] = self.to_xp(val)
+            if type(self.value) in array_types:
+                # Case 1: Array numpy/cupy - use [...] for in-place assignment
+                self.value[...] = self.to_xp(val)
+            elif isinstance(self.value, list):
+                # Case 2: Python list - use [:] to replace elements
+                self.value[:] = self.to_xp(val, force_copy=True, dtype=self.dtype)
+            else:
+                # Case 3: Scalar or other types - replace the entire value
+                self.value = self.to_xp(val, force_copy=True, dtype=self.dtype)
         else:
             self.value = self.to_xp(val, force_copy=True, dtype=self.dtype)
 
