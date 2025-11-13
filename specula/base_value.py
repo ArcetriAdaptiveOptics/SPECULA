@@ -26,7 +26,7 @@ class BaseValue(BaseDataObj):
                 self.value[...] = self.to_xp(val)
             elif isinstance(self.value, list):
                 # Case 2: Python list - use [:] to replace elements
-                self.value[:] = self.to_xp(val, force_copy=True, dtype=self.dtype)
+                self.value[:] = self.to_xp(val)
             else:
                 # Case 3: Scalar or other types - replace the entire value
                 self.value = self.to_xp(val, force_copy=True, dtype=self.dtype)
