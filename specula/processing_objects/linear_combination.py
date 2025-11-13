@@ -27,7 +27,7 @@ class LinearCombination(BaseProcessingObj):
         self.plate_scale_idx = plate_scale_idx
 
         self.inputs['in_vectors_list'] = InputList(type=BaseValue)
-        self.out_vector = BaseValue(target_device_idx=self.target_device_idx)
+        self.out_vector = BaseValue(target_device_idx=self.target_device_idx, precision=precision)
         self.outputs['out_vector'] = self.out_vector
 
         if dm1 is not None and dm3 is not None:

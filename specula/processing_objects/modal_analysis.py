@@ -62,7 +62,9 @@ class ModalAnalysis(BaseProcessingObj):
             # Prioritize ifunc_inv
             self.phase2modes = ifunc_inv
 
-        self.rms = BaseValue('output RMS of phase from modal reconstructor')
+        self.rms = BaseValue('output RMS of phase from modal reconstructor',
+                             target_device_idx=target_device_idx,
+                             precision=precision)
         self.rms.value = self.xp.zeros(1, dtype=self.dtype)
         self.dorms = dorms
         self.wavelengthInNm = wavelengthInNm
@@ -74,7 +76,9 @@ class ModalAnalysis(BaseProcessingObj):
             self._n_modes = nmodes
         self._n_inputs = n_inputs
 
-        self.out_modes = BaseValue('output modes from modal analysis', target_device_idx=target_device_idx)
+        self.out_modes = BaseValue('output modes from modal analysis',
+                                   target_device_idx=target_device_idx,
+                                   precision=precision)
         self.out_modes.value = self.xp.zeros(self._n_modes, dtype=self.dtype)
         self.inputs['in_ef'] = InputValue(type=ElectricField, optional=True)
         self.inputs['in_ef_list'] = InputList(type=ElectricField, optional=True)

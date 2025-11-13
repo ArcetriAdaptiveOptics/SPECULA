@@ -162,9 +162,15 @@ class ModulatedPyramid(BaseProcessingObj):
         self.mod_amp = mod_amp
 
         self.out_i = Intensity(final_ccd_side, final_ccd_side, precision=self.precision, target_device_idx=self.target_device_idx)
-        self.psf_tot = BaseValue(value=self.xp.zeros((fft_totsize, fft_totsize), dtype=self.dtype), target_device_idx=self.target_device_idx)
-        self.psf_bfm = BaseValue(value=self.xp.zeros((fft_totsize, fft_totsize), dtype=self.dtype), target_device_idx=self.target_device_idx)
-        self.transmission = BaseValue(value=self.xp.zeros(1, dtype=self.dtype), target_device_idx=self.target_device_idx)
+        self.psf_tot = BaseValue(value=self.xp.zeros((fft_totsize, fft_totsize), dtype=self.dtype),
+                                 target_device_idx=self.target_device_idx,
+                                 precision=precision)
+        self.psf_bfm = BaseValue(value=self.xp.zeros((fft_totsize, fft_totsize), dtype=self.dtype),
+                                 target_device_idx=self.target_device_idx,
+                                 precision=precision)
+        self.transmission = BaseValue(value=self.xp.zeros(1, dtype=self.dtype),
+                                      target_device_idx=self.target_device_idx,
+                                      precision=precision)
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
         self.inputs['ext_source_coeff'] = InputValue(type=BaseValue, optional=True)

@@ -41,9 +41,12 @@ class PsfCoronagraph(PSF):
         )
 
         # Additional outputs for coronagraph
-        self.coronagraph_psf = BaseValue(target_device_idx=self.target_device_idx)
-        self.int_coronagraph_psf = BaseValue(target_device_idx=self.target_device_idx)
-        self.std_coronagraph_psf = BaseValue(target_device_idx=self.target_device_idx)
+        self.coronagraph_psf = BaseValue(target_device_idx=self.target_device_idx,
+                                         precision=precision)
+        self.int_coronagraph_psf = BaseValue(target_device_idx=self.target_device_idx,
+                                             precision=precision)
+        self.std_coronagraph_psf = BaseValue(target_device_idx=self.target_device_idx,
+                                             precision=precision)
 
         self.outputs['out_coronagraph_psf'] = self.coronagraph_psf
         self.outputs['out_int_coronagraph_psf'] = self.int_coronagraph_psf

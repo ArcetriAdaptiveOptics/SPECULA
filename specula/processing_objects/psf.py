@@ -36,11 +36,16 @@ class PSF(BaseProcessingObj):
 
         self.start_time = start_time
 
-        self.sr = BaseValue(target_device_idx=self.target_device_idx)
-        self.int_sr = BaseValue(target_device_idx=self.target_device_idx)
-        self.psf = BaseValue(target_device_idx=self.target_device_idx)
-        self.int_psf = BaseValue(target_device_idx=self.target_device_idx)
-        self.std_psf = BaseValue(target_device_idx=self.target_device_idx)
+        self.sr = BaseValue(target_device_idx=self.target_device_idx,
+                            precision=precision)
+        self.int_sr = BaseValue(target_device_idx=self.target_device_idx,
+                                precision=precision)
+        self.psf = BaseValue(target_device_idx=self.target_device_idx,
+                             precision=precision)
+        self.int_psf = BaseValue(target_device_idx=self.target_device_idx,
+                                precision=precision)
+        self.std_psf = BaseValue(target_device_idx=self.target_device_idx,
+                                precision=precision)
         self.ref = None
         self.count = 0
         self.first = True

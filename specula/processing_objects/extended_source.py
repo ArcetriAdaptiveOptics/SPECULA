@@ -75,7 +75,7 @@ class ExtendedSource(BaseProcessingObj):
         self.tt_profile = tt_profile
         self.n_rings = n_rings or 0
         self.flux_threshold = flux_threshold
-        self.psf = BaseValue()
+        self.psf = BaseValue(target_device_idx=self.target_device_idx, precision=precision)
         if initial_psf is not None:
             self.psf.value = self.to_xp(initial_psf, dtype=self.dtype)
         else:

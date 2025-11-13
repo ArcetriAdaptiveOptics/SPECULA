@@ -23,7 +23,7 @@ class BaseSlicer(BaseProcessingObj):
             self.slice_obj = slice(*slice_args)
         else:
             self.slice_obj = None
-        self.out_value = BaseValue(target_device_idx=target_device_idx)
+        self.out_value = BaseValue(target_device_idx=target_device_idx, precision=precision)
         self.inputs['in_value'] = InputValue(type=BaseValue)
         self.outputs['out_value'] = self.out_value
 

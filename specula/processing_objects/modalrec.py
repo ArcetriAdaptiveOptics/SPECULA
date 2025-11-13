@@ -121,8 +121,12 @@ class Modalrec(BaseProcessingObj):
         else:
             self.input_modes_slice = slice(None, None, None)
 
-        self.modes = BaseValue('output modes from modal reconstructor', target_device_idx=target_device_idx)
-        self.pseudo_ol_modes = BaseValue('output POL modes from modal reconstructor', target_device_idx=target_device_idx)        
+        self.modes = BaseValue('output modes from modal reconstructor',
+                               target_device_idx=target_device_idx,
+                               precision=precision)
+        self.pseudo_ol_modes = BaseValue('output POL modes from modal reconstructor',
+                                         target_device_idx=target_device_idx,
+                                         precision=precision) 
 
         self.inputs['in_slopes'] = InputValue(type=Slopes, optional=True)
         self.inputs['in_slopes_list'] = InputList(type=Slopes, optional=True)
@@ -134,7 +138,9 @@ class Modalrec(BaseProcessingObj):
         self.pseudo_ol_modes.value = self.xp.zeros(nmodes, dtype=self.dtype)
 
         if self.polc:
-            self.out_comm = BaseValue('output commands from modal reconstructor', target_device_idx=target_device_idx)
+            self.out_comm = BaseValue('output commands from modal reconstructor',
+                                      target_device_idx=target_device_idx,
+                                      precision=precision)
             self.inputs['in_commands'] = InputValue(type=BaseValue, optional=True)
             self.inputs['in_commands_list'] = InputList(type=BaseValue, optional=True)       
             # TODO complete static allocation above
