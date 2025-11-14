@@ -603,7 +603,9 @@ class TestDisplays(unittest.TestCase):
         displayed = display.img.get_array()
         self.assertEqual(displayed.shape, (50, 50))
 
-        # Verify log scale was applied (values should be smaller)
-        self.assertTrue(np.all(displayed < 1.0))  # log10(values) < log10(max=2)
+        # Verify log scale is handled by LogNorm, not by modifying data
+        import matplotlib.colors
+        self.assertIsInstance(display.img.norm, matplotlib.colors.LogNorm)
+        self.assertTrue(np.all(displayed >= 1.0))  # Data is unchanged
 
         matplotlib.pyplot.close(display.fig)
