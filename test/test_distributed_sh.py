@@ -3,7 +3,11 @@
 import specula
 specula.init(0)  # Default target device
 
+import os
+import sys
 import unittest
+import tempfile
+import subprocess
 
 from specula import cp, np
 from specula import cpuArray
@@ -17,6 +21,46 @@ class TestDistributedSH(unittest.TestCase):
     '''
     Same tests as TestSH, but with the DistributedSH class
     '''
+    @cpu_and_gpu
+    def test_distributed_sh_slices_with_one_GPU(self, target_device_idx, xp):
+        '''
+        Test that sub-SH objects are allocated on the same GPU
+        if multiple slices are requested but only one GPU is present
+        '''
+        # Only run on GPU
+        if xp != cp:
+            return
+
+        with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
+            f.write('''
+import specula
+specula.init(0)  # Default target device
+from specula.processing_objects.distributed_sh import DistributedSH
+sh = DistributedSH(wavelengthInNm=500,
+        subap_wanted_fov=3,
+        sensor_pxscale=0.5,
+        subap_on_diameter=20,
+        subap_npx=6,
+        n_slices=2,
+        target_device_idx=0)
+print(f'{sh.sub_sh[0].target_device_idx},{sh.sub_sh[1].target_device_idx}')
+''')
+            script_path = f.name
+
+        # Create isolated environment
+        env = os.environ.copy()
+        env["CUDA_VISIBLE_DEVICES"] = "0"
+
+        result = subprocess.run(
+            [sys.executable, script_path],
+            env=env,
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+
+        self.assertEqual(result.stdout.splitlines()[-1].strip(), "0,0")
+        
     @cpu_and_gpu
     def test_distributed_sh_flux(self, target_device_idx, xp):
         
