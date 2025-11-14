@@ -1,5 +1,5 @@
 import numpy as np
-import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 
 from specula import xp
 from specula import cpuArray
@@ -132,18 +132,21 @@ class PixelsDisplay(BaseDisplay):
         # Apply crop before log scale
         image = self._apply_crop(image)
 
+        norm = None
         if self._log_scale:
-            # Avoid log(0) by adding small epsilon
-            image = np.log10(np.maximum(image, 1e-10))
+            norm = mcolors.LogNorm(
+                vmin=max(image.min(), 1e-10), vmax=image.max()
+            )
 
         if self.img is None:
-            self.img = self.ax.imshow(image)
-
+            self.img = self.ax.imshow(image, norm=norm)
             if not self._colorbar_added:
                 plt.colorbar(self.img, ax=self.ax)
                 self._colorbar_added = True
         else:
             self.img.set_data(image)
+            if norm is not None:
+                self.img.set_norm(norm)
             self.img.set_clim(image.min(), image.max())
 
         self._safe_draw()

@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.colors as mcolors
 
 from specula import cpuArray
 
@@ -35,24 +36,26 @@ class PsfDisplay(BaseDisplay):
             threshold = self._image_p2v**(-1.) * np.max(image)
             image = np.maximum(image, threshold)
 
-        # Apply logarithmic scaling if requested
-        if self._log_scale:
-            # Avoid log(0) by ensuring minimum positive value
-            image = np.maximum(image, 1e-10)
-            image = np.log10(image)
-
         return image
 
     def _update_display(self, psf):
         """Override base method to implement PSF-specific display"""
         image = self._process_psf_data(psf)
 
+        # Apply logarithmic scaling if requested
+        norm = None
+        if self._log_scale:
+            norm = mcolors.LogNorm(
+                vmin=max(image.min(), 1e-10), vmax=image.max()
+                )
+
         if self.img is None:
             # First time: create image
-            self.img = self.ax.imshow(image)
+            self.img = self.ax.imshow(image, norm=norm)
             self._add_colorbar_if_needed(self.img)
         else:
             # Update existing image
             self._update_image_data(self.img, image)
-
+            if norm is not None:
+                self.img.set_norm(norm)
         self._safe_draw()
