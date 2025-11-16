@@ -1,7 +1,10 @@
-from specula import fuse
+from specula import fuse, RAD2ASEC
 from specula.processing_objects.modulated_pyramid import ModulatedPyramid
+from specula.base_value import BaseValue
+from specula.connections import InputValue
+from specula.data_objects.simul_params import SimulParams
 from specula.lib.zernike_generator import ZernikeGenerator
-
+        
 @fuse(kernel_name='pyr1_fused')
 def pyr1_fused(u_fp, ffv, fpsf, masked_exp, xp):
     psf = xp.real(u_fp * xp.conj(u_fp))
@@ -17,18 +20,81 @@ def pyr1_abs2(v, norm, ffv, xp):
 
 
 class ExtSourcePyramid(ModulatedPyramid):
-    '''
+    """
     Pyramid wavefront sensor for extended sources.
     This version computes on the fly the pupil phase for each extended source point
     to reduce memory usage compared to ModulatedPyramid with precomputed ttexp array.
-    '''
+    """
+    def __init__(self,
+                 simul_params: SimulParams,
+                 wavelengthInNm: float,
+                 fov: float,
+                 pup_diam: int,
+                 output_resolution: int,
+                 mod_amp: float = 3.0,
+                 mod_step: int = None,
+                 mod_type: str = 'circular',
+                 fov_errinf: float = 0.5,
+                 fov_errsup: float = 2,
+                 pup_dist: int = None,
+                 pup_margin: int = 2,
+                 fft_res: float = 3.0,
+                 fp_obs: float = None,
+                 pup_shifts = (0.0, 0.0),
+                 pyr_tlt_coeff: float = None,
+                 pyr_edge_def_ld: float = 0.0,
+                 pyr_tip_def_ld: float = 0.0,
+                 pyr_tip_maya_ld: float = 0.0,
+                 min_pup_dist: float = None,
+                 rotAnglePhInDeg: float = 0.0,
+                 xShiftPhInPixel: float = 0.0,
+                 yShiftPhInPixel: float = 0.0,
+                 target_device_idx: int = None,
+                 precision: int = None
+                ):
+        super().__init__(
+            simul_params=simul_params,
+            wavelengthInNm=wavelengthInNm,
+            fov=fov,
+            pup_diam=pup_diam,
+            output_resolution=output_resolution,
+            mod_amp=mod_amp,
+            mod_step=mod_step,
+            mod_type=mod_type,
+            fov_errinf=fov_errinf,
+            fov_errsup=fov_errsup,
+            pup_dist=pup_dist,
+            pup_margin=pup_margin,
+            fft_res=fft_res,
+            fp_obs=fp_obs,
+            pup_shifts=pup_shifts,
+            pyr_tlt_coeff=pyr_tlt_coeff,
+            pyr_edge_def_ld=pyr_edge_def_ld,
+            pyr_tip_def_ld=pyr_tip_def_ld,
+            pyr_tip_maya_ld=pyr_tip_maya_ld,
+            min_pup_dist=min_pup_dist,
+            rotAnglePhInDeg=rotAnglePhInDeg,
+            xShiftPhInPixel=xShiftPhInPixel,
+            yShiftPhInPixel=yShiftPhInPixel,
+            target_device_idx=target_device_idx,
+            precision=precision
+        )
+
+        self.ffv = None
+        self.ext_ttf = None
+        self.ext_source_coeff = None
+
+        # Add dedicated input for extended source coefficients
+        self.inputs['ext_source_coeff'] = InputValue(type=BaseValue)
+
+
     def cache_ttexp(self):
-        # Cache Zernike modes for tip, tilt, focus (static for all frames)
-        zg = ZernikeGenerator(self.fft_sampling, xp=self.xp, dtype=self.dtype)
-        ext_xtilt = zg.getZernike(2)  # tip
-        ext_ytilt = zg.getZernike(3)  # tilt
-        ext_focus = zg.getZernike(4)  # focus
-        self.ext_ttf = self.xp.stack([ext_xtilt, ext_ytilt, ext_focus], axis=0)
+        # set ext_source_coeff if not already set
+        if self.ext_source_coeff is None:
+            self.ext_source_coeff = self.local_inputs['ext_source_coeff']
+            # Update modulation steps to match source points
+            self.mod_steps = int(self.ext_source_coeff.value.shape[0])
+            print(f'Setting up extended source with {self.mod_steps} points')
 
         # Set flux factor vector from source (will be updated in trigger if PSF changes)
         coeff_flux  = self.ext_source_coeff.value[:, 3]
@@ -40,20 +106,24 @@ class ExtSourcePyramid(ModulatedPyramid):
         small_idx = self.xp.abs(self.flux_factor_vector) < threshold
         self.flux_factor_vector[small_idx] = 0.0
 
-        # Cache constant for u_tlt if ef and tlt_f are static
-        self.u_tlt_const = self.ef * self.tlt_f
-
-        # Set ttexp_shape for trigger_code
-        self.ttexp_shape = (0, self.tilt_x.shape[0], self.tilt_x.shape[1])
-        self.ffv = None
         self.factor = 1.0 / self.xp.sum(self.flux_factor_vector)
+
+    def prepare_trigger(self, t):
+        super().prepare_trigger(t)
+
+        # Update tt cache in case the source was updated
+        if self.ext_source_coeff.generation_time == self.current_time:
+            # Source was updated this timestep, refresh ttexp, flux factors and ffv
+            self.mod_steps = int(self.ext_source_coeff.value.shape[0])
+            self.u_tlt = self.xp.zeros((self.mod_steps, self.fft_totsize, self.fft_totsize), dtype=self.complex_dtype)
+            self.cache_ttexp()
 
     def trigger_code(self):
         iu = 1j  # complex unit
 
         # Get extended source coefficients for current frame
+        # convert them from nm to rad
         coeff_ttf = self.ext_source_coeff.value[:,:3]
-
         # Reset output arrays for this frame
         self.pyr_image *= 0
         self.fpsf *= 0
@@ -88,3 +158,16 @@ class ExtSourcePyramid(ModulatedPyramid):
         self.psf_bfm.value *= self.factor
         self.transmission.value[:] = self.xp.sum(self.psf_tot.value) \
             / self.xp.sum(self.psf_bfm.value)
+
+    def setup(self):
+        super().setup()
+
+        # Cache Zernike modes for tip, tilt, focus (static for all frames)
+        zg = ZernikeGenerator(self.fft_sampling, xp=self.xp, dtype=self.dtype)
+        ext_xtilt = zg.getZernike(2)  # tip
+        ext_ytilt = zg.getZernike(3)  # tilt
+        ext_focus = zg.getZernike(4)  # focus
+        self.ext_ttf = self.xp.stack([ext_xtilt, ext_ytilt, ext_focus], axis=0)
+
+        # Set ttexp_shape for trigger_code
+        self.ttexp_shape = (0, self.tilt_x.shape[0], self.tilt_x.shape[1])

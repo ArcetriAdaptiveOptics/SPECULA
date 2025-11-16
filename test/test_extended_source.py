@@ -4,7 +4,7 @@ specula.init(0)
 import unittest
 import numpy as np
 from specula.processing_objects.extended_source import ExtendedSource
-from specula.processing_objects.modulated_pyramid import ModulatedPyramid
+from specula.processing_objects.ext_source_pyramid import ExtSourcePyramid
 from specula.data_objects.electric_field import ElectricField
 from specula.base_value import BaseValue
 from specula.data_objects.simul_params import SimulParams
@@ -126,7 +126,7 @@ class TestExtendedSource(unittest.TestCase):
         src.compute()
 
         # Pass it to the pyramid
-        pyr = ModulatedPyramid(
+        pyr = ExtSourcePyramid(
             simul_params=self.simul_params,
             wavelengthInNm=self.wavelengthInNm,
             fov=2.0,
@@ -145,10 +145,8 @@ class TestExtendedSource(unittest.TestCase):
 
         # Check that the extended source is loaded and parameters are consistent
         self.assertEqual(pyr.mod_steps, src.npoints)
-        self.assertEqual(pyr.ttexp.shape[1], src.npoints)
         self.assertEqual(pyr.flux_factor_vector.shape[0], src.npoints)
         self.assertAlmostEqual(float(np.sum(specula.cpuArray(pyr.flux_factor_vector))), 1.0, places=6)
-        self.assertEqual(pyr.ttexp.shape[2:], pyr.tilt_x.shape)
 
         # Optionally, plot for debug
         if self.debug_plot:

@@ -2,7 +2,7 @@ from typing import Optional, Union, List
 
 import numpy as np
 
-from specula import cpuArray
+from specula import cpuArray, ASEC2RAD
 from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.simul_params import SimulParams
 from specula.base_value import BaseValue
@@ -304,8 +304,12 @@ class ExtendedSource(BaseProcessingObj):
         np_rings = np.ceil(2 * np.pi * radius_rings / obj_sampling).astype(int)
 
         # Initialize arrays
-        xx_arcsec = [0.0]  # Central point
-        yy_arcsec = [0.0]
+        if n_rings > 1:
+            xx_arcsec = [0.0]  # Central point
+            yy_arcsec = [0.0]
+        else:
+            xx_arcsec = []
+            yy_arcsec = []
 
         # Generate points for each ring
         for j in range(n_rings):
@@ -636,9 +640,11 @@ class ExtendedSource(BaseProcessingObj):
     def _angle_to_tip(self, angle_arcsec: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
         """Convert angle in arcsec to tip/tilt coefficient in rad RMS @ wavelength"""
         # From IDL: angle2tip function
-        sec2rad = 4.848e-6
-        angle_rad = angle_arcsec * sec2rad
-        return angle_rad * self.d_tel / (self.wavelengthInNm * 1e-9) / (2.0 * np.pi)
+        angle_rad = angle_arcsec * ASEC2RAD
+        opd = angle_rad * self.d_tel
+        phase_difference = opd * 2.0 * np.pi / (self.wavelengthInNm * 1e-9)
+        tip_coefficient = phase_difference / 4.0
+        return tip_coefficient
 
     def _compute_focus_coefficient(self, layer_height: float) -> float:
         """Compute focus coefficient for a layer at given height"""

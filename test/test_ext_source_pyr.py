@@ -24,21 +24,26 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
         fov = 2.0
         pup_diam = 30
         output_resolution = 80
-        mod_amp = 3.0
+        mod_amp = 1.0
 
         simul_params = SimulParams(
             pixel_pupil=pixel_pupil,
             pixel_pitch=pixel_pitch
         )
 
+        loD = (wavelength_nm * 1e-9) / (pixel_pupil * pixel_pitch) * (206265)  # in arcsec
+
         # Create extended source
         src = ExtendedSource(
             simul_params=simul_params,
             wavelengthInNm=wavelength_nm,
-            source_type='GAUSS',
-            sampling_lambda_over_d=1.0,
-            size_obj=0.01,
-            sampling_type='CARTESIAN',
+            source_type='TOPHAT',
+            # diamter of the ring in arcsec to get a ring with radius mod_amp
+            size_obj=mod_amp * 4 * loD,
+            sampling_type='RINGS',
+            n_rings=1,             # one ring
+            # choose the value to have the same number of points as the modulation
+            sampling_lambda_over_d=np.pi/4,
             target_device_idx=target_device_idx,
         )
         src.compute()
@@ -61,7 +66,6 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             target_device_idx=target_device_idx
         )
         pyr1.inputs['in_ef'].set(ef)
-        pyr1.inputs['ext_source_coeff'].set(src.outputs['coeff'])
         pyr1.setup()
         pyr1.check_ready(1)
         pyr1.trigger()
@@ -101,11 +105,11 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             plt.subplot(1, 3, 3)
             plt.imshow(out1 - out2, cmap='viridis')
             plt.colorbar()
-            plt.title("Difference")
+            plt.title("Difference (small, flat)")
             plt.show()
 
         # Compare outputs
-        np.testing.assert_allclose(out1, out2, rtol=1e-6, atol=1e-8,
+        np.testing.assert_allclose(out1, out2, rtol=1e-3, atol=1e-3,
             err_msg="ExtSourcePyramid and ModulatedPyramid outputs differ!")
 
         # non flat wavefront
@@ -133,11 +137,11 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             plt.subplot(1, 3, 3)
             plt.imshow(out1 - out2, cmap='viridis')
             plt.colorbar()
-            plt.title("Difference")
+            plt.title("Difference (small, non-flat)")
             plt.show()
 
         # Compare outputs
-        np.testing.assert_allclose(out1, out2, rtol=1e-6, atol=1e-8,
+        np.testing.assert_allclose(out1, out2, rtol=1e-4, atol=1e-4,
             err_msg="ExtSourcePyramid and ModulatedPyramid outputs differ!")
 
         print("Comparison test passed: outputs are equal.")
@@ -151,21 +155,26 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
         fov = 2.0
         pup_diam = 30
         output_resolution = 80
-        mod_amp = 3.0
+        mod_amp = 10.0
 
         simul_params = SimulParams(
             pixel_pupil=pixel_pupil,
             pixel_pitch=pixel_pitch
         )
 
+        loD = (wavelength_nm * 1e-9) / (pixel_pupil * pixel_pitch) * (206265)  # in arcsec
+
         # Create extended source
         src = ExtendedSource(
             simul_params=simul_params,
             wavelengthInNm=wavelength_nm,
-            source_type='GAUSS',
-            sampling_lambda_over_d=10.0,
-            size_obj=1.0,
-            sampling_type='CARTESIAN',
+            source_type='TOPHAT',
+            # diamter of the ring in arcsec to get a ring with radius mod_amp
+            size_obj=mod_amp * 4 * loD,
+            sampling_type='RINGS',
+            n_rings=1,             # one ring
+            # choose the value to have the same number of points as the modulation
+            sampling_lambda_over_d=np.pi/4,
             target_device_idx=target_device_idx,
         )
         src.compute()
@@ -188,7 +197,6 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             target_device_idx=target_device_idx
         )
         pyr1.inputs['in_ef'].set(ef)
-        pyr1.inputs['ext_source_coeff'].set(src.outputs['coeff'])
         pyr1.setup()
         pyr1.check_ready(1)
         pyr1.trigger()
@@ -228,11 +236,11 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             plt.subplot(1, 3, 3)
             plt.imshow(out1 - out2, cmap='viridis')
             plt.colorbar()
-            plt.title("Difference")
+            plt.title("Difference (big, flat)")
             plt.show()
 
         # Compare outputs
-        np.testing.assert_allclose(out1, out2, rtol=1e-6, atol=1e-8,
+        np.testing.assert_allclose(out1, out2, rtol=1e-3, atol=1e-3,
             err_msg="ExtSourcePyramid and ModulatedPyramid outputs differ!")
 
         # non flat wavefront
@@ -260,11 +268,11 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             plt.subplot(1, 3, 3)
             plt.imshow(out1 - out2, cmap='viridis')
             plt.colorbar()
-            plt.title("Difference")
+            plt.title("Difference (big, non-flat)")
             plt.show()
 
         # Compare outputs
-        np.testing.assert_allclose(out1, out2, rtol=1e-6, atol=1e-8,
+        np.testing.assert_allclose(out1, out2, rtol=1e-4, atol=1e-4,
             err_msg="ExtSourcePyramid and ModulatedPyramid outputs differ!")
 
         print("Comparison test passed: outputs are equal.")

@@ -160,6 +160,8 @@ class ModulatedPyramid(BaseProcessingObj):
 
         self.mod_steps = int(mod_step)
         self.mod_amp = mod_amp
+        self.flux_factor_vector = None
+        self.factor = None
 
         self.out_i = Intensity(final_ccd_side, final_ccd_side, precision=self.precision, target_device_idx=self.target_device_idx)
         self.psf_tot = BaseValue(value=self.xp.zeros((fft_totsize, fft_totsize), dtype=self.dtype),
@@ -173,7 +175,6 @@ class ModulatedPyramid(BaseProcessingObj):
                                       precision=precision)
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
-        self.inputs['ext_source_coeff'] = InputValue(type=BaseValue, optional=True)
         self.outputs['out_i'] = self.out_i
         self.outputs['out_psf_tot'] = self.psf_tot
         self.outputs['out_psf_bfm'] = self.psf_bfm
@@ -389,102 +390,66 @@ class ModulatedPyramid(BaseProcessingObj):
         self.ttexp = self.xp.zeros((n_rotations, self.mod_steps, self.tilt_x.shape[0], self.tilt_x.shape[1]),
                                 dtype=self.complex_dtype)
 
-        if self.ext_source_coeff is not None:
-            # EXTENDED SOURCE MODE: Use source coefficients
-            coeff_tiltx = self.ext_source_coeff.value[:, 0]
-            coeff_tilty = self.ext_source_coeff.value[:, 1]
-            coeff_focus = self.ext_source_coeff.value[:, 2]
-            coeff_flux  = self.ext_source_coeff.value[:, 3]
-
-            # Create Zernike generator for the pupil
-            zg = ZernikeGenerator(self.fft_sampling, xp=self.xp, dtype=self.dtype)
-
-            # Get tip, tilt, focus modes (Noll indices 2, 3, 4)
-            ext_xtilt = zg.getZernike(2)  # tip
-            ext_ytilt = zg.getZernike(3)  # tilt
-            ext_focus = zg.getZernike(4)  # focus
-
-            # Cache exponentials for each source point
+        # MODULATION MODE (extended source case moved to a different class):
+        # Handle different modulation types
+        if self.mod_type == 'circular':
+            # CIRCULAR MODULATION MODE: Standard pyramid modulation
             for tt in range(self.mod_steps):
-                # Combine tip, tilt, and focus for this point
-                pup_phase = (coeff_tiltx[tt] * ext_xtilt +
-                            coeff_tilty[tt] * ext_ytilt +
-                            coeff_focus[tt] * ext_focus)
+                angle = 2 * self.xp.pi * (tt / self.mod_steps)
+                pup_tt = (self.mod_amp * self.xp.sin(angle) * self.tilt_x +
+                        self.mod_amp * self.xp.cos(angle) * self.tilt_y)
 
-                self.ttexp[0, tt, :, :] = self.xp.exp(-iu * pup_phase, dtype=self.complex_dtype)
+                self.ttexp[0, tt, :, :] = self.xp.exp(-iu * pup_tt, dtype=self.complex_dtype)
 
-            # Set flux factor vector from source (will be updated in trigger if PSF changes)
-            self.flux_factor_vector = self.to_xp(coeff_flux)
-
-            # Clean up very small flux values
-            max_flux = self.xp.max(self.xp.abs(self.flux_factor_vector))
-            threshold = max_flux * 1e-5
-            small_idx = self.xp.abs(self.flux_factor_vector) < threshold
-            self.flux_factor_vector[small_idx] = 0.0
-
-            print(f'Cached extended source with {self.mod_steps} points, '
-                f'total flux: {self.xp.sum(self.flux_factor_vector):.3f}')
-
-        else:
-            # MODULATION MODE: Handle different modulation types
-            if self.mod_type == 'circular':
-                # CIRCULAR MODULATION MODE: Standard pyramid modulation
+            # Equal flux for all modulation steps
+            self.flux_factor_vector = self.xp.ones(self.mod_steps, dtype=self.dtype)
+        elif self.mod_type in ['vertical', 'horizontal', 'alternating']:
+            # LINEAR MODULATION: Generate vertical case first
+            for rotation_idx in range(n_rotations):
                 for tt in range(self.mod_steps):
-                    angle = 2 * self.xp.pi * (tt / self.mod_steps)
-                    pup_tt = (self.mod_amp * self.xp.sin(angle) * self.tilt_x +
-                            self.mod_amp * self.xp.cos(angle) * self.tilt_y)
+                    # Linear modulation from -mod_amp to +mod_amp
+                    tilt_value = self.mod_amp * (2 * tt / (self.mod_steps - 1) - 1)
 
-                    self.ttexp[0, tt, :, :] = self.xp.exp(-iu * pup_tt, dtype=self.complex_dtype)
+                    if self.mod_type == 'horizontal' or (self.mod_type == 'alternating' and rotation_idx == 1):
+                        # Horizontal modulation uses tilt_x
+                        pup_tt = tilt_value * self.tilt_x
+                    else:
+                        # Vertical modulation uses tilt_y
+                        pup_tt = tilt_value * self.tilt_y
 
-                # Equal flux for all modulation steps
-                self.flux_factor_vector = self.xp.ones(self.mod_steps, dtype=self.dtype)
-            elif self.mod_type in ['vertical', 'horizontal', 'alternating']:
-                # LINEAR MODULATION: Generate vertical case first
-                for rotation_idx in range(n_rotations):
-                    for tt in range(self.mod_steps):
-                        # Linear modulation from -mod_amp to +mod_amp
-                        tilt_value = self.mod_amp * (2 * tt / (self.mod_steps - 1) - 1)
+                    self.ttexp[rotation_idx, tt, :, :] = self.xp.exp(-iu * pup_tt, dtype=self.complex_dtype)
 
-                        if self.mod_type == 'horizontal' or (self.mod_type == 'alternating' and rotation_idx == 1):
-                            # Horizontal modulation uses tilt_x
-                            pup_tt = tilt_value * self.tilt_x
-                        else:
-                            # Vertical modulation uses tilt_y
-                            pup_tt = tilt_value * self.tilt_y
+            # Calculate flux correction for linear modulation
+            # Use integrated intensity over each step interval
+            self.flux_factor_vector = self.xp.zeros(self.mod_steps, dtype=self.dtype)
 
-                        self.ttexp[rotation_idx, tt, :, :] = self.xp.exp(-iu * pup_tt, dtype=self.complex_dtype)
+            if self.mod_steps == 1:
+                self.flux_factor_vector[0] = 1.0
+            else:
+                for tt in range(self.mod_steps):
+                    # For linear modulation, use the average intensity over the step interval
+                    # This accounts for the continuous interval each discrete point represents
 
-                # Calculate flux correction for linear modulation
-                # Use integrated intensity over each step interval
-                self.flux_factor_vector = self.xp.zeros(self.mod_steps, dtype=self.dtype)
+                    # Step boundaries in tilt space
+                    if tt == 0:
+                        # First point: from -mod_amp to midpoint with next
+                        tilt_mid = self.mod_amp * (2 * 0.5 / (self.mod_steps - 1) - 1) # this is > - self.mod_amp
+                        avg_tilt = (-self.mod_amp + tilt_mid) / 2 # this means that normalized_angle cannot be - pi/2
+                    elif tt == self.mod_steps - 1:
+                        # Last point: from midpoint with previous to +mod_amp
+                        tilt_mid = self.mod_amp * (2 * (tt - 0.5) / (self.mod_steps - 1) - 1) # this is < self.mod_amp
+                        avg_tilt = (tilt_mid + self.mod_amp) / 2 # this means that normalized_angle cannot be pi/2
+                    else:
+                        # Middle points: average over symmetric interval
+                        avg_tilt = self.mod_amp * (2 * tt / (self.mod_steps - 1) - 1)
 
-                if self.mod_steps == 1:
-                    self.flux_factor_vector[0] = 1.0
-                else:
-                    for tt in range(self.mod_steps):
-                        # For linear modulation, use the average intensity over the step interval
-                        # This accounts for the continuous interval each discrete point represents
+                    # Convert to flux factor - INVERTED: more weight at the edges
+                    normalized_angle = self.xp.abs(avg_tilt) * self.xp.pi / (2 * self.mod_amp)
+                    # Use 1/cos(angle) to compensate for intensity loss at large tilts
+                    self.flux_factor_vector[tt] = 1.0 / self.xp.cos(normalized_angle)
 
-                        # Step boundaries in tilt space
-                        if tt == 0:
-                            # First point: from -mod_amp to midpoint with next
-                            tilt_mid = self.mod_amp * (2 * 0.5 / (self.mod_steps - 1) - 1) # this is > - self.mod_amp
-                            avg_tilt = (-self.mod_amp + tilt_mid) / 2 # this means that normalized_angle cannot be - pi/2
-                        elif tt == self.mod_steps - 1:
-                            # Last point: from midpoint with previous to +mod_amp
-                            tilt_mid = self.mod_amp * (2 * (tt - 0.5) / (self.mod_steps - 1) - 1) # this is < self.mod_amp
-                            avg_tilt = (tilt_mid + self.mod_amp) / 2 # this means that normalized_angle cannot be pi/2
-                        else:
-                            # Middle points: average over symmetric interval
-                            avg_tilt = self.mod_amp * (2 * tt / (self.mod_steps - 1) - 1)
-
-                        # Convert to flux factor - INVERTED: more weight at the edges
-                        normalized_angle = self.xp.abs(avg_tilt) * self.xp.pi / (2 * self.mod_amp)
-                        # Use 1/cos(angle) to compensate for intensity loss at large tilts
-                        self.flux_factor_vector[tt] = 1.0 / self.xp.cos(normalized_angle)
-
-            print(f'Cached circular modulation with {self.mod_steps} steps, '
-                f'amplitude: {self.mod_amp:.2f}')
+        print(f'Cached circular modulation with {self.mod_steps} steps, '
+            f'amplitude: {self.mod_amp:.2f}')
 
         # Common setup for both modes
         self.ffv = self.flux_factor_vector[:, self.xp.newaxis, self.xp.newaxis]
@@ -496,15 +461,6 @@ class ModulatedPyramid(BaseProcessingObj):
 
         # Update input reference
         in_ef = self.local_inputs['in_ef']
-
-        # Check if extended source has been updated (e.g., new PSF)
-        if self.ext_source_coeff is not None:
-            # Update tt cache in case the source was updated
-            if self.ext_source_coeff.generation_time == self.current_time:
-                # Source was updated this timestep, refresh ttexp, flux factors and ffv
-                self.mod_steps = int(self.ext_source_coeff.value.shape[0])
-                self.u_tlt = self.xp.zeros((self.mod_steps, self.fft_totsize, self.fft_totsize), dtype=self.complex_dtype)
-                self.cache_ttexp()
 
         # Apply interpolation if needed (like SH)
         if self._do_interpolation:
@@ -577,8 +533,6 @@ class ModulatedPyramid(BaseProcessingObj):
         self.pyr_image *=0
         self.fpsf *=0
 
-        print('self.mod_steps',self.mod_steps)
-
         for i in range(0, self.mod_steps):
             u_fp = self.xp.fft.fft2(self.u_tlt[i], axes=(-2, -1))
             u_fp_pyr = pyr1_fused(u_fp, self.ffv[i], self.fpsf, self.shifted_masked_exp, xp=self.xp)
@@ -635,12 +589,6 @@ class ModulatedPyramid(BaseProcessingObj):
 
     def setup(self):
         super().setup()
-
-        self.ext_source_coeff = self.local_inputs['ext_source_coeff']
-        if self.ext_source_coeff is not None:
-            # Update modulation steps to match source points
-            self.mod_steps = int(self.ext_source_coeff.value.shape[0])
-            print(f'Setting up extended source with {self.mod_steps} points')
 
         self.u_tlt = self.xp.zeros((self.mod_steps, self.fft_totsize, self.fft_totsize), dtype=self.complex_dtype)
         self.cache_ttexp()
@@ -708,4 +656,3 @@ class ModulatedPyramid(BaseProcessingObj):
 
         if self.stream_enable:
             super().build_stream()
-
