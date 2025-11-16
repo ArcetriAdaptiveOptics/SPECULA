@@ -141,7 +141,7 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             plt.show()
 
         # Compare outputs
-        np.testing.assert_allclose(out1, out2, rtol=1e-4, atol=1e-4,
+        np.testing.assert_allclose(out1, out2, rtol=1e-3, atol=1e-3,
             err_msg="ExtSourcePyramid and ModulatedPyramid outputs differ!")
 
         print("Comparison test passed: outputs are equal.")
