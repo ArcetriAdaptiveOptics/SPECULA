@@ -58,10 +58,7 @@ class ExtSourcePyramid(ModulatedPyramid):
 
         for i in range(self.mod_steps):
             # Compute pupil phase for each extended source point
-            # coeff_ttf[i] shape: (3,)
-            # self.ext_ttf shape: (3, N, N)
-            pup_phase = self.xp.tensordot(coeff_ttf[i], self.ext_ttf, axes=([0], [0]))
-            # pup_phase shape: (N, N)
+            pup_phase = self.xp.sum(coeff_ttf[i][:, None, None] * self.ext_ttf, axis=0)
             ttexp_i = self.xp.exp(-iu * pup_phase, dtype=self.complex_dtype)
 
             # Compute u_tlt for this point
