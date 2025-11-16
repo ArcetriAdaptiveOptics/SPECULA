@@ -125,7 +125,6 @@ class ExtSourcePyramid(ModulatedPyramid):
         if self.ext_source_coeff.generation_time == self.current_time:
             # Source was updated this timestep, refresh ttexp, flux factors and ffv
             self.mod_steps = int(self.ext_source_coeff.value.shape[0])
-            self.u_tlt = self.xp.zeros((self.mod_steps, self.fft_totsize, self.fft_totsize), dtype=self.complex_dtype)
             self.cache_ttexp()
 
     def trigger_code(self):
