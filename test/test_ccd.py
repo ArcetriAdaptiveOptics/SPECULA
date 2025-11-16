@@ -25,6 +25,34 @@ class TestCCD(unittest.TestCase):
         _ = CCD(simul_params, size=(2,2), dt=4, bandw=300,
                       target_device_idx=target_device_idx)
 
+
+    @cpu_and_gpu
+    def test_time_conversion_corner_cases1(self, target_device_idx, xp):
+        '''
+        Test that modulus operation work on the result of seconds_to_t(),
+        even when the original data would fail in floating point
+        '''
+        simul_params = SimulParams(time_step = 0.002)
+
+        # naive floating-point would fail: 1.0 % 0.002 == 0.0019999999999999792
+        # This code must not fail
+        _ = CCD(simul_params, size=(2,2), dt=1.0, bandw=300,
+                      target_device_idx=target_device_idx)
+
+    @cpu_and_gpu
+    def test_time_conversion_corner_cases2(self, target_device_idx, xp):
+        '''
+        Test that modulus operation work on the result of seconds_to_t(),
+        even when the original data would fail in floating point
+        '''
+        simul_params = SimulParams(time_step = 0.0001)
+
+        # naive floating-point would fail: 0.0005 % 0.0001 == 9.999999999999999e-05
+        # This code must not fail
+        _ = CCD(simul_params, size=(2,2), dt=0.0005, bandw=300,
+                      target_device_idx=target_device_idx)
+
+
     @cpu_and_gpu
     def test_ccd_raises_on_missing_input(self, target_device_idx, xp):
 

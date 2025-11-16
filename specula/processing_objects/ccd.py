@@ -51,12 +51,13 @@ class CCD(BaseProcessingObj):
 
         if dt <= 0:
             raise ValueError(f'dt (integration time) is {dt} and must be greater than zero')
-        if dt % simul_params.time_step != 0:
-            raise ValueError(f'integration time dt={dt} must be a multiple of the basic simulation time_step={simul_params.time_step}')
 
         self.dt = self.seconds_to_t(dt)
         self.loop_dt = self.seconds_to_t(simul_params.time_step)
         self.start_time = self.seconds_to_t(start_time)
+
+        if self.dt % self.loop_dt != 0:
+            raise ValueError(f'integration time dt={dt} must be a multiple of the basic simulation time_step={simul_params.time_step}')
 
         # TODO: move this code inside the wfs
         # if wfs and background_level:
