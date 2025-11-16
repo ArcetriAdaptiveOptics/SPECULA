@@ -577,6 +577,8 @@ class ModulatedPyramid(BaseProcessingObj):
         self.pyr_image *=0
         self.fpsf *=0
 
+        print('self.mod_steps',self.mod_steps)
+
         for i in range(0, self.mod_steps):
             u_fp = self.xp.fft.fft2(self.u_tlt[i], axes=(-2, -1))
             u_fp_pyr = pyr1_fused(u_fp, self.ffv[i], self.fpsf, self.shifted_masked_exp, xp=self.xp)
