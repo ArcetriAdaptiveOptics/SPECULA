@@ -17,6 +17,11 @@ def pyr1_abs2(v, norm, ffv, xp):
 
 
 class ExtSourcePyramid(ModulatedPyramid):
+    '''
+    Pyramid wavefront sensor for extended sources.
+    This version computes on the fly the pupil phase for each extended source point
+    to reduce memory usage compared to ModulatedPyramid with precomputed ttexp array.
+    '''
     def cache_ttexp(self):
         # Cache Zernike modes for tip, tilt, focus (static for all frames)
         zg = ZernikeGenerator(self.fft_sampling, xp=self.xp, dtype=self.dtype)
