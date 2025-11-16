@@ -96,6 +96,16 @@ class ExtSourcePyramid(ModulatedPyramid):
             self.mod_steps = int(self.ext_source_coeff.value.shape[0])
             print(f'Setting up extended source with {self.mod_steps} points')
 
+            # Cache Zernike modes for tip, tilt, focus (static for all frames)
+            zg = ZernikeGenerator(self.fft_sampling, xp=self.xp, dtype=self.dtype)
+            ext_xtilt = zg.getZernike(2)  # tip
+            ext_ytilt = zg.getZernike(3)  # tilt
+            ext_focus = zg.getZernike(4)  # focus
+            self.ext_ttf = self.xp.stack([ext_xtilt, ext_ytilt, ext_focus], axis=0)
+
+            # Set ttexp_shape for trigger_code
+            self.ttexp_shape = (0, self.tilt_x.shape[0], self.tilt_x.shape[1])
+
         # Set flux factor vector from source (will be updated in trigger if PSF changes)
         coeff_flux  = self.ext_source_coeff.value[:, 3]
         self.flux_factor_vector = self.to_xp(coeff_flux)
@@ -158,16 +168,3 @@ class ExtSourcePyramid(ModulatedPyramid):
         self.psf_bfm.value *= self.factor
         self.transmission.value[:] = self.xp.sum(self.psf_tot.value) \
             / self.xp.sum(self.psf_bfm.value)
-
-    def setup(self):
-        super().setup()
-
-        # Cache Zernike modes for tip, tilt, focus (static for all frames)
-        zg = ZernikeGenerator(self.fft_sampling, xp=self.xp, dtype=self.dtype)
-        ext_xtilt = zg.getZernike(2)  # tip
-        ext_ytilt = zg.getZernike(3)  # tilt
-        ext_focus = zg.getZernike(4)  # focus
-        self.ext_ttf = self.xp.stack([ext_xtilt, ext_ytilt, ext_focus], axis=0)
-
-        # Set ttexp_shape for trigger_code
-        self.ttexp_shape = (0, self.tilt_x.shape[0], self.tilt_x.shape[1])
