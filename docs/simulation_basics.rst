@@ -87,6 +87,7 @@ SPECULA supports special configuration options in YAML files to load data from e
 
 - Restores a full data object from disk (typically from a FITS file).
 - The value should be a tag or filename identifying the object to restore.
+- The object class is automatically inferred from the type hint of the corresponding initialization parameter in the Python class definition. When restoring an object, SPECULA calls the class's ``restore()`` method, passing the specified tag or filename as an argument.
 - The restored object is assigned to the parameter ``<name>`` in the object constructor.
 
 .. code-block:: yaml
