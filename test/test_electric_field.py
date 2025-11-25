@@ -12,6 +12,7 @@ from specula import cpuArray
 
 from specula.data_objects.electric_field import ElectricField
 from specula.processing_objects.electric_field_combinator import ElectricFieldCombinator
+from specula.processing_objects.electric_field_reflection import ElectricFieldReflection
 
 from test.specula_testlib import cpu_and_gpu
 
@@ -81,6 +82,34 @@ class TestElectricField(unittest.TestCase):
         assert np.allclose(out_ef.A, ef1.A * ef2.A)
         assert np.allclose(out_ef.phaseInNm, ef1.phaseInNm + ef2.phaseInNm)
         assert np.allclose(out_ef.S0, ef1.S0 + ef2.S0)
+
+    @cpu_and_gpu
+    def test_ef_reflection(self, target_device_idx, xp):
+        pixel_pitch = 0.1
+        pixel_pupil = 10
+        ef1 = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        A1 = xp.ones((pixel_pupil, pixel_pupil))
+        ef1.A = A1
+        ef1.phaseInNm = 1 * xp.ones((pixel_pupil, pixel_pupil))
+
+        ef_reflection = ElectricFieldReflection(
+            target_device_idx=target_device_idx
+        )
+
+        ef_reflection.inputs['in_ef'].set(ef1)
+
+        t = 1
+        ef1.generation_time = t
+
+        ef_reflection.check_ready(t)
+        ef_reflection.setup()
+        ef_reflection.trigger()
+        ef_reflection.post_trigger()
+
+        out_ef = ef_reflection.outputs['out_ef']
+
+        assert np.allclose(out_ef.A, ef1.A)
+        assert np.allclose(out_ef.phaseInNm, -1*ef1.phaseInNm)
 
     @cpu_and_gpu
     def test_save_and_restore(self, target_device_idx, xp):
