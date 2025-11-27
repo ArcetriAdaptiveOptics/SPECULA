@@ -29,7 +29,7 @@ class ElectricFieldReflection(BaseProcessingObj):
     def trigger(self):
         in_ef = self.local_inputs['in_ef']
         # Copy amplitude
-        self._out_ef.A[:] = in_ef.A.copy()
+        self._out_ef.A[:] = in_ef.A
         # Invert phase sign
         self._out_ef.phaseInNm[:] = -in_ef.phaseInNm
         # Copy S0 and generation time

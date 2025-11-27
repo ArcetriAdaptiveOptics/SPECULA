@@ -323,7 +323,7 @@ class IirFilterData(BaseDataObj):
         if freq is None:
             freq = np.logspace(-3, np.log10(fs/2), 1000)
 
-        x = freq.copy() / (fs/2) * np.pi
+        x = freq / (fs/2) * np.pi
         z = np.exp(1j * x)
 
         complex_tf = np.zeros(len(freq), dtype=complex)
@@ -589,7 +589,7 @@ class IirFilterData(BaseDataObj):
         closed_loop_den = Cp_den + Cp_num
 
         # Calculate frequency response of denominator
-        x = freq.copy() / (fs/2) * np.pi
+        x = freq / (fs/2) * np.pi
         z = np.exp(1j * x)
 
         denominator_response = np.zeros(len(freq), dtype=complex)

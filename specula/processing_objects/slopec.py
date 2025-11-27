@@ -77,7 +77,7 @@ class Slopec(BaseProcessingObj):
         if self.weight_int_pixel_dt <= 0:
             return
 
-        current_pixels = self.inputs['in_pixels'].get(self.target_device_idx).pixels.copy()
+        current_pixels = self.inputs['in_pixels'].get(self.target_device_idx).pixels
 
         # Initialize accumulated pixels if not exists
         if self.int_pixels is None:
