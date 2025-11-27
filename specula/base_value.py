@@ -17,10 +17,7 @@ class BaseValue(BaseDataObj):
         if value is not None:
             # if it is a scalar, convert to the appropriate scalar type
             if np.isscalar(value):
-                if self.xp is np:
-                    self.value = self.dtype(value)
-                else:
-                    self.value = getattr(self.xp, str(self.dtype).split('.')[-1])(value)
+                self.value = self.dtype(value)
             else:
                 self.value = self.to_xp(value, force_copy=True, dtype=self.dtype)
         else:
