@@ -166,7 +166,7 @@ class TestSlopes(unittest.TestCase):
         """
         s1 = Slopes(length=4, target_device_idx=target_device_idx)
         s1.slopes[:] = xp.array([5, 6, 7, 8])
-        base_value = BaseValue(value=xp.array([1, 1, 1, 1]))
+        base_value = BaseValue(value=xp.array([1, 1, 1, 1]), target_device_idx=target_device_idx)
         s1.subtract(base_value)
         xp.testing.assert_array_equal(s1.slopes, xp.array([4, 5, 6, 7]))
 
