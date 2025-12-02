@@ -16,7 +16,73 @@ def clamp_generic(x, c, y, xp):
 
 
 class CCD(BaseProcessingObj):
-    '''Simple CCD from intensity field'''
+    """Simple CCD from intensity field
+    It integrates the input intensity over a given time (dt) and
+    applies various noise sources to simulate a realistic CCD image.
+    
+    Parameters
+    ----------
+    simul_params : SimulParams
+        Simulation parameters object reference.
+    size : int list
+        Size of the CCD in pixels [nx, ny].
+    dt : float
+        Integration time in seconds.
+    bandw : float
+        Optical bandwidth in nm.
+    binning : int, optional
+        Pixel binning factor (default is 1, no binning).
+    photon_noise : bool, optional
+        Whether to apply photon noise (Poisson noise) (default is False).
+    readout_noise : bool, optional
+        Whether to apply readout noise (default is False).
+    excess_noise : bool, optional
+        Whether to apply excess noise (default is False).
+    darkcurrent_noise : bool, optional
+        Whether to apply dark current noise (default is False).
+    background_noise : bool, optional
+        Whether to apply background noise (default is False).
+    cic_noise : bool, optional
+        Whether to apply clock-induced charge noise (default is False).
+    cte_noise : bool, optional
+        Whether to apply charge transfer efficiency noise (default is False).
+    readout_level : float, optional
+        Readout noise level in electrons (default is 0.0).
+    darkcurrent_level : float, optional
+        Dark current level in electrons per pixel (default is 0.0).
+    background_level : float, optional
+        Background light level in electrons per pixel (default is 0.0).
+    cic_level : float, optional
+        Clock-induced charge level in electrons per pixel (default is 0).
+    cte_mat : array, optional
+        Charge transfer efficiency matrix (default is None).
+    quantum_eff : float, optional
+        Quantum efficiency (default is 1.0).
+        This is typically use to account for overall throughput.
+    pixelGains : array, optional
+        Pixel gain variations (default is None).
+    photon_seed : int, optional
+        Random seed for photon noise (default is 1).
+    readout_seed : int, optional
+        Random seed for readout noise (default is 2).
+    excess_seed : int, optional
+        Random seed for excess noise (default is 3).
+    excess_delta : float, optional
+        Excess noise factor (default is 1.0).
+        The excess noise factor is ENF = sqrt(2 - 1/excess_delta)
+    start_time : int, optional
+        Time to start the CCD integration (default is 0).
+    ADU_gain : float, optional
+        Analog-to-digital unit gain (default is None, which sets a default value based on excess noise).
+    ADU_bias : int, optional
+        Analog-to-digital unit bias level (default is 400).
+    emccd_gain : int, optional
+        Electron-multiplying CCD gain (default is None, which sets a default value based on excess noise).
+    target_device_idx : int, optional
+        Target device index for computation (CPU/GPU). Default is None (uses global setting).
+    precision : int, optional
+        Precision for computation (0 for double, 1 for single). Default is None (uses global setting).
+    """
     def __init__(self,
                  simul_params: SimulParams,
                  size: int,           # TODO list=[80,80],

@@ -12,6 +12,28 @@ import numpy as np
 
 
 class PSF(BaseProcessingObj):
+    """ Processing object that computes the Point Spread Function (PSF) from an input ElectricField.
+    Computes PSF, Strehl ratio (SR), integrated PSF and SR, and PSF standard deviation over time.
+
+    Parameters
+    ----------
+    simul_params : SimulParams
+        Simulation parameters object.
+    wavelengthInNm : float
+        Wavelength at which to compute the PSF [nm].
+    nd : float, optional
+        Numerical density of the PSF (pixels per lambda/D). If None, it is calculated
+        based on the input ElectricField and pixel size.
+    pixel_size_mas : float, optional
+        Desired pixel size of the PSF in milliarcseconds. If None, it is calculated
+        based on the input ElectricField and numerical density.
+    start_time : float, optional
+        Time (in seconds) after which to start integrating PSF and SR. Default is 0.0.
+    target_device_idx : int, optional
+        Target device index for computation (CPU/GPU). Default is None (uses global setting).
+    precision : int, optional
+        Precision for computation (0 for double, 1 for single). Default is None (uses global setting).
+    """
     def __init__(self,
                  simul_params: SimulParams,
                  wavelengthInNm: float,    # TODO =500.0,

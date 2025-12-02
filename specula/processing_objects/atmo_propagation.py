@@ -16,7 +16,37 @@ import numpy as np
 degree2rad = np.pi / 180.
 
 class AtmoPropagation(BaseProcessingObj):
-    '''Atmospheric propagation'''
+    """Atmospheric propagation
+    This processing object simulates the propagation of light through atmospheric turbulence layers.
+    It can perform both geometric and physical (Fresnel) propagation, depending on the configuration.
+
+    Note
+    ----
+    - By default, all atmospheric phase screens are referenced to a wavelength of 500 nm.
+    - Layer heights are always defined at zenith and projected according to the simulation
+      zenith angle (coming from simul_params).
+
+    Parameters
+    ----------
+    simul_params : SimulParams
+        Simulation parameters object containing global settings.
+    source_dict : dict
+        Dictionary of source objects (e.g., stars, LGS) to be propagated.
+    doFresnel : bool, optional
+        If True, physical Fresnel propagation is performed. Default is False (geometric propagation).
+    wavelengthInNm : float, optional
+        Wavelength in nanometers for Fresnel propagation. Required if doFresnel is True. Default is 500.0 nm.
+    pupil_position : array-like, optional
+        Position of the pupil in pixels. Default is None (centered).
+    mergeLayersContrib : bool, optional
+        If True, contributions from all layers are merged into a single output per source. Default is True.
+    upwards : bool, optional
+        If True, propagation is performed upwards (from ground to source). Default is False (downwards).
+    target_device_idx : int, optional
+        Target device index for computation (CPU/GPU). Default is None (uses global setting).
+    precision : int, optional
+        Precision for computation (0 for double, 1 for single). Default is None (uses global setting).
+    """
     def __init__(self,
                  simul_params: SimulParams,
                  source_dict: dict,     # TODO ={},

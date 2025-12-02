@@ -12,6 +12,45 @@ from specula.data_objects.infinite_phase_screen import InfinitePhaseScreen
 
 
 class AtmoInfiniteEvolution(BaseProcessingObj):
+    """Atmospheric infinite phase screens evolution..
+    Generates and evolves atmospheric phase screens based on input parameters such as
+    seeing, wind speed, and wind direction.
+
+    Note
+    ----
+    Phase screens are always generated at a reference wavelength of 500 nm.
+    
+    Parameters
+    ----------
+    simul_params : SimulParams
+        Simulation parameters object containing global simulation settings.
+    L0 : list
+        Outer scale(s) of turbulence for each layer in meters.
+    heights : list
+        Heights of the atmospheric layers in meters (at zenith).
+    Cn2 : list
+        Fractional Cn2 values for each layer (must sum to 1.0).
+    data_dir : str
+        Directory path for storing/loading phase screen data (automatically set by simul.py).
+    fov : float, optional
+        Field of view in arcseconds. Default is 0.0.
+    pixel_phasescreens : int, optional
+        Size of the square phase screens in pixels. Default is 8192.
+    seed : int, optional
+        Seed for random number generation. Must be >0. Default is 1.
+    extra_delta_time : float or list, optional
+        Extra time offset for phase screen evolution in seconds. Default is 0.
+    verbose : bool, optional
+        If True, enables verbose output during phase screen generation. Default is False.
+    fov_in_m : float, optional
+        Field of view in meters. If provided, overrides fov parameter. Default is None.
+    pupil_position : list, optional
+        [x, y] position of the pupil in meters. Default is [0, 0].
+    target_device_idx : int, optional
+        Target device index for computation (CPU/GPU). Default is None (uses global setting).
+    precision : int, optional
+        Precision for computation (0 for double, 1 for single). Default is None (uses global setting).
+    """
     def __init__(self,
                  simul_params: SimulParams,
                  L0: list=[1.0],

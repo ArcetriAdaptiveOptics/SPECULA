@@ -94,6 +94,15 @@ Flatten
    :show-inheritance:
 
 
+Fsoc Lib
+--------
+
+.. automodule:: specula.lib.fsoc_lib
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Interp2D
 --------
 
@@ -125,6 +134,15 @@ Mask
 ----
 
 .. automodule:: specula.lib.mask
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Mmse Reconstructor
+------------------
+
+.. automodule:: specula.lib.mmse_reconstructor
    :members:
    :undoc-members:
    :show-inheritance:
