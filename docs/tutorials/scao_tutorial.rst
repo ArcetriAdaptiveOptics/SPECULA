@@ -24,7 +24,7 @@ Atmospheric and Source Parameters: Zenith Convention
 ---------------------------------------------------
 
 In SPECULA, all atmospheric parameters such as **seeing**, **layer heights**, and also **source heights** are defined **at zenith** (i.e., for a zenith angle of 0°).  
-If a non-zero zenith angle is specified in the `main` section (using the `zenith_angle` parameter), these values are automatically scaled according to the airmass and geometric projection.
+If a non-zero zenith angle is specified in the `main` section (using the `zenithAngleInDeg` parameter), these values are automatically scaled according to the airmass and geometric projection.
 
 - **Seeing**: The value you provide is assumed at zenith and will be increased for off-zenith simulations.
 - **Layer heights**: The heights in the `atmo` block are at zenith; the code projects them according to the zenith angle.

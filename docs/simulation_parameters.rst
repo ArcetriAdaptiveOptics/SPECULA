@@ -27,10 +27,10 @@ Zenith Convention
 
 In SPECULA, all atmospheric parameters such as **seeing**, **layer heights**, and **source heights** are defined **at zenith** (i.e., for a zenith angle of 0°).
 
-If a non-zero zenith angle is specified in the ``main`` section (using the ``zenith_angle`` parameter), these values are automatically scaled according to the airmass and geometric projection.
+If a non-zero zenith angle is specified in the ``main`` section (using the ``zenithAngleInDeg`` parameter), these values are automatically scaled according to the airmass and geometric projection.
 
-- **Seeing**: The value you provide is assumed at zenith and will be increased for off-zenith simulations according to the airmass.
-- **Layer heights**: The heights in the ``atmo`` block are at zenith; the code projects them according to the zenith angle.
+- **Seeing**: The value (in arcsec) you provide is assumed at zenith and will be increased for off-zenith simulations according to the airmass.
+- **Layer heights**: The heights (in m) in the ``atmo`` block are at zenith; the code projects them according to the zenith angle.
 - **Source heights**: If you use sources at finite distance (e.g., LGS), their heights are also interpreted as zenith values.
 
 This convention ensures that you can easily switch between on-axis and off-axis simulations by simply changing the zenith angle in the ``main`` section, without having to recalculate all physical parameters.
@@ -90,7 +90,7 @@ If CuPy is not installed, GPU execution is not available and all computations ru
 Default Values and Behavior
 ----------------------------
 
-- **zenith_angle**: If not specified in the ``main`` section, assumed to be 0° (on-axis).
+- **zenithAngleInDeg**: If not specified in the ``main`` section, assumed to be 0° (on-axis).
 - **pupil geometry**: If not specified, a circular pupil is assumed with diameter defined by ``pixel_pupil``.
 - **wavelength**: When not specified for a component, the wavelength from the source is used.
 - **fov**: Field of view in arcseconds. If 0 or not specified, a minimal FOV covering the pupil is used.
