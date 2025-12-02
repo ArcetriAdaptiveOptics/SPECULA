@@ -123,7 +123,8 @@ Basic Structure
 
    component_name:
      class: 'ComponentClass'
-     input_ref: 'source_name.output'
+     inputs:
+       input_name: 'source_name.output'
      parameter: value
 
 Parameter References
@@ -140,19 +141,21 @@ Example:
 
    dm:
      class: 'Dm'
-     modes: 'zernike.out_modes'  # Reference output from zernike block
-     n_modes: 'main.n_modes'      # Reference parameter from main block
+     inputs:
+       modes: 'zernike.out_modes'    # Reference output from zernike block
+       commands: 'controller.out'    # Reference output from controller
+     n_modes: 'main.n_modes'          # Reference parameter from main block
 
 Component Inputs and Outputs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Most processing objects have:
 
-- **Inputs**: Data consumed by the object (e.g., electric field, slopes, commands)
+- **Inputs**: Data consumed by the object (e.g., electric field, slopes, commands). Specified under the ``inputs:`` section.
 - **Outputs**: Data produced by the object (e.g., wavefront, PSF, signals)
 - **Parameters**: Configuration values that define the object's behavior
 
-Inputs are specified using the ``input_ref`` pattern, while parameters are set directly.
+Inputs are specified using the ``inputs:`` dictionary with key-value pairs, while parameters are set directly at the component level.
 
 Common Pitfalls
 ---------------
