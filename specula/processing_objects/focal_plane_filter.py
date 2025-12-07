@@ -71,8 +71,8 @@ class FocalPlaneFilter(BaseProcessingObj):
 
     def calc_geometry(self, DpupPix, pixel_pitch, lambda_, FoV,
                       fov_errinf=0.1, fov_errsup=0.5,  fft_res=3.0):
-        D = DpupPix * pixel_pitch
-        Fov_internal = lambda_ * 1e-9 / D * (D / pixel_pitch) * RAD2ASEC
+
+        Fov_internal = lambda_ * 1e-9 / pixel_pitch * RAD2ASEC
         minfov = FoV * (1 - fov_errinf)
         maxfov = FoV * (1 + fov_errsup)
         fov_res = 1.0
