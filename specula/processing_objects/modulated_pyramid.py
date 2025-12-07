@@ -227,12 +227,14 @@ class ModulatedPyramid(BaseProcessingObj):
             min_pup_dist = pup_diam + pup_margin * 2
 
         if pup_dist < min_pup_dist:
-            print(f"Error: pup_dist (px) = {pup_dist} is not enough to hold the pupil geometry. Minimum allowed distance is {min_pup_dist}")
+            print(f"Error: pup_dist (px) = {pup_dist} is not enough to hold the pupil geometry."
+                  f" Minimum allowed distance is {min_pup_dist}")
             return 0
 
         min_ccd_side = pup_dist + pup_diam + pup_margin * 2
         if ccd_side < min_ccd_side:
-            print(f"Error: ccd_side (px) = {ccd_side} is not enough to hold the pupil geometry. Minimum allowed side is {min_ccd_side}")
+            print(f"Error: ccd_side (px) = {ccd_side} is not enough to hold the pupil geometry."
+                  f" Minimum allowed side is {min_ccd_side}")
             return 0
 
         D = DpupPix * pixel_pitch
@@ -255,16 +257,16 @@ class ModulatedPyramid(BaseProcessingObj):
         if fov_res > 1:
             Fov_internal *= fov_res
             print(f"Interpolated FoV (arcsec): {Fov_internal:.2f}")
-            print(f"Warning: reaching the requested FoV requires {fov_res}x interpolation of input phase array.")
-            print("Consider revising the input phase dimension and/or pitch to improve performance.")
-
-        if fov_res > 1:
-            Fov_internal *= fov_res
+            print(f"Warning: reaching the requested FoV requires {fov_res}x interpolation"
+                  f" of input phase array.")
+            print("Consider revising the input phase dimension and/or pitch to improve"
+                  " performance.")
 
         fp_masking = FoV / Fov_internal
 
         if Fov_internal != FoV:
-            print(f"FoV reduction from {Fov_internal:.2f} to {FoV:.2f} will be performed with a focal plane mask")
+            print(f"FoV reduction from {Fov_internal:.2f} to {FoV:.2f} will be performed"
+                  f" with a focal plane mask")
 
         DpupPixFov = DpupPix * fov_res
         fft_res_min = (pup_dist + pup_diam) / pup_diam * 1.1
