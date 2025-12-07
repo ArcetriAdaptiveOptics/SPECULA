@@ -56,7 +56,7 @@ class VortexCoronograph(Coronograph):
             inVortex = self._innerCharge * theta + self._innerShift
             inRho = self._innerRadInLambdaOverD * self.fft_res
             vortex[rho<=inRho] = inVortex[rho<=inRho]
-        fp_mask = self.xp.exp(1j*vortex)
+        fp_mask = self.xp.exp(1j*vortex, dtype=self.xp.complex64)
         return fp_mask
     
     def make_pupil_plane_mask(self):

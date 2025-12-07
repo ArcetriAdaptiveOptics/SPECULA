@@ -52,7 +52,7 @@ class APPCoronograph(Coronograph):
 
         
     def make_apodizer(self):
-        return self.xp.exp(1j*self.apodizer_phase)
+        return self.xp.exp(1j*self.apodizer_phase, dtype=self.xp.complex64)
 
     def make_focal_plane_mask(self):
         return 1.0

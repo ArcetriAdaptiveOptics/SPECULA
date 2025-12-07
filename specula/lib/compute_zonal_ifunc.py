@@ -181,15 +181,15 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32,circ_geom:bool=False
         coords = coordinates[:, idx_master]
         n_act_tot = len(idx_master)
 
-    # debugging
-    import matplotlib.pyplot as plt
-    plt.figure()
-    plt.imshow(cpuArray(mask),origin='lower')
-    plt.scatter(cpuArray(coordinates[0,idx_master]),cpuArray(coordinates[1,idx_master]),c='green',label='masters')
-    plt.scatter(cpuArray(coordinates[0,idx_slave]),cpuArray(coordinates[1,idx_slave]),c='red',label='slaves')
-    plt.legend()
-    plt.grid()
-    plt.show()
+        # # debugging
+        # import matplotlib.pyplot as plt
+        # plt.figure()
+        # plt.imshow(cpuArray(mask),origin='lower')
+        # plt.scatter(cpuArray(coordinates[0,idx_master]),cpuArray(coordinates[1,idx_master]),c='green',label='masters')
+        # plt.scatter(cpuArray(coordinates[0,idx_slave]),cpuArray(coordinates[1,idx_slave]),c='red',label='slaves')
+        # plt.legend()
+        # plt.grid()
+        # plt.show()
 
     ifs_2d = xp.array([ifs_cube[i][idx] for i in range(n_act_tot)], dtype=dtype)
 

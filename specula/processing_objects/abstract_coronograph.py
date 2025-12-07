@@ -152,7 +152,7 @@ class Coronograph(BaseProcessingObj):
         apodized_ef = ef_pad * self.apodizer
 
         # Step 2: Propagate field to focal plane with FFT
-        ef_fp = self.propagate_to_focal_plane(apodized_ef)
+        ef_fp = self.xp.fft.fft2(ef_pad)
 
         # Step 3: Apply focal plane mask (appropriately shifted)
         fp_mask_centered = self.xp.fft.fftshift(self.fp_mask)
