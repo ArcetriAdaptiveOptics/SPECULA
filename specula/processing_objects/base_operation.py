@@ -67,7 +67,7 @@ class BaseOperation(BaseProcessingObj):
         self.sum = sum
         self.sub = sub
         self.concat = concat
-        self.out_value = BaseValue(target_device_idx=target_device_idx)
+        self.out_value = BaseValue(target_device_idx=target_device_idx, precision=precision)
         self.value2_is_shorter = value2_is_shorter
         self.value2_remap = value2_remap
 

@@ -20,8 +20,9 @@ class MVM(BaseProcessingObj):
         self.recmat = recmat
 
         # Create outputs
-        self.output = BaseValue('output from matrix-vector multiplication', 
-                               target_device_idx=target_device_idx)
+        self.output = BaseValue('output from matrix-vector multiplication',
+                               target_device_idx=target_device_idx,
+                               precision=precision)
 
         # Define inputs/outputs - solo in_vector
         self.inputs['in_vector'] = InputValue(type=BaseValue)

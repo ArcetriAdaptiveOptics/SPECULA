@@ -65,6 +65,47 @@ Configuration System
 Simulations are defined through hierarchical YAML configuration files.
 See `tutorials/scao_tutorial` for a SCAO system example and the files in the ``config/scao`` directory.
 
+Special YAML Options: ``_data`` and ``_object``
+-----------------------------------------------
+
+SPECULA supports special configuration options in YAML files to load data from external sources or restore objects from disk. These options allow flexible initialization of simulation objects.
+
+``<name>_data`` option
+~~~~~~~~~~~~~~~~~~~~~~
+
+- Loads a physical quantity (e.g., array, image, mask) from a FITS file.
+- The value should be the path to a FITS file (relative to ``root_dir/data``).
+- The loaded data is assigned to the parameter ``<name>`` in the object constructor.
+
+.. code-block:: yaml
+
+   pupil_data: "pupil_mask.fits"      # Loads the pupil mask from a FITS file
+   atmo_data: "atmo_layers.fits"      # Loads atmospheric layers
+
+``<name>_object`` option
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Restores a full data object from disk (typically from a FITS file).
+- The value should be a tag or filename identifying the object to restore.
+- The object class is automatically inferred from the type hint of the corresponding initialization parameter in the Python class definition. When restoring an object, SPECULA calls the class's ``restore()`` method, passing the specified tag or filename as an argument.
+- The restored object is assigned to the parameter ``<name>`` in the object constructor.
+
+.. code-block:: yaml
+
+   intmat_object: "intmat_tag"        # Restores the interaction matrix object
+   slopes_object: "slopes_tag"        # Restores a Slopes data object
+
+Usage Notes
+~~~~~~~~~~~
+
+- These options are parsed automatically by the simulation loader.
+- If the value is ``None``, the parameter is set to ``None``.
+- The type of the restored object is inferred from the class constructor type hints.
+- For advanced usage, see the documentation in :doc:`data_objects`.
+
+.. note::
+   You can mix ``_data`` and ``_object`` options with standard YAML parameters in your configuration files.
+
 Connection Graph
 ~~~~~~~~~~~~~~~~
 

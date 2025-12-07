@@ -20,6 +20,7 @@ class DataStore(BaseProcessingObj):
                 split_size: int=0,
                 first_suffix: int=0,
                 data_format: str='fits',
+                start_time: float=0,
                 create_tn: bool=True):
         super().__init__()
         self.data_filename = ''
@@ -32,6 +33,7 @@ class DataStore(BaseProcessingObj):
         self.iter_counter = 0
         self.split_size = split_size
         self.first_suffix = first_suffix
+        self.start_time = self.seconds_to_t(start_time)
         self.init_storage()
 
     def init_storage(self):
@@ -100,6 +102,9 @@ class DataStore(BaseProcessingObj):
         self.tn_dir = fullpath
 
     def trigger_code(self):
+        if self.current_time < self.start_time:
+            return
+
         for k, item in self.local_inputs.items():
             if item is not None and item.generation_time == self.current_time:
                 value = item.get_value()

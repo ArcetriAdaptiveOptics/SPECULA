@@ -62,6 +62,36 @@ class TestDataStore(unittest.TestCase):
         replay_file = os.path.join(last_tn_dir, 'replay_params.yml')
         assert os.path.exists(replay_file), f"File {replay_file} does not exist"
 
+    @cpu_and_gpu
+    def test_data_store_start_time(self, target_device_idx, xp):
+        params = {'main': {'class': 'SimulParams', 'root_dir': self.tmp_dir,
+                           'time_step': 0.1, 'total_time': 0.4},
+                  'generator': {'class': 'WaveGenerator', 'target_device_idx': target_device_idx, 'amp': 1, 'freq': 2},
+                  'store': {'class': 'DataStore', 'store_dir': self.tmp_dir,
+                            'start_time': 0.2,
+                            'inputs': {'input_list': ['gen-generator.output']},
+                            }
+                  }
+        filename = os.path.join(self.tmp_dir, 'test_data_store.yaml')
+        with open(filename, 'w') as outfile:
+            yaml.dump(params, outfile)
+
+        simul = Simul(filename)
+        simul.run()
+
+        # Find last TN in tmp_dir
+        tn_dirs = sorted([d for d in os.listdir(self.tmp_dir) if d.startswith('2')])
+        last_tn_dir = os.path.join(self.tmp_dir, tn_dirs[-1])
+
+        gen_file = os.path.join(last_tn_dir, 'gen.fits')
+        assert os.path.exists(gen_file), f"File {gen_file} does not exist"
+
+        # Make sure times are correct
+        gen_times = fits.getdata(gen_file, ext=1)
+        ref_times = np.arange(0.2, 0.4, 0.1) * simul.objs['store']._time_resolution
+        np.testing.assert_array_almost_equal(gen_times, ref_times)
+        assert gen_times.dtype == np.uint64
+
     def test_data_store_fails_early(self):
         """Test that DataStore fails during setup() if a class without get_value() is set as an input"""
         buffer_size = 2

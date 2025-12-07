@@ -44,7 +44,8 @@ class ShSlopec(Slopec):
         super().__init__(sn=sn, filtmat=filtmat, weight_int_pixel_dt=weight_int_pixel_dt,
                          target_device_idx=target_device_idx, precision=precision)
         self.thr_value = thr_value
-        self.thr_mask_cube = BaseValue(target_device_idx=self.target_device_idx)
+        self.thr_mask_cube = BaseValue(target_device_idx=self.target_device_idx,
+                                       precision=precision)
         self.xweights = None
         self.yweights = None
         self.xcweights = None

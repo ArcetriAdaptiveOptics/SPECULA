@@ -20,6 +20,20 @@ Note that a more basic SCAO simulation tutorial is available in the :ref:`scao_b
 * Basic understanding of adaptive optics concepts
 * Python and YAML familiarity
 
+Atmospheric and Source Parameters: Zenith Convention
+---------------------------------------------------
+
+In SPECULA, all atmospheric parameters such as **seeing**, **layer heights**, and also **source heights** are defined **at zenith** (i.e., for a zenith angle of 0°).  
+If a non-zero zenith angle is specified in the `main` section (using the `zenithAngleInDeg` parameter), these values are automatically scaled according to the airmass and geometric projection.
+
+- **Seeing**: The value you provide is assumed at zenith and will be increased for off-zenith simulations.
+- **Layer heights**: The heights in the `atmo` block are at zenith; the code projects them according to the zenith angle.
+- **Source heights**: If you use sources at finite distance (e.g., LGS), their heights are also interpreted as zenith values.
+
+This convention ensures that you can easily switch between on-axis and off-axis simulations by simply changing the zenith angle in the `main` section, without having to recalculate all physical parameters.
+
+*For more details, see :ref:`simulation_parameters` in the documentation.*
+
 Tutorial Overview
 -----------------
 
@@ -107,7 +121,7 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
       r0 = 0.15                    # Fried parameter at 500nm [m]
       L0 = 25.0                    # Outer scale [m] 
       zern_modes = 5               # Number of Zernike modes to include
-      oversampling = 1             # No oversampling
+      oversampling = 2             # Minimum oversampling for FFT computations
       
       # Computation parameters
       dtype = specula.xp.float32   # Use current device precision
@@ -375,13 +389,13 @@ Create ``config/scao_tutorial.yml``:
      pixel_pitch:       0.0513                # [m] 8.2m / 160 pixels = 0.0513 m/pixel
      total_time:        2.000                 # [s] 2 seconds simulation
      time_step:         0.001                 # [s] 1ms time steps (1 kHz)
-     zenithAngleInDeg:  0.0                   # [deg] Zenith observation (no airmass)
+     zenithAngleInDeg:  0.0                   # [deg] Zenith observation (0 means no airmass)
      display_server:    false                 # Disable for batch runs
    
    # Atmospheric conditions
    seeing:
      class:             'WaveGenerator'
-     constant:          0.65                  # [arcsec] Good seeing conditions (r0 about 15cm)
+     constant:          0.65                  # [arcsec] Good seeing conditions (500nm, at zenith, r0 about 15cm)
      outputs:           ['output']
    
    wind_speed:
@@ -423,8 +437,8 @@ Create ``config/scao_tutorial.yml``:
      simul_params_ref:  'main'
      L0:                25.0                  # [m] Outer scale
      # Simplified 3-layer model for tutorial
-     heights:           [0.0, 4000.0, 12000.0]  # [m] Ground, mid, high layers
-     Cn2:               [0.7, 0.2, 0.1]       # Cn2 fractions (sum = 1.0)
+     heights:           [0.0, 4000.0, 12000.0] # [m] Ground, mid, high layers at 0 zenith angle
+     Cn2:               [0.7, 0.2, 0.1]        # Cn2 fractions (sum = 1.0)
      fov:               60.0                   # [arcsec] Field of view
      inputs:
        seeing:          'seeing.output'

@@ -1,0 +1,35 @@
+name: Release
+on:
+  pull_request:
+  push:
+    tags:
+      - "*"
+jobs:
+  build-n-publish:
+    name: Build and publish Python 🐍 distributions 📦
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # OIDC AUTHENTICATION
+    # Run only on:
+    # - tag pushes
+    # - PRs with label "Build wheels"
+    if: >
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags')) ||
+      contains(toJson(github.event.pull_request.labels), 'Build wheels')
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - name: Install python-build and twine
+        run: python -m pip install build twine
+      - name: Build package
+        run: python -m build --sdist --wheel .
+      - name: List result
+        run: ls -l dist
+      - name: Publish distribution 📦 to PyPI
+        if: startsWith(github.ref, 'refs/tags')
+        uses: pypa/gh-action-pypi-publish@release/v1

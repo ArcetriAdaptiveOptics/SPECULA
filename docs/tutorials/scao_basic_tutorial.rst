@@ -19,6 +19,20 @@ A more advanced SCAO simulation tutorial is available in the :ref:`scao_tutorial
 * Basic understanding of adaptive optics concepts
 * Python and YAML familiarity
 
+Atmospheric and Source Parameters: Zenith Convention
+---------------------------------------------------
+
+In SPECULA, all atmospheric parameters such as **seeing**, **layer heights**, and also **source heights** are defined **at zenith** (i.e., for a zenith angle of 0°). 
+If a non-zero zenith angle is specified in the `main` section (using the `zenithAngleInDeg` parameter), these values are automatically scaled according to the airmass and geometric projection.
+
+- **Seeing**: The value you provide is assumed at zenith and will be increased for off-zenith simulations.
+- **Layer heights**: The heights in the `atmo` block are at zenith; the code projects them according to the zenith angle.
+- **Source heights**: If you use sources at finite distance (e.g., LGS), their heights are also interpreted as zenith values.
+
+This convention ensures that you can easily switch between on-axis and off-axis simulations by simply changing the zenith angle in the `main` section, without having to recalculate all physical parameters.
+
+*For more details, see :ref:`simulation_parameters` in the documentation.*
+
 Tutorial Overview
 -----------------
 
@@ -95,6 +109,7 @@ Create a YAML configuration file, for example ``params_scao_pyr_basic.yml``:
 .. code-block:: yaml
 
    # main section with simulation parameters used by most of the components
+   # Note: zenith angle is not specified, so it is assumed to be 0 (on-axis) 
    main:
      class:             'SimulParams'
      root_dir:          './calib/'             # Root directory for calibration manager  
@@ -108,7 +123,7 @@ Create a YAML configuration file, for example ``params_scao_pyr_basic.yml``:
    # init method of the WaveGenerator class.
    seeing:
      class:             'WaveGenerator'
-     constant:          0.8                   # ["] seeing value
+     constant:          0.8                   # ["] seeing value (500nm and at zenith)
 
    # Wind speed and direction, also static in this example.
    # These can be functions of time or vary per layer in more complex setups.

@@ -178,3 +178,18 @@ class TestBaseValue(unittest.TestCase):
             recovered = obj.t_to_seconds(t)
             # Within one "tick" of precision
             self.assertAlmostEqual(recovered, seconds, delta=1/resolution)
+
+    @cpu_and_gpu
+    def test_time_conversion_modulus(self, target_device_idx, xp):
+        '''
+        Test that modulus operation work on the result of seconds_to_t(),
+        even when the original data would fail in floating point
+        '''
+        obj = BaseTimeObj(target_device_idx=target_device_idx)
+
+        dt = 1.0
+        time_step = 0.002   # 1.0 % 0.002 == 0.0019999999999999792
+
+        dt = obj.seconds_to_t(dt)
+        time_step = obj.seconds_to_t(time_step)
+        assert dt % time_step == 0

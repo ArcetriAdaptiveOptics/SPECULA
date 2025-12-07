@@ -14,12 +14,24 @@ class PsfCoronagraph(PSF):
     Perfect coronagraph implementation.
     It includes the standard PSF calculation since it inherits from the PSF class.
 
-    Args:
-        simul_params (SimulParams): Simulation parameters.
-        wavelengthInNm (float): Wavelength in nanometers.
-        nd (float, optional): Numerical aperture.
-        pixel_size_mas (float, optional): Pixel size in milliarcseconds.
-        start_time (float, optional): Start time for the integration.
+    Parameters
+    ----------
+    simul_params : SimulParams
+        Simulation parameters object.
+    wavelengthInNm : float
+        Wavelength at which to compute the PSF [nm].
+    nd : float, optional
+        Numerical density of the PSF (pixels per lambda/D). If None, it is calculated
+        based on the input ElectricField and pixel size.
+    pixel_size_mas : float, optional
+        Desired pixel size of the PSF in milliarcseconds. If None, it is calculated
+        based on the input ElectricField and numerical density.
+    start_time : float, optional
+        Time (in seconds) after which to start integrating PSF and SR. Default is 0.0.
+    target_device_idx : int, optional
+        Target device index for computation (CPU/GPU). Default is None (uses global setting).
+    precision : int, optional
+        Precision for computation (0 for double, 1 for single). Default is None (uses global setting).
     """
     def __init__(self,
                  simul_params: SimulParams,
@@ -41,9 +53,12 @@ class PsfCoronagraph(PSF):
         )
 
         # Additional outputs for coronagraph
-        self.coronagraph_psf = BaseValue(target_device_idx=self.target_device_idx)
-        self.int_coronagraph_psf = BaseValue(target_device_idx=self.target_device_idx)
-        self.std_coronagraph_psf = BaseValue(target_device_idx=self.target_device_idx)
+        self.coronagraph_psf = BaseValue(target_device_idx=self.target_device_idx,
+                                         precision=precision)
+        self.int_coronagraph_psf = BaseValue(target_device_idx=self.target_device_idx,
+                                             precision=precision)
+        self.std_coronagraph_psf = BaseValue(target_device_idx=self.target_device_idx,
+                                             precision=precision)
 
         self.outputs['out_coronagraph_psf'] = self.coronagraph_psf
         self.outputs['out_int_coronagraph_psf'] = self.int_coronagraph_psf

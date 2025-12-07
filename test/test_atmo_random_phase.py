@@ -51,7 +51,8 @@ class TestAtmoRandomPhase(unittest.TestCase):
 
         # Setup inputs
         pupilstop = Pupilstop(simul_params, target_device_idx=target_device_idx)
-        seeing = BaseValue(value=xp.array([0.8]), target_device_idx=target_device_idx)
+        seeing = BaseValue(value=xp.array([0.8]),
+                           target_device_idx=target_device_idx)
 
         atmo.inputs['pupilstop'].set(pupilstop)
         atmo.inputs['seeing'].set(seeing)
@@ -91,7 +92,8 @@ class TestAtmoRandomPhase(unittest.TestCase):
 
         # Setup inputs
         pupilstop = Pupilstop(simul_params, target_device_idx=target_device_idx)
-        seeing = BaseValue(value=xp.array([0.8]), target_device_idx=target_device_idx)
+        seeing = BaseValue(value=xp.array([0.8]),
+                           target_device_idx=target_device_idx)
 
         atmo.inputs['pupilstop'].set(pupilstop)
         atmo.inputs['seeing'].set(seeing)
@@ -134,7 +136,8 @@ class TestAtmoRandomPhase(unittest.TestCase):
 
         # Setup inputs
         pupilstop = Pupilstop(simul_params, target_device_idx=target_device_idx)
-        seeing = BaseValue(value=xp.array([0.8]), target_device_idx=target_device_idx)
+        seeing = BaseValue(value=xp.array([0.8]),
+                           target_device_idx=target_device_idx)
 
         atmo.inputs['pupilstop'].set(pupilstop)
         atmo.inputs['seeing'].set(seeing)
@@ -184,7 +187,8 @@ class TestAtmoRandomPhase(unittest.TestCase):
 
         # Setup inputs
         pupilstop = Pupilstop(simul_params, target_device_idx=target_device_idx)
-        seeing = BaseValue(value=xp.array([0.8]), target_device_idx=target_device_idx)
+        seeing = BaseValue(value=xp.array([0.8]),
+                           target_device_idx=target_device_idx)
 
         atmo.inputs['pupilstop'].set(pupilstop)
         atmo.inputs['seeing'].set(seeing)

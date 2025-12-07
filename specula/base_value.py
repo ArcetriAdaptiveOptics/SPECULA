@@ -4,7 +4,7 @@ from astropy.io import fits
 from specula.base_data_obj import BaseDataObj
 
 class BaseValue(BaseDataObj):
-    def __init__(self, description='', value=None, target_device_idx=None):
+    def __init__(self, description='', value=None, target_device_idx=None, precision=None):
         """
         Initialize the base value object.
 
@@ -12,16 +12,26 @@ class BaseValue(BaseDataObj):
         description (str, optional)
         value (any, optional): data to store. If not set, the value is initialized to None.
         """
-        super().__init__(target_device_idx=target_device_idx)
+        super().__init__(target_device_idx=target_device_idx, precision=precision)
         self.description = description
-        self.value = value
+        if value is not None:
+            # if it is a scalar, convert to the appropriate scalar type
+            if np.isscalar(value):
+                self.value = self.dtype(value)
+            else:
+                self.value = self.to_xp(value, force_copy=True, dtype=self.dtype)
+        else:
+            self.value = None
 
     def get_value(self):
         return self.value
 
     def set_value(self, val):
         if self.value is not None:
-            self.value[...] = self.to_xp(val)
+            if np.isscalar(self.value):
+                self.value = self.dtype(val)
+            else:
+                self.value[...] = self.to_xp(val)
         else:
             self.value = self.to_xp(val, force_copy=True, dtype=self.dtype)
 
@@ -54,7 +64,7 @@ class BaseValue(BaseDataObj):
 
     def array_for_display(self):
         return self.value
-    
+
     def get_fits_header(self):
         hdr = fits.Header()
         hdr['VERSION'] = 1

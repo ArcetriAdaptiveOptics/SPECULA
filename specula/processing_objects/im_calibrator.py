@@ -173,7 +173,7 @@ class ImCalibrator(BaseProcessingObj):
         in_slopes_object = self.local_inputs['in_slopes']
 
         for mode in range(self.nmodes):
-            self.single_im[mode].modes[0] = self.intmat.modes[mode].copy()
+            self.single_im[mode].modes[0] = self.intmat.modes[mode]
             self.single_im[mode].single_mask = in_slopes_object.single_mask
             self.single_im[mode].display_map = in_slopes_object.display_map
             self.single_im[mode].generation_time = self.current_time

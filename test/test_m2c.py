@@ -20,7 +20,7 @@ class TestM2C(unittest.TestCase):
         with open(m2c_path, 'w') as f:
             f.write('')
         obj = M2C(m2c=np.random.rand(*self.shape))
-        obj.save(m2c_filename,overwrite=True)
+        obj.save(m2c_path, overwrite=True)
 
     @cpu_and_gpu
     def test_initialization_and_get_value(self, target_device_idx, xp):

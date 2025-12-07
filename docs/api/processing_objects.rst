@@ -67,6 +67,15 @@ Base Operation
    :show-inheritance:
 
 
+Base Slicer
+-----------
+
+.. automodule:: specula.processing_objects.base_slicer
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Ccd
 ---
 
@@ -80,6 +89,15 @@ Data Buffer
 -----------
 
 .. automodule:: specula.processing_objects.data_buffer
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Data Print
+----------
+
+.. automodule:: specula.processing_objects.data_print
    :members:
    :undoc-members:
    :show-inheritance:
@@ -157,10 +175,37 @@ Electric Field Combinator
    :show-inheritance:
 
 
+Electric Field Reflection
+-------------------------
+
+.. automodule:: specula.processing_objects.electric_field_reflection
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Ext Source Pyramid
+------------------
+
+.. automodule:: specula.processing_objects.ext_source_pyramid
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Extended Source
 ---------------
 
 .. automodule:: specula.processing_objects.extended_source
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Focal Plane Filter
+------------------
+
+.. automodule:: specula.processing_objects.focal_plane_filter
    :members:
    :undoc-members:
    :show-inheritance:
@@ -301,6 +346,15 @@ Multi Rec Calibrator
    :show-inheritance:
 
 
+Mvm
+---
+
+.. automodule:: specula.processing_objects.mvm
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Optical Gain Estimator
 ----------------------
 
@@ -328,10 +382,28 @@ Poly Chrom Sh
    :show-inheritance:
 
 
+Poly Chrom Wfs
+--------------
+
+.. automodule:: specula.processing_objects.poly_chrom_wfs
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Poly Crom Pyramid
 -----------------
 
 .. automodule:: specula.processing_objects.poly_crom_pyramid
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Power Loss
+----------
+
+.. automodule:: specula.processing_objects.power_loss
    :members:
    :undoc-members:
    :show-inheritance:
@@ -449,6 +521,15 @@ Sn Calibrator
 -------------
 
 .. automodule:: specula.processing_objects.sn_calibrator
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Spot Monitor
+------------
+
+.. automodule:: specula.processing_objects.spot_monitor
    :members:
    :undoc-members:
    :show-inheritance:

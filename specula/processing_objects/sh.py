@@ -112,7 +112,8 @@ class SH(BaseProcessingObj):
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
         self.outputs['out_i'] = self._out_i
-        self.outputs['wf1'] = BaseValue(target_device_idx=self.target_device_idx)
+        self.outputs['wf1'] = BaseValue(target_device_idx=self.target_device_idx,
+                                        precision=precision)
 
     def _set_in_ef(self, in_ef):
 

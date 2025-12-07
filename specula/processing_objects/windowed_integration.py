@@ -32,7 +32,8 @@ class WindowedIntegration(BaseProcessingObj):
         self.inputs['input'] = InputValue(type=BaseValue)
 
         self.output = BaseValue(value=self.xp.zeros(n_elem, dtype=self.dtype),
-                                target_device_idx=target_device_idx)
+                                target_device_idx=target_device_idx,
+                                precision=precision)
         self.outputs['output'] = self.output
         self.integrated_value = self.xp.zeros(n_elem, dtype=self.dtype)
 

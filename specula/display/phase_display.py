@@ -36,11 +36,6 @@ class PhaseDisplay(BaseDisplay):
 
         return frame
 
-    def _reset_elements(self):
-        """Reset phase-specific elements"""
-        self.img = None
-        self._colorbar_added = False
-
     def _update_display(self, phase):
         frame = self._process_phase_data(phase)
 

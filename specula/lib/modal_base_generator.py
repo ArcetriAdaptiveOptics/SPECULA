@@ -59,19 +59,12 @@ def generate_distance_grid(N, M=None, xp=np, dtype=np.float32):
     if M is None:
         M = N
 
-    R = xp.zeros((M, N), dtype=dtype)
-    for x in range(N):
-        if x <= N/2:
-            f = x**2
-        else:
-            f = (N-x)**2
+    # "wrap" style indices like FFT: 0..N/2, -(N/2-1)..-1
+    kx = xp.abs(xp.fft.fftfreq(N) * N).astype(dtype)  # (N,)
+    ky = xp.abs(xp.fft.fftfreq(M) * M).astype(dtype)  # (M,)
 
-        for y in range(M):
-            if y <= M/2:
-                g = y**2
-            else:
-                g = (M-y)**2
-            R[y, x] = xp.sqrt(f + g)
+    KX, KY = xp.meshgrid(kx, ky, indexing='xy')
+    R = xp.sqrt(KX*KX + KY*KY, dtype=dtype)
 
     return R
 
@@ -85,13 +78,13 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0,
     pupil_mask : 2D array
         Pupil mask
     diameter : float
-        Telescope diameter
+        Telescope diameter in meters
     influence_functions : 2D array
-        Influence functions
+        Influence functions (n_actuators, npupil)
     r0 : float
-        Fried parameter
+        Fried parameter in meters
     L0 : float
-        Outer scale
+        Outer scale in meters
     oversampling : int
         Oversampling factor
     verbose : bool
@@ -104,11 +97,15 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0,
     Returns:
     --------
     ifft_covariance : 2D array
-        Covariance matrix    
+        Covariance matrix (n_actuators, n_actuators)
     """
 
     if verbose:
         print("Computing turbulence covariance matrix...")
+
+    if oversampling < 2:
+        raise ValueError("Oversampling factor must be at least 2"
+                         " to avoid errors in FFT computations.")
 
     if dtype == xp.float32:
         cdtype = xp.complex64
@@ -124,6 +121,9 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0,
 
     mask_size = max(mask_shape)
 
+    if verbose:
+        print("Step 1: Computing Fourier transforms of influence functions...")
+
     # Fourier transform of the influence functions 3D array
     ft_shape = (oversampling * mask_size, oversampling * mask_size)
 
@@ -133,7 +133,9 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0,
         if_flat = influence_functions[act_idx, :]
 
         if_2d = xp.zeros(mask_shape, dtype=dtype)
-        if_2d.ravel()[idx_mask] = if_flat
+        if_2d_flat = if_2d.ravel()
+        if_2d_flat[idx_mask] = if_flat
+        if_2d = if_2d_flat.reshape(mask_shape)
 
         support = xp.zeros(ft_shape, dtype=dtype)
         support[:mask_shape[0], :mask_shape[1]] = if_2d
@@ -141,33 +143,33 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0,
         ft_support = xp.fft.fft2(support)
         ft_influence_functions[:, :, act_idx] = ft_support
 
+    if verbose:
+        print("Step 2: Generating phase spectrum and computing covariance matrix...")
+
     # Generation of Phase Spectrum
-    sp_freq        = generate_distance_grid(oversampling*mask_size, xp=xp, dtype=dtype)/(oversampling*diameter)
-    phase_spectrum = generate_phase_spectrum(sp_freq, r0, L0, xp=xp)
+    sp_freq        = generate_distance_grid(
+        oversampling*mask_size, xp=xp, dtype=dtype
+    )/(oversampling*diameter)
+    phase_spectrum = generate_phase_spectrum(sp_freq, r0, L0, xp=xp, dtype=dtype)
     norm_factor    = npupil_mask**2 * (oversampling * diameter)**2
 
-    if xp.__name__ == "cupy":
-        prod_ft_shape = ft_shape[0] * ft_shape[1]
-    else:
-        prod_ft_shape = xp.prod(ft_shape)
+    prod_ft_shape = ft_shape[0] * ft_shape[1]
+
+    if verbose:
+        print("Step 3: Computing covariance matrix in Fourier domain...")
 
     # Fourier transform of the influence functions
-    if_ft = xp.zeros((prod_ft_shape, n_actuators), dtype=cdtype)
-    for act_idx in range(n_actuators):
-        if_ft[:, act_idx] = (ft_influence_functions[:, :, act_idx] * phase_spectrum).flatten()
+    ft_weighted = ft_influence_functions * phase_spectrum[:, :, xp.newaxis]
+    if_ft = ft_weighted.reshape(prod_ft_shape, n_actuators).astype(cdtype, copy=False)
 
-    # Fourier transform of the influence functions conjugate
-    if_ft_conj = xp.conj(ft_influence_functions.reshape(prod_ft_shape, n_actuators))
+    if verbose:
+        print("Step 4: Computing covariance matrix in spatial domain...")
 
-    r_if_ft = xp.real(if_ft)
-    i_if_ft = xp.imag(if_ft)
-    r_if_ft_conj = xp.real(if_ft_conj)
-    i_if_ft_conj = xp.imag(if_ft_conj)
-
-    r_ifft_cov = xp.matmul(r_if_ft.T, r_if_ft_conj)
-    i_ifft_cov = xp.matmul(i_if_ft.T, i_if_ft_conj)
-
-    ifft_covariance = (r_ifft_cov - i_ifft_cov) / norm_factor
+    # # Fourier transform of the influence functions conjugate
+    b_2d = ft_influence_functions.reshape(prod_ft_shape, n_actuators)  # (P, M), complex
+    # One complex matmul, then take real part (exactly matches OLD math)
+    cov_complex = xp.matmul(if_ft.T, xp.conj(b_2d))
+    ifft_covariance = xp.real(cov_complex) / norm_factor
 
     return ifft_covariance
 

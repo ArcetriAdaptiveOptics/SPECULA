@@ -12,13 +12,18 @@ class BaseSlicer(BaseProcessingObj):
                  target_device_idx=None,
                  precision=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
+
+        # Validate that indices and slice_args are not both set
+        if indices is not None and slice_args is not None:
+            raise ValueError("Cannot specify both 'indices' and 'slice_args'")
+
         self.indices = indices
         # Use slice arguments to create a slice object
         if slice_args is not None:
             self.slice_obj = slice(*slice_args)
         else:
             self.slice_obj = None
-        self.out_value = BaseValue(target_device_idx=target_device_idx)
+        self.out_value = BaseValue(target_device_idx=target_device_idx, precision=precision)
         self.inputs['in_value'] = InputValue(type=BaseValue)
         self.outputs['out_value'] = self.out_value
 

@@ -3,6 +3,7 @@ import re
 import typing
 import importlib
 import warnings
+from specula import to_xp
 
 def camelcase_to_snakecase(s):
     '''
@@ -107,7 +108,7 @@ def unravel_index_2d(idxs, shape, xp):
     if len(shape) != 2:
         raise ValueError('shape must be 2d')
 
-    idxs = xp.array(idxs).astype(int)
+    idxs = to_xp(xp, idxs).astype(int)
     _, ncols = shape
     row_idx = idxs // ncols
     col_idx = idxs - (row_idx * ncols)

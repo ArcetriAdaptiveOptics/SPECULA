@@ -47,8 +47,19 @@ If you have a CUDA-compatible GPU and want to benefit from GPU acceleration, ins
 **Without GPU:**
    SPECULA will automatically fall back to CPU computation using NumPy. Performance will be slower but all functionality remains available.
 
-Step 3: Clone SPECULA Repository
---------------------------------
+Step 3: Install SPECULA
+-----------------------
+
+You can install SPECULA in two ways:
+
+**A) Install from PyPI (recommended for most users):**
+
+.. code-block:: bash
+
+   # Install SPECULA from PyPI
+   pip install specula
+
+**B) Install from source (for development or latest features):**
 
 Clone the SPECULA repository from GitHub:
 
@@ -56,23 +67,15 @@ Clone the SPECULA repository from GitHub:
 
    # Clone the repository
    git clone https://github.com/ArcetriAdaptiveOptics/SPECULA.git
-   
+
    # Navigate to the directory
    cd SPECULA
 
-**Alternative: Download ZIP**
-   If you don't have Git installed, you can download the repository as a ZIP file from the GitHub page and extract it.
-
-Step 4: Install SPECULA
------------------------
-
-Install SPECULA and its dependencies:
+Then install in development mode:
 
 .. code-block:: bash
 
-   # Install in development mode (recommended)
    pip install -e .
-
 
 This installs SPECULA in "editable" mode, allowing you to modify the code and see changes immediately.
 

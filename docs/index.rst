@@ -21,6 +21,7 @@ Getting Started
 
    Installation <installation>
    Simulation basics <simulation_basics>
+   Simulation parameters <simulation_parameters>
    Running simulations <running_simulations>
    Diagrams <simul_diagrams>
    Calibration manager <calibration_manager>

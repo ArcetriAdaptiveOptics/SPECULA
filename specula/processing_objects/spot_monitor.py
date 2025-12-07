@@ -93,7 +93,8 @@ class SpotMonitor(BaseProcessingObj):
 
         # parameters: [amplitude, x0, y0, gamma, alpha, sky, fwhm, chi2, success]
         self.params = BaseValue(value=self.xp.zeros(9, dtype=self.dtype),
-                                target_device_idx=self.target_device_idx)
+                                target_device_idx=self.target_device_idx,
+                                precision=precision)
 
         self.outputs['out_sum_pixels'] = self.sum_pixels
         self.outputs['out_model_pixels'] = self.model_pixels

@@ -53,26 +53,6 @@ class BaseDisplay(BaseProcessingObj):
 
     # ============ UTILITY METHODS ============
 
-    def reset(self):
-        """Reset the display"""
-        if self._opened:
-            self.ax.clear()
-            self._safe_draw()
-        self.img = None
-        self.line = None
-        self._colorbar_added = False
-
-    def close(self):
-        """Close the display window"""
-        if self.fig:
-            plt.close(self.fig)
-            self._opened = False
-            self.fig = None
-            self.ax = None
-            self.img = None
-            self.line = None
-            self._colorbar_added = False
-
     def set_y_range(self, ymin, ymax):
         """Set fixed Y axis range"""
         if hasattr(self, '_yrange'):
@@ -90,7 +70,7 @@ class BaseDisplay(BaseProcessingObj):
         """Add colorbar if not already present"""
         if not hasattr(self, '_colorbar_added'):
             self._colorbar_added = False
-            
+
         if not self._colorbar_added and image_obj is not None:
             plt.colorbar(image_obj, ax=self.ax)
             self._colorbar_added = True
