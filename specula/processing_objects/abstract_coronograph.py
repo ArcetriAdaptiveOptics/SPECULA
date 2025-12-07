@@ -52,7 +52,7 @@ class Coronograph(BaseProcessingObj):
 
         self.ef_in = self.xp.zeros((self.fft_sampling, self.fft_sampling), dtype=self.complex_dtype)
         self.ef_out = self.xp.zeros((self.fft_sampling, self.fft_sampling), dtype=self.complex_dtype)
-        
+
 
     @abstractmethod
     def make_focal_plane_mask(self):
@@ -145,7 +145,11 @@ class Coronograph(BaseProcessingObj):
 
     def trigger_code(self):
         # Step 1: Apodize electric field
-        apodized_ef = self.ef_in * self.apodizer
+        ef_pad = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.complex_dtype)
+        pad_start = self.fft_padding // 2
+        ef_pad[pad_start:pad_start+self.fft_sampling, 
+                    pad_start:pad_start+self.fft_sampling] = self.ef_in
+        apodized_ef = ef_pad * self.apodizer
 
         # Step 2: Propagate field to focal plane with FFT
         ef_fp = self.propagate_to_focal_plane(apodized_ef)

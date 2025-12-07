@@ -1,0 +1,156 @@
+from specula.processing_objects.abstract_coronograph import Coronograph
+from specula.data_objects.simul_params import SimulParams
+from specula.lib.make_mask import make_mask
+# from specula import RAD2ASEC
+from specula import np
+
+
+class APPCoronograph(Coronograph):
+
+    def __init__(self,
+                 simul_params: SimulParams,
+                 wavelengthInNm: float,
+                 pupil,
+                 contrastInDarkHole:float,
+                 iwaInLambdaOverD:float,
+                 owaInLambdaOverD:float,
+                 fft_res: float = 3.0,
+                 make_symmetric: bool = False,
+                 beta: float = 0.9,
+                 target_device_idx: int = None,
+                 precision: int = None
+                ):
+        
+        self._iwa = iwaInLambdaOverD
+        self._owa = owaInLambdaOverD
+        super().__init__(simul_params=simul_params,
+                         wavelengthInNm=wavelengthInNm,
+                         fft_res=fft_res,
+                         target_device_idx=target_device_idx, 
+                         precision=precision)
+        
+        self.apodizer_phase = self.define_apodizing_phase(pupil, contrastInDarkHole, 
+                                                          iwaInLambdaOverD, owaInLambdaOverD, beta,
+                                                          fft_res, symmetric_dark_hole=make_symmetric)
+
+    def define_apodizing_phase(self, pupil, contrast, beta:float, 
+                            symmetric_dark_hole:bool=False, 
+                            max_its:int=1000, xp=np):
+        target_contrast = xp.zeros([self.fft_totsize,self.fft_totsize])
+        fp_obsratio = self._iwa / (self._owa * self.fft_res)
+        fp_diaratio = (self._owa * self.fft_res) / self.fft_totsize 
+        where = make_mask(self.fft_totsize, diaratio=fp_diaratio, obsratio=fp_obsratio, xp=self.xp)
+        if symmetric_dark_hole is False:
+            xc = 2*(self._iwa * self.fft_res + self.fft_totsize//2)/ self.fft_totsize
+            left = make_mask(self.fft_totsize, diaratio=1.0, xc=xc, xp=self.xp, square=True)
+            where = self.xp.logical_and(where,left)
+        target_contrast[where] = contrast
+        app = generate_app_keller(pupil, target_contrast, max_iterations=max_its, beta=beta, xp=xp)
+        apodizer_phase = xp.zeros_like(pupil)
+        apodizer_phase[pupil>0] = xp.angle(app)[pupil>0.0]
+        return apodizer_phase
+
+        
+    def make_apodizer(self):
+        return self.xp.exp(1j*self.apodizer_phase)
+
+    def make_focal_plane_mask(self):
+        return 1.0
+    
+    def make_pupil_plane_mask(self):
+        return 1.0
+    
+
+
+# Outside the class on purpose, move inside or to its own module if you prefer
+def generate_app_keller(pupil, target_contrast, max_iterations:int, 
+                        beta:float=0, fft_res:int=4, xp=np):
+    """
+    Function taken from HCIpy (Por et al. 2018):
+    https://github.com/ehpor/hcipy/blob/master/hcipy/coronagraphy/apodizing_phase_plate.py
+
+    Accelerated Gerchberg-Saxton-like algorithm for APP design by
+    Christoph Keller [Keller2016]_ and based on Douglas-Rachford operator splitting.
+    The acceleration was inspired by the paper by Jim Fienup [Fienup1976]_. The
+    acceleration can provide speed-ups of up to two orders of magnitude and
+    produce better APPs.
+
+    .. [Keller2016] Keller C.U., 2016, "Novel instrument concepts for
+        characterizing directly imaged exoplanets", Proc. SPIE 9908,
+        Ground-based and Airborne Instrumentation for Astronomy VI, 99089V
+        doi: 10.1117/12.2232633; https://doi.org/10.1117/12.2232633
+
+    .. [Fienup1976] J. R. Fienup, 1976, "Reconstruction of an object from the modulus
+        of its Fourier transform," Opt. Lett. 3, 27-29
+
+    Parameters
+    ----------
+    pupil : ndarray(bool)
+        Boolean of the pupil aperture mask.
+    target_contrast : ndarray(float)
+        The required contrast in the focal plane: float mask that is 1.0
+        everywhere except for the dark zone where it is the contrast value (e.g. 1e-5).
+    max_iterations : int
+        The maximum number of iterations.
+    beta : float (optional)
+        The acceleration parameter. The default is 0 (no acceleration).
+        Good values for beta are typically between 0.3 and 0.9. Values larger
+        than 1.0 will not work.
+    fft_res : int (optional)
+        The fft_res to use for the PSF computation.
+        Should be greater than 3 to avoid issues, default is 4.
+
+    Returns
+    -------
+    Wavefront
+        The APP as a wavefront.
+
+    Raises
+    ------
+    ValueError
+        If beta is not between 0 and 1.
+        If fft_res is less than 3.
+    """
+    if beta < 0 or beta > 1:
+        raise ValueError('Beta should be between 0 and 1.')
+    if fft_res < 3:
+        raise ValueError('fft_res should be at least 3 to avoid numerical issues.')
+
+    # initialize APP with pupil
+    app = pupil * xp.exp(1j*xp.zeros(pupil.shape),dtype=xp.complex64)
+
+    # define dark zone as location where contrast is < 1e-1
+    dark_zone = target_contrast < 0.1
+
+    old_image = None
+    for i in range(max_iterations):
+        image = xp.fft.fftshift(xp.fft.fft2(app)) # calculate image plane electric field
+
+        if not xp.any(xp.abs(image)**2 / xp.max(xp.abs(image)**2) > target_contrast):
+            break
+
+        new_image = image.copy()
+        if beta != 0 and old_image is not None:
+            new_image[dark_zone] = old_image[dark_zone] * beta - new_image[dark_zone] * (1 + beta)
+        else:
+            new_image[dark_zone] = 0
+        old_image = new_image.copy()
+
+        app = xp.fft.ifft2(xp.fft.ifftshift(new_image)) # determine pupil electric field
+        app[~pupil.astype(bool)] = 0 # enforce pupil
+        # app[pupil] /= xp.abs(app[pupil]) # enforce unity transmission within pupil
+    
+    psf = xp.abs(image)**2
+    contrast =  psf / xp.max(psf)
+    ref_psf = xp.abs(xp.fft.fftshift(xp.fft.fft2(pupil)))**2
+
+    if i == max_iterations-1:
+        raise Warning(f'Maximum number of iterations ({max_iterations:1.0f}) reached, worst contrast in dark hole is: {xp.log10(xp.max(contrast[dark_zone])):1.1f}')
+
+    print(f'Apodizer computed: average contrast in dark hole is {xp.mean(xp.log10(contrast[dark_zone])):1.1f}, Strehl is {xp.max(psf)/xp.max(ref_psf)*1e+2:1.2f}%')
+
+    return app
+
+        
+
+    
