@@ -237,45 +237,44 @@ class ModulatedPyramid(BaseProcessingObj):
                   f" Minimum allowed side is {min_ccd_side}")
             return 0
 
-        D = DpupPix * pixel_pitch
-        Fov_internal = lambda_ * 1e-9 / D * (D / pixel_pitch) * RAD2ASEC
+        fov_internal = lambda_ * 1e-9 / pixel_pitch * RAD2ASEC
 
         minfov = FoV * (1 - fov_errinf)
         maxfov = FoV * (1 + fov_errsup)
         fov_res = 1.0
 
-        if Fov_internal < minfov:
-            fov_res = int(self.xp.ceil(minfov / Fov_internal))
-            Fov_internal_interpolated = Fov_internal * fov_res
+        if fov_internal < minfov:
+            fov_res = int(self.xp.ceil(minfov / fov_internal))
+            fov_internal_interpolated = fov_internal * fov_res
         else:
             fov_res = 1
-            Fov_internal_interpolated = Fov_internal
+            fov_internal_interpolated = fov_internal
 
-        if Fov_internal > maxfov:
+        if fov_internal > maxfov:
             print("Error: Calculated FoV is higher than maximum accepted FoV.")
             print("Please revise error margin, or the input phase dimension and/or pitch")
             return 0
 
         if fov_res > 1:
-            Fov_internal_interpolated = Fov_internal * fov_res
-            print(f"Interpolated FoV (arcsec): {Fov_internal_interpolated:.2f}")
+            fov_internal_interpolated = fov_internal * fov_res
+            print(f"Interpolated FoV (arcsec): {fov_internal_interpolated:.2f}")
             print(f"Warning: reaching the requested FoV requires {fov_res}x interpolation"
                   f" of input phase array.")
             print("Consider revising the input phase dimension and/or pitch to improve"
                   " performance.")
         else:
-            Fov_internal_interpolated = Fov_internal
+            fov_internal_interpolated = fov_internal
 
-        fp_masking = FoV / Fov_internal_interpolated
+        fp_masking = FoV / fov_internal_interpolated
 
         if fp_masking > 1.0:
-            if minfov / Fov_internal_interpolated > 1.0:
+            if minfov / fov_internal_interpolated > 1.0:
                 raise ValueError(f"fp_masking ratio cannot be larger than 1.0.")
             else:
                 fp_masking = 1.0
 
-        if Fov_internal_interpolated != FoV:
-            print(f"FoV reduction from {Fov_internal_interpolated:.2f} to {FoV:.2f}"
+        if fov_internal_interpolated != FoV:
+            print(f"FoV reduction from {fov_internal_interpolated:.2f} to {FoV:.2f}"
                   f" will be performed with a focal plane mask")
 
         DpupPixFov = DpupPix * fov_res
