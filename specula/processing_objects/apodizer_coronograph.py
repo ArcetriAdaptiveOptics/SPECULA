@@ -13,59 +13,62 @@ class APPCoronograph(Coronograph):
                  contrastInDarkHole:float,
                  iwaInLambdaOverD:float,
                  owaInLambdaOverD:float,
-                 fft_res: float = 3.0,
+                 fft_res: float = 4.0,
                  make_symmetric: bool = False,
                  beta: float = 0.9,
                  target_device_idx: int = None,
                  precision: int = None
                 ):
         
-        if iwaInLambdaOverD is not None:
-            fov = iwaInLambdaOverD * wavelengthInNm * 1e-9 / simul_params.pixel_pitch * RAD2ASEC 
-        else: 
-            fov = wavelengthInNm * 1e-9 / simul_params.pixel_pitch * RAD2ASEC
+        fov = wavelengthInNm * 1e-9 / simul_params.pixel_pitch * RAD2ASEC
+        if iwaInLambdaOverD is None:
             iwaInLambdaOverD = 0.0 
-        self.apodizer_phase = 1.0 # initialize to 1.0
-        self._telescopePupil = pupil
+
         super().__init__(simul_params=simul_params,
                          wavelengthInNm=wavelengthInNm,
                          fov = fov,
                          fft_res=fft_res,
                          target_device_idx=target_device_idx, 
                          precision=precision)
-        fft_totsize = int(fft_res*simul_params.pixel_pupil)
-        self.apodizer_phase = self.define_apodizing_phase(pupil, contrastInDarkHole, fft_totsize,
+        apodizer_phase = self.define_apodizing_phase(pupil, contrastInDarkHole,
                                                           iwaInLambdaOverD, owaInLambdaOverD, beta,
-                                                          fft_res, symmetric_dark_hole=make_symmetric)
+                                                          symmetric_dark_hole=make_symmetric)
+        
+        self.pupil_stop *= self.xp.array(pupil)
+        self.apodizer *= self.xp.exp(1j*apodizer_phase, dtype=self.xp.complex64)
         
 
-    def define_apodizing_phase(self, pupil, contrast, fft_totsize,
-                               iwa, owa, beta:float, fft_res,
+    def define_apodizing_phase(self, pupil, contrast,
+                               iwa, owa, beta:float,
                             symmetric_dark_hole:bool=False, 
                             max_its:int=1000):
-        target_contrast = self.xp.zeros([fft_totsize,fft_totsize])
-        fp_obsratio = iwa / (owa * fft_res)
-        fp_diaratio = (owa * fft_res) / fft_totsize 
-        where = make_mask(fft_totsize, diaratio=fp_diaratio, obsratio=fp_obsratio, xp=self.xp)
+        target_contrast = self.xp.zeros([self.fft_totsize,self.fft_totsize])
+        fp_obsratio = iwa / (owa * self.fft_res)
+        fp_diaratio = (owa * self.fft_res) / self.fft_totsize
+        where = make_mask(self.fft_totsize, diaratio=fp_diaratio, obsratio=fp_obsratio, xp=self.xp)
         if symmetric_dark_hole is False:
-            xc = 2*(iwa * fft_res + fft_totsize//2)/ fft_totsize
-            left = make_mask(fft_totsize, diaratio=1.0, xc=xc, xp=self.xp, square=True)
+            xc = 2*(iwa * self.fft_res + self.fft_totsize//2)/ self.fft_totsize
+            left = make_mask(self.fft_totsize, diaratio=1.0, xc=xc, xp=self.xp, square=True)
             where = self.xp.logical_and(where,left)
         target_contrast[where] = contrast
-        app = generate_app_keller(pupil, target_contrast, max_iterations=max_its, beta=beta, xp=self.xp)
-        apodizer_phase = self.xp.zeros_like(pupil)
-        apodizer_phase[pupil>0] = self.xp.angle(app)[pupil>0.0]
+        pad_pupil = self.xp.zeros([self.fft_totsize, self.fft_totsize])
+        pad_start = self.fft_padding // 2
+        pad_pupil[pad_start:pad_start+self.fft_sampling, 
+                    pad_start:pad_start+self.fft_sampling] = self.xp.array(pupil)
+        app = generate_app_keller(pad_pupil, self.xp.array(target_contrast), max_iterations=max_its, beta=beta, xp=self.xp)
+        apodizer_phase = self.xp.zeros(pupil.shape)
+        apodizer_phase[pupil>0] = self.xp.angle(app)[pad_pupil>0.0]
         return apodizer_phase
 
         
-    def make_apodizer(self):
-        return self.xp.exp(1j*self.apodizer_phase, dtype=self.xp.complex64)
+    # def make_apodizer(self):
+    #     return self.xp.exp(1j*self.apodizer_phase, dtype=self.xp.complex64)
 
     def make_focal_plane_mask(self):
-        return 1.0
+        return self.xp.ones([self.fft_totsize,self.fft_totsize])
     
     def make_pupil_stop(self):
-        return self._telescopePupil
+        return 1.0
     
 
 class PAPLCoronograph(APPCoronograph):
@@ -141,8 +144,8 @@ class PAPLCoronograph(APPCoronograph):
 
 
 # Outside the class on purpose, move inside or to its own module if you prefer
-def generate_app_keller(pupil, target_contrast, max_iterations:int, xp,
-                        beta:float=0, fft_res:int=4):
+def generate_app_keller(pupil, target_contrast, max_iterations:int, 
+                        xp, beta:float=0):
     """
     Function taken from HCIpy (Por et al. 2018):
     https://github.com/ehpor/hcipy/blob/master/hcipy/coronagraphy/apodizing_phase_plate.py
@@ -174,9 +177,6 @@ def generate_app_keller(pupil, target_contrast, max_iterations:int, xp,
         The acceleration parameter. The default is 0 (no acceleration).
         Good values for beta are typically between 0.3 and 0.9. Values larger
         than 1.0 will not work.
-    fft_res : int (optional)
-        The fft_res to use for the PSF computation.
-        Should be greater than 3 to avoid issues, default is 4.
 
     Returns
     -------
@@ -191,8 +191,6 @@ def generate_app_keller(pupil, target_contrast, max_iterations:int, xp,
     """
     if beta < 0 or beta > 1:
         raise ValueError('Beta should be between 0 and 1.')
-    if fft_res < 3:
-        raise ValueError('fft_res should be at least 3 to avoid numerical issues.')
 
     # initialize APP with pupil
     app = pupil * xp.exp(1j*xp.zeros(pupil.shape),dtype=xp.complex64)
