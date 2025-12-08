@@ -717,7 +717,8 @@ class ExtendedSource(BaseProcessingObj):
                         psf_temp[delta:delta+npsf_input, delta:delta+npsf_input] = psf.value
                 else:
                     psf_temp = psf.value
-                self.psf = psf_temp
+
+                self.psf.set_value(psf_temp)
                 self.compute()  # Recompute all coefficients with new PSF
                 self.outputs['coeff'].generation_time = self.current_time
 
