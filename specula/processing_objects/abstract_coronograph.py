@@ -81,7 +81,7 @@ class Coronograph(BaseProcessingObj):
     @abstractmethod
     def make_pupil_stop(self):
         """ Override this method to create the 
-        desired pupil plane stop """
+        desired pupil plane (complex) mask """
 
 
     def calc_geometry(self, DpupPix, pixel_pitch, lambda_, FoV,
