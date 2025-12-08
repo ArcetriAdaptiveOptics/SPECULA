@@ -1,7 +1,7 @@
 from specula.processing_objects.abstract_coronograph import Coronograph
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.make_mask import make_mask
-# from specula import RAD2ASEC
+from specula import RAD2ASEC, np
 
 
 class VortexCoronograph(Coronograph):
@@ -27,16 +27,24 @@ class VortexCoronograph(Coronograph):
                              f' outer size is {outerStopAsRatioOfPupil*1e+2:1.0f}% of pupil')
         
         self._charge = vortexCharge
+        if (inVortexRadInLambdaOverD is not None or inVortexCharge is not None or inVortexShift is not None) and addInVortex is False:
+            raise ValueError('Boolean input for inner vortex is False, yet inner vortex parameters were passed as argument')
+
         self._inVortex = addInVortex
         if addInVortex: # default inner vortex: same charge as outer/master vortex, pi shift, 0.621 lambda/D diameter
             self._innerRadInLambdaOverD = 0.62 if inVortexRadInLambdaOverD is None else inVortexRadInLambdaOverD
             self._innerCharge = vortexCharge if inVortexCharge is None else inVortexCharge
-            self._innerShift = self.xp.pi if inVortexShift is None else inVortexShift
+            self._innerShift = np.pi if inVortexShift is None else inVortexShift
+        
+        fov = wavelengthInNm * 1e-9 / simul_params.pixel_pitch * RAD2ASEC 
+        if addInVortex:
+            fov *= self._innerRadInLambdaOverD
         
         self._inPupilStop = innerStopAsRatioOfPupil
         self._outPupilStop = outerStopAsRatioOfPupil
         super().__init__(simul_params=simul_params,
                          wavelengthInNm=wavelengthInNm,
+                         fov = fov,
                          fft_res=fft_res,
                          target_device_idx=target_device_idx, 
                          precision=precision)
@@ -59,7 +67,7 @@ class VortexCoronograph(Coronograph):
         fp_mask = self.xp.exp(1j*vortex, dtype=self.xp.complex64)
         return fp_mask
     
-    def make_pupil_plane_mask(self):
+    def make_pupil_stop(self):
         pp_mask = make_mask(self.fft_sampling, diaratio=self._outPupilStop, obsratio=self._inPupilStop, xp=self.xp)
         return pp_mask
         

@@ -1,5 +1,4 @@
-from abc import abstractmethod
-from specula import cpuArray#, RAD2ASEC
+from specula import cpuArray, RAD2ASEC
 from specula.lib.extrapolation_2d import calculate_extrapolation_indices_coeffs, apply_extrapolation
 from specula.lib.interp2d import Interp2D
 
@@ -8,10 +7,15 @@ from specula.connections import InputValue
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.simul_params import SimulParams
 
+from abc import abstractmethod
+
 class Coronograph(BaseProcessingObj):
     def __init__(self,
                  simul_params: SimulParams,
                  wavelengthInNm: float,
+                 fov: float,
+                 fov_errinf: float = 0.1,
+                 fov_errsup: float = 10,
                  fft_res: float = 3.0,
                  target_device_idx: int = None,
                  precision: int = None
@@ -21,6 +25,7 @@ class Coronograph(BaseProcessingObj):
         self.simul_params = simul_params
         self.pixel_pupil = self.simul_params.pixel_pupil
         self.pixel_pitch = self.simul_params.pixel_pitch
+        self.fov = fov
 
         # interpolation settings
         self.interp = None
@@ -33,16 +38,25 @@ class Coronograph(BaseProcessingObj):
         self._amplitude_is_binary = None
         self._mask_threshold = 1e-3  # threshold to consider a pixel inside the mask
 
-        self.wavelength_in_nm = wavelengthInNm
-        self.fft_sampling = self.pixel_pupil
-        self.fft_padding = int((fft_res-1)/2*self.fft_sampling)*2
-        self.fft_totsize = int(fft_res/2*self.fft_sampling)*2
-        self.fft_res = int(fft_res)
-        self.fov_res = 1.0
+        result = self.calc_geometry(self.pixel_pupil,
+                                    self.pixel_pitch,
+                                    wavelengthInNm,
+                                    self.fov,
+                                    fov_errinf=fov_errinf,
+                                    fov_errsup=fov_errsup,
+                                    fft_res=fft_res)
 
-        self.apodizer = self.make_apodizer() # Apodizer (pupil plane complex mask)
-        self.fp_mask = self.make_focal_plane_mask() # Focal plane (complex) mask
-        self.pp_mask = self.make_pupil_plane_mask() # Pupil plane stop
+        self.wavelength_in_nm = wavelengthInNm
+        self.fov_res = result['fov_res']
+        self.fft_res = result['fft_res']
+        self.fft_sampling = result['fft_sampling']
+        self.fft_padding = result['fft_padding']
+        self.fft_totsize = result['fft_totsize']
+
+        # Apodizer, focal plane mask, pupil stop
+        self.apodizer = self.make_apodizer()
+        self.fp_mask = self.make_focal_plane_mask()
+        self.pupil_stop = self.make_pupil_stop()
 
         self.out_ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
                                     precision=self.precision, target_device_idx=self.target_device_idx)
@@ -53,25 +67,53 @@ class Coronograph(BaseProcessingObj):
         self.ef_in = self.xp.zeros((self.fft_sampling, self.fft_sampling), dtype=self.complex_dtype)
         self.ef_out = self.xp.zeros((self.fft_sampling, self.fft_sampling), dtype=self.complex_dtype)
 
-
+    
+    def make_apodizer(self):
+        """ Override this method to add an apodizer.
+        By default, no apodizer mask is considered """
+        return 1.0
+    
     @abstractmethod
     def make_focal_plane_mask(self):
         """ Override this method to create the 
         desired focal plane (complex) mask """
 
     @abstractmethod
-    def make_pupil_plane_mask(self):
+    def make_pupil_stop(self):
         """ Override this method to create the 
         desired pupil plane stop """
 
-    def make_apodizer(self):
-        """ Override this method to add an apodizer.
-        By default, no apodizer mask is considered """
-        return 1.0
+
+    def calc_geometry(self, DpupPix, pixel_pitch, lambda_, FoV,
+                      fov_errinf=0.1, fov_errsup=0.5,  fft_res=3.0):
+        D = DpupPix * pixel_pitch
+        Fov_internal = lambda_ * 1e-9 / D * (D / pixel_pitch) * RAD2ASEC
+        minfov = FoV * (1 - fov_errinf)
+        maxfov = FoV * (1 + fov_errsup)
+        fov_res = 1.0
+        if Fov_internal < minfov:
+            fov_res = int(minfov / Fov_internal)
+            if Fov_internal * fov_res < minfov:
+                fov_res += 1
+        if Fov_internal > maxfov:
+            raise ValueError(f"FoV too large compared to the diffraction limit "
+                            f"(FoV: {FoV}, Fov_internal: {Fov_internal}, "
+                            f"fov_errsup: {fov_errsup}) and fov_errinf: {fov_errinf})")
+        if fov_res > 1:
+            Fov_internal *= fov_res
+        DpupPixFov = DpupPix * fov_res
+        totsize = self.xp.around(DpupPixFov * fft_res / 2) * 2
+        fft_res = totsize / float(DpupPixFov)
+        padding = self.xp.around((DpupPixFov * fft_res - DpupPixFov) / 2) * 2
+        return {
+            'fov_res': fov_res,
+            'fft_res': fft_res,
+            'fft_sampling': int(DpupPixFov),
+            'fft_padding': int(padding),
+            'fft_totsize': int(totsize),
+        }
     
-    def propagate_to_focal_plane(self, pup_ef):
-        """ Compute focal plane electric field 
-        using FFT and appropriate padding """
+    def _propagate_to_focal_plane(self, pup_ef):
         ef_pad = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.complex_dtype)
         pad_start = self.fft_padding // 2
         ef_pad[pad_start:pad_start+self.fft_sampling, 
@@ -112,6 +154,7 @@ class Coronograph(BaseProcessingObj):
                         self.xp.abs(unique_values - 1) < tol
                     )
                 )
+
                 self._amplitude_is_binary = is_binary
 
             self.phase_extrapolated = in_ef.phaseInNm * \
@@ -144,15 +187,12 @@ class Coronograph(BaseProcessingObj):
 
 
     def trigger_code(self):
+
         # Step 1: Apodize electric field
-        ef_pad = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.complex_dtype)
-        pad_start = self.fft_padding // 2
-        ef_pad[pad_start:pad_start+self.fft_sampling, 
-                    pad_start:pad_start+self.fft_sampling] = self.ef_in
-        apodized_ef = ef_pad * self.apodizer
+        apodized_ef = self.ef_in * self.apodizer
 
         # Step 2: Propagate field to focal plane with FFT
-        ef_fp = self.xp.fft.fft2(ef_pad)
+        ef_fp = self._propagate_to_focal_plane(apodized_ef)
 
         # Step 3: Apply focal plane mask (appropriately shifted)
         fp_mask_centered = self.xp.fft.fftshift(self.fp_mask)
@@ -165,30 +205,33 @@ class Coronograph(BaseProcessingObj):
                                 pad_start:pad_start+self.fft_sampling]
 
         # Step 5: Apply pupil stop
-        ef_out = ef_pp * self.pp_mask
-        if self._do_interpolation and self.fov_res > 1:
-            # Rebin back to original sampling
-            fov_res_int = int(self.fov_res)
-            h, w = ef_out.shape
-            new_h, new_w = h // fov_res_int, w // fov_res_int
-            ef_out = ef_out[:new_h*fov_res_int, :new_w*fov_res_int].reshape(
-                new_h, fov_res_int, new_w, fov_res_int).mean(axis=(1, 3))
-        self.ef_out[:] = ef_out
+        self.ef_out[:] = ef_pp * self.pupil_stop
 
 
     def post_trigger(self):
         super().post_trigger()
 
+        # Then rebin if needed
+        if self._do_interpolation and self.fov_res > 1:
+            # Rebin back to original sampling
+            fov_res_int = int(self.fov_res)
+            h, w = self.ef_out.shape
+            new_h, new_w = h // fov_res_int, w // fov_res_int
+            ef_out = self.ef_out[:new_h*fov_res_int, :new_w*fov_res_int].reshape(
+                new_h, fov_res_int, new_w, fov_res_int).mean(axis=(1, 3))
+        else:
+            ef_out = self.ef_out
+
         # Calculate transmission
         # PSF before masking vs PSF after masking
-        psf_before = self.xp.abs(self.propagate_to_focal_plane(self.ef_in))**2
-        psf_after = self.xp.abs(self.propagate_to_focal_plane(self.ef_out))**2
+        psf_before = self.xp.abs(self._propagate_to_focal_plane(self.ef_in))**2
+        psf_after = self.xp.abs(self._propagate_to_focal_plane(self.ef_out))**2
         transmission = self.xp.sum(psf_after) / self.xp.sum(psf_before)
 
         # Amplitude
-        self.out_ef.A[:] = self.xp.abs(self.ef_out)
+        self.out_ef.A[:] = self.xp.abs(ef_out)
         # Phase in nm
-        self.out_ef.phaseInNm[:] = (self.xp.angle(self.ef_out) / (2 * self.xp.pi)) * self.wavelength_in_nm
+        self.out_ef.phaseInNm[:] = (self.xp.angle(ef_out) / (2 * self.xp.pi)) * self.wavelength_in_nm
 
         # Scale S0 by transmission
         in_ef = self.local_inputs['in_ef']

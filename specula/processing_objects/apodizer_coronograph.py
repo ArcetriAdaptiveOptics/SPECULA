@@ -1,8 +1,7 @@
 from specula.processing_objects.abstract_coronograph import Coronograph
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.make_mask import make_mask
-# from specula import RAD2ASEC
-from specula import np
+from specula import RAD2ASEC
 
 
 class APPCoronograph(Coronograph):
@@ -21,15 +20,23 @@ class APPCoronograph(Coronograph):
                  precision: int = None
                 ):
         
+        if iwaInLambdaOverD is not None:
+            fov = iwaInLambdaOverD * wavelengthInNm * 1e-9 / simul_params.pixel_pitch * RAD2ASEC 
+        else: 
+            fov = wavelengthInNm * 1e-9 / simul_params.pixel_pitch * RAD2ASEC
+            iwaInLambdaOverD = 0.0 
+        self.apodizer_phase = 1.0 # initialize to 1.0
+        self._telescopePupil = pupil
+        super().__init__(simul_params=simul_params,
+                         wavelengthInNm=wavelengthInNm,
+                         fov = fov,
+                         fft_res=fft_res,
+                         target_device_idx=target_device_idx, 
+                         precision=precision)
         fft_totsize = int(fft_res*simul_params.pixel_pupil)
         self.apodizer_phase = self.define_apodizing_phase(pupil, contrastInDarkHole, fft_totsize,
                                                           iwaInLambdaOverD, owaInLambdaOverD, beta,
                                                           fft_res, symmetric_dark_hole=make_symmetric)
-        super().__init__(simul_params=simul_params,
-                         wavelengthInNm=wavelengthInNm,
-                         fft_res=fft_res,
-                         target_device_idx=target_device_idx, 
-                         precision=precision)
         
 
     def define_apodizing_phase(self, pupil, contrast, fft_totsize,
@@ -57,8 +64,8 @@ class APPCoronograph(Coronograph):
     def make_focal_plane_mask(self):
         return 1.0
     
-    def make_pupil_plane_mask(self):
-        return 1.0
+    def make_pupil_stop(self):
+        return self._telescopePupil
     
 
 class PAPLCoronograph(APPCoronograph):
@@ -125,7 +132,7 @@ class PAPLCoronograph(APPCoronograph):
             fp_mask = make_mask(self.fft_totsize, diaratio=fp_diaratio, obsratio=fp_obsratio, xp=self.xp)
         return fp_mask
     
-    def make_pupil_plane_mask(self):
+    def make_pupil_stop(self):
         pp_mask = make_mask(self.fft_sampling, diaratio=self._outPupilStop, obsratio=self._inPupilStop, xp=self.xp)
         return pp_mask
 
@@ -134,8 +141,8 @@ class PAPLCoronograph(APPCoronograph):
 
 
 # Outside the class on purpose, move inside or to its own module if you prefer
-def generate_app_keller(pupil, target_contrast, max_iterations:int, 
-                        beta:float=0, fft_res:int=4, xp=np):
+def generate_app_keller(pupil, target_contrast, max_iterations:int, xp,
+                        beta:float=0, fft_res:int=4):
     """
     Function taken from HCIpy (Por et al. 2018):
     https://github.com/ehpor/hcipy/blob/master/hcipy/coronagraphy/apodizing_phase_plate.py
@@ -220,7 +227,7 @@ def generate_app_keller(pupil, target_contrast, max_iterations:int,
 
     print(f'Apodizer computed: average contrast in dark hole is {xp.mean(xp.log10(contrast[dark_zone])):1.1f}, Strehl is {xp.max(psf)/xp.max(ref_psf)*1e+2:1.2f}%')
 
-    return app
+    return xp.array(app)
 
         
 

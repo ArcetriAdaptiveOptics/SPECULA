@@ -1,7 +1,7 @@
 from specula.processing_objects.abstract_coronograph import Coronograph
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.make_mask import make_mask
-# from specula import RAD2ASEC
+from specula import RAD2ASEC
 
 
 class LyotCoronograph(Coronograph):
@@ -14,7 +14,7 @@ class LyotCoronograph(Coronograph):
                  innerStopAsRatioOfPupil: float = 0.0,
                  outerStopAsRatioOfPupil: float = 1.0,
                  knife_edge: bool = False,
-                 fft_res: float = None,
+                 fft_res: float = 3.0,
                  target_device_idx: int = None,
                  precision: int = None
                 ):
@@ -27,37 +27,43 @@ class LyotCoronograph(Coronograph):
         if knife_edge is True and owaInLambdaOverD is not None:
             raise ValueError('OWA cannot be defined for the knife-edge focal plane mask')
         
+        if iwaInLambdaOverD is not None:
+            fov = iwaInLambdaOverD * wavelengthInNm * 1e-9 / simul_params.pixel_pitch * RAD2ASEC 
+        else: 
+            fov = wavelengthInNm * 1e-9 / simul_params.pixel_pitch * RAD2ASEC
+            iwaInLambdaOverD = 0.0 
+            
         self._knife_edge = knife_edge
         if knife_edge:
             self._fedge = iwaInLambdaOverD
         else:
             self._iwa = iwaInLambdaOverD
             self._owa = owaInLambdaOverD
-        
-        if fft_res is None:
-            fft_res = max(int(iwaInLambdaOverD*10),3)
+
         self._inPupilStop = innerStopAsRatioOfPupil
         self._outPupilStop = outerStopAsRatioOfPupil
         super().__init__(simul_params=simul_params,
                          wavelengthInNm=wavelengthInNm,
-                         fft_res=fft_res,
+                         fov = fov,
+                         fft_res = fft_res,
                          target_device_idx=target_device_idx, 
                          precision=precision)
 
         
     def make_focal_plane_mask(self):
         if self._knife_edge:
-            xc = 2*(self._fedge * self.fft_res + self.fft_totsize//2)/ self.fft_totsize
+            xc = 2*(self._fedge * self.fft_res * self.fov_res + self.fft_totsize//2)/ self.fft_totsize
             fp_mask = make_mask(self.fft_totsize, diaratio=1.0, xc=xc, xp=self.xp, square=True)
         else:
-            owa_oversampled = self._owa * self.fft_res if self._owa is not None else self.fft_totsize
+            owa_oversampled = self._owa * self.fft_res * self.fov_res  if self._owa is not None else self.fft_totsize
             fp_obsratio = self._iwa / owa_oversampled
             fp_diaratio = owa_oversampled / self.fft_totsize 
             fp_mask = make_mask(self.fft_totsize, diaratio=fp_diaratio, obsratio=fp_obsratio, xp=self.xp)
         return fp_mask
     
-    def make_pupil_plane_mask(self):
+    def make_pupil_stop(self):
         pp_mask = make_mask(self.fft_sampling, diaratio=self._outPupilStop, obsratio=self._inPupilStop, xp=self.xp)
+        print(pp_mask.shape, type(pp_mask))
         return pp_mask
         
 
