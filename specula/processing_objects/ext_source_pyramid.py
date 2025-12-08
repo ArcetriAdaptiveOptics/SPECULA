@@ -141,8 +141,12 @@ class ExtSourcePyramid(ModulatedPyramid):
         u_tlt_i = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.complex_dtype)
 
         for i in range(self.mod_steps):
+            # Invert focus sign
+            coeff_with_sign = coeff_ttf[i].copy()
+            coeff_with_sign[2] *= -1
+
             # Compute pupil phase for each extended source point
-            pup_phase = self.xp.sum(coeff_ttf[i][:, None, None] * self.ext_ttf, axis=0)
+            pup_phase = self.xp.sum(coeff_with_sign[:, None, None] * self.ext_ttf, axis=0)
             ttexp_i = self.xp.exp(-iu * pup_phase, dtype=self.complex_dtype)
 
             # Compute u_tlt for this point
