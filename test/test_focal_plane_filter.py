@@ -100,9 +100,10 @@ class TestFocalPlaneFilter(unittest.TestCase):
         ef_obs = fpf_obs.outputs['out_ef']
 
         # Compute PSF for both cases using calc_psf
-        psf = calc_psf(ef.phaseInNm, ef.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
-        psf_nofilter = calc_psf(ef_nofilter.phaseInNm, ef_nofilter.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
-        psf_obs = calc_psf(ef_obs.phaseInNm, ef_obs.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
+        nm2rad = 2*xp.pi/self.wavelength_nm
+        psf = calc_psf(ef.phaseInNm*nm2rad, ef.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
+        psf_nofilter = calc_psf(ef_nofilter.phaseInNm*nm2rad, ef_nofilter.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
+        psf_obs = calc_psf(ef_obs.phaseInNm*nm2rad, ef_obs.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
 
         max_psf = float(psf.max())
         max_psf_nofilter = float(psf_nofilter.max())

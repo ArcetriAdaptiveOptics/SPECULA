@@ -33,7 +33,7 @@ class APPCoronograph(Coronograph):
         apodizer_phase = self.define_apodizing_phase(pupil, contrastInDarkHole,
                                                           iwaInLambdaOverD, owaInLambdaOverD, beta,
                                                           symmetric_dark_hole=make_symmetric)
-        self.apodizer = self.xp.exp(1j*apodizer_phase*(2*self.xp.pi)/(self.wavelength_in_nm), dtype=self.xp.complex64)
+        self.apodizer = self.xp.exp(1j*apodizer_phase, dtype=self.xp.complex64)
         
 
     def define_apodizing_phase(self, pupil, contrast,

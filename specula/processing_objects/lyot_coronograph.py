@@ -28,8 +28,8 @@ class LyotCoronograph(Coronograph):
             raise ValueError('OWA cannot be defined for the knife-edge focal plane mask')
         
         fov = wavelengthInNm * 1e-9 / simul_params.pixel_pitch * RAD2ASEC
-        if iwaInLambdaOverD > 0.0:
-            fov *= max(1.0,1/(iwaInLambdaOverD-(iwaInLambdaOverD % 1)))
+        # if iwaInLambdaOverD > 0.0:
+        #     fov *= max(1.0,1/(iwaInLambdaOverD-(iwaInLambdaOverD % 1)))
             
         self._knife_edge = knife_edge
         if knife_edge:
@@ -54,7 +54,7 @@ class LyotCoronograph(Coronograph):
             fp_mask = make_mask(self.fft_totsize, diaratio=1.0, xc=xc, xp=self.xp, square=True)
         else:
             owa_oversampled = self._owa * self.fft_res * self.fov_res if self._owa is not None else self.fft_totsize
-            fp_obsratio = self._iwa / owa_oversampled * self.fov_res
+            fp_obsratio = self._iwa * self.fft_res * self.fov_res / owa_oversampled
             fp_diaratio = owa_oversampled / self.fft_totsize 
             fp_mask = make_mask(self.fft_totsize, diaratio=fp_diaratio, obsratio=fp_obsratio, xp=self.xp)
         return fp_mask

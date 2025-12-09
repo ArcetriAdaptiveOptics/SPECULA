@@ -113,8 +113,9 @@ class TestAPPCoronograph(unittest.TestCase):
         ef_coro = self.get_coro_field(coro, ef)
 
         # Compute PSF for both cases using calc_psf
-        psf_nocoro = calc_psf(ef.phaseInNm, ef.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
-        psf_coro = calc_psf(ef_coro.phaseInNm, ef_coro.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
+        nm2rad = 2*xp.pi/self.wavelength_nm
+        psf_nocoro = calc_psf(ef.phaseInNm*nm2rad, ef.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
+        psf_coro = calc_psf(ef_coro.phaseInNm*nm2rad, ef_coro.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
 
         # Check shapes
         self.assertEqual(psf_nocoro.shape, psf_coro.shape)

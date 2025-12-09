@@ -16,7 +16,7 @@ class Coronograph(BaseProcessingObj):
                  fov: float,
                  fov_errinf: float = 0.1,
                  fov_errsup: float = 10,
-                 fft_res: float = 3.0,
+                 fft_res: float = 4.0,
                  target_device_idx: int = None,
                  precision: int = None
                 ):

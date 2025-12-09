@@ -27,7 +27,7 @@ class FocalPlaneFilter(Coronograph):
                  precision=precision)
 
 
-    def make_pupil_stop(self):
+    def make_pupil_plane_mask(self):
         return 1.0
     
     def make_focal_plane_mask(self):
