@@ -33,26 +33,24 @@ class APPCoronograph(Coronograph):
         apodizer_phase = self.define_apodizing_phase(pupil, contrastInDarkHole,
                                                           iwaInLambdaOverD, owaInLambdaOverD, beta,
                                                           symmetric_dark_hole=make_symmetric)
-        
-        self.pupil_stop *= self.xp.array(pupil)
-        self.apodizer *= self.xp.exp(1j*apodizer_phase, dtype=self.xp.complex64)
+        self.apodizer = self.xp.exp(1j*apodizer_phase*(2*self.xp.pi)/(self.wavelength_in_nm), dtype=self.xp.complex64)
         
 
     def define_apodizing_phase(self, pupil, contrast,
                                iwa, owa, beta:float,
                             symmetric_dark_hole:bool=False, 
                             max_its:int=1000):
-        target_contrast = self.xp.zeros([self.fft_totsize,self.fft_totsize])
-        fp_obsratio = iwa / (owa * self.fft_res)
+        target_contrast = self.xp.ones([self.fft_totsize,self.fft_totsize])
+        fp_obsratio = iwa / owa
         fp_diaratio = (owa * self.fft_res) / self.fft_totsize
         where = make_mask(self.fft_totsize, diaratio=fp_diaratio, obsratio=fp_obsratio, xp=self.xp)
         if symmetric_dark_hole is False:
-            xc = 2*(iwa * self.fft_res + self.fft_totsize//2)/ self.fft_totsize
+            xc = (iwa * self.fft_res)/ self.fft_totsize + 1.0
             left = make_mask(self.fft_totsize, diaratio=1.0, xc=xc, xp=self.xp, square=True)
             where = self.xp.logical_and(where,left)
-        target_contrast[where] = contrast
+        target_contrast[where.astype(bool)] = contrast
+        pad_start = self.fft_padding//2
         pad_pupil = self.xp.zeros([self.fft_totsize, self.fft_totsize])
-        pad_start = self.fft_padding // 2
         pad_pupil[pad_start:pad_start+self.fft_sampling, 
                     pad_start:pad_start+self.fft_sampling] = self.xp.array(pupil)
         app = generate_app_keller(pad_pupil, self.xp.array(target_contrast), max_iterations=max_its, beta=beta, xp=self.xp)
@@ -60,15 +58,11 @@ class APPCoronograph(Coronograph):
         apodizer_phase[pupil>0] = self.xp.angle(app)[pad_pupil>0.0]
         return apodizer_phase
 
-        
-    # def make_apodizer(self):
-    #     return self.xp.exp(1j*self.apodizer_phase, dtype=self.xp.complex64)
-
     def make_focal_plane_mask(self):
         return self.xp.ones([self.fft_totsize,self.fft_totsize])
     
-    def make_pupil_stop(self):
-        return 1.0
+    def make_pupil_plane_mask(self):
+        return self.xp.ones([self.fft_sampling,self.fft_sampling])
     
 
 class PAPLCoronograph(APPCoronograph):
@@ -214,7 +208,7 @@ def generate_app_keller(pupil, target_contrast, max_iterations:int,
 
         app = xp.fft.ifft2(xp.fft.ifftshift(new_image)) # determine pupil electric field
         app[~pupil.astype(bool)] = 0 # enforce pupil
-        # app[pupil] /= xp.abs(app[pupil]) # enforce unity transmission within pupil
+        app[pupil.astype(bool)] /= xp.abs(app[pupil.astype(bool)]) # enforce unity transmission within pupil
     
     psf = xp.abs(image)**2
     contrast =  psf / xp.max(psf)

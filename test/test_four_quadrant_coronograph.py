@@ -58,7 +58,7 @@ class TestFourQuadrantCoronograph(unittest.TestCase):
             target_device_idx=target_device_idx
         )
 
-        self.assertEqual(coro.pupil_stop.shape, (self.pixel_pupil, self.pixel_pupil))
+        self.assertEqual(coro.pupil_mask.shape, (self.pixel_pupil, self.pixel_pupil))
         self.assertEqual(coro.fp_mask.shape, (coro.fft_totsize, coro.fft_totsize))
         self.assertEqual(coro.apodizer, 1.0) # no apodizer
 
@@ -71,7 +71,7 @@ class TestFourQuadrantCoronograph(unittest.TestCase):
             plt.colorbar()
             plt.title('Focal plane mask')
             plt.subplot(1,2,2)
-            plt.imshow(cpuArray(coro.pupil_stop), cmap='gray')
+            plt.imshow(cpuArray(coro.pupil_mask), cmap='gray')
             plt.colorbar()
             plt.title('Pupil plane mask')
 
@@ -185,46 +185,3 @@ class TestFourQuadrantCoronograph(unittest.TestCase):
         # Output amplitude should not be all zeros and should be approximately the same as the input one
         self.assertGreater(float(out_ef.A.sum()), 0.0)
         self.assertLess(float(out_ef.A.max()), 2.0*float(ef.A.max()))
-
-
-    # @cpu_and_gpu
-    # def test_s0_scaling_with_coronograph(self, target_device_idx, xp):
-    #     """Test that S0 is scaled correctly when using the coronograph"""
-    #     # Test with coronograph - S0 should decrease
-    #     coro = FourQuadrantCoronograph(
-    #         simul_params=self.simul_params,
-    #         wavelengthInNm=self.wavelength_nm,
-    #         outerStopAsRatioOfPupil=0.95,
-    #         innerStopAsRatioOfPupil=0.02,
-    #         target_device_idx=target_device_idx
-    #     )
-
-    #     # Test without coronograph - S0 should remain similar
-    #     nodelay_coro = FourQuadrantCoronograph(
-    #         simul_params=self.simul_params,
-    #         wavelengthInNm=self.wavelength_nm,
-    #         phase_delay=0.0,
-    #         target_device_idx=target_device_idx
-    #     )
-
-    #     # Create input electric field
-    #     ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, S0=100.0, target_device_idx=target_device_idx)
-    #     ef.A[:] = xp.array(self.mask)
-    #     ef.phaseInNm[:] = 0.0
-    #     ef.S0 = 100.0
-    #     ef.generation_time = 1
-
-    #     # Test with obstruction
-    #     ef_coro = self.get_coro_field(coro, ef)
-    #     s0_with_coro = ef_coro.S0
-
-    #     # Test without obstruction
-    #     ef_nocoro = self.get_coro_field(nodelay_coro, ef)
-    #     s0_no_coro = ef_nocoro.S0
-
-    #     # S0 with obstruction should be less than without obstruction
-    #     self.assertLess(s0_with_coro, s0_no_coro, "S0 should decrease with obstruction!")
-
-    #     # Both should be less than or equal to original S0
-    #     self.assertLessEqual(s0_with_coro, 100.0)
-    #     self.assertLessEqual(s0_no_coro, 100.0)

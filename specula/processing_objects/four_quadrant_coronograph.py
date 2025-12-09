@@ -22,7 +22,7 @@ class FourQuadrantCoronograph(Coronograph):
                              f' {innerStopAsRatioOfPupil*1e+2:1.0f}% of pupil,'
                              f' outer size is {outerStopAsRatioOfPupil*1e+2:1.0f}% of pupil')
         
-        fov = wavelengthInNm * 1e-9 / simul_params.pixel_pitch * RAD2ASEC 
+        fov = wavelengthInNm * 1e-9 / simul_params.pixel_pitch * RAD2ASEC
         self._inPupilStop = innerStopAsRatioOfPupil
         self._outPupilStop = outerStopAsRatioOfPupil
         self._phase_delay = phase_delay
@@ -36,13 +36,13 @@ class FourQuadrantCoronograph(Coronograph):
         
     def make_focal_plane_mask(self):
         """ Make a quadrant mask, where 2 opposite quadrants apply a pi phase delay """
-        left_mask = make_mask(self.fft_totsize, diaratio=1.0, xc=1.0, xp=self.xp)
-        bottom_mask = make_mask(self.fft_totsize, diaratio=1.0, yc=1.0, xp=self.xp)
+        left_mask = make_mask(self.fft_totsize, diaratio=1.0, xc=1.0, xp=self.xp, square=True)
+        bottom_mask = make_mask(self.fft_totsize, diaratio=1.0, yc=1.0, xp=self.xp, square=True)
         quad_mask = self.xp.logical_xor(left_mask,bottom_mask)
         fp_mask = self.xp.exp(1j*quad_mask*self._phase_delay, dtype=self.xp.complex64)
         return fp_mask
     
-    def make_pupil_stop(self):
+    def make_pupil_plane_mask(self):
         pp_mask = make_mask(self.fft_sampling, diaratio=self._outPupilStop, obsratio=self._inPupilStop, xp=self.xp)
         return pp_mask
         

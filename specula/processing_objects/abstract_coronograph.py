@@ -56,7 +56,7 @@ class Coronograph(BaseProcessingObj):
         # Apodizer, focal plane mask, pupil stop
         self.apodizer = self.make_apodizer()
         self.fp_mask = self.make_focal_plane_mask()
-        self.pupil_stop = self.make_pupil_stop()
+        self.pupil_mask = self.make_pupil_plane_mask()
 
         self.out_ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
                                     precision=self.precision, target_device_idx=self.target_device_idx)
@@ -79,7 +79,7 @@ class Coronograph(BaseProcessingObj):
         desired focal plane (complex) mask """
 
     @abstractmethod
-    def make_pupil_stop(self):
+    def make_pupil_plane_mask(self):
         """ Override this method to create the 
         desired pupil plane (complex) mask """
 
@@ -205,7 +205,7 @@ class Coronograph(BaseProcessingObj):
                                 pad_start:pad_start+self.fft_sampling]
 
         # Step 5: Apply pupil stop
-        self.ef_out[:] = ef_pp * self.pupil_stop
+        self.ef_out[:] = ef_pp * self.pupil_mask
 
 
     def post_trigger(self):

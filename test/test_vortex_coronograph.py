@@ -72,7 +72,7 @@ class TestVortexCoronograph(unittest.TestCase):
             target_device_idx=target_device_idx
         )
 
-        self.assertEqual(coro.pupil_stop.shape, (self.pixel_pupil, self.pixel_pupil))
+        self.assertEqual(coro.pupil_mask.shape, (self.pixel_pupil, self.pixel_pupil))
         self.assertEqual(coro.fp_mask.shape, (coro.fft_totsize, coro.fft_totsize))
         self.assertEqual(coro.apodizer, 1.0) # no apodizer
 
@@ -85,7 +85,7 @@ class TestVortexCoronograph(unittest.TestCase):
             plt.colorbar()
             plt.title('Focal plane mask')
             plt.subplot(1,2,2)
-            plt.imshow(cpuArray(coro.pupil_stop), cmap='gray')
+            plt.imshow(cpuArray(coro.pupil_mask), cmap='gray')
             plt.colorbar()
             plt.title('Pupil plane mask')
 

@@ -36,9 +36,9 @@ class VortexCoronograph(Coronograph):
             self._innerCharge = vortexCharge if inVortexCharge is None else inVortexCharge
             self._innerShift = np.pi if inVortexShift is None else inVortexShift
         
-        fov = wavelengthInNm * 1e-9 / simul_params.pixel_pitch * RAD2ASEC 
+        fov = wavelengthInNm * 1e-9 / simul_params.pixel_pitch * RAD2ASEC
         if addInVortex:
-            fov *= self._innerRadInLambdaOverD
+            fov *= min(1.0,1/self._innerRadInLambdaOverD)
         
         self._inPupilStop = innerStopAsRatioOfPupil
         self._outPupilStop = outerStopAsRatioOfPupil
@@ -67,7 +67,7 @@ class VortexCoronograph(Coronograph):
         fp_mask = self.xp.exp(1j*vortex, dtype=self.xp.complex64)
         return fp_mask
     
-    def make_pupil_stop(self):
+    def make_pupil_plane_mask(self):
         pp_mask = make_mask(self.fft_sampling, diaratio=self._outPupilStop, obsratio=self._inPupilStop, xp=self.xp)
         return pp_mask
         

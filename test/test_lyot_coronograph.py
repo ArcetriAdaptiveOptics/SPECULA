@@ -82,11 +82,11 @@ class TestLyotCoronograph(unittest.TestCase):
             target_device_idx=target_device_idx
         )
 
-        self.assertEqual(lyot.pupil_stop.shape, (self.pixel_pupil, self.pixel_pupil))
+        self.assertEqual(lyot.pupil_mask.shape, (self.pixel_pupil, self.pixel_pupil))
         self.assertEqual(lyot.apodizer, 1.0) # no apodizer
 
         # test knife edge
-        self.assertEqual(kedge.pupil_stop.shape, (self.pixel_pupil, self.pixel_pupil))
+        self.assertEqual(kedge.pupil_mask.shape, (self.pixel_pupil, self.pixel_pupil))
         self.assertEqual(kedge.apodizer, 1.0) # no apodizer
 
         debug_plot = False
@@ -98,7 +98,7 @@ class TestLyotCoronograph(unittest.TestCase):
             plt.colorbar()
             plt.title('Focal plane mask')
             plt.subplot(1,2,2)
-            plt.imshow(cpuArray(lyot.pupil_stop), cmap='gray')
+            plt.imshow(cpuArray(lyot.pupil_mask), cmap='gray')
             plt.colorbar()
             plt.title('Pupil plane mask')
 
@@ -151,7 +151,7 @@ class TestLyotCoronograph(unittest.TestCase):
         lyot_nocoro = LyotCoronograph(
             simul_params=self.simul_params,
             wavelengthInNm=self.wavelength_nm,
-            iwaInLambdaOverD=None,
+            iwaInLambdaOverD=0.0,
             target_device_idx=target_device_idx
         )
 
@@ -209,7 +209,7 @@ class TestLyotCoronograph(unittest.TestCase):
         lyot_nocoro = LyotCoronograph(
             simul_params=self.simul_params,
             wavelengthInNm=self.wavelength_nm,
-            iwaInLambdaOverD=None,
+            iwaInLambdaOverD=0.0,
             target_device_idx=target_device_idx
         )
 
@@ -251,7 +251,7 @@ class TestLyotCoronograph(unittest.TestCase):
         lyot_nocoro = LyotCoronograph(
             simul_params=self.simul_params,
             wavelengthInNm=self.wavelength_nm,
-            iwaInLambdaOverD=None,
+            iwaInLambdaOverD=0.0,
             target_device_idx=target_device_idx
         )
 
