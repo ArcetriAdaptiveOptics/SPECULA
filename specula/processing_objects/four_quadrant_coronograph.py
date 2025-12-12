@@ -12,7 +12,7 @@ class FourQuadrantCoronograph(Coronograph):
                  innerStopAsRatioOfPupil: float = 0.0,
                  outerStopAsRatioOfPupil: float = 1.0,
                  phase_delay: float = np.pi,
-                 fft_res: float = 4.0,
+                 fft_res: float = 3.0,
                  target_device_idx: int = None,
                  precision: int = None
                 ):

@@ -13,7 +13,7 @@ class APPCoronograph(Coronograph):
                  contrastInDarkHole:float,
                  iwaInLambdaOverD:float,
                  owaInLambdaOverD:float,
-                 fft_res: float = 4.0,
+                 fft_res: float = 3.0,
                  make_symmetric: bool = False,
                  beta: float = 0.9,
                  max_its:int = 1000,
