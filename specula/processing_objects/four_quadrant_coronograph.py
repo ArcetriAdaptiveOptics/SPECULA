@@ -12,7 +12,7 @@ class FourQuadrantCoronograph(Coronograph):
                  innerStopAsRatioOfPupil: float = 0.0,
                  outerStopAsRatioOfPupil: float = 1.0,
                  phase_delay: float = np.pi,
-                 fft_res: float = 3.0,
+                 fft_res: float = 4.0,
                  target_device_idx: int = None,
                  precision: int = None
                 ):
@@ -36,8 +36,10 @@ class FourQuadrantCoronograph(Coronograph):
         
     def make_focal_plane_mask(self):
         """ Make a quadrant mask, where 2 opposite quadrants apply a pi phase delay """
-        left_mask = make_mask(self.fft_totsize, diaratio=1.0, xc=1.0, xp=self.xp, square=True)
-        bottom_mask = make_mask(self.fft_totsize, diaratio=1.0, yc=1.0, xp=self.xp, square=True)
+        # left_mask = make_mask(self.fft_totsize, diaratio=1.0, xc=1.0, xp=self.xp, square=True)
+        # bottom_mask = make_mask(self.fft_totsize, diaratio=1.0, yc=1.0, xp=self.xp, square=True)
+        left_mask = make_mask(self.fft_totsize, diaratio=1.0, xc=1.0+1./self.fft_totsize, xp=self.xp, square=True, yc = 1./self.fft_totsize)
+        bottom_mask = make_mask(self.fft_totsize, diaratio=1.0, yc=1.0+1./self.fft_totsize, xp=self.xp, square=True, xc = 1./self.fft_totsize)
         quad_mask = self.xp.logical_xor(left_mask,bottom_mask)
         fp_mask = self.xp.exp(1j*quad_mask*self._phase_delay, dtype=self.xp.complex64)
         return fp_mask

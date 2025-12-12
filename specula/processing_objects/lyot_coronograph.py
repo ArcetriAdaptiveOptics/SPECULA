@@ -50,13 +50,13 @@ class LyotCoronograph(Coronograph):
         
     def make_focal_plane_mask(self):
         if self._knife_edge:
-            xc = 1.0 + (self._fedge * self.fft_res * self.fov_res)/ self.fft_totsize
+            xc = 1.0 + (self._fedge * self.fft_res * self.fov_res + 1.5)/ self.fft_totsize
             fp_mask = make_mask(self.fft_totsize, diaratio=1.0, xc=xc, xp=self.xp, square=True)
         else:
             owa_oversampled = self._owa * self.fft_res * self.fov_res if self._owa is not None else self.fft_totsize
-            fp_obsratio = self._iwa * self.fft_res * self.fov_res / owa_oversampled
+            fp_obsratio = self._iwa * self.fft_res * self.fov_res / owa_oversampled * 2
             fp_diaratio = owa_oversampled / self.fft_totsize 
-            fp_mask = make_mask(self.fft_totsize, diaratio=fp_diaratio, obsratio=fp_obsratio, xp=self.xp)
+            fp_mask = make_mask(self.fft_totsize, diaratio=fp_diaratio, obsratio=fp_obsratio, xp=self.xp, xc=1/self.fft_totsize, yc=1/self.fft_totsize)
         return fp_mask
     
     def make_pupil_plane_mask(self):

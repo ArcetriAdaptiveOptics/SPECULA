@@ -113,12 +113,19 @@ class Coronograph(BaseProcessingObj):
             'fft_totsize': int(totsize),
         }
     
-    def _propagate_to_focal_plane(self, pup_ef):
+    def _pupil_to_focal_plane(self, pup_ef):
         ef_pad = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.complex_dtype)
         pad_start = self.fft_padding // 2
         ef_pad[pad_start:pad_start+self.fft_sampling, 
                     pad_start:pad_start+self.fft_sampling] = pup_ef
         return self.xp.fft.fft2(ef_pad)
+    
+    # def _focal_to_pupil_plane(self, fp_ef):
+    #     ef_pad = self.xp.fft.ifft2(fp_ef)
+    #     pad_start = self.fft_padding // 2
+    #     ef_pp = ef_pad[pad_start:pad_start+self.fft_sampling, 
+    #                 pad_start:pad_start+self.fft_sampling]
+    #     return ef_pp
 
 
     def prepare_trigger(self, t):
@@ -192,17 +199,17 @@ class Coronograph(BaseProcessingObj):
         apodized_ef = self.ef_in * self.apodizer
 
         # Step 2: Propagate field to focal plane with FFT
-        ef_fp = self._propagate_to_focal_plane(apodized_ef)
+        ef_fp = self._pupil_to_focal_plane(apodized_ef)
 
         # Step 3: Apply focal plane mask (appropriately shifted)
         fp_mask_centered = self.xp.fft.fftshift(self.fp_mask)
         ef_fp_masked = ef_fp * fp_mask_centered
 
         # Step 4: Return to the pupil plane with IFFT
-        ef_pp_pad = self.xp.fft.ifft2(ef_fp_masked)
+        self.ef_pad = self.xp.fft.ifft2(ef_fp_masked)
         pad_start = self.fft_padding // 2
-        ef_pp = ef_pp_pad[pad_start:pad_start+self.fft_sampling,
-                                pad_start:pad_start+self.fft_sampling]
+        ef_pp = self.ef_pad[pad_start:pad_start+self.fft_sampling, 
+                    pad_start:pad_start+self.fft_sampling]
 
         # Step 5: Apply pupil stop
         self.ef_out[:] = ef_pp * self.pupil_mask
@@ -224,8 +231,8 @@ class Coronograph(BaseProcessingObj):
 
         # Calculate transmission
         # PSF before masking vs PSF after masking
-        psf_before = self.xp.abs(self._propagate_to_focal_plane(self.ef_in))**2
-        psf_after = self.xp.abs(self._propagate_to_focal_plane(self.ef_out))**2
+        psf_before = self.xp.abs(self._pupil_to_focal_plane(self.ef_in))**2
+        psf_after = self.xp.abs(self._pupil_to_focal_plane(self.ef_out))**2
         transmission = self.xp.sum(psf_after) / self.xp.sum(psf_before)
 
         # Amplitude
