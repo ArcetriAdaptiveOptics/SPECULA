@@ -4,8 +4,8 @@ import shutil
 
 import yaml
 import specula
-from specula.simul import Simul
 specula.init(0)  # Default target device
+from specula.simul import Simul
 
 from astropy.io import fits
 import numpy as np
