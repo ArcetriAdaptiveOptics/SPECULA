@@ -227,35 +227,28 @@ class ModulatedPyramid(BaseProcessingObj):
             min_pup_dist = pup_diam + pup_margin * 2
 
         if pup_dist < min_pup_dist:
-            print(f"Error: pup_dist (px) = {pup_dist} is not enough to hold the pupil geometry."
-                  f" Minimum allowed distance is {min_pup_dist}")
-            return 0
+            raise ValueError(f"Error: pup_dist (px) = {pup_dist} is"
+                             f"not enough to hold the pupil geometry."
+                             f" Minimum allowed distance is {min_pup_dist}")
 
         min_ccd_side = pup_dist + pup_diam + pup_margin * 2
         if ccd_side < min_ccd_side:
-            print(f"Error: ccd_side (px) = {ccd_side} is not enough to hold the pupil geometry."
-                  f" Minimum allowed side is {min_ccd_side}")
-            return 0
+            raise ValueError(f"Error: ccd_side (px) = {ccd_side} is"
+                             f" not enough to hold the pupil geometry."
+                             f" Minimum allowed side is {min_ccd_side}")
 
         fov_internal = lambda_ * 1e-9 / pixel_pitch * RAD2ASEC
 
-        minfov = FoV * (1 - fov_errinf)
         maxfov = FoV * (1 + fov_errsup)
-        fov_res = 1.0
+        if fov_internal > maxfov:
+            raise ValueError("Error: Calculated FoV is higher than maximum accepted FoV."
+                  f" FoV calculated (arcsec): {fov_internal:.2f},"
+                  f" maximum accepted FoV (arcsec): {maxfov:.2f}."
+                  f"\nPlease revise error margin, or the input phase dimension and/or pitch")
 
+        minfov = FoV * (1 - fov_errinf)
         if fov_internal < minfov:
             fov_res = int(self.xp.ceil(minfov / fov_internal))
-            fov_internal_interpolated = fov_internal * fov_res
-        else:
-            fov_res = 1
-            fov_internal_interpolated = fov_internal
-
-        if fov_internal > maxfov:
-            print("Error: Calculated FoV is higher than maximum accepted FoV.")
-            print("Please revise error margin, or the input phase dimension and/or pitch")
-            return 0
-
-        if fov_res > 1:
             fov_internal_interpolated = fov_internal * fov_res
             print(f"Interpolated FoV (arcsec): {fov_internal_interpolated:.2f}")
             print(f"Warning: reaching the requested FoV requires {fov_res}x interpolation"
