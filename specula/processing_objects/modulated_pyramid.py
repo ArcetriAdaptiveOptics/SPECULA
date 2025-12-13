@@ -256,6 +256,7 @@ class ModulatedPyramid(BaseProcessingObj):
             print("Consider revising the input phase dimension and/or pitch to improve"
                   " performance.")
         else:
+            fov_res = 1
             fov_internal_interpolated = fov_internal
 
         fp_masking = FoV / fov_internal_interpolated
