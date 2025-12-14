@@ -1,7 +1,7 @@
 from typing import Optional, Union, List
 
 from scipy.interpolate import RectBivariateSpline
-            
+
 from specula import cpuArray, ASEC2RAD, np
 from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.simul_params import SimulParams
