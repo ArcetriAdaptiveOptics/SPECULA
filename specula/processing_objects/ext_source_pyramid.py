@@ -4,7 +4,8 @@ from specula.base_value import BaseValue
 from specula.connections import InputValue
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.zernike_generator import ZernikeGenerator
-        
+
+
 @fuse(kernel_name='pyr1_fused')
 def pyr1_fused(u_fp, ffv, fpsf, masked_exp, xp):
     psf = xp.real(u_fp * xp.conj(u_fp))
@@ -118,6 +119,7 @@ class ExtSourcePyramid(ModulatedPyramid):
 
         self.factor = 1.0 / self.xp.sum(self.flux_factor_vector)
 
+
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
 
@@ -126,6 +128,7 @@ class ExtSourcePyramid(ModulatedPyramid):
             # Source was updated this timestep, refresh ttexp, flux factors and ffv
             self.mod_steps = int(self.ext_source_coeff.value.shape[0])
             self.cache_ttexp()
+
 
     def trigger_code(self):
         iu = 1j  # complex unit

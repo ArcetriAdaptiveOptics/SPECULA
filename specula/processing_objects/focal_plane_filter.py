@@ -69,28 +69,54 @@ class FocalPlaneFilter(BaseProcessingObj):
         self.ef_out = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.complex_dtype)
 
 
-    def calc_geometry(self, DpupPix, pixel_pitch, lambda_, FoV,
-                      fov_errinf=0.1, fov_errsup=0.5,  fft_res=3.0):
-        D = DpupPix * pixel_pitch
-        Fov_internal = lambda_ * 1e-9 / D * (D / pixel_pitch) * RAD2ASEC
-        minfov = FoV * (1 - fov_errinf)
+    def calc_geometry(self,
+        DpupPix,
+        pixel_pitch,
+        lambda_,
+        FoV,
+        fov_errinf=0.1,
+        fov_errsup=0.5,
+        fft_res=3.0):
+
+        fov_internal = lambda_ * 1e-9 / pixel_pitch * RAD2ASEC
+
         maxfov = FoV * (1 + fov_errsup)
-        fov_res = 1.0
-        if Fov_internal < minfov:
-            fov_res = int(minfov / Fov_internal)
-            if Fov_internal * fov_res < minfov:
-                fov_res += 1
-        if Fov_internal > maxfov:
-            raise ValueError(f"FoV too large compared to the diffraction limit "
-                            f"(FoV: {FoV}, Fov_internal: {Fov_internal}, "
-                            f"fov_errsup: {fov_errsup}) and fov_errinf: {fov_errinf})")
-        if fov_res > 1:
-            Fov_internal *= fov_res
-        fp_masking = FoV / Fov_internal
+        if fov_internal > maxfov:
+            raise ValueError("Error: Calculated FoV is higher than maximum accepted FoV."
+                  f" FoV calculated (arcsec): {fov_internal:.2f},"
+                  f" maximum accepted FoV (arcsec): {maxfov:.2f}."
+                  f"\nPlease revise error margin, or the input phase dimension and/or pitch")
+
+        minfov = FoV * (1 - fov_errinf)
+        if fov_internal < minfov:
+            fov_res = int(self.xp.ceil(minfov / fov_internal))
+            fov_internal_interpolated = fov_internal * fov_res
+            print(f"Interpolated FoV (arcsec): {fov_internal_interpolated:.2f}")
+            print(f"Warning: reaching the requested FoV requires {fov_res}x interpolation"
+                  f" of input phase array.")
+            print("Consider revising the input phase dimension and/or pitch to improve"
+                  " performance.")
+        else:
+            fov_res = 1
+            fov_internal_interpolated = fov_internal
+
+        fp_masking = FoV / fov_internal_interpolated
+
+        if fp_masking > 1.0:
+            if minfov / fov_internal_interpolated > 1.0:
+                raise ValueError(f"fp_masking ratio cannot be larger than 1.0.")
+            else:
+                fp_masking = 1.0
+
+        if fov_internal_interpolated != FoV:
+            print(f"FoV reduction from {fov_internal_interpolated:.2f} to {FoV:.2f}"
+                  f" will be performed with a focal plane mask")
+
         DpupPixFov = DpupPix * fov_res
         totsize = self.xp.around(DpupPixFov * fft_res / 2) * 2
         fft_res = totsize / float(DpupPixFov)
         padding = self.xp.around((DpupPixFov * fft_res - DpupPixFov) / 2) * 2
+
         return {
             'fov_res': fov_res,
             'fp_masking': fp_masking,
