@@ -30,6 +30,8 @@ class LyotCoronograph(Coronograph):
         fov = wavelengthInNm * 1e-9 / simul_params.pixel_pitch * RAD2ASEC
         # if iwaInLambdaOverD > 0.0:
         #     fov *= max(1.0,1/(iwaInLambdaOverD-(iwaInLambdaOverD % 1)))
+
+        # fft_res = max(1/(iwaInLambdaOverD-np.mod(iwaInLambdaOverD,1)), 1/(owaInLambdaOverD-np.mod(owaInLambdaOverD,1)))
             
         self._knife_edge = knife_edge
         if knife_edge:

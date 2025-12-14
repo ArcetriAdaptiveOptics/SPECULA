@@ -95,29 +95,25 @@ class Coronograph(BaseProcessingObj):
 
         fov_internal = lambda_ * 1e-9 / pixel_pitch * RAD2ASEC
 
-        minfov = FoV * (1 - fov_errinf)
         maxfov = FoV * (1 + fov_errsup)
+        if fov_internal > maxfov:
+            raise ValueError("Error: Calculated FoV is higher than maximum accepted FoV."
+                  f" FoV calculated (arcsec): {fov_internal:.2f},"
+                  f" maximum accepted FoV (arcsec): {maxfov:.2f}."
+                  f"\nPlease revise error margin, or the input phase dimension and/or pitch")
 
-        fov_res = 1.0
-
+        minfov = FoV * (1 - fov_errinf)
         if fov_internal < minfov:
             fov_res = int(self.xp.ceil(minfov / fov_internal))
             fov_internal_interpolated = fov_internal * fov_res
-        else:
-            fov_res = 1
-            fov_internal_interpolated = fov_internal
-
-        if fov_internal > maxfov:
-            print("Error: Calculated FoV is higher than maximum accepted FoV.")
-            print("Please revise error margin, or the input phase dimension and/or pitch")
-            return 0
-
-        if fov_res > 1:
             print(f"Interpolated FoV (arcsec): {fov_internal_interpolated:.2f}")
             print(f"Warning: reaching the requested FoV requires {fov_res}x interpolation"
                   f" of input phase array.")
             print("Consider revising the input phase dimension and/or pitch to improve"
                   " performance.")
+        else:
+            fov_res = 1
+            fov_internal_interpolated = fov_internal
 
         fp_masking = FoV / fov_internal_interpolated
 
@@ -143,9 +139,9 @@ class Coronograph(BaseProcessingObj):
             'fft_sampling': int(DpupPixFov),
             'fft_padding': int(padding),
             'fft_totsize': int(totsize),
-            'wavelengthInNm': lambda_
+            # 'wavelengthInNm': lambda_
         }
-    
+
     def _pupil_to_focal_plane(self, pup_ef):
         ef_pad = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.complex_dtype)
         pad_start = self.fft_padding // 2
