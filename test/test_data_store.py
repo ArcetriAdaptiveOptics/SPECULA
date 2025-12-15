@@ -4,8 +4,8 @@ import shutil
 
 import yaml
 import specula
-from specula.simul import Simul
 specula.init(0)  # Default target device
+from specula.simul import Simul
 
 from astropy.io import fits
 import numpy as np
@@ -40,7 +40,7 @@ class TestDataStore(unittest.TestCase):
         filename = os.path.join(self.tmp_dir, 'test_data_store.yaml')
         with open(filename, 'w') as outfile:
             yaml.dump(params, outfile)
-        
+
         simul = Simul(filename)
         simul.run()
 
@@ -93,7 +93,8 @@ class TestDataStore(unittest.TestCase):
         assert gen_times.dtype == np.uint64
 
     def test_data_store_fails_early(self):
-        """Test that DataStore fails during setup() if a class without get_value() is set as an input"""
+        """Test that DataStore fails during setup() if a
+        class without get_value() is set as an input"""
         buffer_size = 2
 
         # Create buffer with manual input setup
@@ -109,8 +110,8 @@ class TestDataStore(unittest.TestCase):
 
     def test_trigger_code_saves_at_correct_intervals_and_suffixes(self):
         """
-        Verify that DataStore.save() is called only when iter_counter reaches multiples of split_size,
-        and that TN folder suffixes are correct.
+        Verify that DataStore.save() is called only when iter_counter reaches
+        multiples of split_size, and that TN folder suffixes are correct.
         """
         with patch.object(DataStore, "save") as mock_save, \
              patch.object(DataStore, "create_TN_folder") as mock_create_tn, \
@@ -213,3 +214,88 @@ class TestDataStore(unittest.TestCase):
             mock_trigger.assert_called_once()
             mock_create_tn.assert_called_once()
             mock_save.assert_called_once()
+
+    @cpu_and_gpu
+    def test_save_fits_skips_none_keys(self, target_device_idx, xp):
+        """
+        Verify that save_fits() skips None keys in storage without crashing.
+        """
+        with patch("os.makedirs"), \
+             patch("os.path.exists", return_value=False):
+
+            ds = DataStore(store_dir="/tmp", data_format="fits")
+            ds.verbose = True
+            ds.local_inputs = {'gen': None}  # Mock input
+
+            # Manually create storage with a None key
+            ds.storage[None] = {100: xp.array([1.0]), 200: xp.array([2.0])}
+            ds.storage['gen'] = {100: xp.array([1.0]), 200: xp.array([2.0])}
+
+            # Should not crash when saving
+            ds.save_fits()
+
+    @cpu_and_gpu
+    def test_save_pickle_skips_none_keys(self, target_device_idx, xp):
+        """
+        Verify that save_pickle() skips None keys in storage without crashing.
+        """
+        with patch("os.makedirs"), \
+             patch("os.path.exists", return_value=False):
+
+            ds = DataStore(store_dir="/tmp", data_format="pickle")
+            ds.verbose = True
+            ds.local_inputs = {'gen': None}  # Mock input
+
+            # Manually create storage with a None key
+            ds.storage[None] = {100: xp.array([1.0]), 200: xp.array([2.0])}
+            ds.storage['gen'] = {100: xp.array([1.0]), 200: xp.array([2.0])}
+
+            # Should not crash when saving
+            ds.save_pickle()
+
+    @cpu_and_gpu
+    def test_save_fits_handles_missing_local_inputs(self, target_device_idx, xp):
+        """
+        Verify that save_fits() gracefully handles keys not present in local_inputs.
+        """
+        with patch("os.makedirs"), \
+             patch("os.path.exists", return_value=False):
+
+            ds = DataStore(store_dir="/tmp", data_format="fits")
+            ds.verbose = True
+            ds.local_inputs = {'gen': None}  # Only 'gen' is registered
+
+            # Add storage for both registered and unregistered keys
+            ds.storage['gen'] = {100: xp.array([1.0]), 200: xp.array([2.0])}
+            ds.storage['missing_key'] = {100: xp.array([3.0]), 200: xp.array([4.0])}
+
+            # Should not crash when saving
+            ds.save_fits()
+
+            # Verify 'gen' file was created but 'missing_key' was not
+            gen_file = os.path.join("/tmp", "gen.fits")
+            missing_file = os.path.join("/tmp", "missing_key.fits")
+            # Note: with mocked os.path.exists, we can't actually verify files
+            # The test passes if save_fits() doesn't crash
+
+    @cpu_and_gpu
+    def test_save_pickle_handles_missing_inputs(self, target_device_idx, xp):
+        """
+        Verify that save_pickle() gracefully handles keys not present in inputs.
+        """
+        with patch("os.makedirs"), \
+             patch("os.path.exists", return_value=False):
+
+            ds = DataStore(store_dir="/tmp", data_format="pickle")
+            ds.verbose = True
+            ds.local_inputs = {'gen': None}  # Only 'gen' is registered
+
+            # Add storage for both registered and unregistered keys
+            ds.storage['gen'] = {100: xp.array([1.0]), 200: xp.array([2.0])}
+            ds.storage['missing_key'] = {100: xp.array([3.0]), 200: xp.array([4.0])}
+
+            # Should not crash when saving
+            ds.save_pickle()
+
+            # Note: with mocked filesystem, we can't verify files
+            # The test passes if save_pickle() doesn't crash

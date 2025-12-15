@@ -48,6 +48,7 @@ class PSF(BaseProcessingObj):
         if wavelengthInNm <= 0:
             raise ValueError('PSF wavelength must be >0')
         self.wavelengthInNm = wavelengthInNm
+        self.wave_str = f"{int(wavelengthInNm)}nm"
 
         self.psf_pixel_size, self.nd = calc_psf_geometry(
                                             simul_params.pixel_pupil,
@@ -117,7 +118,7 @@ class PSF(BaseProcessingObj):
         self.sr.value = self.psf.value[self.out_size[0] // 2, \
                                        self.out_size[1] // 2] / self.ref.i[self.out_size[0] // 2, \
                                        self.out_size[1] // 2]
-        print('SR:', self.sr.value, flush=True)
+        print('SR at ' + self.wave_str + ':', self.sr.value, flush=True)
 
     def post_trigger(self):
         super().post_trigger()
