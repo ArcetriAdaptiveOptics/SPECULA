@@ -5,7 +5,7 @@ import sys
 
 # All the classes are:
 # AtmoEvolution.yml          BaseOperation.yml      DataStore.yml      FlaskServer.yml    ImRecCalibrator.yml           
-# ModalAnalysisWFS.yml  MultiImRecCalibrator.yml  ShShift.yml            Slopec.yml
+# ModalAnalysisWFS.yml  MultiImRecCalibrator.yml    Slopec.yml
 # AtmoInfiniteEvolution.yml  BaseProcessingObj.yml  DisplayServer.yml  FuncGenerator.yml  Integrator.yml                
 # ModalAnalysis.yml     ProcessingContainer.yml   ShSlopec.yml           SnCalibrator.yml
 # AtmoPropagation.yml        CCD.yml                DM.yml             IdealWFS.yml       LowPassFilter.yml             
@@ -13,6 +13,8 @@ import sys
 # AtmoRandomPhase.yml        DataSource.yml         Factory.yml        IirFilter.yml      MirrorCommandsCombinator.yml  
 # ModulatedPyramid.yml  PyrSlopec.yml             SH.yml                 WindowedIntegration.yml
 
+
+# TODO new generator classes not 
 exposed_classes = [ 'Source', 'Pupilstop',                    
                     'FuncGenerator', 'BaseOperation', 'AtmoEvolution', 'AtmoInfiniteEvolution', 'AtmoPropagation',
                     'ModulatedPyramid', 'CCD', 'Slopec', 'PyrSlopec', 'Modalrec', 'Integrator', 'IirFilter', 'DM', 'PSF', 'DataStore'                

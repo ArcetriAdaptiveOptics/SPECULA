@@ -4,22 +4,23 @@ from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.intensity import Intensity
 from specula.data_objects.lenslet import Lenslet
 from specula.connections import InputValue
+from specula.data_objects.pixels import Pixels
 from specula.data_objects.subap_data import SubapData
 
 
 class ShSubapCalibrator(BaseProcessingObj):
     def __init__(self,
                  subap_on_diameter: int,
-                 energy_th: float,
                  data_dir: str,         # Set by main simul object
+                 energy_th: float,
                  output_tag: str = None,
                  tag_template: str = None,
-                 target_device_idx: int = None, 
+                 overwrite: bool = False,
+                 target_device_idx: int = None,
                  precision: int = None
                 ):
-        super().__init__(target_device_idx=target_device_idx, precision=precision)        
-        self._subap_on_diameter = subap_on_diameter
-        self._lenslet = Lenslet(subap_on_diameter)
+        super().__init__(target_device_idx=target_device_idx, precision=precision)
+        self._lenslet = Lenslet(subap_on_diameter, target_device_idx=self.target_device_idx)
         self._energy_th = energy_th
         self._data_dir = data_dir
         if tag_template is None and (output_tag is None or output_tag == 'auto'):
@@ -29,20 +30,36 @@ class ShSubapCalibrator(BaseProcessingObj):
             self._filename = tag_template
         else:
             self._filename = output_tag
-        self.inputs['in_i'] = InputValue(type=Intensity)
+        self._overwrite = overwrite
+
+        self.inputs['in_i'] = InputValue(type=Intensity, optional=True)
+        self.inputs['in_pixels'] = InputValue(type=Pixels, optional=True)
+
+    def setup(self):
+        super().setup()
+
+        in_i = self.local_inputs['in_i']
+        in_pixels = self.local_inputs['in_pixels']
+        if in_i is None and in_pixels is None:
+            raise ValueError('One of input Pixel or Intensity object must be set')
+        if in_i is not None and in_pixels is not None:
+            raise ValueError('Only one of input Pixel or Intensity object must be set')
 
     def trigger_code(self):
-        image = self.local_inputs['in_i'].i
+        if self.local_inputs['in_i']:
+            image = self.local_inputs['in_i'].i
+        else:
+            image = self.local_inputs['in_pixels'].pixels
         self.subaps = self._detect_subaps(image, self._energy_th)
-        
+
     def finalize(self):
         filename = self._filename
         if not filename.endswith('.fits'):
             filename += '.fits'
         file_path = os.path.join(self._data_dir, filename)
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        self.subaps.save(os.path.join(self._data_dir, filename))
-        
+        self.subaps.save(os.path.join(self._data_dir, filename), overwrite=self._overwrite)
+
     def _detect_subaps(self, image, energy_th):
         np = image.shape[0]
         mask_subap = self.xp.zeros_like(image)
@@ -85,9 +102,9 @@ class ShSubapCalibrator(BaseProcessingObj):
         for k, idx in idxs.items():
             v[k] = self.xp.ravel_multi_index(idx, image.shape)
             m[k] = map[k]
-        
+
         subap_data = SubapData(idxs=v, display_map=m, nx=self._lenslet.dimx, ny=self._lenslet.dimy, energy_th=energy_th,
                            target_device_idx=self.target_device_idx, precision=self.precision)
-      
+
         return subap_data
     

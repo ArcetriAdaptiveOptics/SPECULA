@@ -1,0 +1,215 @@
+---
+
+main:
+  class:             'SimulParams'
+  root_dir:          '/raid1/guido/PASSATA/MAORYC'         # Root directory for calibration manager
+  pixel_pupil:       480                    # Linear dimension of pupil phase array
+  pixel_pitch:       0.08125                 # [m] Pitch of the pupil phase array
+  total_time:        0.080                  # [s] Total simulation running time
+  time_step:         0.002                  # [s] Simulation time step
+  zenithAngleInDeg:  30.0                   # [deg] Airmass correction
+
+
+data_store:
+  class:             'DataStore'
+  store_dir:         './output'             # Data result directory: 'store_dir'/TN/
+  inputs:
+    input_list: ['res_ef-prop.out_on_axis_source_ef',
+                 'lgs_ef-prop.out_lgs1_source_ef']
+
+seeing:
+  class:             'WaveGenerator'
+  constant:          0.644                  # ["] seeing value
+  outputs: ['output']
+
+
+wind_speed:
+  class:             'WaveGenerator'
+  constant:          [5.5, 5.5, 5.1, 5.5, 5.6, 5.7, 5.8, 6.0, 6.5, 7.0,
+                      7.5, 8.5, 9.5, 11.5, 17.5, 23.0, 26.0, 29.0, 32.0, 27.0,
+                      22.0, 14.5, 9.5, 6.3, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0,
+                      8.5, 9.0, 9.5, 10.0, 10.0]      # [m/s] Wind speed value
+  outputs: ['output']
+
+
+wind_direction:
+  class:             'WaveGenerator'
+  constant:          [0, -180, 0, 0, 90, 180, 0, 0, 0, -180,
+                      0, 0, -90, 0, 90, -180, 90, 0, -90, -90,
+                      0, -90, 0, 0, 180, 180, 0, -180, 90, 0,
+                      0, 180, -90, 90, -90]   # [degrees] Wind direction value
+  outputs: ['output']
+
+
+on_axis_source:
+  class:             'Source'
+  polar_coordinates:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  magnitude:         8                    # source magnitude
+  wavelengthInNm:    750                   # [nm] wavelength
+
+
+lgs1_source:
+  class:             'Source'
+  polar_coordinates:  [45.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  height:            90000                # Source height [m]
+  magnitude:         5                    # source magnitude
+  wavelengthInNm:    589                  # [nm] wavelength
+
+
+pupilstop:                                 # Default parameters (circular pupil)
+  class: 'Pupilstop'
+  simul_params_ref:  'main'
+  tag: 'EELT480pp0.0803m_obs0.283_spider2023'
+
+atmo:
+  class:                'AtmoEvolution'
+  simul_params_ref:  'main'
+  L0:                   25                   # [m] Outer scale
+  heights:              [30.0000, 90.0000, 150.000, 200.000, 245.000, 300.000, 390.000, 600.000, 1130.00, 1880.00,
+                         2630.00, 3500.00, 4500.00, 5500.00, 6500.00, 7500.00, 8500.00, 9500.00, 10500.0, 11500.0,
+                         12500.0, 13500.0, 14500.0, 15500.0, 16500.0, 17500.0, 18500.0, 19500.0, 20500.0, 21500.0,
+                         22500.0, 23500.0, 24500.0, 25500.0, 26500.0] # [m] layer heights at 0 zenith angle
+  Cn2:                  [0.241954, 0.119977, 0.0968817, 0.0589889, 0.0472911, 0.0472911, 0.0472911, 0.0472911, 0.0398925, 0.0323939,
+                         0.0161969, 0.0260951, 0.0155971, 0.0103980, 0.00999811, 0.0119977, 0.00400924, 0.0139974, 0.0129975, 0.00700868,
+                         0.0159970, 0.0258951, 0.0190964, 0.00986813, 0.00616883, 0.00400924, 0.00246953, 0.00215959, 0.00184965, 0.00135974,
+                         0.00110979, 0.000616883, 0.000925825, 0.000493907, 0.000431918] # Cn2 weights (total must be eq 1)
+  fov:                  180.0               # MCAO fov in arcsec (?)
+  inputs:
+    seeing: 'seeing.output'
+    wind_speed: 'wind_speed.output'
+    wind_direction: 'wind_direction.output'
+  outputs: ['layer_list']
+
+
+prop:
+  class:                'AtmoPropagation'
+  simul_params_ref:  'main'
+  source_dict_ref:      ['on_axis_source', 'lgs1_source']
+  inputs:
+    atmo_layer_list: ['atmo.layer_list']
+    common_layer_list: ['pupilstop',
+                  'dm.out_layer:-1']
+  outputs: ['out_on_axis_source_ef', 'out_lgs1_source_ef']
+
+sh1:
+  class:             'SH'
+  subap_wanted_fov:  16.1                    # Requested field-of-view [arcsec]
+  sensor_pxscale:    1.15                    # Pixel scale in arcsec/pix
+  subap_npx:         14                      # Output sampling [usually corresponding to CCD pixels]
+  subap_on_diameter: 68                      # Number of subapertures in diameter
+  wavelengthInNm:    589                     # [nm] Pyramid wavelength
+  fov_ovs_coeff:     1.52                    # Force phase interpolation to a multiple of 68
+  inputs:
+    in_ef: 'prop.out_lgs1_source_ef'
+  outputs:  ['out_i']
+
+detector1:
+  class:             'CCD'
+  simul_params_ref:  'main'
+  size:              [952,952]               # Detector size in pixels
+  dt:                0.002                   # [s] Detector integration time
+  bandw:             20                      # [nm] Sensor bandwidth
+  photon_noise:      True                    # activate photon noise
+  readout_noise:     True                    # activate readout noise
+  readout_level:     2.7                     # readout noise in [e-/pix/frame]
+  quantum_eff:       0.188                   # quantum efficiency * total transmission
+  inputs:
+    in_i: 'sh1.out_i'
+  outputs:  ['out_pixels']
+
+slopec1:
+  class:             'ShSlopec'
+  thr_value:         10
+  subapdata_object:  'morfeo_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.25'  # tag of the pyramid WFS pupils
+  sn_object:         'morfeo_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.25_ce'  # tag of the slope reference vector
+  inputs:
+    in_pixels:        'detector1.out_pixels'
+  outputs:  ['out_slopes', 'out_subapdata']
+
+rec:
+  class:              'Modalrec'
+#  recmat_object:      'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_mn1000_ce'         # reconstruction matrix tag
+#  recmat_object:      'MORFEO_LTAO'         # reconstruction matrix tag
+#  recmat_object:      '/tmp/ltao_full_rec'         # reconstruction matrix tag
+#  recmat_object:      '/tmp/test_morfeo_scao_rec'         # reconstruction matrix tag
+  recmat_object:      '/tmp/test_morfeo_scao_rec_2000modes'         # reconstruction matrix tag
+  inputs:
+    in_slopes_list:        ['slopec1.out_slopes']
+  outputs:  ['out_modes', 'out_pseudo_ol_modes']
+
+control:
+  class:             'Integrator'
+  simul_params_ref:  'main'
+  delay:             2                      # Total temporal delay in time steps
+  int_gain_data:     'g0.40_4519'  
+  inputs:
+      delta_comm: 'rec.out_modes'     
+  outputs:  ['out_comm']
+
+dm:
+  class:             'DM'
+  simul_params_ref:  'main'
+  ifunc_object:      'M4_eso_zonal_486p_5352a_slaved'
+  m2c_object:        'M4_eso_39.5m_486p_20230215'
+  height:            0                      # DM height [m]
+  inputs:
+      in_command: 'control.out_comm'
+  outputs:  ['out_layer']
+
+
+psf:
+  class:             'PSF'
+  simul_params_ref:  'main'
+  wavelengthInNm:    2200                 # [nm] Imaging wavelength
+  nd:                4                    # padding coefficient for PSF computation
+  start_time:        0.05                 # PSF integration start time
+  inputs:
+      in_ef:  'prop.out_on_axis_source_ef'
+  outputs:  ['out_psf', 'out_sr']
+
+# sc1_disp:
+#  class:            'SlopecDisplay'
+#  inputs:
+#    slopes:       'slopec1.out_slopes'
+#    subapdata:    'slopec1.out_subapdata'
+#  figsize:       [8, 6]  # Default size in inches
+
+psf_disp:
+ class:            'PsfDisplay'
+ inputs:
+   psf:       "psf.out_psf"
+ title:            'PSF'
+ figsize:       [8, 6]  # Default size in inches
+
+sr_disp:
+  class:            'PlotDisplay'
+  inputs:
+    value:       'psf.out_sr'
+  title:            'SR'
+
+# cmd_disp:
+#   class:            'ModesDisplay'
+#   inputs:
+#     modes:       "rec.out_modes"
+#   title:            'rec.out_modes'
+
+# dm_disp:
+#   class:            'PhaseDisplay'
+#   inputs:
+#     phase:       "dm.out_layer"
+#   title:            'DM'
+#   figsize:       [8, 6]  # Default size in inches
+
+# ph1_disp:
+#   class:            'PhaseDisplay'
+#   inputs:
+#     phase:       "prop.out_on_axis_source_ef"
+#   title:            'PHASE ON AXIS'
+#   figsize:       [8, 6]  # Default size in inches
+
+# pixels_disp:
+#   class:            'PixelsDisplay'
+#   inputs:
+#     pixels:      "detector1.out_pixels"
+#   title:            "Pixels"
+#   figsize:       [8, 6]  # Default size in inches

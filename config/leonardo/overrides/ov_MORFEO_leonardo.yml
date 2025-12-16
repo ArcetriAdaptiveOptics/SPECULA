@@ -1,0 +1,70 @@
+
+main_override:
+  root_dir:        '/leonardo_work/try25_rossi/MORFEO_DATA0'         # Root directory for calibration manager
+  total_time:      0.100
+  display_server:  false
+
+# Parallelization over GPUs on a single node
+
+pupilstop_override: { target_rank: 0 }
+
+ifunc_m4_override: { target_device_idx: 3, target_rank: 3 }
+m2c_m4_override: { target_device_idx: 3, target_rank: 3 }
+dm1_override: { target_device_idx: 3, target_rank: 3 }
+dm2_override: { target_device_idx: 3, target_rank: 3 }
+dm3_override: { target_device_idx: 3, target_rank: 3 }
+
+sh_lgs1_override: { target_device_idx: 0, target_rank: 0 }
+sh_lgs2_override: { target_device_idx: 1, target_rank: 1 }
+sh_lgs3_override: { target_device_idx: 2, target_rank: 2 }
+sh_lgs4_override: { target_device_idx: 0, target_rank: 4 }
+sh_lgs5_override: { target_device_idx: 1, target_rank: 5 }
+sh_lgs6_override: { target_device_idx: 2, target_rank: 6 }
+
+detector_lgs1_override: { target_device_idx: 0, target_rank: 0 }
+detector_lgs2_override: { target_device_idx: 1, target_rank: 1 }
+detector_lgs3_override: { target_device_idx: 2, target_rank: 2 }
+detector_lgs4_override: { target_device_idx: 0, target_rank: 4 }
+detector_lgs5_override: { target_device_idx: 1, target_rank: 5 }
+detector_lgs6_override: { target_device_idx: 2, target_rank: 6 }
+
+slopec_lgs1_override: { target_device_idx: 0, target_rank: 0 }
+slopec_lgs2_override: { target_device_idx: 1, target_rank: 1 }
+slopec_lgs3_override: { target_device_idx: 2, target_rank: 2 }
+slopec_lgs4_override: { target_device_idx: 0, target_rank: 4 }
+slopec_lgs5_override: { target_device_idx: 1, target_rank: 5 }
+slopec_lgs6_override: { target_device_idx: 2, target_rank: 6 }
+
+sh_ngs1_override: { target_device_idx: 3, target_rank: 7 }
+sh_ngs2_override: { target_device_idx: 3, target_rank: 7 }
+sh_ngs3_override: { target_device_idx: 3, target_rank: 7 }
+
+detector_ngs1_override: { target_device_idx: 3, target_rank: 7 }
+detector_ngs2_override: { target_device_idx: 3, target_rank: 7 }
+detector_ngs3_override: { target_device_idx: 3, target_rank: 7 }
+
+slopec_ngs1_override: { target_device_idx: 3, target_rank: 7 }
+slopec_ngs2_override: { target_device_idx: 3, target_rank: 7 }
+slopec_ngs3_override: { target_device_idx: 3, target_rank: 7 }
+
+sh_ref1_override: { target_device_idx: 3, target_rank: 7 }
+sh_ref2_override: { target_device_idx: 3, target_rank: 7 }
+sh_ref3_override: { target_device_idx: 3, target_rank: 7 }
+
+detector_ref1_override: { target_device_idx: 3, target_rank: 7 }
+detector_ref2_override: { target_device_idx: 3, target_rank: 7 }
+detector_ref3_override: { target_device_idx: 3, target_rank: 7 }
+
+slopec_ref1_override: { target_device_idx: 3, target_rank: 7 }
+slopec_ref2_override: { target_device_idx: 3, target_rank: 7 }
+slopec_ref3_override: { target_device_idx: 3, target_rank: 7 }
+
+# Workaround for crash bug
+
+#detector_ref1_override: { dt: 0.002 }
+#detector_ref2_override: { dt: 0.002 }
+#detector_ref3_override: { dt: 0.002 }
+
+subtract_ref_override: { value2_remap_data: 'ref_input_index2.fits' }
+
+

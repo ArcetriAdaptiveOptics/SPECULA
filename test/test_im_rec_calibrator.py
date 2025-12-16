@@ -1,96 +1,97 @@
-
-
 import specula
 specula.init(0)  # Default target device
 
 import os
 import tempfile
 import unittest
+import shutil
 
-from specula.data_objects.slopes import Slopes
 from specula.base_value import BaseValue
-from specula.processing_objects.im_rec_calibrator import ImRecCalibrator
+from specula.data_objects.pupilstop import Pupilstop
+from specula.data_objects.slopes import Slopes
+from specula.data_objects.source import Source
+from specula.data_objects.intmat import Intmat
+from specula.data_objects.subap_data import SubapData
+from specula.data_objects.simul_params import SimulParams
+from specula.processing_objects.dm import DM
+from specula.processing_objects.sh import SH
+from specula.processing_objects.sh_slopec import ShSlopec
+from specula.processing_objects.im_calibrator import ImCalibrator
+from specula.processing_objects.rec_calibrator import RecCalibrator
 
 from test.specula_testlib import cpu_and_gpu
 
 class TestImRecCalibrator(unittest.TestCase):
 
+    def setUp(self):
+        """Create unique temporary directory for each test"""
+        self.test_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        """Clean up temporary files"""
+        if os.path.exists(self.test_dir):
+            shutil.rmtree(self.test_dir)
+
     def test_existing_im_file_is_detected(self):
+        """Test that ImCalibrator detects existing IM files"""
+        im_tag = 'test_im'
+        im_filename = f'{im_tag}.fits'
+        im_path = os.path.join(self.test_dir, im_filename)
 
-        data_dir = tempfile.gettempdir()
-        im_filename = 'test_im.fits'
-        im_path = os.path.join(data_dir, im_filename)
-        open(im_path, 'a').close()
-        
-        slopes = Slopes(2)
-        cmd = BaseValue(value=2)
-        calibrator = ImRecCalibrator(nmodes=10, data_dir=data_dir, rec_tag='x', im_tag='test_im')
-        calibrator.inputs['in_slopes'].set(slopes)
-        calibrator.inputs['in_commands'].set(cmd)
-        
+        # Create empty file
+        with open(im_path, 'w') as f:
+            f.write('')
+
         with self.assertRaises(FileExistsError):
-            calibrator.setup()
-        
+            _ = ImCalibrator(nmodes=10, data_dir=self.test_dir, im_tag=im_tag)
+ 
+    def test_existing_im_file_with_overwrite(self):
+        """Test that overwrite=True allows overwriting existing files"""
+        im_tag = 'test_im_overwrite'
+        im_filename = f'{im_tag}.fits'
+        im_path = os.path.join(self.test_dir, im_filename)
+
+        # Create empty file
+        with open(im_path, 'w') as f:
+            f.write('')
+
+        # Should not raise
+        _ = ImCalibrator(nmodes=10, data_dir=self.test_dir, im_tag=im_tag, overwrite=True)
+
     def test_existing_rec_file_is_detected(self):
+        """Test that RecCalibrator detects existing REC files"""
+        rec_tag = 'test_rec'
+        rec_filename = f'{rec_tag}.fits'
+        rec_path = os.path.join(self.test_dir, rec_filename)
 
-        data_dir = tempfile.gettempdir()
-        rec_filename = 'test_rec.fits'
-        rec_path = os.path.join(data_dir, rec_filename)
-        open(rec_path, 'a').close()
-        
-        slopes = Slopes(2)
-        cmd = BaseValue(value=2)
-        calibrator = ImRecCalibrator(nmodes=10, data_dir=data_dir, rec_tag='test_rec')
-        calibrator.inputs['in_slopes'].set(slopes)
-        calibrator.inputs['in_commands'].set(cmd)
-        
+        # Create empty file
+        with open(rec_path, 'w') as f:
+            f.write('')
+
         with self.assertRaises(FileExistsError):
-            calibrator.setup()
+            _ = RecCalibrator(nmodes=2, data_dir=self.test_dir, rec_tag=rec_tag)
 
-    def test_existing_im_file_is_not_detected_if_not_requested(self):
-
-        data_dir = tempfile.gettempdir()
-        im_filename = 'test_im.fits'
-        rec_filename = 'test_rec.fits'
-        im_path = os.path.join(data_dir, im_filename)
-        rec_path = os.path.join(data_dir, rec_filename)
-        open(im_path, 'a').close()
-        if os.path.exists(rec_path):
-            os.unlink(rec_path)
-
-        slopes = Slopes(2)
-        cmd = BaseValue(value=2)
-        calibrator = ImRecCalibrator(nmodes=10, data_dir=data_dir, rec_tag='test_rec')
-        calibrator.inputs['in_slopes'].set(slopes)
-        calibrator.inputs['in_commands'].set(cmd)
-
-        # Does not raise        
-        calibrator.setup()
-    
     @cpu_and_gpu
     def test_triggered_by_slopes_only(self, target_device_idx, xp):
+        """Test that calibrator only triggers when slopes are updated"""
+        im_tag = 'test_im_trigger'
 
-        data_dir = tempfile.gettempdir()
-        rec_filename = 'test_rec.fits'
-        rec_path = os.path.join(data_dir, rec_filename)
-        if os.path.exists(rec_path):
-            os.unlink(rec_path)
-        
         slopes = Slopes(2, target_device_idx=target_device_idx)
         cmd = BaseValue(value=xp.zeros(2), target_device_idx=target_device_idx)
-        calibrator = ImRecCalibrator(nmodes=10, data_dir=data_dir, rec_tag='test_rec')
+        calibrator = ImCalibrator(nmodes=10, data_dir=self.test_dir, im_tag=im_tag, overwrite=True)
         calibrator.inputs['in_slopes'].set(slopes)
         calibrator.inputs['in_commands'].set(cmd)
         calibrator.setup()
-        
+
         slopes.generation_time = 1
         cmd.generation_time = 1
 
         calibrator.check_ready(t=1)
         calibrator.trigger()
         calibrator.post_trigger()
-        
-        assert calibrator.outputs['out_im'][0].generation_time == 1
+
+        # Check that output was created and updated
+        self.assertEqual(calibrator.outputs['out_intmat'].generation_time, 1)
 
         # Do not advance slopes.generation_time
         slopes.generation_time = 1
@@ -99,9 +100,9 @@ class TestImRecCalibrator(unittest.TestCase):
         calibrator.check_ready(t=2)
         calibrator.trigger()
         calibrator.post_trigger()
-        
-        # Check that trigger was not executed
-        assert calibrator.outputs['out_im'][0].generation_time == 1
+
+        # Check that trigger was not executed (output time unchanged)
+        self.assertEqual(calibrator.outputs['out_intmat'].generation_time, 1)
 
         # Advance both
         slopes.generation_time = 3
@@ -110,8 +111,252 @@ class TestImRecCalibrator(unittest.TestCase):
         calibrator.check_ready(t=3)
         calibrator.trigger()
         calibrator.post_trigger()
-        
+
         # Check that trigger was executed
-        assert calibrator.outputs['out_im'][0].generation_time == 3
+        self.assertEqual(calibrator.outputs['out_intmat'].generation_time, 3)
 
+    def test_existing_rec_file_with_overwrite(self):
+        """Test that overwrite=True allows overwriting existing files"""
+        rec_tag = 'test_rec_overwrite'
+        rec_filename = f'{rec_tag}.fits'
+        rec_path = os.path.join(self.test_dir, rec_filename)
 
+        # Create empty file
+        with open(rec_path, 'w') as f:
+            f.write('')
+
+        intmat = Intmat(intmat=specula.np.array([[1, 2], [3, 4]]))
+        calibrator = RecCalibrator(nmodes=2, data_dir=self.test_dir, rec_tag=rec_tag, overwrite=True)
+        calibrator.inputs['in_intmat'].set(intmat)
+
+        # Should not raise
+        calibrator.setup()
+
+    @cpu_and_gpu
+    def test_reconstructor_generation(self, target_device_idx, xp):
+        """Test that reconstructor is generated from interaction matrix"""
+        rec_tag = 'test_rec_gen'
+
+        # Create mock interaction matrix (slopes x modes)
+        n_slopes = 6
+        n_modes = 3
+        mock_im = xp.random.random((n_slopes, n_modes)).astype(xp.float32)
+        intmat = Intmat(intmat=mock_im, target_device_idx=target_device_idx)
+
+        # Set generation time BEFORE setup
+        intmat.generation_time = 1
+
+        calibrator = RecCalibrator(nmodes=n_modes, data_dir=self.test_dir, rec_tag=rec_tag, overwrite=True)
+        calibrator.inputs['in_intmat'].set(intmat)
+        calibrator.setup()
+
+        # Check ready and trigger
+        calibrator.check_ready(t=1)
+        calibrator.trigger()
+        calibrator.finalize()
+
+        # Check that file was created
+        rec_path = os.path.join(self.test_dir, f'{rec_tag}.fits')
+        self.assertTrue(os.path.exists(rec_path))
+
+    @cpu_and_gpu
+    def test_automatic_im_tag_generation(self, target_device_idx, xp):
+        """Test that ImCalibrator generates automatic im_tag when not specified"""
+
+        # Create SimulParams (needed for DM and SH)
+        simul_params = SimulParams(
+            pixel_pupil=64,
+            pixel_pitch=0.1
+        )
+
+        # create a Pupilstop
+        pupilstop = Pupilstop(simul_params,
+                              mask_diam=0.9,
+                              obs_diam=0.1,
+                              target_device_idx=target_device_idx)
+
+        # Create Source
+        source = Source(
+            polar_coordinates=[10.0, 0.0],
+            magnitude=5,
+            wavelengthInNm=600,
+            target_device_idx=target_device_idx
+        )
+
+        # Create DM with proper initialization
+        dm = DM(
+            simul_params=simul_params,
+            type_str='zernike',
+            nmodes=40,
+            obsratio=0.1,
+            height=0,
+            target_device_idx=target_device_idx
+        )
+
+        # Create SH sensor with proper initialization
+        sensor = SH(
+            subap_wanted_fov=4.0,
+            sensor_pxscale=0.5,
+            subap_npx=8,
+            subap_on_diameter=8,
+            wavelengthInNm=600,
+            target_device_idx=target_device_idx
+        )
+
+        # ------------------------------------------------------------------------------
+        # Set up inputs for ShSlopec
+        subap_on_diameter = 2
+        subap_npx = 100
+        idxs = {}
+        map = {}
+        mask_subap = xp.ones((subap_on_diameter*subap_npx, subap_on_diameter*subap_npx))
+
+        count = 0
+        for i in range(subap_on_diameter):
+            for j in range(subap_on_diameter):
+                mask_subap *= 0
+                mask_subap[i*subap_npx:(i+1)*subap_npx,j*subap_npx:(j+1)*subap_npx] = 1
+                idxs[count] = xp.where(mask_subap == 1)
+                map[count] = j * subap_on_diameter + i
+                count += 1
+
+        v = xp.zeros((len(idxs), subap_npx*subap_npx), dtype=int)
+        m = xp.zeros(len(idxs), dtype=int)
+        for k, idx in idxs.items():
+            v[k] = xp.ravel_multi_index(idx, mask_subap.shape)
+            m[k] = map[k]
+
+        subapdata = SubapData(idxs=v, display_map = m, nx=subap_on_diameter, ny=subap_on_diameter, target_device_idx=target_device_idx)
+
+        # Create SH slope computer
+        slopec = ShSlopec(
+            subapdata=subapdata,  # Use a test tag
+            weightedPixRad=4.0,
+            target_device_idx=target_device_idx
+        )
+
+        slopes = Slopes(2, target_device_idx=target_device_idx)
+        cmd = BaseValue(value=xp.zeros(2), target_device_idx=target_device_idx)
+
+        # Create calibrator with im_tag='auto' to trigger automatic generation
+        calibrator = ImCalibrator(
+            nmodes=10, 
+            data_dir=self.test_dir,
+            im_tag='auto',
+            pupilstop=pupilstop,
+            source=source,
+            dm=dm,
+            sensor=sensor,
+            slopec=slopec,
+            overwrite=True,
+            target_device_idx=target_device_idx
+        )
+
+        calibrator.inputs['in_slopes'].set(slopes)
+        calibrator.inputs['in_commands'].set(cmd)
+        calibrator.setup()
+
+        print(f"Generated IM tag: {calibrator.im_tag}")
+
+        # Check that im_tag was automatically generated
+        self.assertIsNotNone(calibrator.im_tag)
+        self.assertIsInstance(calibrator.im_tag, str)
+        self.assertTrue(len(calibrator.im_tag) > 0)
+        self.assertNotEqual(calibrator.im_tag, 'auto')
+
+        # Check that the generated tag contains expected components
+        self.assertIn('_sh', calibrator.im_tag)  # Should contain sensor type
+        self.assertIn('pup', calibrator.im_tag)  # Should contain pupil info
+        self.assertIn('coor', calibrator.im_tag)  # Should contain coordinates info
+        self.assertIn('mds', calibrator.im_tag)  # Should contain modes info
+        self.assertIn('stop', calibrator.im_tag)  # Should contain pupilstop info
+
+    @cpu_and_gpu
+    def test_imcalibrator_file_creation(self, target_device_idx, xp):
+        """Test that ImCalibrator creates a new IM file when none exists"""
+        im_tag = 'new_im'
+        im_filename = f'{im_tag}.fits'
+        im_path = os.path.join(self.test_dir, im_filename)
+
+        # Ensure file does not exist
+        if os.path.exists(im_path):
+            os.remove(im_path)
+
+        calibrator = ImCalibrator(nmodes=5, data_dir=self.test_dir, im_tag=im_tag,
+                                  overwrite=True, target_device_idx=target_device_idx)
+        slopes = Slopes(5, target_device_idx=target_device_idx)
+        slopes.generation_time = 1
+        cmd = BaseValue(value=xp.zeros(5))
+        cmd.generation_time = 1
+        calibrator.inputs['in_slopes'].set(slopes)
+        calibrator.inputs['in_commands'].set(cmd)
+        calibrator.setup()
+        calibrator.check_ready(t=1)
+        calibrator.trigger()
+        calibrator.post_trigger()
+        calibrator.finalize()
+
+        self.assertTrue(os.path.exists(im_path))
+
+    def test_reccalibrator_file_creation(self):
+        """Test that RecCalibrator creates a new REC file when none exists"""
+        rec_tag = 'new_rec'
+        rec_filename = f'{rec_tag}.fits'
+        rec_path = os.path.join(self.test_dir, rec_filename)
+
+        # Ensure file does not exist
+        if os.path.exists(rec_path):
+            os.remove(rec_path)
+
+        intmat = Intmat(intmat=specula.np.ones((2, 2)))
+        intmat.generation_time = 1
+        calibrator = RecCalibrator(nmodes=2, data_dir=self.test_dir, rec_tag=rec_tag, overwrite=True)
+        calibrator.inputs['in_intmat'].set(intmat)
+        calibrator.setup()
+        calibrator.check_ready(t=1)
+        calibrator.trigger()
+        calibrator.finalize()
+
+        self.assertTrue(os.path.exists(rec_path))
+
+    @cpu_and_gpu
+    def test_imcalibrator_overwrite_false(self, target_device_idx, xp):
+        """Test that ImCalibrator does not overwrite existing file if overwrite=False"""
+        im_tag = 'no_overwrite_im'
+        im_filename = f'{im_tag}.fits'
+        im_path = os.path.join(self.test_dir, im_filename)
+
+        # Create file
+        with open(im_path, 'w') as f:
+            f.write('test')
+
+        with self.assertRaises(FileExistsError):
+            ImCalibrator(nmodes=3, data_dir=self.test_dir, im_tag=im_tag,
+                         overwrite=False, target_device_idx=target_device_idx)
+
+    @cpu_and_gpu
+    def test_reccalibrator_overwrite_false(self, target_device_idx, xp):
+        """Test that RecCalibrator does not overwrite existing file if overwrite=False"""
+        rec_tag = 'no_overwrite_rec'
+        rec_filename = f'{rec_tag}.fits'
+        rec_path = os.path.join(self.test_dir, rec_filename)
+
+        # Create file
+        with open(rec_path, 'w') as f:
+            f.write('test')
+
+        with self.assertRaises(FileExistsError):
+            RecCalibrator(nmodes=3, data_dir=self.test_dir, rec_tag=rec_tag,
+                          overwrite=False, target_device_idx=target_device_idx)
+
+    @cpu_and_gpu
+    def test_reccalibrator_tag_is_string(self, target_device_idx, xp):
+        """Test that rec_tag is always a string after setup"""
+        intmat = Intmat(intmat=xp.ones((2, 2)))
+        calibrator = RecCalibrator(nmodes=2, data_dir=self.test_dir, rec_tag='auto',
+                                   tag_template='template_rec',
+                                   overwrite=True, target_device_idx=target_device_idx)
+        calibrator.inputs['in_intmat'].set(intmat)
+        calibrator.setup()
+        calibrator.check_ready(t=1)
+        self.assertIsInstance(calibrator.rec_path, str)

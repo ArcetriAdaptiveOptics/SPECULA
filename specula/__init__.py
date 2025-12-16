@@ -5,6 +5,7 @@ from functools import wraps
 
 cpu_float_dtype_list = [np.float64, np.float32]
 cpu_complex_dtype_list = [np.complex128, np.complex64]
+array_types = []
 
 gpuEnabled = False
 cp = None
@@ -18,8 +19,13 @@ float_dtype = None
 complex_dtype = None
 default_target_device_idx = None
 default_target_device = None
+process_comm = None
+process_rank = None
 ASEC2RAD = np.pi / (3600 * 180)
 RAD2ASEC = 1.0 / ASEC2RAD
+MPI_DBG = False
+
+MPI_SEND_DBG = False
 
 # precision = 0 -> double precision
 # precision = 1 -> single precision
@@ -33,7 +39,7 @@ RAD2ASEC = 1.0 / ASEC2RAD
 # a GPU device (idx>=0).
 # This can be checked later looking at the  value of gpuEnabled.
 
-def init(device_idx=-1, precision=0):
+def init(device_idx=-1, precision=0, rank=None, comm=None, mpi_dbg=False):
     global xp
     global cp
     global gpuEnabled
@@ -42,11 +48,19 @@ def init(device_idx=-1, precision=0):
     global complex_dtype_list
     global gpu_float_dtype_list
     global gpu_complex_dtype_list
+    global array_types
     global float_dtype
     global complex_dtype
     global default_target_device_idx
     global default_target_device
+    global process_comm
+    global process_rank
+    global MPI_DBG
     
+    MPI_DBG = mpi_dbg
+    process_comm = comm
+    process_rank = rank
+
     default_target_device_idx = device_idx
     systemDisable = os.environ.get('SPECULA_DISABLE_GPU', 'FALSE')
     if systemDisable=='FALSE':
@@ -83,6 +97,11 @@ def init(device_idx=-1, precision=0):
         print('Default device is CPU')
         xp = np
 
+    if cp is not None:
+        array_types = [np.ndarray, cp.ndarray]
+    else:
+        array_types = [np.ndarray]
+
     float_dtype_list = [xp.float64, xp.float32]
     complex_dtype_list = [xp.complex128, xp.complex64]
     global_precision = precision
@@ -93,13 +112,40 @@ def init(device_idx=-1, precision=0):
     if cp is not None:
         cp.random.RandomState.random = cp.random.RandomState.random_sample
 
-# should be used as less as a possible and prefarably outside time critical computations
-def cpuArray(v):
-    if cp and isinstance(v, cp.ndarray):
-        # which one is better, xp.asnumpy(v) or v.get() ? almost the same but asnumpy is more general
-        return cp.asnumpy(v)
+
+# should be used as less as a possible and preferably outside time critical computations
+def cpuArray(v, dtype=None, force_copy=False):
+    return to_xp(np, v, dtype=dtype, force_copy=force_copy)
+
+
+def to_xp(xp, v, dtype=None, force_copy=False):
+    '''
+    Make sure that v is allocated as an array on this object's device.
+    Works for all combinations of np and cp, whether installed or not.
+
+    Optionally casts to the required dtype (no copy is made if
+    the dtype is already the correct one)
+
+    The main trigger for this function is that np.array() cannot
+    be used on a cupy array.
+    '''
+    if xp is cp:
+        if isinstance(v, cp.ndarray) and not force_copy:
+            retval =  v
+        else:
+            retval =  cp.array(v)
     else:
-        return np.array(v)
+        if cp is not None and isinstance(v, cp.ndarray):
+            retval = v.get()
+        elif isinstance(v, np.ndarray) and not force_copy:
+            # Avoid extra copy (enabled by numpy default)
+            retval = v
+        else:
+            retval = np.array(v)
+    if dtype is None and not force_copy:
+        return retval
+    else:
+        return retval.astype(dtype, copy=force_copy)
 
 
 class DummyDecoratorAndContextManager():
@@ -161,3 +207,76 @@ def fuse(kernel_name=None):
                 return f_cpu(*args, **kwargs)
         return wrapper
     return decorator
+
+
+def main_simul(yml_files: list,
+               nsimul = 1,
+               cpu: bool=False,
+               overrides: str=None,
+               target: int=0,
+               profile: bool=False,
+               mpi: bool=False,
+               mpidbg: bool=False,
+               stepping: bool=False,
+               diagram: bool=False,
+               diagram_title: str=None,
+               diagram_filename: str=None,
+               diagram_colors_on: bool=False):
+
+    if mpi:
+        try:
+            from mpi4py import MPI
+            from mpi4py.util import pkl5
+            print("mpi4py import successfull. Installed version is:", MPI.Get_version())
+        except ImportError:
+            print("mpi4py import failed.")
+            raise
+
+        comm = pkl5.Intracomm(MPI.COMM_WORLD)
+        rank = comm.Get_rank()
+        N = 10000000
+        datatype = MPI.FLOAT
+        num_bytes = N * (datatype.Pack_size(count=1, comm=comm) + MPI.BSEND_OVERHEAD)
+
+        print(f'MPI buffer size: {num_bytes/1024**2:.2f} MB')
+        attached_buf = bytearray(num_bytes)
+        MPI.Attach_buffer(attached_buf)
+    else:
+        rank = None
+        comm = None
+        
+    if cpu:
+        target_device_idx = -1
+    else:
+        target_device_idx = target
+
+    init(target_device_idx, precision=1, rank=rank, comm=comm, mpi_dbg=mpidbg)
+    from specula.simul import Simul
+
+    if profile:
+        import cProfile
+        import pstats
+        pr = cProfile.Profile()
+        pr.enable()
+
+    for simul_idx in range(nsimul):
+        print(yml_files)
+        Simul(*yml_files,
+            simul_idx=simul_idx,
+            overrides=overrides,
+            stepping=stepping,
+            diagram=diagram,
+            diagram_filename=diagram_filename,
+            diagram_title=diagram_title,
+            diagram_colors_on=diagram_colors_on
+        ).run()
+
+    if profile:
+        pr.disable
+        stats = pstats.Stats(pr).sort_stats("cumtime")
+        stats.print_stats(r"\((?!\_).*\)$", 200)
+        
+    if mpi:
+        MPI.Detach_buffer()
+
+

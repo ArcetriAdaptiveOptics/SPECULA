@@ -17,14 +17,16 @@ class SubapData(BaseDataObj):
                  target_device_idx: int=None,
                  precision: int=None):
         '''
+        Initialize a :class:`~specula.data_objects.subap_data.SubapData` object.
+        
         idxs: np.array[n_subaps, n_pixels] of pixel indices in a flattened pixel array for each subaperture
         display_map: np.array[n_subaps] of subaperture indices on a flattened nx * ny array, used for display only
         nx: number of subapertures in the X (horizontal) direction
         ny: number of subapertures in the Y (vertical) direction
         '''
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-        self.idxs = idxs.astype(int)
-        self.display_map = display_map.astype(int)
+        self.idxs = self.to_xp(idxs.astype(int))
+        self.display_map = self.to_xp(display_map.astype(int))
         self.nx = int(nx)
         self.ny = int(ny)
         self.energy_th = float(energy_th)
@@ -50,21 +52,23 @@ class SubapData(BaseDataObj):
         """Returns the position of subaperture `n`."""
         return self.display_map[n]
 
-    def save(self, filename):
-        """Saves the subaperture data to a file."""
+    def save(self, filename, overwrite=False):
+        """Saves the :class:`~specula.data_objects.subap_data.SubapData` to a file."""
         hdr = fits.Header()
         hdr['VERSION'] = 1
         hdr['ENRGYTH'] = self.energy_th
         hdr['NP_SUB'] = self.np_sub
         hdr['NX'] = self.nx
         hdr['NY'] = self.ny
-        fits.writeto(filename, np.zeros(2), hdr)
+        fits.writeto(filename, np.zeros(2), hdr, overwrite=overwrite)
         fits.append(filename, cpuArray(self.idxs.T))  # Transposed for IDL-saved data compatibility
         fits.append(filename, cpuArray(self.display_map))
 
-    @classmethod
-    def restore(cls, filename, target_device_idx=None):
-        """Restores the subaperture data from a file."""
+    @staticmethod
+    def restore(filename, target_device_idx=None):
+        """Restores the :class:`~specula.data_objects.subap_data.SubapData` from a file."""
+
+        # pylint: disable=no-member
         with fits.open(filename) as hdul:
             hdr = hdul[0].header
             version = hdr.get('VERSION')

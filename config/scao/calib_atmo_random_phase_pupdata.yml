@@ -1,0 +1,25 @@
+prop:
+  class:                'AtmoPropagation'
+  simul_params_ref:     'main'
+  source_dict_ref:      ['on_axis_source']
+  inputs:
+    common_layer_list: ['pupilstop']
+  outputs: ['out_on_axis_source_ef']
+
+pyr_pupdata:
+  class: 'PyrPupdataCalibrator'
+  thr1: 0.1
+  thr2: 0.25
+  output_tag:        'scao_40x40_pupdata'
+  inputs:
+    in_i: 'pyramid.out_i'
+
+main_override:
+  total_time:  0.001
+
+pyramid_override:
+  mod_amp:           10.0                     # Modulation radius (in lambda/D units)
+  inputs:
+    in_ef: 'prop.out_on_axis_source_ef'
+
+remove: ['atmo', 'detector', 'slopec', 'modal_analysis', 'data_store', 'ph_disp', 'test_disp']

@@ -1,8 +1,7 @@
 import numpy as np
 
 from specula import cpuArray, fuse, show_in_profiler, RAD2ASEC
-from specula.lib.extrapolate_edge_pixel import extrapolate_edge_pixel
-from specula.lib.extrapolate_edge_pixel_mat_define import extrapolate_edge_pixel_mat_define
+from specula.lib.extrapolation_2d import calculate_extrapolation_indices_coeffs, apply_extrapolation
 from specula.lib.toccd import toccd
 from specula.lib.interp2d import Interp2D
 from specula.lib.make_mask import make_mask
@@ -16,7 +15,6 @@ from specula.data_objects.laser_launch_telescope import LaserLaunchTelescope
 from specula.data_objects.gaussian_convolution_kernel import GaussianConvolutionKernel
 from specula.data_objects.convolution_kernel import ConvolutionKernel
 
-import os       
 
 # numpy 1.x compatibility (cupy sometimes tries to raise this exception)
 if hasattr(np, 'exceptions'):
@@ -24,7 +22,7 @@ if hasattr(np, 'exceptions'):
 
 @fuse(kernel_name='abs2')
 def abs2(u_fp, out, xp):
-     out[:] = xp.real(u_fp * xp.conj(u_fp))
+    out[:] = xp.real(u_fp * xp.conj(u_fp))
 
 
 class SH(BaseProcessingObj):
@@ -33,7 +31,9 @@ class SH(BaseProcessingObj):
 
     def _zeros_common(self, *args, **kwargs):
         '''
-        Wrapper around self.xp.zeros to enable the reuse cache
+        Wrapper around self.xp.zeros to enable the reuse cache.
+        None of the arrays allocated here should be used in 
+        prepare_trigger() or post_trigger().
         '''
         key = (self.target_device_idx, *args, *kwargs.items())
         if key not in self.__zeros_cache:
@@ -51,21 +51,22 @@ class SH(BaseProcessingObj):
                  fov_ovs_coeff: float = 0,
                  xShiftPhInPixel: float = 0,
                  yShiftPhInPixel: float = 0,
-                 aXShiftPhInPixel: float = 0,
-                 aYShiftPhInPixel: float = 0,
                  rotAnglePhInDeg: float = 0,
-                 aRotAnglePhInDeg: float = 0,
                  do_not_double_fov_ovs: bool = False,
                  set_fov_res_to_turbpxsc: bool = False,
                  laser_launch_tel: LaserLaunchTelescope = None,
+                 subap_rows_slice = None,
+                 data_dir: str = "",
                  target_device_idx: int = None,
                  precision: int = None,
         ):
 
-        super().__init__(target_device_idx=target_device_idx, precision=precision)     
-        self._wavelengthInNm = wavelengthInNm
-        self._lenslet = Lenslet(subap_on_diameter)
-        self._subap_wanted_fov = subap_wanted_fov / RAD2ASEC
+        super().__init__(target_device_idx=target_device_idx, precision=precision)
+        self.wavelength_in_nm = wavelengthInNm
+        self.subap_wanted_fov = subap_wanted_fov
+        self.subap_on_diameter = subap_on_diameter
+        self._lenslet = Lenslet(self.subap_on_diameter, target_device_idx=target_device_idx)
+        self._subap_wanted_fov_rad = self.subap_wanted_fov / RAD2ASEC
         self._sensor_pxscale = sensor_pxscale / RAD2ASEC
         self._subap_npx = subap_npx
         self._fov_ovs_coeff = fov_ovs_coeff
@@ -74,32 +75,35 @@ class SH(BaseProcessingObj):
         self._debugOutput = False
         self._noprints = False
         self._rotAnglePhInDeg = rotAnglePhInDeg
-        self._aRotAnglePhInDeg = aRotAnglePhInDeg  # TODO if intended to change, call again calc_trigger_geometry()
         self._xShiftPhInPixel = xShiftPhInPixel
         self._yShiftPhInPixel = yShiftPhInPixel
-        self._aXShiftPhInPixel = aXShiftPhInPixel  # Same TODO as above
-        self._aYShiftPhInPixel = aYShiftPhInPixel
         self._set_fov_res_to_turbpxsc = set_fov_res_to_turbpxsc
         self._do_not_double_fov_ovs = do_not_double_fov_ovs
         # first item of laser_launch_tel_dict is the good one
         self._laser_launch_tel = laser_launch_tel
+        self.data_dir = data_dir
         self._np_sub = 0
         self._fft_size = 0
         self._trigger_geometry_calculated = False
-        self._extrapol_mat1 = None
-        self._extrapol_mat2 = None
-        self._idx_1pix = None
-        self._idx_2pix = None
         self._do_interpolation = None
+        self._edge_pixels = None
+        self._reference_indices = None
+        self._coefficients = None
+        self._valid_indices = None
+        self._amplitude_is_binary = None
+        self._mask_threshold = 1e-3  # threshold to consider a pixel inside the mask
 
         # TODO these are fixed but should become parameters
         self._fov_ovs = 1
         self._floatShifts = False
 
         self._ccd_side = self._subap_npx * self._lenslet.n_lenses
-        self._out_i = Intensity(self._ccd_side, self._ccd_side, precision=self.precision, target_device_idx=self.target_device_idx)
+        self._out_i = Intensity(self._ccd_side, self._ccd_side,
+                                precision=self.precision,
+                                target_device_idx=self.target_device_idx)
 
         self.interp = None
+        self.subap_rows_slice = subap_rows_slice
 
         # optional inputs for the kernel object
         if self._laser_launch_tel is not None:
@@ -108,8 +112,10 @@ class SH(BaseProcessingObj):
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
         self.outputs['out_i'] = self._out_i
+        self.outputs['wf1'] = BaseValue(target_device_idx=self.target_device_idx,
+                                        precision=precision)
 
-    def set_in_ef(self, in_ef):
+    def _set_in_ef(self, in_ef):
 
         lens = self._lenslet.get(0, 0)
         n_lenses = self._lenslet.n_lenses
@@ -119,12 +125,13 @@ class SH(BaseProcessingObj):
         if self._np_sub * n_lenses > ef_size:
             self._np_sub -= 1
 
+        # this is the number of pixels per sub-aperture
         np_sub = (ef_size * lens[2]) / 2.0
 
         sensor_pxscale_arcsec = self._sensor_pxscale * RAD2ASEC
         dSubApInM = np_sub * in_ef.pixel_pitch
-        turbulence_pxscale = self._wavelengthInNm * 1e-9 / dSubApInM * RAD2ASEC
-        subap_wanted_fov_arcsec = self._subap_wanted_fov * RAD2ASEC
+        turbulence_pxscale = self.wavelength_in_nm * 1e-9 / dSubApInM * RAD2ASEC
+        subap_wanted_fov_arcsec = self.subap_wanted_fov
         subap_real_fov_arcsec = self._sensor_pxscale * self._subap_npx * RAD2ASEC
 
         if self._fov_resolution_arcsec == 0:
@@ -157,7 +164,7 @@ class SH(BaseProcessingObj):
                 for i in range(nTry):
                     resTry[i] = turbulence_pxscale / (iMin + i + 2)
                     scaleTry[i] = round(turbulence_pxscale / resTry[i])
-                    fftScaleTry[i] = self._wavelengthInNm / 1e9 * self._lenslet.dimx / (ef_size * in_ef.pixel_pitch * scaleTry[i]) * RAD2ASEC
+                    fftScaleTry[i] = self.wavelength_in_nm / 1e9 * self._lenslet.dimx / (ef_size * in_ef.pixel_pitch * scaleTry[i]) * RAD2ASEC
                     subapRealTry[i] = round(subap_wanted_fov_arcsec / fftScaleTry[i] / 2.0) * 2
                     mcmxTry[i] = np.lcm(int(self._subap_npx), int(subapRealTry[i]))
 
@@ -186,7 +193,7 @@ class SH(BaseProcessingObj):
 
         dTelPaddedInM = ef_size * in_ef.pixel_pitch * scale_ovs
         dSubApPaddedInM = dTelPaddedInM / self._lenslet.dimx
-        fft_pxscale_arcsec = self._wavelengthInNm * 1e-9 / dSubApPaddedInM * RAD2ASEC
+        fft_pxscale_arcsec = self.wavelength_in_nm * 1e-9 / dSubApPaddedInM * RAD2ASEC
 
         # Compute real FoV
         subap_real_fov_pix = round(subap_real_fov_arcsec / fft_pxscale_arcsec / 2.0) * 2.0
@@ -202,7 +209,7 @@ class SH(BaseProcessingObj):
                 self._fov_ovs = self._fov_ovs_coeff
         else:
             ratio = float(subap_real_fov_pix) / float(turbulence_fov_pix)
-            np_factor = 1 if abs(np_sub - int(np_sub)) < 1e-3 else int(np_sub)
+            np_factor = 1 if abs(np_sub - round(np_sub)) >= 1e-3 else round(np_sub)
             if self._do_not_double_fov_ovs and self._fov_ovs_coeff == 0.0:
                 self._fov_ovs_coeff = 1.0
                 self._fov_ovs = np.ceil(np_factor * ratio / 2.0) * 2.0 / float(np_factor)
@@ -215,10 +222,10 @@ class SH(BaseProcessingObj):
                     self._fov_ovs = np.ceil(np_factor * ratio * self._fov_ovs_coeff) / float(np_factor)
 
         self._sensor_pxscale = subap_real_fov_arcsec / self._subap_npx / RAD2ASEC
-        self._ovs_np_sub = int(ef_size * self._fov_ovs * lens[2] * 0.5)
+        self._ovs_np_sub = round(ef_size * self._fov_ovs * lens[2] * 0.5)
         self._fft_size = self._ovs_np_sub * scale_ovs
 
-        if self._verbose:
+        if self.verbose:
             print('\n-->     FoV resolution [asec], {}'.format(self._fov_resolution_arcsec))
             print('-->     turb. pix. sc.,        {}'.format(turbulence_pxscale))
             print('-->     sc. over sampl.,       {}'.format(scale_ovs))
@@ -236,17 +243,16 @@ class SH(BaseProcessingObj):
         elif not self._noprints:
             print(f'GOOD: interpolated input phase size {ef_size} * {round(self._fov_ovs)} is divisible by {self._lenslet.n_lenses} subapertures.')
 
-    def calc_trigger_geometry(self, in_ef):
+    def _calc_trigger_geometry(self, in_ef):
         '''
         Calculate the geometry of the SH
         '''
 
-        subap_wanted_fov = self._subap_wanted_fov
+        subap_wanted_fov = self._subap_wanted_fov_rad
         sensor_pxscale = self._sensor_pxscale
         subap_npx = self._subap_npx
 
-        self._rotAnglePhInDeg = self._rotAnglePhInDeg + self._aRotAnglePhInDeg
-        self._xyShiftPhInPixel = np.array([self._xShiftPhInPixel + self._aXShiftPhInPixel, self._yShiftPhInPixel + self._aYShiftPhInPixel]) * self._fov_ovs
+        self._xyShiftPhInPixel = np.array([self._xShiftPhInPixel, self._yShiftPhInPixel]) * self._fov_ovs
 
         if not self._floatShifts:
             self._xyShiftPhInPixel = np.round(self._xyShiftPhInPixel).astype(int)
@@ -265,7 +271,7 @@ class SH(BaseProcessingObj):
         self._wf3 = self._zeros_common((self._lenslet.dimy, fft_size, fft_size), dtype=self.complex_dtype)
 
         # Focal plane result from FFT
-        fp4_pixel_pitch = self._wavelengthInNm / 1e9 / (wf1.pixel_pitch * fft_size)
+        fp4_pixel_pitch = self.wavelength_in_nm / 1e9 / (wf1.pixel_pitch * fft_size)
         fov_complete = fft_size * fp4_pixel_pitch
 
         sensor_subap_fov = sensor_pxscale * subap_npx
@@ -277,7 +283,7 @@ class SH(BaseProcessingObj):
         self._psf_reshaped_2d = self._zeros_common((self._cutsize, self._cutsize * self._lenslet.dimy), dtype=self.dtype)
 
         # 1/2 Px tilt
-        self._tltf = self.get_tlt_f(self._ovs_np_sub, fft_size - self._ovs_np_sub)
+        self._tltf = self._get_tlt_f(self._ovs_np_sub, fft_size - self._ovs_np_sub)
 
         self._fp_mask = make_mask(fft_size, diaratio=subap_wanted_fov / fov_complete, square=self._squaremask, xp=self.xp)
 
@@ -288,7 +294,7 @@ class SH(BaseProcessingObj):
 
         # set up kernel object
         if self._laser_launch_tel is not None:
-            if len(self._laser_launch_tel.tel_pos) == 0:                        
+            if len(self._laser_launch_tel.tel_pos) == 0:
                 self._kernelobj = GaussianConvolutionKernel(dimx = self._lenslet.dimx,
                                                             dimy = self._lenslet.dimy,
                                                             pxscale = fp4_pixel_pitch * RAD2ASEC,
@@ -298,6 +304,7 @@ class SH(BaseProcessingObj):
                                                             oversampling = 1,
                                                             return_fft = True,
                                                             positive_shift_tt = True,
+                                                            data_dir=self.data_dir,
                                                             target_device_idx=self.target_device_idx)
             else:
                 if len(self._laser_launch_tel.beacon_tt) != 0:
@@ -317,23 +324,100 @@ class SH(BaseProcessingObj):
                                                     oversampling = 1,
                                                     return_fft = True,
                                                     positive_shift_tt = True,
+                                                    data_dir=self.data_dir,
                                                     target_device_idx=self.target_device_idx)
             self._kernel_fn = None
         else:
             self._kernelobj = None
 
     def prepare_trigger(self, t):
-        super().prepare_trigger(t)        
-        if self._kernelobj is not None:
-            self.prepare_kernels()
+        super().prepare_trigger(t)
 
-    def prepare_kernels(self):
+        if self._edge_pixels is None and self._do_interpolation:
+            # Compute once indices and coefficients
+            # This considering the input amplitude is not changing during the simulation
+            self._edge_pixels, self._reference_indices, self._coefficients, self._valid_indices = calculate_extrapolation_indices_coeffs(
+                cpuArray(self.in_ef.A), threshold=self._mask_threshold
+            )
+
+            # convert to xp
+            self._edge_pixels = self.to_xp(self._edge_pixels)
+            self._reference_indices = self.to_xp(self._reference_indices)
+            self._coefficients = self.to_xp(self._coefficients)
+            self._valid_indices = self.to_xp(self._valid_indices)
+
+            # Check if input amplitude is binary (all values close to 0 or 1) with tolerance
+            unique_values = self.xp.unique(self.in_ef.A)
+            tol = 1e-3
+            is_binary = self.xp.all(
+                self.xp.logical_or(
+                    self.xp.abs(unique_values - 0) < tol,
+                    self.xp.abs(unique_values - 1) < tol
+                )
+            )
+
+            self._amplitude_is_binary = is_binary
+
+        # Interpolation of input array if needed
+        with show_in_profiler('interpolation'):
+
+            if self._do_interpolation:
+                self.phase_extrapolated[:] = self.in_ef.phaseInNm * \
+                            (self.in_ef.A >= self._mask_threshold).astype(int)
+                _ = apply_extrapolation(
+                    self.in_ef.phaseInNm,
+                    self._edge_pixels,
+                    self._reference_indices,
+                    self._coefficients,
+                    self._valid_indices,
+                    out=self.phase_extrapolated,
+                    xp=self.xp
+                )
+
+                if self._debugOutput:
+                    # compare input and extrapolated phase
+                    phase_in_nm = self.in_ef.phaseInNm * (self.in_ef.A >= 1e-3).astype(int)
+                    import matplotlib.pyplot as plt
+                    plt.figure(figsize=(20, 5))
+                    plt.subplot(1, 4, 1)
+                    plt.imshow(cpuArray(phase_in_nm), origin='lower', cmap='gray')
+                    plt.title('Input Phase')
+                    plt.colorbar()
+                    plt.subplot(1, 4, 2)
+                    plt.imshow(cpuArray(self.phase_extrapolated), origin='lower', cmap='gray')
+                    plt.title('Extrapolated Phase')
+                    plt.colorbar()
+                    plt.subplot(1, 4, 3)
+                    plt.imshow(cpuArray(self.phase_extrapolated - phase_in_nm), origin='lower', cmap='gray')
+                    plt.title('Phase Difference')
+                    plt.colorbar()
+                    plt.subplot(1, 4, 4)
+                    plt.imshow(cpuArray(self.in_ef.A), origin='lower', cmap='gray')
+                    plt.title('Input Electric Field Amplitude')
+                    plt.colorbar()
+                    plt.show()
+
+                self.interp.interpolate(self.in_ef.A, out=self._wf1.A)
+
+                # Apply binary threshold if input amplitude was binary
+                if self._amplitude_is_binary:
+                    self._wf1.A[:] = (self._wf1.A > 0.5).astype(self.dtype)
+
+                self.interp.interpolate(self.phase_extrapolated, out=self._wf1.phaseInNm)
+            else:
+                # self._wf1 already set to in_ef
+                pass
+
+        if self._kernelobj is not None:
+            self._prepare_kernels()
+
+    def _prepare_kernels(self):
         if len(self._laser_launch_tel.tel_pos) != 0:
             sodium_altitude = self.local_inputs['sodium_altitude']
             sodium_intensity = self.local_inputs['sodium_intensity']
             if sodium_altitude is None or sodium_intensity is None:
                 raise ValueError('sodium_altitude and sodium_intensity must be provided')
-            sodium_altitude = sodium_altitude.value
+            sodium_altitude = sodium_altitude.value * self._laser_launch_tel.airmass
             sodium_intensity = sodium_intensity.value
         else:
             sodium_altitude = None
@@ -345,26 +429,15 @@ class SH(BaseProcessingObj):
             current_time=self.current_time
         )
 
+
     def trigger_code(self):
-
-        # Interpolation of input array if needed
-        with show_in_profiler('interpolation'):
-
-            if self._do_interpolation:
-                self.phase_extrapolated[:] = self.in_ef.phaseInNm
-                _ = extrapolate_edge_pixel(self.in_ef.phaseInNm, self._extrapol_mat1, self._extrapol_mat2, self._idx_1pix, self._idx_2pix, xp=self.xp, out=self.phase_extrapolated)
-                self.interp.interpolate(self.in_ef.A, out=self._wf1.A)
-                self.interp.interpolate(self.phase_extrapolated, out=self._wf1.phaseInNm)
-            else:
-                # self._wf1 already set to in_ef
-                pass
 
         # Work on SH rows (single-subap code is too inefficient)
 
-        for i in range(self._lenslet.dimx):
+        for i in range(self.subap_rows_slice.start, self.subap_rows_slice.stop):
 
             # Extract 2D subap row
-            self._wf1.ef_at_lambda(self._wavelengthInNm,
+            self._wf1.ef_at_lambda(self.wavelength_in_nm,
                                    slicey=np.s_[i * self._ovs_np_sub: (i+1) * self._ovs_np_sub],
                                    slicex=np.s_[:],
                                    out=self.ef_row)
@@ -419,13 +492,18 @@ class SH(BaseProcessingObj):
         with show_in_profiler('toccd'):
             self._out_i.i[:] = toccd(self._psfimage, (self._ccd_side, self._ccd_side), xp=self.xp)
 
+
     def post_trigger(self):
         super().post_trigger()
 
         in_ef = self.local_inputs['in_ef']
         phot = in_ef.S0 * in_ef.masked_area()
-        self._out_i.i *= (phot / self._out_i.i.sum())
+       # print(self.name, f'{in_ef.S0=} {self._out_i.i.sum()=}')
+        self._out_i.i *= phot / self._out_i.i.sum()
+        # self._out_i.i = self.xp.nan_to_num(self._out_i.i, copy=False)
         self._out_i.generation_time = self.current_time
+        self.outputs['wf1'].value = toccd(self._wf1.phaseInNm, (100, 100), xp=self.xp)
+        self.outputs['wf1'].generation_time = self.current_time
 
         debug_figures = False
         if debug_figures:
@@ -438,23 +516,22 @@ class SH(BaseProcessingObj):
 
     def setup(self):
         super().setup()
+        in_ef = self.local_inputs['in_ef']
 
-        in_ef = self.inputs['in_ef'].get(target_device_idx=self.target_device_idx)
-        
-        self.set_in_ef(in_ef)
-        self.calc_trigger_geometry(in_ef)
+        self._set_in_ef(in_ef)
+        self._calc_trigger_geometry(in_ef)
 
         fov_oversample = self._fov_ovs
         shape_ovs = (int(in_ef.size[0] * fov_oversample), int(in_ef.size[1] * fov_oversample))
 
-        self.interp = Interp2D(in_ef.size, shape_ovs, self._rotAnglePhInDeg, self._xyShiftPhInPixel[0], self._xyShiftPhInPixel[1], dtype=self.dtype, xp=self.xp)
+        self.interp = Interp2D(in_ef.size,
+                               shape_ovs,
+                              -self._rotAnglePhInDeg,     # Negative angle for PASSATA compatibility
+                               self._xyShiftPhInPixel[0],
+                               self._xyShiftPhInPixel[1],
+                               dtype=self.dtype, xp=self.xp)
 
         if fov_oversample != 1 or self._rotAnglePhInDeg != 0 or np.sum(np.abs([self._xyShiftPhInPixel])) != 0:
-            sum_1pix_extra, sum_2pix_extra, idx_1pix, idx_2pix = extrapolate_edge_pixel_mat_define(cpuArray(in_ef.A), do_ext_2_pix=True)
-            self._extrapol_mat1 = self.xp.array(sum_1pix_extra)
-            self._extrapol_mat2 = self.xp.array(sum_2pix_extra)
-            self._idx_1pix = tuple(map(self.xp.array, idx_1pix))
-            self._idx_2pix = tuple(map(self.xp.array, idx_2pix))
             self._do_interpolation = True
         else:
             self._do_interpolation = False
@@ -464,9 +541,12 @@ class SH(BaseProcessingObj):
         self.psf = self._zeros_common((self._lenslet.dimy, self._fft_size, self._fft_size), dtype=self.dtype)
         self.psf_shifted = self._zeros_common((self._lenslet.dimy, self._fft_size, self._fft_size), dtype=self.dtype)
 
+        if self.subap_rows_slice is None:
+            self.subap_rows_slice = slice(0, self._lenslet.dimy)
+
         super().build_stream(allow_parallel=False)
 
-    def get_tlt_f(self, p, c):
+    def _get_tlt_f(self, p, c):
         '''
         Half-pixel tilt
         '''

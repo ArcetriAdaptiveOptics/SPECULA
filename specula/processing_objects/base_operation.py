@@ -4,22 +4,9 @@ from specula.base_value import BaseValue
 from specula.connections import InputValue
 
 
-def convert_to_xp_array(obj, xp, dtype):
-    '''Convert scalar values like 2.0 to xp arrays'''
-    if obj:
-        value = obj.value
-        if xp.isscalar(value):
-            v1 = xp.zeros(1, dtype=xp.array(value).dtype) + value
-        else:
-            v1 = value
-    else:
-        v1 = xp.zeros(1, dtype=dtype)
-    return v1
-
-
 class BaseOperation(BaseProcessingObj):
     ''''Simple operations with base value(s)'''
-    def __init__(self, 
+    def __init__(self,
                  constant_mul: float=None,
                  constant_div: float=None,
                  constant_sum: float=None,
@@ -50,77 +37,105 @@ class BaseOperation(BaseProcessingObj):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         # Implement constant div and sub as reciprocal of mul and sum
-        self.constant_mul = constant_mul
-        self.constant_sum = constant_sum
-        if constant_div is not None:
-            self.constant_mul = 1.0 / constant_div
-        if constant_sub is not None:
-            self.constant_sum = -constant_sub
+        if not constant_mul is None:
+            if self.xp.isscalar(constant_mul):
+                self.constant_mul = constant_mul
+            else:
+                self.constant_mul = self.to_xp(constant_mul)
+        else:
+            self.constant_mul = None
+        if not constant_sum is None:
+            if self.xp.isscalar(constant_sum):
+                self.constant_sum = constant_sum
+            else:
+                self.constant_sum = self.to_xp(constant_sum)
+        else:
+            self.constant_sum = None
+        if not constant_div is None:
+            if self.xp.isscalar(constant_div):
+                self.constant_mul = 1.0 / constant_div
+            else:
+                self.constant_mul = 1.0 / self.to_xp(constant_div)
+        if not constant_sub is None:
+            if self.xp.isscalar(constant_sub):
+                self.constant_sum = -constant_sub
+            else:
+                self.constant_sum = -self.to_xp(constant_sub)
 
         self.mul = mul
         self.div = div
         self.sum = sum
         self.sub = sub
         self.concat = concat
-        self.out_value = BaseValue(target_device_idx=target_device_idx)
+        self.out_value = BaseValue(target_device_idx=target_device_idx, precision=precision)
         self.value2_is_shorter = value2_is_shorter
         self.value2_remap = value2_remap
 
         self.inputs['in_value1'] = InputValue(type=BaseValue)
         self.inputs['in_value2'] = InputValue(type=BaseValue, optional=True)
         self.outputs['out_value'] = self.out_value
-    
+
     def setup(self):
         super().setup()
- 
+
+        value1 = self.local_inputs['in_value1']
+        value2 = self.local_inputs['in_value2']
+
         # Check that both inputs have been set for
         # operations that need them
         if self.mul or self.div or self.sum or self.sub or self.concat:
-            if self.inputs['in_value2'].get(-1) is None:
+            if value2 is None:
                 raise ValueError('in_value2 has not been set')
-        
-    def trigger(self):
+
+        # Allocate output value
+        if not self.constant_mul is None or not self.constant_sum is None:
+            self.out_value.value = value1.value * 0.0
+        elif self.concat:
+            self.out_value.value = self.xp.empty(len(value1.value) + len(value2.value))
+        else:
+            self.out_value.value = self.xp.empty_like(value1.value)
+
+        if value2 is not None:
+            self.v2 = self.xp.empty_like(value1.value)
+            if self.div:
+                self.v2[:] = 1.0
+            else:
+                self.v2[:] = 0.0
+
+    def trigger_code(self):
 
         value1 = self.local_inputs['in_value1'].value
 
-        if self.constant_mul is not None:
-            self.out_value.value = value1 * self.constant_mul
-            return
-        if self.constant_sum is not None:
-            self.out_value.value = value1 + self.constant_sum
-            return
+        if not self.constant_mul is None:
+            self.out_value.value[:] = value1 * self.constant_mul
 
-        value2 = self.local_inputs['in_value2'].value
-        
-        if self.concat:
-            out = self.xp.empty(len(value1) + len(value2))
-            out[:len(value1)] = value1
-            out[len(value1):] = value2
+        elif not self.constant_sum is None:
+            self.out_value.value[:] = value1 + self.constant_sum
+
         else:
-            if self.value2_is_shorter or self.value2_remap is not None:
-                if self.div:
-                    v2 = self.xp.ones_like(value1)
+            value2 = self.local_inputs['in_value2'].value
+
+            out = self.out_value.value
+            if self.concat:
+                out[:len(value1)] = value1
+                out[len(value1):] = value2
+            else:
+                if self.value2_is_shorter:
+                    self.v2[:len(value2)] = value2
+                elif self.value2_remap is not None:
+                    self.v2[self.value2_remap] = value2
                 else:
-                    v2 = self.xp.zeros_like(value1)
+                    self.v2[:] = value2
 
-            if self.value2_is_shorter:
-                v2[:len(value2)] = value2
-            elif self.value2_remap is not None:
-                v2[self.value2_remap] = value2
-            else:
-                v2 = value2
+                if self.mul:
+                    out[:] = value1 * self.v2
+                elif self.div:
+                    out[:] = value1 / self.v2
+                elif self.sum:
+                    out[:] = value1 + self.v2
+                elif self.sub:
+                    out[:] = value1 - self.v2
+                else:
+                    raise ValueError('No operation defined')
 
-            if self.mul:
-                out = value1 * v2
-            elif self.div:
-                out = value1 / v2
-            elif self.sum:
-                out = value1 + v2
-            elif self.sub:
-                out = value1 - v2
-            else:
-                raise ValueError('No operation defined')
-
-        self.out_value.value = out
         self.out_value.generation_time = self.current_time
-

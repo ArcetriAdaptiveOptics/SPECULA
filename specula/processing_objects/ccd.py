@@ -1,17 +1,13 @@
-import math
-
-from scipy.stats import gamma
-from scipy.ndimage import convolve
+import warnings
 
 from specula import fuse
 from specula.base_processing_obj import BaseProcessingObj
 from specula.connections import InputValue
 from specula.data_objects.pixels import Pixels
 from specula.data_objects.intensity import Intensity
-from specula.lib.calc_detector_noise import calc_detector_noise
-from specula.processing_objects.modulated_pyramid import ModulatedPyramid
-from specula.processing_objects.sh import SH
+
 from specula.data_objects.simul_params import SimulParams
+from specula.lib.rebin import rebin2d
 
 
 @fuse(kernel_name='clamp_generic')
@@ -20,13 +16,78 @@ def clamp_generic(x, c, y, xp):
 
 
 class CCD(BaseProcessingObj):
-    '''Simple CCD from intensity field'''
+    """Simple CCD from intensity field
+    It integrates the input intensity over a given time (dt) and
+    applies various noise sources to simulate a realistic CCD image.
+    
+    Parameters
+    ----------
+    simul_params : SimulParams
+        Simulation parameters object reference.
+    size : int list
+        Size of the CCD in pixels [nx, ny].
+    dt : float
+        Integration time in seconds.
+    bandw : float
+        Optical bandwidth in nm.
+    binning : int, optional
+        Pixel binning factor (default is 1, no binning).
+    photon_noise : bool, optional
+        Whether to apply photon noise (Poisson noise) (default is False).
+    readout_noise : bool, optional
+        Whether to apply readout noise (default is False).
+    excess_noise : bool, optional
+        Whether to apply excess noise (default is False).
+    darkcurrent_noise : bool, optional
+        Whether to apply dark current noise (default is False).
+    background_noise : bool, optional
+        Whether to apply background noise (default is False).
+    cic_noise : bool, optional
+        Whether to apply clock-induced charge noise (default is False).
+    cte_noise : bool, optional
+        Whether to apply charge transfer efficiency noise (default is False).
+    readout_level : float, optional
+        Readout noise level in electrons (default is 0.0).
+    darkcurrent_level : float, optional
+        Dark current level in electrons per pixel (default is 0.0).
+    background_level : float, optional
+        Background light level in electrons per pixel (default is 0.0).
+    cic_level : float, optional
+        Clock-induced charge level in electrons per pixel (default is 0).
+    cte_mat : array, optional
+        Charge transfer efficiency matrix (default is None).
+    quantum_eff : float, optional
+        Quantum efficiency (default is 1.0).
+        This is typically use to account for overall throughput.
+    pixelGains : array, optional
+        Pixel gain variations (default is None).
+    photon_seed : int, optional
+        Random seed for photon noise (default is 1).
+    readout_seed : int, optional
+        Random seed for readout noise (default is 2).
+    excess_seed : int, optional
+        Random seed for excess noise (default is 3).
+    excess_delta : float, optional
+        Excess noise factor (default is 1.0).
+        The excess noise factor is ENF = sqrt(2 - 1/excess_delta)
+    start_time : int, optional
+        Time to start the CCD integration (default is 0).
+    ADU_gain : float, optional
+        Analog-to-digital unit gain (default is None, which sets a default value based on excess noise).
+    ADU_bias : int, optional
+        Analog-to-digital unit bias level (default is 400).
+    emccd_gain : int, optional
+        Electron-multiplying CCD gain (default is None, which sets a default value based on excess noise).
+    target_device_idx : int, optional
+        Target device index for computation (CPU/GPU). Default is None (uses global setting).
+    precision : int, optional
+        Precision for computation (0 for double, 1 for single). Default is None (uses global setting).
+    """
     def __init__(self,
-                 simul_params: SimulParams,        
+                 simul_params: SimulParams,
                  size: int,           # TODO list=[80,80],
                  dt: float,           # TODO =0.001,
                  bandw: float,        # TODO =300.0,
-                 name: str='',        # TODO ='OCAM2k',
                  binning: int=1,
                  photon_noise: bool=False,
                  readout_noise: bool=False,
@@ -35,41 +96,34 @@ class CCD(BaseProcessingObj):
                  background_noise: bool=False,
                  cic_noise: bool=False,
                  cte_noise: bool=False,
-                 readout_level: str='', # check this is ok
-                 darkcurrent_level: str='', # check this is ok
-                 background_level: str='', # check this is ok
+                 readout_level: float=0.0,
+                 darkcurrent_level: float=0.0,
+                 background_level: float=0.0,
                  cic_level: float=0,
                  cte_mat=None, # ??
                  quantum_eff: float=1.0,
-                 pixelGains=None,                 
+                 pixelGains=None,
                  photon_seed: int=1,
                  readout_seed: int=2,
                  excess_seed: int=3,
                  excess_delta: float=1.0,
                  start_time: int=0,
-                 ADU_gain: int=8,
+                 ADU_gain: float=None,
                  ADU_bias: int=400,
-                 emccd_gain: int=1,
+                 emccd_gain: int=None,
                  target_device_idx: int=None,
                  precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         if dt <= 0:
             raise ValueError(f'dt (integration time) is {dt} and must be greater than zero')
-        if dt % simul_params.time_step != 0:
-            raise ValueError(f'integration time dt={dt} must be a multiple of the basic simulation time_step={simul_params.time_step}')
 
+        self.dt = self.seconds_to_t(dt)
         self.loop_dt = self.seconds_to_t(simul_params.time_step)
-        self._dt = self.seconds_to_t(dt)
+        self.start_time = self.seconds_to_t(start_time)
 
-        if readout_level and darkcurrent_level and background_level:
-            # Compute RON and dark current
-            if readout_level == 'auto' or darkcurrent_level == 'auto' or background_level == 'auto':
-                noise = calc_detector_noise(1./dt, name, binning)
-                if readout_level == 'auto':
-                    readout_level = noise[0]
-                if darkcurrent_level == 'auto':
-                    darkcurrent_level = noise[1]
+        if self.dt % self.loop_dt != 0:
+            raise ValueError(f'integration time dt={dt} must be a multiple of the basic simulation time_step={simul_params.time_step}')
 
         # TODO: move this code inside the wfs
         # if wfs and background_level:
@@ -88,7 +142,7 @@ class CCD(BaseProcessingObj):
         #                     if subaps != 1 and subaps < 4.:
         #                         subaps = 4.
         #                     tot_pix = subaps * wfs.sensor_npx ** 2.
-        #                     fov = wfs.sensor_fov ** 2
+        #                     fov = wfs.sensor_fov ** 2   # This is correct because it matches tot_pix, which is square as well
         #                 else:
         #                     raise ValueError(f'Unsupported WFS class: {type(wfs)}')
         #                 background_level = \
@@ -98,208 +152,164 @@ class CCD(BaseProcessingObj):
         #         else:
         #             background_level = 0
 
-        # Adjust ADU / EM gain values
-        
-        # TODO old code
-        if excess_noise:
-            emccd_gain = 400         
-            ADU_gain = 1 / 20
+        if cte_noise and cte_mat is None:
+            raise ValueError('CTE matrix must be set if CTE noise is activated')
 
-        # TODO new code to be tested
-        # if emccd_gain is None:
-        #     emccd_gain = 400 if excess_noise else 1
-
-        # if ADU_gain is None:
-        #     ADU_gain = 1 / 20 if excess_noise else 8
-
-        if ADU_gain <= 1 and (not excess_noise or emccd_gain <= 1):
-            print('ATTENTION: ADU gain is less than 1 and there is no electronic multiplication.')
-
-        self._start_time = self.seconds_to_t(start_time)
         self._photon_noise = photon_noise
         self._readout_noise = readout_noise
-        self._excess_noise = excess_noise
         self._darkcurrent_noise = darkcurrent_noise
         self._background_noise = background_noise
         self._cic_noise = cic_noise
         self._cte_noise = cte_noise
+        self._excess_noise = excess_noise
 
-        self._binning = binning
+        # Adjust ADU / EM gain values
+        if self._excess_noise:
+            if emccd_gain is not None:
+                self._emccd_gain = float(emccd_gain)
+            else:
+                self._emccd_gain = 400.0
+            if ADU_gain is not None:
+                self._ADU_gain = float(ADU_gain)
+            else:
+                self._ADU_gain = 1 / 20
+        else:
+            if emccd_gain is not None:
+                warnings.warn('ATTENTION: emccd_gain will not be used if excess_noise is False',
+                    RuntimeWarning)
+
+            self._emccd_gain = 1.0
+            if ADU_gain is not None:
+                self._ADU_gain = float(ADU_gain)
+            else:
+                self._ADU_gain = 8.0
+
+        if self._ADU_gain <= 1 and (not excess_noise or self._emccd_gain <= 1):
+            warnings.warn('ATTENTION: ADU gain is less than 1 and there is no electronic multiplication.',
+                RuntimeWarning)
+
         self._readout_level = readout_level
+        # readout noise is scaled by the emccd gain because it is applied after the EMCCD gain
+        # but it is defined in photo-electrons
+        if self._excess_noise:
+            self._readout_level *= self._emccd_gain
         self._darkcurrent_level = darkcurrent_level
         self._background_level = background_level
         self._cic_level = cic_level
+
+        self._binning = binning
         self._cte_mat = cte_mat if cte_mat is not None else self.xp.zeros((size[0], size[1], 2), dtype=self.dtype)
         self._qe = quantum_eff
 
         self._pixels = Pixels(size[0] // binning, size[1] // binning, target_device_idx=target_device_idx)
-        s = self._pixels.size * self._binning
-        self._integrated_i = Intensity(s[0], s[1], target_device_idx=target_device_idx, precision=precision)
+        self._integrated_i = Intensity(size[0], size[1], target_device_idx=target_device_idx, precision=precision)
+        self._output_integrated_i = Intensity(size[0], size[1], target_device_idx=target_device_idx, precision=precision)
         self._photon_seed = photon_seed
         self._readout_seed = readout_seed
         self._excess_seed = excess_seed
 
         self._excess_delta = excess_delta
-        self._keep_ADU_bias = False
-        self._doNotChangeI = False
-        self._bg_remove_average = False
-        self._do_not_remove_dark = False
-        self._ADU_gain = ADU_gain
         self._ADU_bias = ADU_bias
-        self._emccd_gain = emccd_gain
         self._bandw = bandw
         self._pixelGains = pixelGains
+        self._photon_rng = self.xp.random.default_rng(self._photon_seed)
+        self._readout_rng = self.xp.random.default_rng(self._readout_seed)
+        self._excess_rng = self.xp.random.default_rng(self._excess_seed)
+
+        self.inputs['in_i'] = InputValue(type=Intensity)
+        self.outputs['out_pixels'] = self._pixels
+        self.outputs['integrated_i'] = self._output_integrated_i
+
+        # TODO not used yet
+        self._keep_ADU_bias = False
+        self._bg_remove_average = False
+        self._do_not_remove_dark = False
         self._notUniformQeMatrix = None
         self._one_over_notUniformQeMatrix = None
         self._notUniformQe = False
         self._normNotUniformQe = False
-        self._poidev = None
         self._gaussian_noise = None
-        self._photon_rng = self.xp.random.default_rng(self._photon_seed)
-        self._readout_rng = self.xp.random.default_rng(self._readout_seed)
-
-        self.inputs['in_i'] = InputValue(type=Intensity)
-        self.outputs['out_pixels'] = self._pixels
-        self.outputs['integrated_i'] = self._integrated_i
-
-
-    @property
-    def dt(self):
-        return self._dt
-
-    @dt.setter
-    def dt(self, value):
-        self._dt = self.seconds_to_t(value)
-
-    @property
-    def size(self):
-        return self._pixels.size
-
-    @property
-    def bandw(self):
-        return self._bandw
-    
-    @bandw.setter
-    def bandw(self, bandw):
-        self._bandw = bandw
-
-    @property
-    def binning(self):
-        return self._binning
-
-    @binning.setter
-    def binning(self, value):
-        s = self._pixels.size * self._binning
-        if (s[0] % self._binning) != 0:
-            raise ValueError('Warning: binning requested not applied')
-        self._pixels.size = (s[0] // value, s[1] // value)
-        self._binning = value
 
     def trigger_code(self):
-        if self._start_time <= 0 or self.current_time >= self._start_time:
-            in_i = self.local_inputs['in_i']
-            if in_i.generation_time == self.current_time:
-                if self._doNotChangeI:
-                    self._integrated_i.sum(in_i, factor=self.loop_dt / self._dt)
-                else:
-                    self._integrated_i.sum(in_i, factor=self.t_to_seconds(self.loop_dt) * self._bandw)
+        if self.start_time > 0 and self.current_time < self.start_time:
+            return
 
-            if (self.current_time + self.loop_dt - self._dt - self._start_time) % self._dt == 0:
-                if self._doNotChangeI:
-                    self._pixels.pixels = self._integrated_i.i.copy()
-                else:
-                    self.apply_binning()
-                    self.apply_qe()
-                    self.apply_noise()
+        self._integrated_i.sum(self.local_inputs['in_i'],
+                               factor=self.t_to_seconds(self.loop_dt) * self._bandw)
 
-                self._pixels.generation_time = self.current_time
-                self._integrated_i.i *= 0.0
+        if (self.current_time + self.loop_dt - self.dt - self.start_time) % self.dt == 0:
+            self.apply_binning()
+            self.apply_qe()
+            self.apply_noise()
+            self._pixels.generation_time = self.current_time
+
+            # Copy integrated intensity into output and then reset it.
+            self._output_integrated_i.i[:] = self._integrated_i.i
+            self._output_integrated_i.generation_time = self.current_time
+            self._integrated_i.i *= 0.0
 
     def apply_noise(self):
-        ccd_frame = self._pixels.pixels
+        pixels = self._pixels.pixels  # Name change, same reference
+
         if self._background_noise or self._darkcurrent_noise:
-            ccd_frame += (self._background_level + self._darkcurrent_level)
+            pixels += (self._background_level + self._darkcurrent_level)
 
         if self._cte_noise:
-            ccd_frame = self.xp.dot(self.xp.dot(self._cte_mat[:, :, 0], ccd_frame), self._cte_mat[:, :, 1])
+            pixels[:] = self.xp.dot(self.xp.dot(self._cte_mat[:, :, 0], pixels), self._cte_mat[:, :, 1])
 
         if self._cic_noise:
-            ccd_frame += self.xp.random.binomial(1, self._cic_level, ccd_frame.shape)
+            pixels += self.xp.random.binomial(1, self._cic_level, pixels.shape)
         
         if self._photon_noise:
-            ccd_frame = self._photon_rng.poisson(ccd_frame)
+            pixels[:] = self._photon_rng.poisson(pixels)
 
         if self._excess_noise:
-            ccd_frame = 1.0 / self._excess_delta * gamma.rvs(self._excess_delta * ccd_frame, self._emccd_gain, random_state=self._excess_seed)
+            ex_ccd_frame = self._excess_delta * pixels
+            clamp_generic(1e-10, 1e-10, ex_ccd_frame, xp=self.xp)
+            pixels[:] = 1.0 / self._excess_delta * self._excess_rng.gamma(shape=ex_ccd_frame, scale=self._emccd_gain)
 
         if self._readout_noise:
-            ron_vector = self._readout_rng.standard_normal(size=ccd_frame.size)
-            ccd_frame += (ron_vector.reshape(ccd_frame.shape) * self._readout_level).astype(ccd_frame.dtype)
+            ron_vector = self._readout_rng.standard_normal(size=pixels.size)
+            pixels += (ron_vector.reshape(pixels.shape) * self._readout_level)
 
         if self._pixelGains is not None:
-            ccd_frame *= self._pixelGains
+            pixels *= self._pixelGains
 
+        if self._photon_noise:
+            pixels[:] = self.xp.round(pixels * self._ADU_gain) + self._ADU_bias
+            clamp_generic(0, 0, pixels, xp=self.xp)
+
+            if not self._keep_ADU_bias:
+                pixels -= self._ADU_bias
+
+            pixels[:] = (pixels / self._ADU_gain)
+            if self._excess_noise:
+                pixels[:] = (pixels / self._emccd_gain)
+            if self._darkcurrent_noise and not self._do_not_remove_dark:
+                pixels -= self._darkcurrent_level
+
+            # TODO not used yet
+            if self._bg_remove_average and not self._do_not_remove_dark:
+                pixels -= self._background_level
+
+        # TODO not used yet
         if self._notUniformQe and self._normNotUniformQe:
             if self._one_over_notUniformQeMatrix is None:
                 self._one_over_notUniformQeMatrix = 1 / self._notUniformQeMatrix
-            ccd_frame *= self._one_over_notUniformQeMatrix
+            pixels *= self._one_over_notUniformQeMatrix
 
-        if self._photon_noise:
-            ccd_frame = self.xp.round(ccd_frame * self._ADU_gain) + self._ADU_bias
-            clamp_generic(0, 0, ccd_frame, xp=self.xp)
-
-            if not self._keep_ADU_bias:
-                ccd_frame -= self._ADU_bias
-
-            ccd_frame = (ccd_frame / self._ADU_gain).astype(ccd_frame.dtype)
-            if self._excess_noise:
-                ccd_frame = (ccd_frame / self._emccd_gain).astype(ccd_frame.dtype)
-            if self._darkcurrent_noise and not self._do_not_remove_dark:
-                ccd_frame -= self._darkcurrent_level
-            if self._bg_remove_average and not self._do_not_remove_dark:
-                ccd_frame -= self._background_level
-
-        self._pixels.pixels = ccd_frame
 
     def apply_binning(self):
-        in_dim = self._integrated_i.i.shape
-        out_dim = self._pixels.size
-
-        if in_dim[0] != out_dim[0] * self._binning:
-            ccd_frame = self.xp.zeros(out_dim * self._binning, dtype=self.dtype)
-            ccd_frame[:in_dim[0], :in_dim[1]] = self._integrated_i.i
-        else:
-            ccd_frame = self._integrated_i.i.copy()
+        intensity = self._integrated_i.i
 
         if self._binning > 1:
-            tot_ccd_frame = self.xp.sum(ccd_frame)
-            ccd_frame = ccd_frame.reshape(out_dim[0], self._binning, out_dim[1], self._binning).sum(axis=(1, 3))
-            ccd_frame = ccd_frame * self._binning ** 2 * (tot_ccd_frame / self.xp.sum(ccd_frame))
-            self._pixels.pixels = ccd_frame
+            newshape = (intensity.shape[0] // self._binning, intensity.shape[1] // self._binning)
+            self._pixels.pixels[:] = rebin2d(intensity, newshape, xp=self.xp)
         else:
-            self._pixels.pixels = ccd_frame
+            self._pixels.pixels[:] = intensity
 
     def apply_qe(self):
         if self._qe != 1:
             self._pixels.multiply(self._qe)
         if self._notUniformQe:
-            ccd_frame = self._pixels.pixels * self._notUniformQeMatrix
-            self._pixels.pixels = ccd_frame
-
-    def setQuadrantGains(self, quadrantsGains):
-        dim2d = self._pixels.pixels.shape
-        pixelGains = self.xp.zeros(dim2d, dtype=self.dtype)
-        for i in range(2):
-            for j in range(2):
-                pixelGains[(dim2d[0] // self._binning // 2) * i:(dim2d[0] // self._binning // 2) * (i + 1),
-                           (dim2d[1] // self._binning // 2) * j:(dim2d[1] // self._binning // 2) * (j + 1)] = quadrantsGains[j * 2 + i]
-        self._pixelGains = pixelGains
-
-    def setup(self):
-        super().setup()
-        in_i = self.inputs['in_i'].get(self.target_device_idx)
-        if in_i is None:
-            raise ValueError('Input intensity object has not been set')
-        if self._cte_noise and self._cte_mat is None:
-            raise ValueError('CTE matrix must be set if CTE noise is activated')
-
+            self._pixels.multiply(self._notUniformQeMatrix)

@@ -1,0 +1,148 @@
+---
+
+main:
+  class:             'SimulParams'
+  root_dir:          './calib/SCAO_ELT'         # Root directory for calibration manager  
+  pixel_pupil:       512                    # Linear dimension of pupil phase array
+  pixel_pitch:       0.0762                 # [m] Pitch of the pupil phase array
+  total_time:        0.050                  # [s] Total simulation running time
+  time_step:         0.001                  # [s] Simulation time step
+
+
+seeing:
+  class:             'WaveGenerator'
+  constant:          0.8                  # ["] seeing value
+  outputs: ['output']
+
+
+wind_speed:
+  class:             'WaveGenerator'
+  constant:          [20.]                #,10.,20.,10.]      # [m/s] Wind speed value
+  outputs: ['output']
+
+
+wind_direction:
+  class:             'WaveGenerator'
+  constant:          [0.]#,270.,270.,90.]   # [degrees] Wind direction value
+  outputs: ['output']
+
+
+on_axis_source:
+  class:             'Source'
+  polar_coordinates:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  magnitude:         8                    # source magnitude
+  wavelengthInNm:    750                   # [nm] wavelength
+
+
+pupilstop:                                 # Default parameters (circular pupil)
+  class: 'Pupilstop'
+  simul_params_ref:  'main'
+
+
+atmo:
+  class:                'AtmoEvolution'
+  simul_params_ref:     'main'
+  L0:                   40                   # [m] Outer scale
+  heights:              [119.] #,837,3045,12780]), # [m] layer heights at 0 zenith angle
+  Cn2:                  [1.00] #,0.06,0.14,0.10]), # Cn2 weights (total must be eq 1)
+  fov:                  0.0
+  inputs:
+    seeing: 'seeing.output'
+    wind_speed: 'wind_speed.output'
+    wind_direction: 'wind_direction.output'
+  outputs: ['layer_list']
+
+
+prop:
+  class:                'AtmoPropagation'
+  simul_params_ref:     'main'
+  source_dict_ref:      ['on_axis_source']
+  inputs:
+    atmo_layer_list: ['atmo.layer_list']
+    common_layer_list: ['pupilstop',
+                  'dm.out_layer:-1']
+  outputs: ['out_on_axis_source_ef']
+
+  
+pyramid:
+  class:             'ModulatedPyramid'
+  simul_params_ref:  'main'
+  pup_diam:          90.                     # Pupil diameter in subaps.
+  pup_dist:          108.                    # Separation between pupil centers in subaps.
+  fov:               2.1                     # Requested field-of-view [arcsec]
+  mod_amp:           4.0                     # Modulation radius (in lambda/D units)
+  output_resolution: 240                     # Output sampling [usually corresponding to CCD pixels]
+  wavelengthInNm:    798                     # [nm] Pyramid wavelength
+  inputs:
+    in_ef: 'prop.out_on_axis_source_ef'
+  outputs:  ['out_i']
+
+
+detector:
+  class:             'CCD'
+  simul_params_ref:  'main'
+  size:              [240,240]                 # Detector size in pixels
+  dt:                0.001                   # [s] Detector integration time
+  bandw:             155                     # [nm] Sensor bandwidth
+  photon_noise:      True                    # activate photon noise
+  readout_noise:     True                    # activate readout noise
+  readout_level:     1.0                     # readout noise in [e-/pix/frame]
+  quantum_eff:       0.32                    # quantum efficiency * total transmission
+  inputs:
+    in_i: 'pyramid.out_i'
+  outputs:  ['out_pixels']
+
+
+slopec:
+  class:             'PyrSlopec'
+  pupdata_object:    'hiresA_ps512p0.076_pyr90x90_wl798_fv2.1_ft3.0_bn1_th0.30a0.30b'            # tag of the pyramid WFS pupils
+  sn_object:         'hiresA_ps512p0.076_pyr90x90_wl798_fv2.1_ft3.0_ma4_bn1_th0.30a0.30b'             # tag of the slope reference vector
+  inputs:
+    in_pixels:        'detector.out_pixels'
+  outputs:  ['out_slopes', 'out_pupdata', 'total_counts', 'subap_counts']
+
+
+rec:
+  class:              'Modalrec'
+  recmat_object:      'hiresA_ps512p0.076_pyr90x90_wl798_fv2.1_ft3.0_ma4_bn1_th0.30a0.30b_mn4094'         # reconstruction matrix tag
+  inputs:
+    in_slopes:        'slopec.out_slopes'
+  outputs:  ['out_modes', 'out_pseudo_ol_modes']
+
+
+control:
+  class:             'Integrator'
+  simul_params_ref:  'main'
+  delay:             2                      # Total temporal delay in time steps
+  int_gain_data:    'g0.50_4094'
+  inputs:
+      delta_comm: 'rec.out_modes'     
+  outputs:  ['out_comm']
+
+
+dm:
+  class:             'DM'
+  simul_params_ref:  'main'
+  ifunc_object:      'EELT512nm4094klnogapRoundObs'
+  height:            0                      # DM height [m]
+  inputs:
+      in_command: 'control.out_comm'
+  outputs:  ['out_layer']
+
+
+psf:
+  class:             'PSF'
+  simul_params_ref:  'main'
+  wavelengthInNm:    1650                 # [nm] Imaging wavelength
+  nd:                3                    # padding coefficient for PSF computation
+  start_time:        0.05                # PSF integration start time
+  inputs:
+      in_ef:  'prop.out_on_axis_source_ef'
+  outputs:  ['out_psf', 'out_sr']
+
+
+data_store:
+  class:             'DataStore'
+  store_dir:         './output'             # Data result directory: 'store_dir'/TN/
+  inputs:
+    input_list: ['res_ef-prop.out_on_axis_source_ef']

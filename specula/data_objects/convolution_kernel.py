@@ -1,14 +1,12 @@
-from specula.base_data_obj import BaseDataObj
+import os
+import hashlib, json
 
+import numpy as np
 from astropy.io import fits
 
 from specula import cpuArray, ASEC2RAD
+from specula.base_data_obj import BaseDataObj
 from specula.lib.rebin import rebin2d
-
-import os
-import numpy as np
-
-import hashlib, json
 
 
 def lgs_map_sh(nsh, diam, rl, zb, dz, profz, fwhmb, ps, ssp,
@@ -54,7 +52,7 @@ def lgs_map_sh(nsh, diam, rl, zb, dz, profz, fwhmb, ps, ssp,
     # Gaussian parameters for the sodium layer
     sigma = (fwhmb * ASEC2RAD * zb) / (2 * xp.sqrt(2 * xp.log(2)))
     one_over_sigma2 = 1.0 / sigma**2
-    exp_sigma = -0.5 * one_over_sigma2   
+    exp_sigma = -0.5 * one_over_sigma2
     rb = xp.array([theta[0] * ASEC2RAD * zb, theta[1] * ASEC2RAD * zb, 0], dtype=dtype)
     kv = xp.array([0, 0, 1], dtype=dtype)
     BL = zb * kv + rb - xp.array(rl, dtype=dtype)
@@ -123,8 +121,12 @@ class ConvolutionKernel(BaseDataObj):
                  oversampling: int=1,
                  return_fft: bool=True,
                  positive_shift_tt: bool=True,
+                 data_dir: str="",
                  target_device_idx: int=None,
                  precision: int=None):
+        """
+        Initialize a :class:`~specula.data_objects.convolution_kernel.ConvolutionKernel` object.
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.dimx = dimx
@@ -136,17 +138,18 @@ class ConvolutionKernel(BaseDataObj):
         self.zlayer = None
         self.zprofile = None
         self.zfocus = zfocus
-        self.theta = self.xp.array(theta)
+        self.theta = self.to_xp(theta)
         self.last_zfocus = 0.0
-        self.last_theta = self.xp.array([0.0, 0.0])
+        self.last_theta = self.xp.array([0.0, 0.0], dtype=self.dtype)
         self.return_fft = return_fft
         self.launcher_size = launcher_size
         self.last_seeing = -1.0
         self.airmass = airmass
         self.oversampling = oversampling
+        self.data_dir = data_dir
         if len(launcher_pos) != 3:
             raise ValueError("Launcher position must be a three-elements vector [m]")
-        self.launcher_pos = self.xp.array(launcher_pos)
+        self.launcher_pos = self.to_xp(launcher_pos)
         self.last_zlayer = -1
         self.last_zprofile = -1
         self.positive_shift_tt = positive_shift_tt
@@ -154,8 +157,10 @@ class ConvolutionKernel(BaseDataObj):
             dtype = self.complex_dtype
         else:
             dtype = self.dtype
-        self.real_kernels = self.xp.zeros((self.dimx*self.dimy, self.dimension, self.dimension), dtype=self.dtype)
-        self.kernels = self.xp.zeros((self.dimx*self.dimy, self.dimension, self.dimension), dtype=dtype)
+        self.real_kernels = self.xp.zeros((self.dimx*self.dimy, self.dimension, self.dimension),
+                                          dtype=self.dtype)
+        self.kernels = self.xp.zeros((self.dimx*self.dimy, self.dimension, self.dimension),
+                                     dtype=dtype)
         self._kernel_fn = None
 
     def build(self):
@@ -163,18 +168,25 @@ class ConvolutionKernel(BaseDataObj):
             raise ValueError("Number of elements of zlayer and zprofile must be the same")
 
         zfocus = self.zfocus if self.zfocus != -1 else self.calculate_focus()
-        lay_heights = self.xp.array(self.zlayer) * self.airmass
+        lay_heights = self.to_xp(self.zlayer) * self.airmass
         zfocus *= self.airmass
 
         self.spot_size = self.xp.sqrt(self.seeing**2 + self.launcher_size**2)
-        lgs_tt = (self.xp.array([-0.5, -0.5]) if not self.positive_shift_tt else self.xp.array([0.5, 0.5])) * self.pxscale + self.theta
+        if not self.positive_shift_tt:
+            lgs_tt = self.xp.array([-0.5, -0.5], dtype=self.dtype) * self.pxscale
+        else:
+            lgs_tt = self.xp.array([0.5, 0.5], dtype=self.dtype) * self.pxscale
+        lgs_tt += self.theta
 
-        items = [self.dimx, self.pupil_size_m, self.launcher_pos, zfocus, lay_heights, self.zprofile,
-                         self.spot_size, self.pxscale, self.dimension, self.oversampling, lgs_tt, self.dtype]
+        items = [self.dimx, self.pupil_size_m, self.launcher_pos,
+                 zfocus, lay_heights, self.zprofile,
+                 self.spot_size, self.pxscale, self.dimension,
+                 self.oversampling, lgs_tt, self.dtype]
         return 'ConvolutionKernel' + self.generate_hash(items)
 
     def calculate_focus(self):
-        return self.xp.sum(self.xp.array(self.zlayer) * self.xp.array(self.zprofile)) / self.xp.sum(self.zprofile)
+        return self.xp.sum(self.to_xp(self.zlayer) * self.to_xp(self.zprofile)) \
+               / self.xp.sum(self.zprofile)
 
     def calculate_lgs_map(self):
         """
@@ -191,7 +203,7 @@ class ConvolutionKernel(BaseDataObj):
         zfocus = self.zfocus if self.zfocus != -1 else self.calculate_focus()
 
         # Apply airmass to heights
-        lay_heights = self.xp.array(self.zlayer) * self.airmass
+        lay_heights = self.to_xp(self.zlayer) * self.airmass
         zfocus *= self.airmass
 
         # Calculate the spot size (combination of seeing and laser launcher size)
@@ -199,9 +211,9 @@ class ConvolutionKernel(BaseDataObj):
 
         # Determine LGS tip-tilt offsets
         if not self.positive_shift_tt:
-            lgs_tt = self.xp.array([-0.5, -0.5]) * self.pxscale
+            lgs_tt = self.xp.array([-0.5, -0.5], dtype=self.dtype) * self.pxscale
         else:
-            lgs_tt = self.xp.array([0.5, 0.5]) * self.pxscale
+            lgs_tt = self.xp.array([0.5, 0.5], dtype=self.dtype) * self.pxscale
         lgs_tt += self.theta
 
         # Calculate normalized layer heights and profiles
@@ -219,7 +231,7 @@ class ConvolutionKernel(BaseDataObj):
 
         # Save current parameters to avoid unnecessary recalculation
         self.last_zfocus = self.zfocus
-        self.last_theta = self.xp.array(self.theta)
+        self.last_theta = self.to_xp(self.theta)
         self.last_seeing = self.seeing
         self.last_zlayer = self.zlayer
         self.last_zprofile = self.zprofile
@@ -263,7 +275,7 @@ class ConvolutionKernel(BaseDataObj):
         # Process the kernels - apply FFT if needed
         for i in range(self.dimx):
             for j in range(self.dimy):
-                subap_kern = self.xp.array(self.real_kernels[i * self.dimx + j, :, :])
+                subap_kern = self.to_xp(self.real_kernels[i * self.dimx + j, :, :])
                 total = self.xp.sum(subap_kern)
                 if total > 0:  # Avoid division by zero
                     subap_kern /= total
@@ -273,17 +285,8 @@ class ConvolutionKernel(BaseDataObj):
                 else:
                     self.kernels[j * self.dimx + i, :, :] = subap_kern
 
-    def save(self, filename, hdr=None):
-        """
-        Save the kernel to a FITS file.
-        
-        Parameters:
-            filename (str): Path to save the FITS file
-            hdr (fits.Header, optional): Additional header information
-        """
-        if hdr is None:
-            hdr = fits.Header()
-
+    def get_fits_header(self):
+        hdr = fits.Header()
         hdr['VERSION'] = 1.1
         hdr['PXSCALE'] = self.pxscale
         hdr['DIM'] = self.dimension
@@ -292,6 +295,17 @@ class ConvolutionKernel(BaseDataObj):
         hdr['SPOTSIZE'] = float(self.spot_size)
         hdr['DIMX'] = self.dimx
         hdr['DIMY'] = self.dimy
+        return hdr
+
+    def save(self, filename):
+        """
+        Save the kernel to a FITS file.
+        
+        Parameters:
+            filename (str): Path to save the FITS file
+            hdr (fits.Header, optional): Additional header information
+        """
+        hdr = self.get_fits_header()
 
         # Create a primary HDU with just the header
         primary_hdu = fits.PrimaryHDU(header=hdr)
@@ -303,6 +317,7 @@ class ConvolutionKernel(BaseDataObj):
         # Create an HDUList and write to file
         hdul = fits.HDUList([primary_hdu, kernel_hdu])
         hdul.writeto(filename, overwrite=True)   
+        hdul.close()  # Force close for Windows
 
     def prepare_for_sh(self, sodium_altitude=None, sodium_intensity=None, current_time=None):
         # Update the kernel parameters if provided
@@ -317,13 +332,24 @@ class ConvolutionKernel(BaseDataObj):
         if kernel_fn != self._kernel_fn:
             self._kernel_fn = kernel_fn  # Update the stored kernel filename
 
-            if os.path.exists(kernel_fn):
-                print(f"Loading kernel from {kernel_fn}")
-                self.restore(kernel_fn, kernel_obj=self, target_device_idx=self.target_device_idx, return_fft=True)
+            # Build full path using data_dir
+            if self.data_dir:
+                full_path = os.path.join(self.data_dir, kernel_fn + '.fits')
+            else:
+                full_path = kernel_fn + '.fits'
+
+            # Create directory if it doesn't exist
+            os.makedirs(os.path.dirname(full_path) if os.path.dirname(full_path)
+                        else '.', exist_ok=True)
+
+            if os.path.exists(full_path):
+                print(f"Loading kernel from {full_path}")
+                self.restore(full_path, kernel_obj=self, target_device_idx=self.target_device_idx,
+                             return_fft=True)
             else:
                 print('Calculating kernel...')
                 self.calculate_lgs_map()
-                self.save(kernel_fn)
+                self.save(full_path)
                 print('Done')
 
         if current_time is not None:
@@ -349,18 +375,7 @@ class ConvolutionKernel(BaseDataObj):
             raise ValueError(f'Unknown version {version}. Only version=1.1 is supported')
 
         if kernel_obj is None:
-            kernel_obj = ConvolutionKernel(
-                dimx=hdr['DIMX'],
-                dimy=hdr['DIMY'],
-                pxscale=hdr['PXSCALE'],
-                pupil_size_m=0.0,
-                dimension=hdr['DIM'],
-                launcher_pos=[0.0, 0.0, 0.0],
-                launcher_size=hdr['SPOTSIZE'],
-                oversampling=hdr['OVERSAMP'],
-                positive_shift_tt=hdr['POSTT'],
-                target_device_idx=target_device_idx)
-            kernel_obj.spot_size = hdr['SPOTSIZE']
+            kernel_obj = ConvolutionKernel.from_header(hdr, target_device_idx=target_device_idx)
         else:
             # If a kernel object is provided, use it
             # check if the dimensions match
@@ -378,3 +393,35 @@ class ConvolutionKernel(BaseDataObj):
         kernel_obj.real_kernels[:] = data
         kernel_obj.process_kernels(return_fft=return_fft)
         return kernel_obj
+
+    @staticmethod
+    def from_header(hdr, target_device_idx=None):
+        version = hdr['VERSION']
+        if version != 1.1:
+            raise ValueError(f'Unknown version {version}. Only version=1.1 is supported')
+
+        kernel_obj = ConvolutionKernel(
+            dimx=hdr['DIMX'],
+            dimy=hdr['DIMY'],
+            pxscale=hdr['PXSCALE'],
+            pupil_size_m=0.0,
+            dimension=hdr['DIM'],
+            launcher_pos=[0.0, 0.0, 0.0],
+            launcher_size=hdr['SPOTSIZE'],
+            oversampling=hdr['OVERSAMP'],
+            positive_shift_tt=hdr['POSTT'],
+            target_device_idx=target_device_idx)
+
+        kernel_obj.spot_size = hdr['SPOTSIZE']
+        return kernel_obj
+
+    def get_value(self):
+        return self.real_kernels
+    
+    def set_value(self, v):
+        '''Set new kernels.
+        Arrays are not reallocated.'''
+        assert v.shape == self.real_kernels.shape, \
+            f"Error: input array shape {v.shape} does not match real_kernels shape {self.real_kernels.shape}"
+
+        self.real_kernels[:] = self.to_xp(v)

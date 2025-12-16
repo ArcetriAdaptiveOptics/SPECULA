@@ -1,0 +1,3 @@
+main_override:
+  root_dir:        '/leonardo_work/try25_rossi/MORFEO_DATA0'         # Root directory for calibration manager
+  display_server:  false

@@ -1,0 +1,4 @@
+main_override:
+  root_dir:        '/leonardo_work/try25_rossi/SPECULA/config/ANDES/calib'         # Root directory for calibration manager
+  display_server:  false
+  total_time:      0.100

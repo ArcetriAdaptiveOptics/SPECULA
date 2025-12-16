@@ -1,0 +1,41 @@
+pushpull:
+  class:     'PushPullGenerator'
+  nmodes:     20
+  vect_amplitude:  [50,50,50,50,50,50,50,50,50,50,
+                    50,50,50,50,50,50,50,50,50,50]
+  outputs: ['output']
+
+main_override:
+  total_time:  0.040
+
+prop_override:
+  inputs:
+    common_layer_list: ['pupilstop',
+                  'dm.out_layer']
+
+dm_override:
+  sign: 1
+  inputs:
+      in_command: 'pushpull.output'
+
+detector_override:
+  photon_noise:      False
+  readout_noise:     False
+
+im_calibrator:
+  class: 'ImCalibrator'
+  nmodes: 20
+  im_tag:     'scao_dr_im_20modes'
+  inputs:
+    in_slopes: 'slopec.out_slopes'
+    in_commands: 'pushpull.output'
+  outputs: ['out_intmat']
+
+rec_calibrator:
+  class: 'RecCalibrator'
+  nmodes: 20
+  rec_tag:     'scao_dr_rec_20modes'
+  inputs:
+    in_intmat: 'im_calibrator.out_intmat'
+
+remove: ['atmo', 'rec', 'control', 'data_store']

@@ -1,4 +1,6 @@
 
+import warnings
+
 from astropy.io import fits
 
 from specula.data_objects.layer import Layer
@@ -23,48 +25,115 @@ class Pupilstop(Layer):
         self.simul_params = simul_params
         self.pixel_pupil = self.simul_params.pixel_pupil
         self.pixel_pitch = self.simul_params.pixel_pitch
+        self.shiftXYinPixel = shiftXYinPixel
+        self.rotInDeg = rotInDeg
+        self.magnification = magnification
 
         super().__init__(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, height=0,
-                        shiftXYinPixel=shiftXYinPixel, rotInDeg=rotInDeg, magnification=magnification,
+                        shiftXYinPixel=self.shiftXYinPixel,
+                        rotInDeg=self.rotInDeg,
+                        magnification=self.magnification,
                         target_device_idx=target_device_idx, precision=precision)
 
         self._input_mask = input_mask
-        self._mask_diam = mask_diam
-        self._obs_diam = obs_diam
+        self.mask_diam = mask_diam
+        self.obs_diam = obs_diam
 
         if self._input_mask is not None:
-            self._input_mask = self.xp.array(input_mask)
+            self._input_mask = self.to_xp(input_mask,dtype=self.dtype)
             mask_amp = self._input_mask
         else:
             mask_amp = make_mask(self.pixel_pupil, obs_diam, mask_diam, xp=self.xp)
+
+        # field dtype must be self.dtype
+        if mask_amp.dtype != self.dtype:
+            mask_amp = self.xp.asarray(mask_amp, dtype=self.dtype)
+
         self.A = mask_amp
 
         # Initialise time for at least the first iteration
-        self._generation_time = 0
+        self.generation_time = 0
 
-    def save(self, filename, hdr=None):
-        if hdr is None:
-            hdr = fits.Header()
+    def get_value(self):
+        '''
+        Get the amplitude mask as a numpy/cupy array
+        '''
+        return self.field[0]
+
+    def set_value(self, v):
+        '''
+        Set a new amplitude mask.
+        Arrays are not reallocated
+        '''
+        assert v.shape == self.field[0].shape, \
+            f"Error: input array shape {v.shape} does not match pupilstop shape {self.field[0].shape}"
+        self.field[0][:]= self.to_xp(v)
+
+    def get_fits_header(self):
+        hdr = fits.Header()
         hdr['VERSION'] = 1
+        hdr['OBJ_TYPE'] = 'Pupilstop'
+        hdr['PIXPUPIL'] = self.field[0].shape[0]
+        hdr['PIXPITCH'] = self.pixel_pitch
+        hdr['SHIFTX'] = float(self.shiftXYinPixel[0])
+        hdr['SHIFTY'] = float(self.shiftXYinPixel[1])
+        hdr['ROTATION'] = self.rotInDeg
+        hdr['MAGNIFIC'] = self.magnification
+        return hdr
 
-        super().save(filename, hdr)
+    def save(self, filename, overwrite=True):
+        hdr = self.get_fits_header()
+        hdu = fits.PrimaryHDU(header=hdr)  # main HDU, empty, only header
+        hdul = fits.HDUList([hdu])
+        hdul.append(fits.ImageHDU(data=cpuArray(self.field[0]), name='AMPLITUDE'))
+        # phaseInNm is not used in Pupilstop
+        hdul.writeto(filename, overwrite=overwrite)
+        hdul.close()  # Force close for Windows
 
-        fits.append(filename, cpuArray(self.A))
-        fits.append(filename, cpuArray(self.xp.array(self.A.shape)))
-        fits.append(filename, cpuArray(self.xp.array([self.pixel_pitch])))
+    @staticmethod
+    def from_header(hdr, target_device_idx=None):
+        version = hdr['VERSION']
+        if version != 1:
+            raise ValueError(f"Error: unknown version {version} in header")
+        pixel_pupil = int(hdr['PIXPUPIL'])
+        pixel_pitch = float(hdr['PIXPITCH'])
+        shiftX = float(hdr['SHIFTX'])
+        shiftY = float(hdr['SHIFTY'])
+        rotInDeg = float(hdr['ROTATION'])
+        magnification = float(hdr['MAGNIFIC'])
+        simul_params = SimulParams(pixel_pupil, pixel_pitch)
+        pupilstop = Pupilstop(simul_params, shiftXYinPixel=(shiftX, shiftY), rotInDeg=rotInDeg, \
+                              magnification=magnification, target_device_idx=target_device_idx)
+        return pupilstop
 
     @staticmethod
     def restore(filename, target_device_idx=None):
         hdr = fits.getheader(filename)
-        version = int(hdr['VERSION'])
+        if 'OBJ_TYPE' not in hdr or hdr['OBJ_TYPE'] != 'Pupilstop':
+            # Maybe it's a PASSATA object
+            try:
+                return Pupilstop.restore_from_passata(filename, target_device_idx)
+            except ValueError as exc:
+                raise ValueError(f"Error: file {filename} does not contain a SPECULA or PASSATA Pupilstop object") from exc
 
-        if version != 1:
-            raise ValueError(f"Error: unknown version {version} in file {filename}")
-
-        input_mask = fits.getdata(filename, ext=1)
-        dim = fits.getdata(filename, ext=2)
-        pixel_pitch = fits.getdata(filename, ext=3)[0]
-
-        tempParams = SimulParams(dim[0], pixel_pitch)
-        pupilstop = Pupilstop(tempParams, input_mask=input_mask, target_device_idx=target_device_idx)
+        pupilstop = Pupilstop.from_header(hdr, target_device_idx=target_device_idx)
+        with fits.open(filename) as hdul:
+            pupilstop.field[0, :] = pupilstop.to_xp(hdul[1].data, dtype=pupilstop.dtype)  # pylint: disable=no-member
+            # phaseInNm is not used in Pupilstop
         return pupilstop
+
+    @staticmethod
+    def restore_from_passata(filename, target_device_idx=None):
+        """Restore a :class:`~specula.data_objects.pupilstop.Pupilstop` object from a PASSATA format file."""
+        with fits.open(filename) as hdul:
+            if len(hdul) == 4:
+                pixel_pitch = float(hdul[3].data[0])   # pylint: disable=no-member
+                A = hdul[1].data.copy()                # pylint: disable=no-member
+                pixel_pupil = A.shape[0]
+                simul_params = SimulParams(pixel_pupil, pixel_pitch)
+                pupilstop = Pupilstop(simul_params, input_mask=A, target_device_idx=target_device_idx)
+                warnings.warn('Detected PASSATA pupilstop file', RuntimeWarning)
+                return pupilstop
+        raise ValueError(f"Error: file {filename} does not contain a PASSATA Pupilstop object")
+
+    # array_for_display is inherited from Layer (ElectricField)

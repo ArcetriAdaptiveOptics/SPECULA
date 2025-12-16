@@ -1,7 +1,7 @@
-from astropy.io import fits
 
 import os
 import pickle
+from astropy.io import fits
 
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_value import BaseValue
@@ -27,10 +27,10 @@ class DataSource(BaseProcessingObj):
         for aout in outputs:            
             self.loadFromFile(aout)
         for k in self.storage.keys():
-            if not isinstance(self.obj_type[k], BaseValue):
+            if self.obj_type[k] not in ['BaseValue', 'BaseDataObj']:
                 self.outputs[k] = import_class(self.obj_type[k]).from_header(self.headers[k])
             else:
-                self.outputs[k] = BaseValue()
+                self.outputs[k] = BaseValue(target_device_idx=self.target_device_idx)
 
     def loadFromFile(self, name):
         if name in self.items:
@@ -45,20 +45,25 @@ class DataSource(BaseProcessingObj):
         with open( filename, 'rb') as handle:
             unserialized_data = pickle.load(handle)
         times = unserialized_data['times']
-        data = unserialized_data['times']
-        self.storage[name] = { t:data.data[i] for i, t in enumerate(times.data.tolist())}
+        data = unserialized_data['data']
+
+        if 'hdr' in unserialized_data:
+            self.headers[name] = unserialized_data['hdr']
+            self.obj_type[name] = self.headers[name]['OBJ_TYPE']
+        
+        self.storage[name] = { t:data[i] for i, t in enumerate(times.tolist())}
 
     def load_fits(self, name):
         filename = os.path.join(self.tn_dir, name+'.fits')
-        self.headers[name] = fits.getheader(filename)
-        hdul = fits.open(filename)        
-        times = hdul[1]
-        data = hdul[0]
-        self.storage[name] = { t:data.data[i] for i, t in enumerate(times.data.tolist())}
-        self.obj_type[name] = self.headers[name]['OBJ_TYPE']
+        with fits.open(filename) as hdul:
+            self.headers[name] = dict(hdul[0].header)  # pylint: disable=no-member # (created dynamically by pyfits)
+            self.obj_type[name] = self.headers[name]['OBJ_TYPE']
+            times = hdul[1].data.copy()                # pylint: disable=no-member # (created dynamically by pyfits)
+            data = hdul[0].data.copy()                 # pylint: disable=no-member # (created dynamically by pyfits)
+        self.storage[name] = { t:data[i] for i, t in enumerate(times.tolist())}
 
     def size(self, name, dimensions=False):
-        if not self.has_key(name):
+        if name not in self.storage:
             print(f'The key: {name} is not stored in the object!')
             return -1
         h = self.storage[name]

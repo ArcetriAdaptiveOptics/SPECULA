@@ -6,26 +6,17 @@ specula.init(0)  # Default target device
 import unittest
 
 import yaml
+import copy
 from specula.simul import Simul
+from specula.connections import InputValue, InputList
 
 class DummyObj:
     def __init__(self):
         self.inputs = {}
         self.outputs = {}
 
-class DummyInput:
-    def __init__(self, type_):
-        self._type = type_
-        self.value = None
-
-    def type(self):
-        return self._type
-
-    def set(self, value):
-        self.value = value
-
 class DummyOutput:
-    pass
+    target_device_idx = -1
 
 class DummyOutputDerived(DummyOutput):
     pass
@@ -47,14 +38,17 @@ class TestSimul(unittest.TestCase):
           root_dir: dummy
           
         test:
-          class: 'FuncGenerator'
-          nmodes_object: null
+          class: 'Source'
+          polar_coordinates: [1, 2]
+          magnitude: null
+          wavelengthInNm: null
         '''
         simul = Simul([])
         params = yaml.safe_load(yml)
         simul.build_objects(params)
-        
-        assert simul.objs['test'].nmodes is None
+
+        assert simul.objs['test'].magnitude is None
+        assert simul.objs['test'].wavelengthInNm is None
 
     def test_scalar_input_reference(self):
         '''Test that an input is correctly connected'''
@@ -64,7 +58,7 @@ class TestSimul(unittest.TestCase):
             'b': DummyObj()
         }
         simul.objs['a'].outputs['out'] = DummyOutputDerived()
-        simul.objs['b'].inputs['in'] = DummyInput(DummyOutput)
+        simul.objs['b'].inputs['in'] = InputValue(type=DummyOutput)
 
         simul.connect_objects({
             'b': {
@@ -74,7 +68,7 @@ class TestSimul(unittest.TestCase):
             }
         })
 
-        assert isinstance(simul.objs['b'].inputs['in'].value, DummyOutputDerived)
+        assert isinstance(simul.objs['b'].inputs['in'].get(-1), DummyOutputDerived)
         
     def test_list_input_reference(self):
         '''Test that a list of inputs is correctly connected'''
@@ -85,7 +79,7 @@ class TestSimul(unittest.TestCase):
         }
         simul.objs['a'].outputs['out1'] = DummyOutputDerived()
         simul.objs['a'].outputs['out2'] = DummyOutputDerived()
-        simul.objs['b'].inputs['in'] = DummyInput(DummyOutput)
+        simul.objs['b'].inputs['in'] = InputList(type=DummyOutput)
 
         simul.connect_objects({
             'b': {
@@ -95,10 +89,10 @@ class TestSimul(unittest.TestCase):
             }
         })
 
-        val = simul.objs['b'].inputs['in'].value
+        val = simul.objs['b'].inputs['in'].get(-1)
         assert isinstance(val, list)
         assert all(isinstance(x, DummyOutputDerived) for x in val)
-        
+
     def test_missing_output_raises(self):
         simul = Simul([])
         simul.objs = {'a': DummyObj()}
@@ -108,7 +102,7 @@ class TestSimul(unittest.TestCase):
             simul.connect_objects({
                 'a': {'outputs': ['missing']}
             })
-        
+
     def test_invalid_input_type(self):
         simul = Simul([])
         simul.objs = {
@@ -116,7 +110,7 @@ class TestSimul(unittest.TestCase):
             'b': DummyObj()
         }
         simul.objs['a'].outputs['out'] = DummyOutputDerived()
-        simul.objs['b'].inputs['in'] = DummyInput(DummyOutput)
+        simul.objs['b'].inputs['in'] = InputValue(type=DummyOutput)
 
         with self.assertRaises(ValueError):
             simul.connect_objects({
@@ -137,9 +131,117 @@ class TestSimul(unittest.TestCase):
             'b': DummyObj()
         }
         simul.objs['a'].outputs['out'] = WrongType()
-        simul.objs['b'].inputs['in'] = DummyInput(DummyOutput)
+        simul.objs['b'].inputs['in'] = InputValue(type=DummyOutput)
 
         with self.assertRaises(ValueError):
             simul.connect_objects({
                 'b': {'inputs': {'in': 'a.out'}}
             })
+
+
+    def test_delayed_input(self):
+        '''This test checks that the has_delayed_input method of
+        Simul returns True if any object has a delayed input with
+        the -1 syntax.
+        '''
+        pars = {
+            'obj1': {
+                'class': 'WaveGenerator',
+                'outputs': ['output']
+            },
+            'obj2': {
+                'class': 'WaveGenerator',
+                'inputs': {
+                    'in2': 'obj1.output:-1'
+                }
+            },
+            'obj3': {
+                'class': 'WaveGenerator',
+                'inputs': {
+                    'in2': 'obj1.output'
+                }
+            }
+        }
+
+        simul = Simul([])
+        assert simul.has_delayed_output('obj1', pars) == True
+        assert simul.has_delayed_output('obj2', pars) == False
+
+    def test_delayed_input_detects_circular_loop(self):
+
+        pars = {
+            'obj1': {
+                'class': 'WaveGenerator',
+                'outputs': ['output']
+            },
+            'obj2': {
+                'class': 'WaveGenerator',
+                'inputs': {
+                    'in2': 'obj1.output:-1'
+                }
+            },
+            'obj3': {
+                'class': 'WaveGenerator',
+                'inputs': {
+                    'in2': 'obj1.output'
+                }
+            }      
+        }
+        simul = Simul([])
+
+        # Does not raise
+        _ = simul.build_trigger_order(pars)
+
+        # These outputs depend on each other
+        pars = {
+            'obj1': {
+                'class': 'WaveGenerator',
+                'inputs': {
+                    'in1': 'obj2.output:-1'
+                },
+                'outputs': ['output']
+            },
+            'obj2': {
+                'class': 'WaveGenerator',
+                'inputs': {
+                    'in2': 'obj1.output:-1'
+                }
+            },
+        }
+        # Raises ValueError
+        with self.assertRaises(ValueError):
+            _ = simul.build_trigger_order(pars)
+
+
+    def test_combine_params(self):
+
+        original_params = {
+            'dm': { 'foo' : 'bar'},
+            'dm2': { 'foo2': 'bar2'},
+        }
+        additional_params1 = {'dm_override_2': { 'foo': 'bar3' } }
+        additional_params2 = {'remove_3': ['dm2'] }
+
+        simul = Simul([])
+
+        # Nothing happens for simul_idx=1 (not referenced in additional_params)
+        simul.simul_idx = 1
+        params = copy.deepcopy(original_params)
+        simul.combine_params(params, additional_params1)
+        assert params == original_params
+
+        # DM is overridden
+        simul.simul_idx = 2
+        params = copy.deepcopy(original_params)
+        simul.combine_params(params, additional_params1)
+        assert params['dm']['foo'] == 'bar3'              # Changed
+        assert params['dm2'] == original_params['dm2']    # Unchanged
+
+        # DM2 is removed
+        simul.simul_idx = 3
+        params = copy.deepcopy(original_params)
+        simul.combine_params(params, additional_params2)
+        assert params['dm'] == original_params['dm']      # Unchanged
+        assert 'dm2' not in params
+
+

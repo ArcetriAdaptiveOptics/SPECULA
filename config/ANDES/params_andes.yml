@@ -1,0 +1,284 @@
+---
+
+main:
+  class:             'SimulParams'
+  root_dir:          '/raid2/gcarla/git/ANDES/andes/PASSATA_scripts/data/'
+  pixel_pupil:       400
+  pixel_pitch:       0.0975                 # 39./400. [m] Pitch of the pupil phase array
+  total_time:        5.000                  # [s] Total simulation running time
+  time_step:         0.002                  # [s] Simulation time step
+  zenithAngleInDeg:  30.0                   # [deg] Zenith angle
+  display_server:    true
+
+
+seeing:
+  class:             'WaveGenerator'
+  constant:          0.65                   # [arcsec] seeing value
+  outputs: ['output']
+
+
+wind_speed:
+  class:             'WaveGenerator'
+  constant:          [8.0, 8.0, 8.0]       # [m/s] Wind speed value
+  outputs: ['output']
+
+
+wind_direction:
+  class:             'WaveGenerator'
+  constant:          [-19.57, -174.84, 29.13]  # [degrees] Wind direction value
+  outputs: ['output']
+
+
+wfs_source:
+  class:             'Source'
+  polar_coordinates: [0.0, 0.0]             # [arcsec, degrees] source polar coordinates
+  height:            .inf                   # Source height [m]
+  magnitude:         8                      # source magnitude
+  wavelengthInNm:    800                    # [nm] wavelength
+
+
+pupilstop:
+  class: 'Pupilstop'
+  tag: 'EELT400pp0.0963m_spider2023_hexObstr'
+
+
+atmo:
+  class:                'AtmoEvolution'
+  simul_params_ref:     'main'
+  L0:                   50                   # [m] Outer scale
+  heights:              [528.0, 9015.0, 16824.0]  # [m] layer heights at 0 zenith angle
+  Cn2:                  [0.7954, 0.154, 0.0506]   # Cn2 weights (total must be eq 1)
+  fov:                  120.0                # available FoV in the turbulence
+  seed:                 2                    # layers generation seed
+  inputs:
+    seeing: 'seeing.output'
+    wind_speed: 'wind_speed.output'
+    wind_direction: 'wind_direction.output'
+  outputs: ['layer_list']
+
+
+static_aber_M1:
+  class: 'Layer'
+  tag: 'M1stat_ps400_layer'
+
+
+disturbance_M1:
+  class:                'TimeHistoryGenerator'
+  time_hist_object:     'M1wind2mps_backstructure+hardpact_Optical2022_specula'
+  outputs: ['output']
+
+
+dm_M1:
+  class:             'DM'
+  simul_params_ref:  'main'
+  ifunc_object:      'M1_400pix_ifunc'
+  sign:              1
+  nmodes:            2394                    # number of modes
+  height:            0                       # DM height [m]
+  inputs:
+    in_command: 'disturbance_M1.output'
+  outputs: ['out_layer']
+
+
+windshake_M2:
+  class:                'TimeHistoryGenerator'
+  time_hist_object:     'M2windShake500HzT30.0s_2022_startFrom0_s0_specula'
+  outputs: ['output']
+
+
+dm_M2:
+  class:             'DM'
+  simul_params_ref:  'main'
+  type_str:          'zernike'              # modes type
+  sign:              1
+  nmodes:            2                      # number of modes
+  obsratio:          0.2                    # obstruction dimension ratio w.r.t. diameter  
+  height:            0                      # DM height [m]
+  inputs:
+    in_command: 'windshake_M2.output'
+  outputs: ['out_layer']
+
+
+prop:
+  class:                'AtmoPropagation'
+  simul_params_ref:     'main'
+  source_dict_ref:      ['wfs_source']
+  inputs:
+    atmo_layer_list: ['atmo.layer_list']
+    common_layer_list: ['pupilstop', 'static_aber_M1', 'dm_M1.out_layer', 'dm_M2.out_layer', 'dm.out_layer:-1']
+  outputs: ['out_wfs_source_ef']
+
+
+pyramid:
+  class:             'ModulatedPyramid'
+  simul_params_ref:  'main'
+  pup_diam:          100.0                   # Pupil diameter in subapertures
+  pup_dist:          120.0                   # Separation between pupil centers in subapertures
+  fov:               2.1                     # Requested field-of-view [arcsec]
+  fov_errinf:        0.1                     # Maximum error in reducing fov
+  fov_errsup:        9.0                     # Maximum error in increasing fov
+  mod_amp:           3.0                     # Modulation radius (in lambda/D units)
+  output_resolution: 240                     # Output sampling [usually corresponding to CCD pixels]
+  fft_res:           4.0                     # pyramid focal-plane PSF sampling in lambda/D units
+  wavelengthInNm:    800                     # [nm] Pyramid wavelength
+  rotAnglePhInDeg:   15.0
+  inputs:
+    in_ef: 'prop.out_wfs_source_ef'
+  outputs: ['out_i']
+
+
+detector:
+  class:             'CCD'
+  simul_params_ref:  'main'
+  size:              [240, 240]              # Detector size in pixels
+  dt:                0.002                   # [s] Detector integration time
+  bandw:             400                     # [nm] Sensor bandwidth
+  binning:           1                       # detector binning
+  photon_noise:      true                    # activate photon noise
+  readout_noise:     true                    # activate readout noise
+  readout_level:     0.5                     # readout noise in [e-/pix/frame]
+  quantum_eff:       1.0                     # total throughput
+  photon_seed:       2                       # photon noise seed
+  readout_seed:      2                       # RON seed
+  excess_seed:       2                       # excess noise seed
+  excess_noise:      true                    # activate Excess noise (EMCCDs)
+  background_noise:  false                   # activate sky background noise
+  darkcurrent_noise: false                   # activate dark current noise
+  inputs:
+    in_i: 'pyramid.out_i'
+  outputs: ['out_pixels']
+
+
+slopec:
+  class:             'PyrSlopec'
+  pupdata_object:    'OOMAOSubPupilsSelection_hexObstr_rot15'  # tag of the pyramid WFS pupils
+  slopes_from_intensity: true               # compute slopes from intensity
+  inputs:
+    in_pixels: 'detector.out_pixels'
+  outputs: ['out_slopes', 'out_pupdata']
+
+
+modalrec:
+  class:              'Modalrec'
+  recmat_object:      'andes_ps400p0.097_pyr100x100_wl850_fv2.1_ft4.0_slInten_ma3_bn1_th_mn4000_noSlaving_hexObstr_spider2023_OOMAO_rot15'
+  nmodes:             4000                   # number of modes
+  inputs:
+    in_slopes: 'slopec.out_slopes'
+  outputs: ['out_modes', 'out_pseudo_ol_modes']
+
+
+gain_ramp:
+  class:             'ScheduleGenerator'
+  scheduled_values: [
+# values optimized for case w/o M1 and M2 disturbances
+#      [3.0,  1.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0],
+#      [3.0,  1.0,  1.0,  0.0,  0.0,  0.0,  0.0,  0.0],
+#      [2.5,  1.0,  1.0,  1.0,  0.0,  0.0,  0.0,  0.0],
+#      [2.5,  1.0,  1.0,  1.0,  1.0,  0.0,  0.0,  0.0],
+#      [2.0,  1.0,  1.0,  1.0,  1.0,  1.0,  0.0,  0.0],
+#      [1.5,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  0.0],
+#      [1.5,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0],
+#      [1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0]
+#  ]
+#  modes_per_group: [2, 1078, 350, 399, 448, 497, 546, 680]
+# values optimized for case w/ M1 and M2 disturbances
+      [9.0,  6.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0],
+      [7.0,  5.0,  1.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0],
+      [5.0,  4.0,  1.0,  1.0,  0.0,  0.0,  0.0,  0.0, 0.0],
+      [4.0,  3.0,  1.0,  1.0,  1.0,  0.0,  0.0,  0.0, 0.0],
+      [3.0,  2.5,  1.0,  1.0,  1.0,  1.0,  0.0,  0.0, 0.0],
+      [2.0,  2.0,  1.0,  1.0,  1.0,  1.0,  1.0,  0.0, 0.0],
+      [1.5,  1.5,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0, 0.0],
+      [1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0, 1.0]
+  ]
+  modes_per_group: [2, 8, 1070, 350, 399, 448, 497, 546, 680]
+  scheduled_times: [0.05,0.1,0.15,0.2,0.25,0.3,0.35]
+
+
+# IIR on TT and integrator for other modes
+temporal_filter:
+  class:            'IirFilterData'
+  # case w/o forgetting factors
+  #ordnum:           [3,                       2]
+  #ordden:           [3,                       2]
+  #num:              [[0.19125, -0.65,  0.5],   [ 0.0, 0.50, 0.0]]
+  #den:              [[0.995,   -1.995, 1.0],   [-1.0,  1.0, 0.0]]
+  #n_modes:          [2,                        3998]
+  # case w/ forgetting factors (leaky integrators)
+  ordnum:           [3,                       2,                   2,                   2,                   2,                   2]
+  ordden:           [3,                       2,                   2,                   2,                   2,                   2]
+  num:              [[0.19125, -0.65,  0.5],  [ 0.0, 0.50, 0.0],   [ 0.0, 0.50, 0.0],   [ 0.0, 0.50, 0.0],   [ 0.0, 0.50, 0.0],   [ 0.0, 0.50, 0.0]]
+  den:              [[0.995,   -1.995, 1.0],  [-1.0,  1.0, 0.0],   [-0.99, 1.0, 0.0],   [-0.98, 1.0, 0.0],   [-0.95, 1.0, 0.0],   [-0.9, 1.0, 0.0]]
+  n_modes:          [2,                       98,                  900,                 1000,                1000,                1000]
+
+
+control:
+  class:                'IirFilter'
+  simul_params_ref:     'main'
+  delay:                2                      # Total temporal delay in time steps
+  iir_filter_data_ref:  'temporal_filter'
+  inputs:
+    delta_comm: 'modalrec.out_modes'
+    gain_mod: 'gain_ramp.output'
+  outputs: ['out_comm']
+
+
+dm:
+  class:             'DM'
+  simul_params_ref:  'main'
+  ifunc_object:      'ANDES_400pix_79nacts_cir__5zern_10000.0cn_OOMAO_hexObstr'
+  nmodes:            4000                    # number of modes
+  height:            0                       # DM height [m]
+  inputs:
+    in_command: 'control.out_comm'
+  outputs: ['out_layer']
+
+
+modal_analysis:
+  class: 'ModalAnalysis'
+  ifunc_object: 'ANDES_400pix_79nacts_cir__5zern_10000.0cn_OOMAO_hexObstr'
+  inputs:
+    in_ef: 'prop.out_wfs_source_ef'
+  outputs: ['out_modes']
+
+
+psf:
+  class:             'PSF'
+  simul_params_ref:  'main'
+  wavelengthInNm:    2200                   # [nm] Imaging wavelength
+  nd:                3                       # padding coefficient for PSF computation
+  start_time:        0.05                   # PSF integration start time
+  inputs:
+    in_ef: 'prop.out_wfs_source_ef'
+  outputs: ['out_psf', 'out_sr']
+
+
+data_store:
+  class:             'DataStore'
+  store_dir:         './output'             # Data result directory: 'store_dir'/TN/
+  inputs:
+    input_list: ['phase-prop.out_wfs_source_ef',
+                 'res-modal_analysis.out_modes',
+                 'pixels-detector.out_pixels',
+                 'slopes-slopec.out_slopes',
+                 'modes-modalrec.out_modes']
+
+#sc_disp:
+#  class:            'SlopecDisplay'
+#  inputs:
+#    slopes:       'slopec.out_slopes'
+#sr_disp:
+#  class:            'PlotDisplay'
+#  inputs:
+#    value:       'psf.out_sr'
+#  title:            'SR'
+#ph_disp:
+#  class:            'PhaseDisplay'
+#  inputs:
+#    phase:       "prop.out_wfs_source_ef"
+#  title:            'PUPIL PHASE'
+#dm_disp:
+#  class:            'PhaseDisplay'
+#  inputs:
+#    phase:       "dm.out_layer"
+#  title:            'DM'

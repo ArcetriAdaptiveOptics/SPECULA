@@ -2,13 +2,8 @@
 Copied from arte.types.mask
 Commenting out unused imports
 '''
-import numpy as np
 
 from specula import xp
-#from arte.types.region_of_interest import RegionOfInterest
-#from arte.utils.image_moments import ImageMoments
-#from skimage import feature
-#from skimage import measure, draw
 from scipy import optimize
 import warnings
 import matplotlib.pyplot as plt
@@ -36,7 +31,7 @@ class BaseMask():
         '''
         return self._mask
     
-    def as_masked_array(self):
+    def as_masked_array(self, xp=xp):
         return xp.ma.array(xp.ones(self._shape, dtype=self.dtype),
                            mask=self.mask())
         
@@ -110,23 +105,24 @@ class CircularMask(BaseMask):
     def __init__(self,
                  frameShape,
                  maskRadius=None,
-                 maskCenter=None):
+                 maskCenter=None,
+                 xp=xp):
         self._shape = frameShape
         self._maskRadius = maskRadius
         self._maskCenter = maskCenter
         self._mask = None
-        self._computeMask()
+        self._computeMask(xp=xp)
 
     def __repr__(self):
         return "shape %s, radius %f, center %s" % (
             self._shape, self._maskRadius, self._maskCenter)
 
-    def _computeMask(self):
+    def _computeMask(self,xp=xp):
         if self._maskRadius is None:
             self._maskRadius = min(self._shape) / 2.
         if self._maskCenter is None:
             self._maskCenter = 0.5 * xp.array([self._shape[0],
-                                               self._shape[1]], dtype=self.dtype)
+                                               self._shape[1]])
 
         r = self._maskRadius
         cc = self._maskCenter
@@ -318,15 +314,6 @@ class CircularMask(BaseMask):
     def regionOfInterest(self):
         raise NotImplementedError('CircularMask.regionOfInterest is not implemented')
 
-        centerX = int(self.center()[1])
-        centerY = int(self.center()[0])
-        radius = int(self.radius())
-        # TODO declarations intended to remove warnings
-        class RegionOfInterest:
-            pass
-        return RegionOfInterest(centerX - radius, centerX + radius,
-                                centerY - radius, centerY + radius)
-
     def in_mask_indices(self):
         return self.asTransmissionValue().flatten().nonzero()[0]
 
@@ -358,9 +345,10 @@ class AnnularMask(CircularMask):
                  frameShape,
                  maskRadius=None,
                  maskCenter=None,
-                 inRadius=0):
+                 inRadius=0,
+                 xp=xp):
         self._inRadius = inRadius
-        super().__init__(frameShape, maskRadius, maskCenter)
+        super().__init__(frameShape, maskRadius, maskCenter, xp=xp)
 
     def __repr__(self):
         return "shape %s, radius %f, center %s, inradius %f" % (
@@ -369,7 +357,7 @@ class AnnularMask(CircularMask):
     def inRadius(self):
         return self._inRadius
 
-    def _computeMask(self):
+    def _computeMask(self, xp=xp):
 
         if self._maskRadius is None:
             self._maskRadius = min(self._shape) / 2.

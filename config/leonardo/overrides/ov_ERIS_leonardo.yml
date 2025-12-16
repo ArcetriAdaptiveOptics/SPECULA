@@ -1,0 +1,14 @@
+main_override:
+  root_dir:        '/leonardo_work/try25_rossi/SPECULA/config/leonardo/calib/ERIS'         # Root directory for calibration manager
+  display_server:  false
+  total_time:      0.100
+
+pupilstop_override: {target_device_idx: 0, target_rank: 0}
+sh_lo_override: {target_device_idx: 1, target_rank: 1}
+detector_lo_override: {target_device_idx: 1, target_rank: 1}
+slopec_lo_override: {target_device_idx: 1, target_rank: 1}
+modalrec_truth_override: {target_device_idx: 1, target_rank: 1}
+
+modalrec_lo_override: {target_device_idx: 1, target_rank: 1}
+integrator_truth_override: {target_device_idx: 1, target_rank: 1}
+integrator_lo_override: {target_device_idx: 1, target_rank: 1}

@@ -1,0 +1,160 @@
+---
+
+main:
+  class:             'SimulParams'
+  root_dir:          '/raid1/guido/PASSATA/LBT'         # Root directory for calibration manager  
+  pixel_pupil:       220                    # Linear dimension of pupil phase array
+  pixel_pitch:       0.037372727            # [m] Pitch of the pupil phase array
+  total_time:        10.9956                # [s] Total simulation running time
+  time_step:         0.000588               # [s] Simulation time step
+  zenithAngleInDeg:  0.000
+  display_server:    False
+
+
+seeing:
+  class:             'WaveGenerator'
+  constant:          0.8                   # ["] seeing value
+
+
+wind_speed:
+  class:             'WaveGenerator'
+  constant:          [2.,4.,6.,25.]      # [m/s] Wind speed value
+
+
+wind_direction:
+  class:             'WaveGenerator'
+  #constant:          [0.,30.,-30.,45.]   # [degrees] Wind direction value
+  constant:          [0.,0.,0.,0.]   # [degrees] Wind direction value
+
+
+on_axis_source:
+  class:             'Source'
+  polar_coordinates:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  magnitude:         8                    # source magnitude
+  wavelengthInNm:    750                   # [nm] wavelength
+
+
+pupilstop:                                 # Default parameters (circular pupil)
+  class: 'Pupilstop'
+  simul_params_ref: 'main'
+
+
+atmo:
+  class:                'AtmoEvolution'
+  simul_params_ref:     'main'
+  L0:                   40                    # [m] Outer scale
+  heights:              [119.,837,3045,12780] # [m] layer heights at 0 zenith angle
+  Cn2:                  [0.70,0.06,0.14,0.10] # Cn2 weights (total must be eq 1)
+  fov:                  240.0
+  seed:                 1
+  inputs:
+    seeing: 'seeing.output'
+    wind_speed: 'wind_speed.output'
+    wind_direction: 'wind_direction.output'
+  outputs: ['layer_list']
+
+prop:
+  class:                'AtmoPropagation'
+  simul_params_ref:     'main'
+  source_dict_ref:      ['on_axis_source']
+  inputs:
+    atmo_layer_list: ['atmo.layer_list']
+    common_layer_list: ['pupilstop',
+                  'dm.out_layer:-1']
+  outputs: ['out_on_axis_source_ef']
+
+pyramid:
+  class:             'ModulatedPyramid'
+  simul_params_ref:  'main'
+  pup_diam:          40.                     # Pupil diameter in subaps.
+  pup_dist:          48.                     # Separation between pupil centers in subaps.
+  fov:               2.0                     # Requested field-of-view [arcsec]
+  mod_amp:           3.0                     # Modulation radius (in lambda/D units)
+  output_resolution: 120                      # Output sampling [usually corresponding to CCD pixels]
+  wavelengthInNm:    750                     # [nm] Pyramid wavelength
+  inputs:
+    in_ef: 'prop.out_on_axis_source_ef'
+
+modal_analysis:
+  class:                'ModalAnalysis'
+  ifunc_inv_object:     'KLmatrix_KL_v10_inv'
+  inputs:
+    in_ef: 'prop.out_on_axis_source_ef'
+  outputs: ['out_modes']
+
+detector:
+  class:             'CCD'
+  simul_params_ref:  'main'
+  size:              [120,120]               # Detector size in pixels
+  dt:                0.000588                # [s] Detector integration time
+  bandw:             300                     # [nm] Sensor bandwidth
+  #photon_noise:      True                    # activate photon noise
+  #readout_noise:     True                    # activate readout noise
+  #excess_noise:      True
+  photon_noise:      False                    # activate photon noise
+  readout_noise:     False                    # activate readout noise
+  excess_noise:      False
+  readout_level:     0.4                     # readout noise in [e-/pix/frame]
+  quantum_eff:       0.32                    # quantum efficiency * total transmission
+  inputs:
+    in_i: 'pyramid.out_i'
+
+
+slopec:
+  class:             'PyrSlopec'  
+  pupdata_object:    'soul_KLv10_ps220p0.037_pyr40x40_wl750_fv2.1_ft3.0_bn1_th0.30a0.30b'            # tag of the pyramid WFS pupils
+  inputs:
+    in_pixels:        'detector.out_pixels'
+  outputs: ['out_slopes']
+
+
+rec:
+  class:              'Modalrec'
+  recmat_object:      'soul_KLv10_ps220p0.037_pyr40x40_wl750_fv2.1_ft3.0_ma3_bn1_th0.30a0.30b_mn500'         # reconstruction matrix tag
+  inputs:
+    in_slopes:        'slopec.out_slopes'
+  outputs: ['out_modes']
+
+control:
+  class:             'Integrator'
+  simul_params_ref:  'main'
+  delay:             2                      # Total temporal delay in time steps
+  int_gain:          [0.55,   0.45,     0.40,     0.35]
+  ff:                [1.0,    0.999996, 0.999365, 0.977895]
+  n_modes:           [30,     70,       100,      300]
+  inputs:
+      delta_comm: 'rec.out_modes'
+
+
+dm:
+  class:             'DM'
+  simul_params_ref:  'main'
+  ifunc_object:      'KLmatrix_KL_v10'
+  height:            0                      # DM height [m]
+  inputs:
+      in_command: 'control.out_comm'
+
+
+psf:
+  class:             'PSF'
+  simul_params_ref:  'main'
+  wavelengthInNm:    1650                 # [nm] Imaging wavelength
+  nd:                8                    # padding coefficient for PSF computation
+  start_time:        0.05                # PSF integration start time
+  inputs:
+      in_ef:  'prop.out_on_axis_source_ef'
+
+
+data_store:
+  class:             'DataStore'
+  #store_dir:         './output'             # Data result directory: 'store_dir'/TN/
+  store_dir:         '/raid1/guido/result4comparison/SOUL'             # Data result directory: 'store_dir'/TN/
+  data_format:       'fits'
+  inputs:
+    input_list: ['wfsPhi-prop.out_on_axis_source_ef',
+                 'resMod-modal_analysis.out_modes',
+                 'ccdframes-detector.out_pixels',
+                 'slopes-slopec.out_slopes',
+                 'deltaComm-rec.out_modes',
+                 'comm-control.out_comm',
+                 'srRes-psf.out_sr']

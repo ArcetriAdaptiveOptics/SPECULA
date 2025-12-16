@@ -123,14 +123,26 @@ class TestConnections(unittest.TestCase):
             my_target = -1
         else:
             my_target = 0
-        
-        if target_device_idx == 0:
-            my_target = -1
-        else:
-            my_target = 0
 
         result1 = input_v.get(target_device_idx=my_target)
         result2 = input_v.get(target_device_idx=my_target)
         assert(id(result1[0]) == id(result2[0]))
         assert(id(result1[1]) == id(result2[1]))
+
+    @cpu_and_gpu
+    @unittest.skipIf(cp is None, "cupy not installed")
+    def test_input_list_can_append(self, target_device_idx, xp):
+
+        data1 = xp.arange(2)
+        data2 = xp.arange(2)+2
+        input_v = InputList(type=BaseValue)
+
+        output1 = BaseValue(value=data1, target_device_idx=target_device_idx)
+        output2 = BaseValue(value=data2, target_device_idx=target_device_idx)
+        input_v.set([output1])
+        input_v.append(output2)
+
+        result = input_v.get(target_device_idx=target_device_idx)
+        np.testing.assert_array_equal(cpuArray(data1), cpuArray(result[0].value))
+        np.testing.assert_array_equal(cpuArray(data2), cpuArray(result[1].value))
 

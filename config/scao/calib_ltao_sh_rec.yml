@@ -1,0 +1,82 @@
+
+
+pushpull:
+  class:     'PushPullGenerator'
+  nmodes:   4519
+  vect_amplitude_data:  'pushpull_4519modes_amp50'
+  outputs: ['output']
+
+main_override:
+  total_time:  0.040
+
+prop_override:
+  inputs:
+    common_layer_list: ['pupilstop',
+                  'dm.out_layer']
+
+dm_override:
+  sign: 1
+  inputs:
+      in_command: 'pushpull.output'
+
+detector1_override:
+  photon_noise:      False
+  readout_noise:     False
+  
+detector2_override:
+  photon_noise:      False
+  readout_noise:     False
+  
+detector3_override:
+  photon_noise:      False
+  readout_noise:     False
+  
+detector4_override:
+  photon_noise:      False
+  readout_noise:     False
+  
+detector5_override:
+  photon_noise:      False
+  readout_noise:     False
+  
+detector6_override:
+  photon_noise:      False
+  readout_noise:     False
+
+
+im_calibrator:
+  class: 'MultiImCalibrator'
+  nmodes: 4519
+  n_inputs: 6
+  im_tag:     'test_ltao_im'
+  #tag_template:    'ltao_im_{main.tag}_n{modes}'
+  overwrite: True
+  inputs:
+    in_slopes_list: ['slopec1.out_slopes', 'slopec2.out_slopes', 'slopec3.out_slopes', 'slopec4.out_slopes', 'slopec5.out_slopes', 'slopec6.out_slopes']
+    in_commands_list: ['pushpull.output', 'pushpull.output', 'pushpull.output', 'pushpull.output', 'pushpull.output', 'pushpull.output']
+  outputs: ['out_intmat_full', 'out_intmat_list'] 
+
+
+rec_calibrator:
+  class: 'MultiRecCalibrator'
+  nmodes: 4519
+  rec_tag:     'test_ltao_rec'
+  full_rec_tag: 'test_ltao_full_rec'
+  #tag_template:    'ltao_im_{main.tag}_n{modes}'
+  overwrite: True
+  inputs:
+    intmat_list: ['im_calibrator.out_intmat_list']
+    full_intmat: 'im_calibrator.out_intmat_full'
+
+
+#pixels_disp:
+#  class:            'PixelsDisplay'
+#  inputs:
+#    pixels:      "detector1.out_pixels"
+#  title:            "Pixels"
+#  figsize:       [8, 6]  # Default size in inches
+
+remove: ['atmo', 'rec', 'control', 'psf']
+ 
+
+

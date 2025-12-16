@@ -8,7 +8,7 @@ specula.init(0)  # Default target device
 import unittest
 from scipy.ndimage import rotate
 
-from specula import cp, np
+from specula import np
 from specula import cpuArray
 
 from specula.data_objects.electric_field import ElectricField
@@ -20,17 +20,17 @@ class TestSH(unittest.TestCase):
 
     @cpu_and_gpu
     def test_sh_flux(self, target_device_idx, xp):
-        
+
         ref_S0 = 100
         t = 1
-        
+
         sh = SH(wavelengthInNm=500,
                 subap_wanted_fov=3,
                 sensor_pxscale=0.5,
                 subap_on_diameter=20,
                 subap_npx=6,
                 target_device_idx=target_device_idx)
-        
+
         ef = ElectricField(120,120,0.05, S0=ref_S0, target_device_idx=target_device_idx)
         ef.generation_time = t
 
@@ -41,7 +41,7 @@ class TestSH(unittest.TestCase):
         sh.trigger()
         sh.post_trigger()
         intensity = sh.outputs['out_i']
-        
+
         np.testing.assert_almost_equal(xp.sum(intensity.i), ref_S0 * ef.masked_area())
 
     @cpu_and_gpu
@@ -75,10 +75,10 @@ class TestSH(unittest.TestCase):
         sh.trigger()
         sh.post_trigger()
         flat = sh.outputs['out_i'].i.copy()
-        
+
         # tilt corresponding to pxscale_arcsec
         tilt_value = np.radians(pixel_pupil * pixel_pitch * 1/(60*60) * pxscale_arcsec)
-        tilt = np.linspace(-tilt_value / 2, tilt_value / 2, pixel_pupil)
+        tilt = np.linspace(-tilt_value / 2 * (1-1/pixel_pupil), tilt_value / 2 * (1-1/pixel_pupil), pixel_pupil)
 
         # Tilted wavefront
         ef.phaseInNm[:] = xp.array(np.broadcast_to(tilt, (pixel_pupil, pixel_pupil))) * 1e9
@@ -88,15 +88,20 @@ class TestSH(unittest.TestCase):
         sh.trigger()
         sh.post_trigger()
         tilted = sh.outputs['out_i'].i.copy()
-        
+
         flat_shifted = np.roll(flat, (0, 1))
 
         # Remove the left column edges on each subap (comparison is invalid after roll)
         flat_shifted[:, ::sh_npix] = 0
         tilted[:, ::sh_npix] = 0
-        
-        np.testing.assert_array_almost_equal(cpuArray(tilted), cpuArray(flat_shifted), decimal=3) 
-        
+
+        # import matplotlib.pyplot as plt
+        # plt.imshow(cpuArray(tilted))
+        # plt.figure()
+        # plt.imshow(cpuArray(flat_shifted))
+        # plt.show()
+
+        np.testing.assert_array_almost_equal(cpuArray(tilted), cpuArray(flat_shifted), decimal=4)
 
     @cpu_and_gpu
     def test_zeros_cache(self, target_device_idx, xp):

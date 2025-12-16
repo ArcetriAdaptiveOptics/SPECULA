@@ -1,3 +1,4 @@
+from specula import cpuArray
 from specula.base_data_obj import BaseDataObj
 from specula.data_objects.ifunc_inv import IFuncInv
 from astropy.io import fits
@@ -14,6 +15,9 @@ def compute_mixed_ifunc(*args, **kwargs):
 
 
 class IFunc(BaseDataObj):
+    '''
+    Influence functions are stored as [modes, pixels]
+    '''
     def __init__(self,
                  ifunc=None,
                  type_str: str=None,
@@ -36,36 +40,47 @@ class IFunc(BaseDataObj):
                  precision=None
                 ):
         super().__init__(precision=precision, target_device_idx=target_device_idx)
+        self.type_str = type_str
         self._doZeroPad = False
-        
+
         if ifunc is None:
             if type_str is None:
                 raise ValueError('At least one of ifunc and type must be set')
             if mask is not None:
-                mask = (self.xp.array(mask) > 0).astype(self.dtype)
+                mask = (self.to_xp(mask) > 0).astype(self.dtype)
             if npixels is None:
                 raise ValueError("If ifunc is not set, then npixels must be set!")
-            
+
             type_lower = type_str.lower()
             if type_lower == 'kl':
+                if nmodes is None:
+                    raise ValueError('nmodes parameter is mandatory with type "kl"')
                 ifunc, mask = compute_kl_ifunc(npixels, nmodes=nmodes, obsratio=obsratio, diaratio=diaratio, mask=mask,
                                                xp=self.xp, dtype=self.dtype)
             elif type_lower in ['zern', 'zernike']:
+                if nzern is not None:
+                    raise ValueError('nzern is ignored with type "zern" or "zernike", please use nmodes instead')
+                if nmodes is None:
+                    raise ValueError('nmodes parameter is mandatory with type "zern" or "zernike"')
                 ifunc, mask = compute_zern_ifunc(npixels, nzern=nmodes, obsratio=obsratio, diaratio=diaratio, mask=mask,
                                                  xp=self.xp, dtype=self.dtype)
             elif type_lower == 'mixed':
+                if nmodes is None or nzern is None:
+                    raise ValueError('Both nzern and nmodes parameters are mandatory with type "mixed"')
                 ifunc, mask = compute_mixed_ifunc(npixels, nzern=nzern, nmodes=nmodes, obsratio=obsratio, diaratio=diaratio, mask=mask,
                                                   xp=self.xp, dtype=self.dtype)
             elif type_lower == 'zonal':
+                if n_act is None:
+                    raise ValueError('nact parameter is mandatory with type "zonal"')
                 ifunc, mask = compute_zonal_ifunc(npixels, n_act, circ_geom=circ_geom, angle_offset=angle_offset, do_mech_coupling=do_mech_coupling,
                                                   coupling_coeffs=coupling_coeffs, do_slaving=do_slaving, slaving_thr=slaving_thr,
                                                   obsratio=obsratio, diaratio=diaratio, mask=mask, xp=self.xp, dtype=self.dtype,
                                                   return_coordinates=False)
             else:
                 raise ValueError(f'Invalid ifunc type {type_str}')
-        
-        ifunc = self.xp.array(ifunc)
-        mask = self.xp.array(mask)
+
+        ifunc = self.to_xp(ifunc)
+        mask = self.to_xp(mask)
 
         self._influence_function = ifunc
         self._mask_inf_func = mask
@@ -79,7 +94,7 @@ class IFunc(BaseDataObj):
     @influence_function.setter
     def influence_function(self, ifunc):
         if self._doZeroPad:
-            raise ValueError("zeroPad is not working.")
+            raise NotImplementedError("zeroPad is not implemented")
             if self._mask_inf_func is None:
                 raise ValueError("if doZeroPad is set, mask_inf_func must be set before setting ifunc.")
             sIfunc = ifunc.shape
@@ -93,7 +108,7 @@ class IFunc(BaseDataObj):
 
             ifunc = ifuncPad
 
-        self._influence_function = self.xp.array(ifunc, dtype=self.dtype)
+        self._influence_function = self.to_xp(ifunc, dtype=self.dtype)
 
     @property
     def mask_inf_func(self):
@@ -101,7 +116,7 @@ class IFunc(BaseDataObj):
 
     @mask_inf_func.setter
     def mask_inf_func(self, mask_inf_func):
-        self._mask_inf_func = self.xp.array(mask_inf_func, dtype=self.dtype)
+        self._mask_inf_func = self.to_xp(mask_inf_func, dtype=self.dtype)
         self._idx_inf_func = self.xp.where(self._mask_inf_func)
 
     @property
@@ -116,19 +131,54 @@ class IFunc(BaseDataObj):
     def type(self):
         return self._influence_function.dtype
 
+    def get_value(self):
+        return self._influence_function
+
+    def set_value(self, v):
+        '''Set a new influence function.
+        Arrays are not reallocated.'''
+        assert v.shape == self._influence_function.shape, \
+            f"Error: input array shape {v.shape} does not match influence function shape {self._influence_function.shape}"
+
+        self._influence_function[:] = self.to_xp(v)
+
+    def ifunc_2d_to_3d(self, normalize=True):
+        '''Convert a 2D influence function to a 3D array using a mask.'''
+        npixels = self._mask_inf_func.shape[0]
+        nmodes = self._influence_function.shape[0]
+        ifunc_3d = self.xp.zeros((npixels, npixels, nmodes), dtype=self.dtype)
+        idx = self.xp.where(self._mask_inf_func > 0)
+
+        ifunc_3d[idx[0], idx[1], :] = self._influence_function.T
+
+        if normalize:
+            ifunc_rms = self.xp.sqrt(self.xp.mean(self._influence_function**2, axis=1))
+            # Broadcasting: divide each mode by its rms value
+            ifunc_3d[idx[0], idx[1], :] /= ifunc_rms[self.xp.newaxis, :]
+
+        return ifunc_3d
+
     def inverse(self):
         inv = self.xp.linalg.pinv(self._influence_function)
         return IFuncInv(inv, mask=self._mask_inf_func, precision=self.precision, target_device_idx=self.target_device_idx)
-        
-    def save(self, filename, hdr=None):
-        hdr = hdr if hdr is not None else fits.Header()
-        hdr['VERSION'] = 1
 
+    @staticmethod
+    def from_header(hdr):
+        raise NotImplementedError
+
+    def get_fits_header(self):
+        hdr = fits.Header()
+        hdr['VERSION'] = 1
+        return hdr
+
+    def save(self, filename, overwrite=False):
+        hdr = self.get_fits_header()
         hdu = fits.PrimaryHDU(header=hdr)
         hdul = fits.HDUList([hdu])
-        hdul.append(fits.ImageHDU(data=self._influence_function.T, name='INFLUENCE_FUNCTION'))
-        hdul.append(fits.ImageHDU(data=self._mask_inf_func, name='MASK_INF_FUNC'))
-        hdul.writeto(filename, overwrite=True)
+        hdul.append(fits.ImageHDU(data=cpuArray(self._influence_function.T), name='INFLUENCE_FUNCTION'))
+        hdul.append(fits.ImageHDU(data=cpuArray(self._mask_inf_func), name='MASK_INF_FUNC'))
+        hdul.writeto(filename, overwrite=overwrite)
+        hdul.close()  # Force close for Windows
 
     def cut(self, start_mode=None, nmodes=None, idx_modes=None):
 
@@ -139,29 +189,22 @@ class IFunc(BaseDataObj):
             if nmodes is not None:
                 nmodes = None
                 print('ifunc.cut: nmodes cannot be set together with idx_modes. Setting to None nmodes.')
-                        
+
         nrows, ncols = self.influence_function.shape
 
         if start_mode is None:
             start_mode = 0
         if nmodes is None:
-            nmodes = nrows if ncols > nrows else ncols
-            
+            nmodes = nrows
+
         if idx_modes is not None:
-            if ncols > nrows:
-                self._influence_function = self._influence_function[idx_modes, :]
-            else:
-                self._influence_function = self._influence_function[:, idx_modes]
+            self._influence_function = self._influence_function[idx_modes, :]
         else:
-            if ncols > nrows:
-                self._influence_function = self._influence_function[start_mode:nmodes, :]
-            else:
-                self._influence_function = self._influence_function[:, start_mode:nmodes] 
-      
+            self._influence_function = self._influence_function[start_mode:nmodes, :]
+
+    @staticmethod
     def restore(filename, target_device_idx=None, exten=1):
         with fits.open(filename) as hdul:
             ifunc = hdul[exten].data.T
             mask = hdul[exten+1].data
         return IFunc(ifunc, mask=mask, target_device_idx=target_device_idx)
-
-

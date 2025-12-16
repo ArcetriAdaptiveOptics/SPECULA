@@ -1,0 +1,41 @@
+pixel_disp:
+  class:            'PixelsDisplay'
+  inputs:
+    pixels:       'detector.out_pixels'
+  title:            'PIXELS'
+  figsize:       [8, 6]  # Default size in inches
+modes_disp:
+  class:            'ModesDisplay'
+  inputs:
+    modes:       'rec.out_modes'
+  title:            'MODES'
+  figsize:       [8, 6]  # Default size in inches
+sc_disp:
+  class:            'SlopecDisplay'
+  inputs:
+    slopes:       'slopec.out_slopes'
+  figsize:       [8, 6]  # Default size in inches
+sr_disp:
+  class:            'PlotDisplay'
+  inputs:
+    value:       'psf.out_sr'
+  title:            'SR'
+ph_disp:
+  class:            'PhaseDisplay'
+  inputs:
+    phase:       "prop.out_on_axis_source_ef"
+  title:            'PUPIL PHASE'
+  figsize:       [8, 6]  # Default size in inches
+dm_disp:
+  class:            'PhaseDisplay'
+  inputs:
+    phase:       "dm.out_layer"
+  title:            'DM'
+  figsize:       [8, 6]  # Default size in inches
+psf_disp:
+  class:            'PsfDisplay'
+  log_scale: True
+  inputs:
+    psf:       "psf.out_psf"
+  title:            'PSF'
+  figsize:       [8, 6]  # Default size in inches

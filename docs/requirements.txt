@@ -4,5 +4,6 @@ nbsphinx
 numpydoc
 sphinx_rtd_theme
 pydata_sphinx_theme
-m2r
+myst-parser
 lxml_html_clean
+toml

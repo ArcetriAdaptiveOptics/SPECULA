@@ -9,7 +9,7 @@
 #########################################################
 
 
-from specula import cp
+from specula import cp, cpuArray
 from specula.lib.rebin import rebin2d
 
 
@@ -36,7 +36,26 @@ def toccd(a, newshape, set_total=None, xp=None):
     to rebin an array similar to openvc's INTER_AREA interpolation.
 
     If a GPU is available, calculation is delegated to toccd_gpu()
+
+    Parameters
+    ----------
+    a : array
+        array to be resized
+    newshape : tuple, list or array
+        shape of resized array
+    set total : float, optional
+        if set, normalize the resized array to this total count.
+        if not set, the same total count as the input array is used.
+    xp : module
+        numpy or cupy module
+
+    Returns
+    -------
+    array
+        resized array
     '''
+    newshape = tuple(cpuArray(newshape))  # Works for lists, tuples and any cupy/numpy array
+
     if a.shape == newshape:
         return a
 
@@ -60,7 +79,10 @@ def toccd(a, newshape, set_total=None, xp=None):
     temp = rebin2d(temp, (newshape[0], mcmy), sample=True, xp=xp)
     rebinned = rebin2d(temp, newshape, xp=xp)
 
-    return rebinned / rebinned.sum() * set_total
+    eps = xp.finfo(rebinned.dtype).eps
+    rebinned_sum = xp.maximum(rebinned.sum(), eps)
+
+    return rebinned / rebinned_sum * set_total
 
 
 def toccd_gpu(a, newshape, set_total=None):
@@ -84,9 +106,6 @@ def toccd_gpu(a, newshape, set_total=None):
     f = 1.0 / (dx_out * dy_out)
     oneOverDxIn = 1.0 / dx_in
 
-    if set_total is None:
-        set_total = a.sum()
-
     block = (16, 16)
     numBlocks2d = int(outx // block[1])
     if outx % block[1]:
@@ -98,7 +117,7 @@ def toccd_gpu(a, newshape, set_total=None):
         numBlocks2d_tmp += 1
     grid_tmp = (numBlocks2d, numBlocks2d_tmp)  # Note second element is different
 
-    tmp = cp.empty_like(a, shape=(iny, outx))
+    tmp = cp.empty_like(a, shape=(iny, outx))  # TODO this is a reallocation and could give problems with streams
     out = cp.empty_like(a, shape=(outy, outx))
 
     if a.dtype == cp.float32:
@@ -110,7 +129,12 @@ def toccd_gpu(a, newshape, set_total=None):
     else:
         raise TypeError(f'toccd_gpu(): unsupported dtype {a.dtype}. Valid dtypes are float32 and float64')
 
-    return out / out.sum() * set_total
+    out /= out.sum()
+    if set_total is not None:
+        out *= set_total
+    else:
+        out *= a.sum()
+    return out
 
 
 # only define kernels if cupy has been loaded

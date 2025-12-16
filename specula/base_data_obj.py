@@ -1,9 +1,11 @@
-from astropy.io import fits
 
-from specula.base_time_obj import BaseTimeObj
+import warnings
 from copy import copy
-from specula import cp, np
 from functools import lru_cache
+
+from specula import cp, np, array_types
+from specula.base_time_obj import BaseTimeObj
+
 
 # We use lru_cache() instead of cache() for python 3.8 compatibility
 @lru_cache(maxsize=None)
@@ -13,7 +15,7 @@ def get_properties(cls):
     for cc in classlist:
         result.extend([attr for attr, value in vars(cc).items() if isinstance(value, property) ]) 
     return result
-    # return [attr for attr, value in vars(cls).items() if isinstance(value, property) ]
+
 
 class BaseDataObj(BaseTimeObj):
     def __init__(self, target_device_idx=None, precision=None):
@@ -21,86 +23,113 @@ class BaseDataObj(BaseTimeObj):
         Initialize the base data object.
 
         Parameters:
-        precision (int, optional):if None will use the global_precision, otherwise pass 0 for double, 1 for single
+        target_device_idx: int, optional
+            device to be targeted for data storage. Set to -1 for CPU,
+            to 0 for the first GPU device, 1 for the second GPU device, etc.
+        precision: int, optional
+            if None will use the global_precision, otherwise set to 0 for double, 1 for single
         """
         super().__init__(target_device_idx, precision)
-        self._generation_time = -1
+        self.generation_time = -1
+        self.tag = ''
 
-    @property
-    def generation_time(self):
-        return self._generation_time
+    def transferDataTo(self, destobj, force_reallocation=False):
+        '''
+        Copy CPU/GPU arrays into an existing data object:
+        iterate over all self attributes and, if a CPU or GPU array
+        is detected, copy data into *destobj* without reallocating.
 
-    @generation_time.setter
-    def generation_time(self, value):
-        self._generation_time = value
+        Destination (CPU or GPU device) is inferred by *destobj.target_device_idx*,
+        which must be set correctly before calling this method.
+        '''
+        # Get a list of all attributes, but skip properties
+        pp = get_properties(type(self))
+        attr_list = [attr for attr in dir(self) if attr not in pp]       
 
-    def get_fits_header(self):
-        hdr = fits.Header()
-        hdr['VERSION'] = 1
-        hdr['OBJ_TYPE'] = 'BaseDataObj'
-        return hdr
+        for attr in attr_list:
+            self_attr = getattr(self, attr)
+            self_type = type(self_attr)
+            if self_type not in array_types:
+                continue
 
-    def save(self, filename):
-        hdr = fits.Header()
-        hdr['GEN_TIME'] = self._generation_time
-        hdr['TIME_RES'] = self._time_resolution
+            dest_attr = getattr(destobj, attr)
+            dest_type = type(dest_attr)
 
-        primary_hdu = fits.PrimaryHDU(header=hdr)
-        hdul = fits.HDUList([primary_hdu])
-        hdul.writeto(filename, overwrite=True)
+            if dest_type not in array_types:
+                print(f'Warning: destination attribute is not a cupy/numpy array, forcing reallocation ({destobj}.{attr})')
+                force_reallocation = True
 
-    def read(self, filename):
-        with fits.open(filename) as hdul:
-            hdr = hdul[0].header
-            self._generation_time = int(hdr.get('GEN_TIME', 0))
-            self._time_resolution = int(hdr.get('TIME_RES', 0))
+            # Destination array had the correct type: perform in-place data copy
+            if not force_reallocation:
+                # Detect whether the array types are correct for all four cases:
+                # Device to CPU, CPU to device, device-to-device, and CPU-CPU. Also check whether
+                # the target_device_idx is set correctly for the destination object.
+                DtD = cp is not None and (self_type == cp.ndarray) and (dest_type == cp.ndarray) and destobj.target_device_idx >= 0
+                DtH = cp is not None and (self_type == cp.ndarray) and (dest_type == np.ndarray) and destobj.target_device_idx == -1
+                HtD = cp is not None and (self_type == np.ndarray) and (dest_type == cp.ndarray) and destobj.target_device_idx >= 0
+                HtH = (self_type == np.ndarray) and (dest_type == np.ndarray) and destobj.target_device_idx == -1
+                if DtD:
+                    # Performance warnings here are expected, because we might
+                    # trigger a peer-to-peer transfer between devices
+                    with warnings.catch_warnings():
+                        if self.PerformanceWarning:
+                            warnings.simplefilter("ignore", category=self.PerformanceWarning)
+                        try:
+                            dest_attr[:] = self_attr
+                        except:
+                            dest_attr = self_attr
+                elif DtH:
+                    # Do not set blocking=True for cupy 12.x compatibility.
+                    # Blocking is True by default in later versions anyway
+                    self_attr.get(out=dest_attr)
+                elif HtD:
+                    dest_attr.set(self_attr)
+                elif HtH:
+                    dest_attr[:] = self_attr
+                else:
+                    print(f'Warning: mismatch between target_device_idx and array allocation, forcing reallocation ({destobj}.{attr})')
+                    force_reallocation = True
 
-    def transferDataTo(self, destobj):
-        excluded = ['_tag']
-        #if target_device_idx==self.target_device_idx:
-        #    return self
-        #else:
-        pp = get_properties(type(self))            
-        for attr in dir(self):
-            if attr not in excluded and attr not in pp:
-                concrete_attr = getattr(self, attr)
-                aType = type(concrete_attr)
-                if destobj.target_device_idx==-1:
-                    if aType==cp.ndarray:
-                        #print(f'transferDataTo: {attr} to CPU')
-                        setattr(destobj, attr, concrete_attr.get(blocking=True) )
-                elif self.target_device_idx==-1:
-                    if aType==np.ndarray:
-                        #print(f'transferDataTo: {attr} to GPU')
-                        setattr(destobj, attr, cp.asarray( concrete_attr ) )
+            # Otherwise, reallocate
+            if force_reallocation:
+                DtD = cp is not None and (self_type == cp.ndarray) and destobj.target_device_idx >= 0
+                DtH = cp is not None and (self_type == cp.ndarray) and destobj.target_device_idx == -1
+                HtD = (self_type == np.ndarray) and destobj.target_device_idx >= 0
+                HtH = (self_type == np.ndarray) and destobj.target_device_idx == -1
+
+                if DtD:
+                    # Performance warnings here are expected, because we might
+                    # trigger a peer-to-peer transfer between devices
+                    with warnings.catch_warnings():
+                        if self.PerformanceWarning:
+                            warnings.simplefilter("ignore", category=self.PerformanceWarning)
+                        setattr(destobj, attr, cp.asarray(self_attr))
+                if DtH:
+                    # Do not set blocking=True for cupy 12.x compatibility.
+                    # Blocking is True by default in later versions anyway
+                    setattr(destobj, attr, self_attr.get())
+                if HtD:
+                    setattr(destobj, attr, cp.asarray(self_attr))
+                if HtH:
+                    setattr(destobj, attr, np.asarray(self_attr))
+
         destobj.generation_time = self.generation_time
-        return destobj
-
 
     def copyTo(self, target_device_idx):
-        excluded = ['_tag']
-        if target_device_idx==self.target_device_idx:
+        '''
+        Duplicate a data object on another device,
+        alllocating all CPU/GPU arrays on the new device.
+        '''
+        if target_device_idx == self.target_device_idx:
             return self
         else:
-            pp = get_properties(type(self))
             cloned = copy(self)
-            for attr in dir(self):
-                if attr not in excluded and attr not in pp:
-                    concrete_attr = getattr(self, attr)
-                    cloned_attr = getattr(cloned, attr)
-                    aType = type(concrete_attr)
-                    if target_device_idx==-1:
-                        if aType==cp.ndarray:
-                            #setattr(cloned, attr, cp._cupyx.zeros_like_pinned( cloned_attr ) )
-                            setattr(cloned, attr, cp.asnumpy( cloned_attr ) )
-                            # print('Member', attr, 'of class', type(cloned).__name__, 'is now on CPU')
-                    elif self.target_device_idx==-1:
-                        if aType==np.ndarray:
-                            setattr(cloned, attr, cp.asarray( cloned_attr ) )
-                            # print('Member', attr, 'of class', type(cloned).__name__, 'is now on GPU')
+
             if target_device_idx >= 0:
                 cloned.xp = cp
             else:
                 cloned.xp = np
             cloned.target_device_idx = target_device_idx
+
+            self.transferDataTo(cloned, force_reallocation=True)
             return cloned

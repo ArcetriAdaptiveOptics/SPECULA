@@ -15,6 +15,7 @@ class Modalrec(BaseProcessingObj):
                  projmat: Recmat=None,
                  intmat: Intmat=None,
                  polc: bool=False,
+                 in_commands_size: int=None,
                  filtmat = None,
                  identity: bool=False,
                  ncutmodes: int=None,
@@ -63,7 +64,8 @@ class Modalrec(BaseProcessingObj):
                 if dmNumber is not None:
                     if dmNumber <= 0:
                         raise ValueError('dmNumber must be > 0')
-                    projmat = Recmat(recmat.proj_list[dmNumber - 1])
+                    projmat = Recmat(recmat.proj_list[dmNumber - 1],
+                                     target_device_idx=target_device_idx, precision=precision)
                 else:
                     raise ValueError('dmNumber (>0) must be defined if projmat_tag is not defined!')
 
@@ -71,11 +73,15 @@ class Modalrec(BaseProcessingObj):
             recmat.recmat = recmat.recmat @ filtmat
             print('recmat updated with filmat!')
 
+        if polc:
+            if not intmat:
+                raise ValueError("Intmat object not valid")
+
         self.recmat = recmat
         self.projmat = projmat
         self.intmat = intmat
         self.polc = polc
-        # self.layer_modes_list = None
+        self.in_commands_size = in_commands_size
         self.input_modes_index = input_modes_index
 
         if output_slice is not None:
@@ -86,101 +92,162 @@ class Modalrec(BaseProcessingObj):
             nmodes = (stop - start) // step
         else:
             self.output_slice = slice(None, None, None)
-            nmodes = self.recmat.recmat.shape[0]
+            if polc:
+                nmodes = self.projmat.nmodes
+            else:
+                nmodes = self.recmat.nmodes
 
         if input_modes_slice is not None:
-            self.input_modes_slice = slice(*input_modes_slice)
+            # If it is a list of lists/tuples, create multiple slices and concatenate the indices
+            if isinstance(input_modes_slice[0], (list, tuple, slice)):
+                indices = []
+                for s in input_modes_slice:
+                    if isinstance(s, slice):
+                        indices.extend(range(
+                            s.start if s.start is not None else 0,
+                            s.stop if s.stop is not None else self.in_commands_size,
+                            s.step if s.step is not None else 1
+                        ))
+                    else:
+                        # s is a list/tuple like [start, stop, step]
+                        start = s[0]
+                        stop = s[1] if s[1] is not None else self.in_commands_size
+                        step = s[2] if len(s) > 2 else 1
+                        indices.extend(range(start, stop, step))
+                self.input_modes_slice = indices  # will be a list of indices
+            else:
+                # Classic case: single slice
+                self.input_modes_slice = slice(*input_modes_slice)
         else:
             self.input_modes_slice = slice(None, None, None)
 
-        self.modes = BaseValue('output modes from modal reconstructor', target_device_idx=target_device_idx)
-        self.pseudo_ol_modes = BaseValue('output POL modes from modal reconstructor', target_device_idx=target_device_idx)        
+        self.modes = BaseValue('output modes from modal reconstructor',
+                               target_device_idx=target_device_idx,
+                               precision=precision)
+        self.pseudo_ol_modes = BaseValue('output POL modes from modal reconstructor',
+                                         target_device_idx=target_device_idx,
+                                         precision=precision) 
 
         self.inputs['in_slopes'] = InputValue(type=Slopes, optional=True)
         self.inputs['in_slopes_list'] = InputList(type=Slopes, optional=True)
         self.outputs['out_modes'] = self.modes
         self.outputs['out_pseudo_ol_modes'] = self.pseudo_ol_modes
-        
+
         # TODO static allocation but polc not supported (should use projmat)
         self.modes.value = self.xp.zeros(nmodes, dtype=self.dtype)
         self.pseudo_ol_modes.value = self.xp.zeros(nmodes, dtype=self.dtype)
-        
+
         if self.polc:
-            self.out_comm = BaseValue('output commands from modal reconstructor', target_device_idx=target_device_idx)
+            self.out_comm = BaseValue('output commands from modal reconstructor',
+                                      target_device_idx=target_device_idx,
+                                      precision=precision)
             self.inputs['in_commands'] = InputValue(type=BaseValue, optional=True)
-            self.inputs['in_commands_list'] = InputList(type=BaseValue, optional=True)            
+            self.inputs['in_commands_list'] = InputList(type=BaseValue, optional=True)       
             # TODO complete static allocation above
+
+    def prepare_trigger(self, t):
+        super().prepare_trigger(t)
+
+        slopes = self.local_inputs['in_slopes']
+        slopes_list = self.local_inputs['in_slopes_list']
+
+        if slopes is None:
+            self.slopes[:] = self.xp.hstack([x.slopes for x in slopes_list])
+        else:
+            self.slopes[:] = slopes.slopes
+
+        if self.polc:
+            commands = self.local_inputs['in_commands']
+            commands_list = self.local_inputs['in_commands_list']
+            if commands is None:
+                self.commands[:] = self.xp.hstack([x.commands for x in commands_list])
+            else:
+                if commands.value is None:
+                    # value will be None in the first iteration
+                    self.commands[:] = 0.0
+                else:
+                    self.commands[:] = commands.value
+
+            if self.intmat is not None and self.intmat.intmat is not None:
+                # Check dimensions for slopes
+                expected_slopes_size = self.intmat.intmat.shape[0]
+                if expected_slopes_size != len(self.slopes):
+                    raise ValueError(f"Dimension mismatch in POLC mode: "
+                                f"intmat @ commands will produce {expected_slopes_size} slopes, "
+                                f"but input slopes has size {len(self.slopes)}")
 
     def trigger_code(self):
         if self.recmat.recmat is None:
             print("WARNING: modalrec skipping reconstruction because recmat is NULL")
             return
 
-        slopes = self.local_inputs['in_slopes']
-        slopes_list = self.local_inputs['in_slopes_list']
-        if slopes is None:
-            slopes = self.xp.hstack([x.slopes for x in slopes_list])
-        else:
-            slopes = slopes.slopes
-            
+        # In the polc case, commands may be *alwats* refreshed if they are set with -1
+        # (it might result in a kind of loop in the yml file)
+        # Therefor we check the slopes input time and only run when they have been refreshed.
         if self.polc:
-            commandsobj = self.local_inputs['in_commands']
-            commands_list = self.local_inputs['in_commands_list']
-            if commandsobj is None:
-                commandsobj = commands_list
-                commands = self.xp.hstack([x.value for x in commands_list]) # TODO this line does not work on the first step
+
+            slopes = self.local_inputs['in_slopes']
+            slopes_list = self.local_inputs['in_slopes_list']
+
+            if slopes is not None:
+                slopes_time = slopes.generation_time
             else:
-                commands = self.xp.array(commandsobj.value, dtype=self.dtype)
+                slopes_time = slopes_list[0].generation_time
 
-            # this is true on the first step only
-            if commandsobj is None or commands.shape == ():
-                if self.projmat is None:
-                    commands = self.xp.zeros(self.recmat.recmat.shape[0])
-                else:
-                    commands = self.xp.zeros(self.projmat.recmat.shape[0])
-            
+            if slopes_time != self.current_time:
+                return
+
+
+        if self.polc:
+
+            # (1) Compute pseudo open loop modes
+            # (1.1) from commands to slopes
             if self.input_modes_index is not None:
-                commands = commands[self.input_modes_index]
-
-            if self.input_modes_slice is not None:
-                commands = commands[self.input_modes_slice]
-
+                commands = self.commands[self.input_modes_index]
+            elif self.input_modes_slice is not None:
+                commands = self.commands[self.input_modes_slice]
+            else:
+                commands = self.commands
             comm_slopes = self.intmat.intmat @ commands
-            slopes += comm_slopes
-            self.pseudo_ol_modes.value = self.recmat.recmat @ slopes
+
+            # (1.2) from slopes to modes summing the measured slopes and the computed ones
+            #     (i.e., assuming that the DM perfectly reproduces the commands)
+            self.pseudo_ol_modes.value = self.recmat.recmat @ (self.slopes + comm_slopes)
             self.pseudo_ol_modes.generation_time = self.current_time
+
+            # (2) from pseudo open loop modes to output modes
             if self.projmat is None:
                 output_modes = self.pseudo_ol_modes.value
             else:
                 output_modes = self.projmat.recmat @ self.pseudo_ol_modes.value
+
+            # (3) remove the effect of the commands
             output_modes -= commands
-            
+
         else:
-            output_modes = self.recmat.recmat @ slopes
+            output_modes = self.recmat.recmat @ self.slopes
 
         self.modes.value = output_modes[self.output_slice]
         self.modes.generation_time = self.current_time
 
-        #if self.layer_modes_list is not None:
-        #    for i, idx_list in enumerate(self.layer_idx_list):
-        #        self.layer_modes_list[i].value = self.modes_first_step.value[idx_list]
-        #        self.layer_modes_list[i].generation_time = self.current_time
-
     def setup(self):
         super().setup()
 
-        slopes = self.inputs['in_slopes'].get(self.target_device_idx)
-        slopes_list = self.inputs['in_slopes_list'].get(self.target_device_idx)
+        slopes = self.local_inputs['in_slopes']
+        slopes_list = self.local_inputs['in_slopes_list']
 
         if not slopes and (not slopes_list or not all(slopes_list)):
             raise ValueError("Either 'slopes' or 'slopes_list' must be given as an input")
-        if not self.recmat:
-            raise ValueError("Recmat object not valid")
-        if self.polc:
-            if not self.intmat:
-                raise ValueError("Intmat object not valid")
 
-            commands = self.inputs['in_commands'].get(self.target_device_idx)
-            commands_list = self.inputs['in_commands_list'].get(self.target_device_idx)
+        if slopes is None:
+            self.slopes = self.xp.hstack([x.slopes for x in slopes_list])
+        else:
+            self.slopes = self.to_xp(slopes.slopes.copy())
+
+        if self.polc:
+            commands = self.local_inputs['in_commands']
+            commands_list = self.local_inputs['in_commands_list']
             if not commands and (not commands_list or not all(commands_list)):
                 raise ValueError("When POLC is used, either 'commands' or 'commands_list' must be given as an input")
+
+            self.commands = self.xp.zeros(self.in_commands_size, dtype=self.dtype)

@@ -1,5 +1,6 @@
 
 import io
+import os
 import socket
 import threading
 import time
@@ -15,6 +16,7 @@ from flask_socketio import SocketIO, join_room
 import socketio
 import socketio.exceptions
 
+from specula.base_value import BaseValue
 from specula.base_processing_obj import BaseProcessingObj
 from specula.display.data_plotter import DataPlotter
 
@@ -58,13 +60,13 @@ class DisplayServer(BaseProcessingObj):
         # Heuristic to detect inputs: they usually start with "in_"
         def data_obj_getter(name):
             if '.in_' in name:
-                return input_ref_getter(name, target_device_idx=-1)
+                return input_ref_getter(name)
             else:
                 try:
-                    return output_ref_getter(name)     
+                    return output_ref_getter(name)
                 except ValueError:
                     # Try inputs as well
-                    return input_ref_getter(name, target_device_idx=-1)
+                    return input_ref_getter(name)
 
         self.data_obj_getter = data_obj_getter
         self.info_getter = info_getter
@@ -98,6 +100,9 @@ class DisplayServer(BaseProcessingObj):
                 # Find the requested object, make sure it's on CPU,
                 # and remove xp/np modules to prepare for pickling
                 dataobj = self.data_obj_getter(name)
+                if dataobj is None:
+                    dataobj = BaseValue(value=None)
+
                 if isinstance(dataobj, list):
                     dataobj_cpu = [x.copyTo(-1) for x in dataobj]
                 else:
@@ -120,9 +125,14 @@ class DisplayServer(BaseProcessingObj):
     def finalize(self):
         self.p.terminate()
 
+
+base_dir = os.path.abspath(os.path.dirname(__file__))
+templates_dir = os.path.join(base_dir, "..", "scripts", "templates")
+
 # Global variables used by Flask-SocketIO            
-app = Flask('Specula_display_server')
+app = Flask('Specula_display_server', template_folder=templates_dir)
 sio = SocketIO(app)
+print("Template search paths:", app.jinja_loader.searchpath)
 server = None
 
 
@@ -146,14 +156,14 @@ class FlaskServer():
         self.port = port
         self.actual_port = None  # Filled in later
         self.frontend_connected = False
-        
+
     def run(self):
         '''
         Run the main server and a regular status update in a separate thread
         '''
         t = threading.Thread(target=self.status_update, args=(sio,))
         t.start()
-        
+
         # If port == 0 (auto), we need to know which one is selected, but Flask won't tell us.
         # Therefore, find one manually and then tell Flask to use it.
         # There is a minor race condition here (if the port is re-used in the meantime).
@@ -165,21 +175,21 @@ class FlaskServer():
                 self.actual_port = port
         else:
             self.actual_port = self.port
-            
+
         sio.run(app, host=self.host, allow_unsafe_werkzeug=True, port=self.actual_port)
 
     def shutdown(self):
         '''Force process stop'''
         import os
         os._exit(0)
-        
+
     def status_update(self, sio):
         sio_client = socketio.Client()
         def connect():
             if not self.frontend_connected:
-                sio_client.connect('http://localhost:8080')  # TODO frontend port from os.environ
+                sio_client.connect('http://localhost:8080')  # TODO get port number from os.environ
                 self.frontend_connected = True
-            
+
         while True:
             try:
                 name, data = self.qin.get(timeout=60)
@@ -212,10 +222,10 @@ class FlaskServer():
         print(args)
         client_id = request.sid
         response_queue = manager.Queue() # Separate response queue for each client
-        
+
         if client_id not in server.t0:
             server.t0[client_id] = time.time()
-        
+
         # Queue data object requests to the simulation Processing object
         server.qout.put((args, response_queue))
 
@@ -265,7 +275,7 @@ class FlaskServer():
 
         # Exclude DataStore since its input_list has a different format
         # and cannot be displayed at the moment
-        
+
         # TODO .inf values cannot be parsed by the Javascript client
         # For the moment, these are only present in the Source object,
         # which is not a processing object and so is skipped.
@@ -278,13 +288,12 @@ class FlaskServer():
                     continue
             display_params[k] = v
         sio.emit('params', display_params, room=client_id)
-        
 
     @app.route('/')
     def index():
         return render_template('specula_display.html')
-        
-    
+
+
 def start_server(params_dict, qin, qout, host, port):
     global server
     server = FlaskServer(params_dict, qin, qout, host=host, port=port)

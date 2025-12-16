@@ -1,0 +1,22 @@
+#!/bin/bash
+
+#SBATCH --job-name=spMSPREAD                   # Descriptive job name
+#SBATCH --time=00:10:00                        # Maximum wall time (hh:mm:ss)
+#SBATCH --nodes=4                              # Number of nodes to use
+#SBATCH --ntasks-per-node=4                    # Number of MPI tasks per node (e.g., 1 per GPU)
+#SBATCH --cpus-per-task=1                      # Number of CPU cores per task (adjust as needed)
+#SBATCH --gres=gpu:4                           # Number of GPUs per node (adjust to match hardware)
+#SBATCH --partition=boost_usr_prod             # GPU-enabled partition
+#SBATCH --qos=normal                           # Quality of Service
+#SBATCH --output=speculaJobMorfeoMpiSpread.out # File for standard output
+#SBATCH --error=speculaJobMorfeoMpiSpread.err  # File for standard error
+#SBATCH --account=try25_rossi                  # Project account number
+
+module load cuda/12.3                          # Load CUDA toolkit
+module load openmpi/4.1.6--nvhpc--23.11        # Load MPI implementation
+module load nvhpc/23.11
+
+srun --mpi=none bash -c "specula --mpi --diagram-filename morfeoSpread.png --diagram-colors-on $WORK/SPECULA/config/MORFEO/params_morfeo_full.yml $WORK/SPECULA/config/leonardo/overrides/ov_MORFEO_leonardo_spread.yml"
+
+
+

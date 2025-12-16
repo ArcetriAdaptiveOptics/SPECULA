@@ -55,7 +55,7 @@ class TestGenerateModalBasis(unittest.TestCase):
         r0 = 0.2
         L0 = 25.0
         zern_modes = 5
-        oversampling = 1
+        oversampling = 2
         obsratio = 0.4
         diaratio = 1.0
         circGeom = True
