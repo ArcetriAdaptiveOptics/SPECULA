@@ -22,12 +22,13 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32,circ_geom:bool=False
     # ----------------------------------------------------------
     if circ_geom is True:
         if geom is not None:
-            raise ValueError(f'Too many geometry inputs! Both circ_geom = {circ_geom} and geom = {geom} were given')
+            raise ValueError(f'Too many geometry inputs! Both circ_geom'
+                             f' = {circ_geom} and geom = {geom} were given')
         geom = 'circular' # added for retro-compatibility
     else:
         if geom is None:
             geom = 'square' # default geometry
-                          
+    
     # Actuator Coordinates
     if geom == 'circular':
         if n_act % 2 == 0:
@@ -40,7 +41,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32,circ_geom:bool=False
         pol_coords = xp.zeros((2, n_act_tot))
         ka = 0
         # Refactor this!
-        for ia in range(len(na)):
+        for ia, _ in enumerate(na):
             n_angles = int(na[ia])
             for ja in range(n_angles):
                 pol_coords[0, ka] = 360. / na[ia] * ja + angle_offset  # Angle in degrees
@@ -51,7 +52,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32,circ_geom:bool=False
         # Convert from polar to Cartesian coordinates
         x = pol_coords[1] * xp.cos(xp.radians(pol_coords[0])) + x_c
         y = pol_coords[1] * xp.sin(xp.radians(pol_coords[0])) + y_c
-    
+
     elif geom == 'alpao':
         x, y = xp.meshgrid(xp.linspace(0, dim, n_act), xp.linspace(0, dim, n_act))
         x, y = x.ravel(), y.ravel()
@@ -61,12 +62,12 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32,circ_geom:bool=False
         x = x[rho<=rho_max]
         y = y[rho<=rho_max]
         n_act_tot = int(xp.size(x))
-      
+
     elif geom == 'square': # default
         x, y = xp.meshgrid(xp.linspace(0, dim, n_act), xp.linspace(0, dim, n_act))
         x, y = x.ravel(), y.ravel()
         n_act_tot = n_act**2
-      
+
     else:
       raise ValueError("Unrecognized geometry type! Avaliable types are: 'circular', 'alpao', 'square'")
 
@@ -137,10 +138,12 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32,circ_geom:bool=False
 
             # Add coupling contributions
             if len(close1_indices) > 0:
-                ifs_cube[j, :, :] += coupling_coeffs[0] * xp.sum(ifs_cube_orig[close1_indices], axis=0)
+                ifs_cube[j, :, :] += coupling_coeffs[0] * \
+                    xp.sum(ifs_cube_orig[close1_indices], axis=0)
 
             if len(close2_indices) > 0:
-                ifs_cube[j, :, :] += coupling_coeffs[1] * xp.sum(ifs_cube_orig[close2_indices], axis=0)
+                ifs_cube[j, :, :] += coupling_coeffs[1] * \
+                    xp.sum(ifs_cube_orig[close2_indices], axis=0)
 
         print("Mechanical coupling applied.")
 
@@ -181,15 +184,24 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32,circ_geom:bool=False
         coords = coordinates[:, idx_master]
         n_act_tot = len(idx_master)
 
-        # # debugging
-        # import matplotlib.pyplot as plt
-        # plt.figure()
-        # plt.imshow(cpuArray(mask),origin='lower')
-        # plt.scatter(cpuArray(coordinates[0,idx_master]),cpuArray(coordinates[1,idx_master]),c='green',label='masters')
-        # plt.scatter(cpuArray(coordinates[0,idx_slave]),cpuArray(coordinates[1,idx_slave]),c='red',label='slaves')
-        # plt.legend()
-        # plt.grid()
-        # plt.show()
+        # debugging plots
+        plot_debug = False
+        if plot_debug: # pragma: no cover
+            import matplotlib.pyplot as plt
+            plt.figure()
+            plt.imshow(cpuArray(mask),origin='lower')
+            plt.scatter(
+                cpuArray(coordinates[0,idx_master]),
+                cpuArray(coordinates[1,idx_master]),
+                c='green',label='masters'
+            )
+            plt.scatter(
+                cpuArray(coordinates[0,idx_slave]),
+                cpuArray(coordinates[1,idx_slave]),c='red',label='slaves'
+            )
+            plt.legend()
+            plt.grid()
+            plt.show()
 
     ifs_2d = xp.array([ifs_cube[i][idx] for i in range(n_act_tot)], dtype=dtype)
 
