@@ -28,7 +28,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32,circ_geom:bool=False
     else:
         if geom is None:
             geom = 'square' # default geometry
-    
+
     # Actuator Coordinates
     if geom == 'circular':
         if n_act % 2 == 0:
@@ -91,7 +91,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32,circ_geom:bool=False
         else:
             distance = xp.sqrt((x - x[i]) ** 2 + (y - y[i]) ** 2)
             idx_close = xp.where(distance <= min_distance_norm)[0]
-            x_close, y_close, z_close = x[idx_close], y[idx_close], z[idx_close]           
+            x_close, y_close, z_close = x[idx_close], y[idx_close], z[idx_close]
             # Compute the distance grid
             distance_grid = xp.sqrt((grid_x.ravel() - x[i]) ** 2 + (grid_y.ravel() - y[i]) ** 2)
             idx_far_grid = xp.where(distance_grid > 0.8*min_distance_norm)[0]
@@ -157,11 +157,11 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32,circ_geom:bool=False
         print(f"Master actuators: {len(idx_master)}")
         print(f"Actuators to be slaved: {len(idx_slave)}")
 
-        slaveMat1 = xp.zeros((n_act_tot, n_act_tot), dtype=dtype)
+        slave_mat1 = xp.zeros((n_act_tot, n_act_tot), dtype=dtype)
 
         for i in range(n_act_tot):
             if i in idx_master:
-                distance = xp.sqrt((coordinates[0] - coordinates[0][i])**2 + 
+                distance = xp.sqrt((coordinates[0] - coordinates[0][i])**2 +
                                 (coordinates[1] - coordinates[1][i])**2)
 
                 idx_close_master1 = xp.where(distance <= 1.1 * step)[0]
@@ -169,16 +169,16 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32,circ_geom:bool=False
 
                 if len(idx_close_master1) > 0:
                     for j in idx_close_master1:
-                        slaveMat1[i, j] = 1.0
+                        slave_mat1[i, j] = 1.0
 
         for j in range(n_act_tot):
-            slaveMat1[:, j] *= 1.0 / max(1.0, xp.sum(slaveMat1[:, j]))
+            slave_mat1[:, j] *= 1.0 / max(1.0, xp.sum(slave_mat1[:, j]))
 
         for i in range(n_act_tot):
-            if xp.sum(slaveMat1[i, :]) > 0:
-                idx_temp = xp.where(slaveMat1[i, :] > 0)[0]
+            if xp.sum(slave_mat1[i, :]) > 0:
+                idx_temp = xp.where(slave_mat1[i, :] > 0)[0]
                 for j in idx_temp:
-                    ifs_cube[i] += slaveMat1[i, j] * ifs_cube[j]
+                    ifs_cube[i] += slave_mat1[i, j] * ifs_cube[j]
 
         ifs_cube = ifs_cube[idx_master]
         coords = coordinates[:, idx_master]
