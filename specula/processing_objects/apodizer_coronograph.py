@@ -13,7 +13,7 @@ class APPCoronograph(Coronograph):
                  contrastInDarkHole:float,
                  iwaInLambdaOverD:float,
                  owaInLambdaOverD:float,
-                 fft_res: float = None,
+                 fft_res: float = 3.0,
                  make_symmetric: bool = False,
                  beta: float = 0.9,
                  max_its:int = 1000,
@@ -24,11 +24,6 @@ class APPCoronograph(Coronograph):
         fov = wavelengthInNm * 1e-9 / simul_params.pixel_pitch * RAD2ASEC
         if iwaInLambdaOverD is None:
             iwaInLambdaOverD = 0.0 
-
-        if fft_res is None:
-            fft_res = max(3.0, int(1/(iwaInLambdaOverD-np.mod(iwaInLambdaOverD,1))), int(1/(owaInLambdaOverD-np.mod(owaInLambdaOverD,1))))
-        if fft_res > 20:
-            print(f'Warning! Requested FFT padding is very large {fft_res:1.0f}')
 
         super().__init__(simul_params=simul_params,
                          wavelengthInNm=wavelengthInNm,
@@ -60,7 +55,7 @@ class APPCoronograph(Coronograph):
         pad_pupil[pad_start:pad_start+self.fft_sampling, 
                     pad_start:pad_start+self.fft_sampling] = self.xp.array(pupil)
         app = generate_app_keller(pad_pupil, self.xp.array(target_contrast), max_iterations=max_its, beta=beta, xp=self.xp, dtype=self.complex_dtype)
-        apodizer_phase = self.xp.zeros(pupil.shape,dtype=self.dtype)
+        apodizer_phase = self.xp.zeros(pupil.shape,dtype=self.complex_dtype)
         apodizer_phase[pupil>0] = self.xp.angle(app)[pad_pupil>0.0]
         return apodizer_phase, target_contrast
 

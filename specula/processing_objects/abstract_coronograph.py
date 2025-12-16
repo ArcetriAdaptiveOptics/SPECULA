@@ -292,9 +292,6 @@ class Coronograph(BaseProcessingObj):
             self.interp = Interp2D(
                 in_ef.size,
                 (self.fft_sampling, self.fft_sampling),
-                rotInDeg=0, #-self.rotAnglePhInDeg,  # Negative angle for PASSATA compatibility
-                rowShiftInPixels=0, #self.xShiftPhInPixel,
-                colShiftInPixels=0, #self.yShiftPhInPixel,
                 dtype=self.dtype,
                 xp=self.xp
             )

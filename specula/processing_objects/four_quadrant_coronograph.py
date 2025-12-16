@@ -41,7 +41,7 @@ class FourQuadrantCoronograph(Coronograph):
         left_mask = make_mask(self.fft_totsize, diaratio=1.0, xc=1.0+1./self.fft_totsize, xp=self.xp, square=True, yc = 1./self.fft_totsize)
         bottom_mask = make_mask(self.fft_totsize, diaratio=1.0, yc=1.0+1./self.fft_totsize, xp=self.xp, square=True, xc = 1./self.fft_totsize)
         quad_mask = self.xp.logical_xor(left_mask,bottom_mask)
-        fp_mask = self.xp.exp(1j*quad_mask*self._phase_delay, dtype=self.dtype)
+        fp_mask = self.xp.exp(1j*quad_mask*self._phase_delay, dtype=self.complex_dtype)
         return fp_mask
     
     def make_pupil_plane_mask(self):

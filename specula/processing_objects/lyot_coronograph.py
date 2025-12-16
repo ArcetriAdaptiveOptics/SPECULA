@@ -1,7 +1,7 @@
 from specula.processing_objects.abstract_coronograph import Coronograph
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.make_mask import make_mask
-from specula import RAD2ASEC, np
+from specula import RAD2ASEC
 
 
 class LyotCoronograph(Coronograph):
