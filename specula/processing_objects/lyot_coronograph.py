@@ -1,7 +1,7 @@
 from specula.processing_objects.abstract_coronograph import Coronograph
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.make_mask import make_mask
-from specula import RAD2ASEC
+from specula import RAD2ASEC, np
 
 
 class LyotCoronograph(Coronograph):
@@ -28,10 +28,6 @@ class LyotCoronograph(Coronograph):
             raise ValueError('OWA cannot be defined for the knife-edge focal plane mask')
         
         fov = wavelengthInNm * 1e-9 / simul_params.pixel_pitch * RAD2ASEC
-        # if iwaInLambdaOverD > 0.0:
-        #     fov *= max(1.0,1/(iwaInLambdaOverD-(iwaInLambdaOverD % 1)))
-
-        # fft_res = max(1/(iwaInLambdaOverD-np.mod(iwaInLambdaOverD,1)), 1/(owaInLambdaOverD-np.mod(owaInLambdaOverD,1)))
             
         self._knife_edge = knife_edge
         if knife_edge:

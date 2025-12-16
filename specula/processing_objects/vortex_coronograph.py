@@ -32,13 +32,11 @@ class VortexCoronograph(Coronograph):
 
         self._inVortex = addInVortex
         if addInVortex: # default inner vortex: same charge as outer/master vortex, pi shift, 0.621 lambda/D diameter
-            self._innerRadInLambdaOverD = 0.62 if inVortexRadInLambdaOverD is None else inVortexRadInLambdaOverD
+            self._innerRadInLambdaOverD = 0.6 if inVortexRadInLambdaOverD is None else inVortexRadInLambdaOverD
             self._innerCharge = vortexCharge if inVortexCharge is None else inVortexCharge
             self._innerShift = np.pi if inVortexShift is None else inVortexShift
         
         fov = wavelengthInNm * 1e-9 / simul_params.pixel_pitch * RAD2ASEC
-        if addInVortex:
-            fov *= min(1.0,1/self._innerRadInLambdaOverD)
         
         self._inPupilStop = innerStopAsRatioOfPupil
         self._outPupilStop = outerStopAsRatioOfPupil
@@ -64,7 +62,7 @@ class VortexCoronograph(Coronograph):
             inVortex = self._innerCharge * theta + self._innerShift
             inRho = self._innerRadInLambdaOverD * self.fft_res
             vortex[rho<=inRho] = inVortex[rho<=inRho]
-        fp_mask = self.xp.exp(1j*vortex, dtype=self.xp.complex64)
+        fp_mask = self.xp.exp(1j*vortex, dtype=self.complex_dtype)
         return fp_mask
     
     def make_pupil_plane_mask(self):

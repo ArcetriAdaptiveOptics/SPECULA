@@ -148,14 +148,6 @@ class Coronograph(BaseProcessingObj):
         ef_pad[pad_start:pad_start+self.fft_sampling, 
                     pad_start:pad_start+self.fft_sampling] = pup_ef
         return self.xp.fft.fft2(ef_pad)
-    
-    # def _focal_to_pupil_plane(self, fp_ef):
-    #     ef_pad = self.xp.fft.ifft2(fp_ef)
-    #     pad_start = self.fft_padding // 2
-    #     ef_pp = ef_pad[pad_start:pad_start+self.fft_sampling, 
-    #                 pad_start:pad_start+self.fft_sampling]
-    #     return ef_pp
-
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
@@ -300,9 +292,9 @@ class Coronograph(BaseProcessingObj):
             self.interp = Interp2D(
                 in_ef.size,
                 (self.fft_sampling, self.fft_sampling),
-                0, #-self.rotAnglePhInDeg,  # Negative angle for PASSATA compatibility
-                0, #self.xShiftPhInPixel,
-                0, #self.yShiftPhInPixel,
+                rotInDeg=0, #-self.rotAnglePhInDeg,  # Negative angle for PASSATA compatibility
+                rowShiftInPixels=0, #self.xShiftPhInPixel,
+                colShiftInPixels=0, #self.yShiftPhInPixel,
                 dtype=self.dtype,
                 xp=self.xp
             )
