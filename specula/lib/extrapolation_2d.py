@@ -278,30 +278,9 @@ class EFInterpolator():
         # Initialize intermediate array for phase extrapolation
         self.phase_extrapolated = in_ef.phaseInNm.copy()
 
-        # Initialize extrapolation indices and coefficients
-        (edge_pixels,
-        reference_indices,
-        coefficients,
-        valid_indices) = calculate_extrapolation_indices_coeffs(
-            cpuArray(in_ef.A), threshold=mask_threshold
-        )
-
-        # convert to xp
-        self.edge_pixels = to_xp(xp, edge_pixels)
-        self.reference_indices = to_xp(xp, reference_indices)
-        self.coefficients = to_xp(xp, coefficients)
-        self.valid_indices = to_xp(xp, valid_indices)
-
-        # Check if input amplitude is binary (all values close to 0 or 1) with tolerance
-        unique_values = xp.unique(in_ef.A)
-        tol = 1e-3
-        is_binary = xp.all(
-            xp.logical_or(
-                xp.abs(unique_values - 0) < tol,
-                xp.abs(unique_values - 1) < tol
-            )
-        )
-        self.amplitude_is_binary = is_binary
+        # Extrapolation indices and coefficients will be initialized at first use
+        # because the input amplitude must be set before they are calculated
+        self.extrapolation_initialized = False
 
     def interpolated_ef(self):
         '''
@@ -313,6 +292,34 @@ class EFInterpolator():
 
         if not self.do_interpolation:
             return
+
+        # Initialize extrapolation indices and coefficients
+        # using the input EF amplitude, which must have been already set
+        if self.extrapolation_initialized is False:
+            (edge_pixels,
+            reference_indices,
+            coefficients,
+            valid_indices) = calculate_extrapolation_indices_coeffs(
+                cpuArray(self.in_ef.A), threshold=self.mask_threshold
+            )
+
+            # convert to xp
+            self.edge_pixels = to_xp(xp, edge_pixels)
+            self.reference_indices = to_xp(xp, reference_indices)
+            self.coefficients = to_xp(xp, coefficients)
+            self.valid_indices = to_xp(xp, valid_indices)
+
+            # Check if input amplitude is binary (all values close to 0 or 1) with tolerance
+            unique_values = xp.unique(self.in_ef.A)
+            tol = 1e-3
+            is_binary = xp.all(
+                xp.logical_or(
+                    xp.abs(unique_values - 0) < tol,
+                    xp.abs(unique_values - 1) < tol
+                )
+            )
+            self.amplitude_is_binary = is_binary
+            self.extrapolation_initialized = True
 
         # Amplitude: simple interpolation
         self.interp.interpolate(self.in_ef.A, out=self.out_ef.A)
