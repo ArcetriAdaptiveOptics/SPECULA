@@ -9,7 +9,7 @@ from specula.data_objects.electric_field import ElectricField
 from specula.lib.interp2d import Interp2D
 
 
-def calculate_extrapolation_indices_coeffs(mask, threshold=1e-3):
+def _calculate_extrapolation_indices_coeffs(mask, threshold=1e-3):
     """
     Calculates indices and coefficients for extrapolating edge pixels of a mask.
 
@@ -123,7 +123,7 @@ def calculate_extrapolation_indices_coeffs(mask, threshold=1e-3):
 
     return edge_pixels_fixed, reference_indices_fixed, coefficients_fixed, valid_indices
 
-def apply_extrapolation(data, edge_pixels, reference_indices, coefficients, valid_indices, out=None, xp=np):
+def _apply_extrapolation(data, edge_pixels, reference_indices, coefficients, valid_indices, out=None, xp=np):
     """
     Applies linear extrapolation to edge pixels using precalculated indices and coefficients.
 
@@ -176,7 +176,6 @@ def apply_extrapolation(data, edge_pixels, reference_indices, coefficients, vali
         flat_out[valid_edge_pixels] = extrap_values
 
     return out
-
 
 
 class EFInterpolator():
@@ -299,7 +298,7 @@ class EFInterpolator():
             (edge_pixels,
             reference_indices,
             coefficients,
-            valid_indices) = calculate_extrapolation_indices_coeffs(
+            valid_indices) = _calculate_extrapolation_indices_coeffs(
                 cpuArray(self.in_ef.A), threshold=self.mask_threshold
             )
 
@@ -332,7 +331,7 @@ class EFInterpolator():
         self.phase_extrapolated[:] = self.in_ef.phaseInNm * \
             (self.in_ef.A >= self.mask_threshold).astype(int)
 
-        _ = apply_extrapolation(
+        _ = _apply_extrapolation(
             self.in_ef.phaseInNm,
             self.edge_pixels,
             self.reference_indices,
