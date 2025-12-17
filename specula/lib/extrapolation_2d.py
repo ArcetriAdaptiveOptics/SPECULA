@@ -1,7 +1,13 @@
+
+import warnings
+
 import numpy as np
 from scipy.ndimage import binary_dilation
-from specula import cpuArray
-import warnings
+
+from specula import xp, to_xp, cpuArray
+from specula.data_objects.electric_field import ElectricField
+from specula.lib.interp2d import Interp2D
+
 
 def calculate_extrapolation_indices_coeffs(mask, threshold=1e-3):
     """
@@ -170,3 +176,189 @@ def apply_extrapolation(data, edge_pixels, reference_indices, coefficients, vali
         flat_out[valid_edge_pixels] = extrap_values
 
     return out
+
+
+
+class EFInterpolator():
+    '''
+    Interpolate the amplitude and phase of an ElectricField object using edge extrapolation.
+    '''
+    def __init__(self,
+                 in_ef: ElectricField,
+                 out_shape: int,
+                 rotAnglePhInDeg: float=0,
+                 xShiftPhInPixel: float=0,
+                 yShiftPhInPixel: float=0,
+                 mask_threshold: float=1e-3,
+                 force_extrapolation: bool=False,
+                 target_device_idx: int=None,
+                 precision: int=None,
+                 ):
+        '''
+        Initialize an EFInterpolator object for interpolating an ElectricField,
+        with phase extrapolation to avoid edge effects.
+
+        Parameters
+        ----------
+        in_ef : ElectricField
+            Input ElectricField object to be interpolated.
+        out_shape : tuple of int
+            Desired shape (rows, cols) of the output ElectricField.
+        rotAnglePhInDeg : float, optional
+            Rotation angle in degrees to apply to the sampling grid (default: 0).
+        xShiftInPixel : float, optional
+            Horizontal shift (in pixels) to apply to the sampling grid (default: 0).
+        yShiftInPixel : float, optional
+            Vertical shift (in pixels) to apply to the sampling grid (default: 0).
+        mask_threshold : float, optional
+            Threshold below which amplitude values are considered 0 for extrapolation (default: 1e-3).
+        force_extrapolation : bool, optional
+            If True, forces extrapolation even if not strictly needed (default: False).
+        target_device_idx : int, optional
+            Target device index for GPU computation (default: None).
+        precision : int, optional
+            Precision for GPU computation (default: None).
+
+        Output EF is allocated internally and can be retrieved with the interpolated_ef() method.
+        '''
+
+        if (out_shape[0] / in_ef.size[0] != out_shape[1] / in_ef.size[1]):
+            raise ValueError("Output shape must have the same aspect ratio as input ElectricField size.")
+
+        oversampling_factor = out_shape[0] / in_ef.size[0]
+
+        self.debugOutput = False
+        self.mask_threshold = mask_threshold
+        self.in_ef = in_ef
+        self.force_extrapolation = force_extrapolation
+
+        # First, check if interpolation is really needed. If not,
+        # we can just use the input ElectricField without changes.
+        if (in_ef.size == out_shape and
+            rotAnglePhInDeg == 0 and
+            xShiftPhInPixel == 0 and
+            yShiftPhInPixel == 0 and force_extrapolation is False):
+            self.do_interpolation = False
+            self.out_ef = in_ef
+            return
+
+        # If we reach this point, interpolation (and extrapolation) is needed.
+        # We need to:
+        # 1) allocate an output ElectricField
+        # 2) create an Interp2D object, that will take also care of rotation and shifts
+        # 3) create an intermediate array for phase extrapolation
+        # 4) pre-compute extrapolation indices and coefficients
+
+        self.do_interpolation = True
+
+        # Allocate the output ElectricField.
+        self.out_ef = ElectricField(
+            out_shape[0],
+            out_shape[1],
+            in_ef.pixel_pitch / oversampling_factor,
+            target_device_idx=target_device_idx,
+            precision=precision
+        )
+
+        # Get xp and dtype from the newly allocated EF object
+        xp = self.out_ef.xp
+        dtype = self.out_ef.dtype
+
+        # Create the interpolator
+        self.interp = Interp2D(
+            in_ef.size,
+            out_shape,
+            -rotAnglePhInDeg,  # Negative angle for PASSATA compatibility
+            xShiftPhInPixel,
+            yShiftPhInPixel,
+            dtype=dtype,
+            xp=xp
+        )
+
+        # Initialize intermediate array for phase extrapolation
+        self.phase_extrapolated = in_ef.phaseInNm.copy()
+
+        # Initialize extrapolation indices and coefficients
+        (edge_pixels,
+        reference_indices,
+        coefficients,
+        valid_indices) = calculate_extrapolation_indices_coeffs(
+            cpuArray(in_ef.A), threshold=mask_threshold
+        )
+
+        # convert to xp
+        self.edge_pixels = to_xp(xp, edge_pixels)
+        self.reference_indices = to_xp(xp, reference_indices)
+        self.coefficients = to_xp(xp, coefficients)
+        self.valid_indices = to_xp(xp, valid_indices)
+
+        # Check if input amplitude is binary (all values close to 0 or 1) with tolerance
+        unique_values = xp.unique(in_ef.A)
+        tol = 1e-3
+        is_binary = xp.all(
+            xp.logical_or(
+                xp.abs(unique_values - 0) < tol,
+                xp.abs(unique_values - 1) < tol
+            )
+        )
+        self.amplitude_is_binary = is_binary
+
+    def interpolated_ef(self):
+        '''
+        Returns the interpolated ElectricField object.
+        '''
+        return self.out_ef
+
+    def interpolate(self):
+
+        if not self.do_interpolation:
+            return
+
+        # Amplitude: simple interpolation
+        self.interp.interpolate(self.in_ef.A, out=self.out_ef.A)
+
+        # Apply binary threshold if input amplitude was binary
+        if self.amplitude_is_binary:
+            self.out_ef.A[:] = self.out_ef.A > 0.5
+
+        # Phase: apply an intermediate extrapolation to avoid edge effects
+        self.phase_extrapolated[:] = self.in_ef.phaseInNm * \
+            (self.in_ef.A >= self.mask_threshold).astype(int)
+
+        _ = apply_extrapolation(
+            self.in_ef.phaseInNm,
+            self.edge_pixels,
+            self.reference_indices,
+            self.coefficients,
+            self.valid_indices,
+            out=self.phase_extrapolated,
+            xp=self.in_ef.xp
+        )
+
+        if self.debugOutput:
+            # compare input and extrapolated phase
+            phase_in_nm = self.in_ef.phaseInNm * (self.in_ef.A >= 1e-3).astype(int)
+            import matplotlib.pyplot as plt
+            plt.figure(figsize=(20, 5))
+            plt.subplot(1, 4, 1)
+            plt.imshow(cpuArray(phase_in_nm), origin='lower', cmap='gray')
+            plt.title('Input Phase')
+            plt.colorbar()
+            plt.subplot(1, 4, 2)
+            plt.imshow(cpuArray(self.phase_extrapolated), origin='lower', cmap='gray')
+            plt.title('Extrapolated Phase')
+            plt.colorbar()
+            plt.subplot(1, 4, 3)
+            plt.imshow(cpuArray(self.phase_extrapolated - phase_in_nm), origin='lower', cmap='gray')
+            plt.title('Phase Difference')
+            plt.colorbar()
+            plt.subplot(1, 4, 4)
+            plt.imshow(cpuArray(self.in_ef.A), origin='lower', cmap='gray')
+            plt.title('Input Electric Field Amplitude')
+            plt.colorbar()
+            plt.show()
+
+        self.interp.interpolate(self.phase_extrapolated, out=self.out_ef.phaseInNm)
+
+        # Copy other properties
+        self.out_ef.S0 = self.in_ef.S0

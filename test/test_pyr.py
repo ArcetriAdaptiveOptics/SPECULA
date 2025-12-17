@@ -724,7 +724,7 @@ class TestModulatedPyramid(unittest.TestCase):
         pyramid.inputs['in_ef'].set(ef)
         pyramid.setup()
 
-        self.assertFalse(pyramid._do_interpolation,
+        self.assertFalse(pyramid.ef_interpolator.do_interpolation,
                         "_do_interpolation should be False when fov_res=1 "
                         "and no rotation/shifts")
 
@@ -735,7 +735,7 @@ class TestModulatedPyramid(unittest.TestCase):
             print(f"  FOV = {expected_fov:.3f} arcsec")
             print(f"  Requested FOV = {requested_fov:.3f} arcsec")
             print(f"  fp_masking = {pyramid.fp_masking:.6f}")
-            print(f"  _do_interpolation = {pyramid._do_interpolation}")
+            print(f"  _do_interpolation = {pyramid.ef_interpolator.do_interpolation}")
 
     @cpu_and_gpu
     def test_fov_error_margins(self, target_device_idx, xp):

@@ -32,49 +32,14 @@ class ZernikeSensor(ModulatedPyramid):
             mod_amp=0.0,
             mod_step=1,
             fft_res=fft_res,
+            pup_dist=1,
+            pup_margin=1,
+            min_pup_dist=1,
+            fov_errinf=0.1,
+            fov_errsup=0.5,
             target_device_idx=target_device_idx,
             precision=precision
         )
-
-    def calc_geometry(self,
-        DpupPix,
-        pixel_pitch,
-        lambda_,
-        FoV,
-        pup_diam,
-        ccd_side,
-        fov_errinf=0.1,
-        fov_errsup=0.5,
-        pup_dist=None,
-        pup_margin=None,
-        fft_res=16.0,
-        min_pup_dist=None,
-    ):
-        """
-        Geometry calculation for Zernike sensor.
-        It uses the same geometric principles as the pyramid but adapts them for the Zernike sensor.
-        """
-        # Force parameters specific to Zernike
-        pup_margin = 1
-        pup_dist = 1
-        min_pup_dist = 1
-
-        # Call parent class method with modified parameters
-        results = super().calc_geometry(
-            DpupPix=DpupPix,
-            pixel_pitch=pixel_pitch,
-            lambda_=lambda_,
-            FoV=FoV,
-            pup_diam=pup_diam,
-            ccd_side=ccd_side,
-            fov_errinf=fov_errinf,
-            fov_errsup=fov_errsup,
-            pup_dist=pup_dist,
-            pup_margin=pup_margin,
-            fft_res=fft_res,
-            min_pup_dist=min_pup_dist,
-        )
-        return results
 
     def get_pyr_tlt(self, p, c):
         """
