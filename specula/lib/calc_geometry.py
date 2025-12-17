@@ -3,13 +3,13 @@ from specula import RAD2ASEC
 
 
 def calc_geometry(
-    DpupPix,
-    pixel_pitch,
-    wavelengthInNm,
-    FoV,
-    fov_errinf=0.1,
-    fov_errsup=0.5,
-    fft_res=3.0,
+    DpupPix: int,
+    pixel_pitch: float,
+    wavelengthInNm: float,
+    FoV: float,
+    fov_errinf: float=0.1,
+    fov_errsup: float=0.5,
+    fft_res: float=3.0,
     xp=np):
     '''
     Calculate FFT geometry parameters for a given pupil size, pixel pitch,

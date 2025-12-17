@@ -280,6 +280,7 @@ class EFInterpolator():
         # Extrapolation indices and coefficients will be initialized at first use
         # because the input amplitude must be set before they are calculated
         self.extrapolation_initialized = False
+        self.xp = xp
 
     def interpolated_ef(self):
         '''
@@ -303,18 +304,18 @@ class EFInterpolator():
             )
 
             # convert to xp
-            self.edge_pixels = to_xp(xp, edge_pixels)
-            self.reference_indices = to_xp(xp, reference_indices)
-            self.coefficients = to_xp(xp, coefficients)
-            self.valid_indices = to_xp(xp, valid_indices)
+            self.edge_pixels = to_xp(self.xp, edge_pixels)
+            self.reference_indices = to_xp(self.xp, reference_indices)
+            self.coefficients = to_xp(self.xp, coefficients)
+            self.valid_indices = to_xp(self.xp, valid_indices)
 
             # Check if input amplitude is binary (all values close to 0 or 1) with tolerance
-            unique_values = xp.unique(self.in_ef.A)
+            unique_values = self.xp.unique(self.in_ef.A)
             tol = 1e-3
-            is_binary = xp.all(
-                xp.logical_or(
-                    xp.abs(unique_values - 0) < tol,
-                    xp.abs(unique_values - 1) < tol
+            is_binary = self.xp.all(
+                self.xp.logical_or(
+                    self.xp.abs(unique_values - 0) < tol,
+                    self.xp.abs(unique_values - 1) < tol
                 )
             )
             self.amplitude_is_binary = is_binary
@@ -338,7 +339,7 @@ class EFInterpolator():
             self.coefficients,
             self.valid_indices,
             out=self.phase_extrapolated,
-            xp=self.in_ef.xp
+            xp=self.xp
         )
 
         if self.debugOutput:
