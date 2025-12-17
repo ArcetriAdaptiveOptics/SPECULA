@@ -1,6 +1,7 @@
 from specula import cpuArray, RAD2ASEC
 from specula.lib.extrapolation_2d import EFInterpolator
 from specula.lib.interp2d import Interp2D
+from specula.lib.toccd import toccd
 
 from specula.base_processing_obj import BaseProcessingObj
 from specula.connections import InputValue
@@ -115,15 +116,7 @@ class Coronograph(BaseProcessingObj):
         super().post_trigger()
 
         # Then rebin if needed
-        if self.ef_interpolator.do_interpolation and self.fov_res > 1:
-            # Rebin back to original sampling
-            fov_res_int = int(self.fov_res)
-            h, w = self.ef_out.shape
-            new_h, new_w = h // fov_res_int, w // fov_res_int
-            ef_out = self.ef_out[:new_h*fov_res_int, :new_w*fov_res_int].reshape(
-                new_h, fov_res_int, new_w, fov_res_int).mean(axis=(1, 3))
-        else:
-            ef_out = self.ef_out
+        ef_out = toccd(self.ef_out, self.out_ef.size, xp=self.xp)
 
         # Calculate transmission
         # PSF before masking vs PSF after masking
@@ -159,4 +152,5 @@ class Coronograph(BaseProcessingObj):
             precision=self.precision
         )
 
-        super().build_stream()
+        # Cannot be used if self._pupil_to_focal_plane is called in trigger_code()
+        # super().build_stream()
