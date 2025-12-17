@@ -155,7 +155,7 @@ class Interp2D():
         if value.shape != self.input_shape:
             raise ValueError(f'Array to be interpolated must have shape {self.input_shape} instead of {value.shape}')
 
-        # Check if interpolation is actually needed
+        # Skip interpolation if not needed
         if not self.do_interp:
             if out is None:
                 return value

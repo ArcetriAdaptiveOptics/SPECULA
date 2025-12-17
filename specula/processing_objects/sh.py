@@ -105,8 +105,6 @@ class SH(BaseProcessingObj):
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
         self.outputs['out_i'] = self._out_i
-        self.outputs['wf1'] = BaseValue(target_device_idx=self.target_device_idx,
-                                        precision=precision)
 
     def _set_in_ef(self, in_ef):
 
@@ -319,7 +317,6 @@ class SH(BaseProcessingObj):
         # Interpolation of input array if needed
         with show_in_profiler('interpolation'):
             self.ef_interpolator.interpolate()
-            self._wf1 = self.ef_interpolator.interpolated_ef()
 
         if self._kernelobj is not None:
             self._prepare_kernels()
@@ -350,10 +347,11 @@ class SH(BaseProcessingObj):
         for i in range(self.subap_rows_slice.start, self.subap_rows_slice.stop):
 
             # Extract 2D subap row
-            self._wf1.ef_at_lambda(self.wavelength_in_nm,
-                                   slicey=np.s_[i * self._ovs_np_sub: (i+1) * self._ovs_np_sub],
-                                   slicex=np.s_[:],
-                                   out=self.ef_row)
+            wf1 = self.ef_interpolator.interpolated_ef()
+            wf1.ef_at_lambda(self.wavelength_in_nm,
+                             slicey=np.s_[i * self._ovs_np_sub: (i+1) * self._ovs_np_sub],
+                             slicex=np.s_[:],
+                             out=self.ef_row)
 
             # Reshape to subap cube (nsubap, npix, npix)
             subap_cube_view = self.ef_row.reshape(self._ovs_np_sub, self._lenslet.dimy, self._ovs_np_sub).swapaxes(0, 1)
@@ -415,8 +413,6 @@ class SH(BaseProcessingObj):
         self._out_i.i *= phot / self._out_i.i.sum()
         # self._out_i.i = self.xp.nan_to_num(self._out_i.i, copy=False)
         self._out_i.generation_time = self.current_time
-        self.outputs['wf1'].value = toccd(self._wf1.phaseInNm, (100, 100), xp=self.xp)
-        self.outputs['wf1'].generation_time = self.current_time
 
         debug_figures = False
         if debug_figures:
@@ -447,7 +443,6 @@ class SH(BaseProcessingObj):
             target_device_idx=self.target_device_idx,
             precision=self.precision
         )
-        self._wf1 = self.ef_interpolator.interpolated_ef()
 
         ef_whole_size = int(in_ef.size[0] * self._fov_ovs)
         self.ef_row = self._zeros_common((self._ovs_np_sub, ef_whole_size), dtype=self.complex_dtype)

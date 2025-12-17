@@ -65,18 +65,18 @@ class ModulatedPyramid(BaseProcessingObj):
         self.fov = fov
         self.pup_diam = pup_diam
 
-        result = self.calc_geometry(self.pixel_pupil,
-                                    self.pixel_pitch,
-                                    wavelengthInNm,
-                                    self.fov,
-                                    self.pup_diam,
-                                    ccd_side=output_resolution,
-                                    fov_errinf=fov_errinf,
-                                    fov_errsup=fov_errsup,
-                                    pup_dist=pup_dist,
-                                    pup_margin=pup_margin,
-                                    fft_res=fft_res,
-                                    min_pup_dist=min_pup_dist)
+        result = self.calc_pyr_geometry(self.pixel_pupil,
+                                        self.pixel_pitch,
+                                        wavelengthInNm,
+                                        self.fov,
+                                        self.pup_diam,
+                                        ccd_side=output_resolution,
+                                        fov_errinf=fov_errinf,
+                                        fov_errsup=fov_errsup,
+                                        pup_dist=pup_dist,
+                                        pup_margin=pup_margin,
+                                        fft_res=fft_res,
+                                        min_pup_dist=min_pup_dist)
 
         fov_res = result['fov_res']
         self.fp_masking = result['fp_masking']
@@ -198,7 +198,7 @@ class ModulatedPyramid(BaseProcessingObj):
         # Derived classes can disable streams
         self.stream_enable = True
 
-    def calc_geometry(self,
+    def calc_pyr_geometry(self,
         DpupPix,                # number of pixels of input phase array
         pixel_pitch,            # pixel sampling [m] of DpupPix
         lambda_,                # working lambda of the sensor [nm]
