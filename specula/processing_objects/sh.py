@@ -79,7 +79,6 @@ class SH(BaseProcessingObj):
         self._yShiftPhInPixel = yShiftPhInPixel
         self._set_fov_res_to_turbpxsc = set_fov_res_to_turbpxsc
         self._do_not_double_fov_ovs = do_not_double_fov_ovs
-        # first item of laser_launch_tel_dict is the good one
         self._laser_launch_tel = laser_launch_tel
         self.data_dir = data_dir
         self._np_sub = 0

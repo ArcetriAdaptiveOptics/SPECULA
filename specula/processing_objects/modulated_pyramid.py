@@ -52,8 +52,8 @@ class ModulatedPyramid(BaseProcessingObj):
                  pyr_tip_maya_ld: float = 0.0,
                  min_pup_dist: float = None,
                  rotAnglePhInDeg: float = 0.0,
-                 xShiftPhInPixel: float = 0.0,    # same as SH
-                 yShiftPhInPixel: float = 0.0,    # same as SH
+                 xShiftPhInPixel: float = 0.0,
+                 yShiftPhInPixel: float = 0.0,
                  target_device_idx: int = None,
                  precision: int = None
                 ):

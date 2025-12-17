@@ -75,7 +75,8 @@ class IdealDerivativeSensor(BaseProcessingObj):
         # Pre-compute subaperture indices for efficiency
         self._compute_subap_indices(in_ef.size)
 
-        # Setup phase extrapoator
+        # Setup phase extrapolator. Set force_extrapolation=True to
+        # activate the extrapolation feature even if input and output sizes are the same.
         self.ef_interpolator = EFInterpolator(
             in_ef,
             in_ef.size,
