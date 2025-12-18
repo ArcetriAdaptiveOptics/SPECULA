@@ -1,6 +1,4 @@
-from specula import cpuArray, RAD2ASEC
 from specula.lib.extrapolation_2d import EFInterpolator
-from specula.lib.interp2d import Interp2D
 from specula.lib.toccd import toccd
 
 from specula.base_processing_obj import BaseProcessingObj

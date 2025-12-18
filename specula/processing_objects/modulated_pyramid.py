@@ -1,4 +1,4 @@
-from specula import cpuArray, fuse, RAD2ASEC
+from specula import fuse
 from specula.lib.extrapolation_2d import EFInterpolator
 from specula.lib.interp2d import Interp2D 
 
@@ -11,7 +11,6 @@ from specula.data_objects.intensity import Intensity
 from specula.lib.make_mask import make_mask
 from specula.lib.toccd import toccd
 from specula.data_objects.simul_params import SimulParams
-from specula.lib.zernike_generator import ZernikeGenerator
 from specula.lib.calc_geometry import calc_geometry
 
 

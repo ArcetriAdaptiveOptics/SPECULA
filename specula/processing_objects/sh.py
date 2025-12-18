@@ -1,9 +1,8 @@
 import numpy as np
 
-from specula import cpuArray, fuse, show_in_profiler, RAD2ASEC
+from specula import fuse, show_in_profiler, RAD2ASEC
 from specula.lib.extrapolation_2d import EFInterpolator
 from specula.lib.toccd import toccd
-from specula.lib.interp2d import Interp2D
 from specula.lib.make_mask import make_mask
 from specula.connections import InputValue
 from specula.data_objects.electric_field import ElectricField

@@ -5,7 +5,7 @@ from specula.data_objects.slopes import Slopes
 from specula.data_objects.subap_data import SubapData
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.extrapolation_2d import EFInterpolator
-from specula import cpuArray, RAD2ASEC
+from specula import RAD2ASEC
 
 
 class IdealDerivativeSensor(BaseProcessingObj):

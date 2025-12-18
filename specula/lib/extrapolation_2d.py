@@ -4,7 +4,7 @@ import warnings
 import numpy as np
 from scipy.ndimage import binary_dilation
 
-from specula import xp, to_xp, cpuArray
+from specula import to_xp, cpuArray
 from specula.data_objects.electric_field import ElectricField
 from specula.lib.interp2d import Interp2D
 
@@ -61,7 +61,6 @@ def _calculate_extrapolation_indices_coeffs(mask, threshold=1e-3):
     ]
 
     # Iterate over each edge pixel
-    problem_indices = []
     for i, (y, x) in enumerate(zip(*edge_pixels)):
         valid_directions = 0
 
@@ -122,6 +121,7 @@ def _calculate_extrapolation_indices_coeffs(mask, threshold=1e-3):
     valid_indices = np.where(valid_edge_mask)[0]
 
     return edge_pixels_fixed, reference_indices_fixed, coefficients_fixed, valid_indices
+
 
 def _apply_extrapolation(data, edge_pixels, reference_indices, coefficients, valid_indices, out=None, xp=np):
     """
