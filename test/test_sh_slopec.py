@@ -398,3 +398,54 @@ class TestShSlopec(unittest.TestCase):
         self.assertEqual(slopec.outputs['out_flux_per_subaperture'].generation_time, t)
         self.assertEqual(slopec.outputs['out_total_counts'].generation_time, t)
         self.assertEqual(slopec.outputs['out_subap_counts'].generation_time, t)
+
+    @cpu_and_gpu
+    def test_slopec_interleave(self, target_device_idx, xp):
+        """
+        Test that verifies the interleave option in Slopec.
+        """
+        t = 1
+        sh, v, m, flat_ef, subapdata = self.get_sh(target_device_idx, xp, with_laser_launch=False)
+
+        sh.inputs['in_ef'].set(flat_ef)
+        sh.setup()
+        sh.check_ready(t)
+        sh.trigger()
+        sh.post_trigger()
+
+        intensity = sh.outputs['out_i'].i.copy()
+
+        # Compute slopes using ShSlopec
+        pixels = Pixels(*intensity.shape, target_device_idx=target_device_idx)
+        pixels.pixels = intensity
+        pixels.generation_time = t
+
+        # Non-interleaved
+        slopec_non = ShSlopec(subapdata, interleave=False, target_device_idx=target_device_idx)
+        slopec_non.inputs['in_pixels'].set(pixels)
+        slopec_non.check_ready(t)
+        slopec_non.trigger()
+        slopec_non.post_trigger()
+
+        # Interleaved
+        slopec_int = ShSlopec(subapdata, interleave=True, target_device_idx=target_device_idx)
+        slopec_int.inputs['in_pixels'].set(pixels)
+        slopec_int.check_ready(t)
+        slopec_int.trigger()
+        slopec_int.post_trigger()
+
+        # Verify that both compute the same xslopes and yslopes values
+        np.testing.assert_array_almost_equal(cpuArray(slopec_non.slopes.xslopes),
+                                             cpuArray(slopec_int.slopes.xslopes))
+        np.testing.assert_array_almost_equal(cpuArray(slopec_non.slopes.yslopes),
+                                             cpuArray(slopec_int.slopes.yslopes))
+
+        # Verify that the internal layout is different (interleaved vs non-interleaved)
+        self.assertFalse(slopec_non.slopes.interleave)
+        self.assertTrue(slopec_int.slopes.interleave)
+
+        # Verify indices are different
+        np.testing.assert_array_equal(cpuArray(slopec_non.slopes.indx()),
+                                      cpuArray(xp.arange(0, len(m))))
+        np.testing.assert_array_equal(cpuArray(slopec_int.slopes.indx()),
+                                      cpuArray(xp.arange(0, len(m)*2, 2)))
