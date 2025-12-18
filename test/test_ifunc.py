@@ -128,3 +128,106 @@ class TestIFunv(unittest.TestCase):
             # Normalized values should equal non-normalized values divided by RMS
             expected_normalized = values_no_norm / expected_rms[mode]
             np.testing.assert_array_almost_equal(values_norm, expected_normalized)
+
+    @cpu_and_gpu
+    def test_zonal_central_ifunc_position(self, target_device_idx, xp):
+        '''Test that central influence function is centered in the array'''
+        dim = 64
+        n_act = 9
+        mask = make_mask(dim)
+
+        # Test for different geometries
+        for circ_geom in [True, False]:
+            ifunc = IFunc(type_str='zonal', mask=mask, n_act=n_act, npixels=dim,
+                         circ_geom=circ_geom, target_device_idx=target_device_idx)
+
+            # Get the influence function cube
+            ifunc_3d = ifunc.ifunc_2d_to_3d(normalize=False)
+            ifunc_3d_cpu = cpuArray(ifunc_3d)
+
+            # For zonal, we need to find the central actuator
+            # The central IF should have its peak at the center
+            center = (dim - 1) / 2.0
+
+            # Find which IF has maximum value closest to center
+            peaks = np.array([np.unravel_index(np.argmax(ifunc_3d_cpu[:, :, i]),
+                                               ifunc_3d_cpu[:, :, i].shape)
+                             for i in range(ifunc_3d_cpu.shape[2])])
+
+            # Find actuator closest to center
+            distances_to_center = np.sqrt((peaks[:, 0] - center)**2 + (peaks[:, 1] - center)**2)
+            central_idx = np.argmin(distances_to_center)
+
+            # Get peak position of central IF
+            central_if = ifunc_3d_cpu[:, :, central_idx]
+            peak_pos = np.unravel_index(np.argmax(np.abs(central_if)), central_if.shape)
+
+            # Check that peak is close to center (within 0.5 pixel)
+            self.assertAlmostEqual(peak_pos[0], center, delta=0.5,
+                        msg=f"Central IF peak Y position not centered for {circ_geom} geometry")
+            self.assertAlmostEqual(peak_pos[1], center, delta=0.5,
+                        msg=f"Central IF peak X position not centered for {circ_geom} geometry")
+
+    @cpu_and_gpu
+    def test_zonal_edge_ifunc_rotation_symmetry(self, target_device_idx, xp):
+        '''Test that edge influence functions have rotational symmetry'''
+        dim = 64
+        n_act = 9
+        mask = make_mask(dim)
+
+        # Test for symmetric geometries
+        for circ_geom in [True, False]:
+            ifunc = IFunc(type_str='zonal', mask=mask, n_act=n_act, npixels=dim, 
+                         circ_geom=circ_geom, target_device_idx=target_device_idx)
+
+            # Get the influence function cube
+            ifunc_3d = ifunc.ifunc_2d_to_3d(normalize=False)
+            ifunc_3d_cpu = cpuArray(ifunc_3d)
+
+            # Find center and peak positions
+            center = np.array([(dim - 1) / 2.0, (dim - 1) / 2.0])
+            n_actuators = ifunc_3d_cpu.shape[2]
+
+            # Get peak position for each actuator
+            peaks = np.array([np.unravel_index(np.argmax(ifunc_3d_cpu[:, :, i]),
+                                               ifunc_3d_cpu[:, :, i].shape)
+                             for i in range(n_actuators)])
+
+            # Find pairs of opposite actuators (180deg rotation)
+            tested_pairs = 0
+
+            for i in range(n_actuators):
+                pos_i = peaks[i]
+                # Calculate 180deg rotated position
+                pos_i_rotated = 2 * center - pos_i
+
+                # Find actuator with peak closest to rotated position
+                distances = np.sqrt(np.sum((peaks - pos_i_rotated)**2, axis=1))
+                j = np.argmin(distances)
+
+                # Only test if we found a true opposite (distance to rotated pos < 1.5 pixels)
+                # i < j to avoid testing same pair twice
+                if distances[j] < 1.5 and i != j and i < j:
+                    if_i = ifunc_3d_cpu[:, :, i]
+                    if_j = ifunc_3d_cpu[:, :, j]
+
+                    # Rotate if_j by 180deg
+                    if_j_rotated = np.rot90(if_j, k=2)
+
+                    # Compare using correlation in the mask region
+                    mask_cpu = cpuArray(mask)
+                    mask_idx = np.where(mask_cpu > 0)
+
+                    correlation = np.corrcoef(
+                        if_i[mask_idx].ravel(),
+                        if_j_rotated[mask_idx].ravel()
+                    )[0, 1]
+
+                    self.assertGreater(correlation, 0.999,
+                        msg=f"Low correlation ({correlation:.3f}) between opposite IFs {i} and {j}"
+                            f" for {circ_geom} geometry")
+                    tested_pairs += 1
+
+            # Make sure we actually tested some pairs
+            self.assertGreater(tested_pairs, 0,
+                             msg=f"No opposite actuator pairs found for {circ_geom} geometry")
