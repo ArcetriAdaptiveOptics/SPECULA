@@ -16,8 +16,6 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32,circ_geom:bool=False
         mask = mask.astype(float)
         idx = xp.where(mask)
 
-    step = float(dim) / float(n_act)
-
     # ----------------------------------------------------------
     # ----------------------------------------------------------
     if circ_geom is True:
@@ -32,12 +30,17 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32,circ_geom:bool=False
     # Actuator Coordinates
     if geom == 'circular':
         if n_act % 2 == 0:
-            na = xp.arange(xp.ceil((n_act + 1) / 2)) * 6
+            n_act_radius = int(xp.ceil((n_act + 1) / 2))
+            na = xp.arange(n_act_radius) * 6
         else:
-            step *= float(n_act) / float(n_act - 1)
-            na = xp.arange(xp.ceil(n_act / 2)) * 6
+            n_act_radius = int(xp.ceil(n_act / 2))
+            na = xp.arange(n_act_radius) * 6
         na[0] = 1  # The first value is always 1
         n_act_tot = int(xp.sum(na))
+        # Calculate step based on number of actuators on diameter
+        n_act_diameter = 2 * n_act_radius - 1
+        step = float(dim) / float(n_act_diameter)
+
         pol_coords = xp.zeros((2, n_act_tot))
         ka = 0
         # Refactor this!
@@ -62,11 +65,15 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32,circ_geom:bool=False
         x = x[rho<=rho_max]
         y = y[rho<=rho_max]
         n_act_tot = int(xp.size(x))
+        # Calculate step based on linspace spacing
+        step = float(dim) / float(n_act - 1)
 
     elif geom == 'square': # default
         x, y = xp.meshgrid(xp.linspace(0, dim, n_act), xp.linspace(0, dim, n_act))
         x, y = x.ravel(), y.ravel()
         n_act_tot = n_act**2
+        # Calculate step based on linspace spacing
+        step = float(dim) / float(n_act - 1)
 
     else:
       raise ValueError("Unrecognized geometry type! Avaliable types are: 'circular', 'alpao', 'square'")
