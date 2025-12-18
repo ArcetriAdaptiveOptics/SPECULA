@@ -34,6 +34,7 @@ class ShSlopec(Slopec):
                  window_int_pixel: bool=False,
                  window_int_threshold: float=1.0,
                  vecWeiPixRadT: list=None,
+                 interleave: bool=False,
                  target_device_idx: int = None,
                  precision: int = None):
 
@@ -41,8 +42,12 @@ class ShSlopec(Slopec):
         # because we need to know the number of subapertures
         self.subapdata = subapdata
 
-        super().__init__(sn=sn, filtmat=filtmat, weight_int_pixel_dt=weight_int_pixel_dt,
-                         target_device_idx=target_device_idx, precision=precision)
+        super().__init__(sn=sn,
+                         filtmat=filtmat,
+                         weight_int_pixel_dt=weight_int_pixel_dt,
+                         interleave=interleave,
+                         target_device_idx=target_device_idx,
+                         precision=precision)
         self.thr_value = thr_value
         self.thr_mask_cube = BaseValue(target_device_idx=self.target_device_idx,
                                        precision=precision)
