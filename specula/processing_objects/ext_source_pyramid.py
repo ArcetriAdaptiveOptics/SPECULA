@@ -1,4 +1,4 @@
-from specula import fuse, RAD2ASEC
+from specula import fuse
 from specula.processing_objects.modulated_pyramid import ModulatedPyramid
 from specula.base_value import BaseValue
 from specula.connections import InputValue

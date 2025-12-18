@@ -2,11 +2,10 @@ import numpy as np
 from specula import show_in_profiler
 
 from specula.base_processing_obj import BaseProcessingObj
-from specula.base_data_obj import BaseDataObj
 from specula.base_value import BaseValue
 from specula.data_objects.layer import Layer
 from specula.connections import InputValue
-from specula import cpuArray, ASEC2RAD, RAD2ASEC
+from specula import cpuArray, ASEC2RAD
 from specula.data_objects.simul_params import SimulParams
 from specula.data_objects.infinite_phase_screen import InfinitePhaseScreen
 
