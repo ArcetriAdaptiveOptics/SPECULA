@@ -223,9 +223,10 @@ def make_modal_base_from_ifs_fft(pupil_mask, diameter, influence_functions, r0, 
     else:
         from scipy.linalg import svd, pinv
 
-    if verbose:
+    if verbose: # pragma: no cover
         print("Starting modal basis generation...")
-        print(f"Input shapes: pupil_mask={pupil_mask.shape}, influence_functions={influence_functions.shape}")
+        print(f"Input shapes: pupil_mask={pupil_mask.shape},"
+              f" influence_functions={influence_functions.shape}")
 
     idx_mask = xp.where(pupil_mask.ravel())[0]
     npupil_mask = int(xp.sum(pupil_mask))
@@ -236,7 +237,7 @@ def make_modal_base_from_ifs_fft(pupil_mask, diameter, influence_functions, r0, 
 
     n_actuators = influence_functions.shape[0]
 
-    if verbose:
+    if verbose: # pragma: no cover
         print("Step 1: Removing modes from influence functions...")
 
     number_of_modes_to_be_removed = 1 + zern_modes
@@ -294,21 +295,23 @@ def make_modal_base_from_ifs_fft(pupil_mask, diameter, influence_functions, r0, 
     U1 = xp.real(U1)
     V1 = xp.real(V1)
 
-    if verbose:
-        print(f"-- IF covariance matrix SVD ---")
-        cond_number = S1[0] / S1[n_actuators-number_of_modes_to_be_removed-1]
+    cond_number = S1[0] / S1[n_actuators-number_of_modes_to_be_removed-1]
+
+    if verbose: # pragma: no cover
+        print("-- IF covariance matrix SVD ---")
         print(f"    initial condition number is: {cond_number}")
 
     if if_max_condition_number is not None:
         if cond_number > if_max_condition_number:
             min_cond_number = S1[0] / if_max_condition_number
-            idx_cond_number = xp.where(S1[:n_actuators-number_of_modes_to_be_removed] < min_cond_number)[0]
+            idx_cond_number = xp.where(S1[:n_actuators-number_of_modes_to_be_removed] \
+                              < min_cond_number)[0]
             count_cond_number = len(idx_cond_number)
 
             if count_cond_number > 0:
                 number_of_modes_to_be_removed += count_cond_number
-                if verbose:
-                    final_cond = S1[0] / S1[n_actuators-number_of_modes_to_be_removed-1]
+                final_cond = S1[0] / S1[n_actuators-number_of_modes_to_be_removed-1]
+                if verbose: # pragma: no cover
                     print(f"    final condition number is: {final_cond}")
                     print(f"    no. of cut modes: {count_cond_number}")
 
@@ -317,20 +320,20 @@ def make_modal_base_from_ifs_fft(pupil_mask, diameter, influence_functions, r0, 
         if i < n_actuators - number_of_modes_to_be_removed:
             M[:, i] = U1[:, i] / xp.sqrt(S1[i])
 
-    if verbose:
+    if verbose: # pragma: no cover
         print("Step 4: Calculating turbulence covariance matrix...")
 
-    ifft_covariance = compute_ifs_covmat(pupil_mask, diameter, filtered_ifs, r0, L0, 
+    ifft_covariance = compute_ifs_covmat(pupil_mask, diameter, filtered_ifs, r0, L0,
                                          oversampling, verbose, xp=xp, dtype=dtype)
 
-    if verbose:
+    if verbose: # pragma: no cover
         print("Step 5: Calculating modal basis...")
 
     hp = xp.matmul(xp.matmul(M.T, ifft_covariance), M)
 
     U2, S2, Vt2 = svd(hp, full_matrices=True)
     V2 = Vt2.T
-    
+
     S2 = xp.real(S2)
     U2 = xp.real(U2)
     V2 = xp.real(V2)
@@ -340,7 +343,7 @@ def make_modal_base_from_ifs_fft(pupil_mask, diameter, influence_functions, r0, 
     kl_modes = xp.matmul(filtered_ifs.T, Bp[:, :n_actuators-number_of_modes_to_be_removed])
 
     if zern_modes > 0:
-        if verbose:
+        if verbose: # pragma: no cover
             print("Step 6: Adding Zernike modes to basis...")
 
         zern_basis = modes_to_be_removed[1:zern_modes+1, :]
@@ -364,7 +367,7 @@ def make_modal_base_from_ifs_fft(pupil_mask, diameter, influence_functions, r0, 
 
     singular_values = {"S1": S1, "S2": S2}
 
-    if verbose:
+    if verbose: # pragma: no cover
         print(f"Final shapes: kl_basis={kl_basis.shape}, m2c={m2c.shape}")
 
     return kl_basis, m2c, singular_values

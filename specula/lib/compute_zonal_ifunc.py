@@ -3,7 +3,7 @@ import numpy as np
 from specula.lib.make_mask import make_mask
 from specula import cpuArray
 
-def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32,circ_geom:bool=False,
+def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=False,
                         geom:str=None, angle_offset=0,
                         do_mech_coupling=False, coupling_coeffs=[0.31, 0.05],
                         do_slaving=False, slaving_thr=0.1,
