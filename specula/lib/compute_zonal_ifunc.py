@@ -31,10 +31,9 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32,circ_geom:bool=False
     if geom == 'circular':
         if n_act % 2 == 0:
             n_act_radius = int(xp.ceil((n_act + 1) / 2))
-            na = xp.arange(n_act_radius) * 6
         else:
             n_act_radius = int(xp.ceil(n_act / 2))
-            na = xp.arange(n_act_radius) * 6
+        na = xp.arange(n_act_radius) * 6
         na[0] = 1  # The first value is always 1
         n_act_tot = int(xp.sum(na))
         # Calculate step based on number of actuators on diameter
