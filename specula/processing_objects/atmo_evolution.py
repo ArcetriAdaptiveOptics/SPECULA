@@ -1,11 +1,9 @@
-import numpy as np
-
+from specula import cpuArray, ASEC2RAD, np
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_value import BaseValue
 from specula.data_objects.layer import Layer
 from specula.lib.phasescreen_manager import phasescreens_manager
 from specula.connections import InputValue
-from specula import cpuArray, ASEC2RAD
 from specula.data_objects.simul_params import SimulParams
 
 
@@ -51,7 +49,8 @@ class AtmoEvolution(BaseProcessingObj):
     target_device_idx : int, optional
         Target device index for computation (CPU/GPU). Default is None (uses global setting).
     precision : int, optional
-        Precision for computation (0 for double, 1 for single). Default is None (uses global setting).
+        Precision for computation (0 for double, 1 for single).
+        Default is None (uses global setting).
     """
     def __init__(self,
                  simul_params: SimulParams,
@@ -272,25 +271,64 @@ class AtmoEvolution(BaseProcessingObj):
         else:
             self.scale_coeff = 0.0
 
-    def trigger_code(self):
 
-        # if len(self.phasescreens) != len(wind_speed) \
-        #   or len(self.phasescreens) != len(wind_direction):
-        #     raise ValueError('Error: number of elements of wind speed'
-        #                      'and/or direction does not match the number of phasescreens')
+    def trigger_code(self):
         wind_speed = cpuArray(self.local_inputs['wind_speed'].value)
         wind_direction = cpuArray(self.local_inputs['wind_direction'].value)
 
         # Compute the delta position in pixels (time evolution)
         delta_position = wind_speed * self.delta_time / self.pixel_pitch  # [pixel]
 
+        # Get quotient and remainder for wind direction
+        wdf, wdi = np.modf(wind_direction / 90.0)
+        wdf_full = wdf * 90
+
+        # Update layer list
+        new_position, effective_position = self._update_layer_list(
+            wind_speed=wind_speed,
+            delta_position=delta_position,
+            extra_delta_time=self.extra_delta_time,
+            last_position=self.last_position,
+            layer_list=self.layer_list,
+            wdi=wdi,
+            wdf_full=wdf_full
+        )
+
+        # Update tracking
+        self.last_position[:] = new_position
+        self.last_effective_position[:] = effective_position
+        self.last_t = self.current_time
+
+
+    def _update_layer_list(self, wind_speed, delta_position, extra_delta_time,
+                          last_position, layer_list, wdi, wdf_full):
+        """Update a layer list with given extra_delta_time.
+        
+        Parameters
+        ----------
+        wind_speed : array
+            Wind speed for each layer [m/s]
+        delta_position : array
+            Position change since last frame [pixels]
+        extra_delta_time : array
+            Extra time offset for each layer [s]
+        last_position : array
+            Last accumulated position (will be updated in place)
+        layer_list : list
+            List of Layer objects to update
+        wdi : array
+            Integer part of wind direction / 90
+        wdf_full : array
+            Fractional part of wind direction in degrees
+        """
+
         # Compute extra offset that doesn't get accumulated
-        extra_offset = wind_speed * self.extra_delta_time / self.pixel_pitch  # [pixel]
+        extra_offset = wind_speed * extra_delta_time / self.pixel_pitch  # [pixel]
 
-        # Update last_position with delta_position
-        new_position = self.last_position + delta_position  # [pixel]
+        # Update position with delta_position
+        new_position = last_position + delta_position  # [pixel]
 
-        # cycle screens consider the effective position for checking boundary conditions
+        # Cycle screens considering the effective position
         if self.cycle_screens:
             new_position = np.where(
                 new_position + extra_offset + self.pixel_layer >= self.phasescreens_sizes_array,
@@ -299,31 +337,32 @@ class AtmoEvolution(BaseProcessingObj):
             )
 
         # Effective position = accumulated position + constant offset
-        # Note: extra_offset is added at each frame because it is a function of wind speed
         effective_position = new_position + extra_offset  # [pixel]
-
-        # Get quotient and remainder
-        wdf, wdi = np.modf(wind_direction/90.0)
-        wdf_full = wdf * 90
 
         effective_position_quo = np.floor(effective_position).astype(np.int64)
         effective_position_rem = (effective_position - effective_position_quo).astype(self.dtype)
 
+        # Update each layer
         for ii, p in enumerate(self.phasescreens):
             pos = int(effective_position_quo[ii])
             ipli = int(self.pixel_layer[ii])
             ipli_p = int(pos + self.pixel_layer[ii])
-            layer_phase = (1.0 - effective_position_rem[ii]) * p[0: ipli, pos: ipli_p] \
-                          + effective_position_rem[ii] * p[0: ipli, pos+1: ipli_p+1]
+
+            # Linear interpolation between positions
+            layer_phase = (1.0 - effective_position_rem[ii]) * p[0:ipli, pos:ipli_p] \
+                        + effective_position_rem[ii] * p[0:ipli, pos + 1:ipli_p + 1]
+
+            # Apply wind direction rotation
             layer_phase = self.xp.rot90(layer_phase, wdi[ii])
             if not wdf_full[ii] == 0:
                 layer_phase = self.ndimage_rotate(
                     layer_phase, wdf_full[ii], reshape=False, order=1
                 )
-            self.layer_list[ii].phaseInNm[:] = layer_phase * self.scale_coeff
-            self.layer_list[ii].generation_time = self.current_time
 
-        # Update position output
-        self.last_position = new_position
-        self.last_effective_position = effective_position.copy()
-        self.last_t = self.current_time
+            layer_list[ii].phaseInNm[:] = layer_phase * self.scale_coeff
+            layer_list[ii].generation_time = self.current_time
+
+        # Update position in place
+        last_position[:] = new_position
+
+        return new_position, effective_position
