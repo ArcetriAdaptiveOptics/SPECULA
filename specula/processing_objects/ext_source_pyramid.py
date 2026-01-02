@@ -85,6 +85,8 @@ class ExtSourcePyramid(ModulatedPyramid):
         self.ext_ttf = None
         self.ext_source_coeff = None
 
+        self.stream_enable = False
+
         # Add dedicated input for extended source coefficients
         self.inputs['ext_source_coeff'] = InputValue(type=BaseValue)
 
@@ -113,9 +115,11 @@ class ExtSourcePyramid(ModulatedPyramid):
 
         # Clean up very small flux values
         max_flux = self.xp.max(self.xp.abs(self.flux_factor_vector))
-        threshold = max_flux * 1e-5
+        threshold = max_flux * 1e-3
         small_idx = self.xp.abs(self.flux_factor_vector) < threshold
         self.flux_factor_vector[small_idx] = 0.0
+        print(f'Points with flux below {threshold:.3e} set to zero:'
+              f' {self.xp.sum(small_idx)} out of {self.mod_steps}')
 
         self.factor = 1.0 / self.xp.sum(self.flux_factor_vector)
 
@@ -144,6 +148,10 @@ class ExtSourcePyramid(ModulatedPyramid):
         u_tlt_i = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.complex_dtype)
 
         for i in range(self.mod_steps):
+            # skip points with zero flux
+            if self.flux_factor_vector[i] == 0.0:
+                continue
+
             # Invert focus sign
             coeff_with_sign = coeff_ttf[i].copy()
             coeff_with_sign[2] *= -1
@@ -172,5 +180,5 @@ class ExtSourcePyramid(ModulatedPyramid):
         self.pup_pyr_tot[:] = self.xp.roll(self.pyr_image, self.roll_array, self.roll_axis)
         self.psf_tot.value *= self.factor
         self.psf_bfm.value *= self.factor
-        self.transmission.value[:] = self.xp.sum(self.psf_tot.value) \
-            / self.xp.sum(self.psf_bfm.value)
+        trasmission_factor = 1 / (self.xp.sum(self.psf_bfm.value) + 1e-20)
+        self.transmission.value[:] = self.xp.sum(self.psf_tot.value) * trasmission_factor

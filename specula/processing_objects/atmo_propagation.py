@@ -72,7 +72,8 @@ class AtmoPropagation(BaseProcessingObj):
             raise ValueError('Pixel pupil must be >0')
 
         if doFresnel and wavelengthInNm is None:
-            raise ValueError('get_atmo_propagation: wavelengthInNm is required when doFresnel key is set to correctly simulate physical propagation.')
+            raise ValueError('get_atmo_propagation: wavelengthInNm is required when doFresnel key'
+                             ' is set to correctly simulate physical propagation.')
 
         self.mergeLayersContrib = mergeLayersContrib
         self.upwards = upwards
@@ -92,12 +93,18 @@ class AtmoPropagation(BaseProcessingObj):
 
         if self.mergeLayersContrib:
             for name, source in self.source_dict.items():
-                ef = ElectricField(self.pixel_pupil_size, self.pixel_pupil_size, self.pixel_pitch, target_device_idx=self.target_device_idx)
+                ef = ElectricField(
+                    self.pixel_pupil_size,
+                    self.pixel_pupil_size,
+                    self.pixel_pitch,
+                    target_device_idx=self.target_device_idx
+                )
                 ef.S0 = source.phot_density()
                 self.outputs['out_'+name+'_ef'] = ef
 
-        # atmo_layer_list is optional because it can be empty during calibration of an AO system while
-        # the common_layer_list is not optional because at least a pupilstop is needed
+        # atmo_layer_list is optional because it can be empty during calibration of
+        # an AO system while the common_layer_list is not optional because at least a
+        # pupilstop is needed
         self.inputs['atmo_layer_list'] = InputList(type=Layer,optional=True)
         self.inputs['common_layer_list'] = InputList(type=Layer)
 
@@ -120,7 +127,9 @@ class AtmoPropagation(BaseProcessingObj):
     def doFresnel_setup(self):
         self.propagators = []
         height_layers = np.array(
-            [layer.height * self.airmass for layer in self.common_layer_list + self.atmo_layer_list], dtype=self.dtype)
+            [layer.height * self.airmass for layer in self.common_layer_list + self.atmo_layer_list],
+            dtype=self.dtype
+        )
         nlayers = len(height_layers)
         sorted_heights = np.sort(height_layers)
         if not (np.allclose(height_layers, sorted_heights) or np.allclose(height_layers, sorted_heights[::-1])):
@@ -153,7 +162,12 @@ class AtmoPropagation(BaseProcessingObj):
             if self.magnification_list[layer] is not None and self.magnification_list[layer] != 1:
                 # update layer phase filling the missing values to avoid artifacts during interpolation
                 mask_valid = layer.A != 0
-                local_mean = local_mean_rebin(layer.phaseInNm, mask_valid, self.xp, block_size=self._block_size[layer])
+                local_mean = local_mean_rebin(
+                    layer.phaseInNm,
+                    mask_valid,
+                    self.xp,
+                    block_size=self._block_size[layer]
+                )
                 layer.phaseInNm[~mask_valid] = local_mean[~mask_valid]
 
     def physical_propagation(self, ef, prop_idx):
@@ -187,7 +201,8 @@ class AtmoPropagation(BaseProcessingObj):
 
                 interpolator = self.interpolators[source][layer]
                 if interpolator is None:
-                    topleft = [(layer.size[0] - self.pixel_pupil_size) // 2, (layer.size[1] - self.pixel_pupil_size) // 2]
+                    topleft = [(layer.size[0] - self.pixel_pupil_size) // 2, \
+                               (layer.size[1] - self.pixel_pupil_size) // 2]
                     output_ef.product(layer, subrect=topleft)
                 else:
                     tmp_phase = interpolator.interpolate(layer.phaseInNm)
@@ -228,7 +243,10 @@ class AtmoPropagation(BaseProcessingObj):
                 elif diff_height > 0:
                     li = self.layer_interpolator(source, layer)
                     if li is None:
-                        raise ValueError('FATAL ERROR, the source is not inside the selected FoV for atmosphere layers generation.')
+                        raise ValueError(f'FATAL ERROR, the source [{source.polar_coordinates[0]},'
+                                         f'{source.polar_coordinates[1]}] is not inside'
+                                         f' the selected FoV for atmosphere layers generation.'
+                                         f' Layer height: {layer.height} m, size: {layer.size}.')
                     else:
                         self.interpolators[source][layer] = li
                 else:

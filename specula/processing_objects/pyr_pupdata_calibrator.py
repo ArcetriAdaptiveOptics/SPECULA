@@ -139,6 +139,8 @@ class PyrPupdataCalibrator(BaseProcessingObj):
 
                     if obstruction_ratio >= self.min_obstruction_ratio:
                         obstruction_ratios.append(float(obstruction_ratio))
+                    else:
+                        obstruction_ratios.append(self.min_obstruction_ratio)
 
         if obstruction_ratios:
             return float(self.xp.median(self.xp.array(obstruction_ratios)))
