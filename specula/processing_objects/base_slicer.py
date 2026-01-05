@@ -23,7 +23,22 @@ class BaseSlicer(BaseProcessingObj):
             self.slice_obj = slice(*slice_args)
         else:
             self.slice_obj = None
-        self.out_value = BaseValue(target_device_idx=target_device_idx, precision=precision)
+        # ----------------------------------
+        # Initialize output BaseValue
+        n_elements = None
+        if self.indices is not None:
+            n_elements = 1 if isinstance(self.indices, int) else len(self.indices)
+        elif self.slice_obj is not None:
+            start = self.slice_obj.start
+            stop = self.slice_obj.stop
+            step = self.slice_obj.step if self.slice_obj.step is not None else 1
+            if start is not None and stop is not None:
+                n_elements = (stop - start + step - 1) // step
+        value = self.xp.zeros(n_elements, dtype=self.dtype) \
+            if n_elements is not None else self.xp.array([], dtype=self.dtype)
+        # ----------------------------------
+        self.out_value = BaseValue(value=value,
+                                   target_device_idx=target_device_idx, precision=precision)
         self.inputs['in_value'] = InputValue(type=BaseValue)
         self.outputs['out_value'] = self.out_value
 
