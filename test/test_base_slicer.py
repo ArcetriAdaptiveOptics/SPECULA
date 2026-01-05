@@ -55,3 +55,45 @@ class TestBaseSlicer(unittest.TestCase):
 
         output = cpuArray(slicer.outputs['out_value'].value)
         np.testing.assert_array_equal(output, arr)
+
+    def test_slice_single_element(self):
+        arr = np.arange(10)
+        value = BaseValue(value=arr)
+        value.generation_time = 1
+        slicer = BaseSlicer(slice_args=[5, 6, 1])
+        slicer.inputs['in_value'].set(value)
+        slicer.setup()
+        slicer.check_ready(1)
+        slicer.prepare_trigger(1)
+        slicer.trigger()
+        slicer.post_trigger()
+        output = cpuArray(slicer.outputs['out_value'].value)
+        np.testing.assert_array_equal(output, [5])
+
+    def test_slice_empty(self):
+        arr = np.arange(10)
+        value = BaseValue(value=arr)
+        value.generation_time = 1
+        slicer = BaseSlicer(slice_args=[3, 3, 1])
+        slicer.inputs['in_value'].set(value)
+        slicer.setup()
+        slicer.check_ready(1)
+        slicer.prepare_trigger(1)
+        slicer.trigger()
+        slicer.post_trigger()
+        output = cpuArray(slicer.outputs['out_value'].value)
+        np.testing.assert_array_equal(output, [])
+
+    def test_slice_step_larger_than_range(self):
+        arr = np.arange(10)
+        value = BaseValue(value=arr)
+        value.generation_time = 1
+        slicer = BaseSlicer(slice_args=[2, 5, 10])
+        slicer.inputs['in_value'].set(value)
+        slicer.setup()
+        slicer.check_ready(1)
+        slicer.prepare_trigger(1)
+        slicer.trigger()
+        slicer.post_trigger()
+        output = cpuArray(slicer.outputs['out_value'].value)
+        np.testing.assert_array_equal(output, [2])
