@@ -161,12 +161,19 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
         coord_sub_aps[:, 0] -= launcher_coord_in_m[0]
         coord_sub_aps[:, 1] -= launcher_coord_in_m[1]
 
-        # Calculate beta1 and beta2 from geometry
-        beta1 = (np.arctan((h_in_ma - na_thickness_in_ma/2.0) / coord_sub_aps[:, 1]) - 
-                np.arctan((h_in_ma + na_thickness_in_ma/2.0) / coord_sub_aps[:, 1])) * rad2arcsec
+        # Calculate beta1 and beta2 from geometry, handling zero coordinates
+        with np.errstate(divide='ignore', invalid='ignore'):
+            beta1_temp = (np.arctan((h_in_ma - na_thickness_in_ma/2.0) / coord_sub_aps[:, 1]) -
+                         np.arctan((h_in_ma + na_thickness_in_ma/2.0) / coord_sub_aps[:, 1])) \
+                             * rad2arcsec
+            beta2_temp = (np.arctan((h_in_ma - na_thickness_in_ma/2.0) / coord_sub_aps[:, 0]) -
+                         np.arctan((h_in_ma + na_thickness_in_ma/2.0) / coord_sub_aps[:, 0])) \
+                             * rad2arcsec
 
-        beta2 = (np.arctan((h_in_ma - na_thickness_in_ma/2.0) / coord_sub_aps[:, 0]) - 
-                np.arctan((h_in_ma + na_thickness_in_ma/2.0) / coord_sub_aps[:, 0])) * rad2arcsec
+        # Replace inf/nan with 0 (physically: when aligned with launcher,
+        # elongation in that direction is undefined/zero)
+        beta1 = np.nan_to_num(beta1_temp, nan=0.0, posinf=0.0, neginf=0.0)
+        beta2 = np.nan_to_num(beta2_temp, nan=0.0, posinf=0.0, neginf=0.0)
 
     if verbose:
         print('launcher coordinates [m]:', launcher_coord_in_m)
