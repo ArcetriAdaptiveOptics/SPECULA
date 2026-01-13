@@ -84,8 +84,9 @@ class ExtSourcePyramid(ModulatedPyramid):
         self.ffv = None
         self.ext_ttf = None
         self.ext_source_coeff = None
-
-        self.stream_enable = False
+        self.valid_idx = None
+        # Invert focus sign for phase calculation
+        self.ttf_signs = self.xp.array([1.0, 1.0, -1.0], dtype=self.dtype)
 
         # Add dedicated input for extended source coefficients
         self.inputs['ext_source_coeff'] = InputValue(type=BaseValue)
@@ -121,6 +122,7 @@ class ExtSourcePyramid(ModulatedPyramid):
         print(f'Points with flux below {threshold:.3e} set to zero:'
               f' {self.xp.sum(small_idx)} out of {self.mod_steps}')
 
+        self.valid_idx = self.xp.where(self.flux_factor_vector > 0.0)[0]
         self.factor = 1.0 / self.xp.sum(self.flux_factor_vector)
 
 
@@ -133,48 +135,47 @@ class ExtSourcePyramid(ModulatedPyramid):
             self.mod_steps = int(self.ext_source_coeff.value.shape[0])
             self.cache_ttexp()
 
+        # Reset output arrays for this frame
+        self.pyr_image *= 0
+        self.fpsf *= 0
+
 
     def trigger_code(self):
         iu = 1j  # complex unit
 
         # Get extended source coefficients for current frame
-        # convert them from nm to rad
         coeff_ttf = self.ext_source_coeff.value[:,:3]
-        # Reset output arrays for this frame
-        self.pyr_image *= 0
-        self.fpsf *= 0
 
         u_tlt_const = self.ef * self.tlt_f
         u_tlt_i = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.complex_dtype)
 
-        for i in range(self.mod_steps):
-            # skip points with zero flux
-            if self.flux_factor_vector[i] == 0.0:
-                continue
-
-            # Invert focus sign
-            coeff_with_sign = coeff_ttf[i].copy()
-            coeff_with_sign[2] *= -1
-
+        for i in self.valid_idx:
             # Compute pupil phase for each extended source point
-            pup_phase = self.xp.sum(coeff_with_sign[:, None, None] * self.ext_ttf, axis=0)
+            pup_phase = self.xp.sum(coeff_ttf[i][:, None, None] \
+                                    * self.ttf_signs[:, None, None] \
+                                    * self.ext_ttf,
+                                    axis=0)
             ttexp_i = self.xp.exp(-iu * pup_phase, dtype=self.complex_dtype)
 
             # Compute u_tlt for this point
             u_tlt_i[0:self.ttexp_shape[1], 0:self.ttexp_shape[2]] = u_tlt_const * ttexp_i
 
-            # ffvi must have same dimensions as fpsf
-            ffvi = self.flux_factor_vector[i]
-
             # FFT and PSF calculation as in ModulatedPyramid
             u_fp = self.xp.fft.fft2(u_tlt_i, axes=(-2, -1))
-            u_fp_pyr = pyr1_fused(
-                u_fp, ffvi, self.fpsf, self.shifted_masked_exp, xp=self.xp
-            )
+            u_fp_pyr = pyr1_fused(u_fp,
+                                  self.flux_factor_vector[i],
+                                  self.fpsf,
+                                  self.shifted_masked_exp,
+                                  xp=self.xp)
             pyr_ef = self.xp.fft.ifft2(u_fp_pyr, axes=(-2, -1), norm='forward')
-            self.pyr_image += pyr1_abs2(pyr_ef, self.ifft_norm, ffvi, xp=self.xp)
+            self.pyr_image += pyr1_abs2(pyr_ef,
+                                        self.ifft_norm,
+                                        self.flux_factor_vector[i],
+                                        xp=self.xp)
 
-        # Final output assignments
+
+    def post_trigger(self):
+        # Final output assignments (before parent post_trigger)
         self.psf_bfm.value[:] = self.xp.fft.fftshift(self.fpsf)
         self.psf_tot.value[:] = self.psf_bfm.value * self.fp_mask
         self.pup_pyr_tot[:] = self.xp.roll(self.pyr_image, self.roll_array, self.roll_axis)
@@ -182,3 +183,5 @@ class ExtSourcePyramid(ModulatedPyramid):
         self.psf_bfm.value *= self.factor
         trasmission_factor = 1 / (self.xp.sum(self.psf_bfm.value) + 1e-20)
         self.transmission.value[:] = self.xp.sum(self.psf_tot.value) * trasmission_factor
+        # Call parent post_trigger
+        super().post_trigger()
