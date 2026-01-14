@@ -50,6 +50,7 @@ class ExtSourcePyramid(ModulatedPyramid):
                  rotAnglePhInDeg: float = 0.0,
                  xShiftPhInPixel: float = 0.0,
                  yShiftPhInPixel: float = 0.0,
+                 max_batch_size: int = 1024,
                  target_device_idx: int = None,
                  precision: int = None
                 ):
@@ -87,6 +88,9 @@ class ExtSourcePyramid(ModulatedPyramid):
         self.valid_idx = None
         # Invert focus sign for phase calculation
         self.ttf_signs = self.xp.array([1.0, 1.0, -1.0], dtype=self.dtype)
+
+        # Max batch size for processing (to be adjusted based on GPU memory)
+        self.max_batch_size = max_batch_size
 
         # Add dedicated input for extended source coefficients
         self.inputs['ext_source_coeff'] = InputValue(type=BaseValue)
@@ -143,35 +147,56 @@ class ExtSourcePyramid(ModulatedPyramid):
     def trigger_code(self):
         iu = 1j  # complex unit
 
-        # Get extended source coefficients for current frame
-        coeff_ttf = self.ext_source_coeff.value[:,:3]
+        # Get extended source coefficients for current frame (only valid points)
+        coeff_ttf = self.ext_source_coeff.value[self.valid_idx, :3]
+        ffv_valid = self.flux_factor_vector[self.valid_idx]
+        n_valid = self.valid_idx.shape[0]
 
-        u_tlt_const = self.ef * self.tlt_f
-        u_tlt_i = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.complex_dtype)
+        chunk_idx = 0
+        while chunk_idx * self.max_batch_size < n_valid:
+            start_idx = chunk_idx * self.max_batch_size
+            end_idx = min(start_idx + self.max_batch_size, n_valid)
 
-        for i in self.valid_idx:
-            # Compute pupil phase for each extended source point
-            pup_phase = self.xp.sum(coeff_ttf[i][:, None, None] \
-                                    * self.ttf_signs[:, None, None] \
-                                    * self.ext_ttf,
-                                    axis=0)
-            ttexp_i = self.xp.exp(-iu * pup_phase, dtype=self.complex_dtype)
+            # Get chunk data
+            coeff_chunk = coeff_ttf[start_idx:end_idx]
+            ffv_chunk = ffv_valid[start_idx:end_idx]
 
-            # Compute u_tlt for this point
-            u_tlt_i[0:self.ttexp_shape[1], 0:self.ttexp_shape[2]] = u_tlt_const * ttexp_i
+            # Compute pupil phases for this chunk
+            pup_phases = self.xp.sum(coeff_chunk[:, :, None, None] \
+                                    * self.ttf_signs[None, :, None, None] \
+                                    * self.ext_ttf[None, :, :, :],
+                                    axis=1)
 
-            # FFT and PSF calculation as in ModulatedPyramid
-            u_fp = self.xp.fft.fft2(u_tlt_i, axes=(-2, -1))
-            u_fp_pyr = pyr1_fused(u_fp,
-                                  self.flux_factor_vector[i],
-                                  self.fpsf,
-                                  self.shifted_masked_exp,
-                                  xp=self.xp)
-            pyr_ef = self.xp.fft.ifft2(u_fp_pyr, axes=(-2, -1), norm='forward')
-            self.pyr_image += pyr1_abs2(pyr_ef,
-                                        self.ifft_norm,
-                                        self.flux_factor_vector[i],
-                                        xp=self.xp)
+            # Compute ttexp for this chunk
+            ttexp_batch = self.xp.exp(-iu * pup_phases, dtype=self.complex_dtype)
+
+            # Prepare u_tlt_batch for this chunk
+            u_tlt_const = self.ef * self.tlt_f
+            chunk_size = end_idx - start_idx
+            u_tlt_batch = self.xp.zeros((chunk_size, self.fft_totsize, self.fft_totsize),
+                                        dtype=self.complex_dtype)
+            u_tlt_batch[:, 0:self.ttexp_shape[1], 0:self.ttexp_shape[2]] = \
+                u_tlt_const[None, :, :] * ttexp_batch
+
+            # Batch FFT
+            u_fp_batch = self.xp.fft.fft2(u_tlt_batch, axes=(-2, -1))
+
+            # Accumulate PSF
+            psf_batch = self.xp.real(u_fp_batch * self.xp.conj(u_fp_batch))
+            self.fpsf += self.xp.sum(psf_batch * ffv_chunk[:, None, None], axis=0)
+
+            # Apply pyramid mask
+            u_fp_pyr_batch = u_fp_batch * self.shifted_masked_exp[None, :, :]
+
+            # Batch inverse FFT
+            pyr_ef_batch = self.xp.fft.ifft2(u_fp_pyr_batch, axes=(-2, -1), norm='forward')
+
+            # Accumulate pyramid image
+            pyr_ef_norm = pyr_ef_batch * self.ifft_norm
+            pyr_images = self.xp.real(pyr_ef_norm * self.xp.conj(pyr_ef_norm))
+            self.pyr_image += self.xp.sum(pyr_images * ffv_chunk[:, None, None], axis=0)
+
+            chunk_idx += 1
 
 
     def post_trigger(self):
