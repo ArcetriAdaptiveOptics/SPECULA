@@ -51,6 +51,7 @@ class ExtSourcePyramid(ModulatedPyramid):
                  xShiftPhInPixel: float = 0.0,
                  yShiftPhInPixel: float = 0.0,
                  max_batch_size: int = 1024,
+                 cuda_stream_enable: bool = True,
                  target_device_idx: int = None,
                  precision: int = None
                 ):
@@ -91,6 +92,9 @@ class ExtSourcePyramid(ModulatedPyramid):
 
         # Max batch size for processing (to be adjusted based on GPU memory)
         self.max_batch_size = max_batch_size
+
+        # CUDA stream enable key, it can be disabled for debugging purposes
+        self.stream_enable = cuda_stream_enable
 
         # Add dedicated input for extended source coefficients
         self.inputs['ext_source_coeff'] = InputValue(type=BaseValue)
