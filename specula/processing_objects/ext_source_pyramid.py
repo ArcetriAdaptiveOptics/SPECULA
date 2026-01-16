@@ -96,6 +96,11 @@ class ExtSourcePyramid(ModulatedPyramid):
         # CUDA stream enable key, it can be disabled for debugging purposes
         self.stream_enable = cuda_stream_enable
 
+        # Pre-allocated buffers for CUDA graph compatibility (allocated in cache_ttexp)
+        self._fpsf_buffer = None
+        self._pyr_image_buffer = None
+        self._n_chunks = 0
+
         # Add dedicated input for extended source coefficients
         self.inputs['ext_source_coeff'] = InputValue(type=BaseValue)
 
@@ -122,15 +127,29 @@ class ExtSourcePyramid(ModulatedPyramid):
         coeff_flux  = self.ext_source_coeff.value[:, 3]
         self.flux_factor_vector = self.to_xp(coeff_flux)
 
-        # Clean up very small flux values
-        max_flux = self.xp.max(self.xp.abs(self.flux_factor_vector))
-        threshold = max_flux * 1e-3
-        small_idx = self.xp.abs(self.flux_factor_vector) < threshold
-        self.flux_factor_vector[small_idx] = 0.0
-        print(f'Points with flux below {threshold:.3e} set to zero:'
-              f' {self.xp.sum(small_idx)} out of {self.mod_steps}')
+        # Clean up very small flux values (only if stream disabled)
+        # When stream_enable=True, we need constant n_valid for CUDA graph
+        if not self.stream_enable:
+            max_flux = self.xp.max(self.xp.abs(self.flux_factor_vector))
+            threshold = max_flux * 1e-3
+            small_idx = self.xp.abs(self.flux_factor_vector) < threshold
+            self.flux_factor_vector[small_idx] = 0.0
+            print(f'Points with flux below {threshold:.3e} set to zero:'
+                  f' {self.xp.sum(small_idx)} out of {self.mod_steps}')
 
-        self.valid_idx = self.xp.where(self.flux_factor_vector > 0.0)[0]
+            self.valid_idx = self.xp.where(self.flux_factor_vector > 0.0)[0]
+        else:
+            # With stream enabled, process all points (no filtering)
+            # to keep constant loop iterations for CUDA graph
+            print(f'CUDA stream enabled: processing all {self.mod_steps} points')
+            self.valid_idx = self.xp.arange(self.mod_steps)
+
+        self._n_chunks = (len(self.valid_idx) + self.max_batch_size - 1) // self.max_batch_size
+        self._fpsf_buffer = self.xp.zeros((self._n_chunks, *self.fpsf.shape),
+                                          dtype=self.dtype)
+        self._pyr_image_buffer = self.xp.zeros((self._n_chunks, *self.pyr_image.shape),
+                                               dtype=self.dtype)
+
         self.factor = 1.0 / self.xp.sum(self.flux_factor_vector)
 
 
@@ -156,8 +175,8 @@ class ExtSourcePyramid(ModulatedPyramid):
         ffv_valid = self.flux_factor_vector[self.valid_idx]
         n_valid = self.valid_idx.shape[0]
 
-        # Process in chunks using range with step size
-        for start_idx in range(0, n_valid, self.max_batch_size):
+        # Process in chunks using enumerate for direct chunk indexing
+        for chunk_idx, start_idx in enumerate(range(0, n_valid, self.max_batch_size)):
             end_idx = min(start_idx + self.max_batch_size, n_valid)
 
             # Get chunk data
@@ -184,9 +203,10 @@ class ExtSourcePyramid(ModulatedPyramid):
             # Batch FFT
             u_fp_batch = self.xp.fft.fft2(u_tlt_batch, axes=(-2, -1))
 
-            # Accumulate PSF
+            # Store PSF contribution
             psf_batch = self.xp.real(u_fp_batch * self.xp.conj(u_fp_batch))
-            self.fpsf += self.xp.sum(psf_batch * ffv_chunk[:, None, None], axis=0)
+            self._fpsf_buffer[chunk_idx] = \
+                self.xp.sum(psf_batch * ffv_chunk[:, None, None], axis=0)
 
             # Apply pyramid mask
             u_fp_pyr_batch = u_fp_batch * self.shifted_masked_exp[None, :, :]
@@ -194,10 +214,15 @@ class ExtSourcePyramid(ModulatedPyramid):
             # Batch inverse FFT
             pyr_ef_batch = self.xp.fft.ifft2(u_fp_pyr_batch, axes=(-2, -1), norm='forward')
 
-            # Accumulate pyramid image
+            # Store pyramid image contribution
             pyr_ef_norm = pyr_ef_batch * self.ifft_norm
             pyr_images = self.xp.real(pyr_ef_norm * self.xp.conj(pyr_ef_norm))
-            self.pyr_image += self.xp.sum(pyr_images * ffv_chunk[:, None, None], axis=0)
+            self._pyr_image_buffer[chunk_idx] = \
+                self.xp.sum(pyr_images * ffv_chunk[:, None, None], axis=0)
+
+        # Final reduction using pre-computed chunk count
+        self.fpsf[:] = self.xp.sum(self._fpsf_buffer, axis=0)
+        self.pyr_image[:] = self.xp.sum(self._pyr_image_buffer, axis=0)
 
 
     def post_trigger(self):
