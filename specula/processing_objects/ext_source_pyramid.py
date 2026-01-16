@@ -156,9 +156,8 @@ class ExtSourcePyramid(ModulatedPyramid):
         ffv_valid = self.flux_factor_vector[self.valid_idx]
         n_valid = self.valid_idx.shape[0]
 
-        chunk_idx = 0
-        while chunk_idx * self.max_batch_size < n_valid:
-            start_idx = chunk_idx * self.max_batch_size
+        # Process in chunks using range with step size
+        for start_idx in range(0, n_valid, self.max_batch_size):
             end_idx = min(start_idx + self.max_batch_size, n_valid)
 
             # Get chunk data
@@ -199,8 +198,6 @@ class ExtSourcePyramid(ModulatedPyramid):
             pyr_ef_norm = pyr_ef_batch * self.ifft_norm
             pyr_images = self.xp.real(pyr_ef_norm * self.xp.conj(pyr_ef_norm))
             self.pyr_image += self.xp.sum(pyr_images * ffv_chunk[:, None, None], axis=0)
-
-            chunk_idx += 1
 
 
     def post_trigger(self):
