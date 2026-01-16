@@ -99,6 +99,7 @@ class ExtSourcePyramid(ModulatedPyramid):
 
         # Threshold for flux filtering (only if stream disabled)
         self.max_flux_ratio_thr = max_flux_ratio_thr
+        self.lost_flux_ratio = 0.0
 
         if self.stream_enable:
             print('CUDA stream enabled for extended source pyramid processing'
@@ -138,28 +139,57 @@ class ExtSourcePyramid(ModulatedPyramid):
         # Clean up very small flux values (only if stream disabled)
         # When stream_enable=True, we need constant n_valid for CUDA graph
         if not self.stream_enable:
+            # Compute total flux before filtering
+            total_flux = self.xp.sum(self.flux_factor_vector) + 1e-20
+
             max_flux = self.xp.max(self.xp.abs(self.flux_factor_vector))
             threshold = max_flux * self.max_flux_ratio_thr
-            small_idx = self.xp.abs(self.flux_factor_vector) < threshold
-            self.flux_factor_vector[small_idx] = 0.0
-            print(f'Points with flux below {threshold:.3e} set to zero:'
-                  f' {self.xp.sum(small_idx)} out of {self.mod_steps}')
 
+            # Create boolean mask for points below threshold
+            below_threshold = self.flux_factor_vector <= threshold
+            not_valid_idx = self.xp.where(below_threshold)[0]
+
+            # Compute lost flux ratio
+            lost_flux = self.xp.sum(self.flux_factor_vector[not_valid_idx])
+            self.lost_flux_ratio =  lost_flux / total_flux
+
+            # Set flux factors below threshold to zero
+            self.flux_factor_vector[not_valid_idx] = 0.0
             self.valid_idx = self.xp.where(self.flux_factor_vector > 0.0)[0]
+
+            n_filtered = self.mod_steps - self.valid_idx.shape[0]
+            print(f'Points with flux below {threshold:.3e} set to zero:'
+                  f' {n_filtered} out of {self.mod_steps}'
+                  f', {self.lost_flux_ratio*100:.1f}% lost flux')
+
+            # Reallocate buffers only when stream disabled (dynamic filtering)
+            n_chunks_needed = (len(self.valid_idx) + self.max_batch_size - 1) \
+                            // self.max_batch_size
         else:
             # With stream enabled, process all points (no filtering)
             # to keep constant loop iterations for CUDA graph
             print(f'CUDA stream enabled: processing all {self.mod_steps} points')
             self.valid_idx = self.xp.arange(self.mod_steps)
 
-        self._n_chunks = (len(self.valid_idx) + self.max_batch_size - 1) // self.max_batch_size
-        self._fpsf_buffer = self.xp.zeros((self._n_chunks, *self.fpsf.shape),
-                                          dtype=self.dtype)
-        self._pyr_image_buffer = self.xp.zeros((self._n_chunks, *self.pyr_image.shape),
-                                               dtype=self.dtype)
+            # Allocate once buffers based on actual mod_steps and max_batch_size
+            if self._n_chunks == 0:
+                n_chunks_needed = (len(self.valid_idx) + self.max_batch_size - 1) \
+                                // self.max_batch_size
+            else:
+                n_chunks_needed = self._n_chunks
 
         self.factor = 1.0 / self.xp.sum(self.flux_factor_vector)
 
+        if self._n_chunks != n_chunks_needed:
+            self._n_chunks = n_chunks_needed
+            self._fpsf_buffer = self.xp.zeros((self._n_chunks, *self.fpsf.shape),
+                                            dtype=self.dtype)
+            self._pyr_image_buffer = self.xp.zeros((self._n_chunks, *self.pyr_image.shape),
+                                                dtype=self.dtype)
+        else:
+            # Clear buffers
+            self._fpsf_buffer[:] = 0
+            self._pyr_image_buffer[:] = 0
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
@@ -173,7 +203,6 @@ class ExtSourcePyramid(ModulatedPyramid):
         # Reset output arrays for this frame
         self.pyr_image *= 0
         self.fpsf *= 0
-
 
     def trigger_code(self):
         iu = 1j  # complex unit
@@ -241,6 +270,7 @@ class ExtSourcePyramid(ModulatedPyramid):
         self.psf_tot.value *= self.factor
         self.psf_bfm.value *= self.factor
         trasmission_factor = 1 / (self.xp.sum(self.psf_bfm.value) + 1e-20)
-        self.transmission.value[:] = self.xp.sum(self.psf_tot.value) * trasmission_factor
+        self.transmission.value[:] = self.xp.sum(self.psf_tot.value) * trasmission_factor \
+                                    * (1.0 - self.lost_flux_ratio)
         # Call parent post_trigger
         super().post_trigger()
