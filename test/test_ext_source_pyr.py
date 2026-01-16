@@ -463,6 +463,7 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             fov=fov,
             pup_diam=pup_diam,
             output_resolution=output_resolution,
+            cuda_stream_enable=False,
             target_device_idx=target_device_idx
         )
         pyr.inputs['in_ef'].set(ef)
