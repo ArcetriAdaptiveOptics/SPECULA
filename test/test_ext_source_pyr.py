@@ -590,3 +590,198 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             err_msg="Flux additivity failed: full != 0.5 * (half1 + half2)")
 
         print("Flux additivity test passed: full = 0.5 * (half1 + half2)")
+
+
+    @cpu_and_gpu
+    def test_flux_threshold_filtering(self, target_device_idx, xp):
+        """Test that max_flux_ratio_thr correctly filters low-flux points"""
+        pixel_pupil = 160
+        pixel_pitch = 0.05
+        wavelength_nm = 500
+        fov = 2.0
+        pup_diam = 30
+        output_resolution = 80
+        mod_amp = 2.0
+
+        simul_params = SimulParams(
+            pixel_pupil=pixel_pupil,
+            pixel_pitch=pixel_pitch
+        )
+
+        l_o_d = (wavelength_nm * 1e-9) / (pixel_pupil * pixel_pitch) * (206265)
+
+        # Create source with varying fluxes
+        src = ExtendedSource(
+            simul_params=simul_params,
+            wavelengthInNm=wavelength_nm,
+            source_type='TOPHAT',
+            size_obj=mod_amp * 4 * l_o_d,
+            sampling_type='RINGS',
+            n_rings=3,
+            sampling_lambda_over_d=np.pi/6,
+            target_device_idx=target_device_idx,
+        )
+        src.compute()
+
+        # Manually create flux distribution with known range
+        coeff = src.outputs['coeff'].value.copy()
+        n_points = coeff.shape[0]
+
+        # Set fluxes: 10 strong points + 90 weak points
+        coeff[:10, 3] = 1.0  # Strong flux
+        coeff[10:, 3] = 1e-5  # Weak flux (below threshold)
+
+        src.outputs['coeff'].value[:] = coeff
+        src.outputs['coeff'].generation_time = 2
+
+        ef = ElectricField(
+            pixel_pupil, pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx
+        )
+        ef.A = make_mask(pixel_pupil)
+        ef.generation_time = 1
+
+        # Test 1: With threshold enabled (stream disabled)
+        threshold = 1e-3
+        pyr_filtered = ExtSourcePyramid(
+            simul_params=simul_params,
+            wavelengthInNm=wavelength_nm,
+            fov=fov,
+            pup_diam=pup_diam,
+            output_resolution=output_resolution,
+            mod_amp=mod_amp,
+            max_flux_ratio_thr=threshold,
+            cuda_stream_enable=False,  # Enable threshold
+            target_device_idx=target_device_idx
+        )
+        pyr_filtered.inputs['in_ef'].set(ef)
+        pyr_filtered.inputs['ext_source_coeff'].set(src.outputs['coeff'])
+        pyr_filtered.setup()
+
+        # Check that only strong points are in valid_idx
+        n_valid_filtered = len(cpuArray(pyr_filtered.valid_idx))
+        self.assertEqual(n_valid_filtered, 10,
+            f"Expected 10 valid points with threshold, got {n_valid_filtered}")
+
+        # Verify that flux_factor_vector has zeros for filtered points
+        ffv_filtered = cpuArray(pyr_filtered.flux_factor_vector)
+        n_nonzero = np.sum(ffv_filtered > 0)
+        self.assertEqual(n_nonzero, 10,
+            f"Expected 10 non-zero flux values, got {n_nonzero}")
+
+        # Test 2: Without threshold (stream enabled)
+        pyr_all = ExtSourcePyramid(
+            simul_params=simul_params,
+            wavelengthInNm=wavelength_nm,
+            fov=fov,
+            pup_diam=pup_diam,
+            output_resolution=output_resolution,
+            mod_amp=mod_amp,
+            max_flux_ratio_thr=threshold,
+            cuda_stream_enable=True,  # Disable threshold
+            target_device_idx=target_device_idx
+        )
+        pyr_all.inputs['in_ef'].set(ef)
+        pyr_all.inputs['ext_source_coeff'].set(src.outputs['coeff'])
+        pyr_all.setup()
+
+        # Check that all points are processed
+        n_valid_all = len(cpuArray(pyr_all.valid_idx))
+        self.assertEqual(n_valid_all, n_points,
+            f"Expected {n_points} valid points without threshold, got {n_valid_all}")
+
+        # Test 3: Verify outputs are similar (weak flux has negligible effect)
+        pyr_filtered.check_ready(1)
+        pyr_filtered.trigger()
+        pyr_filtered.post_trigger()
+        out_filtered = cpuArray(pyr_filtered.outputs['out_i'].i)
+
+        pyr_all.check_ready(1)
+        pyr_all.trigger()
+        pyr_all.post_trigger()
+        out_all = cpuArray(pyr_all.outputs['out_i'].i)
+
+        # Outputs should be very similar since weak flux contributes < 0.1%
+        np.testing.assert_allclose(out_filtered, out_all, rtol=0.01, atol=1e-6,
+            err_msg="Filtered and unfiltered outputs differ more than expected")
+
+        print(f"Flux threshold test passed: {n_valid_filtered} points kept out of {n_points}")
+
+
+    @cpu_and_gpu
+    def test_threshold_effect_on_performance(self, target_device_idx, xp):
+        """Test that threshold actually reduces computational load"""
+        pixel_pupil = 160
+        pixel_pitch = 0.05
+        wavelength_nm = 500
+        fov = 2.0
+        pup_diam = 30
+        output_resolution = 80
+        mod_amp = 3.0
+
+        simul_params = SimulParams(
+            pixel_pupil=pixel_pupil,
+            pixel_pitch=pixel_pitch
+        )
+
+        l_o_d = (wavelength_nm * 1e-9) / (pixel_pupil * pixel_pitch) * (206265)
+
+        # Create large extended source
+        src = ExtendedSource(
+            simul_params=simul_params,
+            wavelengthInNm=wavelength_nm,
+            source_type='TOPHAT',
+            size_obj=mod_amp * 4 * l_o_d,
+            sampling_type='RINGS',
+            n_rings=10,  # Many points
+            sampling_lambda_over_d=np.pi/8,
+            target_device_idx=target_device_idx,
+        )
+        src.compute()
+
+        # Create flux distribution with 80% weak points
+        coeff = src.outputs['coeff'].value.copy()
+        n_points = coeff.shape[0]
+        n_strong = n_points // 5  # 20% strong
+
+        coeff[:n_strong, 3] = 1.0
+        coeff[n_strong:, 3] = 1e-6  # Very weak
+        src.outputs['coeff'].value[:] = coeff
+        src.outputs['coeff'].generation_time = 2
+
+        ef = ElectricField(
+            pixel_pupil, pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx
+        )
+        ef.A = make_mask(pixel_pupil)
+        ef.generation_time = 1
+
+        # Aggressive threshold should keep only ~20% of points
+        pyr = ExtSourcePyramid(
+            simul_params=simul_params,
+            wavelengthInNm=wavelength_nm,
+            fov=fov,
+            pup_diam=pup_diam,
+            output_resolution=output_resolution,
+            mod_amp=mod_amp,
+            max_flux_ratio_thr=1e-4,
+            cuda_stream_enable=False,
+            target_device_idx=target_device_idx
+        )
+        pyr.inputs['in_ef'].set(ef)
+        pyr.inputs['ext_source_coeff'].set(src.outputs['coeff'])
+        pyr.setup()
+
+        n_valid = len(cpuArray(pyr.valid_idx))
+        n_chunks = pyr._n_chunks
+
+        # Verify significant reduction
+        reduction_factor = n_points / n_valid
+        self.assertGreater(reduction_factor, 3.0,
+            f"Expected at least 3x reduction, got {reduction_factor:.1f}x")
+
+        # Verify buffer size matches filtered points
+        expected_chunks = (n_valid + pyr.max_batch_size - 1) // pyr.max_batch_size
+        self.assertEqual(n_chunks, expected_chunks,
+            f"Buffer chunks ({n_chunks}) doesn't match expected ({expected_chunks})")
+
+        print(f"Threshold performance test passed: {n_points} -> {n_valid} points "
+              f"({reduction_factor:.1f}x reduction, {n_chunks} chunks)")

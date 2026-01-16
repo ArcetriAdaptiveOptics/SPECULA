@@ -51,6 +51,7 @@ class ExtSourcePyramid(ModulatedPyramid):
                  xShiftPhInPixel: float = 0.0,
                  yShiftPhInPixel: float = 0.0,
                  max_batch_size: int = 1024,
+                 max_flux_ratio_thr: float = 1e-3,
                  cuda_stream_enable: bool = True,
                  target_device_idx: int = None,
                  precision: int = None
@@ -96,6 +97,13 @@ class ExtSourcePyramid(ModulatedPyramid):
         # CUDA stream enable key, it can be disabled for debugging purposes
         self.stream_enable = cuda_stream_enable
 
+        # Threshold for flux filtering (only if stream disabled)
+        self.max_flux_ratio_thr = max_flux_ratio_thr
+
+        if self.stream_enable:
+            print('CUDA stream enabled for extended source pyramid processing'
+                  ' Ignoring flux thresholding to maintain constant processing load.')
+
         # Pre-allocated buffers for CUDA graph compatibility (allocated in cache_ttexp)
         self._fpsf_buffer = None
         self._pyr_image_buffer = None
@@ -131,7 +139,7 @@ class ExtSourcePyramid(ModulatedPyramid):
         # When stream_enable=True, we need constant n_valid for CUDA graph
         if not self.stream_enable:
             max_flux = self.xp.max(self.xp.abs(self.flux_factor_vector))
-            threshold = max_flux * 1e-3
+            threshold = max_flux * self.max_flux_ratio_thr
             small_idx = self.xp.abs(self.flux_factor_vector) < threshold
             self.flux_factor_vector[small_idx] = 0.0
             print(f'Points with flux below {threshold:.3e} set to zero:'
