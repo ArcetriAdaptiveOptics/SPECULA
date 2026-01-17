@@ -40,7 +40,8 @@ class ExtSourcePyramid(ModulatedPyramid):
         Reduce this value if you encounter out-of-memory errors.
     max_flux_ratio_thr : float, optional
         Flux threshold ratio for filtering low-flux source points (default: 1e-3).
-        Points with flux below (max_flux * max_flux_ratio_thr) are ignored.
+        Points with flux below (max_flux * max_flux_ratio_thr) are ignored,
+        but their flux is redistributed to four points in the middle of the pyramid faces.
         Only used when cuda_stream_enable=False. When enabled, reduces computation
         but may affect accuracy for sources with very faint extended components.
     cuda_stream_enable : bool, optional
@@ -186,7 +187,6 @@ class ExtSourcePyramid(ModulatedPyramid):
 
         # Threshold for flux filtering (only if stream disabled)
         self.max_flux_ratio_thr = max_flux_ratio_thr
-        self.lost_flux_ratio = 0.0
 
         if self.stream_enable:
             print('CUDA stream enabled for extended source pyramid processing'
@@ -197,8 +197,45 @@ class ExtSourcePyramid(ModulatedPyramid):
         self._pyr_image_buffer = None
         self._n_chunks = 0
 
+        # Pre-allocate face center coefficients (4 points at pyramid face centers)
+        # These will be used to redistribute filtered flux
+        self._face_centers_idx = None  # Indices where face centers are stored in coeff array
+
         # Add dedicated input for extended source coefficients
         self.inputs['ext_source_coeff'] = InputValue(type=BaseValue)
+
+
+    def _get_pyramid_face_angles_at_fov_radius(self):
+        """
+        Calculate 4 points at the corners between pyramid faces, at a radius
+        corresponding to the field of view of the extended source.
+        
+        Returns
+        -------
+        face_angles_ttf : ndarray
+            Array of shape (4, 3) with [tip, tilt, focus=0] coordinates
+        mean_radius : float
+            Radius in lambda/D units corresponding to half the FoV
+        """
+        # Calculate mean radius from pyramid FoV and sampling
+        mean_radius = (self.fov / 2.0) / self.fov_res * (1.0 / self.fft_res)
+
+        # Place 4 points at face centers (perpendicular to pyramid edges)
+        # Standard pyramid has 4 faces with normals at 0°, 90°, 180°, 270°
+        angles = self.xp.array([0, 90, 180, 270], dtype=self.dtype) * self.xp.pi / 180
+
+        face_angles_tt = self.xp.stack([
+            mean_radius * self.xp.cos(angles),  # tip
+            mean_radius * self.xp.sin(angles),  # tilt
+        ], axis=1)
+
+        # Add zero focus component
+        face_angles_ttf = self.xp.hstack([
+            face_angles_tt,
+            self.xp.zeros((4, 1), dtype=self.dtype)
+        ])
+
+        return face_angles_ttf, mean_radius
 
 
     def cache_ttexp(self):
@@ -219,6 +256,23 @@ class ExtSourcePyramid(ModulatedPyramid):
             # Set ttexp_shape for trigger_code
             self.ttexp_shape = (0, self.tilt_x.shape[0], self.tilt_x.shape[1])
 
+            # Pre-allocate face centers ONLY if stream disabled
+            if not self.stream_enable:
+                face_angles_ttf, mean_radius = self._get_pyramid_face_angles_at_fov_radius()
+
+                face_centers_with_flux = self.xp.hstack([
+                    face_angles_ttf,
+                    self.xp.zeros((4, 1), dtype=self.dtype)  # Initial flux = 0
+                ])
+
+                self.ext_source_coeff.value = self.xp.vstack([
+                    self.ext_source_coeff.value,
+                    face_centers_with_flux
+                ])
+
+                self._face_centers_idx = self.xp.arange(self.mod_steps, self.mod_steps + 4)
+                self.mod_steps += 4
+
         # Set flux factor vector from source (will be updated in trigger if PSF changes)
         coeff_flux  = self.ext_source_coeff.value[:, 3]
         self.flux_factor_vector = self.to_xp(coeff_flux)
@@ -226,28 +280,38 @@ class ExtSourcePyramid(ModulatedPyramid):
         # Clean up very small flux values (only if stream disabled)
         # When stream_enable=True, we need constant n_valid for CUDA graph
         if not self.stream_enable:
-            # Compute total flux before filtering
-            total_flux = self.xp.sum(self.flux_factor_vector) + 1e-20
+            # Compute total flux before filtering (excluding face centers)
+            n_original = len(self.flux_factor_vector) - 4  # Exclude 4 face centers
+            original_flux = self.flux_factor_vector[:n_original]
+            total_flux = self.xp.sum(original_flux) + 1e-20
 
-            max_flux = self.xp.max(self.xp.abs(self.flux_factor_vector))
+            max_flux = self.xp.max(self.xp.abs(original_flux))
             threshold = max_flux * self.max_flux_ratio_thr
 
             # Create boolean mask for points below threshold
-            below_threshold = self.flux_factor_vector <= threshold
+            below_threshold = original_flux <= threshold
             not_valid_idx = self.xp.where(below_threshold)[0]
+            n_filtered = len(not_valid_idx)
 
             # Compute lost flux ratio
-            lost_flux = self.xp.sum(self.flux_factor_vector[not_valid_idx])
-            self.lost_flux_ratio =  lost_flux / total_flux
+            lost_flux = self.xp.sum(original_flux[not_valid_idx])
+            lost_flux_ratio =  lost_flux / total_flux
 
             # Set flux factors below threshold to zero
-            self.flux_factor_vector[not_valid_idx] = 0.0
+            self.flux_factor_vector[:n_original][not_valid_idx] = 0.0
+
+            # Redistribute lost flux to 4 face centers
+            if n_filtered > 0 and lost_flux > 0:
+                self.ext_source_coeff.value[self._face_centers_idx, 3] = lost_flux / 4.0
+            else:
+                self.ext_source_coeff.value[self._face_centers_idx, 3] = 0.0
+            self.flux_factor_vector = self.ext_source_coeff.value[:, 3]
+
             self.valid_idx = self.xp.where(self.flux_factor_vector > 0.0)[0]
 
-            n_filtered = self.mod_steps - self.valid_idx.shape[0]
             print(f'Points with flux below {threshold:.3e} set to zero:'
-                  f' {n_filtered} out of {self.mod_steps}'
-                  f', {self.lost_flux_ratio*100:.1f}% lost flux')
+                  f' {n_filtered} out of {n_original}'
+                  f', {lost_flux_ratio*100:.1f}% of flux')
 
             # Reallocate buffers only when stream disabled (dynamic filtering)
             n_chunks_needed = (len(self.valid_idx) + self.max_batch_size - 1) \
@@ -258,12 +322,9 @@ class ExtSourcePyramid(ModulatedPyramid):
             print(f'CUDA stream enabled: processing all {self.mod_steps} points')
             self.valid_idx = self.xp.arange(self.mod_steps)
 
-            # Allocate once buffers based on actual mod_steps and max_batch_size
-            if self._n_chunks == 0:
-                n_chunks_needed = (len(self.valid_idx) + self.max_batch_size - 1) \
-                                // self.max_batch_size
-            else:
-                n_chunks_needed = self._n_chunks
+            # Allocate buffers once because with stream enabled valid_idx is constant
+            n_chunks_needed = (len(self.valid_idx) + self.max_batch_size - 1) \
+                            // self.max_batch_size
 
         self.factor = 1.0 / self.xp.sum(self.flux_factor_vector)
 
@@ -357,7 +418,6 @@ class ExtSourcePyramid(ModulatedPyramid):
         self.psf_tot.value *= self.factor
         self.psf_bfm.value *= self.factor
         trasmission_factor = 1 / (self.xp.sum(self.psf_bfm.value) + 1e-20)
-        self.transmission.value[:] = self.xp.sum(self.psf_tot.value) * trasmission_factor \
-                                    * (1.0 - self.lost_flux_ratio)
+        self.transmission.value[:] = self.xp.sum(self.psf_tot.value) * trasmission_factor
         # Call parent post_trigger
         super().post_trigger()

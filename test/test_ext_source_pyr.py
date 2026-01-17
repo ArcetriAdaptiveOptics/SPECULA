@@ -659,15 +659,16 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
         pyr_filtered.setup()
 
         # Check that only strong points are in valid_idx
+        # plus four pixels where the flux has been redistributed
         n_valid_filtered = len(cpuArray(pyr_filtered.valid_idx))
-        self.assertEqual(n_valid_filtered, 10,
-            f"Expected 10 valid points with threshold, got {n_valid_filtered}")
+        self.assertEqual(n_valid_filtered, 14,
+            f"Expected 14 valid points with threshold, got {n_valid_filtered}")
 
         # Verify that flux_factor_vector has zeros for filtered points
         ffv_filtered = cpuArray(pyr_filtered.flux_factor_vector)
         n_nonzero = np.sum(ffv_filtered > 0)
-        self.assertEqual(n_nonzero, 10,
-            f"Expected 10 non-zero flux values, got {n_nonzero}")
+        self.assertEqual(n_nonzero, 14,
+            f"Expected 14 non-zero flux values, got {n_nonzero}")
 
         # Test 2: Without threshold (stream enabled)
         pyr_all = ExtSourcePyramid(
@@ -686,9 +687,10 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
         pyr_all.setup()
 
         # Check that all points are processed
+        # Four extra points where the flux has been redistributed
         n_valid_all = len(cpuArray(pyr_all.valid_idx))
-        self.assertEqual(n_valid_all, n_points,
-            f"Expected {n_points} valid points without threshold, got {n_valid_all}")
+        self.assertEqual(n_valid_all, n_points+4,
+            f"Expected {n_points+4} valid points without threshold, got {n_valid_all}")
 
         # Test 3: Verify outputs are similar (weak flux has negligible effect)
         pyr_filtered.check_ready(1)
@@ -786,3 +788,117 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
 
         print(f"Threshold performance test passed: {n_points} -> {n_valid} points "
               f"({reduction_factor:.1f}x reduction, {n_chunks} chunks)")
+
+
+    @cpu_and_gpu
+    def test_face_centers_geometry(self, target_device_idx, xp):
+        """Test that face center points are positioned at pyramid face centers"""
+        pixel_pupil = 160
+        pixel_pitch = 0.05
+        wavelength_nm = 500
+        fov = 2.0
+        pup_diam = 30
+        output_resolution = 80
+        mod_amp = 3.0
+
+        simul_params = SimulParams(
+            pixel_pupil=pixel_pupil,
+            pixel_pitch=pixel_pitch
+        )
+
+        l_o_d = (wavelength_nm * 1e-9) / (pixel_pupil * pixel_pitch) * (206265)
+        src = ExtendedSource(
+            simul_params=simul_params,
+            wavelengthInNm=wavelength_nm,
+            source_type='TOPHAT',
+            size_obj=mod_amp * 4 * l_o_d,
+            sampling_type='RINGS',
+            n_rings=1,
+            sampling_lambda_over_d=np.pi/4,
+            target_device_idx=target_device_idx,
+        )
+        src.compute()
+
+        ef = ElectricField(
+            pixel_pupil, pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx
+        )
+        ef.A = make_mask(pixel_pupil)
+        ef.generation_time = 1
+
+        pyr = ExtSourcePyramid(
+            simul_params=simul_params,
+            wavelengthInNm=wavelength_nm,
+            fov=fov,
+            pup_diam=pup_diam,
+            output_resolution=output_resolution,
+            mod_amp=mod_amp,
+            cuda_stream_enable=False,
+            target_device_idx=target_device_idx
+        )
+        pyr.inputs['in_ef'].set(ef)
+        pyr.inputs['ext_source_coeff'].set(src.outputs['coeff'])
+        pyr.setup()
+
+        # Get face center points
+        face_angles_ttf, mean_radius = pyr._get_pyramid_face_angles_at_fov_radius()
+        face_angles_ttf = cpuArray(face_angles_ttf)
+        mean_radius = float(cpuArray(mean_radius))
+
+        tip_vals = face_angles_ttf[:, 0]
+        tilt_vals = face_angles_ttf[:, 1]
+        focus_vals = face_angles_ttf[:, 2]
+
+        # Test 1: Verify focus is zero
+        np.testing.assert_allclose(focus_vals, 0, atol=1e-10,
+            err_msg="Focus component should be zero for face center points")
+
+        # Test 2: Verify all points are at the same radius
+        radii = np.sqrt(tip_vals**2 + tilt_vals**2)
+        np.testing.assert_allclose(radii, mean_radius, rtol=1e-10,
+            err_msg=f"All points should be at radius {mean_radius}, got {radii}")
+
+        # Test 3: Verify angles are at 0°, 90°, 180°, 270° (FACE CENTERS)
+        angles_rad = np.arctan2(tilt_vals, tip_vals)
+        angles_deg = np.rad2deg(angles_rad)
+        angles_deg = np.mod(angles_deg, 360)
+
+        expected_angles = np.array([0, 90, 180, 270])
+        angles_deg_sorted = np.sort(angles_deg)
+
+        np.testing.assert_allclose(angles_deg_sorted, expected_angles, atol=1e-6,
+            err_msg=f"Expected face center angles {expected_angles}, got {angles_deg_sorted}")
+
+        # Test 4: Verify radius matches FoV/2
+        expected_radius = float((fov / 2.0) / (pyr.fov_res * pyr.fft_res))
+        np.testing.assert_allclose(mean_radius, expected_radius, rtol=1e-10,
+            err_msg=f"Radius should match FoV/2: expected {expected_radius}, got {mean_radius}")
+
+        # Test 5: Verify points are at FACE CENTERS (perpendicular to axes)
+        for i, (tx, ty) in enumerate(zip(tip_vals, tilt_vals)):
+            # Each point should be aligned with either tip OR tilt axis
+            ratio = min(abs(tx), abs(ty)) / max(abs(tx), abs(ty))
+            self.assertLess(ratio, 0.01,
+                f"Point {i} at angle {angles_deg[i]}° should be near an axis "
+                f"(face center), not diagonal. Got ratio {ratio:.3f}")
+
+        # Test 6: Verify points are in different quadrants
+        quadrants = []
+        for tx, ty in zip(tip_vals, tilt_vals):
+            if abs(tx) > abs(ty):
+                if tx > 0:
+                    quadrants.append(1)  # +X axis (0°)
+                else:
+                    quadrants.append(3)  # -X axis (180°)
+            else:
+                if ty > 0:
+                    quadrants.append(2)  # +Y axis (90°)
+                else:
+                    quadrants.append(4)  # -Y axis (270°)
+
+        self.assertEqual(len(set(quadrants)), 4,
+            "Face center points should be on 4 different axes")
+
+        print(f"Face centers geometry test passed:")
+        print(f"  - Radius: {mean_radius:.4f} lambda/D (FoV/2 = {fov/2:.2f} arcsec)")
+        print(f"  - Angles: {angles_deg_sorted}° (face centers)")
+        print(f"  - Points correctly positioned at pyramid FACE CENTERS")
