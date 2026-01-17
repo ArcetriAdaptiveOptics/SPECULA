@@ -23,8 +23,95 @@ def pyr1_abs2(v, norm, ffv, xp):
 class ExtSourcePyramid(ModulatedPyramid):
     """
     Pyramid wavefront sensor for extended sources.
-    This version computes on the fly the pupil phase for each extended source point
-    to reduce memory usage compared to ModulatedPyramid with precomputed ttexp array.
+    
+    This class extends ModulatedPyramid to handle extended sources by computing
+    pupil phases on-the-fly for each source point, reducing memory usage compared
+    to pre-computing and storing all tip-tilt exponentials.
+    
+    The extended source is represented by a set of point sources, each with
+    tip, tilt, focus coefficients and flux. Processing is done in batches to
+    manage GPU memory efficiently.
+    
+    Extended Source Specific Parameters
+    ------------------------------------
+    max_batch_size : int, optional
+        Maximum number of source points processed simultaneously (default: 1024).
+        Larger values increase GPU memory usage but may improve performance.
+        Reduce this value if you encounter out-of-memory errors.
+    max_flux_ratio_thr : float, optional
+        Flux threshold ratio for filtering low-flux source points (default: 1e-3).
+        Points with flux below (max_flux * max_flux_ratio_thr) are ignored.
+        Only used when cuda_stream_enable=False. When enabled, reduces computation
+        but may affect accuracy for sources with very faint extended components.
+    cuda_stream_enable : bool, optional
+        Enable CUDA stream for graph capture and optimized GPU execution (default: True).
+        When True, all source points are processed (flux thresholding disabled) to
+        maintain constant computational load required for CUDA graph compatibility.
+        Set to False for debugging or when source point count varies significantly
+        between frames and you want to use flux thresholding.
+    target_device_idx : int, optional
+        GPU device index (default: None, uses default device)
+    precision : int, optional
+        Numerical precision: 32 or 64 bits (default: None, uses system default)
+
+    Inherited Parameters (Not Used)
+    --------------------------------
+    mod_amp, mod_step, mod_type
+        These control tip-tilt modulation for point sources. In extended source mode,
+        they are ignored. The "modulation" is implicitly defined by the spatial
+        distribution of source points provided via the ext_source_coeff input.
+    
+    Extended Source Specific Inputs
+    ------
+    ext_source_coeff : BaseValue
+        Extended source coefficients array of shape (n_points, 4) with columns:
+        [tip_coeff, tilt_coeff, focus_coeff, flux]. Typically provided by an
+        ExtendedSource object. This input replaces the modulation pattern used
+        in point source mode.
+    
+    Notes
+    -----
+    No specific outputs for extended source pyramid, uses same outputs as ModulatedPyramid.
+    
+    Memory usage scales with (max_batch_size * fft_totsize^2 * 16 bytes) for complex
+    arrays. For a 512x512 FFT grid and batch_size=1024, this is ~8 GB per batch.
+    
+    Processing modes:
+    - cuda_stream_enable=True (default): All source points processed, optimal performance,
+      required for CUDA graph acceleration, no flux filtering
+    - cuda_stream_enable=False: Flux filtering enabled, variable processing load,
+      useful for debugging or sources with many low-flux points
+
+    See Also
+    --------
+    ModulatedPyramid : Parent class for point source pyramid WFS
+    ExtendedSource : Source object that generates ext_source_coeff
+
+    Examples
+    --------
+    >>> # Usage with CUDA stream
+    >>> pyr = ExtSourcePyramid(
+    ...     simul_params=params,
+    ...     wavelengthInNm=500,
+    ...     fov=2.0,
+    ...     pup_diam=30,
+    ...     output_resolution=80,
+    ...     ...
+    ...     max_batch_size=512  # Adjust based on available GPU memory
+    ... )
+    
+    >>> # Flux filtering mode raccommended for very large sources with many 
+    >>> # points with low flux (ExtendedSource class with source_type='FROM_PSF')
+    >>> pyr = ExtSourcePyramid(
+    ...     simul_params=params,
+    ...     wavelengthInNm=500,
+    ...     fov=2.0,
+    ...     pup_diam=30,
+    ...     output_resolution=80,
+    ...     ...
+    ...     cuda_stream_enable=False,
+    ...     max_flux_ratio_thr=1e-3  # Filter points with flux < max_flux/10000
+    ... )
     """
     def __init__(self,
                  simul_params: SimulParams,
