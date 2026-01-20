@@ -200,6 +200,7 @@ class ExtSourcePyramid(ModulatedPyramid):
         # Pre-allocate face center coefficients (4 points at pyramid face centers)
         # These will be used to redistribute filtered flux
         self._face_centers_idx = None  # Indices where face centers are stored in coeff array
+        self._face_centers_ttf = None  # Pre-computed TTF coordinates (initialized in cache_ttexp)
 
         # Add dedicated input for extended source coefficients
         self.inputs['ext_source_coeff'] = InputValue(type=BaseValue)
@@ -256,22 +257,38 @@ class ExtSourcePyramid(ModulatedPyramid):
             # Set ttexp_shape for trigger_code
             self.ttexp_shape = (0, self.tilt_x.shape[0], self.tilt_x.shape[1])
 
-            # Pre-allocate face centers ONLY if stream disabled
-            if not self.stream_enable:
-                face_angles_ttf, mean_radius = self._get_pyramid_face_angles_at_fov_radius()
+            # Pre-compute face center TTF coordinates (once for all)
+            if self._face_centers_ttf is None:
+                face_angles_ttf, _ = self._get_pyramid_face_angles_at_fov_radius()
+                self._face_centers_ttf = face_angles_ttf
 
+        # Always update face centers when stream disabled (in case source was updated)
+        if not self.stream_enable:
+            # Check if we need to append face centers
+            # (either first time or source was updated and lost them)
+            current_size = self.ext_source_coeff.value.shape[0]
+            if self._face_centers_idx is None or self._face_centers_idx[0] >= current_size:
+                # Create face centers with flux initialized to zero
                 face_centers_with_flux = self.xp.hstack([
-                    face_angles_ttf,
+                    self._face_centers_ttf,
                     self.xp.zeros((4, 1), dtype=self.dtype)  # Initial flux = 0
                 ])
 
+                # Append face centers
                 self.ext_source_coeff.value = self.xp.vstack([
                     self.ext_source_coeff.value,
                     face_centers_with_flux
                 ])
-
-                self._face_centers_idx = self.xp.arange(self.mod_steps, self.mod_steps + 4)
-                self.mod_steps += 4
+                self._face_centers_idx = self.xp.arange(current_size, current_size + 4)
+                self.mod_steps = current_size + 4
+            else:
+                # Face centers already exist, just reset their flux to zero
+                # (TTF coordinates are constant, no need to update)
+                self.ext_source_coeff.value[self._face_centers_idx, 3] = 0.0
+                self.mod_steps = self.ext_source_coeff.value.shape[0]
+        else:
+            # Stream enabled: just update mod_steps
+            self.mod_steps = int(self.ext_source_coeff.value.shape[0])
 
         # Set flux factor vector from source (will be updated in trigger if PSF changes)
         coeff_flux  = self.ext_source_coeff.value[:, 3]
@@ -281,7 +298,7 @@ class ExtSourcePyramid(ModulatedPyramid):
         # When stream_enable=True, we need constant n_valid for CUDA graph
         if not self.stream_enable:
             # Compute total flux before filtering (excluding face centers)
-            n_original = len(self.flux_factor_vector) - 4  # Exclude 4 face centers
+            n_original = self._face_centers_idx[0]  # Face centers start here
             original_flux = self.flux_factor_vector[:n_original]
             total_flux = self.xp.sum(original_flux) + 1e-20
 
@@ -305,6 +322,8 @@ class ExtSourcePyramid(ModulatedPyramid):
                 self.ext_source_coeff.value[self._face_centers_idx, 3] = lost_flux / 4.0
             else:
                 self.ext_source_coeff.value[self._face_centers_idx, 3] = 0.0
+
+            # Update flux factor vector after redistribution
             self.flux_factor_vector = self.ext_source_coeff.value[:, 3]
 
             self.valid_idx = self.xp.where(self.flux_factor_vector > 0.0)[0]
@@ -326,7 +345,7 @@ class ExtSourcePyramid(ModulatedPyramid):
             n_chunks_needed = (len(self.valid_idx) + self.max_batch_size - 1) \
                             // self.max_batch_size
 
-        self.factor = 1.0 / self.xp.sum(self.flux_factor_vector)
+        self.factor = 1.0 / (self.xp.sum(self.flux_factor_vector) + 1e-20)
 
         if self._n_chunks != n_chunks_needed:
             self._n_chunks = n_chunks_needed
