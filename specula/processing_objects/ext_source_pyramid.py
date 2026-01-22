@@ -146,7 +146,7 @@ class ExtSourcePyramid(ModulatedPyramid):
                  rotAnglePhInDeg: float = 0.0,
                  xShiftPhInPixel: float = 0.0,
                  yShiftPhInPixel: float = 0.0,
-                 max_batch_size: int = 1024,
+                 max_batch_size: int = 128,
                  max_flux_ratio_thr: float = 1e-3,
                  cuda_stream_enable: bool = True,
                  target_device_idx: int = None,
