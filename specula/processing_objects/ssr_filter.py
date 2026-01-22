@@ -92,15 +92,16 @@ class SsrFilter(BaseProcessingObj):
             # Current state and input
             x = self._x[i]
             u = self.delta_comm[i] * self._gain_mod[i]
+            u = self.xp.atleast_1d(u)
 
             # State update: x[k+1] = A*x[k] + B*u[k]
             x_new = A @ x + B @ u
 
-            # Output: y[k] = C*x[k] + D*u[k]
-            y = C @ x + D @ u
-
             # Update state
             self._x[i] = x_new
+
+            # Output: y[k] = C*x[k] + D*u[k]
+            y = C @ x_new + D @ u
 
             # Store output (extract scalar if single output)
             self.output_buffer[i, 0] = y.item() if y.size == 1 else y[0]
