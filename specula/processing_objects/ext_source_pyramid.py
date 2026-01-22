@@ -211,7 +211,6 @@ class ExtSourcePyramid(ModulatedPyramid):
         self._fpsf_buffer = None
         self._pyr_image_buffer = None
         self._n_chunks = 0
-        self._u_tlt_const = None
         self._coeff_padded = None
         self._ffv_padded = None
         self._u_tlt_batch = None
@@ -387,9 +386,6 @@ class ExtSourcePyramid(ModulatedPyramid):
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
 
-        # Pre-compute constant pupil field (used in every trigger_code call)
-        self._u_tlt_const = self.ef * self.tlt_f
-
         # Update tt cache in case the source was updated
         if self.ext_source_coeff.generation_time == self.current_time:
             # Source was updated this timestep, refresh ttexp, flux factors and ffv
@@ -402,6 +398,7 @@ class ExtSourcePyramid(ModulatedPyramid):
 
     def trigger_code(self):
         iu = 1j  # complex unit
+        u_tlt_const = self.ef * self.tlt_f
 
         # Get extended source coefficients for current frame (only valid points)
         coeff_ttf = self.ext_source_coeff.value[self.valid_idx, :3]
@@ -431,7 +428,7 @@ class ExtSourcePyramid(ModulatedPyramid):
             # Prepare u_tlt_batch - ALWAYS full batch size (reuse pre-allocated buffer)
             self._u_tlt_batch[:] = 0
             self._u_tlt_batch[:, 0:self.ttexp_shape[1], 0:self.ttexp_shape[2]] = \
-                self._u_tlt_const[None, :, :] * ttexp_batch
+                u_tlt_const[None, :, :] * ttexp_batch
 
             # Batch FFT - ALWAYS same size
             u_fp_batch = self.xp.fft.fft2(self._u_tlt_batch, axes=(-2, -1))
