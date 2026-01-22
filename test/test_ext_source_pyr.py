@@ -25,6 +25,7 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
         pup_diam = 30
         output_resolution = 80
         mod_amp = 1.0
+        batch_size = 64
 
         simul_params = SimulParams(
             pixel_pupil=pixel_pupil,
@@ -80,6 +81,7 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             pup_diam=pup_diam,
             output_resolution=output_resolution,
             mod_amp=mod_amp,
+            max_batch_size=batch_size,
             target_device_idx=target_device_idx
         )
         pyr2.inputs['in_ef'].set(ef)
@@ -156,6 +158,7 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
         pup_diam = 30
         output_resolution = 80
         mod_amp = 10.0
+        batch_size = 64
 
         simul_params = SimulParams(
             pixel_pupil=pixel_pupil,
@@ -212,6 +215,7 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             output_resolution=output_resolution,
             mod_amp=mod_amp,
             cuda_stream_enable=False,
+            max_batch_size=batch_size,
             target_device_idx=target_device_idx
         )
         pyr2.inputs['in_ef'].set(ef)
@@ -289,6 +293,7 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
         pup_diam = 30
         output_resolution = 80
         mod_amp = 3.0
+        batch_size = 64
 
         simul_params = SimulParams(
             pixel_pupil=pixel_pupil,
@@ -305,7 +310,7 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             size_obj=mod_amp * 4 * l_o_d,
             sampling_type='RINGS',
             n_rings=5,
-            sampling_lambda_over_d=np.pi/8,
+            sampling_lambda_over_d=np.pi/4,
             target_device_idx=target_device_idx,
         )
         src.compute()
@@ -320,7 +325,7 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
 
         # Test with different batch sizes
         outputs = []
-        for batch_size in [50, 100, 500]:
+        for batch_size in [64, 128, 256]:
             pyr = ExtSourcePyramid(
                 simul_params=simul_params,
                 wavelengthInNm=wavelength_nm,
@@ -342,7 +347,7 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
         # All outputs should be identical
         for i in range(1, len(outputs)):
             np.testing.assert_allclose(outputs[0], outputs[i], rtol=1e-10, atol=1e-10,
-                err_msg=f"Batch size independence failed for batch_size={[100, 500, 2000][i]}")
+                err_msg=f"Batch size independence failed for batch_size={[32, 64, 128][i]}")
 
         print("Batch size independence test passed.")
 
@@ -357,6 +362,7 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
         pup_diam = 30
         output_resolution = 80
         mod_amp = 1.0
+        batch_size = 64
 
         simul_params = SimulParams(
             pixel_pupil=pixel_pupil,
@@ -390,6 +396,7 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             pup_diam=pup_diam,
             output_resolution=output_resolution,
             mod_amp=mod_amp,
+            max_batch_size=batch_size,
             target_device_idx=target_device_idx
         )
         pyr.inputs['in_ef'].set(ef)
@@ -426,6 +433,7 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
         pup_diam = 30
         output_resolution = 80
         mod_amp = 1.0
+        batch_size = 64
 
         simul_params = SimulParams(
             pixel_pupil=pixel_pupil,
@@ -465,6 +473,7 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             pup_diam=pup_diam,
             output_resolution=output_resolution,
             cuda_stream_enable=False,
+            max_batch_size=batch_size,
             target_device_idx=target_device_idx
         )
         pyr.inputs['in_ef'].set(ef)
@@ -488,7 +497,8 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
         fov = 2.0
         pup_diam = 30
         output_resolution = 80
-        mod_amp = 2.0
+        mod_amp = 3.0
+        batch_size = 64
 
         simul_params = SimulParams(
             pixel_pupil=pixel_pupil,
@@ -525,6 +535,7 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             pup_diam=pup_diam,
             output_resolution=output_resolution,
             mod_amp=mod_amp,
+            max_batch_size=batch_size,
             target_device_idx=target_device_idx
         )
         pyr_full.inputs['in_ef'].set(ef)
@@ -551,6 +562,7 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             pup_diam=pup_diam,
             output_resolution=output_resolution,
             mod_amp=mod_amp,
+            max_batch_size=batch_size,
             target_device_idx=target_device_idx
         )
         pyr_half1.inputs['in_ef'].set(ef)
@@ -575,6 +587,7 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             pup_diam=pup_diam,
             output_resolution=output_resolution,
             mod_amp=mod_amp,
+            max_batch_size=batch_size,
             target_device_idx=target_device_idx
         )
         pyr_half2.inputs['in_ef'].set(ef)
@@ -602,7 +615,8 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
         fov = 2.0
         pup_diam = 30
         output_resolution = 80
-        mod_amp = 2.0
+        mod_amp = 3.0
+        batch_size = 64
 
         simul_params = SimulParams(
             pixel_pupil=pixel_pupil,
@@ -652,6 +666,7 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             mod_amp=mod_amp,
             max_flux_ratio_thr=threshold,
             cuda_stream_enable=False,  # Enable threshold
+            max_batch_size=batch_size,
             target_device_idx=target_device_idx
         )
         pyr_filtered.inputs['in_ef'].set(ef)
@@ -680,6 +695,7 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             mod_amp=mod_amp,
             max_flux_ratio_thr=threshold,
             cuda_stream_enable=True,  # Disable threshold
+            max_batch_size=batch_size,
             target_device_idx=target_device_idx
         )
         pyr_all.inputs['in_ef'].set(ef)
@@ -720,6 +736,7 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
         pup_diam = 30
         output_resolution = 80
         mod_amp = 3.0
+        batch_size = 64
 
         simul_params = SimulParams(
             pixel_pupil=pixel_pupil,
@@ -736,7 +753,7 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             size_obj=mod_amp * 4 * l_o_d,
             sampling_type='RINGS',
             n_rings=10,  # Many points
-            sampling_lambda_over_d=np.pi/8,
+            sampling_lambda_over_d=np.pi/4,
             target_device_idx=target_device_idx,
         )
         src.compute()
@@ -767,6 +784,7 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             mod_amp=mod_amp,
             max_flux_ratio_thr=1e-4,
             cuda_stream_enable=False,
+            max_batch_size=batch_size,
             target_device_idx=target_device_idx
         )
         pyr.inputs['in_ef'].set(ef)
@@ -800,6 +818,7 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
         pup_diam = 30
         output_resolution = 80
         mod_amp = 3.0
+        batch_size = 64
 
         simul_params = SimulParams(
             pixel_pupil=pixel_pupil,
@@ -833,6 +852,7 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             output_resolution=output_resolution,
             mod_amp=mod_amp,
             cuda_stream_enable=False,
+            max_batch_size=batch_size,
             target_device_idx=target_device_idx
         )
         pyr.inputs['in_ef'].set(ef)

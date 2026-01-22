@@ -88,6 +88,14 @@ class ExtSourcePyramid(ModulatedPyramid):
     ModulatedPyramid : Parent class for point source pyramid WFS
     ExtendedSource : Source object that generates ext_source_coeff
 
+    Performance Tips
+    ----------------
+    1. For large sources (many points): use cuda_stream_enable=True (default)
+       with max_batch_size=512-1024 depending on GPU memory
+    2. For debugging or flux filtering: set cuda_stream_enable=False
+       and adjust max_flux_ratio_thr (default 1e-3)
+    3. Monitor GPU memory with nvidia-smi during first iterations
+
     Examples
     --------
     >>> # Usage with CUDA stream
@@ -101,7 +109,7 @@ class ExtSourcePyramid(ModulatedPyramid):
     ...     max_batch_size=512  # Adjust based on available GPU memory
     ... )
     
-    >>> # Flux filtering mode raccommended for very large sources with many 
+    >>> # Flux filtering mode recommended for very large sources with many 
     >>> # points with low flux (ExtendedSource class with source_type='FROM_PSF')
     >>> pyr = ExtSourcePyramid(
     ...     simul_params=params,
@@ -172,6 +180,13 @@ class ExtSourcePyramid(ModulatedPyramid):
             precision=precision
         )
 
+        # Validate parameters
+        if max_batch_size <= 0:
+            raise ValueError(f"max_batch_size must be positive, got {max_batch_size}")
+        if not (0 < max_flux_ratio_thr < 1):
+            raise ValueError(f"max_flux_ratio_thr must be in (0, 1),"
+                             f" got {max_flux_ratio_thr}")
+
         self.ffv = None
         self.ext_ttf = None
         self.ext_source_coeff = None
@@ -196,6 +211,10 @@ class ExtSourcePyramid(ModulatedPyramid):
         self._fpsf_buffer = None
         self._pyr_image_buffer = None
         self._n_chunks = 0
+        self._u_tlt_const = None
+        self._coeff_padded = None
+        self._ffv_padded = None
+        self._u_tlt_batch = None
 
         # Pre-allocate face center coefficients (4 points at pyramid face centers)
         # These will be used to redistribute filtered flux
@@ -261,6 +280,16 @@ class ExtSourcePyramid(ModulatedPyramid):
             if self._face_centers_ttf is None:
                 face_angles_ttf, _ = self._get_pyramid_face_angles_at_fov_radius()
                 self._face_centers_ttf = face_angles_ttf
+
+            # Pre-allocate buffers for batch processing (constant size for FFT plan reuse)
+            self._coeff_padded = self.xp.zeros((self.max_batch_size, 3), dtype=self.dtype)
+            self._ffv_padded = self.xp.zeros(self.max_batch_size, dtype=self.dtype)
+            self._u_tlt_batch = self.xp.zeros(
+                (self.max_batch_size, self.fft_totsize, self.fft_totsize),
+                dtype=self.complex_dtype)
+
+            # Pre-compute constant pupil field (used in every trigger_code call)
+            self._u_tlt_const = self.ef * self.tlt_f
 
         # Always update face centers when stream disabled (in case source was updated)
         if not self.stream_enable:
@@ -358,19 +387,6 @@ class ExtSourcePyramid(ModulatedPyramid):
             self._fpsf_buffer[:] = 0
             self._pyr_image_buffer[:] = 0
 
-    def prepare_trigger(self, t):
-        super().prepare_trigger(t)
-
-        # Update tt cache in case the source was updated
-        if self.ext_source_coeff.generation_time == self.current_time:
-            # Source was updated this timestep, refresh ttexp, flux factors and ffv
-            self.mod_steps = int(self.ext_source_coeff.value.shape[0])
-            self.cache_ttexp()
-
-        # Reset output arrays for this frame
-        self.pyr_image *= 0
-        self.fpsf *= 0
-
     def trigger_code(self):
         iu = 1j  # complex unit
 
@@ -379,55 +395,54 @@ class ExtSourcePyramid(ModulatedPyramid):
         ffv_valid = self.flux_factor_vector[self.valid_idx]
         n_valid = self.valid_idx.shape[0]
 
-        # Process in chunks using enumerate for direct chunk indexing
+        # Process in chunks
         for chunk_idx, start_idx in enumerate(range(0, n_valid, self.max_batch_size)):
             end_idx = min(start_idx + self.max_batch_size, n_valid)
+            chunk_size = end_idx - start_idx
 
-            # Get chunk data
-            coeff_chunk = coeff_ttf[start_idx:end_idx]
-            ffv_chunk = ffv_valid[start_idx:end_idx]
+            # Copy chunk data into pre-allocated padded arrays (rest remains zero)
+            self._coeff_padded[:] = 0
+            self._ffv_padded[:] = 0
+            self._coeff_padded[:chunk_size] = coeff_ttf[start_idx:end_idx]
+            self._ffv_padded[:chunk_size] = ffv_valid[start_idx:end_idx]
 
-            # Compute pupil phases for this chunk
-            pup_phases = self.xp.sum(coeff_chunk[:, :, None, None] \
+            # Compute pupil phases - ALWAYS full batch size
+            pup_phases = self.xp.sum(self._coeff_padded[:, :, None, None] \
                                     * self.ttf_signs[None, :, None, None] \
                                     * self.ext_ttf[None, :, :, :],
                                     axis=1)
 
-            # Compute ttexp for this chunk
+            # Compute ttexp - ALWAYS full batch size
             ttexp_batch = self.xp.exp(-iu * pup_phases, dtype=self.complex_dtype)
 
-            # Prepare u_tlt_batch for this chunk
-            u_tlt_const = self.ef * self.tlt_f
-            chunk_size = end_idx - start_idx
-            u_tlt_batch = self.xp.zeros((chunk_size, self.fft_totsize, self.fft_totsize),
-                                        dtype=self.complex_dtype)
-            u_tlt_batch[:, 0:self.ttexp_shape[1], 0:self.ttexp_shape[2]] = \
-                u_tlt_const[None, :, :] * ttexp_batch
+            # Prepare u_tlt_batch - ALWAYS full batch size (reuse pre-allocated buffer)
+            self._u_tlt_batch[:] = 0
+            self._u_tlt_batch[:, 0:self.ttexp_shape[1], 0:self.ttexp_shape[2]] = \
+                self._u_tlt_const[None, :, :] * ttexp_batch
 
-            # Batch FFT
-            u_fp_batch = self.xp.fft.fft2(u_tlt_batch, axes=(-2, -1))
+            # Batch FFT - ALWAYS same size
+            u_fp_batch = self.xp.fft.fft2(self._u_tlt_batch, axes=(-2, -1))
 
-            # Store PSF contribution
+            # Store PSF contribution - use only valid results
             psf_batch = self.xp.real(u_fp_batch * self.xp.conj(u_fp_batch))
             self._fpsf_buffer[chunk_idx] = \
-                self.xp.sum(psf_batch * ffv_chunk[:, None, None], axis=0)
+                self.xp.sum(psf_batch * self._ffv_padded[:, None, None], axis=0)
 
-            # Apply pyramid mask
+            # Apply pyramid mask - ALWAYS full batch size
             u_fp_pyr_batch = u_fp_batch * self.shifted_masked_exp[None, :, :]
 
-            # Batch inverse FFT
+            # Batch inverse FFT - ALWAYS same size (no need for separate padding)
             pyr_ef_batch = self.xp.fft.ifft2(u_fp_pyr_batch, axes=(-2, -1), norm='forward')
 
-            # Store pyramid image contribution
+            # Store pyramid image contribution - use only valid results
             pyr_ef_norm = pyr_ef_batch * self.ifft_norm
             pyr_images = self.xp.real(pyr_ef_norm * self.xp.conj(pyr_ef_norm))
             self._pyr_image_buffer[chunk_idx] = \
-                self.xp.sum(pyr_images * ffv_chunk[:, None, None], axis=0)
+                self.xp.sum(pyr_images * self._ffv_padded[:, None, None], axis=0)
 
-        # Final reduction using pre-computed chunk count
+        # Final reduction
         self.fpsf[:] = self.xp.sum(self._fpsf_buffer, axis=0)
         self.pyr_image[:] = self.xp.sum(self._pyr_image_buffer, axis=0)
-
 
     def post_trigger(self):
         # Final output assignments (before parent post_trigger)
