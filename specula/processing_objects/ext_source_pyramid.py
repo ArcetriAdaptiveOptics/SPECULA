@@ -183,7 +183,7 @@ class ExtSourcePyramid(ModulatedPyramid):
         # Validate parameters
         if max_batch_size <= 0:
             raise ValueError(f"max_batch_size must be positive, got {max_batch_size}")
-        if not (0 < max_flux_ratio_thr < 1):
+        if not 0 < max_flux_ratio_thr < 1:
             raise ValueError(f"max_flux_ratio_thr must be in (0, 1),"
                              f" got {max_flux_ratio_thr}")
 
@@ -203,7 +203,7 @@ class ExtSourcePyramid(ModulatedPyramid):
         # Threshold for flux filtering (only if stream disabled)
         self.max_flux_ratio_thr = max_flux_ratio_thr
 
-        if self.stream_enable:
+        if self.stream_enable and hasattr(self.xp, '__name__') and self.xp.__name__ == 'cupy':
             print('CUDA stream enabled for extended source pyramid processing'
                   ' Ignoring flux thresholding to maintain constant processing load.')
 
@@ -288,9 +288,6 @@ class ExtSourcePyramid(ModulatedPyramid):
                 (self.max_batch_size, self.fft_totsize, self.fft_totsize),
                 dtype=self.complex_dtype)
 
-            # Pre-compute constant pupil field (used in every trigger_code call)
-            self._u_tlt_const = self.ef * self.tlt_f
-
         # Always update face centers when stream disabled (in case source was updated)
         if not self.stream_enable:
             # Check if we need to append face centers
@@ -367,7 +364,7 @@ class ExtSourcePyramid(ModulatedPyramid):
         else:
             # With stream enabled, process all points (no filtering)
             # to keep constant loop iterations for CUDA graph
-            print(f'CUDA stream enabled: processing all {self.mod_steps} points')
+            print(f'Stream enabled: processing all {self.mod_steps} points')
             self.valid_idx = self.xp.arange(self.mod_steps)
 
             # Allocate buffers once because with stream enabled valid_idx is constant
@@ -386,6 +383,22 @@ class ExtSourcePyramid(ModulatedPyramid):
             # Clear buffers
             self._fpsf_buffer[:] = 0
             self._pyr_image_buffer[:] = 0
+
+    def prepare_trigger(self, t):
+        super().prepare_trigger(t)
+
+        # Pre-compute constant pupil field (used in every trigger_code call)
+        self._u_tlt_const = self.ef * self.tlt_f
+
+        # Update tt cache in case the source was updated
+        if self.ext_source_coeff.generation_time == self.current_time:
+            # Source was updated this timestep, refresh ttexp, flux factors and ffv
+            self.mod_steps = int(self.ext_source_coeff.value.shape[0])
+            self.cache_ttexp()
+
+        # Reset output arrays for this frame
+        self.pyr_image *= 0
+        self.fpsf *= 0
 
     def trigger_code(self):
         iu = 1j  # complex unit

@@ -246,7 +246,8 @@ class ModulatedPyramid(BaseProcessingObj):
         self.flux_factor_vector = None
         self.factor = None
 
-        self.out_i = Intensity(final_ccd_side, final_ccd_side, precision=self.precision, target_device_idx=self.target_device_idx)
+        self.out_i = Intensity(final_ccd_side, final_ccd_side, precision=self.precision,
+                               target_device_idx=self.target_device_idx)
         self.psf_tot = BaseValue(value=self.xp.zeros((fft_totsize, fft_totsize), dtype=self.dtype),
                                  target_device_idx=self.target_device_idx,
                                  precision=precision)

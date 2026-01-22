@@ -347,7 +347,7 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
         # All outputs should be identical
         for i in range(1, len(outputs)):
             np.testing.assert_allclose(outputs[0], outputs[i], rtol=1e-10, atol=1e-10,
-                err_msg=f"Batch size independence failed for batch_size={[32, 64, 128][i]}")
+                err_msg=f"Batch size independence failed for batch_size={[64, 128, 256][i]}")
 
         print("Batch size independence test passed.")
 
