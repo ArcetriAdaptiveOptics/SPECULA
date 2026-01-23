@@ -29,6 +29,97 @@ def pyr1_abs2(v, norm, ffv, xp):
 
 
 class ModulatedPyramid(BaseProcessingObj):
+    """
+    Pyramid wavefront sensor with tip-tilt modulation.
+    
+    This class implements a modulated pyramid WFS that works with point sources or
+    can be used as a base class for extended source implementations. The modulation
+    can be circular (standard), or linear (vertical, horizontal, alternating).
+    
+    Parameters
+    ----------
+    simul_params : SimulParams
+        Simulation parameters object containing pixel_pupil and pixel_pitch
+    wavelengthInNm : float
+        Working wavelength in nanometers
+    fov : float
+        Field of view in arcseconds (a field stop may be applied in the focal plane to limit FoV)
+    pup_diam : int
+        Pupil diameter in pixels
+    output_resolution : int
+        Output CCD side length in pixels
+    mod_amp : float, optional
+        Modulation amplitude in lambda/D units (default: 3.0)
+    mod_step : int, optional
+        Number of modulation steps. If None, automatically calculated based on
+        mod_amp and mod_type (default: None)
+    mod_type : str, optional
+        Modulation type: 'circular', 'vertical', 'horizontal', or 'alternating'
+        (default: 'circular')
+    fov_errinf : float, optional
+        Accepted error in reducing FoV (default: 0.1, i.e., -10%)
+    fov_errsup : float, optional
+        Accepted error in enlarging FoV (default: 2.0, i.e., +100%)
+    pup_dist : int, optional
+        Pupil distance in pixels. If None, calculated from pup_diam and pup_margin
+    pup_margin : int, optional
+        Margin around pupils in pixels (default: 2)
+    fft_res : float, optional
+        Minimum PSF sampling (default: 3.0, i.e., 3 pixels per PSF FWHM i.e. lambda/D)
+    fp_obs : float, optional
+        Focal plane central obstruction diameter in pixels (default: None)
+    pup_shifts : tuple, optional
+        Static pupil shifts in pixels (x, y) (default: (0.0, 0.0))
+    pyr_tlt_coeff : float, optional
+        Pyramid tilt coefficients for custom face geometry (default: None)
+        WARNING: not implemented/tested yet
+    pyr_edge_def_ld : float, optional
+        Edge defect size in lambda/D units (default: 0.0)
+    pyr_tip_def_ld : float, optional
+        Tip defect size in lambda/D units (default: 0.0)
+    pyr_tip_maya_ld : float, optional
+        Maya Pyramid (i.e. flat tip) defect size in lambda/D units (default: 0.0)
+    min_pup_dist : float, optional
+        Minimum pupil distance constraint (default: None)
+    rotAnglePhInDeg : float, optional
+        Rotation angle of input phase in degrees (default: 0.0)
+    xShiftPhInPixel : float, optional
+        X shift of input phase in pixels (default: 0.0)
+    yShiftPhInPixel : float, optional
+        Y shift of input phase in pixels (default: 0.0)
+    target_device_idx : int, optional
+        GPU device index (default: None, uses default device, -1 for CPU)
+    precision : int, optional
+        Numerical precision: 32 (1) or 64 (0) bits (default: None, uses system default)
+    
+    Inputs
+    ------
+    in_ef : ElectricField
+        Input electric field from the telescope pupil. Contains complex amplitude
+        and phase information that will be modulated and propagated through the pyramid.   
+    
+    Outputs
+    -------
+    out_i : Intensity
+        Output intensity on detector CCD (shape: final_ccd_side × final_ccd_side)
+    out_psf_tot : BaseValue
+        Total PSF after focal plane mask application (shape: fft_totsize × fft_totsize)
+    out_psf_bfm : BaseValue
+        PSF before focal plane mask (shape: fft_totsize × fft_totsize)
+    out_transmission : BaseValue
+        Scalar value representing total flux transmission through the system
+
+    Notes
+    -----
+    The modulation types have different characteristics:
+    - 'circular': Standard pyramid modulation, uniform flux distribution
+    - 'vertical'/'horizontal': Linear modulation along one axis, flux weighted by 1/cos(tilt)
+    - 'alternating': Switches between vertical and horizontal on consecutive frames
+    - pyr_tip_def_ld and pyr_tip_maya_ld represent different types of pyramid tip imperfections.
+    
+    For linear modulation, the flux weighting compensates for intensity loss at large tilts,
+    ensuring uniform contribution from all modulation positions.
+    """
     def __init__(self,
                  simul_params: SimulParams,
                  wavelengthInNm: float, # TODO =750,
@@ -155,7 +246,8 @@ class ModulatedPyramid(BaseProcessingObj):
         self.flux_factor_vector = None
         self.factor = None
 
-        self.out_i = Intensity(final_ccd_side, final_ccd_side, precision=self.precision, target_device_idx=self.target_device_idx)
+        self.out_i = Intensity(final_ccd_side, final_ccd_side, precision=self.precision,
+                               target_device_idx=self.target_device_idx)
         self.psf_tot = BaseValue(value=self.xp.zeros((fft_totsize, fft_totsize), dtype=self.dtype),
                                  target_device_idx=self.target_device_idx,
                                  precision=precision)

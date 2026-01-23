@@ -132,7 +132,8 @@ class TestExtendedSource(unittest.TestCase):
             fov=2.0,
             pup_diam=30,
             output_resolution=output_resolution,
-            mod_amp=3.0
+            mod_amp=3.0,
+            max_batch_size=64,
         )
 
         # Flat wavefr

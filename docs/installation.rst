@@ -107,8 +107,14 @@ To install these libraries, first install pkg-config and cairo with conda:
    # Install dependencies for optional diagram tools
    conda install -c conda-forge pkg-config cairo
 
+To ensure that the correct version of pycairo is installed, use conda:
+
+.. code-block:: bash
+
+   # Install pycairo version 1.21.0
+   conda install -c conda-forge pycairo=1.21.0
+
 and then install orthogram with pip.
-pycairo will be installed as an orthogram dependency.
 
 .. code-block:: bash
 

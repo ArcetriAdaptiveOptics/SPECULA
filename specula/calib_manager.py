@@ -42,6 +42,7 @@ class CalibManager():
             'ifunc': 'ifunc/',
             'IFunc': 'ifunc/',
             'ifunc_inv': 'ifunc/',
+            'IFuncInv': 'ifunc/',
             'm2c': 'm2c/',
             'M2C': 'm2c/',
             'filter': 'filter/',
