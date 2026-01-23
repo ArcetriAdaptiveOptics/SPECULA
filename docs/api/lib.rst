@@ -13,6 +13,15 @@ Elt M1 Ifunc Calculator
    :show-inheritance:
 
 
+Calc Geometry
+-------------
+
+.. automodule:: specula.lib.calc_geometry
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Calc Noise Cov Elong
 --------------------
 

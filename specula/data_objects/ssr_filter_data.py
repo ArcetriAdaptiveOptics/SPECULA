@@ -164,8 +164,25 @@ class SsrFilterData(BaseDataObj):
                 C_list.append(hdul[f'C_{i}'].data)
                 D_list.append(hdul[f'D_{i}'].data)
 
-        return SsrFilterData(A_list, B_list, C_list, D_list, 
+        return SsrFilterData(A_list, B_list, C_list, D_list,
                            target_device_idx=target_device_idx)
+
+    def get_fits_header(self):
+        # TODO
+        raise NotImplementedError()
+
+    @staticmethod
+    def from_header(hdr):
+        # TODO
+        raise NotImplementedError()
+
+    def get_value(self):
+        # TODO
+        raise NotImplementedError()
+
+    def set_value(self, v):
+        # TODO
+        raise NotImplementedError()
 
     @staticmethod
     def from_gain(gain, target_device_idx=None):
