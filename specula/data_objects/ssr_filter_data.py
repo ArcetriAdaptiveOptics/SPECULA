@@ -1,5 +1,3 @@
-from functools import lru_cache
-
 from specula import cpuArray
 from specula.base_data_obj import BaseDataObj
 
@@ -10,8 +8,8 @@ class SsrFilterData(BaseDataObj):
     """:class:`~specula.data_objects.ssr_filter_data.SsrFilterData` - State Space Representation Filter Data.
 
     This class stores discrete-time state-space filter coefficients in the format:
-    x[k+1] = A*x[k] + B*u[k]
-    y[k]   = C*x[k] + D*u[k]
+    x[k+1] = A*x[k]   + B*u[k]
+    y[k]   = C*x[k+1] + D*u[k]
     
     where:
     - A: state transition matrix (n_states x n_states)
@@ -77,6 +75,16 @@ class SsrFilterData(BaseDataObj):
             B_shape = self.B[i].shape
             C_shape = self.C[i].shape
             D_shape = self.D[i].shape
+
+            # Check all matrices are 2D
+            if len(A_shape) != 2:
+                raise ValueError(f"Filter {i}: A must be 2D, got shape {A_shape}")
+            if len(B_shape) != 2:
+                raise ValueError(f"Filter {i}: B must be 2D, got shape {B_shape}")
+            if len(C_shape) != 2:
+                raise ValueError(f"Filter {i}: C must be 2D, got shape {C_shape}")
+            if len(D_shape) != 2:
+                raise ValueError(f"Filter {i}: D must be 2D, got shape {D_shape}")
 
             # Check A is square
             if A_shape[0] != A_shape[1]:
@@ -221,7 +229,7 @@ class SsrFilterData(BaseDataObj):
         SsrFilterData
             State-space representation: 
             x[k+1] = ff*x[k] + gain*u[k] if ff provided, else x[k+1] = x[k] + gain*u[k]
-            y[k] = x[k]
+            y[k] = x[k+1]
         """
         gain = np.atleast_1d(gain)
         n = len(gain)

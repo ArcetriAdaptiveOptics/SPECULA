@@ -121,7 +121,6 @@ class TestSsrFilter(unittest.TestCase):
     def test_with_schedule_generator_gain_mod(self, target_device_idx, xp):
         """Test integrator with VALUE_SCHEDULE gain_mod"""
         simul_params = SimulParams(time_step=0.001)
-        dt = simul_params.time_step
 
         # Create integrator
         gains = [0.5, 0.3]
@@ -281,7 +280,6 @@ class TestSsrFilter(unittest.TestCase):
     def test_multi_mode_different_dynamics(self, target_device_idx, xp):
         """Test multiple modes with different state-space dimensions"""
         simul_params = SimulParams(time_step=0.001)
-        dt = simul_params.time_step
 
         # First filter: simple gain (no state)
         A1 = xp.array([[0.0]])

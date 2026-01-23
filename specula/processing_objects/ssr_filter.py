@@ -10,8 +10,8 @@ class SsrFilter(BaseProcessingObj):
     '''State Space Representation filter based Time Control
     
     Implements discrete-time state-space filtering:
-    x[k+1] = A*x[k] + B*u[k]
-    y[k]   = C*x[k] + D*u[k]
+    x[k+1] = A*x[k]  + B*u[k]
+    y[k]   = C*x[k+1] + D*u[k]
     '''
     def __init__(self,
                  simul_params: SimulParams,
@@ -55,9 +55,6 @@ class SsrFilter(BaseProcessingObj):
         self.inputs['gain_mod'] = InputValue(type=BaseValue, optional=True)
         self.outputs['out_comm'] = self.out_comm
 
-        self._offset = None
-        self._start_time = 0
-
     def set_state_buffer_length(self, total_length):
         """Set up output buffer for delay implementation."""
         self._total_length = total_length
@@ -100,7 +97,7 @@ class SsrFilter(BaseProcessingObj):
             # Update state
             self._x[i] = x_new
 
-            # Output: y[k] = C*x[k] + D*u[k]
+            # Output: y[k] = C*x[k+1] + D*u[k]
             y = C @ x_new + D @ u
 
             # Store output (extract scalar if single output)
@@ -116,9 +113,6 @@ class SsrFilter(BaseProcessingObj):
         else:
             output = (remainder_delay * self.output_buffer[:, int(np.ceil(self.delay))] + \
                      (1 - remainder_delay) * self.output_buffer[:, int(np.ceil(self.delay))-1])
-
-        if self._offset is not None and self.xp.all(output == 0):
-            output[:self._offset.shape[0]] += self._offset
 
         self.out_comm.value = output
         self.out_comm.generation_time = self.current_time
