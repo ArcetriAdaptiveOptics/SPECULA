@@ -189,10 +189,35 @@ class SsrFilterData(BaseDataObj):
                            target_device_idx=target_device_idx)
 
     @staticmethod
-    def from_integrator(gain, dt=1.0, target_device_idx=None):
-        """Create a discrete integrator: x[k+1] = x[k] + dt*gain*u[k], y[k] = x[k]."""
+    def from_integrator(gain, ff=None, target_device_idx=None):
+        """Create a discrete integrator with optional forgetting factor.
+        
+        Parameters
+        ----------
+        gain : array_like
+            Integrator gains
+        ff : array_like, optional
+            Forgetting factors (leaky integrator). If None, uses 1.0 (pure integrator).
+            
+        Returns
+        -------
+        SsrFilterData
+            State-space representation: 
+            x[k+1] = ff*x[k] + gain*u[k] if ff provided, else x[k+1] = x[k] + gain*u[k]
+            y[k] = x[k]
+        """
         gain = np.atleast_1d(gain)
         n = len(gain)
+
+        # Handle forgetting factor
+        if ff is not None:
+            ff = np.atleast_1d(ff)
+            if len(ff) == 1:
+                ff = np.full(n, ff[0])
+            elif len(ff) != n:
+                raise ValueError(f"ff length {len(ff)} doesn't match gain length {n}")
+        else:
+            ff = np.ones(n)  # Pure integrator (no forgetting)
 
         A_list = []
         B_list = []
@@ -200,9 +225,10 @@ class SsrFilterData(BaseDataObj):
         D_list = []
 
         for i in range(n):
-            # State equation: x[k+1] = x[k] + dt*gain*u[k]
-            A_list.append(np.array([[1.0]]))
-            B_list.append(np.array([[dt * gain[i]]]))
+            # State equation: x[k+1] = ff*x[k] + gain*u[k]
+            A_list.append(np.array([[ff[i]]]))
+
+            B_list.append(np.array([[gain[i]]]))
             # Output equation: y[k] = x[k]
             C_list.append(np.array([[1.0]]))
             D_list.append(np.array([[0.0]]))

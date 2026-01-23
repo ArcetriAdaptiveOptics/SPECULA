@@ -72,7 +72,7 @@ class TestSsrFilterData(unittest.TestCase):
         """Test from_integrator factory method"""
         gains = [0.5, 1.0]
         dt = 0.001
-        ssr_data = SsrFilterData.from_integrator(gains, dt=dt, 
+        ssr_data = SsrFilterData.from_integrator(gains,
                                                 target_device_idx=target_device_idx)
 
         self.assertEqual(ssr_data.nfilter, 2)
@@ -80,7 +80,7 @@ class TestSsrFilterData(unittest.TestCase):
         # Test integrator structure: x[k+1] = x[k] + dt*gain*u[k], y[k] = x[k]
         for i in range(2):
             np.testing.assert_almost_equal(cpuArray(ssr_data.A[i])[0, 0], 1.0)
-            np.testing.assert_almost_equal(cpuArray(ssr_data.B[i])[0, 0], dt * gains[i])
+            np.testing.assert_almost_equal(cpuArray(ssr_data.B[i])[0, 0], gains[i])
             np.testing.assert_almost_equal(cpuArray(ssr_data.C[i])[0, 0], 1.0)
             np.testing.assert_almost_equal(cpuArray(ssr_data.D[i])[0, 0], 0.0)
 
@@ -110,7 +110,7 @@ class TestSsrFilterData(unittest.TestCase):
         # Create test filter
         gains = [0.5, 1.0]
         dt = 0.001
-        original = SsrFilterData.from_integrator(gains, dt=dt, 
+        original = SsrFilterData.from_integrator(gains,
                                                 target_device_idx=target_device_idx)
 
         # Save to temp file

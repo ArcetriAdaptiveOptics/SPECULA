@@ -60,7 +60,7 @@ class TestSsrFilter(unittest.TestCase):
         dt = simul_params.time_step
         gain = 0.5
 
-        ssr_data = SsrFilterData.from_integrator([gain], dt=dt, 
+        ssr_data = SsrFilterData.from_integrator([gain],
                                                 target_device_idx=target_device_idx)
 
         ssr_filter = SsrFilter(simul_params, ssr_data, target_device_idx=target_device_idx)
@@ -73,7 +73,7 @@ class TestSsrFilter(unittest.TestCase):
         ssr_filter.setup()
 
         # Run for 3 steps
-        expected_outputs = [dt * gain, 2 * dt * gain, 3 * dt * gain]
+        expected_outputs = [gain, 2 * gain, 3 * gain]
 
         for step, expected in enumerate(expected_outputs):
             t = ssr_filter.seconds_to_t(step * dt)
@@ -125,7 +125,7 @@ class TestSsrFilter(unittest.TestCase):
 
         # Create integrator
         gains = [0.5, 0.3]
-        ssr_data = SsrFilterData.from_integrator(gains, dt=dt,
+        ssr_data = SsrFilterData.from_integrator(gains,
                                                 target_device_idx=target_device_idx)
         ssr_filter = SsrFilter(simul_params, ssr_data, target_device_idx=target_device_idx)
 
@@ -152,7 +152,7 @@ class TestSsrFilter(unittest.TestCase):
         ssr_filter.setup()
 
         # Frame 0: gain_mod=[1.0, 1.0]
-        # output = [dt*0.5*1.0*1.0, dt*0.3*1.0*1.0]
+        # output = [0.5*1.0*1.0, 0.3*1.0*1.0]
         t0 = 0
         constant_input.generation_time = t0
         gain_mod_generator.check_ready(t0)
@@ -164,7 +164,7 @@ class TestSsrFilter(unittest.TestCase):
         ssr_filter.post_trigger()
 
         output_0 = cpuArray(ssr_filter.outputs['out_comm'].value)
-        expected_0 = np.array([dt * 0.5, dt * 0.3])
+        expected_0 = np.array([0.5, 0.3])
         np.testing.assert_allclose(output_0, expected_0, rtol=1e-5)
 
         # Frame 1: t=0.001, gain_mod=[1.0, 1.0]
@@ -179,7 +179,7 @@ class TestSsrFilter(unittest.TestCase):
         ssr_filter.post_trigger()
 
         output_1 = cpuArray(ssr_filter.outputs['out_comm'].value)
-        expected_1 = np.array([2 * dt * 0.5, 2 * dt * 0.3])
+        expected_1 = np.array([2 * 0.5, 2 * 0.3])
         np.testing.assert_allclose(output_1, expected_1, rtol=1e-5)
 
         # Frame 2: t=0.002, gain_mod=[2.0, 0.5]
@@ -195,7 +195,7 @@ class TestSsrFilter(unittest.TestCase):
 
         output_2 = cpuArray(ssr_filter.outputs['out_comm'].value)
         # Previous state + new contribution with new gain_mod
-        expected_2 = np.array([2*dt*0.5 + dt*0.5*2.0, 2*dt*0.3 + dt*0.3*0.5])
+        expected_2 = np.array([2*0.5 + 0.5*2.0, 2*0.3 + 0.3*0.5])
         np.testing.assert_allclose(output_2, expected_2, rtol=1e-5)
 
     @cpu_and_gpu
@@ -242,7 +242,7 @@ class TestSsrFilter(unittest.TestCase):
         simul_params = SimulParams(time_step=0.001)
         dt = simul_params.time_step
 
-        ssr_data = SsrFilterData.from_integrator([1.0], dt=dt,
+        ssr_data = SsrFilterData.from_integrator([1.0],
                                                 target_device_idx=target_device_idx)
         ssr_filter = SsrFilter(simul_params, ssr_data, target_device_idx=target_device_idx)
 
@@ -291,7 +291,7 @@ class TestSsrFilter(unittest.TestCase):
 
         # Second filter: integrator (1 state)
         A2 = xp.array([[1.0]])
-        B2 = xp.array([[dt * 0.5]])
+        B2 = xp.array([[0.5]])
         C2 = xp.array([[1.0]])
         D2 = xp.array([[0.0]])
 
@@ -315,4 +315,4 @@ class TestSsrFilter(unittest.TestCase):
 
         output = cpuArray(ssr_filter.outputs['out_comm'].value)
         np.testing.assert_almost_equal(output[0], 2.0)  # Gain
-        np.testing.assert_almost_equal(output[1], dt * 0.5)  # Integrator
+        np.testing.assert_almost_equal(output[1], 0.5)  # Integrator

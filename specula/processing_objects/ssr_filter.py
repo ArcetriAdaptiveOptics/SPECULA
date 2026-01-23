@@ -29,7 +29,7 @@ class SsrFilter(BaseProcessingObj):
         if offset is not None:
             raise NotImplementedError('Offset not implemented yet')
 
-        super().__init__(target_device_idx=target_device_idx, precision=precision)        
+        super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.delay = delay if delay is not None else 0
         self._nfilter = ssr_filter_data.nfilter
