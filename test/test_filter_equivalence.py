@@ -5,6 +5,7 @@ import unittest
 import numpy as np
 from specula import cpuArray
 from specula.data_objects.ssr_filter_data import SsrFilterData
+from specula.processing_objects.ssr_filter import SsrFilter
 from specula.processing_objects.integrator import Integrator
 from specula.data_objects.simul_params import SimulParams
 from specula.base_value import BaseValue
