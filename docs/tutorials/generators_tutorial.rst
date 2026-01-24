@@ -30,6 +30,7 @@ If you have a vibration PSD (e.g., from telemetry), you can use the ``VibrationG
       ifunc_object:      'LBT_ASM_IFUNC'   # Influence function for LBT ASM
       nmodes:            2                 # Number of modes same as in VibrationGenerator
       height:            0
+      sign:              1                 # it doesn't change sign to the aberration
       inputs:
           in_command:    'vibration.output'
       outputs:           ['out_layer']
