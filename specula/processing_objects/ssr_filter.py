@@ -11,13 +11,34 @@ class SsrFilter(BaseProcessingObj):
     
     Implements discrete-time state-space filtering:
     x[k+1] = A*x[k]  + B*u[k]
-    y[k]   = C*x[k+1] + D*u[k]
+    y[k]   = C*x[k'] + D*u[k]
+    
+    where x[k'] is either x[k] or x[k+1] depending on output_uses_new_state parameter.
+    
+    All filters are handled simultaneously with single matrix operations.
+    
+    Parameters
+    ----------
+    simul_params : SimulParams
+        Simulation parameters
+    ssr_filter_data : SsrFilterData
+        State-space matrices (A, B, C, D) in block-diagonal form
+    delay : float, optional
+        Output delay in frames (default: 0)
+    output_uses_new_state : bool, optional
+        If True, output equation uses updated state: y[k] = C*x[k+1] + D*u[k]
+        If False, output equation uses current state: y[k] = C*x[k] + D*u[k]
+        (default: True, which is standard for discrete integrators)
+    target_device_idx : int, optional
+        Target device index
+    precision : int, optional
+        Numerical precision
     '''
     def __init__(self,
                  simul_params: SimulParams,
                  ssr_filter_data: SsrFilterData,
                  delay: float=0,
-                 offset: float=None,
+                 output_uses_new_state: bool=True,
                  target_device_idx=None,
                  precision=None
                  ):
@@ -25,25 +46,18 @@ class SsrFilter(BaseProcessingObj):
         self.time_step = simul_params.time_step
         self.verbose = True
         self.ssr_filter_data = ssr_filter_data
-
-        if offset is not None:
-            raise NotImplementedError('Offset not implemented yet')
+        self.output_uses_new_state = output_uses_new_state
 
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.delay = delay if delay is not None else 0
         self._nfilter = ssr_filter_data.nfilter
 
-        # Get dimensions for each filter
-        self._state_sizes = ssr_filter_data.get_state_size()
-        self._output_sizes = ssr_filter_data.get_output_size()
-        self._max_output_size = max(self._output_sizes)
-
         # Set up delay buffer
         self.set_state_buffer_length(int(np.ceil(self.delay)) + 1)
 
-        # Initialize state vectors for each filter
-        self._x = [self.xp.zeros(n, dtype=self.dtype) for n in self._state_sizes]
+        # Initialize single state vector for all filters (concatenated)
+        self._x = self.xp.zeros(ssr_filter_data.total_states, dtype=self.dtype)
 
         # Output
         self.out_comm = BaseValue(value=self.xp.zeros(self._nfilter, dtype=self.dtype),
@@ -77,48 +91,51 @@ class SsrFilter(BaseProcessingObj):
             self._gain_mod = self.xp.ones_like(self.delta_comm, dtype=self.dtype)
 
     def trigger_code(self):
-        """Apply state-space update equations for each filter."""
+        """Apply state-space update equations (vectorized for all filters)."""
 
-        for i in range(self._nfilter):
-            # Get matrices for this filter
-            A = self.ssr_filter_data.A[i]
-            B = self.ssr_filter_data.B[i]
-            C = self.ssr_filter_data.C[i]
-            D = self.ssr_filter_data.D[i]
+        # Get block-diagonal matrices
+        A = self.ssr_filter_data.A
+        B = self.ssr_filter_data.B
+        C = self.ssr_filter_data.C
+        D = self.ssr_filter_data.D
 
-            # Current state and input
-            x = self._x[i]
-            u = self.delta_comm[i] * self._gain_mod[i]
-            u = self.xp.atleast_1d(u)
+        # Input vector (modulated) - shape: (nfilter,)
+        u = self.delta_comm * self._gain_mod
 
-            # State update: x[k+1] = A*x[k] + B*u[k]
-            x_new = A @ x + B @ u
+        # State update: x[k+1] = A @ x[k] + B @ u
+        # A: (total_states, total_states), x: (total_states,),
+        # B: (total_states, nfilter), u: (nfilter,)
+        x_new = A @ self._x + B @ u
 
-            # Update state
-            self._x[i] = x_new
+        # Output: y[k] = C @ x[k'] + D @ u
+        # C: (nfilter, total_states), x: (total_states,), D: (nfilter, nfilter), u: (nfilter,)
+        x_for_output = x_new if self.output_uses_new_state else self._x
+        y = C @ x_for_output + D @ u
 
-            # Output: y[k] = C*x[k+1] + D*u[k]
-            y = C @ x_new + D @ u
+        # Update state
+        self._x = x_new
 
-            # Store output (extract scalar if single output)
-            self.output_buffer[i, 0] = y.item() if y.size == 1 else y[0]
+        # Store output - shape: (nfilter,)
+        self.output_buffer[:, 0] = y
 
     def post_trigger(self):
         super().post_trigger()
 
         # Calculate output from the buffer considering the delay
-        remainder_delay = self.delay % 1
-        if remainder_delay == 0:
-            output = self.output_buffer[:, int(self.delay)]
+        if self.delay == 0:
+            output = self.output_buffer[:, 0]
         else:
-            output = (remainder_delay * self.output_buffer[:, int(np.ceil(self.delay))] + \
-                     (1 - remainder_delay) * self.output_buffer[:, int(np.ceil(self.delay))-1])
+            remainder_delay = self.delay % 1
+            if remainder_delay == 0:
+                output = self.output_buffer[:, int(self.delay)]
+            else:
+                output = (remainder_delay * self.output_buffer[:, int(np.ceil(self.delay))] +
+                         (1 - remainder_delay) * self.output_buffer[:, int(np.ceil(self.delay))-1])
 
         self.out_comm.value = output
         self.out_comm.generation_time = self.current_time
 
     def reset_states(self):
         """Reset all internal states to zero."""
-        for i in range(self._nfilter):
-            self._x[i][:] = 0
+        self._x[:] = 0
         self.output_buffer[:] = 0

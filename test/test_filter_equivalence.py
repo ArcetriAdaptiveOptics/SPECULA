@@ -203,20 +203,12 @@ class TestSsrIirEquivalence(unittest.TestCase):
         n_modes_total = sum(n_modes_list)
         n_steps = 15
 
-        # Create SSR filters (one per expanded mode)
-        A_list = []
-        B_list = []
-        C_list = []
-        D_list = []
-
-        for i in range(n_modes_total):
-            A_list.append([[ff_expanded[i]]])
-            B_list.append([[gains_expanded[i]]])
-            C_list.append([[1.0]])
-            D_list.append([[0.0]])
-
-        ssr_data = SsrFilterData(A_list, B_list, C_list, D_list,
-                                target_device_idx=target_device_idx)
+        # Create SSR filters - use factory method instead of manual construction
+        ssr_data = SsrFilterData.from_integrator(
+            gains_expanded, 
+            ff=ff_expanded,
+            target_device_idx=target_device_idx
+        )
         ssr_filter = SsrFilter(simul_params, ssr_data, target_device_idx=target_device_idx)
 
         # Create IIR integrator

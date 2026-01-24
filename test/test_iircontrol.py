@@ -18,7 +18,7 @@ from specula.base_value import BaseValue
 from test.specula_testlib import cpu_and_gpu
 
 class TestIirFilter(unittest.TestCase):
-   
+
     # We just check that it goes through.
     @cpu_and_gpu
     def test_iir_filter_instantiation(self, target_device_idx, xp):
@@ -32,7 +32,7 @@ class TestIirFilter(unittest.TestCase):
         simulParams = SimulParams(time_step=0.001)
         integrator = Integrator(simulParams,
                                 int_gain=[0.5,0.4,0.3],
-                                ff=[0.99,0.95,0.90], 
+                                ff=[0.99,0.95,0.90],
                                 n_modes= [2,3,4],
                                    target_device_idx=target_device_idx)
         # check that the iir_filter_data is set up correctly by comparing gain and [0.5,0.5,0.4,0.4,0.4,0.3,0.3,0.3,0.3]

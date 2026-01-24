@@ -1,26 +1,26 @@
 from specula import cpuArray
 from specula.base_data_obj import BaseDataObj
-
+from scipy.linalg import block_diag
 from astropy.io import fits
 import numpy as np
 
 class SsrFilterData(BaseDataObj):
-    """:class:`~specula.data_objects.ssr_filter_data.SsrFilterData` - State Space Representation Filter Data.
+    """:class:`~specula.data_objects.ssr_filter_data.SsrFilterData`
+    State Space Representation Filter Data.
 
     This class stores discrete-time state-space filter coefficients in the format:
     x[k+1] = A*x[k]   + B*u[k]
     y[k]   = C*x[k+1] + D*u[k]
     
-    where:
-    - A: state transition matrix (n_states x n_states)
-    - B: input matrix (n_states x n_inputs)
-    - C: output matrix (n_outputs x n_states)
-    - D: feedthrough matrix (n_outputs x n_inputs)
-    - x: state vector (n_states,)
-    - u: input vector (n_inputs,)
-    - y: output vector (n_outputs,)
+    All filters are combined into single block-diagonal matrices:
+    - A: block-diagonal state transition matrix (total_states x total_states)
+    - B: input matrix mapping each input to its states (total_states x nfilter)
+    - C: output matrix mapping states to outputs (nfilter x total_states)
+    - D: diagonal feedthrough matrix (nfilter x nfilter)
+    - x: concatenated state vector (total_states,)
+    - u: input vector (nfilter,)
+    - y: output vector (nfilter,)
     """
-
     def __init__(self,
                  A,
                  B,
@@ -31,50 +31,107 @@ class SsrFilterData(BaseDataObj):
                  precision: int=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        # Handle filter setup with n_modes expansion
+        # If n_modes is provided, A/B/C/D are lists that need expansion
         if n_modes is not None:
-            n_modes = np.atleast_1d(n_modes)
+            A, B, C, D = self._expand_with_n_modes(A, B, C, D, n_modes)
+        # If A/B/C/D are lists (but n_modes not provided), build block-diagonal
+        elif isinstance(A, list):
+            A, B, C, D = self._build_block_diagonal(A, B, C, D)
 
-            # Expand matrices for each mode
-            A_list = []
-            B_list = []
-            C_list = []
-            D_list = []
+        # A, B, C, D should now be single matrices
+        self.A = self.to_xp(A, dtype=self.dtype)
+        self.B = self.to_xp(B, dtype=self.dtype)
+        self.C = self.to_xp(C, dtype=self.dtype)
+        self.D = self.to_xp(D, dtype=self.dtype)
 
-            for i, n in enumerate(n_modes):
-                for _ in range(n):
-                    A_list.append(A[i] if isinstance(A, list) else A)
-                    B_list.append(B[i] if isinstance(B, list) else B)
-                    C_list.append(C[i] if isinstance(C, list) else C)
-                    D_list.append(D[i] if isinstance(D, list) else D)
-
-            self.A = A_list
-            self.B = B_list
-            self.C = C_list
-            self.D = D_list
-        else:
-            # Store as lists of matrices (one per filter)
-            self.A = A if isinstance(A, list) else [A]
-            self.B = B if isinstance(B, list) else [B]
-            self.C = C if isinstance(C, list) else [C]
-            self.D = D if isinstance(D, list) else [D]
-
-        # Convert to appropriate array type and dtype
-        self.A = [self.to_xp(a, dtype=self.dtype) for a in self.A]
-        self.B = [self.to_xp(b, dtype=self.dtype) for b in self.B]
-        self.C = [self.to_xp(c, dtype=self.dtype) for c in self.C]
-        self.D = [self.to_xp(d, dtype=self.dtype) for d in self.D]
+        # Extract metadata from matrix dimensions
+        self.total_states = self.A.shape[0]
+        self.nfilter = self.B.shape[1]  # Number of inputs = number of filters
 
         # Validate dimensions
         self._validate_dimensions()
 
-    def _validate_dimensions(self):
-        """Validate that all matrices have consistent dimensions."""
-        for i in range(self.nfilter):
-            A_shape = self.A[i].shape
-            B_shape = self.B[i].shape
-            C_shape = self.C[i].shape
-            D_shape = self.D[i].shape
+    def _expand_with_n_modes(self, A, B, C, D, n_modes):
+        """Expand lists of matrices according to n_modes and build block-diagonal."""
+        n_modes = np.atleast_1d(n_modes)
+
+        # Build expanded lists
+        A_list = []
+        B_list = []
+        C_list = []
+        D_list = []
+
+        for i, n in enumerate(n_modes):
+            for _ in range(n):
+                A_list.append(A[i] if isinstance(A, list) else A)
+                B_list.append(B[i] if isinstance(B, list) else B)
+                C_list.append(C[i] if isinstance(C, list) else C)
+                D_list.append(D[i] if isinstance(D, list) else D)
+
+        # Build block-diagonal matrices
+        return self._build_block_diagonal(A_list, B_list, C_list, D_list)
+
+    def _build_block_diagonal(self, A_list, B_list, C_list, D_list):
+        """Build block-diagonal system matrices from list of individual filter matrices."""
+        nfilter = len(A_list)
+
+        # Validate individual matrices
+        self._validate_individual_matrices(A_list, B_list, C_list, D_list)
+
+        # Convert to numpy arrays if needed (scipy works only with numpy)
+        A_list_np = [cpuArray(A) for A in A_list]
+        B_list_np = [cpuArray(B) for B in B_list]
+        C_list_np = [cpuArray(C) for C in C_list]
+        D_list_np = [cpuArray(D) for D in D_list]
+
+        # Build block-diagonal A using scipy
+        A_block = block_diag(*A_list_np)
+
+        # Build B matrix: each filter's B goes in its state block, column i
+        total_states = A_block.shape[0]
+        B_block = np.zeros((total_states, nfilter))
+
+        state_offset = 0
+        for i, B_i in enumerate(B_list_np):
+            n_states = B_i.shape[0]
+            B_block[state_offset:state_offset+n_states, i] = B_i[:, 0]
+            state_offset += n_states
+
+        # Build C matrix: row i picks from filter i's state block
+        C_block = np.zeros((nfilter, total_states))
+
+        state_offset = 0
+        for i, C_i in enumerate(C_list_np):
+            n_states = C_i.shape[1]
+            C_block[i, state_offset:state_offset+n_states] = C_i[0, :]
+            state_offset += n_states
+
+        # Build D matrix: diagonal with each filter's feedthrough
+        D_block = np.diag([D_i[0, 0] for D_i in D_list_np])
+
+        return A_block, B_block, C_block, D_block
+
+    def _validate_individual_matrices(self, A_list, B_list, C_list, D_list):
+        """Validate dimensions of individual filter matrices before building block-diagonal."""
+        if not len(A_list) == len(B_list) == len(C_list) == len(D_list):
+            raise ValueError("All matrix lists must have same length")
+
+        for i, _ in enumerate(A_list):
+            A_i = A_list[i]
+            B_i = B_list[i]
+            C_i = C_list[i]
+            D_i = D_list[i]
+
+            # Ensure numpy arrays
+            A_i = np.asarray(A_i)
+            B_i = np.asarray(B_i)
+            C_i = np.asarray(C_i)
+            D_i = np.asarray(D_i)
+
+            A_shape = A_i.shape
+            B_shape = B_i.shape
+            C_shape = C_i.shape
+            D_shape = D_i.shape
 
             # Check all matrices are 2D
             if len(A_shape) != 2:
@@ -88,69 +145,69 @@ class SsrFilterData(BaseDataObj):
 
             # Check A is square
             if A_shape[0] != A_shape[1]:
-                raise ValueError(f"Filter {i}: A must be square,"
-                                 f" got shape {A_shape}")
+                raise ValueError(f"Filter {i}: A must be square, got shape {A_shape}")
 
             n_states = A_shape[0]
 
-            # Check B dimensions
+            # Check B dimensions (must have single input per filter)
             if B_shape[0] != n_states:
-                raise ValueError(f"Filter {i}: B first dimension must"
-                                 f" match A dimensions")
+                raise ValueError(f"Filter {i}: B first dimension must match A")
+            if B_shape[1] != 1:
+                raise ValueError(f"Filter {i}: B must have shape (n_states, 1), got {B_shape}")
 
-            n_inputs = B_shape[1] if len(B_shape) > 1 else 1
-
-            # Check C dimensions
+            # Check C dimensions (must have single output per filter)
             if C_shape[1] != n_states:
-                raise ValueError(f"Filter {i}: C second dimension must"
-                                 f" match A dimensions")
+                raise ValueError(f"Filter {i}: C second dimension must match A")
+            if C_shape[0] != 1:
+                raise ValueError(f"Filter {i}: C must have shape (1, n_states), got {C_shape}")
 
-            n_outputs = C_shape[0]
+            # Check D dimensions (must be scalar feedthrough)
+            if D_shape != (1, 1):
+                raise ValueError(f"Filter {i}: D must be (1,1), got {D_shape}")
 
-            # Check D dimensions
-            expected_D_shape = (n_outputs, n_inputs)
-            if D_shape != expected_D_shape:
-                raise ValueError(f"Filter {i}: D shape {D_shape} doesn't"
-                                 f" match expected {expected_D_shape}")
+    def _validate_dimensions(self):
+        """Validate that block-diagonal matrices have consistent dimensions."""
+        A_shape = self.A.shape
+        B_shape = self.B.shape
+        C_shape = self.C.shape
+        D_shape = self.D.shape
 
-    @property
-    def nfilter(self):
-        """Number of filters."""
-        return len(self.A)
+        # Check A is square
+        if len(A_shape) != 2 or A_shape[0] != A_shape[1]:
+            raise ValueError(f"A must be square 2D matrix, got shape {A_shape}")
 
-    def get_state_size(self, filter_idx=None):
-        """Get the state vector size for a specific filter or all filters."""
-        if filter_idx is not None:
-            return self.A[filter_idx].shape[0]
-        return [a.shape[0] for a in self.A]
+        total_states = A_shape[0]
 
-    def get_input_size(self, filter_idx=None):
-        """Get the input vector size for a specific filter or all filters."""
-        if filter_idx is not None:
-            return self.B[filter_idx].shape[1] if len(self.B[filter_idx].shape) > 1 else 1
-        return [b.shape[1] if len(b.shape) > 1 else 1 for b in self.B]
+        # Check B dimensions
+        if B_shape[0] != total_states:
+            raise ValueError(f"B first dimension {B_shape[0]} must match"
+                             f" A dimension {total_states}")
 
-    def get_output_size(self, filter_idx=None):
-        """Get the output vector size for a specific filter or all filters."""
-        if filter_idx is not None:
-            return self.C[filter_idx].shape[0]
-        return [c.shape[0] for c in self.C]
+        nfilter = B_shape[1]
+
+        # Check C dimensions
+        if C_shape != (nfilter, total_states):
+            raise ValueError(f"C shape {C_shape} must be ({nfilter}, {total_states})")
+
+        # Check D dimensions (diagonal matrix)
+        if D_shape != (nfilter, nfilter):
+            raise ValueError(f"D shape {D_shape} must be ({nfilter}, {nfilter})")
 
     def save(self, filename):
         """Save filter data to FITS file."""
         hdr = fits.Header()
-        hdr['VERSION'] = 1
+        hdr['VERSION'] = 2  # Version 2 with block-diagonal format
         hdr['NFILTER'] = self.nfilter
+        hdr['NSTATES'] = self.total_states
 
         hdu = fits.PrimaryHDU(header=hdr)
         hdul = fits.HDUList([hdu])
 
-        # Save each filter's matrices
-        for i in range(self.nfilter):
-            hdul.append(fits.ImageHDU(data=cpuArray(self.A[i]), name=f'A_{i}'))
-            hdul.append(fits.ImageHDU(data=cpuArray(self.B[i]), name=f'B_{i}'))
-            hdul.append(fits.ImageHDU(data=cpuArray(self.C[i]), name=f'C_{i}'))
-            hdul.append(fits.ImageHDU(data=cpuArray(self.D[i]), name=f'D_{i}'))
+        # Save block matrices
+        hdul.append(fits.ImageHDU(data=cpuArray(self.A), name='A'))
+        hdul.append(fits.ImageHDU(data=cpuArray(self.B), name='B'))
+        hdul.append(fits.ImageHDU(data=cpuArray(self.C), name='C'))
+        hdul.append(fits.ImageHDU(data=cpuArray(self.D), name='D'))
 
         hdul.writeto(filename, overwrite=True)
         hdul.close()
@@ -159,21 +216,37 @@ class SsrFilterData(BaseDataObj):
     def restore(filename, target_device_idx=None):
         """Restore filter data from FITS file."""
         with fits.open(filename) as hdul:
-            nfilter = hdul[0].header['NFILTER']
+            version = hdul[0].header.get('VERSION', 1)
 
-            A_list = []
-            B_list = []
-            C_list = []
-            D_list = []
+            if version == 2:
+                # New block-diagonal format
+                A = hdul['A'].data
+                B = hdul['B'].data
+                C = hdul['C'].data
+                D = hdul['D'].data
 
-            for i in range(nfilter):
-                A_list.append(hdul[f'A_{i}'].data)
-                B_list.append(hdul[f'B_{i}'].data)
-                C_list.append(hdul[f'C_{i}'].data)
-                D_list.append(hdul[f'D_{i}'].data)
+                return SsrFilterData(A, B, C, D, target_device_idx=target_device_idx)
+            else:
+                # Old format with individual matrices - convert to block-diagonal
+                nfilter = hdul[0].header['NFILTER']
 
-        return SsrFilterData(A_list, B_list, C_list, D_list,
-                           target_device_idx=target_device_idx)
+                A_list = []
+                B_list = []
+                C_list = []
+                D_list = []
+
+                for i in range(nfilter):
+                    A_list.append(hdul[f'A_{i}'].data)
+                    B_list.append(hdul[f'B_{i}'].data)
+                    C_list.append(hdul[f'C_{i}'].data)
+                    D_list.append(hdul[f'D_{i}'].data)
+
+                # Build block-diagonal from old format
+                obj = SsrFilterData.__new__(SsrFilterData)
+                obj.target_device_idx = target_device_idx
+                A, B, C, D = obj._build_block_diagonal(A_list, B_list, C_list, D_list)
+
+                return SsrFilterData(A, B, C, D, target_device_idx=target_device_idx)
 
     def get_fits_header(self):
         # TODO
@@ -194,7 +267,18 @@ class SsrFilterData(BaseDataObj):
 
     @staticmethod
     def from_gain(gain, target_device_idx=None):
-        """Create a simple proportional controller: y[k] = gain * u[k]."""
+        """Create a simple proportional controller: y[k] = gain * u[k].
+        
+        Parameters
+        ----------
+        gain : array_like
+            Gains for each filter
+            
+        Returns
+        -------
+        SsrFilterData
+            Pure gain (no state): y = gain * u
+        """
         gain = np.atleast_1d(gain)
         n = len(gain)
 
@@ -204,13 +288,14 @@ class SsrFilterData(BaseDataObj):
         D_list = []
 
         for i in range(n):
-            # No internal state for pure gain
+            # No internal state for pure gain (dummy 1x1 zero state)
             A_list.append(np.zeros((1, 1)))
             B_list.append(np.zeros((1, 1)))
             C_list.append(np.zeros((1, 1)))
             D_list.append(np.array([[gain[i]]]))
 
-        return SsrFilterData(A_list, B_list, C_list, D_list,
+        # Pass lists directly - __init__ will handle block-diagonal construction
+        return SsrFilterData(A_list, B_list, C_list, D_list, 
                            target_device_idx=target_device_idx)
 
     @staticmethod
@@ -228,7 +313,7 @@ class SsrFilterData(BaseDataObj):
         -------
         SsrFilterData
             State-space representation: 
-            x[k+1] = ff*x[k] + gain*u[k] if ff provided, else x[k+1] = x[k] + gain*u[k]
+            x[k+1] = ff*x[k] + gain*u[k]
             y[k] = x[k+1]
         """
         gain = np.atleast_1d(gain)
@@ -252,24 +337,20 @@ class SsrFilterData(BaseDataObj):
         for i in range(n):
             # State equation: x[k+1] = ff*x[k] + gain*u[k]
             A_list.append(np.array([[ff[i]]]))
-
             B_list.append(np.array([[gain[i]]]))
-            # Output equation: y[k] = x[k]
+            # Output equation: y[k] = x[k+1]
             C_list.append(np.array([[1.0]]))
             D_list.append(np.array([[0.0]]))
 
+        # Pass lists directly - __init__ will handle block-diagonal construction
         return SsrFilterData(A_list, B_list, C_list, D_list,
                            target_device_idx=target_device_idx)
 
-    def get_eigenvalues(self, filter_idx=None):
+    def get_eigenvalues(self):
         """Get eigenvalues of A matrix for stability analysis."""
-        if filter_idx is not None:
-            return self.xp.linalg.eigvals(self.A[filter_idx])
-        return [self.xp.linalg.eigvals(a) for a in self.A]
+        return self.xp.linalg.eigvals(self.A)
 
-    def is_stable(self, filter_idx=None):
+    def is_stable(self):
         """Check stability: all eigenvalues must be inside unit circle."""
-        if filter_idx is not None:
-            eigenvalues = self.get_eigenvalues(filter_idx)
-            return bool(self.xp.all(self.xp.abs(eigenvalues) < 1.0))
-        return [self.is_stable(i) for i in range(self.nfilter)]
+        eigenvalues = self.get_eigenvalues()
+        return bool(self.xp.all(self.xp.abs(eigenvalues) < 1.0))
