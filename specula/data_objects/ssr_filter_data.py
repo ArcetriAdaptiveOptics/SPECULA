@@ -117,16 +117,10 @@ class SsrFilterData(BaseDataObj):
             raise ValueError("All matrix lists must have same length")
 
         for i, _ in enumerate(A_list):
-            A_i = A_list[i]
-            B_i = B_list[i]
-            C_i = C_list[i]
-            D_i = D_list[i]
-
-            # Ensure numpy arrays
-            A_i = np.asarray(A_i)
-            B_i = np.asarray(B_i)
-            C_i = np.asarray(C_i)
-            D_i = np.asarray(D_i)
+            A_i = cpuArray(A_list[i])
+            B_i = cpuArray(B_list[i])
+            C_i = cpuArray(C_list[i])
+            D_i = cpuArray(D_list[i])
 
             A_shape = A_i.shape
             B_shape = B_i.shape
@@ -348,9 +342,9 @@ class SsrFilterData(BaseDataObj):
 
     def get_eigenvalues(self):
         """Get eigenvalues of A matrix for stability analysis."""
-        return self.xp.linalg.eigvals(self.A)
+        return np.linalg.eigvals(cpuArray(self.A))
 
     def is_stable(self):
         """Check stability: all eigenvalues must be inside unit circle."""
         eigenvalues = self.get_eigenvalues()
-        return bool(self.xp.all(self.xp.abs(eigenvalues) < 1.0))
+        return bool(np.all(np.abs(eigenvalues) < 1.0))
