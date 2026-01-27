@@ -30,6 +30,8 @@ class CalibManager():
             'ShSubapCalibrator': 'subapdata/',
             'iir_filter_data': 'filter/',
             'IirFilterData': 'filter/',
+            'ssr_filter_data': 'filter/',
+            'SsrFilterData': 'filter/',
             'rec': 'rec/',
             'recmat': 'rec/',
             'intmat': 'im/',

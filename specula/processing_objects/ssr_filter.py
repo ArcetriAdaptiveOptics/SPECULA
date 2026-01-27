@@ -56,6 +56,9 @@ class SsrFilter(BaseProcessingObj):
         # Set up delay buffer
         self.set_state_buffer_length(int(np.ceil(self.delay)) + 1)
 
+        self.delta_comm = None
+        self._gain_mod = None
+
         # Initialize single state vector for all filters (concatenated)
         self._x = self.xp.zeros(ssr_filter_data.total_states, dtype=self.dtype)
 
@@ -76,7 +79,10 @@ class SsrFilter(BaseProcessingObj):
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
-        self.delta_comm = self.local_inputs['delta_comm'].value
+        delta_comm = self.local_inputs['delta_comm'].value
+
+        self.delta_comm = self.xp.atleast_1d(self.xp.asarray(delta_comm,
+                                                             dtype=self.dtype))
 
         # Update the delay buffer
         if self.delay > 0:
@@ -85,7 +91,9 @@ class SsrFilter(BaseProcessingObj):
 
         # Check if gain_mod is provided
         if self.local_inputs['gain_mod'] is not None:
-            self._gain_mod = self.local_inputs['gain_mod'].value
+            gain_mod = self.local_inputs['gain_mod'].value
+            self._gain_mod = self.xp.atleast_1d(self.xp.asarray(gain_mod,
+                                                               dtype=self.dtype))
         else:
             # Default gain_mod is an array of ones
             self._gain_mod = self.xp.ones_like(self.delta_comm, dtype=self.dtype)
@@ -101,6 +109,9 @@ class SsrFilter(BaseProcessingObj):
 
         # Input vector (modulated) - shape: (nfilter,)
         u = self.delta_comm * self._gain_mod
+
+        # Ensure u has correct shape for matrix multiplication
+        u = self.xp.atleast_1d(u)
 
         # State update: x[k+1] = A @ x[k] + B @ u
         # A: (total_states, total_states), x: (total_states,),
