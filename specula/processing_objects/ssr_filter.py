@@ -81,8 +81,19 @@ class SsrFilter(BaseProcessingObj):
         super().prepare_trigger(t)
         delta_comm = self.local_inputs['delta_comm'].value
 
-        self.delta_comm = self.xp.atleast_1d(self.xp.asarray(delta_comm,
-                                                             dtype=self.dtype))
+        # Convert to array and flatten to 1D
+        delta_comm_array = self.xp.asarray(delta_comm, dtype=self.dtype)
+        self.delta_comm = self.xp.atleast_1d(delta_comm_array).ravel()
+
+        # Validate size matches number of filters
+        if self.delta_comm.size != self._nfilter:
+            if self.delta_comm.size == 1:
+                # Broadcast scalar to all filters
+                self.delta_comm = self.xp.full(self._nfilter, self.delta_comm[0], 
+                                              dtype=self.dtype)
+            else:
+                raise ValueError(f"Input delta_comm has size {self.delta_comm.size} "
+                               f"but filter expects {self._nfilter} inputs")
 
         # Update the delay buffer
         if self.delay > 0:
@@ -92,11 +103,20 @@ class SsrFilter(BaseProcessingObj):
         # Check if gain_mod is provided
         if self.local_inputs['gain_mod'] is not None:
             gain_mod = self.local_inputs['gain_mod'].value
-            self._gain_mod = self.xp.atleast_1d(self.xp.asarray(gain_mod,
-                                                               dtype=self.dtype))
+            gain_mod_array = self.xp.asarray(gain_mod, dtype=self.dtype)
+            self._gain_mod = self.xp.atleast_1d(gain_mod_array).ravel()
+            
+            # Validate and broadcast if needed
+            if self._gain_mod.size != self._nfilter:
+                if self._gain_mod.size == 1:
+                    self._gain_mod = self.xp.full(self._nfilter, self._gain_mod[0],
+                                                 dtype=self.dtype)
+                else:
+                    raise ValueError(f"gain_mod size {self._gain_mod.size} doesn't match "
+                                   f"nfilter {self._nfilter}")
         else:
             # Default gain_mod is an array of ones
-            self._gain_mod = self.xp.ones_like(self.delta_comm, dtype=self.dtype)
+            self._gain_mod = self.xp.ones(self._nfilter, dtype=self.dtype)
 
     def trigger_code(self):
         """Apply state-space update equations (vectorized for all filters)."""
@@ -108,10 +128,8 @@ class SsrFilter(BaseProcessingObj):
         D = self.ssr_filter_data.D
 
         # Input vector (modulated) - shape: (nfilter,)
+        # delta_comm and gain_mod are already guaranteed to be 1D from prepare_trigger
         u = self.delta_comm * self._gain_mod
-
-        # Ensure u has correct shape for matrix multiplication
-        u = self.xp.atleast_1d(u)
 
         # State update: x[k+1] = A @ x[k] + B @ u
         # A: (total_states, total_states), x: (total_states,),
@@ -119,7 +137,9 @@ class SsrFilter(BaseProcessingObj):
         x_new = A @ self._x + B @ u
 
         # Output: y[k] = C @ x[k'] + D @ u
-        # C: (nfilter, total_states), x: (total_states,), D: (nfilter, nfilter), u: (nfilter,)
+        # C: (nfilter, total_states), x: (total_states,)
+        # D: (nfilter, nfilter), u: (nfilter,)
+        # Result: (nfilter,)
         x_for_output = x_new if self.output_uses_new_state else self._x
         y = C @ x_for_output + D @ u
 
