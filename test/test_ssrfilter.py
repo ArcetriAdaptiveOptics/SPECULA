@@ -359,3 +359,68 @@ class TestSsrFilterData(unittest.TestCase):
             np.testing.assert_array_almost_equal(cpuArray(ssr1.B), cpuArray(ssr.B))
             np.testing.assert_array_almost_equal(cpuArray(ssr1.C), cpuArray(ssr.C))
             np.testing.assert_array_almost_equal(cpuArray(ssr1.D), cpuArray(ssr.D))
+
+    @cpu_and_gpu
+    def test_ensure_matrix_list_0d_arrays(self, target_device_idx, xp):
+        """Test _ensure_matrix_list with list of 0D arrays (scalar numpy arrays)"""
+        # List of 0D arrays (common after deserialization)
+        A = [np.array(0.9), np.array(0.8), np.array(0.7)]
+        B = [np.array(0.1), np.array(0.2), np.array(0.3)]
+        C = [np.array(1.0), np.array(1.0), np.array(1.0)]
+        D = [np.array(0.0), np.array(0.0), np.array(0.0)]
+
+        ssr_data = SsrFilterData(A, B, C, D,
+                                target_device_idx=target_device_idx)
+
+        self.assertEqual(ssr_data.nfilter, 3)
+        self.assertEqual(ssr_data.total_states, 3)
+
+        # Check block-diagonal A
+        A_cpu = cpuArray(ssr_data.A)
+        np.testing.assert_almost_equal(A_cpu[0, 0], 0.9)
+        np.testing.assert_almost_equal(A_cpu[1, 1], 0.8)
+        np.testing.assert_almost_equal(A_cpu[2, 2], 0.7)
+
+    @cpu_and_gpu
+    def test_ensure_matrix_list_mixed_scalars_and_0d(self, target_device_idx, xp):
+        """Test _ensure_matrix_list with mix of Python scalars and 0D arrays"""
+        # Mix of regular scalars and numpy 0D arrays (edge case from deserialization)
+        A = [0.9, np.array(0.8), 0.7]  # Mix of types
+        B = [np.array(0.1), 0.2, np.array(0.3)]
+        C = [1.0, 1.0, 1.0]
+        D = [0.0, 0.0, 0.0]
+
+        ssr_data = SsrFilterData(A, B, C, D,
+                                target_device_idx=target_device_idx)
+
+        self.assertEqual(ssr_data.nfilter, 3)
+        self.assertEqual(ssr_data.total_states, 3)
+
+        A_cpu = cpuArray(ssr_data.A)
+        np.testing.assert_almost_equal(A_cpu[0, 0], 0.9)
+        np.testing.assert_almost_equal(A_cpu[1, 1], 0.8)
+        np.testing.assert_almost_equal(A_cpu[2, 2], 0.7)
+
+    @cpu_and_gpu
+    def test_invalid_input_empty_row(self, target_device_idx, xp):
+        """Test that empty row in nested list raises ValueError"""
+        with self.assertRaises(ValueError) as context:
+            SsrFilterData([[]], [[0.1]], [[1.0]], [[0.0]],
+                         target_device_idx=target_device_idx)
+
+        self.assertIn("Empty row in matrix list", str(context.exception))
+
+    @cpu_and_gpu
+    def test_invalid_input_1d_array_list(self, target_device_idx, xp):
+        """Test that list of 1D arrays raises ValueError (ambiguous)"""
+        # List of 1D arrays is ambiguous
+        A = [np.array([0.9, 0.1]), np.array([0.8, 0.2])]
+        B = [np.array([0.1]), np.array([0.2])]
+        C = [np.array([1.0, 0.5]), np.array([1.0, 0.5])]
+        D = [np.array([0.0]), np.array([0.0])]
+
+        with self.assertRaises(ValueError) as context:
+            SsrFilterData(A, B, C, D,
+                         target_device_idx=target_device_idx)
+
+        self.assertIn("ambiguous", str(context.exception).lower())

@@ -105,7 +105,7 @@ class SsrFilter(BaseProcessingObj):
             gain_mod = self.local_inputs['gain_mod'].value
             gain_mod_array = self.xp.asarray(gain_mod, dtype=self.dtype)
             self._gain_mod = self.xp.atleast_1d(gain_mod_array).ravel()
-            
+
             # Validate and broadcast if needed
             if self._gain_mod.size != self._nfilter:
                 if self._gain_mod.size == 1:

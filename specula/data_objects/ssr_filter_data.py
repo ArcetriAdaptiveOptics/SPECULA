@@ -9,8 +9,11 @@ class SsrFilterData(BaseDataObj):
     State Space Representation Filter Data.
 
     This class stores discrete-time state-space filter coefficients in the format:
-    x[k+1] = A*x[k]   + B*u[k]
-    y[k]   = C*x[k] + D*u[k]
+    x[k+1] = A*x[k] + B*u[k]
+    y[k]   = C*x[k'] + D*u[k]
+    
+    where x[k'] is either x[k] or x[k+1] depending on output_uses_new_state argument
+    of SsrFilter class.
     
     All filters are combined into single block-diagonal matrices:
     - A: block-diagonal state transition matrix (total_states x total_states)
@@ -71,6 +74,7 @@ class SsrFilterData(BaseDataObj):
         - 2D arrays: [[1]] -> [[[1]]]
         - 2D lists: [[1,2],[3,4]] -> [[[1,2],[3,4]]]
         - Lists of 2D: [[[1]], [[2]]] -> [[[1]], [[2]]]
+        - Lists of 0D arrays: [np.array(0.9), np.array(0.8)] -> [[[0.9]], [[0.8]]]
 
         Returns
         -------
@@ -111,10 +115,21 @@ class SsrFilterData(BaseDataObj):
             # List of arrays (numpy or cupy)
             if isinstance(first, self.xp.ndarray) or isinstance(first, np.ndarray):
                 first_np = cpuArray(first)
+
                 if first_np.ndim == 2:
                     # List of 2D arrays -> convert all to numpy
                     matrices = [cpuArray(xi) for xi in x]
                     return matrices, len(matrices) > 1
+                elif first_np.ndim == 0:
+                    # List of 0D arrays (scalars) -> treat as list of scalars
+                    matrices = [np.array([[cpuArray(xi).item()]]) for xi in x]
+                    return matrices, len(matrices) > 1
+                elif first_np.ndim == 1:
+                    # List of 1D arrays -> unclear intent, raise error
+                    raise ValueError("List of 1D arrays is ambiguous. "
+                                   "Use list of 2D matrices or flatten to single 1D array.")
+                else:
+                    raise ValueError(f"Unexpected array dimension in list: {first_np.ndim}")
 
             # List of lists -> need to determine if single 2D or list of 2D
             if isinstance(first, list):
