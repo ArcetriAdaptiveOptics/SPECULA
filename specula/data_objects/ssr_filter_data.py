@@ -301,7 +301,7 @@ class SsrFilterData(BaseDataObj):
     def save(self, filename):
         """Save filter data to FITS file."""
         hdr = fits.Header()
-        hdr['VERSION'] = 1  # Version 1 with block-diagonal format
+        hdr['VERSION'] = 1
         hdr['NFILTER'] = self.nfilter
         hdr['NSTATES'] = self.total_states
 
@@ -321,6 +321,10 @@ class SsrFilterData(BaseDataObj):
     def restore(filename, target_device_idx=None):
         """Restore filter data from FITS file."""
         with fits.open(filename) as hdul:
+            version = hdul[0].header.get('VERSION', 1)
+            if version != 1:
+                raise ValueError(f"Unsupported SSR filter data version: {version}")
+
             # New block-diagonal format
             A = hdul['A'].data
             B = hdul['B'].data
