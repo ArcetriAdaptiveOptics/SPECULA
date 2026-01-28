@@ -233,7 +233,7 @@ When you call `compute_field_psf()`, `FieldAnalyser`:
 
 - **Full simulation:** Atmosphere + WFS detector + slopes + reconstruction + control + DM + propagation + PSF
 - **Replay with FieldAnalyser:** Saved commands → DM + propagation + PSF
-- **Speedup:** Typically 10-100× faster, depending on WFS configuration
+- **Speedup:** Typically 1-10× faster, depending on WFS configuration
 
 This dramatic speedup allows you to explore different wavelengths, field positions, and analysis parameters interactively!
 
