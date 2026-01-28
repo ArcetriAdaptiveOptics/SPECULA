@@ -139,7 +139,7 @@ SPECULA supports special configuration options in YAML files to load data from e
      source_dict_ref: ['source_science', 'source_ngs']  # References multiple sources
      # ... other parameters ...
 
-**How ``_ref`` Works:**
+**How** ``_ref`` **Works:**
 
 When SPECULA encounters a ``<name>_ref`` parameter:
 
