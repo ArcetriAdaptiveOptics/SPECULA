@@ -94,7 +94,7 @@ To enable efficient field analysis, you need to configure your simulation's `Dat
 
 **Storage Considerations:**
 
-- DM command vectors are typically small compared to WFS detector images (2D arrays)
+- DM command vectors are typically small compared to phase cubes (3D arrays)
 - Storage size: ~(n_modes × n_frames × 8 bytes) for modal control
 - Example: 100 modes, 1000 frames = ~0.8 MB per DM
 - For influence function control: ~(n_actuators × n_frames × 8 bytes)
@@ -102,10 +102,9 @@ To enable efficient field analysis, you need to configure your simulation's `Dat
 
 **Comparison with Full Simulation Storage:**
 
-- WFS detector frames: (npixels × npixels × n_frames × 4 bytes) 
-- Example: 80×80 pixels, 1000 frames = ~25 MB
-- Plus slopes, reconstructor matrices, etc.
-- **Saving only DM commands typically reduces storage by 10-100×**
+- Phase cubes: (npixels × npixels × n_frames × 8 bytes) for single precision floating point
+- Example: 160×160 pixels, 1000 frames = ~200 MB
+- **Saving only DM commands typically reduces storage compared to phase cubes**
 
 Step 2: Locate Your Simulation Output
 -------------------------------------
@@ -235,7 +234,7 @@ When you call `compute_field_psf()`, `FieldAnalyser`:
 - **Replay with FieldAnalyser:** Saved commands → DM + propagation + PSF
 - **Speedup:** Typically 1-10× faster, depending on WFS configuration
 
-This dramatic speedup allows you to explore different wavelengths, field positions, and analysis parameters interactively!
+This speedup allows you to explore different wavelengths, field positions, and analysis parameters interactively!
 
 Step 4: Visualizing the Results
 -------------------------------
@@ -354,11 +353,11 @@ Tips and Customizations
      - `control.out_comm`
      - `'comm-control.out_comm'`
    * - MCAO with 2 DMs
-     - `ctrl_dm0.out_comm`, `ctrl_dm1.out_comm`
-     - `['dm0-ctrl_dm0.out_comm', 'dm1-ctrl_dm1.out_comm']`
+     - `control0.out_comm`, `control1.out_comm`
+     - `['comm0-control0.out_comm', 'comm1-control1.out_comm']`
    * - Open loop control
      - `rec.out_modes`
-     - `'olComm-rec.out_modes'`
+     - `'ol_comm-rec.out_modes'`
 
 **Conclusion**
 
