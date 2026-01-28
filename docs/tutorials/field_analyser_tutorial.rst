@@ -356,12 +356,9 @@ Tips and Customizations
    * - MCAO with 2 DMs
      - `ctrl_dm0.out_comm`, `ctrl_dm1.out_comm`
      - `['dm0-ctrl_dm0.out_comm', 'dm1-ctrl_dm1.out_comm']`
-   * - LQG controller
-     - `lqg_control.out_command`
-     - `'comm-lqg_control.out_command'`
-   * - Predictive control
-     - `pred_ctrl.output`
-     - `'comm-pred_ctrl.output'`
+   * - Open loop control
+     - `rec.out_modes`
+     - `'olComm-rec.out_modes'`
 
 **Conclusion**
 
@@ -371,7 +368,7 @@ With `FieldAnalyser`, you can efficiently post-process SPECULA simulation result
 2. Replaying only the propagation path (DM → atmosphere → PSF)
 3. Computing PSFs, modal coefficients, and phase cubes for arbitrary field positions and wavelengths
 
-This provides significant computational savings (**10-100× speedup**) while maintaining full accuracy for wavefront analysis, by eliminating the need to re-run the computationally expensive WFS processing chain.
+This provides significant computational savings while maintaining full accuracy for wavefront analysis, by eliminating the need to re-run the computationally expensive WFS processing chain.
 
 .. seealso::
 
