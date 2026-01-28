@@ -12,7 +12,8 @@ class PlotDisplay(BaseDisplay):
                  figsize=(8, 6),
                  histlen=200,
                  yrange=(0, 0),
-                 x_axis='time'):  # can be time or iteration
+                 x_axis='time',  # can be time or iteration
+                 labels=None):
 
         super().__init__(
             title=title,
@@ -26,6 +27,8 @@ class PlotDisplay(BaseDisplay):
         self.lines = None
         self._x_axis = x_axis
         self._time_history = []
+        self._labels = labels  # store labels
+        self._legend_added = False  # NEW: track if legend was added
 
         # Setup inputs - can handle both single value and list of values
         self.inputs['value'] = InputValue(type=BaseValue, optional=True)
@@ -39,6 +42,30 @@ class PlotDisplay(BaseDisplay):
             return [self.local_inputs['value']]
         else:
             return []
+
+    def _get_label(self, index):
+        """Get label for a given index"""
+        # If labels were provided, use them
+        if self._labels is not None:
+            if index < len(self._labels):
+                return self._labels[index]
+            else:
+                return f'Input {index}'
+
+        # Try to extract name from input connection
+        # Access the InputList to get the actual input item metadata
+        if hasattr(self, 'inputs') and 'value_list' in self.inputs:
+            input_list = self.inputs['value_list']
+            if hasattr(input_list, 'input_values') and index < len(input_list.input_values):
+                item = input_list.input_values[index]
+                # Try to get the output reference information
+                if hasattr(item, 'output_ref') and item.output_ref is not None:
+                    # The output_ref should have the source object and output name
+                    # This would need to be tracked during connection setup
+                    pass
+                
+        # Default fallback
+        return f'Input {index}'
 
     def _update_display(self, data_list):
         """Update display with list of data points"""
@@ -100,9 +127,11 @@ class PlotDisplay(BaseDisplay):
 
             # Create or update line
             if i >= len(self.lines):
-                # Create new line for this series
+                # Create new line for this series with label
+                label = self._get_label(i)  # FIXED: removed unused data_list parameter
                 line = self.ax.plot(x, y, marker='.', 
-                                  color=plt.cm.tab10(i % 10))[0]
+                                  color=plt.cm.tab10(i % 10),
+                                  label=label)[0]
                 self.lines.append(line)
             else:
                 # Update existing line
@@ -130,6 +159,11 @@ class PlotDisplay(BaseDisplay):
             self.ax.set_xlabel('Time [s]')
         else:
             self.ax.set_xlabel('Iteration')
+
+        # Add legend if we have multiple lines and haven't added it yet
+        if nValues > 1 and not self._legend_added:
+            self.ax.legend(loc='best')
+            self._legend_added = True
 
         self._safe_draw()
         self._count += 1
