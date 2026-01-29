@@ -18,17 +18,6 @@ class BaseTimeObj:
         precision (int, optional): if None will use the global_precision, otherwise pass 0 for double, 1 for single
         target_device_idx (int, optional): if None will use the default_target_device_idx, otherwise pass -1 for cpu, i for GPU of index i
         """
-        # Check if SPECULA has been initialized
-        if global_precision is None or default_target_device_idx is None:
-            warnings.warn(
-                "SPECULA not initialized. Please call specula.init() before creating objects. "
-                "Defaulting to CPU (device_idx=-1) and double precision (precision=0).",
-                UserWarning,
-                stacklevel=2
-            )
-            global_precision = 0
-            default_target_device_idx = -1 # CPU
-
         self._time_resolution = int(1e9)
         self.gpu_bytes_used = 0
 
