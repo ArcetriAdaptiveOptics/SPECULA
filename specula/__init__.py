@@ -214,6 +214,7 @@ def main_simul(yml_files: list,
                cpu: bool=False,
                overrides: str=None,
                target: int=0,
+               precision: int=1,
                profile: bool=False,
                mpi: bool=False,
                mpidbg: bool=False,
@@ -244,13 +245,13 @@ def main_simul(yml_files: list,
     else:
         rank = None
         comm = None
-        
+
     if cpu:
         target_device_idx = -1
     else:
         target_device_idx = target
 
-    init(target_device_idx, precision=1, rank=rank, comm=comm, mpi_dbg=mpidbg)
+    init(target_device_idx, precision=precision, rank=rank, comm=comm, mpi_dbg=mpidbg)
     from specula.simul import Simul
 
     if profile:
