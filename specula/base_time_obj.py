@@ -1,7 +1,6 @@
 
 from functools import wraps
 from inspect import signature
-import warnings
 
 from specula import np, cp, to_xp, process_rank
 from specula import global_precision, default_target_device, default_target_device_idx
