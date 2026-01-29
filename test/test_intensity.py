@@ -3,6 +3,10 @@ import numpy as np
 import tempfile
 import os
 from astropy.io import fits
+
+import specula
+specula.init(0)  # Default target device
+
 from specula import cpuArray
 from specula.data_objects.intensity import Intensity
 from test.specula_testlib import cpu_and_gpu

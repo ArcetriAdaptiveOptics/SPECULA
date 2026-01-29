@@ -3,6 +3,9 @@ import numpy as np
 import tempfile
 import os
 
+import specula
+specula.init(0)  # Default target device
+
 from specula.data_objects.pupdata import PupData
 from specula import cpuArray
 from test.specula_testlib import cpu_and_gpu

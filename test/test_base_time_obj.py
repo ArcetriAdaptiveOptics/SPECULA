@@ -1,5 +1,9 @@
 import unittest
 from unittest.mock import MagicMock, patch
+
+import specula
+specula.init(0)  # Default target device
+
 from specula.base_time_obj import BaseTimeObj
 
 from test.specula_testlib import cpu_and_gpu

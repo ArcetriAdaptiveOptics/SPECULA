@@ -1,6 +1,10 @@
 import types
 import unittest
 from unittest.mock import patch, MagicMock
+
+import specula
+specula.init(0)  # Default target device
+
 from specula.lib.utils import import_class
 
 

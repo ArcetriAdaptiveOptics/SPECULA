@@ -1,6 +1,3 @@
-
-
-
 import os
 import unittest
 from astropy.io import fits

@@ -3,6 +3,9 @@ import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
 
+import specula
+specula.init(0)  # Default target device
+
 from specula.data_objects.intensity import Intensity
 from specula.data_objects.pixels import Pixels
 from specula.data_objects.subap_data import SubapData

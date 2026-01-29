@@ -2,7 +2,6 @@ import specula
 specula.init(0)  # Default target device
 
 import unittest
-import numpy as np
 
 from specula.processing_objects.mvm import MVM
 from specula.data_objects.recmat import Recmat

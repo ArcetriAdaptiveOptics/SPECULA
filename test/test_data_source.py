@@ -1,5 +1,3 @@
-
-
 import os
 import shutil
 from unittest.mock import patch, MagicMock, mock_open
