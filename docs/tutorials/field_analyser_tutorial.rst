@@ -12,7 +12,7 @@ Unlike the main simulation tutorials, here we focus on post-processing: extracti
 
 - Understand what data to save during simulation for efficient replay
 
-- Compute the PSF, modal coefficients, and phase cubes from simulation outputs
+- Compute the PSF, modal coefficients, and phase cubes (units: nm) from simulation outputs
 
 - Compare results with those generated during the simulation
 
@@ -102,7 +102,7 @@ To enable efficient field analysis, you need to configure your simulation's `Dat
 
 **Comparison with Full Simulation Storage:**
 
-- Phase cubes: (npixels × npixels × n_frames × 8 bytes) for single precision floating point
+- Phase cubes: (npixels × npixels × n_frames × 8 bytes) for single precision floating point (units: nm)
 - Example: 160×160 pixels, 1000 frames = ~200 MB
 - **Saving only DM commands typically reduces storage compared to phase cubes**
 
@@ -197,7 +197,7 @@ Below is an example script that loads the latest simulation output and computes 
     modal_results = analyser.compute_modal_analysis()
     modes = modal_results['modal_coeffs'][0]
 
-    # Compute phase cube
+    # Compute phase cube (units: nm)
     cube_results = analyser.compute_phase_cube()
     phase_cube = cube_results['phase_cubes'][0]
 
@@ -263,7 +263,7 @@ You can use matplotlib to visualize the PSF, modal coefficients, or phase slices
     # Show the last phase slice
     plt.figure()
     plt.imshow(phase_cube[-1, 1, :, :], origin='lower', cmap='hot')
-    plt.title('Last Phase Slice')
+    plt.title('Last Phase Slice (units: nm)')
     plt.colorbar()
     plt.show()
 
@@ -365,7 +365,7 @@ With `FieldAnalyser`, you can efficiently post-process SPECULA simulation result
 
 1. Saving **DM input commands** (controller outputs) during the original simulation
 2. Replaying only the propagation path (DM → atmosphere → PSF)
-3. Computing PSFs, modal coefficients, and phase cubes for arbitrary field positions and wavelengths
+3. Computing PSFs, modal coefficients, and phase cubes (units: nm) for arbitrary field positions and wavelengths
 
 This provides significant computational savings while maintaining full accuracy for wavefront analysis, by eliminating the need to re-run the computationally expensive WFS processing chain.
 

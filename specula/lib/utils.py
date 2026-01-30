@@ -169,9 +169,11 @@ def psd_to_signal(psd, fs, xp, dtype, complex_dtype, seed=1):
     Parameters:
     -----------
     psd : 1D array
-        Power spectral density (PSD) of the signal.
+        Power spectral density (PSD) of the signal
+        Note: unit [X^2/Hz], where X is the unit of the signal.
+              Default phase unit in SPECULA is [nm], so PSD unit is [nm^2/Hz].
     fs : float
-        Sampling frequency.
+        Sampling frequency (unit [Hz]).
     xp : module
         Array processing module (numpy or cupy) to use for array operations.
     dtype : data type

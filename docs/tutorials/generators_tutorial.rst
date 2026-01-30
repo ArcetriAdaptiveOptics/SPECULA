@@ -5,6 +5,8 @@ Using Generators for Vibrations and Time Histories
 
 SPECULA provides several generator classes to inject time-dependent signals into your simulation. Here we show two common approaches for adding vibrations, but the same logic applies to other types of signals.
 
+**Note:** In SPECULA, the unit of the phase in an electric field is nanometers (nm) of optical path difference (OPD), i.e. wavefront. 
+
 VibrationGenerator: Using a Power Spectrum Density (PSD)
 --------------------------------------------------------
 
@@ -18,7 +20,7 @@ If you have a vibration PSD (e.g., from telemetry), you can use the ``VibrationG
       class:             'VibrationGenerator'
       simul_params_ref:  'main'
       nmodes:            2
-      psd_data:          'PSD_LBT'         # load from file
+      psd_data:          'PSD_LBT'         # load from file (unit [nm^2/Hz])
       freq_data:         'PSD_FREQ_LBT'    # load from file
       seed:              1987              # optional, but recommended
       start_from_zero:   False             # optional
@@ -62,7 +64,7 @@ Alternatively, you can generate the vibration time history offline (e.g., using 
 
     vibration:
       class:                'TimeHistoryGenerator'
-      time_hist_object:     'VIBRATION_TIME_HIST_LBT'  # Precomputed TimeHistory object
+      time_hist_object:     'VIBRATION_TIME_HIST_LBT'  # Precomputed TimeHistory object (unit [nm])
       outputs:              ['output']
 
 **Python example to generate and save the time history:**
@@ -76,6 +78,7 @@ Alternatively, you can generate the vibration time history offline (e.g., using 
     from specula.data_objects.time_history import TimeHistory
 
     # TODO: define nmodes, psd, freq, seed, samp_freq, niter, start_from_zero
+    # psd unit: [nm^2/Hz], freq unit: [Hz]
     time_hist = get_vibrations_time_hist(
         nmodes, psd=psd, freq=freq, seed=seed,
         samp_freq=samp_freq, niter=niter, start_from_zero=start_from_zero,

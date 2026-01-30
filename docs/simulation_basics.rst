@@ -42,6 +42,7 @@ Data objects encapsulate physical quantities and measurements:
 **Example Data Objects:**
 
 * ``ElectricField`` - Phase and amplitude information
+    * Phase units: nanometers (nm) of optical path difference (wavefront)
 * ``Slopes`` - WFS measurements
 * ``Intensity`` - Detector images
 * ``Intmat`` - Interaction matrices
