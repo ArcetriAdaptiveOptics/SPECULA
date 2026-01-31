@@ -5,15 +5,13 @@ from astropy.modeling import models, fitting
 from specula import cpuArray
 from specula.data_objects.convolution_kernel import lgs_map_sh
 
-
-# TODO this function will be used in the near future for MORFEO
-
 def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, launcher_coord_in_m,
                          sub_aps_index, n_sub_aps, sub_aps_fov, sh_spot_fwhm, sigma_noise2,
                          t_g_parameter, h_in_m=None, user_pofile_xy=None, theta=None,
                          only_diag=False, eta_is_not_one=False, display=False, verbose=False):
     """
-    Computes noise covariance matrix considering WFS sub-aperture, laser launcher and sodium layer geometry.
+    Computes noise covariance matrix considering WFS sub-aperture,
+    laser launcher and sodium layer geometry.
     
     Parameters:
         diameter_in_m (float): Telescope diameter in meters
@@ -38,24 +36,28 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
         ndarray: The inverse covariance matrix
         
     Reference:
-        Bechet et al., "Optimal reconstruction for closed-loop ground-layer adaptive optics with elongated spots" 
+        Bechet et al., "Optimal reconstruction for closed-loop ground-layer
+                        adaptive optics with elongated spots" 
         JOSA A, Vol. 27, No. 11 (2010)
     """
-    
+
     # Convert inputs to CPU arrays for GPU processing
-    diameter_in_m = cpuArray(diameter_in_m)
-    zenith_angle_in_deg = cpuArray(zenith_angle_in_deg)
-    na_thickness_in_m = cpuArray(na_thickness_in_m)
+    diameter_in_m = float(cpuArray(diameter_in_m))
+    zenith_angle_in_deg = float(cpuArray(zenith_angle_in_deg))
+    na_thickness_in_m = float(cpuArray(na_thickness_in_m))
     launcher_coord_in_m = cpuArray(launcher_coord_in_m)
-    sub_aps_index = cpuArray(sub_aps_index)
-    n_sub_aps = cpuArray(n_sub_aps)
-    sub_aps_fov = cpuArray(sub_aps_fov)
-    sh_spot_fwhm = cpuArray(sh_spot_fwhm)
-    sigma_noise2 = cpuArray(sigma_noise2)
-    t_g_parameter = cpuArray(t_g_parameter)
-    h_in_m = cpuArray(h_in_m)
-    theta = cpuArray(theta)
-    
+    sub_aps_index = np.asarray(cpuArray(sub_aps_index), dtype=np.int64)
+    n_sub_aps = int(cpuArray(n_sub_aps))
+    sub_aps_fov = float(cpuArray(sub_aps_fov))
+    sh_spot_fwhm = float(cpuArray(sh_spot_fwhm))
+    sigma_noise2 = float(cpuArray(sigma_noise2))
+    t_g_parameter = float(cpuArray(t_g_parameter))
+    h_in_m = float(cpuArray(h_in_m)) if h_in_m is not None else None
+    # Keep theta as list/array, don't convert to scalar
+    if theta is not None:
+        theta = list(cpuArray(theta)) if hasattr(theta, '__len__') \
+            else [float(theta), float(theta)]
+
     if only_diag and verbose:
         print('onlyDiag is set')
     if eta_is_not_one and verbose:
@@ -77,7 +79,8 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
             profz = fits.getdata(user_pofile_xy[1])
         else:
             n_levels = 30
-            dz = np.arange(n_levels) * (4.0 * na_thickness_in_ma / n_levels) - 2 * na_thickness_in_ma
+            dz = np.arange(n_levels) * (4.0 * na_thickness_in_ma / n_levels) \
+                 - 2 * na_thickness_in_ma
             sigma = na_thickness_in_ma / (2.0 * np.sqrt(2.0 * np.log(2.0)))
             profz = np.exp(-(dz**2) / (2 * sigma**2))
 
@@ -85,9 +88,21 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
         theta_val = [0.0, 0.0] if theta is None else theta
 
         # Call lgs_map_sh to generate spots
-        spots_temp = lgs_map_sh(n_sub_aps, diameter_in_m, launcher_coord_in_m, h_in_ma, dz, profz * 1e6,
-                              sh_spot_fwhm, sub_aps_fov / pix_for_sa, pix_for_sa,
-                              overs=2, theta=theta_val, doCube=True)
+        spots_temp = lgs_map_sh(n_sub_aps, diameter_in_m,
+                                launcher_coord_in_m, h_in_ma,
+                                dz, profz * 1e6,
+                                sh_spot_fwhm, sub_aps_fov / pix_for_sa,
+                                pix_for_sa, overs=2,
+                                theta=theta_val, doCube=True)
+
+        # Calculate coord_sub_aps for use in dist0_xy later
+        sub_aps_index_2d = np.array(np.unravel_index(sub_aps_index, (n_sub_aps, n_sub_aps))).T
+        coord_sub_aps = sub_aps_index_2d.astype(float)
+        coord_sub_aps[:, 0] -= float(n_sub_aps / 2)
+        coord_sub_aps[:, 1] -= float(n_sub_aps / 2)
+        coord_sub_aps *= diameter_in_m / n_sub_aps
+        coord_sub_aps[:, 0] -= launcher_coord_in_m[0]
+        coord_sub_aps[:, 1] -= launcher_coord_in_m[1]
 
         beta1 = np.zeros(len(sub_aps_index))
         beta2 = np.zeros(len(sub_aps_index))
@@ -95,9 +110,9 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
 
         # Calculate max flux (note the different array ordering between IDL and Python)
         max_flux = np.max(np.sum(np.sum(spots_temp, axis=1), axis=1))
-        
-        for i in range(len(sub_aps_index)):
-            spot_i = spots_temp[sub_aps_index[i], :, :]
+
+        for i, sub_ap_index_i in enumerate(sub_aps_index):
+            spot_i = spots_temp[sub_ap_index_i, :, :]
 
             # Create 2D coordinate grid for fitting
             y, x = np.mgrid[:spot_i.shape[0], :spot_i.shape[1]]
@@ -146,12 +161,19 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
         coord_sub_aps[:, 0] -= launcher_coord_in_m[0]
         coord_sub_aps[:, 1] -= launcher_coord_in_m[1]
 
-        # Calculate beta1 and beta2 from geometry
-        beta1 = (np.arctan((h_in_ma - na_thickness_in_ma/2.0) / coord_sub_aps[:, 1]) - 
-                np.arctan((h_in_ma + na_thickness_in_ma/2.0) / coord_sub_aps[:, 1])) * rad2arcsec
+        # Calculate beta1 and beta2 from geometry, handling zero coordinates
+        with np.errstate(divide='ignore', invalid='ignore'):
+            beta1_temp = (np.arctan((h_in_ma - na_thickness_in_ma/2.0) / coord_sub_aps[:, 1]) -
+                         np.arctan((h_in_ma + na_thickness_in_ma/2.0) / coord_sub_aps[:, 1])) \
+                             * rad2arcsec
+            beta2_temp = (np.arctan((h_in_ma - na_thickness_in_ma/2.0) / coord_sub_aps[:, 0]) -
+                         np.arctan((h_in_ma + na_thickness_in_ma/2.0) / coord_sub_aps[:, 0])) \
+                             * rad2arcsec
 
-        beta2 = (np.arctan((h_in_ma - na_thickness_in_ma/2.0) / coord_sub_aps[:, 0]) - 
-                np.arctan((h_in_ma + na_thickness_in_ma/2.0) / coord_sub_aps[:, 0])) * rad2arcsec
+        # Replace inf/nan with 0 (physically: when aligned with launcher,
+        # elongation in that direction is undefined/zero)
+        beta1 = np.nan_to_num(beta1_temp, nan=0.0, posinf=0.0, neginf=0.0)
+        beta2 = np.nan_to_num(beta2_temp, nan=0.0, posinf=0.0, neginf=0.0)
 
     if verbose:
         print('launcher coordinates [m]:', launcher_coord_in_m)
@@ -261,28 +283,28 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
             for j in range(n_not_truncated):
                 # x diagonal
                 cov_mat_inv[idx_not_truncated_x[j], idx_not_truncated_x[j]] = (
-                    1/sigma_noise2 * eta[idx_not_truncated[j]] / 
-                    (1 + beta_tot[idx_not_truncated[j]]**2 / sigma2) * 
+                    1/sigma_noise2 * eta[idx_not_truncated[j]] /
+                    (1 + beta_tot[idx_not_truncated[j]]**2 / sigma2) *
                     (1 + beta2[idx_not_truncated[j]]**2 / sigma2)
                 )
 
                 # y diagonal
                 cov_mat_inv[idx_not_truncated_y[j], idx_not_truncated_y[j]] = (
-                    1/sigma_noise2 * eta[idx_not_truncated[j]] / 
-                    (1 + beta_tot[idx_not_truncated[j]]**2 / sigma2) * 
+                    1/sigma_noise2 * eta[idx_not_truncated[j]] /
+                    (1 + beta_tot[idx_not_truncated[j]]**2 / sigma2) *
                     (1 + beta1[idx_not_truncated[j]]**2 / sigma2)
                 )
 
                 # xy and yx cross-terms
                 cov_mat_inv[idx_not_truncated_x[j], idx_not_truncated_y[j]] = (
-                    1/sigma_noise2 * eta[idx_not_truncated[j]] / 
-                    (1 + beta_tot[idx_not_truncated[j]]**2 / sigma2) * 
+                    1/sigma_noise2 * eta[idx_not_truncated[j]] /
+                    (1 + beta_tot[idx_not_truncated[j]]**2 / sigma2) *
                     (-beta1[idx_not_truncated[j]] * beta2[idx_not_truncated[j]] / sigma2)
                 )
 
                 cov_mat_inv[idx_not_truncated_y[j], idx_not_truncated_x[j]] = (
-                    1/sigma_noise2 * eta[idx_not_truncated[j]] / 
-                    (1 + beta_tot[idx_not_truncated[j]]**2 / sigma2) * 
+                    1/sigma_noise2 * eta[idx_not_truncated[j]] /
+                    (1 + beta_tot[idx_not_truncated[j]]**2 / sigma2) *
                     (-beta1[idx_not_truncated[j]] * beta2[idx_not_truncated[j]] / sigma2)
                 )
 
@@ -295,27 +317,27 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
                 # x diagonal
                 cov_mat_inv[idx_truncated_x[j], idx_truncated_x[j]] = (
                     eta[idx_truncated[j]] / 
-                    (sigma_noise2 * beta_tot[idx_truncated[j]]**2) * 
+                    (sigma_noise2 * beta_tot[idx_truncated[j]]**2) *
                     beta2[idx_truncated[j]]**2
                 )
 
                 # y diagonal
                 cov_mat_inv[idx_truncated_y[j], idx_truncated_y[j]] = (
                     eta[idx_truncated[j]] / 
-                    (sigma_noise2 * beta_tot[idx_truncated[j]]**2) * 
+                    (sigma_noise2 * beta_tot[idx_truncated[j]]**2) *
                     beta1[idx_truncated[j]]**2
                 )
 
                 # xy and yx cross-terms
                 cov_mat_inv[idx_truncated_x[j], idx_truncated_y[j]] = (
                     eta[idx_truncated[j]] / 
-                    (sigma_noise2 * beta_tot[idx_truncated[j]]**2) * 
+                    (sigma_noise2 * beta_tot[idx_truncated[j]]**2) *
                     (-beta1[idx_truncated[j]] * beta2[idx_truncated[j]])
                 )
 
                 cov_mat_inv[idx_truncated_y[j], idx_truncated_x[j]] = (
                     eta[idx_truncated[j]] / 
-                    (sigma_noise2 * beta_tot[idx_truncated[j]]**2) * 
+                    (sigma_noise2 * beta_tot[idx_truncated[j]]**2) *
                     (-beta1[idx_truncated[j]] * beta2[idx_truncated[j]])
                 )
 

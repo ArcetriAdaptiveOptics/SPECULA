@@ -1,0 +1,105 @@
+
+launcher1_override: &LAUNCHER
+  spot_size:          1.8
+  tel_position:       []
+  beacon_focus:       .inf
+
+launcher2_override: { <<: *LAUNCHER}
+launcher3_override: { <<: *LAUNCHER}
+launcher4_override: { <<: *LAUNCHER}
+launcher5_override: { <<: *LAUNCHER}
+launcher6_override: { <<: *LAUNCHER}
+
+sh_lgs1_override:
+  inputs:
+    in_ef: 'prop.out_source_lgs1_ef'
+
+sh_lgs2_override:
+  inputs:
+    in_ef: 'prop.out_source_lgs2_ef'
+
+sh_lgs3_override:
+  inputs:
+    in_ef: 'prop.out_source_lgs3_ef'
+
+sh_lgs4_override:
+  inputs:
+    in_ef: 'prop.out_source_lgs4_ef'
+
+sh_lgs5_override:
+  inputs:
+    in_ef: 'prop.out_source_lgs5_ef'
+
+sh_lgs6_override:
+  inputs:
+    in_ef: 'prop.out_source_lgs6_ef'
+
+sh_subaps_lgs1: &LGS_SA_SH
+  class: 'ShSubapCalibrator'
+  subap_on_diameter:  68
+  output_tag:        'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_rot6.2'
+  energy_th:         0.5
+  inputs:
+    in_i: 'sh_lgs1.out_i'
+
+sh_subaps_lgs2: {<<: *LGS_SA_SH, output_tag: 'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_rot14.2',
+          inputs: {in_i: sh_lgs2.out_i}}
+sh_subaps_lgs3: {<<: *LGS_SA_SH, output_tag: 'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_rot-6.2',
+          inputs: {in_i: sh_lgs3.out_i}}
+# sh_subaps_lgs4, sh_subaps_lgs5, sh_subaps_lgs6 are not considered because they have the same subap configuration
+# as sh_subaps_lgs1, sh_subaps_lgs2, sh_subaps_lgs3 respectively
+
+sh_subaps_ngs1:
+  class: 'ShSubapCalibrator'
+  subap_on_diameter:  1
+  output_tag:        'maory_ps480p0.080_shs1x1_wl1650_fv1.8_np240_th0.50_stopTEELT480pp0.0803m_obs0.283_spider2023'
+  energy_th:         0.5
+  inputs:
+    in_i: 'sh_ngs1.out_i'
+
+sh_subaps_ref1:
+  class: 'ShSubapCalibrator'
+  subap_on_diameter:  8
+  output_tag:        'maory_ps480p0.080_shs8x8_wl750_fv4.6_np30_th0.50_stopTEELT480pp0.0813spiderRoundObsCentered'
+  energy_th:         0.5
+  inputs:
+    in_i: 'sh_ref1.out_i'
+
+main_override:
+  total_time:  0.002
+
+prop_override:
+  inputs:
+    common_layer_list: ['pupilstop']
+
+remove: ['atmo',
+        'sodium_altitude',
+        'sodium_intensity',
+        'sh_lgs4', 'sh_lgs5', 'sh_lgs6',
+        'detector_lgs1', 'detector_lgs2', 'detector_lgs3', 'detector_lgs4', 'detector_lgs5', 'detector_lgs6',
+        'slopec_lgs1', 'slopec_lgs2', 'slopec_lgs3', 'slopec_lgs4', 'slopec_lgs5', 'slopec_lgs6',
+        'tomo_polc_lgs',
+        'iir_lgs',
+        'detector_ngs1', 'detector_ngs2', 'detector_ngs3',
+        'slopec_ngs1', 'slopec_ngs2', 'slopec_ngs3',
+        'tomo_ngs',
+        'iir_ngs',
+        'detector_ref1', 'detector_ref2', 'detector_ref3',
+        'slopec_ref1','slopec_ref2', 'slopec_ref3',
+        'rec_focus',
+        'slicer_focus',
+        'iir_focus',
+        'modal_combination',
+        'slicer1', 'slicer2', 'slicer3',
+        'dm1', 'dm2', 'dm3',
+        'ifunc_m4',
+        'm2c_m4',
+        'psf',
+        'modal_analysis',
+        'data_store',
+        'modes_disp'
+  ]
+  
+ 
+
+

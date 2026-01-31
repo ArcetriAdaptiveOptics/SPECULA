@@ -1,5 +1,5 @@
-from specula import cpuArray, fuse, RAD2ASEC
-from specula.lib.extrapolation_2d import calculate_extrapolation_indices_coeffs, apply_extrapolation
+from specula import fuse
+from specula.lib.extrapolation_2d import EFInterpolator
 from specula.lib.interp2d import Interp2D 
 
 from specula.base_processing_obj import BaseProcessingObj
@@ -11,7 +11,7 @@ from specula.data_objects.intensity import Intensity
 from specula.lib.make_mask import make_mask
 from specula.lib.toccd import toccd
 from specula.data_objects.simul_params import SimulParams
-from specula.lib.zernike_generator import ZernikeGenerator
+from specula.lib.calc_geometry import calc_geometry
 
 
 @fuse(kernel_name='pyr1_fused')
@@ -29,6 +29,97 @@ def pyr1_abs2(v, norm, ffv, xp):
 
 
 class ModulatedPyramid(BaseProcessingObj):
+    """
+    Pyramid wavefront sensor with tip-tilt modulation.
+    
+    This class implements a modulated pyramid WFS that works with point sources or
+    can be used as a base class for extended source implementations. The modulation
+    can be circular (standard), or linear (vertical, horizontal, alternating).
+    
+    Parameters
+    ----------
+    simul_params : SimulParams
+        Simulation parameters object containing pixel_pupil and pixel_pitch
+    wavelengthInNm : float
+        Working wavelength in nanometers
+    fov : float
+        Field of view in arcseconds (a field stop may be applied in the focal plane to limit FoV)
+    pup_diam : int
+        Pupil diameter in pixels
+    output_resolution : int
+        Output CCD side length in pixels
+    mod_amp : float, optional
+        Modulation amplitude in lambda/D units (default: 3.0)
+    mod_step : int, optional
+        Number of modulation steps. If None, automatically calculated based on
+        mod_amp and mod_type (default: None)
+    mod_type : str, optional
+        Modulation type: 'circular', 'vertical', 'horizontal', or 'alternating'
+        (default: 'circular')
+    fov_errinf : float, optional
+        Accepted error in reducing FoV (default: 0.1, i.e., -10%)
+    fov_errsup : float, optional
+        Accepted error in enlarging FoV (default: 2.0, i.e., +100%)
+    pup_dist : int, optional
+        Pupil distance in pixels. If None, calculated from pup_diam and pup_margin
+    pup_margin : int, optional
+        Margin around pupils in pixels (default: 2)
+    fft_res : float, optional
+        Minimum PSF sampling (default: 3.0, i.e., 3 pixels per PSF FWHM i.e. lambda/D)
+    fp_obs : float, optional
+        Focal plane central obstruction diameter in pixels (default: None)
+    pup_shifts : tuple, optional
+        Static pupil shifts in pixels (x, y) (default: (0.0, 0.0))
+    pyr_tlt_coeff : float, optional
+        Pyramid tilt coefficients for custom face geometry (default: None)
+        WARNING: not implemented/tested yet
+    pyr_edge_def_ld : float, optional
+        Edge defect size in lambda/D units (default: 0.0)
+    pyr_tip_def_ld : float, optional
+        Tip defect size in lambda/D units (default: 0.0)
+    pyr_tip_maya_ld : float, optional
+        Maya Pyramid (i.e. flat tip) defect size in lambda/D units (default: 0.0)
+    min_pup_dist : float, optional
+        Minimum pupil distance constraint (default: None)
+    rotAnglePhInDeg : float, optional
+        Rotation angle of input phase in degrees (default: 0.0)
+    xShiftPhInPixel : float, optional
+        X shift of input phase in pixels (default: 0.0)
+    yShiftPhInPixel : float, optional
+        Y shift of input phase in pixels (default: 0.0)
+    target_device_idx : int, optional
+        GPU device index (default: None, uses default device, -1 for CPU)
+    precision : int, optional
+        Numerical precision: 32 (1) or 64 (0) bits (default: None, uses system default)
+    
+    Inputs
+    ------
+    in_ef : ElectricField
+        Input electric field from the telescope pupil. Contains complex amplitude
+        and phase information that will be modulated and propagated through the pyramid.   
+    
+    Outputs
+    -------
+    out_i : Intensity
+        Output intensity on detector CCD (shape: final_ccd_side × final_ccd_side)
+    out_psf_tot : BaseValue
+        Total PSF after focal plane mask application (shape: fft_totsize × fft_totsize)
+    out_psf_bfm : BaseValue
+        PSF before focal plane mask (shape: fft_totsize × fft_totsize)
+    out_transmission : BaseValue
+        Scalar value representing total flux transmission through the system
+
+    Notes
+    -----
+    The modulation types have different characteristics:
+    - 'circular': Standard pyramid modulation, uniform flux distribution
+    - 'vertical'/'horizontal': Linear modulation along one axis, flux weighted by 1/cos(tilt)
+    - 'alternating': Switches between vertical and horizontal on consecutive frames
+    - pyr_tip_def_ld and pyr_tip_maya_ld represent different types of pyramid tip imperfections.
+    
+    For linear modulation, the flux weighting compensates for intensity loss at large tilts,
+    ensuring uniform contribution from all modulation positions.
+    """
     def __init__(self,
                  simul_params: SimulParams,
                  wavelengthInNm: float, # TODO =750,
@@ -38,7 +129,7 @@ class ModulatedPyramid(BaseProcessingObj):
                  mod_amp: float = 3.0,
                  mod_step: int = None,
                  mod_type: str = 'circular',  # 'circular', 'vertical', 'horizontal', 'alternating'
-                 fov_errinf: float = 0.5,
+                 fov_errinf: float = 0.1,
                  fov_errsup: float = 2,
                  pup_dist: int = None,
                  pup_margin: int = 2,
@@ -51,8 +142,8 @@ class ModulatedPyramid(BaseProcessingObj):
                  pyr_tip_maya_ld: float = 0.0,
                  min_pup_dist: float = None,
                  rotAnglePhInDeg: float = 0.0,
-                 xShiftPhInPixel: float = 0.0,    # same as SH
-                 yShiftPhInPixel: float = 0.0,    # same as SH
+                 xShiftPhInPixel: float = 0.0,
+                 yShiftPhInPixel: float = 0.0,
                  target_device_idx: int = None,
                  precision: int = None
                 ):
@@ -64,20 +155,19 @@ class ModulatedPyramid(BaseProcessingObj):
         self.fov = fov
         self.pup_diam = pup_diam
 
-        result = self.calc_geometry(self.pixel_pupil,
-                                    self.pixel_pitch,
-                                    wavelengthInNm,
-                                    self.fov,
-                                    self.pup_diam,
-                                    ccd_side=output_resolution,
-                                    fov_errinf=fov_errinf,
-                                    fov_errsup=fov_errsup,
-                                    pup_dist=pup_dist,
-                                    pup_margin=pup_margin,
-                                    fft_res=fft_res,
-                                    min_pup_dist=min_pup_dist)
+        result = self.calc_pyr_geometry(self.pixel_pupil,
+                                        self.pixel_pitch,
+                                        wavelengthInNm,
+                                        self.fov,
+                                        self.pup_diam,
+                                        ccd_side=output_resolution,
+                                        fov_errinf=fov_errinf,
+                                        fov_errsup=fov_errsup,
+                                        pup_dist=pup_dist,
+                                        pup_margin=pup_margin,
+                                        fft_res=fft_res,
+                                        min_pup_dist=min_pup_dist)
 
-        wavelengthInNm = result['wavelengthInNm']
         fov_res = result['fov_res']
         self.fp_masking = result['fp_masking']
         fft_res = result['fft_res']
@@ -110,13 +200,6 @@ class ModulatedPyramid(BaseProcessingObj):
         self.pup_shifts = pup_shifts
 
         # interpolation settings
-        self.interp = None
-        self._do_interpolation = False
-        self._wf_interpolated = None
-        self._edge_pixels = None
-        self._reference_indices = None
-        self._coefficients = None
-        self._valid_indices = None
         self.pup_shift_interp = None
         self._do_pup_shift = False
         self._pup_pyr_interpolated = None
@@ -160,14 +243,22 @@ class ModulatedPyramid(BaseProcessingObj):
 
         self.mod_steps = int(mod_step)
         self.mod_amp = mod_amp
+        self.flux_factor_vector = None
+        self.factor = None
 
-        self.out_i = Intensity(final_ccd_side, final_ccd_side, precision=self.precision, target_device_idx=self.target_device_idx)
-        self.psf_tot = BaseValue(value=self.xp.zeros((fft_totsize, fft_totsize), dtype=self.dtype), target_device_idx=self.target_device_idx)
-        self.psf_bfm = BaseValue(value=self.xp.zeros((fft_totsize, fft_totsize), dtype=self.dtype), target_device_idx=self.target_device_idx)
-        self.transmission = BaseValue(value=self.xp.zeros(1, dtype=self.dtype), target_device_idx=self.target_device_idx)
+        self.out_i = Intensity(final_ccd_side, final_ccd_side, precision=self.precision,
+                               target_device_idx=self.target_device_idx)
+        self.psf_tot = BaseValue(value=self.xp.zeros((fft_totsize, fft_totsize), dtype=self.dtype),
+                                 target_device_idx=self.target_device_idx,
+                                 precision=precision)
+        self.psf_bfm = BaseValue(value=self.xp.zeros((fft_totsize, fft_totsize), dtype=self.dtype),
+                                 target_device_idx=self.target_device_idx,
+                                 precision=precision)
+        self.transmission = BaseValue(value=self.xp.zeros(1, dtype=self.dtype),
+                                      target_device_idx=self.target_device_idx,
+                                      precision=precision)
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
-        self.inputs['ext_source_coeff'] = InputValue(type=BaseValue, optional=True)
         self.outputs['out_i'] = self.out_i
         self.outputs['out_psf_tot'] = self.psf_tot
         self.outputs['out_psf_bfm'] = self.psf_bfm
@@ -198,7 +289,7 @@ class ModulatedPyramid(BaseProcessingObj):
         # Derived classes can disable streams
         self.stream_enable = True
 
-    def calc_geometry(self,
+    def calc_pyr_geometry(self,
         DpupPix,                # number of pixels of input phase array
         pixel_pitch,            # pixel sampling [m] of DpupPix
         lambda_,                # working lambda of the sensor [nm]
@@ -220,72 +311,45 @@ class ModulatedPyramid(BaseProcessingObj):
             min_pup_dist = pup_diam + pup_margin * 2
 
         if pup_dist < min_pup_dist:
-            print(f"Error: pup_dist (px) = {pup_dist} is not enough to hold the pupil geometry. Minimum allowed distance is {min_pup_dist}")
-            return 0
+            raise ValueError(f"Error: pup_dist (px) = {pup_dist} is"
+                             f"not enough to hold the pupil geometry."
+                             f" Minimum allowed distance is {min_pup_dist}")
 
         min_ccd_side = pup_dist + pup_diam + pup_margin * 2
         if ccd_side < min_ccd_side:
-            print(f"Error: ccd_side (px) = {ccd_side} is not enough to hold the pupil geometry. Minimum allowed side is {min_ccd_side}")
-            return 0
+            raise ValueError(f"Error: ccd_side (px) = {ccd_side} is"
+                             f" not enough to hold the pupil geometry."
+                             f" Minimum allowed side is {min_ccd_side}")
 
-        D = DpupPix * pixel_pitch
-        Fov_internal = lambda_ * 1e-9 / D * (D / pixel_pitch) * RAD2ASEC
+        internal_ccd_side = self.xp.around(fft_res * pup_diam / 2) * 2
 
-        minfov = FoV * (1 - fov_errinf)
-        maxfov = FoV * (1 + fov_errsup)
-        fov_res = 1.0
-
-        if Fov_internal < minfov:
-            fov_res = int(minfov / Fov_internal)
-            if Fov_internal * fov_res < minfov:
-                fov_res += 1
-
-        if Fov_internal > maxfov:
-            print("Error: Calculated FoV is higher than maximum accepted FoV.")
-            print("Please revise error margin, or the input phase dimension and/or pitch")
-            return 0
-
-        if fov_res > 1:
-            Fov_internal *= fov_res
-            print(f"Interpolated FoV (arcsec): {Fov_internal:.2f}")
-            print(f"Warning: reaching the requested FoV requires {fov_res}x interpolation of input phase array.")
-            print("Consider revising the input phase dimension and/or pitch to improve performance.")
-
-        if fov_res > 1:
-            Fov_internal *= fov_res
-
-        fp_masking = FoV / Fov_internal
-
-        if Fov_internal != FoV:
-            print(f"FoV reduction from {Fov_internal:.2f} to {FoV:.2f} will be performed with a focal plane mask")
-
-        DpupPixFov = DpupPix * fov_res
+        # Theoretical fft resolution, and minimum fft resolution to hold the pupil geometry
+        fft_res = internal_ccd_side / float(pup_diam)
         fft_res_min = (pup_dist + pup_diam) / pup_diam * 1.1
         if fft_res < fft_res_min:
             fft_res = fft_res_min
 
-        internal_ccd_side = self.xp.around(fft_res * pup_diam / 2) * 2
-        fft_res = internal_ccd_side / float(pup_diam)
+        result = calc_geometry(
+            DpupPix,
+            pixel_pitch,
+            lambda_,
+            FoV,
+            fov_errinf=fov_errinf,
+            fov_errsup=fov_errsup,
+            fft_res=fft_res,
+        )
 
-        totsize = self.xp.around(DpupPixFov * fft_res / 2) * 2
-        fft_res = totsize / float(DpupPixFov)
+        fft_res = result['fft_res']
 
-        padding = self.xp.around((DpupPixFov * fft_res - DpupPixFov) / 2) * 2
-
-        results = {
-            'fov_res': fov_res,
-            'fp_masking': fp_masking,
-            'fft_res': fft_res,
+        result.update(
+            {
             'tilt_scale': fft_res / ((pup_dist / float(pup_diam)) / 2.0),
-            'fft_sampling': int(DpupPixFov),
-            'fft_padding': int(padding),
-            'fft_totsize': int(totsize),
-            'wavelengthInNm': lambda_,
             'toccd_side': internal_ccd_side,
             'final_ccd_side': ccd_side
-        }
+            }
+        )
 
-        return results
+        return result
 
     def get_pyr_tlt(self, p, c):
         A = int((p + c) // 2)
@@ -377,108 +441,72 @@ class ModulatedPyramid(BaseProcessingObj):
             n_rotations = 2  # Both vertical and horizontal
         else:
             n_rotations = 1  # Only one orientation
-    
+
         # Initialize ttexp array with rotation dimension
         # Shape: (n_rotations, mod_steps, height, width)
         self.ttexp = self.xp.zeros((n_rotations, self.mod_steps, self.tilt_x.shape[0], self.tilt_x.shape[1]),
                                 dtype=self.complex_dtype)
 
-        if self.ext_source_coeff is not None:
-            # EXTENDED SOURCE MODE: Use source coefficients
-            coeff_tiltx = self.ext_source_coeff.value[:, 0]
-            coeff_tilty = self.ext_source_coeff.value[:, 1]
-            coeff_focus = self.ext_source_coeff.value[:, 2]
-            coeff_flux  = self.ext_source_coeff.value[:, 3]
-
-            # Create Zernike generator for the pupil
-            zg = ZernikeGenerator(self.fft_sampling, xp=self.xp, dtype=self.dtype)
-
-            # Get tip, tilt, focus modes (Noll indices 2, 3, 4)
-            ext_xtilt = zg.getZernike(2)  # tip
-            ext_ytilt = zg.getZernike(3)  # tilt
-            ext_focus = zg.getZernike(4)  # focus
-
-            # Cache exponentials for each source point
+        # MODULATION MODE (extended source case moved to a different class):
+        # Handle different modulation types
+        if self.mod_type == 'circular':
+            # CIRCULAR MODULATION MODE: Standard pyramid modulation
             for tt in range(self.mod_steps):
-                # Combine tip, tilt, and focus for this point
-                pup_phase = (coeff_tiltx[tt] * ext_xtilt +
-                            coeff_tilty[tt] * ext_ytilt +
-                            coeff_focus[tt] * ext_focus)
+                angle = 2 * self.xp.pi * (tt / self.mod_steps)
+                pup_tt = (self.mod_amp * self.xp.sin(angle) * self.tilt_x +
+                        self.mod_amp * self.xp.cos(angle) * self.tilt_y)
 
-                self.ttexp[0, tt, :, :] = self.xp.exp(-iu * pup_phase, dtype=self.complex_dtype)
+                self.ttexp[0, tt, :, :] = self.xp.exp(-iu * pup_tt, dtype=self.complex_dtype)
 
-            # Set flux factor vector from source (will be updated in trigger if PSF changes)
-            self.flux_factor_vector = self.to_xp(coeff_flux)
-
-            # Clean up very small flux values
-            max_flux = self.xp.max(self.xp.abs(self.flux_factor_vector))
-            threshold = max_flux * 1e-5
-            small_idx = self.xp.abs(self.flux_factor_vector) < threshold
-            self.flux_factor_vector[small_idx] = 0.0
-
-            print(f'Cached extended source with {self.mod_steps} points, '
-                f'total flux: {self.xp.sum(self.flux_factor_vector):.3f}')
-
-        else:
-            # MODULATION MODE: Handle different modulation types
-            if self.mod_type == 'circular':
-                # CIRCULAR MODULATION MODE: Standard pyramid modulation
+            # Equal flux for all modulation steps
+            self.flux_factor_vector = self.xp.ones(self.mod_steps, dtype=self.dtype)
+        elif self.mod_type in ['vertical', 'horizontal', 'alternating']:
+            # LINEAR MODULATION: Generate vertical case first
+            for rotation_idx in range(n_rotations):
                 for tt in range(self.mod_steps):
-                    angle = 2 * self.xp.pi * (tt / self.mod_steps)
-                    pup_tt = (self.mod_amp * self.xp.sin(angle) * self.tilt_x +
-                            self.mod_amp * self.xp.cos(angle) * self.tilt_y)
+                    # Linear modulation from -mod_amp to +mod_amp
+                    tilt_value = self.mod_amp * (2 * tt / (self.mod_steps - 1) - 1)
 
-                    self.ttexp[0, tt, :, :] = self.xp.exp(-iu * pup_tt, dtype=self.complex_dtype)
+                    if self.mod_type == 'horizontal' or (self.mod_type == 'alternating' and rotation_idx == 1):
+                        # Horizontal modulation uses tilt_x
+                        pup_tt = tilt_value * self.tilt_x
+                    else:
+                        # Vertical modulation uses tilt_y
+                        pup_tt = tilt_value * self.tilt_y
 
-                # Equal flux for all modulation steps
-                self.flux_factor_vector = self.xp.ones(self.mod_steps, dtype=self.dtype)
-            elif self.mod_type in ['vertical', 'horizontal', 'alternating']:
-                # LINEAR MODULATION: Generate vertical case first
-                for rotation_idx in range(n_rotations):
-                    for tt in range(self.mod_steps):
-                        # Linear modulation from -mod_amp to +mod_amp
-                        tilt_value = self.mod_amp * (2 * tt / (self.mod_steps - 1) - 1)
+                    self.ttexp[rotation_idx, tt, :, :] = self.xp.exp(-iu * pup_tt, dtype=self.complex_dtype)
 
-                        if self.mod_type == 'horizontal' or (self.mod_type == 'alternating' and rotation_idx == 1):
-                            # Horizontal modulation uses tilt_x
-                            pup_tt = tilt_value * self.tilt_x
-                        else:
-                            # Vertical modulation uses tilt_y
-                            pup_tt = tilt_value * self.tilt_y
+            # Calculate flux correction for linear modulation
+            # Use integrated intensity over each step interval
+            self.flux_factor_vector = self.xp.zeros(self.mod_steps, dtype=self.dtype)
 
-                        self.ttexp[rotation_idx, tt, :, :] = self.xp.exp(-iu * pup_tt, dtype=self.complex_dtype)
+            if self.mod_steps == 1:
+                self.flux_factor_vector[0] = 1.0
+            else:
+                for tt in range(self.mod_steps):
+                    # For linear modulation, use the average intensity over the step interval
+                    # This accounts for the continuous interval each discrete point represents
 
-                # Calculate flux correction for linear modulation
-                # Use integrated intensity over each step interval
-                self.flux_factor_vector = self.xp.zeros(self.mod_steps, dtype=self.dtype)
+                    # Step boundaries in tilt space
+                    if tt == 0:
+                        # First point: from -mod_amp to midpoint with next
+                        tilt_mid = self.mod_amp * (2 * 0.5 / (self.mod_steps - 1) - 1) # this is > - self.mod_amp
+                        avg_tilt = (-self.mod_amp + tilt_mid) / 2 # this means that normalized_angle cannot be - pi/2
+                    elif tt == self.mod_steps - 1:
+                        # Last point: from midpoint with previous to +mod_amp
+                        tilt_mid = self.mod_amp * (2 * (tt - 0.5) / (self.mod_steps - 1) - 1) # this is < self.mod_amp
+                        avg_tilt = (tilt_mid + self.mod_amp) / 2 # this means that normalized_angle cannot be pi/2
+                    else:
+                        # Middle points: average over symmetric interval
+                        avg_tilt = self.mod_amp * (2 * tt / (self.mod_steps - 1) - 1)
 
-                if self.mod_steps == 1:
-                    self.flux_factor_vector[0] = 1.0
-                else:
-                    for tt in range(self.mod_steps):
-                        # For linear modulation, use the average intensity over the step interval
-                        # This accounts for the continuous interval each discrete point represents
+                    # Convert to flux factor - INVERTED: more weight at the edges
+                    normalized_angle = self.xp.abs(avg_tilt) * self.xp.pi / (2 * self.mod_amp)
+                    # Use 1/cos(angle) to compensate for intensity loss at large tilts
+                    self.flux_factor_vector[tt] = 1.0 / self.xp.cos(normalized_angle)
 
-                        # Step boundaries in tilt space
-                        if tt == 0:
-                            # First point: from -mod_amp to midpoint with next
-                            tilt_mid = self.mod_amp * (2 * 0.5 / (self.mod_steps - 1) - 1) # this is > - self.mod_amp
-                            avg_tilt = (-self.mod_amp + tilt_mid) / 2 # this means that normalized_angle cannot be - pi/2
-                        elif tt == self.mod_steps - 1:
-                            # Last point: from midpoint with previous to +mod_amp
-                            tilt_mid = self.mod_amp * (2 * (tt - 0.5) / (self.mod_steps - 1) - 1) # this is < self.mod_amp
-                            avg_tilt = (tilt_mid + self.mod_amp) / 2 # this means that normalized_angle cannot be pi/2
-                        else:
-                            # Middle points: average over symmetric interval
-                            avg_tilt = self.mod_amp * (2 * tt / (self.mod_steps - 1) - 1)
-
-                        # Convert to flux factor - INVERTED: more weight at the edges
-                        normalized_angle = self.xp.abs(avg_tilt) * self.xp.pi / (2 * self.mod_amp)
-                        # Use 1/cos(angle) to compensate for intensity loss at large tilts
-                        self.flux_factor_vector[tt] = 1.0 / self.xp.cos(normalized_angle)
-
-            print(f'Cached circular modulation with {self.mod_steps} steps, '
-                f'amplitude: {self.mod_amp:.2f}')
+        print(f'Cached circular modulation with {self.mod_steps} steps, '
+            f'amplitude: {self.mod_amp:.2f}')
 
         # Common setup for both modes
         self.ffv = self.flux_factor_vector[:, self.xp.newaxis, self.xp.newaxis]
@@ -488,75 +516,8 @@ class ModulatedPyramid(BaseProcessingObj):
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
 
-        # Update input reference
-        in_ef = self.local_inputs['in_ef']
-
-        # Check if extended source has been updated (e.g., new PSF)
-        if self.ext_source_coeff is not None:
-            # Update tt cache in case the source was updated
-            if self.ext_source_coeff.generation_time == self.current_time:
-                # Source was updated this timestep, refresh ttexp, flux factors and ffv
-                self.mod_steps = int(self.ext_source_coeff.value.shape[0])
-                self.u_tlt = self.xp.zeros((self.mod_steps, self.fft_totsize, self.fft_totsize), dtype=self.complex_dtype)
-                self.cache_ttexp()
-
-        # Apply interpolation if needed (like SH)
-        if self._do_interpolation:
-
-            if self._edge_pixels is None:
-                # Compute once indices and coefficients
-                (self._edge_pixels,
-                self._reference_indices,
-                self._coefficients,
-                self._valid_indices) = calculate_extrapolation_indices_coeffs(
-                    cpuArray(in_ef.A), threshold=self._mask_threshold
-                )
-
-                # convert to xp
-                self._edge_pixels = self.to_xp(self._edge_pixels)
-                self._reference_indices = self.to_xp(self._reference_indices)
-                self._coefficients = self.to_xp(self._coefficients)
-                self._valid_indices = self.to_xp(self._valid_indices)
-
-                # Check if input amplitude is binary (all values close to 0 or 1) with tolerance
-                unique_values = self.xp.unique(in_ef.A)
-                tol = 1e-3
-                is_binary = self.xp.all(
-                    self.xp.logical_or(
-                        self.xp.abs(unique_values - 0) < tol,
-                        self.xp.abs(unique_values - 1) < tol
-                    )
-                )
-
-                self._amplitude_is_binary = is_binary
-
-            self.phase_extrapolated[:] = in_ef.phaseInNm * \
-                (in_ef.A >= self._mask_threshold).astype(int)
-            _ = apply_extrapolation(
-                in_ef.phaseInNm,
-                self._edge_pixels,
-                self._reference_indices,
-                self._coefficients,
-                self._valid_indices,
-                out=self.phase_extrapolated,
-                xp=self.xp
-            )
-
-            # Interpolate amplitude and phase separately
-            self.interp.interpolate(in_ef.A, out=self._wf_interpolated.A)
-
-            # Apply binary threshold if input amplitude was binary
-            if self._amplitude_is_binary:
-                self._wf_interpolated.A[:] = (self._wf_interpolated.A > 0.5).astype(self.dtype)
-
-            self.interp.interpolate(self.phase_extrapolated, out=self._wf_interpolated.phaseInNm)
-
-            # Copy other properties
-            self._wf_interpolated.S0 = in_ef.S0
-            self._wf_interpolated.pixel_pitch = in_ef.pixel_pitch
-
-        # Always use self._wf_interpolated for calculations (like SH uses self._wf1)
-        self._wf_interpolated.ef_at_lambda(self.wavelength_in_nm, out=self.ef)
+        self.ef_interpolator.interpolate()
+        self.ef_interpolator.interpolated_ef().ef_at_lambda(self.wavelength_in_nm, out=self.ef)
 
     def trigger_code(self):
         # Select rotation based on current iteration for alternating modulation
@@ -590,7 +551,9 @@ class ModulatedPyramid(BaseProcessingObj):
         super().post_trigger()
 
         # Always use the working field (like SH always uses self._wf1)
-        phot = self._wf_interpolated.S0 * self.xp.sum(self._wf_interpolated.A) * (self._wf_interpolated.pixel_pitch ** 2)
+        in_ef = self.local_inputs['in_ef']
+        phot = in_ef.S0 * in_ef.masked_area()
+
         self.pup_pyr_tot *= (phot / self.xp.sum(self.pup_pyr_tot)) * self.transmission.value
 #        if phot == 0: slows down?
 #            print('WARNING: total intensity at PYR entrance is zero')
@@ -626,49 +589,22 @@ class ModulatedPyramid(BaseProcessingObj):
     def setup(self):
         super().setup()
 
-        self.ext_source_coeff = self.local_inputs['ext_source_coeff']
-        if self.ext_source_coeff is not None:
-            # Update modulation steps to match source points
-            self.mod_steps = int(self.ext_source_coeff.value.shape[0])
-            print(f'Setting up extended source with {self.mod_steps} points')
-
         self.u_tlt = self.xp.zeros((self.mod_steps, self.fft_totsize, self.fft_totsize), dtype=self.complex_dtype)
         self.cache_ttexp()
 
         # Get input electric field
         in_ef = self.local_inputs['in_ef']
 
-        # Determine if interpolation is needed (like in SH)
-        if (self.fov_res != 1 or
-            self.rotAnglePhInDeg != 0 or
-            self.xShiftPhInPixel != 0 or
-            self.yShiftPhInPixel != 0):
-
-            self._do_interpolation = True
-
-            # Create the interpolated field (like SH does with self._wf1)
-            self._wf_interpolated = ElectricField(
-                self.fft_sampling,
-                self.fft_sampling,
-                in_ef.pixel_pitch,
-                target_device_idx=self.target_device_idx,
-                precision=self.precision
-            )
-
-            # Create the interpolator (like in SH)
-            self.interp = Interp2D(
-                in_ef.size,
-                (self.fft_sampling, self.fft_sampling),
-                -self.rotAnglePhInDeg,  # Negative angle for PASSATA compatibility
-                self.xShiftPhInPixel,
-                self.yShiftPhInPixel,
-                dtype=self.dtype,
-                xp=self.xp
-            )
-        else:
-            self._do_interpolation = False
-            # Use the original field directly (like SH does)
-            self._wf_interpolated = in_ef
+        self.ef_interpolator = EFInterpolator(
+            in_ef = in_ef,
+            out_shape=(self.fft_sampling, self.fft_sampling),
+            rotAnglePhInDeg=self.rotAnglePhInDeg,
+            xShiftPhInPixel=self.xShiftPhInPixel,
+            yShiftPhInPixel=self.yShiftPhInPixel,
+            mask_threshold=self._mask_threshold,
+            target_device_idx=self.target_device_idx,
+            precision=self.precision,
+        )
 
         # Create separate interpolator for pup_shifts if needed
         if self.pup_shifts != (0.0, 0.0):
@@ -693,9 +629,5 @@ class ModulatedPyramid(BaseProcessingObj):
         else:
             self._do_pup_shift = False
 
-        if self._do_interpolation:
-            self.phase_extrapolated = in_ef.phaseInNm.copy()
-
         if self.stream_enable:
             super().build_stream()
-

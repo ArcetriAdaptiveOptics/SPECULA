@@ -76,19 +76,29 @@ class BaseProcessingObj(BaseTimeObj):
         Data is transferred between devices if necessary.
         '''
         for input_name, input_obj in self.inputs.items():
-            if MPI_DBG: print(process_rank, 'get_all_inputs(): getting InputValue:', input_name, flush=True)
+            if MPI_DBG: print(process_rank, 'get_all_inputs(): getting InputValue:',
+                              input_name, flush=True)
+            # Set additional info for better error messages
+            input_obj.requesting_obj_name = self.name
+            input_obj.input_name = input_name
             self.local_inputs[input_name] = input_obj.get(self.target_device_idx)
-        
+
         if MPI_DBG:
             print(process_rank, self.name, 'My inputs are:')
             for in_name, in_value in self.local_inputs.items():
                 if type(in_value) is list:
                     if len(in_value) > 0 and type(in_value[0]) is Layer:
-                        print(process_rank, in_name, [(x.generation_time, x.phaseInNm) for x in in_value], flush=True)
+                        print(process_rank, in_name,
+                              [(x.generation_time, x.phaseInNm) for x in in_value],
+                              flush=True)
                     else:
-                        print(process_rank, in_name, [(x.generation_time, x) for x in in_value], flush=True)
+                        print(process_rank, in_name,
+                              [(x.generation_time, x) for x in in_value],
+                              flush=True)
                 else:
-                    print(process_rank, in_name, in_value.generation_time if in_value is not None else None, in_value, type(in_value), flush=True)
+                    print(process_rank, in_name,
+                          in_value.generation_time if in_value is not None else None,
+                          in_value, type(in_value), flush=True)
 
     def trigger_code(self):
         '''

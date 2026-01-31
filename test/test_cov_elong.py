@@ -107,3 +107,159 @@ class TestCovTRunc(unittest.TestCase):
                 cpuArray(cov_only_diag), cpuArray(cov_only_diag_idl),
                 rtol=1e-3, atol=1e-6
         )
+
+    @cpu_and_gpu
+    def test_cov_with_eta_not_one(self, target_device_idx, xp):
+        """Test covariance computation with eta_is_not_one=True"""
+        diameter_in_m = 8
+        zenith_angle_in_deg = 30.
+        na_thickness_in_m = 10e3
+        launcher_coord_in_m = [3.0, 3.0, 0.]
+        n_sub_aps = 4
+        mask_sub_aps = make_mask(n_sub_aps, xp=xp)
+        sub_aps_index = xp.where(mask_sub_aps)
+        sub_aps_index_1D = xp.ravel_multi_index(sub_aps_index, mask_sub_aps.shape)
+        sub_aps_fov = 5.0
+        sh_spot_fwhm = 1.0
+        sigma_noise2 = 1.0
+        t_g_parameter = 0.0
+        h_in_m = 90e3
+
+        # Should not crash with eta_is_not_one=True
+        cov = calc_noise_cov_elong(
+            diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, launcher_coord_in_m,
+            sub_aps_index_1D, n_sub_aps, sub_aps_fov, sh_spot_fwhm, sigma_noise2,
+            t_g_parameter, h_in_m=h_in_m, eta_is_not_one=True,
+            only_diag=False, verbose=False, display=False
+        )
+
+        # Check that output is valid
+        self.assertEqual(cov.shape[0], cov.shape[1])
+        self.assertEqual(cov.shape[0], 2 * len(cpuArray(sub_aps_index_1D)))
+        # Check that diagonal is positive
+        self.assertTrue(np.all(cpuArray(np.diag(cov)) > 0))
+
+    @cpu_and_gpu
+    def test_cov_with_theta(self, target_device_idx, xp):
+        """Test covariance computation with theta parameter"""
+        diameter_in_m = 8
+        zenith_angle_in_deg = 30.
+        na_thickness_in_m = 10e3
+        launcher_coord_in_m = [3.0, 3.0, 0.]
+        n_sub_aps = 4
+        mask_sub_aps = make_mask(n_sub_aps, xp=xp)
+        sub_aps_index = xp.where(mask_sub_aps)
+        sub_aps_index_1D = xp.ravel_multi_index(sub_aps_index, mask_sub_aps.shape)
+        sub_aps_fov = 5.0
+        sh_spot_fwhm = 1.0
+        sigma_noise2 = 1.0
+        t_g_parameter = 0.0
+        h_in_m = 90e3
+
+        # Test with theta as list
+        theta_list = [0.5, 0.5]
+        cov = calc_noise_cov_elong(
+            diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, launcher_coord_in_m,
+            sub_aps_index_1D, n_sub_aps, sub_aps_fov, sh_spot_fwhm, sigma_noise2,
+            t_g_parameter, h_in_m=h_in_m, theta=theta_list, eta_is_not_one=True,
+            only_diag=False, verbose=False, display=False
+        )
+
+        self.assertEqual(cov.shape[0], 2 * len(cpuArray(sub_aps_index_1D)))
+        self.assertTrue(np.all(cpuArray(np.diag(cov)) > 0))
+
+    @cpu_and_gpu
+    def test_cov_with_truncation(self, target_device_idx, xp):
+        """Test covariance computation with t_g_parameter > 0"""
+        diameter_in_m = 8
+        zenith_angle_in_deg = 30.
+        na_thickness_in_m = 10e3
+        launcher_coord_in_m = [3.0, 3.0, 0.]
+        n_sub_aps = 4
+        mask_sub_aps = make_mask(n_sub_aps, xp=xp)
+        sub_aps_index = xp.where(mask_sub_aps)
+        sub_aps_index_1D = xp.ravel_multi_index(sub_aps_index, mask_sub_aps.shape)
+        sub_aps_fov = 5.0
+        sh_spot_fwhm = 1.0
+        sigma_noise2 = 1.0
+        t_g_parameter = 0.3  # 30% truncation
+        h_in_m = 90e3
+
+        # Test with full matrix
+        cov_full = calc_noise_cov_elong(
+            diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, launcher_coord_in_m,
+            sub_aps_index_1D, n_sub_aps, sub_aps_fov, sh_spot_fwhm, sigma_noise2,
+            t_g_parameter, h_in_m=h_in_m, only_diag=False, verbose=False
+        )
+
+        # Test with diagonal only
+        cov_diag = calc_noise_cov_elong(
+            diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, launcher_coord_in_m,
+            sub_aps_index_1D, n_sub_aps, sub_aps_fov, sh_spot_fwhm, sigma_noise2,
+            t_g_parameter, h_in_m=h_in_m, only_diag=True, verbose=False
+        )
+
+        self.assertEqual(cov_full.shape[0], 2 * len(cpuArray(sub_aps_index_1D)))
+        self.assertEqual(cov_diag.shape[0], 2 * len(cpuArray(sub_aps_index_1D)))
+        self.assertTrue(np.all(cpuArray(np.diag(cov_full)) > 0))
+        self.assertTrue(np.all(cpuArray(np.diag(cov_diag)) > 0))
+
+    @cpu_and_gpu
+    def test_coord_sub_aps_consistency(self, target_device_idx, xp):
+        """Test that coord_sub_aps is properly defined in all code paths"""
+        diameter_in_m = 8
+        zenith_angle_in_deg = 30.
+        na_thickness_in_m = 10e3
+        launcher_coord_in_m = [3.0, 3.0, 0.]
+        n_sub_aps = 4
+        mask_sub_aps = make_mask(n_sub_aps, xp=xp)
+        sub_aps_index = xp.where(mask_sub_aps)
+        sub_aps_index_1D = xp.ravel_multi_index(sub_aps_index, mask_sub_aps.shape)
+        sub_aps_fov = 5.0
+        sh_spot_fwhm = 1.0
+        sigma_noise2 = 1.0
+        t_g_parameter = 0.0
+        h_in_m = 90e3
+
+        # Test both code paths (with and without eta_is_not_one)
+        for eta_flag in [False, True]:
+            for diag_flag in [False, True]:
+                cov = calc_noise_cov_elong(
+                    diameter_in_m, zenith_angle_in_deg, na_thickness_in_m,
+                    launcher_coord_in_m, sub_aps_index_1D, n_sub_aps,
+                    sub_aps_fov, sh_spot_fwhm, sigma_noise2, t_g_parameter,
+                    h_in_m=h_in_m, eta_is_not_one=eta_flag,
+                    only_diag=diag_flag, verbose=False
+                )
+                # Should not crash and return valid matrix
+                self.assertIsNotNone(cov)
+                self.assertTrue(np.all(np.isfinite(cpuArray(cov))))
+
+    @cpu_and_gpu
+    def test_different_sub_aps_sizes(self, target_device_idx, xp):
+        """Test with different number of subapertures"""
+        diameter_in_m = 8
+        zenith_angle_in_deg = 30.
+        na_thickness_in_m = 10e3
+        launcher_coord_in_m = [3.0, 3.0, 0.]
+        sub_aps_fov = 5.0
+        sh_spot_fwhm = 1.0
+        sigma_noise2 = 1.0
+        t_g_parameter = 0.0
+        h_in_m = 90e3
+
+        for n_sub_aps in [4, 8, 16]:
+            mask_sub_aps = make_mask(n_sub_aps, xp=xp)
+            sub_aps_index = xp.where(mask_sub_aps)
+            sub_aps_index_1D = xp.ravel_multi_index(sub_aps_index, mask_sub_aps.shape)
+
+            cov = calc_noise_cov_elong(
+                diameter_in_m, zenith_angle_in_deg, na_thickness_in_m,
+                launcher_coord_in_m, sub_aps_index_1D, n_sub_aps,
+                sub_aps_fov, sh_spot_fwhm, sigma_noise2, t_g_parameter,
+                h_in_m=h_in_m, only_diag=False, verbose=False
+            )
+
+            expected_size = 2 * len(cpuArray(sub_aps_index_1D))
+            self.assertEqual(cov.shape[0], expected_size)
+            self.assertTrue(np.all(cpuArray(np.diag(cov)) > 0))

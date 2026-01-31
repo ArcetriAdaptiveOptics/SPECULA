@@ -12,6 +12,28 @@ import numpy as np
 
 
 class PSF(BaseProcessingObj):
+    """ Processing object that computes the Point Spread Function (PSF) from an input ElectricField.
+    Computes PSF, Strehl ratio (SR), integrated PSF and SR, and PSF standard deviation over time.
+
+    Parameters
+    ----------
+    simul_params : SimulParams
+        Simulation parameters object.
+    wavelengthInNm : float
+        Wavelength at which to compute the PSF [nm].
+    nd : float, optional
+        Numerical density of the PSF (pixels per lambda/D). If None, it is calculated
+        based on the input ElectricField and pixel size.
+    pixel_size_mas : float, optional
+        Desired pixel size of the PSF in milliarcseconds. If None, it is calculated
+        based on the input ElectricField and numerical density.
+    start_time : float, optional
+        Time (in seconds) after which to start integrating PSF and SR. Default is 0.0.
+    target_device_idx : int, optional
+        Target device index for computation (CPU/GPU). Default is None (uses global setting).
+    precision : int, optional
+        Precision for computation (0 for double, 1 for single). Default is None (uses global setting).
+    """
     def __init__(self,
                  simul_params: SimulParams,
                  wavelengthInNm: float,    # TODO =500.0,
@@ -26,6 +48,7 @@ class PSF(BaseProcessingObj):
         if wavelengthInNm <= 0:
             raise ValueError('PSF wavelength must be >0')
         self.wavelengthInNm = wavelengthInNm
+        self.wave_str = f"{int(wavelengthInNm)}nm"
 
         self.psf_pixel_size, self.nd = calc_psf_geometry(
                                             simul_params.pixel_pupil,
@@ -33,32 +56,43 @@ class PSF(BaseProcessingObj):
                                             wavelengthInNm,
                                             nd,
                                             pixel_size_mas)
-            
+
         self.start_time = start_time
 
-        self.sr = BaseValue(target_device_idx=self.target_device_idx)
-        self.int_sr = BaseValue(target_device_idx=self.target_device_idx)
-        self.psf = BaseValue(target_device_idx=self.target_device_idx)
-        self.int_psf = BaseValue(target_device_idx=self.target_device_idx)
+        self.sr = BaseValue(target_device_idx=self.target_device_idx,
+                            precision=precision)
+        self.int_sr = BaseValue(target_device_idx=self.target_device_idx,
+                                precision=precision)
+        self.psf = BaseValue(target_device_idx=self.target_device_idx,
+                             precision=precision)
+        self.int_psf = BaseValue(target_device_idx=self.target_device_idx,
+                                precision=precision)
+        self.std_psf = BaseValue(target_device_idx=self.target_device_idx,
+                                precision=precision)
         self.ref = None
         self.count = 0
         self.first = True
+        self._sum_psf_squared = None # For std dev calculation
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
         self.outputs['out_sr'] = self.sr
         self.outputs['out_psf'] = self.psf
         self.outputs['out_int_sr'] = self.int_sr
         self.outputs['out_int_psf'] = self.int_psf
+        self.outputs['out_std_psf'] = self.std_psf
 
     def setup(self):
         super().setup()
         in_ef = self.local_inputs['in_ef']
         s = [int(np.around(dim * self.nd/2)*2) for dim in in_ef.size]
         self.int_psf.value = self.xp.zeros(s, dtype=self.dtype)
+        self._sum_psf_squared = self.xp.zeros(s, dtype=self.dtype)
+        self.std_psf.value = self.xp.zeros(s, dtype=self.dtype)
         self.int_sr.value = 0
 
         self.out_size = [int(np.around(dim * self.nd/2)*2) for dim in in_ef.size]
-        self.ref = Intensity(self.out_size[0], self.out_size[1], target_device_idx=self.target_device_idx)
+        self.ref = Intensity(self.out_size[0], self.out_size[1],
+                             target_device_idx=self.target_device_idx)
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
@@ -67,16 +101,24 @@ class PSF(BaseProcessingObj):
 
         # First time, calculate reference PSF.
         if self.first:
-            self.ref.i[:] = calc_psf(in_ef.A * 0.0, in_ef.A, imwidth=self.out_size[0], normalize=True,
-                                     xp=self.xp, complex_dtype=self.complex_dtype)
+            self.ref.i[:] = calc_psf(in_ef.A * 0.0,
+                                     in_ef.A,
+                                     imwidth=self.out_size[0],
+                                     normalize=True,
+                                     xp=self.xp,
+                                     complex_dtype=self.complex_dtype)
             self.first = False
 
     def trigger_code(self):
         in_ef = self.local_inputs['in_ef']
-        self.psf.value, self.total_psf = calc_psf(in_ef.phi_at_lambda(self.wavelengthInNm), in_ef.A, imwidth=self.out_size[0], normalize=True,
-                                                  xp=self.xp, complex_dtype=self.complex_dtype, return_total=True)
-        self.sr.value = self.psf.value[self.out_size[0] // 2, self.out_size[1] // 2] / self.ref.i[self.out_size[0] // 2, self.out_size[1] // 2]
-        print('SR:', self.sr.value, flush=True)
+        self.psf.value, self.total_psf = calc_psf(in_ef.phi_at_lambda(self.wavelengthInNm),
+                                                  in_ef.A, imwidth=self.out_size[0], normalize=True,
+                                                  xp=self.xp, complex_dtype=self.complex_dtype,
+                                                  return_total=True)
+        self.sr.value = self.psf.value[self.out_size[0] // 2, \
+                                       self.out_size[1] // 2] / self.ref.i[self.out_size[0] // 2, \
+                                       self.out_size[1] // 2]
+        print('SR at ' + self.wave_str + ':', self.sr.value, flush=True)
 
     def post_trigger(self):
         super().post_trigger()
@@ -84,6 +126,7 @@ class PSF(BaseProcessingObj):
             self.count += 1
             self.int_sr.value += self.sr.value
             self.int_psf.value += self.psf.value
+            self._sum_psf_squared += self.psf.value ** 2
         self.psf.generation_time = self.current_time
         self.sr.generation_time = self.current_time
 
@@ -91,6 +134,9 @@ class PSF(BaseProcessingObj):
         if self.count > 0:
             self.int_psf.value /= self.count
             self.int_sr.value /= self.count
+            self.std_psf.value = self.xp.sqrt(self._sum_psf_squared / self.count \
+                                              - self.int_psf.value ** 2)
 
         self.int_psf.generation_time = self.current_time
         self.int_sr.generation_time = self.current_time
+        self.std_psf.generation_time = self.current_time

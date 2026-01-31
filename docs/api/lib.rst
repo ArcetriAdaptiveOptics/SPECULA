@@ -13,6 +13,15 @@ Elt M1 Ifunc Calculator
    :show-inheritance:
 
 
+Calc Geometry
+-------------
+
+.. automodule:: specula.lib.calc_geometry
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Calc Noise Cov Elong
 --------------------
 
@@ -94,6 +103,15 @@ Flatten
    :show-inheritance:
 
 
+Fsoc Lib
+--------
+
+.. automodule:: specula.lib.fsoc_lib
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Interp2D
 --------
 
@@ -125,6 +143,15 @@ Mask
 ----
 
 .. automodule:: specula.lib.mask
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Mmse Reconstructor
+------------------
+
+.. automodule:: specula.lib.mmse_reconstructor
    :members:
    :undoc-members:
    :show-inheritance:

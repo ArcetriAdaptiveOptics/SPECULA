@@ -32,6 +32,9 @@ class ShSlopec(Slopec):
                  windowing: bool = False,
                  weight_int_pixel_dt: float=0,
                  window_int_pixel: bool=False,
+                 window_int_threshold: float=1.0,
+                 vecWeiPixRadT: list=None,
+                 interleave: bool=False,
                  target_device_idx: int = None,
                  precision: int = None):
 
@@ -39,17 +42,22 @@ class ShSlopec(Slopec):
         # because we need to know the number of subapertures
         self.subapdata = subapdata
 
-        super().__init__(sn=sn, filtmat=filtmat, weight_int_pixel_dt=weight_int_pixel_dt,
-                         target_device_idx=target_device_idx, precision=precision)
+        super().__init__(sn=sn,
+                         filtmat=filtmat,
+                         weight_int_pixel_dt=weight_int_pixel_dt,
+                         interleave=interleave,
+                         target_device_idx=target_device_idx,
+                         precision=precision)
         self.thr_value = thr_value
-        self.thr_mask_cube = BaseValue(target_device_idx=self.target_device_idx)
+        self.thr_mask_cube = BaseValue(target_device_idx=self.target_device_idx,
+                                       precision=precision)
         self.xweights = None
         self.yweights = None
         self.xcweights = None
         self.ycweights = None
         self.mask_weighted = None
-        self.vecWeiPixRadT = None
-        self.weightedPixRad = weightedPixRad
+        self.weighted_pix_rad = weightedPixRad
+        self.vec_wei_pix_rad_t = vecWeiPixRadT
         self.windowing = windowing
         self.thr_ratio_value = 0.0
         self.thr_pedestal = False
@@ -61,6 +69,7 @@ class ShSlopec(Slopec):
 
         self.exp_weight = exp_weight
         self.window_int_pixel = window_int_pixel
+        self.window_int_threshold = window_int_threshold
         self.int_pixels_weight = None
 
         self.accumulated_slopes = Slopes(self.nslopes(), target_device_idx=self.target_device_idx)
@@ -82,7 +91,7 @@ class ShSlopec(Slopec):
 
     def set_xy_weights(self):
         if self.subapdata:
-            out = self.computeXYweights(self.subapdata.np_sub, self.exp_weight, self.weightedPixRad, 
+            out = self.computeXYweights(self.subapdata.np_sub, self.exp_weight, self.weighted_pix_rad,
                                           self.quadcell_mode, self.windowing)
             self.mask_weighted = self.to_xp(out['mask_weighted'])
             self.xweights = self.to_xp(out['x'])
@@ -111,16 +120,16 @@ class ShSlopec(Slopec):
         if quadcell_mode:
             x = np.where(x > 0, 1.0, -1.0)
             y = np.where(y > 0, 1.0, -1.0)
-            xc, yc = x, y
+            xc, yc = x.copy(), y.copy()
         else:
-            xc, yc = x, y
+            xc, yc = x.copy(), y.copy()
             # Apply exponential weights if exp_weight is not 1
             x = np.where(x > 0, np.power(x, exp_weight), -np.power(np.abs(x), exp_weight))
             y = np.where(y > 0, np.power(y, exp_weight), -np.power(np.abs(y), exp_weight))
 
-        # Adjust xc, yc for centroid calculations in two steps
-        xc = np.where(x > 0, xc, -np.abs(xc))
-        yc = np.where(y > 0, yc, -np.abs(yc))
+        # Adjust xc, yc for centroid calculations in two steps (as in IDL)
+        xc = np.where(xc > 0, np.abs(xc), -np.abs(xc))
+        yc = np.where(yc > 0, np.abs(yc), -np.abs(yc))
 
         # Apply windowing or weighted pixel mask
         if weightedPixRad != 0:
@@ -129,7 +138,7 @@ class ShSlopec(Slopec):
                 mask_weighted = make_mask(np_sub, diaratio=(2.0 * weightedPixRad / np_sub), xp=np)
             else:
                 # Weighted Center of Gravity (WCoG)
-                mask_weighted = self.psf_gaussian(np_sub, [weightedPixRad, weightedPixRad])
+                mask_weighted = self.psf_gaussian(np_sub, [2*weightedPixRad, 2*weightedPixRad])
                 mask_weighted /= np.max(mask_weighted)
 
             mask_weighted[mask_weighted < 1e-6] = 0.0
@@ -142,13 +151,12 @@ class ShSlopec(Slopec):
         return {"x": x, "y": y, "xc": xc, "yc": yc, "mask_weighted": mask_weighted}
 
     def trigger_code(self):
-        if self.vecWeiPixRadT is not None:
-            time = self.current_time_seconds
-            idxW = self.xp.where(time > self.vecWeiPixRadT[:, 1])[-1]
+        if self.vec_wei_pix_rad_t is not None:
+            idxW = self.xp.where(self.current_time_seconds > self.vec_wei_pix_rad_t[:, 1])[-1]
             if len(idxW) > 0:
-                self.weightedPixRad = self.vecWeiPixRadT[idxW, 0]
+                self.weighted_pix_rad = self.vec_wei_pix_rad_t[idxW, 0]
                 if self.verbose:
-                    print(f'self.weightedPixRad: {self.weightedPixRad}')
+                    print(f'self.weighted_pix_rad: {self.weighted_pix_rad}')
                 self.set_xy_weights()
 
         if self.weight_int_pixel_dt > 0:
@@ -179,12 +187,12 @@ class ShSlopec(Slopec):
         if self.weight_int_pixel:
 
             if self.int_pixels_weight is None:
-                self.int_pixels_weight = self.xp.ones_like(pixels)
+                self.int_pixels_weight = self.xp.ones_like(pixels, dtype=self.dtype)
 
             n_weight_applied = 0
             if self.int_pixels is not None and self.int_pixels.generation_time == self.current_time:
                 # Reshape accumulated pixels to match the format
-                int_pixels_weight = self.int_pixels.pixels[idx2d].T
+                int_pixels_weight = self.int_pixels.pixels[idx2d].T.astype(self.dtype)
                 int_pixels_weight -= self.xp.min(int_pixels_weight, axis=0, keepdims=True)
                 max_temp = self.xp.max(int_pixels_weight, axis=0)
 
@@ -194,19 +202,22 @@ class ShSlopec(Slopec):
                 if not self.xp.any(valid_mask):
                     int_pixels_weight.fill(1.0)
                 elif self.window_int_pixel:
-                    window_threshold = 0.05
-                    # Create a mask for pixels above threshold
-                    normalized_weight = self.xp.zeros_like(int_pixels_weight)
-                    normalized_weight[:, valid_mask] = int_pixels_weight[:, valid_mask] / max_temp[valid_mask]
+                    # Apply windowing condition exactly like IDL in 2D
+                    above_threshold = int_pixels_weight >= self.window_int_threshold
 
-                    # Apply threshold and symmetry condition
-                    over_threshold = (normalized_weight >= window_threshold) | (normalized_weight[::-1, ::-1] >= window_threshold)
+                    # IDL: reverse(weight, 1) - flip only first dimension
+                    weight_flipped = self.xp.flip(int_pixels_weight, axis=0)
+                    above_threshold_flipped = weight_flipped >= self.window_int_threshold
 
-                    # Reset weights and apply threshold mask
-                    int_pixels_weight.fill(0)
-                    int_pixels_weight[over_threshold] = 1.0
+                    # Combine with OR
+                    window_mask = above_threshold | above_threshold_flipped
 
-                    # Count subapertures where weights were applied
+                    # Convert to weights
+                    int_pixels_weight = window_mask.astype(self.dtype)
+
+                    # Handle invalid subapertures
+                    int_pixels_weight[:, ~valid_mask] = 1.0
+
                     n_weight_applied = self.xp.sum(self.xp.any(int_pixels_weight > 0, axis=0))
                 else:
                     # Normalize by max value for valid subapertures
@@ -219,7 +230,7 @@ class ShSlopec(Slopec):
             # Apply weights to pixels
             pixels *= self.int_pixels_weight
 
-            if self.verbose:
+            if self.verbose:  # pragma: no cover
                 print(f"Weights mask has been applied to {n_weight_applied} sub-apertures")
 
         # Calculate flux and max flux per subaperture
@@ -276,14 +287,31 @@ class ShSlopec(Slopec):
         self.total_counts.value[0] = self.xp.sum(flux_per_subaperture_vector)
         self.subap_counts.value[0] = self.xp.mean(flux_per_subaperture_vector)
 
-        if self.verbose:
+        if self.verbose:  # pragma: no cover
             print(f"Slopes min, max and rms : {self.xp.min(sx)}, {self.xp.max(sx)}, {self.xp.sqrt(self.xp.mean(sx ** 2))}")
 
     def psf_gaussian(self, np_sub, fwhm):
-        x = np.linspace(-1, 1, np_sub)
-        y = np.linspace(-1, 1, np_sub)
-        x, y = np.meshgrid(x, y)
-        gaussian = np.exp(-4 * np.log(2) * (x ** 2 + y ** 2) / fwhm[0] ** 2, dtype=self.dtype)
+        """Generates a 2D Gaussian PSF.
+
+        Args:
+            np_sub (int): Number of sub-apertures (pixels) in one dimension.
+            fwhm (list): Full width at half maximum (FWHM) in pixels for x and y directions.
+
+        Returns:
+            np.ndarray: 2D array representing the Gaussian PSF.
+        """
+        cntrd = (np_sub - 1) / 2.0
+
+        x = np.arange(np_sub) - cntrd  # from -(np_sub-1)/2 to +(np_sub-1)/2
+        y = np.arange(np_sub) - cntrd
+
+        st_dev_x = fwhm[0] / (2.0 * np.sqrt(2.0 * np.log(2.0)))
+        st_dev_y = fwhm[1] / (2.0 * np.sqrt(2.0 * np.log(2.0)))
+
+        gaussian_x = np.exp(-0.5 * (x / st_dev_x)**2)
+        gaussian_y = np.exp(-0.5 * (y / st_dev_y)**2)
+
+        gaussian = np.outer(gaussian_x, gaussian_y)
         return gaussian
 
     def post_trigger(self):

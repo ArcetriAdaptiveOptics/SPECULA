@@ -107,7 +107,7 @@ class Pixels(BaseDataObj):
         hdr = self.get_fits_header()
         hdu = fits.PrimaryHDU(header=hdr)  # main HDU, empty, only header
         hdul = fits.HDUList([hdu])
-        hdul.append(fits.ImageHDU(data=cpuArray(self.pixels), name='SLOPES'))
+        hdul.append(fits.ImageHDU(data=cpuArray(self.pixels), name='PIXELS'))
         hdul.writeto(filename, overwrite=overwrite)
         hdul.close()  # Force close for Windows
 

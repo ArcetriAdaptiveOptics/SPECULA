@@ -8,7 +8,7 @@ from specula.data_objects.simul_params import SimulParams
 from specula.processing_objects.psf import PSF
 from specula.processing_objects.psf_coronagraph import PsfCoronagraph
 from test.specula_testlib import cpu_and_gpu
-from specula import cpuArray
+from specula import cpuArray, np
 
 
 class TestPSF(unittest.TestCase):
@@ -195,7 +195,7 @@ class TestPSF(unittest.TestCase):
         suppression_ratio = coro_max / std_max
 
         plot_debug = False # Set to True to enable plotting
-        if plot_debug:
+        if plot_debug: # pragma: no cover
             import matplotlib.pyplot as plt
             from matplotlib.colors import LogNorm
             # Calculate common scale for both images
@@ -217,3 +217,219 @@ class TestPSF(unittest.TestCase):
 
         # Should still have suppression, though not perfect
         self.assertLess(suppression_ratio, 1.0)
+
+    @cpu_and_gpu
+    def test_psf_std_dev_calculation(self, target_device_idx, xp):
+        """Test PSF standard deviation calculation"""
+        simul_params, ef, wavelengthInNm = self.get_basic_setup(target_device_idx, pixel_pupil=50)
+
+        psf = PSF(simul_params=simul_params, wavelengthInNm=wavelengthInNm,
+                  nd=2.0, start_time=0.0, target_device_idx=target_device_idx)
+
+        psf.inputs['in_ef'].set(ef)
+        psf.setup()
+
+        # Generate multiple frames with varying phase
+        n_frames = 10
+        psf_snapshots = []
+
+        for t in range(1, n_frames + 1):
+            # Add random phase variations
+            ef.phaseInNm[:] = 50.0 * xp.random.randn(*ef.phaseInNm.shape)
+            ef.A[:] = 1.0
+            ef.generation_time = t
+
+            psf.check_ready(t)
+            psf.trigger()
+            psf.post_trigger()
+
+            # Store snapshot for manual calculation
+            psf_snapshots.append(cpuArray(psf.psf.value.copy()))
+
+        # Finalize to compute statistics
+        psf.finalize()
+
+        # Manual calculation of mean and std dev
+        psf_snapshots = np.array(psf_snapshots)
+        manual_mean = np.mean(psf_snapshots, axis=0)
+        manual_std = np.std(psf_snapshots, axis=0, ddof=0)  # Population std dev
+
+        # Compare with SPECULA calculation
+        specula_mean = cpuArray(psf.int_psf.value)
+        specula_std = cpuArray(psf.std_psf.value)
+
+        # Check mean
+        np.testing.assert_allclose(specula_mean, manual_mean, rtol=1e-5, atol=1e-8,
+                                   err_msg="Mean PSF does not match manual calculation")
+
+        # Check standard deviation
+        np.testing.assert_allclose(specula_std, manual_std, rtol=1e-5, atol=1e-8,
+                                   err_msg="Std dev PSF does not match manual calculation")
+
+        # Additional checks
+        self.assertEqual(psf.count, n_frames)
+        self.assertGreater(float(np.max(specula_std)), 0.0, "Std dev should be > 0")
+        self.assertLess(float(np.max(specula_std)), float(np.max(specula_mean)),
+                       "Std dev should be less than mean peak")
+
+    @cpu_and_gpu
+    def test_psf_std_dev_zero_variance(self, target_device_idx, xp):
+        """Test that std dev is zero when all frames are identical"""
+        simul_params, ef, wavelengthInNm = self.get_basic_setup(target_device_idx)
+
+        psf = PSF(simul_params=simul_params, wavelengthInNm=wavelengthInNm,
+                  nd=1.0, start_time=0.0, target_device_idx=target_device_idx)
+
+        psf.inputs['in_ef'].set(ef)
+        psf.setup()
+
+        # Generate multiple identical frames
+        for t in range(1, 6):
+            ef.phaseInNm[:] = 0.0  # Same phase every time
+            ef.A[:] = 1.0
+            ef.generation_time = t
+
+            psf.check_ready(t)
+            psf.trigger()
+            psf.post_trigger()
+
+        psf.finalize()
+
+        # Standard deviation should be very close to zero
+        max_std = float(xp.max(psf.std_psf.value))
+        self.assertLess(max_std, 1e-10, "Std dev should be ~0 for identical frames")
+
+    @cpu_and_gpu
+    def test_coronagraph_std_dev_calculation(self, target_device_idx, xp):
+        """Test coronagraph PSF standard deviation calculation"""
+        simul_params, ef, wavelengthInNm = self.get_basic_setup(target_device_idx, pixel_pupil=50)
+
+        psf_coro = PsfCoronagraph(simul_params=simul_params, wavelengthInNm=wavelengthInNm,
+                                  nd=2.0, start_time=0.0, target_device_idx=target_device_idx)
+
+        psf_coro.inputs['in_ef'].set(ef)
+        psf_coro.setup()
+
+        # Generate multiple frames with varying phase
+        n_frames = 10
+        psf_coro_snapshots = []
+
+        for t in range(1, n_frames + 1):
+            # Add random phase variations
+            ef.phaseInNm[:] = 50.0 * xp.random.randn(*ef.phaseInNm.shape)
+            ef.A[:] = 1.0
+            ef.generation_time = t
+
+            psf_coro.check_ready(t)
+            psf_coro.trigger()
+            psf_coro.post_trigger()
+
+            # Store snapshot for manual calculation
+            psf_coro_snapshots.append(cpuArray(psf_coro.coronagraph_psf.value.copy()))
+
+        # Finalize to compute statistics
+        psf_coro.finalize()
+
+        # Manual calculation
+        psf_coro_snapshots = np.array(psf_coro_snapshots)
+        manual_mean_coro = np.mean(psf_coro_snapshots, axis=0)
+        manual_std_coro = np.std(psf_coro_snapshots, axis=0, ddof=0)
+
+        # Compare with SPECULA calculation
+        specula_mean_coro = cpuArray(psf_coro.int_coronagraph_psf.value)
+        specula_std_coro = cpuArray(psf_coro.std_coronagraph_psf.value)
+
+        # Check mean
+        np.testing.assert_allclose(specula_mean_coro, manual_mean_coro, rtol=1e-5, atol=1e-8,
+                                   err_msg="Mean coronagraph PSF does not match")
+
+        # Check standard deviation
+        np.testing.assert_allclose(specula_std_coro, manual_std_coro, rtol=1e-5, atol=1e-8,
+                                   err_msg="Std dev coronagraph PSF does not match")
+
+        # Additional checks
+        self.assertGreater(float(np.max(specula_std_coro)), 0.0,
+                          "Coronagraph std dev should be > 0")
+
+        # Both standard and coronagraph should have valid std dev
+        self.assertGreater(float(np.max(cpuArray(psf_coro.std_psf.value))), 0.0,
+                          "Standard PSF std dev should be > 0")
+
+    @cpu_and_gpu
+    def test_std_dev_plot_debug(self, target_device_idx, xp):
+        """Visual test for std dev - plot mean and std dev PSFs"""
+        simul_params, ef, wavelengthInNm = self.get_basic_setup(target_device_idx, pixel_pupil=100)
+
+        psf_coro = PsfCoronagraph(simul_params=simul_params, wavelengthInNm=wavelengthInNm,
+                                  nd=3.0, start_time=0.0, target_device_idx=target_device_idx)
+
+        psf_coro.inputs['in_ef'].set(ef)
+        psf_coro.setup()
+
+        # Generate frames with atmospheric turbulence-like variations
+        n_frames = 50
+        for t in range(1, n_frames + 1):
+            ef.phaseInNm[:] = 100.0 * xp.random.randn(*ef.phaseInNm.shape)
+            ef.A[:] = 1.0
+            ef.generation_time = t
+
+            psf_coro.check_ready(t)
+            psf_coro.trigger()
+            psf_coro.post_trigger()
+
+        psf_coro.finalize()
+
+        plot_debug = False  # Set to True to enable plotting
+        if plot_debug: # pragma: no cover
+            import matplotlib.pyplot as plt
+            from matplotlib.colors import LogNorm
+
+            fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+
+            # Standard PSF
+            mean_psf = cpuArray(psf_coro.int_psf.value)
+            std_psf = cpuArray(psf_coro.std_psf.value)
+
+            vmin = mean_psf[mean_psf > 0].min()
+            vmax = mean_psf.max()
+
+            im0 = axes[0, 0].imshow(mean_psf, norm=LogNorm(vmin=vmin, vmax=vmax), cmap='inferno')
+            axes[0, 0].set_title(f'Mean PSF (SR={psf_coro.int_sr.value:.3f})')
+            plt.colorbar(im0, ax=axes[0, 0])
+
+            im1 = axes[0, 1].imshow(std_psf, cmap='viridis')
+            axes[0, 1].set_title('Std Dev PSF')
+            plt.colorbar(im1, ax=axes[0, 1])
+
+            # SNR map
+            snr = mean_psf / (std_psf + 1e-10)
+            im2 = axes[0, 2].imshow(snr, cmap='plasma', vmin=0, vmax=np.percentile(snr, 99))
+            axes[0, 2].set_title('SNR = Mean/StdDev')
+            plt.colorbar(im2, ax=axes[0, 2])
+
+            # Coronagraph PSF
+            mean_coro = cpuArray(psf_coro.int_coronagraph_psf.value)
+            std_coro = cpuArray(psf_coro.std_coronagraph_psf.value)
+
+            im3 = axes[1, 0].imshow(mean_coro, norm=LogNorm(vmin=vmin, vmax=vmax), cmap='inferno')
+            axes[1, 0].set_title('Mean Coronagraph PSF')
+            plt.colorbar(im3, ax=axes[1, 0])
+
+            im4 = axes[1, 1].imshow(std_coro, cmap='viridis')
+            axes[1, 1].set_title('Std Dev Coronagraph PSF')
+            plt.colorbar(im4, ax=axes[1, 1])
+
+            # SNR map for coronagraph
+            snr_coro = mean_coro / (std_coro + 1e-10)
+            im5 = axes[1, 2].imshow(snr_coro, cmap='plasma', vmin=0,
+                                    vmax=np.percentile(snr_coro, 99))
+            axes[1, 2].set_title('Coronagraph SNR')
+            plt.colorbar(im5, ax=axes[1, 2])
+
+            plt.tight_layout()
+            plt.show()
+
+        # Assertions
+        self.assertEqual(psf_coro.count, n_frames)
+        self.assertGreater(float(cpuArray(psf_coro.std_psf.value).max()), 0.0)
+        self.assertGreater(float(cpuArray(psf_coro.std_coronagraph_psf.value).max()), 0.0)

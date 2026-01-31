@@ -2,6 +2,10 @@ import unittest
 import numpy as np
 import os
 from astropy.io import fits
+
+import specula
+specula.init(0)  # Default target device
+
 from specula import cpuArray
 from specula.data_objects.ifunc_inv import IFuncInv
 from test.specula_testlib import cpu_and_gpu

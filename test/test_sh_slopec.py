@@ -1,4 +1,3 @@
-
 import specula
 specula.init(0)  # Default target device
 
@@ -184,18 +183,15 @@ class TestShSlopec(unittest.TestCase):
         last_weights_2d_flat[slopec.subap_idx.flatten()] = last_weights.T.flatten()
         last_weights_2d = last_weights_2d_flat.reshape(last_weights_2d.shape)
 
-        # first step is skipped in the int_pixels computation, so the expected weights
-        # are the average of the second and third frame
-        expected_weights = (intensity + xp.roll(intensity, shift=1, axis=0))
+        # the expected weights are the average of frames
+        expected_weights = 2 * intensity + xp.roll(intensity, shift=1, axis=0)
         expected_weights = expected_weights / expected_weights.max()
 
         np.testing.assert_allclose(cpuArray(last_weights_2d), cpuArray(expected_weights), atol=1e-3)
 
         # Then compares slopec.int_pixels.pixels and slopec.pixels.pixels:
         # they must be equal because the accumulation was resetted
-        # expect for a scalar factor equal factor = float(self.seconds_to_t(t-self.t_previous)) / float(self.weight_int_pixel_dt)
-        factor = t_seconds / weight_int_pixel_dt
-        expected_int_pixels = pixels.pixels.astype(slopec.dtype) * factor
+        expected_int_pixels = pixels.pixels.astype(slopec.dtype)
         np.testing.assert_allclose(cpuArray(slopec.int_pixels.pixels), cpuArray(expected_int_pixels), atol=1e-3)
 
     @cpu_and_gpu
@@ -205,6 +201,7 @@ class TestShSlopec(unittest.TestCase):
         with a specific weight_int_pixel_dt and window_int_pixel.
         """
         weight_int_pixel_dt = 2.0
+        window_int_threshold = 1.0
 
         sh, v, m, flat_ef, subapdata = self.get_sh(target_device_idx, xp, with_laser_launch=True)
         t_seconds = 1.0
@@ -220,11 +217,12 @@ class TestShSlopec(unittest.TestCase):
 
         # Compute slopes using ShSlopec
         pixels = Pixels(*intensity.shape, target_device_idx=target_device_idx)
-        pixels.pixels = intensity
+        pixels.pixels = intensity/intensity.max()*10
         pixels.generation_time = t
 
         # Create the slope computer object with the given parameters
-        slopec = ShSlopec(subapdata, weight_int_pixel_dt=weight_int_pixel_dt, window_int_pixel=True, target_device_idx=target_device_idx)
+        slopec = ShSlopec(subapdata, weight_int_pixel_dt=weight_int_pixel_dt, window_int_threshold=window_int_threshold,
+                          window_int_pixel=True, target_device_idx=target_device_idx)
         slopec.inputs['in_pixels'].set(pixels)
 
         # Simulate 2 frames with known values
@@ -344,3 +342,109 @@ class TestShSlopec(unittest.TestCase):
 
         np.testing.assert_array_almost_equal(cpuArray(slopes2.yslopes),
                                              cpuArray(slopes1.yslopes - sn.yslopes))
+
+    @cpu_and_gpu
+    def test_flux_outputs(self, target_device_idx, xp):
+        """
+        Test that verifies flux_per_subaperture, total_counts, and subap_counts outputs.
+        """
+        t = 1
+        sh, v, m, flat_ef, subapdata = self.get_sh(target_device_idx, xp, with_laser_launch=False)
+
+        sh.inputs['in_ef'].set(flat_ef)
+        sh.setup()
+        sh.check_ready(t)
+        sh.trigger()
+        sh.post_trigger()
+
+        intensity = sh.outputs['out_i'].i.copy()
+
+        # Compute slopes using ShSlopec
+        pixels = Pixels(*intensity.shape, target_device_idx=target_device_idx)
+        pixels.pixels = intensity
+        pixels.generation_time = t
+
+        slopec = ShSlopec(subapdata, target_device_idx=target_device_idx)
+        slopec.inputs['in_pixels'].set(pixels)
+        slopec.check_ready(t)
+        slopec.trigger()
+        slopec.post_trigger()
+
+        # Get outputs
+        flux_per_subap = slopec.outputs['out_flux_per_subaperture'].value
+        total_counts = slopec.outputs['out_total_counts'].value
+        subap_counts = slopec.outputs['out_subap_counts'].value
+
+        # Verify flux_per_subaperture has correct shape
+        self.assertEqual(flux_per_subap.shape[0], len(m))
+
+        # Verify total_counts is sum of all flux
+        expected_total = xp.sum(flux_per_subap)
+        np.testing.assert_almost_equal(cpuArray(total_counts[0]),
+                                       cpuArray(expected_total), decimal=5)
+
+        # Verify subap_counts is mean of flux_per_subaperture
+        expected_mean = xp.mean(flux_per_subap)
+        np.testing.assert_almost_equal(cpuArray(subap_counts[0]),
+                                       cpuArray(expected_mean), decimal=5)
+
+        # Verify all values are positive
+        self.assertTrue(xp.all(flux_per_subap >= 0))
+        self.assertTrue(total_counts[0] >= 0)
+        self.assertTrue(subap_counts[0] >= 0)
+
+        # Verify generation times are set
+        self.assertEqual(slopec.outputs['out_flux_per_subaperture'].generation_time, t)
+        self.assertEqual(slopec.outputs['out_total_counts'].generation_time, t)
+        self.assertEqual(slopec.outputs['out_subap_counts'].generation_time, t)
+
+    @cpu_and_gpu
+    def test_slopec_interleave(self, target_device_idx, xp):
+        """
+        Test that verifies the interleave option in Slopec.
+        """
+        t = 1
+        sh, v, m, flat_ef, subapdata = self.get_sh(target_device_idx, xp, with_laser_launch=False)
+
+        sh.inputs['in_ef'].set(flat_ef)
+        sh.setup()
+        sh.check_ready(t)
+        sh.trigger()
+        sh.post_trigger()
+
+        intensity = sh.outputs['out_i'].i.copy()
+
+        # Compute slopes using ShSlopec
+        pixels = Pixels(*intensity.shape, target_device_idx=target_device_idx)
+        pixels.pixels = intensity
+        pixels.generation_time = t
+
+        # Non-interleaved
+        slopec_non = ShSlopec(subapdata, interleave=False, target_device_idx=target_device_idx)
+        slopec_non.inputs['in_pixels'].set(pixels)
+        slopec_non.check_ready(t)
+        slopec_non.trigger()
+        slopec_non.post_trigger()
+
+        # Interleaved
+        slopec_int = ShSlopec(subapdata, interleave=True, target_device_idx=target_device_idx)
+        slopec_int.inputs['in_pixels'].set(pixels)
+        slopec_int.check_ready(t)
+        slopec_int.trigger()
+        slopec_int.post_trigger()
+
+        # Verify that both compute the same xslopes and yslopes values
+        np.testing.assert_array_almost_equal(cpuArray(slopec_non.slopes.xslopes),
+                                             cpuArray(slopec_int.slopes.xslopes))
+        np.testing.assert_array_almost_equal(cpuArray(slopec_non.slopes.yslopes),
+                                             cpuArray(slopec_int.slopes.yslopes))
+
+        # Verify that the internal layout is different (interleaved vs non-interleaved)
+        self.assertFalse(slopec_non.slopes.interleave)
+        self.assertTrue(slopec_int.slopes.interleave)
+
+        # Verify indices are different
+        np.testing.assert_array_equal(cpuArray(slopec_non.slopes.indx()),
+                                      cpuArray(xp.arange(0, len(m))))
+        np.testing.assert_array_equal(cpuArray(slopec_int.slopes.indx()),
+                                      cpuArray(xp.arange(0, len(m)*2, 2)))

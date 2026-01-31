@@ -1,4 +1,3 @@
-import sys
 import os
 import tempfile
 import unittest
@@ -12,6 +11,9 @@ try:
     ORTHOGRAM_AVAILABLE = True
 except ImportError:
     ORTHOGRAM_AVAILABLE = False
+
+import specula
+specula.init(0)  # Default target device
 
 # Import your module — adjust the path if needed
 from specula.simul import Simul

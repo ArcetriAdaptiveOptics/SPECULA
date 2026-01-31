@@ -2,6 +2,10 @@
 import unittest
 import numpy as np
 from unittest.mock import patch
+
+import specula
+specula.init(0)  # Default target device
+
 from specula.lib.modal_pushpull_signal import modal_pushpull_signal
 
 

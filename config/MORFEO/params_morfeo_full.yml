@@ -536,6 +536,7 @@ iir_focus:
   simul_params_ref:  'main'
   int_gain:          [0.3]
   n_modes:           [1]
+  delay: 1.0
   inputs:
       delta_comm: 'rec_focus.out_modes'     
   outputs:  ['out_comm']

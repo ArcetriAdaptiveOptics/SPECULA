@@ -35,13 +35,15 @@ class OpticalGainEstimator(BaseProcessingObj):
         # Internal optical gain storage
         self.optical_gain = BaseValue(
             value=self.dtype(initial_optical_gain),
-            target_device_idx=target_device_idx
+            target_device_idx=target_device_idx,
+            precision=precision
         )
 
         # Output value (can be different from internal optical_gain if using expressions)
         self.output = BaseValue(
             value=self.dtype(initial_optical_gain),
-            target_device_idx=target_device_idx
+            target_device_idx=target_device_idx,
+            precision=precision
         )
 
         # Initialize values

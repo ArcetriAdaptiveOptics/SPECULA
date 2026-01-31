@@ -52,7 +52,7 @@ def lgs_map_sh(nsh, diam, rl, zb, dz, profz, fwhmb, ps, ssp,
     # Gaussian parameters for the sodium layer
     sigma = (fwhmb * ASEC2RAD * zb) / (2 * xp.sqrt(2 * xp.log(2)))
     one_over_sigma2 = 1.0 / sigma**2
-    exp_sigma = -0.5 * one_over_sigma2   
+    exp_sigma = -0.5 * one_over_sigma2
     rb = xp.array([theta[0] * ASEC2RAD * zb, theta[1] * ASEC2RAD * zb, 0], dtype=dtype)
     kv = xp.array([0, 0, 1], dtype=dtype)
     BL = zb * kv + rb - xp.array(rl, dtype=dtype)
@@ -121,6 +121,7 @@ class ConvolutionKernel(BaseDataObj):
                  oversampling: int=1,
                  return_fft: bool=True,
                  positive_shift_tt: bool=True,
+                 data_dir: str="",
                  target_device_idx: int=None,
                  precision: int=None):
         """
@@ -145,6 +146,7 @@ class ConvolutionKernel(BaseDataObj):
         self.last_seeing = -1.0
         self.airmass = airmass
         self.oversampling = oversampling
+        self.data_dir = data_dir
         if len(launcher_pos) != 3:
             raise ValueError("Launcher position must be a three-elements vector [m]")
         self.launcher_pos = self.to_xp(launcher_pos)
@@ -155,8 +157,10 @@ class ConvolutionKernel(BaseDataObj):
             dtype = self.complex_dtype
         else:
             dtype = self.dtype
-        self.real_kernels = self.xp.zeros((self.dimx*self.dimy, self.dimension, self.dimension), dtype=self.dtype)
-        self.kernels = self.xp.zeros((self.dimx*self.dimy, self.dimension, self.dimension), dtype=dtype)
+        self.real_kernels = self.xp.zeros((self.dimx*self.dimy, self.dimension, self.dimension),
+                                          dtype=self.dtype)
+        self.kernels = self.xp.zeros((self.dimx*self.dimy, self.dimension, self.dimension),
+                                     dtype=dtype)
         self._kernel_fn = None
 
     def build(self):
@@ -174,12 +178,15 @@ class ConvolutionKernel(BaseDataObj):
             lgs_tt = self.xp.array([0.5, 0.5], dtype=self.dtype) * self.pxscale
         lgs_tt += self.theta
 
-        items = [self.dimx, self.pupil_size_m, self.launcher_pos, zfocus, lay_heights, self.zprofile,
-                         self.spot_size, self.pxscale, self.dimension, self.oversampling, lgs_tt, self.dtype]
+        items = [self.dimx, self.pupil_size_m, self.launcher_pos,
+                 zfocus, lay_heights, self.zprofile,
+                 self.spot_size, self.pxscale, self.dimension,
+                 self.oversampling, lgs_tt, self.dtype]
         return 'ConvolutionKernel' + self.generate_hash(items)
 
     def calculate_focus(self):
-        return self.xp.sum(self.to_xp(self.zlayer) * self.to_xp(self.zprofile)) / self.xp.sum(self.zprofile)
+        return self.xp.sum(self.to_xp(self.zlayer) * self.to_xp(self.zprofile)) \
+               / self.xp.sum(self.zprofile)
 
     def calculate_lgs_map(self):
         """
@@ -325,13 +332,24 @@ class ConvolutionKernel(BaseDataObj):
         if kernel_fn != self._kernel_fn:
             self._kernel_fn = kernel_fn  # Update the stored kernel filename
 
-            if os.path.exists(kernel_fn):
-                print(f"Loading kernel from {kernel_fn}")
-                self.restore(kernel_fn, kernel_obj=self, target_device_idx=self.target_device_idx, return_fft=True)
+            # Build full path using data_dir
+            if self.data_dir:
+                full_path = os.path.join(self.data_dir, kernel_fn + '.fits')
+            else:
+                full_path = kernel_fn + '.fits'
+
+            # Create directory if it doesn't exist
+            os.makedirs(os.path.dirname(full_path) if os.path.dirname(full_path)
+                        else '.', exist_ok=True)
+
+            if os.path.exists(full_path):
+                print(f"Loading kernel from {full_path}")
+                self.restore(full_path, kernel_obj=self, target_device_idx=self.target_device_idx,
+                             return_fft=True)
             else:
                 print('Calculating kernel...')
                 self.calculate_lgs_map()
-                self.save(kernel_fn)
+                self.save(full_path)
                 print('Done')
 
         if current_time is not None:

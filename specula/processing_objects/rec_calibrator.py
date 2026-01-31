@@ -41,7 +41,14 @@ class RecCalibrator(BaseProcessingObj):
         self.r0 = r0
         self.L0 = L0
         self.dm = dm
-        self.noise_cov = self.to_xp(noise_cov)
+        if noise_cov is None:
+            if self.mmse:
+                raise ValueError('noise_cov must be provided for MMSE reconstruction')
+            self.noise_cov = None
+        elif isinstance(noise_cov, list):
+            self.noise_cov = [self.to_xp(noise_cov_i) for noise_cov_i in noise_cov]
+        else:
+            self.noise_cov = self.to_xp(noise_cov)
 
         if rec_tag is None or rec_tag == 'auto':
             rec_filename = tag_template

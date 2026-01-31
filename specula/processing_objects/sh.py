@@ -1,9 +1,8 @@
 import numpy as np
 
-from specula import cpuArray, fuse, show_in_profiler, RAD2ASEC
-from specula.lib.extrapolation_2d import calculate_extrapolation_indices_coeffs, apply_extrapolation
+from specula import fuse, show_in_profiler, RAD2ASEC
+from specula.lib.extrapolation_2d import EFInterpolator
 from specula.lib.toccd import toccd
-from specula.lib.interp2d import Interp2D
 from specula.lib.make_mask import make_mask
 from specula.connections import InputValue
 from specula.data_objects.electric_field import ElectricField
@@ -56,6 +55,7 @@ class SH(BaseProcessingObj):
                  set_fov_res_to_turbpxsc: bool = False,
                  laser_launch_tel: LaserLaunchTelescope = None,
                  subap_rows_slice = None,
+                 data_dir: str = "",
                  target_device_idx: int = None,
                  precision: int = None,
         ):
@@ -78,17 +78,11 @@ class SH(BaseProcessingObj):
         self._yShiftPhInPixel = yShiftPhInPixel
         self._set_fov_res_to_turbpxsc = set_fov_res_to_turbpxsc
         self._do_not_double_fov_ovs = do_not_double_fov_ovs
-        # first item of laser_launch_tel_dict is the good one
         self._laser_launch_tel = laser_launch_tel
+        self.data_dir = data_dir
         self._np_sub = 0
         self._fft_size = 0
         self._trigger_geometry_calculated = False
-        self._do_interpolation = None
-        self._edge_pixels = None
-        self._reference_indices = None
-        self._coefficients = None
-        self._valid_indices = None
-        self._amplitude_is_binary = None
         self._mask_threshold = 1e-3  # threshold to consider a pixel inside the mask
 
         # TODO these are fixed but should become parameters
@@ -96,9 +90,10 @@ class SH(BaseProcessingObj):
         self._floatShifts = False
 
         self._ccd_side = self._subap_npx * self._lenslet.n_lenses
-        self._out_i = Intensity(self._ccd_side, self._ccd_side, precision=self.precision, target_device_idx=self.target_device_idx)
+        self._out_i = Intensity(self._ccd_side, self._ccd_side,
+                                precision=self.precision,
+                                target_device_idx=self.target_device_idx)
 
-        self.interp = None
         self.subap_rows_slice = subap_rows_slice
 
         # optional inputs for the kernel object
@@ -108,7 +103,6 @@ class SH(BaseProcessingObj):
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
         self.outputs['out_i'] = self._out_i
-        self.outputs['wf1'] = BaseValue(target_device_idx=self.target_device_idx)
 
     def _set_in_ef(self, in_ef):
 
@@ -252,12 +246,7 @@ class SH(BaseProcessingObj):
         if not self._floatShifts:
             self._xyShiftPhInPixel = np.round(self._xyShiftPhInPixel).astype(int)
 
-        if self._fov_ovs != 1 or self._rotAnglePhInDeg != 0 or np.sum(np.abs(self._xyShiftPhInPixel)) != 0:
-            M0 = in_ef.size[0] * self._fov_ovs
-            M1 = in_ef.size[1] * self._fov_ovs
-            wf1 = ElectricField(M0, M1, in_ef.pixel_pitch / self._fov_ovs, target_device_idx=self.target_device_idx)
-        else:
-            wf1 = in_ef
+        ovs_pixel_pitch = in_ef.pixel_pitch / self._fov_ovs
 
         # Reuse geometry calculated in set_in_ef
         fft_size = self._fft_size
@@ -266,7 +255,7 @@ class SH(BaseProcessingObj):
         self._wf3 = self._zeros_common((self._lenslet.dimy, fft_size, fft_size), dtype=self.complex_dtype)
 
         # Focal plane result from FFT
-        fp4_pixel_pitch = self.wavelength_in_nm / 1e9 / (wf1.pixel_pitch * fft_size)
+        fp4_pixel_pitch = self.wavelength_in_nm / 1e9 / (ovs_pixel_pitch * fft_size)
         fov_complete = fft_size * fp4_pixel_pitch
 
         sensor_subap_fov = sensor_pxscale * subap_npx
@@ -282,11 +271,6 @@ class SH(BaseProcessingObj):
 
         self._fp_mask = make_mask(fft_size, diaratio=subap_wanted_fov / fov_complete, square=self._squaremask, xp=self.xp)
 
-        # Remember a few things
-        self.in_ef = in_ef
-        self.phase_extrapolated = in_ef.phaseInNm.copy()
-        self._wf1 = wf1
-
         # set up kernel object
         if self._laser_launch_tel is not None:
             if len(self._laser_launch_tel.tel_pos) == 0:
@@ -299,6 +283,7 @@ class SH(BaseProcessingObj):
                                                             oversampling = 1,
                                                             return_fft = True,
                                                             positive_shift_tt = True,
+                                                            data_dir=self.data_dir,
                                                             target_device_idx=self.target_device_idx)
             else:
                 if len(self._laser_launch_tel.beacon_tt) != 0:
@@ -318,6 +303,7 @@ class SH(BaseProcessingObj):
                                                     oversampling = 1,
                                                     return_fft = True,
                                                     positive_shift_tt = True,
+                                                    data_dir=self.data_dir,
                                                     target_device_idx=self.target_device_idx)
             self._kernel_fn = None
         else:
@@ -326,80 +312,9 @@ class SH(BaseProcessingObj):
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
 
-        if self._edge_pixels is None and self._do_interpolation:
-            # Compute once indices and coefficients
-            # This considering the input amplitude is not changing during the simulation
-            self._edge_pixels, self._reference_indices, self._coefficients, self._valid_indices = calculate_extrapolation_indices_coeffs(
-                cpuArray(self.in_ef.A), threshold=self._mask_threshold
-            )
-
-            # convert to xp
-            self._edge_pixels = self.to_xp(self._edge_pixels)
-            self._reference_indices = self.to_xp(self._reference_indices)
-            self._coefficients = self.to_xp(self._coefficients)
-            self._valid_indices = self.to_xp(self._valid_indices)
-
-            # Check if input amplitude is binary (all values close to 0 or 1) with tolerance
-            unique_values = self.xp.unique(self.in_ef.A)
-            tol = 1e-3
-            is_binary = self.xp.all(
-                self.xp.logical_or(
-                    self.xp.abs(unique_values - 0) < tol,
-                    self.xp.abs(unique_values - 1) < tol
-                )
-            )
-
-            self._amplitude_is_binary = is_binary
-
         # Interpolation of input array if needed
         with show_in_profiler('interpolation'):
-
-            if self._do_interpolation:
-                self.phase_extrapolated[:] = self.in_ef.phaseInNm * \
-                            (self.in_ef.A >= self._mask_threshold).astype(int)
-                _ = apply_extrapolation(
-                    self.in_ef.phaseInNm,
-                    self._edge_pixels,
-                    self._reference_indices,
-                    self._coefficients,
-                    self._valid_indices,
-                    out=self.phase_extrapolated,
-                    xp=self.xp
-                )
-
-                if self._debugOutput:
-                    # compare input and extrapolated phase
-                    phase_in_nm = self.in_ef.phaseInNm * (self.in_ef.A >= 1e-3).astype(int)
-                    import matplotlib.pyplot as plt
-                    plt.figure(figsize=(20, 5))
-                    plt.subplot(1, 4, 1)
-                    plt.imshow(cpuArray(phase_in_nm), origin='lower', cmap='gray')
-                    plt.title('Input Phase')
-                    plt.colorbar()
-                    plt.subplot(1, 4, 2)
-                    plt.imshow(cpuArray(self.phase_extrapolated), origin='lower', cmap='gray')
-                    plt.title('Extrapolated Phase')
-                    plt.colorbar()
-                    plt.subplot(1, 4, 3)
-                    plt.imshow(cpuArray(self.phase_extrapolated - phase_in_nm), origin='lower', cmap='gray')
-                    plt.title('Phase Difference')
-                    plt.colorbar()
-                    plt.subplot(1, 4, 4)
-                    plt.imshow(cpuArray(self.in_ef.A), origin='lower', cmap='gray')
-                    plt.title('Input Electric Field Amplitude')
-                    plt.colorbar()
-                    plt.show()
-
-                self.interp.interpolate(self.in_ef.A, out=self._wf1.A)
-
-                # Apply binary threshold if input amplitude was binary
-                if self._amplitude_is_binary:
-                    self._wf1.A[:] = (self._wf1.A > 0.5).astype(self.dtype)
-
-                self.interp.interpolate(self.phase_extrapolated, out=self._wf1.phaseInNm)
-            else:
-                # self._wf1 already set to in_ef
-                pass
+            self.ef_interpolator.interpolate()
 
         if self._kernelobj is not None:
             self._prepare_kernels()
@@ -430,10 +345,11 @@ class SH(BaseProcessingObj):
         for i in range(self.subap_rows_slice.start, self.subap_rows_slice.stop):
 
             # Extract 2D subap row
-            self._wf1.ef_at_lambda(self.wavelength_in_nm,
-                                   slicey=np.s_[i * self._ovs_np_sub: (i+1) * self._ovs_np_sub],
-                                   slicex=np.s_[:],
-                                   out=self.ef_row)
+            wf1 = self.ef_interpolator.interpolated_ef()
+            wf1.ef_at_lambda(self.wavelength_in_nm,
+                             slicey=np.s_[i * self._ovs_np_sub: (i+1) * self._ovs_np_sub],
+                             slicex=np.s_[:],
+                             out=self.ef_row)
 
             # Reshape to subap cube (nsubap, npix, npix)
             subap_cube_view = self.ef_row.reshape(self._ovs_np_sub, self._lenslet.dimy, self._ovs_np_sub).swapaxes(0, 1)
@@ -495,8 +411,6 @@ class SH(BaseProcessingObj):
         self._out_i.i *= phot / self._out_i.i.sum()
         # self._out_i.i = self.xp.nan_to_num(self._out_i.i, copy=False)
         self._out_i.generation_time = self.current_time
-        self.outputs['wf1'].value = toccd(self._wf1.phaseInNm, (100, 100), xp=self.xp)
-        self.outputs['wf1'].generation_time = self.current_time
 
         debug_figures = False
         if debug_figures:
@@ -517,17 +431,16 @@ class SH(BaseProcessingObj):
         fov_oversample = self._fov_ovs
         shape_ovs = (int(in_ef.size[0] * fov_oversample), int(in_ef.size[1] * fov_oversample))
 
-        self.interp = Interp2D(in_ef.size,
-                               shape_ovs,
-                              -self._rotAnglePhInDeg,     # Negative angle for PASSATA compatibility
-                               self._xyShiftPhInPixel[0],
-                               self._xyShiftPhInPixel[1],
-                               dtype=self.dtype, xp=self.xp)
-
-        if fov_oversample != 1 or self._rotAnglePhInDeg != 0 or np.sum(np.abs([self._xyShiftPhInPixel])) != 0:
-            self._do_interpolation = True
-        else:
-            self._do_interpolation = False
+        self.ef_interpolator = EFInterpolator(
+            in_ef,
+            shape_ovs,
+            rotAnglePhInDeg=self._rotAnglePhInDeg,
+            xShiftPhInPixel=self._xShiftPhInPixel,
+            yShiftPhInPixel=self._yShiftPhInPixel,
+            mask_threshold=self._mask_threshold,
+            target_device_idx=self.target_device_idx,
+            precision=self.precision
+        )
 
         ef_whole_size = int(in_ef.size[0] * self._fov_ovs)
         self.ef_row = self._zeros_common((self._ovs_np_sub, ef_whole_size), dtype=self.complex_dtype)
@@ -536,6 +449,7 @@ class SH(BaseProcessingObj):
 
         if self.subap_rows_slice is None:
             self.subap_rows_slice = slice(0, self._lenslet.dimy)
+
 
         super().build_stream(allow_parallel=False)
 

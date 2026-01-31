@@ -184,6 +184,15 @@ Source
    :show-inheritance:
 
 
+Ssr Filter Data
+---------------
+
+.. automodule:: specula.data_objects.ssr_filter_data
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Subap Data
 ----------
 

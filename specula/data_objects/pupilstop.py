@@ -118,7 +118,7 @@ class Pupilstop(Layer):
 
         pupilstop = Pupilstop.from_header(hdr, target_device_idx=target_device_idx)
         with fits.open(filename) as hdul:
-            pupilstop.field[0] = pupilstop.to_xp(hdul[1].data.copy(), dtype=pupilstop.dtype)  # pylint: disable=no-member
+            pupilstop.field[0, :] = pupilstop.to_xp(hdul[1].data, dtype=pupilstop.dtype)  # pylint: disable=no-member
             # phaseInNm is not used in Pupilstop
         return pupilstop
 

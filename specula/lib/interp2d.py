@@ -146,6 +146,17 @@ class Interp2D():
         self.dtype = dtype
         self.input_shape = input_shape
         self.output_shape = output_shape
+        self.do_interp = True
+
+        # Check if interpolation is actually needed
+        if (input_shape == output_shape and
+            rotInDeg == 0 and
+            rowShiftInPixels == 0 and
+            colShiftInPixels == 0 and
+            xx is None and yy is None):
+            # If not, it will be skipped later
+            self.do_interp = False
+            return
 
         if cp:
             self.use_precomputed = False
@@ -229,6 +240,14 @@ class Interp2D():
         """
         if value.shape != self.input_shape:
             raise ValueError(f'Array to be interpolated must have shape {self.input_shape} instead of {value.shape}')
+
+        # Skip interpolation if not needed
+        if not self.do_interp:
+            if out is None:
+                return value
+            else:
+                out[:] = value
+                return out
 
         if out is None:
             out = self.xp.empty(shape=self.output_shape, dtype=self.dtype)

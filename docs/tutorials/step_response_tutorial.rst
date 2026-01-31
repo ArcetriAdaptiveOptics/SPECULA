@@ -79,6 +79,10 @@ Create a configuration file, for example ``params_control_lpf.yml``:
 
    all_disp:
      class:            'PlotDisplay'
+     labels:           ['Input (step)',
+                        'Error (diff)',
+                        'Integrator command',
+                        'Low-pass output']
      inputs:
        value_list: ['disturbance.output',
                     'diff.out_value',

@@ -4,8 +4,8 @@ from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.slopes import Slopes
 from specula.data_objects.subap_data import SubapData
 from specula.data_objects.simul_params import SimulParams
-from specula.lib.extrapolation_2d import calculate_extrapolation_indices_coeffs, apply_extrapolation
-from specula import cpuArray, RAD2ASEC
+from specula.lib.extrapolation_2d import EFInterpolator
+from specula import RAD2ASEC
 
 
 class IdealDerivativeSensor(BaseProcessingObj):
@@ -57,13 +57,6 @@ class IdealDerivativeSensor(BaseProcessingObj):
         self.slopes.single_mask = self.subapdata.single_mask()
         self.slopes.display_map = self.subapdata.display_map
 
-        # Cache for extrapolation
-        self._edge_pixels = None
-        self._reference_indices = None
-        self._coefficients = None
-        self._valid_indices = None
-        self._subap_indices = None
-
         n_subaps = self.subapdata.n_subaps
         self.sx = self.xp.zeros(n_subaps, dtype=self.dtype)
         self.sy = self.xp.zeros(n_subaps, dtype=self.dtype)
@@ -81,6 +74,20 @@ class IdealDerivativeSensor(BaseProcessingObj):
 
         # Pre-compute subaperture indices for efficiency
         self._compute_subap_indices(in_ef.size)
+
+        # Setup phase extrapolator. Set force_extrapolation=True to
+        # activate the extrapolation feature even if input and output sizes are the same.
+        self.ef_interpolator = EFInterpolator(
+            in_ef,
+            in_ef.size,
+            rotAnglePhInDeg=0,
+            xShiftPhInPixel=0,
+            yShiftPhInPixel=0,
+            force_extrapolation=True,
+            target_device_idx=self.target_device_idx,
+            precision=self.precision
+        )
+
 
     def _compute_subap_indices(self, ef_size):
         """Pre-compute indices for each subaperture."""
@@ -124,15 +131,10 @@ class IdealDerivativeSensor(BaseProcessingObj):
         in_ef = self.local_inputs['in_ef']
         n_subaps = self.subapdata.n_subaps
 
-        # Step 1: Extrapolate phase outside the pupil
-        phase_extrapolated = apply_extrapolation(
-            in_ef.phaseInNm,
-            self._edge_pixels,
-            self._reference_indices,
-            self._coefficients,
-            self._valid_indices,
-            xp=self.xp
-        )
+        # Use interpolator just for the phase extraplation feature,
+        # without actually interpolating to a different size
+        self.ef_interpolator.interpolate()
+        phase_extrapolated = self.ef_interpolator.interpolated_ef().phaseInNm
 
         plot_debug = False
         if plot_debug:
@@ -247,20 +249,3 @@ class IdealDerivativeSensor(BaseProcessingObj):
         """Prepare for trigger execution."""
         super().prepare_trigger(t)
 
-        # Setup extrapolation if not already done
-        if self._edge_pixels is None:
-            in_ef = self.local_inputs['in_ef']
-
-            good_pixels_mask = cpuArray(in_ef.A) > 0.5
-
-            # Calculate extrapolation indices and coefficients
-            (self._edge_pixels,
-            self._reference_indices,
-            self._coefficients,
-            self._valid_indices) = calculate_extrapolation_indices_coeffs(good_pixels_mask)
-
-            # Convert to target device
-            self._edge_pixels = self.to_xp(self._edge_pixels)
-            self._reference_indices = self.to_xp(self._reference_indices)
-            self._coefficients = self.to_xp(self._coefficients)
-            self._valid_indices = self.to_xp(self._valid_indices)

@@ -1,5 +1,3 @@
-
-
 import specula
 specula.init(0)  # Default target device
 
@@ -18,7 +16,7 @@ from specula.base_value import BaseValue
 from test.specula_testlib import cpu_and_gpu
 
 class TestIirFilter(unittest.TestCase):
-   
+
     # We just check that it goes through.
     @cpu_and_gpu
     def test_iir_filter_instantiation(self, target_device_idx, xp):
@@ -30,7 +28,10 @@ class TestIirFilter(unittest.TestCase):
     @cpu_and_gpu
     def test_integrator_instantiation(self, target_device_idx, xp):
         simulParams = SimulParams(time_step=0.001)
-        integrator = Integrator(simulParams, int_gain=[0.5,0.4,0.3], ff=[0.99,0.95,0.90], n_modes= [2,3,4],
+        integrator = Integrator(simulParams,
+                                int_gain=[0.5,0.4,0.3],
+                                ff=[0.99,0.95,0.90],
+                                n_modes= [2,3,4],
                                    target_device_idx=target_device_idx)
         # check that the iir_filter_data is set up correctly by comparing gain and [0.5,0.5,0.4,0.4,0.4,0.3,0.3,0.3,0.3]
         self.assertEqual(np.sum(np.abs(cpuArray(integrator.iir_filter_data.gain) - np.array([0.5,0.5,0.4,0.4,0.4,0.3,0.3,0.3,0.3]))),0)
@@ -142,3 +143,50 @@ class TestIirFilter(unittest.TestCase):
             print("Expected output at t=0.002:", expected_frame2)
 
         np.testing.assert_allclose(output_frame2, expected_frame2, rtol=1e-5)
+
+    @cpu_and_gpu
+    def test_integrator_integration_disabled(self, target_device_idx, xp):
+        """
+        Test Integrator with integration=False (FIR mode):
+        - Create an integrator with integration=False
+        - Apply constant input
+        - Verify output is constant (no accumulation)
+        """
+        simulParams = SimulParams(time_step=0.001)
+        dt = simulParams.time_step
+
+        # Create integrator with integration disabled
+        integrator = Integrator(simulParams, int_gain=[0.5, 0.3], n_modes=[1, 1],
+                               integration=False,
+                               target_device_idx=target_device_idx)
+
+        # Create constant input
+        constant_input = BaseValue(value=xp.ones(2, dtype=xp.float32),
+                                  target_device_idx=target_device_idx)
+
+        integrator.inputs['delta_comm'].set(constant_input)
+        integrator.setup()
+
+        # Run for 5 steps
+        outputs = []
+        for step in range(5):
+            t = integrator.seconds_to_t(step * dt)
+            constant_input.generation_time = t
+
+            integrator.check_ready(t)
+            integrator.trigger()
+            integrator.post_trigger()
+
+            outputs.append(cpuArray(integrator.outputs['out_comm'].value))
+
+        # With integration=False (FIR mode), output should be constant
+        # Output = gain * input (no accumulation)
+        expected = np.array([0.5, 0.3])
+
+        # All outputs should be the same
+        for i, output in enumerate(outputs):
+            np.testing.assert_allclose(output, expected, rtol=1e-6,
+                                      err_msg=f"Output differs at step {i}")
+
+        # Verify no accumulation: last output should equal first
+        np.testing.assert_allclose(outputs[-1], outputs[0], rtol=1e-10)

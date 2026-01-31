@@ -3,6 +3,9 @@ import numpy as np
 import tempfile
 import os
 from astropy.io import fits
+
+import specula
+specula.init(0)  # Default target device
 from specula import cpuArray
 from specula.data_objects.m2c import M2C
 from test.specula_testlib import cpu_and_gpu
@@ -11,6 +14,16 @@ from test.specula_testlib import cpu_and_gpu
 class TestM2C(unittest.TestCase):
     def setUp(self):
         self.shape = (6, 4)  # 6 actuators × 4 modes
+
+    def test_existing_m2c_file_with_overwrite(self):
+        """Test that overwrite=True allows overwriting existing m2c files"""
+        m2c_tag = 'test_m2c_overwrite'
+        m2c_filename = f'{m2c_tag}.fits'
+        m2c_path = os.path.join(tempfile.mkdtemp(), m2c_filename)
+        with open(m2c_path, 'w') as f:
+            f.write('')
+        obj = M2C(m2c=np.random.rand(*self.shape))
+        obj.save(m2c_path, overwrite=True)
 
     @cpu_and_gpu
     def test_initialization_and_get_value(self, target_device_idx, xp):
@@ -88,7 +101,7 @@ class TestM2C(unittest.TestCase):
 
                 # Primary HDU: header contains version
                 self.assertEqual(hdul[0].header["VERSION"], 1)
-                self.assertEqual(hdul[0].data.shape, (2,))  # dummy data in primary HDU
+                self.assertIsNone(hdul[0].data)  # primary HDU has no data
 
                 # Second HDU: M2C data
                 self.assertEqual(hdul[1].data.shape, self.shape)

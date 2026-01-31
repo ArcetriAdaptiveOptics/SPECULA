@@ -226,7 +226,8 @@ class IirFilterData(BaseDataObj):
 
         return rtf_mag
 
-    def NTF(self, mode, fs, freq=None, tf=None, dm=None, nw=None, dw=None, verbose=False, title=None, plot=True, overplot=False, **extra):
+    def NTF(self, mode, fs, freq=None, tf=None, dm=None, nw=None, dw=None,
+            verbose=False, title=None, plot=True, overplot=False, **extra):
         """Plot Noise Transfer Function: NTF = CP / (1 - CP)"""
         plotTitle = title if title else 'Noise Transfer Function'
 
@@ -323,7 +324,7 @@ class IirFilterData(BaseDataObj):
         if freq is None:
             freq = np.logspace(-3, np.log10(fs/2), 1000)
 
-        x = freq.copy() / (fs/2) * np.pi
+        x = freq / (fs/2) * np.pi
         z = np.exp(1j * x)
 
         complex_tf = np.zeros(len(freq), dtype=complex)
@@ -412,8 +413,9 @@ class IirFilterData(BaseDataObj):
             return False
 
     @lru_cache(maxsize=16384)
-    def _compute_max_stable_gain_internal(self, num_tuple, den_tuple, delay=None, dm_tuple=None, nw_tuple=None, dw_tuple=None,
-                                        max_gain=20.0, n_gain=10000, tolerance=1e-6):
+    def _compute_max_stable_gain_internal(self, num_tuple, den_tuple, delay=None,
+                                          dm_tuple=None, nw_tuple=None, dw_tuple=None,
+                                          max_gain=20.0, n_gain=10000, tolerance=1e-6):
         """Internal computation of maximum stable gain."""
 
         num_coeffs = np.array(num_tuple)
@@ -529,7 +531,8 @@ class IirFilterData(BaseDataObj):
                 dw_tuple = tuple(cpuArray(dw)) if dw is not None else None
 
                 max_gains[i] = self._compute_max_stable_gain_internal(
-                    num_tuple, den_tuple, delay=delay, dm_tuple=dm_tuple, nw_tuple=nw_tuple, dw_tuple=dw_tuple,
+                    num_tuple, den_tuple, delay=delay, dm_tuple=dm_tuple,
+                    nw_tuple=nw_tuple, dw_tuple=dw_tuple,
                     max_gain=max_gain, n_gain=n_gain, tolerance=tolerance
                 )
 
@@ -589,7 +592,7 @@ class IirFilterData(BaseDataObj):
         closed_loop_den = Cp_den + Cp_num
 
         # Calculate frequency response of denominator
-        x = freq.copy() / (fs/2) * np.pi
+        x = freq / (fs/2) * np.pi
         z = np.exp(1j * x)
 
         denominator_response = np.zeros(len(freq), dtype=complex)

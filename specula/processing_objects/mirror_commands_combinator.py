@@ -35,9 +35,15 @@ class MirrorCommandsCombinator(BaseProcessingObj):
         self.dims_LO_cum = np.cumsum(self.dims_LO)
         self.dims_HO_cum = np.cumsum(self.dims_HO)
 
-        self.result_commands1 = BaseValue('First chunk of output commands', target_device_idx=target_device_idx)
-        self.result_commands2 = BaseValue('Second chunk of output commands', target_device_idx=target_device_idx)
-        self.result_commands3 = BaseValue('Third chunk of output commands', target_device_idx=target_device_idx)
+        self.result_commands1 = BaseValue('First chunk of output commands',
+                                          target_device_idx=target_device_idx,
+                                          precision=precision)
+        self.result_commands2 = BaseValue('Second chunk of output commands',
+                                          target_device_idx=target_device_idx,
+                                          precision=precision)
+        self.result_commands3 = BaseValue('Third chunk of output commands',
+                                          target_device_idx=target_device_idx,
+                                          precision=precision)
 
         self.inputs['in_commandsHO'] = InputValue(type=BaseValue)      # could be 6000 elements, dims[0]
         self.inputs['in_commandsLO'] = InputValue(type=BaseValue)      # could be 5 elements, dims[1]

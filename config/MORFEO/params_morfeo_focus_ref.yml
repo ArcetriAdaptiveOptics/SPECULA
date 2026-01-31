@@ -201,8 +201,10 @@ detector_lgs6: { <<: *LGS_DETECTOR, inputs: {in_i: 'sh_lgs6.out_i' }}
 
 slopec_lgs1: &LGS_SLOPEC
   class:             'ShSlopec'
-  weight_int_pixel_dt: 0.2
-  window_int_pixel:    True
+  weight_int_pixel_dt:  0.2
+  window_int_pixel:     True
+  window_int_threshold: 300
+  thr_value:            0
   subapdata_object:  'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_rot6.2'  # tag of the pyramid WFS pupils
   sn_object:         'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_ce_rot6.2'  # tag of the slope reference vector
   filtmat_data:      'maory_np_filtmat_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_mn1000_3_ce_rot6.2'
@@ -414,6 +416,7 @@ iir_focus:
   simul_params_ref:  'main'
   int_gain:          [0.5]
   n_modes:           [1]
+  delay: 1.0
   inputs:
       delta_comm: 'slicer_focus.out_value'     
   outputs:  ['out_comm']
@@ -538,7 +541,6 @@ modes_disp:
 #  class:            'SlopecDisplay'
 #  inputs:
 #    slopes:       'slopec_lgs1.out_slopes'
-#    subapdata:    'slopec_lgs1.out_subapdata'
 #  figsize:       [8, 6]  # Default size in inches
 
 # psf_disp:

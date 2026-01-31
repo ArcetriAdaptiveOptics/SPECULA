@@ -1,12 +1,10 @@
-
-
 import os
 import shutil
 from unittest.mock import patch, MagicMock, mock_open
 
 import specula
-from specula.processing_objects.data_source import DataSource
 specula.init(0)  # Default target device
+from specula.processing_objects.data_source import DataSource
 
 from astropy.io import fits
 import numpy as np

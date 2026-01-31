@@ -1,8 +1,8 @@
 from typing import Optional, Union, List
 
-import numpy as np
+from scipy.interpolate import RectBivariateSpline
 
-from specula import cpuArray
+from specula import cpuArray, ASEC2RAD, np
 from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.simul_params import SimulParams
 from specula.base_value import BaseValue
@@ -10,25 +10,39 @@ from specula.connections import InputValue
 
 class ExtendedSource(BaseProcessingObj):
     """
-    ExtendedSource class to compute extended sources (list of 3D points) for pyramid wavefront sensing.
+    ExtendedSource class to compute extended sources (list of 3D points)
+    for pyramid wavefront sensing.
 
     Args:
         simul_params (SimulParams): Simulation parameters.
         wavelengthInNm (float): Wavelength in nanometers.
         source_type (str): Type of source ('POINT_SOURCE', 'TOPHAT', 'GAUSS', 'FROM_PSF').
-        sampling_lambda_over_d (float): Sampling factor in units of λ/D. Larger values mean less points.
-        size_obj (Optional[float]): Size of the object in arcseconds. Required for 'TOPHAT' and 'GAUSS' sources.
+        sampling_lambda_over_d (float): Sampling factor in units of λ/D.
+                                        Larger values mean less points.
+        size_obj (Optional[float]): Size of the object in arcseconds. Required for 'TOPHAT'
+                                    and 'GAUSS' sources.
         sampling_type (str): Sampling type ('CARTESIAN', 'POLAR', 'RINGS').
-        layer_height (Optional[List[float]]): Heights of layers in meters. Used for 3D sources (sodium beacon).
-        intensity_profile (Optional[List[float]]): Intensity profile for each layer. Used for 3D sources (sodium beacon).
-        focus_height (Optional[float]): Height of the focus in meters. Used for 3D sources (sodium beacon).
-        tt_profile (Optional[np.ndarray]): Tip/tilt profile for each layer. Used for 3D sources (sodium beacon).
+        layer_height (Optional[List[float]]): Heights of layers in meters.
+                                              Used for 3D sources (sodium beacon).
+        intensity_profile (Optional[List[float]]): Intensity profile for each layer.
+                                                   Used for 3D sources (sodium beacon).
+        focus_height (Optional[float]): Height of the focus in meters. Used for 3D sources
+                                        (sodium beacon).
+        tt_profile (Optional[np.ndarray]): Tip/tilt profile for each layer.
+                                           Used for 3D sources (sodium beacon).
         n_rings (Optional[int]): Number of rings for 'RINGS' sampling. Default is 0.
-        flux_threshold (float): Threshold for flux. Points with flux below this value are discarded.
-        initial_psf (Optional[np.ndarray]): PSF array for 'FROM_PSF' source type to be used for initialization.
-        pixel_scale_psf (Optional[float]): Pixel scale of the PSF in arcseconds. Required for 'FROM_PSF' source type.
-        target_device_idx (int): Index of the target device for computation. 0 is first GPU, -1 is CPU.
-        precision (int): Precision for computation (e.g., 32 or 64 bits). 1 is single precision, 0 is double precision.
+        flux_threshold (float): Threshold for flux. Points with flux below this value
+                                are discarded.
+        initial_psf (Optional[np.ndarray]): PSF array for 'FROM_PSF' source type to be
+                                            used for initialization.
+        pixel_scale_psf (Optional[float]): Pixel scale of the PSF in arcseconds.
+                                           Required for 'FROM_PSF' source type.
+        crop_psf (bool): Whether to crop the PSF to relevant parts defined by initial_psf size.
+                         Default is False.
+        target_device_idx (int): Index of the target device for computation.
+                                 0 is first GPU, -1 is CPU.
+        precision (int): Precision for computation (e.g., 32 or 64 bits).
+                         1 is single precision, 0 is double precision.
     """
     def __init__(self,
                  simul_params: SimulParams,
@@ -45,6 +59,7 @@ class ExtendedSource(BaseProcessingObj):
                  flux_threshold: float = 0.0,
                  initial_psf: Optional[np.ndarray] = None,
                  pixel_scale_psf: Optional[float] = None,
+                 crop_psf: bool = False,
                  target_device_idx: int = None,
                  precision: int = None):
 
@@ -75,13 +90,14 @@ class ExtendedSource(BaseProcessingObj):
         self.tt_profile = tt_profile
         self.n_rings = n_rings or 0
         self.flux_threshold = flux_threshold
-        self.psf = BaseValue()
+        self.psf = BaseValue(target_device_idx=self.target_device_idx, precision=precision)
         if initial_psf is not None:
             self.psf.value = self.to_xp(initial_psf, dtype=self.dtype)
         else:
             self.psf.value = self.xp.zeros((3, 3), dtype=self.dtype)
             self.psf.value[1, 1] = 1.0  # Default initial PSF is a delta function
         self.pixel_scale_psf = pixel_scale_psf
+        self.crop_psf = crop_psf
 
         # Validate parameters
         self._validate_parameters()
@@ -162,7 +178,8 @@ class ExtendedSource(BaseProcessingObj):
         """Compute 2D extended source"""
         # Object sampling in arcsec
         sec2rad = 4.848e-6
-        obj_sampling = self.sampling_lambda_over_d * (self.wavelengthInNm/1e9) / self.d_tel / sec2rad
+        obj_sampling = self.sampling_lambda_over_d * \
+            (self.wavelengthInNm/1e9) / self.d_tel / sec2rad
 
         if self.source_type == 'POINT_SOURCE':
             return self._compute_point_source()
@@ -294,7 +311,9 @@ class ExtendedSource(BaseProcessingObj):
             n_rings = self.n_rings
         else:
             # Default: based on diffraction-limited resolution
-            n_rings = int(np.round(self.size_obj/2 / (5 * (self.wavelengthInNm/1e9) / self.d_tel / 4.848e-6)))
+            n_rings = int(
+                np.round(self.size_obj/2 / (5 * (self.wavelengthInNm/1e9) / self.d_tel / 4.848e-6))
+            )
 
         # Ring geometry
         size_ring = (self.size_obj/2) / n_rings
@@ -304,8 +323,12 @@ class ExtendedSource(BaseProcessingObj):
         np_rings = np.ceil(2 * np.pi * radius_rings / obj_sampling).astype(int)
 
         # Initialize arrays
-        xx_arcsec = [0.0]  # Central point
-        yy_arcsec = [0.0]
+        if n_rings > 1:
+            xx_arcsec = [0.0]  # Central point
+            yy_arcsec = [0.0]
+        else:
+            xx_arcsec = []
+            yy_arcsec = []
 
         # Generate points for each ring
         for j in range(n_rings):
@@ -407,7 +430,9 @@ class ExtendedSource(BaseProcessingObj):
             n_rings = self.n_rings
         else:
             # Default: based on diffraction-limited resolution
-            n_rings = int(np.round(max_extent / (5 * (self.wavelengthInNm/1e9) / self.d_tel / 4.848e-6)))
+            n_rings = int(
+                np.round(max_extent / (5 * (self.wavelengthInNm/1e9) / self.d_tel / 4.848e-6))
+            )
 
         # Ring geometry
         size_ring = max_extent / n_rings
@@ -492,8 +517,6 @@ class ExtendedSource(BaseProcessingObj):
             yy_psf = yy_arcsec / self.pixel_scale_psf + s_psf[0]/2
 
             # Interpolate PSF values
-            from scipy.interpolate import RectBivariateSpline
-
             # Create interpolation function
             x_psf = np.arange(s_psf[1])
             y_psf = np.arange(s_psf[0])
@@ -504,7 +527,7 @@ class ExtendedSource(BaseProcessingObj):
             valid_xx = []
             valid_yy = []
 
-            for i in range(len(xx_arcsec)):
+            for i, _ in enumerate(xx_arcsec):
                 x_coord = xx_psf[i]
                 y_coord = yy_psf[i]
 
@@ -558,7 +581,6 @@ class ExtendedSource(BaseProcessingObj):
             yy_interpol += s_psf[0] / 2
 
             # Interpolate PSF values, clamping out-of-bounds to nearest edge
-            from scipy.interpolate import RectBivariateSpline
             x_psf = np.arange(s_psf[1])
             y_psf = np.arange(s_psf[0])
             interp_func = RectBivariateSpline(y_psf, x_psf, cpuArray(psf), kx=1, ky=1)
@@ -566,7 +588,9 @@ class ExtendedSource(BaseProcessingObj):
             x_clipped = np.clip(xx_interpol, 0, s_psf[1] - 1)
             y_clipped = np.clip(yy_interpol, 0, s_psf[0] - 1)
 
-            flux_percent = np.array([float(interp_func(yc, xc)[0, 0]) for xc, yc in zip(x_clipped, y_clipped)])
+            flux_percent = np.array(
+                [float(interp_func(yc, xc)[0, 0]) for xc, yc in zip(x_clipped, y_clipped)]
+            )
 
         else:
             raise ValueError(f"FROM_PSF sampling type {self.sampling_type} not implemented")
@@ -636,9 +660,11 @@ class ExtendedSource(BaseProcessingObj):
     def _angle_to_tip(self, angle_arcsec: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
         """Convert angle in arcsec to tip/tilt coefficient in rad RMS @ wavelength"""
         # From IDL: angle2tip function
-        sec2rad = 4.848e-6
-        angle_rad = angle_arcsec * sec2rad
-        return angle_rad * self.d_tel / (self.wavelengthInNm * 1e-9) / (2.0 * np.pi)
+        angle_rad = angle_arcsec * ASEC2RAD
+        opd = angle_rad * self.d_tel
+        phase_difference = opd * 2.0 * np.pi / (self.wavelengthInNm * 1e-9)
+        tip_coefficient = phase_difference / 4.0
+        return tip_coefficient
 
     def _compute_focus_coefficient(self, layer_height: float) -> float:
         """Compute focus coefficient for a layer at given height"""
@@ -674,8 +700,27 @@ class ExtendedSource(BaseProcessingObj):
         if self.source_type == 'FROM_PSF':
             psf = self.local_inputs.get('psf')
             if np.sum(self.xp.abs(psf.value)) > 0:
-                self.psf = psf
+                if self.crop_psf:
+                    npsf_input = psf.value.shape[0]
+                    npsf_target = self.psf.value.shape[0]
+
+                    if npsf_input == npsf_target:
+                        psf_temp = psf.value
+                    elif npsf_target < npsf_input:
+                        # Crop PSF (center region)
+                        delta = (npsf_input - npsf_target) // 2
+                        psf_temp = psf.value[delta:delta+npsf_target, delta:delta+npsf_target]
+                    else:
+                        # Pad PSF with zeros
+                        psf_temp = self.xp.zeros((npsf_target, npsf_target), dtype=self.dtype)
+                        delta = (npsf_target - npsf_input) // 2
+                        psf_temp[delta:delta+npsf_input, delta:delta+npsf_input] = psf.value
+                else:
+                    psf_temp = psf.value
+
+                self.psf.set_value(psf_temp)
                 self.compute()  # Recompute all coefficients with new PSF
+                self.outputs['coeff'].generation_time = self.current_time
 
     def plot_source(self):
         """Plot the extended source distribution"""

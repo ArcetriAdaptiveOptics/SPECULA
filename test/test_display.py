@@ -1,5 +1,3 @@
-import os
-
 import specula
 specula.init(0)  # Default target device
 
@@ -19,6 +17,8 @@ from specula.display.phase_display import PhaseDisplay
 from specula.display.pixels_display import PixelsDisplay
 from specula.display.slopec_display import SlopecDisplay
 from specula.display.psf_display import PsfDisplay
+from specula.display.plot_vector_display import PlotVectorDisplay
+from specula.base_value import BaseValue
 from test.specula_testlib import cpu_and_gpu
 
 
@@ -42,7 +42,7 @@ class TestDisplays(unittest.TestCase):
         ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
                           S0=self.S0, target_device_idx=target_device_idx)
         ef.generation_time = 1
-        
+
         display = PhaseDisplay(title='Test Phase Display')
         display.inputs['phase'].set(ef)
 
@@ -57,7 +57,7 @@ class TestDisplays(unittest.TestCase):
         self.assertIsNotNone(display.fig)
         self.assertIsNotNone(display.ax)
 
-        display.close()
+        matplotlib.pyplot.close(display.fig)
 
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
@@ -82,7 +82,7 @@ class TestDisplays(unittest.TestCase):
         self.assertTrue(display._opened)
         self.assertIsNotNone(display.img)
 
-        display.close()
+        matplotlib.pyplot.close(display.fig)
 
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
@@ -107,7 +107,7 @@ class TestDisplays(unittest.TestCase):
         self.assertIsNotNone(display.fig)
         self.assertIsNotNone(display.ax)
 
-        display.close()
+        matplotlib.pyplot.close(display.fig)
 
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
@@ -118,7 +118,9 @@ class TestDisplays(unittest.TestCase):
                           S0=self.S0, target_device_idx=target_device_idx)
         ef.generation_time = 1
 
-        simulParams = SimulParams(time_step=0.001, pixel_pupil=self.pixel_pupil, pixel_pitch=self.pixel_pitch)
+        simulParams = SimulParams(
+            time_step=0.001, pixel_pupil=self.pixel_pupil, pixel_pitch=self.pixel_pitch
+        )
 
         psf = PSF(simulParams, wavelengthInNm=500, target_device_idx=target_device_idx)
         psf.inputs['in_ef'].set(ef)
@@ -140,7 +142,7 @@ class TestDisplays(unittest.TestCase):
         self.assertTrue(display._opened)
         self.assertIsNotNone(display.img)
 
-        display.close()
+        matplotlib.pyplot.close(display.fig)
 
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
@@ -152,7 +154,7 @@ class TestDisplays(unittest.TestCase):
 
         # Create test modes data
         modes_data = xp.random.random(20) * 100 - 50  # Random values between -50 and 50
-        modes = BaseValue(modes_data, target_device_idx=target_device_idx)
+        modes = BaseValue(value=modes_data, target_device_idx=target_device_idx)
         modes.generation_time = 1
 
         display = ModesDisplay(title='Test Modes Display', yrange=(-100, 100))
@@ -167,7 +169,7 @@ class TestDisplays(unittest.TestCase):
         self.assertIsNotNone(display.fig)
         self.assertIsNotNone(display.ax)
 
-        display.close()
+        matplotlib.pyplot.close(display.fig)
 
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
@@ -178,7 +180,7 @@ class TestDisplays(unittest.TestCase):
         from specula.base_value import BaseValue
 
         # Create test scalar value for history plotting
-        value = BaseValue([42.5], target_device_idx=target_device_idx)
+        value = BaseValue(value=xp.array([42.5]), target_device_idx=target_device_idx)
 
         display = PlotDisplay(title='Test Plot Display', histlen=50)
         display.inputs['value'].set(value)
@@ -196,7 +198,7 @@ class TestDisplays(unittest.TestCase):
         self.assertIsNotNone(display.lines)
         self.assertEqual(display._count, 5)
 
-        display.close()
+        matplotlib.pyplot.close(display.fig)
 
     def test_display_figsize_parameter(self):
         """Test that figsize parameter is properly handled"""
@@ -259,3 +261,503 @@ class TestDisplays(unittest.TestCase):
 
         for display, expected_title in zip(displays, custom_titles):
             self.assertEqual(display._title, expected_title)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_basic_vector_plot(self, target_device_idx, xp):
+        """Test basic vector plotting with 3 elements"""
+        display = PlotVectorDisplay(title='Test Vector', histlen=50)
+
+        # Create 3D vector
+        vec = BaseValue(value=xp.array([1.0, 2.0, 3.0]), target_device_idx=target_device_idx)
+        vec.generation_time = 1
+
+        display.inputs['vector'].set(vec)
+        display.setup()
+        display.check_ready(1)
+        display.trigger_code()
+
+        self.assertTrue(display._opened)
+        self.assertIsNotNone(display.lines)
+        self.assertEqual(len(display.lines), 3)  # 3 elements
+        self.assertEqual(display._count, 1)
+
+        matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_vector_with_selected_indices(self, target_device_idx, xp):
+        """Test plotting only selected elements"""
+        # Plot only indices 0 and 2 from a 5-element vector
+        display = PlotVectorDisplay(
+            title='Selected elements',
+            indices=[0, 2],
+            legend_labels=['X', 'Z']
+        )
+
+        vec = BaseValue(value=xp.array([1.0, 2.0, 3.0, 4.0, 5.0]),
+                       target_device_idx=target_device_idx)
+        vec.generation_time = 1
+
+        display.inputs['vector'].set(vec)
+        display.setup()
+        display.check_ready(1)
+        display.trigger_code()
+
+        # Should only have 2 lines (indices 0 and 2)
+        self.assertEqual(len(display.lines), 2)
+
+        # Check legend labels
+        labels = [line.get_label() for line in display.lines]
+        self.assertIn('X', labels)
+        self.assertIn('Z', labels)
+
+        matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_vector_history_accumulation(self, target_device_idx, xp):
+        """Test that vector history accumulates correctly"""
+        display = PlotVectorDisplay(histlen=10)
+
+        vec = BaseValue(value=xp.array([0.0, 0.0]), target_device_idx=target_device_idx)
+        display.inputs['vector'].set(vec)
+        display.setup()
+
+        # Add 5 samples
+        for i in range(5):
+            vec.set_value(xp.array([float(i), float(i * 2)]))
+            vec.generation_time = i + 1
+            display.check_ready(i + 1)
+            display.trigger_code()
+
+        self.assertEqual(display._count, 5)
+        self.assertEqual(len(display._time_history), 5)
+
+        # Check history values
+        np.testing.assert_array_equal(display._history[0, :], [0.0, 0.0])
+        np.testing.assert_array_equal(display._history[4, :], [4.0, 8.0])
+
+        matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_vector_history_scrolling(self, target_device_idx, xp):
+        """Test that history scrolls when buffer is full"""
+        histlen = 5
+        display = PlotVectorDisplay(histlen=histlen)
+
+        vec = BaseValue(value=xp.array([0.0, 0.0]), target_device_idx=target_device_idx)
+        display.inputs['vector'].set(vec)
+        display.setup()
+
+        # Add more samples than buffer size
+        for i in range(10):
+            vec.generation_time = i + 1
+            vec.set_value(xp.array([float(i), float(i * 2)]))
+            display.check_ready(i + 1)
+            display.trigger_code()
+
+        # Should have scrolled, keeping last 5
+        self.assertEqual(display._count, histlen)
+        self.assertEqual(len(display._time_history), histlen)
+
+        # Last value should be [9, 18]
+        np.testing.assert_array_equal(display._history[histlen-1, :], [9.0, 18.0])
+
+        matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_single_element_vector(self, target_device_idx, xp):
+        """Test with 1-element vector (scalar-like)"""
+        display = PlotVectorDisplay(title='Scalar Vector')
+
+        vec = BaseValue(value=xp.array([42.0]), target_device_idx=target_device_idx)
+        vec.generation_time = 1
+
+        display.inputs['vector'].set(vec)
+        display.setup()
+        display.check_ready(1)
+        display.trigger_code()
+
+        self.assertEqual(len(display.lines), 1)
+
+        matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_vector_from_list(self, target_device_idx, xp):
+        """Test vector created from Python list"""
+        display = PlotVectorDisplay()
+
+        vec = BaseValue(value=[1.5, 2.5, 3.5], target_device_idx=target_device_idx)
+        vec.generation_time = 1
+
+        display.inputs['vector'].set(vec)
+        display.setup()
+        display.check_ready(1)
+        display.trigger_code()
+
+        self.assertEqual(len(display.lines), 3)
+
+        matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_custom_legend_labels(self, target_device_idx, xp):
+        """Test custom legend labels"""
+        labels = ['Tip', 'Tilt', 'Focus']
+        display = PlotVectorDisplay(legend_labels=labels)
+
+        vec = BaseValue(value=xp.array([0.1, 0.2, 0.3]), target_device_idx=target_device_idx)
+        vec.generation_time = 1
+
+        display.inputs['vector'].set(vec)
+        display.setup()
+        display.check_ready(1)
+        display.trigger_code()
+
+        line_labels = [line.get_label() for line in display.lines]
+        self.assertEqual(line_labels, labels)
+
+        matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_fixed_y_range(self, target_device_idx, xp):
+        """Test fixed Y axis range"""
+        yrange = (-10, 10)
+        display = PlotVectorDisplay(yrange=yrange)
+
+        vec = BaseValue(value=xp.array([5.0, -5.0]), target_device_idx=target_device_idx)
+        vec.generation_time = 1
+
+        display.inputs['vector'].set(vec)
+        display.setup()
+        display.check_ready(1)
+        display.trigger_code()
+
+        ylim = display.ax.get_ylim()
+        self.assertEqual(ylim, yrange)
+
+        matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_iteration_x_axis(self, target_device_idx, xp):
+        """Test iteration mode for x-axis instead of time"""
+        display = PlotVectorDisplay(x_axis='iteration')
+
+        vec = BaseValue(value=xp.array([1.0, 2.0]), target_device_idx=target_device_idx)
+        display.inputs['vector'].set(vec)
+        display.setup()
+
+        for i in range(3):
+            vec.generation_time = i + 1
+            vec.set_value(xp.array([float(i), float(i * 2)]))
+            display.check_ready(i + 1)
+            display.trigger_code()
+
+        # Check x values are iterations [1, 2, 3]
+        expected_x = [1, 2, 3]
+        np.testing.assert_array_equal(display._time_history, expected_x)
+
+        matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_pixels_display_crop_slice(self, target_device_idx, xp):
+        """Test crop with slice mode"""
+        display = PixelsDisplay(crop=(10, 40, 20, 50), crop_mode='slice')
+
+        # Create 100x100 image
+        size_pixels = 100
+        image_data = xp.random.random((size_pixels, size_pixels))
+        pix = Pixels(size_pixels, size_pixels, target_device_idx=target_device_idx)
+        pix.set_value(image_data)
+        pix.generation_time = 1
+
+        # Set input BEFORE setup
+        display.inputs['pixels'].set(pix)
+        display.setup()
+
+        self.assertTrue(display.check_ready(1))
+        display.trigger_code()
+
+        # Check displayed image has correct shape
+        displayed = display.img.get_array()
+        self.assertEqual(displayed.shape, (30, 30))  # 50-20=30 rows, 40-10=30 cols
+
+        matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_pixels_display_crop_center(self, target_device_idx, xp):
+        """Test crop with center mode"""
+        display = PixelsDisplay(crop=(50, 50, 15, 15), crop_mode='center')
+
+        # Create 100x100 image
+        size_pixels = 100
+        image_data = xp.random.random((size_pixels, size_pixels))
+        pix = Pixels(size_pixels, size_pixels, target_device_idx=target_device_idx)
+        pix.set_value(image_data)
+        pix.generation_time = 1
+
+        # Set input BEFORE setup
+        display.inputs['pixels'].set(pix)
+        display.setup()
+
+        self.assertTrue(display.check_ready(1))
+        display.trigger_code()
+
+        # Check displayed image has correct shape
+        displayed = display.img.get_array()
+        self.assertEqual(displayed.shape, (30, 30))  # 2*15=30 in both dimensions
+
+        matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_pixels_display_crop_dynamic(self, target_device_idx, xp):
+        """Test dynamic crop change"""
+        display = PixelsDisplay()
+
+        # Create 100x100 image
+        size_pixels = 100
+        image_data = xp.random.random((size_pixels, size_pixels))
+        pix = Pixels(size_pixels, size_pixels, target_device_idx=target_device_idx)
+        pix.set_value(image_data)
+        pix.generation_time = 1
+
+        display.inputs['pixels'].set(pix)
+        display.setup()
+
+        # First display without crop
+        self.assertTrue(display.check_ready(1))
+        display.trigger_code()
+
+        displayed = display.img.get_array()
+        self.assertEqual(displayed.shape, (100, 100))
+
+        # Now set crop dynamically
+        display.set_crop((25, 75, 25, 75), crop_mode='slice')
+
+        pix.generation_time = 2
+        self.assertTrue(display.check_ready(2))
+        display.trigger_code()
+
+        displayed = display.img.get_array()
+        self.assertEqual(displayed.shape, (50, 50))  # 75-25=50
+
+        # Clear crop
+        display.clear_crop()
+
+        pix.generation_time = 3
+        self.assertTrue(display.check_ready(3))
+        display.trigger_code()
+
+        displayed = display.img.get_array()
+        self.assertEqual(displayed.shape, (100, 100))
+
+        matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_pixels_display_crop_with_log_scale(self, target_device_idx, xp):
+        """Test that crop works with log scale"""
+        display = PixelsDisplay(
+            crop=(25, 75, 25, 75),
+            crop_mode='slice',
+            log_scale=True
+        )
+
+        # Create 100x100 image
+        size_pixels = 100
+        image_data = xp.random.random((size_pixels, size_pixels)) + 1.0  # Avoid log(0)
+        pix = Pixels(size_pixels, size_pixels, target_device_idx=target_device_idx)
+        pix.set_value(image_data)
+        pix.generation_time = 1
+
+        display.inputs['pixels'].set(pix)
+        display.setup()
+
+        self.assertTrue(display.check_ready(1))
+        display.trigger_code()
+
+        displayed = display.img.get_array()
+        self.assertEqual(displayed.shape, (50, 50))
+
+        # Verify log scale is handled by LogNorm, not by modifying data
+        import matplotlib.colors
+        self.assertIsInstance(display.img.norm, matplotlib.colors.LogNorm)
+        self.assertTrue(np.all(displayed >= 1.0))  # Data is unchanged
+
+        matplotlib.pyplot.close(display.fig)
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+
+    def test_plot_display_with_labels(self, target_device_idx, xp):
+        """Test PlotDisplay with custom labels for multiple inputs"""
+        from specula.display.plot_display import PlotDisplay
+        from specula.base_value import BaseValue
+
+        # Create three test values
+        value1 = BaseValue(value=xp.array([1.0]), target_device_idx=target_device_idx)
+        value2 = BaseValue(value=xp.array([2.0]), target_device_idx=target_device_idx)
+        value3 = BaseValue(value=xp.array([3.0]), target_device_idx=target_device_idx)
+
+        # Set up display with custom labels
+        custom_labels = ['Signal A', 'Signal B', 'Signal C']
+        display = PlotDisplay(
+            title='Test Multi-Input with Labels',
+            histlen=50,
+            labels=custom_labels
+        )
+
+        # Set up input list
+        display.inputs['value_list'].set(value1)
+        display.inputs['value_list'].append(value2)
+        display.inputs['value_list'].append(value3)
+
+        display.setup()
+
+        # Trigger a few times to build history
+        for i in range(3):
+            value1.generation_time = i + 1
+            value2.generation_time = i + 1
+            value3.generation_time = i + 1
+            value1.set_value(xp.array([1.0 * (i + 1)]))
+            value2.set_value(xp.array([2.0 * (i + 1)]))
+            value3.set_value(xp.array([3.0 * (i + 1)]))
+            display.check_ready(i + 1)
+            display.trigger_code()
+
+        # Check that we have 3 lines
+        self.assertEqual(len(display.lines), 3)
+
+        # Check that labels were applied correctly
+        line_labels = [line.get_label() for line in display.lines]
+        self.assertEqual(line_labels, custom_labels)
+
+        # Check that legend was added
+        self.assertTrue(display._legend_added)
+        legend = display.ax.get_legend()
+        self.assertIsNotNone(legend)
+
+        # Verify legend text matches our labels
+        legend_texts = [text.get_text() for text in legend.get_texts()]
+        self.assertEqual(legend_texts, custom_labels)
+
+        matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_plot_display_partial_labels(self, target_device_idx, xp):
+        """Test PlotDisplay with fewer labels than inputs"""
+        from specula.display.plot_display import PlotDisplay
+        from specula.base_value import BaseValue
+
+        # Create three values but only provide two labels
+        value1 = BaseValue(value=xp.array([1.0]), target_device_idx=target_device_idx)
+        value2 = BaseValue(value=xp.array([2.0]), target_device_idx=target_device_idx)
+        value3 = BaseValue(value=xp.array([3.0]), target_device_idx=target_device_idx)
+
+        display = PlotDisplay(
+            title='Test Partial Labels',
+            labels=['First', 'Second']  # Only 2 labels for 3 inputs
+        )
+
+        display.inputs['value_list'].set(value1)
+        display.inputs['value_list'].append(value2)
+        display.inputs['value_list'].append(value3)
+
+        display.setup()
+
+        value1.generation_time = 1
+        value2.generation_time = 1
+        value3.generation_time = 1
+        display.check_ready(1)
+        display.trigger_code()
+
+        # Check labels: first two custom, third default
+        line_labels = [line.get_label() for line in display.lines]
+        self.assertEqual(line_labels[0], 'First')
+        self.assertEqual(line_labels[1], 'Second')
+        self.assertEqual(line_labels[2], 'Input 2')  # Default for missing label
+
+        matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_plot_display_no_labels(self, target_device_idx, xp):
+        """Test PlotDisplay without labels uses defaults"""
+        from specula.display.plot_display import PlotDisplay
+        from specula.base_value import BaseValue
+
+        value1 = BaseValue(value=xp.array([1.0]), target_device_idx=target_device_idx)
+        value2 = BaseValue(value=xp.array([2.0]), target_device_idx=target_device_idx)
+
+        display = PlotDisplay(title='Test Default Labels')  # No labels parameter
+
+        display.inputs['value_list'].set(value1)
+        display.inputs['value_list'].append(value2)
+
+        display.setup()
+
+        value1.generation_time = 1
+        value2.generation_time = 1
+        display.check_ready(1)
+        display.trigger_code()
+
+        # Check default labels
+        line_labels = [line.get_label() for line in display.lines]
+        self.assertEqual(line_labels[0], 'Input 0')
+        self.assertEqual(line_labels[1], 'Input 1')
+
+        matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_plot_display_single_input_no_legend(self, target_device_idx, xp):
+        """Test that single input doesn't create legend"""
+        from specula.display.plot_display import PlotDisplay
+        from specula.base_value import BaseValue
+
+        value = BaseValue(value=xp.array([42.5]), target_device_idx=target_device_idx)
+
+        display = PlotDisplay(
+            title='Single Input',
+            labels=['Only Signal']
+        )
+        display.inputs['value'].set(value)
+
+        display.setup()
+
+        value.generation_time = 1
+        display.check_ready(1)
+        display.trigger_code()
+
+        # Single input should not add legend
+        self.assertFalse(display._legend_added)
+        legend = display.ax.get_legend()
+        self.assertIsNone(legend)
+
+        matplotlib.pyplot.close(display.fig)

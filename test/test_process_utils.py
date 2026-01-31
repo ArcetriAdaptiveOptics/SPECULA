@@ -1,5 +1,9 @@
 import unittest
 from unittest.mock import patch, MagicMock
+
+import specula
+specula.init(0)  # Default target device
+
 from specula.lib.process_utils import killProcessByName
 
 

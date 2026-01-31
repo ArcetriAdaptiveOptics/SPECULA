@@ -16,6 +16,7 @@ def get_vibrations_time_hist(nmodes, psd, freq, seed=1987, samp_freq=1000,
         ----------
         psd: 2d array-like
             psd for each mode, modes on first index: [mode, psd]
+            Note: PSD units are [nm^2/Hz] since phase units are [nm]
         freq: 1d or 2d array-like
             frequency vector for each mode. If 1d, the same frequency vector
             will be replicated for all modes. If 2d, modes must be on the second index: [freq, mode]
@@ -44,7 +45,8 @@ def get_vibrations_time_hist(nmodes, psd, freq, seed=1987, samp_freq=1000,
         psd = xp.array(psd[:nmodes])
 
 
-        # If freq 1d only, replicate the data for each mode, make sure that modes are on the second index
+        # If freq 1d only, replicate the data for each mode,
+        # make sure that modes are on the second index
         freq = xp.array(freq)
         if freq.ndim == 1:
             freq = np.tile(freq, (nmodes, 1)).T
@@ -53,10 +55,12 @@ def get_vibrations_time_hist(nmodes, psd, freq, seed=1987, samp_freq=1000,
         freq = freq.T[:nmodes]
 
         if len(psd) < nmodes:
-            raise ValueError(f'Requested {nmodes=} but PSD array only contains {psd.shape[0]} modes (shape={psd.shape})')
+            raise ValueError(f'Requested {nmodes=} but PSD array only contains {psd.shape[0]}'
+                             f' modes (shape={psd.shape})')
 
         if len(freq) < nmodes:
-            raise ValueError(f'Requested {nmodes=} but frequency array only contains {freq.shape[0]} modes (shape={freq.shape})')
+            raise ValueError(f'Requested {nmodes=} but frequency array only contains {freq.shape[0]}'
+                             f' modes (shape={freq.shape})')
 
         n = int(np.floor((niter + 1) / 2.))
         time_hist = xp.zeros((2 * n, nmodes), dtype=dtype)
@@ -72,7 +76,7 @@ def get_vibrations_time_hist(nmodes, psd, freq, seed=1987, samp_freq=1000,
             if start_from_zero:
                 temp -= temp[0]
             time_hist[:, i] = temp
-  
+
         return time_hist
 
 
@@ -103,6 +107,7 @@ class VibrationGenerator(BaseGenerator):
             number of modes to generate
         psd: 2d array-like
             psd for each mode, modes on first index: [mode, psd]
+            Note: PSD units are [nm^2/Hz] since phase units are [nm]
         freq: 1d or 2d array-like
             frequency vector for each mode. If 1d, the same frequency vector
             will be replicated for all modes. If 2d, modes must be on the second index: [freq, mode]

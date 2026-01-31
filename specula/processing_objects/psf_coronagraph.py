@@ -14,12 +14,24 @@ class PsfCoronagraph(PSF):
     Perfect coronagraph implementation.
     It includes the standard PSF calculation since it inherits from the PSF class.
 
-    Args:
-        simul_params (SimulParams): Simulation parameters.
-        wavelengthInNm (float): Wavelength in nanometers.
-        nd (float, optional): Numerical aperture.
-        pixel_size_mas (float, optional): Pixel size in milliarcseconds.
-        start_time (float, optional): Start time for the integration.
+    Parameters
+    ----------
+    simul_params : SimulParams
+        Simulation parameters object.
+    wavelengthInNm : float
+        Wavelength at which to compute the PSF [nm].
+    nd : float, optional
+        Numerical density of the PSF (pixels per lambda/D). If None, it is calculated
+        based on the input ElectricField and pixel size.
+    pixel_size_mas : float, optional
+        Desired pixel size of the PSF in milliarcseconds. If None, it is calculated
+        based on the input ElectricField and numerical density.
+    start_time : float, optional
+        Time (in seconds) after which to start integrating PSF and SR. Default is 0.0.
+    target_device_idx : int, optional
+        Target device index for computation (CPU/GPU). Default is None (uses global setting).
+    precision : int, optional
+        Precision for computation (0 for double, 1 for single). Default is None (uses global setting).
     """
     def __init__(self,
                  simul_params: SimulParams,
@@ -41,19 +53,27 @@ class PsfCoronagraph(PSF):
         )
 
         # Additional outputs for coronagraph
-        self.coronagraph_psf = BaseValue(target_device_idx=self.target_device_idx)
-        self.int_coronagraph_psf = BaseValue(target_device_idx=self.target_device_idx)
+        self.coronagraph_psf = BaseValue(target_device_idx=self.target_device_idx,
+                                         precision=precision)
+        self.int_coronagraph_psf = BaseValue(target_device_idx=self.target_device_idx,
+                                             precision=precision)
+        self.std_coronagraph_psf = BaseValue(target_device_idx=self.target_device_idx,
+                                             precision=precision)
 
         self.outputs['out_coronagraph_psf'] = self.coronagraph_psf
         self.outputs['out_int_coronagraph_psf'] = self.int_coronagraph_psf
+        self.outputs['out_std_coronagraph_psf'] = self.std_coronagraph_psf
 
         # Reference complex amplitude for perfect coronagraph
         self.ref_complex_amplitude = None
+        self._sum_coronagraph_psf_squared = None # For std dev calculation
 
     def setup(self):
         super().setup()
         # Initialize integrated coronagraph PSF
         self.int_coronagraph_psf.value = self.xp.zeros_like(self.int_psf.value)
+        self._sum_coronagraph_psf_squared = self.xp.zeros_like(self.int_psf.value)
+        self.std_coronagraph_psf.value = self.xp.zeros_like(self.std_psf.value)
 
     def calc_coronagraph_psf(self, phase, amp, imwidth=None, normalize=False, nocenter=False):
         """
@@ -126,13 +146,16 @@ class PsfCoronagraph(PSF):
             normalize=True
         )
 
-        print(f'Coronagraph peak suppression: {self.coronagraph_psf.value.max()/self.psf.value.max():.2e}', flush=True)
+        print(f'Coronagraph peak suppression: '
+              f'{self.coronagraph_psf.value.max()/self.psf.value.max():.2e}',
+              flush=True)
 
     def post_trigger(self):
         super().post_trigger()
 
         if self.current_time_seconds >= self.start_time:
             self.int_coronagraph_psf.value += self.coronagraph_psf.value
+            self._sum_coronagraph_psf_squared += self.coronagraph_psf.value ** 2
 
         self.coronagraph_psf.generation_time = self.current_time
 
@@ -141,5 +164,9 @@ class PsfCoronagraph(PSF):
 
         if self.count > 0:
             self.int_coronagraph_psf.value /= self.count
+            self.std_coronagraph_psf.value = self.xp.sqrt(
+                self._sum_coronagraph_psf_squared / self.count - self.int_coronagraph_psf.value ** 2
+            )
 
         self.int_coronagraph_psf.generation_time = self.current_time
+        self.std_coronagraph_psf.generation_time = self.current_time

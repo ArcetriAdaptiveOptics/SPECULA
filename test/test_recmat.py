@@ -1,6 +1,10 @@
 import os
 import unittest
 import numpy as np
+
+import specula
+specula.init(0)  # Default target device
+
 from specula.data_objects.recmat import Recmat
 from specula import cpuArray
 

@@ -51,15 +51,25 @@ class WaveGenerator(BaseGenerator):
 
     def trigger_code(self):
         phase = self.freq * 2 * self.xp.pi * self.current_time_gpu + self.offset
+
         if self.wave_type == 'SIN':
             wave = self.xp.sin(phase, dtype=self.dtype)
-            self.output.value[:] = (self.slope * self.current_time_gpu + self.amp * wave + self.constant) * self.vsize_array
+            self.output.set_value(
+                (self.slope * self.current_time_gpu + self.amp * wave + self.constant) \
+                    * self.vsize_array
+            )
 
         elif self.wave_type == 'SQUARE':
             wave = self.xp.sign(self.xp.sin(phase, dtype=self.dtype))
-            self.output.value[:] = (self.slope * self.current_time_gpu + self.amp * wave + self.constant) * self.vsize_array
+            self.output.set_value(
+                (self.slope * self.current_time_gpu + self.amp * wave + self.constant) \
+                    * self.vsize_array
+            )
 
         elif self.wave_type == 'TRIANGLE':
             # Triangle wave using arcsin
-            wave = 2 * self.xp.arcsin(self.xp.sin(phase)) / self.xp.pi
-            self.output.value[:] = (self.slope * self.current_time_gpu + self.amp * wave + self.constant) * self.vsize_array
+            wave = 2 * self.xp.arcsin(self.xp.sin(phase, dtype=self.dtype)) / self.xp.pi
+            self.output.set_value(
+                (self.slope * self.current_time_gpu + self.amp * wave + self.constant) \
+                    * self.vsize_array
+            )

@@ -67,7 +67,8 @@ class GainOptimizer(BaseProcessingObj):
         # Outputs
         self.optimized_gain = BaseValue(
             value=self.xp.ones(self.nmodes, dtype=self.dtype),
-            target_device_idx=target_device_idx
+            target_device_idx=target_device_idx,
+            precision=precision
         )
         # Initialize optimal gain to ones
         self.optimized_gain.value = self.xp.ones(self.nmodes, dtype=self.dtype)

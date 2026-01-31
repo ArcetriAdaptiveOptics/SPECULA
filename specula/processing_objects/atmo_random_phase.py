@@ -10,6 +10,31 @@ from specula.connections import InputValue
 from specula.data_objects.simul_params import SimulParams
 
 class AtmoRandomPhase(BaseProcessingObj):
+    """Atmospheric phase screen generator producing random phase screens
+    
+    Parameters
+    ----------
+    simul_params : SimulParams
+        Simulation parameters object containing pupil size, pixel pitch, zenith angle, etc.
+    L0 : float, optional
+        Outer scale of turbulence in meters, by default 1.0
+    data_dir : str
+        Directory path for storing/loading phase screen data (automatically set by simul.py).
+    source_dict : dict, optional
+        Dictionary of sources for the atmospheric phase screens.
+    wavelengthInNm : float, optional
+        Wavelength in nanometers for scaling the phase screens, by default 500.0 nm
+    pixel_phasescreens : int, optional
+        Size of the square phase screens in pixels. If None, defaults to 8192.
+    seed : int, optional
+        Seed for random number generation, by default 1.
+    update_interval : int, optional
+        Number of triggers between phase screen updates, by default 1.
+    target_device_idx : int, optional
+        Target device index for computation (CPU/GPU). Default is None (uses global setting).
+    precision : int, optional
+        Precision for computation (0 for double, 1 for single). Default is None (uses global setting).
+    """
     def __init__(self,
                  simul_params: SimulParams,
                  L0: float=1.0,
@@ -18,6 +43,7 @@ class AtmoRandomPhase(BaseProcessingObj):
                  wavelengthInNm: float=500.0,
                  pixel_phasescreens=None,
                  seed: int=1,
+                 update_interval: int=1,
                  target_device_idx=None,
                  precision=None,
                  verbose=None):
@@ -26,20 +52,26 @@ class AtmoRandomPhase(BaseProcessingObj):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.simul_params = simul_params
-       
+
         self.pixel_pupil = self.simul_params.pixel_pupil
         self.pixel_pitch = self.simul_params.pixel_pitch
         self.zenithAngleInDeg = self.simul_params.zenithAngleInDeg
 
         self.source_dict = source_dict
+        self.new_position = 0
         self.last_position = 0
+        self.update_interval = update_interval
+        self.step_counter = 0
         self.seeing = 1
         self.airmass = 1
         self.wavelengthInNm = wavelengthInNm
+        self.scale_coeff = 1.0
         self.seed = seed
         
+        self.pupilstop = None
+
         self.inputs['seeing'] = InputValue(type=BaseValue)
-        
+
         if self.zenithAngleInDeg is not None:
             self.airmass = 1.0 / np.cos(np.radians(self.zenithAngleInDeg))
             print(f'AtmoRandomPhase: zenith angle is defined as: {self.zenithAngleInDeg} deg')
@@ -50,7 +82,7 @@ class AtmoRandomPhase(BaseProcessingObj):
         # Compute layers dimension in pixels
         self.pixel_layer_size = self.pixel_pupil
 
-        self.L0 = L0        
+        self.L0 = L0
         self.data_dir = data_dir
         self.seeing = None
 
@@ -62,16 +94,18 @@ class AtmoRandomPhase(BaseProcessingObj):
         # Error if phase-screens dimension is smaller than maximum layer dimension
         if self.pixel_square_phasescreens < self.pixel_layer_size:
             raise ValueError('Error: phase-screens dimension must be greater than layer dimension!')
-        
+
         self.verbose = verbose if verbose is not None else False
-        
+
         # Initialize layer list with correct heights
         self.layer_list = []
-        layer = Layer(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, 0, precision=self.precision, target_device_idx=self.target_device_idx)
+        layer = Layer(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, 0,
+                      precision=self.precision, target_device_idx=self.target_device_idx)
         self.layer_list.append(layer)
-        
+
         for name, source in source_dict.items():
-            ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, target_device_idx=self.target_device_idx)
+            ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
+                               target_device_idx=self.target_device_idx)
             ef.S0 = source.phot_density()
             self.outputs['out_'+name+'_ef'] = ef
 
@@ -81,56 +115,63 @@ class AtmoRandomPhase(BaseProcessingObj):
         self.initScreens()
 
         self.inputs['pupilstop'] = InputValue(type=Pupilstop)
-    
 
     def initScreens(self):
         # Seed
         if type(self.seed) is not np.ndarray:
             self.seed = np.array([self.seed])
         # Square phasescreens
-        square_phasescreens = phasescreens_manager(np.array([self.L0]), self.pixel_square_phasescreens,
-                                                    self.pixel_pitch, self.data_dir,
-                                                    seed=self.seed, precision=self.precision,
-                                                    verbose=self.verbose, xp=self.xp)
+        square_phasescreens = phasescreens_manager(np.array([self.L0]),
+                                                   self.pixel_square_phasescreens,
+                                                   self.pixel_pitch, self.data_dir,
+                                                   seed=self.seed, precision=self.precision,
+                                                   verbose=self.verbose, xp=self.xp)
         # number of slices to be cut from the 2D array
-        num_slices = (self.pixel_square_phasescreens // self.pixel_pupil)
+        num_slices = self.pixel_square_phasescreens // self.pixel_pupil
 
         # it cuts the array to have dimensions multiple of pixel_pupil
-        input_array = square_phasescreens[0][0:num_slices*self.pixel_pupil,0:num_slices*self.pixel_pupil]
+        input_array = square_phasescreens[0][0:num_slices*self.pixel_pupil,
+                                             0:num_slices*self.pixel_pupil]
 
         # it makes a 3D array stacking neighbouring squares of the 2D array
-        temp_screen = input_array.reshape(num_slices, self.pixel_pupil,num_slices, self.pixel_pupil).swapaxes(1, 2).reshape(-1, self.pixel_pupil, self.pixel_pupil)
+        temp_screen = input_array.reshape(
+            num_slices, self.pixel_pupil, num_slices, self.pixel_pupil
+        ).swapaxes(1, 2).reshape(-1, self.pixel_pupil, self.pixel_pupil)
 
         # phase in rad
         temp_screen *= self.wavelengthInNm / (2 * np.pi)
 
         temp_screen = self.to_xp(temp_screen, dtype=self.dtype)
-        
+
         self.phasescreens = temp_screen
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
         self.pupilstop = self.local_inputs['pupilstop']
-    
-    def trigger_code(self):
-        r0 = 0.9759 * 0.5 / (self.local_inputs['seeing'].value * 4.848) * self.airmass**(-3./5.) # if seeing > 0 else 0.0
-        r0wavelength = r0 * (self.wavelengthInNm / 500.0)**(6./5.)
-        scale_coeff = (self.pixel_pitch / r0wavelength)**(5./6.) # if seeing > 0 else 0.0
 
-        new_position = self.last_position
-        if new_position+1 > self.phasescreens.shape[0]:
+        r0 = 0.9759 * 0.5 / (self.local_inputs['seeing'].value * 4.848) \
+             * self.airmass**(-3./5.) # if seeing > 0 else 0.0
+        r0wavelength = r0 * (self.wavelengthInNm / 500.0)**(6./5.)
+        self.scale_coeff = (self.pixel_pitch / r0wavelength)**(5./6.) # if seeing > 0 else 0.0
+
+        self.new_position = self.last_position
+
+        if self.new_position >= self.phasescreens.shape[0]:
             self.seed += 1
             self.initScreens()
-            new_position = 0
+            self.new_position = 0
 
+    def trigger_code(self):
         for name, source in self.source_dict.items():
-            self.outputs['out_'+name+'_ef'].phaseInNm = self.phasescreens[new_position,:,:] * scale_coeff
+            self.outputs['out_'+name+'_ef'].phaseInNm = \
+                self.phasescreens[self.new_position,:,:] * self.scale_coeff
             self.outputs['out_'+name+'_ef'].A = self.pupilstop.A
             self.outputs['out_'+name+'_ef'].generation_time = self.current_time
 
-        # Update position output
-        self.last_position = new_position + 1
+    def post_trigger(self):
+        super().post_trigger()
 
-
-                
-
+        # increment step counter and check if update is needed
+        self.step_counter += 1
+        if self.step_counter % self.update_interval == 0:
+            self.last_position = self.new_position+1

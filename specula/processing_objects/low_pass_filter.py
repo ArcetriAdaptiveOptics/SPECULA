@@ -6,12 +6,10 @@ from specula.data_objects.simul_params import SimulParams
 class LowPassFilter(IirFilter):
     def __init__(self,
                  simul_params: SimulParams,
-                 cutoff_freq: float,    # TODO =1.0,           
+                 cutoff_freq: float,    # TODO =1.0, 
                  amplif_fact: float=None,
                  n_ord: int=None,
                  delay: float=0,
-                 offset: list=None,
-                 og_shaper=None,
                  target_device_idx: int=None,
                  precision: int=None
                 ):
@@ -28,5 +26,5 @@ class LowPassFilter(IirFilter):
                                                         target_device_idx=target_device_idx)
 
         # Initialize IirFilter object
-        super().__init__(simul_params, iir_filter_data, delay=delay, offset=offset, og_shaper=og_shaper,
+        super().__init__(simul_params, iir_filter_data, delay=delay,
                          target_device_idx=target_device_idx, precision=precision)

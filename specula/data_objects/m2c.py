@@ -49,11 +49,13 @@ class M2C(BaseDataObj):
         if idx_modes is not None:
             if start_mode is not None:
                 start_mode = None
-                print('m2c.cut: start_mode cannot be set together with idx_modes. Setting to None start_mode.')
+                print('m2c.cut: start_mode cannot be set together with idx_modes.'
+                      ' Setting to None start_mode.')
             if nmodes is not None:
                 nmodes = None
-                print('m2c.cut: nmodes cannot be set together with idx_modes. Setting to None nmodes.')
-                        
+                print('m2c.cut: nmodes cannot be set together with idx_modes.'
+                      ' Setting to None nmodes.')
+
         nrows, ncols = self.m2c.shape
 
         if start_mode is None:
@@ -75,11 +77,14 @@ class M2C(BaseDataObj):
         hdr['VERSION'] = 1
         return hdr
 
-    def save(self, filename):
+    def save(self, filename, overwrite:bool=False):
         """Saves the M2C to a file."""
         hdr = self.get_fits_header()
-        fits.writeto(filename, np.zeros(2), hdr)
-        fits.append(filename, cpuArray(self.m2c))
+        hdu = fits.PrimaryHDU(header=hdr)
+        hdul = fits.HDUList([hdu])
+        hdul.append(fits.ImageHDU(data=cpuArray(self.m2c)))
+        hdul.writeto(filename, overwrite=overwrite)
+        hdul.close()
 
     @staticmethod
     def restore(filename, target_device_idx=None):

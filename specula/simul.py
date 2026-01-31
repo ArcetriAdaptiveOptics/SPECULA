@@ -385,8 +385,12 @@ class Simul():
 
                 # data fields are read from a fits file
                 elif name.endswith('_data') and build_this_object:
-                    data = cm.read_data(value)
-                    pars2[name[:-5]] = data
+                    parname = name[:-5]
+                    if value is None:
+                        pars2[parname] = None
+                    else:
+                        data = cm.read_data(value)
+                        pars2[parname] = data
 
                 # object fields are data objects which are loaded from a fits file
                 # the name of the object is the string preceeding the "_object" suffix,

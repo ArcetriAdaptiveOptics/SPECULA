@@ -4,6 +4,24 @@ Processing Objects API
 Processing objects for simulating AO system components.
 
 
+Abstract Coronograph
+--------------------
+
+.. automodule:: specula.processing_objects.abstract_coronograph
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Apodizer Coronograph
+--------------------
+
+.. automodule:: specula.processing_objects.apodizer_coronograph
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Atmo Evolution
 --------------
 
@@ -13,10 +31,28 @@ Atmo Evolution
    :show-inheritance:
 
 
+Atmo Evolution Up Down
+----------------------
+
+.. automodule:: specula.processing_objects.atmo_evolution_up_down
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Atmo Infinite Evolution
 -----------------------
 
 .. automodule:: specula.processing_objects.atmo_infinite_evolution
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Atmo Infinite Evolution Up Down
+-------------------------------
+
+.. automodule:: specula.processing_objects.atmo_infinite_evolution_up_down
    :members:
    :undoc-members:
    :show-inheritance:
@@ -67,6 +103,15 @@ Base Operation
    :show-inheritance:
 
 
+Base Slicer
+-----------
+
+.. automodule:: specula.processing_objects.base_slicer
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Ccd
 ---
 
@@ -80,6 +125,15 @@ Data Buffer
 -----------
 
 .. automodule:: specula.processing_objects.data_buffer
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Data Print
+----------
+
+.. automodule:: specula.processing_objects.data_print
    :members:
    :undoc-members:
    :show-inheritance:
@@ -157,10 +211,46 @@ Electric Field Combinator
    :show-inheritance:
 
 
+Electric Field Reflection
+-------------------------
+
+.. automodule:: specula.processing_objects.electric_field_reflection
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Ext Source Pyramid
+------------------
+
+.. automodule:: specula.processing_objects.ext_source_pyramid
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Extended Source
 ---------------
 
 .. automodule:: specula.processing_objects.extended_source
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Focal Plane Filter
+------------------
+
+.. automodule:: specula.processing_objects.focal_plane_filter
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Four Quadrant Coronograph
+-------------------------
+
+.. automodule:: specula.processing_objects.four_quadrant_coronograph
    :members:
    :undoc-members:
    :show-inheritance:
@@ -224,6 +314,15 @@ Low Pass Filter
 ---------------
 
 .. automodule:: specula.processing_objects.low_pass_filter
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Lyot Coronograph
+----------------
+
+.. automodule:: specula.processing_objects.lyot_coronograph
    :members:
    :undoc-members:
    :show-inheritance:
@@ -301,6 +400,15 @@ Multi Rec Calibrator
    :show-inheritance:
 
 
+Mvm
+---
+
+.. automodule:: specula.processing_objects.mvm
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Optical Gain Estimator
 ----------------------
 
@@ -328,10 +436,28 @@ Poly Chrom Sh
    :show-inheritance:
 
 
+Poly Chrom Wfs
+--------------
+
+.. automodule:: specula.processing_objects.poly_chrom_wfs
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Poly Crom Pyramid
 -----------------
 
 .. automodule:: specula.processing_objects.poly_crom_pyramid
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Power Loss
+----------
+
+.. automodule:: specula.processing_objects.power_loss
    :members:
    :undoc-members:
    :show-inheritance:
@@ -454,6 +580,24 @@ Sn Calibrator
    :show-inheritance:
 
 
+Spot Monitor
+------------
+
+.. automodule:: specula.processing_objects.spot_monitor
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Ssr Filter
+----------
+
+.. automodule:: specula.processing_objects.ssr_filter
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Time History Generator
 ----------------------
 
@@ -467,6 +611,15 @@ Vibration Generator
 -------------------
 
 .. automodule:: specula.processing_objects.vibration_generator
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Vortex Coronograph
+------------------
+
+.. automodule:: specula.processing_objects.vortex_coronograph
    :members:
    :undoc-members:
    :show-inheritance:

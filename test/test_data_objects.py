@@ -1,11 +1,12 @@
-
 import unittest
 import importlib
 import pkgutil
 import inspect
 
-import specula.data_objects
+import specula
+specula.init(0)  # Default target device
 
+import specula.data_objects
 
 class TestDataObjects(unittest.TestCase):
 

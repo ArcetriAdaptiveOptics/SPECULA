@@ -11,6 +11,7 @@ class PyrPupdataCalibrator(BaseProcessingObj):
                  data_dir: str,
                  thr1: float = 0.1,
                  thr2: float = 0.25,
+                 obs_thr: float = 0.8,
                  slopes_from_intensity: bool=False,
                  output_tag: str = None,
                  auto_detect_obstruction: bool = True,
@@ -23,6 +24,7 @@ class PyrPupdataCalibrator(BaseProcessingObj):
 
         self.thr1 = thr1
         self.thr2 = thr2
+        self.obs_thr = obs_thr
         self.slopes_from_intensity = slopes_from_intensity
         self.auto_detect_obstruction = auto_detect_obstruction
         self.min_obstruction_ratio = min_obstruction_ratio
@@ -133,10 +135,12 @@ class PyrPupdataCalibrator(BaseProcessingObj):
                     # Find where intensity starts rising
                     grad = self.xp.gradient(profile)
                     max_grad_idx = self.xp.argmax(grad[:grad.shape[0]//2])  # First half only
-                    obstruction_ratio = (float(max_grad_idx) / profile.shape[0]) * 0.8  # Conservative
+                    obstruction_ratio = (float(max_grad_idx) / profile.shape[0]) * self.obs_thr
 
                     if obstruction_ratio >= self.min_obstruction_ratio:
                         obstruction_ratios.append(float(obstruction_ratio))
+                    else:
+                        obstruction_ratios.append(self.min_obstruction_ratio)
 
         if obstruction_ratios:
             return float(self.xp.median(self.xp.array(obstruction_ratios)))

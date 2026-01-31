@@ -2,6 +2,9 @@ import unittest
 import numpy as np
 import os
 
+import specula
+specula.init(0)  # Default target device
+
 from specula.data_objects.subap_data import SubapData
 from specula import cpuArray
 import tempfile

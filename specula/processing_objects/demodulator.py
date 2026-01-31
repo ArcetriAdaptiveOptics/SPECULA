@@ -32,7 +32,7 @@ class Demodulator(BaseProcessingObj):
         self.loop_dt = self.seconds_to_t(simul_params.time_step)
 
         # Outputs
-        self.output = BaseValue(target_device_idx=target_device_idx)
+        self.output = BaseValue(target_device_idx=target_device_idx, precision=precision)
         if len(self.mode_numbers) == 1:
             self.output.value = self.dtype(0.0)
         else:

@@ -16,7 +16,8 @@ class BaseGenerator(BaseProcessingObj):
 
         # Create output
         self.output = BaseValue(
-            target_device_idx=target_device_idx, 
+            target_device_idx=target_device_idx,
+            precision=precision,
             value=self.xp.zeros(output_size, dtype=self.dtype)
         )
         self.outputs['output'] = self.output

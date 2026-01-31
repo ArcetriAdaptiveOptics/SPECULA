@@ -20,6 +20,7 @@ class DataStore(BaseProcessingObj):
                 split_size: int=0,
                 first_suffix: int=0,
                 data_format: str='fits',
+                start_time: float=0,
                 create_tn: bool=True):
         super().__init__()
         self.data_filename = ''
@@ -32,6 +33,7 @@ class DataStore(BaseProcessingObj):
         self.iter_counter = 0
         self.split_size = split_size
         self.first_suffix = first_suffix
+        self.start_time = self.seconds_to_t(start_time)
         self.init_storage()
 
     def init_storage(self):
@@ -44,14 +46,28 @@ class DataStore(BaseProcessingObj):
         self.replay_params = replay_params
 
     def save_pickle(self):
-        times = {k: np.array(list(v.keys()), dtype=self.dtype) for k, v in self.storage.items() if isinstance(v, OrderedDict)}
-        data = {k: np.array(list(v.values()), dtype=self.dtype) for k, v in self.storage.items() if isinstance(v, OrderedDict)}
-        for k,v in times.items():            
-            filename = os.path.join(self.tn_dir,k+'.pickle')
-            hdr = self.inputs[k].get(target_device_idx=-1).get_fits_header()
-            with open(filename, 'wb') as handle:
-                data_to_save = {'data': data[k], 'times': times[k], 'hdr':hdr}
-                pickle.dump(data_to_save, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        times = {k: np.array(list(v.keys()), dtype=self.dtype)
+            for k, v in self.storage.items() if isinstance(v, OrderedDict) and k is not None}
+        data = {k: np.array(list(v.values()), dtype=self.dtype)
+            for k, v in self.storage.items() if isinstance(v, OrderedDict) and k is not None}
+
+        for k, v in times.items():
+            try:
+                if k not in self.inputs or self.inputs[k] is None:
+                    if self.verbose:
+                        print(f"Warning: skipping key '{k}' - not in inputs or value is None")
+                    continue
+
+                filename = os.path.join(self.tn_dir, k + '.pickle')
+                hdr = self.inputs[k].get(target_device_idx=-1).get_fits_header()
+                with open(filename, 'wb') as handle:
+                    data_to_save = {'data': data[k], 'times': times[k], 'hdr': hdr}
+                    pickle.dump(data_to_save, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+            except Exception as e:
+                if self.verbose:
+                    print(f"Error saving pickle file for key '{k}': {str(e)}")
+                continue
 
     def save_params(self):
         filename = os.path.join(self.tn_dir, 'params.yml')
@@ -70,18 +86,31 @@ class DataStore(BaseProcessingObj):
                 print("Warning: replay_params not available, skipping replay_params.yml creation")
 
     def save_fits(self):
-        times = {k: np.array(list(v.keys()), dtype=np.uint64) for k, v in self.storage.items() if isinstance(v, OrderedDict)}
-        data = {k: np.array(list(v.values()), dtype=self.dtype) for k, v in self.storage.items() if isinstance(v, OrderedDict)}
+        times = {k: np.array(list(v.keys()), dtype=np.uint64)
+            for k, v in self.storage.items() if isinstance(v, OrderedDict)}
+        data = {k: np.array(list(v.values()), dtype=self.dtype)
+            for k, v in self.storage.items() if isinstance(v, OrderedDict)}
 
         for k,v in times.items():
+            try:
+                if k not in self.local_inputs or self.local_inputs[k] is None:
+                    if self.verbose:
+                        print(f"Warning: skipping key '{k}'"
+                              f"- not in local_inputs or value is None")
+                    continue
 
-            filename = os.path.join(self.tn_dir,k+'.fits')
-            hdr = self.local_inputs[k].get_fits_header()
-            hdu_time = fits.ImageHDU(times[k], header=hdr)
-            hdu_data = fits.PrimaryHDU(data[k], header=hdr)
-            hdul = fits.HDUList([hdu_data, hdu_time])
-            hdul.writeto(filename, overwrite=True)
-            hdul.close()  # Force close for Windows
+                filename = os.path.join(self.tn_dir, k + '.fits')
+                hdr = self.local_inputs[k].get_fits_header()
+                hdu_time = fits.ImageHDU(times[k], header=hdr)
+                hdu_data = fits.PrimaryHDU(data[k], header=hdr)
+                hdul = fits.HDUList([hdu_data, hdu_time])
+                hdul.writeto(filename, overwrite=True)
+                hdul.close()  # Force close for Windows
+
+            except Exception as e:
+                if self.verbose:
+                    print(f"Error saving FITS file for key '{k}': {str(e)}")
+                continue
 
     def create_TN_folder(self, suffix=''):
         iter = None
@@ -100,18 +129,23 @@ class DataStore(BaseProcessingObj):
         self.tn_dir = fullpath
 
     def trigger_code(self):
+        if self.current_time < self.start_time:
+            return
+
         for k, item in self.local_inputs.items():
             if item is not None and item.generation_time == self.current_time:
                 value = item.get_value()
                 v = cpuArray(value, force_copy=True)
                 self.storage[k][self.current_time] = v
-        
+
         # If we are saving a split TN, check whether it is time to save a new chunk
         # In case, clear the storage dictionary to restart with an empty one.
         self.iter_counter += 1
         if self.split_size > 0:
             if self.iter_counter % self.split_size == 0:
-                self.create_TN_folder(suffix=f'_{self.iter_counter - self.split_size + self.first_suffix}')
+                self.create_TN_folder(
+                    suffix=f'_{self.iter_counter - self.split_size + self.first_suffix}'
+                )
                 self.save()
                 self.init_storage()
 

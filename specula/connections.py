@@ -4,7 +4,8 @@ from specula.lib.flatten import flatten
 
 
 class _InputItem():
-    def __init__(self, type_, value, remote_rank=None, tag=None, optional=False):
+    def __init__(self, type_, value, remote_rank=None, tag=None, optional=False,
+                 requesting_obj_name=None, input_name=None):
         """
         Private class, wrapper for simple input values
 
@@ -24,10 +25,14 @@ class _InputItem():
         self.remote_rank = remote_rank
         self.tag = tag
         self.output_ref = value
+        self.requesting_obj_name = requesting_obj_name
+        self.input_name = input_name
 
 
     def receive_new_value(self, first_mpi_receive=True):
-        if MPI_SEND_DBG: print(process_rank, f'RECV from rank {self.remote_rank} {self.tag=} type={self.output_ref_type})', flush=True)
+        if MPI_SEND_DBG: print(process_rank,
+                               f'RECV from rank {self.remote_rank} {self.tag=} type={self.output_ref_type})',
+                               flush=True)
         if first_mpi_receive or self.cloned_value.get_value() is None:
             if MPI_SEND_DBG: print(process_rank, f'recv with Pickle', self.tag, flush=True)
             new_value = process_comm.recv(source=self.remote_rank, tag=self.tag)
@@ -47,7 +52,7 @@ class _InputItem():
             self.cloned_value.generation_time = gen_time
             self.cloned_value.set_value(buffer)
 
-        return new_value        
+        return new_value
 
     def get(self, target_device_idx):
         if self.remote_rank is None:
@@ -59,10 +64,10 @@ class _InputItem():
                 self.cloned_value = self.output_ref
                 return self.cloned_value
 
-        if self.remote_rank is None:         
+        if self.remote_rank is None:
             value = self.output_ref
         else:
-            value = self.receive_new_value(first_mpi_receive=self.cloned_value is None )
+            value = self.receive_new_value(first_mpi_receive=self.cloned_value is None)
 
         if self.cloned_value is None:
             self.cloned_value = value.copyTo(target_device_idx)
@@ -85,6 +90,8 @@ class InputList():
         self.output_ref_type = type
         self.input_values = []
         self.optional = optional
+        self.requesting_obj_name = None
+        self.input_name = None
 
     def get(self, target_device_idx):
         return flatten([v.get(target_device_idx) for v in self.input_values])
@@ -113,7 +120,9 @@ class InputList():
                                             item,
                                             remote_rank=remote_rank,
                                             tag=tag,
-                                            optional=self.optional))
+                                            optional=self.optional,
+                                            requesting_obj_name=self.requesting_obj_name,
+                                            input_name=self.input_name))
 
 
 class InputValue(InputList):
@@ -135,6 +144,8 @@ class InputValue(InputList):
             if self.optional:
                 return None
             else:
-                raise ValueError('InputValue is empty and not optional')
+                obj_info = f" (from {self.requesting_obj_name}.{self.input_name})" \
+                           if self.requesting_obj_name else ""
+                raise ValueError(f'InputValue is empty and not optional. '
+                                f'Input type: {self.output_ref_type}{obj_info}')
         return values_list[0]
-

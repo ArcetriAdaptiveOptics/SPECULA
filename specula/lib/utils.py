@@ -3,6 +3,7 @@ import re
 import typing
 import importlib
 import warnings
+from specula import to_xp
 
 def camelcase_to_snakecase(s):
     '''
@@ -107,7 +108,7 @@ def unravel_index_2d(idxs, shape, xp):
     if len(shape) != 2:
         raise ValueError('shape must be 2d')
 
-    idxs = xp.array(idxs).astype(int)
+    idxs = to_xp(xp, idxs).astype(int)
     _, ncols = shape
     row_idx = idxs // ncols
     col_idx = idxs - (row_idx * ncols)
@@ -168,9 +169,11 @@ def psd_to_signal(psd, fs, xp, dtype, complex_dtype, seed=1):
     Parameters:
     -----------
     psd : 1D array
-        Power spectral density (PSD) of the signal.
+        Power spectral density (PSD) of the signal
+        Note: unit [X^2/Hz], where X is the unit of the signal.
+              Default phase unit in SPECULA is [nm], so PSD unit is [nm^2/Hz].
     fs : float
-        Sampling frequency.
+        Sampling frequency (unit [Hz]).
     xp : module
         Array processing module (numpy or cupy) to use for array operations.
     dtype : data type

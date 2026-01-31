@@ -100,9 +100,10 @@ class TestFocalPlaneFilter(unittest.TestCase):
         ef_obs = fpf_obs.outputs['out_ef']
 
         # Compute PSF for both cases using calc_psf
-        psf = calc_psf(ef.phaseInNm, ef.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
-        psf_nofilter = calc_psf(ef_nofilter.phaseInNm, ef_nofilter.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
-        psf_obs = calc_psf(ef_obs.phaseInNm, ef_obs.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
+        nm2rad = 2*xp.pi/self.wavelength_nm
+        psf = calc_psf(ef.phaseInNm*nm2rad, ef.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
+        psf_nofilter = calc_psf(ef_nofilter.phaseInNm*nm2rad, ef_nofilter.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
+        psf_obs = calc_psf(ef_obs.phaseInNm*nm2rad, ef_obs.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
 
         max_psf = float(psf.max())
         max_psf_nofilter = float(psf_nofilter.max())
@@ -305,8 +306,8 @@ class TestFocalPlaneFilter(unittest.TestCase):
         fpf_large_fov.setup()
 
         # Check interpolation flags
-        self.assertFalse(fpf_small_fov._do_interpolation, "Small FoV should not require interpolation")
-        self.assertTrue(fpf_large_fov._do_interpolation, "Large FoV should require interpolation")
+        self.assertFalse(fpf_small_fov.ef_interpolator.do_interpolation, "Small FoV should not require interpolation")
+        self.assertTrue(fpf_large_fov.ef_interpolator.do_interpolation, "Large FoV should require interpolation")
 
         # Check fov_res values
         self.assertEqual(fpf_small_fov.fov_res, 1.0, "Small FoV should have fov_res = 1")
@@ -336,13 +337,13 @@ class TestFocalPlaneFilter(unittest.TestCase):
         fpf.setup()
 
         # Check that fft_sampling is larger than pixel_pupil when interpolation is needed
-        if fpf._do_interpolation:
+        if fpf.ef_interpolator.do_interpolation:
             self.assertGreater(fpf.fft_sampling, self.pixel_pupil, 
                              "FFT sampling should be larger than pixel_pupil when interpolation is used")
             
             # Check that the interpolated field has the correct size
-            self.assertEqual(fpf._wf_interpolated.A.shape[0], fpf.fft_sampling)
-            self.assertEqual(fpf._wf_interpolated.A.shape[1], fpf.fft_sampling)
+            self.assertEqual(fpf.ef_interpolator.interpolated_ef().A.shape[0], fpf.fft_sampling)
+            self.assertEqual(fpf.ef_interpolator.interpolated_ef().A.shape[1], fpf.fft_sampling)
             
     @cpu_and_gpu
     def test_transmission_calculation(self, target_device_idx, xp):
