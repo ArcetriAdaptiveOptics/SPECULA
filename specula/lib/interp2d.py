@@ -166,7 +166,13 @@ class Interp2D():
             self.do_interp = False
             return
 
-        if self.xp is cp:
+        # Decide whether to use on-the-fly or precomputed coordinates
+        # Use on-the-fly ONLY when:
+        # 1. On GPU (xp is cp)
+        # 2. No custom coordinates provided (xx, yy are None)
+        use_onthefly = (self.xp is cp and xx is None and yy is None)
+
+        if use_onthefly:
             self.use_precomputed = False
             self.scale_x = (input_shape[1] - 1) / output_shape[1]
             self.scale_y = (input_shape[0] - 1) / output_shape[0]
