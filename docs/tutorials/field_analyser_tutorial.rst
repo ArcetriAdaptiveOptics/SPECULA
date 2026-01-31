@@ -194,7 +194,15 @@ Below is an example script that loads the latest simulation output and computes 
     field_psf = psf_results['psf_list'][0]
 
     # Compute modal analysis
-    modal_results = analyser.compute_modal_analysis()
+    modal_results = analyser.compute_modal_analysis(
+        modal_params={              # Modal analysis parameters
+            'type_str': 'zernike',  # Zernike modes
+            'nmodes': 50,           # Number of modes
+            'obsratio': 0.0,        # Pupil obstruction ratio
+            'diaratio': 1.0,        # Pupil diameter ratio
+            'dorms': True           # Compute RMS and not standard deviation
+        }
+    )
     modes = modal_results['modal_coeffs'][0]
 
     # Compute phase cube (units: nm)
@@ -209,7 +217,7 @@ Below is an example script that loads the latest simulation output and computes 
 
 When you call `compute_field_psf()`, `FieldAnalyser`:
 
-1. Reads the saved DM commands from the DataStore files (e.g., `comm-control.out_comm.fits`)
+1. Reads the saved DM commands from the DataStore files (e.g., `comm.fits`)
 2. Uses `build_targeted_replay` to create a minimal replay configuration
 3. Creates a replay chain that includes:
    
@@ -270,14 +278,14 @@ You can use matplotlib to visualize the PSF, modal coefficients, or phase slices
 Step 5: Comparing with Simulation Outputs
 -----------------------------------------
 
-You can compare the results from `FieldAnalyser` with those saved during the simulation (e.g., `psf-psf.out_int_psf.fits`, `res_modes-modal_analysis.out_modes.fits`) to verify consistency.
+You can compare the results from `FieldAnalyser` with those saved during the simulation (e.g., `psf.fits`, `res_modes.fits`) to verify consistency.
 
 .. code-block:: python
 
     from astropy.io import fits
 
     # Load original PSF from simulation
-    with fits.open(os.path.join(latest_data_dir, 'psf-psf.out_int_psf.fits')) as hdul:
+    with fits.open(os.path.join(latest_data_dir, 'psf.fits')) as hdul:
         original_psf = hdul[0].data
     
     # Normalize for fair comparison
