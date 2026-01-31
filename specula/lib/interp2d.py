@@ -1,8 +1,9 @@
 import numpy as np
 from specula import cp, to_xp
+from scipy.interpolate import RegularGridInterpolator
 
 class Interp2D():
-    
+
     if cp:
         interp2_kernel = r'''
             extern "C" __global__
@@ -42,8 +43,10 @@ class Interp2D():
                     }
                 }
             '''
-        interp2_kernel_float = cp.RawKernel(interp2_kernel.replace('TYPE', 'float'), name='interp2_kernel_float')
-        interp2_kernel_double = cp.RawKernel(interp2_kernel.replace('TYPE', 'double'), name='interp2_kernel_double')
+        interp2_kernel_float = \
+            cp.RawKernel(interp2_kernel.replace('TYPE', 'float'), name='interp2_kernel_float')
+        interp2_kernel_double = \
+            cp.RawKernel(interp2_kernel.replace('TYPE', 'double'), name='interp2_kernel_double')
         interp2_kernel_onthefly = r'''
             extern "C" __global__
             void interp2_kernel_onthefly_TYPE(TYPE *g_in, TYPE *g_out, int out_dx, int out_dy, int in_dx, int in_dy,
@@ -54,38 +57,38 @@ class Interp2D():
                 int x = blockIdx.x * blockDim.x + threadIdx.x;
 
                 if ((y < out_dy) && (x < out_dx)) {
-                    // Calcola le coordinate di base
-                    TYPE xx = x * scale_x;
-                    TYPE yy = y * scale_y;
+                    // Calcola le coordinate esattamente come in __init__
+                    TYPE xcoord = x * scale_x;
+                    TYPE ycoord = y * scale_y;
                     
                     // Applica rotazione se necessaria
                     if (cos_angle != 1.0 || sin_angle != 0.0) {
-                        TYPE xx_centered = xx - center_x;
-                        TYPE yy_centered = yy - center_y;
-                        TYPE xx_rot = xx_centered * cos_angle - yy_centered * sin_angle;
-                        TYPE yy_rot = xx_centered * sin_angle + yy_centered * cos_angle;
-                        xx = xx_rot + center_x;
-                        yy = yy_rot + center_y;
+                        TYPE xx_centered = xcoord - center_x;
+                        TYPE yy_centered = ycoord - center_y;
+                        TYPE xcoord_rot = xx_centered * cos_angle - yy_centered * sin_angle;
+                        TYPE ycoord_rot = xx_centered * sin_angle + yy_centered * cos_angle;
+                        xcoord = xcoord_rot + center_x;
+                        ycoord = ycoord_rot + center_y;
                     }
                     
                     // Applica shift
-                    xx += shift_x;
-                    yy += shift_y;
+                    xcoord += shift_x;
+                    ycoord += shift_y;
                     
-                    // Clamp ai limiti
-                    if (xx < 0) xx = 0;
-                    if (yy < 0) yy = 0;
-                    if (xx > in_dx - 1) xx = in_dx - 1;
-                    if (yy > in_dy - 1) yy = in_dy - 1;
+                    // Clamp ai limiti (come in __init__)
+                    if (xcoord < 0) xcoord = 0;
+                    if (ycoord < 0) ycoord = 0;
+                    if (xcoord > in_dx - 1) xcoord = in_dx - 1;
+                    if (ycoord > in_dy - 1) ycoord = in_dy - 1;
                     
-                    // Interpolazione bilineare
-                    int xin = floor(xx);
-                    int yin = floor(yy);
+                    // Interpolazione bilineare - STESSA LOGICA di interp2_kernel_TYPE
+                    int xin = floor(xcoord);
+                    int yin = floor(ycoord);
                     int xin2 = xin + 1;
                     int yin2 = yin + 1;
 
-                    TYPE xdist = xx - xin;
-                    TYPE ydist = yy - yin;
+                    TYPE xdist = xcoord - xin;
+                    TYPE ydist = ycoord - yin;
 
                     int idx_a = yin * in_dx + xin;
                     int idx_b = yin * in_dx + xin2;
@@ -93,6 +96,7 @@ class Interp2D():
                     int idx_d = yin2 * in_dx + xin2;
 
                     TYPE value;
+                    // Stesso controllo di interp2_kernel_TYPE
                     if (yin2 < in_dy) {
                         value = g_in[idx_a] * (1 - xdist) * (1 - ydist) +
                                 g_in[idx_b] * xdist * (1 - ydist) +
@@ -107,12 +111,16 @@ class Interp2D():
                 }
             }
             '''
-        interp2_kernel_onthefly_float = cp.RawKernel(interp2_kernel_onthefly.replace('TYPE', 'float'),
-                                                     name='interp2_kernel_onthefly_float')
-        interp2_kernel_onthefly_double = cp.RawKernel(interp2_kernel_onthefly.replace('TYPE', 'double'),
-                                                      name='interp2_kernel_onthefly_double')
+        interp2_kernel_onthefly_float = \
+            cp.RawKernel(interp2_kernel_onthefly.replace('TYPE', 'float'),
+                         name='interp2_kernel_onthefly_float')
+        interp2_kernel_onthefly_double = \
+            cp.RawKernel(interp2_kernel_onthefly.replace('TYPE', 'double'),
+                         name='interp2_kernel_onthefly_double')
 
-    def __init__(self, input_shape, output_shape, rotInDeg=0, rowShiftInPixels=0, colShiftInPixels=0, yy=None, xx=None, dtype=np.float32, xp=np):
+    def __init__(self, input_shape, output_shape,
+                 rotInDeg=0, rowShiftInPixels=0, colShiftInPixels=0,
+                 yy=None, xx=None, dtype=np.float32, xp=np):
         '''
         Initialize an Interp2D object for 2D interpolation between arrays.
 
@@ -158,14 +166,14 @@ class Interp2D():
             self.do_interp = False
             return
 
-        if cp:
+        if self.xp is cp:
             self.use_precomputed = False
             self.scale_x = (input_shape[1] - 1) / output_shape[1]
             self.scale_y = (input_shape[0] - 1) / output_shape[0]
             self.xx = None
             self.yy = None
         else:
-            self.use_precomputed = True            
+            self.use_precomputed = True
             if xx is None or yy is None:
                 yy, xx = map(self.dtype, np.mgrid[0:output_shape[0], 0:output_shape[1]])
                 # This -1 appears to be correct by comparing with IDL code
@@ -188,7 +196,7 @@ class Interp2D():
                 yyr = (xx-xc)*sin_ + (yy-yc)*cos_
                 xx = xxr + xc
                 yy = yyr + yc
-                
+
             if rowShiftInPixels != 0 or colShiftInPixels != 0:
                 yy += rowShiftInPixels
                 xx += colShiftInPixels
@@ -200,7 +208,7 @@ class Interp2D():
 
             self.yy = to_xp(self.xp, yy, dtype=dtype).ravel()
             self.xx = to_xp(self.xp, xx, dtype=dtype).ravel()
-            
+
             self.scale_x = None
             self.scale_y = None
 
@@ -239,7 +247,8 @@ class Interp2D():
         For GPU arrays (cupy), uses a custom CUDA kernel.
         """
         if value.shape != self.input_shape:
-            raise ValueError(f'Array to be interpolated must have shape {self.input_shape} instead of {value.shape}')
+            raise ValueError(f'Array to be interpolated must have shape'
+                             f' {self.input_shape} instead of {value.shape}')
 
         # Skip interpolation if not needed
         if not self.do_interp:
@@ -263,26 +272,41 @@ class Interp2D():
                 # Usa il kernel ottimizzato per memoria
                 if self.dtype == cp.float32:
                     self.interp2_kernel_onthefly_float(grid, block, (
-                        value, out, 
+                        value, out,
                         self.output_shape[1], self.output_shape[0],
                         self.input_shape[1], self.input_shape[0],
                         cp.float32(self.scale_x), cp.float32(self.scale_y),
                         cp.float32(self.shift_x), cp.float32(self.shift_y),
                         cp.float32(self.cos_angle), cp.float32(self.sin_angle),
-                        cp.float32(self.center_x), cp.float32(self.center_y)
+                        cp.float32(self.center_x), cp.float32(self.center_y)))
+                elif self.dtype == cp.float64:
+                    self.interp2_kernel_onthefly_double(grid, block, (
+                        value, out,
+                        self.output_shape[1], self.output_shape[0],
+                        self.input_shape[1], self.input_shape[0],
+                        cp.float64(self.scale_x), cp.float64(self.scale_y),
+                        cp.float64(self.shift_x), cp.float64(self.shift_y),
+                        cp.float64(self.cos_angle), cp.float64(self.sin_angle),
+                        cp.float64(self.center_x), cp.float64(self.center_y)))
+                else:
+                    raise ValueError(f'Unsupported dtype {self.dtype}')
             else:
                 if self.dtype == cp.float32:
-                    self.interp2_kernel_float(grid, block, (value, out, self.output_shape[1],  self.output_shape[0],  self.input_shape[1], self.input_shape[0], self.xx, self.yy))
+                    self.interp2_kernel_float(grid, block,
+                        (value, out, self.output_shape[1], self.output_shape[0],
+                         self.input_shape[1], self.input_shape[0], self.xx, self.yy))
                 elif self.dtype == cp.float64:
-                    self.interp2_kernel_double(grid, block, (value, out, self.output_shape[1],  self.output_shape[0],  self.input_shape[1], self.input_shape[0], self.xx, self.yy))
+                    self.interp2_kernel_double(grid, block,
+                        (value, out, self.output_shape[1], self.output_shape[0],
+                         self.input_shape[1], self.input_shape[0], self.xx, self.yy))
                 else:
                     raise ValueError('Unsupported dtype {self.dtype}')
 
             return out
 
         else:
-            from scipy.interpolate import RegularGridInterpolator
-            points = (self.xp.arange( self.input_shape[0], dtype=self.dtype), self.xp.arange( self.input_shape[1], dtype=self.dtype))
+            points = (self.xp.arange( self.input_shape[0], dtype=self.dtype),
+                      self.xp.arange( self.input_shape[1], dtype=self.dtype))
             interp = RegularGridInterpolator(points,value, method='linear')
             out[:] = interp((self.yy, self.xx)).reshape(self.output_shape)
             return out
