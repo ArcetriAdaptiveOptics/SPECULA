@@ -128,7 +128,7 @@ dmypy.json
 .pyre/
 /.project
 /.pydevproject
-/.DS_Store
+.DS_Store
 .settings/org.eclipse.core.resources.prefs
 .vscode/settings.json
 *.code-workspace
@@ -143,4 +143,3 @@ main/scao/output/*
 
 # Nsys profiler repots
 *.nsys-rep
-
