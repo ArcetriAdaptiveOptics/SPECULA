@@ -57,11 +57,11 @@ class Interp2D():
                 int x = blockIdx.x * blockDim.x + threadIdx.x;
 
                 if ((y < out_dy) && (x < out_dx)) {
-                    // Calcola le coordinate esattamente come in __init__
+                    // Compute the coordinate exactly as in __init__
                     TYPE xcoord = x * scale_x;
                     TYPE ycoord = y * scale_y;
                     
-                    // Applica rotazione se necessaria
+                    // Apply rotation if necessary
                     if (cos_angle != 1.0 || sin_angle != 0.0) {
                         TYPE xx_centered = xcoord - center_x;
                         TYPE yy_centered = ycoord - center_y;
@@ -71,17 +71,17 @@ class Interp2D():
                         ycoord = ycoord_rot + center_y;
                     }
                     
-                    // Applica shift
+                    // Apply shift
                     xcoord += shift_x;
                     ycoord += shift_y;
                     
-                    // Clamp ai limiti (come in __init__)
+                    // Clamp to limits (as in __init__)
                     if (xcoord < 0) xcoord = 0;
                     if (ycoord < 0) ycoord = 0;
                     if (xcoord > in_dx - 1) xcoord = in_dx - 1;
                     if (ycoord > in_dy - 1) ycoord = in_dy - 1;
                     
-                    // Interpolazione bilineare - STESSA LOGICA di interp2_kernel_TYPE
+                    // Bilinear interpolation - SAME LOGIC as interp2_kernel_TYPE
                     int xin = floor(xcoord);
                     int yin = floor(ycoord);
                     int xin2 = xin + 1;
@@ -96,7 +96,7 @@ class Interp2D():
                     int idx_d = yin2 * in_dx + xin2;
 
                     TYPE value;
-                    // Stesso controllo di interp2_kernel_TYPE
+                    // Same check as interp2_kernel_TYPE
                     if (yin2 < in_dy) {
                         value = g_in[idx_a] * (1 - xdist) * (1 - ydist) +
                                 g_in[idx_b] * xdist * (1 - ydist) +
