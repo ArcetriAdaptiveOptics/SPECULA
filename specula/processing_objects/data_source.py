@@ -24,7 +24,7 @@ class DataSource(BaseProcessingObj):
         self.headers = {}
         self.obj_type = {}
 
-        for aout in outputs:    
+        for aout in outputs:
             self.loadFromFile(aout)
         for k in self.storage.keys():
             if self.obj_type[k] not in ['BaseValue', 'BaseDataObj']:
