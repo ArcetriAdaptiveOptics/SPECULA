@@ -95,13 +95,10 @@ class Coronagraph(BaseProcessingObj):
         ef_pad[pad_start:pad_start+self.fft_sampling,
                     pad_start:pad_start+self.fft_sampling] = pup_ef
 
-        if self.center_on_pixel:
-            # Standard centering: center on a single pixel
-            ef_fp = self.xp.fft.fft2(ef_pad)
-        else:
-            # Alternative centering: center at the intersection of 4 pixels
-            ef_pad_shifted = ef_pad * self.phase_shift
-            ef_fp = self.xp.fft.fft2(ef_pad_shifted)
+        # center a single pixel or at the intersection of 4 pixels
+        # it depends on self.phase_shift
+        ef_pad_shifted = ef_pad * self.phase_shift
+        ef_fp = self.xp.fft.fft2(ef_pad_shifted)
 
         return ef_fp
 
