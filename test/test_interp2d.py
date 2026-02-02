@@ -72,12 +72,13 @@ class TestInterp2D(unittest.TestCase):
             _ = interpolator.interpolate(xp.zeros((20,20)))
 
     @cpu_and_gpu
+    @unittest.skipIf(cp is None, "This test requires CuPy (GPU)")
     def test_onthefly_vs_precomputed(self, target_device_idx, xp):
         '''
         Test that interp2_kernel_onthefly produces the same results as interp2_kernel
         with precomputed coordinates. This test runs only on GPU.
         '''
-        if xp != cp:
+        if xp != cp: # pragma: no cover
             self.skipTest("This test only runs on GPU with CuPy")
 
         # Test various scenarios
@@ -187,11 +188,12 @@ class TestInterp2D(unittest.TestCase):
                     f"Mean difference for {description}: {mean_diff} (should be < 1e-6)"
 
     @cpu_and_gpu
+    @unittest.skipIf(cp is None, "This test requires CuPy (GPU)")
     def test_onthefly_float64(self, target_device_idx, xp):
         '''
         Test that on-the-fly kernel works correctly with float64 dtype.
         '''
-        if xp != cp:
+        if xp != cp: # pragma: no cover
             self.skipTest("This test only runs on GPU with CuPy")
 
         input_shape = (100, 100)
