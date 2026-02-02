@@ -30,7 +30,7 @@ class FourQuadrantCoronagraph(Coronagraph):
                          wavelengthInNm=wavelengthInNm,
                          fov=fov,
                          fft_res=fft_res,
-                         center_on_pixel= False,
+                         center_on_pixel=False,
                          target_device_idx=target_device_idx,
                          precision=precision)
 
