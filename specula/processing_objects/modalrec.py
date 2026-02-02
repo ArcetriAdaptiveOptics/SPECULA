@@ -126,7 +126,10 @@ class Modalrec(BaseProcessingObj):
                                precision=precision)
         self.pseudo_ol_modes = BaseValue('output POL modes from modal reconstructor',
                                          target_device_idx=target_device_idx,
-                                         precision=precision) 
+                                         precision=precision)
+
+        self.commands = None  # to be allocated in setup
+        self.slopes = None    # to be allocated in setup
 
         self.inputs['in_slopes'] = InputValue(type=Slopes, optional=True)
         self.inputs['in_slopes_list'] = InputList(type=Slopes, optional=True)
@@ -248,6 +251,7 @@ class Modalrec(BaseProcessingObj):
             commands = self.local_inputs['in_commands']
             commands_list = self.local_inputs['in_commands_list']
             if not commands and (not commands_list or not all(commands_list)):
-                raise ValueError("When POLC is used, either 'commands' or 'commands_list' must be given as an input")
+                raise ValueError("When POLC is used, either 'commands' or 'commands_list'"
+                                 "must be given as an input")
 
             self.commands = self.xp.zeros(self.in_commands_size, dtype=self.dtype)

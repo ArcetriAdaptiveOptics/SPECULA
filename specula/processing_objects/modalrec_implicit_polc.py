@@ -62,49 +62,70 @@ class ModalrecImplicitPolc(Modalrec):
         if self.intmat is None or self.intmat.intmat is None:
             raise ValueError("Intmat object not valid")
 
-        # set up the command matrix as the product of the projection matrix and the reconstruction matrix
+        # set up the command matrix as the product of the projection matrix
+        # and the reconstruction matrix
         comm_mat = self.projmat.recmat @ self.recmat.recmat
         self.comm_mat = Recmat(comm_mat, target_device_idx=target_device_idx, precision=precision)
+        del comm_mat
+
         # Now self.recmat and self.projmat can be removed to save memory
+        del self.projmat.recmat
+        del self.recmat.recmat
         self.recmat = None
         self.projmat = None
 
         # set up the H matrix
-        h_mat = self.comm_mat.recmat @ self.intmat.intmat
-        h_mat = self.xp.identity(h_mat.shape[0], dtype=self.dtype) - h_mat
+        h_mat_temp = self.comm_mat.recmat @ self.intmat.intmat
+        h_mat = self.xp.identity(h_mat_temp.shape[0], dtype=self.dtype) - h_mat_temp
+        del h_mat_temp
         self.h_mat = Recmat(h_mat, target_device_idx=target_device_idx, precision=precision)
+        del h_mat
+
         # Now self.intmat can be removed to save memory
+        del self.intmat.intmat
         self.intmat = None
 
-    def trigger_code(self):
+        self.commands_prepared = None  # to be allocated in setup
+        self.commands_sliced = None    # to be allocated in setup
 
+    def prepare_trigger(self, t):
+        # Call parent's prepare_trigger which handles slopes
+        super().prepare_trigger(t)
+
+        # Handle commands preparation
         commandsobj = self.local_inputs['in_commands']
         commands_list = self.local_inputs['in_commands_list']
-        if commandsobj is None:
-            commandsobj = commands_list
-            commands = self.xp.hstack([x.value for x in commands_list]) # TODO this line does not work on the first step
-        else:
-            commands = self.to_xp(commandsobj.value, dtype=self.dtype)
 
-        # this is true on the first step only
-        if commandsobj is None or commands.shape == ():
-            commands = self.xp.zeros(self.comm_mat.recmat.shape[0], dtype=self.dtype)
+        # Only update if commands are available
+        if commandsobj is not None and commandsobj.value is not None \
+                                   and commandsobj.value.shape != ():
+            self.commands_prepared[:] = self.to_xp(commandsobj.value, dtype=self.dtype)
+        elif commands_list and all(commands_list):
+            self.commands_prepared[:] = self.xp.hstack([x.value for x in commands_list])
+        # else: keep the zeros from setup() or previous iteration
 
+        # Apply slicing/indexing
         if self.input_modes_index is not None:
-            commands = commands[self.input_modes_index]
+            self.commands_sliced[:] = self.commands_prepared[self.input_modes_index]
+        elif self.input_modes_slice is not None:
+            self.commands_sliced[:] = self.commands_prepared[self.input_modes_slice]
+        # else: commands_sliced already points to commands_prepared
 
-        if self.input_modes_slice is not None:
-            commands = commands[self.input_modes_slice]
-
-        output_modes = self.comm_mat.recmat @ self.slopes - self.h_mat.recmat @ commands
-
+    def trigger_code(self):
+        # Simple matrix operations only - all preparation done in prepare_trigger
+        output_modes = self.comm_mat.recmat @ self.slopes - self.h_mat.recmat @ self.commands_sliced
         self.modes.value = output_modes[self.output_slice]
         self.modes.generation_time = self.current_time
 
     def setup(self):
         super().setup()
 
-        commands = self.local_inputs['in_commands']
-        commands_list = self.local_inputs['in_commands_list']
-        if not commands and (not commands_list or not all(commands_list)):
-            raise ValueError("When POLC is used, either 'commands' or 'commands_list' must be given as an input")
+        # Initialize arrays for prepare_trigger
+        self.commands_prepared = self.xp.zeros(self.comm_mat.recmat.shape[0], dtype=self.dtype)
+        # Apply slicing/indexing to initialize commands_sliced size
+        if self.input_modes_index is not None:
+            self.commands_sliced = self.commands_prepared[self.input_modes_index]
+        elif self.input_modes_slice is not None:
+            self.commands_sliced = self.commands_prepared[self.input_modes_slice]
+        else:
+            self.commands_sliced = self.commands_prepared
