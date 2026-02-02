@@ -35,7 +35,7 @@ class TestVortexCoronagraph(unittest.TestCase):
         coro.trigger_code()
         coro.post_trigger()
         return coro.outputs['out_ef']
-    
+
 
     def test_raise_value_error(self):
         # Test inner > outer pupil stop size
@@ -58,7 +58,8 @@ class TestVortexCoronagraph(unittest.TestCase):
                 innerStopAsRatioOfPupil=0.9,
                 outerStopAsRatioOfPupil=0.1,
             )
-    
+
+
     @cpu_and_gpu
     def test_mask_shape(self, target_device_idx, xp):
         """Test that coronagraph masks have the expected shape"""
@@ -76,8 +77,8 @@ class TestVortexCoronagraph(unittest.TestCase):
         self.assertEqual(coro.fp_mask.shape, (coro.fft_totsize, coro.fft_totsize))
         self.assertEqual(coro.apodizer, 1.0) # no apodizer
 
-        debug_plot = True
-        if debug_plot:
+        debug_plot = False
+        if debug_plot: # pragma: no cover
             import matplotlib.pyplot as plt
             plt.figure()
             plt.subplot(1,2,1)
@@ -103,7 +104,8 @@ class TestVortexCoronagraph(unittest.TestCase):
         )
 
         # Flat wavefront
-        ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil,
+                           self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
         ef.A[:] = xp.array(self.mask)
         ef.phaseInNm[:] = 0.0
         ef.generation_time = 1
@@ -125,7 +127,8 @@ class TestVortexCoronagraph(unittest.TestCase):
         )
 
         # Flat wavefront
-        ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil,
+                           self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
         ef.A[:] = xp.array(self.mask)
         ef.phaseInNm[:] = 0.0
         ef.generation_time = 1
@@ -144,8 +147,10 @@ class TestVortexCoronagraph(unittest.TestCase):
 
         # Compute PSF for both cases using calc_psf
         nm2rad = 2*xp.pi/self.wavelength_nm
-        psf_nocoro = calc_psf(ef_nocoro.phaseInNm*nm2rad, ef_nocoro.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
-        psf_coro = calc_psf(ef_coro.phaseInNm*nm2rad, ef_coro.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
+        psf_nocoro = calc_psf(ef_nocoro.phaseInNm*nm2rad, ef_nocoro.A,
+                              xp=xp, complex_dtype=xp.complex64, normalize=True)
+        psf_coro = calc_psf(ef_coro.phaseInNm*nm2rad, ef_coro.A,
+                            xp=xp, complex_dtype=xp.complex64, normalize=True)
 
         # Check shapes
         self.assertEqual(psf_nocoro.shape, psf_coro.shape)
@@ -154,8 +159,8 @@ class TestVortexCoronagraph(unittest.TestCase):
         diff = np.abs(psf_nocoro - psf_coro).sum()
         self.assertGreater(cpuArray(diff), 0.0, "Coronagraph does not affect the PSF!")
 
-        debug_plot = True
-        if debug_plot:
+        debug_plot = False
+        if debug_plot: # pragma: no cover
             import matplotlib.pyplot as plt
             plt.figure()
             plt.subplot(1,2,1)
@@ -184,7 +189,8 @@ class TestVortexCoronagraph(unittest.TestCase):
         )
 
         # Flat wavefront
-        ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil,
+                           self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
         ef.A[:] = xp.array(self.mask)
         ef.phaseInNm[:] = 0.0
         ef.generation_time = 1

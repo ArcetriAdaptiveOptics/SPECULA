@@ -53,8 +53,8 @@ class TestAPPCoronagraph(unittest.TestCase):
         self.assertEqual(coro.fp_mask.shape, (coro.fft_totsize,coro.fft_totsize)) 
         self.assertEqual(coro.apodizer.shape, (self.pixel_pupil, self.pixel_pupil)) # apodizer
 
-        debug_plot = True
-        if debug_plot:
+        debug_plot = False
+        if debug_plot: # pragma: no cover
             import matplotlib.pyplot as plt
             plt.figure()
             plt.subplot(1,2,1)
@@ -128,8 +128,8 @@ class TestAPPCoronagraph(unittest.TestCase):
         diff = np.abs(psf_nocoro - psf_coro).sum()
         self.assertGreater(cpuArray(diff), 0.0, "Coronagraph does not affect the PSF!")
 
-        debug_plot = True
-        if debug_plot:
+        debug_plot = False
+        if debug_plot: # pragma: no cover
             import matplotlib.pyplot as plt
             plt.figure()
             plt.subplot(1,2,1)

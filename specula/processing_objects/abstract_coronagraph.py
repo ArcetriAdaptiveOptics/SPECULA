@@ -90,17 +90,17 @@ class Coronagraph(BaseProcessingObj):
 
 
     def _pupil_to_focal_plane(self, pup_ef):
-        ef_pad = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.complex_dtype)
+        self.ef_pad[:] = 0  # Clear the array
         pad_start = self.fft_padding // 2
-        ef_pad[pad_start:pad_start+self.fft_sampling,
+        self.ef_pad[pad_start:pad_start+self.fft_sampling,
                     pad_start:pad_start+self.fft_sampling] = pup_ef
 
-        # center a single pixel or at the intersection of 4 pixels
-        # it depends on self.phase_shift
-        ef_pad_shifted = ef_pad * self.phase_shift
-        ef_fp = self.xp.fft.fft2(ef_pad_shifted)
+        # center on single pixel or at the intersection of 4 pixels
+        # it depends on self.phase_shift
+        self.ef_pad *= self.phase_shift
 
-        return ef_fp
+        return self.xp.fft.fft2(self.ef_pad)
+
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
@@ -121,8 +121,10 @@ class Coronagraph(BaseProcessingObj):
         ef_fp_masked = ef_fp * self.fp_mask_centered
 
         # Step 4: Return to the pupil plane with IFFT
-        ef_pad_temp = self.xp.fft.ifft2(ef_fp_masked)
-        self.ef_pad = ef_pad_temp * self.xp.conj(self.phase_shift)
+        self.ef_pad[:] = 0  # Clear the array
+        self.ef_pad[:] = self.xp.fft.ifft2(ef_fp_masked)
+        self.ef_pad *= self.xp.conj(self.phase_shift)
+
         pad_start = self.fft_padding // 2
         ef_pp = self.ef_pad[pad_start:pad_start+self.fft_sampling,
                     pad_start:pad_start+self.fft_sampling]
@@ -188,6 +190,10 @@ class Coronagraph(BaseProcessingObj):
 
         # Prepare centered focal plane mask
         self.fp_mask_centered = self.xp.fft.fftshift(self.fp_mask)
+
+        # Allocate padded array once
+        self.ef_pad = self.xp.zeros((self.fft_totsize, self.fft_totsize),
+                                    dtype=self.complex_dtype)
 
         # Cannot be used if self._pupil_to_focal_plane is called in trigger_code()
         # super().build_stream()
