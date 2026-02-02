@@ -268,11 +268,11 @@ class Interp2D():
             out = self.xp.empty(shape=self.output_shape, dtype=self.dtype)
 
         if self.xp == cp:
-            block = (16, 16)
-            num_blocks_2d = int(self.output_shape[0] // block[0])
-            if self.output_shape[0] % block[0]:
-                num_blocks_2d += 1
-            grid = (num_blocks_2d, num_blocks_2d)
+            block = (16, 16, 1)
+            # Calculate grid size for non-square arrays correctly
+            grid_x = (self.output_shape[1] + block[0] - 1) // block[0]
+            grid_y = (self.output_shape[0] + block[1] - 1) // block[1]
+            grid = (grid_x, grid_y, 1)
 
             if not self.use_precomputed:
                 # Usa il kernel ottimizzato per memoria
