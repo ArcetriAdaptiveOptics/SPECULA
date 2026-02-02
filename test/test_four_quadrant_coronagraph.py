@@ -63,7 +63,7 @@ class TestFourQuadrantCoronagraph(unittest.TestCase):
         self.assertEqual(coro.apodizer, 1.0) # no apodizer
 
         debug_plot = False
-        if debug_plot:
+        if debug_plot: # pragma: no cover
             import matplotlib.pyplot as plt
             plt.figure()
             plt.subplot(1,2,1)
@@ -141,7 +141,7 @@ class TestFourQuadrantCoronagraph(unittest.TestCase):
         self.assertGreater(cpuArray(diff), 0.0, "Coronagraph does not affect the PSF!")
 
         debug_plot = False
-        if debug_plot:
+        if debug_plot: # pragma: no cover
             import matplotlib.pyplot as plt
             plt.figure()
             plt.subplot(1,2,1)
@@ -256,6 +256,7 @@ class TestFourQuadrantCoronagraph(unittest.TestCase):
         debug_plot = False
         if debug_plot: # pragma: no cover
             import matplotlib.pyplot as plt
+            from matplotlib.colors import LogNorm
             fig, axes = plt.subplots(2, 3, figsize=(15, 10))
 
             # Focal plane masks phase
@@ -274,23 +275,27 @@ class TestFourQuadrantCoronagraph(unittest.TestCase):
             axes[0,2].set_title('Phase shift (0.5 pixel)')
 
             # PSFs
-            vmax = 0
-            vmin = -10
-            axes[1,0].imshow(cpuArray(xp.log10(psf_pixel+1e-12)),
-                           cmap='hot', vmin=vmin, vmax=vmax)
+            vmax = float(psf_pixel.max())
+            vmin = vmax * 1e-5
+            axes[1,0].imshow(cpuArray(psf_pixel),
+                           cmap='viridis',
+                           norm=LogNorm(vmin=vmin, vmax=vmax))
             axes[1,0].set_title('PSF (pixel centered)')
             axes[1,0].set_xlim([center-50, center+50])
             axes[1,0].set_ylim([center-50, center+50])
 
-            axes[1,1].imshow(cpuArray(xp.log10(psf_4pixel+1e-12)),
-                           cmap='hot', vmin=vmin, vmax=vmax)
+            axes[1,1].imshow(cpuArray(psf_4pixel),
+                           cmap='viridis',
+                           norm=LogNorm(vmin=vmin, vmax=vmax))
             axes[1,1].set_title('PSF (4-pixel centered)')
             axes[1,1].set_xlim([center-50, center+50])
             axes[1,1].set_ylim([center-50, center+50])
 
             # Difference
-            diff_psf = xp.log10(xp.abs(psf_pixel - psf_4pixel)+1e-12)
-            im = axes[1,2].imshow(cpuArray(diff_psf), cmap='hot', vmin=vmin, vmax=vmax)
+            diff_psf = xp.abs(psf_pixel - psf_4pixel)
+            im = axes[1,2].imshow(cpuArray(diff_psf),
+                                  cmap='viridis',
+                                  norm=LogNorm(vmin=vmin, vmax=vmax))
             axes[1,2].set_title('Difference (log10)')
             axes[1,2].set_xlim([center-50, center+50])
             axes[1,2].set_ylim([center-50, center+50])
