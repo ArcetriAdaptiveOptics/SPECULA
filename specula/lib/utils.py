@@ -1,9 +1,10 @@
-
 import re
 import typing
 import importlib
 import warnings
-from specula import to_xp
+from specula import to_xp, np
+from specula.lib.make_xy import make_xy
+
 
 def camelcase_to_snakecase(s):
     '''
@@ -56,7 +57,7 @@ def import_class(classname, additional_modules=[]):
     module_paths = ['specula.processing_objects',
                     'specula.data_objects',
                     'specula.display'] + additional_modules
-    
+
     for module_path in module_paths:
         module_to_import = f'{module_path}.{modulename}'
         try:
@@ -100,6 +101,7 @@ def get_type_hints(type):
         hints.update(typing.get_type_hints(getattr(x, '__init__')))
     return hints
 
+
 def unravel_index_2d(idxs, shape, xp):
     '''Unravel linear indexes in a 2d-shape (in row-major C order)
     
@@ -113,6 +115,7 @@ def unravel_index_2d(idxs, shape, xp):
     row_idx = idxs // ncols
     col_idx = idxs - (row_idx * ncols)
     return row_idx, col_idx
+
 
 def make_orto_modes(array, xp, dtype):
     """
@@ -133,7 +136,7 @@ def make_orto_modes(array, xp, dtype):
         Orthogonal matrix
     """
     # return an othogonal 2D array
-    
+
     size_array = xp.shape(array)
 
     if len(size_array) != 2:
@@ -149,6 +152,7 @@ def make_orto_modes(array, xp, dtype):
 
     return Q
 
+
 def is_scalar(x, xp):
     """
     Check if x is a scalar or a 0D array.
@@ -161,6 +165,7 @@ def is_scalar(x, xp):
         The array processing module (numpy or cupy) to use for checking the shape.
     """
     return xp.isscalar(x) or (hasattr(x, 'shape') and x.shape == ())
+
 
 def psd_to_signal(psd, fs, xp, dtype, complex_dtype, seed=1):
     """
@@ -199,6 +204,7 @@ def psd_to_signal(psd, fs, xp, dtype, complex_dtype, seed=1):
     out = xp.real(temp).astype(dtype)
     im = xp.imag(temp).astype(dtype)
     return out, im
+
 
 def local_mean_rebin(arr, mask, xp, block_size=5):
     """
@@ -245,3 +251,70 @@ def local_mean_rebin(arr, mask, xp, block_size=5):
     result[:h_crop, :w_crop] = local_mean
 
     return result
+
+
+def make_subpixel_shift_phase(shape, xp, dtype,
+                              shift_x=0.0, shift_y=0.0,
+                              quarter=False,
+                              zero_sampled=False):
+    """
+    Create a phase ramp for sub-pixel shifts in Fourier space.
+    
+    This generates the complex exponential exp(-2πi(fx*shift_x + fy*shift_y))
+    that, when multiplied with a Fourier transform, shifts the signal by 
+    (shift_x, shift_y) pixels in real space.
+    
+    Parameters:
+    -----------
+    shape : int or tuple
+        Size of the output array. If int, creates square array.
+    xp : module
+        Array processing module (numpy or cupy).
+    dtype : data type
+        Complex data type for output.
+    shift_x : float, optional
+        Shift in x direction (in pixels). Default is 0.0
+    shift_y : float, optional
+        Shift in y direction (in pixels). Default is 0.0
+    quarter : bool, optional
+        If True, uses make_xy with quarter=True. Default is False.
+    zero_sampled : bool, optional
+        If True, uses make_xy with zero_sampled=True. Default is False.
+        
+    Returns:
+    --------
+    phase_ramp : ndarray
+        Complex array with phase ramp for shifting
+        
+    Examples:
+    ---------
+    # Shift by 0.5 pixels in both directions
+    phase = make_subpixel_shift_phase(256, 0.5, 0.5)
+    
+    # For pyramid WFS tlt_f equivalent:
+    phase = make_subpixel_shift_phase(2*p, 0.5, 0.5, quarter=True, zero_sampled=True)
+    """
+    if isinstance(shape, int):
+        size = shape
+        center = size // 2
+    else:
+        size = shape[0]
+        center = shape[0] // 2
+
+    # Create frequency grid
+    if quarter or zero_sampled:
+        xx, yy = make_xy(size, center, quarter=quarter, zero_sampled=zero_sampled, xp=xp)
+        # Normalize to frequency space [-0.5, 0.5)
+        freq_x = xx / size
+        freq_y = yy / size
+    else:
+        freq_x = xp.fft.fftfreq(size, d=1.0)
+        freq_y = xp.fft.fftfreq(size, d=1.0)
+        freq_grid_y, freq_grid_x = xp.meshgrid(freq_y, freq_x, indexing='ij')
+        freq_x = freq_grid_x
+        freq_y = freq_grid_y
+
+    # Create phase ramp
+    phase_ramp = xp.exp(-2j * xp.pi * (freq_x * shift_x + freq_y * shift_y), dtype=dtype)
+
+    return phase_ramp

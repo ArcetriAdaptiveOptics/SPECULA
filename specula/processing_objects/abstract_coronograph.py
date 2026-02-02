@@ -6,6 +6,7 @@ from specula.connections import InputValue
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.calc_geometry import calc_geometry
+from specula.lib.utils import make_subpixel_shift_phase
 
 from abc import abstractmethod
 
@@ -17,6 +18,7 @@ class Coronograph(BaseProcessingObj):
                  fov_errinf: float = 0.1,
                  fov_errsup: float = 10,
                  fft_res: float = 3.0,
+                 center_on_pixel: bool = True,
                  target_device_idx: int = None,
                  precision: int = None
                 ):
@@ -26,6 +28,7 @@ class Coronograph(BaseProcessingObj):
         self.pixel_pupil = self.simul_params.pixel_pupil
         self.pixel_pitch = self.simul_params.pixel_pitch
         self.fov = fov
+        self.center_on_pixel = center_on_pixel
 
         # interpolation settings
         self.mask_threshold = 1e-3  # threshold to consider a pixel inside the mask
@@ -48,45 +51,66 @@ class Coronograph(BaseProcessingObj):
         # Apodizer, focal plane mask, pupil stop
         self.apodizer = self.make_apodizer()
         self.fp_mask = self.make_focal_plane_mask()
+        self.fp_mask_centered = None
+        self.phase_shift = None
         self.pupil_mask = self.make_pupil_plane_mask()
+        self.ef_pad = None  # padded electric field in pupil plane
 
-        self.out_ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
-                                    precision=self.precision, target_device_idx=self.target_device_idx)
+        self.out_ef = ElectricField(self.pixel_pupil,
+                                    self.pixel_pupil,
+                                    self.pixel_pitch,
+                                    precision=self.precision,
+                                    target_device_idx=self.target_device_idx)
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
         self.outputs['out_ef'] = self.out_ef
 
-        self.ef_in = self.xp.zeros((self.fft_sampling, self.fft_sampling), dtype=self.complex_dtype)
-        self.ef_out = self.xp.zeros((self.fft_sampling, self.fft_sampling), dtype=self.complex_dtype)
+        self.ef_in = self.xp.zeros((self.fft_sampling, self.fft_sampling),
+                                   dtype=self.complex_dtype)
+        self.ef_out = self.xp.zeros((self.fft_sampling, self.fft_sampling),
+                                    dtype=self.complex_dtype)
 
-    
+
     def make_apodizer(self):
         """ Override this method to add an apodizer.
         By default, no apodizer mask is considered """
         return 1.0
-    
+
+
     @abstractmethod
     def make_focal_plane_mask(self):
         """ Override this method to create the 
         desired focal plane (complex) mask """
+
 
     @abstractmethod
     def make_pupil_plane_mask(self):
         """ Override this method to create the 
         desired pupil plane (complex) mask """
 
+
     def _pupil_to_focal_plane(self, pup_ef):
         ef_pad = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.complex_dtype)
         pad_start = self.fft_padding // 2
-        ef_pad[pad_start:pad_start+self.fft_sampling, 
+        ef_pad[pad_start:pad_start+self.fft_sampling,
                     pad_start:pad_start+self.fft_sampling] = pup_ef
-        return self.xp.fft.fft2(ef_pad)
+
+        if self.center_on_pixel:
+            # Standard centering: center on a single pixel
+            ef_fp = self.xp.fft.fft2(ef_pad)
+        else:
+            # Alternative centering: center at the intersection of 4 pixels
+            ef_pad_shifted = ef_pad * self.phase_shift
+            ef_fp = self.xp.fft.fft2(ef_pad_shifted)
+
+        return ef_fp
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
 
         self.ef_interpolator.interpolate()
         self.ef_interpolator.interpolated_ef().ef_at_lambda(self.wavelength_in_nm, out=self.ef_in)
+
 
     def trigger_code(self):
 
@@ -97,13 +121,13 @@ class Coronograph(BaseProcessingObj):
         ef_fp = self._pupil_to_focal_plane(apodized_ef)
 
         # Step 3: Apply focal plane mask (appropriately shifted)
-        fp_mask_centered = self.xp.fft.fftshift(self.fp_mask)
-        ef_fp_masked = ef_fp * fp_mask_centered
+        ef_fp_masked = ef_fp * self.fp_mask_centered
 
         # Step 4: Return to the pupil plane with IFFT
-        self.ef_pad = self.xp.fft.ifft2(ef_fp_masked)
+        ef_pad_temp = self.xp.fft.ifft2(ef_fp_masked)
+        self.ef_pad = ef_pad_temp * self.xp.conj(self.phase_shift)
         pad_start = self.fft_padding // 2
-        ef_pp = self.ef_pad[pad_start:pad_start+self.fft_sampling, 
+        ef_pp = self.ef_pad[pad_start:pad_start+self.fft_sampling,
                     pad_start:pad_start+self.fft_sampling]
 
         # Step 5: Apply pupil stop
@@ -125,7 +149,8 @@ class Coronograph(BaseProcessingObj):
         # Amplitude
         self.out_ef.A[:] = self.xp.abs(ef_out)
         # Phase in nm
-        self.out_ef.phaseInNm[:] = (self.xp.angle(ef_out) / (2 * self.xp.pi)) * self.wavelength_in_nm
+        self.out_ef.phaseInNm[:] = (self.xp.angle(ef_out) / (2 * self.xp.pi)) \
+                                   * self.wavelength_in_nm
 
         # Scale S0 by transmission
         in_ef = self.local_inputs['in_ef']
@@ -149,6 +174,23 @@ class Coronograph(BaseProcessingObj):
             target_device_idx=self.target_device_idx,
             precision=self.precision
         )
+
+        # Prepare phase shift for 0.5 pixel centering
+        if not self.center_on_pixel:
+            self.phase_shift = make_subpixel_shift_phase(
+                shape=self.fft_totsize,
+                shift_x=0.5,
+                shift_y=0.5,
+                xp=self.xp,
+                dtype=self.complex_dtype,
+                quarter=False,
+                zero_sampled=False
+            )
+        else:
+            self.phase_shift = 1.0
+
+        # Prepare centered focal plane mask
+        self.fp_mask_centered = self.xp.fft.fftshift(self.fp_mask)
 
         # Cannot be used if self._pupil_to_focal_plane is called in trigger_code()
         # super().build_stream()
