@@ -10,7 +10,7 @@ from specula.lib.utils import make_subpixel_shift_phase
 
 from abc import abstractmethod
 
-class Coronograph(BaseProcessingObj):
+class Coronagraph(BaseProcessingObj):
     def __init__(self,
                  simul_params: SimulParams,
                  wavelengthInNm: float,

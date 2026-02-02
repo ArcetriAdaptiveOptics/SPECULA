@@ -1,10 +1,10 @@
-from specula.processing_objects.abstract_coronograph import Coronograph
+from specula.processing_objects.abstract_coronagraph import Coronagraph
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.make_mask import make_mask
 from specula import RAD2ASEC
 
 
-class APPCoronograph(Coronograph):
+class APPCoronagraph(Coronagraph):
 
     def __init__(self,
                  simul_params: SimulParams,
@@ -71,7 +71,7 @@ class APPCoronograph(Coronograph):
         return self.xp.ones([self.fft_sampling,self.fft_sampling],dtype=self.dtype)
 
 
-class PAPLCoronograph(APPCoronograph):
+class PAPLCoronagraph(APPCoronagraph):
       
     def __init__(self,
                  simul_params: SimulParams,

@@ -1,10 +1,10 @@
-from specula.processing_objects.abstract_coronograph import Coronograph
+from specula.processing_objects.abstract_coronagraph import Coronagraph
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.make_mask import make_mask
 from specula import RAD2ASEC, np
 
 
-class VortexCoronograph(Coronograph):
+class VortexCoronagraph(Coronagraph):
 
     def __init__(self,
                  simul_params: SimulParams,

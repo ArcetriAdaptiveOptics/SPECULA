@@ -8,11 +8,11 @@ from specula.lib.calc_psf import calc_psf
 from specula.lib.make_mask import make_mask
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.simul_params import SimulParams
-from specula.processing_objects.vortex_coronograph import VortexCoronograph
+from specula.processing_objects.vortex_coronagraph import VortexCoronagraph
 
 from test.specula_testlib import cpu_and_gpu
 
-class TestVortexCoronograph(unittest.TestCase):
+class TestVortexCoronagraph(unittest.TestCase):
 
     def setUp(self):
         # Basic simulation parameters
@@ -40,7 +40,7 @@ class TestVortexCoronograph(unittest.TestCase):
     def test_raise_value_error(self):
         # Test inner > outer pupil stop size
         with self.assertRaises(ValueError):
-            _ = VortexCoronograph(
+            _ = VortexCoronagraph(
                 simul_params=self.simul_params,
                 wavelengthInNm=self.wavelength_nm,
                 vortexCharge=6.0,
@@ -49,7 +49,7 @@ class TestVortexCoronograph(unittest.TestCase):
             )
         # inner vortex boolean = false but inner vortex parameter is still passed
         with self.assertRaises(ValueError):
-            _ = VortexCoronograph(
+            _ = VortexCoronagraph(
                 simul_params=self.simul_params,
                 wavelengthInNm=self.wavelength_nm,
                 vortexCharge=6.0,
@@ -61,8 +61,8 @@ class TestVortexCoronograph(unittest.TestCase):
     
     @cpu_and_gpu
     def test_mask_shape(self, target_device_idx, xp):
-        """Test that coronograph masks have the expected shape"""
-        coro = VortexCoronograph(
+        """Test that coronagraph masks have the expected shape"""
+        coro = VortexCoronagraph(
             simul_params=self.simul_params,
             wavelengthInNm=self.wavelength_nm,
             vortexCharge=6.0,
@@ -92,7 +92,7 @@ class TestVortexCoronograph(unittest.TestCase):
     @cpu_and_gpu
     def test_output_shape(self, target_device_idx, xp):
         """Test that output ElectricField has expected shape"""
-        coro = VortexCoronograph(
+        coro = VortexCoronagraph(
             simul_params=self.simul_params,
             wavelengthInNm=self.wavelength_nm,
             vortexCharge=6.0,
@@ -114,10 +114,10 @@ class TestVortexCoronograph(unittest.TestCase):
 
 
     @cpu_and_gpu
-    def test_psf_with_and_without_coronograph(self, target_device_idx, xp):
-        """Test PSF with and without a coronograph using calc_psf"""
+    def test_psf_with_and_without_coronagraph(self, target_device_idx, xp):
+        """Test PSF with and without a coronagraph using calc_psf"""
         # No filter (no obstruction)
-        nodelay_coro = VortexCoronograph(
+        nodelay_coro = VortexCoronagraph(
             simul_params=self.simul_params,
             wavelengthInNm=self.wavelength_nm,
             vortexCharge=0.0,
@@ -133,7 +133,7 @@ class TestVortexCoronograph(unittest.TestCase):
         ef_nocoro = self.get_coro_field(nodelay_coro, ef)
 
         # With filter: central obstruction of 2 lambda/D
-        coro = VortexCoronograph(
+        coro = VortexCoronagraph(
             simul_params=self.simul_params,
             wavelengthInNm=self.wavelength_nm,
             vortexCharge=6.0,
@@ -150,9 +150,9 @@ class TestVortexCoronograph(unittest.TestCase):
         # Check shapes
         self.assertEqual(psf_nocoro.shape, psf_coro.shape)
 
-        # Check that the coronograph has an effect (PSFs should be smaller)
+        # Check that the coronagraph has an effect (PSFs should be smaller)
         diff = np.abs(psf_nocoro - psf_coro).sum()
-        self.assertGreater(cpuArray(diff), 0.0, "Coronograph does not affect the PSF!")
+        self.assertGreater(cpuArray(diff), 0.0, "Coronagraph does not affect the PSF!")
 
         debug_plot = True
         if debug_plot:
@@ -175,8 +175,8 @@ class TestVortexCoronograph(unittest.TestCase):
     @cpu_and_gpu
     def test_phase_and_amplitude_preservation(self, target_device_idx, xp):
         """Test that a flat input phase results in a flat output phase
-         and a nonzero output amplitude for the no coronograph case"""
-        nocoro = VortexCoronograph(
+         and a nonzero output amplitude for the no coronagraph case"""
+        nocoro = VortexCoronagraph(
             simul_params=self.simul_params,
             wavelengthInNm=self.wavelength_nm,
             vortexCharge=0.0,
@@ -207,10 +207,10 @@ class TestVortexCoronograph(unittest.TestCase):
 
 
     # @cpu_and_gpu
-    # def test_s0_scaling_with_coronograph(self, target_device_idx, xp):
-    #     """Test that S0 is scaled correctly when using the coronograph"""
-    #     # Test with coronograph - S0 should decrease
-    #     coro = FourQuadrantCoronograph(
+    # def test_s0_scaling_with_coronagraph(self, target_device_idx, xp):
+    #     """Test that S0 is scaled correctly when using the coronagraph"""
+    #     # Test with coronagraph - S0 should decrease
+    #     coro = FourQuadrantCoronagraph(
     #         simul_params=self.simul_params,
     #         wavelengthInNm=self.wavelength_nm,
     #         outerStopAsRatioOfPupil=0.95,
@@ -218,8 +218,8 @@ class TestVortexCoronograph(unittest.TestCase):
     #         target_device_idx=target_device_idx
     #     )
 
-    #     # Test without coronograph - S0 should remain similar
-    #     nodelay_coro = FourQuadrantCoronograph(
+    #     # Test without coronagraph - S0 should remain similar
+    #     nodelay_coro = FourQuadrantCoronagraph(
     #         simul_params=self.simul_params,
     #         wavelengthInNm=self.wavelength_nm,
     #         phase_delay=0.0,
