@@ -318,7 +318,7 @@ class TestExtrapolation2D(unittest.TestCase):
         self.assertGreater(cache_size_first, 0, "Cache should have entries")
 
         # Determine other device
-        other_device = -1 if target_device_idx >= 0 else 0
+        other_device = -1 # it is CPU
         devices_are_different = (cp is not None) and (target_device_idx != other_device)
 
         ef2 = ElectricField(ef_size[0], ef_size[1], pixel_pitch,
