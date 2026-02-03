@@ -72,7 +72,7 @@ class APPCoronagraph(Coronagraph):
 
 
 class PAPLCoronagraph(APPCoronagraph):
-      
+
     def __init__(self,
                  simul_params: SimulParams,
                  wavelengthInNm: float,
@@ -130,7 +130,7 @@ class PAPLCoronagraph(APPCoronagraph):
         else:
             owa_oversampled = self._owa * self.fft_res if self._owa is not None else self.fft_totsize
             fp_obsratio = self._iwa / owa_oversampled
-            fp_diaratio = owa_oversampled / self.fft_totsize 
+            fp_diaratio = owa_oversampled / self.fft_totsize
             fp_mask = make_mask(self.fft_totsize, diaratio=fp_diaratio,
                                 obsratio=fp_obsratio, xp=self.xp)
         return fp_mask

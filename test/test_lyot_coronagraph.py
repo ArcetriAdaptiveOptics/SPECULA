@@ -128,7 +128,8 @@ class TestLyotCoronagraph(unittest.TestCase):
         )
 
         # Flat wavefront
-        ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil,
+                           self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
         ef.A[:] = xp.array(self.mask)
         ef.phaseInNm[:] = 0.0
         ef.generation_time = 1
@@ -156,7 +157,8 @@ class TestLyotCoronagraph(unittest.TestCase):
         )
 
         # Flat wavefront
-        ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil,
+                           self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
         ef.A[:] = xp.array(self.mask)
         ef.phaseInNm[:] = 0.0
         ef.generation_time = 1
@@ -175,8 +177,10 @@ class TestLyotCoronagraph(unittest.TestCase):
 
         # Compute PSF for both cases using calc_psf
         nm2rad = 2*xp.pi/self.wavelength_nm
-        psf_nocoro = calc_psf(ef_nocoro.phaseInNm*nm2rad, ef_nocoro.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
-        psf_coro = calc_psf(ef_coro.phaseInNm*nm2rad, ef_coro.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
+        psf_nocoro = calc_psf(ef_nocoro.phaseInNm*nm2rad, ef_nocoro.A,
+                              xp=xp, complex_dtype=xp.complex64, normalize=True)
+        psf_coro = calc_psf(ef_coro.phaseInNm*nm2rad, ef_coro.A,
+                            xp=xp, complex_dtype=xp.complex64, normalize=True)
 
         # Check shapes
         self.assertEqual(psf_nocoro.shape, psf_coro.shape)
@@ -215,7 +219,8 @@ class TestLyotCoronagraph(unittest.TestCase):
         )
 
         # Flat wavefront
-        ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil,
+                           self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
         ef.A[:] = xp.array(self.mask)
         ef.phaseInNm[:] = 0.0
         ef.generation_time = 1
