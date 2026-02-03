@@ -177,13 +177,13 @@ class Coronagraph(BaseProcessingObj):
         # Prepare phase shift for 0.5 pixel centering
         if not self.center_on_pixel:
             self.phase_shift = make_subpixel_shift_phase(
-                shape=self.fft_totsize,
-                shift_x=0.5,
-                shift_y=0.5,
+                shape=2 * self.fft_totsize, # a factor 2 to account for "quarter"
+                shift_x=2 * 0.5,            # a factor 2 to account for "quarter"
+                shift_y=2 * 0.5,            # a factor 2 to account for "quarter"
                 xp=self.xp,
                 dtype=self.complex_dtype,
-                quarter=False,
-                zero_sampled=False
+                quarter=True,
+                zero_sampled=True
             )
         else:
             self.phase_shift = 1.0

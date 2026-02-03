@@ -259,16 +259,22 @@ class TestFourQuadrantCoronagraph(unittest.TestCase):
             from matplotlib.colors import LogNorm
             fig, axes = plt.subplots(2, 3, figsize=(15, 10))
 
+            psf_crop_dim = 20
+            
             # Focal plane masks phase
             axes[0,0].imshow(cpuArray(xp.angle(coro_pixel.fp_mask_centered)), cmap='twilight')
             axes[0,0].set_title('FP mask (pixel centered)')
             axes[0,0].axhline(center, color='r', linestyle='--', alpha=0.5)
             axes[0,0].axvline(center, color='r', linestyle='--', alpha=0.5)
+            axes[0,0].set_xlim([center-psf_crop_dim/2, center+psf_crop_dim/2])
+            axes[0,0].set_ylim([center-psf_crop_dim/2, center+psf_crop_dim/2])
 
             axes[0,1].imshow(cpuArray(xp.angle(coro_4pixel.fp_mask_centered)), cmap='twilight')
             axes[0,1].set_title('FP mask (4-pixel centered)')
             axes[0,1].axhline(center, color='r', linestyle='--', alpha=0.5)
             axes[0,1].axvline(center, color='r', linestyle='--', alpha=0.5)
+            axes[0,1].set_xlim([center-psf_crop_dim/2, center+psf_crop_dim/2])
+            axes[0,1].set_ylim([center-psf_crop_dim/2, center+psf_crop_dim/2])
 
             # Phase shift
             axes[0,2].imshow(cpuArray(xp.angle(coro_4pixel.phase_shift)), cmap='twilight')
@@ -276,20 +282,20 @@ class TestFourQuadrantCoronagraph(unittest.TestCase):
 
             # PSFs
             vmax = float(psf_pixel.max())
-            vmin = vmax * 1e-5
+            vmin = vmax * 1e-4
             axes[1,0].imshow(cpuArray(psf_pixel),
                            cmap='viridis',
                            norm=LogNorm(vmin=vmin, vmax=vmax))
             axes[1,0].set_title('PSF (pixel centered)')
-            axes[1,0].set_xlim([center-50, center+50])
-            axes[1,0].set_ylim([center-50, center+50])
+            axes[1,0].set_xlim([center-psf_crop_dim/2, center+psf_crop_dim/2])
+            axes[1,0].set_ylim([center-psf_crop_dim/2, center+psf_crop_dim/2])
 
             axes[1,1].imshow(cpuArray(psf_4pixel),
                            cmap='viridis',
                            norm=LogNorm(vmin=vmin, vmax=vmax))
             axes[1,1].set_title('PSF (4-pixel centered)')
-            axes[1,1].set_xlim([center-50, center+50])
-            axes[1,1].set_ylim([center-50, center+50])
+            axes[1,1].set_xlim([center-psf_crop_dim/2, center+psf_crop_dim/2])
+            axes[1,1].set_ylim([center-psf_crop_dim/2, center+psf_crop_dim/2])
 
             # Difference
             diff_psf = xp.abs(psf_pixel - psf_4pixel)
@@ -297,8 +303,8 @@ class TestFourQuadrantCoronagraph(unittest.TestCase):
                                   cmap='viridis',
                                   norm=LogNorm(vmin=vmin, vmax=vmax))
             axes[1,2].set_title('Difference (log10)')
-            axes[1,2].set_xlim([center-50, center+50])
-            axes[1,2].set_ylim([center-50, center+50])
+            axes[1,2].set_xlim([center-psf_crop_dim/2, center+psf_crop_dim/2])
+            axes[1,2].set_ylim([center-psf_crop_dim/2, center+psf_crop_dim/2])
             plt.colorbar(im, ax=axes[1,2])
 
             plt.tight_layout()
