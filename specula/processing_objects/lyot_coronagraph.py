@@ -57,8 +57,6 @@ class LyotCoronagraph(Coronagraph):
                               if self._owa is not None else self.fft_totsize
             fp_obsratio = self._iwa * self.fft_res * self.fov_res / owa_oversampled * 2
             fp_diaratio = owa_oversampled / self.fft_totsize
-            fp_obsratio = 0.1
-            fp_diaratio = 1.0
             fp_mask = make_mask(self.fft_totsize, diaratio=fp_diaratio,
                                 obsratio=fp_obsratio, xp=self.xp)
         return fp_mask
