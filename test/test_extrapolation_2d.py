@@ -267,7 +267,7 @@ class TestExtrapolation2D(unittest.TestCase):
         EFInterpolator._EFInterpolator__cache.clear()
 
         # Create first interpolator - should allocate cache
-        interp1 = EFInterpolator(ef1, (64, 64), 
+        interp1 = EFInterpolator(ef1, (64, 64),
                                 target_device_idx=target_device_idx,
                                 force_extrapolation=True)
 
@@ -296,11 +296,8 @@ class TestExtrapolation2D(unittest.TestCase):
     def test_cache_different_devices(self, target_device_idx, xp):
         """
         Test that cache creates separate entries for different devices.
+        If only CPU is available, test that cache is reused for same device.
         """
-        # Skip test if CuPy is not available (can't test different devices with only CPU)
-        if cp is None:
-            self.skipTest("CuPy not available, cannot test different devices")
-
         ef_size = (32, 32)
         pixel_pitch = 0.01
 
@@ -318,9 +315,12 @@ class TestExtrapolation2D(unittest.TestCase):
                                 force_extrapolation=True)
 
         cache_size_first = len(EFInterpolator._EFInterpolator__cache)
+        self.assertGreater(cache_size_first, 0, "Cache should have entries")
 
-        # Create interpolator on different device (CPU vs GPU or vice versa)
+        # Determine other device
         other_device = -1 if target_device_idx >= 0 else 0
+        devices_are_different = (cp is not None) and (target_device_idx != other_device)
+
         ef2 = ElectricField(ef_size[0], ef_size[1], pixel_pitch,
                            target_device_idx=other_device)
         ef2.A[:] = 1.0
@@ -332,14 +332,20 @@ class TestExtrapolation2D(unittest.TestCase):
 
         cache_size_second = len(EFInterpolator._EFInterpolator__cache)
 
-        # Cache should have separate entries for different devices
-        self.assertGreater(cache_size_second, cache_size_first,
-                          "Cache should create separate entries for different devices")
-
-        # Arrays should be different
-        self.assertNotEqual(id(interp1.phase_extrapolated),
-                          id(interp2.phase_extrapolated),
-                          "Different devices should have different cached arrays")
+        if devices_are_different:
+            # Different devices should have separate cache entries
+            self.assertGreater(cache_size_second, cache_size_first,
+                              "Different devices should have separate cache entries")
+            self.assertNotEqual(id(interp1.phase_extrapolated),
+                              id(interp2.phase_extrapolated),
+                              "Different devices should use different arrays")
+        else:
+            # Same device should reuse cache
+            self.assertEqual(cache_size_first, cache_size_second,
+                           "Same device should reuse cache entries")
+            self.assertEqual(id(interp1.phase_extrapolated),
+                           id(interp2.phase_extrapolated),
+                           "Same device should share cached arrays")
 
     @cpu_and_gpu
     def test_cache_different_shapes(self, target_device_idx, xp):
