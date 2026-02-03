@@ -2,7 +2,7 @@ import numpy as np
 from specula import cp, to_xp
 
 class Interp2D():
-    
+
     if cp:
         interp2_kernel = r'''
             extern "C" __global__
