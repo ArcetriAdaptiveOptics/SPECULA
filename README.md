@@ -29,7 +29,6 @@ See the documentation here: [specula.readthedocs.io](https://specula.readthedocs
 - flask
 - flask-socketio
 - socketio
-- scikit-image (for physical propagation)
 - cupy (for GPU acceleration, optional)
 
 ### Optional libraries
