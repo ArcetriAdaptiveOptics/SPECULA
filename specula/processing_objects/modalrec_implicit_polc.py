@@ -85,9 +85,6 @@ class ModalrecImplicitPolc(Modalrec):
         del self.intmat.intmat
         self.intmat = None
 
-        self.commands_prepared = None  # to be allocated in setup
-        self.commands_sliced = None    # to be allocated in setup
-
     def prepare_trigger(self, t):
         # Call parent's prepare_trigger which handles slopes
         super().prepare_trigger(t)
@@ -99,33 +96,19 @@ class ModalrecImplicitPolc(Modalrec):
         # Only update if commands are available
         if commandsobj is not None and commandsobj.value is not None \
                                    and commandsobj.value.shape != ():
-            self.commands_prepared[:] = self.to_xp(commandsobj.value, dtype=self.dtype)
+            self.commands[:] = self.to_xp(commandsobj.value, dtype=self.dtype)
         elif commands_list and all(commands_list):
-            self.commands_prepared[:] = self.xp.hstack([x.value for x in commands_list])
+            self.commands[:] = self.xp.hstack([x.value for x in commands_list])
         # else: keep the zeros from setup() or previous iteration
 
-        # Apply slicing/indexing
-        if self.input_modes_index is not None:
-            self.commands_sliced[:] = self.commands_prepared[self.input_modes_index]
-        elif self.input_modes_slice is not None:
-            self.commands_sliced[:] = self.commands_prepared[self.input_modes_slice]
-        # else: commands_sliced already points to commands_prepared
-
     def trigger_code(self):
-        # Simple matrix operations only - all preparation done in prepare_trigger
-        output_modes = self.comm_mat.recmat @ self.slopes - self.h_mat.recmat @ self.commands_sliced
+        if self.input_modes_index is not None:
+            commands = self.commands[self.input_modes_index]
+        elif self.input_modes_slice is not None:
+            commands = self.commands[self.input_modes_slice]
+        else:
+            commands = self.commands
+
+        output_modes = self.comm_mat.recmat @ self.slopes - self.h_mat.recmat @ commands
         self.modes.value = output_modes[self.output_slice]
         self.modes.generation_time = self.current_time
-
-    def setup(self):
-        super().setup()
-
-        # Initialize arrays for prepare_trigger
-        self.commands_prepared = self.xp.zeros(self.comm_mat.recmat.shape[0], dtype=self.dtype)
-        # Apply slicing/indexing to initialize commands_sliced size
-        if self.input_modes_index is not None:
-            self.commands_sliced = self.commands_prepared[self.input_modes_index]
-        elif self.input_modes_slice is not None:
-            self.commands_sliced = self.commands_prepared[self.input_modes_slice]
-        else:
-            self.commands_sliced = self.commands_prepared
