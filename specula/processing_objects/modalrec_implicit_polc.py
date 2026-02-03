@@ -66,23 +66,17 @@ class ModalrecImplicitPolc(Modalrec):
         # and the reconstruction matrix
         comm_mat = self.projmat.recmat @ self.recmat.recmat
         self.comm_mat = Recmat(comm_mat, target_device_idx=target_device_idx, precision=precision)
-        del comm_mat
 
         # Now self.recmat and self.projmat can be removed to save memory
-        del self.projmat.recmat
-        del self.recmat.recmat
         self.recmat = None
         self.projmat = None
 
         # set up the H matrix
         h_mat_temp = self.comm_mat.recmat @ self.intmat.intmat
         h_mat = self.xp.identity(h_mat_temp.shape[0], dtype=self.dtype) - h_mat_temp
-        del h_mat_temp
         self.h_mat = Recmat(h_mat, target_device_idx=target_device_idx, precision=precision)
-        del h_mat
 
-        # Now self.intmat can be removed to save memory
-        del self.intmat.intmat
+        # Now self.intmat can be removed to save memor
         self.intmat = None
 
     def prepare_trigger(self, t):
