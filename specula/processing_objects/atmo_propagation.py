@@ -81,7 +81,7 @@ class AtmoPropagation(BaseProcessingObj):
                              ' is set to correctly simulate physical propagation.')
         if padding_factor < 1.0:
             raise ValueError('get_atmo_propagation: padding_factor must be greater than 1.')
-        if 0.0 < band_limit_factor < 1.0:
+        if not (0.0 <= band_limit_factor <= 1.0):
             raise ValueError('get_atmo_propagation: band_limit_factor must be between 0.0 and 1.0, but is set to ' + str(band_limit_factor) + '.')
 
         self.mergeLayersContrib = mergeLayersContrib
