@@ -42,8 +42,8 @@ class AtmoPropagation(BaseProcessingObj):
         If True, propagation is performed upwards (from ground to source). Default is False (downwards).
     padding_factor : int, optional
         Factor for zero padding in Fresnel propagation to avoid numerical issues with FFTs.
-    bandlimit_max: float, optional
-        Maximum number of values allowed to filter by bandlimit filter for angular spectrum propagation.
+    band_limit_factor: float, optional
+        Factor in (0,1) for bandlimit filter in angular spectrum propagation.
         If set to 1.0 no bandlimit filter is applied, if set to 0 the full bandlimit filter is applied.
     target_device_idx : int, optional
         Target device index for computation (CPU/GPU). Default is None (uses global setting).
@@ -58,8 +58,8 @@ class AtmoPropagation(BaseProcessingObj):
                  pupil_position=None,
                  mergeLayersContrib: bool=True,
                  upwards: bool=False,
-                 padding_factor: int = 1,
-                 bandlimit_max: float = 1.0,
+                 padding_factor: int=1,
+                 band_limit_factor: float=1.0,
                  target_device_idx=None,
                  precision=None):
 
@@ -81,8 +81,8 @@ class AtmoPropagation(BaseProcessingObj):
                              ' is set to correctly simulate physical propagation.')
         if padding_factor < 1.0:
             raise ValueError('get_atmo_propagation: padding_factor must be greater than 1.')
-        if 0.0 <= band_limit_max <= 1.0:
-            raise ValueError('get_atmo_propagation: band_limit_max must be between 0.0 and 1.0.')
+        if 0.0 < band_limit_factor < 1.0:
+            raise ValueError('get_atmo_propagation: band_limit_factor must be between 0.0 and 1.0, but is set to ' + str(band_limit_factor) + '.')
 
         self.mergeLayersContrib = mergeLayersContrib
         self.upwards = upwards
@@ -100,7 +100,7 @@ class AtmoPropagation(BaseProcessingObj):
         self.propagators = None
         self._block_size = {}
         self.padding = padding_factor
-        self.band_limit_max = bandlimit_max
+        self.band_limit_factor = band_limit_factor
 
         if self.mergeLayersContrib:
             for name, source in self.source_dict.items():
@@ -133,17 +133,17 @@ class AtmoPropagation(BaseProcessingObj):
                                   df * self.xp.arange(-N_pad / 2, N_pad / 2))
 
         # Bandlimit filter for propagation
-        f_limit = L_pad / (self.wavelengthInNm * 1e-9 * self.xp.sqrt(4 * distanceInM ** 2 + L_pad ** 2))
-        W = ((fx / f_limit) ** 2 + (fy * self.wavelengthInNm * 1e-9) ** 2 <= 1) * (
-                    (fy / f_limit) ** 2 + (fx * self.wavelengthInNm * 1e-9) ** 2 <= 1)
+        f_limit = L_pad / (self.wavelengthInNm * 1e-9 * self.xp.sqrt(L_pad ** 2 + 4 * distanceInM ** 2))
+        W = (fx ** 2 / f_limit ** 2 + (self.wavelengthInNm * 1e-9 * fy) ** 2 <= 1) * (
+                    fy ** 2 / f_limit ** 2 + (self.wavelengthInNm * 1e-9 * fx) ** 2 <= 1)
 
-        # Reduce propagation distance if bandlimit is too tight to have at least 80% of values
-        if self.xp.sum(W) < (N_pad * band_limit_max) ** 2:
+        # Reduce propagation distance if bandlimit is too tight to have at least band_limit_factor* N_pad values
+        if self.xp.sum(W) < (N_pad * self.band_limit_factor) ** 2:
             warnings.warn(
                 'Propagation distance too large for current band_limit_max in angular spectrum propagation. '
                 'Consider increasing zero padding or band_limit_max.',
                 RuntimeWarning)
-            f_limit = N_pad / 2 * df * min_count
+            f_limit = N_pad / 2 * df * self.band_limit_factor
             distance_old = distanceInM
             distanceInM = self.xp.sqrt((L_pad / f_limit) ** 2 / (self.wavelengthInNm * 1e-9) ** 2 - L_pad ** 2) / 2
             warnings.warn('Distance for wavelength ' + str(self.wavelengthInNm) + 'nm reduced from ' + str(
@@ -158,7 +158,8 @@ class AtmoPropagation(BaseProcessingObj):
         H_AS = self.xp.exp(1j * k * distanceInM * kernel)
 
         # Apply bandlimit filter
-        H_AS *= W
+        if self.band_limit_factor < 1.0:
+            H_AS *= W
 
         return H_AS
 
