@@ -175,6 +175,11 @@ class DM(BaseProcessingObj):
     def ifunc(self):
         return self._ifunc.influence_function
 
+    @property
+    def ifunc_obj(self):
+        """Return the IFunc object (not just the array)"""
+        return self._ifunc
+
     @ifunc.setter
     def ifunc(self, value):
         self._ifunc.influence_function = value
