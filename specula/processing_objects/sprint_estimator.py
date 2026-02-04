@@ -125,7 +125,10 @@ class SprintEstimator(BaseProcessingObj):
 
         # Valid subaperture indices (will be extracted in setup)
         self.idx_valid_sa = None
-        
+
+        self.ifunc_3d = None
+        self.pup_mask = None
+
         # Extract pupil mask and diameter
         self.pup_diam_m = self.simul_params.pixel_pupil * self.simul_params.pixel_pitch
         # Will load pupil mask in setup
@@ -161,7 +164,10 @@ class SprintEstimator(BaseProcessingObj):
 
         # Extract valid subaperture indices
         self._extract_valid_subapertures()
-        
+
+        # Extract 3D Influence Function from DM
+        self.ifunc_3d = cpuArray(self.dm.ifunc_obj.ifunc_2d_to_3d(normalize=True))
+
         # Extract pupil mask from DM
         self.pup_mask = cpuArray(self.dm.mask)
 
@@ -391,7 +397,7 @@ class SprintEstimator(BaseProcessingObj):
         im_nominal = synim.interaction_matrix(
             pup_diam_m=self.pup_diam_m,
             pup_mask=self.pup_mask,
-            dm_array=cpuArray(self.dm.ifunc).transpose(1, 0, 2),  # SynIM convention
+            dm_array=cpuArray(self.ifunc_3d),  # SynIM convention
             dm_mask=cpuArray(self.dm.mask).T,  # SynIM convention
             dm_height=0.0,  # Ground DM
             dm_rotation=0.0,  # DM rotation (if any)
@@ -472,10 +478,17 @@ class SprintEstimator(BaseProcessingObj):
         G_opt : ndarray, shape (nmodes,)
             Optical gain for each mode
         """
-        # G_opt = diag(im_measured @ pinv(im_nominal))
-        rec_nominal = self.xp.linalg.pinv(im_nominal)
-        G_matrix = im_measured @ rec_nominal
-        G_opt = self.xp.diag(G_matrix)
+        # For single mode case, use simple ratio
+        if self.nmodes == 1:
+            # G_opt = <im_measured, im_nominal> / <im_nominal, im_nominal>
+            numerator = self.xp.dot(im_measured.ravel(), im_nominal.ravel())
+            denominator = self.xp.dot(im_nominal.ravel(), im_nominal.ravel())
+            G_opt = self.xp.array([numerator / (denominator + 1e-12)])
+        else:
+            # Multi-mode case: G_opt = diag(im_measured @ pinv(im_nominal))
+            rec_nominal = self.xp.linalg.pinv(im_nominal)
+            G_matrix = im_measured @ rec_nominal
+            G_opt = self.xp.diag(G_matrix)
 
         return G_opt
 
@@ -493,7 +506,7 @@ class SprintEstimator(BaseProcessingObj):
         
         Parameters
         ----------
-        im_diff : ndarray, shape (nslopes, nmodes)
+        im_diff : ndarray, shape (nslopes, nmodes) or (nslopes, 1)
             Difference between measured and nominal IM
         sens_matrices : ndarray, shape (nslopes, nmodes, n_params)
             Sensitivity matrices
@@ -506,6 +519,10 @@ class SprintEstimator(BaseProcessingObj):
         n_params = sens_matrices.shape[2]
         delta_misreg = self.xp.zeros(n_params, dtype=self.dtype)
 
+        # Ensure im_diff is 2D
+        if im_diff.ndim == 1:
+            im_diff = im_diff[:, self.xp.newaxis]
+
         # For each parameter, solve: sens[:,:,p] @ delta_p = im_diff
         # Average solution over all modes
         for param_idx in range(n_params):
@@ -517,7 +534,7 @@ class SprintEstimator(BaseProcessingObj):
             for mode_idx in range(self.nmodes):
                 # sens_p[:, mode_idx] @ delta = im_diff[:, mode_idx]
                 sens_col = sens_p[:, mode_idx]
-                diff_col = im_diff[:, mode_idx]
+                diff_col = im_diff[:, mode_idx] if im_diff.shape[1] > mode_idx else im_diff[:, 0]
 
                 # Least squares solution
                 delta = self.xp.dot(sens_col, diff_col) / (self.xp.dot(sens_col, sens_col) + 1e-12)
