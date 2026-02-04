@@ -7,12 +7,15 @@ from specula.data_objects.intmat import Intmat
 from specula.data_objects.simul_params import SimulParams
 from specula.base_value import BaseValue
 from specula.lib.demodulate_signal import demodulate_signal
-from specula import xp, cpuArray
+from specula.processing_objects.dm import DM
+from specula.processing_objects.slopec import Slopec
+from specula import xp, cpuArray, np
 
 # Import SynIM for sensitivity matrix computation
 try:
     import synim.synim as synim
     from synim.params_manager import ParamsManager
+    from synim.utils import generate_im_filename
     SYNIM_AVAILABLE = True
 except ImportError:
     SYNIM_AVAILABLE = False
@@ -35,6 +38,10 @@ class SprintEstimator(BaseProcessingObj):
     ------
     in_slopes : Slopes
         Current WFS slopes (modulated by pushpull_generator)
+    in_dm : DM (optional, but recommended)
+        Deformable mirror object for parameter extraction
+    in_slopec : Slopec (optional, but recommended)
+        Slope computer for valid subaperture extraction
     
     Outputs
     -------
@@ -46,7 +53,9 @@ class SprintEstimator(BaseProcessingObj):
 
     def __init__(self,
                  simul_params: SimulParams,
-                 params_manager: ParamsManager,  # SynIM params manager
+                 params_manager: ParamsManager = None,  # SynIM params manager
+                 yaml_file: str = None,  # Alternative: provide YAML file path
+                 wfs_type: str = 'ngs',
                  wfs_index: int = 0,
                  dm_index: int = 0,
                  carrier_frequencies: list = None,
@@ -67,8 +76,16 @@ class SprintEstimator(BaseProcessingObj):
         if not SYNIM_AVAILABLE:
             raise RuntimeError("SynIM is required for SprintEstimator")
 
+        # Initialize or create ParamsManager
+        if params_manager is None:
+            if yaml_file is None:
+                raise ValueError("Either params_manager or yaml_file must be provided")
+            self.params_manager = ParamsManager(yaml_file, verbose=False)
+        else:
+            self.params_manager = params_manager
+
         self.simul_params = simul_params
-        self.params_manager = params_manager
+        self.wfs_type = wfs_type
         self.wfs_index = wfs_index
         self.dm_index = dm_index
         self.carrier_frequencies = self.xp.array(carrier_frequencies, dtype=self.dtype)
@@ -100,8 +117,13 @@ class SprintEstimator(BaseProcessingObj):
         self.slopes_history = []
         self.time_history = []
 
+        # Store DM and slopec references (will be set in setup)
+        self.dm = None
+        self.slopec = None
+        self.idx_valid_sa = None
+
         # Outputs
-        self.estimated_intmat = Intmat(nmodes=self.nmodes, nslopes=0, 
+        self.estimated_intmat = Intmat(nmodes=self.nmodes, nslopes=0,
                                        target_device_idx=target_device_idx,
                                        precision=precision)
         self.misreg_output = BaseValue(value=self.misreg_params.copy(),
@@ -110,6 +132,8 @@ class SprintEstimator(BaseProcessingObj):
 
         # Inputs
         self.inputs['in_slopes'] = InputValue(type=Slopes)
+        self.inputs['in_dm'] = InputValue(type=DM, optional=True)
+        self.inputs['in_slopec'] = InputValue(type=Slopec, optional=True)
 
         # Outputs
         self.outputs['out_intmat'] = self.estimated_intmat
@@ -118,7 +142,7 @@ class SprintEstimator(BaseProcessingObj):
         self.verbose = True
 
     def setup(self):
-        """Initialize slopes size and nominal IM computation"""
+        """Initialize slopes size and extract parameters from connected objects"""
         super().setup()
 
         # Get initial slopes to determine size
@@ -129,12 +153,42 @@ class SprintEstimator(BaseProcessingObj):
         # Initialize estimated IM size
         self.estimated_intmat.set_nslopes(len(in_slopes.slopes))
 
+        # Extract DM parameters if connected
+        if 'in_dm' in self.local_inputs and self.local_inputs['in_dm'] is not None:
+            self.dm = self.local_inputs['in_dm']
+            
+        # Extract valid subaperture indices if slopec is connected
+        if 'in_slopec' in self.local_inputs and self.local_inputs['in_slopec'] is not None:
+            self.slopec = self.local_inputs['in_slopec']
+            
+            # Extract idx_valid_sa from subapdata or pupdata
+            if hasattr(self.slopec, 'subapdata'):
+                # Shack-Hartmann case
+                subapdata = self.slopec.subapdata
+                # Convert display_map to (i,j) indices
+                display_map = cpuArray(subapdata.display_map)
+                nx = subapdata.nx
+                idx_i = display_map // nx
+                idx_j = display_map % nx
+                self.idx_valid_sa = np.column_stack((idx_i, idx_j))
+                
+            elif hasattr(self.slopec, 'pupdata'):
+                # Pyramid case
+                pupdata = self.slopec.pupdata
+                # For pyramid, we need to figure out valid subapertures from pupdata
+                single_mask = cpuArray(pupdata.single_mask())
+                # Find valid subapertures (where mask > 0)
+                idx_i, idx_j = np.where(single_mask > 0)
+                self.idx_valid_sa = np.column_stack((idx_i, idx_j))
+
         if self.verbose:
             print(f"SPRINT Estimator initialized:")
+            print(f"  WFS type: {self.wfs_type}")
             print(f"  WFS index: {self.wfs_index}")
             print(f"  DM index: {self.dm_index}")
             print(f"  Number of modes: {self.nmodes}")
             print(f"  Number of slopes: {self.estimated_intmat.nslopes}")
+            print(f"  Valid subapertures: {self.idx_valid_sa.shape[0] if self.idx_valid_sa is not None else 'Unknown'}")
             print(f"  Estimation interval: {self.t_to_seconds(self.estimation_dt):.2f}s")
 
     def prepare_trigger(self, t):
@@ -156,14 +210,16 @@ class SprintEstimator(BaseProcessingObj):
             return
 
         if self.verbose:
-            print(f"\n=== SPRINT Estimation at t={self.t_to_seconds(t):.2f}s ===")
+            print(f"\n{'='*60}")
+            print(f"SPRINT Estimation at t={self.t_to_seconds(t):.2f}s")
+            print(f"{'='*60}")
 
         # Step 1: Demodulate slopes to extract measured IM
         im_measured = self._demodulate_slopes()
 
         if im_measured is None:
             if self.verbose:
-                print("  Insufficient data for demodulation, skipping")
+                print("  Not enough data for demodulation yet")
             return
 
         # Step 2: Iterative estimation loop
@@ -190,7 +246,7 @@ class SprintEstimator(BaseProcessingObj):
             return None
 
         # Convert history to array
-        slopes_array = self.xp.array(self.slopes_history)  # (nt, nslopes)
+        slopes_array = self.xp.stack(self.slopes_history)  # (nt, nslopes)
 
         nslopes = slopes_array.shape[1]
         im_measured = self.xp.zeros((nslopes, self.nmodes), dtype=self.dtype)
@@ -202,21 +258,18 @@ class SprintEstimator(BaseProcessingObj):
         for mode_idx in range(self.nmodes):
             carrier_freq = float(self.carrier_frequencies[mode_idx])
 
-            # Demodulate each slope
+            # Demodulate each slope using vectorized operations
             for slope_idx in range(nslopes):
-                slope_signal = slopes_array[:, slope_idx]
-
-                # Use factorized demodulation function
-                demod_value, _ = demodulate_signal(
-                    signal_data=slope_signal,
-                    carrier_freq=carrier_freq,
-                    sampling_freq=sampling_freq,
-                    cumulated=True,
-                    verbose=False,
-                    xp_module=self.xp
+                signal = cpuArray(slopes_array[:, slope_idx])
+                
+                # Use SPECULA's demodulate_signal function
+                amplitude, _ = demodulate_signal(
+                    signal,
+                    carrier_freq,
+                    sampling_freq
                 )
-
-                im_measured[slope_idx, mode_idx] = demod_value
+                
+                im_measured[slope_idx, mode_idx] = self.to_xp(amplitude)
 
         # Apply absolute value if requested (like IDL code)
         if self.apply_absolute_slopes:
@@ -242,7 +295,7 @@ class SprintEstimator(BaseProcessingObj):
             Measured interaction matrix from demodulated slopes
         """
         if self.verbose:
-            print(f"  Starting iterative estimation...")
+            print(f"\n  Starting iterative estimation...")
             print(f"  Initial misreg params: {cpuArray(self.misreg_params)}")
 
         for iteration in range(self.max_iterations):
@@ -265,17 +318,16 @@ class SprintEstimator(BaseProcessingObj):
             self.misreg_params += delta_misreg
 
             # Check convergence
-            error = float(self.xp.sqrt(self.xp.mean(im_diff**2)) / 
+            error = float(self.xp.sqrt(self.xp.mean(im_diff**2)) /
                          self.xp.sqrt(self.xp.mean(im_measured**2)))
 
             if self.verbose:
-                print(f"    Iteration {iteration + 1}: error={error:.3e}, "
-                      f"delta={cpuArray(delta_misreg)}")
+                print(f"    Iteration {iteration+1}: error = {error:.3e}, "
+                      f"delta = {cpuArray(delta_misreg)}")
 
             if error < self.convergence_threshold:
-                self.converged = True
                 if self.verbose:
-                    print(f"  Converged after {iteration + 1} iterations!")
+                    print(f"  Converged after {iteration+1} iterations!")
                 break
 
         # Final update
@@ -286,7 +338,7 @@ class SprintEstimator(BaseProcessingObj):
         self.estimated_intmat.intmat = im_final
 
         if self.verbose:
-            print(f"  Final misreg params: {cpuArray(self.misreg_params)}")
+            print(f"\n  Final misreg params: {cpuArray(self.misreg_params)}")
             print(f"  Final error: {error:.3e}")
 
     def _compute_nominal_im(self):
@@ -303,7 +355,7 @@ class SprintEstimator(BaseProcessingObj):
 
         # Compute IM using SynIM
         im_nominal = self.params_manager.compute_interaction_matrix(
-            wfs_type='ngs',
+            wfs_type=self.wfs_type,
             wfs_index=self.wfs_index,
             dm_index=self.dm_index,
             verbose=False,
@@ -311,9 +363,11 @@ class SprintEstimator(BaseProcessingObj):
         )
 
         if self.apply_absolute_slopes:
-            im_nominal = self.xp.abs(im_nominal)
+            im_nominal = self.xp.abs(self.to_xp(im_nominal))
+        else:
+            im_nominal = self.to_xp(im_nominal)
 
-        return self.to_xp(im_nominal, dtype=self.dtype)
+        return im_nominal.astype(self.dtype)
 
     def _compute_sensitivity_matrices(self):
         """
@@ -321,25 +375,26 @@ class SprintEstimator(BaseProcessingObj):
         
         Returns
         -------
-        sens_matrices : ndarray, shape (nslopes, n_params)
-            Sensitivity of slopes to each mis-registration parameter
+        sens_matrices : ndarray, shape (nslopes, nmodes, n_params)
+            Sensitivity of each slope/mode to each mis-registration parameter
         """
         n_params = len(self.misreg_params)
         nslopes = self.estimated_intmat.nslopes
 
-        sens_matrices = self.xp.zeros((nslopes, n_params), dtype=self.dtype)
+        # Store per-mode sensitivities: (nslopes, nmodes, n_params)
+        sens_matrices = self.xp.zeros((nslopes, self.nmodes, n_params), dtype=self.dtype)
 
         # Define perturbations for each parameter
         perturbations = {
             0: ([1.0, 0.0], 'shift_x'),    # X shift in pixels
             1: ([0.0, 1.0], 'shift_y'),    # Y shift in pixels
             2: (0.1, 'rotation'),          # Rotation in degrees
-            3: (0.99, 'magnification'),    # Magnification factor
+            3: (0.01, 'magnification'),    # Magnification factor (1% change)
         }
 
         if self.enable_wpup_magn_xy:
-            perturbations[4] = ([0.99, 1.0], 'magn_x')
-            perturbations[5] = ([1.0, 0.99], 'magn_y')
+            perturbations[4] = (0.01, 'magn_x')  # X magnification
+            perturbations[5] = (0.01, 'magn_y')  # Y magnification
 
         # Save original parameters
         original_params = self.misreg_params.copy()
@@ -347,22 +402,21 @@ class SprintEstimator(BaseProcessingObj):
         for param_idx, (perturbation, param_name) in perturbations.items():
             # Compute push matrix (positive perturbation)
             self.misreg_params = original_params.copy()
-            self.misreg_params[param_idx] \
-                += self._get_perturbation_value(param_idx, perturbation, push=True)
+            self.misreg_params[param_idx] += \
+                self._get_perturbation_value(param_idx, perturbation, push=True)
             im_push = self._compute_nominal_im()
 
             # Compute pull matrix (negative perturbation)
             self.misreg_params = original_params.copy()
-            self.misreg_params[param_idx] \
-                += self._get_perturbation_value(param_idx, perturbation, push=False)
+            self.misreg_params[param_idx] += \
+                self._get_perturbation_value(param_idx, perturbation, push=False)
             im_pull = self._compute_nominal_im()
 
             # Sensitivity = (push - pull) / (2 * perturbation_amplitude)
             perturbation_amp = self._get_perturbation_amplitude(param_idx, perturbation)
-            sens_matrices[:, param_idx] = self.xp.mean(
-                (im_push - im_pull) / (2.0 * perturbation_amp),
-                axis=1
-            )
+            
+            # Store full sensitivity matrix (per mode!)
+            sens_matrices[:, :, param_idx] = (im_push - im_pull) / (2.0 * perturbation_amp)
 
         # Restore original parameters
         self.misreg_params = original_params
@@ -377,9 +431,9 @@ class SprintEstimator(BaseProcessingObj):
             value = abs(perturbation)
         else:  # Magnifications
             if isinstance(perturbation, list):
-                value = self.xp.sqrt(self.xp.sum((1.0 - self.xp.array(perturbation))**2))
+                value = self.xp.sqrt(self.xp.sum(self.xp.array(perturbation)**2))
             else:
-                value = abs(1.0 - perturbation)
+                value = abs(perturbation)
 
         return value if push else -value
 
@@ -419,7 +473,7 @@ class SprintEstimator(BaseProcessingObj):
         ----------
         im_diff : ndarray, shape (nslopes, nmodes)
             Difference between measured and nominal IM
-        sens_matrices : ndarray, shape (nslopes, n_params)
+        sens_matrices : ndarray, shape (nslopes, nmodes, n_params)
             Sensitivity matrices
         
         Returns
@@ -427,12 +481,28 @@ class SprintEstimator(BaseProcessingObj):
         delta_misreg : ndarray, shape (n_params,)
             Correction to mis-registration parameters
         """
-        # Average over modes
-        im_diff_mean = self.xp.mean(im_diff, axis=1)
+        n_params = sens_matrices.shape[2]
+        delta_misreg = self.xp.zeros(n_params, dtype=self.dtype)
 
-        # Pseudo-inverse solution: delta = pinv(sens_matrices) @ im_diff_mean
-        sens_pinv = self.xp.linalg.pinv(sens_matrices)
-        delta_misreg = sens_pinv @ im_diff_mean
+        # For each parameter, solve: sens[:,:,p] @ delta_p = im_diff
+        # Average solution over all modes
+        for param_idx in range(n_params):
+            # Extract sensitivity for this parameter (nslopes, nmodes)
+            sens_p = sens_matrices[:, :, param_idx]
+            
+            # Solve for each mode separately, then average
+            deltas = []
+            for mode_idx in range(self.nmodes):
+                # sens_p[:, mode_idx] @ delta = im_diff[:, mode_idx]
+                sens_col = sens_p[:, mode_idx]
+                diff_col = im_diff[:, mode_idx]
+                
+                # Least squares solution
+                delta = self.xp.dot(sens_col, diff_col) / (self.xp.dot(sens_col, sens_col) + 1e-12)
+                deltas.append(delta)
+            
+            # Average over modes
+            delta_misreg[param_idx] = self.xp.mean(self.xp.array(deltas))
 
         return delta_misreg
 
@@ -444,23 +514,50 @@ class SprintEstimator(BaseProcessingObj):
         rotation = float(self.misreg_params[2])
         magnification = float(self.misreg_params[3])
 
-        # Update WFS parameters in params_manager
-        wfs_key = f'sh_ngs{self.wfs_index + 1}'
+        # Determine WFS key based on type and index
+        if self.wfs_index == 0 and self.wfs_type in ['ngs', 'lgs', 'ref']:
+            # Default naming for first WFS of each type
+            wfs_keys = {
+                'ngs': 'sh_ngs',
+                'lgs': 'sh_lgs', 
+                'ref': 'sh_ref'
+            }
+            wfs_key = wfs_keys.get(self.wfs_type, f'sh_{self.wfs_type}')
+        else:
+            # Numbered WFS
+            wfs_key = f'sh_{self.wfs_type}{self.wfs_index + 1}'
 
-        # Get original values
-        original_shift_x = self.params_manager.params.get(wfs_key, {}).get('xShiftPhInPixel', 0.0)
-        original_shift_y = self.params_manager.params.get(wfs_key, {}).get('yShiftPhInPixel', 0.0)
-        original_rotation = self.params_manager.params.get(wfs_key, {}).get('rotAnglePhInDeg', 0.0)
+        # Check if key exists, try alternatives
+        if wfs_key not in self.params_manager.params:
+            # Try without 'sh_' prefix
+            alt_key = f'{self.wfs_type}{self.wfs_index + 1}' if self.wfs_index > 0 else self.wfs_type
+            if alt_key in self.params_manager.params:
+                wfs_key = alt_key
 
-        # Apply corrections
-        self.params_manager.params[wfs_key]['xShiftPhInPixel'] = original_shift_x + shift_x
-        self.params_manager.params[wfs_key]['yShiftPhInPixel'] = original_shift_y + shift_y
-        self.params_manager.params[wfs_key]['rotAnglePhInDeg'] = original_rotation + rotation
+        if wfs_key in self.params_manager.params:
+            # Get original values (default to 0 if not present)
+            wfs_params = self.params_manager.params[wfs_key]
+            original_shift_x = wfs_params.get('xShiftPhInPixel', 0.0)
+            original_shift_y = wfs_params.get('yShiftPhInPixel', 0.0)
+            original_rotation = wfs_params.get('rotAnglePhInDeg', 0.0)
+
+            # Apply corrections
+            wfs_params['xShiftPhInPixel'] = original_shift_x + shift_x
+            wfs_params['yShiftPhInPixel'] = original_shift_y + shift_y
+            wfs_params['rotAnglePhInDeg'] = original_rotation + rotation
+        else:
+            if self.verbose:
+                print(f"Warning: WFS key '{wfs_key}' not found in params_manager")
 
         # Update DM magnification
-        dm_key = f'dm{self.dm_index + 1}'
-        original_magn = self.params_manager.params.get(dm_key, {}).get('magnification', 1.0)
-        self.params_manager.params[dm_key]['magnification'] = original_magn + magnification
+        dm_key = f'dm{self.dm_index + 1}' if self.dm_index > 0 else 'dm'
+        
+        if dm_key in self.params_manager.params:
+            original_magn = self.params_manager.params[dm_key].get('magnification', 1.0)
+            self.params_manager.params[dm_key]['magnification'] = original_magn * (1.0 + magnification)
+        else:
+            if self.verbose:
+                print(f"Warning: DM key '{dm_key}' not found in params_manager")
 
         # Update pupil magnifications if enabled
         if self.enable_wpup_magn_xy:
@@ -469,16 +566,9 @@ class SprintEstimator(BaseProcessingObj):
 
             if 'pupil_distortion' not in self.params_manager.params:
                 self.params_manager.params['pupil_distortion'] = {}
-
-            original_x_stretch = self.params_manager.params.get(
-                'pupil_distortion', {}).get('x_stretch', 1.0)
-            original_y_stretch = self.params_manager.params.get(
-                'pupil_distortion', {}).get('y_stretch', 1.0)
-
-            self.params_manager.params['pupil_distortion']['x_stretch'] = \
-                original_x_stretch + magn_x
-            self.params_manager.params['pupil_distortion']['y_stretch'] = \
-                original_y_stretch + magn_y
+            
+            self.params_manager.params['pupil_distortion']['magn_x'] = magn_x
+            self.params_manager.params['pupil_distortion']['magn_y'] = magn_y
 
     def finalize(self):
         """Save final estimated IM"""
@@ -489,7 +579,12 @@ class SprintEstimator(BaseProcessingObj):
         self.estimated_intmat.save(im_path, overwrite=self.overwrite)
 
         if self.verbose:
-            print(f"\nSPRINT Estimator finalized:")
-            print(f"  Converged: {self.converged}")
-            print(f"  Final mis-registration parameters: {cpuArray(self.misreg_params)}")
-            print(f"  Saved IM to: {im_path}")
+            print(f"\nSaved estimated interaction matrix to: {im_path}")
+            print(f"Final mis-registration parameters:")
+            print(f"  X shift: {float(self.misreg_params[0]):.3f} pixels")
+            print(f"  Y shift: {float(self.misreg_params[1]):.3f} pixels")
+            print(f"  Rotation: {float(self.misreg_params[2]):.3f} degrees")
+            print(f"  Magnification: {float(self.misreg_params[3]):.6f}")
+            if self.enable_wpup_magn_xy:
+                print(f"  X magnification: {float(self.misreg_params[4]):.6f}")
+                print(f"  Y magnification: {float(self.misreg_params[5]):.6f}")
