@@ -5,17 +5,20 @@ from specula.connections import InputValue
 from specula.data_objects.slopes import Slopes
 from specula.data_objects.intmat import Intmat
 from specula.data_objects.simul_params import SimulParams
+from specula.data_objects.source import Source
 from specula.base_value import BaseValue
 from specula.lib.demodulate_signal import demodulate_signal
 from specula.processing_objects.dm import DM
 from specula.processing_objects.slopec import Slopec
+from specula.processing_objects.sh_slopec import ShSlopec
+from specula.processing_objects.pyr_slopec import PyrSlopec
+from specula.processing_objects.sh import SH
+from specula.processing_objects.modulated_pyramid import ModulatedPyramid
 from specula import xp, cpuArray, np
 
 # Import SynIM for sensitivity matrix computation
 try:
     import synim.synim as synim
-    from synim.params_manager import ParamsManager
-    from synim.utils import generate_im_filename
     SYNIM_AVAILABLE = True
 except ImportError:
     SYNIM_AVAILABLE = False
@@ -34,14 +37,24 @@ class SprintEstimator(BaseProcessingObj):
     Based on: Heritier+ 2021, MNRAS "SPRINT: a fast and least-cost 
               online calibration strategy for adaptive optics"
     
+    This is a SCAO-specific implementation that automatically extracts all
+    necessary parameters from connected SPECULA objects.
+    
+    Parameters (passed via YAML with _ref suffix)
+    ----------------------------------------------
+    dm : DM
+        Deformable mirror object for parameter extraction
+    slopec : Slopec
+        Slope computer for valid subaperture extraction
+    source : Source
+        Source object for coordinate information
+    wfs : BaseProcessingObj (SH or ModulatedPyramid)
+        WFS object for geometry extraction
+    
     Inputs
     ------
     in_slopes : Slopes
         Current WFS slopes (modulated by pushpull_generator)
-    in_dm : DM (optional, but recommended)
-        Deformable mirror object for parameter extraction
-    in_slopec : Slopec (optional, but recommended)
-        Slope computer for valid subaperture extraction
     
     Outputs
     -------
@@ -53,13 +66,12 @@ class SprintEstimator(BaseProcessingObj):
 
     def __init__(self,
                  simul_params: SimulParams,
-                 params_manager: ParamsManager = None,  # SynIM params manager
-                 yaml_file: str = None,  # Alternative: provide YAML file path
-                 wfs_type: str = 'ngs',
-                 wfs_index: int = 0,
-                 dm_index: int = 0,
+                 dm: DM,
+                 slopec: Slopec,
+                 source: Source,
+                 wfs: BaseProcessingObj,  # SH or ModulatedPyramid
                  carrier_frequencies: list = None,
-                 estimation_dt: float = 10.0,  # Demodulation AND estimation interval
+                 estimation_dt: float = 10.0,
                  max_iterations: int = 10,
                  convergence_threshold: float = 1e-3,
                  initial_misreg: list = None,
@@ -76,18 +88,12 @@ class SprintEstimator(BaseProcessingObj):
         if not SYNIM_AVAILABLE:
             raise RuntimeError("SynIM is required for SprintEstimator")
 
-        # Initialize or create ParamsManager
-        if params_manager is None:
-            if yaml_file is None:
-                raise ValueError("Either params_manager or yaml_file must be provided")
-            self.params_manager = ParamsManager(yaml_file, verbose=False)
-        else:
-            self.params_manager = params_manager
-
         self.simul_params = simul_params
-        self.wfs_type = wfs_type
-        self.wfs_index = wfs_index
-        self.dm_index = dm_index
+        self.dm = dm
+        self.slopec = slopec
+        self.source = source
+        self.wfs = wfs
+
         self.carrier_frequencies = self.xp.array(carrier_frequencies, dtype=self.dtype)
         self.estimation_dt = self.seconds_to_t(estimation_dt)
         self.max_iterations = max_iterations
@@ -117,10 +123,12 @@ class SprintEstimator(BaseProcessingObj):
         self.slopes_history = []
         self.time_history = []
 
-        # Store DM and slopec references (will be set in setup)
-        self.dm = None
-        self.slopec = None
+        # Valid subaperture indices (will be extracted in setup)
         self.idx_valid_sa = None
+        
+        # Extract pupil mask and diameter
+        self.pup_diam_m = self.simul_params.pixel_pupil * self.simul_params.pixel_pitch
+        # Will load pupil mask in setup
 
         # Outputs
         self.estimated_intmat = Intmat(nmodes=self.nmodes, nslopes=0,
@@ -130,10 +138,8 @@ class SprintEstimator(BaseProcessingObj):
                                        target_device_idx=target_device_idx,
                                        precision=precision)
 
-        # Inputs
+        # Input connection (only slopes)
         self.inputs['in_slopes'] = InputValue(type=Slopes)
-        self.inputs['in_dm'] = InputValue(type=DM, optional=True)
-        self.inputs['in_slopec'] = InputValue(type=Slopec, optional=True)
 
         # Outputs
         self.outputs['out_intmat'] = self.estimated_intmat
@@ -153,43 +159,59 @@ class SprintEstimator(BaseProcessingObj):
         # Initialize estimated IM size
         self.estimated_intmat.set_nslopes(len(in_slopes.slopes))
 
-        # Extract DM parameters if connected
-        if 'in_dm' in self.local_inputs and self.local_inputs['in_dm'] is not None:
-            self.dm = self.local_inputs['in_dm']
-            
-        # Extract valid subaperture indices if slopec is connected
-        if 'in_slopec' in self.local_inputs and self.local_inputs['in_slopec'] is not None:
-            self.slopec = self.local_inputs['in_slopec']
-            
-            # Extract idx_valid_sa from subapdata or pupdata
-            if hasattr(self.slopec, 'subapdata'):
-                # Shack-Hartmann case
-                subapdata = self.slopec.subapdata
-                # Convert display_map to (i,j) indices
-                display_map = cpuArray(subapdata.display_map)
-                nx = subapdata.nx
-                idx_i = display_map // nx
-                idx_j = display_map % nx
-                self.idx_valid_sa = np.column_stack((idx_i, idx_j))
-                
-            elif hasattr(self.slopec, 'pupdata'):
-                # Pyramid case
-                pupdata = self.slopec.pupdata
-                # For pyramid, we need to figure out valid subapertures from pupdata
-                single_mask = cpuArray(pupdata.single_mask())
-                # Find valid subapertures (where mask > 0)
-                idx_i, idx_j = np.where(single_mask > 0)
-                self.idx_valid_sa = np.column_stack((idx_i, idx_j))
+        # Extract valid subaperture indices
+        self._extract_valid_subapertures()
+        
+        # Extract pupil mask from DM
+        self.pup_mask = cpuArray(self.dm.mask)
 
         if self.verbose:
             print(f"SPRINT Estimator initialized:")
-            print(f"  WFS type: {self.wfs_type}")
-            print(f"  WFS index: {self.wfs_index}")
-            print(f"  DM index: {self.dm_index}")
+            print(f"  WFS type: {self._get_wfs_type()}")
             print(f"  Number of modes: {self.nmodes}")
             print(f"  Number of slopes: {self.estimated_intmat.nslopes}")
             print(f"  Valid subapertures: {self.idx_valid_sa.shape[0] if self.idx_valid_sa is not None else 'Unknown'}")
             print(f"  Estimation interval: {self.t_to_seconds(self.estimation_dt):.2f}s")
+            print(f"  Source coordinates: {self.source.polar_coordinates}")
+
+    def _extract_valid_subapertures(self):
+        """Extract valid subaperture indices from slopec"""
+
+        if isinstance(self.slopec, ShSlopec):
+            # Shack-Hartmann case
+            subapdata = self.slopec.subapdata
+            # Convert display_map to (i,j) indices
+            display_map = cpuArray(subapdata.display_map)
+            nx = subapdata.nx
+            idx_i = display_map // nx
+            idx_j = display_map % nx
+            self.idx_valid_sa = np.column_stack((idx_i, idx_j))
+
+        elif isinstance(self.slopec, PyrSlopec):
+            # Pyramid case
+            pupdata = self.slopec.pupdata
+
+            if self.slopec.slopes_from_intensity:
+                # For intensity mode, use complete mask
+                complete_mask = cpuArray(pupdata.complete_mask())
+                idx_i, idx_j = np.where(complete_mask > 0)
+            else:
+                # For slopes mode, use single mask
+                single_mask = cpuArray(pupdata.single_mask())
+                idx_i, idx_j = np.where(single_mask > 0)
+
+            self.idx_valid_sa = np.column_stack((idx_i, idx_j))
+        else:
+            raise ValueError(f"Unknown slopec type: {type(self.slopec)}")
+
+    def _get_wfs_type(self):
+        """Determine WFS type from connected object"""
+        if isinstance(self.wfs, SH):
+            return 'sh'
+        elif isinstance(self.wfs, ModulatedPyramid):
+            return 'pyramid'
+        else:
+            raise ValueError(f"Unknown WFS type: {type(self.wfs)}")
 
     def prepare_trigger(self, t):
         """Collect slopes data for demodulation"""
@@ -261,14 +283,14 @@ class SprintEstimator(BaseProcessingObj):
             # Demodulate each slope using vectorized operations
             for slope_idx in range(nslopes):
                 signal = cpuArray(slopes_array[:, slope_idx])
-                
+
                 # Use SPECULA's demodulate_signal function
                 amplitude, _ = demodulate_signal(
                     signal,
                     carrier_freq,
                     sampling_freq
                 )
-                
+
                 im_measured[slope_idx, mode_idx] = self.to_xp(amplitude)
 
         # Apply absolute value if requested (like IDL code)
@@ -330,9 +352,6 @@ class SprintEstimator(BaseProcessingObj):
                     print(f"  Converged after {iteration+1} iterations!")
                 break
 
-        # Final update
-        self._update_params_manager()
-
         # Compute final IM and store
         im_final = self._compute_nominal_im()
         self.estimated_intmat.intmat = im_final
@@ -350,16 +369,42 @@ class SprintEstimator(BaseProcessingObj):
         im_nominal : ndarray
             Nominal interaction matrix
         """
-        # Update ParamsManager with current mis-registration
-        self._update_params_manager()
+        # Extract current mis-registration parameters
+        shift_x = float(self.misreg_params[0])
+        shift_y = float(self.misreg_params[1])
+        rotation = float(self.misreg_params[2])
+        magnification = 1.0 + float(self.misreg_params[3])
 
-        # Compute IM using SynIM
-        im_nominal = self.params_manager.compute_interaction_matrix(
-            wfs_type=self.wfs_type,
-            wfs_index=self.wfs_index,
-            dm_index=self.dm_index,
+        # Get WFS parameters
+        if isinstance(self.wfs, SH):
+            wfs_nsubaps = self.wfs.subap_on_diameter
+            wfs_fov_arcsec = self.wfs.subap_wanted_fov
+        else:  # ModulatedPyramid
+            wfs_nsubaps = self.wfs.pup_diam
+            wfs_fov_arcsec = self.wfs.fov
+
+        # Get source coordinates
+        gs_pol_coo = tuple(cpuArray(self.source.polar_coordinates))
+        gs_height = self.source.height if self.source.height != float('inf') else float('inf')
+
+        # Compute IM using SynIM directly
+        im_nominal = synim.interaction_matrix(
+            pup_diam_m=self.pup_diam_m,
+            pup_mask=self.pup_mask,
+            dm_array=cpuArray(self.dm.ifunc).transpose(1, 0, 2),  # SynIM convention
+            dm_mask=cpuArray(self.dm.mask).T,  # SynIM convention
+            dm_height=0.0,  # Ground DM
+            dm_rotation=0.0,  # DM rotation (if any)
+            gs_pol_coo=gs_pol_coo,
+            gs_height=gs_height,
+            wfs_nsubaps=wfs_nsubaps,
+            wfs_rotation=rotation,  # Apply estimated rotation
+            wfs_translation=(shift_x, shift_y),  # Apply estimated shift
+            wfs_mag_global=magnification,  # Apply estimated magnification
+            wfs_fov_arcsec=wfs_fov_arcsec,
+            idx_valid_sa=self.idx_valid_sa,
             verbose=False,
-            display=False
+            specula_convention=True
         )
 
         if self.apply_absolute_slopes:
@@ -386,10 +431,10 @@ class SprintEstimator(BaseProcessingObj):
 
         # Define perturbations for each parameter
         perturbations = {
-            0: ([1.0, 0.0], 'shift_x'),    # X shift in pixels
-            1: ([0.0, 1.0], 'shift_y'),    # Y shift in pixels
-            2: (0.1, 'rotation'),          # Rotation in degrees
-            3: (0.01, 'magnification'),    # Magnification factor (1% change)
+            0: (1.0, 'shift_x'),          # X shift in pixels
+            1: (1.0, 'shift_y'),          # Y shift in pixels
+            2: (0.1, 'rotation'),         # Rotation in degrees
+            3: (0.01, 'magnification'),   # Magnification factor (1% change)
         }
 
         if self.enable_wpup_magn_xy:
@@ -402,44 +447,21 @@ class SprintEstimator(BaseProcessingObj):
         for param_idx, (perturbation, param_name) in perturbations.items():
             # Compute push matrix (positive perturbation)
             self.misreg_params = original_params.copy()
-            self.misreg_params[param_idx] += \
-                self._get_perturbation_value(param_idx, perturbation, push=True)
+            self.misreg_params[param_idx] += perturbation
             im_push = self._compute_nominal_im()
 
             # Compute pull matrix (negative perturbation)
             self.misreg_params = original_params.copy()
-            self.misreg_params[param_idx] += \
-                self._get_perturbation_value(param_idx, perturbation, push=False)
+            self.misreg_params[param_idx] -= perturbation
             im_pull = self._compute_nominal_im()
 
-            # Sensitivity = (push - pull) / (2 * perturbation_amplitude)
-            perturbation_amp = self._get_perturbation_amplitude(param_idx, perturbation)
-            
-            # Store full sensitivity matrix (per mode!)
-            sens_matrices[:, :, param_idx] = (im_push - im_pull) / (2.0 * perturbation_amp)
+            # Sensitivity = (push - pull) / (2 * perturbation)
+            sens_matrices[:, :, param_idx] = (im_push - im_pull) / (2.0 * perturbation)
 
         # Restore original parameters
         self.misreg_params = original_params
 
         return sens_matrices
-
-    def _get_perturbation_value(self, param_idx, perturbation, push):
-        """Get perturbation value for push or pull"""
-        if param_idx < 2:  # Shifts
-            value = self.xp.sqrt(self.xp.sum(self.xp.array(perturbation)**2))
-        elif param_idx == 2:  # Rotation
-            value = abs(perturbation)
-        else:  # Magnifications
-            if isinstance(perturbation, list):
-                value = self.xp.sqrt(self.xp.sum(self.xp.array(perturbation)**2))
-            else:
-                value = abs(perturbation)
-
-        return value if push else -value
-
-    def _get_perturbation_amplitude(self, param_idx, perturbation):
-        """Get total perturbation amplitude"""
-        return abs(self._get_perturbation_value(param_idx, perturbation, push=True))
 
     def _compute_optical_gains(self, im_measured, im_nominal):
         """
@@ -489,86 +511,22 @@ class SprintEstimator(BaseProcessingObj):
         for param_idx in range(n_params):
             # Extract sensitivity for this parameter (nslopes, nmodes)
             sens_p = sens_matrices[:, :, param_idx]
-            
+
             # Solve for each mode separately, then average
             deltas = []
             for mode_idx in range(self.nmodes):
                 # sens_p[:, mode_idx] @ delta = im_diff[:, mode_idx]
                 sens_col = sens_p[:, mode_idx]
                 diff_col = im_diff[:, mode_idx]
-                
+
                 # Least squares solution
                 delta = self.xp.dot(sens_col, diff_col) / (self.xp.dot(sens_col, sens_col) + 1e-12)
                 deltas.append(delta)
-            
+
             # Average over modes
             delta_misreg[param_idx] = self.xp.mean(self.xp.array(deltas))
 
         return delta_misreg
-
-    def _update_params_manager(self):
-        """Update SynIM ParamsManager with current mis-registration parameters"""
-        # Extract parameters
-        shift_x = float(self.misreg_params[0])
-        shift_y = float(self.misreg_params[1])
-        rotation = float(self.misreg_params[2])
-        magnification = float(self.misreg_params[3])
-
-        # Determine WFS key based on type and index
-        if self.wfs_index == 0 and self.wfs_type in ['ngs', 'lgs', 'ref']:
-            # Default naming for first WFS of each type
-            wfs_keys = {
-                'ngs': 'sh_ngs',
-                'lgs': 'sh_lgs', 
-                'ref': 'sh_ref'
-            }
-            wfs_key = wfs_keys.get(self.wfs_type, f'sh_{self.wfs_type}')
-        else:
-            # Numbered WFS
-            wfs_key = f'sh_{self.wfs_type}{self.wfs_index + 1}'
-
-        # Check if key exists, try alternatives
-        if wfs_key not in self.params_manager.params:
-            # Try without 'sh_' prefix
-            alt_key = f'{self.wfs_type}{self.wfs_index + 1}' if self.wfs_index > 0 else self.wfs_type
-            if alt_key in self.params_manager.params:
-                wfs_key = alt_key
-
-        if wfs_key in self.params_manager.params:
-            # Get original values (default to 0 if not present)
-            wfs_params = self.params_manager.params[wfs_key]
-            original_shift_x = wfs_params.get('xShiftPhInPixel', 0.0)
-            original_shift_y = wfs_params.get('yShiftPhInPixel', 0.0)
-            original_rotation = wfs_params.get('rotAnglePhInDeg', 0.0)
-
-            # Apply corrections
-            wfs_params['xShiftPhInPixel'] = original_shift_x + shift_x
-            wfs_params['yShiftPhInPixel'] = original_shift_y + shift_y
-            wfs_params['rotAnglePhInDeg'] = original_rotation + rotation
-        else:
-            if self.verbose:
-                print(f"Warning: WFS key '{wfs_key}' not found in params_manager")
-
-        # Update DM magnification
-        dm_key = f'dm{self.dm_index + 1}' if self.dm_index > 0 else 'dm'
-        
-        if dm_key in self.params_manager.params:
-            original_magn = self.params_manager.params[dm_key].get('magnification', 1.0)
-            self.params_manager.params[dm_key]['magnification'] = original_magn * (1.0 + magnification)
-        else:
-            if self.verbose:
-                print(f"Warning: DM key '{dm_key}' not found in params_manager")
-
-        # Update pupil magnifications if enabled
-        if self.enable_wpup_magn_xy:
-            magn_x = float(self.misreg_params[4])
-            magn_y = float(self.misreg_params[5])
-
-            if 'pupil_distortion' not in self.params_manager.params:
-                self.params_manager.params['pupil_distortion'] = {}
-            
-            self.params_manager.params['pupil_distortion']['magn_x'] = magn_x
-            self.params_manager.params['pupil_distortion']['magn_y'] = magn_y
 
     def finalize(self):
         """Save final estimated IM"""
