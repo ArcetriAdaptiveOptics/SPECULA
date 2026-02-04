@@ -132,7 +132,7 @@ class AtmoPropagation(BaseProcessingObj):
                                   df * self.xp.arange(-self.ef_size_padded / 2, self.ef_size_padded / 2))
 
         # Bandlimit filter for propagation
-        f_limit = L_pad / (self.wavelengthInNm * 1e-9 * self.xp.sqrt(L_pad ** 2 + 4 * distanceInM ** 2))
+        f_limit = L_pad / (self.wavelengthInNm * 1e-9 * np.sqrt(L_pad ** 2 + 4 * distanceInM ** 2))
         W = (fx ** 2 / f_limit ** 2 + (self.wavelengthInNm * 1e-9 * fy) ** 2 <= 1) * (
                 fy ** 2 / f_limit ** 2 + (self.wavelengthInNm * 1e-9 * fx) ** 2 <= 1)
 
@@ -144,14 +144,14 @@ class AtmoPropagation(BaseProcessingObj):
                 RuntimeWarning)
             f_limit = self.ef_size_padded / 2 * df * self.band_limit_factor
             distance_old = distanceInM
-            distanceInM = self.xp.sqrt((L_pad / f_limit) ** 2 / (self.wavelengthInNm * 1e-9) ** 2 - L_pad ** 2) / 2
+            distanceInM = np.sqrt((L_pad / f_limit) ** 2 / (self.wavelengthInNm * 1e-9) ** 2 - L_pad ** 2) / 2
             warnings.warn('Distance for wavelength ' + str(self.wavelengthInNm) + 'nm reduced from ' + str(
                 distance_old) + 'm to ' + str(distanceInM) + 'm.', RuntimeWarning)
             W = ((fx / f_limit) ** 2 + (fy * self.wavelengthInNm * 1e-9) ** 2 <= 1) * (
                     (fy / f_limit) ** 2 + (fx * self.wavelengthInNm * 1e-9) ** 2 <= 1)
 
         # calculate kernel
-        k = 2 * self.xp.pi / (self.wavelengthInNm * 1e-9)
+        k = 2 * np.pi / (self.wavelengthInNm * 1e-9)
         kernel = self.xp.sqrt(
             0j + 1 - abs(fx * self.wavelengthInNm * 1e-9) ** 2 - abs(fy * self.wavelengthInNm * 1e-9) ** 2)
         H_AS = self.xp.exp(1j * k * distanceInM * kernel)
@@ -166,19 +166,19 @@ class AtmoPropagation(BaseProcessingObj):
         self.ef_size_padded = self.pixel_pupil * self.padding
 
         layer_list = self.common_layer_list + self.atmo_layer_list
-        height_layers = self.xp.array([layer.height * self.airmass for layer in layer_list], dtype=self.dtype)
+        height_layers = np.array([layer.height * self.airmass for layer in layer_list], dtype=self.dtype)
 
         source_height = self.source_dict[list(self.source_dict)[0]].height * self.airmass
-        if self.xp.isinf(source_height):
+        if np.isinf(source_height):
             raise ValueError('Fresnel propagation to infinity not supported.')
-        height_layers = self.xp.append(height_layers, source_height)
+        height_layers = np.append(height_layers, source_height)
 
-        sorted_heights = self.xp.sort(height_layers)
+        sorted_heights = np.sort(height_layers)
         if not np.allclose(height_layers, sorted_heights):
             raise ValueError('Layers must be sorted from lowest to highest')
 
         # set up fresnel propagator if height difference is not 0
-        height_diffs = self.xp.diff(height_layers)
+        height_diffs = np.diff(height_layers)
         self.propagators = [self.field_propagator(diff) if diff != 0 else None for diff in height_diffs]
 
         # adapt for downwards propagation
