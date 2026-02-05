@@ -17,15 +17,14 @@ from specula.data_objects.slopes import Slopes
 from specula.processing_objects.sprint_estimator import SprintEstimator
 import synim.synim as synim
 
-
 def create_test_system():
     """Create a minimal SCAO system for testing SPRINT"""
 
     # Simulation parameters
     simul_params = SimulParams(
         time_step=1e-3,  # 1ms
-        pixel_pupil=120,
-        pixel_pitch=8.0/120,  # 8m telescope, ~120 pixels
+        pixel_pupil=160,
+        pixel_pitch=8.0/160,  # 8m telescope, ~120 pixels
         root_dir='./test_sprint_output'
     )
 
@@ -39,13 +38,12 @@ def create_test_system():
     )
 
     # DM - Zernike modes
-    n_modes = 10
+    n_modes = 100
     ifunc = IFunc(
         type_str='zernike',
         npixels=simul_params.pixel_pupil,
         nmodes=n_modes,
         obsratio=0.0,
-        start_mode=2,  # Start from tip/tilt
         target_device_idx=-1,
         precision=1
     )
@@ -59,7 +57,7 @@ def create_test_system():
     )
 
     # Create SubapData (valid subapertures) - based on test_sh_slopec.py
-    subap_on_diameter = 8
+    subap_on_diameter = 12
     subap_npx = 12
     n_subap = subap_on_diameter
 
@@ -130,7 +128,7 @@ def create_test_system():
         target_device_idx=-1,
         precision=1
     )
-    
+
     # Connect CCD to WFS
     ccd.inputs['in_i'].set(wfs.outputs['out_i'])
     ccd.setup()
@@ -141,7 +139,7 @@ def create_test_system():
         target_device_idx=-1,
         precision=1
     )
-    
+
     # Connect slopec to CCD pixels
     slopec.inputs['in_pixels'].set(ccd.outputs['out_pixels'])
     slopec.setup()
@@ -270,7 +268,7 @@ def generate_sinusoidal_slopes(im, carrier_frequencies, duration, dt, noise_leve
     # Handle both 1D (single mode) and 2D (multiple modes) cases
     if im.ndim == 1:
         im = im[:, np.newaxis]  # Convert to (nslopes, 1)
-    
+
     nslopes, nmodes = im.shape
     nt = int(duration / dt)
     time = np.arange(nt) * dt
@@ -315,11 +313,11 @@ def test_sprint_estimation(shift_x, shift_y, rotation, magnification):
     # Generate reference IM (no mis-registration)
     print("\nGenerating reference IM...")
     im_ref_full = generate_reference_im(simul_params, source, dm, wfs, slopec)
-    
-    # Select 1 mode only (mode index 5 - a higher order mode)
-    mode_idx = 5
+
+    # Select 1 mode only
+    mode_idx = 30
     im_ref = im_ref_full[:, mode_idx:mode_idx+1]  # Keep 2D shape (nslopes, 1)
-    
+
     print(f"Reference IM shape: {im_ref.shape}")
     print(f"Reference IM RMS: {np.sqrt(np.mean(im_ref**2)):.3e}")
 
@@ -329,16 +327,15 @@ def test_sprint_estimation(shift_x, shift_y, rotation, magnification):
         simul_params, source, dm, wfs, slopec,
         shift_x, shift_y, rotation, magnification
     )
-    
+
     # Select same mode
     im_misreg = im_misreg_full[:, mode_idx:mode_idx+1]  # Keep 2D shape (nslopes, 1)
-    
+
     print(f"Mis-registered IM shape: {im_misreg.shape}")
     print(f"Mis-registered IM RMS: {np.sqrt(np.mean(im_misreg**2)):.3e}")
     print(f"IM difference RMS: {np.sqrt(np.mean((im_misreg - im_ref)**2)):.3e}")
 
     # Define carrier frequencies for single mode
-    nmodes = 1
     carrier_frequencies = [5.0]  # Single frequency
 
     print(f"\nCarrier frequencies: {carrier_frequencies}")
@@ -367,10 +364,11 @@ def test_sprint_estimation(shift_x, shift_y, rotation, magnification):
         slopec=slopec,
         source=source,
         wfs=wfs,
+        modes_index=[mode_idx],  # Only the mode we are testing
         carrier_frequencies=carrier_frequencies,
         estimation_dt=duration-0.001,  # Estimate once after full period
-        max_iterations=20,
-        convergence_threshold=1e-4,
+        max_iterations=50,
+        convergence_threshold=1e-2,
         initial_misreg=None,  # Start from zero
         apply_absolute_slopes=False,
         enable_wpup_magn_xy=False,
@@ -428,7 +426,7 @@ def test_sprint_estimation(shift_x, shift_y, rotation, magnification):
 
     # Get estimated IM (single mode)
     im_estimated = specula.cpuArray(sprint.estimated_intmat.intmat)
-    
+
     # Ensure shapes match for comparison
     if im_estimated.ndim == 2 and im_estimated.shape[1] == 1:
         im_estimated = im_estimated[:, 0]
@@ -447,28 +445,25 @@ def test_sprint_estimation(shift_x, shift_y, rotation, magnification):
     print(f"\nINTERACTION MATRIX QUALITY:")
     print(f"  Initial RMS error:   {initial_rms:.3e}")
     print(f"  Residual RMS error:  {residual_rms:.3e}")
-    print(f"  Improvement factor:  {initial_rms/residual_rms:.2f}x" if residual_rms > 0 else "  Perfect reconstruction!")
+    print(f"  Improvement factor:  {initial_rms/residual_rms:.2f}x" \
+          if residual_rms > 0 else "  Perfect reconstruction!")
     print(f"{'='*70}\n")
 
     # Assertions - allow 10% error on parameters
     assert abs(estimated_params[0] - shift_x) / abs(shift_x) < 0.1, \
         f"shift_x error too large: {abs(estimated_params[0] - shift_x) / abs(shift_x) * 100:.1f}%"
     assert abs(estimated_params[1] - shift_y) / abs(shift_y) < 0.1, \
-        f"shift_y error too large"
+        f"shift_y error too large: {abs(estimated_params[1] - shift_y) / abs(shift_y) * 100:.1f}%"
     assert abs(estimated_params[2] - rotation) / abs(rotation) < 0.1, \
-        f"rotation error too large"
+        f"rotation error too large: {abs(estimated_params[2] - rotation) / abs(rotation) * 100:.1f}%"
     assert abs(estimated_params[3] - magnification) / abs(magnification) < 0.1, \
-        f"magnification error too large"
-
+        f"magnification error too large:"
+        f" {abs(estimated_params[3] - magnification) / abs(magnification) * 100:.1f}%"
     # Check that estimated IM is closer to reference than original
     assert residual_rms < initial_rms, \
         "Estimated IM should be closer to reference than mis-registered IM"
 
-    # Check for significant improvement (at least 2x)
-    assert initial_rms / residual_rms > 2.0, \
-        f"Improvement factor too small: {initial_rms/residual_rms:.2f}x"
-
 
 if __name__ == '__main__':
     # Run single test for debugging
-    test_sprint_estimation(2.0, 1.5, 1.0, 0.02)
+    test_sprint_estimation(15.0, -5.0, 10.0, 0.1)

@@ -40,7 +40,7 @@ class SprintEstimator(BaseProcessingObj):
     This is a SCAO-specific implementation that automatically extracts all
     necessary parameters from connected SPECULA objects.
     
-    Parameters (passed via YAML with _ref suffix)
+    Parameters
     ----------------------------------------------
     dm : DM
         Deformable mirror object for parameter extraction
@@ -50,6 +50,32 @@ class SprintEstimator(BaseProcessingObj):
         Source object for coordinate information
     wfs : BaseProcessingObj (SH or ModulatedPyramid)
         WFS object for geometry extraction
+    modes_index : list
+        List of mode indices to estimate (e.g. [0] for first mode)
+    carrier_frequencies : list
+        List of carrier frequencies for each mode (in Hz)
+    estimation_dt : float
+        Time interval between estimations (in seconds)
+    max_iterations : int
+        Maximum number of iterations for parameter refinement
+    convergence_threshold : float
+        Threshold for convergence (relative IM error)
+    initial_misreg : list or None
+        Initial guess for mis-registration parameters [shift_x, shift_y, rot, magn(, magn_x, magn_y)]
+    apply_absolute_slopes : bool
+        Whether to use absolute value of slopes for demodulation (like IDL code)
+    enable_wpup_magn_xy : bool
+        Whether to enable separate X/Y magnification parameters (for WFS pupil magnification)
+    data_dir : str or None
+        Directory to save estimated IM (default: simul_params.root_dir)
+    im_tag : str or None
+        Tag for saved IM file (default: 'sprint_estimated_im')
+    overwrite : bool
+        Whether to overwrite existing IM file (default: False)
+    target_device_idx : int or None
+        Target device index for GPU processing (default: None)
+    precision : int or None
+        Numerical precision for computations (default: None)
     
     Inputs
     ------
@@ -70,7 +96,8 @@ class SprintEstimator(BaseProcessingObj):
                  slopec: Slopec,
                  source: Source,
                  wfs: BaseProcessingObj,  # SH or ModulatedPyramid
-                 carrier_frequencies: list = None,
+                 modes_index: list,
+                 carrier_frequencies: list,
                  estimation_dt: float = 10.0,
                  max_iterations: int = 10,
                  convergence_threshold: float = 1e-3,
@@ -94,6 +121,10 @@ class SprintEstimator(BaseProcessingObj):
         self.source = source
         self.wfs = wfs
 
+        if len(carrier_frequencies) != len(modes_index):
+            raise ValueError("carrier_frequencies and modes_index must have the same length")
+
+        self.modes_index = modes_index
         self.carrier_frequencies = self.xp.array(carrier_frequencies, dtype=self.dtype)
         self.estimation_dt = self.seconds_to_t(estimation_dt)
         self.max_iterations = max_iterations
@@ -117,7 +148,7 @@ class SprintEstimator(BaseProcessingObj):
         self.last_estimation_time = 0
 
         # Number of modes
-        self.nmodes = len(carrier_frequencies)
+        self.nmodes = len(modes_index)
 
         # History for demodulation
         self.slopes_history = []
@@ -167,6 +198,8 @@ class SprintEstimator(BaseProcessingObj):
 
         # Extract 3D Influence Function from DM
         self.ifunc_3d = cpuArray(self.dm.ifunc_obj.ifunc_2d_to_3d(normalize=True))
+        # Extract only modes of interest
+        self.ifunc_3d = self.ifunc_3d[:, :, self.modes_index]
 
         # Extract pupil mask from DM
         self.pup_mask = cpuArray(self.dm.mask)
@@ -176,9 +209,36 @@ class SprintEstimator(BaseProcessingObj):
             print(f"  WFS type: {self._get_wfs_type()}")
             print(f"  Number of modes: {self.nmodes}")
             print(f"  Number of slopes: {self.estimated_intmat.nslopes}")
-            print(f"  Valid subapertures: {self.idx_valid_sa.shape[0] if self.idx_valid_sa is not None else 'Unknown'}")
+            print(f"  Valid subapertures:"
+                  f"{self.idx_valid_sa.shape[0] if self.idx_valid_sa is not None else 'Unknown'}")
             print(f"  Estimation interval: {self.t_to_seconds(self.estimation_dt):.2f}s")
             print(f"  Source coordinates: {self.source.polar_coordinates}")
+
+    def _im_2d_map(self, im_mode):
+        """Convert interaction matrix to 2D map for visualization."""
+        # Load subapdata
+        if isinstance(self.slopec, ShSlopec):
+            # Shack-Hartmann case
+            subapdata = self.slopec.subapdata
+
+            # Create Slopes object for IM mode
+            sl = Slopes(length=im_mode.shape[0])
+            sl.set_value(im_mode)
+            sl.single_mask = subapdata.single_mask()
+            sl.display_map = subapdata.display_map
+
+            # Create 2D frames
+            frame_x = sl.xp.zeros_like(sl.single_mask, dtype=sl.dtype)
+            frame_y = sl.xp.zeros_like(sl.single_mask, dtype=sl.dtype)
+
+            # Remap to 2D
+            sl.x_remap2d(frame_x, sl.display_map)
+            sl.y_remap2d(frame_y, sl.display_map)
+        else:
+            raise NotImplementedError("2D IM map is only implemented for"
+                                      "Shack-Hartmann WFS in this example")
+
+        return frame_x, frame_y
 
     def _extract_valid_subapertures(self):
         """Extract valid subaperture indices from slopec"""
@@ -283,21 +343,25 @@ class SprintEstimator(BaseProcessingObj):
         sampling_freq = 1.0 / dt
 
         # Demodulate each mode separately
-        for mode_idx in range(self.nmodes):
-            carrier_freq = float(self.carrier_frequencies[mode_idx])
+        for i in range(self.nmodes):
+            carrier_freq = float(self.carrier_frequencies[i])
 
             # Demodulate each slope using vectorized operations
             for slope_idx in range(nslopes):
                 signal = cpuArray(slopes_array[:, slope_idx])
 
                 # Use SPECULA's demodulate_signal function
-                amplitude, _ = demodulate_signal(
+                amplitude, phase = demodulate_signal(
                     signal,
                     carrier_freq,
                     sampling_freq
                 )
 
-                im_measured[slope_idx, mode_idx] = self.to_xp(amplitude)
+                # Apply sign from phase: amplitude * cos(phase)
+                # This gives the signed amplitude (positive or negative)
+                signed_amplitude = amplitude * np.sign(np.cos(phase))
+
+                im_measured[slope_idx, i] = self.to_xp(signed_amplitude)
 
         # Apply absolute value if requested (like IDL code)
         if self.apply_absolute_slopes:
@@ -310,6 +374,8 @@ class SprintEstimator(BaseProcessingObj):
         if self.verbose:
             print(f"  Demodulated IM shape: {im_measured.shape}")
             print(f"  IM RMS: {float(self.xp.sqrt(self.xp.mean(im_measured**2))):.3e}")
+            print(f"  IM mean: {float(self.xp.mean(im_measured)):.3e}")
+            print(f"  IM range: [{float(self.xp.min(im_measured)):.3e}, {float(self.xp.max(im_measured)):.3e}]")
 
         return im_measured
 
@@ -338,6 +404,51 @@ class SprintEstimator(BaseProcessingObj):
 
             # Compute IM difference (corrected for optical gain)
             im_diff = self._apply_optical_gain_correction(im_measured, G_opt) - im_nominal
+
+            plot_debug = False  # Set to True to enable debug plotting
+            if plot_debug: # pragma: no cover
+                import matplotlib.pyplot as plt
+                plt.figure(figsize=(12, 5))
+                plt.plot(im_measured[:,0], label='Measured IM (demodulated)')
+                plt.plot(im_nominal[:,0], label='Nominal IM (current params)')
+                plt.plot(im_diff[:,0], label='IM Difference (corrected)')
+                plt.legend()
+                plt.title(f"Iteration {iteration+1}")
+                plt.xlabel("Slope index")
+                plt.ylabel("Amplitude")
+                plt.grid()
+
+                #2D plot of IM
+                im_2d_measured = self._im_2d_map(im_measured[:,0])
+                im_2d_nominal = self._im_2d_map(im_nominal[:,0])
+                im_2d_diff = self._m_2d_map(im_diff[:,0])
+                # Calculate common colorbar limits
+                all_data = [
+                    cpuArray(im_2d_measured[0]),
+                    cpuArray(im_2d_nominal[0]),
+                    cpuArray(im_2d_diff[0])
+                ]
+                vmin = min(data.min() for data in all_data)
+                vmax = max(data.max() for data in all_data)
+
+                plt.figure(figsize=(15,5))
+                plt.subplot(1,3,1)
+                plt.title("Measured IM (demodulated)")
+                plt.imshow(cpuArray(im_2d_measured[0]), cmap='viridis', vmin=vmin, vmax=vmax)
+                plt.colorbar()
+
+                plt.subplot(1,3,2)
+                plt.title("Nominal IM (current params)")
+                plt.imshow(cpuArray(im_2d_nominal[0]), cmap='viridis', vmin=vmin, vmax=vmax)
+                plt.colorbar()
+
+                plt.subplot(1,3,3)
+                plt.title("IM Difference (corrected)")
+                plt.imshow(cpuArray(im_2d_diff[0]), cmap='viridis', vmin=vmin, vmax=vmax)
+                plt.colorbar()
+
+                plt.tight_layout()
+                plt.show()
 
             # Estimate mis-registration correction
             delta_misreg = self._estimate_misreg_correction(im_diff, sens_matrices)
@@ -531,10 +642,10 @@ class SprintEstimator(BaseProcessingObj):
 
             # Solve for each mode separately, then average
             deltas = []
-            for mode_idx in range(self.nmodes):
+            for i in range(self.nmodes):
                 # sens_p[:, mode_idx] @ delta = im_diff[:, mode_idx]
-                sens_col = sens_p[:, mode_idx]
-                diff_col = im_diff[:, mode_idx] if im_diff.shape[1] > mode_idx else im_diff[:, 0]
+                sens_col = sens_p[:, i]
+                diff_col = im_diff[:, i] if im_diff.shape[1] > i else im_diff[:, 0]
 
                 # Least squares solution
                 delta = self.xp.dot(sens_col, diff_col) / (self.xp.dot(sens_col, sens_col) + 1e-12)
