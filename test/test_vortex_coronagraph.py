@@ -8,11 +8,11 @@ from specula.lib.calc_psf import calc_psf
 from specula.lib.make_mask import make_mask
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.simul_params import SimulParams
-from specula.processing_objects.four_quadrant_coronograph import FourQuadrantCoronograph
+from specula.processing_objects.vortex_coronagraph import VortexCoronagraph
 
 from test.specula_testlib import cpu_and_gpu
 
-class TestFourQuadrantCoronograph(unittest.TestCase):
+class TestVortexCoronagraph(unittest.TestCase):
 
     def setUp(self):
         # Basic simulation parameters
@@ -35,24 +35,39 @@ class TestFourQuadrantCoronograph(unittest.TestCase):
         coro.trigger_code()
         coro.post_trigger()
         return coro.outputs['out_ef']
-    
+
 
     def test_raise_value_error(self):
         # Test inner > outer pupil stop size
         with self.assertRaises(ValueError):
-            _ = FourQuadrantCoronograph(
+            _ = VortexCoronagraph(
                 simul_params=self.simul_params,
                 wavelengthInNm=self.wavelength_nm,
+                vortexCharge=6.0,
                 innerStopAsRatioOfPupil=0.9,
                 outerStopAsRatioOfPupil=0.1,
             )
-    
+        # inner vortex boolean = false but inner vortex parameter is still passed
+        with self.assertRaises(ValueError):
+            _ = VortexCoronagraph(
+                simul_params=self.simul_params,
+                wavelengthInNm=self.wavelength_nm,
+                vortexCharge=6.0,
+                inVortexShift=0.2,
+                addInVortex=False,
+                innerStopAsRatioOfPupil=0.9,
+                outerStopAsRatioOfPupil=0.1,
+            )
+
+
     @cpu_and_gpu
     def test_mask_shape(self, target_device_idx, xp):
-        """Test that coronograph masks have the expected shape"""
-        coro = FourQuadrantCoronograph(
+        """Test that coronagraph masks have the expected shape"""
+        coro = VortexCoronagraph(
             simul_params=self.simul_params,
             wavelengthInNm=self.wavelength_nm,
+            vortexCharge=6.0,
+            addInVortex=True,
             innerStopAsRatioOfPupil=0.0,
             outerStopAsRatioOfPupil=0.9,
             target_device_idx=target_device_idx
@@ -63,11 +78,11 @@ class TestFourQuadrantCoronograph(unittest.TestCase):
         self.assertEqual(coro.apodizer, 1.0) # no apodizer
 
         debug_plot = False
-        if debug_plot:
+        if debug_plot: # pragma: no cover
             import matplotlib.pyplot as plt
             plt.figure()
             plt.subplot(1,2,1)
-            plt.imshow(cpuArray(xp.angle(coro.fp_mask)), cmap='gray')
+            plt.imshow(cpuArray(xp.angle(coro.fp_mask)), cmap='RdBu')
             plt.colorbar()
             plt.title('Focal plane mask')
             plt.subplot(1,2,2)
@@ -78,16 +93,19 @@ class TestFourQuadrantCoronograph(unittest.TestCase):
     @cpu_and_gpu
     def test_output_shape(self, target_device_idx, xp):
         """Test that output ElectricField has expected shape"""
-        coro = FourQuadrantCoronograph(
+        coro = VortexCoronagraph(
             simul_params=self.simul_params,
             wavelengthInNm=self.wavelength_nm,
+            vortexCharge=6.0,
+            addInVortex=True,
             innerStopAsRatioOfPupil=0.0,
             outerStopAsRatioOfPupil=0.9,
             target_device_idx=target_device_idx
         )
 
         # Flat wavefront
-        ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil,
+                           self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
         ef.A[:] = xp.array(self.mask)
         ef.phaseInNm[:] = 0.0
         ef.generation_time = 1
@@ -98,18 +116,19 @@ class TestFourQuadrantCoronograph(unittest.TestCase):
 
 
     @cpu_and_gpu
-    def test_psf_with_and_without_coronograph(self, target_device_idx, xp):
-        """Test PSF with and without a coronograph using calc_psf"""
+    def test_psf_with_and_without_coronagraph(self, target_device_idx, xp):
+        """Test PSF with and without a coronagraph using calc_psf"""
         # No filter (no obstruction)
-        nodelay_coro = FourQuadrantCoronograph(
+        nodelay_coro = VortexCoronagraph(
             simul_params=self.simul_params,
             wavelengthInNm=self.wavelength_nm,
-            phase_delay=0.0,
+            vortexCharge=0.0,
             target_device_idx=target_device_idx
         )
 
         # Flat wavefront
-        ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil,
+                           self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
         ef.A[:] = xp.array(self.mask)
         ef.phaseInNm[:] = 0.0
         ef.generation_time = 1
@@ -117,27 +136,31 @@ class TestFourQuadrantCoronograph(unittest.TestCase):
         ef_nocoro = self.get_coro_field(nodelay_coro, ef)
 
         # With filter: central obstruction of 2 lambda/D
-        coro = FourQuadrantCoronograph(
+        coro = VortexCoronagraph(
             simul_params=self.simul_params,
             wavelengthInNm=self.wavelength_nm,
+            vortexCharge=6.0,
+            addInVortex=True,
             target_device_idx=target_device_idx
         )
         ef_coro = self.get_coro_field(coro, ef)
 
         # Compute PSF for both cases using calc_psf
         nm2rad = 2*xp.pi/self.wavelength_nm
-        psf_nocoro = calc_psf(ef_nocoro.phaseInNm*nm2rad, ef_nocoro.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
-        psf_coro = calc_psf(ef_coro.phaseInNm*nm2rad, ef_coro.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
+        psf_nocoro = calc_psf(ef_nocoro.phaseInNm*nm2rad, ef_nocoro.A,
+                              xp=xp, complex_dtype=xp.complex64, normalize=True)
+        psf_coro = calc_psf(ef_coro.phaseInNm*nm2rad, ef_coro.A,
+                            xp=xp, complex_dtype=xp.complex64, normalize=True)
 
         # Check shapes
         self.assertEqual(psf_nocoro.shape, psf_coro.shape)
 
-        # Check that the coronograph has an effect (PSFs should be smaller)
+        # Check that the coronagraph has an effect (PSFs should be smaller)
         diff = np.abs(psf_nocoro - psf_coro).sum()
-        self.assertGreater(cpuArray(diff), 0.0, "Coronograph does not affect the PSF!")
+        self.assertGreater(cpuArray(diff), 0.0, "Coronagraph does not affect the PSF!")
 
         debug_plot = False
-        if debug_plot:
+        if debug_plot: # pragma: no cover
             import matplotlib.pyplot as plt
             plt.figure()
             plt.subplot(1,2,1)
@@ -157,16 +180,17 @@ class TestFourQuadrantCoronograph(unittest.TestCase):
     @cpu_and_gpu
     def test_phase_and_amplitude_preservation(self, target_device_idx, xp):
         """Test that a flat input phase results in a flat output phase
-         and a nonzero output amplitude for the no coronograph case"""
-        nocoro = FourQuadrantCoronograph(
+         and a nonzero output amplitude for the no coronagraph case"""
+        nocoro = VortexCoronagraph(
             simul_params=self.simul_params,
             wavelengthInNm=self.wavelength_nm,
-            phase_delay=0.0,
+            vortexCharge=0.0,
             target_device_idx=target_device_idx
         )
 
         # Flat wavefront
-        ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil,
+                           self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
         ef.A[:] = xp.array(self.mask)
         ef.phaseInNm[:] = 0.0
         ef.generation_time = 1
@@ -186,3 +210,46 @@ class TestFourQuadrantCoronograph(unittest.TestCase):
         # Output amplitude should not be all zeros and should be approximately the same as the input one
         self.assertGreater(float(out_ef.A.sum()), 0.0)
         self.assertLess(float(out_ef.A.max()), 2.0*float(ef.A.max()))
+
+
+    # @cpu_and_gpu
+    # def test_s0_scaling_with_coronagraph(self, target_device_idx, xp):
+    #     """Test that S0 is scaled correctly when using the coronagraph"""
+    #     # Test with coronagraph - S0 should decrease
+    #     coro = FourQuadrantCoronagraph(
+    #         simul_params=self.simul_params,
+    #         wavelengthInNm=self.wavelength_nm,
+    #         outerStopAsRatioOfPupil=0.95,
+    #         innerStopAsRatioOfPupil=0.02,
+    #         target_device_idx=target_device_idx
+    #     )
+
+    #     # Test without coronagraph - S0 should remain similar
+    #     nodelay_coro = FourQuadrantCoronagraph(
+    #         simul_params=self.simul_params,
+    #         wavelengthInNm=self.wavelength_nm,
+    #         phase_delay=0.0,
+    #         target_device_idx=target_device_idx
+    #     )
+
+    #     # Create input electric field
+    #     ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, S0=100.0, target_device_idx=target_device_idx)
+    #     ef.A[:] = xp.array(self.mask)
+    #     ef.phaseInNm[:] = 0.0
+    #     ef.S0 = 100.0
+    #     ef.generation_time = 1
+
+    #     # Test with obstruction
+    #     ef_coro = self.get_coro_field(coro, ef)
+    #     s0_with_coro = ef_coro.S0
+
+    #     # Test without obstruction
+    #     ef_nocoro = self.get_coro_field(nodelay_coro, ef)
+    #     s0_no_coro = ef_nocoro.S0
+
+    #     # S0 with obstruction should be less than without obstruction
+    #     self.assertLess(s0_with_coro, s0_no_coro, "S0 should decrease with obstruction!")
+
+    #     # Both should be less than or equal to original S0
+    #     self.assertLessEqual(s0_with_coro, 100.0)
+    #     self.assertLessEqual(s0_no_coro, 100.0)

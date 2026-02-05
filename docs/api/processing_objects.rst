@@ -4,19 +4,19 @@ Processing Objects API
 Processing objects for simulating AO system components.
 
 
-Abstract Coronograph
+Abstract Coronagraph
 --------------------
 
-.. automodule:: specula.processing_objects.abstract_coronograph
+.. automodule:: specula.processing_objects.abstract_coronagraph
    :members:
    :undoc-members:
    :show-inheritance:
 
 
-Apodizer Coronograph
+Apodizer Coronagraph
 --------------------
 
-.. automodule:: specula.processing_objects.apodizer_coronograph
+.. automodule:: specula.processing_objects.apodizer_coronagraph
    :members:
    :undoc-members:
    :show-inheritance:
@@ -247,10 +247,10 @@ Focal Plane Filter
    :show-inheritance:
 
 
-Four Quadrant Coronograph
+Four Quadrant Coronagraph
 -------------------------
 
-.. automodule:: specula.processing_objects.four_quadrant_coronograph
+.. automodule:: specula.processing_objects.four_quadrant_coronagraph
    :members:
    :undoc-members:
    :show-inheritance:
@@ -319,10 +319,10 @@ Low Pass Filter
    :show-inheritance:
 
 
-Lyot Coronograph
+Lyot Coronagraph
 ----------------
 
-.. automodule:: specula.processing_objects.lyot_coronograph
+.. automodule:: specula.processing_objects.lyot_coronagraph
    :members:
    :undoc-members:
    :show-inheritance:
@@ -616,10 +616,10 @@ Vibration Generator
    :show-inheritance:
 
 
-Vortex Coronograph
+Vortex Coronagraph
 ------------------
 
-.. automodule:: specula.processing_objects.vortex_coronograph
+.. automodule:: specula.processing_objects.vortex_coronagraph
    :members:
    :undoc-members:
    :show-inheritance:

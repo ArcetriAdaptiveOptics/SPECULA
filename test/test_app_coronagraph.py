@@ -8,11 +8,11 @@ from specula.lib.calc_psf import calc_psf
 from specula.lib.make_mask import make_mask
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.simul_params import SimulParams
-from specula.processing_objects.apodizer_coronograph import APPCoronograph
+from specula.processing_objects.apodizer_coronagraph import APPCoronagraph
 
 from test.specula_testlib import cpu_and_gpu
 
-class TestAPPCoronograph(unittest.TestCase):
+class TestAPPCoronagraph(unittest.TestCase):
 
     def setUp(self):
         # Basic simulation parameters
@@ -35,11 +35,11 @@ class TestAPPCoronograph(unittest.TestCase):
         coro.trigger_code()
         coro.post_trigger()
         return coro.outputs['out_ef']
-    
+
     @cpu_and_gpu
     def test_mask_shape(self, target_device_idx, xp):
-        """Test that coronograph masks have the expected shape"""
-        coro = APPCoronograph(
+        """Test that coronagraph masks have the expected shape"""
+        coro = APPCoronagraph(
             simul_params=self.simul_params,
             wavelengthInNm=self.wavelength_nm,
             pupil=self.mask.copy(),
@@ -53,8 +53,8 @@ class TestAPPCoronograph(unittest.TestCase):
         self.assertEqual(coro.fp_mask.shape, (coro.fft_totsize,coro.fft_totsize)) 
         self.assertEqual(coro.apodizer.shape, (self.pixel_pupil, self.pixel_pupil)) # apodizer
 
-        debug_plot = True
-        if debug_plot:
+        debug_plot = False
+        if debug_plot: # pragma: no cover
             import matplotlib.pyplot as plt
             plt.figure()
             plt.subplot(1,2,1)
@@ -69,7 +69,7 @@ class TestAPPCoronograph(unittest.TestCase):
     @cpu_and_gpu
     def test_output_shape(self, target_device_idx, xp):
         """Test that output ElectricField has expected shape"""
-        coro = APPCoronograph(
+        coro = APPCoronagraph(
             simul_params=self.simul_params,
             wavelengthInNm=self.wavelength_nm,
             pupil=self.mask,
@@ -80,7 +80,8 @@ class TestAPPCoronograph(unittest.TestCase):
         )
 
         # Flat wavefront
-        ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil,
+                           self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
         ef.A[:] = xp.array(self.mask)
         ef.phaseInNm[:] = 0.0
         ef.generation_time = 1
@@ -91,17 +92,18 @@ class TestAPPCoronograph(unittest.TestCase):
 
 
     @cpu_and_gpu
-    def test_psf_with_and_without_coronograph(self, target_device_idx, xp):
-        """Test PSF with and without a coronograph using calc_psf"""
+    def test_psf_with_and_without_coronagraph(self, target_device_idx, xp):
+        """Test PSF with and without a coronagraph using calc_psf"""
 
         # Flat wavefront
-        ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil,
+                           self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
         ef.A[:] = xp.array(self.mask)
         ef.phaseInNm[:] = 0.0
         ef.generation_time = 1
 
-        # Coronograph
-        coro = APPCoronograph(
+        # Coronagraph
+        coro = APPCoronagraph(
             simul_params=self.simul_params,
             wavelengthInNm=self.wavelength_nm,
             pupil=self.mask,
@@ -114,18 +116,20 @@ class TestAPPCoronograph(unittest.TestCase):
 
         # Compute PSF for both cases using calc_psf
         nm2rad = 2*xp.pi/self.wavelength_nm
-        psf_nocoro = calc_psf(ef.phaseInNm*nm2rad, ef.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
-        psf_coro = calc_psf(ef_coro.phaseInNm*nm2rad, ef_coro.A, xp=xp, complex_dtype=xp.complex64, normalize=True)
+        psf_nocoro = calc_psf(ef.phaseInNm*nm2rad, ef.A,
+                              xp=xp, complex_dtype=xp.complex64, normalize=True)
+        psf_coro = calc_psf(ef_coro.phaseInNm*nm2rad, ef_coro.A,
+                            xp=xp, complex_dtype=xp.complex64, normalize=True)
 
         # Check shapes
         self.assertEqual(psf_nocoro.shape, psf_coro.shape)
 
-        # Check that the coronograph has an effect (PSFs should be smaller)
+        # Check that the coronagraph has an effect (PSFs should be smaller)
         diff = np.abs(psf_nocoro - psf_coro).sum()
-        self.assertGreater(cpuArray(diff), 0.0, "Coronograph does not affect the PSF!")
+        self.assertGreater(cpuArray(diff), 0.0, "Coronagraph does not affect the PSF!")
 
-        debug_plot = True
-        if debug_plot:
+        debug_plot = False
+        if debug_plot: # pragma: no cover
             import matplotlib.pyplot as plt
             plt.figure()
             plt.subplot(1,2,1)
@@ -144,10 +148,10 @@ class TestAPPCoronograph(unittest.TestCase):
 
 
     # @cpu_and_gpu
-    # def test_s0_scaling_with_coronograph(self, target_device_idx, xp):
-    #     """Test that S0 is scaled correctly when using the coronograph"""
-    #     # Test with coronograph - S0 should decrease
-    #     coro = APPCoronograph(
+    # def test_s0_scaling_with_coronagraph(self, target_device_idx, xp):
+    #     """Test that S0 is scaled correctly when using the coronagraph"""
+    #     # Test with coronagraph - S0 should decrease
+    #     coro = APPCoronagraph(
     #         simul_params=self.simul_params,
     #         wavelengthInNm=self.wavelength_nm,
     #         pupil=self.mask,
@@ -158,7 +162,8 @@ class TestAPPCoronograph(unittest.TestCase):
     #     )
 
     #     # Create input electric field
-    #     ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, S0=100.0, target_device_idx=target_device_idx)
+    #     ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
+    #                        S0=100.0, target_device_idx=target_device_idx)
     #     ef.A[:] = xp.array(self.mask)
     #     ef.phaseInNm[:] = 0.0
     #     ef.S0 = 100.0
@@ -168,5 +173,5 @@ class TestAPPCoronograph(unittest.TestCase):
     #     ef_coro = self.get_coro_field(coro, ef)
     #     s0_with_coro = ef_coro.S0
 
-    #     # S0 with coronograph should be less than SO without coronograph
-    #     self.assertLess(s0_with_coro, ef.S0, "S0 should decrease with coronograph!")
+    #     # S0 with coronagraph should be less than SO without coronagraph
+    #     self.assertLess(s0_with_coro, ef.S0, "S0 should decrease with coronagraph!")
