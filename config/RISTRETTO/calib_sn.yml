@@ -1,0 +1,77 @@
+# Slope null calibrator - averages WFS response over atmospheric realizations
+pyr_sn:
+  class: 'SnCalibrator'
+  output_tag: 'pyr_slope_null'           # Output filename
+  overwrite: true
+  inputs:
+    in_slopes: 'slopes.out_slopes'
+
+# Random seeing generator - varies around nominal value (here 1.0 arcsec)
+seeing_random:
+  class:             'RandomGenerator'
+  amp:               0.05                 # Variation amplitude [arcsec]
+  constant:          0.88                 # Mean seeing [arcsec]
+  distribution:      'UNIFORM'           # Uniform distribution in [0.9, 1.1]
+  outputs: ['output']
+
+# Random atmospheric phase generator
+atmo_random:
+  class:                'AtmoRandomPhase'
+  simul_params_ref:  'main'
+  L0:                   25               # [m] Outer scale
+  source_dict_ref:      ['source_ngs']
+  inputs:
+    seeing: 'seeing_random.output'
+    pupilstop: 'pupilstop'
+  outputs: ['out_source_ngs_ef']
+
+# Modal decomposition of atmospheric phase
+modal_analysis_random:
+  class: 'ModalAnalysis'
+  ifunc_inv_object: 'dm2k_kl_inv'
+  inputs:
+    in_ef: 'atmo_random.out_source_ngs_ef'
+  outputs: ['out_modes']
+
+# Scale modal coefficients to simulate partial correction
+# Note: In practice, this should be a mode-dependent vector
+scale_random:
+  class:  'BaseOperation'
+  constant_mul: 0.78                    # 78% correction level
+  inputs:
+    in_value1: 'modal_analysis_random.out_modes'
+  outputs: ['out_value']
+
+# DM applying partial correction
+dm_random:
+  class:             'DM'
+  simul_params_ref:  'main'
+  ifunc_object:      'dm2k_ifunc'      # Our computed influence functions
+  m2c_object:        'dm2k_m2c'        # Modal-to-command matrix
+  nmodes:            1200             # Number of controlled modes
+  height:            0                # Ground-conjugated DM
+  inputs:
+    in_command:      'scale_random.out_value'
+  outputs:           ['out_layer']
+
+# Combine atmospheric turbulence with DM correction
+ef_combinator:
+  class: 'ElectricFieldCombinator'
+  inputs:
+    in_ef1: 'atmo_random.out_source_ngs_ef'    # Turbulence
+    in_ef2: 'dm_random.out_layer'                  # Partial correction
+  outputs: ['out_ef']
+
+# Override main parameters for sufficient statistical sampling
+main_override:
+  total_time: 1.000   
+
+# Override Pyramid input to use combined field
+pyr_override:
+  inputs:
+    in_ef: 'ef_combinator.out_ef'
+
+# Remove closed-loop components (not needed for slope null)
+remove: ['atmo','seeing','wind_speed','wind_direction','data_store','atmo_mode_res', #'source_science',
+        'prop','dm',
+        'dm_mode_res','filter','psf','coro_psf', 'ef_prop','modalrec','unab_prop','dl_psf']

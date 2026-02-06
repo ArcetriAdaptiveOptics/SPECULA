@@ -1,0 +1,40 @@
+# this is the block that generates the pupil geometry file used by the Pyramid WFS
+# as a function of a single frame of the Pyramid WFS
+pyr1_pupdata:
+  class: 'PyrPupdataCalibrator'
+  thr1: 0.25
+  thr2: 0.4
+  display_debug: True
+  output_tag:        'pyr1_pupdata'
+  overwrite: true
+  inputs:
+    in_i: 'pyr1.out_i'
+
+pyr1_override:
+  mod_amp:           10.0   # Modulation radius (in lambda/D units)
+  inputs:
+    in_ef: 'prop.out_source_ngs_ef'
+
+pyr2_pupdata:
+  class: 'PyrPupdataCalibrator'
+  thr1: 0.25
+  thr2: 0.4
+  display_debug: True
+  output_tag:        'pyr2_pupdata'
+  overwrite: true
+  inputs:
+    in_i: 'pyr2.out_i'
+
+pyr2_override:
+  mod_amp:           10.0   # Modulation radius (in lambda/D units)
+  inputs:
+    in_ef: 'prop.out_source_ngs_ef'
+
+main_override:
+  total_time:  0.001
+
+# Remove unnecessary components to avoid issues and speed up the calibration
+remove: ['atmo', 'seeing', 'wind_direction', 'wind_speed', 'aperture', 'unab_prop',
+          'ocam1', 'slopes1', 'dm1', 'modalrec1', 'filter1', 'ef_prop1', 'dm1_mode_res', 'dm1_mode_res2',
+           'ocam2', 'slopes2', 'dm2', 'modalrec2', 'filter2', 'ef_prop2', 'dm2_mode_res',
+           'data_store', 'psf', 'psf1', 'psf2', 'coro_psf1', 'coro_psf2', 'atmo_mode_res']
