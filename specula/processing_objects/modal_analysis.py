@@ -7,6 +7,9 @@ from specula.data_objects.ifunc import IFunc
 from specula.data_objects.ifunc_inv import IFuncInv
 from specula.lib.compute_zern_ifunc import compute_zern_ifunc
 
+from skimage.restoration import unwrap_phase
+import numpy as np
+
 class ModalAnalysis(BaseProcessingObj):
 
     def __init__(self,
@@ -95,14 +98,11 @@ class ModalAnalysis(BaseProcessingObj):
         self.in_ef_list = self.local_inputs['in_ef_list']
 
     def unwrap_2d(self, p):
+        if not isinstance(p, np.ndarray):
+            p = self.xp.asnumpy(p)
         unwrapped_p = self.xp.copy(p)
-        for r in range(p.shape[1]):
-            row = unwrapped_p[:, r]
-            unwrapped_p[:, r] = self.xp.unwrap(row)
-        for c in range(p.shape[0]):
-            col = unwrapped_p[c, :]
-            unwrapped_p[c, :] = self.xp.unwrap(col)
-        return unwrapped_p
+        unwrapped_p = unwrap_phase(unwrapped_p, wrap_around=[True, True], rng=1)
+        return self.xp.array(unwrapped_p)
 
     def setup(self):
         super().setup()
