@@ -3,6 +3,7 @@ import specula
 specula.init(0)  # Default target device
 
 import unittest
+import os
 
 from specula import cpuArray
 
@@ -16,6 +17,8 @@ from test.specula_testlib import cpu_and_gpu
 
 import numpy as np
 
+@unittest.skipIf(os.getenv('CI') == 'true',
+                     "Disable for CI issues with Ubuntu and Python >=3.11")
 class TestModalAnalysisUnwrapping(unittest.TestCase):
 
     @cpu_and_gpu
