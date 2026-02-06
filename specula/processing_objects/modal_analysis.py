@@ -9,7 +9,6 @@ from specula.data_objects.ifunc_inv import IFuncInv
 from specula.lib.compute_zern_ifunc import compute_zern_ifunc
 
 from skimage.restoration import unwrap_phase
-import numpy as np
 
 class ModalAnalysis(BaseProcessingObj):
 
