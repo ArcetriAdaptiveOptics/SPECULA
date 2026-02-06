@@ -8,4 +8,4 @@ flask-socketio
 python-socketio
 requests
 pytest
-skimage
+scikit-image
