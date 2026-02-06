@@ -98,9 +98,9 @@ class ModalAnalysis(BaseProcessingObj):
         self.in_ef_list = self.local_inputs['in_ef_list']
 
     def unwrap_2d(self, p):
-        if not isinstance(p, np.ndarray):
-            p = self.xp.asnumpy(p)
         unwrapped_p = self.xp.copy(p)
+        if not isinstance(unwrapped_p, np.ndarray):
+            unwrapped_p = self.xp.asnumpy(unwrapped_p)
         unwrapped_p = unwrap_phase(unwrapped_p, wrap_around=[True, True], rng=1)
         return self.xp.array(unwrapped_p)
 
