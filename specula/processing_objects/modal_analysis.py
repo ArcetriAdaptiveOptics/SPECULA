@@ -1,3 +1,4 @@
+from specula import cpuArray
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_value import BaseValue
 from specula.connections import InputValue, InputList
@@ -98,11 +99,9 @@ class ModalAnalysis(BaseProcessingObj):
         self.in_ef_list = self.local_inputs['in_ef_list']
 
     def unwrap_2d(self, p):
-        unwrapped_p = self.xp.copy(p)
-        if not isinstance(unwrapped_p, np.ndarray):
-            unwrapped_p = self.xp.asnumpy(unwrapped_p)
+        unwrapped_p = cpuArray(self.xp.copy(p))
         unwrapped_p = unwrap_phase(unwrapped_p, wrap_around=[True, True], rng=1)
-        return self.xp.array(unwrapped_p)
+        return self.to_xp(unwrapped_p)
 
     def setup(self):
         super().setup()
