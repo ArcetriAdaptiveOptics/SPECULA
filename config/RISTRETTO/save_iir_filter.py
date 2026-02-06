@@ -66,9 +66,8 @@ if __name__ == "__main__":
     fs = 2000  # Frequenza di campionamento [Hz]
     excluded_filters = 20 
     n_filters = 1200
-    iir_gain = 0.5
+    iir_gain = 0.4
 
-    # Parametri per la variazione del polo/zero
     start_pole = [1.0, 0.995]
     end_pole = [0.85, 0.70] #[0.9, 0.75]
     start_zero = [0.85, 0.45]
@@ -90,7 +89,7 @@ if __name__ == "__main__":
     pole_values = start_pole[0] + (end_pole[0] - start_pole[0]) * t_powered
     pole2_values = start_pole[1] + (end_pole[1] - start_pole[1]) * t_powered
 
-    plot_poles = True
+    plot_poles = False
     if plot_poles:
         import matplotlib.pyplot as plt
         #plot pole2_values

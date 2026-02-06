@@ -16,7 +16,7 @@ from specula.base_value import BaseValue
 # plt.xscale('log')
 # plt.yscale('log')
 
-def show_psf(psf, oversampling:int=4, title:str='', ext=0.25, vmin=-8, cmap='twilight', maxVal=None):
+def show_psf(psf, oversampling:int=4, title:str='', ext=0.25, vmin=-8, vmax=0, cmap='twilight', maxVal=None):
     imageHalfSizeInPoints= psf.shape[0]/2
     roi= [int(imageHalfSizeInPoints*(1-ext)), int(imageHalfSizeInPoints*(1+ext))]
     psfZoom = psf[roi[0]: roi[1], roi[0]:roi[1]]
@@ -27,7 +27,7 @@ def show_psf(psf, oversampling:int=4, title:str='', ext=0.25, vmin=-8, cmap='twi
     plt.imshow(np.log10(psfZoom/maxVal), extent=
                [-sz[0]/2*pixelSize, sz[0]/2*pixelSize,
                -sz[1]/2*pixelSize, sz[1]/2*pixelSize],
-               origin='lower',cmap=cmap,vmin=vmin)
+               origin='lower',cmap=cmap,vmin=vmin,vmax=vmax)
     plt.xlabel(r'$\lambda/D$')
     plt.ylabel(r'$\lambda/D$')
     cbar= plt.colorbar()
