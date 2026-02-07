@@ -56,7 +56,8 @@ class SprintEstimator(BaseProcessingObj):
     convergence_threshold : float
         Threshold for convergence (relative IM error)
     initial_misreg : list or None
-        Initial guess for mis-registration parameters [shift_x, shift_y, rot, magn(, magn_x, magn_y)]
+        Initial guess for mis-registration parameters
+        [shift_x, shift_y, rot, magn(, magn_x, magn_y)]
     apply_absolute_slopes : bool
         Whether to use absolute value of slopes for demodulation (like IDL code)
     enable_wpup_magn_xy : bool
@@ -71,6 +72,16 @@ class SprintEstimator(BaseProcessingObj):
         Target device index for GPU processing (default: None)
     precision : int or None
         Numerical precision for computations (default: None)
+    integration_gain : float
+        Gain factor for parameter updates (0 < gain <= 1).
+        Lower values = slower convergence but more stable.
+        Default: 0.9
+    forgetting_factor : float or None
+        Forgetting factor for parameter integration (0 < factor <= 1).
+        If provided, parameters decay towards zero: 
+        params = params * forgetting_factor + delta * gain
+        None = no forgetting (pure integration).
+        Default: None
     
     Inputs
     ------
@@ -99,6 +110,8 @@ class SprintEstimator(BaseProcessingObj):
                  initial_misreg: list = None,
                  apply_absolute_slopes: bool = False,
                  enable_wpup_magn_xy: bool = False,
+                 integration_gain: float = 0.9,
+                 forgetting_factor: float = None,
                  data_dir: str = None,
                  im_tag: str = None,
                  overwrite: bool = False,
@@ -142,6 +155,20 @@ class SprintEstimator(BaseProcessingObj):
         # Number of modes
         self.nmodes = len(modes_index)
 
+        # Integration parameters
+        if not 0 < integration_gain <= 1:
+            raise ValueError(f"integration_gain must be in (0, 1],"
+                             f" got {integration_gain}")
+        self.integration_gain = integration_gain
+
+        if forgetting_factor is not None:
+            if not 0 < forgetting_factor <= 1:
+                raise ValueError(f"forgetting_factor must be in (0, 1]"
+                                 f" or None, got {forgetting_factor}")
+            self.forgetting_factor = forgetting_factor
+        else:
+            self.forgetting_factor = 1.0  # No forgetting
+
         # History for demodulation
         self.slopes_history = []
         self.time_history = []
@@ -163,6 +190,9 @@ class SprintEstimator(BaseProcessingObj):
         self.misreg_output = BaseValue(value=self.misreg_params.copy(),
                                        target_device_idx=target_device_idx,
                                        precision=precision)
+        self.error_output = BaseValue(value=self.xp.array([0.0], dtype=self.dtype),
+                                     target_device_idx=target_device_idx,
+                                     precision=precision)
 
         # Input connection (only slopes)
         self.inputs['in_slopes'] = InputValue(type=Slopes)
@@ -170,8 +200,7 @@ class SprintEstimator(BaseProcessingObj):
         # Outputs
         self.outputs['out_intmat'] = self.estimated_intmat
         self.outputs['out_misreg_params'] = self.misreg_output
-
-        self.verbose = True
+        self.outputs['out_convergence_error'] = self.error_output
 
     def setup(self):
         """Initialize slopes size and extract parameters from connected objects"""
@@ -312,6 +341,8 @@ class SprintEstimator(BaseProcessingObj):
         self.estimated_intmat.generation_time = t
         self.misreg_output.value = self.misreg_params.copy()
         self.misreg_output.generation_time = t
+        self.error_output.value = self.xp.array([self.current_error], dtype=self.dtype)
+        self.error_output.generation_time = t
 
     def _demodulate_slopes(self):
         """
@@ -367,7 +398,8 @@ class SprintEstimator(BaseProcessingObj):
             print(f"  Demodulated IM shape: {im_measured.shape}")
             print(f"  IM RMS: {float(self.xp.sqrt(self.xp.mean(im_measured**2))):.3e}")
             print(f"  IM mean: {float(self.xp.mean(im_measured)):.3e}")
-            print(f"  IM range: [{float(self.xp.min(im_measured)):.3e}, {float(self.xp.max(im_measured)):.3e}]")
+            print(f"  IM range: [{float(self.xp.min(im_measured)):.3e},"
+                  f" {float(self.xp.max(im_measured)):.3e}]")
 
         return im_measured
 
@@ -383,6 +415,12 @@ class SprintEstimator(BaseProcessingObj):
         if self.verbose:
             print(f"\n  Starting iterative estimation...")
             print(f"  Initial misreg params: {cpuArray(self.misreg_params)}")
+            print(f"  Integration gain: {self.integration_gain}")
+            if self.forgetting_factor is not None:
+                print(f"  Forgetting factor: {self.forgetting_factor}")
+
+        # Store initial parameters for this estimation cycle
+        params_before_cycle = self.misreg_params.copy()
 
         for iteration in range(self.max_iterations):
             # Compute nominal IM with current mis-registration parameters
@@ -445,18 +483,27 @@ class SprintEstimator(BaseProcessingObj):
             # Estimate mis-registration correction
             delta_misreg = self._estimate_misreg_correction(im_diff, sens_matrices)
 
-            # Update mis-registration parameters
-            self.misreg_params += delta_misreg
+            # Apply integration with gain and optional forgetting
+            self.misreg_params = (self.misreg_params * self.forgetting_factor +
+                                    delta_misreg * self.integration_gain)
 
             # Check convergence
-            error = float(self.xp.sqrt(self.xp.mean(im_diff**2)) /
-                         self.xp.sqrt(self.xp.mean(im_measured**2)))
+            error_abs = float(self.xp.sqrt(self.xp.mean(im_diff**2)))
+            error_rel = error_abs / float(self.xp.sqrt(self.xp.mean(im_measured**2)))
+
+            # Store current error
+            self.current_error = error_rel
 
             if self.verbose:
-                print(f"    Iteration {iteration+1}: error = {error:.3e}, "
-                      f"delta = {cpuArray(delta_misreg)}")
+                delta_norm = float(self.xp.sqrt(self.xp.mean(delta_misreg**2)))
+                applied_delta = cpuArray(delta_misreg * self.integration_gain)
+                print(f"    Iteration {iteration+1}:")
+                print(f"      Relative error: {error_rel:.3e}")
+                print(f"      Delta norm: {delta_norm:.3e}")
+                print(f"      Applied delta: {applied_delta}")
+                print(f"      Current params: {cpuArray(self.misreg_params)}")
 
-            if error < self.convergence_threshold:
+            if error_rel < self.convergence_threshold:
                 if self.verbose:
                     print(f"  Converged after {iteration+1} iterations!")
                 break
@@ -465,9 +512,13 @@ class SprintEstimator(BaseProcessingObj):
         im_final = self._compute_nominal_im()
         self.estimated_intmat.intmat = im_final
 
+        # Compute total change in this cycle
+        total_change = self.misreg_params - params_before_cycle
+
         if self.verbose:
             print(f"\n  Final misreg params: {cpuArray(self.misreg_params)}")
-            print(f"  Final error: {error:.3e}")
+            print(f"  Total change this cycle: {cpuArray(total_change)}")
+            print(f"  Final relative error: {error_rel:.3e}")
 
     def _compute_nominal_im(self):
         """
@@ -649,7 +700,7 @@ class SprintEstimator(BaseProcessingObj):
         return delta_misreg
 
     def finalize(self):
-        """Save final estimated IM"""
+        """Save final estimated IM and convergence plots"""
         im_path = os.path.join(self.data_dir, self.im_tag)
         if not im_path.endswith('.fits'):
             im_path += '.fits'

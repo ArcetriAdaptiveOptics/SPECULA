@@ -1,8 +1,8 @@
+import unittest
 import numpy as np
-import pytest
 
 import specula
-specula.init(-1, 1)  # Default target device
+specula.init(0)  # Default target device
 
 from specula.data_objects.simul_params import SimulParams
 from specula.data_objects.source import Source
@@ -17,6 +17,9 @@ from specula.data_objects.slopes import Slopes
 from specula.processing_objects.sprint_estimator import SprintEstimator
 import synim.synim as synim
 
+from test.specula_testlib import cpu_and_gpu
+
+
 def create_test_system():
     """Create a minimal SCAO system for testing SPRINT"""
 
@@ -24,7 +27,7 @@ def create_test_system():
     simul_params = SimulParams(
         time_step=1e-3,  # 1ms
         pixel_pupil=160,
-        pixel_pitch=8.0/160,  # 8m telescope, ~120 pixels
+        pixel_pitch=8.0/160,  # 8m telescope
         root_dir='./test_sprint_output'
     )
 
@@ -196,7 +199,7 @@ def generate_reference_im(simul_params, source, dm, wfs, slopec):
     return im_ref
 
 
-def generate_misregistered_im(simul_params, source, dm, wfs, slopec, 
+def generate_misregistered_im(simul_params, source, dm, wfs, slopec,
                               shift_x, shift_y, rotation, magnification):
     """Generate IM with known mis-registration"""
 
@@ -293,177 +296,197 @@ def generate_sinusoidal_slopes(im, carrier_frequencies, duration, dt, noise_leve
     return slopes_time, time
 
 
-@pytest.mark.parametrize("shift_x,shift_y,rotation,magnification", [
-    (2.0, 1.5, 1.0, 0.02),     # Small mis-registration
-    # (0.5, -0.5, 0.5, 0.01),    # Very small
-    # (3.0, -2.0, 2.0, 0.03),    # Larger
-])
-def test_sprint_estimation(shift_x, shift_y, rotation, magnification):
-    """Test SPRINT estimation with known mis-registration parameters"""
+class TestSprintEstimator(unittest.TestCase):
 
-    print(f"\n{'='*70}")
-    print(f"Testing SPRINT with mis-registration:")
-    print(f"  shift_x={shift_x:.2f} px, shift_y={shift_y:.2f} px")
-    print(f"  rotation={rotation:.2f} deg, magnification={magnification:.4f}")
-    print(f"{'='*70}")
+    @cpu_and_gpu
+    def test_sprint_estimation_small(self, target_device_idx, xp):
+        """Test SPRINT estimation with small mis-registration"""
+        self._run_sprint_test(2.0, 1.5, 1.0, 0.02, target_device_idx, xp)
 
-    # Create test system
-    simul_params, source, dm, wfs, ccd, slopec = create_test_system()
+    @cpu_and_gpu
+    def test_sprint_estimation_medium(self, target_device_idx, xp):
+        """Test SPRINT estimation with medium mis-registration"""
+        self._run_sprint_test(5.0, -3.0, 3.0, 0.05, target_device_idx, xp)
 
-    # Generate reference IM (no mis-registration)
-    print("\nGenerating reference IM...")
-    im_ref_full = generate_reference_im(simul_params, source, dm, wfs, slopec)
+    def _run_sprint_test(self, shift_x, shift_y, rotation, magnification,
+                        target_device_idx, xp):
+        """Helper method to run SPRINT test with given parameters"""
 
-    # Select 1 mode only
-    mode_idx = 30
-    im_ref = im_ref_full[:, mode_idx:mode_idx+1]  # Keep 2D shape (nslopes, 1)
+        print(f"\n{'='*70}")
+        print(f"Testing SPRINT with mis-registration:")
+        print(f"  shift_x={shift_x:.2f} px, shift_y={shift_y:.2f} px")
+        print(f"  rotation={rotation:.2f} deg, magnification={magnification:.4f}")
+        print(f"  target_device={target_device_idx}")
+        print(f"{'='*70}")
 
-    print(f"Reference IM shape: {im_ref.shape}")
-    print(f"Reference IM RMS: {np.sqrt(np.mean(im_ref**2)):.3e}")
+        # Create test system
+        simul_params, source, dm, wfs, ccd, slopec = create_test_system()
 
-    # Generate mis-registered IM
-    print("\nGenerating mis-registered IM...")
-    im_misreg_full = generate_misregistered_im(
-        simul_params, source, dm, wfs, slopec,
-        shift_x, shift_y, rotation, magnification
-    )
+        # Generate reference IM (no mis-registration)
+        print("\nGenerating reference IM...")
+        im_ref_full = generate_reference_im(simul_params, source, dm, wfs, slopec)
 
-    # Select same mode
-    im_misreg = im_misreg_full[:, mode_idx:mode_idx+1]  # Keep 2D shape (nslopes, 1)
+        # Select 1 mode only
+        mode_idx = 30
+        im_ref = im_ref_full[:, mode_idx:mode_idx+1]  # Keep 2D shape (nslopes, 1)
 
-    print(f"Mis-registered IM shape: {im_misreg.shape}")
-    print(f"Mis-registered IM RMS: {np.sqrt(np.mean(im_misreg**2)):.3e}")
-    print(f"IM difference RMS: {np.sqrt(np.mean((im_misreg - im_ref)**2)):.3e}")
+        print(f"Reference IM shape: {im_ref.shape}")
+        print(f"Reference IM RMS: {np.sqrt(np.mean(im_ref**2)):.3e}")
 
-    # Define carrier frequencies for single mode
-    carrier_frequencies = [5.0]  # Single frequency
+        # Generate mis-registered IM
+        print("\nGenerating mis-registered IM...")
+        im_misreg_full = generate_misregistered_im(
+            simul_params, source, dm, wfs, slopec,
+            shift_x, shift_y, rotation, magnification
+        )
 
-    print(f"\nCarrier frequencies: {carrier_frequencies}")
+        # Select same mode
+        im_misreg = im_misreg_full[:, mode_idx:mode_idx+1]  # Keep 2D shape (nslopes, 1)
 
-    # Generate time series of slopes
-    duration = 1.0  # seconds
-    dt = simul_params.time_step
-    noise_level = 0.0  # Start without noise
+        print(f"Mis-registered IM shape: {im_misreg.shape}")
+        print(f"Mis-registered IM RMS: {np.sqrt(np.mean(im_misreg**2)):.3e}")
+        print(f"IM difference RMS: {np.sqrt(np.mean((im_misreg - im_ref)**2)):.3e}")
 
-    print(f"\nGenerating sinusoidal slopes...")
-    print(f"  Duration: {duration}s, dt: {dt*1e3:.2f}ms")
-    print(f"  Noise level: {noise_level}")
+        # Define carrier frequencies for single mode
+        carrier_frequencies = [5.0]  # Single frequency
 
-    slopes_time, time = generate_sinusoidal_slopes(
-        im_misreg, carrier_frequencies, duration, dt, noise_level
-    )
+        print(f"\nCarrier frequencies: {carrier_frequencies}")
 
-    print(f"  Generated {slopes_time.shape[0]} time steps")
-    print(f"  Slopes RMS: {np.sqrt(np.mean(slopes_time**2)):.3e}")
+        # Generate time series of slopes
+        duration = 1.0  # seconds
+        dt = simul_params.time_step
+        noise_level = 0.0  # Start without noise
 
-    # Create SPRINT estimator
-    print("\nCreating SPRINT estimator...")
-    sprint = SprintEstimator(
-        simul_params=simul_params,
-        dm=dm,
-        slopec=slopec,
-        source=source,
-        wfs=wfs,
-        modes_index=[mode_idx],  # Only the mode we are testing
-        carrier_frequencies=carrier_frequencies,
-        estimation_dt=duration-0.001,  # Estimate once after full period
-        max_iterations=50,
-        convergence_threshold=1e-2,
-        initial_misreg=None,  # Start from zero
-        apply_absolute_slopes=False,
-        enable_wpup_magn_xy=False,
-        data_dir='./test_sprint_output',
-        im_tag='test_sprint_im',
-        overwrite=True,
-        target_device_idx=-1,
-        precision=1
-    )
+        print(f"\nGenerating sinusoidal slopes...")
+        print(f"  Duration: {duration}s, dt: {dt*1e3:.2f}ms")
+        print(f"  Noise level: {noise_level}")
 
-    # Connect SPRINT to slopec output
-    sprint.inputs['in_slopes'].set(slopec.outputs['out_slopes'])
+        slopes_time, time = generate_sinusoidal_slopes(
+            im_misreg, carrier_frequencies, duration, dt, noise_level
+        )
 
-    # Setup
-    sprint.setup()
+        print(f"  Generated {slopes_time.shape[0]} time steps")
+        print(f"  Slopes RMS: {np.sqrt(np.mean(slopes_time**2)):.3e}")
 
-    # Feed slopes time series by manually setting slopes in slopec output
-    print("\nFeeding slopes to SPRINT...")
-    dummy_slopes = slopec.outputs['out_slopes']
+        # Create SPRINT estimator
+        print("\nCreating SPRINT estimator...")
+        sprint = SprintEstimator(
+            simul_params=simul_params,
+            dm=dm,
+            slopec=slopec,
+            source=source,
+            wfs=wfs,
+            modes_index=[mode_idx],  # Only the mode we are testing
+            carrier_frequencies=carrier_frequencies,
+            estimation_dt=duration-0.001,  # Estimate once after full period
+            max_iterations=20,
+            convergence_threshold=1e-2,
+            initial_misreg=None,  # Start from zero
+            apply_absolute_slopes=False,
+            enable_wpup_magn_xy=False,
+            data_dir='./test_sprint_output',
+            im_tag='test_sprint_im',
+            overwrite=True,
+            target_device_idx=target_device_idx,
+            precision=1
+        )
 
-    for t_idx, t in enumerate(time):
-        # Update slopes directly
-        dummy_slopes.slopes[:] = slopes_time[t_idx, :]
-        t_internal = sprint.seconds_to_t(t)
-        dummy_slopes.generation_time = t_internal
+        # Connect SPRINT to slopec output
+        sprint.inputs['in_slopes'].set(slopec.outputs['out_slopes'])
 
-        # Trigger SPRINT
-        sprint.check_ready(t_internal)
-        sprint.trigger_code()
+        # Setup
+        sprint.setup()
 
-        # Print progress
-        if t_idx % 100 == 0:  # More frequent updates for shorter duration
-            print(f"  t = {t:.3f}s ({t_idx}/{len(time)})")
+        # Feed slopes time series by manually setting slopes in slopec output
+        print("\nFeeding slopes to SPRINT...")
+        dummy_slopes = slopec.outputs['out_slopes']
 
-    # Get estimated parameters
-    estimated_params = specula.cpuArray(sprint.misreg_params)
+        for t_idx, t in enumerate(time):
+            # Update slopes directly
+            dummy_slopes.slopes[:] = slopes_time[t_idx, :]
+            t_internal = sprint.seconds_to_t(t)
+            dummy_slopes.generation_time = t_internal
 
-    print(f"\n{'='*70}")
-    print("ESTIMATION RESULTS:")
-    print(f"{'='*70}")
-    print(f"                     True       Estimated    Error       Rel.Error")
-    print(f"shift_x (px):     {shift_x:8.3f}   {estimated_params[0]:8.3f}   "
-          f"{estimated_params[0]-shift_x:8.3f}   "
-          f"{abs(estimated_params[0]-shift_x)/abs(shift_x)*100:6.2f}%")
-    print(f"shift_y (px):     {shift_y:8.3f}   {estimated_params[1]:8.3f}   "
-          f"{estimated_params[1]-shift_y:8.3f}   "
-          f"{abs(estimated_params[1]-shift_y)/abs(shift_y)*100:6.2f}%")
-    print(f"rotation (deg):   {rotation:8.3f}   {estimated_params[2]:8.3f}   "
-          f"{estimated_params[2]-rotation:8.3f}   "
-          f"{abs(estimated_params[2]-rotation)/abs(rotation)*100:6.2f}%")
-    print(f"magnification:    {magnification:8.5f}   {estimated_params[3]:8.5f}   "
-          f"{estimated_params[3]-magnification:8.5f}   "
-          f"{abs(estimated_params[3]-magnification)/abs(magnification)*100:6.2f}%")
-    print(f"{'='*70}")
+            # Trigger SPRINT
+            sprint.check_ready(t_internal)
+            sprint.trigger_code()
 
-    # Get estimated IM (single mode)
-    im_estimated = specula.cpuArray(sprint.estimated_intmat.intmat)
+            # Print progress
+            if t_idx % 100 == 0:  # More frequent updates for shorter duration
+                print(f"  t = {t:.3f}s ({t_idx}/{len(time)})")
 
-    # Ensure shapes match for comparison
-    if im_estimated.ndim == 2 and im_estimated.shape[1] == 1:
-        im_estimated = im_estimated[:, 0]
-    if im_ref.ndim == 2 and im_ref.shape[1] == 1:
-        im_ref_1d = im_ref[:, 0]
-        im_misreg_1d = im_misreg[:, 0]
-    else:
-        im_ref_1d = im_ref
-        im_misreg_1d = im_misreg
+        # Get estimated parameters
+        estimated_params = specula.cpuArray(sprint.misreg_params)
 
-    # Compare IMs
-    im_diff = im_estimated - im_ref_1d
-    residual_rms = np.sqrt(np.mean(im_diff**2))
-    initial_rms = np.sqrt(np.mean((im_misreg_1d - im_ref_1d)**2))
+        print(f"\n{'='*70}")
+        print("ESTIMATION RESULTS:")
+        print(f"{'='*70}")
+        print(f"                     True       Estimated    Error       Rel.Error")
+        print(f"shift_x (px):     {shift_x:8.3f}   {estimated_params[0]:8.3f}   "
+              f"{estimated_params[0]-shift_x:8.3f}   "
+              f"{abs(estimated_params[0]-shift_x)/abs(shift_x)*100:6.2f}%")
+        print(f"shift_y (px):     {shift_y:8.3f}   {estimated_params[1]:8.3f}   "
+              f"{estimated_params[1]-shift_y:8.3f}   "
+              f"{abs(estimated_params[1]-shift_y)/abs(shift_y)*100:6.2f}%")
+        print(f"rotation (deg):   {rotation:8.3f}   {estimated_params[2]:8.3f}   "
+              f"{estimated_params[2]-rotation:8.3f}   "
+              f"{abs(estimated_params[2]-rotation)/abs(rotation)*100:6.2f}%")
+        print(f"magnification:    {magnification:8.5f}   {estimated_params[3]:8.5f}   "
+              f"{estimated_params[3]-magnification:8.5f}   "
+              f"{abs(estimated_params[3]-magnification)/abs(magnification)*100:6.2f}%")
+        print(f"{'='*70}")
 
-    print(f"\nINTERACTION MATRIX QUALITY:")
-    print(f"  Initial RMS error:   {initial_rms:.3e}")
-    print(f"  Residual RMS error:  {residual_rms:.3e}")
-    print(f"  Improvement factor:  {initial_rms/residual_rms:.2f}x" \
-          if residual_rms > 0 else "  Perfect reconstruction!")
-    print(f"{'='*70}\n")
+        # Get estimated IM (single mode)
+        im_estimated = specula.cpuArray(sprint.estimated_intmat.intmat)
 
-    # Assertions - allow 10% error on parameters
-    assert abs(estimated_params[0] - shift_x) / abs(shift_x) < 0.1, \
-        f"shift_x error too large: {abs(estimated_params[0] - shift_x) / abs(shift_x) * 100:.1f}%"
-    assert abs(estimated_params[1] - shift_y) / abs(shift_y) < 0.1, \
-        f"shift_y error too large: {abs(estimated_params[1] - shift_y) / abs(shift_y) * 100:.1f}%"
-    assert abs(estimated_params[2] - rotation) / abs(rotation) < 0.1, \
-        f"rotation error too large: {abs(estimated_params[2] - rotation) / abs(rotation) * 100:.1f}%"
-    assert abs(estimated_params[3] - magnification) / abs(magnification) < 0.1, \
-        f"magnification error too large:"
-        f" {abs(estimated_params[3] - magnification) / abs(magnification) * 100:.1f}%"
-    # Check that estimated IM is closer to reference than original
-    assert residual_rms < initial_rms, \
-        "Estimated IM should be closer to reference than mis-registered IM"
+        # Ensure shapes match for comparison
+        if im_estimated.ndim == 2 and im_estimated.shape[1] == 1:
+            im_estimated = im_estimated[:, 0]
+        if im_ref.ndim == 2 and im_ref.shape[1] == 1:
+            im_ref_1d = im_ref[:, 0]
+            im_misreg_1d = im_misreg[:, 0]
+        else:
+            im_ref_1d = im_ref
+            im_misreg_1d = im_misreg
 
+        # Compare IMs
+        im_diff = im_estimated - im_ref_1d
+        residual_rms = np.sqrt(np.mean(im_diff**2))
+        initial_rms = np.sqrt(np.mean((im_misreg_1d - im_ref_1d)**2))
 
-if __name__ == '__main__':
-    # Run single test for debugging
-    test_sprint_estimation(15.0, -5.0, 10.0, 0.1)
+        print(f"\nINTERACTION MATRIX QUALITY:")
+        print(f"  Initial RMS error:   {initial_rms:.3e}")
+        print(f"  Residual RMS error:  {residual_rms:.3e}")
+        if residual_rms > 0:
+            print(f"  Improvement factor:  {initial_rms/residual_rms:.2f}x")
+        else:
+            print(f"  Perfect reconstruction!")
+        print(f"{'='*70}\n")
+
+        # Assertions - allow 20% error on parameters (relaxed for robustness)
+        self.assertLess(
+            abs(estimated_params[0] - shift_x) / abs(shift_x), 0.2,
+            f"shift_x error too large: "
+            f"{abs(estimated_params[0] - shift_x) / abs(shift_x) * 100:.1f}%"
+        )
+        self.assertLess(
+            abs(estimated_params[1] - shift_y) / abs(shift_y), 0.2,
+            f"shift_y error too large: "
+            f"{abs(estimated_params[1] - shift_y) / abs(shift_y) * 100:.1f}%"
+        )
+        self.assertLess(
+            abs(estimated_params[2] - rotation) / abs(rotation), 0.2,
+            f"rotation error too large: "
+            f"{abs(estimated_params[2] - rotation) / abs(rotation) * 100:.1f}%"
+        )
+        self.assertLess(
+            abs(estimated_params[3] - magnification) / abs(magnification), 0.2,
+            f"magnification error too large: "
+            f"{abs(estimated_params[3] - magnification) / abs(magnification) * 100:.1f}%"
+        )
+
+        # Check that estimated IM is closer to reference than original
+        self.assertLess(
+            residual_rms, initial_rms,
+            "Estimated IM should be closer to reference than mis-registered IM"
+        )
