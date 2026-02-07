@@ -9,3 +9,4 @@ flask-socketio
 python-socketio
 requests
 pytest
+scikit-image

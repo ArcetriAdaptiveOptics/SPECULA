@@ -89,6 +89,7 @@ All required dependencies will be installed automatically, including:
 * **flask**: Web framework for display server
 * **flask-socketio**: Real-time web communication
 * **python-socketio**: WebSocket client support
+* **scikit-image**: Image processing algorithms
 
 Optional Libraries
 ^^^^^^^^^^^^^^^^^^
