@@ -17,12 +17,7 @@ from specula.processing_objects.modulated_pyramid import ModulatedPyramid
 from specula import xp, cpuArray, np
 
 # Import SynIM for sensitivity matrix computation
-try:
-    import synim.synim as synim
-    SYNIM_AVAILABLE = True
-except ImportError:
-    SYNIM_AVAILABLE = False
-    print("Warning: SynIM not available. SPRINT estimator will not work.")
+import synim.synim as synim
 
 
 class SprintEstimator(BaseProcessingObj):
@@ -111,9 +106,6 @@ class SprintEstimator(BaseProcessingObj):
                  precision: int = None):
 
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-
-        if not SYNIM_AVAILABLE:
-            raise RuntimeError("SynIM is required for SprintEstimator")
 
         self.simul_params = simul_params
         self.dm = dm
