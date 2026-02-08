@@ -14,7 +14,7 @@ from specula.processing_objects.sh import SH
 from specula.processing_objects.ccd import CCD
 from specula.processing_objects.sh_slopec import ShSlopec
 from specula.data_objects.slopes import Slopes
-from specula.processing_objects.sprint_estimator import SprintEstimator
+from specula.processing_objects.sprint_sh_synim import SprintShSynim
 import synim.synim as synim
 
 from test.specula_testlib import cpu_and_gpu
@@ -296,7 +296,7 @@ def generate_sinusoidal_slopes(im, carrier_frequencies, duration, dt, noise_leve
     return slopes_time, time
 
 
-class TestSprintEstimator(unittest.TestCase):
+class TestSprintShSynim(unittest.TestCase):
 
     @cpu_and_gpu
     def test_sprint_estimation_small(self, target_device_idx, xp):
@@ -370,7 +370,7 @@ class TestSprintEstimator(unittest.TestCase):
 
         # Create SPRINT estimator
         print("\nCreating SPRINT estimator...")
-        sprint = SprintEstimator(
+        sprint = SprintShSynim(
             simul_params=simul_params,
             dm=dm,
             slopec=slopec,
