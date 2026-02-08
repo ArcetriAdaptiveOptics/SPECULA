@@ -108,8 +108,9 @@ class BaseSprintEstimator(BaseProcessingObj):
                  convergence_threshold: float = 1e-3,
                  initial_misreg: list = None,
                  apply_absolute_slopes: bool = False,
-                 integration_gain: float = 0.9,
+                 integration_gain: float = 0.5,
                  forgetting_factor: float = 1.0,
+                 verbose: bool = False,
                  target_device_idx: int = None,
                  precision: int = None):
 
@@ -147,6 +148,8 @@ class BaseSprintEstimator(BaseProcessingObj):
         if not 0 < forgetting_factor <= 1:
             raise ValueError(f"forgetting_factor must be in (0, 1] or None")
         self.forgetting_factor = forgetting_factor
+
+        self.verbose = verbose
 
         # Initialize mis-registration parameters
         self.n_params = n_params
@@ -242,6 +245,8 @@ class BaseSprintEstimator(BaseProcessingObj):
             print(f"\n{self.__class__.__name__} initialized:")
             print(f"  Number of modes: {self.nmodes}")
             print(f"  Number of slopes: {self.estimated_intmat.nslopes}")
+            print(f"  Size of pupil: {self.pup_mask.shape}")
+            print(f"  Size of DM influence functions: {self.ifunc_3d.shape}")
             print(f"  Estimation interval: {self.t_to_seconds(self.estimation_dt):.2f}s")
             print(f"  Integration gain: {self.integration_gain}")
             print(f"  Forgetting factor: {self.forgetting_factor}")
@@ -302,7 +307,7 @@ class BaseSprintEstimator(BaseProcessingObj):
         nslopes = slopes_array.shape[1]
         im_measured = self.xp.zeros((nslopes, self.nmodes), dtype=self.dtype)
 
-        dt = self.t_to_seconds(self.simul_params.time_step)
+        dt = self.simul_params.time_step
         sampling_freq = 1.0 / dt
 
         # Demodulate each mode
@@ -332,6 +337,11 @@ class BaseSprintEstimator(BaseProcessingObj):
 
         return im_measured
 
+    def _plot_debug_info(self, im_measured, im_nominal,
+                         im_diff, G_opt, iteration):
+        """Plot debug information for SH WFS."""
+        pass  # Implemented in subclass if needed
+
     def _iterative_estimation(self, im_measured):
         """
         Iterative estimation loop with integration and forgetting.
@@ -347,6 +357,9 @@ class BaseSprintEstimator(BaseProcessingObj):
 
         params_before = self.misreg_params.copy()
 
+        # Compute reference norm once (for relative error)
+        im_measured_norm = float(self.xp.sqrt(self.xp.mean(im_measured**2)))
+
         for iteration in range(self.max_iterations):
             # Compute nominal IM (subclass-specific)
             im_nominal = self._compute_nominal_im()
@@ -354,11 +367,21 @@ class BaseSprintEstimator(BaseProcessingObj):
             # Compute optical gains
             G_opt = self._compute_optical_gains(im_measured, im_nominal)
 
+            # Mean absolute gain (for error weighting)
+            G_mean = float(self.xp.mean(self.xp.abs(G_opt)))
+
+            if self.verbose:
+                print(f"    Optical gains: {cpuArray(G_opt)}, mean: {G_mean:.3f}")
+
             # Compute sensitivities (subclass-specific)
             sens_matrices = self._compute_sensitivity_matrices()
 
             # Corrected difference
             im_diff = self._apply_optical_gain_correction(im_measured, G_opt) - im_nominal
+
+            plot_debug = False  # Set to True to enable debug plotting
+            if plot_debug: # pragma: no cover
+                self._plot_debug_info(im_measured, im_nominal, im_diff, G_opt, iteration)
 
             # Estimate correction
             delta_misreg = self._estimate_misreg_correction(im_diff, sens_matrices)
@@ -367,16 +390,19 @@ class BaseSprintEstimator(BaseProcessingObj):
             self.misreg_params = (self.misreg_params * self.forgetting_factor +
                                  delta_misreg * self.integration_gain)
 
-            # Check convergence
-            error_rel = float(self.xp.sqrt(self.xp.mean(im_diff**2))) / \
-                       float(self.xp.sqrt(self.xp.mean(im_measured**2)))
+            # Compute weighted relative error
+            # If gains are close to 1.0, this reduces to standard relative error
+            error_abs = float(self.xp.sqrt(self.xp.mean(im_diff**2)))
+            error_rel = error_abs / im_measured_norm
+            error_weighted = error_rel * G_mean  # Weight by mean gain
             self.current_error = error_rel
 
             if self.verbose:
-                print(f"    Iteration {iteration+1}: error={error_rel:.3e}, "
-                      f"params={cpuArray(self.misreg_params)}")
+                print(f"    Iteration {iteration+1}: error_rel={error_rel:.3e}, "
+                    f"error_weighted={error_weighted:.3e}, params={cpuArray(self.misreg_params)}")
 
-            if error_rel < self.convergence_threshold:
+            # Check convergence on weighted error
+            if error_weighted < self.convergence_threshold:
                 if self.verbose:
                     print(f"  Converged after {iteration+1} iterations!")
                 break
@@ -391,13 +417,8 @@ class BaseSprintEstimator(BaseProcessingObj):
 
     def _compute_optical_gains(self, im_measured, im_nominal):
         """Compute optical gains for each mode"""
-        if self.nmodes == 1:
-            num = self.xp.dot(im_measured.ravel(), im_nominal.ravel())
-            den = self.xp.dot(im_nominal.ravel(), im_nominal.ravel())
-            return self.xp.array([num / (den + 1e-12)])
-        else:
-            rec = self.xp.linalg.pinv(im_nominal)
-            return self.xp.diag(im_measured @ rec)
+        rec = self.xp.linalg.pinv(im_nominal)
+        return self.xp.diag(rec @ im_measured)
 
     def _apply_optical_gain_correction(self, im_measured, G_opt):
         """Apply optical gain correction"""

@@ -3,11 +3,13 @@ SPRINT Estimator for Shack-Hartmann WFS using SynIM for IM computation.
 """
 
 import synim.synim as synim
+from specula.data_objects.slopes import Slopes
 from specula.processing_objects.base_sprint_estimator import BaseSprintEstimator
 from specula.processing_objects.sh import SH
 from specula.processing_objects.sh_slopec import ShSlopec
 from specula import cpuArray, np
 
+import matplotlib.pyplot as plt
 
 class SprintShSynim(BaseSprintEstimator):
     """
@@ -48,8 +50,9 @@ class SprintShSynim(BaseSprintEstimator):
                  convergence_threshold=1e-3,
                  initial_misreg=None,
                  apply_absolute_slopes=False,
-                 integration_gain=0.9,
+                 integration_gain=0.5,
                  forgetting_factor=1.0,
+                 verbose: bool = False,
                  target_device_idx=None,
                  precision=None):
         """
@@ -83,6 +86,7 @@ class SprintShSynim(BaseSprintEstimator):
             apply_absolute_slopes=apply_absolute_slopes,
             integration_gain=integration_gain,
             forgetting_factor=forgetting_factor,
+            verbose=verbose,
             target_device_idx=target_device_idx,
             precision=precision
         )
@@ -140,8 +144,8 @@ class SprintShSynim(BaseSprintEstimator):
         im_nominal = synim.interaction_matrix(
             pup_diam_m=self.pup_diam_m,
             pup_mask=self.pup_mask,
-            dm_array=cpuArray(self.ifunc_3d),
-            dm_mask=cpuArray(self.dm.mask).T,
+            dm_array=self.ifunc_3d,
+            dm_mask=self.pup_mask.T,
             dm_height=0.0,
             dm_rotation=0.0,
             gs_pol_coo=gs_pol_coo,
@@ -203,3 +207,78 @@ class SprintShSynim(BaseSprintEstimator):
         self.misreg_params = original_params
 
         return sens_matrices
+
+    def _im_2d_map(self, im_mode): # pragma: no cover
+        """Convert interaction matrix to 2D map for visualization."""
+        # Load subapdata
+        if isinstance(self.slopec, ShSlopec):
+            # Shack-Hartmann case
+            subapdata = self.slopec.subapdata
+
+            # Create Slopes object for IM mode
+            sl = Slopes(length=im_mode.shape[0])
+            sl.set_value(im_mode)
+            sl.single_mask = subapdata.single_mask()
+            sl.display_map = subapdata.display_map
+
+            # Create 2D frames
+            frame_x = sl.xp.zeros_like(sl.single_mask, dtype=sl.dtype)
+            frame_y = sl.xp.zeros_like(sl.single_mask, dtype=sl.dtype)
+
+            # Remap to 2D
+            sl.x_remap2d(frame_x, sl.display_map)
+            sl.y_remap2d(frame_y, sl.display_map)
+        else:
+            raise NotImplementedError("2D IM map is only implemented for"
+                                      "Shack-Hartmann WFS in this example")
+
+        return frame_x, frame_y
+
+    def _plot_debug_info(self, im_measured, im_nominal,
+                         im_diff, G_opt, iteration): # pragma: no cover
+        """Plot debug information for SH WFS."""
+
+        print(f"G_opt: {cpuArray(G_opt)}")
+        print(f"Mis-reg parameters: {cpuArray(self.misreg_params)}")
+
+        plt.figure(figsize=(12, 5))
+        plt.plot(im_measured[:,0]/G_opt[0], label='Measured IM (demodulated)')
+        plt.plot(im_nominal[:,0], label='Nominal IM (current params)')
+        plt.plot(im_diff[:,0], label='IM Difference (corrected)')
+        plt.legend()
+        plt.title(f"Iteration {iteration+1}")
+        plt.xlabel("Slope index")
+        plt.ylabel("Amplitude")
+        plt.grid()
+
+        #2D plot of IM
+        im_2d_measured = self._im_2d_map(im_measured[:,0]/G_opt[0])
+        im_2d_nominal = self._im_2d_map(im_nominal[:,0])
+        im_2d_diff = self._im_2d_map(im_diff[:,0])
+        # Calculate common colorbar limits
+        all_data = [
+            cpuArray(im_2d_measured[0]),
+            cpuArray(im_2d_nominal[0]),
+            cpuArray(im_2d_diff[0])
+        ]
+        vmin = min(data.min() for data in all_data)
+        vmax = max(data.max() for data in all_data)
+
+        plt.figure(figsize=(15,5))
+        plt.subplot(1,3,1)
+        plt.title("Measured IM (demodulated)")
+        plt.imshow(cpuArray(im_2d_measured[0]), cmap='viridis', vmin=vmin, vmax=vmax)
+        plt.colorbar()
+
+        plt.subplot(1,3,2)
+        plt.title("Nominal IM (current params)")
+        plt.imshow(cpuArray(im_2d_nominal[0]), cmap='viridis', vmin=vmin, vmax=vmax)
+        plt.colorbar()
+
+        plt.subplot(1,3,3)
+        plt.title("IM Difference (corrected)")
+        plt.imshow(cpuArray(im_2d_diff[0]), cmap='viridis', vmin=vmin, vmax=vmax)
+        plt.colorbar()
+
+        plt.tight_layout()
+        plt.show()

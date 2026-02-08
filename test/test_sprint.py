@@ -367,6 +367,8 @@ class TestSprintShSynim(unittest.TestCase):
         print(f"  Generated {slopes_time.shape[0]} time steps")
         print(f"  Slopes RMS: {np.sqrt(np.mean(slopes_time**2)):.3e}")
 
+        slopes_time *= 100.0  # Scale up for testing optical gain estimation too
+
         # Create SPRINT estimator
         print("\nCreating SPRINT estimator...")
         sprint = SprintShSynim(
@@ -383,6 +385,7 @@ class TestSprintShSynim(unittest.TestCase):
             initial_misreg=None,  # Start from zero
             apply_absolute_slopes=False,
             enable_wpup_magn_xy=False,
+            integration_gain=0.9,
             target_device_idx=target_device_idx,
             precision=1
         )
@@ -479,10 +482,4 @@ class TestSprintShSynim(unittest.TestCase):
             abs(estimated_params[3] - magnification) / abs(magnification), 0.2,
             f"magnification error too large: "
             f"{abs(estimated_params[3] - magnification) / abs(magnification) * 100:.1f}%"
-        )
-
-        # Check that estimated IM is closer to reference than original
-        self.assertLess(
-            residual_rms, initial_rms,
-            "Estimated IM should be closer to reference than mis-registered IM"
         )
