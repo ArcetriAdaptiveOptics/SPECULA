@@ -310,6 +310,15 @@ Im Calibrator
    :show-inheritance:
 
 
+Im Sh Synim Generator
+---------------------
+
+.. automodule:: specula.processing_objects.im_sh_synim_generator
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Integrator
 ----------
 

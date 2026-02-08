@@ -310,6 +310,9 @@ class ImShSynimGenerator(BaseProcessingObj):
         shift_y = float(misreg_params[1])
         rotation = float(misreg_params[2])
         magnification = 1.0 + float(misreg_params[3])
+        if len(self.misreg_params) == 6:
+            wfs_anamorphosis_90 = float(self.misreg_params[4])
+            wfs_anamorphosis_45 = float(self.misreg_params[5])
 
         # Get source parameters
         gs_pol_coo = tuple(cpuArray(self.source.polar_coordinates))
@@ -329,6 +332,8 @@ class ImShSynimGenerator(BaseProcessingObj):
             wfs_rotation=rotation,
             wfs_translation=(shift_x, shift_y),
             wfs_mag_global=magnification,
+            wfs_anamorphosis_90=wfs_anamorphosis_90,
+            wfs_anamorphosis_45=wfs_anamorphosis_45,
             wfs_fov_arcsec=self.wfs.subap_wanted_fov,
             idx_valid_sa=self.idx_valid_sa,
             verbose=False,
