@@ -74,12 +74,6 @@ class BaseSprintEstimator(BaseProcessingObj):
         Gain for parameter updates (0 < gain <= 1)
     forgetting_factor : float or None
         Forgetting factor for integration (0 < factor <= 1, None = no forgetting)
-    data_dir : str or None
-        Directory for saving results
-    im_tag : str or None
-        Tag for saved IM file
-    overwrite : bool
-        Overwrite existing files
     target_device_idx : int or None
         GPU device index
     precision : int or None
@@ -116,9 +110,6 @@ class BaseSprintEstimator(BaseProcessingObj):
                  apply_absolute_slopes: bool = False,
                  integration_gain: float = 0.9,
                  forgetting_factor: float = 1.0,
-                 data_dir: str = None,
-                 im_tag: str = None,
-                 overwrite: bool = False,
                  target_device_idx: int = None,
                  precision: int = None):
 
@@ -156,11 +147,6 @@ class BaseSprintEstimator(BaseProcessingObj):
         if not 0 < forgetting_factor <= 1:
             raise ValueError(f"forgetting_factor must be in (0, 1] or None")
         self.forgetting_factor = forgetting_factor
-
-        # File I/O
-        self.data_dir = data_dir or simul_params.root_dir
-        self.im_tag = im_tag or 'sprint_estimated_im'
-        self.overwrite = overwrite
 
         # Initialize mis-registration parameters
         self.n_params = n_params
@@ -453,22 +439,3 @@ class BaseSprintEstimator(BaseProcessingObj):
             delta_misreg[p] = self.xp.mean(self.xp.array(deltas))
 
         return delta_misreg
-
-    def finalize(self):
-        """Save final results"""
-        im_path = os.path.join(self.data_dir, self.im_tag)
-        if not im_path.endswith('.fits'):
-            im_path += '.fits'
-
-        self.estimated_intmat.save(im_path, overwrite=self.overwrite)
-
-        if self.verbose:
-            print(f"\nSaved estimated IM to: {im_path}")
-            print(f"Final mis-registration parameters:")
-            print(f"  shift_x: {float(self.misreg_params[0]):.3f} px")
-            print(f"  shift_y: {float(self.misreg_params[1]):.3f} px")
-            print(f"  rotation: {float(self.misreg_params[2]):.3f} deg")
-            print(f"  magnification: {float(self.misreg_params[3]):.6f}")
-            if self.enable_wpup_magn_xy:
-                print(f"  magn_x: {float(self.misreg_params[4]):.6f}")
-                print(f"  magn_y: {float(self.misreg_params[5]):.6f}")

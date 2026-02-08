@@ -50,9 +50,6 @@ class SprintShSynim(BaseSprintEstimator):
                  apply_absolute_slopes=False,
                  integration_gain=0.9,
                  forgetting_factor=1.0,
-                 data_dir=None,
-                 im_tag=None,
-                 overwrite=False,
                  target_device_idx=None,
                  precision=None):
         """
@@ -86,9 +83,6 @@ class SprintShSynim(BaseSprintEstimator):
             apply_absolute_slopes=apply_absolute_slopes,
             integration_gain=integration_gain,
             forgetting_factor=forgetting_factor,
-            data_dir=data_dir,
-            im_tag=im_tag,
-            overwrite=overwrite,
             target_device_idx=target_device_idx,
             precision=precision
         )
