@@ -199,8 +199,6 @@ class TestImShSynimGenerator(unittest.TestCase):
             slopec=slopec,
             source=source,
             wfs=wfs,
-            modes_index=None,  # All modes
-            apply_absolute_slopes=False,
             compute_rec=False,  # Don't compute REC for this test
             target_device_idx=target_device_idx,
             precision=1
@@ -275,8 +273,6 @@ class TestImShSynimGenerator(unittest.TestCase):
             slopec=slopec,
             source=source,
             wfs=wfs,
-            modes_index=None,
-            apply_absolute_slopes=False,
             compute_rec=False,
             target_device_idx=target_device_idx,
             precision=1
@@ -332,8 +328,6 @@ class TestImShSynimGenerator(unittest.TestCase):
             slopec=slopec,
             source=source,
             wfs=wfs,
-            modes_index=None,
-            apply_absolute_slopes=False,
             compute_rec=True,  # Enable REC computation
             rec_nmodes=rec_nmodes,
             mmse=False,  # Use pseudo-inverse
@@ -378,64 +372,6 @@ class TestImShSynimGenerator(unittest.TestCase):
         self.assertLess(identity_error, 1e-2, "REC @ IM should be close to identity")
 
     @cpu_and_gpu
-    def test_im_generator_modes_subset(self, target_device_idx, xp):
-        """Test IM generation with only a subset of modes"""
-
-        print(f"\n{'='*70}")
-        print(f"Testing ImShSynimGenerator with mode subset")
-        print(f"  target_device={target_device_idx}")
-        print(f"{'='*70}")
-
-        # Create test system
-        simul_params, source, dm, wfs, slopec = create_test_system()
-
-        # Select subset of modes
-        modes_subset = [5, 10, 15, 20, 25]
-        print(f"\nMode indices: {modes_subset}")
-
-        # Create IM generator with mode subset
-        im_gen = ImShSynimGenerator(
-            simul_params=simul_params,
-            dm=dm,
-            slopec=slopec,
-            source=source,
-            wfs=wfs,
-            modes_index=modes_subset,
-            apply_absolute_slopes=False,
-            compute_rec=False,
-            target_device_idx=target_device_idx,
-            precision=1
-        )
-
-        # Setup
-        im_gen.setup()
-
-        # Trigger generation
-        im_gen.trigger_code()
-
-        # Get generated IM
-        im_generated = specula.cpuArray(im_gen.output_intmat.intmat)
-
-        print(f"\nGenerated IM shape: {im_generated.shape}")
-        self.assertEqual(im_generated.shape[1], len(modes_subset),
-                        "Number of modes should match subset")
-
-        # Generate full reference IM
-        im_ref_full = generate_reference_im_synim(simul_params, source, dm, wfs, slopec)
-
-        # Extract same modes from reference
-        im_ref_subset = im_ref_full[:, modes_subset]
-
-        # Compare
-        im_diff = im_generated - im_ref_subset
-        rms_diff = np.sqrt(np.mean(im_diff**2))
-        rel_diff = rms_diff / np.sqrt(np.mean(im_ref_subset**2))
-
-        print(f"Relative difference: {rel_diff*100:.3f}%")
-
-        self.assertLess(rel_diff, 1e-10, "Mode subset should match reference")
-
-    @cpu_and_gpu
     def test_im_generator_generate_im_method(self, target_device_idx, xp):
         """Test direct generate_im() method"""
 
@@ -454,8 +390,6 @@ class TestImShSynimGenerator(unittest.TestCase):
             slopec=slopec,
             source=source,
             wfs=wfs,
-            modes_index=None,
-            apply_absolute_slopes=False,
             compute_rec=False,
             target_device_idx=target_device_idx,
             precision=1

@@ -46,10 +46,6 @@ class ImShSynimGenerator(BaseProcessingObj):
         Guide star source
     wfs : SH
         Shack-Hartmann WFS object
-    modes_index : list or None
-        List of mode indices to compute (None = all modes)
-    apply_absolute_slopes : bool
-        Use absolute value of slopes (default: False)
     compute_rec : bool
         Compute reconstruction matrix (default: True)
     rec_nmodes : int or None
@@ -118,14 +114,13 @@ class ImShSynimGenerator(BaseProcessingObj):
                  slopec: ShSlopec,
                  source: Source,
                  wfs: SH,
-                 modes_index: list = None,
-                 apply_absolute_slopes: bool = False,
                  compute_rec: bool = True,
                  rec_nmodes: int = None,
                  mmse: bool = False,
                  r0: float = 0.15,
                  L0: float = 25.0,
                  noise_cov: Union[float, np.ndarray, list] = None,
+                 verbose: bool = False,
                  target_device_idx: int = None,
                  precision: int = None):
 
@@ -144,10 +139,6 @@ class ImShSynimGenerator(BaseProcessingObj):
         self.source = source
         self.wfs = wfs
 
-        # Mode configuration
-        self.modes_index = modes_index
-        self.apply_absolute_slopes = apply_absolute_slopes
-
         # Reconstruction configuration
         self.compute_rec = compute_rec
         self.rec_nmodes = rec_nmodes
@@ -165,6 +156,8 @@ class ImShSynimGenerator(BaseProcessingObj):
             self.noise_cov = [self.to_xp(nc) for nc in noise_cov]
         else:
             self.noise_cov = self.to_xp(noise_cov)
+
+        self.verbose = verbose
 
         # Pupil parameters
         self.pup_diam_m = simul_params.pixel_pupil * simul_params.pixel_pitch
@@ -201,14 +194,8 @@ class ImShSynimGenerator(BaseProcessingObj):
 
         # Extract DM parameters
         ifunc_3d_full = cpuArray(self.dm.ifunc_obj.ifunc_2d_to_3d(normalize=True))
-
-        if self.modes_index is not None:
-            self.ifunc_3d = ifunc_3d_full[:, :, self.modes_index]
-            nmodes = len(self.modes_index)
-        else:
-            self.ifunc_3d = ifunc_3d_full
-            nmodes = ifunc_3d_full.shape[2]
-            self.modes_index = list(range(nmodes))
+        self.ifunc_3d = ifunc_3d_full
+        nmodes = ifunc_3d_full.shape[2]
 
         self.pup_mask = cpuArray(self.dm.mask)
 
@@ -342,9 +329,6 @@ class ImShSynimGenerator(BaseProcessingObj):
             verbose=False,
             specula_convention=True
         )
-
-        if self.apply_absolute_slopes:
-            im = np.abs(im)
 
         return im
 
