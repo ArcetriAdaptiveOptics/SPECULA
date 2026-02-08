@@ -6,8 +6,7 @@ parameters, and optionally computes the corresponding reconstruction matrix.
 Can be connected to SPRINT estimator output to generate corrected IM and RM.
 """
 
-import synim.synim as synim
-import os
+from specula.lib.synim_utils import compute_im_synim
 from specula.base_processing_obj import BaseProcessingObj
 from specula.connections import InputValue
 from specula.data_objects.intmat import Intmat
@@ -281,56 +280,31 @@ class ImShSynimGenerator(BaseProcessingObj):
         
         Parameters
         ----------
-        misreg_params : array_like, shape (4,) or (6,)
+        misreg_params : array_like
             Mis-registration parameters:
-            [shift_x, shift_y, rotation, magnification(, magn_x, magn_y)]
+            - If length 4: [shift_x, shift_y, rotation, magnification]
+            - If length 6: [shift_x, shift_y, rotation, mag_global,
+                            anamorphosis_90, anamorphosis_45]
         
         Returns
         -------
         im : ndarray, shape (nslopes, nmodes)
             Interaction matrix
         """
-        misreg_params = np.asarray(misreg_params)
-
-        # Extract parameters
-        shift_x = float(misreg_params[0])
-        shift_y = float(misreg_params[1])
-        rotation = float(misreg_params[2])
-        magnification = 1.0 + float(misreg_params[3])
-        if len(misreg_params) == 6:
-            wfs_anamorphosis_90 = float(misreg_params[4])
-            wfs_anamorphosis_45 = float(misreg_params[5])
-        else:
-            wfs_anamorphosis_90 = 1.0
-            wfs_anamorphosis_45 = 1.0
-
-        # Get source parameters
-        gs_pol_coo = tuple(cpuArray(self.source.polar_coordinates))
-        gs_height = self.source.height if self.source.height != float('inf') else float('inf')
-
-        # Compute IM with SynIM
-        im = synim.interaction_matrix(
+        return compute_im_synim(
+            misreg_params=misreg_params,
             pup_diam_m=self.pup_diam_m,
             pup_mask=self.pup_mask,
-            dm_array=self.ifunc_3d,
-            dm_mask=self.dm.mask.T if hasattr(self.dm.mask, 'T') else cpuArray(self.dm.mask).T,
-            dm_height=0.0,
-            dm_rotation=0.0,
-            gs_pol_coo=gs_pol_coo,
-            gs_height=gs_height,
+            ifunc_3d=self.ifunc_3d,
+            dm_mask=self.dm.mask,
+            source_polar_coords=self.source.polar_coordinates,
+            source_height=self.source.height,
             wfs_nsubaps=self.wfs.subap_on_diameter,
-            wfs_rotation=rotation,
-            wfs_translation=(shift_x, shift_y),
-            wfs_mag_global=magnification,
-            wfs_anamorphosis_90=wfs_anamorphosis_90,
-            wfs_anamorphosis_45=wfs_anamorphosis_45,
             wfs_fov_arcsec=self.wfs.subap_wanted_fov,
             idx_valid_sa=self.idx_valid_sa,
-            verbose=False,
-            specula_convention=True
+            apply_absolute_slopes=False,
+            verbose=self.verbose
         )
-
-        return im
 
     def generate_rec(self):
         """

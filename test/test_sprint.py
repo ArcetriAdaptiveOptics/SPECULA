@@ -410,10 +410,6 @@ class TestSprintShSynim(unittest.TestCase):
             sprint.check_ready(t_internal)
             sprint.trigger_code()
 
-            # Print progress
-            if t_idx % 100 == 0:  # More frequent updates for shorter duration
-                print(f"  t = {t:.3f}s ({t_idx}/{len(time)})")
-
         # Get estimated parameters
         estimated_params = specula.cpuArray(sprint.misreg_params)
 

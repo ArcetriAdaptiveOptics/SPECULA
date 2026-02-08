@@ -2,7 +2,7 @@
 SPRINT Estimator for Shack-Hartmann WFS using SynIM for IM computation.
 """
 
-import synim.synim as synim
+from specula.lib.synim_utils import compute_im_synim
 from specula.data_objects.slopes import Slopes
 from specula.processing_objects.base_sprint_estimator import BaseSprintEstimator
 from specula.processing_objects.sh import SH
@@ -124,50 +124,22 @@ class SprintShSynim(BaseSprintEstimator):
 
     def _compute_nominal_im(self):
         """Compute nominal IM using SynIM"""
-        # Extract current mis-registration
-        shift_x = float(self.misreg_params[0])
-        shift_y = float(self.misreg_params[1])
-        rotation = float(self.misreg_params[2])
-        magnification = 1.0 + float(self.misreg_params[3])
-        if len(self.misreg_params) == 6:
-            wfs_anamorphosis_90 = float(self.misreg_params[4])
-            wfs_anamorphosis_45 = float(self.misreg_params[5])
-        else:
-            wfs_anamorphosis_90 = 1.0
-            wfs_anamorphosis_45 = 1.0
-
-        # Get source parameters
-        gs_pol_coo = tuple(cpuArray(self.source.polar_coordinates))
-        gs_height = self.source.height if self.source.height != float('inf') else float('inf')
-
-        # Compute IM with SynIM
-        im_nominal = synim.interaction_matrix(
+        im_nominal = compute_im_synim(
+            misreg_params=self.misreg_params,
             pup_diam_m=self.pup_diam_m,
             pup_mask=self.pup_mask,
-            dm_array=self.ifunc_3d,
-            dm_mask=self.pup_mask.T,
-            dm_height=0.0,
-            dm_rotation=0.0,
-            gs_pol_coo=gs_pol_coo,
-            gs_height=gs_height,
+            ifunc_3d=self.ifunc_3d,
+            dm_mask=self.dm.mask,
+            source_polar_coords=self.source.polar_coordinates,
+            source_height=self.source.height,
             wfs_nsubaps=self.wfs.subap_on_diameter,
-            wfs_rotation=rotation,
-            wfs_translation=(shift_x, shift_y),
-            wfs_mag_global=magnification,
-            wfs_anamorphosis_90=wfs_anamorphosis_90,
-            wfs_anamorphosis_45=wfs_anamorphosis_45,
             wfs_fov_arcsec=self.wfs.subap_wanted_fov,
             idx_valid_sa=self.idx_valid_sa,
-            verbose=False,
-            specula_convention=True
+            apply_absolute_slopes=self.apply_absolute_slopes,
+            verbose=self.verbose
         )
 
-        im_nominal = self.to_xp(im_nominal, dtype=self.dtype)
-
-        if self.apply_absolute_slopes:
-            im_nominal = self.xp.abs(im_nominal)
-
-        return im_nominal
+        return self.to_xp(im_nominal, dtype=self.dtype)
 
     def _compute_sensitivity_matrices(self):
         """Compute sensitivity matrices using mis-registration push-pull"""
