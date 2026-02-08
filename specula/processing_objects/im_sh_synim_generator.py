@@ -310,9 +310,12 @@ class ImShSynimGenerator(BaseProcessingObj):
         shift_y = float(misreg_params[1])
         rotation = float(misreg_params[2])
         magnification = 1.0 + float(misreg_params[3])
-        if len(self.misreg_params) == 6:
-            wfs_anamorphosis_90 = float(self.misreg_params[4])
-            wfs_anamorphosis_45 = float(self.misreg_params[5])
+        if len(misreg_params) == 6:
+            wfs_anamorphosis_90 = float(misreg_params[4])
+            wfs_anamorphosis_45 = float(misreg_params[5])
+        else:
+            wfs_anamorphosis_90 = 1.0
+            wfs_anamorphosis_45 = 1.0
 
         # Get source parameters
         gs_pol_coo = tuple(cpuArray(self.source.polar_coordinates))

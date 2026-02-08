@@ -128,6 +128,9 @@ class SprintShSynim(BaseSprintEstimator):
         if len(self.misreg_params) == 6:
             wfs_anamorphosis_90 = float(self.misreg_params[4])
             wfs_anamorphosis_45 = float(self.misreg_params[5])
+        else:
+            wfs_anamorphosis_90 = 1.0
+            wfs_anamorphosis_45 = 1.0
 
         # Get source parameters
         gs_pol_coo = tuple(cpuArray(self.source.polar_coordinates))

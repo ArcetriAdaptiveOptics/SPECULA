@@ -13,7 +13,6 @@ from specula.processing_objects.dm import DM
 from specula.processing_objects.sh import SH
 from specula.processing_objects.ccd import CCD
 from specula.processing_objects.sh_slopec import ShSlopec
-from specula.data_objects.slopes import Slopes
 from specula.processing_objects.sprint_sh_synim import SprintShSynim
 import synim.synim as synim
 
@@ -384,9 +383,6 @@ class TestSprintShSynim(unittest.TestCase):
             initial_misreg=None,  # Start from zero
             apply_absolute_slopes=False,
             enable_wpup_magn_xy=False,
-            data_dir='./test_sprint_output',
-            im_tag='test_sprint_im',
-            overwrite=True,
             target_device_idx=target_device_idx,
             precision=1
         )
