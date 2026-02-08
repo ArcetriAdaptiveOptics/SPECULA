@@ -40,7 +40,7 @@ def create_test_system():
     )
 
     # DM - Zernike modes
-    n_modes = 100
+    n_modes = 50
     ifunc = IFunc(
         type_str='zernike',
         npixels=simul_params.pixel_pupil,
@@ -59,7 +59,7 @@ def create_test_system():
     )
 
     # Create SubapData (valid subapertures) - based on test_sh_slopec.py
-    subap_on_diameter = 12
+    subap_on_diameter = 8
     subap_npx = 12
     n_subap = subap_on_diameter
 
@@ -347,12 +347,12 @@ class TestSprintShSynim(unittest.TestCase):
         print(f"IM difference RMS: {np.sqrt(np.mean((im_misreg - im_ref)**2)):.3e}")
 
         # Define carrier frequencies for single mode
-        carrier_frequencies = [5.0]  # Single frequency
+        carrier_frequencies = [100.0]  # Single frequency
 
         print(f"\nCarrier frequencies: {carrier_frequencies}")
 
         # Generate time series of slopes
-        duration = 1.0  # seconds
+        duration = 0.01  # seconds
         dt = simul_params.time_step
         noise_level = 0.0  # Start without noise
 
@@ -464,22 +464,22 @@ class TestSprintShSynim(unittest.TestCase):
 
         # Assertions - allow 20% error on parameters (relaxed for robustness)
         self.assertLess(
-            abs(estimated_params[0] - shift_x) / abs(shift_x), 0.2,
+            abs(estimated_params[0] - shift_x) / abs(shift_x), 0.1,
             f"shift_x error too large: "
             f"{abs(estimated_params[0] - shift_x) / abs(shift_x) * 100:.1f}%"
         )
         self.assertLess(
-            abs(estimated_params[1] - shift_y) / abs(shift_y), 0.2,
+            abs(estimated_params[1] - shift_y) / abs(shift_y), 0.1,
             f"shift_y error too large: "
             f"{abs(estimated_params[1] - shift_y) / abs(shift_y) * 100:.1f}%"
         )
         self.assertLess(
-            abs(estimated_params[2] - rotation) / abs(rotation), 0.2,
+            abs(estimated_params[2] - rotation) / abs(rotation), 0.1,
             f"rotation error too large: "
             f"{abs(estimated_params[2] - rotation) / abs(rotation) * 100:.1f}%"
         )
         self.assertLess(
-            abs(estimated_params[3] - magnification) / abs(magnification), 0.2,
+            abs(estimated_params[3] - magnification) / abs(magnification), 0.1,
             f"magnification error too large: "
             f"{abs(estimated_params[3] - magnification) / abs(magnification) * 100:.1f}%"
         )
