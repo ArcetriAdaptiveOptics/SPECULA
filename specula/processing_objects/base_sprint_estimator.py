@@ -145,7 +145,7 @@ class BaseSprintEstimator(BaseProcessingObj):
         self.integration_gain = integration_gain
 
         if not 0 < forgetting_factor <= 1:
-            raise ValueError(f"forgetting_factor must be in (0, 1]")
+            raise ValueError(f"forgetting_factor must be in (0, 1], got {forgetting_factor}")
         self.forgetting_factor = forgetting_factor
 
         self.verbose = verbose
