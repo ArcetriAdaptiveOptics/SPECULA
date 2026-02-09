@@ -96,6 +96,7 @@ class LaserLaunchTelescope(BaseDataObj):
             raise ValueError(f'Error: unknown version {version} in header')
 
         llt = LaserLaunchTelescope(
+            simul_params=SimulParams(zenithAngleInDeg=0.0),
             spot_size = hdr['SPOTSIZE'],
             tel_position = [hdr['TELPOS_X'], hdr['TELPOS_Y'], hdr['TELPOS_Z']],
             beacon_focus = hdr['BEAC_FOC'],
