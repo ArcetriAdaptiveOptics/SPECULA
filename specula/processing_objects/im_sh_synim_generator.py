@@ -220,7 +220,7 @@ class ImShSynimGenerator(BaseProcessingObj):
             recmat_shape = (self.rec_nmodes, nslopes)
             self.output_recmat.recmat = self.xp.zeros(recmat_shape, dtype=self.dtype)
 
-        if self.verbose:
+        if self.verbose: # pragma: no cover
             print(f"\n{self.__class__.__name__} initialized:")
             print(f"  WFS type: Shack-Hartmann (SynIM backend)")
             print(f"  Subapertures: {self.wfs.subap_on_diameter}x{self.wfs.subap_on_diameter}")
@@ -246,7 +246,7 @@ class ImShSynimGenerator(BaseProcessingObj):
             # Default: perfect registration
             misreg_params = np.zeros(4)
 
-        if self.verbose:
+        if self.verbose: # pragma: no cover
             print(f"\nGenerating IM with mis-registration:")
             print(f"  shift_x: {misreg_params[0]:.3f} px")
             print(f"  shift_y: {misreg_params[1]:.3f} px")
@@ -262,7 +262,7 @@ class ImShSynimGenerator(BaseProcessingObj):
 
         # Generate REC if requested
         if self.compute_rec:
-            if self.verbose:
+            if self.verbose: # pragma: no cover
                 print(f"  Computing reconstruction matrix...")
 
             rec = self.generate_rec()
@@ -271,7 +271,7 @@ class ImShSynimGenerator(BaseProcessingObj):
             self.output_recmat.set_value(rec.recmat)
             self.output_recmat.generation_time = t
 
-            if self.verbose:
+            if self.verbose: # pragma: no cover
                 print(f"  REC matrix shape: {rec.recmat.shape}")
 
     def generate_im(self, misreg_params):

@@ -113,7 +113,7 @@ class SprintShSynim(BaseSprintEstimator):
         idx_j = display_map % nx
         self.idx_valid_sa = np.column_stack((idx_i, idx_j))
 
-        if self.verbose:
+        if self.verbose: # pragma: no cover
             print(f"  WFS type: Shack-Hartmann")
             print(f"  Subapertures: {self.wfs.subap_on_diameter}x{self.wfs.subap_on_diameter}")
             print(f"  Valid subapertures: {len(self.idx_valid_sa)}")

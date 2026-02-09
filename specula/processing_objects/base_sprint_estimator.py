@@ -241,7 +241,7 @@ class BaseSprintEstimator(BaseProcessingObj):
         self.ifunc_3d = self.ifunc_3d[:, :, self.modes_index]  # Extract only requested modes
         self.pup_mask = cpuArray(self.dm.mask)
 
-        if self.verbose:
+        if self.verbose: # pragma: no cover
             print(f"\n{self.__class__.__name__} initialized:")
             print(f"  Number of modes: {self.nmodes}")
             print(f"  Number of slopes: {self.estimated_intmat.nslopes}")
@@ -267,7 +267,7 @@ class BaseSprintEstimator(BaseProcessingObj):
         if (t - self.last_estimation_time) < self.estimation_dt:
             return
 
-        if self.verbose:
+        if self.verbose: # pragma: no cover
             print(f"\n{'='*60}")
             print(f"SPRINT Estimation at t={self.t_to_seconds(t):.2f}s")
             print(f"{'='*60}")
@@ -275,7 +275,7 @@ class BaseSprintEstimator(BaseProcessingObj):
         # Demodulate slopes
         im_measured = self._demodulate_slopes()
         if im_measured is None:
-            if self.verbose:
+            if self.verbose: # pragma: no cover
                 print("  Not enough data for demodulation yet")
             return
 
@@ -310,7 +310,7 @@ class BaseSprintEstimator(BaseProcessingObj):
         dt = self.simul_params.time_step
         sampling_freq = 1.0 / dt
 
-        if self.verbose:
+        if self.verbose: # pragma: no cover
             print(f"  Demodulating {len(self.slopes_history)} time samples")
             print(f"  Number of slopes: {nslopes}")
             print(f"  Number of modes: {self.nmodes}")
@@ -319,7 +319,7 @@ class BaseSprintEstimator(BaseProcessingObj):
         for mode_idx in range(self.nmodes):
             carrier_freq = float(self.carrier_frequencies[mode_idx])
 
-            if self.verbose:
+            if self.verbose: # pragma: no cover
                 print(f"  Mode {mode_idx}: carrier = {carrier_freq:.2f} Hz")
 
             # Vectorized demodulation for all slopes at once
@@ -349,7 +349,7 @@ class BaseSprintEstimator(BaseProcessingObj):
         self.slopes_history = []
         self.time_history = []
 
-        if self.verbose:
+        if self.verbose: # pragma: no cover
             print(f"  Demodulated IM shape: {im_measured.shape}")
             print(f"  IM RMS: {float(self.xp.sqrt(self.xp.mean(im_measured**2))):.3e}")
 
@@ -369,7 +369,7 @@ class BaseSprintEstimator(BaseProcessingObj):
         im_measured : ndarray
             Measured IM from demodulation
         """
-        if self.verbose:
+        if self.verbose: # pragma: no cover
             print(f"\n  Starting iterative estimation...")
             print(f"  Initial misreg: {cpuArray(self.misreg_params)}")
 
@@ -388,7 +388,7 @@ class BaseSprintEstimator(BaseProcessingObj):
             # Mean absolute gain (for error weighting)
             G_mean = float(self.xp.mean(self.xp.abs(G_opt)))
 
-            if self.verbose:
+            if self.verbose: # pragma: no cover
                 print(f"    Optical gains: {cpuArray(G_opt)}, mean: {G_mean:.3f}")
 
             # Compute sensitivities (subclass-specific)
@@ -415,20 +415,20 @@ class BaseSprintEstimator(BaseProcessingObj):
             error_weighted = error_rel * G_mean  # Weight by mean gain
             self.current_error = error_rel
 
-            if self.verbose:
+            if self.verbose: # pragma: no cover
                 print(f"    Iteration {iteration+1}: error_rel={error_rel:.3e}, "
                     f"error_weighted={error_weighted:.3e}, params={cpuArray(self.misreg_params)}")
 
             # Check convergence on weighted error
             if error_weighted < self.convergence_threshold:
-                if self.verbose:
+                if self.verbose: # pragma: no cover
                     print(f"  Converged after {iteration+1} iterations!")
                 break
 
         # Store final IM
         self.estimated_intmat.intmat = self._compute_nominal_im()
 
-        if self.verbose:
+        if self.verbose: # pragma: no cover
             delta_total = self.misreg_params - params_before
             print(f"  Final params: {cpuArray(self.misreg_params)}")
             print(f"  Total change: {cpuArray(delta_total)}")
