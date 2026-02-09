@@ -180,14 +180,17 @@ def generate_reference_im_synim(simul_params, source, dm, wfs, slopec,
 
 class TestImShSynimGenerator(unittest.TestCase):
 
+    verbose = False  # Set to True to print debug info during tests
+
     @cpu_and_gpu
     def test_im_generator_no_misreg(self, target_device_idx, xp):
         """Test IM generation with no mis-registration (identity)"""
 
-        print(f"\n{'='*70}")
-        print(f"Testing ImShSynimGenerator with perfect registration")
-        print(f"  target_device={target_device_idx}")
-        print(f"{'='*70}")
+        if self.verbose: # pragma: no cover
+            print(f"\n{'='*70}")
+            print(f"Testing ImShSynimGenerator with perfect registration")
+            print(f"  target_device={target_device_idx}")
+            print(f"{'='*70}")
 
         # Create test system
         simul_params, source, dm, wfs, slopec = create_test_system()
@@ -213,24 +216,27 @@ class TestImShSynimGenerator(unittest.TestCase):
         # Get generated IM
         im_generated = specula.cpuArray(im_gen.output_intmat.intmat)
 
-        print(f"\nGenerated IM shape: {im_generated.shape}")
-        print(f"Generated IM RMS: {np.sqrt(np.mean(im_generated**2)):.3e}")
+        if self.verbose: # pragma: no cover
+            print(f"\nGenerated IM shape: {im_generated.shape}")
+            print(f"Generated IM RMS: {np.sqrt(np.mean(im_generated**2)):.3e}")
 
         # Generate reference IM with SynIM directly
         im_ref = generate_reference_im_synim(simul_params, source, dm, wfs, slopec,
                                             shift_x=0.0, shift_y=0.0,
                                             rotation=0.0, magnification=0.0)
 
-        print(f"Reference IM shape: {im_ref.shape}")
-        print(f"Reference IM RMS: {np.sqrt(np.mean(im_ref**2)):.3e}")
+        if self.verbose: # pragma: no cover
+            print(f"Reference IM shape: {im_ref.shape}")
+            print(f"Reference IM RMS: {np.sqrt(np.mean(im_ref**2)):.3e}")
 
         # Compare
         im_diff = im_generated - im_ref
         rms_diff = np.sqrt(np.mean(im_diff**2))
         rel_diff = rms_diff / np.sqrt(np.mean(im_ref**2))
 
-        print(f"\nDifference RMS: {rms_diff:.3e}")
-        print(f"Relative difference: {rel_diff*100:.3f}%")
+        if self.verbose: # pragma: no cover
+            print(f"\nDifference RMS: {rms_diff:.3e}")
+            print(f"Relative difference: {rel_diff*100:.3f}%")
 
         # Should be essentially identical
         self.assertLess(rel_diff, 1e-10, "Generated IM should match reference")
@@ -239,10 +245,11 @@ class TestImShSynimGenerator(unittest.TestCase):
     def test_im_generator_with_misreg(self, target_device_idx, xp):
         """Test IM generation with mis-registration"""
 
-        print(f"\n{'='*70}")
-        print(f"Testing ImShSynimGenerator with mis-registration")
-        print(f"  target_device={target_device_idx}")
-        print(f"{'='*70}")
+        if self.verbose: # pragma: no cover
+            print(f"\n{'='*70}")
+            print(f"Testing ImShSynimGenerator with mis-registration")
+            print(f"  target_device={target_device_idx}")
+            print(f"{'='*70}")
 
         # Define mis-registration parameters
         shift_x = 2.0
@@ -250,11 +257,12 @@ class TestImShSynimGenerator(unittest.TestCase):
         rotation = 1.5
         magnification = 0.03
 
-        print(f"\nMis-registration parameters:")
-        print(f"  shift_x: {shift_x} px")
-        print(f"  shift_y: {shift_y} px")
-        print(f"  rotation: {rotation} deg")
-        print(f"  magnification: {magnification}")
+        if self.verbose: # pragma: no cover
+            print(f"\nMis-registration parameters:")
+            print(f"  shift_x: {shift_x} px")
+            print(f"  shift_y: {shift_y} px")
+            print(f"  rotation: {rotation} deg")
+            print(f"  magnification: {magnification}")
 
         # Create test system
         simul_params, source, dm, wfs, slopec = create_test_system()
@@ -299,10 +307,11 @@ class TestImShSynimGenerator(unittest.TestCase):
         rms_diff = np.sqrt(np.mean(im_diff**2))
         rel_diff = rms_diff / np.sqrt(np.mean(im_ref**2))
 
-        print(f"\nGenerated IM RMS: {np.sqrt(np.mean(im_generated**2)):.3e}")
-        print(f"Reference IM RMS: {np.sqrt(np.mean(im_ref**2)):.3e}")
-        print(f"Difference RMS: {rms_diff:.3e}")
-        print(f"Relative difference: {rel_diff*100:.3f}%")
+        if self.verbose: # pragma: no cover
+            print(f"\nGenerated IM RMS: {np.sqrt(np.mean(im_generated**2)):.3e}")
+            print(f"Reference IM RMS: {np.sqrt(np.mean(im_ref**2)):.3e}")
+            print(f"Difference RMS: {rms_diff:.3e}")
+            print(f"Relative difference: {rel_diff*100:.3f}%")
 
         # Should match
         self.assertLess(rel_diff, 1e-7,
@@ -312,10 +321,11 @@ class TestImShSynimGenerator(unittest.TestCase):
     def test_im_generator_with_rec(self, target_device_idx, xp):
         """Test IM and REC generation together"""
 
-        print(f"\n{'='*70}")
-        print(f"Testing ImShSynimGenerator with REC computation")
-        print(f"  target_device={target_device_idx}")
-        print(f"{'='*70}")
+        if self.verbose: # pragma: no cover
+            print(f"\n{'='*70}")
+            print(f"Testing ImShSynimGenerator with REC computation")
+            print(f"  target_device={target_device_idx}")
+            print(f"{'='*70}")
 
         # Create test system
         simul_params, source, dm, wfs, slopec = create_test_system()
@@ -345,8 +355,9 @@ class TestImShSynimGenerator(unittest.TestCase):
         im_generated = specula.cpuArray(im_gen.output_intmat.intmat)
         rec_generated = specula.cpuArray(im_gen.output_recmat.recmat)
 
-        print(f"\nGenerated IM shape: {im_generated.shape}")
-        print(f"Generated REC shape: {rec_generated.shape}")
+        if self.verbose: # pragma: no cover
+            print(f"\nGenerated IM shape: {im_generated.shape}")
+            print(f"Generated REC shape: {rec_generated.shape}")
 
         # Check shapes
         nslopes, nmodes_im = im_generated.shape
@@ -361,11 +372,12 @@ class TestImShSynimGenerator(unittest.TestCase):
         im_subset = im_generated[:, :rec_nmodes]
         identity_test = rec_generated @ im_subset
 
-        print(f"\nIdentity test (REC @ IM_subset):")
-        print(f"  Expected: Identity matrix {rec_nmodes}x{rec_nmodes}")
-        print(f"  Diagonal mean: {np.mean(np.diag(identity_test)):.3f}")
-        print(f"  Off-diagonal RMS:"
-              f" {np.sqrt(np.mean((identity_test - np.eye(rec_nmodes))**2)):.3e}")
+        if self.verbose: # pragma: no cover
+            print(f"\nIdentity test (REC @ IM_subset):")
+            print(f"  Expected: Identity matrix {rec_nmodes}x{rec_nmodes}")
+            print(f"  Diagonal mean: {np.mean(np.diag(identity_test)):.3f}")
+            print(f"  Off-diagonal RMS:"
+                f" {np.sqrt(np.mean((identity_test - np.eye(rec_nmodes))**2)):.3e}")
 
         # Should be close to identity
         identity_error = np.sqrt(np.mean((identity_test - np.eye(rec_nmodes))**2))
@@ -375,10 +387,11 @@ class TestImShSynimGenerator(unittest.TestCase):
     def test_im_generator_generate_im_method(self, target_device_idx, xp):
         """Test direct generate_im() method"""
 
-        print(f"\n{'='*70}")
-        print(f"Testing ImShSynimGenerator.generate_im() method")
-        print(f"  target_device={target_device_idx}")
-        print(f"{'='*70}")
+        if self.verbose: # pragma: no cover
+            print(f"\n{'='*70}")
+            print(f"Testing ImShSynimGenerator.generate_im() method")
+            print(f"  target_device={target_device_idx}")
+            print(f"{'='*70}")
 
         # Create test system
         simul_params, source, dm, wfs, slopec = create_test_system()
@@ -406,8 +419,9 @@ class TestImShSynimGenerator(unittest.TestCase):
         ]
 
         for misreg_params, description in test_cases:
-            print(f"\nTest case: {description}")
-            print(f"  Parameters: {misreg_params}")
+            if self.verbose: # pragma: no cover
+                print(f"\nTest case: {description}")
+                print(f"  Parameters: {misreg_params}")
 
             # Generate IM using method
             im_generated = im_gen.generate_im(misreg_params)
@@ -423,7 +437,8 @@ class TestImShSynimGenerator(unittest.TestCase):
             rms_diff = np.sqrt(np.mean(im_diff**2))
             rel_diff = rms_diff / np.sqrt(np.mean(im_ref**2))
 
-            print(f"  Relative difference: {rel_diff*100:.3f}%")
+            if self.verbose: # pragma: no cover
+                print(f"  Relative difference: {rel_diff*100:.3f}%")
 
             self.assertLess(rel_diff, 1e-10, f"generate_im()"
                             f" should match reference for {description}")
