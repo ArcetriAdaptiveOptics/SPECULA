@@ -238,6 +238,15 @@ Rebin
    :show-inheritance:
 
 
+Synim Utils
+-----------
+
+.. automodule:: specula.lib.synim_utils
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Toccd
 -----
 
