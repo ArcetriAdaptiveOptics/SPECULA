@@ -297,6 +297,8 @@ def generate_sinusoidal_slopes(im, carrier_frequencies, duration, dt, noise_leve
 
 class TestSprintShSynim(unittest.TestCase):
 
+    verbose = False  # Set to True for detailed output during tests
+
     @cpu_and_gpu
     def test_sprint_estimation_small(self, target_device_idx, xp):
         """Test SPRINT estimation with small mis-registration"""
@@ -311,29 +313,33 @@ class TestSprintShSynim(unittest.TestCase):
                         target_device_idx, xp):
         """Helper method to run SPRINT test with given parameters"""
 
-        print(f"\n{'='*70}")
-        print(f"Testing SPRINT with mis-registration:")
-        print(f"  shift_x={shift_x:.2f} px, shift_y={shift_y:.2f} px")
-        print(f"  rotation={rotation:.2f} deg, magnification={magnification:.4f}")
-        print(f"  target_device={target_device_idx}")
-        print(f"{'='*70}")
+        if self.verbose: # pragma: no cover
+            print(f"\n{'='*70}")
+            print(f"Testing SPRINT with mis-registration:")
+            print(f"  shift_x={shift_x:.2f} px, shift_y={shift_y:.2f} px")
+            print(f"  rotation={rotation:.2f} deg, magnification={magnification:.4f}")
+            print(f"  target_device={target_device_idx}")
+            print(f"{'='*70}")
 
         # Create test system
         simul_params, source, dm, wfs, ccd, slopec = create_test_system()
 
         # Generate reference IM (no mis-registration)
-        print("\nGenerating reference IM...")
+        if self.verbose: # pragma: no cover
+            print("\nGenerating reference IM...")
         im_ref_full = generate_reference_im(simul_params, source, dm, wfs, slopec)
 
         # Select 1 mode only
         mode_idx = 30
         im_ref = im_ref_full[:, mode_idx:mode_idx+1]  # Keep 2D shape (nslopes, 1)
 
-        print(f"Reference IM shape: {im_ref.shape}")
-        print(f"Reference IM RMS: {np.sqrt(np.mean(im_ref**2)):.3e}")
+        if self.verbose: # pragma: no cover
+            print(f"Reference IM shape: {im_ref.shape}")
+            print(f"Reference IM RMS: {np.sqrt(np.mean(im_ref**2)):.3e}")
 
         # Generate mis-registered IM
-        print("\nGenerating mis-registered IM...")
+        if self.verbose: # pragma: no cover
+            print("\nGenerating mis-registered IM...")
         im_misreg_full = generate_misregistered_im(
             simul_params, source, dm, wfs, slopec,
             shift_x, shift_y, rotation, magnification
@@ -342,35 +348,40 @@ class TestSprintShSynim(unittest.TestCase):
         # Select same mode
         im_misreg = im_misreg_full[:, mode_idx:mode_idx+1]  # Keep 2D shape (nslopes, 1)
 
-        print(f"Mis-registered IM shape: {im_misreg.shape}")
-        print(f"Mis-registered IM RMS: {np.sqrt(np.mean(im_misreg**2)):.3e}")
-        print(f"IM difference RMS: {np.sqrt(np.mean((im_misreg - im_ref)**2)):.3e}")
+        if self.verbose: # pragma: no cover
+            print(f"Mis-registered IM shape: {im_misreg.shape}")
+            print(f"Mis-registered IM RMS: {np.sqrt(np.mean(im_misreg**2)):.3e}")
+            print(f"IM difference RMS: {np.sqrt(np.mean((im_misreg - im_ref)**2)):.3e}")
 
         # Define carrier frequencies for single mode
         carrier_frequencies = [100.0]  # Single frequency
 
-        print(f"\nCarrier frequencies: {carrier_frequencies}")
+        if self.verbose: # pragma: no cover
+            print(f"\nCarrier frequencies: {carrier_frequencies}")
 
         # Generate time series of slopes
         duration = 0.01  # seconds
         dt = simul_params.time_step
         noise_level = 0.0  # Start without noise
 
-        print(f"\nGenerating sinusoidal slopes...")
-        print(f"  Duration: {duration}s, dt: {dt*1e3:.2f}ms")
-        print(f"  Noise level: {noise_level}")
+        if self.verbose: # pragma: no cover
+            print(f"\nGenerating sinusoidal slopes...")
+            print(f"  Duration: {duration}s, dt: {dt*1e3:.2f}ms")
+            print(f"  Noise level: {noise_level}")
 
         slopes_time, time = generate_sinusoidal_slopes(
             im_misreg, carrier_frequencies, duration, dt, noise_level
         )
 
-        print(f"  Generated {slopes_time.shape[0]} time steps")
-        print(f"  Slopes RMS: {np.sqrt(np.mean(slopes_time**2)):.3e}")
+        if self.verbose: # pragma: no cover
+            print(f"  Generated {slopes_time.shape[0]} time steps")
+            print(f"  Slopes RMS: {np.sqrt(np.mean(slopes_time**2)):.3e}")
 
         slopes_time *= 100.0  # Scale up for testing optical gain estimation too
 
         # Create SPRINT estimator
-        print("\nCreating SPRINT estimator...")
+        if self.verbose: # pragma: no cover
+            print("\nCreating SPRINT estimator...")
         sprint = SprintShSynim(
             simul_params=simul_params,
             dm=dm,
@@ -397,7 +408,8 @@ class TestSprintShSynim(unittest.TestCase):
         sprint.setup()
 
         # Feed slopes time series by manually setting slopes in slopec output
-        print("\nFeeding slopes to SPRINT...")
+        if self.verbose: # pragma: no cover
+            print("\nFeeding slopes to SPRINT...")
         dummy_slopes = slopec.outputs['out_slopes']
 
         for t_idx, t in enumerate(time):
@@ -413,23 +425,24 @@ class TestSprintShSynim(unittest.TestCase):
         # Get estimated parameters
         estimated_params = specula.cpuArray(sprint.misreg_params)
 
-        print(f"\n{'='*70}")
-        print("ESTIMATION RESULTS:")
-        print(f"{'='*70}")
-        print(f"                     True       Estimated    Error       Rel.Error")
-        print(f"shift_x (px):     {shift_x:8.3f}   {estimated_params[0]:8.3f}   "
-              f"{estimated_params[0]-shift_x:8.3f}   "
-              f"{abs(estimated_params[0]-shift_x)/abs(shift_x)*100:6.2f}%")
-        print(f"shift_y (px):     {shift_y:8.3f}   {estimated_params[1]:8.3f}   "
-              f"{estimated_params[1]-shift_y:8.3f}   "
-              f"{abs(estimated_params[1]-shift_y)/abs(shift_y)*100:6.2f}%")
-        print(f"rotation (deg):   {rotation:8.3f}   {estimated_params[2]:8.3f}   "
-              f"{estimated_params[2]-rotation:8.3f}   "
-              f"{abs(estimated_params[2]-rotation)/abs(rotation)*100:6.2f}%")
-        print(f"magnification:    {magnification:8.5f}   {estimated_params[3]:8.5f}   "
-              f"{estimated_params[3]-magnification:8.5f}   "
-              f"{abs(estimated_params[3]-magnification)/abs(magnification)*100:6.2f}%")
-        print(f"{'='*70}")
+        if self.verbose: # pragma: no cover
+            print(f"\n{'='*70}")
+            print("ESTIMATION RESULTS:")
+            print(f"{'='*70}")
+            print(f"                     True       Estimated    Error       Rel.Error")
+            print(f"shift_x (px):     {shift_x:8.3f}   {estimated_params[0]:8.3f}   "
+                f"{estimated_params[0]-shift_x:8.3f}   "
+                f"{abs(estimated_params[0]-shift_x)/abs(shift_x)*100:6.2f}%")
+            print(f"shift_y (px):     {shift_y:8.3f}   {estimated_params[1]:8.3f}   "
+                f"{estimated_params[1]-shift_y:8.3f}   "
+                f"{abs(estimated_params[1]-shift_y)/abs(shift_y)*100:6.2f}%")
+            print(f"rotation (deg):   {rotation:8.3f}   {estimated_params[2]:8.3f}   "
+                f"{estimated_params[2]-rotation:8.3f}   "
+                f"{abs(estimated_params[2]-rotation)/abs(rotation)*100:6.2f}%")
+            print(f"magnification:    {magnification:8.5f}   {estimated_params[3]:8.5f}   "
+                f"{estimated_params[3]-magnification:8.5f}   "
+                f"{abs(estimated_params[3]-magnification)/abs(magnification)*100:6.2f}%")
+            print(f"{'='*70}")
 
         # Get estimated IM (single mode)
         im_estimated = specula.cpuArray(sprint.estimated_intmat.intmat)
@@ -449,14 +462,15 @@ class TestSprintShSynim(unittest.TestCase):
         residual_rms = np.sqrt(np.mean(im_diff**2))
         initial_rms = np.sqrt(np.mean((im_misreg_1d - im_ref_1d)**2))
 
-        print(f"\nINTERACTION MATRIX QUALITY:")
-        print(f"  Initial RMS error:   {initial_rms:.3e}")
-        print(f"  Residual RMS error:  {residual_rms:.3e}")
-        if residual_rms > 0:
-            print(f"  Improvement factor:  {initial_rms/residual_rms:.2f}x")
-        else:
-            print(f"  Perfect reconstruction!")
-        print(f"{'='*70}\n")
+        if self.verbose: # pragma: no cover
+            print(f"\nINTERACTION MATRIX QUALITY:")
+            print(f"  Initial RMS error:   {initial_rms:.3e}")
+            print(f"  Residual RMS error:  {residual_rms:.3e}")
+            if residual_rms > 0:
+                print(f"  Improvement factor:  {initial_rms/residual_rms:.2f}x")
+            else:
+                print(f"  Perfect reconstruction!")
+            print(f"{'='*70}\n")
 
         # Assertions - allow 20% error on parameters (relaxed for robustness)
         self.assertLess(

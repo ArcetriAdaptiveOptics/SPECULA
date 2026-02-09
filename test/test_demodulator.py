@@ -10,7 +10,7 @@ specula.init(0)
 from specula.lib.demodulate_signal import demodulate_signal
 from test.specula_testlib import cpu_and_gpu
 from specula.simul import Simul
-from specula import np
+from specula import np, cpuArray
 
 class TestDemodulator(unittest.TestCase):
     """Test demodulator by running a simulation and checking the output amplitude"""
@@ -102,7 +102,7 @@ class TestDemodulateSignal(unittest.TestCase):
         nt = len(time)
 
         # Generate pure sinusoidal signal
-        signal = amplitude_true * np.sin(2 * np.pi * carrier_freq * time + phase_true)
+        signal = amplitude_true * xp.sin(2 * xp.pi * carrier_freq * time + phase_true)
 
         if self.verbose: # pragma: no cover
             print(f"\nSignal parameters:")
@@ -116,11 +116,13 @@ class TestDemodulateSignal(unittest.TestCase):
         # Demodulate
         amp_demod, phase_demod = demodulate_signal(
             signal, carrier_freq, sampling_freq,
-            cumulated=True, verbose=False, xp_module=np
+            cumulated=True, verbose=False, xp_module=xp
         )
 
         # Apply phase correction to get signed amplitude
-        amp_signed = amp_demod * np.sign(np.cos(phase_demod))
+        amp_signed = float(amp_demod * xp.sign(xp.cos(phase_demod)))
+        amp_demod = float(amp_demod)
+        phase_demod = float(phase_demod)
 
         if self.verbose: # pragma: no cover
             print(f"\nDemodulation results:")
@@ -156,11 +158,11 @@ class TestDemodulateSignal(unittest.TestCase):
         noise_std = 0.5  # 10% noise
 
         # Generate time vector
-        time = np.arange(0, duration, dt)
+        time = xp.arange(0, duration, dt)
 
         # Generate noisy signal
-        signal_clean = amplitude_true * np.sin(2 * np.pi * carrier_freq * time)
-        noise = np.random.normal(0, noise_std, len(time))
+        signal_clean = amplitude_true * xp.sin(2 * xp.pi * carrier_freq * time)
+        noise = xp.random.normal(0, noise_std, len(time))
         signal_noisy = signal_clean + noise
 
         if self.verbose: # pragma: no cover
@@ -172,10 +174,12 @@ class TestDemodulateSignal(unittest.TestCase):
         # Demodulate
         amp_demod, phase_demod = demodulate_signal(
             signal_noisy, carrier_freq, sampling_freq,
-            cumulated=True, verbose=False, xp_module=np
+            cumulated=True, verbose=False, xp_module=xp
         )
 
-        amp_signed = amp_demod * np.sign(np.cos(phase_demod))
+        amp_signed = cpuArray(amp_demod * xp.sign(xp.cos(phase_demod)))
+        amp_demod = cpuArray(amp_demod)
+        phase_demod = cpuArray(phase_demod)
 
         if self.verbose: # pragma: no cover
             print(f"\nDemodulation results:")
@@ -207,30 +211,30 @@ class TestDemodulateSignal(unittest.TestCase):
 
         # Generate different amplitudes for different "slopes"
         nsignals = 10
-        amplitudes_true = np.linspace(1.0, 5.0, nsignals)
+        amplitudes_true = xp.linspace(1.0, 5.0, nsignals)
 
         # Generate time vector
-        time = np.arange(0, duration, dt)
+        time = xp.arange(0, duration, dt)
         nt = len(time)
 
         # Generate 2D signal array: (nt, nsignals)
-        signals_2d = np.zeros((nt, nsignals))
+        signals_2d = xp.zeros((nt, nsignals))
         for i in range(nsignals):
             # Each signal has different amplitude, same frequency
-            signals_2d[:, i] = amplitudes_true[i] * np.sin(2 * np.pi * carrier_freq * time)
+            signals_2d[:, i] = amplitudes_true[i] * xp.sin(2 * xp.pi * carrier_freq * time)
 
         if self.verbose: # pragma: no cover
             print(f"\nSignal parameters:")
             print(f"  Number of signals: {nsignals}")
             print(f"  Carrier freq: {carrier_freq} Hz")
-            print(f"  True amplitudes range: [{amplitudes_true.min():.2f},"
-                f" {amplitudes_true.max():.2f}]")
+            print(f"  True amplitudes range: [{float(amplitudes_true.min()):.2f},"
+                f" {float(amplitudes_true.max()):.2f}]")
             print(f"  Signal shape: {signals_2d.shape}")
 
         # Demodulate all signals at once (vectorized)
         amps_demod, phases_demod = demodulate_signal(
             signals_2d, carrier_freq, sampling_freq,
-            cumulated=True, verbose=False, xp_module=np
+            cumulated=True, verbose=False, xp_module=xp
         )
 
         if self.verbose: # pragma: no cover
@@ -238,7 +242,7 @@ class TestDemodulateSignal(unittest.TestCase):
             print(f"  Output amplitudes shape: {amps_demod.shape}")
             print(f"  Output phases shape: {phases_demod.shape}")
             print(f"  Demodulated amplitudes range:"
-                  f" [{amps_demod.min():.2f}, {amps_demod.max():.2f}]")
+                  f" [{float(amps_demod.min()):.2f}, {float(amps_demod.max()):.2f}]")
 
         # Check shapes
         self.assertEqual(amps_demod.shape, (nsignals,), "Amplitudes should be 1D array")
@@ -247,21 +251,22 @@ class TestDemodulateSignal(unittest.TestCase):
         sign = None
         # Check each amplitude
         for i in range(nsignals):
-            amp_signed = amps_demod[i] * np.sign(np.cos(phases_demod[i]))
+            amp_signed = amps_demod[i] * xp.sign(xp.cos(phases_demod[i]))
             # find correct sign at i == 0
             if sign is None:
                 sign = xp.sign(amp_signed * amplitudes_true[i])
             amp_signed *= sign
             error_rel = abs(amp_signed - amplitudes_true[i]) / amplitudes_true[i]
 
-            if i == 0 or i == nsignals - 1:  # Print first and last
-                print(f"  Signal {i}: true={amplitudes_true[i]:.3f}, "
-                      f"demod={amp_signed:.3f}, error={error_rel*100:.2f}%")
+            if i == 0 or i == nsignals - 1 and self.verbose:  # pragma: no cover
+                print(f"  Signal {i}: true={float(amplitudes_true[i]):.3f}, "
+                      f"demod={float(amp_signed):.3f}, error={float(error_rel*100):.2f}%")
 
             self.assertLess(error_rel, 0.05,
-                           f"Signal {i} error too large: {error_rel*100:.1f}%")
+                           f"Signal {i} error too large: {float(error_rel*100):.1f}%")
 
-        print(f"  All {nsignals} signals demodulated successfully!")
+        if self.verbose: # pragma: no cover
+            print(f"  All {nsignals} signals demodulated successfully!")
 
     @cpu_and_gpu
     def test_demodulate_multiple_signals_different_phases(self, target_device_idx, xp):
@@ -282,28 +287,30 @@ class TestDemodulateSignal(unittest.TestCase):
         nsignals = 3
 
         # Different phases
-        phases_true = np.linspace(0, np.pi, nsignals)
+        phases_true = xp.linspace(0, xp.pi, nsignals)
 
         # Generate time vector
-        time = np.arange(0, duration, dt)
+        time = xp.arange(0, duration, dt)
         nt = len(time)
 
         # Generate signals with different phases
-        signals_2d = np.zeros((nt, nsignals))
+        signals_2d = xp.zeros((nt, nsignals))
         for i in range(nsignals):
-            signals_2d[:, i] = amplitude * np.sin(2 * np.pi * carrier_freq * time + phases_true[i])
+            signals_2d[:, i] = amplitude * xp.sin(2 * xp.pi * carrier_freq * time + phases_true[i])
 
         if self.verbose: # pragma: no cover
             print(f"\nSignal parameters:")
             print(f"  Number of signals: {nsignals}")
             print(f"  True amplitude: {amplitude}")
-            print(f"  True phases: {np.degrees(phases_true)}")
+            print(f"  True phases: {float(xp.degrees(phases_true))}")
 
         # Demodulate
         amps_demod, phases_demod = demodulate_signal(
             signals_2d, carrier_freq, sampling_freq,
-            cumulated=True, verbose=False, xp_module=np
+            cumulated=True, verbose=False, xp_module=xp
         )
+
+        amps_demod = cpuArray(amps_demod)
 
         if self.verbose: # pragma: no cover
             # All should have similar amplitude
@@ -341,7 +348,7 @@ class TestDemodulateSignal(unittest.TestCase):
         nslopes = 2 * n_subaps  # X and Y slopes
 
         # Random IM coefficients (positive and negative)
-        im_mode = np.random.randn(nslopes) * 2.0
+        im_mode = xp.random.randn(nslopes) * 2.0
 
         if self.verbose: # pragma: no cover
             print(f"\nSPRINT scenario:")
@@ -349,24 +356,24 @@ class TestDemodulateSignal(unittest.TestCase):
             print(f"  Number of slopes: {nslopes}")
             print(f"  Carrier frequency: {carrier_freq} Hz")
             print(f"  Duration: {duration}s ({carrier_freq * duration:.0f} periods)")
-            print(f"  IM RMS: {np.sqrt(np.mean(im_mode**2)):.3e}")
+            print(f"  IM RMS: {float(xp.sqrt(xp.mean(im_mode**2))):.3e}")
 
         # Generate time vector
-        time = np.arange(0, duration, dt)
+        time = xp.arange(0, duration, dt)
         nt = len(time)
 
         # Generate modulated slopes (each slope is IM coefficient * sine)
-        modulation = np.sin(2 * np.pi * carrier_freq * time)
-        slopes_time = np.outer(modulation, im_mode)  # Shape: (nt, nslopes)
+        modulation = xp.sin(2 * xp.pi * carrier_freq * time)
+        slopes_time = xp.outer(modulation, im_mode)  # Shape: (nt, nslopes)
 
         if self.verbose: # pragma: no cover
             print(f"  Slopes time series shape: {slopes_time.shape}")
-            print(f"  Slopes RMS: {np.sqrt(np.mean(slopes_time**2)):.3e}")
+            print(f"  Slopes RMS: {float(xp.sqrt(xp.mean(slopes_time**2))):.3e}")
 
         # Demodulate (vectorized)
         amps_demod, phases_demod = demodulate_signal(
             slopes_time, carrier_freq, sampling_freq,
-            cumulated=True, verbose=False, xp_module=np
+            cumulated=True, verbose=False, xp_module=xp
         )
 
         # Apply phase correction
@@ -375,15 +382,15 @@ class TestDemodulateSignal(unittest.TestCase):
         if self.verbose: # pragma: no cover
             print(f"\nReconstruction quality:")
             print(f"  Demodulated IM shape: {im_reconstructed.shape}")
-            print(f"  Demodulated IM RMS: {np.sqrt(np.mean(im_reconstructed**2)):.3e}")
+            print(f"  Demodulated IM RMS: {float(xp.sqrt(xp.mean(im_reconstructed**2))):.3e}")
 
         # Compare with true IM
         # find correct global sign
-        sign = np.sign(np.dot(im_reconstructed, im_mode))
+        sign = np.sign(xp.dot(im_reconstructed, im_mode))
         im_reconstructed *= sign
         im_diff = im_reconstructed - im_mode
-        rms_error = np.sqrt(np.mean(im_diff**2))
-        rms_ref = np.sqrt(np.mean(im_mode**2))
+        rms_error = xp.sqrt(xp.mean(im_diff**2))
+        rms_ref = xp.sqrt(xp.mean(im_mode**2))
         rel_error = rms_error / rms_ref
 
         plot_debug = False
@@ -391,31 +398,31 @@ class TestDemodulateSignal(unittest.TestCase):
             import matplotlib.pyplot as plt
             plt.figure(figsize=(12, 6))
             plt.subplot(1, 2, 1)
-            plt.plot(im_mode, label='True IM')
-            plt.plot(im_reconstructed, label='Demodulated IM', linestyle='--')
+            plt.plot(cpuArray(im_mode), label='True IM')
+            plt.plot(cpuArray(im_reconstructed), label='Demodulated IM', linestyle='--')
             plt.legend()
             plt.title('IM Reconstruction')
             plt.subplot(1, 2, 2)
-            plt.plot(im_diff)
+            plt.plot(cpuArray(im_diff))
             plt.title('IM Reconstruction Error')
             plt.tight_layout()
             plt.show()
 
         if self.verbose: # pragma: no cover
-            print(f"  Reconstruction error RMS: {rms_error:.3e}")
-            print(f"  Relative error: {rel_error * 100:.2f}%")
+            print(f"  Reconstruction error RMS: {float(rms_error):.3e}")
+            print(f"  Relative error: {float(rel_error) * 100:.2f}%")
 
         # Should reconstruct IM accurately
-        self.assertLess(rel_error, 0.05,
-                       f"IM reconstruction error too large: {rel_error*100:.1f}%")
+        self.assertLess(float(rel_error), 0.05,
+                       f"IM reconstruction error too large: {float(rel_error)*100:.1f}%")
 
         if self.verbose: # pragma: no cover
             # Check individual slopes (sample a few)
             print(f"\nSample slope reconstruction:")
             for i in [0, nslopes//4, nslopes//2, 3*nslopes//4, nslopes-1]:
                 error = abs(im_reconstructed[i] - im_mode[i])
-                print(f"  Slope {i:3d}: true={im_mode[i]:7.3f}, "
-                    f"recon={im_reconstructed[i]:7.3f}, error={error:.3e}")
+                print(f"  Slope {i:3d}: true={float(im_mode[i]):7.3f}, "
+                    f"recon={float(im_reconstructed[i]):7.3f}, error={float(error):.3e}")
 
     def test_demodulate_edge_cases(self):
         """Test edge cases and error handling"""

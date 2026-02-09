@@ -3,7 +3,6 @@ Base SPRINT Estimator class with common demodulation and iteration logic.
 Specific WFS implementations should inherit from this class.
 """
 
-import os
 from abc import abstractmethod
 
 from specula.base_processing_obj import BaseProcessingObj
@@ -16,7 +15,7 @@ from specula.base_value import BaseValue
 from specula.lib.demodulate_signal import demodulate_signal
 from specula.processing_objects.dm import DM
 from specula.processing_objects.slopec import Slopec
-from specula import xp, cpuArray, np
+from specula import cpuArray
 
 
 class BaseSprintEstimator(BaseProcessingObj):
@@ -73,7 +72,7 @@ class BaseSprintEstimator(BaseProcessingObj):
     integration_gain : float
         Gain for parameter updates (0 < gain <= 1)
     forgetting_factor : float or None
-        Forgetting factor for integration (0 < factor <= 1, None = no forgetting)
+        Forgetting factor for integration (0 < factor <= 1, 1 = no forgetting)
     target_device_idx : int or None
         GPU device index
     precision : int or None
@@ -326,20 +325,20 @@ class BaseSprintEstimator(BaseProcessingObj):
             # slopes_array shape: (nt, nslopes)
             # demodulate_signal expects: (nt, nsignals)
             amplitudes, phases = demodulate_signal(
-                cpuArray(slopes_array),  # Convert to CPU for demodulation
+                slopes_array,  # Convert to CPU for demodulation
                 carrier_freq,
                 sampling_freq,
-                xp_module=np
+                xp_module=self.xp
             )
 
             # amplitudes shape: (nslopes,)
             # phases shape: (nslopes,)
 
             # Apply phase correction (vectorized)
-            signed_amplitudes = amplitudes * np.sign(np.cos(phases))
+            signed_amplitudes = amplitudes * self.xp.sign(self.xp.cos(phases))
 
             # Store in IM
-            im_measured[:, mode_idx] = self.to_xp(signed_amplitudes)
+            im_measured[:, mode_idx] = signed_amplitudes
 
         # Apply absolute value if requested
         if self.apply_absolute_slopes:
