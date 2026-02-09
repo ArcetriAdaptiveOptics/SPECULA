@@ -303,25 +303,43 @@ class BaseSprintEstimator(BaseProcessingObj):
         if len(self.slopes_history) < 10:
             return None
 
-        slopes_array = self.xp.stack(self.slopes_history)  # (nt, nslopes)
+        slopes_array = self.xp.stack(self.slopes_history)  # Shape: (nt, nslopes)
         nslopes = slopes_array.shape[1]
         im_measured = self.xp.zeros((nslopes, self.nmodes), dtype=self.dtype)
 
         dt = self.simul_params.time_step
         sampling_freq = 1.0 / dt
 
-        # Demodulate each mode
+        if self.verbose:
+            print(f"  Demodulating {len(self.slopes_history)} time samples")
+            print(f"  Number of slopes: {nslopes}")
+            print(f"  Number of modes: {self.nmodes}")
+
+        # Demodulate each mode (vectorized across all slopes)
         for mode_idx in range(self.nmodes):
             carrier_freq = float(self.carrier_frequencies[mode_idx])
 
-            for slope_idx in range(nslopes):
-                signal = cpuArray(slopes_array[:, slope_idx])
+            if self.verbose:
+                print(f"  Mode {mode_idx}: carrier = {carrier_freq:.2f} Hz")
 
-                # Demodulate with phase correction
-                amplitude, phase = demodulate_signal(signal, carrier_freq, sampling_freq)
-                signed_amplitude = amplitude * np.sign(np.cos(phase))
+            # Vectorized demodulation for all slopes at once
+            # slopes_array shape: (nt, nslopes)
+            # demodulate_signal expects: (nt, nsignals)
+            amplitudes, phases = demodulate_signal(
+                cpuArray(slopes_array),  # Convert to CPU for demodulation
+                carrier_freq,
+                sampling_freq,
+                xp_module=np
+            )
 
-                im_measured[slope_idx, mode_idx] = self.to_xp(signed_amplitude)
+            # amplitudes shape: (nslopes,)
+            # phases shape: (nslopes,)
+
+            # Apply phase correction (vectorized)
+            signed_amplitudes = amplitudes * np.sign(np.cos(phases))
+
+            # Store in IM
+            im_measured[:, mode_idx] = self.to_xp(signed_amplitudes)
 
         # Apply absolute value if requested
         if self.apply_absolute_slopes:
