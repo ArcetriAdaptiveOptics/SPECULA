@@ -128,14 +128,14 @@ class AtmoPropagation(BaseProcessingObj):
         L_pad = self.ef_size_padded * self.pixel_pitch
 
         df = 1 / L_pad
-        fx, fy = self.xp.meshgrid(df * self.xp.arange(-self.ef_size_padded / 2, self.ef_size_padded / 2),
-                                  df * self.xp.arange(-self.ef_size_padded / 2, self.ef_size_padded / 2))
+        fx, fy = self.xp.meshgrid(df * self.xp.arange(-self.ef_size_padded // 2, self.ef_size_padded // 2),
+                                  df * self.xp.arange(-self.ef_size_padded // 2, self.ef_size_padded // 2))
 
         # maximal spatial frequency that can propagate in x- and y-direction
         f_limit = L_pad / (self.wavelengthInNm * 1e-9 * np.sqrt(L_pad ** 2 + 4 * distanceInM ** 2))
 
         # reduce propagation distance if max. spatial frequency is too low - otherwise aliasing occurs
-        if f_limit < (self.ef_size_padded // 2 * df * self.band_limit_factor):
+        if f_limit < (self.ef_size_padded / 2 * df * self.band_limit_factor):
             warnings.warn(
                 'Propagation distance too large for current band_limit_max in angular spectrum propagation. '
                 'Consider increasing zero padding or decreasing band_limit_max.',
