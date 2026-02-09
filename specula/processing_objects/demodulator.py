@@ -86,7 +86,7 @@ class Demodulator(BaseProcessingObj):
 
         for i, mode in enumerate(self.mode_numbers):
             value, phase = demodulate_signal(
-                signal_data=data_array[:, mode],
+                signal_data=data_array[:, i],
                 carrier_freq=float(self.carrier_frequencies[i]),
                 sampling_freq=sampling_freq,
                 cumulated=True,
