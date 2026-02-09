@@ -90,6 +90,9 @@ All required dependencies will be installed automatically, including:
 * **flask-socketio**: Real-time web communication
 * **python-socketio**: WebSocket client support
 * **scikit-image**: Image processing algorithms
+* **astro-seeing**: Sympy Expressions Evaluation Implemented oN the GPU
+* **symao**: A collection of Sympy expressions used in Adaptive Optics
+* **synim**: Synthetic image generation
 
 Optional Libraries
 ^^^^^^^^^^^^^^^^^^

@@ -44,7 +44,11 @@ class LaserLaunchTelescope(BaseDataObj):
         if self.simul_params is not None:
             self.zenithAngleInDeg = self.simul_params.zenithAngleInDeg
         else:
-            self.zenithAngleInDeg = 0.0
+            if len(tel_position) != 0:
+                raise ValueError("Error: simul_params is required by LaserLaunchTelescope"
+                                 " to get zenith angle when tel_position is provided")
+            else:
+                self.zenithAngleInDeg = 0.0
 
         if self.zenithAngleInDeg is not None:
             self.airmass = 1.0 / np.cos(np.radians(self.zenithAngleInDeg), dtype=self.dtype)
@@ -92,6 +96,7 @@ class LaserLaunchTelescope(BaseDataObj):
             raise ValueError(f'Error: unknown version {version} in header')
 
         llt = LaserLaunchTelescope(
+            simul_params=SimulParams(zenithAngleInDeg=0.0),
             spot_size = hdr['SPOTSIZE'],
             tel_position = [hdr['TELPOS_X'], hdr['TELPOS_Y'], hdr['TELPOS_Z']],
             beacon_focus = hdr['BEAC_FOC'],

@@ -85,6 +85,15 @@ Compute Zonal Ifunc
    :show-inheritance:
 
 
+Demodulate Signal
+-----------------
+
+.. automodule:: specula.lib.demodulate_signal
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Extrapolation 2D
 ----------------
 
@@ -211,10 +220,28 @@ Process Utils
    :show-inheritance:
 
 
+Radial Profile
+--------------
+
+.. automodule:: specula.lib.radial_profile
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Rebin
 -----
 
 .. automodule:: specula.lib.rebin
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Synim Utils
+-----------
+
+.. automodule:: specula.lib.synim_utils
    :members:
    :undoc-members:
    :show-inheritance:

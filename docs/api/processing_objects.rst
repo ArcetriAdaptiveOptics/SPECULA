@@ -85,6 +85,15 @@ Avc
    :show-inheritance:
 
 
+Base Filter
+-----------
+
+.. automodule:: specula.processing_objects.base_filter
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Base Generator
 --------------
 
@@ -107,6 +116,15 @@ Base Slicer
 -----------
 
 .. automodule:: specula.processing_objects.base_slicer
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Base Sprint Estimator
+---------------------
+
+.. automodule:: specula.processing_objects.base_sprint_estimator
    :members:
    :undoc-members:
    :show-inheritance:
@@ -287,6 +305,15 @@ Im Calibrator
 -------------
 
 .. automodule:: specula.processing_objects.im_calibrator
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Im Sh Synim Generator
+---------------------
+
+.. automodule:: specula.processing_objects.im_sh_synim_generator
    :members:
    :undoc-members:
    :show-inheritance:
@@ -584,6 +611,15 @@ Spot Monitor
 ------------
 
 .. automodule:: specula.processing_objects.spot_monitor
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Sprint Sh Synim
+---------------
+
+.. automodule:: specula.processing_objects.sprint_sh_synim
    :members:
    :undoc-members:
    :show-inheritance:

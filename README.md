@@ -31,6 +31,9 @@ See the documentation here: [specula.readthedocs.io](https://specula.readthedocs
 - socketio
 - scikit-image
 - cupy (for GPU acceleration, optional)
+- astro-seeing
+- symao
+- synim
 
 ### Optional libraries
 
