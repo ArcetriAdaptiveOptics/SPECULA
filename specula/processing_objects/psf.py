@@ -41,7 +41,8 @@ class PSF(BaseProcessingObj):
                  pixel_size_mas: float=None,
                  start_time: float=0.0,
                  target_device_idx: int = None,
-                 precision: int = None
+                 precision: int = None,
+                 verbose:bool = True,
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
@@ -57,6 +58,7 @@ class PSF(BaseProcessingObj):
                                             nd,
                                             pixel_size_mas)
 
+        self.verbose = verbose
         self.start_time = start_time
 
         self.sr = BaseValue(target_device_idx=self.target_device_idx,
@@ -118,7 +120,8 @@ class PSF(BaseProcessingObj):
         self.sr.value = self.psf.value[self.out_size[0] // 2, \
                                        self.out_size[1] // 2] / self.ref.i[self.out_size[0] // 2, \
                                        self.out_size[1] // 2]
-        print('SR at ' + self.wave_str + ':', self.sr.value, flush=True)
+        if self.verbose:
+            print('SR at ' + self.wave_str + ':', self.sr.value, flush=True)
 
     def post_trigger(self):
         super().post_trigger()
