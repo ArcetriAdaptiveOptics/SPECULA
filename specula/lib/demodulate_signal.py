@@ -64,7 +64,7 @@ def demodulate_signal(signal_data, carrier_freq, sampling_freq,
     data = xp_module.asarray(signal_data, dtype=xp_module.float32)
 
     # Handle 1D vs 2D input
-    is_1d = (   data.ndim == 1)
+    is_1d = (data.ndim == 1)
     if is_1d:
         data = data[:, xp_module.newaxis]  # Shape: (nt, 1)
 
