@@ -328,7 +328,8 @@ class BaseSprintEstimator(BaseProcessingObj):
                 slopes_array,  # Convert to CPU for demodulation
                 carrier_freq,
                 sampling_freq,
-                xp_module=self.xp
+                xp=self.xp,
+                dtype=self.dtype
             )
 
             # amplitudes shape: (nslopes,)

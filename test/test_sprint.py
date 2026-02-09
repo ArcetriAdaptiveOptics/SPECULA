@@ -26,8 +26,7 @@ def create_test_system():
     simul_params = SimulParams(
         time_step=1e-3,  # 1ms
         pixel_pupil=160,
-        pixel_pitch=8.0/160,  # 8m telescope
-        root_dir='./test_sprint_output'
+        pixel_pitch=8.0/160  # 8m telescope
     )
 
     # Source (on-axis NGS)

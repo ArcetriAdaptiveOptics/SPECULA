@@ -1,5 +1,4 @@
 import unittest
-import numpy as np
 
 import specula
 specula.init(0)  # Default target device
@@ -15,6 +14,7 @@ from specula.processing_objects.sh import SH
 from specula.processing_objects.sh_slopec import ShSlopec
 from specula.processing_objects.im_sh_synim_generator import ImShSynimGenerator
 import synim.synim as synim
+from specula import np, cpuArray
 
 from test.specula_testlib import cpu_and_gpu
 
@@ -26,17 +26,14 @@ def create_test_system():
     simul_params = SimulParams(
         time_step=1e-3,  # 1ms
         pixel_pupil=100,
-        pixel_pitch=8.0/100,  # 8m telescope
-        root_dir='./test_im_generator_output'
+        pixel_pitch=8.0/100  # 8m telescope
     )
 
     # Source (on-axis NGS)
     source = Source(
         polar_coordinates=[0.0, 0.0],  # On-axis
         magnitude=8.0,
-        wavelengthInNm=500.0,
-        target_device_idx=-1,
-        precision=1
+        wavelengthInNm=500.0
     )
 
     # DM - Zernike modes
@@ -45,17 +42,13 @@ def create_test_system():
         type_str='zernike',
         npixels=simul_params.pixel_pupil,
         nmodes=n_modes,
-        obsratio=0.0,
-        target_device_idx=-1,
-        precision=1
+        obsratio=0.0
     )
 
     dm = DM(
         simul_params=simul_params,
         ifunc=ifunc,
-        height=0.0,
-        target_device_idx=-1,
-        precision=1
+        height=0.0
     )
 
     # Create SubapData (valid subapertures)
@@ -86,9 +79,7 @@ def create_test_system():
         idxs=v,
         display_map=m,
         nx=n_subap,
-        ny=n_subap,
-        target_device_idx=-1,
-        precision=1
+        ny=n_subap
     )
 
     # SH WFS
@@ -98,9 +89,7 @@ def create_test_system():
         subap_wanted_fov=subap_npx * pxscale_arcsec,
         sensor_pxscale=pxscale_arcsec,
         subap_on_diameter=subap_on_diameter,
-        subap_npx=subap_npx,
-        target_device_idx=-1,
-        precision=1
+        subap_npx=subap_npx
     )
 
     # Create input electric field for WFS setup
@@ -108,9 +97,7 @@ def create_test_system():
         simul_params.pixel_pupil,
         simul_params.pixel_pupil,
         simul_params.pixel_pitch,
-        S0=1,
-        target_device_idx=-1,
-        precision=1
+        S0=1
     )
     ef.generation_time = 1
 
@@ -120,35 +107,34 @@ def create_test_system():
 
     # Slopec
     slopec = ShSlopec(
-        subapdata=subapdata,
-        target_device_idx=-1,
-        precision=1
+        subapdata=subapdata
     )
 
     return simul_params, source, dm, wfs, slopec
 
 
 def generate_reference_im_synim(simul_params, source, dm, wfs, slopec,
-                                shift_x=0.0, shift_y=0.0, rotation=0.0, magnification=0.0):
+                                shift_x=0.0, shift_y=0.0, rotation=0.0,
+                                magnification=0.0, xp=np):
     """Generate reference IM using SynIM directly"""
 
     # Extract parameters
     pup_diam_m = simul_params.pixel_pupil * simul_params.pixel_pitch
-    pup_mask = np.array(dm.mask)
+    pup_mask = dm.mask
 
     # Get 3D influence functions
-    ifunc_3d = np.array(dm.ifunc_obj.ifunc_2d_to_3d(normalize=True))
+    ifunc_3d = dm.ifunc_obj.ifunc_2d_to_3d(normalize=True)
 
     # Get valid subapertures from slopec
     subapdata = slopec.subapdata
-    display_map = np.array(subapdata.display_map)
+    display_map = subapdata.display_map
     nx = subapdata.nx
     idx_i = display_map // nx
     idx_j = display_map % nx
-    idx_valid_sa = np.column_stack((idx_i, idx_j))
+    idx_valid_sa = xp.column_stack((idx_i, idx_j))
 
     # Source coordinates
-    gs_pol_coo = tuple(np.array(source.polar_coordinates))
+    gs_pol_coo = tuple(cpuArray(source.polar_coordinates))
     gs_height = source.height if source.height != float('inf') else float('inf')
 
     # WFS parameters
@@ -166,9 +152,9 @@ def generate_reference_im_synim(simul_params, source, dm, wfs, slopec,
         gs_pol_coo=gs_pol_coo,
         gs_height=gs_height,
         wfs_nsubaps=subap_on_diameter,
-        wfs_rotation=rotation,
-        wfs_translation=(shift_x, shift_y),
-        wfs_mag_global=1.0 + magnification,
+        wfs_rotation=float(rotation),
+        wfs_translation=(float(shift_x), float(shift_y)),
+        wfs_mag_global=1.0 + float(magnification),
         wfs_fov_arcsec=subap_fov,
         idx_valid_sa=idx_valid_sa,
         verbose=False,
@@ -223,7 +209,7 @@ class TestImShSynimGenerator(unittest.TestCase):
         # Generate reference IM with SynIM directly
         im_ref = generate_reference_im_synim(simul_params, source, dm, wfs, slopec,
                                             shift_x=0.0, shift_y=0.0,
-                                            rotation=0.0, magnification=0.0)
+                                            rotation=0.0, magnification=0.0, xp=xp)
 
         if self.verbose: # pragma: no cover
             print(f"Reference IM shape: {im_ref.shape}")
@@ -300,7 +286,8 @@ class TestImShSynimGenerator(unittest.TestCase):
 
         # Generate reference IM with SynIM directly
         im_ref = generate_reference_im_synim(simul_params, source, dm, wfs, slopec,
-                                            shift_x, shift_y, rotation, magnification)
+                                            shift_x, shift_y, rotation, magnification,
+                                            xp=xp)
 
         # Compare
         im_diff = im_generated - im_ref
@@ -429,7 +416,8 @@ class TestImShSynimGenerator(unittest.TestCase):
             # Generate reference
             im_ref = generate_reference_im_synim(
                 simul_params, source, dm, wfs, slopec,
-                misreg_params[0], misreg_params[1], misreg_params[2], misreg_params[3]
+                misreg_params[0], misreg_params[1], misreg_params[2], misreg_params[3],
+                xp=xp
             )
 
             # Compare

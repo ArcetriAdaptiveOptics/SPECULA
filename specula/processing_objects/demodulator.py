@@ -91,7 +91,8 @@ class Demodulator(BaseProcessingObj):
                 sampling_freq=sampling_freq,
                 cumulated=True,
                 verbose=self.verbose,
-                xp_module=self.xp
+                xp=self.xp,
+                dtype=self.dtype
             )
             values[i] = value
 

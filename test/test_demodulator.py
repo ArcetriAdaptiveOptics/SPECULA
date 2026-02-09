@@ -84,10 +84,11 @@ class TestDemodulateSignal(unittest.TestCase):
     def test_demodulate_single_signal_no_noise(self, target_device_idx, xp):
         """Test demodulation of a single sinusoidal signal without noise"""
 
-        print(f"\n{'='*70}")
-        print(f"Testing single signal demodulation (no noise)")
-        print(f"  target_device={target_device_idx}")
-        print(f"{'='*70}")
+        if self.verbose: # pragma: no cover
+            print(f"\n{'='*70}")
+            print(f"Testing single signal demodulation (no noise)")
+            print(f"  target_device={target_device_idx}")
+            print(f"{'='*70}")
 
         # Signal parameters
         duration = 0.2  # seconds
@@ -116,7 +117,7 @@ class TestDemodulateSignal(unittest.TestCase):
         # Demodulate
         amp_demod, phase_demod = demodulate_signal(
             signal, carrier_freq, sampling_freq,
-            cumulated=True, verbose=False, xp_module=xp
+            cumulated=True, verbose=False, xp=xp
         )
 
         # Apply phase correction to get signed amplitude
@@ -174,7 +175,7 @@ class TestDemodulateSignal(unittest.TestCase):
         # Demodulate
         amp_demod, phase_demod = demodulate_signal(
             signal_noisy, carrier_freq, sampling_freq,
-            cumulated=True, verbose=False, xp_module=xp
+            cumulated=True, verbose=False, xp=xp
         )
 
         amp_signed = cpuArray(amp_demod * xp.sign(xp.cos(phase_demod)))
@@ -234,7 +235,7 @@ class TestDemodulateSignal(unittest.TestCase):
         # Demodulate all signals at once (vectorized)
         amps_demod, phases_demod = demodulate_signal(
             signals_2d, carrier_freq, sampling_freq,
-            cumulated=True, verbose=False, xp_module=xp
+            cumulated=True, verbose=False, xp=xp
         )
 
         if self.verbose: # pragma: no cover
@@ -258,7 +259,7 @@ class TestDemodulateSignal(unittest.TestCase):
             amp_signed *= sign
             error_rel = abs(amp_signed - amplitudes_true[i]) / amplitudes_true[i]
 
-            if i == 0 or i == nsignals - 1 and self.verbose:  # pragma: no cover
+            if (i == 0 or i == nsignals - 1) and self.verbose:  # pragma: no cover
                 print(f"  Signal {i}: true={float(amplitudes_true[i]):.3f}, "
                       f"demod={float(amp_signed):.3f}, error={float(error_rel*100):.2f}%")
 
@@ -307,7 +308,7 @@ class TestDemodulateSignal(unittest.TestCase):
         # Demodulate
         amps_demod, phases_demod = demodulate_signal(
             signals_2d, carrier_freq, sampling_freq,
-            cumulated=True, verbose=False, xp_module=xp
+            cumulated=True, verbose=False, xp=xp
         )
 
         amps_demod = cpuArray(amps_demod)
@@ -373,7 +374,7 @@ class TestDemodulateSignal(unittest.TestCase):
         # Demodulate (vectorized)
         amps_demod, phases_demod = demodulate_signal(
             slopes_time, carrier_freq, sampling_freq,
-            cumulated=True, verbose=False, xp_module=xp
+            cumulated=True, verbose=False, xp=xp
         )
 
         # Apply phase correction
@@ -434,7 +435,7 @@ class TestDemodulateSignal(unittest.TestCase):
 
         # Very short signal
         short_signal = np.sin(2 * np.pi * 5.0 * np.arange(10) * 0.001)
-        amp, phase = demodulate_signal(short_signal, 5.0, 1000.0, xp_module=np)
+        amp, phase = demodulate_signal(short_signal, 5.0, 1000.0, xp=np)
         self.assertIsInstance(amp, float)
         if self.verbose: # pragma: no cover
             print(f"  Short signal (10 samples): OK")
@@ -442,7 +443,7 @@ class TestDemodulateSignal(unittest.TestCase):
         # Single sample (should not crash)
         try:
             single = np.array([1.0])
-            amp, phase = demodulate_signal(single, 5.0, 1000.0, xp_module=np)
+            amp, phase = demodulate_signal(single, 5.0, 1000.0, xp=np)
             if self.verbose: # pragma: no cover
                 print(f"  Single sample: OK (amp={amp:.3f})")
         except Exception as e:
@@ -451,7 +452,7 @@ class TestDemodulateSignal(unittest.TestCase):
 
         # Zero signal
         zero_signal = np.zeros(100)
-        amp, phase = demodulate_signal(zero_signal, 5.0, 1000.0, xp_module=np)
+        amp, phase = demodulate_signal(zero_signal, 5.0, 1000.0, xp=np)
         self.assertAlmostEqual(amp, 0.0, delta=1e-6)
         if self.verbose: # pragma: no cover
             print(f"  Zero signal: OK (amp={amp:.3e})")
@@ -460,7 +461,7 @@ class TestDemodulateSignal(unittest.TestCase):
         nyquist_freq = 500.0  # fs=1000, Nyquist=500
         time = np.arange(0, 1.0, 0.001)
         signal_nyquist = np.sin(2 * np.pi * nyquist_freq * time)
-        amp, phase = demodulate_signal(signal_nyquist, nyquist_freq, 1000.0, xp_module=np)
+        amp, phase = demodulate_signal(signal_nyquist, nyquist_freq, 1000.0, xp=np)
         if self.verbose: # pragma: no cover
             print(f"  Nyquist frequency: amp={amp:.3f}")
 
@@ -482,12 +483,12 @@ class TestDemodulateSignal(unittest.TestCase):
 
         # Cumulated demodulation
         amp_cum, phase_cum = demodulate_signal(
-            signal, carrier_freq, 1.0/dt, cumulated=True, xp_module=np
+            signal, carrier_freq, 1.0/dt, cumulated=True, xp=np
         )
 
         # Simple demodulation
         amp_sim, phase_sim = demodulate_signal(
-            signal, carrier_freq, 1.0/dt, cumulated=False, xp_module=np
+            signal, carrier_freq, 1.0/dt, cumulated=False, xp=np
         )
 
         if self.verbose: # pragma: no cover
