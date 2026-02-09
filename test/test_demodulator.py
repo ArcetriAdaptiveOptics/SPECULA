@@ -98,7 +98,7 @@ class TestDemodulateSignal(unittest.TestCase):
         phase_true = 0.0  # Start at phase 0 (sine wave)
 
         # Generate time vector
-        time = np.arange(0, duration, dt)
+        time = xp.arange(0, duration, dt)
         nt = len(time)
 
         # Generate pure sinusoidal signal
@@ -377,7 +377,7 @@ class TestDemodulateSignal(unittest.TestCase):
         )
 
         # Apply phase correction
-        im_reconstructed = amps_demod * np.sign(np.cos(phases_demod))
+        im_reconstructed = xp.array(amps_demod) * xp.sign(xp.cos(xp.array(phases_demod)))
 
         if self.verbose: # pragma: no cover
             print(f"\nReconstruction quality:")
@@ -386,7 +386,7 @@ class TestDemodulateSignal(unittest.TestCase):
 
         # Compare with true IM
         # find correct global sign
-        sign = np.sign(xp.dot(im_reconstructed, im_mode))
+        sign = xp.sign(xp.dot(im_reconstructed, im_mode))
         im_reconstructed *= sign
         im_diff = im_reconstructed - im_mode
         rms_error = xp.sqrt(xp.mean(im_diff**2))
