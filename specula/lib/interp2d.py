@@ -4,7 +4,7 @@ from scipy.interpolate import RegularGridInterpolator
 
 class Interp2D():
 
-    if cp:
+    if cp: # pragma: no cover
         interp2_kernel = r'''
             extern "C" __global__
             void interp2_kernel_TYPE(TYPE *g_in, TYPE *g_out, int out_dx, int out_dy, int in_dx, int in_dy, TYPE *xx, TYPE *yy) {
