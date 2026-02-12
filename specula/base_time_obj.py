@@ -60,6 +60,10 @@ class BaseTimeObj:
             from scipy.linalg import lu_factor, lu_solve
             self.PerformanceWarning = None
 
+        # Always initialize target_rank to 0
+        # Simul will override this value when building objects
+        self.target_rank = 0
+
         self.ndimage_rotate = ndimage_rotate
         self.ndimage_shift = ndimage_shift
         self._lu_factor = lu_factor

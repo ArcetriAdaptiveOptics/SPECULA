@@ -130,16 +130,52 @@ class TestSH(unittest.TestCase):
                 subap_npx=sh_npix,
                 target_device_idx=target_device_idx)
 
+        sh4 = SH(wavelengthInNm=500,
+                subap_wanted_fov= sh_npix * pxscale_arcsec,
+                sensor_pxscale=pxscale_arcsec,
+                subap_on_diameter=30,
+                subap_npx=sh_npix,
+                target_device_idx=target_device_idx)
+        sh4.target_rank = 1  # Different target rank, should not share cache with sh1-3
+
         # Flat wavefront
-        ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        ef = ElectricField(pixel_pupil, pixel_pupil,
+                           pixel_pitch, S0=1,
+                           target_device_idx=target_device_idx)
         ef.generation_time = t
         sh1.inputs['in_ef'].set(ef)
         sh2.inputs['in_ef'].set(ef)
         sh3.inputs['in_ef'].set(ef)
+        sh4.inputs['in_ef'].set(ef)
 
         sh1.setup()
         sh2.setup()
         sh3.setup()
+        sh4.setup()
 
-        assert id(sh1._wf3) == id(sh2._wf3)
-        assert id(sh1._wf3) != id(sh3._wf3)
+        # Test 1: sh1 and sh2 should share arrays (same geometry, same rank)
+        assert id(sh1._wf3) == id(sh2._wf3), "sh1 and sh2 should share _wf3"
+        assert id(sh1.psf) == id(sh2.psf), "sh1 and sh2 should share psf"
+        assert id(sh1.psf_shifted) == id(sh2.psf_shifted), "sh1 and sh2 should share psf_shifted"
+        assert id(sh1.ef_row) == id(sh2.ef_row), "sh1 and sh2 should share ef_row"
+
+        # Test 2: sh3 should NOT share with sh1/sh2 (different geometry)
+        assert id(sh1._wf3) != id(sh3._wf3), "sh3 should have different _wf3 (different geometry)"
+
+        # Test 3: sh4 should NOT share with sh1/sh2 (different target_rank)
+        assert id(sh1._wf3) != id(sh4._wf3), "sh4 should have different _wf3 (different target_rank)"
+        assert id(sh1.psf) != id(sh4.psf), "sh4 should have different psf (different target_rank)"
+
+        # Test 4: Check cache size
+        cache_size = len(SH._SH__zeros_cache)
+        self.assertGreater(cache_size, 0, "Cache should have entries")
+
+        # We should have entries for:
+        # - sh1/sh2 (shared, rank 0, geometry 20)
+        # - sh3 (separate, rank 0, geometry 30)
+        # - sh4 (separate, rank 1, geometry 20)
+        # Each geometry allocates 4 arrays
+        #  (_wf3, psf==psf_shifted, ef_row, _psfimage, _psf_reshaped_2d)
+        # So expected: 3 geometries × 5 arrays = 15 entries
+        assert cache_size == 15
+        print(f"Cache has {cache_size} entries")

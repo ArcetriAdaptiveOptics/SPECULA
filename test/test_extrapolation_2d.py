@@ -264,14 +264,16 @@ class TestExtrapolation2D(unittest.TestCase):
         ef2.phaseInNm[:] = 0.0
 
         # Clear cache before test
-        EFInterpolator._EFInterpolator__cache.clear()
+        EFInterpolator._EFInterpolator__zeros_cache.clear()
+        EFInterpolator._EFInterpolator__ef_cache.clear()
 
         # Create first interpolator - should allocate cache
         interp1 = EFInterpolator(ef1, (64, 64),
                                 target_device_idx=target_device_idx,
+                                target_rank=0,
                                 force_extrapolation=True)
 
-        cache_size_after_first = len(EFInterpolator._EFInterpolator__cache)
+        cache_size_after_first = len(EFInterpolator._EFInterpolator__zeros_cache)
         self.assertGreater(cache_size_after_first, 0,
                           "Cache should have entries after first interpolator")
 
@@ -281,9 +283,10 @@ class TestExtrapolation2D(unittest.TestCase):
         # Create second interpolator with same parameters - should reuse cache
         interp2 = EFInterpolator(ef2, (64, 64),
                                 target_device_idx=target_device_idx,
+                                target_rank=0,
                                 force_extrapolation=True)
 
-        cache_size_after_second = len(EFInterpolator._EFInterpolator__cache)
+        cache_size_after_second = len(EFInterpolator._EFInterpolator__zeros_cache)
         self.assertEqual(cache_size_after_first, cache_size_after_second,
                         "Cache size should not increase for identical parameters")
 
@@ -291,6 +294,56 @@ class TestExtrapolation2D(unittest.TestCase):
         phase_extrap_id_2 = id(interp2.phase_extrapolated)
         self.assertEqual(phase_extrap_id_1, phase_extrap_id_2,
                         "Both interpolators should share the same cached array")
+
+    @cpu_and_gpu
+    def test_cache_different_target_ranks(self, target_device_idx, xp):
+        """
+        Test that cache creates separate entries for different target_ranks.
+        """
+        ef_size = (32, 32)
+        pixel_pitch = 0.01
+
+        # Clear cache
+        EFInterpolator._EFInterpolator__zeros_cache.clear()
+        EFInterpolator._EFInterpolator__ef_cache.clear()
+
+        # Create interpolator with target_rank=0
+        ef1 = ElectricField(ef_size[0], ef_size[1], pixel_pitch,
+                           target_device_idx=target_device_idx)
+        ef1.A[:] = 1.0
+        ef1.phaseInNm[:] = 0.0
+
+        interp1 = EFInterpolator(ef1, (64, 64),
+                                target_device_idx=target_device_idx,
+                                target_rank=0,
+                                force_extrapolation=True)
+
+        cache_size_rank0 = len(EFInterpolator._EFInterpolator__zeros_cache)
+        self.assertGreater(cache_size_rank0, 0, "Cache should have entries for rank 0")
+
+        # Create interpolator with target_rank=1 (same other parameters)
+        ef2 = ElectricField(ef_size[0], ef_size[1], pixel_pitch,
+                           target_device_idx=target_device_idx)
+        ef2.A[:] = 1.0
+        ef2.phaseInNm[:] = 0.0
+
+        interp2 = EFInterpolator(ef2, (64, 64),
+                                target_device_idx=target_device_idx,
+                                target_rank=1,  # Different rank
+                                force_extrapolation=True)
+
+        cache_size_rank1 = len(EFInterpolator._EFInterpolator__zeros_cache)
+        self.assertGreater(cache_size_rank1, 0, "Cache should have entries for rank 1")
+
+        # Arrays should be different
+        self.assertNotEqual(id(interp1.phase_extrapolated),
+                          id(interp2.phase_extrapolated),
+                          "Different target_ranks should use different cached arrays")
+
+        # out_ef should also be different
+        self.assertNotEqual(id(interp1.out_ef),
+                          id(interp2.out_ef),
+                          "Different target_ranks should have different out_ef")
 
     @cpu_and_gpu
     def test_cache_different_devices(self, target_device_idx, xp):
@@ -307,14 +360,16 @@ class TestExtrapolation2D(unittest.TestCase):
         ef1.phaseInNm[:] = 0.0
 
         # Clear cache
-        EFInterpolator._EFInterpolator__cache.clear()
+        EFInterpolator._EFInterpolator__zeros_cache.clear()
+        EFInterpolator._EFInterpolator__ef_cache.clear()
 
         # Create interpolator on first device
         interp1 = EFInterpolator(ef1, (64, 64),
                                 target_device_idx=target_device_idx,
+                                target_rank=0,
                                 force_extrapolation=True)
 
-        cache_size_first = len(EFInterpolator._EFInterpolator__cache)
+        cache_size_first = len(EFInterpolator._EFInterpolator__zeros_cache)
         self.assertGreater(cache_size_first, 0, "Cache should have entries")
 
         # Determine other device
@@ -328,9 +383,10 @@ class TestExtrapolation2D(unittest.TestCase):
 
         interp2 = EFInterpolator(ef2, (64, 64),
                                 target_device_idx=other_device,
+                                target_rank=0,
                                 force_extrapolation=True)
 
-        cache_size_second = len(EFInterpolator._EFInterpolator__cache)
+        cache_size_second = len(EFInterpolator._EFInterpolator__zeros_cache)
 
         if devices_are_different:
             # Different devices should have separate cache entries
@@ -355,7 +411,8 @@ class TestExtrapolation2D(unittest.TestCase):
         pixel_pitch = 0.01
 
         # Clear cache
-        EFInterpolator._EFInterpolator__cache.clear()
+        EFInterpolator._EFInterpolator__zeros_cache.clear()
+        EFInterpolator._EFInterpolator__ef_cache.clear()
 
         # Create interpolator with first shape
         ef1 = ElectricField(32, 32, pixel_pitch, target_device_idx=target_device_idx)
@@ -364,9 +421,10 @@ class TestExtrapolation2D(unittest.TestCase):
 
         interp1 = EFInterpolator(ef1, (64, 64),
                                 target_device_idx=target_device_idx,
+                                target_rank=0,
                                 force_extrapolation=True)
 
-        cache_size_first = len(EFInterpolator._EFInterpolator__cache)
+        cache_size_first = len(EFInterpolator._EFInterpolator__zeros_cache)
 
         # Create interpolator with different input shape
         ef2 = ElectricField(64, 64, pixel_pitch, target_device_idx=target_device_idx)
@@ -375,9 +433,10 @@ class TestExtrapolation2D(unittest.TestCase):
 
         interp2 = EFInterpolator(ef2, (128, 128),
                                 target_device_idx=target_device_idx,
+                                target_rank=0,
                                 force_extrapolation=True)
 
-        cache_size_second = len(EFInterpolator._EFInterpolator__cache)
+        cache_size_second = len(EFInterpolator._EFInterpolator__zeros_cache)
 
         # Cache should have more entries for different shapes
         self.assertGreater(cache_size_second, cache_size_first,
@@ -398,7 +457,8 @@ class TestExtrapolation2D(unittest.TestCase):
         pixel_pitch = 0.01
 
         # Clear cache
-        EFInterpolator._EFInterpolator__cache.clear()
+        EFInterpolator._EFInterpolator__zeros_cache.clear()
+        EFInterpolator._EFInterpolator__ef_cache.clear()
 
         # Create two interpolators
         ef1 = ElectricField(ef_size[0], ef_size[1], pixel_pitch,
@@ -418,9 +478,11 @@ class TestExtrapolation2D(unittest.TestCase):
 
         interp1 = EFInterpolator(ef1, (64, 64),
                                 target_device_idx=target_device_idx,
+                                target_rank=0,
                                 force_extrapolation=True)
         interp2 = EFInterpolator(ef2, (64, 64),
                                 target_device_idx=target_device_idx,
+                                target_rank=0,
                                 force_extrapolation=True)
 
         # Interpolate with first interpolator

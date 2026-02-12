@@ -459,6 +459,9 @@ class Simul():
 
             self.objs[key].name = key
 
+            # Set target_rank
+            self.objs[key].target_rank = target_rank
+
             # TODO this could be more general like the getters above
             if type(self.objs[key]) is DataStore:
                 self.objs[key].setParams(params)

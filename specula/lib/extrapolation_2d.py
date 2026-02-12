@@ -186,10 +186,12 @@ class EFInterpolator():
     Interpolate the amplitude and phase of an ElectricField object using edge extrapolation.
     '''
 
-    __cache = {}  # Shared cache for all EFInterpolator instances
+    __ef_cache = {}  # Shared cache for ElectricField objects
+    __zeros_cache = {}  # Shared cache for all EFInterpolator instances
 
     @classmethod
-    def _zeros_common(cls, shape, dtype, xp, usage_tag, target_device_idx):
+    def _zeros_common(cls, shape, dtype, xp,
+                      target_device_idx, target_rank):
         """
         Wrapper around xp.zeros to enable reuse cache.
         None of the arrays allocated here should be used in 
@@ -203,20 +205,21 @@ class EFInterpolator():
             Data type
         xp : module
             numpy or cupy
-        usage_tag : str
-            Tag to identify array usage
         target_device_idx : int
             Target device
+        target_rank : int
+            Target rank (for multi-GPU/multi-node setups)
             
         Returns
         -------
         array : ndarray
             Array from cache
         """
-        key = (target_device_idx, shape, dtype, id(xp), usage_tag)
-        if key not in cls.__cache:
-            cls.__cache[key] = xp.zeros(shape, dtype=dtype)
-        return cls.__cache[key]
+        key = (target_device_idx, target_rank, shape, dtype, id(xp))
+        if key not in cls.__zeros_cache:
+            cls.__zeros_cache[key] = xp.zeros(shape, dtype=dtype)
+        return cls.__zeros_cache[key]
+
 
     def __init__(self,
                  in_ef: ElectricField,
@@ -228,6 +231,7 @@ class EFInterpolator():
                  force_extrapolation: bool=False,
                  target_device_idx: int=None,
                  precision: int=None,
+                 target_rank: int=None
                  ):
         '''
         Initialize an EFInterpolator object for interpolating an ElectricField,
@@ -269,6 +273,7 @@ class EFInterpolator():
         self.in_ef = in_ef
         self.force_extrapolation = force_extrapolation
         self.target_device_idx = target_device_idx
+        self.target_rank = target_rank
 
         if (in_ef.size == out_shape and
             rotAnglePhInDeg == 0 and
@@ -280,13 +285,19 @@ class EFInterpolator():
 
         self.do_interpolation = True
 
-        self.out_ef = ElectricField(
-            out_shape[0],
-            out_shape[1],
-            in_ef.pixel_pitch / oversampling_factor,
-            target_device_idx=target_device_idx,
-            precision=precision
-        )
+        # Cache out_ef by shape and parameters
+        ef_key = (out_shape, in_ef.pixel_pitch / oversampling_factor,
+                  target_device_idx, precision, target_rank)
+        if ef_key not in self.__ef_cache:
+            self.__ef_cache[ef_key] = ElectricField(
+                out_shape[0],
+                out_shape[1],
+                in_ef.pixel_pitch / oversampling_factor,
+                target_device_idx=target_device_idx,
+                precision=precision
+            )
+        self.out_ef = self.__ef_cache[ef_key]
+
 
         xp = self.out_ef.xp
         dtype = self.out_ef.dtype
@@ -306,8 +317,8 @@ class EFInterpolator():
             in_ef.size,
             dtype,
             xp,
-            'phase_extrapolated',
-            target_device_idx
+            target_device_idx,
+            target_rank
         )
 
         self.extrapolation_initialized = False
