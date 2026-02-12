@@ -298,7 +298,6 @@ class EFInterpolator():
             )
         self.out_ef = self.__ef_cache[ef_key]
 
-
         xp = self.out_ef.xp
         dtype = self.out_ef.dtype
 
