@@ -316,7 +316,7 @@ class ConvolutionKernel(BaseDataObj):
 
         # Create an HDUList and write to file
         hdul = fits.HDUList([primary_hdu, kernel_hdu])
-        hdul.writeto(filename, overwrite=True)   
+        hdul.writeto(filename, overwrite=True)
         hdul.close()  # Force close for Windows
 
     def prepare_for_sh(self, sodium_altitude=None, sodium_intensity=None, current_time=None):
@@ -351,6 +351,9 @@ class ConvolutionKernel(BaseDataObj):
                 self.calculate_lgs_map()
                 self.save(full_path)
                 print('Done')
+
+            # free memory
+            self.real_kernels = None
 
         if current_time is not None:
             self.generation_time = current_time
@@ -417,11 +420,12 @@ class ConvolutionKernel(BaseDataObj):
 
     def get_value(self):
         return self.real_kernels
-    
+
     def set_value(self, v):
         '''Set new kernels.
         Arrays are not reallocated.'''
         assert v.shape == self.real_kernels.shape, \
-            f"Error: input array shape {v.shape} does not match real_kernels shape {self.real_kernels.shape}"
+            f"Error: input array shape {v.shape} does not match"
+            f" real_kernels shape {self.real_kernels.shape}"
 
         self.real_kernels[:] = self.to_xp(v)

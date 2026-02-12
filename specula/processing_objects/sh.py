@@ -284,7 +284,8 @@ class SH(BaseProcessingObj):
                                                             return_fft = True,
                                                             positive_shift_tt = True,
                                                             data_dir=self.data_dir,
-                                                            target_device_idx=self.target_device_idx)
+                                                            target_device_idx=self.target_device_idx,
+                                                            precision=self.precision)
             else:
                 if len(self._laser_launch_tel.beacon_tt) != 0:
                     theta = self._laser_launch_tel.beacon_tt
@@ -304,7 +305,8 @@ class SH(BaseProcessingObj):
                                                     return_fft = True,
                                                     positive_shift_tt = True,
                                                     data_dir=self.data_dir,
-                                                    target_device_idx=self.target_device_idx)
+                                                    target_device_idx=self.target_device_idx,
+                                                    precision=self.precision)
             self._kernel_fn = None
         else:
             self._kernelobj = None
