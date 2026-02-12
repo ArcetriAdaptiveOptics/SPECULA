@@ -85,7 +85,8 @@ class IdealDerivativeSensor(BaseProcessingObj):
             yShiftPhInPixel=0,
             force_extrapolation=True,
             target_device_idx=self.target_device_idx,
-            precision=self.precision
+            precision=self.precision,
+            target_rank=self.target_rank
         )
 
 

@@ -147,7 +147,8 @@ class Coronograph(BaseProcessingObj):
             yShiftPhInPixel=0,
             mask_threshold=self.mask_threshold,
             target_device_idx=self.target_device_idx,
-            precision=self.precision
+            precision=self.precision,
+            target_rank=self.target_rank
         )
 
         # Cannot be used if self._pupil_to_focal_plane is called in trigger_code()
