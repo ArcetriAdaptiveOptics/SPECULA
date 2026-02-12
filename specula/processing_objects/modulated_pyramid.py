@@ -1,18 +1,18 @@
 from specula import fuse
 from specula.lib.extrapolation_2d import EFInterpolator
-from specula.lib.interp2d import Interp2D 
+from specula.lib.interp2d import Interp2D
 
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_value import BaseValue
 from specula.connections import InputValue
 from specula.data_objects.electric_field import ElectricField
-from specula.lib.make_xy import make_xy
 from specula.data_objects.intensity import Intensity
+from specula.data_objects.simul_params import SimulParams
+from specula.lib.make_xy import make_xy
 from specula.lib.make_mask import make_mask
 from specula.lib.toccd import toccd
-from specula.data_objects.simul_params import SimulParams
 from specula.lib.calc_geometry import calc_geometry
-
+from specula.lib.utils import make_subpixel_shift_phase
 
 @fuse(kernel_name='pyr1_fused')
 def pyr1_fused(u_fp, ffv, fpsf, masked_exp, xp):
@@ -411,12 +411,21 @@ class ModulatedPyramid(BaseProcessingObj):
         return pyr_tlt / self.tilt_scale
 
     def get_tlt_f(self, p, c):
-        iu = 1j  # complex unit
+        """Generate tilt factor for pyramid de-rotation"""        
         p = int(p)
-        xx, yy = make_xy(2 * p, p, quarter=True, zero_sampled=True, xp=self.xp)
-        tlt_g = xx + yy
+        # The shift amount is 0.5 pixels in the normalized space of size 2*(p+c)
+        shift_amount = (2 * p) / (2 * (p + c))
 
-        tlt_f = self.xp.exp(-2 * self.xp.pi * iu * tlt_g / (2 * (p + c)), dtype=self.complex_dtype)
+        tlt_f = make_subpixel_shift_phase(
+            shape=2 * p,
+            shift_x=shift_amount,
+            shift_y=shift_amount,
+            xp=self.xp,
+            dtype=self.complex_dtype,
+            quarter=True,
+            zero_sampled=True
+        )
+
         return tlt_f
 
     def get_fp_mask(self, totsize, mask_ratio, obsratio=0):

@@ -26,14 +26,22 @@ Zenith Convention
 ~~~~~~~~~~~~~~~~~
 
 In SPECULA, all atmospheric parameters such as **seeing**, **layer heights**, and **source heights** are defined **at zenith** (i.e., for a zenith angle of 0°).
+The **zenith angle** specified in the ``main`` section (using the ``zenithAngleInDeg`` parameter) is used to compute the **airmass** (sec(zenith angle)).
 
-If a non-zero zenith angle is specified in the ``main`` section (using the ``zenithAngleInDeg`` parameter), these values are automatically scaled according to the airmass and geometric projection.
+**Important distinctions:**
 
-- **Seeing**: The value (in arcsec) you provide is assumed at zenith and will be increased for off-zenith simulations according to the airmass.
-- **Layer heights**: The heights (in m) in the ``atmo`` block are at zenith; the code projects them according to the zenith angle.
-- **Source heights**: If you use sources at finite distance (e.g., LGS), their heights are also interpreted as zenith values.
+- **Seeing**: The value (in arcsec) you provide is assumed at zenith and will be increased for off-zenith observations according to the airmass factor.
+- **Layer heights**: The atmospheric layer heights (in m) are projected according to the zenith angle to account for the slant path through the atmosphere. These projected heights represent the **distance from the entrance pupil** along the line of sight.
+- **Source heights**: If you use sources at finite distance (e.g., LGS), their heights are interpreted as zenith heights and projected according to the zenith angle. For example, an LGS at 90 km zenith height observed at 30° zenith angle will have an actual slant distance of 90/cos(30°) ≈ 104 km from the entrance pupil.
+- **Source positions**: Source angular coordinates are always **relative to the telescope pointing direction** (on-axis), regardless of the zenith angle. The zenith angle does not change where sources appear in the field of view.
 
-This convention ensures that you can easily switch between on-axis and off-axis simulations by simply changing the zenith angle in the ``main`` section, without having to recalculate all physical parameters.
+For example, if you set ``zenithAngleInDeg: 30``:
+- Atmospheric turbulence is scaled by airmass (sec(30°) ≈ 1.15)
+- An LGS at 90 km zenith height has a slant path of ~104 km from the entrance pupil
+- A source at position ``[0, 0]`` remains on-axis
+- A source at ``[10, 45]`` remains 10 arcsec away at 45° from the pointing direction
+
+This convention allows you to simulate observations at different zenith angles while keeping the same field configuration, with automatic scaling of atmospheric parameters and source heights.
 
 .. note::
 

@@ -40,7 +40,8 @@ class PsfCoronagraph(PSF):
                  pixel_size_mas: float=None,
                  start_time: float=0.0,
                  target_device_idx: int = None,
-                 precision: int = None
+                 precision: int = None,
+                 verbose:bool = True,
                 ):
         super().__init__(
             simul_params=simul_params,
@@ -51,6 +52,7 @@ class PsfCoronagraph(PSF):
             target_device_idx=target_device_idx,
             precision=precision
         )
+        self.verbose = verbose
 
         # Additional outputs for coronagraph
         self.coronagraph_psf = BaseValue(target_device_idx=self.target_device_idx,
@@ -146,9 +148,10 @@ class PsfCoronagraph(PSF):
             normalize=True
         )
 
-        print(f'Coronagraph peak suppression: '
-              f'{self.coronagraph_psf.value.max()/self.psf.value.max():.2e}',
-              flush=True)
+        if self.verbose:
+            print(f'Coronagraph peak suppression: '
+                f'{self.coronagraph_psf.value.max()/self.psf.value.max():.2e}',
+                flush=True)
 
     def post_trigger(self):
         super().post_trigger()

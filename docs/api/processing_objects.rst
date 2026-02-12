@@ -4,19 +4,19 @@ Processing Objects API
 Processing objects for simulating AO system components.
 
 
-Abstract Coronograph
+Abstract Coronagraph
 --------------------
 
-.. automodule:: specula.processing_objects.abstract_coronograph
+.. automodule:: specula.processing_objects.abstract_coronagraph
    :members:
    :undoc-members:
    :show-inheritance:
 
 
-Apodizer Coronograph
+Apodizer Coronagraph
 --------------------
 
-.. automodule:: specula.processing_objects.apodizer_coronograph
+.. automodule:: specula.processing_objects.apodizer_coronagraph
    :members:
    :undoc-members:
    :show-inheritance:
@@ -85,6 +85,15 @@ Avc
    :show-inheritance:
 
 
+Base Filter
+-----------
+
+.. automodule:: specula.processing_objects.base_filter
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Base Generator
 --------------
 
@@ -107,6 +116,15 @@ Base Slicer
 -----------
 
 .. automodule:: specula.processing_objects.base_slicer
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Base Sprint Estimator
+---------------------
+
+.. automodule:: specula.processing_objects.base_sprint_estimator
    :members:
    :undoc-members:
    :show-inheritance:
@@ -247,10 +265,10 @@ Focal Plane Filter
    :show-inheritance:
 
 
-Four Quadrant Coronograph
+Four Quadrant Coronagraph
 -------------------------
 
-.. automodule:: specula.processing_objects.four_quadrant_coronograph
+.. automodule:: specula.processing_objects.four_quadrant_coronagraph
    :members:
    :undoc-members:
    :show-inheritance:
@@ -292,6 +310,15 @@ Im Calibrator
    :show-inheritance:
 
 
+Im Sh Synim Generator
+---------------------
+
+.. automodule:: specula.processing_objects.im_sh_synim_generator
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Integrator
 ----------
 
@@ -319,10 +346,10 @@ Low Pass Filter
    :show-inheritance:
 
 
-Lyot Coronograph
+Lyot Coronagraph
 ----------------
 
-.. automodule:: specula.processing_objects.lyot_coronograph
+.. automodule:: specula.processing_objects.lyot_coronagraph
    :members:
    :undoc-members:
    :show-inheritance:
@@ -589,6 +616,15 @@ Spot Monitor
    :show-inheritance:
 
 
+Sprint Sh Synim
+---------------
+
+.. automodule:: specula.processing_objects.sprint_sh_synim
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Ssr Filter
 ----------
 
@@ -616,10 +652,10 @@ Vibration Generator
    :show-inheritance:
 
 
-Vortex Coronograph
+Vortex Coronagraph
 ------------------
 
-.. automodule:: specula.processing_objects.vortex_coronograph
+.. automodule:: specula.processing_objects.vortex_coronagraph
    :members:
    :undoc-members:
    :show-inheritance:

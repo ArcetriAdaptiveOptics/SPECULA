@@ -81,13 +81,16 @@ class Modalrec(BaseProcessingObj):
         self.projmat = projmat
         self.intmat = intmat
         self.polc = polc
+        if in_commands_size is None and polc:
+            in_commands_size = intmat.intmat.shape[1]
         self.in_commands_size = in_commands_size
         self.input_modes_index = input_modes_index
 
         if output_slice is not None:
             self.output_slice = slice(*output_slice)
             start = self.output_slice.start if self.output_slice.start is not None else 0
-            stop = self.output_slice.stop if self.output_slice.stop is not None else self.recmat.recmat.shape[0]
+            stop = self.output_slice.stop if self.output_slice.stop is not None \
+                                          else self.recmat.recmat.shape[0]
             step = abs(self.output_slice.step) if self.output_slice.step is not None else 1
             nmodes = (stop - start) // step
         else:
@@ -98,8 +101,11 @@ class Modalrec(BaseProcessingObj):
                 nmodes = self.recmat.nmodes
 
         if input_modes_slice is not None:
+            # Check if it's already a slice object
+            if isinstance(input_modes_slice, slice):
+                self.input_modes_slice = input_modes_slice
             # If it is a list of lists/tuples, create multiple slices and concatenate the indices
-            if isinstance(input_modes_slice[0], (list, tuple, slice)):
+            elif isinstance(input_modes_slice[0], (list, tuple, slice)):
                 indices = []
                 for s in input_modes_slice:
                     if isinstance(s, slice):
@@ -126,7 +132,10 @@ class Modalrec(BaseProcessingObj):
                                precision=precision)
         self.pseudo_ol_modes = BaseValue('output POL modes from modal reconstructor',
                                          target_device_idx=target_device_idx,
-                                         precision=precision) 
+                                         precision=precision)
+
+        self.commands = None  # to be allocated in setup
+        self.slopes = None    # to be allocated in setup
 
         self.inputs['in_slopes'] = InputValue(type=Slopes, optional=True)
         self.inputs['in_slopes_list'] = InputList(type=Slopes, optional=True)
@@ -142,7 +151,7 @@ class Modalrec(BaseProcessingObj):
                                       target_device_idx=target_device_idx,
                                       precision=precision)
             self.inputs['in_commands'] = InputValue(type=BaseValue, optional=True)
-            self.inputs['in_commands_list'] = InputList(type=BaseValue, optional=True)       
+            self.inputs['in_commands_list'] = InputList(type=BaseValue, optional=True)
             # TODO complete static allocation above
 
     def prepare_trigger(self, t):
@@ -248,6 +257,7 @@ class Modalrec(BaseProcessingObj):
             commands = self.local_inputs['in_commands']
             commands_list = self.local_inputs['in_commands_list']
             if not commands and (not commands_list or not all(commands_list)):
-                raise ValueError("When POLC is used, either 'commands' or 'commands_list' must be given as an input")
+                raise ValueError("When POLC is used, either 'commands' or 'commands_list'"
+                                 "must be given as an input")
 
             self.commands = self.xp.zeros(self.in_commands_size, dtype=self.dtype)

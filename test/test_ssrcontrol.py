@@ -314,3 +314,114 @@ class TestSsrFilter(unittest.TestCase):
         output = cpuArray(ssr_filter.outputs['out_comm'].value)
         np.testing.assert_almost_equal(output[0], 2.0)  # Gain
         np.testing.assert_almost_equal(output[1], 0.5)  # Integrator
+
+    @cpu_and_gpu
+    def test_no_delay_output(self, target_device_idx, xp):
+        """Test that out_comm_no_delay provides undelayed output"""
+        simul_params = SimulParams(time_step=0.001)
+        dt = simul_params.time_step
+        delay = 2.0  # 2 frames delay
+
+        ssr_data = SsrFilterData.from_integrator([0.5],
+                                                target_device_idx=target_device_idx)
+        ssr_filter = SsrFilter(simul_params, ssr_data, delay=delay,
+                              target_device_idx=target_device_idx)
+
+        input_value = BaseValue(value=xp.array([1.0], dtype=xp.float32),
+                               target_device_idx=target_device_idx)
+
+        ssr_filter.inputs['delta_comm'].set(input_value)
+        ssr_filter.setup()
+
+        # Run for 3 frames
+        for step in range(3):
+            t = ssr_filter.seconds_to_t(step * dt)
+            input_value.generation_time = t
+            ssr_filter.check_ready(t)
+            ssr_filter.trigger()
+            ssr_filter.post_trigger()
+
+            delayed_output = cpuArray(ssr_filter.outputs['out_comm'].value)
+            no_delay_output = cpuArray(ssr_filter.outputs['out_comm_no_delay'].value)
+
+            if step < 2:
+                # Delayed output should be 0 for first 2 frames
+                np.testing.assert_almost_equal(delayed_output[0], 0.0)
+            else:
+                # At step 2, delayed output shows step 0 value
+                np.testing.assert_almost_equal(delayed_output[0], 0.5, decimal=5)
+
+            # No-delay output should always show current value
+            expected_no_delay = 0.5 * (step + 1)
+            np.testing.assert_almost_equal(no_delay_output[0], expected_no_delay, decimal=5)
+
+    @cpu_and_gpu
+    def test_no_delay_vs_delayed_with_zero_delay(self, target_device_idx, xp):
+        """Test that both outputs are identical when delay=0"""
+        simul_params = SimulParams(time_step=0.001)
+
+        ssr_data = SsrFilterData.from_gain([2.0], target_device_idx=target_device_idx)
+        ssr_filter = SsrFilter(simul_params, ssr_data, delay=0.0,
+                              target_device_idx=target_device_idx)
+
+        input_value = BaseValue(value=xp.array([1.5], dtype=xp.float32),
+                               target_device_idx=target_device_idx)
+
+        ssr_filter.inputs['delta_comm'].set(input_value)
+        ssr_filter.setup()
+
+        # Trigger
+        t0 = 0
+        input_value.generation_time = t0
+        ssr_filter.check_ready(t0)
+        ssr_filter.trigger()
+        ssr_filter.post_trigger()
+
+        delayed_output = cpuArray(ssr_filter.outputs['out_comm'].value)
+        no_delay_output = cpuArray(ssr_filter.outputs['out_comm_no_delay'].value)
+
+        # Both should be identical when delay=0
+        np.testing.assert_array_almost_equal(delayed_output, no_delay_output)
+        np.testing.assert_almost_equal(delayed_output[0], 3.0)  # 2.0 * 1.5
+
+    @cpu_and_gpu
+    def test_no_delay_output_for_polc(self, target_device_idx, xp):
+        """Test no_delay output in POLC-like scenario with fractional delay"""
+        simul_params = SimulParams(time_step=0.001)
+        dt = simul_params.time_step
+        delay = 1.5  # Fractional delay
+
+        ssr_data = SsrFilterData.from_gain([1.0], target_device_idx=target_device_idx)
+        ssr_filter = SsrFilter(simul_params, ssr_data, delay=delay,
+                              target_device_idx=target_device_idx)
+
+        input_value = BaseValue(value=xp.array([0.0], dtype=xp.float32),
+                               target_device_idx=target_device_idx)
+
+        ssr_filter.inputs['delta_comm'].set(input_value)
+        ssr_filter.setup()
+
+        # Apply sequence: 10, 20, 30
+        inputs = [10.0, 20.0, 30.0]
+
+        for step, inp in enumerate(inputs):
+            t = ssr_filter.seconds_to_t(step * dt)
+            input_value.value = xp.array([inp], dtype=xp.float32)
+            input_value.generation_time = t
+            ssr_filter.check_ready(t)
+            ssr_filter.trigger()
+            ssr_filter.post_trigger()
+
+            no_delay_output = cpuArray(ssr_filter.outputs['out_comm_no_delay'].value)
+
+            # No-delay should always reflect current input immediately
+            np.testing.assert_almost_equal(no_delay_output[0], inp, decimal=5,
+                                          err_msg=f"Step {step}: no_delay output mismatch")
+
+        # Verify delayed output uses interpolation
+        delayed_output = cpuArray(ssr_filter.outputs['out_comm'].value)
+        # At step 2: delay=1.5 means interpolate between buffer[1] and buffer[2]
+        # buffer[2] = 10 (from step 0), buffer[1] = 20 (from step 1)
+        # output = 0.5 * buffer[2] + 0.5 * buffer[1] = 0.5*10 + 0.5*20 = 15
+        expected_delayed = 15.0
+        np.testing.assert_almost_equal(delayed_output[0], expected_delayed, decimal=5)
