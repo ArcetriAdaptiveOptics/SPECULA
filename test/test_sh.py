@@ -109,6 +109,9 @@ class TestSH(unittest.TestCase):
         pixel_pitch = 0.05
         sh_npix = 6
 
+        # clear cache before test
+        SH._SH__zeros_cache.clear()
+
         sh1 = SH(wavelengthInNm=500,
                 subap_wanted_fov= sh_npix * pxscale_arcsec,
                 sensor_pxscale=pxscale_arcsec,
