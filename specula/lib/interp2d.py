@@ -267,7 +267,7 @@ class Interp2D():
         if out is None:
             out = self.xp.empty(shape=self.output_shape, dtype=self.dtype)
 
-        if self.xp == cp:
+        if self.xp == cp: # pragma: no cover
             block = (16, 16, 1)
             # Calculate grid size for non-square arrays correctly
             grid_x = (self.output_shape[1] + block[0] - 1) // block[0]
