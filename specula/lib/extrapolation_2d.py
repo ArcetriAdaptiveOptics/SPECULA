@@ -229,6 +229,7 @@ class EFInterpolator():
                  yShiftPhInPixel: float=0,
                  mask_threshold: float=1e-3,
                  force_extrapolation: bool=False,
+                 use_out_ef_cache: bool=False,
                  target_device_idx: int=None,
                  precision: int=None,
                  target_rank: int=None
@@ -254,10 +255,19 @@ class EFInterpolator():
             (default: 1e-3).
         force_extrapolation : bool, optional
             If True, forces extrapolation even if not strictly needed (default: False).
+        use_out_ef_cache : bool, optional
+            If True, enables caching of output ElectricField objects to save memory and
+            allocation time (default: False).
+            WARNING: when enabled, output ElectricField objects are cached and saving them
+                     with dataStore (or similar mechanisms) will not work. Only the last
+                     output ElectricField created with a specific shape and parameters will
+                     be valid, all the others will be overwritten by the cache.
         target_device_idx : int, optional
             Target device index for GPU computation (default: None).
         precision : int, optional
             Precision for GPU computation (default: None).
+        target_rank : int, optional
+            Target rank for multi-GPU/multi-node setups (default: None).
 
         Output EF is allocated internally and can be retrieved with the interpolated_ef() method.
         '''
@@ -268,12 +278,13 @@ class EFInterpolator():
 
         oversampling_factor = out_shape[0] / in_ef.size[0]
 
-        self.debugOutput = False
+        self.debug_output = False
         self.mask_threshold = mask_threshold
         self.in_ef = in_ef
         self.force_extrapolation = force_extrapolation
         self.target_device_idx = target_device_idx
         self.target_rank = target_rank
+        self.use_out_ef_cache = use_out_ef_cache
 
         if (in_ef.size == out_shape and
             rotAnglePhInDeg == 0 and
@@ -285,18 +296,34 @@ class EFInterpolator():
 
         self.do_interpolation = True
 
-        # Cache out_ef by shape and parameters
-        ef_key = (out_shape, in_ef.pixel_pitch / oversampling_factor,
-                  target_device_idx, precision, target_rank)
-        if ef_key not in self.__ef_cache:
-            self.__ef_cache[ef_key] = ElectricField(
+        self.edge_pixels = None
+        self.reference_indices = None
+        self.coefficients = None
+        self.valid_indices = None
+        self.amplitude_is_binary = None
+
+        if self.use_out_ef_cache:
+            # Cache out_ef by shape and parameters
+            ef_key = (out_shape, in_ef.pixel_pitch / oversampling_factor,
+                      target_device_idx, precision, self.target_rank)
+            if ef_key not in self.__ef_cache:
+                self.__ef_cache[ef_key] = ElectricField(
+                    out_shape[0],
+                    out_shape[1],
+                    in_ef.pixel_pitch / oversampling_factor,
+                    target_device_idx=target_device_idx,
+                    precision=precision
+                )
+            self.out_ef = self.__ef_cache[ef_key]
+        else:
+            # Create a new ElectricField without caching
+            self.out_ef = ElectricField(
                 out_shape[0],
                 out_shape[1],
                 in_ef.pixel_pitch / oversampling_factor,
                 target_device_idx=target_device_idx,
                 precision=precision
             )
-        self.out_ef = self.__ef_cache[ef_key]
 
         xp = self.out_ef.xp
         dtype = self.out_ef.dtype
@@ -330,6 +357,9 @@ class EFInterpolator():
         return self.out_ef
 
     def interpolate(self):
+        '''
+        Perform interpolation with edge extrapolation.
+        '''
 
         if not self.do_interpolation:
             return
@@ -382,7 +412,7 @@ class EFInterpolator():
             xp=self.xp
         )
 
-        if self.debugOutput:
+        if self.debug_output:
             # compare input and extrapolated phase
             phase_in_nm = self.in_ef.phaseInNm * (self.in_ef.A >= 1e-3).astype(int)
             import matplotlib.pyplot as plt

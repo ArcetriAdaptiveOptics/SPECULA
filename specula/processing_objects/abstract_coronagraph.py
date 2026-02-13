@@ -170,6 +170,7 @@ class Coronagraph(BaseProcessingObj):
             xShiftPhInPixel=0,
             yShiftPhInPixel=0,
             mask_threshold=self.mask_threshold,
+            use_out_ef_cache=True,
             target_device_idx=self.target_device_idx,
             precision=self.precision,
             target_rank=self.target_rank

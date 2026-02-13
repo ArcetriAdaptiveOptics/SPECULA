@@ -271,7 +271,8 @@ class TestExtrapolation2D(unittest.TestCase):
         interp1 = EFInterpolator(ef1, (64, 64),
                                 target_device_idx=target_device_idx,
                                 target_rank=0,
-                                force_extrapolation=True)
+                                force_extrapolation=True,
+                                use_out_ef_cache=True)
 
         cache_size_after_first = len(EFInterpolator._EFInterpolator__zeros_cache)
         self.assertGreater(cache_size_after_first, 0,
@@ -284,7 +285,8 @@ class TestExtrapolation2D(unittest.TestCase):
         interp2 = EFInterpolator(ef2, (64, 64),
                                 target_device_idx=target_device_idx,
                                 target_rank=0,
-                                force_extrapolation=True)
+                                force_extrapolation=True,
+                                use_out_ef_cache=True)
 
         cache_size_after_second = len(EFInterpolator._EFInterpolator__zeros_cache)
         self.assertEqual(cache_size_after_first, cache_size_after_second,
@@ -316,7 +318,8 @@ class TestExtrapolation2D(unittest.TestCase):
         interp1 = EFInterpolator(ef1, (64, 64),
                                 target_device_idx=target_device_idx,
                                 target_rank=0,
-                                force_extrapolation=True)
+                                force_extrapolation=True,
+                                use_out_ef_cache=True)
 
         cache_size_rank0 = len(EFInterpolator._EFInterpolator__zeros_cache)
         self.assertGreater(cache_size_rank0, 0, "Cache should have entries for rank 0")
@@ -330,7 +333,8 @@ class TestExtrapolation2D(unittest.TestCase):
         interp2 = EFInterpolator(ef2, (64, 64),
                                 target_device_idx=target_device_idx,
                                 target_rank=1,  # Different rank
-                                force_extrapolation=True)
+                                force_extrapolation=True,
+                                use_out_ef_cache=True)
 
         cache_size_rank1 = len(EFInterpolator._EFInterpolator__zeros_cache)
         self.assertGreater(cache_size_rank1, 0, "Cache should have entries for rank 1")
@@ -367,7 +371,8 @@ class TestExtrapolation2D(unittest.TestCase):
         interp1 = EFInterpolator(ef1, (64, 64),
                                 target_device_idx=target_device_idx,
                                 target_rank=0,
-                                force_extrapolation=True)
+                                force_extrapolation=True,
+                                use_out_ef_cache=True)
 
         cache_size_first = len(EFInterpolator._EFInterpolator__zeros_cache)
         self.assertGreater(cache_size_first, 0, "Cache should have entries")
@@ -384,7 +389,8 @@ class TestExtrapolation2D(unittest.TestCase):
         interp2 = EFInterpolator(ef2, (64, 64),
                                 target_device_idx=other_device,
                                 target_rank=0,
-                                force_extrapolation=True)
+                                force_extrapolation=True,
+                                use_out_ef_cache=True)
 
         cache_size_second = len(EFInterpolator._EFInterpolator__zeros_cache)
 
@@ -422,7 +428,8 @@ class TestExtrapolation2D(unittest.TestCase):
         interp1 = EFInterpolator(ef1, (64, 64),
                                 target_device_idx=target_device_idx,
                                 target_rank=0,
-                                force_extrapolation=True)
+                                force_extrapolation=True,
+                                use_out_ef_cache=True)
 
         cache_size_first = len(EFInterpolator._EFInterpolator__zeros_cache)
 
@@ -434,7 +441,8 @@ class TestExtrapolation2D(unittest.TestCase):
         interp2 = EFInterpolator(ef2, (128, 128),
                                 target_device_idx=target_device_idx,
                                 target_rank=0,
-                                force_extrapolation=True)
+                                force_extrapolation=True,
+                                use_out_ef_cache=True)
 
         cache_size_second = len(EFInterpolator._EFInterpolator__zeros_cache)
 
@@ -479,11 +487,13 @@ class TestExtrapolation2D(unittest.TestCase):
         interp1 = EFInterpolator(ef1, (64, 64),
                                 target_device_idx=target_device_idx,
                                 target_rank=0,
-                                force_extrapolation=True)
+                                force_extrapolation=True,
+                                use_out_ef_cache=True)
         interp2 = EFInterpolator(ef2, (64, 64),
                                 target_device_idx=target_device_idx,
                                 target_rank=0,
-                                force_extrapolation=True)
+                                force_extrapolation=True,
+                                use_out_ef_cache=True)
 
         # Interpolate with first interpolator
         interp1.interpolate()

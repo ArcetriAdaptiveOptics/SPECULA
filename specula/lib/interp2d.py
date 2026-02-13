@@ -112,7 +112,7 @@ class Interp2D():
             yyr = (xx-xc)*sin_ + (yy-yc)*cos_
             xx = xxr + xc
             yy = yyr + yc
-            
+
         if rowShiftInPixels != 0 or colShiftInPixels != 0:
             yy += rowShiftInPixels
             xx += colShiftInPixels
