@@ -21,7 +21,7 @@ class TestDataSource(unittest.TestCase):
 
     def tearDown(self):
         shutil.rmtree(self.tmp_dir, ignore_errors=True)
-    
+
     # Create a fits file "gen.fits" for testing, with the enpected output
     def _create_test_files(self):
         gen_file = os.path.join(self.tmp_dir, 'gen.fits')
@@ -41,7 +41,7 @@ class TestDataSource(unittest.TestCase):
         source = DataSource(store_dir=self.tmp_dir,
                             outputs=['gen'],
                             data_format='fits')
-        
+
         gen = source.outputs['gen']
 
         source.check_ready(0)
@@ -153,3 +153,111 @@ class TestDataSource(unittest.TestCase):
         ds.trigger_code()
         mock_output.set_value.assert_called_once()
         self.assertEqual(mock_output.generation_time, ds.current_time)
+
+    def test_trigger_code_skips_missing_time(self):
+        """Test DataSource.trigger_code() skips outputs when data not available at current time."""
+        ds = DataSource(outputs=[], store_dir="/tmp")
+        ds.current_time = 0.0  # Looking for time 0
+        ds.verbose = False  # Suppress warning
+
+        # Mock output
+        mock_output = MagicMock()
+        mock_output.xp = np
+        # Explicitly set generation_time to a different value to verify it doesn't change
+        mock_output.generation_time = -999.0
+        ds.outputs["sig"] = mock_output
+
+        # Storage has data at time 1.0 and 2.0, but NOT at 0.0
+        ds.storage["sig"] = {1.0: np.array([10, 20]), 2.0: np.array([30, 40])}
+
+        # Trigger should NOT raise error, just skip
+        ds.trigger_code()
+
+        # Output should NOT be updated
+        mock_output.set_value.assert_not_called()
+
+        # generation_time should NOT have been changed (still -999.0)
+        self.assertEqual(mock_output.generation_time, -999.0)
+
+    def test_trigger_code_verbose_warning_on_missing_time(self):
+        """Test DataSource.trigger_code() prints warning when verbose=True and data missing."""
+        ds = DataSource(outputs=[], store_dir="/tmp")
+        ds.current_time = 0.5
+        ds.verbose = True
+
+        # Mock output
+        mock_output = MagicMock()
+        mock_output.xp = np
+        ds.outputs["test_signal"] = mock_output
+
+        # Storage with no data at current_time
+        ds.storage["test_signal"] = {1.0: np.array([1, 2, 3])}
+
+        # Capture print output
+        with patch('builtins.print') as mock_print:
+            ds.trigger_code()
+
+            # Verify warning was printed
+            mock_print.assert_called_once()
+            call_args = mock_print.call_args[0][0]
+            self.assertIn('Warning', call_args)
+            self.assertIn('test_signal', call_args)
+            self.assertIn('0.5', call_args)
+
+    def test_trigger_code_mixed_availability(self):
+        """Test DataSource.trigger_code() handles multiple outputs with
+           different data availability."""
+        ds = DataSource(outputs=[], store_dir="/tmp")
+        ds.current_time = 1.0
+        ds.verbose = False
+
+        # Mock outputs
+        mock_output1 = MagicMock()
+        mock_output1.xp = np
+        mock_output2 = MagicMock()
+        mock_output2.xp = np
+
+        ds.outputs["available"] = mock_output1
+        ds.outputs["missing"] = mock_output2
+
+        # One has data at t=1.0, the other doesn't
+        ds.storage["available"] = {1.0: np.array([100, 200])}
+        ds.storage["missing"] = {2.0: np.array([300, 400])}  # Data at different time
+
+        ds.trigger_code()
+
+        # First output should be updated
+        mock_output1.set_value.assert_called_once()
+        self.assertEqual(mock_output1.generation_time, 1.0)
+
+        # Second output should NOT be updated
+        mock_output2.set_value.assert_not_called()
+
+    def test_trigger_code_sparse_integrated_output(self):
+        """Test DataSource.trigger_code() handles sparse data like integrated
+           PSF (only at end)."""
+        ds = DataSource(outputs=[], store_dir="/tmp")
+        ds.verbose = False
+
+        # Mock output
+        mock_psf = MagicMock()
+        mock_psf.xp = np
+        ds.outputs["psf_int"] = mock_psf
+
+        # Integrated PSF exists only at final time
+        ds.storage["psf_int"] = {1.0: np.array([[1, 2], [3, 4]])}  # Only at t=1.0
+
+        # Try to trigger at early times (before integration completes)
+        ds.current_time = 0.0
+        ds.trigger_code()
+        mock_psf.set_value.assert_not_called()  # No data yet
+
+        ds.current_time = 0.5
+        ds.trigger_code()
+        mock_psf.set_value.assert_not_called()  # Still no data
+
+        # Now trigger at final time where data exists
+        ds.current_time = 1.0
+        ds.trigger_code()
+        mock_psf.set_value.assert_called_once()  # Data available!
+        self.assertEqual(mock_psf.generation_time, 1.0)

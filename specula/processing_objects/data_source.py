@@ -24,7 +24,7 @@ class DataSource(BaseProcessingObj):
         self.headers = {}
         self.obj_type = {}
 
-        for aout in outputs:            
+        for aout in outputs:
             self.loadFromFile(aout)
         for k in self.storage.keys():
             if self.obj_type[k] not in ['BaseValue', 'BaseDataObj']:
@@ -50,7 +50,7 @@ class DataSource(BaseProcessingObj):
         if 'hdr' in unserialized_data:
             self.headers[name] = unserialized_data['hdr']
             self.obj_type[name] = self.headers[name]['OBJ_TYPE']
-        
+
         self.storage[name] = { t:data[i] for i, t in enumerate(times.tolist())}
 
     def load_fits(self, name):
@@ -70,8 +70,11 @@ class DataSource(BaseProcessingObj):
         return h.shape if not dimensions else h.shape[dimensions]
 
     def trigger_code(self):
-        for k in self.storage.keys():            
-            self.outputs[k].set_value(self.outputs[k].xp.array(self.storage[k][self.current_time]))
-            self.outputs[k].generation_time = self.current_time
-
-        
+        for k, storage_dict in self.storage.items():
+            # Check if data exists for current time
+            if self.current_time in storage_dict:
+                self.outputs[k].set_value(self.outputs[k].xp.array(storage_dict[self.current_time]))
+                self.outputs[k].generation_time = self.current_time
+            else:
+                if self.verbose:
+                    print(f'Warning: No data for key {k} at time {self.current_time}')

@@ -1,11 +1,18 @@
 from specula.base_processing_obj import BaseProcessingObj
 import matplotlib.pyplot as plt
 
+def runningOnNotebook():
+    try:
+        from IPython import get_ipython
+        return get_ipython() is not None and 'IPKernelApp' in get_ipython().config
+    except:
+        return False
 
 class BaseDisplay(BaseProcessingObj):
     def __init__(self,
                  title='',
                  figsize=(8, 6)):
+
         super().__init__()
         self._title = title
         self._figsize = figsize
@@ -16,6 +23,7 @@ class BaseDisplay(BaseProcessingObj):
         self.ax = None
         self.img = None
         self.line = None
+        self.onNotebook  = runningOnNotebook()
 
     def _create_figure(self):
         """Create the matplotlib figure and axes"""
@@ -26,7 +34,13 @@ class BaseDisplay(BaseProcessingObj):
         self.ax = self.fig.add_subplot(111)
         if self._title:
             self.fig.suptitle(self._title)
-        self.fig.show()
+
+        if not self.onNotebook:
+            self.fig.show()
+        else:
+            from IPython.display import display
+            self.handle = display(self.fig, display_id=True)
+
         self._opened = True
 
     def _update_display(self, data):
@@ -48,6 +62,8 @@ class BaseDisplay(BaseProcessingObj):
                 self._create_figure()
             data = self._get_data()
             self._update_display(data)
+            if self.onNotebook:
+                self.handle.update(self.fig)
         except Exception as e:
             self._show_error(f"Display error: {str(e)}")
 

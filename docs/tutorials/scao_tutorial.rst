@@ -20,19 +20,12 @@ Note that a more basic SCAO simulation tutorial is available in the :ref:`scao_b
 * Basic understanding of adaptive optics concepts
 * Python and YAML familiarity
 
-Atmospheric and Source Parameters: Zenith Convention
----------------------------------------------------
+.. note::
 
-In SPECULA, all atmospheric parameters such as **seeing**, **layer heights**, and also **source heights** are defined **at zenith** (i.e., for a zenith angle of 0°).  
-If a non-zero zenith angle is specified in the `main` section (using the `zenithAngleInDeg` parameter), these values are automatically scaled according to the airmass and geometric projection.
-
-- **Seeing**: The value you provide is assumed at zenith and will be increased for off-zenith simulations.
-- **Layer heights**: The heights in the `atmo` block are at zenith; the code projects them according to the zenith angle.
-- **Source heights**: If you use sources at finite distance (e.g., LGS), their heights are also interpreted as zenith values.
-
-This convention ensures that you can easily switch between on-axis and off-axis simulations by simply changing the zenith angle in the `main` section, without having to recalculate all physical parameters.
-
-*For more details, see :ref:`simulation_parameters` in the documentation.*
+   **About atmospheric and source parameters:**
+   All atmospheric parameters (seeing, layer heights) and source heights are defined at zenith.
+   The zenith angle affects airmass and geometric projections, but not source positions in the field.
+   See :ref:`simulation_parameters` for details on the zenith convention.
 
 Tutorial Overview
 -----------------
