@@ -6,58 +6,88 @@ class Interp2D():
 
     if cp: # pragma: no cover
         interp2_kernel = r'''
+            // Device function for bilinear interpolation
+            __device__ TYPE bilinear_interp(TYPE *g_in, int in_dx, int in_dy, TYPE xcoord, TYPE ycoord) {
+                int xin = floor(xcoord);
+                int yin = floor(ycoord);
+                int xin2 = xin + 1;
+                int yin2 = yin + 1;
+
+                TYPE xdist = xcoord - xin;
+                TYPE ydist = ycoord - yin;
+
+                int idx_a = yin * in_dx + xin;
+                int idx_b = yin * in_dx + xin2;
+                int idx_c = yin2 * in_dx + xin;
+                int idx_d = yin2 * in_dx + xin2;
+
+                TYPE value;
+                if (yin2 < in_dy) {
+                    value = g_in[idx_a] * (1 - xdist) * (1 - ydist) +
+                            g_in[idx_b] * xdist * (1 - ydist) +
+                            g_in[idx_c] * ydist * (1 - xdist) +
+                            g_in[idx_d] * xdist * ydist;
+                } else {
+                    value = g_in[idx_a] * (1 - xdist) * (1 - ydist) +
+                            g_in[idx_b] * xdist * (1 - ydist);
+                }
+                return value;
+            }
+
             extern "C" __global__
             void interp2_kernel_TYPE(TYPE *g_in, TYPE *g_out, int out_dx, int out_dy, int in_dx, int in_dy, TYPE *xx, TYPE *yy) {
-
                 int y = blockIdx.y * blockDim.y + threadIdx.y;
                 int x = blockIdx.x * blockDim.x + threadIdx.x;
 
-                if ((y<out_dy) && (x<out_dx)) {
-                    TYPE xcoord = xx[y*out_dx+x];
-                    TYPE ycoord = yy[y*out_dx+x];
-                    int xin = floor(xcoord);
-                    int yin = floor(ycoord);
-                    int xin2 = xin+1;
-                    int yin2 = yin+1;
-
-                    TYPE xdist = xcoord-xin;
-                    TYPE ydist = ycoord-yin;
-
-                    int idx_a = yin*in_dx + xin;
-                    int idx_b = yin*in_dx + xin2;
-                    int idx_c = yin2*in_dx + xin;
-                    int idx_d = yin2*in_dx + xin2;
-
-                    TYPE value;
-                    if (yin2 < in_dy) {
-                        value = g_in[idx_a]*(1-xdist)*(1-ydist) +
-                                g_in[idx_b]*xdist*(1-ydist) +
-                                g_in[idx_c]*ydist*(1-xdist) +
-                                g_in[idx_d]*xdist*ydist;
-                    } else {
-                        value = g_in[idx_a]*(1-xdist)*(1-ydist) +
-                                g_in[idx_b]*xdist*(1-ydist);
-                    }
-
-                    g_out[y*out_dx + x] = value;
-                    }
+                if ((y < out_dy) && (x < out_dx)) {
+                    TYPE xcoord = xx[y * out_dx + x];
+                    TYPE ycoord = yy[y * out_dx + x];
+                    g_out[y * out_dx + x] = bilinear_interp(g_in, in_dx, in_dy, xcoord, ycoord);
                 }
+            }
             '''
         interp2_kernel_float = \
             cp.RawKernel(interp2_kernel.replace('TYPE', 'float'), name='interp2_kernel_float')
         interp2_kernel_double = \
             cp.RawKernel(interp2_kernel.replace('TYPE', 'double'), name='interp2_kernel_double')
         interp2_kernel_onthefly = r'''
+            // Device function for bilinear interpolation
+            __device__ TYPE bilinear_interp(TYPE *g_in, int in_dx, int in_dy, TYPE xcoord, TYPE ycoord) {
+                int xin = floor(xcoord);
+                int yin = floor(ycoord);
+                int xin2 = xin + 1;
+                int yin2 = yin + 1;
+
+                TYPE xdist = xcoord - xin;
+                TYPE ydist = ycoord - yin;
+
+                int idx_a = yin * in_dx + xin;
+                int idx_b = yin * in_dx + xin2;
+                int idx_c = yin2 * in_dx + xin;
+                int idx_d = yin2 * in_dx + xin2;
+
+                TYPE value;
+                if (yin2 < in_dy) {
+                    value = g_in[idx_a] * (1 - xdist) * (1 - ydist) +
+                            g_in[idx_b] * xdist * (1 - ydist) +
+                            g_in[idx_c] * ydist * (1 - xdist) +
+                            g_in[idx_d] * xdist * ydist;
+                } else {
+                    value = g_in[idx_a] * (1 - xdist) * (1 - ydist) +
+                            g_in[idx_b] * xdist * (1 - ydist);
+                }
+                return value;
+            }
+
             extern "C" __global__
             void interp2_kernel_onthefly_TYPE(TYPE *g_in, TYPE *g_out, int out_dx, int out_dy, int in_dx, int in_dy,
                                             TYPE scale_x, TYPE scale_y, TYPE shift_x, TYPE shift_y,
                                             TYPE cos_angle, TYPE sin_angle, TYPE center_x, TYPE center_y) {
-
                 int y = blockIdx.y * blockDim.y + threadIdx.y;
                 int x = blockIdx.x * blockDim.x + threadIdx.x;
 
                 if ((y < out_dy) && (x < out_dx)) {
-                    // Compute the coordinate exactly as in __init__
+                    // Compute coordinates on-the-fly
                     TYPE xcoord = x * scale_x;
                     TYPE ycoord = y * scale_y;
                     
@@ -75,39 +105,14 @@ class Interp2D():
                     xcoord += shift_x;
                     ycoord += shift_y;
                     
-                    // Clamp to limits (as in __init__)
+                    // Clamp to limits
                     if (xcoord < 0) xcoord = 0;
                     if (ycoord < 0) ycoord = 0;
                     if (xcoord > in_dx - 1) xcoord = in_dx - 1;
                     if (ycoord > in_dy - 1) ycoord = in_dy - 1;
                     
-                    // Bilinear interpolation - SAME LOGIC as interp2_kernel_TYPE
-                    int xin = floor(xcoord);
-                    int yin = floor(ycoord);
-                    int xin2 = xin + 1;
-                    int yin2 = yin + 1;
-
-                    TYPE xdist = xcoord - xin;
-                    TYPE ydist = ycoord - yin;
-
-                    int idx_a = yin * in_dx + xin;
-                    int idx_b = yin * in_dx + xin2;
-                    int idx_c = yin2 * in_dx + xin;
-                    int idx_d = yin2 * in_dx + xin2;
-
-                    TYPE value;
-                    // Same check as interp2_kernel_TYPE
-                    if (yin2 < in_dy) {
-                        value = g_in[idx_a] * (1 - xdist) * (1 - ydist) +
-                                g_in[idx_b] * xdist * (1 - ydist) +
-                                g_in[idx_c] * ydist * (1 - xdist) +
-                                g_in[idx_d] * xdist * ydist;
-                    } else {
-                        value = g_in[idx_a] * (1 - xdist) * (1 - ydist) +
-                                g_in[idx_b] * xdist * (1 - ydist);
-                    }
-
-                    g_out[y * out_dx + x] = value;
+                    // Call bilinear interpolation
+                    g_out[y * out_dx + x] = bilinear_interp(g_in, in_dx, in_dy, xcoord, ycoord);
                 }
             }
             '''
@@ -174,8 +179,8 @@ class Interp2D():
 
         if use_onthefly:
             self.use_precomputed = False
-            self.scale_x = (input_shape[1] - 1) / output_shape[1]
-            self.scale_y = (input_shape[0] - 1) / output_shape[0]
+            self.scale_x = self.dtype((input_shape[1] - 1) / output_shape[1])
+            self.scale_y = self.dtype((input_shape[0] - 1) / output_shape[0])
             self.xx = None
             self.yy = None
         else:
@@ -218,13 +223,13 @@ class Interp2D():
             self.scale_x = None
             self.scale_y = None
 
-        self.shift_x = colShiftInPixels
-        self.shift_y = rowShiftInPixels
+        self.shift_x = self.dtype(colShiftInPixels)
+        self.shift_y = self.dtype(rowShiftInPixels)
         self.rot_angle = rotInDeg * np.pi / 180.0
-        self.cos_angle = np.cos(self.rot_angle)
-        self.sin_angle = np.sin(self.rot_angle)
-        self.center_x = input_shape[1] / 2 - 0.5
-        self.center_y = input_shape[0] / 2 - 0.5
+        self.cos_angle = self.dtype(np.cos(self.rot_angle))
+        self.sin_angle = self.dtype(np.sin(self.rot_angle))
+        self.center_x = self.dtype(input_shape[1] / 2 - 0.5)
+        self.center_y = self.dtype(input_shape[0] / 2 - 0.5)
 
     def interpolate(self, value, out=None):
         """
@@ -268,32 +273,32 @@ class Interp2D():
             out = self.xp.empty(shape=self.output_shape, dtype=self.dtype)
 
         if self.xp == cp: # pragma: no cover
-            block = (16, 16, 1)
+            block = (16, 16)
             # Calculate grid size for non-square arrays correctly
             grid_x = (self.output_shape[1] + block[0] - 1) // block[0]
             grid_y = (self.output_shape[0] + block[1] - 1) // block[1]
-            grid = (grid_x, grid_y, 1)
+            grid = (grid_x, grid_y)
 
             if not self.use_precomputed:
-                # Usa il kernel ottimizzato per memoria
+                # Use on-the-fly coordinate calculation kernel
                 if self.dtype == cp.float32:
                     self.interp2_kernel_onthefly_float(grid, block, (
                         value, out,
                         self.output_shape[1], self.output_shape[0],
                         self.input_shape[1], self.input_shape[0],
-                        cp.float32(self.scale_x), cp.float32(self.scale_y),
-                        cp.float32(self.shift_x), cp.float32(self.shift_y),
-                        cp.float32(self.cos_angle), cp.float32(self.sin_angle),
-                        cp.float32(self.center_x), cp.float32(self.center_y)))
+                        self.scale_x, self.scale_y,
+                        self.shift_x, self.shift_y,
+                        self.cos_angle, self.sin_angle,
+                        self.center_x, self.center_y))
                 elif self.dtype == cp.float64:
                     self.interp2_kernel_onthefly_double(grid, block, (
                         value, out,
                         self.output_shape[1], self.output_shape[0],
                         self.input_shape[1], self.input_shape[0],
-                        cp.float64(self.scale_x), cp.float64(self.scale_y),
-                        cp.float64(self.shift_x), cp.float64(self.shift_y),
-                        cp.float64(self.cos_angle), cp.float64(self.sin_angle),
-                        cp.float64(self.center_x), cp.float64(self.center_y)))
+                        self.scale_x, self.scale_y,
+                        self.shift_x, self.shift_y,
+                        self.cos_angle, self.sin_angle,
+                        self.center_x, self.center_y))
                 else:
                     raise ValueError(f'Unsupported dtype {self.dtype}')
             else:
