@@ -304,7 +304,17 @@ class ConvolutionKernel(BaseDataObj):
         Parameters:
             filename (str): Path to save the FITS file
             hdr (fits.Header, optional): Additional header information
+
+        Raises:
+            ValueError: If real_kernels has been deallocated
         """
+        if self.real_kernels is None:
+            raise ValueError(
+                "real_kernels has been deallocated. "
+                "Cannot save to file. Use restore() to reload from existing file, "
+                "or recalculate with calculate_lgs_map()."
+            )
+
         hdr = self.get_fits_header()
 
         # Create a primary HDU with just the header
