@@ -191,7 +191,7 @@ class EFInterpolator():
 
     @classmethod
     def _zeros_common(cls, shape, dtype, xp,
-                      target_device_idx, target_rank):
+                      target_device_idx):
         """
         Wrapper around xp.zeros to enable reuse cache.
         None of the arrays allocated here should be used in 
@@ -207,15 +207,13 @@ class EFInterpolator():
             numpy or cupy
         target_device_idx : int
             Target device
-        target_rank : int
-            Target rank (for multi-GPU/multi-node setups)
             
         Returns
         -------
         array : ndarray
             Array from cache
         """
-        key = (target_device_idx, target_rank, shape, dtype, id(xp))
+        key = (target_device_idx, shape, dtype)
         if key not in cls.__zeros_cache:
             cls.__zeros_cache[key] = xp.zeros(shape, dtype=dtype)
         return cls.__zeros_cache[key]
@@ -231,8 +229,7 @@ class EFInterpolator():
                  force_extrapolation: bool=False,
                  use_out_ef_cache: bool=False,
                  target_device_idx: int=None,
-                 precision: int=None,
-                 target_rank: int=None
+                 precision: int=None
                  ):
         '''
         Initialize an EFInterpolator object for interpolating an ElectricField,
@@ -266,8 +263,6 @@ class EFInterpolator():
             Target device index for GPU computation (default: None).
         precision : int, optional
             Precision for GPU computation (default: None).
-        target_rank : int, optional
-            Target rank for multi-GPU/multi-node setups (default: None).
 
         Output EF is allocated internally and can be retrieved with the interpolated_ef() method.
         '''
@@ -283,7 +278,6 @@ class EFInterpolator():
         self.in_ef = in_ef
         self.force_extrapolation = force_extrapolation
         self.target_device_idx = target_device_idx
-        self.target_rank = target_rank
         self.use_out_ef_cache = use_out_ef_cache
 
         if (in_ef.size == out_shape and
@@ -305,7 +299,7 @@ class EFInterpolator():
         if self.use_out_ef_cache:
             # Cache out_ef by shape and parameters
             ef_key = (out_shape, in_ef.pixel_pitch / oversampling_factor,
-                      target_device_idx, precision, self.target_rank)
+                      target_device_idx, precision)
             if ef_key not in self.__ef_cache:
                 self.__ef_cache[ef_key] = ElectricField(
                     out_shape[0],
@@ -343,8 +337,7 @@ class EFInterpolator():
             in_ef.size,
             dtype,
             xp,
-            target_device_idx,
-            target_rank
+            target_device_idx
         )
 
         self.extrapolation_initialized = False

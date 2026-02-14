@@ -613,8 +613,7 @@ class ModulatedPyramid(BaseProcessingObj):
             mask_threshold=self._mask_threshold,
             use_out_ef_cache=True,
             target_device_idx=self.target_device_idx,
-            precision=self.precision,
-            target_rank=self.target_rank
+            precision=self.precision
         )
 
         # Create separate interpolator for pup_shifts if needed

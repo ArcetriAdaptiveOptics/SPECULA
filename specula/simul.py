@@ -416,7 +416,7 @@ class Simul():
                         parobj = partype.restore(filename, target_device_idx=target_device_idx)
                         parobj.printMemUsage()
 
-                        # Set data_tag 
+                        # Set data_tag
                         parobj.tag = value
 
                         pars2[parname] = parobj
@@ -458,9 +458,6 @@ class Simul():
                 self.objs[key].stopMemUsageCount()
 
             self.objs[key].name = key
-
-            # Set target_rank
-            self.objs[key].target_rank = target_rank
 
             # TODO this could be more general like the getters above
             if type(self.objs[key]) is DataStore:

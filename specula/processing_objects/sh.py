@@ -30,7 +30,7 @@ class SH(BaseProcessingObj):
 
     @classmethod
     def _zeros_common(cls, shape, dtype, xp,
-                      target_device_idx, target_rank):
+                      target_device_idx):
         """
         Wrapper around xp.zeros to enable reuse cache.
         None of the arrays allocated here should be used in 
@@ -46,15 +46,13 @@ class SH(BaseProcessingObj):
             numpy or cupy
         target_device_idx : int
             Target device
-        target_rank : int
-            Target rank (for multi-GPU/multi-node setups)
             
         Returns
         -------
         array : ndarray
             Array from cache
         """
-        key = (target_device_idx, target_rank, shape, dtype, id(xp))
+        key = (target_device_idx, shape, dtype)
         if key not in cls.__zeros_cache:
             cls.__zeros_cache[key] = xp.zeros(shape, dtype=dtype)
         return cls.__zeros_cache[key]
@@ -107,6 +105,19 @@ class SH(BaseProcessingObj):
 
         self.psf = None
         self.psf_shifted = None
+        self.ef_row = None
+        self.ef_interpolator = None
+        self._ovs_np_sub = None
+        self._xyShiftPhInPixel = None
+        self._wf3 = None
+        self._cutpixels = None
+        self._cutsize = None
+        self._psfimage = None
+        self._psf_reshaped_2d = None
+        self._tltf = None
+        self._fp_mask = None
+        self._kernelobj = None
+        self._kernel_fn = None
 
         # TODO these are fixed but should become parameters
         self._fov_ovs = 1
@@ -285,8 +296,7 @@ class SH(BaseProcessingObj):
         self._wf3 = self._zeros_common((self._lenslet.dimy, fft_size, fft_size),
                                        dtype=self.complex_dtype,
                                        xp=self.xp,
-                                       target_device_idx=self.target_device_idx,
-                                       target_rank=self.target_rank)
+                                       target_device_idx=self.target_device_idx)
 
         # Focal plane result from FFT
         fp4_pixel_pitch = self.wavelength_in_nm / 1e9 / (ovs_pixel_pitch * fft_size)
@@ -301,14 +311,12 @@ class SH(BaseProcessingObj):
                                              self._cutsize * self._lenslet.dimy),
                                             dtype=self.dtype,
                                             xp=self.xp,
-                                            target_device_idx=self.target_device_idx,
-                                            target_rank=self.target_rank)
+                                            target_device_idx=self.target_device_idx)
         self._psf_reshaped_2d = self._zeros_common((self._cutsize,
                                                     self._cutsize * self._lenslet.dimy),
                                                    dtype=self.dtype,
                                                    xp=self.xp,
-                                                   target_device_idx=self.target_device_idx,
-                                                   target_rank=self.target_rank)
+                                                   target_device_idx=self.target_device_idx)
 
         # 1/2 Px tilt
         self._tltf = self._get_tlt_f(self._ovs_np_sub, fft_size - self._ovs_np_sub)
@@ -486,26 +494,22 @@ class SH(BaseProcessingObj):
             mask_threshold=self._mask_threshold,
             use_out_ef_cache=True,
             target_device_idx=self.target_device_idx,
-            precision=self.precision,
-            target_rank=self.target_rank
+            precision=self.precision
         )
 
         ef_whole_size = int(in_ef.size[0] * self._fov_ovs)
         self.ef_row = self._zeros_common((self._ovs_np_sub, ef_whole_size),
                                          dtype=self.complex_dtype,
                                          xp=self.xp,
-                                         target_device_idx=self.target_device_idx,
-                                         target_rank=self.target_rank)
+                                         target_device_idx=self.target_device_idx)
         self.psf = self._zeros_common((self._lenslet.dimy, self._fft_size, self._fft_size),
                                      dtype=self.dtype,
                                      xp=self.xp,
-                                     target_device_idx=self.target_device_idx,
-                                     target_rank=self.target_rank)
+                                     target_device_idx=self.target_device_idx)
         self.psf_shifted = self._zeros_common((self._lenslet.dimy, self._fft_size, self._fft_size),
                                               dtype=self.dtype,
                                               xp=self.xp,
-                                              target_device_idx=self.target_device_idx,
-                                              target_rank=self.target_rank)
+                                              target_device_idx=self.target_device_idx)
 
         if self.subap_rows_slice is None:
             self.subap_rows_slice = slice(0, self._lenslet.dimy)

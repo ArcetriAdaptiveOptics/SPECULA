@@ -172,8 +172,7 @@ class Coronagraph(BaseProcessingObj):
             mask_threshold=self.mask_threshold,
             use_out_ef_cache=True,
             target_device_idx=self.target_device_idx,
-            precision=self.precision,
-            target_rank=self.target_rank
+            precision=self.precision
         )
 
         # Prepare phase shift for 0.5 pixel centering
