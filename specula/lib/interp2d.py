@@ -5,8 +5,8 @@ from scipy.interpolate import RegularGridInterpolator
 class Interp2D():
 
     if cp: # pragma: no cover
-        interp2_kernel = r'''
-            // Device function for bilinear interpolation
+        # Definition of bilinear interpolation device function used by both kernels
+        bilinear_interp_device = r'''
             __device__ TYPE bilinear_interp(TYPE *g_in, int in_dx, int in_dy, TYPE xcoord, TYPE ycoord) {
                 int xin = floor(xcoord);
                 int yin = floor(ycoord);
@@ -33,7 +33,9 @@ class Interp2D():
                 }
                 return value;
             }
+            '''
 
+        interp2_kernel = bilinear_interp_device + r'''
             extern "C" __global__
             void interp2_kernel_TYPE(TYPE *g_in, TYPE *g_out, int out_dx, int out_dy, int in_dx, int in_dy, TYPE *xx, TYPE *yy) {
                 int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -50,35 +52,8 @@ class Interp2D():
             cp.RawKernel(interp2_kernel.replace('TYPE', 'float'), name='interp2_kernel_float')
         interp2_kernel_double = \
             cp.RawKernel(interp2_kernel.replace('TYPE', 'double'), name='interp2_kernel_double')
-        interp2_kernel_onthefly = r'''
-            // Device function for bilinear interpolation
-            __device__ TYPE bilinear_interp(TYPE *g_in, int in_dx, int in_dy, TYPE xcoord, TYPE ycoord) {
-                int xin = floor(xcoord);
-                int yin = floor(ycoord);
-                int xin2 = xin + 1;
-                int yin2 = yin + 1;
 
-                TYPE xdist = xcoord - xin;
-                TYPE ydist = ycoord - yin;
-
-                int idx_a = yin * in_dx + xin;
-                int idx_b = yin * in_dx + xin2;
-                int idx_c = yin2 * in_dx + xin;
-                int idx_d = yin2 * in_dx + xin2;
-
-                TYPE value;
-                if (yin2 < in_dy) {
-                    value = g_in[idx_a] * (1 - xdist) * (1 - ydist) +
-                            g_in[idx_b] * xdist * (1 - ydist) +
-                            g_in[idx_c] * ydist * (1 - xdist) +
-                            g_in[idx_d] * xdist * ydist;
-                } else {
-                    value = g_in[idx_a] * (1 - xdist) * (1 - ydist) +
-                            g_in[idx_b] * xdist * (1 - ydist);
-                }
-                return value;
-            }
-
+        interp2_kernel_onthefly = bilinear_interp_device + r'''
             extern "C" __global__
             void interp2_kernel_onthefly_TYPE(TYPE *g_in, TYPE *g_out, int out_dx, int out_dy, int in_dx, int in_dy,
                                             TYPE scale_x, TYPE scale_y, TYPE shift_x, TYPE shift_y,
