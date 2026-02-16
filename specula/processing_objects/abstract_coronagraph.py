@@ -56,6 +56,13 @@ class Coronagraph(BaseProcessingObj):
         self.pupil_mask = self.make_pupil_plane_mask()
         self.ef_pad = None  # padded electric field in pupil plane
 
+        # Prepare centered focal plane mask
+        self.fp_mask_centered = self.xp.fft.fftshift(self.fp_mask)
+
+        # Allocate padded array once
+        self.ef_pad = self.xp.zeros((self.fft_totsize, self.fft_totsize),
+                                    dtype=self.complex_dtype)
+
         self.out_ef = ElectricField(self.pixel_pupil,
                                     self.pixel_pupil,
                                     self.pixel_pitch,
@@ -121,7 +128,6 @@ class Coronagraph(BaseProcessingObj):
         ef_fp_masked = ef_fp * self.fp_mask_centered
 
         # Step 4: Return to the pupil plane with IFFT
-        self.ef_pad[:] = 0  # Clear the array
         self.ef_pad[:] = self.xp.fft.ifft2(ef_fp_masked)
         self.ef_pad *= self.xp.conj(self.phase_shift)
 
@@ -170,6 +176,7 @@ class Coronagraph(BaseProcessingObj):
             xShiftPhInPixel=0,
             yShiftPhInPixel=0,
             mask_threshold=self.mask_threshold,
+            use_out_ef_cache=True,
             target_device_idx=self.target_device_idx,
             precision=self.precision
         )
@@ -187,13 +194,6 @@ class Coronagraph(BaseProcessingObj):
             )
         else:
             self.phase_shift = 1.0
-
-        # Prepare centered focal plane mask
-        self.fp_mask_centered = self.xp.fft.fftshift(self.fp_mask)
-
-        # Allocate padded array once
-        self.ef_pad = self.xp.zeros((self.fft_totsize, self.fft_totsize),
-                                    dtype=self.complex_dtype)
 
         # Cannot be used if self._pupil_to_focal_plane is called in trigger_code()
         # super().build_stream()
