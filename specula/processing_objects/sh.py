@@ -232,7 +232,7 @@ class SH(BaseProcessingObj):
         elif not self._noprints:
             print(f'GOOD: interpolated input phase size {ef_size} * {round(self._fov_ovs)} is divisible by {self._lenslet.n_lenses} subapertures.')
 
-    def _calc_trigger_geometry(self, in_ef):
+    def _calc_geometry(self, in_ef):
         '''
         Calculate the geometry of the SH
         '''
@@ -428,7 +428,7 @@ class SH(BaseProcessingObj):
         in_ef = self.local_inputs['in_ef']
 
         self._set_in_ef(in_ef)
-        self._calc_trigger_geometry(in_ef)
+        self._calc_geometry(in_ef)
 
         fov_oversample = self._fov_ovs
         shape_ovs = (int(in_ef.size[0] * fov_oversample), int(in_ef.size[1] * fov_oversample))
