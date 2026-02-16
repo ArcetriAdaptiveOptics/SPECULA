@@ -128,7 +128,6 @@ class Coronagraph(BaseProcessingObj):
         ef_fp_masked = ef_fp * self.fp_mask_centered
 
         # Step 4: Return to the pupil plane with IFFT
-        self.ef_pad[:] = 0  # Clear the array
         self.ef_pad[:] = self.xp.fft.ifft2(ef_fp_masked)
         self.ef_pad *= self.xp.conj(self.phase_shift)
 
