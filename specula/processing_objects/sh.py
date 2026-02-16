@@ -28,11 +28,9 @@ class SH(BaseProcessingObj):
 
     __zeros_cache = {}
 
-    @classmethod
-    def _zeros_common(cls, shape, dtype, xp,
-                      target_device_idx):
+    def _zeros_common(self, shape, dtype):
         """
-        Wrapper around xp.zeros to enable reuse cache.
+        Wrapper around self.xp.zeros to enable reuse cache.
         None of the arrays allocated here should be used in 
         prepare_trigger() or post_trigger().
         
@@ -42,20 +40,16 @@ class SH(BaseProcessingObj):
             Array shape
         dtype : dtype
             Data type
-        xp : module
-            numpy or cupy
-        target_device_idx : int
-            Target device
             
         Returns
         -------
         array : ndarray
             Array from cache
         """
-        key = (target_device_idx, shape, dtype)
-        if key not in cls.__zeros_cache:
-            cls.__zeros_cache[key] = xp.zeros(shape, dtype=dtype)
-        return cls.__zeros_cache[key]
+        key = (self.target_device_idx, shape, dtype)
+        if key not in self.__zeros_cache:
+            self.__zeros_cache[key] = self.xp.zeros(shape, dtype=dtype)
+        return self.__zeros_cache[key]
 
     def __init__(self,
                  wavelengthInNm: float,
@@ -294,9 +288,7 @@ class SH(BaseProcessingObj):
 
         # Padded subaperture cube extracted from full pupil
         self._wf3 = self._zeros_common((self._lenslet.dimy, fft_size, fft_size),
-                                       dtype=self.complex_dtype,
-                                       xp=self.xp,
-                                       target_device_idx=self.target_device_idx)
+                                       dtype=self.complex_dtype)
 
         # Focal plane result from FFT
         fp4_pixel_pitch = self.wavelength_in_nm / 1e9 / (ovs_pixel_pitch * fft_size)
@@ -309,14 +301,10 @@ class SH(BaseProcessingObj):
         self._cutsize = fft_size - self._cutpixels
         self._psfimage = self._zeros_common((self._cutsize * self._lenslet.dimx,
                                              self._cutsize * self._lenslet.dimy),
-                                            dtype=self.dtype,
-                                            xp=self.xp,
-                                            target_device_idx=self.target_device_idx)
+                                            dtype=self.dtype)
         self._psf_reshaped_2d = self._zeros_common((self._cutsize,
                                                     self._cutsize * self._lenslet.dimy),
-                                                   dtype=self.dtype,
-                                                   xp=self.xp,
-                                                   target_device_idx=self.target_device_idx)
+                                                   dtype=self.dtype)
 
         # 1/2 Px tilt
         self._tltf = self._get_tlt_f(self._ovs_np_sub, fft_size - self._ovs_np_sub)
@@ -499,17 +487,11 @@ class SH(BaseProcessingObj):
 
         ef_whole_size = int(in_ef.size[0] * self._fov_ovs)
         self.ef_row = self._zeros_common((self._ovs_np_sub, ef_whole_size),
-                                         dtype=self.complex_dtype,
-                                         xp=self.xp,
-                                         target_device_idx=self.target_device_idx)
+                                         dtype=self.complex_dtype)
         self.psf = self._zeros_common((self._lenslet.dimy, self._fft_size, self._fft_size),
-                                     dtype=self.dtype,
-                                     xp=self.xp,
-                                     target_device_idx=self.target_device_idx)
+                                     dtype=self.dtype)
         self.psf_shifted = self._zeros_common((self._lenslet.dimy, self._fft_size, self._fft_size),
-                                              dtype=self.dtype,
-                                              xp=self.xp,
-                                              target_device_idx=self.target_device_idx)
+                                              dtype=self.dtype)
 
         if self.subap_rows_slice is None:
             self.subap_rows_slice = slice(0, self._lenslet.dimy)

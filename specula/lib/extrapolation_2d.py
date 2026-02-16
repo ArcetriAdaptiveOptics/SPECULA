@@ -189,11 +189,9 @@ class EFInterpolator():
     __ef_cache = {}  # Shared cache for ElectricField objects
     __zeros_cache = {}  # Shared cache for all EFInterpolator instances
 
-    @classmethod
-    def _zeros_common(cls, shape, dtype, xp,
-                      target_device_idx):
+    def _zeros_common(self, shape, dtype):
         """
-        Wrapper around xp.zeros to enable reuse cache.
+        Wrapper around self.xp.zeros to enable reuse cache.
         None of the arrays allocated here should be used in 
         prepare_trigger() or post_trigger().
         
@@ -203,21 +201,16 @@ class EFInterpolator():
             Array shape
         dtype : dtype
             Data type
-        xp : module
-            numpy or cupy
-        target_device_idx : int
-            Target device
             
         Returns
         -------
         array : ndarray
             Array from cache
         """
-        key = (target_device_idx, shape, dtype)
-        if key not in cls.__zeros_cache:
-            cls.__zeros_cache[key] = xp.zeros(shape, dtype=dtype)
-        return cls.__zeros_cache[key]
-
+        key = (self.target_device_idx, shape, dtype)
+        if key not in self.__zeros_cache:
+            self.__zeros_cache[key] = self.xp.zeros(shape, dtype=dtype)
+        return self.__zeros_cache[key]
 
     def __init__(self,
                  in_ef: ElectricField,
@@ -332,16 +325,15 @@ class EFInterpolator():
             xp=xp
         )
 
+        self.xp = xp
+
         # Use cache for phase_extrapolated
         self.phase_extrapolated = self._zeros_common(
             in_ef.size,
-            dtype,
-            xp,
-            target_device_idx
+            dtype
         )
 
         self.extrapolation_initialized = False
-        self.xp = xp
 
     def interpolated_ef(self):
         '''
