@@ -130,6 +130,7 @@ class AtmoPropagation(BaseProcessingObj):
         df = 1 / L_pad
         fx, fy = self.xp.meshgrid(df * self.xp.arange(-self.ef_size_padded // 2, self.ef_size_padded // 2),
                                   df * self.xp.arange(-self.ef_size_padded // 2, self.ef_size_padded // 2))
+        fsq = fx**2 + fy**2
 
         # maximal spatial frequency that can propagate in x- and y-direction
         f_limit = L_pad / (self.wavelengthInNm * 1e-9 * np.sqrt(L_pad ** 2 + 4 * distanceInM ** 2))
@@ -147,10 +148,7 @@ class AtmoPropagation(BaseProcessingObj):
                 distance_old) + 'm to ' + str(distanceInM) + 'm.', RuntimeWarning)
 
         # calculate kernel
-        k = 2 * np.pi / (self.wavelengthInNm * 1e-9)
-        kernel = self.xp.sqrt(
-            0j + 1 - abs(fx * self.wavelengthInNm * 1e-9) ** 2 - abs(fy * self.wavelengthInNm * 1e-9) ** 2)
-        H_AS = self.xp.exp(1j * k * distanceInM * kernel)
+        H_AS = self.xp.exp(-1j * np.pi * distanceInM * self.wavelengthInNm * 1e-9 * fsq)
 
         # Apply bandlimit filter
         if self.band_limit_factor < 1.0:
@@ -214,12 +212,8 @@ class AtmoPropagation(BaseProcessingObj):
         s = (self.ef_size_padded - self.pixel_pupil + 1) // 2
         self.ef_padded[s:s + self.pixel_pupil, s:s + self.pixel_pupil] = ef_in
 
-        self.ft_ef1[:] = self.xp.fft.fftshift(
-            self.xp.fft.fft2(self.xp.fft.fftshift(self.ef_padded, axes=(-2, -1)), axes=(-2, -1), norm="ortho"),
-            axes=(-2, -1))
-        self.ef_fresnel_padded[:] = self.xp.fft.fftshift(
-            self.xp.fft.ifft2(self.xp.fft.fftshift(self.ft_ef1 * propagator, axes=(-2, -1)), norm="ortho",
-                              axes=(-2, -1)), axes=(-2, -1))
+        self.ft_ef1[:] = self.xp.fft.fftshift(self.xp.fft.fft2(self.ef_padded))
+        self.ef_fresnel_padded[:] = self.xp.fft.ifft2(self.xp.fft.ifftshift(self.ft_ef1 * propagator))
 
         # unpadding
         self.output_ef_fresnel[:] = self.ef_fresnel_padded[s:s + self.pixel_pupil, s:s + self.pixel_pupil]
