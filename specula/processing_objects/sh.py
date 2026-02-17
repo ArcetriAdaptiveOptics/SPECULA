@@ -484,6 +484,7 @@ class SH(BaseProcessingObj):
             mask_threshold=self._mask_threshold,
             use_out_ef_cache=False, # we cannot reuse the cache here because the interpolated array
                                     # is computed in prepare_trigger, but is used in trigger_code
+            target_device_idx=self.target_device_idx,
             precision=self.precision
         )
 
