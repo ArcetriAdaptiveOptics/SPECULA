@@ -482,8 +482,8 @@ class SH(BaseProcessingObj):
             xShiftPhInPixel=self._xShiftPhInPixel,
             yShiftPhInPixel=self._yShiftPhInPixel,
             mask_threshold=self._mask_threshold,
-            use_out_ef_cache=True,
-            target_device_idx=self.target_device_idx,
+            use_out_ef_cache=False, # we cannot reuse the cache here because the interpolated array
+                                    # is computed in prepare_trigger, but is used in trigger_code
             precision=self.precision
         )
 
