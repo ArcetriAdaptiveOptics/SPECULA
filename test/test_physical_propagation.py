@@ -62,7 +62,7 @@ class Test(unittest.TestCase):
 
         rms = xp.sqrt(xp.mean((downlink_phase / np.max(downlink_phase) - uplink_phase / np.max(uplink_phase)) ** 2))
         print(rms)
-        self.assertTrue(rms < 1.0)
+        self.assertTrue(rms < 0.1)
 
     @cpu_and_gpu
     def test_physicalProp_padding(self, target_device_idx, xp):
