@@ -14,8 +14,6 @@ from test.specula_testlib import cpu_and_gpu
 
 from skimage.restoration import unwrap_phase
 
-import matplotlib.pyplot as plt
-
 
 class Test(unittest.TestCase):
     @cpu_and_gpu
