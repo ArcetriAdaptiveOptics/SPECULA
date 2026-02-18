@@ -59,7 +59,7 @@ class SH(BaseProcessingObj):
                  subap_npx: int,
                  FoVres30mas: bool = False,
                  squaremask: bool = True,
-                 fov_ovs_coeff: float = 0,
+                 fov_ovs_coeff: float = 2.0, # some margin to avoid FFT wrapping
                  xShiftPhInPixel: float = 0,
                  yShiftPhInPixel: float = 0,
                  rotAnglePhInDeg: float = 0,
