@@ -224,26 +224,49 @@ class SH(BaseProcessingObj):
 
         turbulence_fov_pix = int(scale_ovs * np_sub)
 
-        # Avoid increasing the FoV if it's already more than twice the requested one
-        if turbulence_fov_pix > 2 * subap_real_fov_pix:
-            self._fov_ovs = 1
-            if self._fov_ovs_coeff != 0.0:
-                self._fov_ovs = self._fov_ovs_coeff
-        else:
+        # ---------------------------------------------------------------------
+        # OVERSAMPLING CALCULATION LOGIC
+        # ---------------------------------------------------------------------
+
+        # 1. Determine base scaling requirement
+        # ratio > 1 means we need to upsample to cover the requested sensor FOV
+        if turbulence_fov_pix > 0:
             ratio = float(subap_real_fov_pix) / float(turbulence_fov_pix)
-            np_factor = 1 if abs(np_sub - round(np_sub)) >= 1e-3 else round(np_sub)
-            if self._do_not_double_fov_ovs and self._fov_ovs_coeff == 0.0:
-                self._fov_ovs_coeff = 1.0
-                self._fov_ovs = np.ceil(np_factor * ratio / 2.0) * 2.0 / float(np_factor)
+        else:
+            ratio = 1.0
+
+        # 2. Determine target oversampling factor based on config
+        if self._fov_ovs_coeff > 0.0:
+            # User specified a coefficient.
+            # If we need resolution (ratio > 1), we scale the need by the coeff.
+            # If we have plenty (ratio < 1), we just use the coeff as a multiplier.
+            needed_ovs = max(1.0, ratio) * self._fov_ovs_coeff
+        else:
+            # Default behavior
+            if ratio <= 0.5:
+                # We have more than 2x the pixels we need. Keep 1.0 (no downsampling).
+                needed_ovs = 1.0
             else:
-                if self._fov_ovs_coeff == 0.0:
-                    self._fov_ovs_coeff = 2.0
-                if ratio < 2:
-                    self._fov_ovs = np.ceil(np_factor * self._fov_ovs_coeff) \
-                                    / float(np_factor)
-                else:
-                    self._fov_ovs = np.ceil(np_factor * ratio * self._fov_ovs_coeff) \
-                                    / float(np_factor)
+                # We scale exactly to what is needed to match the FOV
+                needed_ovs = max(1.0, ratio)
+
+        # 3. Calculate minimum required phase size in pixels
+        min_ef_size = ef_size * needed_ovs
+
+        # 4. Enforce geometry constraint:
+        # The total size must be a multiple of (2 * n_lenses).
+        # This ensures that:
+        # a) Phase size is divisible by n_lenses (integer pixels per subaperture)
+        # b) Pixels per subaperture is even (divisible by 2 for centroiding/quad cells)
+        modulus = 2 * n_lenses
+
+        # Round up to the next valid multiple
+        final_ef_size = np.ceil(min_ef_size / modulus) * modulus
+
+        # 5. Set the precise float oversampling factor
+        self._fov_ovs = final_ef_size / ef_size
+
+        # ---------------------------------------------------------------------
 
         self._sensor_pxscale = subap_real_fov_arcsec / self._subap_npx / RAD2ASEC
         self._ovs_np_sub = round(ef_size * self._fov_ovs * lens[2] * 0.5)
@@ -260,12 +283,21 @@ class SH(BaseProcessingObj):
             print('-->     L.C.M. for toccd,      {}'.format(mcmx))
             print('-->     oversampled np_sub,    {}'.format(self._ovs_np_sub))
 
+        # Validation Check (Updated to use precise float math)
+        # We check if the calculated subaperture size is effectively an even integer
+        actual_phase_size = ef_size * self._fov_ovs
+        pixels_per_subap = actual_phase_size * lens[2] # lens[2] is 1/n_lenses usually
 
-        # Check for valid phase size
-        if abs((ef_size * round(self._fov_ovs) * lens[2]) / 2.0 - round((ef_size * round(self._fov_ovs) * lens[2]) / 2.0)) > 1e-4:
-            raise ValueError(f'ERROR: interpolated input phase size {ef_size} * {round(self._fov_ovs)} is not divisible by  {self._lenslet.n_lenses} subapertures.')
+        # Check if pixels_per_subap is even (divisible by 2)
+        # We use a small epsilon for float comparison
+        if abs((pixels_per_subap / 2.0) - round(pixels_per_subap / 2.0)) > 1e-4:
+            raise ValueError(
+                f'ERROR: Interpolated phase size {actual_phase_size} is not divisible '
+                f'by {2 * self._lenslet.n_lenses} (2 * n_lenses).'
+            )
         elif not self._noprints:
-            print(f'GOOD: interpolated input phase size {ef_size} * {round(self._fov_ovs)} is divisible by {self._lenslet.n_lenses} subapertures.')
+            print(f'GOOD: Interpolated phase size {int(actual_phase_size)} is divisible'
+                  f' by {self._lenslet.n_lenses} subapertures.')
 
     def _calc_geometry(self, in_ef):
         '''
