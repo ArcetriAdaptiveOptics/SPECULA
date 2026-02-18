@@ -190,6 +190,7 @@ class TestSH(unittest.TestCase):
                 sensor_pxscale=0.5,
                 subap_on_diameter=n_lenses,
                 subap_npx=4,
+                fov_ovs_coeff=1.0, # No forced coeff, we want to test the automatic adjustment
                 target_device_idx=target_device_idx)
 
         # Create the irregular electric field
