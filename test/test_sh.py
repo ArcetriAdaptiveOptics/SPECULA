@@ -205,7 +205,7 @@ class TestSH(unittest.TestCase):
 
         # 2. Verify the math: 105 * ovs should be exactly 120
         calculated_size = pixel_pupil * sh._fov_ovs
-        self.assertAlmostEqual(calculated_size, 120.0, places=5, 
+        self.assertAlmostEqual(calculated_size, 120.0, places=5,
                                msg=f"Expected 120 total pixels, got {calculated_size}")
 
         # 3. Verify internal pixel count

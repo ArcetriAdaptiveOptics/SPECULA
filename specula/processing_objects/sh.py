@@ -235,29 +235,21 @@ class SH(BaseProcessingObj):
         else:
             ratio = 1.0
 
-        # 2. Determine target oversampling factor based on config
-        if self._fov_ovs_coeff > 0.0:
-            # User specified a coefficient.
-            # If we need resolution (ratio > 1), we scale the need by the coeff.
-            # If we have plenty (ratio < 1), we just use the coeff as a multiplier.
-            needed_ovs = max(1.0, ratio) * self._fov_ovs_coeff
-        else:
-            # Default behavior
-            if ratio <= 0.5:
-                # We have more than 2x the pixels we need. Keep 1.0 (no downsampling).
-                needed_ovs = 1.0
-            else:
-                # We scale exactly to what is needed to match the FOV
-                needed_ovs = max(1.0, ratio)
+        # 2. Determine target oversampling factor
+        # We take the MAXIMUM of three constraints:
+        # - 1.0: Ensure we do not downsample (loss of quality).
+        # - ratio: Ensure we cover the Field of View given by the pixel scale.
+        # - fov_ovs_coeff: Respect explicit user request for super-sampling.
+        needed_ovs = max(1.0, ratio, self._fov_ovs_coeff)
 
         # 3. Calculate minimum required phase size in pixels
         min_ef_size = ef_size * needed_ovs
 
         # 4. Enforce geometry constraint:
         # The total size must be a multiple of (2 * n_lenses).
-        # This ensures that:
+        # This ensures that
         # a) Phase size is divisible by n_lenses (integer pixels per subaperture)
-        # b) Pixels per subaperture is even (divisible by 2 for centroiding/quad cells)
+        # b) Pixels per subaperture is even
         modulus = 2 * n_lenses
 
         # Round up to the next valid multiple
@@ -286,7 +278,7 @@ class SH(BaseProcessingObj):
         # Validation Check (Updated to use precise float math)
         # We check if the calculated subaperture size is effectively an even integer
         actual_phase_size = ef_size * self._fov_ovs
-        pixels_per_subap = actual_phase_size * lens[2] # lens[2] is 1/n_lenses usually
+        pixels_per_subap = actual_phase_size * lens[2] # lens[2] is 2/n_lenses
 
         # Check if pixels_per_subap is even (divisible by 2)
         # We use a small epsilon for float comparison
