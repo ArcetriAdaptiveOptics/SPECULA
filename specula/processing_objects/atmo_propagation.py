@@ -212,8 +212,8 @@ class AtmoPropagation(BaseProcessingObj):
         s = (self.ef_size_padded - self.pixel_pupil + 1) // 2
         self.ef_padded[s:s + self.pixel_pupil, s:s + self.pixel_pupil] = ef_in
 
-        self.ft_ef1[:] = self.xp.fft.fftshift(self.xp.fft.fft2(self.ef_padded))
-        self.ef_fresnel_padded[:] = self.xp.fft.ifft2(self.xp.fft.ifftshift(self.ft_ef1 * propagator))
+        self.ft_ef1[:] = self.xp.fft.fftshift(self.xp.fft.fft2(self.ef_padded, norm="ortho"))
+        self.ef_fresnel_padded[:] = self.xp.fft.ifft2(self.xp.fft.ifftshift(self.ft_ef1 * propagator), norm="ortho")
 
         # unpadding
         self.output_ef_fresnel[:] = self.ef_fresnel_padded[s:s + self.pixel_pupil, s:s + self.pixel_pupil]
