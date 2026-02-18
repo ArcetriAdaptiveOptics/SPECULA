@@ -452,7 +452,12 @@ class SH(BaseProcessingObj):
             cutpixels = self._cutpixels
 
             # FoV cut on each subap.
-            psf_cut_view = self.psf[:, cutpixels // 2: -cutpixels // 2, cutpixels // 2: -cutpixels // 2]
+            # If cutpixels is 0 (exact match), slicing [0:0] returns empty.
+            if cutpixels > 0:
+                psf_cut_view = self.psf[:, cutpixels // 2: -cutpixels // 2, cutpixels // 2: -cutpixels // 2]
+            else:
+                # If cutpixels is 0 (or negative, though negative shouldn't happen), take full frame
+                psf_cut_view = self.psf[:]
 
             # Go back from a subap cube to a 2D frame row.
             # This reshape is too complicated to produce a view,
