@@ -345,14 +345,12 @@ class EFInterpolator():
         """Re-initialize the internal Interp2D object with new misalignment parameters."""
 
         # Retrieve current parameters if not provided
-        current_rot = -self.interp.rot_angle * 180.0 / np.pi if hasattr(self.interp, 'rot_angle') \
-                      else 0
+        current_rot = -self.interp.rot_angle * 180.0 / np.pi 
 
         new_x = xShiftPhInPixel if xShiftPhInPixel is not None else float(self.interp.shift_x)
         new_y = yShiftPhInPixel if yShiftPhInPixel is not None else float(self.interp.shift_y)
         new_rot = rotAnglePhInDeg if rotAnglePhInDeg is not None else current_rot
-        new_mag = magnification if magnification is not None \
-                  else float(getattr(self.interp, 'magnification', 1.0))
+        new_mag = magnification if magnification is not None else float(self.interp.magnification)
 
         # Recreate the Interp2D object with the new parameters
         self.interp = Interp2D(
