@@ -27,7 +27,6 @@ class DistributedSH(SH):
                  xShiftPhInPixel: float = 0,
                  yShiftPhInPixel: float = 0,
                  rotAnglePhInDeg: float = 0,
-                 do_not_double_fov_ovs: bool = False,
                  set_fov_res_to_turbpxsc: bool = False,
                  laser_launch_tel: LaserLaunchTelescope = None,
                  target_device_idx: int = None,
