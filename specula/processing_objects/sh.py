@@ -25,6 +25,52 @@ def abs2(u_fp, out, xp):
 
 
 class SH(BaseProcessingObj):
+    """
+    Shack-Hartmann wavefront sensor processing object.
+    Takes an electric field as input and produces an intensity as output.
+    
+    Parameters
+    ----------
+    wavelengthInNm : float
+        Wavelength in nanometers
+    subap_wanted_fov : float
+        Desired subaperture Field of View in arcseconds
+    sensor_pxscale : float
+        Sensor pixel scale in arcseconds/pixel
+    subap_on_diameter : int
+        Subaperture diameter in meters
+    subap_npx : int
+        Number of pixels across the subaperture on the sensor
+    FoVres30mas : bool, optional
+        If True, set the internal FoV resolution parameter to 30 mas. Default is False
+    squaremask : bool, optional
+        If True, use a square mask in the focal plane. Default is True.
+    fov_ovs_coeff : float, optional
+        Coefficient to determine the oversampling of the FoV.
+        A value larger than 1 is recommended to avoid FFT wrapping effects.
+        Default is 2.0.
+    xShiftPhInPixel : float, optional
+        Shift of the phase in the x direction in pixels. Default is 0.
+    yShiftPhInPixel : float, optional
+        Shift of the phase in the y direction in pixels. Default is 0.
+    rotAnglePhInDeg : float, optional
+        Rotation angle of the phase in degrees. Default is 0.
+    set_fov_res_to_turbpxsc : bool, optional
+        If True, set the FoV resolution to the turbulence pixel scale. Default is False.
+    laser_launch_tel : LaserLaunchTelescope, optional
+        If provided, use the laser launch telescope parameters for kernel generation.
+        Default is None.
+    subap_rows_slice : slice, optional
+        Slice object to specify which rows of subapertures to process.
+        Default is None (process all rows).
+    data_dir : str, optional
+        Directory for data files needed by the kernel object. Default is "".
+        Set by simul object if not provided.
+    target_device_idx : int, optional
+        Target device index for GPU processing. Default is None (CPU).
+    precision : int, optional
+        Numerical precision (e.g., 32 or 64). Default is None (use default precision).
+    """
 
     __zeros_cache = {}
 
@@ -63,7 +109,6 @@ class SH(BaseProcessingObj):
                  xShiftPhInPixel: float = 0,
                  yShiftPhInPixel: float = 0,
                  rotAnglePhInDeg: float = 0,
-                 do_not_double_fov_ovs: bool = False,
                  set_fov_res_to_turbpxsc: bool = False,
                  laser_launch_tel: LaserLaunchTelescope = None,
                  subap_rows_slice = None,
@@ -89,7 +134,6 @@ class SH(BaseProcessingObj):
         self._xShiftPhInPixel = xShiftPhInPixel
         self._yShiftPhInPixel = yShiftPhInPixel
         self._set_fov_res_to_turbpxsc = set_fov_res_to_turbpxsc
-        self._do_not_double_fov_ovs = do_not_double_fov_ovs
         self._laser_launch_tel = laser_launch_tel
         self.data_dir = data_dir
         self._np_sub = 0
@@ -152,14 +196,14 @@ class SH(BaseProcessingObj):
         subap_real_fov_arcsec = self._sensor_pxscale * self._subap_npx * RAD2ASEC
 
         if self._fov_resolution_arcsec == 0:
-            if not self._noprints:
+            if not self._noprints: # pragma: no cover
                 print('FoV internal resolution parameter not set.')
             if self._set_fov_res_to_turbpxsc:
                 if turbulence_pxscale >= sensor_pxscale_arcsec:
                     raise ValueError('set_fov_res_to_turbpxsc property should be set'
                                      ' to one only if turb. pix. sc. is < sensor pix. sc.')
                 self._fov_resolution_arcsec = turbulence_pxscale
-                if not self._noprints:
+                if not self._noprints: # pragma: no cover
                     print('WARNING: set_fov_res_to_turbpxsc property is set.')
                     print('FoV internal resolution parameter will be set to turb. pix. sc.')
             elif turbulence_pxscale < sensor_pxscale_arcsec and sensor_pxscale_arcsec / 2.0 > 0.5:
@@ -206,7 +250,7 @@ class SH(BaseProcessingObj):
                 else:
                     self._fov_resolution_arcsec = resTry[idx_good[0]]
 
-        if not self._noprints:
+        if not self._noprints: # pragma: no cover
             print(f'FoV internal resolution parameter set as [arcsec]:'
                   f' {self._fov_resolution_arcsec}')
 
@@ -264,7 +308,7 @@ class SH(BaseProcessingObj):
         self._ovs_np_sub = round(ef_size * self._fov_ovs * lens[2] * 0.5)
         self._fft_size = self._ovs_np_sub * scale_ovs
 
-        if self.verbose:
+        if self.verbose: # pragma: no cover
             print('\n-->     FoV resolution [asec], {}'.format(self._fov_resolution_arcsec))
             print('-->     turb. pix. sc.,        {}'.format(turbulence_pxscale))
             print('-->     sc. over sampl.,       {}'.format(scale_ovs))
