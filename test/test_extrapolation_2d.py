@@ -454,3 +454,37 @@ class TestExtrapolation2D(unittest.TestCase):
         # Should get same result as first time
         np.testing.assert_array_almost_equal(result1, result1_again, decimal=5,
                                             err_msg="Re-interpolation should give same result")
+
+    @cpu_and_gpu
+    def test_efinterpolator_update_parameters(self, target_device_idx, xp):
+        """
+        Test that EFInterpolator correctly passes magnification to Interp2D
+        and that update_parameters correctly re-initializes the interpolator.
+        """
+        ef_size = (32, 32)
+        pixel_pitch = 0.01
+
+        ef_in = ElectricField(ef_size[0], ef_size[1],
+                              pixel_pitch, target_device_idx=target_device_idx)
+        ef_in.A[:] = 1.0
+
+        # 1. Test initial setup with magnification
+        interp = EFInterpolator(ef_in, (64, 64), magnification=2.0,
+                                target_device_idx=target_device_idx)
+
+        # Verify initial values are passed down to Interp2D
+        self.assertEqual(float(interp.interp.magnification), 2.0)
+        self.assertEqual(float(interp.interp.shift_x), 0.0)
+
+        # 2. Test dynamic update of parameters
+        interp.update_parameters(xShiftPhInPixel=1.5, magnification=0.5)
+
+        # Verify the internal Interp2D was recreated with new values
+        self.assertEqual(float(interp.interp.magnification), 0.5)
+        # Note: x and y are swapped in Interp2D because of the way shifts are defined
+        # (colShift = xShift, rowShift = yShift)
+        self.assertEqual(float(interp.interp.shift_y), 1.5)
+
+        # Do a dummy interpolation to ensure it doesn't crash with the updated object
+        interp.interpolate()
+        self.assertEqual(interp.interpolated_ef().size, (64, 64))
