@@ -7,6 +7,7 @@ from abc import abstractmethod
 
 from specula.base_processing_obj import BaseProcessingObj
 from specula.connections import InputValue
+from specula.data_objects.pupilstop import PupilStop
 from specula.data_objects.slopes import Slopes
 from specula.data_objects.intmat import Intmat
 from specula.data_objects.simul_params import SimulParams
@@ -101,6 +102,7 @@ class BaseSprintEstimator(BaseProcessingObj):
                  wfs: BaseProcessingObj,
                  modes_index: list,
                  carrier_frequencies: list,
+                 pupil_mask: PupilStop = None,
                  n_params: int = 4,  # Default: shift_x, shift_y, rotation, magnification
                  estimation_dt: float = 10.0,
                  max_iterations: int = 10,
@@ -171,8 +173,10 @@ class BaseSprintEstimator(BaseProcessingObj):
 
         # Pupil parameters (extracted from DM)
         self.pup_diam_m = simul_params.pixel_pupil * simul_params.pixel_pitch
-        self.pup_mask = None  # Loaded in setup
         self.ifunc_3d = None  # Loaded in setup
+        self.pupil_mask = None # Loaded in setup
+        if pupil_mask is not None:
+            self.pupil_mask = self.to_xp(pupil_mask.A, dtype=self.dtype)
 
         # Create outputs
         self.estimated_intmat = Intmat(
@@ -257,7 +261,8 @@ class BaseSprintEstimator(BaseProcessingObj):
         # Extract DM parameters
         self.ifunc_3d = cpuArray(self.dm.ifunc_obj.ifunc_2d_to_3d(normalize=True))
         self.ifunc_3d = self.ifunc_3d[:, :, self.modes_index]  # Extract only requested modes
-        self.pup_mask = cpuArray(self.dm.mask)
+        if self.pupil_mask is None:
+            self.pup_mask = cpuArray(self.dm.mask)
 
         if self.verbose: # pragma: no cover
             print(f"\n{self.__class__.__name__} initialized:")

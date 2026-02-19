@@ -142,6 +142,7 @@ class SprintPyr(BaseSprintEstimator):
             target_device_idx=self.target_device_idx,
             precision=self.precision
         )
+        self.internal_ef.A = self.pup_mask
         self.internal_wfs.inputs['in_ef'].set(self.internal_ef)
         self.internal_wfs.setup()
         
@@ -217,10 +218,7 @@ class SprintPyr(BaseSprintEstimator):
                 self.internal_dm.trigger_code()
                 
                 # B. Convert DM shape to electric field and feed to the internal WFS
-                phase_nm = self.internal_dm.outputs['out_layer'].phaseInNm
-                wl = self.internal_wfs.wavelength_in_nm
-                self.internal_ef.ef = self.pup_mask * self.xp.exp(1j * 2 * self.xp.pi * phase_nm / wl)
-                self.internal_ef.S0 = self.pup_mask
+                self.internal_ef.phaseInNm = self.internal_dm.outputs['out_layer'].phaseInNm
                 
                 # C. Propagate through the internal WFS to get the intensity pattern
                 self.internal_wfs.prepare_trigger(0)
