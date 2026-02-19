@@ -57,7 +57,8 @@ class Interp2D():
             extern "C" __global__
             void interp2_kernel_onthefly_TYPE(TYPE *g_in, TYPE *g_out, int out_dx, int out_dy, int in_dx, int in_dy,
                                             TYPE scale_x, TYPE scale_y, TYPE shift_x, TYPE shift_y,
-                                            TYPE cos_angle, TYPE sin_angle, TYPE center_x, TYPE center_y) {
+                                            TYPE cos_angle, TYPE sin_angle, TYPE center_x, TYPE center_y, 
+                                            TYPE magnification) {
                 int y = blockIdx.y * blockDim.y + threadIdx.y;
                 int x = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -66,15 +67,27 @@ class Interp2D():
                     TYPE xcoord = x * scale_x;
                     TYPE ycoord = y * scale_y;
                     
+                    // Center coordinates for rotation and magnification
+                    TYPE xx_centered = xcoord - center_x;
+                    TYPE yy_centered = ycoord - center_y;
+                    
+                    // Apply magnification
+                    if (magnification != 1.0) {
+                        xx_centered /= magnification;
+                        yy_centered /= magnification;
+                    }
+                    
                     // Apply rotation if necessary
                     if (cos_angle != 1.0 || sin_angle != 0.0) {
-                        TYPE xx_centered = xcoord - center_x;
-                        TYPE yy_centered = ycoord - center_y;
                         TYPE xcoord_rot = xx_centered * cos_angle - yy_centered * sin_angle;
                         TYPE ycoord_rot = xx_centered * sin_angle + yy_centered * cos_angle;
-                        xcoord = xcoord_rot + center_x;
-                        ycoord = ycoord_rot + center_y;
+                        xx_centered = xcoord_rot;
+                        yy_centered = ycoord_rot;
                     }
+                    
+                    // Restore center
+                    xcoord = xx_centered + center_x;
+                    ycoord = yy_centered + center_y;
                     
                     // Apply shift
                     xcoord += shift_x;
@@ -99,7 +112,8 @@ class Interp2D():
                          name='interp2_kernel_onthefly_double')
 
     def __init__(self, input_shape, output_shape,
-                 rotInDeg=0, rowShiftInPixels=0, colShiftInPixels=0,
+                 rotInDeg=0, rowShiftInPixels=0,
+                 colShiftInPixels=0, magnification=1.0,
                  yy=None, xx=None, dtype=np.float32, xp=np):
         '''
         Initialize an Interp2D object for 2D interpolation between arrays.
@@ -116,6 +130,8 @@ class Interp2D():
             Vertical shift (in pixels) to apply to the sampling grid (default: 0).
         colShiftInPixels : float, optional
             Horizontal shift (in pixels) to apply to the sampling grid (default: 0).
+        magnification : float, optional
+            Magnification factor to apply to the sampling grid (default: 1.0).
         yy : array-like, optional
             Precomputed y-coordinates for the output grid (same shape as output_shape).
         xx : array-like, optional
@@ -141,6 +157,7 @@ class Interp2D():
             rotInDeg == 0 and
             rowShiftInPixels == 0 and
             colShiftInPixels == 0 and
+            magnification == 1.0 and
             xx is None and yy is None):
             # If not, it will be skipped later
             self.do_interp = False
@@ -173,15 +190,23 @@ class Interp2D():
                     yy = xp.array(yy, dtype=dtype)
                     xx = xp.array(xx, dtype=dtype)
 
-            if rotInDeg != 0:
+            if rotInDeg != 0 or magnification != 1.0:
                 yc = input_shape[0] / 2 - 0.5
                 xc = input_shape[1] / 2 - 0.5
-                cos_ = np.cos(rotInDeg * 3.1415 / 180.0)
-                sin_ = np.sin(rotInDeg * 3.1415 / 180.0)
-                xxr = (xx-xc)*cos_ - (yy-yc)*sin_
-                yyr = (xx-xc)*sin_ + (yy-yc)*cos_
-                xx = xxr + xc
-                yy = yyr + yc
+
+                xx_centered = (xx - xc) / magnification
+                yy_centered = (yy - yc) / magnification
+
+                if rotInDeg != 0:
+                    cos_ = np.cos(rotInDeg * np.pi / 180.0)
+                    sin_ = np.sin(rotInDeg * np.pi / 180.0)
+                    xxr = xx_centered * cos_ - yy_centered * sin_
+                    yyr = xx_centered * sin_ + yy_centered * cos_
+                    xx_centered = xxr
+                    yy_centered = yyr
+
+                xx = xx_centered + xc
+                yy = yy_centered + yc
 
             if rowShiftInPixels != 0 or colShiftInPixels != 0:
                 yy += rowShiftInPixels
@@ -201,6 +226,7 @@ class Interp2D():
         self.shift_x = self.dtype(colShiftInPixels)
         self.shift_y = self.dtype(rowShiftInPixels)
         self.rot_angle = rotInDeg * np.pi / 180.0
+        self.magnification = self.dtype(magnification)
         self.cos_angle = self.dtype(np.cos(self.rot_angle))
         self.sin_angle = self.dtype(np.sin(self.rot_angle))
         self.center_x = self.dtype(input_shape[1] / 2 - 0.5)
@@ -264,7 +290,8 @@ class Interp2D():
                         self.scale_x, self.scale_y,
                         self.shift_x, self.shift_y,
                         self.cos_angle, self.sin_angle,
-                        self.center_x, self.center_y))
+                        self.center_x, self.center_y,
+                        self.magnification))
                 elif self.dtype == cp.float64:
                     self.interp2_kernel_onthefly_double(grid, block, (
                         value, out,
@@ -273,7 +300,8 @@ class Interp2D():
                         self.scale_x, self.scale_y,
                         self.shift_x, self.shift_y,
                         self.cos_angle, self.sin_angle,
-                        self.center_x, self.center_y))
+                        self.center_x, self.center_y,
+                        self.magnification))
                 else:
                     raise ValueError(f'Unsupported dtype {self.dtype}')
             else:

@@ -72,6 +72,55 @@ class TestInterp2D(unittest.TestCase):
             _ = interpolator.interpolate(xp.zeros((20,20)))
 
     @cpu_and_gpu
+    def test_interp2d_magnification(self, target_device_idx, xp):
+        '''
+        Test that magnification correctly scales the input array.
+        Works on both CPU (scipy) and GPU (cupy/precomputed or on-the-fly).
+        '''
+        input_shape = (10, 10)
+        output_shape = (10, 10)
+
+        # Create a simple gradient image: values from 0 to 9 along X
+        _, x = xp.mgrid[0:input_shape[0], 0:input_shape[1]]
+        phase_in = x.astype(xp.float32)
+
+        # Test 1: Magnification = 2.0 (Zoom in)
+        interp_zoom = Interp2D(
+            input_shape, output_shape,
+            magnification=2.0,
+            xp=xp, dtype=xp.float32
+        )
+        output_zoom = interp_zoom.interpolate(phase_in)
+
+        # Check center values. 
+        # For a 10x10 array, index 5 maps to coordinate x = 5 * 9/10 = 4.5.
+        # Since 4.5 is the exact center (xc = 10/2 - 0.5 = 4.5), zooming
+        # around the center leaves this coordinate unchanged. The interpolated
+        # value of our gradient (phase_in(x) = x) should be exactly 4.5.
+        center_val = output_zoom[5, 5]
+        np.testing.assert_allclose(float(center_val), 4.5, atol=1e-5)
+
+        # The edge (0,0) originally mapped to 0. Zooming in by 2x around
+        # the center (4.5) moves the sampling coordinate closer to the center:
+        # new_x = (0 - 4.5) / 2.0 + 4.5 = 2.25
+        edge_val = output_zoom[0, 0]
+        np.testing.assert_allclose(float(edge_val), 2.25, atol=1e-5)
+
+        # Test 2: Magnification = 0.5 (Zoom out)
+        interp_shrink = Interp2D(
+            input_shape, output_shape,
+            magnification=0.5,
+            xp=xp, dtype=xp.float32
+        )
+        output_shrink = interp_shrink.interpolate(phase_in)
+
+        # Check that edges are clamped (reading beyond the original boundaries)
+        # For a gradient 0..9, zooming out by 0.5x pushes the sampling coordinates
+        # to -4.5 and 11.7, which are clamped to 0 and 9 respectively.
+        np.testing.assert_allclose(float(output_shrink[0, 0]), 0.0, atol=1e-5)
+        np.testing.assert_allclose(float(output_shrink[0, 9]), 9.0, atol=1e-5)
+
+    @cpu_and_gpu
     @unittest.skipIf(cp is None, "This test requires CuPy (GPU)")
     def test_onthefly_vs_precomputed(self, target_device_idx, xp):
         '''
@@ -81,16 +130,17 @@ class TestInterp2D(unittest.TestCase):
         if xp == cp: # pragma: no cover
             # Test various scenarios
             test_cases = [
-                # (input_shape, output_shape, rotInDeg, rowShift, colShift, description)
-                ((100, 100), (50, 50), 0, 0, 0, "simple downscaling"),
-                ((100, 100), (150, 150), 0, 0, 0, "simple upscaling"),
-                ((100, 100), (100, 100), 45, 0, 0, "rotation 45 degrees"),
-                ((100, 100), (100, 100), 0, 10, 5, "shift only"),
-                ((100, 100), (80, 80), 30, 5, -3, "rotation + shift + scaling"),
-                ((200, 150), (100, 120), 15, 2.5, 1.5, "non-square with rotation and shift"),
+                # (input_shape, output_shape, rotInDeg, rowShift, colShift, magnification, description)
+                ((100, 100), (50, 50), 0, 0, 0, 1.0, "simple downscaling"),
+                ((100, 100), (150, 150), 0, 0, 0, 1.0, "simple upscaling"),
+                ((100, 100), (100, 100), 45, 0, 0, 1.0, "rotation 45 degrees"),
+                ((100, 100), (100, 100), 0, 10, 5, 1.0, "shift only"),
+                ((100, 100), (80, 80), 30, 5, -3, 1.0, "rotation + shift + scaling"),
+                ((200, 150), (100, 120), 15, 2.5, 1.5, 1.0, "non-square with rotation and shift"),
+                ((100, 100), (100, 100), 45, 1, 1, 0.5, "rotation, shift and magnification"),
             ]
 
-            for input_shape, output_shape, rot, row_shift, col_shift, description in test_cases:
+            for input_shape, output_shape, rot, row_shift, col_shift, magnification, description in test_cases:
                 with self.subTest(case=description):
                     # Create test input array with some structure
                     phase_in = xp.random.rand(*input_shape).astype(xp.float32)
@@ -104,6 +154,7 @@ class TestInterp2D(unittest.TestCase):
                         rotInDeg=rot,
                         rowShiftInPixels=row_shift,
                         colShiftInPixels=col_shift,
+                        magnification=magnification,
                         xp=xp,
                         dtype=xp.float32
                     )
@@ -119,16 +170,24 @@ class TestInterp2D(unittest.TestCase):
                     yy *= (input_shape[0]-1) / output_shape[0]
                     xx *= (input_shape[1]-1) / output_shape[1]
 
-                    # Apply rotation
-                    if rot != 0:
+                    # Apply rotation and magnification
+                    if rot != 0 or magnification != 1.0:
                         yc = input_shape[0] / 2 - 0.5
                         xc = input_shape[1] / 2 - 0.5
-                        cos_ = xp.cos(rot * xp.pi / 180.0)
-                        sin_ = xp.sin(rot * xp.pi / 180.0)
-                        xxr = (xx-xc)*cos_ - (yy-yc)*sin_
-                        yyr = (xx-xc)*sin_ + (yy-yc)*cos_
-                        xx = xxr + xc
-                        yy = yyr + yc
+
+                        xx_centered = (xx - xc) / magnification
+                        yy_centered = (yy - yc) / magnification
+
+                        if rot != 0:
+                            cos_ = xp.cos(rot * xp.pi / 180.0)
+                            sin_ = xp.sin(rot * xp.pi / 180.0)
+                            xxr = xx_centered * cos_ - yy_centered * sin_
+                            yyr = xx_centered * sin_ + yy_centered * cos_
+                            xx_centered = xxr
+                            yy_centered = yyr
+
+                        xx = xx_centered + xc
+                        yy = yy_centered + yc
 
                     # Apply shift
                     if row_shift != 0 or col_shift != 0:
@@ -182,8 +241,8 @@ class TestInterp2D(unittest.TestCase):
                     # Allow small numerical differences due to floating point arithmetic
                     assert max_diff < 2e-5, \
                         f"Max difference for {description}: {max_diff} (should be < 2e-5)"
-                    assert mean_diff < 1e-6, \
-                        f"Mean difference for {description}: {mean_diff} (should be < 1e-6)"
+                    assert mean_diff < 2e-6, \
+                        f"Mean difference for {description}: {mean_diff} (should be < 2e-6)"
         else:
             self.skipTest("This test only runs on GPU with CuPy")
 

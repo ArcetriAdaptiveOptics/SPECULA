@@ -218,6 +218,7 @@ class EFInterpolator():
                  rotAnglePhInDeg: float=0,
                  xShiftPhInPixel: float=0,
                  yShiftPhInPixel: float=0,
+                 magnification: float=1.0,
                  mask_threshold: float=1e-3,
                  force_extrapolation: bool=False,
                  use_out_ef_cache: bool=False,
@@ -240,6 +241,8 @@ class EFInterpolator():
             Horizontal shift (in pixels) to apply to the sampling grid (default: 0).
         yShiftInPixel : float, optional
             Vertical shift (in pixels) to apply to the sampling grid (default: 0).
+        magnification : float, optional
+            Magnification factor to apply to the sampling grid (default: 1.0).
         mask_threshold : float, optional
             Threshold below which amplitude values are considered 0 for extrapolation
             (default: 1e-3).
@@ -276,7 +279,8 @@ class EFInterpolator():
         if (in_ef.size == out_shape and
             rotAnglePhInDeg == 0 and
             xShiftPhInPixel == 0 and
-            yShiftPhInPixel == 0 and force_extrapolation is False):
+            yShiftPhInPixel == 0 and
+            magnification == 1.0 and force_extrapolation is False):
             self.do_interpolation = False
             self.out_ef = in_ef
             return
@@ -321,6 +325,7 @@ class EFInterpolator():
             -rotAnglePhInDeg,  # Negative angle for PASSATA compatibility
             xShiftPhInPixel,
             yShiftPhInPixel,
+            magnification=magnification,
             dtype=dtype,
             xp=xp
         )
@@ -334,6 +339,31 @@ class EFInterpolator():
         )
 
         self.extrapolation_initialized = False
+
+    def update_parameters(self, xShiftPhInPixel=None, yShiftPhInPixel=None,
+                          rotAnglePhInDeg=None, magnification=None):
+        """Re-initialize the internal Interp2D object with new misalignment parameters."""
+
+        # Retrieve current parameters if not provided
+        current_rot = -self.interp.rot_angle * 180.0 / np.pi 
+
+        new_x = xShiftPhInPixel if xShiftPhInPixel is not None else float(self.interp.shift_x)
+        new_y = yShiftPhInPixel if yShiftPhInPixel is not None else float(self.interp.shift_y)
+        new_rot = rotAnglePhInDeg if rotAnglePhInDeg is not None else current_rot
+        new_mag = magnification if magnification is not None else float(self.interp.magnification)
+
+        # Recreate the Interp2D object with the new parameters
+        self.interp = Interp2D(
+            self.in_ef.size,
+            self.out_ef.size,
+            -new_rot,  # Negative angle for PASSATA compatibility
+            new_x,
+            new_y,
+            magnification=new_mag,
+            dtype=self.out_ef.dtype,
+            xp=self.xp
+        )
+        self.do_interpolation = True
 
     def interpolated_ef(self):
         '''
