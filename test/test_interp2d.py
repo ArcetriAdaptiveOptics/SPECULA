@@ -81,16 +81,17 @@ class TestInterp2D(unittest.TestCase):
         if xp == cp: # pragma: no cover
             # Test various scenarios
             test_cases = [
-                # (input_shape, output_shape, rotInDeg, rowShift, colShift, description)
-                ((100, 100), (50, 50), 0, 0, 0, "simple downscaling"),
-                ((100, 100), (150, 150), 0, 0, 0, "simple upscaling"),
-                ((100, 100), (100, 100), 45, 0, 0, "rotation 45 degrees"),
-                ((100, 100), (100, 100), 0, 10, 5, "shift only"),
-                ((100, 100), (80, 80), 30, 5, -3, "rotation + shift + scaling"),
-                ((200, 150), (100, 120), 15, 2.5, 1.5, "non-square with rotation and shift"),
+                # (input_shape, output_shape, rotInDeg, rowShift, colShift, magnification, description)
+                ((100, 100), (50, 50), 0, 0, 0, 1.0, "simple downscaling"),
+                ((100, 100), (150, 150), 0, 0, 0, 1.0, "simple upscaling"),
+                ((100, 100), (100, 100), 45, 0, 0, 1.0, "rotation 45 degrees"),
+                ((100, 100), (100, 100), 0, 10, 5, 1.0, "shift only"),
+                ((100, 100), (80, 80), 30, 5, -3, 1.0, "rotation + shift + scaling"),
+                ((200, 150), (100, 120), 15, 2.5, 1.5, 1.0, "non-square with rotation and shift"),
+                ((100, 100), (100, 100), 45, 1, 1, 0.5, "rotation, shift and magnification"),
             ]
 
-            for input_shape, output_shape, rot, row_shift, col_shift, description in test_cases:
+            for input_shape, output_shape, rot, row_shift, col_shift, magnification, description in test_cases:
                 with self.subTest(case=description):
                     # Create test input array with some structure
                     phase_in = xp.random.rand(*input_shape).astype(xp.float32)
@@ -104,6 +105,7 @@ class TestInterp2D(unittest.TestCase):
                         rotInDeg=rot,
                         rowShiftInPixels=row_shift,
                         colShiftInPixels=col_shift,
+                        magnification=magnification,
                         xp=xp,
                         dtype=xp.float32
                     )
@@ -119,16 +121,24 @@ class TestInterp2D(unittest.TestCase):
                     yy *= (input_shape[0]-1) / output_shape[0]
                     xx *= (input_shape[1]-1) / output_shape[1]
 
-                    # Apply rotation
-                    if rot != 0:
+                    # Apply rotation and magnification
+                    if rot != 0 or magnification != 1.0:
                         yc = input_shape[0] / 2 - 0.5
                         xc = input_shape[1] / 2 - 0.5
-                        cos_ = xp.cos(rot * xp.pi / 180.0)
-                        sin_ = xp.sin(rot * xp.pi / 180.0)
-                        xxr = (xx-xc)*cos_ - (yy-yc)*sin_
-                        yyr = (xx-xc)*sin_ + (yy-yc)*cos_
-                        xx = xxr + xc
-                        yy = yyr + yc
+
+                        xx_centered = (xx - xc) / magnification
+                        yy_centered = (yy - yc) / magnification
+
+                        if rot != 0:
+                            cos_ = xp.cos(rot * xp.pi / 180.0)
+                            sin_ = xp.sin(rot * xp.pi / 180.0)
+                            xxr = xx_centered * cos_ - yy_centered * sin_
+                            yyr = xx_centered * sin_ + yy_centered * cos_
+                            xx_centered = xxr
+                            yy_centered = yyr
+
+                        xx = xx_centered + xc
+                        yy = yy_centered + yc
 
                     # Apply shift
                     if row_shift != 0 or col_shift != 0:
