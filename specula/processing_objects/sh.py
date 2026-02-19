@@ -41,8 +41,6 @@ class SH(BaseProcessingObj):
         Subaperture diameter in meters
     subap_npx : int
         Number of pixels across the subaperture on the sensor
-    FoVres30mas : bool, optional
-        If True, set the internal FoV resolution parameter to 30 mas. Default is False
     squaremask : bool, optional
         If True, use a square mask in the focal plane. Default is True.
     fov_ovs_coeff : float, optional
@@ -103,7 +101,6 @@ class SH(BaseProcessingObj):
                  sensor_pxscale: float,
                  subap_on_diameter: int,
                  subap_npx: int,
-                 FoVres30mas: bool = False,
                  squaremask: bool = True,
                  fov_ovs_coeff: float = 2.0, # some margin to avoid FFT wrapping
                  xShiftPhInPixel: float = 0,
@@ -127,7 +124,7 @@ class SH(BaseProcessingObj):
         self._subap_npx = subap_npx
         self._fov_ovs_coeff = fov_ovs_coeff
         self._squaremask = squaremask
-        self._fov_resolution_arcsec = 0.03 if FoVres30mas else 0
+        self._fov_resolution_arcsec = 0
         self._debugOutput = False
         self._noprints = False
         self._rotAnglePhInDeg = rotAnglePhInDeg

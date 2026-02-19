@@ -21,7 +21,6 @@ class DistributedSH(SH):
                  subap_on_diameter: int,
                  subap_npx: int,
                  n_slices: int,
-                 FoVres30mas: bool = False,
                  squaremask: bool = True,
                  fov_ovs_coeff: float = 0,
                  xShiftPhInPixel: float = 0,
