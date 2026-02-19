@@ -159,6 +159,10 @@ class BaseSprintEstimator(BaseProcessingObj):
                 raise ValueError(f"initial_misreg must have {self.n_params} elements")
             self.misreg_params = self.to_xp(initial_misreg, dtype=self.dtype)
 
+        # initialize perturbation definitions (filled in subclass)
+        # and used in _compute_sensitivity_matrices
+        self.perturbations = {}
+
         # State variables
         self.last_estimation_time = 0
         self.current_error = 0.0
@@ -211,17 +215,32 @@ class BaseSprintEstimator(BaseProcessingObj):
         """
         pass
 
-    @abstractmethod
     def _compute_sensitivity_matrices(self):
-        """
-        Compute sensitivity matrices for all mis-registration parameters.
-        
-        Returns
-        -------
-        sens_matrices : ndarray, shape (nslopes, nmodes, n_params)
-            Sensitivity of each slope/mode to each parameter
-        """
-        pass
+        """Compute sensitivity matrices using mis-registration push-pull"""
+        n_params = len(self.misreg_params)
+        nslopes = self.estimated_intmat.nslopes
+
+        sens_matrices = self.xp.zeros((nslopes, self.nmodes, n_params), dtype=self.dtype)
+
+        original_params = self.misreg_params.copy()
+
+        for param_idx, (delta, name) in self.perturbations.items():
+            # Push
+            self.misreg_params = original_params.copy()
+            self.misreg_params[param_idx] += delta
+            im_push = self._compute_nominal_im()
+
+            # Pull
+            self.misreg_params = original_params.copy()
+            self.misreg_params[param_idx] -= delta
+            im_pull = self._compute_nominal_im()
+
+            # Sensitivity
+            sens_matrices[:, :, param_idx] = (im_push - im_pull) / (2.0 * delta)
+
+        self.misreg_params = original_params
+
+        return sens_matrices
 
     def setup(self):
         """Initialize slopes size and extract parameters"""
