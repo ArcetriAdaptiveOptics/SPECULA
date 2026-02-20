@@ -15,6 +15,7 @@ from specula.processing_objects.modulated_pyramid import ModulatedPyramid
 from specula.processing_objects.ccd import CCD
 from specula.processing_objects.pyr_slopec import PyrSlopec
 from specula.processing_objects.sprint_pyr import SprintPyr
+from test.test_sprint import generate_sinusoidal_slopes
 
 from test.specula_testlib import cpu_and_gpu
 
@@ -69,7 +70,7 @@ def create_test_system():
         pup_diam=pupil_diam,  # pixels
         pup_dist=pup_dist,  # pixels
         output_resolution=output_resolution,  # pixels
-        mod_amp=3.0,  # lambda/D
+        mod_amp=2.0,  # lambda/D
         target_device_idx=-1,
         precision=1
     )
@@ -202,71 +203,19 @@ def generate_ims(simul_params, source, dm, wfs, slopec, mode_idx,
     return im_ref, im_misreg
 
 
-def generate_sinusoidal_slopes(im, carrier_frequencies, duration, dt, noise_level=0.0):
-    """
-    Generate time series of slopes with sinusoidal modulation.
-    
-    Parameters
-    ----------
-    im : ndarray, shape (nslopes,) or (nslopes, nmodes)
-        Interaction matrix (single mode or multiple modes)
-    carrier_frequencies : list
-        Carrier frequencies for each mode [Hz]
-    duration : float
-        Duration of signal [seconds]
-    dt : float
-        Time step [seconds]
-    noise_level : float
-        RMS of Gaussian noise to add
-    
-    Returns
-    -------
-    slopes_time : ndarray, shape (nt, nslopes)
-        Time series of slopes
-    time : ndarray, shape (nt,)
-        Time vector
-    """
-    # Handle both 1D (single mode) and 2D (multiple modes) cases
-    if im.ndim == 1:
-        im = im[:, np.newaxis]  # Convert to (nslopes, 1)
-
-    nslopes, nmodes = im.shape
-    nt = int(duration / dt)
-    time = np.arange(nt) * dt
-
-    # Initialize slopes array
-    slopes_time = np.zeros((nt, nslopes))
-
-    # For each mode, add sinusoidal component
-    for mode_idx in range(nmodes):
-        freq = carrier_frequencies[mode_idx]
-        # Unit amplitude sine wave
-        modulation = np.sin(2 * np.pi * freq * time)
-
-        # Add contribution from this mode to all slopes
-        slopes_time += np.outer(modulation, im[:, mode_idx])
-
-    # Add noise if requested
-    if noise_level > 0:
-        noise = np.random.normal(0, noise_level, slopes_time.shape)
-        slopes_time += noise
-
-    return slopes_time, time
-
-
-class TestSprintShSynim(unittest.TestCase):
+class TestSprintPyr(unittest.TestCase):
 
     verbose = False  # Set to True for detailed output during tests
 
     @cpu_and_gpu
     def test_sprint_estimation_small(self, target_device_idx, xp):
         """Test SPRINT estimation with small mis-registration"""
-        self._run_sprint_test(2.0, 1.5, 1.0, 0.02, target_device_idx, xp)
+        self._run_sprint_test(1.0, 0.5, 1.0, 0.02, target_device_idx, xp)
 
     @cpu_and_gpu
     def test_sprint_estimation_medium(self, target_device_idx, xp):
         """Test SPRINT estimation with medium mis-registration"""
-        self._run_sprint_test(5.0, -3.0, 3.0, 0.05, target_device_idx, xp)
+        self._run_sprint_test(1.0, -1.0, 20.0, 0.05, target_device_idx, xp)
 
     def _run_sprint_test(self, shift_x, shift_y, rotation, magnification,
                         target_device_idx, xp):

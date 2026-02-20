@@ -280,30 +280,48 @@ class SprintPyr(BaseSprintEstimator):
                     precision=self.precision)
         sl.set_value(im_mode)
 
-        # Set mask and display map from the internal Slopec's PupData
-        if self.internal_slopec.slopes_from_intensity:
-            sl.single_mask = self.internal_slopec.pupdata.complete_mask()
-        else:
-            sl.single_mask = self.internal_slopec.pupdata.single_mask()
+        pupdata = self.internal_slopec.pupdata
 
-        sl.display_map = self.internal_slopec.pupdata.display_map
+        if self.internal_slopec.slopes_from_intensity:
+            sl.single_mask = pupdata.complete_mask()
+            sl.display_map = pupdata.display_map
+        else:
+            # For Pyramid, we need to reconstruct the single_mask for the full frame based
+            # on the pupil data.
+            # The original single_mask from pupdata is cropped to the valid subapertures,
+            # which is not suitable for visualizing the full 2D map of the IM mode.
+            full_mask = self.xp.zeros(pupdata.framesize, dtype=self.dtype)
+
+            # Extract the valid subaperture indices for each of the 4 pupils and mark
+            # them on the full mask
+            idx0 = pupdata.pupil_idx(0)
+            idx0_valid = idx0[idx0 >= 0]
+
+            # Write 1s in the full mask at the positions corresponding to the valid
+            # subapertures of pupil 0
+            self.xp.put(full_mask, idx0_valid, 1)
+
+            sl.single_mask = full_mask
+            sl.display_map = idx0_valid
 
         # get2d() handles the reshaping based on the lengths of mask/display_map.
         # It returns a single 2D array if slopes_from_intensity=True,
         # or a list of two 2D arrays [frame_x, frame_y] for standard slopes.
         frames2d = sl.get2d()
 
-        # We return a tuple so that calling `frames[0]` in _plot_debug_info
-        # correctly extracts the first frame (either Sx or the 4-pupil intensity map)
+        # Normalizziamo l'output su CPU per matplotlib
         if isinstance(frames2d, list):
             frames2d = [cpuArray(frame) for frame in frames2d]
         else:
             frames2d = cpuArray(frames2d)
             if frames2d.ndim == 3 and frames2d.shape[0] == 2:
-                frames2d = [frames2d[0], frames2d[1]]
+                n = frames2d.shape[2]
+                combined = np.zeros((n,n//2))
+                combined[:n//2,:] = frames2d[0][:n//2, :n//2]
+                combined[n//2:,:] = frames2d[1][:n//2, :n//2]
+                frames2d = [combined]
             else:
                 frames2d = [frames2d]
-
 
         return frames2d
 
