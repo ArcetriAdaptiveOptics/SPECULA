@@ -7,8 +7,8 @@ to perform stability and frequency response analysis of an Adaptive Optics (AO) 
 Overview
 --------
 
-In an AO system, the closed-loop performance is determined by the interaction between the **Controller** ($C$) 
-and the **Plant** ($P$). The plant typically includes the WFS integration time, the RTC latency (delay), 
+In an AO system, the closed-loop performance is determined by the interaction between the **Controller** (:math:`C`) 
+and the **Plant** (:math:`P`). The plant typically includes the WFS integration time, the RTC latency (delay), 
 and the Deformable Mirror dynamics (Low Pass Filter).
 
 The fundamental transfer functions are:
