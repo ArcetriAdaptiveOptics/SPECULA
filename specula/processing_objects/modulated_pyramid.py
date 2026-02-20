@@ -87,6 +87,8 @@ class ModulatedPyramid(BaseProcessingObj):
         X shift of input phase in pixels (default: 0.0)
     yShiftPhInPixel : float, optional
         Y shift of input phase in pixels (default: 0.0)
+    magnification : float, optional
+        Magnification factor applied to input phase (default: 1.0)
     target_device_idx : int, optional
         GPU device index (default: None, uses default device, -1 for CPU)
     precision : int, optional
@@ -144,6 +146,7 @@ class ModulatedPyramid(BaseProcessingObj):
                  rotAnglePhInDeg: float = 0.0,
                  xShiftPhInPixel: float = 0.0,
                  yShiftPhInPixel: float = 0.0,
+                 magnification: float = 1.0,
                  target_device_idx: int = None,
                  precision: int = None
                 ):
@@ -197,6 +200,7 @@ class ModulatedPyramid(BaseProcessingObj):
         self.rotAnglePhInDeg = rotAnglePhInDeg
         self.xShiftPhInPixel = xShiftPhInPixel
         self.yShiftPhInPixel = yShiftPhInPixel
+        self.magnification = magnification
         self.pup_shifts = pup_shifts
 
         # interpolation settings
@@ -610,6 +614,7 @@ class ModulatedPyramid(BaseProcessingObj):
             rotAnglePhInDeg=self.rotAnglePhInDeg,
             xShiftPhInPixel=self.xShiftPhInPixel,
             yShiftPhInPixel=self.yShiftPhInPixel,
+            magnification=self.magnification,
             mask_threshold=self._mask_threshold,
             use_out_ef_cache=True,
             target_device_idx=self.target_device_idx,

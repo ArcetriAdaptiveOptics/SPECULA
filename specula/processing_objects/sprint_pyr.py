@@ -7,6 +7,7 @@ from specula.processing_objects.modulated_pyramid import ModulatedPyramid
 from specula.processing_objects.pyr_slopec import PyrSlopec
 from specula.processing_objects.dm import DM
 from specula.base_value import BaseValue
+from specula.data_objects.pupilstop import Pupilstop
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.pixels import Pixels
 from specula.data_objects.slopes import Slopes
@@ -43,9 +44,10 @@ class SprintPyr(BaseSprintEstimator):
                  slopec,
                  source,
                  wfs,
-                 push_amp=10,
                  modes_index,
                  carrier_frequencies,
+                 pupil_mask: Pupilstop = None,
+                 push_amp=10,
                  estimation_dt=10.0,
                  max_iterations=10,
                  convergence_threshold=1e-3,
@@ -63,16 +65,6 @@ class SprintPyr(BaseSprintEstimator):
         # Number of parameters for this WFS type
         n_params = 4
 
-        if self.source.polar_coordinates[0] != 0.0:
-            raise ValueError("SprintPyr currently only supports on-axis sources")
-
-        self.pyr_params = {}
-        self.internal_wfs = None
-        self.internal_dm = None
-        self.internal_slopec = None
-        self.internal_ef = None
-        self.push_amp = push_amp
-
         # Call parent constructor with n_params
         super().__init__(
             simul_params=simul_params,
@@ -82,6 +74,7 @@ class SprintPyr(BaseSprintEstimator):
             wfs=wfs,
             modes_index=modes_index,
             carrier_frequencies=carrier_frequencies,
+            pupil_mask=pupil_mask,
             n_params=n_params,
             estimation_dt=estimation_dt,
             max_iterations=max_iterations,
@@ -94,6 +87,18 @@ class SprintPyr(BaseSprintEstimator):
             target_device_idx=target_device_idx,
             precision=precision
         )
+
+        if self.source.polar_coordinates[0] != 0.0:
+            raise ValueError("SprintPyr currently only supports on-axis sources")
+
+        self.pyr_params = {}
+        self.internal_wfs = None
+        self.internal_command = None
+        self.internal_dm = None
+        self.internal_pixels = None
+        self.internal_slopec = None
+        self.internal_ef = None
+        self.push_amp = push_amp
 
         self.idx_valid_sa = None
 
@@ -125,6 +130,9 @@ class SprintPyr(BaseSprintEstimator):
             target_device_idx=self.target_device_idx,
             precision=self.precision
         )
+        self.internal_command = BaseValue(self.xp.zeros(self.dm.nmodes, dtype=self.dtype),
+                                          target_device_idx=self.target_device_idx)
+        self.internal_dm.inputs['in_command'].set(self.internal_command)
         self.internal_dm.setup()
 
         # 2. Build Internal Pyramid WFS
@@ -145,11 +153,11 @@ class SprintPyr(BaseSprintEstimator):
         self.internal_ef.A = self.pup_mask
         self.internal_wfs.inputs['in_ef'].set(self.internal_ef)
         self.internal_wfs.setup()
-        
+
         # Bulid Pixels object to interface WFS and Slopec
         ccd_side = self.internal_wfs.final_ccd_side
-        self.internal_pixels = Pixels(dimx=ccd_side, dimy=ccd_side, 
-                                      target_device_idx=self.target_device_idx, 
+        self.internal_pixels = Pixels(dimx=ccd_side, dimy=ccd_side,
+                                      target_device_idx=self.target_device_idx,
                                       precision=self.precision)
 
         # 3. Build Internal Slopec (sharing PupData with the main Slopec)
@@ -191,55 +199,73 @@ class SprintPyr(BaseSprintEstimator):
         self.pyr_params['mod_type'] = getattr(wfs, 'mod_type', 'circular')
 
         # Current mis-registration parameters (initially from input or zeros)
-        self.pyr_params['xShiftPhInPixel'] = float(self.misreg_params[0])
+        # + 1e-3 needed to force the interpolator to update its internal state,
+        # even if shift_x is initialized to 0.0
+        self.pyr_params['xShiftPhInPixel'] = float(self.misreg_params[0]) + 1e-3
         self.pyr_params['yShiftPhInPixel'] = float(self.misreg_params[1])
         self.pyr_params['rotAnglePhInDeg'] = float(self.misreg_params[2])
-        # Note: magnification must be added!
+        self.pyr_params['magnification'] = 1.0 + float(self.misreg_params[3])
 
     def _compute_nominal_im(self):
         """Compute nominal IM using a push-pull sequence on the internal pipeline."""
-        
-        # 1. Update mis-registration parameters on the interpolator
-        self.internal_wfs.ef_interpolator.xShiftPhInPixel = float(self.misreg_params[0])
-        self.internal_wfs.ef_interpolator.yShiftPhInPixel = float(self.misreg_params[1])
-        self.internal_wfs.ef_interpolator.rotAnglePhInDeg = float(self.misreg_params[2])
-        # TODO magnification is not currently implemented in the Pyramid case
 
-        im_nominal = self.xp.zeros((self.estimated_intmat.nslopes, self.nmodes), dtype=self.dtype)
-        
+        # 1. Update mis-registration parameters on the interpolator
+        self.internal_wfs.ef_interpolator.update_parameters(
+                            xShiftPhInPixel=float(self.misreg_params[0]),
+                            yShiftPhInPixel=float(self.misreg_params[1]),
+                            rotAnglePhInDeg=float(self.misreg_params[2]),
+                            magnification=1.0 + float(self.misreg_params[3])
+                            )
+
+        im_nominal = self.xp.zeros((int(self.internal_slopec.nslopes()), self.nmodes),
+                                   dtype=self.dtype)
+        step = 1
+        time_step = 0.001
+
         # Push-pull for each mode in modes_index
         for i, mode_idx in enumerate(self.modes_index):
             for sign in [1, -1]:
-                
+                # time
+                current_time = self.internal_wfs.seconds_to_t(step * time_step)
+
                 # A. Apply push or pull command to the internal DM
                 cmd = self.xp.zeros(self.dm.nmodes, dtype=self.dtype)
                 cmd[mode_idx] = sign * self.push_amp
-                self.internal_dm.inputs['in_command'].set(BaseValue(cmd, target_device_idx=self.target_device_idx))
+                self.internal_command.set_value(cmd)
+                self.internal_command.generation_time = current_time
+                self.internal_dm.check_ready(current_time)
                 self.internal_dm.trigger_code()
-                
+
                 # B. Convert DM shape to electric field and feed to the internal WFS
                 self.internal_ef.phaseInNm = self.internal_dm.outputs['out_layer'].phaseInNm
-                
+                self.internal_ef.generation_time = current_time
+
                 # C. Propagate through the internal WFS to get the intensity pattern
-                self.internal_wfs.prepare_trigger(0)
+                self.internal_wfs.check_ready(current_time)
                 self.internal_wfs.trigger_code()
                 self.internal_wfs.post_trigger()
-                
+
                 # C2. Transfer the calculated data to the Pixels object of the Slopec
                 # Extract the calculated intensity array (.i) and pass it to the pixels (.pixels)
-                self.internal_pixels.pixels[:] = self.internal_wfs.outputs['out_i'].i
-                
+                intensity = self.internal_wfs.outputs['out_i'].i
+                # Normalize and scale to 12-bit range
+                intensity_norm = intensity / intensity.max() * 2**12
+                self.internal_pixels.pixels[:] = intensity_norm
+                self.internal_pixels.generation_time = current_time
+
                 # D. Calculate the slopes
-                self.internal_slopec.prepare_trigger(0)
+                self.internal_slopec.check_ready(current_time)
                 self.internal_slopec.trigger_code()
                 self.internal_slopec.post_trigger()
-                
+
                 # Save the result of the push or pull
                 if sign == 1:
                     slopes_push = self.internal_slopec.outputs['out_slopes'].slopes.copy()
                 else:
                     slopes_pull = self.internal_slopec.outputs['out_slopes'].slopes.copy()
-            
+
+                step += 1
+
             # Interaction matrix: discrete derivative using self.push_amp
             im_nominal[:, i] = (slopes_push - slopes_pull) / (2.0 * self.push_amp)
 
@@ -247,10 +273,10 @@ class SprintPyr(BaseSprintEstimator):
 
     def _im_2d_map(self, im_mode): # pragma: no cover
         """Convert interaction matrix to 2D map for visualization (Pyramid)."""
-        
+
         # Create a temporary Slopes object for the IM mode
-        sl = Slopes(length=im_mode.shape[0], 
-                    target_device_idx=self.target_device_idx, 
+        sl = Slopes(length=im_mode.shape[0],
+                    target_device_idx=self.target_device_idx,
                     precision=self.precision)
         sl.set_value(im_mode)
 
@@ -259,20 +285,27 @@ class SprintPyr(BaseSprintEstimator):
             sl.single_mask = self.internal_slopec.pupdata.complete_mask()
         else:
             sl.single_mask = self.internal_slopec.pupdata.single_mask()
-            
+
         sl.display_map = self.internal_slopec.pupdata.display_map
 
         # get2d() handles the reshaping based on the lengths of mask/display_map.
-        # It returns a single 2D array if slopes_from_intensity=True, 
+        # It returns a single 2D array if slopes_from_intensity=True,
         # or a list of two 2D arrays [frame_x, frame_y] for standard slopes.
         frames2d = sl.get2d()
 
-        # We return a tuple so that calling `frames[0]` in _plot_debug_info 
+        # We return a tuple so that calling `frames[0]` in _plot_debug_info
         # correctly extracts the first frame (either Sx or the 4-pupil intensity map)
         if isinstance(frames2d, list):
-            return frames2d[0], frames2d[1]
+            frames2d = [cpuArray(frame) for frame in frames2d]
         else:
-            return (frames2d,)
+            frames2d = cpuArray(frames2d)
+            if frames2d.ndim == 3 and frames2d.shape[0] == 2:
+                frames2d = [frames2d[0], frames2d[1]]
+            else:
+                frames2d = [frames2d]
+
+
+        return frames2d
 
     def _plot_debug_info(self, im_measured, im_nominal,
                          im_diff, G_opt, iteration): # pragma: no cover

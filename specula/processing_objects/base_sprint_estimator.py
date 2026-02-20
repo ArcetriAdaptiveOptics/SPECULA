@@ -7,7 +7,7 @@ from abc import abstractmethod
 
 from specula.base_processing_obj import BaseProcessingObj
 from specula.connections import InputValue
-from specula.data_objects.pupilstop import PupilStop
+from specula.data_objects.pupilstop import Pupilstop
 from specula.data_objects.slopes import Slopes
 from specula.data_objects.intmat import Intmat
 from specula.data_objects.simul_params import SimulParams
@@ -102,7 +102,7 @@ class BaseSprintEstimator(BaseProcessingObj):
                  wfs: BaseProcessingObj,
                  modes_index: list,
                  carrier_frequencies: list,
-                 pupil_mask: PupilStop = None,
+                 pupil_mask: Pupilstop = None,
                  n_params: int = 4,  # Default: shift_x, shift_y, rotation, magnification
                  estimation_dt: float = 10.0,
                  max_iterations: int = 10,
