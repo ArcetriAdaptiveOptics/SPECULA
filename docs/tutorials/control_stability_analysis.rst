@@ -7,8 +7,8 @@ to perform stability and frequency response analysis of an Adaptive Optics (AO) 
 Overview
 --------
 
-In an AO system, the closed-loop performance is determined by the interaction between the **Controller** ($C$) 
-and the **Plant** ($P$). The plant typically includes the WFS integration time, the RTC latency (delay), 
+In an AO system, the closed-loop performance is determined by the interaction between the **Controller** (:math:`C`) 
+and the **Plant** (:math:`P`). The plant typically includes the WFS integration time, the RTC latency (delay), 
 and the Deformable Mirror dynamics (Low Pass Filter).
 
 The fundamental transfer functions are:
@@ -105,7 +105,7 @@ Frequency Response (Bode/Log-Log)
 
 Nyquist Plot
 ^^^^^^^^^^^^
-The Nyquist plot shows the stability margin by observing how close the open-loop response ($CP$) gets to the critical point $(-1, 0)$.
+The Nyquist plot shows the stability margin by observing how close the open-loop response (:math:`CP`) gets to the critical point (:math:`(-1, 0)`).
 
-* **Stability**: The system is stable if the point $(-1, 0)$ is not encircled.
-* **Margins**: The distance from the curve to $(-1, 0)$ on the unit circle defines the **Phase Margin**, while the distance on the real axis defines the **Gain Margin**.
+* **Stability**: The system is stable if the point (:math:`(-1, 0)`) is not encircled.
+* **Margins**: The distance from the curve to (:math:`(-1, 0)`) on the unit circle defines the **Phase Margin**, while the distance on the real axis defines the **Gain Margin**.
