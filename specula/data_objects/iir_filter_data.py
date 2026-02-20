@@ -161,8 +161,27 @@ class IirFilterData(BaseDataObj):
         if verbose:
             print('new gain:', self.gain)
 
-    def RTF(self, mode, fs, freq=None, tf=None, dm=None, nw=None, dw=None, verbose=False, title=None, plot=True, overplot=False, **extra):
-        """Plot Rejection Transfer Function: RTF = 1 / (1 - CP)"""
+    def RTF(self, mode, fs, freq=None, dm=None, nw=None, dw=None,
+            verbose=False,title=None, plot=True, overplot=False,
+            **extra):
+        """
+        Plot Rejection Transfer Function: RTF = 1 / (1 - CP)
+        
+        Args:
+            mode: Filter mode index to use for C coefficients
+            fs: Sampling frequency
+            freq: Frequency vector for evaluation (if None, auto-generated)
+            dm, nw, dw: Optional plant parameters to construct P
+                        The plant is represented as P = nw / (dm * dw)
+            verbose: If True, print intermediate values
+            title: Title for the plot
+            plot: If True, generate the plot
+            overplot: If True, plot on existing figure instead of creating new one
+            **extra: Additional plotting parameters (e.g., color)
+        
+        Returns:
+            rtf_mag: Magnitude of the Rejection Transfer Function at specified frequencies    
+        """
         plotTitle = title if title else 'Rejection Transfer Function'
 
         # Generate frequency vector if not provided
@@ -226,9 +245,27 @@ class IirFilterData(BaseDataObj):
 
         return rtf_mag
 
-    def NTF(self, mode, fs, freq=None, tf=None, dm=None, nw=None, dw=None,
-            verbose=False, title=None, plot=True, overplot=False, **extra):
-        """Plot Noise Transfer Function: NTF = CP / (1 - CP)"""
+    def NTF(self, mode, fs, freq=None, dm=None, nw=None, dw=None,
+            verbose=False, title=None, plot=True, overplot=False,
+            **extra):
+        """
+        Plot Noise Transfer Function: NTF = CP / (1 - CP)
+        
+        Args:
+            mode: Filter mode index to use for C coefficients
+            fs: Sampling frequency
+            freq: Frequency vector for evaluation (if None, auto-generated)
+            dm, nw, dw: Optional plant parameters to construct P
+                        The plant is represented as P = nw / (dm * dw)
+            verbose: If True, print intermediate values
+            title: Title for the plot
+            plot: If True, generate the plot
+            overplot: If True, plot on existing figure instead of creating new one
+            **extra: Additional plotting parameters (e.g., color)
+            
+        Returns:
+            ntf_mag: Magnitude of the Noise Transfer Function at specified frequencies    
+        """
         plotTitle = title if title else 'Noise Transfer Function'
 
         # Generate frequency vector if not provided
@@ -1086,8 +1123,18 @@ class IirFilterData(BaseDataObj):
                 # Continuous-time system
                 omega = np.logspace(-2, 4, 1000)
 
-        real, imag, freq = control.nyquist_plot(tf, omega=omega, plot=plot, **kwargs)
-        return real, imag, freq
+        # Makes plot and get response data
+        out = control.nyquist_plot(tf, omega=omega, plot=plot, **kwargs)
+
+        # Case 1: Modern versions of control library (>= 0.9.0)
+        # nyquist_plot returns an object or count, not data arrays
+        if not isinstance(out, (list, tuple, np.ndarray)):
+            response = control.nyquist_response(tf, omega=omega)
+            return response.real, response.imag, response.freq
+        
+        # Case 2: Older versions (< 0.9.0)
+        # out is already the tuple (real, imag, freq)
+        return out
 
     def step_response(self, mode: int = 0, dt: float = None, T: np.ndarray = None, **kwargs):
         """Compute step response for a specific filter using control library.
@@ -1121,7 +1168,7 @@ class IirFilterData(BaseDataObj):
 
     def impulse_response(self, mode: int = 0, dt: float = None, T: np.ndarray = None, **kwargs):
         """Compute impulse response for a specific filter using control library.
-        
+
         Args:
             mode: Index of the filter (default: 0)
             dt: Sampling time for discrete-time system (default: None)
