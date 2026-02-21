@@ -5,6 +5,7 @@ import specula
 specula.init(0)  # Default target device
 
 from specula.data_objects.simul_params import SimulParams
+from specula.data_objects.pupilstop import Pupilstop
 from specula.data_objects.source import Source
 from specula.data_objects.ifunc import IFunc
 from specula.data_objects.electric_field import ElectricField
@@ -35,6 +36,16 @@ def create_test_system():
         polar_coordinates=[0.0, 0.0],  # On-axis
         magnitude=8.0,
         wavelengthInNm=750.0,
+        target_device_idx=-1,
+        precision=1
+    )
+
+    # Pupil stop (circular, inscribed in 80x80 grid)
+    pupil_diam = 60  # pixels
+    pupil_mask = Pupilstop(
+        simul_params=simul_params,
+        mask_diam=1.0,
+        obs_diam=0.1,
         target_device_idx=-1,
         precision=1
     )
@@ -120,7 +131,7 @@ def create_test_system():
     slopec.inputs['in_pixels'].set(ccd.outputs['out_pixels'])
     slopec.setup()
 
-    return simul_params, source, dm, wfs, ccd, slopec
+    return simul_params, pupil_mask, source, dm, wfs, ccd, slopec
 
 
 def create_pyramid_pupdata(framesize=80, pupil_diam=30, pupil_dist=36,
@@ -167,8 +178,8 @@ def create_pyramid_pupdata(framesize=80, pupil_diam=30, pupil_dist=36,
     )
 
 
-def generate_ims(simul_params, source, dm, wfs, slopec, mode_idx,
-                 shift_x, shift_y, rotation, magnification):
+def generate_ims(simul_params, pupil_mask, source, dm, wfs, slopec,
+                 mode_idx, shift_x, shift_y, rotation, magnification):
     """Generate IM with known mis-registration"""
 
     sprint = SprintPyr(
@@ -177,6 +188,7 @@ def generate_ims(simul_params, source, dm, wfs, slopec, mode_idx,
         slopec=slopec,
         source=source,
         wfs=wfs,
+        pupil_mask=pupil_mask,
         modes_index=[mode_idx],
         carrier_frequencies=[10],
         estimation_dt=1.0,
@@ -230,7 +242,7 @@ class TestSprintPyr(unittest.TestCase):
             print(f"{'='*70}")
 
         # Create test system
-        simul_params, source, dm, wfs, ccd, slopec = create_test_system()
+        simul_params, pupil_mask, source, dm, wfs, ccd, slopec = create_test_system()
 
         # Select 1 mode only
         mode_idx = 30  # Mode to test (arbitrary choice within range)
@@ -240,6 +252,7 @@ class TestSprintPyr(unittest.TestCase):
             print("\nGenerating reference and mis-registered IM...")
         im_ref_full, im_misreg_full = generate_ims(simul_params=simul_params,
                                                    source=source,
+                                                   pupil_mask=pupil_mask,
                                                    dm=dm,
                                                    wfs=wfs,
                                                    slopec=slopec,
@@ -296,6 +309,7 @@ class TestSprintPyr(unittest.TestCase):
             slopec=slopec,
             source=source,
             wfs=wfs,
+            pupil_mask=pupil_mask,
             modes_index=[mode_idx],  # Only the mode we are testing
             carrier_frequencies=carrier_frequencies,
             estimation_dt=duration-0.001,  # Estimate once after full period

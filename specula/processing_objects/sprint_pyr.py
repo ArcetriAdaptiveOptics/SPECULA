@@ -150,7 +150,7 @@ class SprintPyr(BaseSprintEstimator):
             target_device_idx=self.target_device_idx,
             precision=self.precision
         )
-        self.internal_ef.A = self.pup_mask
+        self.internal_ef.A = self.pupil_mask
         self.internal_wfs.inputs['in_ef'].set(self.internal_ef)
         self.internal_wfs.setup()
 
