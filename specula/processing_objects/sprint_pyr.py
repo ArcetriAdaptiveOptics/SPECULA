@@ -198,10 +198,12 @@ class SprintPyr(BaseSprintEstimator):
         self.pyr_params['mod_step'] = getattr(wfs, 'mod_steps', None)
         self.pyr_params['mod_type'] = getattr(wfs, 'mod_type', 'circular')
 
+        # We need to force extrapolation for the internal WFS to initialize the interpolator,
+        # even if the starting mis-registration parameters would not require it.
+        self.pyr_params['force_extrapolation'] = True
+
         # Current mis-registration parameters (initially from input or zeros)
-        # + 1e-3 needed to force the interpolator to update its internal state,
-        # even if shift_x is initialized to 0.0
-        self.pyr_params['xShiftPhInPixel'] = float(self.misreg_params[0]) + 1e-3
+        self.pyr_params['xShiftPhInPixel'] = float(self.misreg_params[0])
         self.pyr_params['yShiftPhInPixel'] = float(self.misreg_params[1])
         self.pyr_params['rotAnglePhInDeg'] = float(self.misreg_params[2])
         self.pyr_params['magnification'] = 1.0 + float(self.misreg_params[3])

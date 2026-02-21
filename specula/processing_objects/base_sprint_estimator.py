@@ -74,6 +74,8 @@ class BaseSprintEstimator(BaseProcessingObj):
         Gain for parameter updates (0 < gain <= 1)
     forgetting_factor : float or None
         Forgetting factor for integration (0 < factor <= 1, 1 = no forgetting)
+    verbose : bool
+        Enable verbose logging
     target_device_idx : int or None
         GPU device index
     precision : int or None

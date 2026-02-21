@@ -26,8 +26,8 @@ def create_test_system():
     # Simulation parameters
     simul_params = SimulParams(
         time_step=1e-3,  # 1ms
-        pixel_pupil=160,
-        pixel_pitch=8.0/160  # 8m telescope
+        pixel_pupil=80,
+        pixel_pitch=8.0/80  # 8m telescope
     )
 
     # Source (on-axis NGS)
@@ -59,14 +59,14 @@ def create_test_system():
     )
 
     # Pyramid WFS - parameters will be set in SPRINT estimator, but we need to create the object
-    output_resolution = 80  # pixels (per pyramid image)
-    pupil_diam = 30  # pixels (diameter of each pupil image)
-    pup_dist = 36  # pixels (distance between pupil centers)
+    output_resolution = 60  # pixels (per pyramid image)
+    pupil_diam = 20  # pixels (diameter of each pupil image)
+    pup_dist = 24  # pixels (distance between pupil centers)
 
     wfs = ModulatedPyramid(
         simul_params=simul_params,
         wavelengthInNm=750.0,
-        fov=2.0,  # arcsec
+        fov=1.5,  # arcsec
         pup_diam=pupil_diam,  # pixels
         pup_dist=pup_dist,  # pixels
         output_resolution=output_resolution,  # pixels
