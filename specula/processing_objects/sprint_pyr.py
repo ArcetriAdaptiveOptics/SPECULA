@@ -311,7 +311,7 @@ class SprintPyr(BaseSprintEstimator):
         # or a list of two 2D arrays [frame_x, frame_y] for standard slopes.
         frames2d = sl.get2d()
 
-        # Normalizziamo l'output su CPU per matplotlib
+        # Handle both single frame and separate x/y frames cases.
         if isinstance(frames2d, list):
             frames2d = [cpuArray(frame) for frame in frames2d]
         else:

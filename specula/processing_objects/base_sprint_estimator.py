@@ -264,13 +264,13 @@ class BaseSprintEstimator(BaseProcessingObj):
         self.ifunc_3d = cpuArray(self.dm.ifunc_obj.ifunc_2d_to_3d(normalize=True))
         self.ifunc_3d = self.ifunc_3d[:, :, self.modes_index]  # Extract only requested modes
         if self.pupil_mask is None:
-            self.pup_mask = cpuArray(self.dm.mask)
+            self.pupil_mask = cpuArray(self.dm.mask)
 
         if self.verbose: # pragma: no cover
             print(f"\n{self.__class__.__name__} initialized:")
             print(f"  Number of modes: {self.nmodes}")
             print(f"  Number of slopes: {self.estimated_intmat.nslopes}")
-            print(f"  Size of pupil: {self.pup_mask.shape}")
+            print(f"  Size of pupil: {self.pupil_mask.shape}")
             print(f"  Size of DM influence functions: {self.ifunc_3d.shape}")
             print(f"  Estimation interval: {self.t_to_seconds(self.estimation_dt):.2f}s")
             print(f"  Integration gain: {self.integration_gain}")

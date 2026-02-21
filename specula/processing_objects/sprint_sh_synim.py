@@ -139,7 +139,7 @@ class SprintShSynim(BaseSprintEstimator):
         im_nominal = compute_im_synim(
             misreg_params=self.misreg_params,
             pup_diam_m=self.pup_diam_m,
-            pup_mask=self.pup_mask,
+            pup_mask=self.pupil_mask,
             ifunc_3d=self.ifunc_3d,
             dm_mask=self.dm.mask,
             source_polar_coords=self.source.polar_coordinates,
