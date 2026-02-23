@@ -15,8 +15,6 @@ class RandomGenerator(BaseGenerator):
     - vsize: Size of the vector to be generated (default: 1)
     - output_size: Number of random values to generate (default: 1)
     - modal_rms: Desired RMS value for the modes (mutually exclusive with 'amp') (default: None)
-    - n_modes: Total number of modes to generate (required if 'modal_rms' is specified)
-               (default: None)
     - forced_zero_modes: Number of initial modes to force to 0.0
                          (default: 0, must be <= output_size)
     - scaling_law: The relationship between amplitude and radial order 'n' (options: 'CONSTANT',
