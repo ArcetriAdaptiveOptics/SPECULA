@@ -147,11 +147,11 @@ class TestGenerators(unittest.TestCase):
         f.post_trigger()
 
         values = cpuArray(f.outputs['output'].value)
-        
+
         # Uniform distribution should be in [constant - amp/2, constant + amp/2]
         expected_min = constant - amp / 2
         expected_max = constant + amp / 2
-        
+
         self.assertTrue(np.all(values >= expected_min))
         self.assertTrue(np.all(values <= expected_max))
 
@@ -167,6 +167,61 @@ class TestGenerators(unittest.TestCase):
         f = RandomGenerator(distribution='UNIFORM', amp=amp, constant=constant, vsize=10,
                         target_device_idx=target_device_idx)
         assert f.outputs['output'].value.shape == (10,)
+
+    @cpu_and_gpu
+    def test_random_generator_modal_rms(self, target_device_idx, xp):
+        modal_rms = 10.0
+        forced_zero_modes = 5
+        seed = 123
+        output_size = 20
+
+        f1 = RandomGenerator(distribution='UNIFORM',
+                            seed=seed,
+                            output_size=output_size,
+                            modal_rms=modal_rms,
+                            forced_zero_modes=forced_zero_modes,
+                            scaling_law='INVERSE',
+                            target_device_idx=target_device_idx)
+
+        f2 = RandomGenerator(distribution='UNIFORM',
+                            seed=seed,
+                            output_size=output_size,
+                            modal_rms=modal_rms,
+                            forced_zero_modes=forced_zero_modes,
+                            scaling_law='LINEAR',
+                            target_device_idx=target_device_idx)
+
+        f3 = RandomGenerator(distribution='UNIFORM',
+                            seed=seed,
+                            output_size=output_size,
+                            modal_rms=modal_rms,
+                            forced_zero_modes=forced_zero_modes,
+                            scaling_law='CONSTANT',
+                            target_device_idx=target_device_idx)
+
+        amp1 = f1.amp
+        amp2 = f2.amp
+        amp3 = f3.amp
+
+        # RMS of amp must be equal to modal_rms
+        np.testing.assert_allclose(np.sqrt(np.sum(cpuArray(amp1)**2)), modal_rms, rtol=1e-5)
+        np.testing.assert_allclose(np.sqrt(np.sum(cpuArray(amp2)**2)), modal_rms, rtol=1e-5)
+        np.testing.assert_allclose(np.sqrt(np.sum(cpuArray(amp3)**2)), modal_rms, rtol=1e-5)
+
+        # first forced_zero_modes of amp must be zero
+        np.testing.assert_allclose(cpuArray(amp1[:forced_zero_modes]), 0, atol=1e-5)
+        np.testing.assert_allclose(cpuArray(amp2[:forced_zero_modes]), 0, atol=1e-5)
+        np.testing.assert_allclose(cpuArray(amp3[:forced_zero_modes]), 0, atol=1e-5)
+
+        # amp must be lower for higher modes (INVERSE scaling)
+        self.assertTrue(cpuArray(amp1[forced_zero_modes]) > cpuArray(amp1[output_size-1]))
+
+        # amp must be higher for higher modes (LINEAR scaling)
+        self.assertTrue(cpuArray(amp2[forced_zero_modes]) < cpuArray(amp2[output_size-1]))
+
+        # amp must be constant for all modes (CONSTANT scaling)
+        np.testing.assert_allclose(cpuArray(amp3[forced_zero_modes:]),
+                                   cpuArray(amp3[forced_zero_modes]), atol=1e-5)
 
     @cpu_and_gpu
     def test_vibration(self, target_device_idx, xp):
