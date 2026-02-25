@@ -170,7 +170,12 @@ class ZernikeGenerator():
             rho_cpu = np.where(rho_cpu < 0, 0, rho_cpu)
             K = (n - abs(m)) // 2
             const = 1 / eval_jacobi(K, 0, abs(m), 1.0)
-            cJ = eval_jacobi(K, 0, abs(m), 2 * rho_cpu**2 - 1)
+            # in place
+            x = rho_cpu.copy()
+            x **= 2
+            x *= 2
+            x -= 1
+            cJ = eval_jacobi(K, 0, abs(m), x)
             Rnm = const * np.power(rho_cpu, abs(m)) * cJ
         return to_xp(self.xp, Rnm, dtype=self.dtype)
 
@@ -261,8 +266,8 @@ class ZernikeGenerator():
         if index not in list(self._dictCache.keys()):
             res = self._polar(index, self._rhoMap,
                               self._thetaMap)
-            tmp = np.ma.masked_array(data=cpuArray(res), mask=cpuArray(self._boolean_mask))
-            self._dictCache[index] = to_xp(self.xp, tmp, dtype=self.dtype)
+            res[self._boolean_mask] = 0
+            self._dictCache[index] = to_xp(self.xp, res, dtype=self.dtype)
         return self._dictCache[index]
 
     @staticmethod
