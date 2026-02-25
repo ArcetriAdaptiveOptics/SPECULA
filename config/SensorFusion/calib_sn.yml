@@ -1,0 +1,32 @@
+pyr_sn:
+  class: 'SnCalibrator'
+  output_tag: 'pyr_slope_null'           # Output filename
+  overwrite: true
+  inputs:
+    in_slopes: 'slopes.out_slopes'
+
+pyr_override:
+  inputs:
+    in_ef: 'prop.out_source_ngs_ef'
+  
+# main_override:
+#   total_time: 0.5
+
+main_override:
+  total_time: 0.0005
+
+# Disable noise for clean measurements
+ocam_override:
+  photon_noise:   false                   # No photon noise
+  readout_noise:  false                   # No read noise
+  excess_noise:   false                   # No excess noise
+
+data_store_override:
+  class:             'DataStore'
+  store_dir:         './calibration/slopenulls'            # Data result directory: 'store_dir'/TN/
+  inputs:
+    input_list: ['ccd-ocam.out_pixels']
+
+# Remove closed-loop components (not needed for slope null)
+remove: ['atmo','seeing','wind_speed','wind_direction','atmo_mode_res', #'source_science',
+        'dm','dm_mode_res','filter','psf','coro_psf', 'ef_prop','modalrec','unab_prop','dl_psf']
