@@ -24,7 +24,7 @@ class RandomGenerator(BaseGenerator):
     """
     def __init__(self,
                  distribution='NORMAL',  # 'NORMAL' or 'UNIFORM'
-                 amp=None,               # Changed from 1.0 to None for conflict checking
+                 amp=None,
                  constant: float = 0.0,
                  seed: int = None,
                  vsize: int = 1,
