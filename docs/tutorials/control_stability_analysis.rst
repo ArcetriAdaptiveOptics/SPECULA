@@ -4,6 +4,16 @@ Control Stability and Performance Analysis
 This guide demonstrates how to use the :class:`~specula.data_objects.iir_filter_data.IirFilterData` class 
 to perform stability and frequency response analysis of an Adaptive Optics (AO) control loop.
 
+Transfer Function Convention
+----------------------------
+
+In SPECULA, the IIR filters are defined using the following convention:
+
+.. math::
+    H(z) = \frac{num[0] + num[1]z + num[2]z^2 + \dots}{den[0] + den[1]z + den[2]z^2 + \dots}
+
+Where index ``0`` corresponds to the constant term ($z^0$).
+
 Overview
 --------
 
@@ -109,3 +119,15 @@ The Nyquist plot shows the stability margin by observing how close the open-loop
 
 * **Stability**: The system is stable if the point (:math:`(-1, 0)`) is not encircled.
 * **Margins**: The distance from the curve to (:math:`(-1, 0)`) on the unit circle defines the **Phase Margin**, while the distance on the real axis defines the **Gain Margin**.
+
+Note on Library Versions
+------------------------
+
+The ``control`` library has changed its API significantly across versions:
+
+* **Version < 0.9**: Functions like ``nyquist_plot`` returned a tuple ``(real, imag, omega)``.
+* **Version 0.9.x**: ``nyquist_plot`` returned the number of encirclements (int).
+* **Version 0.10+**: Plotting functions return a ``ControlPlot`` object.
+
+The :class:`IirFilterData` methods are designed to handle these variations internally, 
+always returning the numerical data arrays for consistency.

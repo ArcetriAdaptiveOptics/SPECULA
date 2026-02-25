@@ -23,7 +23,7 @@ class IirFilterData(BaseDataObj):
     - den[i, :] contains denominator coefficients for filter i
     - ordnum[i] and ordden[i] specify the actual order of each filter
     
-    Transfer function: H(z) = (num[0] + num[1]*z^-1 + ...) / (den[0] + den[1]*z^-1 + ...)
+    Transfer function: H(z) = (num[0] + num[1]*z + ...) / (den[0] + den[1]*z + ...)
     """
     def __init__(self,
                  ordnum: list,
@@ -1090,8 +1090,18 @@ class IirFilterData(BaseDataObj):
                 # Continuous-time system
                 omega = np.logspace(-2, 4, 1000)
 
-        mag, phase, freq = control.bode_plot(tf, omega=omega, plot=plot, **kwargs)
-        return mag, phase, freq
+        out = control.bode_plot(tf, omega=omega, plot=plot, **kwargs)
+
+        if hasattr(out, 'mag'):
+            # Version 0.10+ (ControlPlot)
+            return out.mag, out.phase, out.omega
+        elif isinstance(out, (list, tuple, np.ndarray)) and len(out) == 3:
+            # Old versions
+            return out
+        else:
+            # Fallback using control.bode_response for versions >= 0.9.0
+            resp = control.bode_response(tf, omega=omega)
+            return resp.mag, resp.phase, resp.omega
 
     def nyquist_plot(self, mode: int = 0, dt: float = None, omega: np.ndarray = None,
                      plot: bool = True, **kwargs):
@@ -1126,15 +1136,17 @@ class IirFilterData(BaseDataObj):
         # Makes plot and get response data
         out = control.nyquist_plot(tf, omega=omega, plot=plot, **kwargs)
 
-        # Case 1: Modern versions of control library (>= 0.9.0)
-        # nyquist_plot returns an object or count, not data arrays
-        if not isinstance(out, (list, tuple, np.ndarray)):
-            response = control.nyquist_response(tf, omega=omega)
-            return response.real, response.imag, response.freq
-        
-        # Case 2: Older versions (< 0.9.0)
-        # out is already the tuple (real, imag, freq)
-        return out
+        if hasattr(out, 'response'):
+            # Version 0.10+ (ControlPlot)
+            return out.response.real, out.response.imag, out.response.omega
+        elif isinstance(out, (list, tuple, np.ndarray)) and len(out) == 3:
+            # Old versions
+            return out
+        else:
+            # Versions >= 0.9.0 of control library
+            # nyquist_plot returns an object or count, not data arrays
+            resp_data = control.nyquist_response(tf, omega=omega)
+            return resp_data.real, resp_data.imag, resp_data.omega
 
     def step_response(self, mode: int = 0, dt: float = None, T: np.ndarray = None, **kwargs):
         """Compute step response for a specific filter using control library.
@@ -1217,7 +1229,9 @@ class IirFilterData(BaseDataObj):
 
         tf = self.to_control_tf(mode=mode, dt=dt)
         gm, pm, wg, wp = control.margin(tf)
-        return gm, pm, wg, wp
+
+        gm_db = 20 * np.log10(gm) if (gm is not None and gm > 0) else np.inf
+        return gm_db, pm, wg, wp
 
     def pole_zero_map(self, mode: int = 0, dt: float = None, plot: bool = True, **kwargs):
         """Create pole-zero map for a specific filter using control library.
