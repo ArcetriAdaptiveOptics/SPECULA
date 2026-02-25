@@ -4,6 +4,11 @@ Control Stability and Performance Analysis
 This guide demonstrates how to use the :class:`~specula.data_objects.iir_filter_data.IirFilterData` class 
 to perform stability and frequency response analysis of an Adaptive Optics (AO) control loop.
 
+*Note*: The optional library ``control`` is required for this tutorial. Install it via pip if you haven't already:
+.. code-block:: bash
+
+    pip install control
+
 Transfer Function Convention
 ----------------------------
 
