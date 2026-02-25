@@ -161,6 +161,10 @@ class Interp2D():
             xx is None and yy is None):
             # If not, it will be skipped later
             self.do_interp = False
+            self.shift_x = 0.0
+            self.shift_y = 0.0
+            self.rot_angle = 0.0
+            self.magnification = 1.0
             return
 
         # Decide whether to use on-the-fly or precomputed coordinates

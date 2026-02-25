@@ -7,6 +7,7 @@ from abc import abstractmethod
 
 from specula.base_processing_obj import BaseProcessingObj
 from specula.connections import InputValue
+from specula.data_objects.pupilstop import Pupilstop
 from specula.data_objects.slopes import Slopes
 from specula.data_objects.intmat import Intmat
 from specula.data_objects.simul_params import SimulParams
@@ -73,6 +74,8 @@ class BaseSprintEstimator(BaseProcessingObj):
         Gain for parameter updates (0 < gain <= 1)
     forgetting_factor : float or None
         Forgetting factor for integration (0 < factor <= 1, 1 = no forgetting)
+    verbose : bool
+        Enable verbose logging
     target_device_idx : int or None
         GPU device index
     precision : int or None
@@ -101,6 +104,7 @@ class BaseSprintEstimator(BaseProcessingObj):
                  wfs: BaseProcessingObj,
                  modes_index: list,
                  carrier_frequencies: list,
+                 pupil_mask: Pupilstop = None,
                  n_params: int = 4,  # Default: shift_x, shift_y, rotation, magnification
                  estimation_dt: float = 10.0,
                  max_iterations: int = 10,
@@ -159,6 +163,10 @@ class BaseSprintEstimator(BaseProcessingObj):
                 raise ValueError(f"initial_misreg must have {self.n_params} elements")
             self.misreg_params = self.to_xp(initial_misreg, dtype=self.dtype)
 
+        # initialize perturbation definitions (filled in subclass)
+        # and used in _compute_sensitivity_matrices
+        self.perturbations = {}
+
         # State variables
         self.last_estimation_time = 0
         self.current_error = 0.0
@@ -167,8 +175,10 @@ class BaseSprintEstimator(BaseProcessingObj):
 
         # Pupil parameters (extracted from DM)
         self.pup_diam_m = simul_params.pixel_pupil * simul_params.pixel_pitch
-        self.pup_mask = None  # Loaded in setup
         self.ifunc_3d = None  # Loaded in setup
+        self.pupil_mask = None # Loaded in setup
+        if pupil_mask is not None:
+            self.pupil_mask = self.to_xp(pupil_mask.A, dtype=self.dtype)
 
         # Create outputs
         self.estimated_intmat = Intmat(
@@ -211,17 +221,32 @@ class BaseSprintEstimator(BaseProcessingObj):
         """
         pass
 
-    @abstractmethod
     def _compute_sensitivity_matrices(self):
-        """
-        Compute sensitivity matrices for all mis-registration parameters.
-        
-        Returns
-        -------
-        sens_matrices : ndarray, shape (nslopes, nmodes, n_params)
-            Sensitivity of each slope/mode to each parameter
-        """
-        pass
+        """Compute sensitivity matrices using mis-registration push-pull"""
+        n_params = len(self.misreg_params)
+        nslopes = self.estimated_intmat.nslopes
+
+        sens_matrices = self.xp.zeros((nslopes, self.nmodes, n_params), dtype=self.dtype)
+
+        original_params = self.misreg_params.copy()
+
+        for param_idx, (delta, name) in self.perturbations.items():
+            # Push
+            self.misreg_params = original_params.copy()
+            self.misreg_params[param_idx] += delta
+            im_push = self._compute_nominal_im()
+
+            # Pull
+            self.misreg_params = original_params.copy()
+            self.misreg_params[param_idx] -= delta
+            im_pull = self._compute_nominal_im()
+
+            # Sensitivity
+            sens_matrices[:, :, param_idx] = (im_push - im_pull) / (2.0 * delta)
+
+        self.misreg_params = original_params
+
+        return sens_matrices
 
     def setup(self):
         """Initialize slopes size and extract parameters"""
@@ -238,13 +263,14 @@ class BaseSprintEstimator(BaseProcessingObj):
         # Extract DM parameters
         self.ifunc_3d = cpuArray(self.dm.ifunc_obj.ifunc_2d_to_3d(normalize=True))
         self.ifunc_3d = self.ifunc_3d[:, :, self.modes_index]  # Extract only requested modes
-        self.pup_mask = cpuArray(self.dm.mask)
+        if self.pupil_mask is None:
+            self.pupil_mask = cpuArray(self.dm.mask)
 
         if self.verbose: # pragma: no cover
             print(f"\n{self.__class__.__name__} initialized:")
             print(f"  Number of modes: {self.nmodes}")
             print(f"  Number of slopes: {self.estimated_intmat.nslopes}")
-            print(f"  Size of pupil: {self.pup_mask.shape}")
+            print(f"  Size of pupil: {self.pupil_mask.shape}")
             print(f"  Size of DM influence functions: {self.ifunc_3d.shape}")
             print(f"  Estimation interval: {self.t_to_seconds(self.estimation_dt):.2f}s")
             print(f"  Integration gain: {self.integration_gain}")
