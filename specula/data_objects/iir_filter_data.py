@@ -1073,6 +1073,7 @@ class IirFilterData(BaseDataObj):
             
         Returns:
             tuple: (magnitude, phase, frequency) arrays
+            or ControlPlot object
             
         Raises:
             ImportError: If control library is not installed
@@ -1092,8 +1093,6 @@ class IirFilterData(BaseDataObj):
 
         out = control.bode_plot(tf, omega=omega, plot=plot, **kwargs)
 
-        if hasattr(out, 'response'):
-            return out.response.mag, out.response.phase, omega
         if hasattr(out, 'mag'):
             return out.mag, out.phase, omega
         else:
@@ -1112,6 +1111,7 @@ class IirFilterData(BaseDataObj):
             
         Returns:
             tuple: (real, imaginary, frequency) arrays
+            or ControlPlot object
             
         Raises:
             ImportError: If control library is not installed
