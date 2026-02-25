@@ -38,8 +38,9 @@ source_ngs:
 pupilstop:
   class:             'Pupilstop'
   simul_params_ref:  'main'
-  mask_diam:         1.0                   # Full pupil diameter
-  obs_diam:          0.0                  # 14% central obstruction (VLT-like)
+  # pupilstop_object:  './telescope/vlt_pupil_160pixels.fits'
+  mask_diam:         1.0                  # Full pupil diameter
+  obs_diam:          0.0                  # no central obstruction
 
 
 # Multi-layer atmospheric model
@@ -81,8 +82,20 @@ unab_prop:
     common_layer_list: ['pupilstop']      
   outputs:           ['out_source_ngs_ef']
 
+
+
 ########################################################
-############### FIRST STAGE ############################
+###################### OGC ############################
+ogc_scaling:
+  class:  'BaseOperation'
+  div: True
+  inputs:
+    in_value1: 'modalrec.out_modes'
+    in_value2: 'psf.out_sr'
+  outputs: ['out_value']
+
+
+########################################################
 
 pyr:
   class:             'ModulatedPyramid'
@@ -127,24 +140,24 @@ modalrec:
     in_slopes:       'slopes.out_slopes'
   outputs:           ['out_modes']
 
-# filter:
-#   class:             'Integrator'
-#   simul_params_ref:  'main'
-#   delay:             1                     # 1 frame delay (realistic)
-#   int_gain:          [0.7,0.2,0.0]
-#   n_modes:           [400,400,400]                 # Number of modes to control
-#   inputs:
-#     delta_comm:      'modalrec.out_modes'
-#   outputs:           ['out_comm']
-
 filter:
-  class:                'IirFilter'
-  simul_params_ref:     'main'
-  delay:                0 # Total temporal delay in time steps is this value +1
-  iir_filter_data_object:  'iirfilter'
+  class:             'Integrator'
+  simul_params_ref:  'main'
+  delay:             1                     # 1 frame delay (realistic)
+  int_gain:          [0.3]
+  n_modes:           [1200]                 # Number of modes to control
   inputs:
-    delta_comm: 'modalrec.out_modes'
-  outputs:  ['out_comm']
+    delta_comm:      'modalrec.out_modes' #'ogc_scaling.out_value' #
+  outputs:           ['out_comm']
+
+# filter:
+#   class:                'IirFilter'
+#   simul_params_ref:     'main'
+#   delay:                0 # Total temporal delay in time steps is this value +1
+#   iir_filter_data_object:  'iirfilter'
+#   inputs:
+#     delta_comm: 'modalrec.out_modes'
+#   outputs:  ['out_comm']
 
 dm:
   class:             'DM'
@@ -191,6 +204,7 @@ coro_psf:
   nd:                4                    # 4x padding for PSF
   start_time:        0.5                  # Start PSF integration after 500ms
   verbose: false
+  use_average_field: false
   inputs:
     in_ef:           'ef_prop.out_ef' #'prop.out_source_ngs_ef'
   outputs:           ['out_coronagraph_psf','out_std_coronagraph_psf']
