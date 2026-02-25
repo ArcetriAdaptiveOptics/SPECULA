@@ -170,12 +170,7 @@ class ZernikeGenerator():
             rho_cpu = np.where(rho_cpu < 0, 0, rho_cpu)
             K = (n - abs(m)) // 2
             const = 1 / eval_jacobi(K, 0, abs(m), 1.0)
-            # in place
-            x = rho_cpu.copy()
-            x **= 2
-            x *= 2
-            x -= 1
-            cJ = eval_jacobi(K, 0, abs(m), x)
+            cJ = eval_jacobi(K, 0, abs(m), 2 * rho_cpu**2 - 1)
             Rnm = const * np.power(rho_cpu, abs(m)) * cJ
         return to_xp(self.xp, Rnm, dtype=self.dtype)
 
