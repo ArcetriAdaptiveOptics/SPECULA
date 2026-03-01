@@ -34,20 +34,20 @@ class TestMultirateFilter(unittest.TestCase):
     def test_setup_validation(self, target_device_idx, xp):
         """Test validation of inputs and parameter lengths."""
 
-        # 1. Test mismatched parameter lists
+        # 1. Test mismatched parameter lists (weights deve essere N_list + 1)
         with self.assertRaises(ValueError):
-            MultirateComplementaryFilter(None, g_s_list=[0.1, 0.2], N_list=[5],
+            MultirateComplementaryFilter(None, g_track=0.1, weights=[0.5, 0.5], N_list=[5, 10],
                                          target_device_idx=target_device_idx)
 
         # 2. Test mismatched connected inputs
         engine = build_double_integrator(0.1, target_device_idx)
-        filt = MultirateComplementaryFilter(engine, g_s_list=[0.1], N_list=[5],
+        filt = MultirateComplementaryFilter(engine, g_track=0.1, weights=[0.5, 0.5], N_list=[5],
                                             target_device_idx=target_device_idx)
 
         # Connect yf but leave ys empty
         v_yf = BaseValue(value=np.zeros(1), target_device_idx=target_device_idx)
         filt.inputs['in_yf'].set(v_yf)
-        filt.inputs['in_ys'].set([])  # Expected 1 slow sensor!
+        filt.inputs['in_ys'].set([])  # Expected 1 slow sensor, got 0
 
         # Mock the get_all_inputs phase
         filt.local_inputs['in_yf'] = filt.inputs['in_yf'].get(target_device_idx)
@@ -60,11 +60,13 @@ class TestMultirateFilter(unittest.TestCase):
     def test_basic_1_fast_1_slow(self, target_device_idx, xp):
         """Test exact mathematical correctness for 1 fast and 1 slow sensor."""
         g_f = 0.1
-        g_s = 0.05
-        N = 3
+        g_track = 0.1
+        weights = [0.5, 0.5]  # Baricentro al 50%
+        N_list = [3]
 
         engine = build_double_integrator(g_f, target_device_idx)
-        filt = MultirateComplementaryFilter(engine, [g_s], [N], target_device_idx=target_device_idx)
+        filt = MultirateComplementaryFilter(engine, g_track, weights, N_list,
+                                            target_device_idx=target_device_idx)
 
         # Initialize inputs
         v_yf = BaseValue(value=np.array([1.0]), target_device_idx=target_device_idx)
@@ -88,16 +90,19 @@ class TestMultirateFilter(unittest.TestCase):
         # Expected manual calculation (Pure Python difference equation)
         out_u_expected = np.zeros(n_steps)
         yf_prev = 0.0
-        c_yf_0 = 1.0 + (g_s / (2.0 * N))
+
+        w_fast = 0.5
+        w_slow = 0.5
+        c_yf_0 = 1.0 + (g_track * w_fast)
         c_yf_1 = -1.0
-        c_ys_0 = g_s / 2.0
+        c_ys_0 = g_track * w_slow * N_list[0]
 
         for k in range(n_steps):
             frame = k + 1  # GPU frame_counter pre-increments
 
             yf = 1.0
             ys = 1.0
-            ys_stuffed = ys if (frame % N == 0) else 0.0
+            ys_stuffed = ys if (frame % N_list[0] == 0) else 0.0
 
             mixed = (c_yf_0 * yf) + (c_yf_1 * yf_prev) + (c_ys_0 * ys_stuffed)
             yf_prev = yf
@@ -118,12 +123,14 @@ class TestMultirateFilter(unittest.TestCase):
         """Test advanced 3-NGS case (1 fast, 2 slow at different framerates) with debug plotting."""
 
         g_f = 0.10
-        # NGS 2 and 3 characteristics
-        g_s_list = [0.02, 0.01]
+        g_track = 0.05
+        # Weights for the "Tripletta" case: 1 fast sensor and 2 slow sensors with
+        # equal influenceon the barycenter.
+        weights = [1/3, 1/3, 1/3]
         N_list = [4, 10]
 
         engine = build_double_integrator(g_f, target_device_idx)
-        filt = MultirateComplementaryFilter(engine, g_s_list, N_list,
+        filt = MultirateComplementaryFilter(engine, g_track, weights, N_list,
                                             target_device_idx=target_device_idx)
 
         # Connect Inputs
@@ -147,12 +154,11 @@ class TestMultirateFilter(unittest.TestCase):
         f_rif = 2.0
         R = np.sin(2 * np.pi * f_rif * t) + 1.0
 
-        # Biases that cancel out through the filter steady-state weights
-        # Condition for exact zero steady-state error:
-        # B_f * (g_s1 + g_s2) + g_s1 * B_s1 + g_s2 * B_s2 = 0
+        # Biased readings but with total arithmetic sum ZERO.
+        # Given the "Tripletta" setup, the expected final error is -(B_f + B_s1 + B_s2)/3 = 0.
         B_f = 2.0
-        B_s1 = -2.0
-        B_s2 = -2.0
+        B_s1 = -5.0
+        B_s2 = 3.0
 
         x_true = np.zeros(n_steps)
         u_true = np.zeros(n_steps)
@@ -172,7 +178,7 @@ class TestMultirateFilter(unittest.TestCase):
             # True physical error (delayed by 1 frame due to sensor read)
             e_true = R[k] - x_true[k-1]
 
-            # Differential measurements with static biases
+            # Differential measurements with extreme static biases
             err_f = e_true + B_f
             err_s1 = e_true + B_s1
             err_s2 = e_true + B_s2
@@ -192,22 +198,25 @@ class TestMultirateFilter(unittest.TestCase):
             err_tracking_true[k] = R[k] - x_true[k]
 
         # Basic check: control effort should be completely stable
-        self.assertTrue(np.all(np.isfinite(u_true)), "Control effort diverged to infinity/NaN!")
+        self.assertTrue(np.all(np.isfinite(u_true)),
+                        "Control effort diverged to infinity/NaN!")
 
-        # The true tracking error should converge near 0 despite the massive +/- 2.0 biases
+        # The true tracking error should converge near 0 despite the massive biases
         # We check the max error in the last 200 samples (steady state)
         max_ss_error = np.max(np.abs(err_tracking_true[-200:]))
-        self.assertLess(max_ss_error, 0.11,
-                        f"Failed to reject bias. Max steady-state error: {max_ss_error}")
+        self.assertLess(max_ss_error, 0.1, f"Failed to reject bias."
+                        f" Max steady-state error: {max_ss_error}")
 
         # Change this to True to see the plots locally during debugging!
-        debug_plot = True
+        debug_plot = False
         if debug_plot: # pragma: no cover
             self._debug_plot_morfeo_case(t, R, x_true, err_tracking_true,
-                                         yf_hist, ys1_hist, ys2_hist, u_true, N_list)
+                                         yf_hist, ys1_hist, ys2_hist, u_true, N_list,
+                                         B_f, B_s1, B_s2)
 
     def _debug_plot_morfeo_case(self, t, R, x_true, err_true, yf_hist,
-                                ys1_hist, ys2_hist, u_true, N_list): # pragma: no cover
+                                ys1_hist, ys2_hist, u_true, N_list, B_f,
+                                B_s1, B_s2): # pragma: no cover
         """Helper to plot the MORFEO 3-NGS simulation results."""
         import matplotlib.pyplot as plt
 
@@ -217,7 +226,7 @@ class TestMultirateFilter(unittest.TestCase):
         plt.subplot(3, 1, 1)
         plt.plot(t, R, 'k--', label='Target Reference $R(t)$', linewidth=2)
         plt.plot(t, x_true, 'b-', label='Plant Output $x(t)$', alpha=0.8)
-        plt.title('Sinusoidal Tracking Performance (3-NGS Multirate Fusion)')
+        plt.title('Sinusoidal Tracking Performance (Tripletta 3-NGS Multirate Fusion)')
         plt.ylabel('Position')
         plt.legend(loc='lower right')
         plt.grid(True)
@@ -232,15 +241,15 @@ class TestMultirateFilter(unittest.TestCase):
             s1_zoh[k] = ys1_hist[k] if (frame % N_list[0] == 0) else s1_zoh[k-1]
             s2_zoh[k] = ys2_hist[k] if (frame % N_list[1] == 0) else s2_zoh[k-1]
 
-        plt.plot(t, yf_hist, 'c', alpha=0.5, label='Fast Sensor Reading (Bias +2.0)')
-        plt.plot(t, s1_zoh, 'r', alpha=0.5, label=f'Slow Sensor 1 ZOH (Bias -2.0, N={N_list[0]})')
-        plt.plot(t, s2_zoh, 'g', alpha=0.5, label=f'Slow Sensor 2 ZOH (Bias -2.0, N={N_list[1]})')
+        plt.plot(t, yf_hist, 'c', alpha=0.5, label=f'Fast Sensor Reading (Bias {B_f})')
+        plt.plot(t, s1_zoh, 'r', alpha=0.5, label=f'Slow Sensor 1 ZOH (Bias {B_s1}, N={N_list[0]})')
+        plt.plot(t, s2_zoh, 'g', alpha=0.5, label=f'Slow Sensor 2 ZOH (Bias {B_s2}, N={N_list[1]})')
         plt.plot(t, err_true, 'k-', linewidth=2, label='True Tracking Error ($R - x$)')
-        plt.title('Sensor Readings vs True Physical Error (Bias Rejection)')
+        plt.title('Sensor Readings vs True Physical Error (Barycentric Rejection)')
         plt.ylabel('Tracking Error')
         plt.legend(loc='upper right')
         plt.grid(True)
-        plt.ylim(-3, 3)
+        plt.ylim(-6, 4)
 
         # PLOT 3: Control Action
         plt.subplot(3, 1, 3)
