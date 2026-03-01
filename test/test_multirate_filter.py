@@ -83,15 +83,15 @@ class TestMultirateFilter(unittest.TestCase):
         filt.setup()
 
         n_steps = 15
-        out_u_sim = np.zeros(n_steps)
+        out_comm_sim = np.zeros(n_steps)
 
         # Run the filter
         for k in range(n_steps):
             filt.trigger_code()
-            out_u_sim[k] = cpuArray(filt.out_u.get_value())[0]
+            out_comm_sim[k] = cpuArray(filt.out_comm.get_value())[0]
 
         # Expected manual calculation (Pure Python difference equation)
-        out_u_expected = np.zeros(n_steps)
+        out_comm_expected = np.zeros(n_steps)
         yf_prev = 0.0
 
         w_fast = 0.5
@@ -111,13 +111,13 @@ class TestMultirateFilter(unittest.TestCase):
             yf_prev = yf
 
             # Double integrator: u[k] = 2u[k-1] - u[k-2] + g_f * mixed
-            u_m1 = out_u_expected[k-1] if k >= 1 else 0.0
-            u_m2 = out_u_expected[k-2] if k >= 2 else 0.0
+            u_m1 = out_comm_expected[k-1] if k >= 1 else 0.0
+            u_m2 = out_comm_expected[k-2] if k >= 2 else 0.0
 
-            out_u_expected[k] = 2 * u_m1 - u_m2 + g_f * mixed
+            out_comm_expected[k] = 2 * u_m1 - u_m2 + g_f * mixed
 
         # Assert absolute match between C++/CUDA implementation and math
-        np.testing.assert_allclose(out_u_sim, out_u_expected, rtol=1e-6, atol=1e-6,
+        np.testing.assert_allclose(out_comm_sim, out_comm_expected, rtol=1e-6, atol=1e-6,
                                    err_msg="The CUDA graph multirate implementation"
                                            " does not match the LTI difference equation.")
 
@@ -170,8 +170,8 @@ class TestMultirateFilter(unittest.TestCase):
             filt_a.trigger_code()
             filt_b.trigger_code()
 
-            out_a = cpuArray(filt_a.out_u.get_value())
-            out_b = cpuArray(filt_b.out_u.get_value())
+            out_a = cpuArray(filt_a.out_comm.get_value())
+            out_b = cpuArray(filt_b.out_comm.get_value())
 
             # The outputs should be absolutely identical
             np.testing.assert_array_equal(out_a, out_b)
@@ -180,8 +180,8 @@ class TestMultirateFilter(unittest.TestCase):
     def test_morfeo_3_ngs_case(self, target_device_idx, xp):
         """Test advanced 3-NGS case (1 fast, 2 slow at different framerates) with debug plotting."""
 
-        g_f = 0.10
-        g_track = 0.05
+        g_f = 0.20
+        g_track = 0.005
         # Weights for the "Tripletta" case: 1 fast sensor and 2 slow sensors with
         # equal influenceon the barycenter.
         weights = [1/3, 1/3, 1/3]
@@ -250,7 +250,7 @@ class TestMultirateFilter(unittest.TestCase):
             ys2_hist[k] = err_s2
 
             filt.trigger_code()
-            u_true[k] = cpuArray(filt.out_u.get_value())[0]
+            u_true[k] = cpuArray(filt.out_comm.get_value())[0]
 
             # Store true instantaneous tracking error
             err_tracking_true[k] = R[k] - x_true[k]
@@ -266,7 +266,7 @@ class TestMultirateFilter(unittest.TestCase):
                         f" Max steady-state error: {max_ss_error}")
 
         # Change this to True to see the plots locally during debugging!
-        debug_plot = False
+        debug_plot = True
         if debug_plot: # pragma: no cover
             self._debug_plot_morfeo_case(t, R, x_true, err_tracking_true,
                                          yf_hist, ys1_hist, ys2_hist, u_true, N_list,

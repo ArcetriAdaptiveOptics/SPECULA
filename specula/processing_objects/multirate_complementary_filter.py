@@ -70,8 +70,8 @@ class MultirateComplementaryFilter(BaseProcessingObj):
         self.inputs['in_ys'] = InputList(type=BaseValue, optional=True)
         self.inputs['in_vec'] = InputValue(type=BaseValue, optional=True)
 
-        self.out_u = BaseValue(target_device_idx=target_device_idx, precision=precision)
-        self.outputs['out_u'] = self.out_u
+        self.out_comm = BaseValue(target_device_idx=target_device_idx, precision=precision)
+        self.outputs['out_comm'] = self.out_comm
 
         self._ist = self.xp.zeros_like(self.iir_filter_data.num)
         self._ost = self.xp.zeros_like(self.iir_filter_data.den)
@@ -117,7 +117,7 @@ class MultirateComplementaryFilter(BaseProcessingObj):
         else:
             raise ValueError("You must connect either 'in_vec' or 'in_yf'+'in_ys'.")
 
-        self.out_u.value = self.xp.zeros(yf_shape, dtype=self.dtype)
+        self.out_comm.value = self.xp.zeros(yf_shape, dtype=self.dtype)
         self._yf_prev = self.xp.zeros(yf_shape, dtype=self.dtype)
 
         # GPU arrays
@@ -170,5 +170,5 @@ class MultirateComplementaryFilter(BaseProcessingObj):
         output = factor * (num_contrib - den_contrib)
         self._ost[:, no - 1] = output
 
-        self.out_u.value[:] = output
-        self.out_u.generation_time = self.current_time
+        self.out_comm.value[:] = output
+        self.out_comm.generation_time = self.current_time
