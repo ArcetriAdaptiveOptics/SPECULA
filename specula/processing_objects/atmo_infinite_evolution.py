@@ -146,6 +146,9 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
             self.layer_list.append(layer)
         self.outputs['layer_list'] = self.layer_list
 
+        self.full_scrn_backups = []
+        self.scrn_raw_backups = []
+
         self.initScreens(seed)
 
         self.scale_coeff = 1.0
@@ -200,6 +203,11 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
             raise ValueError(f'Wind direction input must be a'
                              f' {self.n_infinite_phasescreens}-elements array')
 
+        # Pre-allocate buffers to avoid .copy() in the loop
+        for ps in self.infinite_phasescreens:
+            self.full_scrn_backups.append(self.xp.empty_like(ps.full_scrn))
+            self.scrn_raw_backups.append(self.xp.empty_like(ps.scrnRaw))
+
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
         self.delta_time = cpuArray(
@@ -240,42 +248,48 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         for ii, phase_screen in enumerate(self.infinite_phasescreens):
             w_y_comp = np.cos(2*np.pi*(wind_direction[ii])/360.0)
             w_x_comp = np.sin(2*np.pi*(wind_direction[ii])/360.0)
+
             frac_rows, rows_to_add = np.modf(
                 effective_delta_position[ii] * w_y_comp + self.acc_rows[ii]
             )
-            #sr = int( (np.sign(rows_to_add) + 1) / 2 )
-            sr = int(np.sign(rows_to_add) )
+            sr = 1 if rows_to_add > 0 else 0
+
             frac_cols, cols_to_add = np.modf(
                 effective_delta_position[ii] * w_x_comp + self.acc_cols[ii]
             )
-            #sc = int( (-np.sign(cols_to_add) + 1) / 2 )
-            sc = int(np.sign(cols_to_add) )
-            # print('rows_to_add, cols_to_add', rows_to_add, cols_to_add)
+            sc = 1 if cols_to_add > 0 else 0
+
             if np.abs(w_y_comp)>eps:
                 for r in range(int(np.abs(rows_to_add))):
                     phase_screen.add_line(1, sr)
             if np.abs(w_x_comp)>eps:
                 for r in range(int(np.abs(cols_to_add))):
                     phase_screen.add_line(0, sc)
-            phase_screen0_all = phase_screen.scrnRawAll.copy()
-            phase_screen0 = phase_screen.scrnRaw.copy()
-            # print('w_y_comp, w_x_comp', w_y_comp, w_x_comp)
-            # print('frac_rows, frac_cols', frac_rows, frac_cols)
-            srf = int(np.sign(frac_rows) )
-            scf = int(np.sign(frac_cols) )
+
+            self.xp.copyto(self.full_scrn_backups[ii], phase_screen.full_scrn)
+            self.xp.copyto(self.scrn_raw_backups[ii], phase_screen.scrnRaw)
+
+            srf = 1 if frac_rows > 0 else 0
+            scf = 1 if frac_cols > 0 else 0
 
             if np.abs(frac_rows)>eps:
                 phase_screen.add_line(1, srf, False)
             if np.abs(frac_cols)>eps:
                 phase_screen.add_line(0, scf, False)
+
             phase_screen1 = phase_screen.scrnRaw
             interpfactor = np.sqrt(frac_rows**2 + frac_cols**2 )
-            layer_phase = interpfactor * phase_screen1 + (1.0-interpfactor) * phase_screen0
-            phase_screen.full_scrn = phase_screen0_all
+
+            # Use the backup to avoid cumulative interpolation errors
+            layer_phase = interpfactor * phase_screen1 \
+                        + (1.0-interpfactor) * self.scrn_raw_backups[ii]
+
+            # We restore the state without dynamic allocations
+            self.xp.copyto(phase_screen.full_scrn, self.full_scrn_backups[ii])
+
             self.acc_rows[ii] = frac_rows
             self.acc_cols[ii] = frac_cols
-            # print('acc_rows', self.acc_rows)
-            # print('acc_cols', self.acc_cols)
+
             self.layer_list[ii].field[:] = self.xp.stack((layer_phase, layer_phase))
             self.layer_list[ii].phaseInNm *= self.scale_coeff*self.xp.sqrt(self.Cn2[ii])
             self.layer_list[ii].A = 1
