@@ -11,7 +11,7 @@ from specula.processing_objects.multirate_complementary_filter import MultirateC
 from test.specula_testlib import cpu_and_gpu
 
 
-def build_double_integrator(g_f, target_device_idx):
+def build_double_integrator(g_f, target_device_idx, n_modes=1):
     """
     Helper function to build a double integrator IirFilterData: C_f(z) / (1 - z^-1).
     Assuming the fast controller is a pure integrator C_f(z) = g_f / (1 - z^-1),
@@ -25,7 +25,10 @@ def build_double_integrator(g_f, target_device_idx):
     den = np.array([[1.0, -2.0, 1.0]])
     ordnum = [3]
     ordden = [3]
-    return IirFilterData(ordnum, ordden, num, den, target_device_idx=target_device_idx)
+    # Pass n_modes=1 as default for simplicity, but it can be >1 if we want to
+    # test multi-channel operation of the filter.
+    return IirFilterData(ordnum, ordden, num, den, n_modes=[n_modes],
+                         target_device_idx=target_device_idx)
 
 
 class TestMultirateFilter(unittest.TestCase):
@@ -117,6 +120,61 @@ class TestMultirateFilter(unittest.TestCase):
         np.testing.assert_allclose(out_u_sim, out_u_expected, rtol=1e-6, atol=1e-6,
                                    err_msg="The CUDA graph multirate implementation"
                                            " does not match the LTI difference equation.")
+
+    @cpu_and_gpu
+    def test_vector_input_routing(self, target_device_idx, xp):
+        """Test that the vector input routing produces the exact same result as separate inputs."""
+        g_f = 0.1
+        g_track = 0.1
+        weights = [1/3, 1/3, 1/3]
+        N_list = [4, 10]
+
+        # 1. Setup Filter A (Separate Inputs)
+        # PASSAGGIAMO n_modes=2 PERCHÉ I VETTORI CHE CREIAMO HANNO DUE ELEMENTI!
+        engine_a = build_double_integrator(g_f, target_device_idx, n_modes=2)
+        filt_a = MultirateComplementaryFilter(engine_a, g_track, weights, N_list,
+                                              target_device_idx=target_device_idx)
+
+        v_yf = BaseValue(value=np.array([1.5, 2.5]), target_device_idx=target_device_idx)
+        v_ys1 = BaseValue(value=np.array([-1.0, -1.0]), target_device_idx=target_device_idx)
+        v_ys2 = BaseValue(value=np.array([0.5, -0.5]), target_device_idx=target_device_idx)
+
+        filt_a.inputs['in_yf'].set(v_yf)
+        filt_a.inputs['in_ys'].set([v_ys1, v_ys2])
+        filt_a.local_inputs['in_yf'] = filt_a.inputs['in_yf'].get(target_device_idx)
+        filt_a.local_inputs['in_ys'] = filt_a.inputs['in_ys'].get(target_device_idx)
+        filt_a.setup()
+
+        # 2. Setup Filter B (Vector Input)
+        # Vector is: [ yf_0, yf_1, ys1_0, ys1_1, ys2_0, ys2_1 ]
+        v_vec = BaseValue(value=np.array([1.5, 2.5, -1.0, -1.0, 0.5, -0.5]),
+                          target_device_idx=target_device_idx)
+
+        # PASSAGGIAMO n_modes=2 ANCHE QUI!
+        engine_b = build_double_integrator(g_f, target_device_idx, n_modes=2)
+        filt_b = MultirateComplementaryFilter(
+            engine_b, g_track, weights, N_list,
+            idx_yf=[0, 1],               # Indices for yf
+            idx_ys=[[2, 3], [4, 5]],     # Indices for ys1 and ys2
+            target_device_idx=target_device_idx
+        )
+
+        filt_b.inputs['in_vec'].set(v_vec)
+        filt_b.local_inputs['in_vec'] = filt_b.inputs['in_vec'].get(target_device_idx)
+        # Must mock the get_all_inputs for the optional ones so they are None
+        filt_b.local_inputs['in_yf'] = None
+        filt_b.setup()
+
+        # Run both for a few steps
+        for _ in range(15):
+            filt_a.trigger_code()
+            filt_b.trigger_code()
+
+            out_a = cpuArray(filt_a.out_u.get_value())
+            out_b = cpuArray(filt_b.out_u.get_value())
+
+            # The outputs should be absolutely identical
+            np.testing.assert_array_equal(out_a, out_b)
 
     @cpu_and_gpu
     def test_morfeo_3_ngs_case(self, target_device_idx, xp):

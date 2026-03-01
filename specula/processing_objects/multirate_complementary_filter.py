@@ -12,24 +12,31 @@ class MultirateComplementaryFilter(BaseProcessingObj):
     for 1 fast sensor and N slow sensors with arbitrary DC weights:
     
     U(z) = [C_f(z) / (1 - z^-1)] * [ (1 + W_f)*yf - yf*z^-1 + sum(W_si * N_i * ys_i_stuffed) ]
+
+    Supports two input modes:
+    1. Independent inputs: connect `in_yf` and multiple `in_ys`.
+    2. Vector input: connect `in_vec` and provide `idx_yf` and `idx_ys` to extract signals.
     '''
     def __init__(self,
                  iir_filter_data: IirFilterData,
                  g_track: float,
                  weights: list,
                  N_list: list,
+                 idx_yf=None,
+                 idx_ys=None,
                  target_device_idx=None,
                  precision=None):
         """
         Initialize the Multirate Complementary Filter.
 
         Parameters:
-        iir_filter_data (IirFilterData): Coefficients of the shared LTI engine:
-                                            C_f(z) / (1 - z^-1).
+        iir_filter_data (IirFilterData): Coefficients of the shared LTI engine: C_f(z) / (1 - z^-1).
         g_track (float): Overall tracking gain for the offset rejection.
-        weights (list of floats): Normalized DC weights for
-                                  [fast_sensor, slow_sensor_1, slow_sensor_2, ...].
+        weights (list of floats): Normalized DC weights for [fast_sensor, slow_sensor_1, ...].
         N_list (list of ints): List of downsampling ratios for each slow sensor.
+        idx_yf (int, list or array): Indices to extract the fast sensor from `in_vec` (if used).
+        idx_ys (list of ints/lists): List of indices to extract each slow sensor from `in_vec`
+                                     (if used).
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
@@ -41,7 +48,10 @@ class MultirateComplementaryFilter(BaseProcessingObj):
 
         self.iir_filter_data = iir_filter_data
 
-        # Normalize weights just to be safe
+        self.idx_yf = idx_yf
+        self.idx_ys = idx_ys
+
+        # Normalize weights
         w_array = np.array(weights)
         w_array = w_array / np.sum(w_array)
 
@@ -55,9 +65,10 @@ class MultirateComplementaryFilter(BaseProcessingObj):
         # Calculate the multiplier for each slow sensor: W_si * N_i
         c_ys_list = [g_track * w_slow[i] * N_list[i] for i in range(self.n_slow_sensors)]
 
-        # Inputs and Outputs
-        self.inputs['in_yf'] = InputValue(type=BaseValue)
-        self.inputs['in_ys'] = InputList(type=BaseValue)
+        # Inputs and Outputs (All optional to support both routing strategies)
+        self.inputs['in_yf'] = InputValue(type=BaseValue, optional=True)
+        self.inputs['in_ys'] = InputList(type=BaseValue, optional=True)
+        self.inputs['in_vec'] = InputValue(type=BaseValue, optional=True)
 
         self.out_u = BaseValue(target_device_idx=target_device_idx, precision=precision)
         self.outputs['out_u'] = self.out_u
@@ -68,19 +79,46 @@ class MultirateComplementaryFilter(BaseProcessingObj):
         self.c_ys_array = np.array(c_ys_list)
         self.N_array = np.array(N_list)
 
+        self._use_vector_input = False
+        self._idx_yf = None
+        self._idx_ys = None
+        self._yf_prev = None
+        self._frame_counter = None
+
 
     def setup(self):
         super().setup()
 
-        connected_ys = len(self.local_inputs['in_ys'])
-        if connected_ys != self.n_slow_sensors:
-            raise ValueError(f"Expected {self.n_slow_sensors} slow inputs,"
-                             f" but {connected_ys} were connected.")
+        # Determine Input Mode
+        self._use_vector_input = self.local_inputs['in_vec'] is not None
+        has_yf = self.local_inputs['in_yf'] is not None
 
-        yf_value = self.local_inputs['in_yf'].value
+        if self._use_vector_input:
+            if self.idx_yf is None or self.idx_ys is None:
+                raise ValueError("idx_yf and idx_ys must be provided when using in_vec.")
+            if len(self.idx_ys) != self.n_slow_sensors:
+                raise ValueError(f"idx_ys must contain {self.n_slow_sensors} index definitions.")
 
-        self.out_u.value = self.xp.zeros_like(yf_value)
-        self._yf_prev = self.xp.zeros_like(yf_value)
+            # Convert indices to GPU arrays for fast slicing during trigger
+            self._idx_yf = self.to_xp(np.atleast_1d(self.idx_yf), dtype=self.xp.int32)
+            self._idx_ys = [self.to_xp(np.atleast_1d(idx), dtype=self.xp.int32) for idx in self.idx_ys]
+
+            # Infer shape from the vector slice
+            vec_val = self.local_inputs['in_vec'].value
+            yf_shape = vec_val[self._idx_yf].shape
+
+        elif has_yf:
+            connected_ys = len(self.local_inputs['in_ys'])
+            if connected_ys != self.n_slow_sensors:
+                raise ValueError(f"Expected {self.n_slow_sensors} slow inputs,"
+                                 f" but {connected_ys} were connected.")
+            yf_shape = self.local_inputs['in_yf'].value.shape
+
+        else:
+            raise ValueError("You must connect either 'in_vec' or 'in_yf'+'in_ys'.")
+
+        self.out_u.value = self.xp.zeros(yf_shape, dtype=self.dtype)
+        self._yf_prev = self.xp.zeros(yf_shape, dtype=self.dtype)
 
         # GPU arrays
         self._frame_counter = self.xp.array([0], dtype=self.xp.int64)
@@ -89,9 +127,17 @@ class MultirateComplementaryFilter(BaseProcessingObj):
 
 
     def trigger_code(self):
-        yf = self.local_inputs['in_yf'].value
-        ys_list = [item.value for item in self.local_inputs['in_ys']]
 
+        # --- DATA ROUTING ---
+        if self._use_vector_input:
+            vec = self.local_inputs['in_vec'].value
+            yf = vec[self._idx_yf]
+            ys_list = [vec[idx] for idx in self._idx_ys]
+        else:
+            yf = self.local_inputs['in_yf'].value
+            ys_list = [item.value for item in self.local_inputs['in_ys']]
+
+        # --- MULTIRATE COMPUTATION ---
         self._frame_counter += 1
 
         mixed_input = (self.c_yf_0 * yf) + (self.c_yf_1 * self._yf_prev)
@@ -103,7 +149,7 @@ class MultirateComplementaryFilter(BaseProcessingObj):
 
         self._yf_prev[:] = yf
 
-        # IIR ENGINE
+        # --- IIR ENGINE ---
         sden = self.iir_filter_data.den.shape
         snum = self.iir_filter_data.num.shape
         no = sden[1]
