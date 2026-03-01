@@ -1,50 +1,125 @@
 import specula
-specula.init(0)  # Default target device
+specula.init(0)
 
 import unittest
 import numpy as np
 from specula import cpuArray
 from specula.base_value import BaseValue
+from specula.data_objects.simul_params import SimulParams
 from specula.data_objects.iir_filter_data import IirFilterData
-# Assicurati che il percorso di importazione corrisponda a dove hai salvato la classe
 from specula.processing_objects.multirate_complementary_filter import MultirateComplementaryFilter
 from test.specula_testlib import cpu_and_gpu
 
+class MockSimulParams(SimulParams):
+    def __init__(self, time_step=0.001):
+        self.time_step = time_step
 
 def build_double_integrator(g_f, target_device_idx, n_modes=1):
-    """
-    Helper function to build a double integrator IirFilterData: C_f(z) / (1 - z^-1).
-    Assuming the fast controller is a pure integrator C_f(z) = g_f / (1 - z^-1),
-    the shared engine becomes g_f / (1 - z^-1)^2 = g_f / (1 - 2z^-1 + z^-2).
-    
-    In SPECULA's IirFilter convention (oldest sample at index 0, newest at index -1):
-    num = [0.0, 0.0, g_f]
-    den = [1.0, -2.0, 1.0]
-    """
     num = np.array([[0.0, 0.0, g_f]])
     den = np.array([[1.0, -2.0, 1.0]])
-    ordnum = [3]
-    ordden = [3]
-    # Pass n_modes=1 as default for simplicity, but it can be >1 if we want to
-    # test multi-channel operation of the filter.
-    return IirFilterData(ordnum, ordden, num, den, n_modes=[n_modes],
-                         target_device_idx=target_device_idx)
-
+    return IirFilterData([3], [3], num, den, n_modes=[n_modes], target_device_idx=target_device_idx)
 
 class TestMultirateFilter(unittest.TestCase):
+
+    @cpu_and_gpu
+    def test_sync_validation_errors(self, target_device_idx, xp):
+        """Test that the synchronization check properly raises RuntimeErrors."""
+        engine = build_double_integrator(0.1, target_device_idx)
+        sp = MockSimulParams()
+
+        filt = MultirateComplementaryFilter(sp, engine, g_track=0.1, weights=[0.5, 0.5], N_list=[3],
+                                            target_device_idx=target_device_idx)
+
+        v_yf = BaseValue(value=np.array([1.0]), target_device_idx=target_device_idx)
+        v_ys = BaseValue(value=np.array([1.0]), target_device_idx=target_device_idx)
+
+        filt.inputs['in_yf'].set(v_yf)
+        filt.inputs['in_ys'].set([v_ys])
+        filt.local_inputs['in_yf'] = filt.inputs['in_yf'].get(target_device_idx)
+        filt.local_inputs['in_ys'] = filt.inputs['in_ys'].get(target_device_idx)
+        filt.setup()
+
+        # Frame 1: Not a slow frame (N=3). Slow sensor SHOULD have an old generation time.
+        v_yf.generation_time = 0.001
+        v_ys.generation_time = 0.000 # Old time! Correct!
+        filt.check_ready(0.001)
+        filt.trigger_code()
+        filt.post_trigger()
+
+        # Frame 2: Let's artificially break sync. Frame 2 is NOT a slow frame,
+        # but we pretend the slow sensor just arrived.
+        v_yf.generation_time = 0.002
+        v_ys.generation_time = 0.002 # NEW time! Wrong!
+        with self.assertRaisesRegex(RuntimeError, "updated unexpectedly"):
+            filt.check_ready(0.002)
+
+        # Let's fix it for Frame 2
+        v_ys.generation_time = 0.000
+        filt.check_ready(0.002)
+        filt.trigger_code()
+        filt.post_trigger()
+
+        # Frame 3: Is a slow frame (N=3). Slow sensor MUST have the new generation time.
+        # Let's pretend it didn't arrive.
+        v_yf.generation_time = 0.003
+        v_ys.generation_time = 0.000 # OLD time! Wrong!
+        with self.assertRaisesRegex(RuntimeError, "missing update"):
+            filt.check_ready(0.003)
+
+    @cpu_and_gpu
+    def test_basic_1_fast_1_slow_with_lifecycle(self, target_device_idx, xp):
+        """Test exact mathematical correctness respecting the SPECULA trigger lifecycle."""
+        g_f = 0.1
+        g_track = 0.1
+        weights = [0.5, 0.5]
+        N_list = [3]
+
+        engine = build_double_integrator(g_f, target_device_idx)
+        sp = MockSimulParams()
+        filt = MultirateComplementaryFilter(sp, engine, g_track, weights, N_list,
+                                            target_device_idx=target_device_idx)
+
+        v_yf = BaseValue(value=np.array([1.0]), target_device_idx=target_device_idx)
+        v_ys = BaseValue(value=np.array([1.0]), target_device_idx=target_device_idx)
+        v_ys.generation_time = -1 # Initial valid time
+
+        filt.inputs['in_yf'].set(v_yf)
+        filt.inputs['in_ys'].set([v_ys])
+        filt.local_inputs['in_yf'] = filt.inputs['in_yf'].get(target_device_idx)
+        filt.local_inputs['in_ys'] = filt.inputs['in_ys'].get(target_device_idx)
+        filt.setup()
+
+        n_steps = 15
+        out_comm_sim = np.zeros(n_steps)
+
+        for k in range(n_steps):
+            t_sim = (k + 1) * 0.001
+            v_yf.generation_time = t_sim
+
+            # Sync Logic for Tests: Update slow sensor only on Nth frames
+            if (k + 1) % N_list[0] == 0:
+                v_ys.generation_time = t_sim
+
+            filt.check_ready(t_sim)
+            filt.trigger_code()
+            filt.post_trigger()
+
+            out_comm_sim[k] = cpuArray(filt.out_comm.get_value())[0]
 
     @cpu_and_gpu
     def test_setup_validation(self, target_device_idx, xp):
         """Test validation of inputs and parameter lengths."""
 
+        sp = MockSimulParams()
+
         # 1. Test mismatched parameter lists (weights deve essere N_list + 1)
         with self.assertRaises(ValueError):
-            MultirateComplementaryFilter(None, g_track=0.1, weights=[0.5, 0.5], N_list=[5, 10],
+            MultirateComplementaryFilter(sp, None, g_track=0.1, weights=[0.5, 0.5], N_list=[5, 10],
                                          target_device_idx=target_device_idx)
 
         # 2. Test mismatched connected inputs
         engine = build_double_integrator(0.1, target_device_idx)
-        filt = MultirateComplementaryFilter(engine, g_track=0.1, weights=[0.5, 0.5], N_list=[5],
+        filt = MultirateComplementaryFilter(sp,engine, g_track=0.1, weights=[0.5, 0.5], N_list=[5],
                                             target_device_idx=target_device_idx)
 
         # Connect yf but leave ys empty
@@ -68,7 +143,8 @@ class TestMultirateFilter(unittest.TestCase):
         N_list = [3]
 
         engine = build_double_integrator(g_f, target_device_idx)
-        filt = MultirateComplementaryFilter(engine, g_track, weights, N_list,
+        sp = MockSimulParams()
+        filt = MultirateComplementaryFilter(sp, engine, g_track, weights, N_list,
                                             target_device_idx=target_device_idx)
 
         # Initialize inputs
@@ -87,7 +163,13 @@ class TestMultirateFilter(unittest.TestCase):
 
         # Run the filter
         for k in range(n_steps):
+            time = (k + 1) * 0.001
+            v_yf.generation_time = time
+            if (k + 1) % N_list[0] == 0:
+                v_ys.generation_time = time
+            filt.check_ready(time)
             filt.trigger_code()
+            filt.post_trigger()
             out_comm_sim[k] = cpuArray(filt.out_comm.get_value())[0]
 
         # Expected manual calculation (Pure Python difference equation)
@@ -128,16 +210,19 @@ class TestMultirateFilter(unittest.TestCase):
         g_track = 0.1
         weights = [1/3, 1/3, 1/3]
         N_list = [4, 10]
+        sp = MockSimulParams()
 
         # 1. Setup Filter A (Separate Inputs)
-        # PASSAGGIAMO n_modes=2 PERCHÉ I VETTORI CHE CREIAMO HANNO DUE ELEMENTI!
+        # Pass n_modes=2 to ensure the filter can handle vector inputs of size 2 for both yf and ys.
         engine_a = build_double_integrator(g_f, target_device_idx, n_modes=2)
-        filt_a = MultirateComplementaryFilter(engine_a, g_track, weights, N_list,
+        filt_a = MultirateComplementaryFilter(sp, engine_a, g_track, weights, N_list,
                                               target_device_idx=target_device_idx)
 
         v_yf = BaseValue(value=np.array([1.5, 2.5]), target_device_idx=target_device_idx)
         v_ys1 = BaseValue(value=np.array([-1.0, -1.0]), target_device_idx=target_device_idx)
         v_ys2 = BaseValue(value=np.array([0.5, -0.5]), target_device_idx=target_device_idx)
+        v_ys1.generation_time = -1  # Must differ from fast sensor's initial time
+        v_ys2.generation_time = -1  # Must differ from fast sensor's initial time
 
         filt_a.inputs['in_yf'].set(v_yf)
         filt_a.inputs['in_ys'].set([v_ys1, v_ys2])
@@ -153,7 +238,7 @@ class TestMultirateFilter(unittest.TestCase):
         # PASSAGGIAMO n_modes=2 ANCHE QUI!
         engine_b = build_double_integrator(g_f, target_device_idx, n_modes=2)
         filt_b = MultirateComplementaryFilter(
-            engine_b, g_track, weights, N_list,
+            sp, engine_b, g_track, weights, N_list,
             idx_yf=[0, 1],               # Indices for yf
             idx_ys=[[2, 3], [4, 5]],     # Indices for ys1 and ys2
             target_device_idx=target_device_idx
@@ -166,9 +251,19 @@ class TestMultirateFilter(unittest.TestCase):
         filt_b.setup()
 
         # Run both for a few steps
-        for _ in range(15):
+        for i in range(15):
+            time = (i + 1) * 0.001
+            v_yf.generation_time = time
+            if (i + 1) % N_list[0] == 0:
+                v_ys1.generation_time = time
+            if (i + 1) % N_list[1] == 0:
+                v_ys2.generation_time = time
+            filt_a.prepare_trigger(time)
             filt_a.trigger_code()
+            filt_a._cpu_frame_counter += 1
+            filt_b.prepare_trigger(time)
             filt_b.trigger_code()
+            filt_b._cpu_frame_counter += 1
 
             out_a = cpuArray(filt_a.out_comm.get_value())
             out_b = cpuArray(filt_b.out_comm.get_value())
@@ -188,13 +283,16 @@ class TestMultirateFilter(unittest.TestCase):
         N_list = [4, 10]
 
         engine = build_double_integrator(g_f, target_device_idx)
-        filt = MultirateComplementaryFilter(engine, g_track, weights, N_list,
+        sp = MockSimulParams()
+        filt = MultirateComplementaryFilter(sp, engine, g_track, weights, N_list,
                                             target_device_idx=target_device_idx)
 
         # Connect Inputs
         v_yf = BaseValue(value=np.array([0.0]), target_device_idx=target_device_idx)
         v_ys1 = BaseValue(value=np.array([0.0]), target_device_idx=target_device_idx)
         v_ys2 = BaseValue(value=np.array([0.0]), target_device_idx=target_device_idx)
+        v_ys1.generation_time = -1  # Must differ from fast sensor's initial time
+        v_ys2.generation_time = -1  # Must differ from fast sensor's initial time
 
         filt.inputs['in_yf'].set(v_yf)
         filt.inputs['in_ys'].set([v_ys1, v_ys2])
@@ -230,6 +328,8 @@ class TestMultirateFilter(unittest.TestCase):
         alpha = np.exp(-1.0 / (f_fast * tau))
 
         for k in range(1, n_steps):
+            time = (k + 1) * 0.001
+
             # Plant dynamics
             x_true[k] = alpha * x_true[k-1] + (1 - alpha) * u_true[k-1]
 
@@ -244,16 +344,30 @@ class TestMultirateFilter(unittest.TestCase):
             v_yf.set_value(np.array([err_f]))
             v_ys1.set_value(np.array([err_s1]))
             v_ys2.set_value(np.array([err_s2]))
+            v_yf.generation_time = time
+            if k % N_list[0] == 0:
+                v_ys1.generation_time = time
+            if k % N_list[1] == 0:
+                v_ys2.generation_time = time
 
             yf_hist[k] = err_f
             ys1_hist[k] = err_s1
             ys2_hist[k] = err_s2
 
+            filt.check_ready(time)
             filt.trigger_code()
+            filt.post_trigger()
             u_true[k] = cpuArray(filt.out_comm.get_value())[0]
 
             # Store true instantaneous tracking error
             err_tracking_true[k] = R[k] - x_true[k]
+
+        # Change this to True to see the plots locally during debugging!
+        debug_plot = False
+        if debug_plot: # pragma: no cover
+            self._debug_plot_morfeo_case(t, R, x_true, err_tracking_true,
+                                         yf_hist, ys1_hist, ys2_hist, u_true, N_list,
+                                         B_f, B_s1, B_s2)
 
         # Basic check: control effort should be completely stable
         self.assertTrue(np.all(np.isfinite(u_true)),
@@ -264,13 +378,6 @@ class TestMultirateFilter(unittest.TestCase):
         max_ss_error = np.max(np.abs(err_tracking_true[-200:]))
         self.assertLess(max_ss_error, 0.1, f"Failed to reject bias."
                         f" Max steady-state error: {max_ss_error}")
-
-        # Change this to True to see the plots locally during debugging!
-        debug_plot = True
-        if debug_plot: # pragma: no cover
-            self._debug_plot_morfeo_case(t, R, x_true, err_tracking_true,
-                                         yf_hist, ys1_hist, ys2_hist, u_true, N_list,
-                                         B_f, B_s1, B_s2)
 
     def _debug_plot_morfeo_case(self, t, R, x_true, err_true, yf_hist,
                                 ys1_hist, ys2_hist, u_true, N_list, B_f,
