@@ -260,10 +260,8 @@ class TestMultirateFilter(unittest.TestCase):
                 v_ys2.generation_time = time
             filt_a.prepare_trigger(time)
             filt_a.trigger_code()
-            filt_a._cpu_frame_counter += 1
             filt_b.prepare_trigger(time)
             filt_b.trigger_code()
-            filt_b._cpu_frame_counter += 1
 
             out_a = cpuArray(filt_a.out_comm.get_value())
             out_b = cpuArray(filt_b.out_comm.get_value())

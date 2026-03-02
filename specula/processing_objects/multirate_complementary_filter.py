@@ -142,6 +142,8 @@ class MultirateComplementaryFilter(BaseFilter):
                         raise RuntimeError(f"Sync error: Slow sensor {i} (N={n})"
                                            f" updated unexpectedly at fast frame {expected_frame}.")
 
+        self._cpu_frame_counter += 1
+
 
     def trigger_code(self):
 
@@ -188,8 +190,3 @@ class MultirateComplementaryFilter(BaseFilter):
 
         # Write to BaseFilter's output buffer (instead of out_comm directly)
         self.output_buffer[:, 0] = output
-
-
-    def post_trigger(self):
-        super().post_trigger()  # BaseFilter calculates delayed interpolation and sets out_comm
-        self._cpu_frame_counter += 1
