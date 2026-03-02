@@ -2,8 +2,8 @@
 # as a function of a single frame of the Pyramid WFS
 pyr_pupdata:
   class: 'PyrPupdataCalibrator'
-  thr1: 0.25
-  thr2: 0.1
+  thr1: 0.1
+  thr2: 0.05
   display_debug: True
   output_tag:        'pyr_pupdata'
   overwrite: true
@@ -15,10 +15,11 @@ pyr_override:
   inputs:
     in_ef: 'prop.out_source_ngs_ef'
 
+
 main_override:
   total_time:  0.0005
 
 # Remove unnecessary components to avoid issues and speed up the calibration
-remove: ['atmo', 'seeing', 'wind_direction', 'wind_speed', 'unab_prop',
-          'ocam', 'slopes', 'dm', 'modalrec', 'filter', 'ef_prop', 'dm_mode_res', 
-           'data_store', 'dl_psf', 'psf', 'coro_psf', 'atmo_mode_res']
+remove: ['atmo', 'seeing', 'wind_direction', 'wind_speed', 'cred1', 'slopes', 'dm', 'modalrec',
+         'filter', 'ef_prop', 'dm_mode_res', 'ocam2', 'zwfs', 'zwfs_slopes',
+           'data_store', 'psf', 'coro_psf', 'atmo_mode_res']

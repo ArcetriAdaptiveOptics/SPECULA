@@ -32,13 +32,13 @@ source_ngs:
   polar_coordinates: [0.0, 0.0]            # [arcsec, deg] On-axis NGS
   height:            .inf                  # Infinite height (star)
   magnitude:         6.0                   # R-band magnitude (bright NGS)
-  wavelengthInNm:    750                   # [nm] R-band for WFS
+  wavelengthInNm:    1200                   # [nm] R-band for WFS
 
 # Telescope pupil geometry
-pupilstop:
+vlt_aperture:
   class:             'Pupilstop'
   simul_params_ref:  'main'
-  # pupilstop_object:  './telescope/vlt_pupil_160pixels.fits'
+  # pupilstop_object:  'vlt_pupil_160pixels'
   mask_diam:         1.0                  # Full pupil diameter
   obs_diam:          0.0                  # no central obstruction
 
@@ -64,7 +64,7 @@ prop:
   source_dict_ref:   ['source_ngs'] #['source_science', 'source_ngs']
   inputs:
     atmo_layer_list: ['atmo.layer_list']
-    common_layer_list: ['pupilstop']       # Pupil
+    common_layer_list: ['vlt_aperture']       # Pupil
   outputs:           ['out_source_ngs_ef'] #['out_source_science_ef', 'out_source_ngs_ef']
 
 ef_prop:
@@ -74,51 +74,29 @@ ef_prop:
     in_ef2: 'dm.out_layer:-1'          # DM1 correction
   outputs: ['out_ef']
 
-unab_prop:
-  class:             'AtmoPropagation'
-  simul_params_ref:  'main'
-  source_dict_ref:   ['source_ngs'] #['source_science', 'source_ngs']
-  inputs:
-    common_layer_list: ['pupilstop']      
-  outputs:           ['out_source_ngs_ef']
-
-
-
-########################################################
-###################### OGC ############################
-ogc_scaling:
-  class:  'BaseOperation'
-  div: True
-  inputs:
-    in_value1: 'modalrec.out_modes'
-    in_value2: 'psf.out_sr'
-  outputs: ['out_value']
-
-
-########################################################
-
+########################### PWFS ##############################
 pyr:
   class:             'ModulatedPyramid'
   simul_params_ref:  'main'
   pup_diam:          48.                     # Pupil diameter in subaps.
-  pup_dist:          72.                     # Separation between pupil centers in subaps.
+  pup_dist:          60.                     # Separation between pupil centers in subaps.
   fov:               2.0                     # Requested field-of-view [arcsec]
-  mod_amp:           0.0                     # Modulation radius (in lambda/D units)
-  output_resolution: 240                      # Output sampling [usually corresponding to CCD pixels]
-  wavelengthInNm:    750                     # [nm] Pyramid wavelength
+  mod_amp:           1.0                     # Modulation radius (in lambda/D units)
+  output_resolution: 120                      # Output sampling [usually corresponding to CCD pixels]
+  wavelengthInNm:    1200                     # [nm] Pyramid wavelength
   inputs:
     in_ef: 'ef_prop.out_ef' #'prop.out_source_ngs_ef'
 
-ocam:
+cred1:
   class:             'CCD'
   simul_params_ref:  'main'
-  size:              [240, 240]            # Total detector size
-  dt:                0.0005                 # [s] Integration time (1ms)
-  bandw:             300                   # [nm]
+  size:              [120,120]            # Total detector size
+  dt:                0.0005                # [s] Integration time (2000 fps)
+  bandw:             400                   # [nm]
   photon_noise:      true                  # Enable photon noise
   readout_noise:     true                  # Enable read noise
   excess_noise:      true                  # Enable excess noise
-  readout_level:     0.3                   # [e-/pix/frame] Read noise level
+  readout_level:     0.5                   # [e-/pix/frame] Read noise level
   emccd_gain:        400                   # EMCCD gain factor
   quantum_eff:       0.2                   # QE x transmission
   inputs:
@@ -128,36 +106,84 @@ ocam:
 slopes:
   class:             'PyrSlopec'
   pupdata_object:    'pyr_pupdata'            # tag of the pyramid WFS pupils
-  sn_object:         'pyr_slope_null'
+  # sn_object:         'pyr_slope_null'
   inputs:
-    in_pixels:        'ocam.out_pixels'
+    in_pixels:        'cred1.out_pixels'
   outputs:           ['out_slopes']
 
 modalrec:
   class:             'Modalrec'
-  recmat_object:     'dm_1200modes_rec'        # Reconstruction matrix tag
+  recmat_object:     'pyr_1200modes_rec'        # Reconstruction matrix tag
   inputs:
     in_slopes:       'slopes.out_slopes'
   outputs:           ['out_modes']
 
-filter:
-  class:             'Integrator'
-  simul_params_ref:  'main'
-  delay:             1                     # 1 frame delay (realistic)
-  int_gain:          [0.3]
-  n_modes:           [1200]                 # Number of modes to control
+
+# ########################### ZWFS ####################################
+zwfs:
+  class:              'ZernikeSensor'
+  simul_params_ref:   'main'
+  pup_diam:           20.                     # Pupil diameter in subaps.
+  fov:                3.0                     # Requested field-of-view [arcsec]
+  spot_radius_lambda: 2.0                     # Spot radius in λ/D units
+  phase_shift:        1.5707963267948966      # Spot phase delay (pi/2)
+  output_resolution:  40                     # Output sampling [usually corresponding to CCD pixels]
+  wavelengthInNm:     750                     # [nm] zWFS wavelength
   inputs:
-    delta_comm:      'modalrec.out_modes' #'ogc_scaling.out_value' #
-  outputs:           ['out_comm']
+    in_ef: 'ef_prop.out_ef' 
+
+ocam2:
+  class:             'CCD'
+  simul_params_ref:  'main'
+  size:              [40,40]             # Total detector size
+  dt:                0.0005               # [s] Integration time (4000 fps)
+  bandw:             300                   # [nm]
+  photon_noise:      true                  # Enable photon noise
+  readout_noise:     true                  # Enable read noise
+  excess_noise:      true                  # Enable excess noise
+  readout_level:     0.3                   # [e-/pix/frame] Read noise level
+  emccd_gain:        400                   # EMCCD gain factor
+  quantum_eff:       0.2                   # QE x transmission
+  inputs:
+    in_i:            'zwfs.out_i' 
+  outputs:           ['out_pixels']
+
+zwfs_slopes:
+  class:             'ZwfsSlopec'
+  radius:            20
+  ccd_size:          [40,40]
+  obsratio:          0.0
+  inputs:
+    in_pixels:        'ocam2.out_pixels'
+  outputs:           ['out_slopes']
+
+modalrec:
+  class:             'Modalrec'
+  recmat_object:     'zwfs_100modes_rec'        # Reconstruction matrix tag
+  inputs:
+    in_slopes:       'zwfs_slopes.out_slopes'
+  outputs:           ['out_modes']
+
+############################ Control ################################
 
 # filter:
-#   class:                'IirFilter'
-#   simul_params_ref:     'main'
-#   delay:                0 # Total temporal delay in time steps is this value +1
-#   iir_filter_data_object:  'iirfilter'
+#   class:             'Integrator'
+#   simul_params_ref:  'main'
+#   delay:             1                     # 1 frame delay (realistic)
+#   int_gain:          [0.4]
+#   n_modes:           [1200]                 # Number of modes to control
 #   inputs:
-#     delta_comm: 'modalrec.out_modes'
-#   outputs:  ['out_comm']
+#     delta_comm:      'ogc_modes.out_value' #'modalrec.out_modes' #
+#   outputs:           ['out_comm']
+
+filter:
+  class:                'IirFilter'
+  simul_params_ref:     'main'
+  delay:                1 # Total temporal delay in time steps is this value +1
+  iir_filter_data_object:  'iirfilter'
+  inputs:
+    delta_comm: 'modalrec.out_modes'
+  outputs:  ['out_comm']
 
 dm:
   class:             'DM'
@@ -174,18 +200,6 @@ dm:
 ###########################################################
 ##################### POST-PROCESSING #####################
 # Coronagraphic and non-coronagraphic PSFs
-dl_psf:
-  class:             'PSF'
-  simul_params_ref:  'main'
-  wavelengthInNm:    750                 # [nm] visible
-  nd:                4                    # 4x padding for PSF
-  start_time:        0.5                  # Start PSF integration after 500ms
-  verbose: false
-  inputs:
-    in_ef:           'unab_prop.out_source_ngs_ef'
-  outputs:           ['out_psf', 'out_sr']
-
-
 psf:
   class:             'PSF'
   simul_params_ref:  'main'
@@ -206,7 +220,7 @@ coro_psf:
   verbose: false
   use_average_field: false
   inputs:
-    in_ef:           'ef_prop.out_ef' #'prop.out_source_ngs_ef'
+    in_ef:           'ef_prop.out_ef' 
   outputs:           ['out_coronagraph_psf','out_std_coronagraph_psf']
 
 
@@ -230,7 +244,6 @@ data_store:
   store_dir:         './output'            # Data result directory: 'store_dir'/TN/
   inputs:
     input_list: ['dm_cmd-filter.out_comm',
-                  'ref_psf-dl_psf.out_psf',
                   'sr-psf.out_sr',
                   'psf-psf.out_psf',
                   'coro_psf-coro_psf.out_coronagraph_psf',
@@ -238,6 +251,6 @@ data_store:
                   'atmo_res-atmo_mode_res.out_modes',
                   'dm_res-dm_mode_res.out_modes',
                   'pyr_res-modalrec.out_modes',
-                  'ccd-ocam.out_pixels',]
+                  'ccd-cred1.out_pixels',]
 
 # remove: ['']

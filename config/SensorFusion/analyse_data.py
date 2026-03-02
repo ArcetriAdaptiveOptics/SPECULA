@@ -25,24 +25,6 @@ def show_psf(psf, oversampling:int=4, title:str='', ext=0.25, vmin=-8, vmax=0, c
     cbar.ax.set_title('Contrast')
     plt.title(title)
 
-sn_hdu = fits.open('./calibration/slopenulls/pyr_slope_null.fits')
-sn = sn_hdu[1].data
-plt.figure()
-plt.subplot(2,1,1)
-plt.plot(sn)
-plt.grid()
-plt.title('Slope nulls')
-
-rec_hdu = fits.open('./calibration/rec/dm_1200modes_rec.fits')
-rec = rec_hdu[1].data
-sn_modes = rec @ sn
-plt.subplot(2,1,2)
-plt.plot(np.arange(len(sn_modes))+1,abs(sn_modes))
-plt.xscale('log')
-plt.yscale('log')
-plt.grid()
-plt.title('Slope null modes')
-plt.tight_layout()
 
 # Find all directories in ./output starting with '20'
 dirs = [d for d in glob.glob("./output/20*") if os.path.isdir(d)]
@@ -63,7 +45,7 @@ for fname in glob.glob(os.path.join(data_dir, "*.fits")):
     data[key] = arr
     print('key:', key, 'type:', type(data[key]))
 
-init = 200
+init = 750
 
 #################### SR ######################
 try:
@@ -81,8 +63,6 @@ except FileNotFoundError:
 ################ RESIDUALS ####################
 try:
     res = data["dm_res"][init+1:, :]
-    # meas = data['pyr_res'][init+1:, :] 
-    
     turb = data["atmo_res"][init+1:, :]
 
     x = np.arange(res.shape[1])+1
@@ -121,7 +101,6 @@ except FileNotFoundError:
 try:
     psf_dl = data["ref_psf"][-1]
     psf = data["psf"]
-    # psf_dl = np.sqrt(np.mean(psf_dl[init+1:]**2,axis=0))
     psf = np.sqrt(np.mean(psf[init+1:]**2,axis=0))
     coro_psf = data["coro_psf_std"][0]
     oversampling = 4
@@ -147,7 +126,7 @@ try:
     plt.grid()
     plt.title('Coronographic PSF radial profile (Std Dev)\n'+tn)
     plt.xlabel(r'$\lambda/D$')
-except FileNotFoundError:
+except:
     print(f"coro_psf.fits file not found in {data_dir}.")
 
 plt.show()

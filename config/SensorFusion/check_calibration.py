@@ -1,0 +1,69 @@
+
+from astropy.io import fits
+import numpy as np
+import matplotlib.pyplot as plt
+
+from specula.lib.make_mask import make_mask
+
+sn_hdu = fits.open('./calibration/slopenulls/pyr_slope_null.fits')
+sn = sn_hdu[1].data
+plt.figure()
+plt.subplot(2,1,1)
+plt.plot(sn)
+plt.grid()
+plt.title('Slope nulls')
+
+rec_hdu = fits.open('./calibration/rec/pyr_1200modes_rec.fits')
+pyr_rec = rec_hdu[1].data
+sn_modes = pyr_rec @ sn
+plt.subplot(2,1,2)
+plt.plot(np.arange(len(sn_modes))+1,abs(sn_modes))
+plt.xscale('log')
+plt.yscale('log')
+plt.grid()
+plt.title('Slope null modes')
+plt.tight_layout()
+
+rec_hdu = fits.open('./calibration/rec/zwfs_100modes_rec.fits')
+zwfs_rec = rec_hdu[1].data
+
+plt.figure()
+plt.plot(np.diag(pyr_rec @ pyr_rec.T))
+plt.plot(np.diag(zwfs_rec @ zwfs_rec.T))
+plt.xscale('log')
+plt.yscale('log')
+plt.grid()
+plt.title('Reconstructor covariance')
+
+npix = 120
+np_size = (npix,npix)
+
+pup_hdu = fits.open('./calibration/pupils/pyr_pupdata.fits')
+rad = pup_hdu[2].data
+cx = pup_hdu[3].data
+cy = pup_hdu[4].data
+pup_ids = pup_hdu[1].data
+
+pup_masks = np.zeros(np_size)
+for j in range(len(rad)):
+    f = np.zeros(npix**2)
+    np.put(f, pup_ids[:,j], 1)
+    f2d = f.reshape(np_size)
+    pup_masks += f2d
+
+frame_hdu = fits.open('./calibration/unmod_pyr_frame/ccd.fits')
+frame = frame_hdu[0].data[0]
+
+masked_frame = frame/frame.max() + pup_masks
+
+plt.figure()
+# plt.subplot(1,2,1)
+# plt.imshow(pup_masks,origin='lower',cmap='gray')
+# plt.subplot(1,2,2)
+plt.imshow(masked_frame,origin='lower',cmap='RdBu')
+# plt.colorbar(shrink=0.4)
+plt.title(f'Pupil diameter = {2*np.mean(rad):1.1f} pix')
+plt.colorbar()
+# plt.tight_layout()
+
+plt.show()

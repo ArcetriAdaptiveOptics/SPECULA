@@ -1,0 +1,22 @@
+pyr_override:
+  mod_amp: 0.0
+  inputs:
+    in_ef: 'prop.out_source_ngs_ef'
+
+main_override:
+  total_time:  0.0005
+
+data_store_override:
+  class:             'DataStore'
+  store_dir:         './calibration'            
+  inputs:
+    input_list: ['ccd-cred1.out_pixels']
+
+cred1_override:
+  photon_noise:      false                  # Enable photon noise
+  readout_noise:     false                  # Enable read noise
+  excess_noise:      false                  # Enable excess noise
+
+# Remove unnecessary components to avoid issues and speed up the calibration
+remove: ['atmo', 'seeing', 'wind_direction', 'wind_speed', 'slopes', 'dm', 'modalrec', 'filter', 'ef_prop', 'dm_mode_res', 
+           'psf', 'coro_psf', 'atmo_mode_res', 'zwfs', 'zwfs_slopes', 'ocam2']

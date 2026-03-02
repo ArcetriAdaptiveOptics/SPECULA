@@ -16,7 +16,7 @@ main_override:
   total_time: 0.0005
 
 # Disable noise for clean measurements
-ocam_override:
+cred1_override:
   photon_noise:   false                   # No photon noise
   readout_noise:  false                   # No read noise
   excess_noise:   false                   # No excess noise
@@ -25,8 +25,8 @@ data_store_override:
   class:             'DataStore'
   store_dir:         './calibration/slopenulls'            # Data result directory: 'store_dir'/TN/
   inputs:
-    input_list: ['ccd-ocam.out_pixels']
+    input_list: ['ccd-cred1.out_pixels']
 
 # Remove closed-loop components (not needed for slope null)
-remove: ['atmo','seeing','wind_speed','wind_direction','atmo_mode_res', #'source_science',
-        'dm','dm_mode_res','filter','psf','coro_psf', 'ef_prop','modalrec','unab_prop','dl_psf']
+remove: ['atmo','seeing','wind_speed','wind_direction','atmo_mode_res', 'zwfs', 'zwfs_slopes', 'ocam2', #'source_science',
+        'dm','dm_mode_res','filter','psf','coro_psf', 'ef_prop','modalrec']

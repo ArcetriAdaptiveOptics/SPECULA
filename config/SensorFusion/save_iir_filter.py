@@ -66,7 +66,7 @@ if __name__ == "__main__":
     fs = 2000  # Frequenza di campionamento [Hz]
     excluded_filters = 20 
     n_filters = 1200
-    iir_gain = 0.5
+    iir_gain = 0.4
 
     start_pole = [1.0, 0.995]
     end_pole = [0.85, 0.70] #[0.9, 0.75]
