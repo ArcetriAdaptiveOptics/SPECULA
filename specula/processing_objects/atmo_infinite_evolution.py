@@ -146,9 +146,6 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
             self.layer_list.append(layer)
         self.outputs['layer_list'] = self.layer_list
 
-        self.full_scrn_backups = []
-        self.scrn_raw_backups = []
-
         self.initScreens(seed)
 
         self.scale_coeff = 1.0

@@ -198,12 +198,3 @@ class AtmoInfiniteEvolutionUpDown(AtmoInfiniteEvolution):
             ps.full_scrn = saved_states[i]['full_scrn']
             ps.random_data_col = saved_states[i]['random_data_col']
             ps.random_data_row = saved_states[i]['random_data_row']
-
-    def setup(self):
-        # Father class setup will allocate the backups for the "main" state
-        super().setup()
-
-        # Pre-allcate additional buffers for Up/Down state switching
-        self.state_full_scrn_backups = []
-        for ps in self.infinite_phasescreens:
-            self.state_full_scrn_backups.append(self.xp.empty_like(ps.full_scrn))
