@@ -203,11 +203,6 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
             raise ValueError(f'Wind direction input must be a'
                              f' {self.n_infinite_phasescreens}-elements array')
 
-        # Pre-allocate buffers to avoid .copy() in the loop
-        for ps in self.infinite_phasescreens:
-            self.full_scrn_backups.append(self.xp.empty_like(ps.full_scrn))
-            self.scrn_raw_backups.append(self.xp.empty_like(ps.scrnRaw))
-
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
         self.delta_time = cpuArray(
@@ -277,8 +272,9 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
                 for r in range(int(np.abs(cols_to_add))):
                     phase_screen.add_line(0, sc)
 
-            self.xp.copyto(self.full_scrn_backups[ii], phase_screen.full_scrn)
-            self.xp.copyto(self.scrn_raw_backups[ii], phase_screen.scrnRaw)
+            # reference, no copy
+            phase_screen0_all = phase_screen.scrnRawAll
+            phase_screen0 = phase_screen.scrnRaw
 
             # Fractional interpolation
             srf = 1 if frac_rows > 0 else 0
@@ -294,10 +290,10 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
 
             # Use the buckup to compute the interpolated phase
             layer_phase = interpfactor * phase_screen1 \
-                        + (1.0 - interpfactor) * self.scrn_raw_backups[ii]
+                        + (1.0 - interpfactor) * phase_screen0
 
             # Restore the original state for the next direction
-            self.xp.copyto(phase_screen.full_scrn, self.full_scrn_backups[ii])
+            phase_screen.full_scrn = phase_screen0_all
 
             acc_rows[ii] = frac_rows
             acc_cols[ii] = frac_cols

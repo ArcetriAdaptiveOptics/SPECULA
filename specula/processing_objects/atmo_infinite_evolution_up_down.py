@@ -182,24 +182,20 @@ class AtmoInfiniteEvolutionUpDown(AtmoInfiniteEvolution):
         self.last_t = self.current_time
 
     def _save_phase_screen_states(self):
-        """Save current state of all phase screens using pre-allocated buffers."""
+        """Save current state using references."""
         saved = []
-        for i, ps in enumerate(self.infinite_phasescreens):
-            # Use in-place copy for the large matrix to avoid extra allocations
-            self.xp.copyto(self.state_full_scrn_backups[i], ps.full_scrn)
+        for ps in self.infinite_phasescreens:
             saved.append({
-                'random_data_col': ps.random_data_col.copy() \
-                    if ps.random_data_col is not None else None,
-                'random_data_row': ps.random_data_row.copy() \
-                    if ps.random_data_row is not None else None
+                'full_scrn': ps.full_scrn,
+                'random_data_col': ps.random_data_col,
+                'random_data_row': ps.random_data_row
             })
         return saved
 
     def _restore_phase_screen_states(self, saved_states):
-        """Restore phase screens to saved state using pre-allocated buffers."""
+        """Restore phase screens using references."""
         for i, ps in enumerate(self.infinite_phasescreens):
-            # Restore the matrix in-place to avoid extra allocations
-            self.xp.copyto(ps.full_scrn, self.state_full_scrn_backups[i])
+            ps.full_scrn = saved_states[i]['full_scrn']
             ps.random_data_col = saved_states[i]['random_data_col']
             ps.random_data_row = saved_states[i]['random_data_row']
 
