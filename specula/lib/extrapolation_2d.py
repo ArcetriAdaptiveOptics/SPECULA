@@ -267,6 +267,9 @@ class EFInterpolator():
             raise ValueError("Output shape must have the same aspect ratio"
                              " as input ElectricField size.")
 
+        if magnification < 1e-6:
+            raise ValueError("Magnification must be greater than 1e-6 to avoid numerical issues.")
+
         oversampling_factor = out_shape[0] / in_ef.size[0]
 
         self.debug_output = False
@@ -344,8 +347,11 @@ class EFInterpolator():
                           rotAnglePhInDeg=None, magnification=None):
         """Re-initialize the internal Interp2D object with new misalignment parameters."""
 
+        if magnification < 1e-6:
+            raise ValueError("Magnification must be greater than 1e-6 to avoid numerical issues.")
+
         # Retrieve current parameters if not provided
-        current_rot = -self.interp.rot_angle * 180.0 / np.pi 
+        current_rot = -self.interp.rot_angle * 180.0 / np.pi
 
         new_x = xShiftPhInPixel if xShiftPhInPixel is not None else float(self.interp.shift_x)
         new_y = yShiftPhInPixel if yShiftPhInPixel is not None else float(self.interp.shift_y)

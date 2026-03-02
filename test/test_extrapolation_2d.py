@@ -243,6 +243,22 @@ class TestExtrapolation2D(unittest.TestCase):
                         "Extrapolation should not fail completely, should have some valid indices.")
 
     @cpu_and_gpu
+    def test_efinterpolator_magnification_zero(self, target_device_idx, xp):
+        """
+        Test that when magnification is 0 a ValueError is raised with an appropriate message.
+        """
+        ef_size = (32, 32)
+        pixel_pitch = 0.01
+        ef_in = ElectricField(ef_size[0], ef_size[1], pixel_pitch,
+                              target_device_idx=target_device_idx)
+        ef_in.A[:] = 1.0
+
+        with self.assertRaises(ValueError) as ctx:
+            EFInterpolator(ef_in, (64, 64), magnification=0.0)
+
+        self.assertIn("Magnification must be greater than 1e-6", str(ctx.exception))
+
+    @cpu_and_gpu
     def test_cache_sharing_between_instances(self, target_device_idx, xp):
         """
         Test that multiple EFInterpolator instances share the same cached arrays
