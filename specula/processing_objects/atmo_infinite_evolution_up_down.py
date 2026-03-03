@@ -182,84 +182,19 @@ class AtmoInfiniteEvolutionUpDown(AtmoInfiniteEvolution):
         self.last_t = self.current_time
 
     def _save_phase_screen_states(self):
-        """Save current state of all phase screens."""
+        """Save current state using references."""
         saved = []
         for ps in self.infinite_phasescreens:
             saved.append({
-                'full_scrn': ps.full_scrn.copy(),
-                'random_data_col': ps.random_data_col.copy() \
-                    if ps.random_data_col is not None else None,
-                'random_data_row': ps.random_data_row.copy() \
-                    if ps.random_data_row is not None else None
+                'full_scrn': ps.full_scrn,
+                'random_data_col': ps.random_data_col,
+                'random_data_row': ps.random_data_row
             })
         return saved
 
     def _restore_phase_screen_states(self, saved_states):
-        """Restore phase screens to saved state."""
+        """Restore phase screens using references."""
         for i, ps in enumerate(self.infinite_phasescreens):
             ps.full_scrn = saved_states[i]['full_scrn']
             ps.random_data_col = saved_states[i]['random_data_col']
             ps.random_data_row = saved_states[i]['random_data_row']
-
-    def _process_propagation_direction(self, wind_speed, wind_direction,
-                                       delta_position, extra_delta_time,
-                                       last_position, last_effective_position,
-                                       acc_rows, acc_cols, layer_list):
-        """Process one propagation direction (up or down)."""
-
-        extra_offset = wind_speed * extra_delta_time / self.pixel_pitch
-        effective_position = last_position + delta_position + extra_offset
-        effective_delta_position = effective_position - last_effective_position
-
-        eps = 1e-4
-
-        for ii, phase_screen in enumerate(self.infinite_phasescreens):
-            w_y_comp = np.cos(2 * np.pi * wind_direction[ii] / 360.0)
-            w_x_comp = np.sin(2 * np.pi * wind_direction[ii] / 360.0)
-
-            frac_rows, rows_to_add = np.modf(
-                effective_delta_position[ii] * w_y_comp + acc_rows[ii]
-            )
-            sr = int(np.sign(rows_to_add))
-
-            frac_cols, cols_to_add = np.modf(
-                effective_delta_position[ii] * w_x_comp + acc_cols[ii]
-            )
-            sc = int(np.sign(cols_to_add))
-
-            # Add integer lines
-            if np.abs(w_y_comp) > eps:
-                for r in range(int(np.abs(rows_to_add))):
-                    phase_screen.add_line(1, sr)
-            if np.abs(w_x_comp) > eps:
-                for r in range(int(np.abs(cols_to_add))):
-                    phase_screen.add_line(0, sc)
-
-            phase_screen0_all = phase_screen.scrnRawAll.copy()
-            phase_screen0 = phase_screen.scrnRaw.copy()
-
-            # Fractional interpolation
-            srf = int(np.sign(frac_rows))
-            scf = int(np.sign(frac_cols))
-
-            if np.abs(frac_rows) > eps:
-                phase_screen.add_line(1, srf, False)
-            if np.abs(frac_cols) > eps:
-                phase_screen.add_line(0, scf, False)
-
-            phase_screen1 = phase_screen.scrnRaw
-            interpfactor = np.sqrt(frac_rows**2 + frac_cols**2)
-            layer_phase = interpfactor * phase_screen1 + (1.0 - interpfactor) * phase_screen0
-
-            phase_screen.full_scrn = phase_screen0_all
-            acc_rows[ii] = frac_rows
-            acc_cols[ii] = frac_cols
-
-            layer_list[ii].field[:] = self.xp.stack((layer_phase, layer_phase))
-            layer_list[ii].phaseInNm *= self.scale_coeff * self.xp.sqrt(self.Cn2[ii])
-            layer_list[ii].A = 1
-            layer_list[ii].generation_time = self.current_time
-
-        # Update positions
-        last_position[:] = last_position + delta_position
-        last_effective_position[:] = effective_position
