@@ -6,7 +6,7 @@ main:
   pixel_pupil:       160                   # Must match influence function computation
   pixel_pitch:       0.0513                # [m] 8.2m / 160 pixels = 0.0513 m/pixel (Nyquist sampling of 10cm r0)
   total_time:        1.000                 # [s] 1 second simulation
-  time_step:         0.0005                # [s] 0.5ms time steps (2 kHz)
+  time_step:         0.00025                # [s] 0.5ms time steps (2 kHz)
   zenithAngleInDeg:  0.0                   # [deg] Zenith observation (0 means no airmass)
   display_server:    false                 # Disable for batch runs
 
@@ -111,7 +111,7 @@ slopes:
     in_pixels:        'cred1.out_pixels'
   outputs:           ['out_slopes']
 
-modalrec:
+pyr_modalrec:
   class:             'Modalrec'
   recmat_object:     'pyr_1200modes_rec'        # Reconstruction matrix tag
   inputs:
@@ -123,7 +123,7 @@ modalrec:
 zwfs:
   class:              'ZernikeSensor'
   simul_params_ref:   'main'
-  pup_diam:           48.                     # Pupil diameter in subaps.
+  pup_diam:           20.                     # Pupil diameter in subaps.
   fov:                2.5                     # Requested field-of-view [arcsec]
   spot_radius_lambda: 1.0                     # Spot radius in λ/D units
   phase_shift:        1.5707963267948966      # Spot phase delay (pi/2)
@@ -136,7 +136,7 @@ ocam2:
   class:             'CCD'
   simul_params_ref:  'main'
   size:              [60,60]             # Total detector size
-  dt:                0.0005               # [s] Integration time (4000 fps)
+  dt:                0.00025               # [s] Integration time (4000 fps)
   bandw:             300                   # [nm]
   photon_noise:      true                  # Enable photon noise
   readout_noise:     true                  # Enable read noise
@@ -150,14 +150,14 @@ ocam2:
 
 zwfs_slopes:
   class:             'ZwfsSlopec'
-  diameter:          48
+  diameter:          20.0
   ccd_size:          [60,60]
   obsratio:          0.0
   inputs:
     in_pixels:        'ocam2.out_pixels'
   outputs:           ['out_slopes']
 
-modalrec:
+zwfs_modalrec:
   class:             'Modalrec'
   recmat_object:     'zwfs_100modes_rec'        # Reconstruction matrix tag
   inputs:
@@ -177,12 +177,22 @@ modalrec:
 #   outputs:           ['out_comm']
 
 filter:
+  class: 'MultirateComplementaryFilter'
+  simul_params_ref:     'main'
+  delay:                1 # Total temporal delay in time steps is this value +1
+  iir_filter_data_object:  'iirfilter'  
+  inputs:
+    delta_comm: 'pyr_modalrec.out_modes'
+    delta_comm: 'zwfs_modalrec.out_modes'
+  outputs:  ['out_comm']
+
+filter:
   class:                'IirFilter'
   simul_params_ref:     'main'
   delay:                1 # Total temporal delay in time steps is this value +1
   iir_filter_data_object:  'iirfilter'
   inputs:
-    delta_comm: 'modalrec.out_modes'
+    delta_comm: 'pyr_modalrec.out_modes'
   outputs:  ['out_comm']
 
 dm:

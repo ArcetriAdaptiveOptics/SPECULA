@@ -58,7 +58,7 @@ plt.colorbar()
 ########################## Rec ###############################
 
 
-rec_hdu = fits.open('./calibration/rec/zwfs_1200modes_rec.fits')
+rec_hdu = fits.open('./calibration/rec/zwfs_100modes_rec.fits')
 zwfs_rec = rec_hdu[1].data
 
 x = np.arange(np.shape(pyr_rec)[0])
