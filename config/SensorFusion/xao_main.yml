@@ -123,11 +123,11 @@ modalrec:
 zwfs:
   class:              'ZernikeSensor'
   simul_params_ref:   'main'
-  pup_diam:           20.                     # Pupil diameter in subaps.
-  fov:                3.0                     # Requested field-of-view [arcsec]
-  spot_radius_lambda: 2.0                     # Spot radius in λ/D units
+  pup_diam:           48.                     # Pupil diameter in subaps.
+  fov:                2.5                     # Requested field-of-view [arcsec]
+  spot_radius_lambda: 1.0                     # Spot radius in λ/D units
   phase_shift:        1.5707963267948966      # Spot phase delay (pi/2)
-  output_resolution:  40                     # Output sampling [usually corresponding to CCD pixels]
+  output_resolution:  60                     # Output sampling [usually corresponding to CCD pixels]
   wavelengthInNm:     750                     # [nm] zWFS wavelength
   inputs:
     in_ef: 'ef_prop.out_ef' 
@@ -135,7 +135,7 @@ zwfs:
 ocam2:
   class:             'CCD'
   simul_params_ref:  'main'
-  size:              [40,40]             # Total detector size
+  size:              [60,60]             # Total detector size
   dt:                0.0005               # [s] Integration time (4000 fps)
   bandw:             300                   # [nm]
   photon_noise:      true                  # Enable photon noise
@@ -150,8 +150,8 @@ ocam2:
 
 zwfs_slopes:
   class:             'ZwfsSlopec'
-  diameter:          20
-  ccd_size:          [40,40]
+  diameter:          48
+  ccd_size:          [60,60]
   obsratio:          0.0
   inputs:
     in_pixels:        'ocam2.out_pixels'

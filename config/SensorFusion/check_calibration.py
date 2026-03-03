@@ -62,10 +62,11 @@ rec_hdu = fits.open('./calibration/rec/zwfs_1200modes_rec.fits')
 zwfs_rec = rec_hdu[1].data
 
 x = np.arange(np.shape(pyr_rec)[0])
+z = np.arange(np.shape(zwfs_rec)[0])
 
 plt.figure()
 plt.plot(x,np.diag(pyr_rec @ pyr_rec.T),label='pyWFS')
-plt.plot(x,np.diag(zwfs_rec @ zwfs_rec.T),label='z2WFS')
+plt.plot(z,np.diag(zwfs_rec @ zwfs_rec.T),label='z2WFS')
 plt.legend()
 plt.xscale('log')
 plt.yscale('log')
