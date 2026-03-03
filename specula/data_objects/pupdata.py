@@ -69,10 +69,10 @@ class PupData(BaseDataObj):
 
     def zcorrection(self, indpup):
         tmp = indpup.copy()
-        if tmp.shape[1] == 3:
+        if tmp.shape[1] == 4:
             tmp[:, 2], tmp[:, 3] = indpup[:, 3], indpup[:, 2]
-        else:
-            raise ValueError(f'zcorrection not implemented for {tmp.shape[1]:1.0f} pupils')
+        # else:
+        #     raise ValueError(f'zcorrection not implemented for {tmp.shape[1]:1.0f} pupils')
         return tmp
 
     def set_slopes_from_intensity(self, value: bool = True):
@@ -89,7 +89,7 @@ class PupData(BaseDataObj):
             #     self.pupil_idx(1)[self.pupil_idx(1) >= 0],  # B  
             #     self.pupil_idx(2)[self.pupil_idx(2) >= 0],  # C
             #     self.pupil_idx(3)[self.pupil_idx(3) >= 0]   # D
-            return self.xp.concatenate([self.pupil_idx(i)[self.pupil_idx(i) >= 0] for i in range(1)])
+            return self.xp.concatenate([self.pupil_idx(i)[self.pupil_idx(i) >= 0] for i in range(self.n_pupils)])
         else:
             mask = self.single_mask()
             return self.xp.ravel_multi_index(self.xp.where(mask), mask.shape)
@@ -102,7 +102,7 @@ class PupData(BaseDataObj):
 
     def complete_mask(self):
         f = self.xp.zeros(self.framesize, dtype=self.dtype)
-        for i in range(self.n_pupils()):
+        for i in range(self.n_pupils):
             self.xp.put(f, self.pupil_idx(i), 1)
         return f
 
