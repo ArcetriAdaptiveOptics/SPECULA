@@ -3,7 +3,7 @@ from astropy.io import fits
 import numpy as np
 import matplotlib.pyplot as plt
 
-from specula.lib.make_mask import make_mask
+# from specula.lib.make_mask import make_mask
 
 sn_hdu = fits.open('./calibration/slopenulls/pyr_slope_null.fits')
 sn = sn_hdu[1].data
@@ -12,7 +12,6 @@ plt.subplot(2,1,1)
 plt.plot(sn)
 plt.grid()
 plt.title('Slope nulls')
-
 rec_hdu = fits.open('./calibration/rec/pyr_1200modes_rec.fits')
 pyr_rec = rec_hdu[1].data
 sn_modes = pyr_rec @ sn
@@ -24,17 +23,7 @@ plt.grid()
 plt.title('Slope null modes')
 plt.tight_layout()
 
-rec_hdu = fits.open('./calibration/rec/zwfs_100modes_rec.fits')
-zwfs_rec = rec_hdu[1].data
-
-plt.figure()
-plt.plot(np.diag(pyr_rec @ pyr_rec.T))
-plt.plot(np.diag(zwfs_rec @ zwfs_rec.T))
-plt.xscale('log')
-plt.yscale('log')
-plt.grid()
-plt.title('Reconstructor covariance')
-
+############################### Pupdata ##########################
 npix = 120
 np_size = (npix,npix)
 
@@ -65,5 +54,24 @@ plt.imshow(masked_frame,origin='lower',cmap='RdBu')
 plt.title(f'Pupil diameter = {2*np.mean(rad):1.1f} pix')
 plt.colorbar()
 # plt.tight_layout()
+
+########################## Rec ###############################
+
+
+rec_hdu = fits.open('./calibration/rec/zwfs_1200modes_rec.fits')
+zwfs_rec = rec_hdu[1].data
+
+x = np.arange(np.shape(pyr_rec)[0])
+
+plt.figure()
+plt.plot(x,np.diag(pyr_rec @ pyr_rec.T),label='pyWFS')
+plt.plot(x,np.diag(zwfs_rec @ zwfs_rec.T),label='z2WFS')
+plt.legend()
+plt.xscale('log')
+plt.yscale('log')
+plt.grid()
+plt.title('Reconstructor covariance')
+
+
 
 plt.show()

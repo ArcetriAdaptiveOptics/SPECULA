@@ -70,5 +70,5 @@ if __name__ == "__main__":
     rec,rec_tag = compute_pyr_rec(Nmodes=1200)
     save_rec(rec, rec_tag=rec_tag)
 
-    rec,rec_tag = compute_zwfs_rec(Nmodes=100)
+    rec,rec_tag = compute_zwfs_rec(Nmodes=1200)
     save_rec(rec, rec_tag=rec_tag)
