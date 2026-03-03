@@ -15,7 +15,7 @@ class ZernikeSensor(ModulatedPyramid):
                  output_resolution,
                  spot_radius_lambda: float=1.0,  # Spot radius in λ/D units
                  phase_shift: float = 3.141592653589793 / 2,  # π/2 phase shift
-                 fft_res: float = 16.0,
+                 fft_res: float = 8.0,
                  target_device_idx=None,
                  precision=None):
 
