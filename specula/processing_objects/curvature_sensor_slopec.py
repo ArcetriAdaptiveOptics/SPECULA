@@ -1,67 +1,81 @@
 from specula.processing_objects.slopec import Slopec
 from specula.connections import InputValue
 from specula.data_objects.pixels import Pixels
+from specula.data_objects.slopes import Slopes
 
 class CurvatureSensorSlopec(Slopec):
+    """
+    Slope Computer for Curvature Wavefront Sensor.
+    Computes the normalized difference between intra-focal and extra-focal fluxes.
+    """
     def __init__(self,
-                 cwfs_geometry, # A custom object that contains the segment map
+                 cwfs_geometry, # The CurvatureSensorGeometry object
+                 sn: Slopes=None,
+                 target_device_idx: int=None,
+                 precision: int=None,
                  **kwargs):
 
-        # Save the geometry (which contains n_subaps)
+        # Geometry must be set BEFORE calling super().__init__
+        # because the base class calls self.nslopes() which uses self.geometry.
         self.geometry = cwfs_geometry
 
-        super().__init__(**kwargs)
+        super().__init__(sn=sn, target_device_idx=target_device_idx, precision=precision, **kwargs)
 
-        # CWFS needs 2 inputs (I1 and I2)
-        # Rename the base inputs
-        del self.inputs['in_pixels']
+        # Modify Inputs: CWFS requires two images (Intra/Extra focal)
+        if 'in_pixels' in self.inputs:
+            del self.inputs['in_pixels']
+
         self.inputs['in_pixels1'] = InputValue(type=Pixels)
         self.inputs['in_pixels2'] = InputValue(type=Pixels)
 
-        self.mask_matrix = None  # To be allocated in setup
-
-        # Pre-allocate vectors for the fluxes
+        # Pre-allocate variables
+        self.mask_matrix = None
         self._flux1 = None
         self._flux2 = None
+
 
     def nsubaps(self):
         return self.geometry.n_subaps
 
+
     def nslopes(self):
-        # In CWFS, each subaperture has 1 measurement (curvature), not 2 (X,Y)
+        # 1 signal per subaperture (curvature)
         return self.geometry.n_subaps
+
 
     def setup(self):
         super().setup()
-        # Allocate the sparse or 3D mask matrix on GPU
-        # shape: (n_subaps, total_N_pixels)
-        self.mask_matrix = self.to_xp(self.geometry.get_flattened_masks())
+
+        # 1. Get the flattened mask matrix from the geometry object
+        self.mask_matrix = self.geometry.get_flattened_masks()
+
+        # 2. Allocate flux vectors
         self._flux1 = self.xp.zeros(self.nsubaps(), dtype=self.dtype)
         self._flux2 = self.xp.zeros(self.nsubaps(), dtype=self.dtype)
 
-    def trigger_code(self):
-        # No FOR loops here! Fully vectorized for the GPU.
 
-        # 1. Retrieve the flat (1D) images
+    def trigger_code(self):
+        # 1. Flatten input images
         p1 = self.local_inputs['in_pixels1'].pixels.ravel()
         p2 = self.local_inputs['in_pixels2'].pixels.ravel()
 
-        # 2. Integrate the flux in the sectors via matrix multiplication
-        # mask_matrix is [n_subaps, n_pixels], p1 is [n_pixels]
-        # The result is a vector [n_subaps]
+        # 2. Integrate flux using Matrix Multiplication
+        # (N_sectors, N_pix) @ (N_pix) -> (N_sectors)
         self._flux1[:] = self.mask_matrix @ p1
         self._flux2[:] = self.mask_matrix @ p2
 
-        # 3. Calculate the signal S = (I1 - I2) / (I1 + I2)
+        # 3. Compute Curvature Signal
         sum_flux = self._flux1 + self._flux2
 
         # Avoid division by zero
-        sum_flux = self.xp.where(sum_flux < 1e-6, 1.0, sum_flux)
+        sum_flux = self.xp.where(sum_flux < 1e-9, 1.0, sum_flux)
 
         signal = (self._flux1 - self._flux2) / sum_flux
 
-        # 4. Write to the Slopes object (used here to store curvature)
+        # 4. Store results
         self.slopes.slopes[:] = signal
 
-        # Update the flux metric for telemetry
+        # Update telemetry
         self.flux_per_subaperture_vector.value[:] = sum_flux
+        self.total_counts.value[0] = self.xp.sum(sum_flux)
+        self.subap_counts.value[0] = self.xp.mean(sum_flux)

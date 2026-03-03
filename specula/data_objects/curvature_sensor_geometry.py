@@ -10,11 +10,11 @@ class CurvatureSensorGeometry(BaseDataObj):
     Curvature Wavefront Sensor Geometry object.
     Holds the 3D mask array for subaperture integration.
     """
-    def __init__(self, 
-                 size_pixels: int = 0, 
-                 rings_config: list = None, 
-                 masks=None, 
-                 target_device_idx: int = None, 
+    def __init__(self,
+                 size_pixels: int = 0,
+                 rings_config: list = None,
+                 masks=None,
+                 target_device_idx: int = None,
                  precision: int = None):
         """
         Initialize a CurvatureSensorGeometry object.

@@ -13,6 +13,15 @@ Convolution Kernel
    :show-inheritance:
 
 
+Curvature Sensor Geometry
+-------------------------
+
+.. automodule:: specula.data_objects.curvature_sensor_geometry
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Electric Field
 --------------
 
