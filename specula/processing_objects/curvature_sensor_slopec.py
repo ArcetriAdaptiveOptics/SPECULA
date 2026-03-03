@@ -11,6 +11,7 @@ class CurvatureSensorSlopec(Slopec):
     def __init__(self,
                  cwfs_geometry, # The CurvatureSensorGeometry object
                  sn: Slopes=None,
+                 interleave: bool=False,
                  target_device_idx: int=None,
                  precision: int=None):
 
@@ -18,7 +19,8 @@ class CurvatureSensorSlopec(Slopec):
         # because the base class calls self.nslopes() which uses self.geometry.
         self.geometry = cwfs_geometry
 
-        super().__init__(sn=sn, target_device_idx=target_device_idx, precision=precision)
+        super().__init__(sn=sn, interleave=interleave,
+                         target_device_idx=target_device_idx, precision=precision)
 
         # Modify Inputs: CWFS requires two images (Intra/Extra focal)
         if 'in_pixels' in self.inputs:
