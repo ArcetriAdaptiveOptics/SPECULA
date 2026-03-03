@@ -32,7 +32,7 @@ class Slopes(BaseDataObj):
             self.indices_y = self.indices_x + 1
         else:
             self.indices_x = self.xp.arange(0, self.size // 2)
-            self.indices_y = self.indices_x + self.size // 2
+            self.indices_y = self.xp.arange(self.size//2, self.size) # ensure that no element is discarded if self.size is odd
 
     def get_value(self):
         '''

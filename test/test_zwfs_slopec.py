@@ -10,7 +10,7 @@ from specula.data_objects.pixels import Pixels
 from specula.data_objects.slopes import Slopes
 from specula.processing_objects.zwfs_slopec import ZwfsSlopec
 
-# from test.specula_testlib import cpu_and_gpu
+from test.specula_testlib import cpu_and_gpu
 
 class TestSlopec(unittest.TestCase):
 
@@ -20,25 +20,28 @@ class TestSlopec(unittest.TestCase):
         pixels.pixels = xp.arange(25,  dtype=xp.uint16).reshape((5,5))
         pixels.generation_time = 1
 
-        slopec = ZwfsSlopec(radius=1, ccd_size=(5,5), target_device_idx=target_device_idx)
+        slopec = ZwfsSlopec(diameter=3, ccd_size=(5,5), target_device_idx=target_device_idx)
         slopec.inputs['in_pixels'].set(pixels)
         slopec.check_ready(1)
         slopec.trigger()
         slopec.post_trigger()
         slopes = slopec.outputs['out_slopes']
 
-        s1 = cpuArray(slopes.slopes)
-        np.testing.assert_array_almost_equal(s1, (pixels.pixels[2:5,2:5]).flatten())
+        pix_in_pupil = cpuArray(pixels.pixels[1:4,1:4]).flatten()
+        want = pix_in_pupil / (xp.mean(pix_in_pupil))
+
+        got = cpuArray(slopes.slopes)
+        np.testing.assert_array_almost_equal(got, want)
 
     @cpu_and_gpu
     def test_zernslopec_slopesnull(self, target_device_idx, xp):
         pixels = Pixels(5, 5, target_device_idx=target_device_idx)
         pixels.pixels = xp.arange(25,  dtype=xp.uint16).reshape((5,5))
         pixels.generation_time = 1
-        sn = Slopes(slopes=np.arange(9), target_device_idx=target_device_idx)
+        sn = Slopes(slopes=np.arange(9)/9, target_device_idx=target_device_idx)
 
-        slopec1 = ZwfsSlopec(radius=1, ccd_size=(5,5), target_device_idx=target_device_idx)
-        slopec2 = ZwfsSlopec(radius=1, ccd_size=(5,5), sn=sn, target_device_idx=target_device_idx)
+        slopec1 = ZwfsSlopec(diameter=3, ccd_size=(5,5), target_device_idx=target_device_idx)
+        slopec2 = ZwfsSlopec(diameter=3, ccd_size=(5,5), sn=sn, target_device_idx=target_device_idx)
         slopec1.inputs['in_pixels'].set(pixels)
         slopec2.inputs['in_pixels'].set(pixels)
         slopec1.check_ready(1)
@@ -50,6 +53,8 @@ class TestSlopec(unittest.TestCase):
         slopes1 = slopec1.outputs['out_slopes']
         slopes2 = slopec2.outputs['out_slopes']
 
+        np.testing.assert_equal(cpuArray(sn.xslopes),np.arange(9)[:4]/9) # ensure sn can handle an odd number of elements
+        np.testing.assert_equal(cpuArray(sn.yslopes),np.arange(9)[4:]/9) # ensure sn can handle an odd number of elements
         np.testing.assert_array_almost_equal(cpuArray(slopes2.slopes),
                                              cpuArray(slopes1.slopes - sn.slopes))
 
@@ -63,7 +68,7 @@ class TestSlopec(unittest.TestCase):
         pixels.pixels = xp.arange(25, dtype=xp.uint16).reshape((5, 5))
         pixels.generation_time = 1
 
-        slopec = ZwfsSlopec(radius=1, ccd_size=(5,5), target_device_idx=target_device_idx)
+        slopec = ZwfsSlopec(diameter=3, ccd_size=(5,5), target_device_idx=target_device_idx)
         slopec.inputs['in_pixels'].set(pixels)
         slopec.check_ready(1)
         slopec.trigger()
@@ -74,8 +79,8 @@ class TestSlopec(unittest.TestCase):
         total_counts = slopec.outputs['out_total_counts'].value
         subap_counts = slopec.outputs['out_subap_counts'].value
 
-        expected_flux = xp.array([xp.sum(pixels.pixels[2:5,2:5])
-        ], dtype=slopec.dtype)
+        expected_flux = xp.array((pixels.pixels[1:4,1:4]).flatten()
+        , dtype=slopec.dtype)
 
         # Verify flux_per_subaperture
         np.testing.assert_array_almost_equal(cpuArray(flux_per_subap),
