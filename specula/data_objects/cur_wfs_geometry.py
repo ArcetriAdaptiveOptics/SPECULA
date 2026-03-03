@@ -67,12 +67,10 @@ class CurWfsGeometry(BaseDataObj):
                     theta_min = -np.pi + i * d_theta
                     theta_max = theta_min + d_theta
                     sector_mask = (theta >= theta_min) & (theta < theta_max)
-
-                        # Float conversion is important for matrix multiplication later
                     cpu_masks[idx, :, :] = (ring_mask & sector_mask).astype(np.float32)
                     idx += 1
 
-                    # Copy the array to the correct device (Cupy if GPU, Numpy if CPU)
+            # Copy the array to the correct device (Cupy if GPU, Numpy if CPU)
             self.masks = self.to_xp(cpu_masks, dtype=self.dtype)
 
         else:
