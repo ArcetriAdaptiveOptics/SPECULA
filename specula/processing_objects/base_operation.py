@@ -137,13 +137,9 @@ class BaseOperation(BaseProcessingObj):
 
         elif not self.constant_max is None:
             self.out_value.value = self.xp.maximum(value1,self.constant_max)
-            # self.out_value.value[:] = self.xp.ones_like(value1) * self.constant_max
-            # self.out_value.value[value1>self.constant_max] = value1[value1>self.constant_max]
 
         elif not self.constant_min is None:
             self.out_value.value = self.xp.minimum(value1,self.constant_min)
-            # self.out_value.value[:] = self.xp.ones_like(value1) * self.constant_min
-            # self.out_value.value[value1<self.constant_min] = value1[value1<self.constant_min]
 
         else:
             value2 = self.local_inputs['in_value2'].value
