@@ -18,7 +18,7 @@ class BaseInserter(BaseProcessingObj):
     slice_args : list of [src_slice_args, dest_slice_args] pairs, optional
         Each pair defines a slice in the input and output vectors.
         Example: slice_args=[[0,3], [2,5]] inserts src[0:3] into dest[2:5].
-        Multiple pairs: slice_args=[[0,2],[0,2]], [[2,4],[5,7]]]
+        Multiple pairs: slice_args=[[[0,2],[0,2]], [[2,4],[5,7]]]
     """
 
     def __init__(self,
