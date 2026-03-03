@@ -3,13 +3,13 @@ from specula.connections import InputValue
 from specula.data_objects.pixels import Pixels
 from specula.data_objects.slopes import Slopes
 
-class CurvatureSensorSlopec(Slopec):
+class CurWfsSlopec(Slopec):
     """
     Slope Computer for Curvature Wavefront Sensor.
     Computes the normalized difference between intra-focal and extra-focal fluxes.
     """
     def __init__(self,
-                 cwfs_geometry, # The CurvatureSensorGeometry object
+                 cwfs_geometry, # The CurWFSGeometry object
                  sn: Slopes=None,
                  interleave: bool=False,
                  target_device_idx: int=None,

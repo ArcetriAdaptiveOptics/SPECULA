@@ -5,7 +5,7 @@ from specula import cpuArray
 from specula.base_data_obj import BaseDataObj
 
 
-class CurvatureSensorGeometry(BaseDataObj):
+class CurWfsGeometry(BaseDataObj):
     """
     Curvature Wavefront Sensor Geometry object.
     Holds the 3D mask array for subaperture integration.
@@ -17,7 +17,7 @@ class CurvatureSensorGeometry(BaseDataObj):
                  target_device_idx: int = None,
                  precision: int = None):
         """
-        Initialize a CurvatureSensorGeometry object.
+        Initialize a CurWFSGeometry object.
 
         Parameters
         ----------
@@ -130,7 +130,7 @@ class CurvatureSensorGeometry(BaseDataObj):
         import numpy as np
         empty_masks = np.zeros((n_subaps, size_pix, size_pix), dtype=np.float32)
 
-        return CurvatureSensorGeometry(masks=empty_masks,
+        return CurWfsGeometry(masks=empty_masks,
                                        target_device_idx=target_device_idx)
 
     @staticmethod
@@ -145,6 +145,6 @@ class CurvatureSensorGeometry(BaseDataObj):
             masks = hdul[0].data
             size_pixels = hdr.get('SIZEPIX', masks.shape[1])
 
-        return CurvatureSensorGeometry(size_pixels=size_pixels,
+        return CurWfsGeometry(size_pixels=size_pixels,
                             masks=masks,
                             target_device_idx=target_device_idx)

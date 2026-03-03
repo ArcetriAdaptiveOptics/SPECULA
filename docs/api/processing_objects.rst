@@ -148,19 +148,19 @@ Ccd
    :show-inheritance:
 
 
-Curvature Sensor
-----------------
+Cur Wfs Slopec
+--------------
 
-.. automodule:: specula.processing_objects.curvature_sensor
+.. automodule:: specula.processing_objects.cur_wfs_slopec
    :members:
    :undoc-members:
    :show-inheritance:
 
 
-Curvature Sensor Slopec
------------------------
+Curvature Sensor
+----------------
 
-.. automodule:: specula.processing_objects.curvature_sensor_slopec
+.. automodule:: specula.processing_objects.curvature_sensor
    :members:
    :undoc-members:
    :show-inheritance:

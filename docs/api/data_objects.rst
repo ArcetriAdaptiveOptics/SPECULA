@@ -13,10 +13,10 @@ Convolution Kernel
    :show-inheritance:
 
 
-Curvature Sensor Geometry
--------------------------
+Cur Wfs Geometry
+----------------
 
-.. automodule:: specula.data_objects.curvature_sensor_geometry
+.. automodule:: specula.data_objects.cur_wfs_geometry
    :members:
    :undoc-members:
    :show-inheritance:

@@ -13,8 +13,8 @@ from specula.lib.zernike_generator import ZernikeGenerator
 
 # Import CWFS modules
 from specula.processing_objects.curvature_sensor import CurvatureSensor
-from specula.processing_objects.curvature_sensor_slopec import CurvatureSensorSlopec
-from specula.data_objects.curvature_sensor_geometry import CurvatureSensorGeometry
+from specula.processing_objects.cur_wfs_slopec import CurWfsSlopec
+from specula.data_objects.cur_wfs_geometry import CurWfsGeometry
 
 from test.specula_testlib import cpu_and_gpu
 
@@ -59,7 +59,7 @@ class TestCurvatureSensor(unittest.TestCase):
         size = 128
         config = self._get_config()
 
-        geo = CurvatureSensorGeometry(size_pixels=size, rings_config=config,
+        geo = CurWfsGeometry(size_pixels=size, rings_config=config,
                                       target_device_idx=target_device_idx)
 
         # Check dimensions
@@ -132,11 +132,11 @@ class TestCurvatureSensor(unittest.TestCase):
                                target_device_idx=target_device_idx)
 
         # Setup Geometry explicitly
-        geo = CurvatureSensorGeometry(size_pixels=size, rings_config=rings_config,
+        geo = CurWfsGeometry(size_pixels=size, rings_config=rings_config,
                                       target_device_idx=target_device_idx)
 
         # Setup Slopec passing the geometry object
-        slopec = CurvatureSensorSlopec(cwfs_geometry=geo,
+        slopec = CurWfsSlopec(cwfs_geometry=geo,
                                        target_device_idx=target_device_idx)
 
         # --- Setup Input with Zernike Focus ---
@@ -220,8 +220,8 @@ class TestCurvatureSensor(unittest.TestCase):
         # 2. Geometry instantiation
         # The manager would create this and pass it to Slopec,
         # but here we do it manually for testing.
-        geo = CurvatureSensorGeometry(target_device_idx=target_device_idx,
-                                      **geo_conf)
+        geo = CurWfsGeometry(target_device_idx=target_device_idx,
+                             **geo_conf)
 
         verbose = False
         if verbose: # pragma: no cover
@@ -240,9 +240,9 @@ class TestCurvatureSensor(unittest.TestCase):
 
         # 4. Slopec instantiation (Slope Computer)
         # Here we pass the geometry object explicitly, and the rest of the config via kwargs.
-        slopec = CurvatureSensorSlopec(cwfs_geometry=geo,
-                                       target_device_idx=target_device_idx,
-                                       **slopec_conf)
+        slopec = CurWfsSlopec(cwfs_geometry=geo,
+                              target_device_idx=target_device_idx,
+                              **slopec_conf)
 
         if verbose: # pragma: no cover
             print(f"[Config Test] Slopec linked to geometry with {slopec.nsubaps()} subaps.")
