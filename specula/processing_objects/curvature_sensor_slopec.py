@@ -12,14 +12,13 @@ class CurvatureSensorSlopec(Slopec):
                  cwfs_geometry, # The CurvatureSensorGeometry object
                  sn: Slopes=None,
                  target_device_idx: int=None,
-                 precision: int=None,
-                 **kwargs):
+                 precision: int=None):
 
         # Geometry must be set BEFORE calling super().__init__
         # because the base class calls self.nslopes() which uses self.geometry.
         self.geometry = cwfs_geometry
 
-        super().__init__(sn=sn, target_device_idx=target_device_idx, precision=precision, **kwargs)
+        super().__init__(sn=sn, target_device_idx=target_device_idx, precision=precision)
 
         # Modify Inputs: CWFS requires two images (Intra/Extra focal)
         if 'in_pixels' in self.inputs:
