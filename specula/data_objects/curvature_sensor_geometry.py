@@ -116,6 +116,24 @@ class CurvatureSensorGeometry(BaseDataObj):
         fits.writeto(filename, cpuArray(self.masks), hdr, overwrite=overwrite)
 
     @staticmethod
+    def from_header(hdr, target_device_idx=None):
+        """ Creates an empty object based on header info. """
+        version = hdr.get('VERSION')
+        if version != 1:
+            raise ValueError(f"Unknown version {version} in header")
+
+        n_subaps = hdr['NSUBAPS']
+        size_pix = hdr['SIZEPIX']
+
+        # Create empty object with correct dimensions
+        # We pass a zero-filled array to force correct shape initialization
+        import numpy as np
+        empty_masks = np.zeros((n_subaps, size_pix, size_pix), dtype=np.float32)
+
+        return CurvatureSensorGeometry(masks=empty_masks,
+                                       target_device_idx=target_device_idx)
+
+    @staticmethod
     def restore(filename, target_device_idx=None):
         """ Restores the object from a FITS file. """
         with fits.open(filename) as hdul:
@@ -126,7 +144,7 @@ class CurvatureSensorGeometry(BaseDataObj):
 
             masks = hdul[0].data
             size_pixels = hdr.get('SIZEPIX', masks.shape[1])
- 
+
         return CurvatureSensorGeometry(size_pixels=size_pixels,
                             masks=masks,
                             target_device_idx=target_device_idx)

@@ -223,7 +223,9 @@ class TestCurvatureSensor(unittest.TestCase):
         geo = CurvatureSensorGeometry(target_device_idx=target_device_idx,
                                       **geo_conf)
 
-        print(f"\n[Config Test] Geometry created with {geo.n_subaps} subaps.")
+        verbose = False
+        if verbose: # pragma: no cover
+            print(f"\n[Config Test] Geometry created with {geo.n_subaps} subaps.")
         self.assertEqual(geo.n_subaps, 5)
         self.assertEqual(geo.size, 128)
 
@@ -231,7 +233,8 @@ class TestCurvatureSensor(unittest.TestCase):
         cwfs = CurvatureSensor(target_device_idx=target_device_idx,
                                **sens_conf)
 
-        print(f"[Config Test] Sensor created for lambda={cwfs.wavelength_in_nm}nm.")
+        if verbose: # pragma: no cover
+            print(f"[Config Test] Sensor created for lambda={cwfs.wavelength_in_nm}nm.")
         self.assertEqual(cwfs.wavelength_in_nm, 700.0)
         self.assertEqual(cwfs.defocus_rms_nm, 150.0)
 
@@ -241,7 +244,8 @@ class TestCurvatureSensor(unittest.TestCase):
                                        target_device_idx=target_device_idx,
                                        **slopec_conf)
 
-        print(f"[Config Test] Slopec linked to geometry with {slopec.nsubaps()} subaps.")
+        if verbose: # pragma: no cover
+            print(f"[Config Test] Slopec linked to geometry with {slopec.nsubaps()} subaps.")
         self.assertEqual(slopec.nsubaps(), 5)
 
         # Verifies that setup works correctly with these configured objects.
