@@ -10,7 +10,7 @@ from specula.data_objects.pixels import Pixels
 from specula.data_objects.slopes import Slopes
 from specula.processing_objects.zwfs_slopec import ZwfsSlopec
 
-# from test.specula_testlib import cpu_and_gpu
+from test.specula_testlib import cpu_and_gpu
 
 class TestSlopec(unittest.TestCase):
 
