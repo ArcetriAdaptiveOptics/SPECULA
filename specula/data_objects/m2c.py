@@ -7,6 +7,11 @@ from specula.base_data_obj import BaseDataObj
 
 
 class M2C(BaseDataObj):
+    """
+    Modal to Command (M2C) matrix data object.
+    This class holds the M2C matrix, which is used to convert modal coefficients to actuator commands.
+    The M2C matrix is stored as [actuators, modes].
+    """
     def __init__(self,
                  m2c,
                  nmodes: int=None,

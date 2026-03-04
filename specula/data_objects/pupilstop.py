@@ -9,8 +9,11 @@ from specula.data_objects.simul_params import SimulParams
 from specula import cpuArray
 
 class Pupilstop(Layer):
-    '''Pupil stop'''
-
+    """
+    Pupil stop data object.
+    This class holds the information about the pupil stop,
+    i.e. the amplitude mask in the pupil plane.
+    """
     def __init__(self,
                  simul_params: SimulParams,
                  input_mask = None,

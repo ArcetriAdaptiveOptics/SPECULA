@@ -5,13 +5,11 @@ from specula.base_data_obj import BaseDataObj
 from specula import cpuArray
 
 class PupData(BaseDataObj):
-    '''
+    """
+    Pupil data object.
+    This class holds the information about the pupils of a Pyramid WFS (or a Zernike WFS).
     PupData includes an ind_pup array with the pixel indexes of each pupil, of shape [index, pupil].
-
-    TODO change by passing all the initializing arguments as __init__ parameters,
-    to avoid the later initialization (see test/test_slopec.py for an example),
-    where things can be forgotten easily
-    '''
+    """
     def __init__(self,
                  ind_pup=None,
                  radius=None,
@@ -20,6 +18,14 @@ class PupData(BaseDataObj):
                  framesize=None,
                  target_device_idx: int=None,
                  precision: int=None):
+        """
+        Note
+        ----
+        
+        TODO change by passing all the initializing arguments as __init__ parameters,
+        to avoid the later initialization (see test/test_slopec.py for an example),
+        where things can be forgotten easily.
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         # Initialize with provided data or defaults

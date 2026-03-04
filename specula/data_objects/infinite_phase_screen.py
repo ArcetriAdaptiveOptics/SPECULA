@@ -23,9 +23,13 @@ def cn2_to_seeing(cn2, wvl=500.e-9):
 
 
 class InfinitePhaseScreen(BaseDataObj):
-
-    def __init__(self, mx_size, pixel_scale, r0, L0, random_seed=None, stencil_size_factor=1, xp=None,
-                 target_device_idx=None, precision=None):
+    """
+    Infinite Phase Screen Data object.
+    This class generates and holds an infinite phase screen generated using a stochastic
+    process that simulates atmospheric turbulence.
+    """
+    def __init__(self, mx_size, pixel_scale, r0, L0, random_seed=None, stencil_size_factor=1,
+                 xp=None, target_device_idx=None, precision=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.random_data_col = None

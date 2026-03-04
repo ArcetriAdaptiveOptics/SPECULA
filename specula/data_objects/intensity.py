@@ -5,7 +5,9 @@ from specula import cpuArray
 from specula.base_data_obj import BaseDataObj
 
 class Intensity(BaseDataObj):
-    '''Intensity field object'''
+    """
+    Intensity field data object.
+    """
     def __init__(self, 
                  dimx: int, 
                  dimy: int, 

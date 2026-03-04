@@ -9,12 +9,26 @@ from specula.base_data_obj import BaseDataObj
 
 
 class Lenslet(BaseDataObj):
+    """
+    Lenslet data object.
+    This class holds the information about the lenslet array, such as the number of lenses
+    and their positions.
+    """
     def __init__(self,
                  n_lenses: int=1,
                  target_device_idx:int =None,
                  precision:int =None):
         """
         Initialize a :class:`~specula.data_objects.lenslet.Lenslet` object.
+        
+        Parameters
+        ----------
+        n_lenses : int
+            The number of lenses in the lenslet array (default: 1).
+        target_device_idx : int, optional
+            Device index for computation (default: None).
+        precision : int, optional
+            Precision for computation (default: None).
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         self.n_lenses = n_lenses

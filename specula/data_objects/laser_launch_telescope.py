@@ -6,28 +6,11 @@ from specula.base_data_obj import BaseDataObj
 from specula.data_objects.simul_params import SimulParams
 
 class LaserLaunchTelescope(BaseDataObj):
-    '''
-    Laser Launch Telescope
-    
-    args:
-    ----------
-    simul_params : SimulParams
-        The simulation parameters object, required to get the zenith angle.
-    spot_size : float
-        The size of the laser spot in arcsec.
-    tel_position : list
-        The x, y and z position of the launch telescope w.r.t. the telescope in m.
-    beacon_focus : float
-        The distance from the telescope pupil to beacon focus in m.
-    beacon_tt : list
-        The tilt and tip of the beacon in arcsec.
-
-    TODO the empty tel_position array is actually significant, because
-         it is checked in the SH code to manage the kernels,
-         but gives some problems for the FITS header (when reading from disk,
-         it won't be empty anymore)
-    '''
-
+    """
+    Laser Launch Telescope data object.
+    This class holds the parameters of the laser launch telescope, such as spot size,
+    position, focus and tilt.
+    """
     def __init__(self,
                  simul_params: SimulParams = None,
                  spot_size: float = 0.0,
@@ -37,7 +20,26 @@ class LaserLaunchTelescope(BaseDataObj):
                  target_device_idx: int = None,
                  precision: int = None
         ):
+        """
+        Parameters
+        ----------
 
+        simul_params : SimulParams
+            The simulation parameters object, required to get the zenith angle.
+        spot_size : float
+            The size of the laser spot in arcsec.
+        tel_position : list
+            The x, y and z position of the launch telescope w.r.t. the telescope in m.
+        beacon_focus : float
+            The distance from the telescope pupil to beacon focus in m.
+        beacon_tt : list
+            The tilt and tip of the beacon in arcsec.
+
+        TODO the empty tel_position array is actually significant, because
+            it is checked in the SH code to manage the kernels,
+            but gives some problems for the FITS header (when reading from disk,
+            it won't be empty anymore)
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.simul_params = simul_params
