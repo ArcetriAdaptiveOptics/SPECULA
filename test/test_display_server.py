@@ -466,18 +466,8 @@ class TestDisplayParamsFiltering(unittest.TestCase):
     """
     The same filtering logic appears in both image-mode and data-mode handlers.
     We test it independently.
-    """
-
-    def _filter(self, params_dict):
-        display_params = {}
-        for k, v in params_dict.items():
-            if 'class' in v:
-                if v['class'] == 'DataStore':
-                    continue
-                if 'inputs' not in v and 'outputs' not in v:
-                    continue
-            display_params[k] = v
-        return display_params
+    """ 
+    from specula.lib.display_server_api import filter_params_for_display as _filter
 
     def test_datastore_excluded(self):
         params = {'ds': {'class': 'DataStore', 'inputs': ['x']}}

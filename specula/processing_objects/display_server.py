@@ -119,8 +119,7 @@ class DisplayServer(BaseProcessingObj):
                 
                 for name in object_names:
                     dataobj = self.data_obj_getter(name)
-                    if dataobj is None:
-                        dataobj = BaseValue(value=None)
+                    if dataobj is None:                        
                         continue
 
                     try:

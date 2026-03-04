@@ -49,20 +49,24 @@ def encode(fig):
     imgB64 = base64.b64encode(buf.getvalue()).decode('utf-8')
     return imgB64
 
+def filter_params_for_display(params_dict):
+    display_params = {}
+    for k, v in params_dict.items():
+        if 'class' in v:
+            if v['class'] == 'DataStore':
+                continue
+            if 'inputs' not in v and 'outputs' not in v:
+                continue
+        display_params[k] = v
+    return display_params
+
 def setup_image_mode_handlers():
     @sio.on('connect')
     def handle_image_connect(*args):        
         client_id = request.sid
         server.client_types[client_id] = 'web'
-
-        display_params = {}
-        for k, v in server.params_dict.items():
-            if 'class' in v:
-                if v['class'] == 'DataStore':
-                    continue
-                if 'inputs' not in v and 'outputs' not in v:
-                    continue
-            display_params[k] = v
+        
+        display_params = filter_params_for_display(server.params_dict)
         
         sio.emit('params', display_params, room=client_id)
 
@@ -92,14 +96,7 @@ def setup_data_mode_handlers():
         server.client_types[client_id] = 'dpg'
         server.client_subscriptions[client_id] = set()
         
-        display_params = {}
-        for k, v in server.params_dict.items():
-            if 'class' in v:
-                if v['class'] == 'DataStore':
-                    continue
-                if 'inputs' not in v and 'outputs' not in v:
-                    continue
-            display_params[k] = v
+        display_params = filter_params_for_display(server.params_dict)
         
         sio.emit('params', display_params, room=client_id)
 
