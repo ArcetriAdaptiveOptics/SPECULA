@@ -5,43 +5,12 @@ from specula.data_objects.simul_params import SimulParams
 
 
 class AtmoInfiniteEvolutionUpDown(AtmoInfiniteEvolution):
-    """Atmospheric infinite phase screens evolution with separate layer lists
-    for upward and downward propagation.
-    
-    This class extends AtmoInfiniteEvolution to provide two independent layer
-    lists with different extra_delta_time values. Due to the stateful nature
-    of InfinitePhaseScreen.add_line(), temporary copies are made during trigger.
-    
-    Parameters
-    ----------
-    simul_params : SimulParams
-        Simulation parameters object containing global simulation settings.
-    L0 : list
-        Outer scale(s) of turbulence for each layer in meters.
-    heights : list
-        Heights of the atmospheric layers in meters (at zenith).
-    Cn2 : list
-        Fractional Cn2 values for each layer (must sum to 1.0).
-    extra_delta_time_down : float or list, optional
-        Extra time offset for downward propagation in seconds. Default is 0.
-    extra_delta_time_up : float or list, optional
-        Extra time offset for upward propagation in seconds. Default is 0.
-    fov : float, optional
-        Field of view in arcseconds. Default is 0.0.
-    seed : int, optional
-        Seed for random number generation. Must be >0. Default is 1.
-    verbose : bool, optional
-        If True, enables verbose output. Default is False.
-    fov_in_m : float, optional
-        Field of view in meters. If provided, overrides fov parameter. Default is None.
-    pupil_position : list, optional
-        [x, y] position of the pupil in meters. Default is [0, 0].
-    target_device_idx : int, optional
-        Target device index for computation (CPU/GPU). Default is None.
-    precision : int, optional
-        Precision for computation (0 for double, 1 for single). Default is None.
     """
-
+    Atmospheric infinite phase screens evolution processing object
+    with separate layer lists for upward and downward propagation.
+    This class extends AtmoInfiniteEvolution to provide two independent layer
+    lists with different extra_delta_time values.
+    """
     def __init__(self,
                  simul_params: SimulParams,
                  L0: list = [1.0],
@@ -56,7 +25,37 @@ class AtmoInfiniteEvolutionUpDown(AtmoInfiniteEvolution):
                  pupil_position: list = [0, 0],
                  target_device_idx: int = None,
                  precision: int = None):
-
+        """
+        Parameters
+        ----------
+        simul_params : SimulParams
+            Simulation parameters object containing global simulation settings.
+        L0 : list
+            Outer scale(s) of turbulence for each layer in meters.
+        heights : list
+            Heights of the atmospheric layers in meters (at zenith).
+        Cn2 : list
+            Fractional Cn2 values for each layer (must sum to 1.0).
+        extra_delta_time_down : float or list, optional
+            Extra time offset for downward propagation in seconds. Default is 0.
+        extra_delta_time_up : float or list, optional
+            Extra time offset for upward propagation in seconds. Default is 0.
+        fov : float, optional
+            Field of view in arcseconds. Default is 0.0.
+        seed : int, optional
+            Seed for random number generation. Must be >0. Default is 1.
+        verbose : bool, optional
+            If True, enables verbose output. Default is False.
+        fov_in_m : float, optional
+            Field of view in meters. If provided, overrides fov parameter. Default is None.
+        pupil_position : list, optional
+            [x, y] position of the pupil in meters. Default is [0, 0].
+        target_device_idx : int, optional
+            Target device index for computation (CPU/GPU). Default is None (uses global setting).
+        precision : int, optional
+            Precision for computation (0 for double, 1 for single). Default is None
+            (uses global setting).
+        """
         # Initialize with down extra_delta_time
         super().__init__(
             simul_params=simul_params,

@@ -7,11 +7,10 @@ from specula.lib.demodulate_signal import demodulate_signal
 
 class Demodulator(BaseProcessingObj):
     """
-    Demodulator for modal amplitude estimation.
+    Demodulator processing object for modal amplitude estimation.
     Demodulates input signals using carrier frequencies and outputs scalar values
     representing modal amplitudes.
     """
-
     def __init__(self,
                  simul_params: SimulParams,
                  mode_numbers: list,

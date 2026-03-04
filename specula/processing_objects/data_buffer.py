@@ -6,7 +6,10 @@ from specula.base_value import BaseValue
 
 
 class DataBuffer(BaseProcessingObj):
-    '''Data buffering object - accumulates data and outputs it every N steps'''
+    """
+    Data buffering processing object.
+    Accumulates data and outputs it every N steps.
+    """
 
     def __init__(self, buffer_size: int = 10):
         super().__init__()

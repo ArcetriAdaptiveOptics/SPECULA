@@ -9,7 +9,10 @@ from specula.lib.utils import import_class
 
 
 class DataSource(BaseProcessingObj):
-    '''Data source object'''
+    """
+    Data source processing object.
+    Loads data from files and outputs it based on the current time.
+    """
 
     def __init__(self,
                 outputs: list,         # TODO =[],

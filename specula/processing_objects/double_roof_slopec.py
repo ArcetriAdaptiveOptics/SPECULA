@@ -5,6 +5,7 @@ from specula.data_objects.slopes import Slopes
 
 class DoubleRoofSlopec(PyrSlopec):
     '''
+    Double roof slope computer processing object.
     A DoubleRoofSlopec is a standard pyramid slope computer,
     customized for the double-roof case.
     '''
@@ -41,4 +42,3 @@ class DoubleRoofSlopec(PyrSlopec):
         sx = (A - B) * factor  # roof2 horizontal separation
         sy = (D - C) * factor  # roof1 vertical separation after shift
         return sx, sy
-
