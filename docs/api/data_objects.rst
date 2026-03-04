@@ -13,6 +13,15 @@ Convolution Kernel
    :show-inheritance:
 
 
+Cur Wfs Geometry
+----------------
+
+.. automodule:: specula.data_objects.cur_wfs_geometry
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Electric Field
 --------------
 
