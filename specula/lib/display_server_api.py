@@ -200,7 +200,7 @@ class ImageFlaskServer:
         def connect():
             if not self.frontend_connected:
                 try:
-                    sio_client.connect('http://localhost:8080')
+                    sio_client.connect(f'http://{self.host}:{self.port}')
                     self.frontend_connected = True
                 except:
                     pass
@@ -325,7 +325,7 @@ class DataFlaskServer:
         def connect():
             if not self.frontend_connected:
                 try:
-                    sio_client.connect('http://localhost:8080')
+                    sio_client.connect(f'http://{self.host}:{self.port}')                    
                     self.frontend_connected = True
                 except:
                     pass
