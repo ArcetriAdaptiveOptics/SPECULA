@@ -18,7 +18,7 @@ def get_properties(cls):
 
 
 class BaseDataObj(BaseTimeObj):
-    def __init__(self, target_device_idx=None, precision=None):
+    def __init__(self, target_device_idx: int=None, precision: int=None):
         """
         Initialize the base data object.
 

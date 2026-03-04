@@ -13,7 +13,7 @@ class PhaseDisplay(BaseDisplay):
                  figsize=(8, 6)):  # Default size in inches
         super().__init__(
             title=title,
-            figsize=figsize
+            figsize=figsize            
         )
 
         # Setup input
