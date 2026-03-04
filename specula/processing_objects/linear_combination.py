@@ -6,9 +6,10 @@ from specula.processing_objects.dm import DM
 from specula.lib.platescale_coeff import platescale_coeff
 
 class LinearCombination(BaseProcessingObj):
-    '''
-    Linear combination of multiple input vectors, specialized for MORFEO-like systems
-    '''
+    """
+    Linear combination processing objects.
+    Combination of multiple input vectors, specialized for MORFEO-like systems
+    """
     def __init__(self,
                  simul_params: SimulParams,
                  no_focus: bool = False,

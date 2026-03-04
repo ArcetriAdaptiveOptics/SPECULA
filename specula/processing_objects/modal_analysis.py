@@ -12,7 +12,8 @@ from skimage.restoration import unwrap_phase
 
 class ModalAnalysis(BaseProcessingObj):
     '''
-    Decomposition of input ElectricField into modes defined
+    Modal analysis processing object. Decomposition of an
+    input ElectricField into modes defined
     by an influence function (e.g. Zernike polynomials).
     '''
     def __init__(self,

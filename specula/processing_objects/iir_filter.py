@@ -4,7 +4,9 @@ from specula.data_objects.simul_params import SimulParams
 
 
 class IirFilter(BaseFilter):
-    '''IIR filtering with optional integration control.
+    """ 
+    Infinite Impulse Response filter processing object.
+    Implements IIR filtering with optional integration control.
     
     Parameters
     ----------
@@ -28,7 +30,7 @@ class IirFilter(BaseFilter):
     When integration=False, the filter becomes purely feedforward (FIR),
     removing all feedback/memory from previous outputs while maintaining
     the gain characteristics defined by the numerator coefficients.
-    '''
+    """
 
     def __init__(self,
                  simul_params: SimulParams,

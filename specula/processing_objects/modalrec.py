@@ -7,7 +7,9 @@ from specula.data_objects.slopes import Slopes
 
 
 class Modalrec(BaseProcessingObj):
-    '''Modal reconstructor'''
+    """
+    Modal reconstructor processing object.
+    """
 
     def __init__(self,
                  nmodes: int=None,      # TODO =0,

@@ -5,7 +5,8 @@ from specula.data_objects.recmat import Recmat
 
 class ModalrecImplicitPolc(Modalrec):
     """
-    Modal reconstructor with implicit Pseudo Open Loop Control (POLC).
+    POLC modal reconstructor processing object. Modal reconstruction
+    with implicit Pseudo Open Loop Control (POLC).
     
     This class is used to reconstruct the slopes using the implicit POLC method.
     It uses the command matrix (C = P * R, P projection matrix and R reconstruction
