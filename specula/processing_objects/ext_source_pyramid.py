@@ -22,9 +22,10 @@ def pyr1_abs2(v, norm, ffv, xp):
 
 class ExtSourcePyramid(ModulatedPyramid):
     """
-    Pyramid wavefront sensor for extended sources.
+    Pyramid processing object for extended sources. Extends the ModulatedPyramid
+    processing object to handle extended sources.
     
-    This class extends ModulatedPyramid to handle extended sources by computing
+    Extended sources are handlded by computing
     pupil phases on-the-fly for each source point, reducing memory usage compared
     to pre-computing and storing all tip-tilt exponentials.
     
