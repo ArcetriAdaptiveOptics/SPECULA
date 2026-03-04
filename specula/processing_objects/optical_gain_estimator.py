@@ -7,6 +7,7 @@ from specula.base_value import BaseValue
 class OpticalGainEstimator(BaseProcessingObj):
     """
     Optical Gain Estimator based on demodulated signals.
+
     Uses two demodulated values (from delta-command and command) to estimate
     the optical gain of the system.
     

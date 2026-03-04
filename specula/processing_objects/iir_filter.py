@@ -4,9 +4,7 @@ from specula.data_objects.simul_params import SimulParams
 
 
 class IirFilter(BaseFilter):
-    '''Infinite Impulse Response filter based Time Control
-    
-    This class implements IIR filtering with optional integration control.
+    '''IIR filtering with optional integration control.
     
     Parameters
     ----------

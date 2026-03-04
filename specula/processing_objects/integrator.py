@@ -17,6 +17,7 @@ class Integrator(IirFilter):
                 ):
         """
         Integrator class for processing signals using an IIR filter.
+
         This class is a specialized version of the IirFilter class, designed to handle
         integration operations with specific gain and forgetting factor settings.
         """

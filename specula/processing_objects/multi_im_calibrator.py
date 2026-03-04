@@ -12,6 +12,9 @@ from specula.connections import InputList
 
 
 class MultiImCalibrator(BaseProcessingObj):
+    '''
+    Interaction matrix calibrator for multiple sources/sensors pairs
+    '''
     def __init__(self,
                  nmodes: int,
                  n_inputs: int,

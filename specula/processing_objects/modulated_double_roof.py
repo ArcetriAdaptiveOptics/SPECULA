@@ -20,6 +20,9 @@ def pyr1_abs2(v, norm, ffv, xp):
 
 
 class ModulatedDoubleRoof(ModulatedPyramid):
+    '''
+    Pyramid wavefront sensor with tip-tilt modulation and double roof
+    '''
     def __init__(self,
                  simul_params: SimulParams,
                  wavelengthInNm: float, # TODO =750,

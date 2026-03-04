@@ -7,6 +7,9 @@ from specula.connections import InputList
 
 
 class MultiRecCalibrator(BaseProcessingObj):
+    '''
+    Reconstruction matrix calibrator for multiple sources/sensors pairs
+    '''
     def __init__(self,
                  nmodes: int,
                  data_dir: str,         # Set by main simul object
