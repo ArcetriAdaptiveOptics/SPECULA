@@ -3,16 +3,15 @@ specula.init(0)  # Default target device
 
 import io
 import pickle
+import queue as _queue_module
 import queue
 import tempfile
 import threading
 import time
 import unittest
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch, PropertyMock, call
 import multiprocessing as mp
 import numpy as np
-
-import queue as _queue
 
 from specula.simul import Simul
 
@@ -28,41 +27,6 @@ def _make_mock_dataobj(array):
     obj.copyTo.return_value = obj
     obj.xp = np
     return obj
-
-
-def _drain_queue(q, max_items=200):
-    """Reliably drain all items from a queue.Queue (or mp.Queue).
-
-    mp.Queue.empty() is documented as unreliable because a background thread
-    moves items through a pipe; using get_nowait() inside try/except is the
-    only safe approach.
-    """
-    items = []
-    for _ in range(max_items):
-        try:
-            items.append(q.get_nowait())
-        except Exception:
-            break
-    return items
-
-
-class _PicklableDataObj:
-    """Minimal picklable stand-in for a specula data object.
-
-    MagicMock cannot be pickled, which breaks the image-mode trigger path that
-    calls pickle.dumps() on the object after copyTo().  This class provides the
-    same interface without the pickling problem.
-    """
-    def __init__(self, array):
-        self._array = array
-        # xp is stripped by remove_xp_np before pickling, so it's safe here
-        self.xp = np
-
-    def copyTo(self, device):
-        return _PicklableDataObj(self._array.copy())
-
-    def array_for_display(self):
-        return self._array
 
 
 # ---------------------------------------------------------------------------
@@ -300,12 +264,8 @@ class TestDisplayServerTrigger(unittest.TestCase):
             with patch('specula.processing_objects.display_server.start_server'):
                 server = DisplayServer.__new__(DisplayServer)
                 server.mode = mode
-                # Use thread-safe queue.Queue instead of mp.Queue:
-                # mp.Queue transfers data through a background pipe thread, so
-                # empty() / get_nowait() can race with items just put() in the
-                # same synchronous call — making assertions flaky.
-                server.qin = _queue.Queue()
-                server.qout = _queue.Queue()
+                server.qin = mp.Queue()
+                server.qout = mp.Queue()
                 server.params_dict = {}
                 server.counter = 0
                 server.t0 = time.time() - 2   # force speed report
@@ -323,18 +283,27 @@ class TestDisplayServerTrigger(unittest.TestCase):
         server.trigger()   # should not raise
 
     def test_trigger_image_mode_processes_request(self):
+        from specula.base_value import BaseValue
         server = self._make_server('image')
 
-        # MagicMock cannot be pickled; the image-mode trigger calls
-        # pickle.dumps() on the copyTo() result, so we need a real object.
-        dataobj = _PicklableDataObj(np.ones((3, 3)))
-        server.data_obj_getter = lambda name: dataobj
+        arr = np.ones((3, 3))
+        mock_obj = MagicMock()
+        mock_obj.copyTo.return_value = mock_obj
+        mock_obj.array_for_display.return_value = arr
+        # Remove xp so pickle works
+        if hasattr(mock_obj, 'xp'):
+            del mock_obj.xp
+
+        server.data_obj_getter = lambda name: mock_obj
         server.qin.put(('client_abc', ['obj1']))
 
         server.trigger()
 
         # At minimum the terminator should have been queued
-        items = _drain_queue(server.qout)
+        items = []
+        while not server.qout.empty():
+            items.append(server.qout.get_nowait())
+
         types = [i[0] for i in items if isinstance(i, tuple)]
         self.assertIn('image_terminator', types)
 
@@ -358,7 +327,10 @@ class TestDisplayServerTrigger(unittest.TestCase):
 
         server.trigger()
 
-        items = _drain_queue(server.qout)
+        items = []
+        while not server.qout.empty():
+            items.append(server.qout.get_nowait())
+
         types = [i[0] for i in items if isinstance(i, tuple)]
         self.assertIn('terminator', types)
 
@@ -369,10 +341,11 @@ class TestDisplayServerTrigger(unittest.TestCase):
 
         server.trigger()
 
-        # Speed report is a 2-tuple (name, status_string).
-        # Use _drain_queue rather than empty()/get_nowait() directly:
-        # mp.Queue.empty() is unreliable due to its background pipe thread.
-        items = _drain_queue(server.qout)
+        # Speed report is a 2-tuple (name, status_string)
+        items = []
+        while not server.qout.empty():
+            items.append(server.qout.get_nowait())
+
         two_tuples = [i for i in items if isinstance(i, tuple) and len(i) == 2]
         self.assertTrue(len(two_tuples) >= 1)
 
@@ -882,3 +855,836 @@ class TestStatusRoute(unittest.TestCase):
             self.assertEqual(data['connected_clients'], 0)
         finally:
             api.server = original
+
+
+# ===========================================================================
+# ADDITIONAL TESTS FOR HIGHER COVERAGE
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# Shared picklable stub and helpers
+# ---------------------------------------------------------------------------
+
+class _PicklableDataObj:
+    """Minimal picklable stand-in for a specula data object.
+
+    MagicMock cannot be pickled — the image-mode trigger calls pickle.dumps()
+    on the object returned by copyTo(), so we need a real Python class.
+    """
+    def __init__(self, array):
+        self._array = array
+        self.xp = np   # stripped by remove_xp_np before pickling
+
+    def copyTo(self, device):
+        return _PicklableDataObj(self._array.copy())
+
+    def array_for_display(self):
+        return self._array
+
+
+def _drain_queue(q, max_items=200):
+    """Reliably drain all items from a queue without relying on .empty()."""
+    items = []
+    for _ in range(max_items):
+        try:
+            items.append(q.get_nowait())
+        except Exception:
+            break
+    return items
+
+
+# ---------------------------------------------------------------------------
+# DisplayServer.__init__ and data_obj_getter closure
+# ---------------------------------------------------------------------------
+
+class TestDisplayServerInit(unittest.TestCase):
+
+    def _build(self, mode='image', input_getter=None, output_getter=None,
+               info_getter=None):
+        from specula.processing_objects.display_server import DisplayServer
+        input_getter = input_getter or (lambda name: object())
+        output_getter = output_getter or (lambda name: object())
+        info_getter = info_getter or (lambda: ('sim', 'running'))
+        with patch('specula.processing_objects.display_server.start_server'), \
+             patch('multiprocessing.Process') as mock_proc_cls:
+            mock_proc = MagicMock()
+            mock_proc.start.return_value = None
+            mock_proc_cls.return_value = mock_proc
+            srv = DisplayServer(
+                params_dict={'key': 'val'},
+                input_ref_getter=input_getter,
+                output_ref_getter=output_getter,
+                info_getter=info_getter,
+                mode=mode,
+            )
+        return srv
+
+    def test_init_image_mode_sets_attributes(self):
+        srv = self._build(mode='image')
+        self.assertEqual(srv.mode, 'image')
+        self.assertEqual(srv.counter, 0)
+        self.assertEqual(srv.speed_report, '')
+        self.assertIsNotNone(srv.data_obj_getter)
+
+    def test_init_data_mode(self):
+        srv = self._build(mode='data')
+        self.assertEqual(srv.mode, 'data')
+
+    def test_data_obj_getter_in_prefix_uses_input_getter(self):
+        sentinel = object()
+        srv = self._build(input_getter=lambda name: sentinel)
+        self.assertIs(srv.data_obj_getter('wfs.in_slopes'), sentinel)
+
+    def test_data_obj_getter_no_in_prefix_uses_output_getter(self):
+        sentinel = object()
+        srv = self._build(output_getter=lambda name: sentinel)
+        self.assertIs(srv.data_obj_getter('wfs.slopes'), sentinel)
+
+    def test_data_obj_getter_output_valueerror_falls_back_to_input(self):
+        fallback = object()
+        def raise_value_error(name):
+            raise ValueError('not found')
+        srv = self._build(
+            output_getter=raise_value_error,
+            input_getter=lambda name: fallback,
+        )
+        self.assertIs(srv.data_obj_getter('wfs.something'), fallback)
+
+    def test_data_obj_getter_outer_exception_returns_none(self):
+        def boom(name):
+            raise RuntimeError('unexpected')
+        srv = self._build(input_getter=boom, output_getter=boom)
+        self.assertIsNone(srv.data_obj_getter('bad.in_obj'))
+
+
+# ---------------------------------------------------------------------------
+# _process_for_dpg – previously uncovered branches
+# ---------------------------------------------------------------------------
+
+class TestProcessForDpgExtra(unittest.TestCase):
+
+    def _make_server(self):
+        from specula.processing_objects.display_server import DisplayServer
+        srv = DisplayServer.__new__(DisplayServer)
+        srv.mode = 'data'
+        srv.qin = _queue_module.Queue()
+        srv.qout = _queue_module.Queue()
+        srv.params_dict = {}
+        srv.counter = 0
+        srv.t0 = time.time()
+        srv.c0 = 0
+        srv.speed_report = ''
+        return srv
+
+    def test_list_mixed_dimensions_returns_multi_data(self):
+        srv = self._make_server()
+        o1, o2 = MagicMock(), MagicMock()
+        o1.array_for_display.return_value = np.ones(5)
+        o2.array_for_display.return_value = np.ones((3, 3))
+        result = srv._process_for_dpg([o1, o2], 'mixed')
+        self.assertEqual(result['type'], 'multi_data')
+        self.assertIn('shapes', result)
+        self.assertIn('dtypes', result)
+
+    def test_list_different_length_1d_returns_multi_data(self):
+        srv = self._make_server()
+        o1, o2 = MagicMock(), MagicMock()
+        o1.array_for_display.return_value = np.ones(5)
+        o2.array_for_display.return_value = np.ones(7)
+        result = srv._process_for_dpg([o1, o2], 'diff_len')
+        self.assertEqual(result['type'], 'multi_data')
+
+    def test_list_all_none_returns_unknown(self):
+        srv = self._make_server()
+        obj = MagicMock()
+        obj.array_for_display.return_value = None
+        obj.get.return_value = None
+        obj.__array__ = MagicMock(side_effect=TypeError)
+        obj.shape = None
+        obj.value = None
+        result = srv._process_for_dpg([obj], 'empty_list')
+        self.assertIn(result['type'], ('unknown', 'error'))
+
+    def test_value_attribute_fallback(self):
+        """Last-resort .value path when np.array() raises."""
+        srv = self._make_server()
+
+        class ObjWithValueOnly:
+            def __init__(self):
+                self.value = np.array([1.0, 2.0, 3.0])
+            def __array__(self, dtype=None):
+                raise ValueError('cannot convert')
+
+        result = srv._process_for_dpg(ObjWithValueOnly(), 'val_fb')
+        self.assertEqual(result['type'], '1d_array')
+
+    def test_shape_attribute_branch_converts_via_np_array(self):
+        """Object with .shape but not ndarray — converted via np.array(obj)."""
+        srv = self._make_server()
+
+        class HasShape:
+            shape = (4,)
+            def __array__(self, dtype=None):
+                return np.arange(4, dtype=np.float64)
+
+        result = srv._process_for_dpg(HasShape(), 'shaped')
+        self.assertEqual(result['type'], '1d_array')
+
+    def test_list_integer_arrays_cast_to_float32(self):
+        srv = self._make_server()
+        obj = MagicMock()
+        obj.array_for_display.return_value = np.array([1, 2, 3], dtype=np.int16)
+        result = srv._process_for_dpg([obj], 'int_list')
+        self.assertEqual(result['dtype'], 'float32')
+
+
+# ---------------------------------------------------------------------------
+# Trigger: list dataobj and error handling paths
+# ---------------------------------------------------------------------------
+
+class TestDisplayServerTriggerExtra(unittest.TestCase):
+
+    def _make_server(self, mode='image'):
+        from specula.processing_objects.display_server import DisplayServer
+        srv = DisplayServer.__new__(DisplayServer)
+        srv.mode = mode
+        srv.qin = _queue_module.Queue()
+        srv.qout = _queue_module.Queue()
+        srv.params_dict = {}
+        srv.counter = 0
+        srv.t0 = time.time() - 2
+        srv.c0 = 0
+        srv.speed_report = ''
+        srv.info_getter = lambda: ('sim', 'running')
+        return srv
+
+    def test_trigger_image_list_dataobj(self):
+        srv = self._make_server('image')
+        elems = [_PicklableDataObj(np.zeros(3)), _PicklableDataObj(np.ones(3))]
+        srv.data_obj_getter = lambda name: elems
+        srv.qin.put(('cli_list', ['multi_obj']))
+        srv.trigger()
+        items = _drain_queue(srv.qout)
+        self.assertIn('image_terminator', [i[0] for i in items if isinstance(i, tuple)])
+
+    def test_trigger_image_copyto_error_swallowed(self):
+        srv = self._make_server('image')
+        bad = MagicMock()
+        bad.copyTo.side_effect = RuntimeError('copy failed')
+        srv.data_obj_getter = lambda name: bad
+        srv.qin.put(('cli_err', ['bad_obj']))
+        srv.trigger()  # must not raise
+        items = _drain_queue(srv.qout)
+        self.assertIn('image_terminator', [i[0] for i in items if isinstance(i, tuple)])
+
+    def test_trigger_data_list_dataobj(self):
+        srv = self._make_server('data')
+        elems = [MagicMock(), MagicMock()]
+        for e in elems:
+            e.copyTo.return_value = e
+            e.array_for_display.return_value = np.ones(4)
+        srv.data_obj_getter = lambda name: elems
+        srv.qin.put(('cli_list', ['multi_obj']))
+        srv.trigger()
+        items = _drain_queue(srv.qout)
+        self.assertIn('terminator', [i[0] for i in items if isinstance(i, tuple)])
+
+    def test_trigger_data_xp_set_on_list_elements(self):
+        """copyTo results in a list that lack .xp must get xp=np injected."""
+        srv = self._make_server('data')
+
+        class NoXp:
+            def copyTo(self, device):
+                return self
+            def array_for_display(self):
+                return np.ones(3)
+
+        objs = [NoXp(), NoXp()]
+        srv.data_obj_getter = lambda name: objs
+        srv.qin.put(('cli_xp', ['obj']))
+        srv.trigger()
+        for o in objs:
+            self.assertIs(o.xp, np)
+
+    def test_trigger_data_copyto_error_appends_error_response(self):
+        srv = self._make_server('data')
+        bad = MagicMock()
+        bad.copyTo.side_effect = RuntimeError('copy failure')
+        srv.data_obj_getter = lambda name: bad
+        srv.qin.put(('cli_err', ['bad_obj']))
+        srv.trigger()
+        items = _drain_queue(srv.qout)
+        types = [i[0] for i in items if isinstance(i, tuple)]
+        self.assertIn('terminator', types)
+        error_items = [
+            i for i in items
+            if isinstance(i, tuple) and len(i) == 4
+            and i[0] == 'data_response'
+            and isinstance(i[3], dict) and i[3].get('type') == 'error'
+        ]
+        self.assertTrue(len(error_items) >= 1)
+
+
+# ---------------------------------------------------------------------------
+# start_server() – both modes
+# ---------------------------------------------------------------------------
+
+class TestStartServer(unittest.TestCase):
+
+    def _call(self, mode):
+        import specula.lib.display_server_api as api
+        from specula.lib.display_server_api import (
+            start_server, ImageFlaskServer, DataFlaskServer,
+        )
+        sq = mp.Queue()
+        rq = mp.Queue()
+        params = {'wfs': {'class': 'Sensor', 'inputs': ['p'], 'bad': object()}}
+        with patch.object(ImageFlaskServer, 'run'), \
+             patch.object(DataFlaskServer, 'run'), \
+             patch('threading.Thread'):
+            start_server(params, sq, rq, '0.0.0.0', 5000, mode)
+        return api.server
+
+    def test_image_mode_creates_image_server(self):
+        from specula.lib.display_server_api import ImageFlaskServer
+        self.assertIsInstance(self._call('image'), ImageFlaskServer)
+
+    def test_data_mode_creates_data_server(self):
+        from specula.lib.display_server_api import DataFlaskServer
+        self.assertIsInstance(self._call('data'), DataFlaskServer)
+
+    def test_non_serialisable_values_stripped(self):
+        import specula.lib.display_server_api as api
+        from specula.lib.display_server_api import start_server, ImageFlaskServer
+        sq, rq = mp.Queue(), mp.Queue()
+        params = {'obj': {'class': 'Sensor', 'inputs': ['p'], 'bad': object(), 'good': 42}}
+        with patch.object(ImageFlaskServer, 'run'), patch('threading.Thread'):
+            start_server(params, sq, rq, '0.0.0.0', 5000, 'image')
+        self.assertNotIn('bad', api.server.params_dict.get('obj', {}))
+        self.assertEqual(api.server.params_dict['obj']['good'], 42)
+
+
+# ---------------------------------------------------------------------------
+# shutdown() on both server types
+# ---------------------------------------------------------------------------
+
+class TestServerShutdown(unittest.TestCase):
+
+    def _make_image(self):
+        from specula.lib.display_server_api import ImageFlaskServer
+        with patch('threading.Thread'):
+            return ImageFlaskServer(params_dict={}, status_queue=mp.Queue(),
+                                    request_queue=mp.Queue())
+
+    def _make_data(self):
+        from specula.lib.display_server_api import DataFlaskServer
+        with patch('threading.Thread'):
+            return DataFlaskServer(params_dict={}, status_queue=mp.Queue(),
+                                   request_queue=mp.Queue())
+
+    def test_image_server_shutdown_calls_os_exit(self):
+        srv = self._make_image()
+        with patch('os._exit') as mock_exit:
+            srv.shutdown()
+        mock_exit.assert_called_once_with(0)
+
+    def test_data_server_shutdown_calls_os_exit(self):
+        srv = self._make_data()
+        with patch('os._exit') as mock_exit:
+            srv.shutdown()
+        mock_exit.assert_called_once_with(0)
+
+
+# ---------------------------------------------------------------------------
+# ImageFlaskServer.status_update – logic branches
+# ---------------------------------------------------------------------------
+
+class TestImageFlaskServerStatusUpdate(unittest.TestCase):
+
+    def _make_server(self):
+        from specula.lib.display_server_api import ImageFlaskServer
+        sq = _queue_module.Queue()
+        with patch('threading.Thread'):
+            srv = ImageFlaskServer(params_dict={}, status_queue=sq,
+                                   request_queue=_queue_module.Queue())
+        srv.actual_port = 5000
+        return srv, sq
+
+    def test_breaks_on_none_data(self):
+        srv, sq = self._make_server()
+        sq.put(('sim', None))
+        with patch('socketio.Client'):
+            t = threading.Thread(target=srv.status_update,
+                                 args=(MagicMock(),), daemon=True)
+            t.start()
+            t.join(timeout=3.0)
+        self.assertFalse(t.is_alive())
+
+    def test_emits_simul_update_on_status_tuple(self):
+        srv, sq = self._make_server()
+        mock_client = MagicMock()
+        sq.put(('sim_name', 'running at 10 Hz'))
+        sq.put(('sim_name', None))
+        with patch('socketio.Client', return_value=mock_client):
+            t = threading.Thread(target=srv.status_update,
+                                 args=(MagicMock(),), daemon=True)
+            t.start()
+            t.join(timeout=3.0)
+        mock_client.emit.assert_called()
+        self.assertEqual(mock_client.emit.call_args[0][0], 'simul_update')
+
+    def test_requeues_non_2tuple_items(self):
+        srv, sq = self._make_server()
+        sq.put(('image_terminator', 'cli1', None, '5 Hz'))  # 4-tuple → requeue
+        sq.put(('sim', None))
+        with patch('socketio.Client'):
+            t = threading.Thread(target=srv.status_update,
+                                 args=(MagicMock(),), daemon=True)
+            t.start()
+            t.join(timeout=3.0)
+        items = _drain_queue(sq)
+        self.assertTrue(any(isinstance(i, tuple) and len(i) == 4 for i in items))
+
+    def test_connection_error_resets_frontend_flag(self):
+        import socketio.exceptions
+        srv, sq = self._make_server()
+        srv.frontend_connected = True
+        mock_client = MagicMock()
+        mock_client.emit.side_effect = socketio.exceptions.ConnectionError()
+        sq.put(('sim', 'running'))
+        sq.put(('sim', None))
+        with patch('socketio.Client', return_value=mock_client), \
+             patch('time.sleep'):
+            t = threading.Thread(target=srv.status_update,
+                                 args=(MagicMock(),), daemon=True)
+            t.start()
+            t.join(timeout=3.0)
+        self.assertFalse(srv.frontend_connected)
+
+
+# ---------------------------------------------------------------------------
+# ImageFlaskServer.handle_image_responses – actual thread execution
+# ---------------------------------------------------------------------------
+
+class TestImageFlaskServerHandleResponsesActual(unittest.TestCase):
+
+    def _make_server(self):
+        from specula.lib.display_server_api import ImageFlaskServer
+        sq = _queue_module.Queue()
+        # Let the real daemon thread start so coverage is recorded
+        srv = ImageFlaskServer(params_dict={}, status_queue=sq,
+                               request_queue=_queue_module.Queue())
+        return srv, sq
+
+    def test_image_data_branch_emits_plot(self):
+        from specula.lib.display_server_api import sio
+        srv, sq = self._make_server()
+        srv.client_types['cli1'] = 'web'
+        obj_bytes = pickle.dumps(_PicklableDataObj(np.eye(3)))
+        mock_fig = MagicMock()
+        mock_fig.savefig.side_effect = lambda buf, fmt: buf.write(b'\x89PNG\r\n\x1a\n')
+        with patch.object(sio, 'emit') as mock_emit, \
+             patch('specula.lib.display_server_api.DataPlotter') as mock_dp:
+            mock_dp.plot_best_effort.return_value = mock_fig
+            sq.put(('image_data', 'cli1', 'slopes', obj_bytes))
+            time.sleep(0.3)
+        self.assertIn('plot', [c[0][0] for c in mock_emit.call_args_list])
+
+    def test_image_data_unknown_client_not_emitted(self):
+        from specula.lib.display_server_api import sio
+        srv, sq = self._make_server()
+        obj_bytes = pickle.dumps(_PicklableDataObj(np.zeros(4)))
+        with patch.object(sio, 'emit') as mock_emit:
+            sq.put(('image_data', 'ghost', 'slopes', obj_bytes))
+            time.sleep(0.3)
+        self.assertEqual(
+            len([c for c in mock_emit.call_args_list if c[0][0] == 'plot']), 0
+        )
+
+    def test_image_terminator_emits_done_in_thread(self):
+        from specula.lib.display_server_api import sio
+        srv, sq = self._make_server()
+        srv.client_types['cli1'] = 'web'
+        srv.t0['cli1'] = time.time() - 1.0
+        with patch.object(sio, 'emit') as mock_emit:
+            sq.put(('image_terminator', 'cli1', None, '10 Hz'))
+            time.sleep(0.3)
+        self.assertIn('done', [c[0][0] for c in mock_emit.call_args_list])
+
+    def test_2tuple_item_requeued_thread_survives(self):
+        srv, sq = self._make_server()
+        sq.put(('status_name', 'running'))
+        time.sleep(0.3)
+        self.assertTrue(srv.response_handler_thread.is_alive())
+
+
+# ---------------------------------------------------------------------------
+# DataFlaskServer.handle_responses – actual thread execution
+# ---------------------------------------------------------------------------
+
+class TestDataFlaskServerHandleResponsesActual(unittest.TestCase):
+
+    def _make_server(self):
+        from specula.lib.display_server_api import DataFlaskServer
+        sq = _queue_module.Queue()
+        srv = DataFlaskServer(params_dict={}, status_queue=sq,
+                              request_queue=_queue_module.Queue())
+        return srv, sq
+
+    def test_data_response_emits_data_update(self):
+        from specula.lib.display_server_api import sio
+        srv, sq = self._make_server()
+        srv.client_types['cli1'] = 'dpg'
+        with patch.object(sio, 'emit') as mock_emit:
+            sq.put(('data_response', 'cli1', 'slope',
+                    {'type': '1d_array', 'data': [1, 2]}))
+            time.sleep(0.3)
+        self.assertIn('data_update', [c[0][0] for c in mock_emit.call_args_list])
+
+    def test_terminator_emits_done(self):
+        from specula.lib.display_server_api import sio
+        srv, sq = self._make_server()
+        srv.client_types['cli1'] = 'dpg'
+        srv.t0['cli1'] = time.time() - 1.0
+        with patch.object(sio, 'emit') as mock_emit:
+            sq.put(('terminator', 'cli1', None, '15 Hz'))
+            time.sleep(0.3)
+        self.assertIn('done', [c[0][0] for c in mock_emit.call_args_list])
+
+    def test_2tuple_item_requeued_thread_survives(self):
+        srv, sq = self._make_server()
+        sq.put(('sim_name', 'running'))
+        time.sleep(0.3)
+        self.assertTrue(srv.response_handler_thread.is_alive())
+
+    def test_unknown_format_thread_survives(self):
+        srv, sq = self._make_server()
+        sq.put(('only_one',))  # 1-tuple → "Unknown item format" log
+        time.sleep(0.3)
+        self.assertTrue(srv.response_handler_thread.is_alive())
+
+    def test_unknown_client_not_emitted(self):
+        from specula.lib.display_server_api import sio
+        srv, sq = self._make_server()
+        with patch.object(sio, 'emit') as mock_emit:
+            sq.put(('data_response', 'ghost', 'slope', {}))
+            time.sleep(0.3)
+        self.assertEqual(len(mock_emit.call_args_list), 0)
+
+
+# ---------------------------------------------------------------------------
+# DataFlaskServer.status_update – logic branches
+# ---------------------------------------------------------------------------
+
+class TestDataFlaskServerStatusUpdate(unittest.TestCase):
+
+    def _make_server(self):
+        from specula.lib.display_server_api import DataFlaskServer
+        sq = _queue_module.Queue()
+        with patch('threading.Thread'):
+            srv = DataFlaskServer(params_dict={}, status_queue=sq,
+                                  request_queue=_queue_module.Queue())
+        srv.actual_port = 5000
+        return srv, sq
+
+    def test_breaks_on_none_data(self):
+        srv, sq = self._make_server()
+        sq.put(('sim', None))
+        with patch('socketio.Client'), patch('os._exit'):
+            t = threading.Thread(target=srv.status_update,
+                                 args=(MagicMock(),), daemon=True)
+            t.start()
+            t.join(timeout=3.0)
+        self.assertFalse(t.is_alive())
+
+    def test_skips_data_response_2tuples(self):
+        srv, sq = self._make_server()
+        sq.put(('data_response', 'x'))   # must be requeued, not consumed
+        sq.put(('sim', None))            # then break
+        with patch('socketio.Client'), patch('os._exit'):
+            t = threading.Thread(target=srv.status_update,
+                                 args=(MagicMock(),), daemon=True)
+            t.start()
+            t.join(timeout=3.0)
+        items = _drain_queue(sq)
+        self.assertIn(('data_response', 'x'), items)
+
+    def test_emits_simul_update_on_status(self):
+        srv, sq = self._make_server()
+        mock_client = MagicMock()
+        sq.put(('sim_name', 'running at 10 Hz'))
+        sq.put(('sim_name', None))
+        with patch('socketio.Client', return_value=mock_client), \
+             patch('os._exit'):
+            t = threading.Thread(target=srv.status_update,
+                                 args=(MagicMock(),), daemon=True)
+            t.start()
+            t.join(timeout=3.0)
+        mock_client.emit.assert_called()
+
+    def test_requeues_non_2tuple_items(self):
+        srv, sq = self._make_server()
+        sq.put(('terminator', 'cli1', None, '5 Hz'))  # 4-tuple → requeue
+        sq.put(('sim', None))
+        with patch('socketio.Client'), patch('os._exit'):
+            t = threading.Thread(target=srv.status_update,
+                                 args=(MagicMock(),), daemon=True)
+            t.start()
+            t.join(timeout=3.0)
+        items = _drain_queue(sq)
+        self.assertTrue(any(isinstance(i, tuple) and len(i) == 4 for i in items))
+
+    def test_queue_empty_calls_shutdown(self):
+        srv, sq = self._make_server()
+        mock_q = MagicMock()
+        mock_q.get.side_effect = _queue_module.Empty()
+        srv.status_queue = mock_q
+        with patch.object(srv, 'shutdown') as mock_shutdown, \
+             patch('socketio.Client'):
+            t = threading.Thread(target=srv.status_update,
+                                 args=(MagicMock(),), daemon=True)
+            t.start()
+            t.join(timeout=2.0)
+        mock_shutdown.assert_called()
+
+    def test_eoferror_calls_shutdown(self):
+        srv, sq = self._make_server()
+        mock_q = MagicMock()
+        mock_q.get.side_effect = EOFError()
+        srv.status_queue = mock_q
+        with patch.object(srv, 'shutdown') as mock_shutdown, \
+             patch('socketio.Client'):
+            t = threading.Thread(target=srv.status_update,
+                                 args=(MagicMock(),), daemon=True)
+            t.start()
+            t.join(timeout=2.0)
+        mock_shutdown.assert_called()
+
+    def test_generic_exception_calls_shutdown(self):
+        srv, sq = self._make_server()
+        mock_q = MagicMock()
+        mock_q.get.side_effect = RuntimeError('unexpected')
+        srv.status_queue = mock_q
+        with patch.object(srv, 'shutdown') as mock_shutdown, \
+             patch('socketio.Client'):
+            t = threading.Thread(target=srv.status_update,
+                                 args=(MagicMock(),), daemon=True)
+            t.start()
+            t.join(timeout=2.0)
+        mock_shutdown.assert_called()
+
+
+# ---------------------------------------------------------------------------
+# Socket.IO event handlers – image mode (via Flask-SocketIO test client)
+# ---------------------------------------------------------------------------
+
+class TestImageModeSocketHandlers(unittest.TestCase):
+
+    def setUp(self):
+        import specula.lib.display_server_api as api
+        from specula.lib.display_server_api import (
+            sio, app, ImageFlaskServer, setup_image_mode_handlers,
+        )
+        sio.handlers = {}
+        sio.namespace_handlers = {'/': {}}
+
+        sq = _queue_module.Queue()
+        rq = _queue_module.Queue()
+        with patch('threading.Thread'):
+            self.srv = ImageFlaskServer(
+                params_dict={
+                    'wfs': {'class': 'Sensor', 'inputs': ['pupil']},
+                    'ds':  {'class': 'DataStore', 'inputs': ['x']},
+                    'src': {'class': 'Source'},
+                    'cfg': {'root_dir': '/tmp'},
+                },
+                status_queue=sq,
+                request_queue=rq,
+            )
+        self.original_server = api.server
+        api.server = self.srv
+        setup_image_mode_handlers()
+        self.sio = sio
+        self.app = app
+        self.api = api
+        self.rq = rq
+
+    def tearDown(self):
+        self.api.server = self.original_server
+
+    def test_connect_registers_web_client_type(self):
+        tc = self.sio.test_client(self.app)
+        self.assertTrue(any(v == 'web' for v in self.srv.client_types.values()))
+        tc.disconnect()
+
+    def test_connect_emits_filtered_params(self):
+        tc = self.sio.test_client(self.app)
+        received = tc.get_received()
+        params_events = [e for e in received if e['name'] == 'params']
+        self.assertTrue(len(params_events) >= 1)
+        data = params_events[0]['args'][0]
+        self.assertIn('wfs', data)
+        self.assertNotIn('ds', data)
+        self.assertNotIn('src', data)
+        self.assertIn('cfg', data)
+        tc.disconnect()
+
+    def test_newdata_puts_request_on_queue(self):
+        tc = self.sio.test_client(self.app)
+        tc.emit('newdata', ['obj1', 'obj2'])
+        item = self.rq.get(timeout=1.0)
+        client_id, names = item
+        self.assertIsInstance(client_id, str)
+        self.assertEqual(names, ['obj1', 'obj2'])
+        tc.disconnect()
+
+    def test_newdata_sets_t0(self):
+        tc = self.sio.test_client(self.app)
+        tc.emit('newdata', ['obj1'])
+        time.sleep(0.05)
+        self.assertTrue(len(self.srv.t0) >= 1)
+        tc.disconnect()
+
+    def test_disconnect_clears_client_type_and_t0(self):
+        tc = self.sio.test_client(self.app)
+        tc.emit('newdata', ['obj1'])
+        time.sleep(0.05)
+        registered_ids = list(self.srv.client_types.keys())
+        tc.disconnect()
+        for cid in registered_ids:
+            self.assertNotIn(cid, self.srv.client_types)
+            self.assertNotIn(cid, self.srv.t0)
+
+
+# ---------------------------------------------------------------------------
+# Socket.IO event handlers – data mode (via Flask-SocketIO test client)
+# ---------------------------------------------------------------------------
+
+class TestDataModeSocketHandlers(unittest.TestCase):
+
+    def setUp(self):
+        import specula.lib.display_server_api as api
+        from specula.lib.display_server_api import (
+            sio, app, DataFlaskServer, setup_data_mode_handlers,
+        )
+        sio.handlers = {}
+        sio.namespace_handlers = {'/': {}}
+
+        sq = _queue_module.Queue()
+        rq = _queue_module.Queue()
+        with patch('threading.Thread'):
+            self.srv = DataFlaskServer(
+                params_dict={
+                    'wfs': {'class': 'Sensor', 'inputs': ['pupil']},
+                    'ds':  {'class': 'DataStore', 'inputs': ['x']},
+                },
+                status_queue=sq,
+                request_queue=rq,
+            )
+        self.original_server = api.server
+        api.server = self.srv
+        setup_data_mode_handlers()
+        self.sio = sio
+        self.app = app
+        self.api = api
+        self.rq = rq
+
+    def tearDown(self):
+        self.api.server = self.original_server
+
+    def test_connect_registers_dpg_client(self):
+        tc = self.sio.test_client(self.app)
+        self.assertTrue(any(v == 'dpg' for v in self.srv.client_types.values()))
+        tc.disconnect()
+
+    def test_connect_creates_subscription_set(self):
+        tc = self.sio.test_client(self.app)
+        for sid in self.srv.client_types:
+            self.assertIn(sid, self.srv.client_subscriptions)
+            self.assertIsInstance(self.srv.client_subscriptions[sid], set)
+        tc.disconnect()
+
+    def test_connect_emits_filtered_params(self):
+        tc = self.sio.test_client(self.app)
+        received = tc.get_received()
+        params_events = [e for e in received if e['name'] == 'params']
+        self.assertTrue(len(params_events) >= 1)
+        data = params_events[0]['args'][0]
+        self.assertIn('wfs', data)
+        self.assertNotIn('ds', data)
+        tc.disconnect()
+
+    def test_newdata_puts_request_on_queue(self):
+        tc = self.sio.test_client(self.app)
+        tc.emit('newdata', ['slope', 'phase'])
+        item = self.rq.get(timeout=1.0)
+        _, names = item
+        self.assertIn('slope', names)
+        tc.disconnect()
+
+    def test_newdata_updates_subscriptions(self):
+        tc = self.sio.test_client(self.app)
+        tc.emit('newdata', ['slope', 'phase'])
+        time.sleep(0.05)
+        self.assertTrue(
+            any('slope' in s for s in self.srv.client_subscriptions.values())
+        )
+        tc.disconnect()
+
+    def test_newdata_updates_last_request_outputs(self):
+        tc = self.sio.test_client(self.app)
+        tc.emit('newdata', ['slope'])
+        time.sleep(0.05)
+        self.assertIn('slope', self.srv.last_request_outputs)
+        tc.disconnect()
+
+    def test_get_params_emits_params(self):
+        tc = self.sio.test_client(self.app)
+        tc.get_received()  # drain connect events
+        tc.emit('get_params')
+        time.sleep(0.05)
+        received = tc.get_received()
+        self.assertTrue(any(e['name'] == 'params' for e in received))
+        tc.disconnect()
+
+    def test_set_client_type_updates_type(self):
+        tc = self.sio.test_client(self.app)
+        tc.emit('set_client_type', {'type': 'web'})
+        time.sleep(0.05)
+        self.assertTrue(any(v == 'web' for v in self.srv.client_types.values()))
+        tc.disconnect()
+
+    def test_set_client_type_default_is_dpg(self):
+        tc = self.sio.test_client(self.app)
+        tc.emit('set_client_type', {})
+        time.sleep(0.05)
+        self.assertTrue(any(v == 'dpg' for v in self.srv.client_types.values()))
+        tc.disconnect()
+
+    def test_unsubscribe_removes_output(self):
+        tc = self.sio.test_client(self.app)
+        tc.emit('newdata', ['slope', 'phase'])
+        time.sleep(0.05)
+        tc.emit('unsubscribe', {'output': 'slope'})
+        time.sleep(0.05)
+        self.assertTrue(
+            all('slope' not in s for s in self.srv.client_subscriptions.values())
+        )
+        tc.disconnect()
+
+    def test_unsubscribe_nonexistent_output_no_error(self):
+        tc = self.sio.test_client(self.app)
+        tc.emit('unsubscribe', {'output': 'nonexistent'})
+        time.sleep(0.05)
+        tc.disconnect()  # no exception expected
+
+    def test_disconnect_removes_from_all_dicts(self):
+        tc = self.sio.test_client(self.app)
+        tc.emit('newdata', ['slope'])
+        time.sleep(0.05)
+        registered_ids = list(self.srv.client_types.keys())
+        tc.disconnect()
+        for cid in registered_ids:
+            self.assertNotIn(cid, self.srv.client_types)
+            self.assertNotIn(cid, self.srv.t0)
+            self.assertNotIn(cid, self.srv.client_subscriptions)
