@@ -5,8 +5,8 @@
 pushpull:
   class:        'PushPullGenerator'
   nmodes:       1851                         # Number of DM actuators
-  amp:          15    
-  constant_amp: false #true
+  amp:          10   
+  constant_amp: true
   outputs:   ['output']
 
 # Interaction matrix calibrator
@@ -16,7 +16,7 @@ pyr_im_calibrator:
   im_tag:    'pyr_1851modes_im'            # Output IM filename
   overwrite: true                         # Overwrite existing files
   inputs:
-    in_slopes:   'slopes.out_slopes'      # WFS slopes input
+    in_slopes:   'pyr_slopes.out_slopes'      # WFS slopes input
     in_commands: 'pushpull.output'        # Push-pull commands
 
 zwfs_im_calibrator:
@@ -70,4 +70,4 @@ ocam2_override:
 
 # Remove unnecessary objects during calibration
 remove: ['atmo','seeing','wind_speed','wind_direction','data_store','atmo_mode_res', #'source_science',
-        'dm_mode_res','filter','psf','coro_psf', 'ef_prop','modalrec']
+        'dm_mode_res','filter','psf', 'ef_prop','pyr_modalrec', 'zwfs_modalrec']

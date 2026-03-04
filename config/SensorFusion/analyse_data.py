@@ -91,13 +91,35 @@ try:
     plt.figure(figsize=(12,5))
     plt.subplot(1,2,1)
     show_psf(psf, title='PSF\n'+tn, cmap='inferno', ext=0.6, maxVal=np.max(psf), vmin=-6)    
-    coro_psf = data["coro_psf"]
+    coro_psf = data["psf_std"]
     coro_psf = np.sqrt(np.mean(coro_psf[init+1:]**2,axis=0))
     plt.subplot(1,2,2)
     show_psf(coro_psf, title='Coronographic PSF\n'+tn, cmap='inferno', ext=0.6, maxVal=np.max(psf), vmin=-6)
 except FileNotFoundError:
     print(f"psf.fits file not found in {data_dir}.")
 
+
+##################### Modes ##########################
+try:
+    res = data['dm_res'][init+1:, :]
+    pywfs_modes = data['pyr_modes'][init+1:, :]
+    zwfs_modes = data['zwfs_modes'][init+1:, :]
+    x = np.arange(res.shape[1])+1+init
+    Nmodes = 3
+    plt.figure()
+    for i in range(Nmodes):
+        plt.plot(x, res[:,i],c=f'C{i:1.0f}')
+        plt.plot(x, pywfs_modes[:,i],'--',c=f'C{i:1.0f}')
+        plt.plot(x, zwfs_modes[:,i],':',c=f'C{i:1.0f}')
+    plt.xlabel('iteration #')
+    plt.ylabel('RMS [nm]')
+
+except FileNotFoundError:
+    print(f"pyr_modes.fits or zwfs_modes.fits file(s) not found in {data_dir}.")
+
+
+
+################# PSF profiles #######################
 try:
     psf_dl = data["ref_psf"][-1]
     psf = data["psf"]

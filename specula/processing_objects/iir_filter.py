@@ -36,11 +36,13 @@ class IirFilter(BaseFilter):
                  simul_params: SimulParams,
                  iir_filter_data: IirFilterData,
                  delay: float = 0,
+                 iir_gain: float = 1.0,
                  integration: bool = True,
                  target_device_idx=None,
                  precision=None):
 
         self.iir_filter_data = iir_filter_data
+        self.iir_gain = iir_gain
 
         super().__init__(
             simul_params=simul_params,
@@ -77,7 +79,7 @@ class IirFilter(BaseFilter):
         # Compute output
         factor = 1 / self.iir_filter_data.den[:, no - 1]
         num_contrib = self.xp.sum(
-            self.iir_filter_data.num * self._gain_mod[:, None] * self._ist, axis=1)
+            self.iir_gain * self.iir_filter_data.num * self._gain_mod[:, None] * self._ist, axis=1)
         den_contrib = self.xp.sum(
             self.iir_filter_data.den[:, :no - 1] * 
             self._den_mask[:, :no - 1] * 

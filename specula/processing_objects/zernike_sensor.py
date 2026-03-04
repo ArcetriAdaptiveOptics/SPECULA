@@ -36,7 +36,7 @@ class ZernikeSensor(ModulatedPyramid):
             pup_margin=1,
             min_pup_dist=1,
             fov_errinf=0.1,
-            fov_errsup=0.5,
+            fov_errsup=2.0,
             target_device_idx=target_device_idx,
             precision=precision
         )

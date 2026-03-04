@@ -40,25 +40,29 @@ for j in range(len(rad)):
     f2d = f.reshape(np_size)
     pup_masks += f2d
 
-frame_hdu = fits.open('./calibration/unmod_pyr_frame/ccd.fits')
+frame_hdu = fits.open('./calibration/slopenulls/ccd1.fits') #unmod_pyr_frame/ccd.fits')
 frame = frame_hdu[0].data[0]
 
 masked_frame = frame/frame.max() + pup_masks
 
-plt.figure()
-# plt.subplot(1,2,1)
-# plt.imshow(pup_masks,origin='lower',cmap='gray')
-# plt.subplot(1,2,2)
+plt.figure(figsize=(8,4))
+plt.subplot(1,2,1)
 plt.imshow(masked_frame,origin='lower',cmap='RdBu')
-# plt.colorbar(shrink=0.4)
-plt.title(f'Pupil diameter = {2*np.mean(rad):1.1f} pix')
+plt.title(f'PWFS pupils\nPupil diameter = {2*np.mean(rad):1.1f} pix')
 plt.colorbar()
-# plt.tight_layout()
+
+frame_hdu = fits.open('./calibration/slopenulls/ccd2.fits') #unmod_pyr_frame/ccd.fits')
+frame = frame_hdu[0].data[0]
+
+plt.subplot(1,2,2)
+plt.imshow(frame,origin='lower',cmap='RdBu')
+plt.title(f'ZWFS pupil')
+plt.colorbar()
 
 ########################## Rec ###############################
 
 
-rec_hdu = fits.open('./calibration/rec/zwfs_100modes_rec.fits')
+rec_hdu = fits.open('./calibration/rec/zwfs_1200modes_rec.fits')
 zwfs_rec = rec_hdu[1].data
 
 x = np.arange(np.shape(pyr_rec)[0])

@@ -66,7 +66,6 @@ if __name__ == "__main__":
     fs = 2000  # Frequenza di campionamento [Hz]
     excluded_filters = 20 
     n_filters = 1200
-    iir_gain = 0.4
 
     start_pole = [1.0, 0.995]
     end_pole = [0.85, 0.70] #[0.9, 0.75]
@@ -107,9 +106,9 @@ if __name__ == "__main__":
     num_list = []
     den_list = []
     for i in range(n_filters):
-        num_list.append([zero_values[i]*zero2_values[i]*iir_gain,
-                         -1*(zero_values[i]+zero2_values[i])*iir_gain, 
-                         1.00000*iir_gain])
+        num_list.append([zero_values[i]*zero2_values[i],
+                         -1*(zero_values[i]+zero2_values[i]), 
+                         1.0])
         den_list.append([pole_values[i]*pole2_values[i], 
                          -pole_values[i]-pole2_values[i], 1.0])
 

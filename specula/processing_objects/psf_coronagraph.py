@@ -111,9 +111,9 @@ class PsfCoronagraph(PSF):
                 avg_electric_field = self.xp.sum(electric_field * pupil_mask) / self.xp.sum(pupil_mask)
                 electric_field_corrected = electric_field - avg_electric_field * pupil_mask
             else:
-                phase_in_rad = phase[pupil_mask.astype(bool)]#* self.xp.pi*2/self.wavelengthInNm
-                phase_var = self.xp.sum((phase_in_rad-self.xp.mean(phase_in_rad))**2)/self.xp.sum(pupil_mask)
-                electric_field_corrected = pupil_mask * (self.xp.sqrt(self.xp.exp(-phase_var))-self.xp.exp(1j*phase, dtype=self.complex_dtype))
+                phase_in_rad = phase[pupil_mask.astype(bool)]
+                phase_var = self.xp.std(phase_in_rad)**2
+                electric_field_corrected = amp * (self.xp.sqrt(self.xp.exp(-phase_var))-self.xp.exp(1j*phase, dtype=self.complex_dtype))
         else:
             electric_field_corrected = electric_field
 

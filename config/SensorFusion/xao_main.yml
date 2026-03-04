@@ -5,7 +5,7 @@ main:
   root_dir:          './calibration'       # CalibManager root directory (all the data are in subdirectories)
   pixel_pupil:       160                   # Must match influence function computation
   pixel_pitch:       0.0513                # [m] 8.2m / 160 pixels = 0.0513 m/pixel (Nyquist sampling of 10cm r0)
-  total_time:        1.000                 # [s] 1 second simulation
+  total_time:        0.700                 # [s] 1 second simulation
   time_step:         0.00025                # [s] 0.5ms time steps (2 kHz)
   zenithAngleInDeg:  0.0                   # [deg] Zenith observation (0 means no airmass)
   display_server:    false                 # Disable for batch runs
@@ -103,7 +103,7 @@ cred1:
     in_i:            'pyr.out_i' 
   outputs:           ['out_pixels']
 
-slopes:
+pyr_slopes:
   class:             'PyrSlopec'
   pupdata_object:    'pyr_pupdata'            # tag of the pyramid WFS pupils
   # sn_object:         'pyr_slope_null'
@@ -115,7 +115,7 @@ pyr_modalrec:
   class:             'Modalrec'
   recmat_object:     'pyr_1200modes_rec'        # Reconstruction matrix tag
   inputs:
-    in_slopes:       'slopes.out_slopes'
+    in_slopes:       'pyr_slopes.out_slopes'
   outputs:           ['out_modes']
 
 
@@ -123,12 +123,13 @@ pyr_modalrec:
 zwfs:
   class:              'ZernikeSensor'
   simul_params_ref:   'main'
-  pup_diam:           20.                     # Pupil diameter in subaps.
-  fov:                2.5                     # Requested field-of-view [arcsec]
+  pup_diam:           48.                     # Pupil diameter in subaps.
+  fov:                2.0                     # Requested field-of-view [arcsec]
   spot_radius_lambda: 1.0                     # Spot radius in λ/D units
-  phase_shift:        1.5707963267948966      # Spot phase delay (pi/2)
+  # phase_shift:        1.5707963267948966      # Spot phase delay (pi/2)
+  fft_res:            16.0
   output_resolution:  60                     # Output sampling [usually corresponding to CCD pixels]
-  wavelengthInNm:     750                     # [nm] zWFS wavelength
+  wavelengthInNm:     1200                     # [nm] zWFS wavelength
   inputs:
     in_ef: 'ef_prop.out_ef' 
 
@@ -137,11 +138,11 @@ ocam2:
   simul_params_ref:  'main'
   size:              [60,60]             # Total detector size
   dt:                0.00025               # [s] Integration time (4000 fps)
-  bandw:             300                   # [nm]
+  bandw:             400                   # [nm]
   photon_noise:      true                  # Enable photon noise
   readout_noise:     true                  # Enable read noise
   excess_noise:      true                  # Enable excess noise
-  readout_level:     0.3                   # [e-/pix/frame] Read noise level
+  readout_level:     0.5                   # [e-/pix/frame] Read noise level
   emccd_gain:        400                   # EMCCD gain factor
   quantum_eff:       0.2                   # QE x transmission
   inputs:
@@ -150,7 +151,8 @@ ocam2:
 
 zwfs_slopes:
   class:             'ZwfsSlopec'
-  diameter:          20.0
+  # sn_object:         'zwfs_slope_null'
+  diameter:          49.0
   ccd_size:          [60,60]
   obsratio:          0.0
   inputs:
@@ -159,7 +161,7 @@ zwfs_slopes:
 
 zwfs_modalrec:
   class:             'Modalrec'
-  recmat_object:     'zwfs_100modes_rec'        # Reconstruction matrix tag
+  recmat_object:     'zwfs_1200modes_rec'        # Reconstruction matrix tag
   inputs:
     in_slopes:       'zwfs_slopes.out_slopes'
   outputs:           ['out_modes']
@@ -176,23 +178,27 @@ zwfs_modalrec:
 #     delta_comm:      'ogc_modes.out_value' #'modalrec.out_modes' #
 #   outputs:           ['out_comm']
 
-filter:
-  class: 'MultirateComplementaryFilter'
-  simul_params_ref:     'main'
-  delay:                1 # Total temporal delay in time steps is this value +1
-  iir_filter_data_object:  'iirfilter'  
-  inputs:
-    delta_comm: 'pyr_modalrec.out_modes'
-    delta_comm: 'zwfs_modalrec.out_modes'
-  outputs:  ['out_comm']
+# filter:
+#   class:                    'MultirateComplementaryFilter'
+#   simul_params_ref:         'main'
+#   delay:                    1             # Total temporal delay in time steps is this value +1
+#   iir_filter_data_object:  'iirfilter'  
+#   weights:                  [0.5,0.5]     # weigths for fast and slow measurements
+#   N_list:                   [2]           # ffast/slow frequency ratio (list)
+#   g_track:                  0.2           # gain
+#   inputs:
+#     in_ys: 'pyr_modalrec.out_modes'
+#     in_yf: 'zwfs_modalrec.out_modes'
+#   outputs:  ['out_comm']
 
 filter:
   class:                'IirFilter'
   simul_params_ref:     'main'
+  iir_gain:             0.4
   delay:                1 # Total temporal delay in time steps is this value +1
   iir_filter_data_object:  'iirfilter'
   inputs:
-    delta_comm: 'pyr_modalrec.out_modes'
+    delta_comm: 'pyr_modalrec.out_modes' #'zwfs_modalrec.out_modes' #
   outputs:  ['out_comm']
 
 dm:
@@ -219,19 +225,19 @@ psf:
   verbose: false
   inputs:
     in_ef:           'ef_prop.out_ef'
-  outputs:           ['out_psf', 'out_sr']
+  outputs:           ['out_psf', 'out_std_psf', 'out_sr']
 
-coro_psf:
-  class:             'PsfCoronagraph'
-  simul_params_ref:  'main'
-  wavelengthInNm:    750                 # [nm] visible
-  nd:                4                    # 4x padding for PSF
-  start_time:        0.5                  # Start PSF integration after 500ms
-  verbose: false
-  use_average_field: false
-  inputs:
-    in_ef:           'ef_prop.out_ef' 
-  outputs:           ['out_coronagraph_psf','out_std_coronagraph_psf']
+# coro_psf:
+#   class:             'PsfCoronagraph'
+#   simul_params_ref:  'main'
+#   wavelengthInNm:    750                 # [nm] visible
+#   nd:                4                    # 4x padding for PSF
+#   start_time:        0.5                  # Start PSF integration after 500ms
+#   verbose: false
+#   use_average_field: false
+#   inputs:
+#     in_ef:           'ef_prop.out_ef' 
+#   outputs:           ['out_coronagraph_psf','out_std_coronagraph_psf']
 
 
 dm_mode_res:
@@ -256,11 +262,13 @@ data_store:
     input_list: ['dm_cmd-filter.out_comm',
                   'sr-psf.out_sr',
                   'psf-psf.out_psf',
-                  'coro_psf-coro_psf.out_coronagraph_psf',
-                  'coro_psf_std-coro_psf.out_std_coronagraph_psf',
+                  'psf_std-psf.out_std_psf',
+                  # 'coro_psf_std-coro_psf.out_std_coronagraph_psf',
                   'atmo_res-atmo_mode_res.out_modes',
                   'dm_res-dm_mode_res.out_modes',
-                  'pyr_res-modalrec.out_modes',
-                  'ccd-cred1.out_pixels',]
+                  'pyr_modes-pyr_modalrec.out_modes',
+                  'zwfs_modes-zwfs_modalrec.out_modes',
+                  'ccd1-cred1.out_pixels',
+                  'ccd2-ocam2.out_pixels']
 
 # remove: ['']
