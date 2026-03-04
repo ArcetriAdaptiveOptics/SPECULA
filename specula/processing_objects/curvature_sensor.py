@@ -12,8 +12,7 @@ def abs2_cwfs(u_fp, out, xp):
 
 class CurvatureSensor(BaseProcessingObj):
     """
-    Curvature Wavefront Sensor (CWFS) propagator.
-    
+    Curvature Wavefront Sensor (CWFS) propagator processing object.
     This class applies a Zernike Focus aberration (defocus) to the input electric field
     and propagates it to generate intra-focal and extra-focal intensity images.
     """

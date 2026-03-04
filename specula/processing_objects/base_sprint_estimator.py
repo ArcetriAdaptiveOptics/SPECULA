@@ -118,7 +118,7 @@ class BaseSprintEstimator(BaseProcessingObj):
             Estimated mis-registration parameters
         out_convergence_error : BaseValue
             Current relative error
-        """"
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         # Store references
