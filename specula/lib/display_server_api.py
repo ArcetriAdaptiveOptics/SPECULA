@@ -51,8 +51,7 @@ def encode(fig):
 
 def setup_image_mode_handlers():
     @sio.on('connect')
-    def handle_image_connect(*args):
-        global server
+    def handle_image_connect(*args):        
         client_id = request.sid
         server.client_types[client_id] = 'web'
 
@@ -68,8 +67,7 @@ def setup_image_mode_handlers():
         sio.emit('params', display_params, room=client_id)
 
     @sio.on('newdata')
-    def handle_image_newdata(args):
-        global server
+    def handle_image_newdata(args):        
         client_id = request.sid
 
         if client_id not in server.t0:
@@ -79,8 +77,7 @@ def setup_image_mode_handlers():
         join_room(client_id)
 
     @sio.on('disconnect')
-    def handle_image_disconnect():
-        global server
+    def handle_image_disconnect():        
         client_id = request.sid
         if client_id in server.client_types:
             del server.client_types[client_id]
@@ -89,8 +86,7 @@ def setup_image_mode_handlers():
 
 def setup_data_mode_handlers():
     @sio.on('connect')
-    def handle_data_connect(*args):
-        global server
+    def handle_data_connect(*args):        
         client_id = request.sid
         
         server.client_types[client_id] = 'dpg'
@@ -108,8 +104,7 @@ def setup_data_mode_handlers():
         sio.emit('params', display_params, room=client_id)
 
     @sio.on('newdata')
-    def handle_data_newdata(args):
-        global server
+    def handle_data_newdata(args):        
         client_id = request.sid
         
         server.client_subscriptions[client_id] = set(args)
@@ -123,8 +118,7 @@ def setup_data_mode_handlers():
         join_room(client_id)
 
     @sio.on('disconnect')
-    def handle_data_disconnect():
-        global server
+    def handle_data_disconnect():        
         client_id = request.sid
         if client_id in server.client_types:
             del server.client_types[client_id]
@@ -134,8 +128,7 @@ def setup_data_mode_handlers():
             del server.client_subscriptions[client_id]
 
     @sio.on('get_params')
-    def handle_get_params():
-        global server
+    def handle_get_params():        
         client_id = request.sid
         
         display_params = {}
@@ -150,15 +143,13 @@ def setup_data_mode_handlers():
         sio.emit('params', display_params, room=client_id)
 
     @sio.on('set_client_type')
-    def handle_set_client_type(data):
-        global server
+    def handle_set_client_type(data):        
         client_id = request.sid
         client_type = data.get('type', 'dpg')
         server.client_types[client_id] = client_type
 
     @sio.on('unsubscribe')
-    def handle_unsubscribe(data):
-        global server
+    def handle_unsubscribe(data):        
         client_id = request.sid
         output_to_unsubscribe = data.get('output')
         
@@ -458,8 +449,7 @@ def index():
     return render_template('specula_display.html')
 
 @app.route('/status')
-def status():
-    global server
+def status():    
     if not server:
         return {'status': 'not_initialized'}
     
