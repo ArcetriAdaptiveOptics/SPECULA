@@ -9,7 +9,7 @@ class Integrator(IirFilter):
                  simul_params: SimulParams,
                  int_gain: list,
                  ff: list=None,
-                 n_modes: list[int]=None,
+                 n_modes: list=None, # list[int]
                  delay: float=0,
                  integration: bool=True,
                  target_device_idx: int=None,
