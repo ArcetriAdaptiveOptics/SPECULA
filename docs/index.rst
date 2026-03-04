@@ -34,6 +34,7 @@ Tutorials
    Basic SCAO simulation tutorial <tutorials/scao_basic_tutorial>
    SCAO simulation tutorial <tutorials/scao_tutorial>
    Deformable Mirror actuator step response tutorial <tutorials/step_response_tutorial>
+   Control stability and performance analysis tutorial <tutorials/control_stability_analysis>
    Field Analyser (deferred computation of PSF, modal analysis and phase cube) tutorial <tutorials/field_analyser_tutorial>
    Pyramid WFS calibration in partial correction regime tutorial <tutorials/pwfs_calib_pc_tutorial>
    Generators for vibrations and time histories tutorial <tutorials/generators_tutorial>

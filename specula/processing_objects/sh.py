@@ -25,18 +25,74 @@ def abs2(u_fp, out, xp):
 
 
 class SH(BaseProcessingObj):
+    """
+    Shack-Hartmann wavefront sensor processing object.
+    Takes an electric field as input and produces an intensity as output.
+    
+    Parameters
+    ----------
+    wavelengthInNm : float
+        Wavelength in nanometers
+    subap_wanted_fov : float
+        Desired subaperture Field of View in arcseconds
+    sensor_pxscale : float
+        Sensor pixel scale in arcseconds/pixel
+    subap_on_diameter : int
+        Subaperture diameter in meters
+    subap_npx : int
+        Number of pixels across the subaperture on the sensor
+    squaremask : bool, optional
+        If True, use a square mask in the focal plane. Default is True.
+    fov_ovs_coeff : float, optional
+        Coefficient to determine the oversampling of the FoV.
+        A value larger than 1 is recommended to avoid FFT wrapping effects.
+        Default is 2.0.
+    xShiftPhInPixel : float, optional
+        Shift of the phase in the x direction in pixels. Default is 0.
+    yShiftPhInPixel : float, optional
+        Shift of the phase in the y direction in pixels. Default is 0.
+    rotAnglePhInDeg : float, optional
+        Rotation angle of the phase in degrees. Default is 0.
+    set_fov_res_to_turbpxsc : bool, optional
+        If True, set the FoV resolution to the turbulence pixel scale. Default is False.
+    laser_launch_tel : LaserLaunchTelescope, optional
+        If provided, use the laser launch telescope parameters for kernel generation.
+        Default is None.
+    subap_rows_slice : slice, optional
+        Slice object to specify which rows of subapertures to process.
+        Default is None (process all rows).
+    data_dir : str, optional
+        Directory for data files needed by the kernel object. Default is "".
+        Set by simul object if not provided.
+    target_device_idx : int, optional
+        Target device index for GPU processing. Default is None (CPU).
+    precision : int, optional
+        Numerical precision (e.g., 32 or 64). Default is None (use default precision).
+    """
 
     __zeros_cache = {}
 
-    def _zeros_common(self, *args, **kwargs):
-        '''
-        Wrapper around self.xp.zeros to enable the reuse cache.
+    def _zeros_common(self, shape, dtype):
+        """
+        Wrapper around self.xp.zeros to enable reuse cache.
         None of the arrays allocated here should be used in 
         prepare_trigger() or post_trigger().
-        '''
-        key = (self.target_device_idx, *args, *kwargs.items())
+        
+        Parameters
+        ----------
+        shape : tuple
+            Array shape
+        dtype : dtype
+            Data type
+            
+        Returns
+        -------
+        array : ndarray
+            Array from cache
+        """
+        key = (self.target_device_idx, shape, dtype)
         if key not in self.__zeros_cache:
-            self.__zeros_cache[key] = self.xp.zeros(*args, **kwargs)
+            self.__zeros_cache[key] = self.xp.zeros(shape, dtype=dtype)
         return self.__zeros_cache[key]
 
     def __init__(self,
@@ -45,13 +101,11 @@ class SH(BaseProcessingObj):
                  sensor_pxscale: float,
                  subap_on_diameter: int,
                  subap_npx: int,
-                 FoVres30mas: bool = False,
                  squaremask: bool = True,
-                 fov_ovs_coeff: float = 0,
+                 fov_ovs_coeff: float = 2.0, # some margin to avoid FFT wrapping
                  xShiftPhInPixel: float = 0,
                  yShiftPhInPixel: float = 0,
                  rotAnglePhInDeg: float = 0,
-                 do_not_double_fov_ovs: bool = False,
                  set_fov_res_to_turbpxsc: bool = False,
                  laser_launch_tel: LaserLaunchTelescope = None,
                  subap_rows_slice = None,
@@ -70,20 +124,35 @@ class SH(BaseProcessingObj):
         self._subap_npx = subap_npx
         self._fov_ovs_coeff = fov_ovs_coeff
         self._squaremask = squaremask
-        self._fov_resolution_arcsec = 0.03 if FoVres30mas else 0
+        self._fov_resolution_arcsec = 0
         self._debugOutput = False
         self._noprints = False
         self._rotAnglePhInDeg = rotAnglePhInDeg
         self._xShiftPhInPixel = xShiftPhInPixel
         self._yShiftPhInPixel = yShiftPhInPixel
         self._set_fov_res_to_turbpxsc = set_fov_res_to_turbpxsc
-        self._do_not_double_fov_ovs = do_not_double_fov_ovs
         self._laser_launch_tel = laser_launch_tel
         self.data_dir = data_dir
         self._np_sub = 0
         self._fft_size = 0
         self._trigger_geometry_calculated = False
         self._mask_threshold = 1e-3  # threshold to consider a pixel inside the mask
+
+        self.psf = None
+        self.psf_shifted = None
+        self.ef_row = None
+        self.ef_interpolator = None
+        self._ovs_np_sub = None
+        self._xyShiftPhInPixel = None
+        self._wf3 = None
+        self._cutpixels = None
+        self._cutsize = None
+        self._psfimage = None
+        self._psf_reshaped_2d = None
+        self._tltf = None
+        self._fp_mask = None
+        self._kernelobj = None
+        self._kernel_fn = None
 
         # TODO these are fixed but should become parameters
         self._fov_ovs = 1
@@ -124,13 +193,14 @@ class SH(BaseProcessingObj):
         subap_real_fov_arcsec = self._sensor_pxscale * self._subap_npx * RAD2ASEC
 
         if self._fov_resolution_arcsec == 0:
-            if not self._noprints:
+            if not self._noprints: # pragma: no cover
                 print('FoV internal resolution parameter not set.')
             if self._set_fov_res_to_turbpxsc:
                 if turbulence_pxscale >= sensor_pxscale_arcsec:
-                    raise ValueError('set_fov_res_to_turbpxsc property should be set to one only if turb. pix. sc. is < sensor pix. sc.')
+                    raise ValueError('set_fov_res_to_turbpxsc property should be set'
+                                     ' to one only if turb. pix. sc. is < sensor pix. sc.')
                 self._fov_resolution_arcsec = turbulence_pxscale
-                if not self._noprints:
+                if not self._noprints: # pragma: no cover
                     print('WARNING: set_fov_res_to_turbpxsc property is set.')
                     print('FoV internal resolution parameter will be set to turb. pix. sc.')
             elif turbulence_pxscale < sensor_pxscale_arcsec and sensor_pxscale_arcsec / 2.0 > 0.5:
@@ -153,29 +223,33 @@ class SH(BaseProcessingObj):
                 for i in range(nTry):
                     resTry[i] = turbulence_pxscale / (iMin + i + 2)
                     scaleTry[i] = round(turbulence_pxscale / resTry[i])
-                    fftScaleTry[i] = self.wavelength_in_nm / 1e9 * self._lenslet.dimx / (ef_size * in_ef.pixel_pitch * scaleTry[i]) * RAD2ASEC
+                    fftScaleTry[i] = self.wavelength_in_nm / 1e9 \
+                                   * self._lenslet.dimx \
+                                   / (ef_size * in_ef.pixel_pitch * scaleTry[i]) \
+                                   * RAD2ASEC
                     subapRealTry[i] = round(subap_wanted_fov_arcsec / fftScaleTry[i] / 2.0) * 2
                     mcmxTry[i] = np.lcm(int(self._subap_npx), int(subapRealTry[i]))
 
                 # Search for resolution factor with FoV error < 1%
-                FoV = subapRealTry * fftScaleTry
-                FoVerror = np.abs(FoV - subap_wanted_fov_arcsec) / subap_wanted_fov_arcsec
-                idxGood = np.where(FoVerror < 0.02)[0]
+                fov = subapRealTry * fftScaleTry
+                fov_error = np.abs(fov - subap_wanted_fov_arcsec) / subap_wanted_fov_arcsec
+                idx_good = np.where(fov_error < 0.02)[0]
 
                 # If no resolution factor gives low error, consider all scale values
-                if len(idxGood) == 0:
-                    idxGood = np.arange(nTry)
+                if len(idx_good) == 0:
+                    idx_good = np.arange(nTry)
 
                 # Search for index with minimum ratio between M.C.M. and resolution factor
-                ratioMcm = mcmxTry[idxGood] / scaleTry[idxGood]
-                idxMin = np.argmin(ratioMcm)
-                if idxGood[idxMin] != 0 and mcmxTry[idxGood[0]] / mcmxTry[idxGood[idxMin]] > scaleTry[idxGood[idxMin]] / scaleTry[idxGood[0]]:
-                    self._fov_resolution_arcsec = resTry[idxGood[idxMin]]
+                ratio_mcm = mcmxTry[idx_good] / scaleTry[idx_good]
+                idx_min = np.argmin(ratio_mcm)
+                if idx_good[idx_min] != 0 and mcmxTry[idx_good[0]] / mcmxTry[idx_good[idx_min]] > scaleTry[idx_good[idx_min]] / scaleTry[idx_good[0]]:
+                    self._fov_resolution_arcsec = resTry[idx_good[idx_min]]
                 else:
-                    self._fov_resolution_arcsec = resTry[idxGood[0]]
+                    self._fov_resolution_arcsec = resTry[idx_good[0]]
 
-        if not self._noprints:
-            print(f'FoV internal resolution parameter set as [arcsec]: {self._fov_resolution_arcsec}')
+        if not self._noprints: # pragma: no cover
+            print(f'FoV internal resolution parameter set as [arcsec]:'
+                  f' {self._fov_resolution_arcsec}')
 
         # Compute FFT FoV resolution element in arcsec
         scale_ovs = round(turbulence_pxscale / self._fov_resolution_arcsec)
@@ -191,30 +265,47 @@ class SH(BaseProcessingObj):
 
         turbulence_fov_pix = int(scale_ovs * np_sub)
 
-        # Avoid increasing the FoV if it's already more than twice the requested one
-        if turbulence_fov_pix > 2 * subap_real_fov_pix:
-            self._fov_ovs = 1
-            if self._fov_ovs_coeff != 0.0:
-                self._fov_ovs = self._fov_ovs_coeff
-        else:
+        # ---------------------------------------------------------------------
+        # OVERSAMPLING CALCULATION LOGIC
+        # ---------------------------------------------------------------------
+
+        # 1. Determine base scaling requirement
+        # ratio > 1 means we need to upsample to cover the requested sensor FOV
+        if turbulence_fov_pix > 0:
             ratio = float(subap_real_fov_pix) / float(turbulence_fov_pix)
-            np_factor = 1 if abs(np_sub - round(np_sub)) >= 1e-3 else round(np_sub)
-            if self._do_not_double_fov_ovs and self._fov_ovs_coeff == 0.0:
-                self._fov_ovs_coeff = 1.0
-                self._fov_ovs = np.ceil(np_factor * ratio / 2.0) * 2.0 / float(np_factor)
-            else:
-                if self._fov_ovs_coeff == 0.0:
-                    self._fov_ovs_coeff = 2.0
-                if ratio < 2:
-                    self._fov_ovs = np.ceil(np_factor * self._fov_ovs_coeff) / float(np_factor)
-                else:
-                    self._fov_ovs = np.ceil(np_factor * ratio * self._fov_ovs_coeff) / float(np_factor)
+        else:
+            ratio = 1.0
+
+        # 2. Determine target oversampling factor
+        # We take the MAXIMUM of three constraints:
+        # - 1.0: Ensure we do not downsample (loss of quality).
+        # - ratio: Ensure we cover the Field of View given by the pixel scale.
+        # - fov_ovs_coeff: Respect explicit user request for super-sampling.
+        needed_ovs = max(1.0, ratio, self._fov_ovs_coeff)
+
+        # 3. Calculate minimum required phase size in pixels
+        min_ef_size = ef_size * needed_ovs
+
+        # 4. Enforce geometry constraint:
+        # The total size must be a multiple of (2 * n_lenses).
+        # This ensures that
+        # a) Phase size is divisible by n_lenses (integer pixels per subaperture)
+        # b) Pixels per subaperture is even
+        modulus = 2 * n_lenses
+
+        # Round up to the next valid multiple
+        final_ef_size = np.ceil(min_ef_size / modulus) * modulus
+
+        # 5. Set the precise float oversampling factor
+        self._fov_ovs = final_ef_size / ef_size
+
+        # ---------------------------------------------------------------------
 
         self._sensor_pxscale = subap_real_fov_arcsec / self._subap_npx / RAD2ASEC
         self._ovs_np_sub = round(ef_size * self._fov_ovs * lens[2] * 0.5)
         self._fft_size = self._ovs_np_sub * scale_ovs
 
-        if self.verbose:
+        if self.verbose: # pragma: no cover
             print('\n-->     FoV resolution [asec], {}'.format(self._fov_resolution_arcsec))
             print('-->     turb. pix. sc.,        {}'.format(turbulence_pxscale))
             print('-->     sc. over sampl.,       {}'.format(scale_ovs))
@@ -225,14 +316,23 @@ class SH(BaseProcessingObj):
             print('-->     L.C.M. for toccd,      {}'.format(mcmx))
             print('-->     oversampled np_sub,    {}'.format(self._ovs_np_sub))
 
+        # Validation Check (Updated to use precise float math)
+        # We check if the calculated subaperture size is effectively an even integer
+        actual_phase_size = ef_size * self._fov_ovs
+        pixels_per_subap = actual_phase_size * lens[2] # lens[2] is 2/n_lenses
 
-        # Check for valid phase size
-        if abs((ef_size * round(self._fov_ovs) * lens[2]) / 2.0 - round((ef_size * round(self._fov_ovs) * lens[2]) / 2.0)) > 1e-4:
-            raise ValueError(f'ERROR: interpolated input phase size {ef_size} * {round(self._fov_ovs)} is not divisible by  {self._lenslet.n_lenses} subapertures.')
+        # Check if pixels_per_subap is even (divisible by 2)
+        # We use a small epsilon for float comparison
+        if abs((pixels_per_subap / 2.0) - round(pixels_per_subap / 2.0)) > 1e-4:
+            raise ValueError(
+                f'ERROR: Interpolated phase size {actual_phase_size} is not divisible '
+                f'by {2 * self._lenslet.n_lenses} (2 * n_lenses).'
+            )
         elif not self._noprints:
-            print(f'GOOD: interpolated input phase size {ef_size} * {round(self._fov_ovs)} is divisible by {self._lenslet.n_lenses} subapertures.')
+            print(f'GOOD: Interpolated phase size {int(actual_phase_size)} is divisible'
+                  f' by {self._lenslet.n_lenses} subapertures.')
 
-    def _calc_trigger_geometry(self, in_ef):
+    def _calc_geometry(self, in_ef):
         '''
         Calculate the geometry of the SH
         '''
@@ -252,7 +352,8 @@ class SH(BaseProcessingObj):
         fft_size = self._fft_size
 
         # Padded subaperture cube extracted from full pupil
-        self._wf3 = self._zeros_common((self._lenslet.dimy, fft_size, fft_size), dtype=self.complex_dtype)
+        self._wf3 = self._zeros_common((self._lenslet.dimy, fft_size, fft_size),
+                                       dtype=self.complex_dtype)
 
         # Focal plane result from FFT
         fp4_pixel_pitch = self.wavelength_in_nm / 1e9 / (ovs_pixel_pitch * fft_size)
@@ -263,13 +364,19 @@ class SH(BaseProcessingObj):
 
         self._cutpixels = int(np.round(fov_cut / fp4_pixel_pitch) / 2 * 2)
         self._cutsize = fft_size - self._cutpixels
-        self._psfimage = self._zeros_common((self._cutsize * self._lenslet.dimx, self._cutsize * self._lenslet.dimy), dtype=self.dtype)
-        self._psf_reshaped_2d = self._zeros_common((self._cutsize, self._cutsize * self._lenslet.dimy), dtype=self.dtype)
+        self._psfimage = self._zeros_common((self._cutsize * self._lenslet.dimx,
+                                             self._cutsize * self._lenslet.dimy),
+                                            dtype=self.dtype)
+        self._psf_reshaped_2d = self._zeros_common((self._cutsize,
+                                                    self._cutsize * self._lenslet.dimy),
+                                                   dtype=self.dtype)
 
         # 1/2 Px tilt
         self._tltf = self._get_tlt_f(self._ovs_np_sub, fft_size - self._ovs_np_sub)
 
-        self._fp_mask = make_mask(fft_size, diaratio=subap_wanted_fov / fov_complete, square=self._squaremask, xp=self.xp)
+        self._fp_mask = make_mask(fft_size,
+                                  diaratio=subap_wanted_fov / fov_complete,
+                                  square=self._squaremask, xp=self.xp)
 
         # set up kernel object
         if self._laser_launch_tel is not None:
@@ -284,7 +391,8 @@ class SH(BaseProcessingObj):
                                                             return_fft = True,
                                                             positive_shift_tt = True,
                                                             data_dir=self.data_dir,
-                                                            target_device_idx=self.target_device_idx)
+                                                            target_device_idx=self.target_device_idx,
+                                                            precision=self.precision)
             else:
                 if len(self._laser_launch_tel.beacon_tt) != 0:
                     theta = self._laser_launch_tel.beacon_tt
@@ -304,7 +412,8 @@ class SH(BaseProcessingObj):
                                                     return_fft = True,
                                                     positive_shift_tt = True,
                                                     data_dir=self.data_dir,
-                                                    target_device_idx=self.target_device_idx)
+                                                    target_device_idx=self.target_device_idx,
+                                                    precision=self.precision)
             self._kernel_fn = None
         else:
             self._kernelobj = None
@@ -384,7 +493,12 @@ class SH(BaseProcessingObj):
             cutpixels = self._cutpixels
 
             # FoV cut on each subap.
-            psf_cut_view = self.psf[:, cutpixels // 2: -cutpixels // 2, cutpixels // 2: -cutpixels // 2]
+            # If cutpixels is 0 (exact match), slicing [0:0] returns empty.
+            if cutpixels > 0:
+                psf_cut_view = self.psf[:, cutpixels // 2: -cutpixels // 2, cutpixels // 2: -cutpixels // 2]
+            else:
+                # If cutpixels is 0 (or negative, though negative shouldn't happen), take full frame
+                psf_cut_view = self.psf[:]
 
             # Go back from a subap cube to a 2D frame row.
             # This reshape is too complicated to produce a view,
@@ -426,7 +540,7 @@ class SH(BaseProcessingObj):
         in_ef = self.local_inputs['in_ef']
 
         self._set_in_ef(in_ef)
-        self._calc_trigger_geometry(in_ef)
+        self._calc_geometry(in_ef)
 
         fov_oversample = self._fov_ovs
         shape_ovs = (int(in_ef.size[0] * fov_oversample), int(in_ef.size[1] * fov_oversample))
@@ -438,14 +552,19 @@ class SH(BaseProcessingObj):
             xShiftPhInPixel=self._xShiftPhInPixel,
             yShiftPhInPixel=self._yShiftPhInPixel,
             mask_threshold=self._mask_threshold,
+            use_out_ef_cache=False, # we cannot reuse the cache here because the interpolated array
+                                    # is computed in prepare_trigger, but is used in trigger_code
             target_device_idx=self.target_device_idx,
             precision=self.precision
         )
 
         ef_whole_size = int(in_ef.size[0] * self._fov_ovs)
-        self.ef_row = self._zeros_common((self._ovs_np_sub, ef_whole_size), dtype=self.complex_dtype)
-        self.psf = self._zeros_common((self._lenslet.dimy, self._fft_size, self._fft_size), dtype=self.dtype)
-        self.psf_shifted = self._zeros_common((self._lenslet.dimy, self._fft_size, self._fft_size), dtype=self.dtype)
+        self.ef_row = self._zeros_common((self._ovs_np_sub, ef_whole_size),
+                                         dtype=self.complex_dtype)
+        self.psf = self._zeros_common((self._lenslet.dimy, self._fft_size, self._fft_size),
+                                     dtype=self.dtype)
+        self.psf_shifted = self._zeros_common((self._lenslet.dimy, self._fft_size, self._fft_size),
+                                              dtype=self.dtype)
 
         if self.subap_rows_slice is None:
             self.subap_rows_slice = slice(0, self._lenslet.dimy)

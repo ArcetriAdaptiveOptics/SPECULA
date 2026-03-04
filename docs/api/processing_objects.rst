@@ -103,6 +103,15 @@ Base Generator
    :show-inheritance:
 
 
+Base Inserter
+-------------
+
+.. automodule:: specula.processing_objects.base_inserter
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Base Operation
 --------------
 
@@ -134,6 +143,24 @@ Ccd
 ---
 
 .. automodule:: specula.processing_objects.ccd
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Cur Wfs Slopec
+--------------
+
+.. automodule:: specula.processing_objects.cur_wfs_slopec
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Curvature Sensor
+----------------
+
+.. automodule:: specula.processing_objects.curvature_sensor
    :members:
    :undoc-members:
    :show-inheritance:
@@ -427,6 +454,15 @@ Multi Rec Calibrator
    :show-inheritance:
 
 
+Multirate Complementary Filter
+------------------------------
+
+.. automodule:: specula.processing_objects.multirate_complementary_filter
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Mvm
 ---
 
@@ -616,6 +652,15 @@ Spot Monitor
    :show-inheritance:
 
 
+Sprint Pyr
+----------
+
+.. automodule:: specula.processing_objects.sprint_pyr
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 Sprint Sh Synim
 ---------------
 
@@ -683,6 +728,15 @@ Zernike Sensor
 --------------
 
 .. automodule:: specula.processing_objects.zernike_sensor
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+Zwfs Slopec
+-----------
+
+.. automodule:: specula.processing_objects.zwfs_slopec
    :members:
    :undoc-members:
    :show-inheritance:

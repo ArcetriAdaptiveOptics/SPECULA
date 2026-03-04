@@ -4,6 +4,7 @@ from specula.connections import InputValue
 
 class BaseSlicer(BaseProcessingObj):
     """
+    Base Slicer processing object.
     Extracts a subset of values from a BaseValue based on an index, list of indices, or a slice.
     """
     def __init__(self,

@@ -22,7 +22,8 @@ class TestAtmoPropagation(unittest.TestCase):
     def setUpClass(cls):
         """Setup test data path"""
         cls.test_data_dir = os.path.join(os.path.dirname(__file__), 'calib', 'pupilstop')
-        cls.pupil_fits_file = os.path.join(cls.test_data_dir, 'EELT480pp0.0803m_obs0.283_spider2023.fits')
+        cls.pupil_fits_file = os.path.join(cls.test_data_dir,
+                                           'EELT480pp0.0803m_obs0.283_spider2023.fits')
 
     @cpu_and_gpu
     def test_propagation_without_magnification(self, target_device_idx, xp):
@@ -63,7 +64,7 @@ class TestAtmoPropagation(unittest.TestCase):
             source_dict={'on_axis': on_axis_source},
             target_device_idx=target_device_idx
         )
-        
+
         # Connect inputs
         prop.inputs['atmo_layer_list'].set([])  # No atmo layers
         prop.inputs['common_layer_list'].set([layer])  # Only ground layer
@@ -88,7 +89,7 @@ class TestAtmoPropagation(unittest.TestCase):
         output_amplitude = cpuArray(output_ef.A)
 
         plot_debug = False
-        if plot_debug:
+        if plot_debug: # pragma: no cover
             import matplotlib.pyplot as plt
             plt.figure(figsize=(6,6))
             plt.imshow(cpuArray(layer.A), cmap='gray', vmin=0, vmax=1, origin='lower')
@@ -125,7 +126,8 @@ class TestAtmoPropagation(unittest.TestCase):
         # Create a test pattern that's easy to verify
         # Put a bright square in the middle
         layer.A = xp.zeros_like(layer.A)
-        layer.A[int(pixel_pupil/2)-50:int(pixel_pupil/2)+50, int(pixel_pupil/2)-50:int(pixel_pupil/2)+50] = 1.0 
+        layer.A[int(pixel_pupil/2)-50:int(pixel_pupil/2)+50,
+                int(pixel_pupil/2)-50:int(pixel_pupil/2)+50] = 1.0
         layer.phaseInNm = xp.zeros_like(layer.A)
         layer.generation_time = 1
 
@@ -151,6 +153,19 @@ class TestAtmoPropagation(unittest.TestCase):
         # Get output
         output_ef = prop.outputs['out_on_axis_ef']
         output_amplitude = cpuArray(output_ef.A)
+
+        plot_debug = False
+        if plot_debug: # pragma: no cover
+            import matplotlib.pyplot as plt
+            plt.figure(figsize=(6,6))
+            plt.imshow(cpuArray(layer.A), cmap='gray', vmin=0, vmax=1, origin='lower')
+            plt.colorbar()
+            plt.title('Layer Amplitude with Bright Square')
+            plt.figure(figsize=(6,6))
+            plt.imshow(output_amplitude, cmap='gray', vmin=0, vmax=1, origin='lower')
+            plt.colorbar()
+            plt.title('Output Amplitude with Magnification')
+            plt.show()
 
         # With magnification, should use interpolation (not direct extraction)
         # The bright square should be visible but interpolated
@@ -187,7 +202,8 @@ class TestAtmoPropagation(unittest.TestCase):
         layer.generation_time = 1
 
         # Off-axis source to create geometric offset
-        radius = np.sqrt(2) * np.arctan((pixel_pupil * pixel_pitch / 2) / height) * (180.0 / np.pi) * 3600  # in arcsec
+        radius = np.sqrt(2) * np.arctan((pixel_pupil * pixel_pitch / 2) / height) \
+                 * (180.0 / np.pi) * 3600  # in arcsec
         off_axis_source = Source(polar_coordinates=[radius, 45.0], magnitude=8, wavelengthInNm=750)
 
         prop = AtmoPropagation(
@@ -209,8 +225,10 @@ class TestAtmoPropagation(unittest.TestCase):
         output_phase = cpuArray(output_ef.phaseInNm)
 
         # output amplitude must be 1
-        assert np.max(output_amplitude) > 0.99, f"Max amplitude {np.max(output_amplitude)} should be > 0.99"
-        assert np.min(output_amplitude) < 1.01, f"Min amplitude {np.min(output_amplitude)} should be < 1.01"
+        assert np.max(output_amplitude) > 0.99, \
+            f"Max amplitude {np.max(output_amplitude)} should be > 0.99"
+        assert np.min(output_amplitude) < 1.01, \
+            f"Min amplitude {np.min(output_amplitude)} should be < 1.01"
         assert np.isclose(np.mean(output_amplitude), 1.0, rtol=0.01), \
             f"Mean amplitude {np.mean(output_amplitude)} should be approx 1.0"
         assert np.max(output_phase) > 1.99, f"Max phase {np.max(output_phase)} should be > 1.99"
@@ -297,12 +315,15 @@ class TestAtmoPropagation(unittest.TestCase):
             target_device_idx=target_device_idx
         )
         layer.A = xp.zeros((dim_layer, dim_layer))
-        layer.A[dim_layer//2-30:dim_layer//2+30, dim_layer//2-30:dim_layer//2+30] = xp.ones((60, 60))
+        layer.A[dim_layer//2-30:dim_layer//2+30, dim_layer//2-30:dim_layer//2+30] = \
+                xp.ones((60, 60))
         layer.phaseInNm = xp.zeros((dim_layer, dim_layer))
         layer.generation_time = 1
 
         source = Source(polar_coordinates=[0.0, 0.0], magnitude=8, wavelengthInNm=750)
-        prop = AtmoPropagation(simul_params, source_dict={'on_axis': source}, target_device_idx=target_device_idx)
+        prop = AtmoPropagation(simul_params,
+                               source_dict={'on_axis': source},
+                               target_device_idx=target_device_idx)
         prop.inputs['atmo_layer_list'].set([])
         prop.inputs['common_layer_list'].set([layer])
         prop.setup()
@@ -320,8 +341,22 @@ class TestAtmoPropagation(unittest.TestCase):
         diff = output_amplitude - expected_amplitude
 
         max_diff = np.max(np.abs(diff))
+
+        plot_debug = False
+        if plot_debug: # pragma: no cover
+            import matplotlib.pyplot as plt
+            plt.figure(figsize=(6,6))
+            plt.imshow(expected_amplitude, cmap='gray', vmin=0, vmax=1, origin='lower')
+            plt.colorbar()
+            plt.title('Expected Amplitude')
+            plt.figure(figsize=(6,6))
+            plt.imshow(output_amplitude, cmap='gray', vmin=0, vmax=1, origin='lower')
+            plt.colorbar()
+            plt.title('Output Amplitude with Shift')
+            plt.show()
+
         assert max_diff < 1e-5, f"Max difference after shift is {max_diff}, should be < 1e-5"
-        
+
     @cpu_and_gpu
     def test_layer_rotInDeg(self, target_device_idx, xp):
         """Test that layer rotInDeg works correctly"""
@@ -343,7 +378,9 @@ class TestAtmoPropagation(unittest.TestCase):
         layer.generation_time = 1
 
         source = Source(polar_coordinates=[0.0, 0.0], magnitude=8, wavelengthInNm=750)
-        prop = AtmoPropagation(simul_params, source_dict={'on_axis': source}, target_device_idx=target_device_idx)
+        prop = AtmoPropagation(simul_params,
+                               source_dict={'on_axis': source},
+                               target_device_idx=target_device_idx)
         prop.inputs['atmo_layer_list'].set([])
         prop.inputs['common_layer_list'].set([layer])
         prop.setup()

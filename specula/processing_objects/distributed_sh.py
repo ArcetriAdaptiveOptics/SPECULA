@@ -7,13 +7,13 @@ from specula import cp
 
 
 class DistributedSH(SH):
-    '''
+    """
     SH class that distributes work on multiple devices.
 
     Internally, it manages a series of hidden SH objects each performing
     a section of the subaperture processing. In post_trigger(), all
     results are gathered into a single Intensity array.
-    '''
+    """
     def __init__(self,
                  wavelengthInNm: float,
                  subap_wanted_fov: float,
@@ -21,13 +21,11 @@ class DistributedSH(SH):
                  subap_on_diameter: int,
                  subap_npx: int,
                  n_slices: int,
-                 FoVres30mas: bool = False,
                  squaremask: bool = True,
                  fov_ovs_coeff: float = 0,
                  xShiftPhInPixel: float = 0,
                  yShiftPhInPixel: float = 0,
                  rotAnglePhInDeg: float = 0,
-                 do_not_double_fov_ovs: bool = False,
                  set_fov_res_to_turbpxsc: bool = False,
                  laser_launch_tel: LaserLaunchTelescope = None,
                  target_device_idx: int = None,

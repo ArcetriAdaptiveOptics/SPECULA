@@ -11,44 +11,10 @@ from specula.data_objects.infinite_phase_screen import InfinitePhaseScreen
 
 
 class AtmoInfiniteEvolution(BaseProcessingObj):
-    """Atmospheric infinite phase screens evolution..
+    """
+    Atmospheric infinite phase screens evolution processing object.
     Generates and evolves atmospheric phase screens based on input parameters such as
     seeing, wind speed, and wind direction.
-
-    Note
-    ----
-    Phase screens are always generated at a reference wavelength of 500 nm.
-    
-    Parameters
-    ----------
-    simul_params : SimulParams
-        Simulation parameters object containing global simulation settings.
-    L0 : list
-        Outer scale(s) of turbulence for each layer in meters.
-    heights : list
-        Heights of the atmospheric layers in meters (at zenith).
-    Cn2 : list
-        Fractional Cn2 values for each layer (must sum to 1.0).
-    data_dir : str
-        Directory path for storing/loading phase screen data (automatically set by simul.py).
-    fov : float, optional
-        Field of view in arcseconds. Default is 0.0.
-    pixel_phasescreens : int, optional
-        Size of the square phase screens in pixels. Default is 8192.
-    seed : int, optional
-        Seed for random number generation. Must be >0. Default is 1.
-    extra_delta_time : float or list, optional
-        Extra time offset for phase screen evolution in seconds. Default is 0.
-    verbose : bool, optional
-        If True, enables verbose output during phase screen generation. Default is False.
-    fov_in_m : float, optional
-        Field of view in meters. If provided, overrides fov parameter. Default is None.
-    pupil_position : list, optional
-        [x, y] position of the pupil in meters. Default is [0, 0].
-    target_device_idx : int, optional
-        Target device index for computation (CPU/GPU). Default is None (uses global setting).
-    precision : int, optional
-        Precision for computation (0 for double, 1 for single). Default is None (uses global setting).
     """
     def __init__(self,
                  simul_params: SimulParams,
@@ -63,7 +29,43 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
                  pupil_position:list =[0,0],
                  target_device_idx: int=None,
                  precision: int=None):
-
+        """
+        Note
+        ----
+        Phase screens are always generated at a reference wavelength of 500 nm.
+        
+        Parameters
+        ----------
+        simul_params : SimulParams
+            Simulation parameters object containing global simulation settings.
+        L0 : list
+            Outer scale(s) of turbulence for each layer in meters.
+        heights : list
+            Heights of the atmospheric layers in meters (at zenith).
+        Cn2 : list
+            Fractional Cn2 values for each layer (must sum to 1.0).
+        data_dir : str
+            Directory path for storing/loading phase screen data (automatically set by simul.py).
+        fov : float, optional
+            Field of view in arcseconds. Default is 0.0.
+        pixel_phasescreens : int, optional
+            Size of the square phase screens in pixels. Default is 8192.
+        seed : int, optional
+            Seed for random number generation. Must be >0. Default is 1.
+        extra_delta_time : float or list, optional
+            Extra time offset for phase screen evolution in seconds. Default is 0.
+        verbose : bool, optional
+            If True, enables verbose output during phase screen generation. Default is False.
+        fov_in_m : float, optional
+            Field of view in meters. If provided, overrides fov parameter. Default is None.
+        pupil_position : list, optional
+            [x, y] position of the pupil in meters. Default is [0, 0].
+        target_device_idx : int, optional
+            Target device index for computation (CPU/GPU). Default is None (uses global setting).
+        precision : int, optional
+            Precision for computation (0 for double, 1 for single). Default is None
+            (uses global setting).
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.simul_params = simul_params
@@ -223,64 +225,83 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         wind_direction = cpuArray(self.local_inputs['wind_direction'].value)
 
         # Compute the delta position in pixels
-        delta_position =  wind_speed * self.delta_time / self.pixel_pitch  # [pixel]
+        delta_position = wind_speed * self.delta_time / self.pixel_pitch
 
-        # Compute extra offset that doesn't get accumulated
-        extra_offset = wind_speed * self.extra_delta_time / self.pixel_pitch  # [pixel]
+        # We delegate all the logic to the _process_propagation_direction method
+        self._process_propagation_direction(
+            wind_speed, wind_direction, delta_position,
+            self.extra_delta_time, self.last_position,
+            self.last_effective_position, self.acc_rows, self.acc_cols,
+            self.layer_list
+        )
 
-        # Effective position = accumulated position + constant offset
-        # Note: extra_offset is added at each frame because it is a function of wind speed
-        effective_position = self.last_position + delta_position + extra_offset  # [pixel]
+        self.last_t = self.current_time
 
-        # Change in effective position since last frame
-        effective_delta_position = effective_position - self.last_effective_position  # [pixel]
+    def _process_propagation_direction(self, wind_speed, wind_direction,
+                                       delta_position, extra_delta_time,
+                                       last_position, last_effective_position,
+                                       acc_rows, acc_cols, layer_list):
+        """Process one propagation direction (up or down)."""
+
+        extra_offset = wind_speed * extra_delta_time / self.pixel_pitch
+        effective_position = last_position + delta_position + extra_offset
+        effective_delta_position = effective_position - last_effective_position
 
         eps = 1e-4
 
         for ii, phase_screen in enumerate(self.infinite_phasescreens):
-            w_y_comp = np.cos(2*np.pi*(wind_direction[ii])/360.0)
-            w_x_comp = np.sin(2*np.pi*(wind_direction[ii])/360.0)
+            w_y_comp = np.cos(2 * np.pi * wind_direction[ii] / 360.0)
+            w_x_comp = np.sin(2 * np.pi * wind_direction[ii] / 360.0)
+
             frac_rows, rows_to_add = np.modf(
-                effective_delta_position[ii] * w_y_comp + self.acc_rows[ii]
+                effective_delta_position[ii] * w_y_comp + acc_rows[ii]
             )
-            #sr = int( (np.sign(rows_to_add) + 1) / 2 )
-            sr = int(np.sign(rows_to_add) )
+            sr = 1 if rows_to_add > 0 else 0
+
             frac_cols, cols_to_add = np.modf(
-                effective_delta_position[ii] * w_x_comp + self.acc_cols[ii]
+                effective_delta_position[ii] * w_x_comp + acc_cols[ii]
             )
-            #sc = int( (-np.sign(cols_to_add) + 1) / 2 )
-            sc = int(np.sign(cols_to_add) )
-            # print('rows_to_add, cols_to_add', rows_to_add, cols_to_add)
-            if np.abs(w_y_comp)>eps:
+            sc = 1 if cols_to_add > 0 else 0
+
+            # Add integer lines
+            if np.abs(w_y_comp) > eps:
                 for r in range(int(np.abs(rows_to_add))):
                     phase_screen.add_line(1, sr)
-            if np.abs(w_x_comp)>eps:
+            if np.abs(w_x_comp) > eps:
                 for r in range(int(np.abs(cols_to_add))):
                     phase_screen.add_line(0, sc)
-            phase_screen0_all = phase_screen.scrnRawAll.copy()
-            phase_screen0 = phase_screen.scrnRaw.copy()
-            # print('w_y_comp, w_x_comp', w_y_comp, w_x_comp)
-            # print('frac_rows, frac_cols', frac_rows, frac_cols)
-            srf = int(np.sign(frac_rows) )
-            scf = int(np.sign(frac_cols) )
 
-            if np.abs(frac_rows)>eps:
+            # reference, no copy
+            phase_screen0_all = phase_screen.scrnRawAll
+            phase_screen0 = phase_screen.scrnRaw
+
+            # Fractional interpolation
+            srf = 1 if frac_rows > 0 else 0
+            scf = 1 if frac_cols > 0 else 0
+
+            if np.abs(frac_rows) > eps:
                 phase_screen.add_line(1, srf, False)
-            if np.abs(frac_cols)>eps:
+            if np.abs(frac_cols) > eps:
                 phase_screen.add_line(0, scf, False)
-            phase_screen1 = phase_screen.scrnRaw
-            interpfactor = np.sqrt(frac_rows**2 + frac_cols**2 )
-            layer_phase = interpfactor * phase_screen1 + (1.0-interpfactor) * phase_screen0
-            phase_screen.full_scrn = phase_screen0_all
-            self.acc_rows[ii] = frac_rows
-            self.acc_cols[ii] = frac_cols
-            # print('acc_rows', self.acc_rows)
-            # print('acc_cols', self.acc_cols)
-            self.layer_list[ii].field[:] = self.xp.stack((layer_phase, layer_phase))
-            self.layer_list[ii].phaseInNm *= self.scale_coeff*self.xp.sqrt(self.Cn2[ii])
-            self.layer_list[ii].A = 1
-            self.layer_list[ii].generation_time = self.current_time
 
-        self.last_position = self.last_position + delta_position
-        self.last_effective_position = effective_position.copy()
-        self.last_t = self.current_time
+            phase_screen1 = phase_screen.scrnRaw
+            interpfactor = np.sqrt(frac_rows**2 + frac_cols**2)
+
+            # Use the buckup to compute the interpolated phase
+            layer_phase = interpfactor * phase_screen1 \
+                        + (1.0 - interpfactor) * phase_screen0
+
+            # Restore the original state for the next direction
+            phase_screen.full_scrn = phase_screen0_all
+
+            acc_rows[ii] = frac_rows
+            acc_cols[ii] = frac_cols
+
+            layer_list[ii].field[:] = self.xp.stack((layer_phase, layer_phase))
+            layer_list[ii].phaseInNm *= self.scale_coeff * self.xp.sqrt(self.Cn2[ii])
+            layer_list[ii].A = 1
+            layer_list[ii].generation_time = self.current_time
+
+        # Update positions
+        last_position[:] = last_position + delta_position
+        last_effective_position[:] = effective_position

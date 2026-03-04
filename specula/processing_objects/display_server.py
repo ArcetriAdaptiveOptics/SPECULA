@@ -16,7 +16,8 @@ from specula.base_processing_obj import BaseProcessingObj
 from specula.lib.display_server_api import start_server
 
 class DisplayServer(BaseProcessingObj):
-    '''
+    """
+    Display server processing object.
     Copies data objects to a separate process using multiprocessing queues.
     In this instance, the separate process is a Flask web server, but this class
     could be easily made generic to support different kinds of export processes.
@@ -27,7 +28,8 @@ class DisplayServer(BaseProcessingObj):
     It has two modes of operation: 'image' and 'data'. In 'image' mode, it renders and 
     sends the images correspoinding to the displayed data objects. In 'data' mode, it sends
     the raw data to the client, which is responsible for rendering.
-    '''
+    
+    """
     def __init__(self,
                  params_dict: dict,
                  input_ref_getter: typing.Callable,
@@ -37,6 +39,14 @@ class DisplayServer(BaseProcessingObj):
                  port: int = 0,
                  mode: str = 'image',
     ):
+        """
+        Note
+        ----
+            
+        This object must *not* be run concurrently with any other in the simulation,
+        because it can in some cases temporarily modify the data objects (removing references
+        to the xp module to allow pickling)
+        """
         super().__init__()
         self.mode = mode
         

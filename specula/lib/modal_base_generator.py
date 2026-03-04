@@ -70,7 +70,7 @@ def generate_distance_grid(N, M=None, xp=np, dtype=np.float32):
 
 def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0,
                        oversampling=2, verbose=False, xp=np, dtype=np.float32):
-    """"
+    """
     Compute the covariance matrix of the influence functions
 
     Parameters:
@@ -177,7 +177,7 @@ def make_modal_base_from_ifs_fft(pupil_mask, diameter, influence_functions, r0, 
                             zern_modes=0, oversampling=2, filt_modes=None,
                             if_max_condition_number=None, verbose=False,
                             xp=np, dtype=np.float32):
-    """"
+    """
     Generate a modal basis from the influence functions
 
     Parameters:

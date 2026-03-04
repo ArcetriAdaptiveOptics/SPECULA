@@ -11,6 +11,10 @@ from specula.lib.utils import make_subpixel_shift_phase
 from abc import abstractmethod
 
 class Coronagraph(BaseProcessingObj):
+    """
+    Abstract coronagraph class processing object.
+    This class provides the basic structure for a coronagraph processing object.
+    """
     def __init__(self,
                  simul_params: SimulParams,
                  wavelengthInNm: float,
@@ -22,6 +26,31 @@ class Coronagraph(BaseProcessingObj):
                  target_device_idx: int = None,
                  precision: int = None
                 ):
+        """
+        Parameters
+        ----------
+        simul_params: SimulParams
+            Simulation parameters containing pixel_pupil and pixel_pitch
+        wavelengthInNm: float
+            Wavelength in nm
+        fov: float
+            Desired field of view in lambda/D on focal plane
+        fov_errinf: float, optional
+            Relative error allowed on the inner part of the FOV (default: 0.1)
+        fov_errsup: float, optional
+            Relative error allowed on the outer part of the FOV (default: 10)
+        fft_res: float, optional
+            Desired resolution in the focal plane in pixels per lambda/D (default: 3.0)
+        center_on_pixel: bool, optional
+            Whether to center the focal plane mask on a single pixel (True) or
+            at the intersection of 4 pixels (False). This affects the phase shift
+            applied to the electric field (default: True)
+        target_device_idx : int, optional
+            Target device index for computation (CPU/GPU). Default is None (uses global setting).
+        precision : int, optional
+            Precision for computation (0 for double, 1 for single). Default is None
+            (uses global setting).
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.simul_params = simul_params
@@ -55,6 +84,13 @@ class Coronagraph(BaseProcessingObj):
         self.phase_shift = None
         self.pupil_mask = self.make_pupil_plane_mask()
         self.ef_pad = None  # padded electric field in pupil plane
+
+        # Prepare centered focal plane mask
+        self.fp_mask_centered = self.xp.fft.fftshift(self.fp_mask)
+
+        # Allocate padded array once
+        self.ef_pad = self.xp.zeros((self.fft_totsize, self.fft_totsize),
+                                    dtype=self.complex_dtype)
 
         self.out_ef = ElectricField(self.pixel_pupil,
                                     self.pixel_pupil,
@@ -121,7 +157,6 @@ class Coronagraph(BaseProcessingObj):
         ef_fp_masked = ef_fp * self.fp_mask_centered
 
         # Step 4: Return to the pupil plane with IFFT
-        self.ef_pad[:] = 0  # Clear the array
         self.ef_pad[:] = self.xp.fft.ifft2(ef_fp_masked)
         self.ef_pad *= self.xp.conj(self.phase_shift)
 
@@ -170,6 +205,7 @@ class Coronagraph(BaseProcessingObj):
             xShiftPhInPixel=0,
             yShiftPhInPixel=0,
             mask_threshold=self.mask_threshold,
+            use_out_ef_cache=True,
             target_device_idx=self.target_device_idx,
             precision=self.precision
         )
@@ -187,13 +223,6 @@ class Coronagraph(BaseProcessingObj):
             )
         else:
             self.phase_shift = 1.0
-
-        # Prepare centered focal plane mask
-        self.fp_mask_centered = self.xp.fft.fftshift(self.fp_mask)
-
-        # Allocate padded array once
-        self.ef_pad = self.xp.zeros((self.fft_totsize, self.fft_totsize),
-                                    dtype=self.complex_dtype)
 
         # Cannot be used if self._pupil_to_focal_plane is called in trigger_code()
         # super().build_stream()

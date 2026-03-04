@@ -50,9 +50,9 @@ class PsfCoronagraph(PSF):
             pixel_size_mas=pixel_size_mas,
             start_time=start_time,
             target_device_idx=target_device_idx,
-            precision=precision
+            precision=precision,
+            verbose=verbose,
         )
-        self.verbose = verbose
 
         # Additional outputs for coronagraph
         self.coronagraph_psf = BaseValue(target_device_idx=self.target_device_idx,

@@ -19,6 +19,9 @@ def compute_zern_ifunc(dim, nzern, xp, dtype, obsratio=0.0, diaratio=1.0, start_
     nzern -= start_mode
 
     zern_phase_2d = xp.array([zern_phase_3d[i][idx] for i in range(nzern)], dtype=dtype)
+    # Free memory
+    zg = None
+    zern_phase_3d = None
 
     # Orthonormalize Zernike modes
     zern_phase_2d = make_orto_modes(zern_phase_2d, xp=xp, dtype=dtype)
@@ -27,4 +30,3 @@ def compute_zern_ifunc(dim, nzern, xp, dtype, obsratio=0.0, diaratio=1.0, start_
     zern_phase_2d = zern_phase_2d / xp.std(zern_phase_2d, axis=1, keepdims=True)
 
     return zern_phase_2d, mask
-

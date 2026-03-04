@@ -304,7 +304,17 @@ class ConvolutionKernel(BaseDataObj):
         Parameters:
             filename (str): Path to save the FITS file
             hdr (fits.Header, optional): Additional header information
+
+        Raises:
+            ValueError: If real_kernels has been deallocated
         """
+        if self.real_kernels is None:
+            raise ValueError(
+                "real_kernels has been deallocated. "
+                "Cannot save to file. Use restore() to reload from existing file, "
+                "or recalculate with calculate_lgs_map()."
+            )
+
         hdr = self.get_fits_header()
 
         # Create a primary HDU with just the header
@@ -316,7 +326,7 @@ class ConvolutionKernel(BaseDataObj):
 
         # Create an HDUList and write to file
         hdul = fits.HDUList([primary_hdu, kernel_hdu])
-        hdul.writeto(filename, overwrite=True)   
+        hdul.writeto(filename, overwrite=True)
         hdul.close()  # Force close for Windows
 
     def prepare_for_sh(self, sodium_altitude=None, sodium_intensity=None, current_time=None):
@@ -351,6 +361,9 @@ class ConvolutionKernel(BaseDataObj):
                 self.calculate_lgs_map()
                 self.save(full_path)
                 print('Done')
+
+            # free memory
+            self.real_kernels = None
 
         if current_time is not None:
             self.generation_time = current_time
@@ -388,6 +401,13 @@ class ConvolutionKernel(BaseDataObj):
             kernel_obj.positive_shift_tt = hdr['POSTT']
             kernel_obj.spot_size = hdr['SPOTSIZE']
 
+        # Reallocate real_kernels if it was deallocated
+        if kernel_obj.real_kernels is None:
+            kernel_obj.real_kernels = kernel_obj.xp.zeros(
+                (kernel_obj.dimx * kernel_obj.dimy, kernel_obj.dimension, kernel_obj.dimension),
+                dtype=kernel_obj.dtype
+            )
+
         # This code uses an intermediate array to make sure that endianess is correct (FITS is big-endian)
         data = kernel_obj.xp.array(fits.getdata(filename, ext=1), dtype=kernel_obj.dtype)
         kernel_obj.real_kernels[:] = data
@@ -416,12 +436,41 @@ class ConvolutionKernel(BaseDataObj):
         return kernel_obj
 
     def get_value(self):
+        '''Get current kernels.
+        If real_kernels was deallocated, raise an error.'''
+
+        if self.real_kernels is None:
+            raise ValueError(
+                "real_kernels has been deallocated. "
+                "Use set_value() to recreate or restore() from file."
+            )
+
         return self.real_kernels
-    
+
     def set_value(self, v):
         '''Set new kernels.
-        Arrays are not reallocated.'''
-        assert v.shape == self.real_kernels.shape, \
-            f"Error: input array shape {v.shape} does not match real_kernels shape {self.real_kernels.shape}"
+        Arrays are not reallocated if real_kernels exists.
+        If real_kernels was deallocated, it will be recreated.'''
+
+        # Check if real_kernels was deallocated
+        if self.real_kernels is None:
+            # Recreate real_kernels with the expected shape
+            expected_shape = (self.dimx * self.dimy, self.dimension, self.dimension)
+            if v.shape != expected_shape:
+                raise ValueError(
+                    f"Error: input array shape {v.shape} does not match "
+                    f"expected shape {expected_shape}"
+                )
+            self.real_kernels = self.xp.zeros(expected_shape, dtype=self.dtype)
+        else:
+            # Validate shape against existing array
+            if v.shape != self.real_kernels.shape:
+                raise ValueError(
+                    f"Error: input array shape {v.shape} does not match "
+                    f"real_kernels shape {self.real_kernels.shape}"
+                )
 
         self.real_kernels[:] = self.to_xp(v)
+
+        # Process the kernels to update self.kernels
+        self.process_kernels(return_fft=self.return_fft)

@@ -416,7 +416,7 @@ class Simul():
                         parobj = partype.restore(filename, target_device_idx=target_device_idx)
                         parobj.printMemUsage()
 
-                        # Set data_tag 
+                        # Set data_tag
                         parobj.tag = value
 
                         pars2[parname] = parobj

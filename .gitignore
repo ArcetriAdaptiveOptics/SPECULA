@@ -131,7 +131,6 @@ dmypy.json
 .pyre/
 /.project
 /.pydevproject
-/.DS_Store
 .DS_Store
 .settings/org.eclipse.core.resources.prefs
 .vscode/settings.json

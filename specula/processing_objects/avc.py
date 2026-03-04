@@ -5,6 +5,9 @@ from specula.connections import InputValue
 
 
 class AVC(BaseProcessingObj):
+    """
+    Active Vibration Cancellation processing object.
+    """
     def __init__(self,
                  target_device_idx: int = None,
                  precision: int = None

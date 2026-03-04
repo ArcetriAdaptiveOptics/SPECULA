@@ -5,12 +5,17 @@ from specula.connections import InputValue
 
 
 class BaseOperation(BaseProcessingObj):
-    ''''Simple operations with base value(s)'''
+    """
+    Base Operation processing object.
+    Simple operations with base value(s).
+    """
     def __init__(self,
                  constant_mul: float=None,
                  constant_div: float=None,
                  constant_sum: float=None,
                  constant_sub: float=None,
+                 constant_max: float=None,
+                 constant_min: float=None,
                  mul: bool=False,
                  div: bool=False,
                  sum: bool=False,
@@ -28,11 +33,18 @@ class BaseOperation(BaseProcessingObj):
         constant_div (float, optional): Constant for division
         constant_sum (float, optional): Constant for addition
         constant_sub (float, optional): Constant for subtraction
+        constant_max (float, optional): Constant for maximum
+        constant_min (float, optional): Constant for minimum
         mul (bool, optional): Flag for multiplication operation
         div (bool, optional): Flag for division operation
         sum (bool, optional): Flag for addition operation
         sub (bool, optional): Flag for subtraction operation
         concat (bool, optional): Flag for concatenation operation
+        target_device_idx : int, optional
+            Target device index for computation (CPU/GPU). Default is None (uses global setting).
+        precision : int, optional
+            Precision for computation (0 for double, 1 for single). Default is None
+            (uses global setting).
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
@@ -62,6 +74,21 @@ class BaseOperation(BaseProcessingObj):
             else:
                 self.constant_sum = -self.to_xp(constant_sub)
 
+        if not constant_max is None:
+            if self.xp.isscalar(constant_max):
+                self.constant_max = constant_max
+            else:
+                self.constant_max = self.xp.max(constant_max)
+        else:
+            self.constant_max = None
+        if not constant_min is None:
+            if self.xp.isscalar(constant_min):
+                self.constant_min = constant_min
+            else:
+                self.constant_min = self.xp.min(constant_min)
+        else:
+            self.constant_min = None
+
         self.mul = mul
         self.div = div
         self.sum = sum
@@ -90,6 +117,10 @@ class BaseOperation(BaseProcessingObj):
         # Allocate output value
         if not self.constant_mul is None or not self.constant_sum is None:
             self.out_value.value = value1.value * 0.0
+        elif not self.constant_max is None:
+            self.out_value.value = self.constant_max
+        elif not self.constant_min is None:
+            self.out_value.value = self.constant_min
         elif self.concat:
             self.out_value.value = self.xp.empty(len(value1.value) + len(value2.value))
         else:
@@ -111,6 +142,12 @@ class BaseOperation(BaseProcessingObj):
 
         elif not self.constant_sum is None:
             self.out_value.value[:] = value1 + self.constant_sum
+
+        elif not self.constant_max is None:
+            self.out_value.value = self.xp.maximum(value1,self.constant_max)
+
+        elif not self.constant_min is None:
+            self.out_value.value = self.xp.minimum(value1,self.constant_min)
 
         else:
             value2 = self.local_inputs['in_value2'].value

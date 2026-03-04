@@ -93,6 +93,18 @@ class SprintShSynim(BaseSprintEstimator):
 
         self.idx_valid_sa = None
 
+        # Define perturbations
+        self.perturbations = {
+            0: (1.0, 'shift_x'),
+            1: (1.0, 'shift_y'),
+            2: (0.1, 'rotation'),
+            3: (0.01, 'magnification')
+        }
+
+        if self.enable_wpup_magn_xy:
+            self.perturbations[4] = (0.01, 'magn_x')
+            self.perturbations[5] = (0.01, 'magn_y')
+
     def _validate_wfs(self):
         """Validate that WFS is Shack-Hartmann"""
         if not isinstance(self.wfs, SH):
@@ -127,7 +139,7 @@ class SprintShSynim(BaseSprintEstimator):
         im_nominal = compute_im_synim(
             misreg_params=self.misreg_params,
             pup_diam_m=self.pup_diam_m,
-            pup_mask=self.pup_mask,
+            pup_mask=self.pupil_mask,
             ifunc_3d=self.ifunc_3d,
             dm_mask=self.dm.mask,
             source_polar_coords=self.source.polar_coordinates,
@@ -140,45 +152,6 @@ class SprintShSynim(BaseSprintEstimator):
         )
 
         return self.to_xp(im_nominal, dtype=self.dtype)
-
-    def _compute_sensitivity_matrices(self):
-        """Compute sensitivity matrices using mis-registration push-pull"""
-        n_params = len(self.misreg_params)
-        nslopes = self.estimated_intmat.nslopes
-
-        sens_matrices = self.xp.zeros((nslopes, self.nmodes, n_params), dtype=self.dtype)
-
-        # Define perturbations
-        perturbations = {
-            0: (1.0, 'shift_x'),
-            1: (1.0, 'shift_y'),
-            2: (0.1, 'rotation'),
-            3: (0.01, 'magnification'),
-        }
-
-        if self.enable_wpup_magn_xy:
-            perturbations[4] = (0.01, 'magn_x')
-            perturbations[5] = (0.01, 'magn_y')
-
-        original_params = self.misreg_params.copy()
-
-        for param_idx, (delta, name) in perturbations.items():
-            # Push
-            self.misreg_params = original_params.copy()
-            self.misreg_params[param_idx] += delta
-            im_push = self._compute_nominal_im()
-
-            # Pull
-            self.misreg_params = original_params.copy()
-            self.misreg_params[param_idx] -= delta
-            im_pull = self._compute_nominal_im()
-
-            # Sensitivity
-            sens_matrices[:, :, param_idx] = (im_push - im_pull) / (2.0 * delta)
-
-        self.misreg_params = original_params
-
-        return sens_matrices
 
     def _im_2d_map(self, im_mode): # pragma: no cover
         """Convert interaction matrix to 2D map for visualization."""

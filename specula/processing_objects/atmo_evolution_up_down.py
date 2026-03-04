@@ -5,46 +5,11 @@ from specula.data_objects.simul_params import SimulParams
 
 
 class AtmoEvolutionUpDown(AtmoEvolution):
-    """Atmospheric turbulence evolution with separate layer lists
+    """
+    Atmospheric turbulence evolution processing object with separate layer lists
     for upward and downward propagation.
-    
     This class extends AtmoEvolution to provide two independent layer
-    lists with different extra_delta_time values, useful for simulating
-    satellite laser ranging where uplink and downlink paths experience
-    different temporal offsets.
-    
-    Parameters
-    ----------
-    simul_params : SimulParams
-        Simulation parameters object containing global simulation settings.
-    L0 : list
-        Outer scale(s) of turbulence for each layer in meters.
-    heights : list
-        Heights of the atmospheric layers in meters (at zenith).
-    Cn2 : list
-        Fractional Cn2 values for each layer (must sum to 1.0).
-    data_dir : str
-        Directory path for storing/loading phase screen data.
-    extra_delta_time_down : float or list, optional
-        Extra time offset for downward propagation in seconds. Default is 0.
-    extra_delta_time_up : float or list, optional
-        Extra time offset for upward propagation in seconds. Default is 0.
-    fov : float, optional
-        Field of view in arcseconds. Default is 0.0.
-    pixel_phasescreens : int, optional
-        Size of the square phase screens in pixels. Default is 8192.
-    seed : int, optional
-        Seed for random number generation. Must be >0. Default is 1.
-    verbose : bool, optional
-        If True, enables verbose output during phase screen generation. Default is False.
-    fov_in_m : float, optional
-        Field of view in meters. If provided, overrides fov parameter. Default is None.
-    pupil_position : list, optional
-        [x, y] position of the pupil in meters. Default is [0, 0].
-    target_device_idx : int, optional
-        Target device index for computation (CPU/GPU). Default is None.
-    precision : int, optional
-        Precision for computation (0 for double, 1 for single). Default is None.
+    lists with different extra_delta_time values.
     """
 
     def __init__(self,
@@ -63,7 +28,46 @@ class AtmoEvolutionUpDown(AtmoEvolution):
                  pupil_position: list = [0, 0],
                  target_device_idx: int = None,
                  precision: int = None):
-
+        """
+        Note
+        ----
+        It is useful for simulating satellite laser communication where uplink and downlink paths
+        experience different temporal offsets.
+        
+        Parameters
+        ----------
+        simul_params : SimulParams
+            Simulation parameters object containing global simulation settings.
+        L0 : list
+            Outer scale(s) of turbulence for each layer in meters.
+        heights : list
+            Heights of the atmospheric layers in meters (at zenith).
+        Cn2 : list
+            Fractional Cn2 values for each layer (must sum to 1.0).
+        data_dir : str
+            Directory path for storing/loading phase screen data.
+        extra_delta_time_down : float or list, optional
+            Extra time offset for downward propagation in seconds. Default is 0.
+        extra_delta_time_up : float or list, optional
+            Extra time offset for upward propagation in seconds. Default is 0.
+        fov : float, optional
+            Field of view in arcseconds. Default is 0.0.
+        pixel_phasescreens : int, optional
+            Size of the square phase screens in pixels. Default is 8192.
+        seed : int, optional
+            Seed for random number generation. Must be >0. Default is 1.
+        verbose : bool, optional
+            If True, enables verbose output during phase screen generation. Default is False.
+        fov_in_m : float, optional
+            Field of view in meters. If provided, overrides fov parameter. Default is None.
+        pupil_position : list, optional
+            [x, y] position of the pupil in meters. Default is [0, 0].
+        target_device_idx : int, optional
+            Target device index for computation (CPU/GPU). Default is None (uses global setting).
+        precision : int, optional
+            Precision for computation (0 for double, 1 for single). Default is None
+            (uses global setting).
+        """
         # Initialize parent class with downward extra_delta_time
         super().__init__(
             simul_params=simul_params,

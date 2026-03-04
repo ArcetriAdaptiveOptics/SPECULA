@@ -23,7 +23,7 @@ class IirFilterData(BaseDataObj):
     - den[i, :] contains denominator coefficients for filter i
     - ordnum[i] and ordden[i] specify the actual order of each filter
     
-    Transfer function: H(z) = (num[0] + num[1]*z^-1 + ...) / (den[0] + den[1]*z^-1 + ...)
+    Transfer function: H(z) = (num[0] + num[1]*z + ...) / (den[0] + den[1]*z + ...)
     """
     def __init__(self,
                  ordnum: list,
@@ -161,8 +161,27 @@ class IirFilterData(BaseDataObj):
         if verbose:
             print('new gain:', self.gain)
 
-    def RTF(self, mode, fs, freq=None, tf=None, dm=None, nw=None, dw=None, verbose=False, title=None, plot=True, overplot=False, **extra):
-        """Plot Rejection Transfer Function: RTF = 1 / (1 - CP)"""
+    def RTF(self, mode, fs, freq=None, dm=None, nw=None, dw=None,
+            verbose=False,title=None, plot=True, overplot=False,
+            **extra):
+        """
+        Plot Rejection Transfer Function: RTF = 1 / (1 + CP)
+        
+        Args:
+            mode: Filter mode index to use for C coefficients
+            fs: Sampling frequency
+            freq: Frequency vector for evaluation (if None, auto-generated)
+            dm, nw, dw: Optional plant parameters to construct P
+                        The plant is represented as P = nw / (dm * dw)
+            verbose: If True, print intermediate values
+            title: Title for the plot
+            plot: If True, generate the plot
+            overplot: If True, plot on existing figure instead of creating new one
+            **extra: Additional plotting parameters (e.g., color)
+        
+        Returns:
+            rtf_mag: Magnitude of the Rejection Transfer Function at specified frequencies    
+        """
         plotTitle = title if title else 'Rejection Transfer Function'
 
         # Generate frequency vector if not provided
@@ -194,8 +213,8 @@ class IirFilterData(BaseDataObj):
 
         # Ensure same length by padding with zeros
         max_len = max(len(Cp_num), len(Cp_den))
-        Cp_num = np.pad(Cp_num, (max_len - len(Cp_num), 0), mode='constant')
-        Cp_den = np.pad(Cp_den, (max_len - len(Cp_den), 0), mode='constant')
+        Cp_num = np.pad(Cp_num, (0, max_len - len(Cp_num)), mode='constant')
+        Cp_den = np.pad(Cp_den, (0, max_len - len(Cp_den)), mode='constant')
 
         # Calculate RTF = 1 / (1 + CP) = Cp_den / (Cp_den + Cp_num)
         rtf_num = Cp_den
@@ -226,9 +245,27 @@ class IirFilterData(BaseDataObj):
 
         return rtf_mag
 
-    def NTF(self, mode, fs, freq=None, tf=None, dm=None, nw=None, dw=None,
-            verbose=False, title=None, plot=True, overplot=False, **extra):
-        """Plot Noise Transfer Function: NTF = CP / (1 - CP)"""
+    def NTF(self, mode, fs, freq=None, dm=None, nw=None, dw=None,
+            verbose=False, title=None, plot=True, overplot=False,
+            **extra):
+        """
+        Plot Noise Transfer Function: NTF = CP / (1 + CP)
+        
+        Args:
+            mode: Filter mode index to use for C coefficients
+            fs: Sampling frequency
+            freq: Frequency vector for evaluation (if None, auto-generated)
+            dm, nw, dw: Optional plant parameters to construct P
+                        The plant is represented as P = nw / (dm * dw)
+            verbose: If True, print intermediate values
+            title: Title for the plot
+            plot: If True, generate the plot
+            overplot: If True, plot on existing figure instead of creating new one
+            **extra: Additional plotting parameters (e.g., color)
+            
+        Returns:
+            ntf_mag: Magnitude of the Noise Transfer Function at specified frequencies    
+        """
         plotTitle = title if title else 'Noise Transfer Function'
 
         # Generate frequency vector if not provided
@@ -260,8 +297,8 @@ class IirFilterData(BaseDataObj):
 
         # Ensure same length by padding with zeros
         max_len = max(len(Cp_num), len(Cp_den))
-        Cp_num = np.pad(Cp_num, (max_len - len(Cp_num), 0), mode='constant')
-        Cp_den = np.pad(Cp_den, (max_len - len(Cp_den), 0), mode='constant')
+        Cp_num = np.pad(Cp_num, (0, max_len - len(Cp_num)), mode='constant')
+        Cp_den = np.pad(Cp_den, (0, max_len - len(Cp_den)), mode='constant')
 
         # Calculate NTF = CP / (1 + CP) = Cp_num / (Cp_den + Cp_num)
         ntf_num = Cp_num
@@ -349,8 +386,8 @@ class IirFilterData(BaseDataObj):
 
         # Ensure same length by padding with zeros
         max_len = max(len(cp_num), len(cp_den))
-        cp_num = np.pad(cp_num, (max_len - len(cp_num), 0), mode='constant')
-        cp_den = np.pad(cp_den, (max_len - len(cp_den), 0), mode='constant')
+        cp_num = np.pad(cp_num, (0, max_len - len(cp_num)), mode='constant')
+        cp_den = np.pad(cp_den, (0, max_len - len(cp_den)), mode='constant')
 
         # Calculate closed-loop denominator: Cp_den + Cp_num (from RTF/NTF)
         closed_loop_den = cp_den + cp_num
@@ -585,8 +622,8 @@ class IirFilterData(BaseDataObj):
 
         # Ensure same length by padding with zeros
         max_len = max(len(Cp_num), len(Cp_den))
-        Cp_num = np.pad(Cp_num, (max_len - len(Cp_num), 0), mode='constant')
-        Cp_den = np.pad(Cp_den, (max_len - len(Cp_den), 0), mode='constant')
+        Cp_num = np.pad(Cp_num, (0, max_len - len(Cp_num)), mode='constant')
+        Cp_den = np.pad(Cp_den, (0, max_len - len(Cp_den)), mode='constant')
 
         # Calculate closed-loop transfer function denominator
         closed_loop_den = Cp_den + Cp_num
@@ -1036,6 +1073,7 @@ class IirFilterData(BaseDataObj):
             
         Returns:
             tuple: (magnitude, phase, frequency) arrays
+            or ControlPlot object
             
         Raises:
             ImportError: If control library is not installed
@@ -1053,8 +1091,12 @@ class IirFilterData(BaseDataObj):
                 # Continuous-time system
                 omega = np.logspace(-2, 4, 1000)
 
-        mag, phase, freq = control.bode_plot(tf, omega=omega, plot=plot, **kwargs)
-        return mag, phase, freq
+        out = control.bode_plot(tf, omega=omega, plot=plot, **kwargs)
+
+        if hasattr(out, 'mag'):
+            return out.mag, out.phase, omega
+        else:
+            return out
 
     def nyquist_plot(self, mode: int = 0, dt: float = None, omega: np.ndarray = None,
                      plot: bool = True, **kwargs):
@@ -1069,6 +1111,7 @@ class IirFilterData(BaseDataObj):
             
         Returns:
             tuple: (real, imaginary, frequency) arrays
+            or ControlPlot object
             
         Raises:
             ImportError: If control library is not installed
@@ -1086,8 +1129,15 @@ class IirFilterData(BaseDataObj):
                 # Continuous-time system
                 omega = np.logspace(-2, 4, 1000)
 
-        real, imag, freq = control.nyquist_plot(tf, omega=omega, plot=plot, **kwargs)
-        return real, imag, freq
+        # Makes plot and get response data
+        out = control.nyquist_plot(tf, omega=omega, plot=plot, **kwargs)
+
+        if hasattr(out, 'response'):
+            return out.response.real, out.response.imag, omega
+        elif hasattr(out, 'real'):
+            return out.real, out.imag, omega
+        else:
+            return out
 
     def step_response(self, mode: int = 0, dt: float = None, T: np.ndarray = None, **kwargs):
         """Compute step response for a specific filter using control library.
@@ -1121,7 +1171,7 @@ class IirFilterData(BaseDataObj):
 
     def impulse_response(self, mode: int = 0, dt: float = None, T: np.ndarray = None, **kwargs):
         """Compute impulse response for a specific filter using control library.
-        
+
         Args:
             mode: Index of the filter (default: 0)
             dt: Sampling time for discrete-time system (default: None)
@@ -1170,7 +1220,9 @@ class IirFilterData(BaseDataObj):
 
         tf = self.to_control_tf(mode=mode, dt=dt)
         gm, pm, wg, wp = control.margin(tf)
-        return gm, pm, wg, wp
+
+        gm_db = 20 * np.log10(gm) if (gm is not None and gm > 0) else np.inf
+        return gm_db, pm, wg, wp
 
     def pole_zero_map(self, mode: int = 0, dt: float = None, plot: bool = True, **kwargs):
         """Create pole-zero map for a specific filter using control library.

@@ -1,4 +1,3 @@
-
 import warnings
 
 import numpy as np
@@ -32,15 +31,18 @@ def _calculate_extrapolation_indices_coeffs(mask, threshold=1e-3):
     edge_pixels = np.where(dilated_mask & ~binary_mask)
     n_edge_pixels = len(edge_pixels[0])
 
-    # By default we consider that no more than a fraction (between 100% and 25%) of the overall pixels
-    # can be edge pixels. This is used to allocate fixed-size arrays for GPU compatibility.
-    # Linear interpolation: 1.0 for side<=3, 0.25 for side>=128
+    # By default we consider that no more than a fraction (between 100% and 25%)
+    # of the overall pixels can be edge pixels. This is used to allocate fixed-size
+    # arrays for GPU compatibility. Linear interpolation: 1.0 for side<=3, 0.25 for
+    # side>=128
     edge_frac = 1.0 - 0.75 * min(max(max(mask.shape) - 3, 0) / 124, 1)
     max_edge_pixels = int(round(edge_frac * mask.shape[0] * mask.shape[1]/2)*2)
-    # this if statement is used to avoid errors with peculiar masks with a very high count of edge pixels
+    # this if statement is used to avoid errors with peculiar masks with a very
+    # high count of edge pixels
     if n_edge_pixels > max_edge_pixels:
         max_edge_pixels = n_edge_pixels
-        warnings.warn(f"Number of edge pixels ({n_edge_pixels}) exceeds the default maximum ({max_edge_pixels}).",
+        warnings.warn(f"Number of edge pixels ({n_edge_pixels}) exceeds"
+                      f" the default maximum ({max_edge_pixels}).",
                       RuntimeWarning)
 
     # Arrays with fixed size
@@ -123,7 +125,8 @@ def _calculate_extrapolation_indices_coeffs(mask, threshold=1e-3):
     return edge_pixels_fixed, reference_indices_fixed, coefficients_fixed, valid_indices
 
 
-def _apply_extrapolation(data, edge_pixels, reference_indices, coefficients, valid_indices, out=None, xp=np):
+def _apply_extrapolation(data, edge_pixels, reference_indices,
+                         coefficients, valid_indices, out=None, xp=np):
     """
     Applies linear extrapolation to edge pixels using precalculated indices and coefficients.
 
@@ -131,7 +134,7 @@ def _apply_extrapolation(data, edge_pixels, reference_indices, coefficients, val
         data (ndarray): Input array to extrapolate.
         edge_pixels (ndarray): Linear indices of edge pixels to extrapolate.
         reference_indices (ndarray): Indices of reference pixels.
-        coefficients (ndarray): Coefficients for linear extrapolation.ù
+        coefficients (ndarray): Coefficients for linear extrapolation.
         valid_indices (ndarray): Indices of valid edge pixels.
         xp (np): NumPy or CuPy module for array operations.
 
@@ -182,16 +185,45 @@ class EFInterpolator():
     '''
     Interpolate the amplitude and phase of an ElectricField object using edge extrapolation.
     '''
+
+    __ef_cache = {}  # Shared cache for ElectricField objects
+    __zeros_cache = {}  # Shared cache for all EFInterpolator instances
+
+    def _zeros_common(self, shape, dtype):
+        """
+        Wrapper around self.xp.zeros to enable reuse cache.
+        None of the arrays allocated here should be used in 
+        prepare_trigger() or post_trigger().
+        
+        Parameters
+        ----------
+        shape : tuple
+            Array shape
+        dtype : dtype
+            Data type
+            
+        Returns
+        -------
+        array : ndarray
+            Array from cache
+        """
+        key = (self.target_device_idx, shape, dtype)
+        if key not in self.__zeros_cache:
+            self.__zeros_cache[key] = self.xp.zeros(shape, dtype=dtype)
+        return self.__zeros_cache[key]
+
     def __init__(self,
                  in_ef: ElectricField,
                  out_shape: int,
                  rotAnglePhInDeg: float=0,
                  xShiftPhInPixel: float=0,
                  yShiftPhInPixel: float=0,
+                 magnification: float=1.0,
                  mask_threshold: float=1e-3,
                  force_extrapolation: bool=False,
+                 use_out_ef_cache: bool=False,
                  target_device_idx: int=None,
-                 precision: int=None,
+                 precision: int=None
                  ):
         '''
         Initialize an EFInterpolator object for interpolating an ElectricField,
@@ -209,10 +241,20 @@ class EFInterpolator():
             Horizontal shift (in pixels) to apply to the sampling grid (default: 0).
         yShiftInPixel : float, optional
             Vertical shift (in pixels) to apply to the sampling grid (default: 0).
+        magnification : float, optional
+            Magnification factor to apply to the sampling grid (default: 1.0).
         mask_threshold : float, optional
-            Threshold below which amplitude values are considered 0 for extrapolation (default: 1e-3).
+            Threshold below which amplitude values are considered 0 for extrapolation
+            (default: 1e-3).
         force_extrapolation : bool, optional
             If True, forces extrapolation even if not strictly needed (default: False).
+        use_out_ef_cache : bool, optional
+            If True, enables caching of output ElectricField objects to save memory and
+            allocation time (default: False).
+            WARNING: when enabled, output ElectricField objects are cached and saving them
+                     with dataStore (or similar mechanisms) will not work. Only the last
+                     output ElectricField created with a specific shape and parameters will
+                     be valid, all the others will be overwritten by the cache.
         target_device_idx : int, optional
             Target device index for GPU computation (default: None).
         precision : int, optional
@@ -221,66 +263,113 @@ class EFInterpolator():
         Output EF is allocated internally and can be retrieved with the interpolated_ef() method.
         '''
 
-        if (out_shape[0] / in_ef.size[0] != out_shape[1] / in_ef.size[1]):
-            raise ValueError("Output shape must have the same aspect ratio as input ElectricField size.")
+        if out_shape[0] / in_ef.size[0] != out_shape[1] / in_ef.size[1]:
+            raise ValueError("Output shape must have the same aspect ratio"
+                             " as input ElectricField size.")
+
+        if magnification < 1e-6:
+            raise ValueError("Magnification must be greater than 1e-6 to avoid numerical issues.")
 
         oversampling_factor = out_shape[0] / in_ef.size[0]
 
-        self.debugOutput = False
+        self.debug_output = False
         self.mask_threshold = mask_threshold
         self.in_ef = in_ef
         self.force_extrapolation = force_extrapolation
+        self.target_device_idx = target_device_idx
+        self.use_out_ef_cache = use_out_ef_cache
 
-        # First, check if interpolation is really needed. If not,
-        # we can just use the input ElectricField without changes.
         if (in_ef.size == out_shape and
             rotAnglePhInDeg == 0 and
             xShiftPhInPixel == 0 and
-            yShiftPhInPixel == 0 and force_extrapolation is False):
+            yShiftPhInPixel == 0 and
+            magnification == 1.0 and force_extrapolation is False):
             self.do_interpolation = False
             self.out_ef = in_ef
             return
 
-        # If we reach this point, interpolation (and extrapolation) is needed.
-        # We need to:
-        # 1) allocate an output ElectricField
-        # 2) create an Interp2D object, that will take also care of rotation and shifts
-        # 3) create an intermediate array for phase extrapolation
-        # 4) pre-compute extrapolation indices and coefficients
-
         self.do_interpolation = True
 
-        # Allocate the output ElectricField.
-        self.out_ef = ElectricField(
-            out_shape[0],
-            out_shape[1],
-            in_ef.pixel_pitch / oversampling_factor,
-            target_device_idx=target_device_idx,
-            precision=precision
-        )
+        self.edge_pixels = None
+        self.reference_indices = None
+        self.coefficients = None
+        self.valid_indices = None
+        self.amplitude_is_binary = None
 
-        # Get xp and dtype from the newly allocated EF object
+        if self.use_out_ef_cache:
+            # Cache out_ef by shape and parameters
+            ef_key = (out_shape, in_ef.pixel_pitch / oversampling_factor,
+                      target_device_idx, precision)
+            if ef_key not in self.__ef_cache:
+                self.__ef_cache[ef_key] = ElectricField(
+                    out_shape[0],
+                    out_shape[1],
+                    in_ef.pixel_pitch / oversampling_factor,
+                    target_device_idx=target_device_idx,
+                    precision=precision
+                )
+            self.out_ef = self.__ef_cache[ef_key]
+        else:
+            # Create a new ElectricField without caching
+            self.out_ef = ElectricField(
+                out_shape[0],
+                out_shape[1],
+                in_ef.pixel_pitch / oversampling_factor,
+                target_device_idx=target_device_idx,
+                precision=precision
+            )
+
         xp = self.out_ef.xp
         dtype = self.out_ef.dtype
 
-        # Create the interpolator
         self.interp = Interp2D(
             in_ef.size,
             out_shape,
             -rotAnglePhInDeg,  # Negative angle for PASSATA compatibility
             xShiftPhInPixel,
             yShiftPhInPixel,
+            magnification=magnification,
             dtype=dtype,
             xp=xp
         )
 
-        # Initialize intermediate array for phase extrapolation
-        self.phase_extrapolated = in_ef.phaseInNm.copy()
-
-        # Extrapolation indices and coefficients will be initialized at first use
-        # because the input amplitude must be set before they are calculated
-        self.extrapolation_initialized = False
         self.xp = xp
+
+        # Use cache for phase_extrapolated
+        self.phase_extrapolated = self._zeros_common(
+            in_ef.size,
+            dtype
+        )
+
+        self.extrapolation_initialized = False
+
+    def update_parameters(self, xShiftPhInPixel=None, yShiftPhInPixel=None,
+                          rotAnglePhInDeg=None, magnification=None):
+        """Re-initialize the internal Interp2D object with new misalignment parameters."""
+
+        if magnification < 1e-6:
+            raise ValueError("Magnification must be greater than 1e-6 to avoid numerical issues.")
+
+        # Retrieve current parameters if not provided
+        current_rot = -self.interp.rot_angle * 180.0 / np.pi
+
+        new_x = xShiftPhInPixel if xShiftPhInPixel is not None else float(self.interp.shift_x)
+        new_y = yShiftPhInPixel if yShiftPhInPixel is not None else float(self.interp.shift_y)
+        new_rot = rotAnglePhInDeg if rotAnglePhInDeg is not None else current_rot
+        new_mag = magnification if magnification is not None else float(self.interp.magnification)
+
+        # Recreate the Interp2D object with the new parameters
+        self.interp = Interp2D(
+            self.in_ef.size,
+            self.out_ef.size,
+            -new_rot,  # Negative angle for PASSATA compatibility
+            new_x,
+            new_y,
+            magnification=new_mag,
+            dtype=self.out_ef.dtype,
+            xp=self.xp
+        )
+        self.do_interpolation = True
 
     def interpolated_ef(self):
         '''
@@ -289,21 +378,23 @@ class EFInterpolator():
         return self.out_ef
 
     def interpolate(self):
+        '''
+        Perform interpolation with edge extrapolation.
+        '''
 
         if not self.do_interpolation:
             return
 
-        # Initialize extrapolation indices and coefficients
-        # using the input EF amplitude, which must have been already set
         if self.extrapolation_initialized is False:
-            (edge_pixels,
-            reference_indices,
-            coefficients,
-            valid_indices) = _calculate_extrapolation_indices_coeffs(
-                cpuArray(self.in_ef.A), threshold=self.mask_threshold
-            )
+            # Calculate extrapolation data only once
+            (edge_pixels, reference_indices,
+             coefficients, valid_indices) = \
+                _calculate_extrapolation_indices_coeffs(
+                    cpuArray(self.in_ef.A),
+                    threshold=self.mask_threshold
+                )
 
-            # convert to xp
+            # Convert to xp
             self.edge_pixels = to_xp(self.xp, edge_pixels)
             self.reference_indices = to_xp(self.xp, reference_indices)
             self.coefficients = to_xp(self.xp, coefficients)
@@ -342,7 +433,7 @@ class EFInterpolator():
             xp=self.xp
         )
 
-        if self.debugOutput:
+        if self.debug_output:
             # compare input and extrapolated phase
             phase_in_nm = self.in_ef.phaseInNm * (self.in_ef.A >= 1e-3).astype(int)
             import matplotlib.pyplot as plt

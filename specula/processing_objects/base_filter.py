@@ -8,21 +8,25 @@ from specula.data_objects.simul_params import SimulParams
 
 
 class BaseFilter(BaseProcessingObj):
-    '''Base class for time-domain filters with delay support.
-    
-    Provides common functionality for:
-    - Delay buffer management
-    - Interpolation for fractional delays
-    - Gain modulation
-    - Synchronous (no-delay) outputs for POLC
-    '''
-
+    """
+    Base filter processing object.
+    Base class for time-domain filters with delay support.
+    """
     def __init__(self,
                  simul_params: SimulParams,
                  nfilter: int,
                  delay: float = 0,
                  target_device_idx=None,
                  precision=None):
+        """
+        Note
+        ----
+        Provides common functionality for:
+            - Delay buffer management
+            - Interpolation for fractional delays
+            - Gain modulation
+            - Synchronous (no-delay) outputs for POLC
+        """
 
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
@@ -55,8 +59,9 @@ class BaseFilter(BaseProcessingObj):
 
         # Outputs
         self.outputs['out_comm'] = self.out_comm
-        # This output provides the non-delayed command for POLC use
-        # Please don't use it for drive DM / actuator directly
+        # This output provides the non-delayed command.
+        # POLC requires the non-delayed command.
+        # DMs and actuators are usually driven with the delayed output.
         self.outputs['out_comm_no_delay'] = self.out_comm_no_delay
 
     def prepare_trigger(self, t):
