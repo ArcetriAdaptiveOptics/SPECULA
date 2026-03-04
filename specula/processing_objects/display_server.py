@@ -63,7 +63,7 @@ class DisplayServer(BaseProcessingObj):
                 self.qin, 
                 host, 
                 port,
-                mode
+                self.mode
             )
         )
         
@@ -92,7 +92,7 @@ class DisplayServer(BaseProcessingObj):
         self.data_obj_getter = data_obj_getter
         self.info_getter = info_getter
 
-        print(f"[DisplayServer] Initialized in {mode} mode")
+        print(f"[DisplayServer] Initialized in {self.mode} mode")
 
     def _trigger_image_mode(self):
         t1 = time.time()
