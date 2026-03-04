@@ -5,7 +5,7 @@ from specula.processing_objects.abstract_coronagraph import Coronagraph
 
 class FocalPlaneFilter(Coronagraph):
     '''
-    Basic focal plane filter, composed of a round pupil with a given
+    Basic focal plane filter class. Consists of a round pupil with a given
     diameter and optional obstruction in the center.
     '''
     def __init__(self,
