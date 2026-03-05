@@ -5,8 +5,10 @@ from specula.data_objects.electric_field import ElectricField
 
 class Layer(ElectricField):
     """
-    A :class:`~specula.data_objects.layer.Layer` is an :class:`~specula.data_objects.electric_field.ElectricField` with some more features: a mandatory height,
-    and optional X/Y shifts, rotation and magnification
+    Layer data object.
+    This object represents a layer in the atmosphere for wavefront propagation simulations.
+    It inherits from the ElectricField class and adds additional properties such as height,
+    shifts, rotation, and magnification.
     """
     def __init__(self,
                  dimx: int,

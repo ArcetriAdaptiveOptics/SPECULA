@@ -108,8 +108,8 @@ def lgs_map_sh(nsh, diam, rl, zb, dz, profz, fwhmb, ps, ssp,
 class ConvolutionKernel(BaseDataObj):
     """
     Convolution Kernel data object.
-    This object calculates convolution kernels for Laser Guide Star (LGS) Shack-Hartmann
-    wavefront sensing.
+    This object stores the convolution kernels for Laser Guide Star (LGS) Shack-Hartmann
+    wavefront sensing and performs the related computations.
     """
     def __init__(self,
                  dimx: int,

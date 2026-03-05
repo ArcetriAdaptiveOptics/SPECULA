@@ -5,8 +5,8 @@ from astropy.io import fits
 class GaussianConvolutionKernel(ConvolutionKernel):
     """
     Gaussian Convolution Kernel data object.
-    This class generates a Gaussian convolution kernel for Shack-Hartmann
-    wavefront sensing.
+    This object stores a Gaussian convolution kernel for Shack-Hartmann
+    wavefront sensing and performs the related computations.
     """
     def __init__(self,
                  dimx: int,
