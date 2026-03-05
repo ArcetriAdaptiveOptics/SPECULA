@@ -58,7 +58,9 @@ Detailed API documentation:
    :maxdepth: 1
 
    Base Classes API <api/base_classes>
+   Processing Objects Summary <api/processing_objects_summary>
    Processing Objects API <api/processing_objects>
+   Data Objects Summary <api/data_objects_summary>
    Data Objects API <api/data_objects>
    Utility Functions API <api/lib>
 
