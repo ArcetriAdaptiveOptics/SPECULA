@@ -52,13 +52,11 @@ def scan_package(package_path, package_name):
 
 def generate_rst_table(category_name, modules, description=''):
     """Generate RST content with a table listing class names and short descriptions."""
-    # Pre-count valid classes
-    total = sum(
-        1
-        for _, filepath in modules
-        for classname in get_class_short_doc(filepath)
-        if not classname.startswith('_')
-    )
+    valid_classes = {}
+    for module_name, filepath in modules:
+        for classname, short_doc in get_class_short_doc(filepath).items():
+            if not classname.startswith('_'):
+                valid_classes[f"{module_name}.{classname}"] = short_doc
 
     title = f"{category_name} Summary"
     lines = [
@@ -66,7 +64,7 @@ def generate_rst_table(category_name, modules, description=''):
         '=' * len(title),
         '',
         description,
-        f'Total: **{total}** classes.',
+        f'Total: **{len(valid_classes)}** classes.',
         '',
         '.. list-table::',
         '   :header-rows: 1',
@@ -76,20 +74,16 @@ def generate_rst_table(category_name, modules, description=''):
         '     - Description',
     ]
 
-    for module_name, filepath in modules:
-        classes = get_class_short_doc(filepath)
-        for classname, short_doc in classes.items():
-            if classname.startswith('_'):
-                continue
-            lines.append(f'   * - :class:`~{module_name}.{classname}`')
-            desc = short_doc if short_doc else '*No description available.*'
-            wrapped_lines = textwrap.wrap(desc, width=60)
-            if len(wrapped_lines) > 1:
-                cell_content = '\n       | '.join(wrapped_lines)
-                cell_content = '| ' + cell_content
-            else:
-                cell_content = desc
-            lines.append(f'     - {cell_content}')
+    for full_name, short_doc in valid_classes.items():
+        lines.append(f'   * - :class:`~{full_name}`')
+        desc = short_doc if short_doc else '*No description available.*'
+        wrapped_lines = textwrap.wrap(desc, width=60)
+        if len(wrapped_lines) > 1:
+            cell_content = '\n       | '.join(wrapped_lines)
+            cell_content = '| ' + cell_content
+        else:
+            cell_content = desc
+        lines.append(f'     - {cell_content}')
 
     lines.append('')
     return '\n'.join(lines)
