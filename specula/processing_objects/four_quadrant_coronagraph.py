@@ -5,7 +5,9 @@ from specula import RAD2ASEC, np
 
 
 class FourQuadrantCoronagraph(Coronagraph):
-
+    """
+    Focal plane mask processing object. Generates a mask with four quadrants.
+    """
     def __init__(self,
                  simul_params: SimulParams,
                  wavelengthInNm: float,

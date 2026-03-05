@@ -4,6 +4,10 @@ from specula.data_objects.iir_filter_data import IirFilterData
 from specula.data_objects.simul_params import SimulParams
     
 class LowPassFilter(IirFilter):
+    """
+    Low pass filter processing object.
+    Specialization of the IirFilter class, implementing a low pass filter.
+    """
     def __init__(self,
                  simul_params: SimulParams,
                  cutoff_freq: float,    # TODO =1.0, 

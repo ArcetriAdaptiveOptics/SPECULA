@@ -17,10 +17,9 @@ import matplotlib.pyplot as plt
 
 class SprintPyr(BaseSprintEstimator):
     """
-    SPRINT Estimator for Pyramid WFS.
-    
-    It computes interaction matrices and sensitivity matrices
-    for Pyramid wavefront sensors.
+    SPRINT (Pyramid WFS case) processing object.    
+    Computes interaction matrices and sensitivity matrices for Pyramid wavefront sensors,
+    and estimates mis-registration parameters by fitting the measured interaction matrix.
     
     Mis-registration parameters:
     - [0]: shift_x (pixels)

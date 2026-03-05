@@ -16,7 +16,8 @@ class Integrator(IirFilter):
                  precision: int=None
                 ):
         """
-        Integrator class for processing signals using an IIR filter.
+        Integrator processing object. Specialized IIR filter with integration.
+
         This class is a specialized version of the IirFilter class, designed to handle
         integration operations with specific gain and forgetting factor settings.
         """

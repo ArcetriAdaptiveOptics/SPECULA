@@ -4,7 +4,8 @@ import numpy as np
 
 class ScheduleGenerator(BaseGenerator):
     """
-    Generates scheduled values that change at specified times.
+    Schedule Generator processing object.
+    Generates scheduled values which change at specified times.
     """
     def __init__(self,
                  scheduled_values: list,

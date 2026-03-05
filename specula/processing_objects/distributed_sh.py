@@ -7,13 +7,13 @@ from specula import cp
 
 
 class DistributedSH(SH):
-    '''
+    """
     SH class that distributes work on multiple devices.
 
     Internally, it manages a series of hidden SH objects each performing
     a section of the subaperture processing. In post_trigger(), all
     results are gathered into a single Intensity array.
-    '''
+    """
     def __init__(self,
                  wavelengthInNm: float,
                  subap_wanted_fov: float,

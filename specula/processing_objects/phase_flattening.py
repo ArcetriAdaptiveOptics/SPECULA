@@ -5,7 +5,8 @@ from specula.base_processing_obj import BaseProcessingObj
 
 class PhaseFlattening(BaseProcessingObj):
     """
-    Removes the mean phase from an electric field.
+    Phase flattening processing object.
+    Removes the mean phase from an input electric field.
     """
     def __init__(self,
                  target_device_idx: int = None,

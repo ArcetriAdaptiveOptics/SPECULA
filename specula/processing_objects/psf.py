@@ -12,8 +12,10 @@ import numpy as np
 
 
 class PSF(BaseProcessingObj):
-    """ Processing object that computes the Point Spread Function (PSF) from an input ElectricField.
-    Computes PSF, Strehl ratio (SR), integrated PSF and SR, and PSF standard deviation over time.
+    """ 
+    Point Spread Function (PSF) processing object. 
+    Computes PSF, Strehl ratio (SR), integrated PSF and SR, 
+    and PSF standard deviation over time from an input ElectricField.    
 
     Parameters
     ----------

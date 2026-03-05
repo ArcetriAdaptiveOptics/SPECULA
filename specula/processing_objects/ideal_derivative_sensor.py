@@ -10,7 +10,8 @@ from specula import RAD2ASEC
 
 class IdealDerivativeSensor(BaseProcessingObj):
     """
-    Ideal derivative sensor that computes slopes from wavefront derivatives.
+    Ideal derivative sensor processing object.
+    Computes slopes from wavefront derivatives.
     
     This sensor extrapolates the phase outside the pupil mask using linear extrapolation,
     then computes X and Y derivatives to generate slopes for each subaperture.

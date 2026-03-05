@@ -132,12 +132,12 @@ class TestExtendedSource(unittest.TestCase):
             fov=2.0,
             pup_diam=30,
             output_resolution=output_resolution,
-            mod_amp=3.0,
             max_batch_size=64,
         )
 
         # Flat wavefr
-        ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1,
+                           target_device_idx=target_device_idx)
         ef.generation_time = t
         pyr.inputs['in_ef'].set(ef)
         pyr.inputs['ext_source_coeff'].set(src.outputs['coeff'])

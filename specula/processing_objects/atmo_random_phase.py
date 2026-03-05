@@ -10,30 +10,9 @@ from specula.connections import InputValue
 from specula.data_objects.simul_params import SimulParams
 
 class AtmoRandomPhase(BaseProcessingObj):
-    """Atmospheric phase screen generator producing random phase screens
-    
-    Parameters
-    ----------
-    simul_params : SimulParams
-        Simulation parameters object containing pupil size, pixel pitch, zenith angle, etc.
-    L0 : float, optional
-        Outer scale of turbulence in meters, by default 1.0
-    data_dir : str
-        Directory path for storing/loading phase screen data (automatically set by simul.py).
-    source_dict : dict, optional
-        Dictionary of sources for the atmospheric phase screens.
-    wavelengthInNm : float, optional
-        Wavelength in nanometers for scaling the phase screens, by default 500.0 nm
-    pixel_phasescreens : int, optional
-        Size of the square phase screens in pixels. If None, defaults to 8192.
-    seed : int, optional
-        Seed for random number generation, by default 1.
-    update_interval : int, optional
-        Number of triggers between phase screen updates, by default 1.
-    target_device_idx : int, optional
-        Target device index for computation (CPU/GPU). Default is None (uses global setting).
-    precision : int, optional
-        Precision for computation (0 for double, 1 for single). Default is None (uses global setting).
+    """
+    Atmospheric random phase screen generator processing object.
+    Atmospheric phase screen generator producing random (uncorrelated) phase screens.
     """
     def __init__(self,
                  simul_params: SimulParams,
@@ -44,11 +23,37 @@ class AtmoRandomPhase(BaseProcessingObj):
                  pixel_phasescreens=None,
                  seed: int=1,
                  update_interval: int=1,
+                 verbose=None,
                  target_device_idx=None,
-                 precision=None,
-                 verbose=None):
-
-
+                 precision=None):
+        """
+        Parameters
+        ----------
+        simul_params : SimulParams
+            Simulation parameters object containing pupil size, pixel pitch, zenith angle, etc.
+        L0 : float, optional
+            Outer scale of turbulence in meters, by default 1.0
+        data_dir : str
+            Directory path for storing/loading phase screen data (automatically set by simul.py).
+        source_dict : dict, optional
+            Dictionary of sources for the atmospheric phase screens.
+        wavelengthInNm : float, optional
+            Wavelength in nanometers for scaling the phase screens, by default 500.0 nm
+        pixel_phasescreens : int, optional
+            Size of the square phase screens in pixels. If None, defaults to 8192.
+        seed : int, optional
+            Seed for random number generation, by default 1.
+        update_interval : int, optional
+            Number of triggers between phase screen updates, by default 1.
+        verbose : bool, optional
+            If True, enables verbose output during phase screen generation.
+            Default is None (no verbose output).
+        target_device_idx : int, optional
+            Target device index for computation (CPU/GPU). Default is None (uses global setting).
+        precision : int, optional
+            Precision for computation (0 for double, 1 for single). Default is None
+            (uses global setting).
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.simul_params = simul_params

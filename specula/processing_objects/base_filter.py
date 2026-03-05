@@ -8,21 +8,25 @@ from specula.data_objects.simul_params import SimulParams
 
 
 class BaseFilter(BaseProcessingObj):
-    '''Base class for time-domain filters with delay support.
-    
-    Provides common functionality for:
-    - Delay buffer management
-    - Interpolation for fractional delays
-    - Gain modulation
-    - Synchronous (no-delay) outputs for POLC
-    '''
-
+    """
+    Base filter processing object.
+    Base class for time-domain filters with delay support.
+    """
     def __init__(self,
                  simul_params: SimulParams,
                  nfilter: int,
                  delay: float = 0,
                  target_device_idx=None,
                  precision=None):
+        """
+        Note
+        ----
+        Provides common functionality for:
+            - Delay buffer management
+            - Interpolation for fractional delays
+            - Gain modulation
+            - Synchronous (no-delay) outputs for POLC
+        """
 
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 

@@ -26,15 +26,12 @@ manager = mp.Manager()
 
 
 class DisplayServer(BaseProcessingObj):
-    '''
+    """
+    Display server processing object.
     Copies data objects to a separate process using multiprocessing queues.
     In this instance, the separate process is a Flask web server, but this class
     could be easily made generic to support different kinds of export processes.
-    
-    This object must *not* be run concurrently with any other in the simulation,
-    because it can in some cases temporarily modify the data objects (removing references
-    to the xp module to allow pickling)
-    '''
+    """
     def __init__(self,
                  params_dict: dict,
                  input_ref_getter: typing.Callable,
@@ -43,6 +40,14 @@ class DisplayServer(BaseProcessingObj):
                  host: str='0.0.0.0',
                  port: int=0,    # Autoselect
     ):
+        """
+        Note
+        ----
+            
+        This object must *not* be run concurrently with any other in the simulation,
+        because it can in some cases temporarily modify the data objects (removing references
+        to the xp module to allow pickling)
+        """
         super().__init__()
         self.qin = manager.Queue()    # Queue to receive dataobj requests from the Flask webserver
         self.qout = manager.Queue()   # Queue to send regular status updates

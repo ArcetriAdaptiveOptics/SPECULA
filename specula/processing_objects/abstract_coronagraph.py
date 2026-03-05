@@ -11,6 +11,10 @@ from specula.lib.utils import make_subpixel_shift_phase
 from abc import abstractmethod
 
 class Coronagraph(BaseProcessingObj):
+    """
+    Abstract coronagraph class processing object.
+    This class provides the basic structure for a coronagraph processing object.
+    """
     def __init__(self,
                  simul_params: SimulParams,
                  wavelengthInNm: float,
@@ -22,6 +26,31 @@ class Coronagraph(BaseProcessingObj):
                  target_device_idx: int = None,
                  precision: int = None
                 ):
+        """
+        Parameters
+        ----------
+        simul_params: SimulParams
+            Simulation parameters containing pixel_pupil and pixel_pitch
+        wavelengthInNm: float
+            Wavelength in nm
+        fov: float
+            Desired field of view in lambda/D on focal plane
+        fov_errinf: float, optional
+            Relative error allowed on the inner part of the FOV (default: 0.1)
+        fov_errsup: float, optional
+            Relative error allowed on the outer part of the FOV (default: 10)
+        fft_res: float, optional
+            Desired resolution in the focal plane in pixels per lambda/D (default: 3.0)
+        center_on_pixel: bool, optional
+            Whether to center the focal plane mask on a single pixel (True) or
+            at the intersection of 4 pixels (False). This affects the phase shift
+            applied to the electric field (default: True)
+        target_device_idx : int, optional
+            Target device index for computation (CPU/GPU). Default is None (uses global setting).
+        precision : int, optional
+            Precision for computation (0 for double, 1 for single). Default is None
+            (uses global setting).
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.simul_params = simul_params

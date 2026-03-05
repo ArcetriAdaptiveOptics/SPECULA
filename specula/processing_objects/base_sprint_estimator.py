@@ -22,80 +22,9 @@ from specula import cpuArray
 class BaseSprintEstimator(BaseProcessingObj):
     """
     Base SPRINT (System Parameters Recurrent Invasive Tracking) Estimator.
-    
-    Online calibration of WFS-DM mis-registration parameters using:
-    1. Slope demodulation to extract measured interaction matrix
-    2. WFS-specific sensitivity matrix computation (implemented in subclasses)
-    3. Iterative parameter refinement with optional integration/forgetting
-    
-    Based on: Heritier+ 2021, MNRAS "SPRINT: a fast and least-cost 
-              online calibration strategy for adaptive optics"
-    
-    This base class handles:
-    - Slope collection and demodulation
-    - Iterative estimation loop
-    - Integration with gain and forgetting factor
-    - Input/output management
-    
-    Subclasses must implement:
-    - _compute_nominal_im(): Compute IM with current misreg parameters
-    - _compute_sensitivity_matrices(): Compute sensitivity matrices
-    - _validate_wfs(): Check WFS compatibility
-    
-    Parameters
-    ----------
-    simul_params : SimulParams
-        Simulation parameters
-    dm : DM
-        Deformable mirror object
-    slopec : Slopec
-        Slope computer object
-    source : Source
-        Guide star source object
-    wfs : BaseProcessingObj
-        WFS object (specific type depends on subclass)
-    modes_index : list
-        List of mode indices to estimate
-    carrier_frequencies : list
-        Carrier frequencies for each mode [Hz]
-    estimation_dt : float
-        Time interval between estimations [seconds]
-    max_iterations : int
-        Maximum iterations per estimation cycle
-    convergence_threshold : float
-        Relative error threshold for convergence
-    initial_misreg : list or None
-        Initial mis-registration [shift_x, shift_y, rot, magn(, magn_x, magn_y)]
-    apply_absolute_slopes : bool
-        Use absolute value of slopes
-    enable_wpup_magn_xy : bool
-        Enable separate X/Y magnification parameters
-    integration_gain : float
-        Gain for parameter updates (0 < gain <= 1)
-    forgetting_factor : float or None
-        Forgetting factor for integration (0 < factor <= 1, 1 = no forgetting)
-    verbose : bool
-        Enable verbose logging
-    target_device_idx : int or None
-        GPU device index
-    precision : int or None
-        Numerical precision
-    
-    Inputs
-    ------
-    in_slopes : Slopes
-        Current WFS slopes (modulated by pushpull_generator)
-    
-    Outputs
-    -------
-    out_intmat : Intmat
-        Estimated interaction matrix
-    out_misreg_params : BaseValue
-        Estimated mis-registration parameters
-    out_convergence_error : BaseValue
-        Current relative error
+    This class implements the core logic for online estimation of WFS-DM mis-registration
+    parameters using slope demodulation and iterative refinement.
     """
-
     def __init__(self,
                  simul_params: SimulParams,
                  dm: DM,
@@ -116,7 +45,80 @@ class BaseSprintEstimator(BaseProcessingObj):
                  verbose: bool = False,
                  target_device_idx: int = None,
                  precision: int = None):
-
+        """
+        Online calibration of WFS-DM mis-registration parameters using:
+        1. Slope demodulation to extract measured interaction matrix
+        2. WFS-specific sensitivity matrix computation (implemented in subclasses)
+        3. Iterative parameter refinement with optional integration/forgetting
+        
+        Based on: Heritier+ 2021, MNRAS "SPRINT: a fast and least-cost 
+                online calibration strategy for adaptive optics"
+        
+        This base class handles:
+        - Slope collection and demodulation
+        - Iterative estimation loop
+        - Integration with gain and forgetting factor
+        - Input/output management
+        
+        Subclasses must implement:
+        - _compute_nominal_im(): Compute IM with current misreg parameters
+        - _compute_sensitivity_matrices(): Compute sensitivity matrices
+        - _validate_wfs(): Check WFS compatibility
+        
+        Parameters
+        ----------
+        simul_params : SimulParams
+            Simulation parameters
+        dm : DM
+            Deformable mirror object
+        slopec : Slopec
+            Slope computer object
+        source : Source
+            Guide star source object
+        wfs : BaseProcessingObj
+            WFS object (specific type depends on subclass)
+        modes_index : list
+            List of mode indices to estimate
+        carrier_frequencies : list
+            Carrier frequencies for each mode [Hz]
+        estimation_dt : float
+            Time interval between estimations [seconds]
+        max_iterations : int
+            Maximum iterations per estimation cycle
+        convergence_threshold : float
+            Relative error threshold for convergence
+        initial_misreg : list or None
+            Initial mis-registration [shift_x, shift_y, rot, magn(, magn_x, magn_y)]
+        apply_absolute_slopes : bool
+            Use absolute value of slopes
+        enable_wpup_magn_xy : bool
+            Enable separate X/Y magnification parameters
+        integration_gain : float
+            Gain for parameter updates (0 < gain <= 1)
+        forgetting_factor : float or None
+            Forgetting factor for integration (0 < factor <= 1, 1 = no forgetting)
+        verbose : bool
+            Enable verbose logging
+        target_device_idx : int, optional
+            Target device index for computation (CPU/GPU). Default is None (uses global setting).
+        precision : int, optional
+            Precision for computation (0 for double, 1 for single). Default is None
+            (uses global setting).
+        
+        Inputs
+        ------
+        in_slopes : Slopes
+            Current WFS slopes (modulated by pushpull_generator)
+        
+        Outputs
+        -------
+        out_intmat : Intmat
+            Estimated interaction matrix
+        out_misreg_params : BaseValue
+            Estimated mis-registration parameters
+        out_convergence_error : BaseValue
+            Current relative error
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         # Store references

@@ -14,7 +14,9 @@ import matplotlib.pyplot as plt
 
 class GainOptimizer(BaseProcessingObj):
     """
-    Gain optimizer for IIR filters based on modal gain optimization (GENDRON 1994).
+    Gain optimizer processing object. 
+    Implements IIR filters based on modal gain optimization (GENDRON 1994).
+
     This class optimizes the gains of an IIR filter by minimizing the residual variance
     in the closed-loop system using pseudo open-loop measurements.
     """

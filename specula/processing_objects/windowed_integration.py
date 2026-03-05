@@ -6,7 +6,10 @@ from specula.base_value import BaseValue
 
 
 class WindowedIntegration(BaseProcessingObj):
-    '''Simple windowed integration of a signal'''
+    """
+    Windowed Integration processing object.
+    Implements a simple windowed integration of a signal.
+    """
     def __init__(self,
                  simul_params: SimulParams,
                  n_elem: int,

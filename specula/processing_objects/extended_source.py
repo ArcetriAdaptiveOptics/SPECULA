@@ -10,8 +10,11 @@ from specula.connections import InputValue
 
 class ExtendedSource(BaseProcessingObj):
     """
-    ExtendedSource class to compute extended sources (list of 3D points)
+    Extended source processing object. Computes extended sources (list of 3D points)
     for pyramid wavefront sensing.
+
+    The output "coeff" is constant, unless source_type is set to 'FROM_PSF',
+    in which case it can be updated by providing a new PSF through the 'psf' input.
 
     Args:
         simul_params (SimulParams): Simulation parameters.

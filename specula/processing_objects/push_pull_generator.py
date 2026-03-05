@@ -4,6 +4,7 @@ from specula.lib.modal_pushpull_signal import modal_pushpull_signal
 
 class PushPullGenerator(BaseGenerator):
     """
+    Push-Pull Generator processing object.
     Generates push-pull signals for modal calibration.
     """
     def __init__(self,

@@ -5,7 +5,10 @@ from specula.connections import InputValue
 
 
 class BaseOperation(BaseProcessingObj):
-    ''''Simple operations with base value(s)'''
+    """
+    Base Operation processing object.
+    Simple operations with base value(s).
+    """
     def __init__(self,
                  constant_mul: float=None,
                  constant_div: float=None,
@@ -37,6 +40,11 @@ class BaseOperation(BaseProcessingObj):
         sum (bool, optional): Flag for addition operation
         sub (bool, optional): Flag for subtraction operation
         concat (bool, optional): Flag for concatenation operation
+        target_device_idx : int, optional
+            Target device index for computation (CPU/GPU). Default is None (uses global setting).
+        precision : int, optional
+            Precision for computation (0 for double, 1 for single). Default is None
+            (uses global setting).
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 

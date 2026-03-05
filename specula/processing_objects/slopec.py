@@ -9,6 +9,11 @@ from specula.data_objects.recmat import Recmat
 
 
 class Slopec(BaseProcessingObj):
+    """
+    Slope Computer abstract processing object.
+    Base class for processing objects that compute slopes from pixel data, 
+    such as Shack-Hartmann or Pyramid slopes.
+    """
     def __init__(self,
                  sn: Slopes=None,
                  recmat: Recmat=None,

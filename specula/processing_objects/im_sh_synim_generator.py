@@ -25,7 +25,7 @@ from typing import Union
 
 class ImShSynimGenerator(BaseProcessingObj):
     """
-    Interaction Matrix and Reconstruction Matrix Generator for Shack-Hartmann WFS.
+    Interaction Matrix and Reconstruction Matrix Generator processing object for Shack-Hartmann WFS.
     
     Computes interaction matrix and reconstruction matrix with specified 
     mis-registration parameters using SynIM geometric model.

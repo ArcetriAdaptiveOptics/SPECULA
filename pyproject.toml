@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "specula"
-description = "PYramid Simulator Software for Adaptive OpTics Arcetri"
+description = "Scalable Parallel Execution of Computations Upscaling Large Adaptive optics simulations"
 readme = "README.md"
 requires-python = ">=3.8"
 license = "MIT"

@@ -6,6 +6,7 @@ from specula.processing_objects.sh import SH
 class PolyChromSH(PolyChromWFS):
     """
     Polychromatic Shack-Hartmann sensor that wraps multiple monochromatic SH sensors.
+
     Each SH can have its own wavelength, QE factor, and differential tilt.
     """
 

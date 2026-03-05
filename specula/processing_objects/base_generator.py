@@ -4,8 +4,8 @@ from specula.base_processing_obj import BaseProcessingObj
 
 class BaseGenerator(BaseProcessingObj):
     """
+    Base Generator processing object.
     Base class for function generators.
-    
     All specific generators inherit from this class and implement trigger_code().
     """
     def __init__(self,

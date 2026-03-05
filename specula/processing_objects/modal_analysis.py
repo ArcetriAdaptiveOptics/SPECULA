@@ -11,7 +11,11 @@ from specula.lib.compute_zern_ifunc import compute_zern_ifunc
 from skimage.restoration import unwrap_phase
 
 class ModalAnalysis(BaseProcessingObj):
-
+    """
+    Modal analysis processing object. Decomposition of an
+    input ElectricField into modes defined
+    by an influence function (e.g. Zernike polynomials).
+    """
     def __init__(self,
                 ifunc: IFunc=None,
                 ifunc_inv: IFuncInv=None,

@@ -5,6 +5,11 @@ from specula import RAD2ASEC
 
 
 class APPCoronagraph(Coronagraph):
+    """
+    Apodizing Phase Plate (APP) coronagraph class.
+    This class implements an APP coronagraph, which uses a phase-only mask in the pupil plane
+    to create a dark hole in the focal plane.
+    """
 
     def __init__(self,
                  simul_params: SimulParams,

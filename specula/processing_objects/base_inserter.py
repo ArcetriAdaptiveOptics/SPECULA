@@ -5,28 +5,34 @@ from specula.connections import InputValue
 
 class BaseInserter(BaseProcessingObj):
     """
-    Inserts a small vector into a larger vector.
+    Base Inserter processing object.
+    Inserts a small vector into a larger.
     Mirrors the BaseSlicer interface, but for insertion.
-
-    Parameters
-    ----------
-    output_size : int
-        Size of the large output vector.
-    indices : list of [src_indices, dest_indices] pairs, optional
-        Each pair defines explicit indices in the input and output vectors.
-        Example: indices=[[0,1,2], [1,3,5]] inserts src[0,1,2] into dest[1,3,5].
-    slice_args : list of [src_slice_args, dest_slice_args] pairs, optional
-        Each pair defines a slice in the input and output vectors.
-        Example: slice_args=[[0,3], [2,5]] inserts src[0:3] into dest[2:5].
-        Multiple pairs: slice_args=[[[0,2],[0,2]], [[2,4],[5,7]]]
     """
-
     def __init__(self,
                  output_size,
                  indices=None,
                  slice_args=None,
                  target_device_idx=None,
                  precision=None):
+        """
+        Parameters
+        ----------
+        output_size : int
+            Size of the large output vector.
+        indices : list of [src_indices, dest_indices] pairs, optional
+            Each pair defines explicit indices in the input and output vectors.
+            Example: indices=[[0,1,2], [1,3,5]] inserts src[0,1,2] into dest[1,3,5].
+        slice_args : list of [src_slice_args, dest_slice_args] pairs, optional
+            Each pair defines a slice in the input and output vectors.
+            Example: slice_args=[[0,3], [2,5]] inserts src[0:3] into dest[2:5].
+            Multiple pairs: slice_args=[[[0,2],[0,2]], [[2,4],[5,7]]]
+        target_device_idx : int, optional
+            Target device index for computation (CPU/GPU). Default is None (uses global setting).
+        precision : int, optional
+            Precision for computation (0 for double, 1 for single). Default is None
+            (uses global setting).
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         if indices is not None and slice_args is not None:

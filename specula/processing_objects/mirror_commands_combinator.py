@@ -6,8 +6,10 @@ from specula.data_objects.recmat import Recmat
 
 
 class MirrorCommandsCombinator(BaseProcessingObj):
-    '''Mirror Commands Combinator'''
-
+    """
+    Mirror commands combinator processing object, 
+    Combines commands from multiple sources, specialized for MORFEO-like systems
+    """
     def __init__(self,
                  k_vector,
                  recmat: Recmat,

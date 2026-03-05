@@ -5,7 +5,12 @@ from specula import RAD2ASEC, np
 
 
 class VortexCoronagraph(Coronagraph):
-
+    """
+    Vortex Coronagraph processing object.
+    Implements a vortex coronagraph, where the focal plane mask applies an azimuthal 
+    phase delay that changes from 0 to 2 pi a number of times equal to the vortex 
+    charge; the pupil plane mask can include an inner and/or outer stop.
+    """
     def __init__(self,
                  simul_params: SimulParams,
                  wavelengthInNm: float,

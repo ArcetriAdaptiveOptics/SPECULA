@@ -13,8 +13,10 @@ from specula.base_processing_obj import BaseProcessingObj
 
 
 class DataStore(BaseProcessingObj):
-    '''Data storage object'''
-
+    """
+    Data storage processing object.
+    Stores data values over time and saves them to disk at the end of the run.
+    """
     def __init__(self,
                 store_dir: str,         # TODO ="",
                 split_size: int=0,
