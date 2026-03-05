@@ -43,8 +43,7 @@ def save_rec(rec, rec_tag:str, overwrite:bool=True):
     print('Reconstructor saved as '+rec_tag+'_rec')
 
 
-def compute_pyr_rec(Nmodes:int, compute_ml:bool=False, sn_tag = 'pyr_slope_null'):
-    im_tag = 'pyr_1851modes'
+def compute_pyr_rec(Nmodes:int, im_tag:str='pyr_1851modes', compute_ml:bool=False, sn_tag = 'pyr_slope_null'):
     if compute_ml is False:
         rec_tag = f'pyr_{Nmodes:1.0f}modes'
         rec = compute_rec(im_tag=im_tag, Nmodes=Nmodes)
@@ -54,8 +53,7 @@ def compute_pyr_rec(Nmodes:int, compute_ml:bool=False, sn_tag = 'pyr_slope_null'
     return rec, rec_tag
 
 
-def compute_zwfs_rec(Nmodes:int, compute_ml:bool=False, sn_tag = 'zwfs_slope_null'):
-    im_tag = 'zwfs_1851modes'
+def compute_zwfs_rec(Nmodes:int, im_tag:str='zwfs_1851modes', compute_ml:bool=False, sn_tag = 'zwfs_slope_null'):
     if compute_ml is False:
         rec_tag = f'zwfs_{Nmodes:1.0f}modes'
         rec = compute_rec(im_tag=im_tag, Nmodes=Nmodes)
@@ -67,8 +65,13 @@ def compute_zwfs_rec(Nmodes:int, compute_ml:bool=False, sn_tag = 'zwfs_slope_nul
 
 if __name__ == "__main__":
 
-    rec,rec_tag = compute_pyr_rec(Nmodes=1200)
-    save_rec(rec, rec_tag=rec_tag)
+    Nmodes = 1200
+    # rMods = np.array([0,0.5,1,3,4,6])
+    # for rMod in rMods:
+    #     rec,_ = compute_pyr_rec(Nmodes=Nmodes,im_tag=f'pyr{rMod:1.1f}_1851modes')
+    #     save_rec(rec, rec_tag=f'pyr{rMod:1.1f}_{Nmodes:1.0f}modes')
 
-    rec,rec_tag = compute_zwfs_rec(Nmodes=1200)
-    save_rec(rec, rec_tag=rec_tag)
+    dotSizes = np.array([1,1.5,2])
+    for dotSize in dotSizes:
+        rec,_ = compute_zwfs_rec(Nmodes=Nmodes,im_tag=f'z{dotSize:1.1f}wfs_1851modes')
+        save_rec(rec, rec_tag=f'z{dotSize:1.1f}wfs_{Nmodes:1.0f}modes')

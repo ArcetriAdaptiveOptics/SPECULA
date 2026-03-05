@@ -13,7 +13,7 @@ pushpull:
 pyr_im_calibrator:
   class:     'ImCalibrator'
   nmodes:    1851                         # Number of modes to calibrate
-  im_tag:    'pyr_1851modes_im'            # Output IM filename
+  im_tag:    'pyr0.0_1851modes_im'            # Output IM filename
   overwrite: true                         # Overwrite existing files
   inputs:
     in_slopes:   'pyr_slopes.out_slopes'      # WFS slopes input
@@ -22,7 +22,7 @@ pyr_im_calibrator:
 zwfs_im_calibrator:
   class:     'ImCalibrator'
   nmodes:    1851                         # Number of modes to calibrate
-  im_tag:    'zwfs_1851modes_im'            # Output IM filename
+  im_tag:    'z1.0wfs_1851modes_im'            # Output IM filename
   overwrite: true                         # Overwrite existing files
   inputs:
     in_slopes:   'zwfs_slopes.out_slopes'      # WFS slopes input
@@ -48,11 +48,13 @@ dm_override:
     in_command: 'pushpull.output'         # Connect to push-pull generator
 
 pyr_override:
-  # mod_amp: 1.0
+  mod_amp: 0.0
   inputs: 
     in_ef: 'prop.out_source_ngs_ef'
 
 zwfs_override:
+  spot_radius_lambda: 0.5                     # Spot RADIUS in λ/D units
+  # phase_shift:        1.5707963267948966      # Spot phase delay (pi/2)
   inputs: 
     in_ef: 'prop.out_source_ngs_ef'
 
@@ -63,7 +65,6 @@ cred1_override:
   excess_noise:   false                   # No excess noise
 
 ocam2_override:
-  dt: 0.0005
   photon_noise:   false                   # No photon noise
   readout_noise:  false                   # No read noise
   excess_noise:   false                   # No excess noise

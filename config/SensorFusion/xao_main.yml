@@ -6,7 +6,7 @@ main:
   pixel_pupil:       160                   # Must match influence function computation
   pixel_pitch:       0.0513                # [m] 8.2m / 160 pixels = 0.0513 m/pixel (Nyquist sampling of 10cm r0)
   total_time:        0.700                 # [s] 1 second simulation
-  time_step:         0.00025                # [s] 0.5ms time steps (2 kHz)
+  time_step:         0.0005                # [s] 0.5ms time steps (2 kHz)
   zenithAngleInDeg:  0.0                   # [deg] Zenith observation (0 means no airmass)
   display_server:    false                 # Disable for batch runs
 
@@ -104,16 +104,17 @@ cred1:
   outputs:           ['out_pixels']
 
 pyr_slopes:
-  class:             'PyrSlopec'
-  pupdata_object:    'pyr_pupdata'            # tag of the pyramid WFS pupils
-  # sn_object:         'pyr_slope_null'
+  class:                  'PyrSlopec'
+  pupdata_object:         'pyr_pupdata'           
+  slopes_from_intensity:  true
+  # sn_object:            'pyr_slope_null'
   inputs:
     in_pixels:        'cred1.out_pixels'
   outputs:           ['out_slopes']
 
 pyr_modalrec:
   class:             'Modalrec'
-  recmat_object:     'pyr_1200modes_rec'        # Reconstruction matrix tag
+  recmat_object:     'pyr_1200modes_rec'        
   inputs:
     in_slopes:       'pyr_slopes.out_slopes'
   outputs:           ['out_modes']
@@ -126,7 +127,6 @@ zwfs:
   pup_diam:           48.                     # Pupil diameter in subaps.
   fov:                2.0                     # Requested field-of-view [arcsec]
   spot_radius_lambda: 1.0                     # Spot radius in λ/D units
-  # phase_shift:        1.5707963267948966      # Spot phase delay (pi/2)
   fft_res:            16.0
   output_resolution:  60                     # Output sampling [usually corresponding to CCD pixels]
   wavelengthInNm:     1200                     # [nm] zWFS wavelength
@@ -137,7 +137,7 @@ ocam2:
   class:             'CCD'
   simul_params_ref:  'main'
   size:              [60,60]             # Total detector size
-  dt:                0.00025               # [s] Integration time (4000 fps)
+  dt:                0.0005               # [s] Integration time (4000 fps)
   bandw:             400                   # [nm]
   photon_noise:      true                  # Enable photon noise
   readout_noise:     true                  # Enable read noise
@@ -152,8 +152,8 @@ ocam2:
 zwfs_slopes:
   class:             'ZwfsSlopec'
   # sn_object:         'zwfs_slope_null'
-  diameter:          49.0
-  ccd_size:          [60,60]
+  pup_diam:          48.0
+  ccd_size:          60
   obsratio:          0.0
   inputs:
     in_pixels:        'ocam2.out_pixels'
@@ -161,7 +161,7 @@ zwfs_slopes:
 
 zwfs_modalrec:
   class:             'Modalrec'
-  recmat_object:     'zwfs_1200modes_rec'        # Reconstruction matrix tag
+  recmat_object:     'zwfs_1200modes_rec'        
   inputs:
     in_slopes:       'zwfs_slopes.out_slopes'
   outputs:           ['out_modes']
@@ -175,7 +175,7 @@ zwfs_modalrec:
 #   int_gain:          [0.4]
 #   n_modes:           [1200]                 # Number of modes to control
 #   inputs:
-#     delta_comm:      'ogc_modes.out_value' #'modalrec.out_modes' #
+#     delta_comm:      'modalrec.out_modes' #
 #   outputs:           ['out_comm']
 
 # filter:
