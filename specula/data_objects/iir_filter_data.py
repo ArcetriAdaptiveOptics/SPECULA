@@ -15,15 +15,10 @@ except ImportError:
     control = None
 
 class IirFilterData(BaseDataObj):
-    """:class:`~specula.data_objects.iir_filter_data.IirFilterData` - IIR Filter Data representation.
-    
-    This class stores IIR filter coefficients in the following format:
-    - Coefficients are stored with highest order terms first
-    - num[i, :] contains numerator coefficients for filter i
-    - den[i, :] contains denominator coefficients for filter i
-    - ordnum[i] and ordden[i] specify the actual order of each filter
-    
-    Transfer function: H(z) = (num[0] + num[1]*z + ...) / (den[0] + den[1]*z + ...)
+    """
+    Infinite Impulse Response (IIR) Filter Data object.
+    This class stores IIR filter coefficients and provides methods to analyze
+    the filter's transfer function, frequency response and stability.
     """
     def __init__(self,
                  ordnum: list,
@@ -33,6 +28,17 @@ class IirFilterData(BaseDataObj):
                  n_modes=None,
                  target_device_idx: int=None,
                  precision: int=None):
+        """
+        :class:`~specula.data_objects.iir_filter_data.IirFilterData` - IIR Filter Data representation.
+ 
+        This class stores IIR filter coefficients in the following format:
+        - Coefficients are stored with lowest order terms first
+        - num[i, :] contains numerator coefficients for filter i
+        - den[i, :] contains denominator coefficients for filter i
+        - ordnum[i] and ordden[i] specify the actual order of each filter
+
+        Transfer function: H(z) = (num[0] + num[1]*z + ...) / (den[0] + den[1]*z + ...)
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         # Handle filter setup (ordnum, ordden, num and den) based on n_modes:
         # - If n_modes is provided, it specifies how many modes (channels) to use.
@@ -809,6 +815,10 @@ class IirFilterData(BaseDataObj):
         ord_den = np.zeros(n)
 
         for i in range(n):
+            # For a first-order IIR filter with gain and forgetting factor ff:
+            # H(z) = gain / (1 - ff * z^(-1))
+            # or
+            # H(z) = gain * z / (z - ff)
             num[i, 0] = 0
             num[i, 1] = gain[i]
             ord_num[i] = 2
@@ -977,7 +987,7 @@ class IirFilterData(BaseDataObj):
         num_coeffs = cpuArray(self.num[mode, ::-1])
         den_coeffs = cpuArray(self.den[mode, ::-1])
 
-        # Remove final zeros (highest order first)
+        # Remove final zeros (highest order first because of reversed order)
         while len(num_coeffs) > 1 and num_coeffs[-1] == 0 and len(den_coeffs) > 1 and den_coeffs[-1] == 0:
             num_coeffs = num_coeffs[:-1]
             den_coeffs = den_coeffs[:-1]

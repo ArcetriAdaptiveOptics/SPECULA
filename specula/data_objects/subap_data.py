@@ -8,6 +8,11 @@ from specula.base_data_obj import BaseDataObj
 
 
 class SubapData(BaseDataObj):
+    """
+    Subaperture data object.
+    This class holds the information about the subapertures, i.e. the indices of the pixels
+    belonging to each subaperture of a Shack-Hartmann sensor.
+    """
     def __init__(self,
                  idxs,
                  display_map,
@@ -16,14 +21,29 @@ class SubapData(BaseDataObj):
                  energy_th: float=0,
                  target_device_idx: int=None,
                  precision: int=None):
-        '''
+        """
         Initialize a :class:`~specula.data_objects.subap_data.SubapData` object.
         
-        idxs: np.array[n_subaps, n_pixels] of pixel indices in a flattened pixel array for each subaperture
-        display_map: np.array[n_subaps] of subaperture indices on a flattened nx * ny array, used for display only
-        nx: number of subapertures in the X (horizontal) direction
-        ny: number of subapertures in the Y (vertical) direction
-        '''
+        Parameters
+        ----------
+        
+        idxs:
+            np.array[n_subaps, n_pixels] of pixel indices in a flattened pixel array for
+            each subaperture
+        display_map:
+            np.array[n_subaps] of subaperture indices on a flattened nx * ny array,
+            used for display only
+        nx:
+            number of subapertures in the X (horizontal) direction
+        ny:
+            number of subapertures in the Y (vertical) direction
+        energy_th:
+            energy threshold for subaperture validity (default: 0)
+        target_device_idx:
+            device index for computation (default: None)
+        precision:
+            precision for computation (default: None)
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         self.idxs = self.to_xp(idxs.astype(int))
         self.display_map = self.to_xp(display_map.astype(int))

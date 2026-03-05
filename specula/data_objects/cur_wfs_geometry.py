@@ -7,7 +7,7 @@ from specula.base_data_obj import BaseDataObj
 
 class CurWfsGeometry(BaseDataObj):
     """
-    Curvature Wavefront Sensor Geometry object.
+    Curvature Wavefront Sensor Geometry data object.
     Holds the 3D mask array for subaperture integration.
     """
     def __init__(self,

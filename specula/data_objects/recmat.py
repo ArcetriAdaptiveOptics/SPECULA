@@ -7,9 +7,11 @@ from specula.base_data_obj import BaseDataObj
 
 
 class Recmat(BaseDataObj):
-    '''
-    Reconstruction matrix axes are [modes, slopes]
-    '''
+    """
+    Reconstruction matrix data object.
+    This class holds the information about the reconstruction matrix,
+    which maps slopes to modes. The reconstruction matrix axes are [modes, slopes].
+    """
     def __init__(self,
                  recmat,
                  modes2recLayer=None,  # TODO not used

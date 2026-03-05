@@ -5,24 +5,9 @@ from astropy.io import fits
 import numpy as np
 
 class SsrFilterData(BaseDataObj):
-    """:class:`~specula.data_objects.ssr_filter_data.SsrFilterData`
-    State Space Representation Filter Data.
-
-    This class stores discrete-time state-space filter coefficients in the format:
-    x[k+1] = A*x[k] + B*u[k]
-    y[k]   = C*x[k'] + D*u[k]
-    
-    where x[k'] is either x[k] or x[k+1] depending on output_uses_new_state argument
-    of SsrFilter class.
-    
-    All filters are combined into single block-diagonal matrices:
-    - A: block-diagonal state transition matrix (total_states x total_states)
-    - B: input matrix mapping each input to its states (total_states x nfilter)
-    - C: output matrix mapping states to outputs (nfilter x total_states)
-    - D: diagonal feedthrough matrix (nfilter x nfilter)
-    - x: concatenated state vector (total_states,)
-    - u: input vector (nfilter,)
-    - y: output vector (nfilter,)
+    """
+    State Space Representation Filter Data data object.
+    This class stores discrete-time state-space filter coefficients.
     """
     def __init__(self,
                  A,
@@ -32,6 +17,29 @@ class SsrFilterData(BaseDataObj):
                  n_modes=None,
                  target_device_idx: int=None,
                  precision: int=None):
+        """
+        :class:`~specula.data_objects.ssr_filter_data.SsrFilterData`
+        
+        Note
+        ----
+        State Space Representation Filter Data.
+
+        This class stores discrete-time state-space filter coefficients in the format:
+        x[k+1] = A*x[k] + B*u[k]
+        y[k]   = C*x[k'] + D*u[k]
+
+        where x[k'] is either x[k] or x[k+1] depending on output_uses_new_state argument
+        of SsrFilter class.
+        
+        All filters are combined into single block-diagonal matrices:
+        - A: block-diagonal state transition matrix (total_states x total_states)
+        - B: input matrix mapping each input to its states (total_states x nfilter)
+        - C: output matrix mapping states to outputs (nfilter x total_states)
+        - D: diagonal feedthrough matrix (nfilter x nfilter)
+        - x: concatenated state vector (total_states,)
+        - u: input vector (nfilter,)
+        - y: output vector (nfilter,)
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         # Convert inputs and determine if block-diagonal construction is needed

@@ -15,9 +15,11 @@ def compute_mixed_ifunc(*args, **kwargs):
 
 
 class IFunc(BaseDataObj):
-    '''
-    Influence functions are stored as [modes, pixels]
-    '''
+    """
+    Influence functions data object.
+    This class holds the influence function matrix and the corresponding mask.
+    Influence functions data are stored as [modes, pixels].
+    """
     def __init__(self,
                  ifunc=None,
                  type_str: str=None,
