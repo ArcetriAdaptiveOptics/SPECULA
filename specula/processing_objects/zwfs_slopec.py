@@ -80,7 +80,8 @@ class ZwfsSlopec(Slopec):
         self.total_counts.value[0] = self.total_intensity
         self.subap_counts.value[0] = self.total_intensity / self.nsubaps()
 
-        self.slopes.slopes = metaintensity / self.xp.mean(metaintensity)
+        norm_factor = self.xp.sum(metaintensity) / self.nsubaps()
+        self.slopes.slopes = metaintensity / norm_factor
 
     def post_trigger(self):
         super().post_trigger()

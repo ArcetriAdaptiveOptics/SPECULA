@@ -63,6 +63,7 @@ if __name__ == "__main__":
     if not os.path.exists(path):
         os.mkdir(path)
     file_name = path + 'iirfilter.fits'
+    tiled_file_name = path + 'tiled_iirfilter.fits'
     fs = 2000  # Frequenza di campionamento [Hz]
     excluded_filters = 20 
     n_filters = 1200
@@ -124,23 +125,29 @@ if __name__ == "__main__":
         den=den_array
     )
 
-    print("=== SALVATAGGIO ===")
+    tiled_filter_data_complex = IirFilterData(
+        ordnum=[3] * n_filters*2,
+        ordden=[3] * n_filters*2,
+        num=np.tile(num_array,[2,1]),
+        den=np.tile(den_array,[2,1])
+    )
 
-    # Salva usando il metodo nativo FITS
     filter_data_complex.save(file_name)
-    print(f"Salvato con metodo nativo: {file_name}")
+    print(f"Saved with native method: {file_name}")
+    tiled_filter_data_complex.save(tiled_file_name)
+    print(f"Saved with native method: {tiled_file_name}")
 
-    print("\n=== CARICAMENTO E VERIFICA ===")
-
-    # Test di caricamento con metodo nativo
     try:
         loaded_filter_native = IirFilterData.restore(file_name)
-        print(f"Caricato: {loaded_filter_native.nfilter} filtri")
-
-        # Verifica che i coefficienti siano identici
+        print(f"Loaded: {loaded_filter_native.nfilter} filtri")
         coeffs_match = np.allclose(loaded_filter_native.num, filter_data_complex.num) and \
                       np.allclose(loaded_filter_native.den, filter_data_complex.den)
-        print(f"Coefficienti corrispondenti: {coeffs_match}")
+        print(f"Matching filters: {coeffs_match}")
+        loaded_filter_native = IirFilterData.restore(tiled_file_name)
+        print(f"Loaded: {loaded_filter_native.nfilter} filtri")
+        coeffs_match = np.allclose(loaded_filter_native.num, tiled_filter_data_complex.num) and \
+                      np.allclose(loaded_filter_native.den, tiled_filter_data_complex.den)
+        print(f"Matching filters: {coeffs_match}")
 
     except FileNotFoundError:
-        print("File FITS non trovato per il test di caricamento")
+        print("File FITS not found")

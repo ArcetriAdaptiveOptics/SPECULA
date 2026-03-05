@@ -6,6 +6,7 @@ from specula.lib.radial_profile import computeRadialProfile
 from astropy.io import fits
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 
 def show_psf(psf, oversampling:int=4, title:str='', ext=0.25, vmin=-8, vmax=0, cmap='inferno', maxVal=None):
     imageHalfSizeInPoints= psf.shape[0]/2
@@ -101,11 +102,11 @@ except FileNotFoundError:
 
 ##################### Modes ##########################
 try:
-    res = data['dm_res'][init+1:, :]
-    pywfs_modes = data['pyr_modes'][init+1:, :]
-    zwfs_modes = data['zwfs_modes'][init+1:, :]
-    x = np.arange(res.shape[1])+1+init
-    Nmodes = 3
+    res = data['dm_res'][:800,:]#[init+1:, :]
+    pywfs_modes = data['pyr_modes'][:800,:]#[init+1:, :]
+    zwfs_modes = data['zwfs_modes'][:800,:]#[init+1:, :]
+    x = np.arange(res.shape[0])#+1+init
+    Nmodes = 4
     plt.figure()
     for i in range(Nmodes):
         plt.plot(x, res[:,i],c=f'C{i:1.0f}')
@@ -113,6 +114,15 @@ try:
         plt.plot(x, zwfs_modes[:,i],':',c=f'C{i:1.0f}')
     plt.xlabel('iteration #')
     plt.ylabel('RMS [nm]')
+    plt.grid()
+    
+    mode_handles = [Line2D([0], [0], color=f'C{i}', linestyle='-', label=f'Mode {i}') for i in range(Nmodes)]
+    style_handles = [
+        Line2D([0], [0], color='k', linestyle='-', label='True'),
+        Line2D([0], [0], color='k', linestyle='--', label='PyWFS'),
+        Line2D([0], [0], color='k', linestyle=':', label='ZWFS')
+    ]
+    # plt.legend(handles=[mode_handles,style_handles], loc='best')
 
 except FileNotFoundError:
     print(f"pyr_modes.fits or zwfs_modes.fits file(s) not found in {data_dir}.")

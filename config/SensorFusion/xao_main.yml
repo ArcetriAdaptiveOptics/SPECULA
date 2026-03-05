@@ -38,9 +38,9 @@ source_ngs:
 vlt_aperture:
   class:             'Pupilstop'
   simul_params_ref:  'main'
-  # pupilstop_object:  'vlt_pupil_160pixels'
   mask_diam:         1.0                  # Full pupil diameter
   obs_diam:          0.0                  # no central obstruction
+  # tag:               'vlt_pupil_160pixels'
 
 
 # Multi-layer atmospheric model
@@ -61,11 +61,11 @@ atmo:
 prop:
   class:             'AtmoPropagation'
   simul_params_ref:  'main'
-  source_dict_ref:   ['source_ngs'] #['source_science', 'source_ngs']
+  source_dict_ref:   ['source_ngs'] 
   inputs:
     atmo_layer_list: ['atmo.layer_list']
     common_layer_list: ['vlt_aperture']       # Pupil
-  outputs:           ['out_source_ngs_ef'] #['out_source_science_ef', 'out_source_ngs_ef']
+  outputs:           ['out_source_ngs_ef'] 
 
 ef_prop:
   class: 'ElectricFieldCombinator'
@@ -107,14 +107,14 @@ pyr_slopes:
   class:                  'PyrSlopec'
   pupdata_object:         'pyr_pupdata'           
   slopes_from_intensity:  true
-  # sn_object:            'pyr_slope_null'
+  sn_object:            'pyr1.0_slope_null'
   inputs:
     in_pixels:        'cred1.out_pixels'
   outputs:           ['out_slopes']
 
 pyr_modalrec:
   class:             'Modalrec'
-  recmat_object:     'pyr_1200modes_rec'        
+  recmat_object:     'pyr1.0_1200modes_rec'        
   inputs:
     in_slopes:       'pyr_slopes.out_slopes'
   outputs:           ['out_modes']
@@ -127,7 +127,7 @@ zwfs:
   pup_diam:           48.                     # Pupil diameter in subaps.
   fov:                2.0                     # Requested field-of-view [arcsec]
   spot_radius_lambda: 1.0                     # Spot radius in λ/D units
-  fft_res:            16.0
+  fft_res:            4.0
   output_resolution:  60                     # Output sampling [usually corresponding to CCD pixels]
   wavelengthInNm:     1200                     # [nm] zWFS wavelength
   inputs:
@@ -151,7 +151,7 @@ ocam2:
 
 zwfs_slopes:
   class:             'ZwfsSlopec'
-  # sn_object:         'zwfs_slope_null'
+  sn_object:         'z2.0wfs_slope_null'
   pup_diam:          48.0
   ccd_size:          60
   obsratio:          0.0
@@ -161,12 +161,37 @@ zwfs_slopes:
 
 zwfs_modalrec:
   class:             'Modalrec'
-  recmat_object:     'zwfs_1200modes_rec'        
+  recmat_object:     'z2.0wfs_1200modes_rec'        
   inputs:
     in_slopes:       'zwfs_slopes.out_slopes'
   outputs:           ['out_modes']
 
 ############################ Control ################################
+bootstrap:
+  class:              'ScheduleGenerator'
+  scheduled_values:   [[1.0, 0.0],
+                      [0.0, 0.10]] # Nrows x Ncols, times x gains
+  modes_per_group:    [1200,1200] # Ncols
+  scheduled_times:    [0.2] # Nrows-1
+
+concat_wfs_modes:
+  class:      'BaseOperation'
+  concat: true
+  inputs:
+    in_value1:  'pyr_modalrec.out_modes'
+    in_value2:  'zwfs_modalrec.out_modes'
+  outputs: ['out_value']
+
+filter:
+  class:                'IirFilter'
+  simul_params_ref:     'main'
+  iir_gain:             0.4
+  delay:                1 # Total temporal delay in time steps is this value +1
+  iir_filter_data_object:  'tiled_iirfilter'
+  inputs:
+    delta_comm: 'concat_wfs_modes.out_value' 
+    gain_mod: 'bootstrap.output'
+  outputs:  ['out_comm']
 
 # filter:
 #   class:             'Integrator'
@@ -191,15 +216,15 @@ zwfs_modalrec:
 #     in_yf: 'zwfs_modalrec.out_modes'
 #   outputs:  ['out_comm']
 
-filter:
-  class:                'IirFilter'
-  simul_params_ref:     'main'
-  iir_gain:             0.4
-  delay:                1 # Total temporal delay in time steps is this value +1
-  iir_filter_data_object:  'iirfilter'
-  inputs:
-    delta_comm: 'pyr_modalrec.out_modes' #'zwfs_modalrec.out_modes' #
-  outputs:  ['out_comm']
+# filter:
+#   class:                'IirFilter'
+#   simul_params_ref:     'main'
+#   iir_gain:             0.4
+#   delay:                1 # Total temporal delay in time steps is this value +1
+#   iir_filter_data_object:  'iirfilter'
+#   inputs:
+#     delta_comm: 'pyr_modalrec.out_modes' 
+#   outputs:  ['out_comm']
 
 dm:
   class:             'DM'
