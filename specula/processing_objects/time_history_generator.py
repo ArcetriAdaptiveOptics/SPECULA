@@ -4,6 +4,7 @@ from specula.data_objects.time_history import TimeHistory
 
 class TimeHistoryGenerator(BaseGenerator):
     """
+    Time History Generator processing object.
     Generates signals from pre-computed time history data.
     """
     def __init__(self,

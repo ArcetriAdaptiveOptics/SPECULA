@@ -22,6 +22,11 @@ def clamp_generic_more(x, c, y, xp):
     y[:] = xp.where(y > x, c, y)
 
 class ShSlopec(Slopec):
+    """ 
+    Shack-Hartmann slopes computer processing object.
+    Computes Shack-Hartmann slopes from pixel data using the subaperture intensities.
+    """
+
     def __init__(self,
                  subapdata: SubapData,
                  sn: Slopes=None,

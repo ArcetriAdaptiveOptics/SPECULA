@@ -30,7 +30,7 @@ def pyr1_abs2(v, norm, ffv, xp):
 
 class ModulatedPyramid(BaseProcessingObj):
     """
-    Pyramid wavefront sensor with tip-tilt modulation.
+    Pyramid wavefront sensor processing object. Includes tip-tilt modulation.
     
     This class implements a modulated pyramid WFS that works with point sources or
     can be used as a base class for extended source implementations. The modulation

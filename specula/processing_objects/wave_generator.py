@@ -4,6 +4,7 @@ from specula.processing_objects.base_generator import BaseGenerator
 
 class WaveGenerator(BaseGenerator):
     """
+    Wave Generator processing object.
     Generates periodic waveforms (SIN, SQUARE, TRIANGLE).
     """
     def __init__(self,

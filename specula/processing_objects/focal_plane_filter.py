@@ -4,6 +4,10 @@ from specula.data_objects.simul_params import SimulParams
 from specula.processing_objects.abstract_coronagraph import Coronagraph
 
 class FocalPlaneFilter(Coronagraph):
+    """
+    Basic focal plane filter processing object. Consists of a round pupil with a given
+    diameter and optional obstruction in the center.
+    """
     def __init__(self,
                  simul_params: SimulParams,
                  wavelengthInNm: float,

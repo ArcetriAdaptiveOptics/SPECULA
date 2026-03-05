@@ -22,9 +22,10 @@ def pyr1_abs2(v, norm, ffv, xp):
 
 class ExtSourcePyramid(ModulatedPyramid):
     """
-    Pyramid wavefront sensor for extended sources.
+    Pyramid processing object for extended sources. Extends the ModulatedPyramid
+    processing object to handle extended sources.
     
-    This class extends ModulatedPyramid to handle extended sources by computing
+    Extended sources are handlded by computing
     pupil phases on-the-fly for each source point, reducing memory usage compared
     to pre-computing and storing all tip-tilt exponentials.
     
@@ -55,13 +56,6 @@ class ExtSourcePyramid(ModulatedPyramid):
     precision : int, optional
         Numerical precision: 32 or 64 bits (default: None, uses system default)
 
-    Inherited Parameters (Not Used)
-    --------------------------------
-    mod_amp, mod_step, mod_type
-        These control tip-tilt modulation for point sources. In extended source mode,
-        they are ignored. The "modulation" is implicitly defined by the spatial
-        distribution of source points provided via the ext_source_coeff input.
-    
     Extended Source Specific Inputs
     ------
     ext_source_coeff : BaseValue
@@ -128,9 +122,6 @@ class ExtSourcePyramid(ModulatedPyramid):
                  fov: float,
                  pup_diam: int,
                  output_resolution: int,
-                 mod_amp: float = 3.0,
-                 mod_step: int = None,
-                 mod_type: str = 'circular',
                  fov_errinf: float = 0.5,
                  fov_errsup: float = 2,
                  pup_dist: int = None,
@@ -158,9 +149,9 @@ class ExtSourcePyramid(ModulatedPyramid):
             fov=fov,
             pup_diam=pup_diam,
             output_resolution=output_resolution,
-            mod_amp=mod_amp,
-            mod_step=mod_step,
-            mod_type=mod_type,
+            mod_amp=3.0,  # TODO these three could be removed altogether
+            mod_step=None,
+            mod_type='circular',
             fov_errinf=fov_errinf,
             fov_errsup=fov_errsup,
             pup_dist=pup_dist,

@@ -7,6 +7,10 @@ from specula.data_objects.simul_params import SimulParams
 import numpy as np
 
 class PowerLoss(BaseProcessingObj):
+    """
+    Power Loss processing object. 
+    Computes power loss in dB from the flux at the sensor and the receiver diameter.
+    """
     def __init__(self,
                  simul_params: SimulParams,
                  wavelengthInNm: float,

@@ -17,6 +17,11 @@ def clamp_generic_less(x, c, y, xp):
 
 
 class ZwfsSlopec(Slopec):
+    """
+    Zernike WFS slopes computer processing object. 
+    Computes Zernike WFS slopes from pixel data using the pupil intensity.
+    """
+    
     def __init__(self,
                  diameter: int,
                  ccd_size: tuple,

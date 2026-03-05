@@ -6,6 +6,11 @@ from specula.connections import InputValue
 
 
 class SnCalibrator(BaseProcessingObj):
+    """
+    Slope null calibrator processing object.
+    Analyzes a set of slope measurements to compute an average slope null, 
+    which is then saved as a Slopes object.
+    """
     def __init__(self,
                  data_dir: str,         # Set by main simul object
                  output_tag: str = None,
@@ -13,7 +18,7 @@ class SnCalibrator(BaseProcessingObj):
                  tag_template: str = None,
                  target_device_idx: int = None,
                  precision: int = None
-                ):
+                ):    
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         self._data_dir = data_dir
         self.overwrite = overwrite

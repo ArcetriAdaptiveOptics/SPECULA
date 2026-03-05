@@ -13,11 +13,12 @@ import matplotlib.pyplot as plt
 
 class SprintShSynim(BaseSprintEstimator):
     """
-    SPRINT Estimator for Shack-Hartmann WFS.
-    
-    Uses SynIM library to compute interaction matrices and sensitivity matrices
-    for Shack-Hartmann wavefront sensors.
-    
+    SPRINT (Shack-Hartmann WFS case) processing object.    
+    Uses SynIM library to computes interaction matrices and 
+    sensitivity matrices for Shack-Hartmann wavefront sensors 
+    and estimates mis-registration parameters by fitting the 
+    measured interaction matrix.
+           
     Mis-registration parameters:
     - [0]: shift_x (pixels)
     - [1]: shift_y (pixels)

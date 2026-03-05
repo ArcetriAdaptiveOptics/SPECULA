@@ -15,6 +15,11 @@ def clamp_generic_more(x, c, y, xp):
 
 
 class PyrSlopec(Slopec):
+    """
+    Pyramid slopes computer processing object. 
+    Computes pyramid slopes from pixel data using the 4 pupil intensities.
+    """
+
     def __init__(self,
                  pupdata: PupData,
                  sn: Slopes=None,

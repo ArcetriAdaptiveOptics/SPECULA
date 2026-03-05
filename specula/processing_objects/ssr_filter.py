@@ -4,9 +4,11 @@ from specula.data_objects.simul_params import SimulParams
 
 
 class SsrFilter(BaseFilter):
-    '''State Space Representation filter based Time Control
+    '''
+    State Space Representation filter processing object. 
+    Based on Time Control filter, which implements discrete-time state-space filtering.
     
-    Implements discrete-time state-space filtering:
+    Discrete-time state-space filtering implementation:
     x[k+1] = A*x[k]  + B*u[k]
     y[k]   = C*x[k'] + D*u[k]
     

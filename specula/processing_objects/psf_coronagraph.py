@@ -11,8 +11,8 @@ def psf_abs2(v, xp):
 
 class PsfCoronagraph(PSF):
     """
-    Perfect coronagraph implementation.
-    It includes the standard PSF calculation since it inherits from the PSF class.
+    Perfect coronagraph processing object..
+    The implementation includes the standard PSF calculation as it inherits from the PSF class.
 
     Parameters
     ----------

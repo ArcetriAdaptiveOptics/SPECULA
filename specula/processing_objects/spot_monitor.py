@@ -12,8 +12,7 @@ from specula import cpuArray
 
 class SpotMonitor(BaseProcessingObj):
     """
-    SpotMonitor
-    
+    Spot Monitor processing object.    
     Monitors wavefront sensor spot quality by fitting a 2D Moffat profile.
     
     - Input: Pixels (full WFS image)

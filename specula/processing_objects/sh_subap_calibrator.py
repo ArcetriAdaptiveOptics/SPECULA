@@ -9,6 +9,11 @@ from specula.data_objects.subap_data import SubapData
 
 
 class ShSubapCalibrator(BaseProcessingObj):
+    """
+    Shack-Hartmann Subaperture Calibrator processing object.
+    Analyzes a calibration image to detect subaperture positions and 
+    generate a SubapData object.
+    """
     def __init__(self,
                  subap_on_diameter: int,
                  data_dir: str,         # Set by main simul object

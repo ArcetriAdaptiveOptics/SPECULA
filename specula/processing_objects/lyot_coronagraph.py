@@ -5,7 +5,10 @@ from specula import RAD2ASEC
 
 
 class LyotCoronagraph(Coronagraph):
-
+    """
+    Lyot coronograh processing object.
+    Focal plane mask implementing a Lyot coronagraph
+    """
     def __init__(self,
                  simul_params: SimulParams,
                  wavelengthInNm: float,

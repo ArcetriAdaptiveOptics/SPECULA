@@ -5,7 +5,10 @@ from specula.data_objects.recmat import Recmat
 
 
 class MVM(BaseProcessingObj):
-    '''Matrix-Vector Multiplication - Simplified modal reconstructor for BaseValue inputs'''
+    """
+    Matrix-Vector Multiplication processing object.
+    Simplified modal reconstructor for BaseValue inputs
+    """
 
     def __init__(self,
                  recmat: Recmat,

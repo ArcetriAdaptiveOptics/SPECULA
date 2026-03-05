@@ -2,8 +2,9 @@ from specula.processing_objects.modulated_pyramid import ModulatedPyramid
 
 class ZernikeSensor(ModulatedPyramid):
     """
-    A Zernike sensor based on phase-shifting focal-plane spot technique.
-    Inherits from ModulatedPyramid but replaces the pyramid structure with
+    Zernike Sensor processing object.
+    Based on phase-shifting focal-plane spot technique, the class 
+    inherits from ModulatedPyramid but replaces the pyramid structure with
     a π/2 (default value) phase-shifting spot in the focal plane.
     """
 

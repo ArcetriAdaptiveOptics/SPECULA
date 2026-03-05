@@ -82,6 +82,7 @@ def get_vibrations_time_hist(nmodes, psd, freq, seed=1987, samp_freq=1000,
 
 class VibrationGenerator(BaseGenerator):
     """
+    Vibration Generator processing object.
     Generates vibration signals from PSD specifications.
     """
     def __init__(self,

@@ -4,6 +4,7 @@ from specula.processing_objects.base_generator import BaseGenerator
 
 class RandomGenerator(BaseGenerator):
     """
+    Random Generator processing object.
     Generates random signals (normal or uniform distribution).
     
     Parameters:

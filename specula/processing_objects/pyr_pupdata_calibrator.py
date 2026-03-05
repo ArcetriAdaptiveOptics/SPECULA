@@ -7,6 +7,13 @@ from specula import cpuArray
 
 
 class PyrPupdataCalibrator(BaseProcessingObj):
+    """
+    Pyramid PupData Calibrator processing object.
+    Analyzes a calibration image of the 4 pupils to extract their centers and radii,
+    generates pixel indices for each pupil, and saves the resulting PupData object.
+    Optional features include automatic central obstruction detection and debug plotting.
+    """
+
     def __init__(self,
                  data_dir: str,
                  thr1: float = 0.1,

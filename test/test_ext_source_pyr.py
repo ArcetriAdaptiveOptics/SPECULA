@@ -80,7 +80,6 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             fov=fov,
             pup_diam=pup_diam,
             output_resolution=output_resolution,
-            mod_amp=mod_amp,
             max_batch_size=batch_size,
             target_device_idx=target_device_idx
         )
@@ -213,7 +212,6 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             fov=fov,
             pup_diam=pup_diam,
             output_resolution=output_resolution,
-            mod_amp=mod_amp,
             cuda_stream_enable=False,
             max_batch_size=batch_size,
             target_device_idx=target_device_idx
@@ -332,7 +330,6 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
                 fov=fov,
                 pup_diam=pup_diam,
                 output_resolution=output_resolution,
-                mod_amp=mod_amp,
                 max_batch_size=batch_size,
                 target_device_idx=target_device_idx
             )
@@ -395,7 +392,6 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             fov=fov,
             pup_diam=pup_diam,
             output_resolution=output_resolution,
-            mod_amp=mod_amp,
             max_batch_size=batch_size,
             target_device_idx=target_device_idx
         )
@@ -534,7 +530,6 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             fov=fov,
             pup_diam=pup_diam,
             output_resolution=output_resolution,
-            mod_amp=mod_amp,
             max_batch_size=batch_size,
             target_device_idx=target_device_idx
         )
@@ -561,7 +556,6 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             fov=fov,
             pup_diam=pup_diam,
             output_resolution=output_resolution,
-            mod_amp=mod_amp,
             max_batch_size=batch_size,
             target_device_idx=target_device_idx
         )
@@ -586,7 +580,6 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             fov=fov,
             pup_diam=pup_diam,
             output_resolution=output_resolution,
-            mod_amp=mod_amp,
             max_batch_size=batch_size,
             target_device_idx=target_device_idx
         )
@@ -663,7 +656,6 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             fov=fov,
             pup_diam=pup_diam,
             output_resolution=output_resolution,
-            mod_amp=mod_amp,
             max_flux_ratio_thr=threshold,
             cuda_stream_enable=False,  # Enable threshold
             max_batch_size=batch_size,
@@ -692,7 +684,6 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             fov=fov,
             pup_diam=pup_diam,
             output_resolution=output_resolution,
-            mod_amp=mod_amp,
             max_flux_ratio_thr=threshold,
             cuda_stream_enable=True,  # Disable threshold
             max_batch_size=batch_size,
@@ -781,7 +772,6 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             fov=fov,
             pup_diam=pup_diam,
             output_resolution=output_resolution,
-            mod_amp=mod_amp,
             max_flux_ratio_thr=1e-4,
             cuda_stream_enable=False,
             max_batch_size=batch_size,
@@ -850,7 +840,6 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
             fov=fov,
             pup_diam=pup_diam,
             output_resolution=output_resolution,
-            mod_amp=mod_amp,
             cuda_stream_enable=False,
             max_batch_size=batch_size,
             target_device_idx=target_device_idx
