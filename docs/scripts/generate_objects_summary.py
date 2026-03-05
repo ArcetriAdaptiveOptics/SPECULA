@@ -52,12 +52,21 @@ def scan_package(package_path, package_name):
 
 def generate_rst_table(category_name, modules, description=''):
     """Generate RST content with a table listing class names and short descriptions."""
+    # Pre-count valid classes
+    total = sum(
+        1
+        for _, filepath in modules
+        for classname in get_class_short_doc(filepath)
+        if not classname.startswith('_')
+    )
+
     title = f"{category_name} Summary"
     lines = [
         title,
         '=' * len(title),
         '',
         description,
+        f'Total: **{total}** classes.',
         '',
         '.. list-table::',
         '   :header-rows: 1',
@@ -70,10 +79,17 @@ def generate_rst_table(category_name, modules, description=''):
     for module_name, filepath in modules:
         classes = get_class_short_doc(filepath)
         for classname, short_doc in classes.items():
+            if classname.startswith('_'):
+                continue
             lines.append(f'   * - :class:`~{module_name}.{classname}`')
             desc = short_doc if short_doc else '*No description available.*'
-            wrapped = textwrap.fill(desc, width=70, subsequent_indent='       ')
-            lines.append(f'     - {wrapped}')
+            wrapped_lines = textwrap.wrap(desc, width=60)
+            if len(wrapped_lines) > 1:
+                cell_content = '\n       | '.join(wrapped_lines)
+                cell_content = '| ' + cell_content
+            else:
+                cell_content = desc
+            lines.append(f'     - {cell_content}')
 
     lines.append('')
     return '\n'.join(lines)

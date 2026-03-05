@@ -10,25 +10,25 @@ from specula.data_objects.recmat import Recmat
 
 
 class _ColsView:
-    '''
+    """
     Allows numpy-like indexing for columns.
     
     This class is initialized with a reference to the main intmat object,
     and not the intmat array directly, because some Intmat methods
     re-allocate the array, making all previous references invalid.
-    '''
+    """
     def __init__(self, intmat_obj): self.intmat_obj = intmat_obj
     def __getitem__(self, key): return self.intmat_obj.intmat[:, key]
     def __setitem__(self, key, value): self.intmat_obj.intmat[:, key] = self.intmat_obj.to_xp(value)
- 
+
 class _RowsView:
-    '''
+    """
     Allows numpy-like indexing for rows
 
     This class is initialized with a reference to the main intmat object,
     and not the intmat array directly, because some Intmat methods
     re-allocate the array, making all previous references invalid.
-    '''
+    """
     def __init__(self, intmat_obj): self.intmat_obj = intmat_obj
     def __getitem__(self, key): return self.intmat_obj.intmat[key, :]
     def __setitem__(self, key, value): self.intmat_obj.intmat[key, :] = self.intmat_obj.to_xp(value)
