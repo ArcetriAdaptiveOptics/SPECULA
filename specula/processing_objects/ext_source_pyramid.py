@@ -388,7 +388,7 @@ class ExtSourcePyramid(ModulatedPyramid):
         self.fpsf *= 0
 
     def trigger_code(self):
-        iu = 1j  # complex unit
+        iu = self.xp.array(1j, dtype=self.complex_dtype)  # complex unit
         u_tlt_const = self.ef * self.tlt_f
 
         # Get extended source coefficients for current frame (only valid points)
