@@ -1,5 +1,6 @@
 import ast
 import pkgutil
+import textwrap
 from pathlib import Path
 
 
@@ -69,11 +70,10 @@ def generate_rst_table(category_name, modules, description=''):
     for module_name, filepath in modules:
         classes = get_class_short_doc(filepath)
         for classname, short_doc in classes.items():
-            # link to automodule page
-            ref = f':class:`~{module_name}.{classname}`
             lines.append(f'   * - :class:`~{module_name}.{classname}`')
             desc = short_doc if short_doc else '*No description available.*'
-            lines.append(f'     - {desc}')
+            wrapped = textwrap.fill(desc, width=70, subsequent_indent='       ')
+            lines.append(f'     - {wrapped}')
 
     lines.append('')
     return '\n'.join(lines)
