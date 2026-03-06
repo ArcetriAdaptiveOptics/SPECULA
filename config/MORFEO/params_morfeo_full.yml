@@ -366,7 +366,7 @@ tomo_polc_lgs:
   projmat_object:     'p20250519_195705.0/projmatAll.fits'
   intmat_object:      '20250911_000003.0/intmat.fits'
   polc:   true
-  in_commands_size:   6263
+  in_commands_size:   6258
   inputs:
     in_slopes_list:        ['slopec_lgs1.out_slopes','slopec_lgs2.out_slopes','slopec_lgs3.out_slopes','slopec_lgs4.out_slopes','slopec_lgs5.out_slopes','slopec_lgs6.out_slopes']
     in_commands:            'iir_lgs.out_comm_no_delay:-1'
