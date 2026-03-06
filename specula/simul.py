@@ -983,8 +983,7 @@ class Simul():
                     obj.setReplayParams(replay_params)
 
         # Initialize housekeeping objects
-        infinite_loop = self.mainParams.get('infinite_loop', False)
-        self.loop = LoopControl(stepping=self.stepping, infinite_loop=infinite_loop)
+        self.loop = LoopControl(stepping=self.stepping)
 
         # Build loop
         for name, idx in zip(self.trigger_order, self.trigger_order_idx):
@@ -1005,7 +1004,10 @@ class Simul():
             disp.name = 'display_server'
 
         # Run simulation loop
-        self.loop.run(run_time=self.mainParams['total_time'], dt=self.mainParams['time_step'], speed_report=True)
+        self.loop.run(run_time=self.mainParams['total_time'],
+                      dt=self.mainParams['time_step'],
+                      infinite_loop=self.mainParams.get('infinite_loop', False),
+                      speed_report=True)
 
         print(process_rank, 'Simulation finished', flush=True)
 #        if data_store.has_key('sr'):
