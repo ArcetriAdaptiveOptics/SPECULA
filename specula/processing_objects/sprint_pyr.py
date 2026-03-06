@@ -194,7 +194,8 @@ class SprintPyr(BaseSprintEstimator):
 
         # Extract valid subapertures for display/logging
         pupil_idx = self.slopec.pupdata.pupil_idx
-        self.idx_valid_sa = self.xp.concatenate([self.to_xp(pupil_idx(i))[pupil_idx(i) >= 0] \
+        self.idx_valid_sa = self.xp.concatenate([self.to_xp(pupil_idx(i),
+                                                 dtype=self.xp.int64)[pupil_idx(i) >= 0] \
                                                  for i in range(4)])
 
         if self.verbose: # pragma: no cover
