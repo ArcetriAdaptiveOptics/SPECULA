@@ -1006,7 +1006,6 @@ class Simul():
         # Run simulation loop
         self.loop.run(run_time=self.mainParams['total_time'],
                       dt=self.mainParams['time_step'],
-                      infinite_loop=self.mainParams.get('infinite_loop', False),
                       speed_report=True)
 
         print(process_rank, 'Simulation finished', flush=True)

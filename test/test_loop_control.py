@@ -68,7 +68,7 @@ class TestLoopControl(unittest.TestCase):
 
     @cpu_and_gpu
     def test_infinite_loop(self, target_device_idx, xp):
-        '''Test that the infinite_loop flag causes iteration to go beyond the run_time'''
+        '''Test that setting run_time to -1 causes iteration to go beyond the run_time'''
 
         loop = LoopControl()
         p = MockProcessingObjReady()
@@ -83,7 +83,7 @@ class TestLoopControl(unittest.TestCase):
         loop.add(p, idx=0)
         with self.assertRaises(StopIteration):
             # We setup for 10 iterations and verify that we reach 20
-            loop.run(run_time=1, dt=0.1, infinite_loop=True)
+            loop.run(run_time=-1, dt=0.1)
 
 
 
