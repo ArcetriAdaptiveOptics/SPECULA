@@ -30,9 +30,6 @@ class ModalrecImplicitPolc(Modalrec):
                  ncutmodes: int=None,
                  nSlopesToBeDiscarded: int=None,
                  dmNumber: int=0,
-                 input_modes_index: list=None,
-                 input_modes_slice: list=None,
-                 output_slice: list=None,
                  in_commands_size: int=None,
                  target_device_idx: int=None,
                  precision: int=None
@@ -49,9 +46,6 @@ class ModalrecImplicitPolc(Modalrec):
                  nSlopesToBeDiscarded=nSlopesToBeDiscarded,
                  dmNumber=dmNumber,
                  noProj=False,
-                 input_modes_index=input_modes_index,
-                 input_modes_slice=input_modes_slice,
-                 output_slice=output_slice,
                  in_commands_size=in_commands_size,
                  target_device_idx=target_device_idx,
                  precision=precision)
@@ -97,13 +91,7 @@ class ModalrecImplicitPolc(Modalrec):
         # else: keep the zeros from setup() or previous iteration
 
     def trigger_code(self):
-        if self.input_modes_index is not None:
-            commands = self.commands[self.input_modes_index]
-        elif self.input_modes_slice is not None:
-            commands = self.commands[self.input_modes_slice]
-        else:
-            commands = self.commands
 
-        output_modes = self.comm_mat.recmat @ self.slopes - self.h_mat.recmat @ commands
-        self.modes.value = output_modes[self.output_slice]
+        output_modes = self.comm_mat.recmat @ self.slopes - self.h_mat.recmat @ self.commands
+        self.modes.value = output_modes
         self.modes.generation_time = self.current_time

@@ -366,11 +366,10 @@ tomo_polc_lgs:
   projmat_object:     'p20250519_195705.0/projmatAll.fits'
   intmat_object:      '20250911_000003.0/intmat.fits'
   polc:   true
-  input_modes_slice:  [0, 6258]
   in_commands_size:   6263
   inputs:
     in_slopes_list:        ['slopec_lgs1.out_slopes','slopec_lgs2.out_slopes','slopec_lgs3.out_slopes','slopec_lgs4.out_slopes','slopec_lgs5.out_slopes','slopec_lgs6.out_slopes']
-    in_commands:            'modal_combination.out_vector:-1'
+    in_commands:            'iir_lgs.out_comm_no_delay:-1'
   outputs:  ['out_modes', 'out_pseudo_ol_modes']
 
 subtract_ref:
@@ -526,10 +525,16 @@ iir_ngs:
 rec_focus:
   class:              'Modalrec'
   recmat_object:      '20240530_101618.0/recmat'
-  output_slice:       [2, 3]
   inputs:
     in_slopes_list:        ['slopec_ref1.out_slopes','slopec_ref2.out_slopes','slopec_ref3.out_slopes']
-  outputs:  ['out_modes', 'out_pseudo_ol_modes']
+  outputs:  ['out_modes']
+
+slicer_focus:
+  class:          'BaseSlicer'
+  slice_args:     [2,3]
+  inputs:
+    in_value: 'rec_focus.out_modes'
+  outputs:  ['out_value']
 
 iir_focus:
   class:             'Integrator'
@@ -538,7 +543,7 @@ iir_focus:
   n_modes:           [1]
   delay: 1.0
   inputs:
-      delta_comm: 'rec_focus.out_modes'     
+      delta_comm: 'slicer_focus.out_value'     
   outputs:  ['out_comm']
 
 
