@@ -129,7 +129,6 @@ m2c_m4:
 #  ifunc_object:      'MAORY_542pix_31nacts_cir_0.000obs_zonal_ifs'
 #  m2c_object:        'MAORY_542pix_31nacts_cir_0.000obs_5zern_10000.0cn'
 #  start_mode:        5
-#  input_offset:      0                        # Offset into input command vector
 ##  nmodes:            4519
 #  nmodes:            720
 ##  height:            600                      # DM height [m]
@@ -424,6 +423,16 @@ modal_combination:
     in_vectors_list: ['iir_lgs.out_comm', 'iir_focus.out_comm', 'iir_lift.out_comm', 'iir_ngs.out_comm']
   outputs: ['out_vector']
 
+slicer1: &SLICER
+  class:          'BaseSlicer'
+  slice_args:     [0,4519]
+  inputs:
+    in_value: 'modal_combination.out_vector'
+  outputs:  ['out_value']
+
+slicer2: { <<: *SLICER, slice_args: [4519,5234]} # 4519 + 720 - 5
+slicer3: { <<: *SLICER, slice_args: [5234,6258]} # 4519 + 720 - 5 + 1026 - 2
+
 # modal_integrator:
 #   class:        'Integrator'
 #   delay:             2                      # Total temporal delay in time steps
@@ -459,11 +468,10 @@ dm1:
   simul_params_ref:  'main'
   ifunc_ref:         'ifunc_m4'
   m2c_ref:           'm2c_m4'
-  input_offset:      0                        # Offset into input command vector
   nmodes:            4519
   height:            600                      # DM height [m]
   inputs:
-      in_command: 'modal_combination.out_vector'
+      in_command: 'slicer1.out_value'
   outputs:  ['out_layer']
 
 dm2:
@@ -473,10 +481,9 @@ dm2:
   m2c_object:        'MAORY_542pix_31nacts_cir_0.000obs_5zern_10000.0cn'
   nmodes:            720
   start_mode:        5                         # Offset into influence function matrix
-  input_offset:      4519                      # Offset into input command vector
   height:            6500                      # DM height [m]
   inputs:
-      in_command: 'modal_combination.out_vector'
+      in_command: 'slicer2.out_value'
   outputs:  ['out_layer']
 
 dm3:
@@ -486,10 +493,9 @@ dm3:
   m2c_object:        'MAORY_648pix_37nacts_cir_0.000obs_5zern_10000.0cn'
   nmodes:            1026
   start_mode:        2                          # Offset into influence function matrix
-  input_offset:      5234  #  4519+720-5        # Offset into input command vector
   height:            17500                      # DM height [m]
   inputs:
-      in_command: 'modal_combination.out_vector'
+      in_command: 'slicer3.out_value'
   outputs:  ['out_layer']
 
 # ----------------
