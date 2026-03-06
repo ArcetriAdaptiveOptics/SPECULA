@@ -187,7 +187,7 @@ class Modalrec(BaseProcessingObj):
                 output_modes = self.projmat.recmat @ self.pseudo_ol_modes.value
 
             # (3) remove the effect of the commands
-            output_modes -= commands
+            output_modes -= self.commands
 
         else:
             output_modes = self.recmat.recmat @ self.slopes
