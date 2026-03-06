@@ -41,7 +41,7 @@ class LoopControl(BaseTimeObj):
         """
         return int((self.run_time + self.t0) / self.dt) if self.dt != 0 else 0
 
-    def run(self, run_time, dt, t0=0, speed_report=False):
+    def run(self, run_time, dt, t0=0, infinite_loop=False, speed_report=False):
         """
         Run the loop control for a given run time, time step, and initial time.
 
@@ -49,11 +49,12 @@ class LoopControl(BaseTimeObj):
             run_time (float): The total run time in seconds.
             dt (float): The time step in seconds.
             t0 (float): The initial time in seconds (default: 0).
+            infinite_loop (bool): If True, run in an infinite loop, ignoring the run_time parameter
             speed_report (bool): Whether to report the speed of the loop (default: False).
         """
         self.start(run_time, dt, t0=t0, speed_report=speed_report)
         self.next_time_to_stop = 0
-        while self.t < self.t0 + self.run_time:
+        while self.t < self.t0 + self.run_time or infinite_loop:
             if not process_rank and self.stepping and self.t > self.next_time_to_stop:
                 nnStr = input("Press Enter to advance one timestep, or enter the number of timesteps to advance:")
                 try:

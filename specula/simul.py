@@ -983,7 +983,8 @@ class Simul():
                     obj.setReplayParams(replay_params)
 
         # Initialize housekeeping objects
-        self.loop = LoopControl(stepping=self.stepping)
+        infinite_loop = self.mainParams.get('infinite_loop', False)
+        self.loop = LoopControl(stepping=self.stepping, infinite_loop=infinite_loop)
 
         # Build loop
         for name, idx in zip(self.trigger_order, self.trigger_order_idx):
