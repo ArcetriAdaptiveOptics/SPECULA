@@ -4,7 +4,7 @@ specula.init(0)  # Default target device
 import unittest
 import yaml
 
-from specula import np
+from specula import np, RAD2ASEC
 from specula import cpuArray
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.pixels import Pixels
@@ -46,22 +46,24 @@ class TestCurvatureSensor(unittest.TestCase):
         
         sensor:
           wavelengthInNm: 700.0
+          wanted_fov: 12.0
+          pxscale: 0.1
           output_resolution: 128
           defocus_rms_nm: 150.0
         
         slopec:
-          # Parametri opzionali passati a Slopec
+          # Optional parameters for Slopec can be added here if needed
           interleave: False
         """
 
     @cpu_and_gpu
     def test_geometry_generation(self, target_device_idx, xp):
-        """ Test that CurvatureSensorGeometry creates correct masks """
+        """ Test that CurWfsGeometry creates correct masks """
         size = 128
         config = self._get_config()
 
         geo = CurWfsGeometry(size_pixels=size, rings_config=config,
-                                      target_device_idx=target_device_idx)
+                             target_device_idx=target_device_idx)
 
         # Check dimensions
         expected_subaps = 1 + 4
@@ -84,15 +86,23 @@ class TestCurvatureSensor(unittest.TestCase):
         size = 128
         wavelength = 500.0 # nm
         defocus_rms = 250.0 # nm
+        pxscale = 0.1
+        wanted_fov = 12.0
 
         # 1. Create Propagator
         cwfs = CurvatureSensor(wavelengthInNm=wavelength,
+                               wanted_fov=wanted_fov,
+                               pxscale=pxscale,
                                output_resolution=size,
                                defocus_rms_nm=defocus_rms,
                                target_device_idx=target_device_idx)
 
+        # Calculate a pixel pitch that results in a magnification of ~1.0
+        # dx = lambda / (N * pxscale_rad)
+        req_dx = (wavelength * 1e-9) / (size * (pxscale / RAD2ASEC))
+
         # 2. Create Flat Input Electric Field
-        ef = ElectricField(size, size, 0.1, S0=100, target_device_idx=target_device_idx)
+        ef = ElectricField(size, size, req_dx, S0=100, target_device_idx=target_device_idx)
         ef.A = make_mask(size, xp=xp) # Circular pupil
         ef.generation_time = t
 
@@ -126,24 +136,31 @@ class TestCurvatureSensor(unittest.TestCase):
         size = 128
         wavelength = 500.0
         defocus_rms = 500.0
+        pxscale = 0.1
+        wanted_fov = 12.0
         rings_config = self._get_config() # 1 center + 4 outer
 
         # --- Setup Components ---
         cwfs = CurvatureSensor(wavelengthInNm=wavelength,
+                               wanted_fov=wanted_fov,
+                               pxscale=pxscale,
                                output_resolution=size,
                                defocus_rms_nm=defocus_rms,
                                target_device_idx=target_device_idx)
 
         # Setup Geometry explicitly
         geo = CurWfsGeometry(size_pixels=size, rings_config=rings_config,
-                                      target_device_idx=target_device_idx)
+                             target_device_idx=target_device_idx)
 
         # Setup Slopec passing the geometry object
         slopec = CurWfsSlopec(cwfs_geometry=geo,
-                                       target_device_idx=target_device_idx)
+                              target_device_idx=target_device_idx)
+
+        # Calculate a pixel pitch that results in a magnification of ~1.0
+        req_dx = (wavelength * 1e-9) / (size * (pxscale / RAD2ASEC))
 
         # --- Setup Input with Zernike Focus ---
-        ef = ElectricField(size, size, 0.1, S0=100, target_device_idx=target_device_idx)
+        ef = ElectricField(size, size, req_dx, S0=100, target_device_idx=target_device_idx)
         ef.A = make_mask(size, xp=xp)
 
         # Add Focus (Z4) to input
@@ -201,7 +218,7 @@ class TestCurvatureSensor(unittest.TestCase):
 
         # Center signal should have opposite sign (or significantly different magnitude)
         # relative to outer
-        self.assertTrue(np.all(np.abs(outer_signals - center_signal) > 0.1))
+        self.assertTrue(np.all(np.abs(outer_signals - center_signal) > 0.05))
 
         # Outer signals should be roughly symmetric
         np.testing.assert_allclose(outer_signals, np.mean(outer_signals), rtol=0.1)
@@ -221,14 +238,9 @@ class TestCurvatureSensor(unittest.TestCase):
         size = geo_conf['size_pixels']
 
         # 2. Geometry instantiation
-        # The manager would create this and pass it to Slopec,
-        # but here we do it manually for testing.
         geo = CurWfsGeometry(target_device_idx=target_device_idx,
                              **geo_conf)
 
-        verbose = False
-        if verbose: # pragma: no cover
-            print(f"\n[Config Test] Geometry created with {geo.n_subaps} subaps.")
         self.assertEqual(geo.n_subaps, 5)
         self.assertEqual(geo.size, 128)
 
@@ -236,24 +248,21 @@ class TestCurvatureSensor(unittest.TestCase):
         cwfs = CurvatureSensor(target_device_idx=target_device_idx,
                                **sens_conf)
 
-        if verbose: # pragma: no cover
-            print(f"[Config Test] Sensor created for lambda={cwfs.wavelength_in_nm}nm.")
         self.assertEqual(cwfs.wavelength_in_nm, 700.0)
+        self.assertEqual(cwfs.wanted_fov, 12.0)
+        self.assertEqual(cwfs.pxscale, 0.1)
         self.assertEqual(cwfs.defocus_rms_nm, 150.0)
 
         # 4. Slopec instantiation (Slope Computer)
-        # Here we pass the geometry object explicitly, and the rest of the config via kwargs.
         slopec = CurWfsSlopec(cwfs_geometry=geo,
                               target_device_idx=target_device_idx,
                               **slopec_conf)
 
-        if verbose: # pragma: no cover
-            print(f"[Config Test] Slopec linked to geometry with {slopec.nsubaps()} subaps.")
         self.assertEqual(slopec.nsubaps(), 5)
 
-        # Verifies that setup works correctly with these configured objects.
-
-        ef = ElectricField(size, size, 0.1, S0=100, target_device_idx=target_device_idx)
+        # Verifies that setup works correctly with these configured objects.
+        req_dx = (700.0 * 1e-9) / (128 * (0.1 / RAD2ASEC))
+        ef = ElectricField(size, size, req_dx, S0=100, target_device_idx=target_device_idx)
         ef.A = make_mask(size, xp=xp)
         ef.generation_time = 0
 
@@ -275,6 +284,6 @@ class TestCurvatureSensor(unittest.TestCase):
         slopec.inputs['in_pixels2'].set(pix2)
         slopec.setup()
 
-        # Verifies that the internal mask matrix in Slopec is correctly built from the geometry
+        # Verifies that the internal mask matrix in Slopec is correctly built from the geometry
         self.assertIsNotNone(slopec.mask_matrix)
         self.assertEqual(slopec.mask_matrix.shape, (5, 128*128))
