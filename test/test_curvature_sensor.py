@@ -46,6 +46,7 @@ class TestCurvatureSensor(unittest.TestCase):
         
         sensor:
           wavelengthInNm: 700.0
+          output_resolution: 128
           defocus_rms_nm: 150.0
         
         slopec:
@@ -86,6 +87,7 @@ class TestCurvatureSensor(unittest.TestCase):
 
         # 1. Create Propagator
         cwfs = CurvatureSensor(wavelengthInNm=wavelength,
+                               output_resolution=size,
                                defocus_rms_nm=defocus_rms,
                                target_device_idx=target_device_idx)
 
@@ -128,6 +130,7 @@ class TestCurvatureSensor(unittest.TestCase):
 
         # --- Setup Components ---
         cwfs = CurvatureSensor(wavelengthInNm=wavelength,
+                               output_resolution=size,
                                defocus_rms_nm=defocus_rms,
                                target_device_idx=target_device_idx)
 

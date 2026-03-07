@@ -18,43 +18,21 @@ class CurvatureSensor(BaseProcessingObj):
     """
     def __init__(self,
                  wavelengthInNm: float,
+                 output_resolution: int,
                  defocus_rms_nm: float,
                  target_device_idx: int = None,
                  precision: int = None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         self.wavelength_in_nm = wavelengthInNm
         self.defocus_rms_nm = defocus_rms_nm
-
-        # Output: Two intensities (Intra- and Extra-focal)
-        self.inputs['in_ef'] = InputValue(type=ElectricField)
-
-        # The outputs must be initialized in setup when we know the size
-        self._out_i1 = None
-        self._out_i2 = None
-        self.fp_plus = None
-        self.fp_minus = None
-        self.exp_plus = None
-        self.exp_minus = None
-
-
-    def setup(self):
-        super().setup()
-        in_ef = self.local_inputs['in_ef']
-        size = in_ef.size[0]
-
-        self._out_i1 = Intensity(size, size, precision=self.precision,
-                                 target_device_idx=self.target_device_idx)
-        self._out_i2 = Intensity(size, size, precision=self.precision,
-                                 target_device_idx=self.target_device_idx)
-        self.outputs['out_i1'] = self._out_i1
-        self.outputs['out_i2'] = self._out_i2
+        self.size = output_resolution
 
         # Pre-allocate arrays for CUDA graphs
-        self.fp_plus = self.xp.zeros((size, size), dtype=self.complex_dtype)
-        self.fp_minus = self.xp.zeros((size, size), dtype=self.complex_dtype)
+        self.fp_plus = self.xp.zeros((self.size, self.size), dtype=self.complex_dtype)
+        self.fp_minus = self.xp.zeros((self.size, self.size), dtype=self.complex_dtype)
 
         # 1. Generate Zernike Focus (Z4 Noll) using ZernikeGenerator
-        zgen = ZernikeGenerator(size, self.xp, self.dtype)
+        zgen = ZernikeGenerator(self.size, self.xp, self.dtype)
         z4 = zgen.getZernike(4) # Index 4 is Focus (Noll)
 
         # 2. Convert RMS Nanometers to Phase Radians
@@ -65,6 +43,15 @@ class CurvatureSensor(BaseProcessingObj):
         self.exp_plus = self.xp.exp(1j * phase_aberration, dtype=self.complex_dtype)
         self.exp_minus = self.xp.exp(-1j * phase_aberration, dtype=self.complex_dtype)
 
+        self.inputs['in_ef'] = InputValue(type=ElectricField)
+
+        # Output: Two intensities (Intra- and Extra-focal)
+        self._out_i1 = Intensity(self.size, self.size, precision=self.precision,
+                                 target_device_idx=self.target_device_idx)
+        self._out_i2 = Intensity(self.size, self.size, precision=self.precision,
+                                 target_device_idx=self.target_device_idx)
+        self.outputs['out_i1'] = self._out_i1
+        self.outputs['out_i2'] = self._out_i2
 
     def trigger_code(self):
         # 1. Retrieve input electric field data components
