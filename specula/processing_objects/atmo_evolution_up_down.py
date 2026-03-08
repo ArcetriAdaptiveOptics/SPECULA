@@ -122,28 +122,33 @@ class AtmoEvolutionUpDown(AtmoEvolution):
         # Track positions for up propagation separately
         self.last_position_up = np.zeros(self.n_phasescreens, dtype=self.dtype)
 
+        
     def trigger_code(self):
         """Update both downward and upward layer lists with different time offsets."""
+
+        # Calculate delta_position just like the parent class does
+        delta_position = self.wind_speed * self.delta_time / self.pixel_pitch
+
         # Process downward propagation
         new_position_down, effective_position_down = self._update_layer_list(
             wind_speed=self.wind_speed,
-            delta_position=self.delta_position,
+            delta_position=delta_position,
             extra_delta_time=self.extra_delta_time_down,
             last_position=self.last_position,
             layer_list=self.layer_list_down,
-            wdi=self.wdi,
-            wdf_full=self.wdf_full
+            wdi=self.wdi_cpu,
+            wdf_full=self.wdf_full_cpu
         )
 
         # Process upward propagation
         new_position_up, effective_position_up = self._update_layer_list(
             wind_speed=self.wind_speed,
-            delta_position=self.delta_position,
+            delta_position=delta_position,
             extra_delta_time=self.extra_delta_time_up,
             last_position=self.last_position_up,
             layer_list=self.layer_list_up,
-            wdi=self.wdi,
-            wdf_full=self.wdf_full
+            wdi=self.wdi_cpu,
+            wdf_full=self.wdf_full_cpu
         )
 
         # Update tracking

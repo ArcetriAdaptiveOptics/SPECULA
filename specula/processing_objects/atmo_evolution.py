@@ -308,8 +308,6 @@ class AtmoEvolution(BaseProcessingObj):
 
     def trigger_code(self):
         delta_position = self.wind_speed * self.delta_time / self.pixel_pitch
-        wdf, wdi = self.xp.modf(self.wind_direction / 90.0)
-        wdf_full = wdf * 90
 
         # Update layer list
         new_position, effective_position = self._update_layer_list(
@@ -364,7 +362,7 @@ class AtmoEvolution(BaseProcessingObj):
 
         # Cycle screens considering the effective position
         if self.cycle_screens:
-            new_position = np.where(
+            new_position = self.xp.where(
                 new_position + extra_offset + self.pixel_layer >= self.phasescreens_sizes_array,
                 0,
                 new_position
