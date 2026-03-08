@@ -78,17 +78,16 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         self.last_position = np.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
         self.last_effective_position = np.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
         self.last_t = 0
-        self.delta_time = np.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
+        self.delta_time = None
         # fixed at generation time, then is a input -> rescales the screen?
         self.seeing = 1.0
         self.airmass = 1
         self.ref_wavelengthInNm = 500
 
         if not hasattr(extra_delta_time,"__len__"):
-            self.extra_delta_time = np.asarray(self.n_infinite_phasescreens*[extra_delta_time],
-                                                    dtype=self.dtype)
+            self.extra_delta_time = cpuArray(self.n_infinite_phasescreens*[extra_delta_time])
         else:
-            self.extra_delta_time = np.asarray(extra_delta_time, dtype=self.dtype)
+            self.extra_delta_time = cpuArray(extra_delta_time)
 
         self.inputs['seeing'] = InputValue(type=BaseValue)
         self.inputs['wind_speed'] = InputValue(type=BaseValue)
@@ -116,13 +115,12 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         rad_alpha_fov = alpha_fov * ASEC2RAD
 
         # Compute layers dimension in pixels
-        self.pixel_layer_size = self.to_xp(np.ceil(
+        self.pixel_layer_size = np.ceil(
             (self.pixel_pupil \
                 + 2 * np.sqrt(np.sum(np.array(pupil_position, dtype=self.dtype) * 2)) \
                 / self.pixel_pitch \
                 + 2.0 * abs(self.pupil_distances) / self.pixel_pitch * rad_alpha_fov) / 2.0
-        ) * 2.0, dtype=np.int64)
-
+        ) * 2.0
         if fov_in_m is not None:
             self.pixel_layer_size = np.full_like(
                 heights, int(fov_in_m / self.pixel_pitch / 2.0) * 2
@@ -156,11 +154,6 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
 
         if not np.isclose(np.sum(self.Cn2), 1.0, atol=1e-6):
             raise ValueError(f' Cn2 total must be 1. Instead is: {np.sum(self.Cn2)}.')
-
-        self.wind_speed = np.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
-        self.wind_direction = np.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
-        self.delta_position = np.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
-
 
     def initScreens(self, seed):
         self.seed = seed
@@ -209,13 +202,11 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
             raise ValueError(f'Wind direction input must be a'
                              f' {self.n_infinite_phasescreens}-elements array')
 
-        super().build_stream()
-
-
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
-        dt = self.t_to_seconds(self.current_time - self.last_t)
-        self.delta_time[:] = dt
+        self.delta_time = cpuArray(
+            self.n_infinite_phasescreens*[self.t_to_seconds(self.current_time - self.last_t)]
+        )
         seeing = float(cpuArray(self.local_inputs['seeing'].value[0]))
 
         if seeing > 0:
@@ -228,29 +219,23 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         scale_wvl = self.ref_wavelengthInNm / (2 * np.pi)
         self.scale_coeff = scale_r0 * scale_wvl
 
-        self.wind_speed[:] = cpuArray(self.local_inputs['wind_speed'].value)
-        self.wind_direction[:] = cpuArray(self.local_inputs['wind_direction'].value)
-
-
     @show_in_profiler('atmo_evolution.trigger_code')
     def trigger_code(self):
-        delta_position = self.wind_speed * self.delta_time / self.pixel_pitch
+        wind_speed = cpuArray(self.local_inputs['wind_speed'].value)
+        wind_direction = cpuArray(self.local_inputs['wind_direction'].value)
+
+        # Compute the delta position in pixels
+        delta_position = wind_speed * self.delta_time / self.pixel_pitch
 
         # We delegate all the logic to the _process_propagation_direction method
         self._process_propagation_direction(
-            self.wind_speed, self.wind_direction, delta_position,
+            wind_speed, wind_direction, delta_position,
             self.extra_delta_time, self.last_position,
             self.last_effective_position, self.acc_rows, self.acc_cols,
             self.layer_list
         )
 
-
-    def post_trigger(self):
-        super().post_trigger()
         self.last_t = self.current_time
-        for layer in self.layer_list:
-            layer.generation_time = self.current_time
-
 
     def _process_propagation_direction(self, wind_speed, wind_direction,
                                        delta_position, extra_delta_time,
@@ -315,6 +300,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
             layer_list[ii].field[:] = self.xp.stack((layer_phase, layer_phase))
             layer_list[ii].phaseInNm *= self.scale_coeff * self.xp.sqrt(self.Cn2[ii])
             layer_list[ii].A = 1
+            layer_list[ii].generation_time = self.current_time
 
         # Update positions
         last_position[:] = last_position + delta_position
