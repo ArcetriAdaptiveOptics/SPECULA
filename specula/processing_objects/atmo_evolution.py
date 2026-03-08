@@ -85,9 +85,9 @@ class AtmoEvolution(BaseProcessingObj):
         self.delta_time = None
 
         if not hasattr(extra_delta_time,"__len__"):
-            self.extra_delta_time = cpuArray(self.n_phasescreens*[extra_delta_time])
+            self.extra_delta_time = self.n_phasescreens*[extra_delta_time]
         else:
-            self.extra_delta_time = cpuArray(extra_delta_time)
+            self.extra_delta_time = extra_delta_time
 
         self.inputs['seeing'] = InputValue(type=BaseValue)
         self.inputs['wind_speed'] = InputValue(type=BaseValue)
