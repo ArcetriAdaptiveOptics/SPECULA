@@ -78,11 +78,11 @@ class AtmoEvolution(BaseProcessingObj):
         self.zenithAngleInDeg = self.simul_params.zenithAngleInDeg
 
         self.n_phasescreens = len(heights)
-        self.last_position = np.zeros(self.n_phasescreens, dtype=self.dtype)
-        self.last_effective_position = cpuArray(np.zeros(self.n_phasescreens, dtype=self.dtype))
+        self.last_position = self.xp.zeros(self.n_phasescreens, dtype=self.dtype)
+        self.last_effective_position = self.xp.zeros(self.n_phasescreens, dtype=self.dtype)
         self.last_t = 0
         self.cycle_screens = True
-        self.delta_time = None
+        self.delta_time = self.xp.zeros(self.n_phasescreens, dtype=self.dtype)
 
         if not hasattr(extra_delta_time,"__len__"):
             self.extra_delta_time = self.xp.asarray(self.n_phasescreens*[extra_delta_time],
@@ -114,9 +114,9 @@ class AtmoEvolution(BaseProcessingObj):
         ) * 2.0
 
         if fov_in_m is not None:
-            self.pixel_layer = np.full_like(
+            self.pixel_layer = self.to_xp(np.full_like(
                 heights, int(fov_in_m / self.pixel_pitch / 2.0) * 2
-            )
+            ), dtype=np.int64)
 
         self.L0 = L0
         self.Cn2 = np.array(Cn2, dtype=self.dtype)
@@ -147,7 +147,7 @@ class AtmoEvolution(BaseProcessingObj):
         self.phasescreens = []
         self.phasescreens_sizes = []
         self.pixel_phasescreens = None
-        self.phasescreens_sizes_array = None
+        self.phasescreens_sizes_array = self.xp.zeros(self.n_phasescreens, dtype=np.int64)
 
         self.seed = seed
         self.scale_coeff = 1.0
@@ -255,7 +255,7 @@ class AtmoEvolution(BaseProcessingObj):
             self.phasescreens.append(temp_screen)
             self.phasescreens_sizes.append(temp_screen.shape[1])
 
-        self.phasescreens_sizes_array = self.to_xp(self.phasescreens_sizes)
+        self.phasescreens_sizes_array[:] = self.to_xp(self.phasescreens_sizes)
 
 
     def setup(self):
