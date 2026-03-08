@@ -106,12 +106,12 @@ class AtmoEvolution(BaseProcessingObj):
         self.pupil_distances = heights * self.airmass
 
         fov_rad = fov * ASEC2RAD
-        self.pixel_layer = np.ceil(
+        self.pixel_layer = self.to_xp(np.ceil(
             (self.pixel_pupil \
                 + 2 * np.sqrt(np.sum(np.array(pupil_position, dtype=self.dtype) * 2)) \
                 / self.pixel_pitch \
                 + abs(self.pupil_distances) / self.pixel_pitch * fov_rad) / 2.0
-        ) * 2.0
+        ) * 2.0, dtype=np.int64)
 
         if fov_in_m is not None:
             self.pixel_layer = self.to_xp(np.full_like(
@@ -354,7 +354,7 @@ class AtmoEvolution(BaseProcessingObj):
         # Effective position = accumulated position + constant offset
         effective_position = new_position + extra_offset  # [pixel]
 
-        effective_position_quo = np.floor(effective_position).astype(np.int64)
+        effective_position_quo = self.xp.floor(effective_position).astype(self.xp.int64)
         effective_position_rem = (effective_position - effective_position_quo).astype(self.dtype)
 
         # Update each layer

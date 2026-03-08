@@ -116,12 +116,13 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         rad_alpha_fov = alpha_fov * ASEC2RAD
 
         # Compute layers dimension in pixels
-        self.pixel_layer_size = np.ceil(
+        self.pixel_layer_size = self.to_xp(np.ceil(
             (self.pixel_pupil \
                 + 2 * np.sqrt(np.sum(np.array(pupil_position, dtype=self.dtype) * 2)) \
                 / self.pixel_pitch \
                 + 2.0 * abs(self.pupil_distances) / self.pixel_pitch * rad_alpha_fov) / 2.0
-        ) * 2.0
+        ) * 2.0, dtype=np.int64)
+
         if fov_in_m is not None:
             self.pixel_layer_size = np.full_like(
                 heights, int(fov_in_m / self.pixel_pitch / 2.0) * 2
