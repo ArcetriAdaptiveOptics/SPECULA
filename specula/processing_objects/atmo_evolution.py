@@ -151,11 +151,16 @@ class AtmoEvolution(BaseProcessingObj):
         if not np.isclose(np.sum(self.Cn2), 1.0, atol=1e-6):
             raise ValueError(f' Cn2 total must be 1. Instead is: {np.sum(self.Cn2)}.')
 
-        self.wind_speed = np.zeros(self.n_phasescreens, dtype=np.float32)
-        self.wind_direction = np.zeros(self.n_phasescreens, dtype=np.float32)
-        self.delta_position = np.zeros(self.n_phasescreens, dtype=np.float32)
-        self.wdi = np.zeros(self.n_phasescreens, dtype=np.int64)
-        self.wdf_full = np.zeros(self.n_phasescreens, dtype=np.float32)
+        # Phase screens list
+        self.phasescreens = []
+        self.phasescreens_sizes = []
+        self.pixel_phasescreens = None
+
+        self.wind_speed = self.xp.zeros(self.n_phasescreens, dtype=self.dtype)
+        self.wind_direction = self.xp.zeros(self.n_phasescreens, dtype=self.dtype)
+        self.delta_position = self.xp.zeros(self.n_phasescreens, dtype=self.dtype)
+        self.wdi = self.xp.zeros(self.n_phasescreens, dtype=self.xp.int64)
+        self.wdf_full = self.xp.zeros(self.n_phasescreens, dtype=self.dtype)
 
 
     @property
@@ -170,9 +175,6 @@ class AtmoEvolution(BaseProcessingObj):
 
 
     def compute(self):
-        # Phase screens list
-        self.phasescreens = []
-        self.phasescreens_sizes = []
 
         self.pixel_phasescreens = int(self.xp.max(self.pixel_layer))
         temp_screens = []
@@ -269,7 +271,7 @@ class AtmoEvolution(BaseProcessingObj):
             raise ValueError('Wind speed input must be a {self.n_phasescreens}-elements array')
         if len(self.local_inputs['wind_direction'].value) != self.n_phasescreens:
             raise ValueError('Wind direction input must be a {self.n_phasescreens}-elements array')
-        
+
         super().build_stream()
 
 
@@ -285,12 +287,17 @@ class AtmoEvolution(BaseProcessingObj):
         else:
             self.scale_coeff = 0.0
 
-        self.wind_speed[:] = cpuArray(self.local_inputs['wind_speed'].value)
-        self.wind_direction[:] = cpuArray(self.local_inputs['wind_direction'].value)
-        self.delta_position[:] = self.wind_speed * self.delta_time / self.pixel_pitch
-        wdf, wdi = np.modf(self.wind_direction / 90.0)
-        self.wdi[:] = wdi
-        self.wdf_full[:] = wdf * 90
+        wind_speed = cpuArray(self.local_inputs['wind_speed'].value)
+        wind_direction = cpuArray(self.local_inputs['wind_direction'].value)
+        delta_position = wind_speed * self.delta_time / self.pixel_pitch
+        wdf, wdi = np.modf(wind_direction / 90.0)
+        wdf_full = wdf * 90
+
+        self.wind_speed[:] = self.to_xp(wind_speed)
+        self.wind_direction[:] = self.to_xp(wind_direction)
+        self.delta_position[:] = self.to_xp(delta_position)
+        self.wdi[:] = self.to_xp(wdi.astype(np.int64))
+        self.wdf_full[:] = self.to_xp(wdf_full)
 
 
     def trigger_code(self):

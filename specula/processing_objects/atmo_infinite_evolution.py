@@ -155,9 +155,9 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         if not np.isclose(np.sum(self.Cn2), 1.0, atol=1e-6):
             raise ValueError(f' Cn2 total must be 1. Instead is: {np.sum(self.Cn2)}.')
 
-        self.wind_speed = np.zeros(self.n_infinite_phasescreens, dtype=np.float32)
-        self.wind_direction = np.zeros(self.n_infinite_phasescreens, dtype=np.float32)
-        self.delta_position = np.zeros(self.n_infinite_phasescreens, dtype=np.float32)
+        self.wind_speed = self.xp.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
+        self.wind_direction = self.xp.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
+        self.delta_position = self.xp.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
 
 
     def initScreens(self, seed):
@@ -227,9 +227,12 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         scale_wvl = self.ref_wavelengthInNm / (2 * np.pi)
         self.scale_coeff = scale_r0 * scale_wvl
 
-        self.wind_speed[:] = cpuArray(self.local_inputs['wind_speed'].value)
-        self.wind_direction[:] = cpuArray(self.local_inputs['wind_direction'].value)
-        self.delta_position[:] = self.wind_speed * self.delta_time / self.pixel_pitch
+        wind_speed = cpuArray(self.local_inputs['wind_speed'].value)
+        delta_position = wind_speed * self.delta_time / self.pixel_pitch
+
+        self.wind_speed[:] = self.to_xp(wind_speed)
+        self.wind_direction[:] = self.local_inputs['wind_direction'].value
+        self.delta_position[:] = self.to_xp(delta_position)
 
 
     @show_in_profiler('atmo_evolution.trigger_code')
