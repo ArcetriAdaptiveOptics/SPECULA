@@ -75,20 +75,20 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         self.zenithAngleInDeg = self.simul_params.zenithAngleInDeg
 
         self.n_infinite_phasescreens = len(heights)
-        self.last_position = self.xp.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
-        self.last_effective_position = self.xp.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
+        self.last_position = np.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
+        self.last_effective_position = np.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
         self.last_t = 0
-        self.delta_time = self.xp.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
+        self.delta_time = np.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
         # fixed at generation time, then is a input -> rescales the screen?
         self.seeing = 1.0
         self.airmass = 1
         self.ref_wavelengthInNm = 500
 
         if not hasattr(extra_delta_time,"__len__"):
-            self.extra_delta_time = self.xp.asarray(self.n_infinite_phasescreens*[extra_delta_time],
+            self.extra_delta_time = np.asarray(self.n_infinite_phasescreens*[extra_delta_time],
                                                     dtype=self.dtype)
         else:
-            self.extra_delta_time = self.xp.asarray(extra_delta_time, dtype=self.dtype)
+            self.extra_delta_time = np.asarray(extra_delta_time, dtype=self.dtype)
 
         self.inputs['seeing'] = InputValue(type=BaseValue)
         self.inputs['wind_speed'] = InputValue(type=BaseValue)
@@ -157,9 +157,9 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         if not np.isclose(np.sum(self.Cn2), 1.0, atol=1e-6):
             raise ValueError(f' Cn2 total must be 1. Instead is: {np.sum(self.Cn2)}.')
 
-        self.wind_speed = self.xp.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
-        self.wind_direction = self.xp.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
-        self.delta_position = self.xp.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
+        self.wind_speed = np.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
+        self.wind_direction = np.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
+        self.delta_position = np.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
 
 
     def initScreens(self, seed):
@@ -228,8 +228,8 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         scale_wvl = self.ref_wavelengthInNm / (2 * np.pi)
         self.scale_coeff = scale_r0 * scale_wvl
 
-        self.wind_speed[:] = self.local_inputs['wind_speed'].value
-        self.wind_direction[:] = self.local_inputs['wind_direction'].value
+        self.wind_speed[:] = cpuArray(self.local_inputs['wind_speed'].value)
+        self.wind_direction[:] = cpuArray(self.local_inputs['wind_direction'].value)
 
 
     @show_in_profiler('atmo_evolution.trigger_code')
@@ -248,6 +248,8 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
     def post_trigger(self):
         super().post_trigger()
         self.last_t = self.current_time
+        for layer in self.layer_list:
+            layer.generation_time = self.current_time
 
 
     def _process_propagation_direction(self, wind_speed, wind_direction,
@@ -313,7 +315,6 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
             layer_list[ii].field[:] = self.xp.stack((layer_phase, layer_phase))
             layer_list[ii].phaseInNm *= self.scale_coeff * self.xp.sqrt(self.Cn2[ii])
             layer_list[ii].A = 1
-            layer_list[ii].generation_time = self.current_time
 
         # Update positions
         last_position[:] = last_position + delta_position

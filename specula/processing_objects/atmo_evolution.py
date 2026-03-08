@@ -271,6 +271,17 @@ class AtmoEvolution(BaseProcessingObj):
         if len(self.local_inputs['wind_direction'].value) != self.n_phasescreens:
             raise ValueError('Wind direction input must be a {self.n_phasescreens}-elements array')
 
+        # PRE-COMPUTE CPU-SAFE ROTATION ANGLES
+        wd_cpu = cpuArray(self.local_inputs['wind_direction'].value)
+        wdf, wdi = np.modf(wd_cpu / 90.0)
+        self.wdi_cpu = [int(val) for val in wdi]
+        self.wdf_full_cpu = [float(val * 90.0) for val in wdf]
+
+        # Create pure GPU base array indices for advanced indexing
+        self.col_indices_base = [
+            self.xp.arange(int(cpuArray(self.pixel_layer)[i])) for i in range(self.n_phasescreens)
+        ]
+
         super().build_stream()
 
 
@@ -288,10 +299,16 @@ class AtmoEvolution(BaseProcessingObj):
         self.wind_speed[:] = self.local_inputs['wind_speed'].value
         self.wind_direction[:] = self.local_inputs['wind_direction'].value
 
+        # Refresh CPU rotation variables as pure Python types
+        wd_cpu = cpuArray(self.wind_direction)
+        wdf, wdi = np.modf(wd_cpu / 90.0)
+        self.wdi_cpu = [int(val) for val in wdi]
+        self.wdf_full_cpu = [float(val * 90.0) for val in wdf]
+
 
     def trigger_code(self):
         delta_position = self.wind_speed * self.delta_time / self.pixel_pitch
-        wdf, wdi = np.modf(self.wind_direction / 90.0)
+        wdf, wdi = self.xp.modf(self.wind_direction / 90.0)
         wdf_full = wdf * 90
 
         # Update layer list
@@ -301,8 +318,8 @@ class AtmoEvolution(BaseProcessingObj):
             extra_delta_time=self.extra_delta_time,
             last_position=self.last_position,
             layer_list=self.layer_list,
-            wdi=wdi,
-            wdf_full=wdf_full
+            wdi=self.wdi_cpu,
+            wdf_full=self.wdf_full_cpu
         )
 
         # Update tracking
@@ -313,6 +330,8 @@ class AtmoEvolution(BaseProcessingObj):
     def post_trigger(self):
         super().post_trigger()
         self.last_t = self.current_time
+        for layer in self.layer_list:
+            layer.generation_time = self.current_time
 
 
     def _update_layer_list(self, wind_speed, delta_position, extra_delta_time,
@@ -359,23 +378,24 @@ class AtmoEvolution(BaseProcessingObj):
 
         # Update each layer
         for ii, p in enumerate(self.phasescreens):
-            pos = int(effective_position_quo[ii])
-            ipli = int(self.pixel_layer[ii])
-            ipli_p = int(pos + self.pixel_layer[ii])
+            ipli = len(self.col_indices_base[ii])
 
-            # Linear interpolation between positions
-            layer_phase = (1.0 - effective_position_rem[ii]) * p[0:ipli, pos:ipli_p] \
-                        + effective_position_rem[ii] * p[0:ipli, pos + 1:ipli_p + 1]
+            # Construct a dynamic GPU array of the columns to slice
+            cols = self.col_indices_base[ii] + effective_position_quo[ii]
+            cols_plus_1 = cols + 1
 
-            # Apply wind direction rotation
-            layer_phase = self.xp.rot90(layer_phase, wdi[ii])
+            # Linear interpolation using advanced indexing (pure GPU!)
+            layer_phase = (1.0 - effective_position_rem[ii]) * p[0:ipli, cols] \
+                        + effective_position_rem[ii] * p[0:ipli, cols_plus_1]
+
+            # Apply wind direction rotation using CPU scalars
+            layer_phase = self.xp.rot90(layer_phase, int(wdi[ii]))
             if not wdf_full[ii] == 0:
                 layer_phase = self.ndimage_rotate(
-                    layer_phase, wdf_full[ii], reshape=False, order=1
+                    layer_phase, float(wdf_full[ii]), reshape=False, order=1
                 )
 
             layer_list[ii].phaseInNm[:] = layer_phase * self.scale_coeff
-            layer_list[ii].generation_time = self.current_time
 
         # Update position in place
         last_position[:] = new_position

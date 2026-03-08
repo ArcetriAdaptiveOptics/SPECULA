@@ -113,10 +113,10 @@ class TestAtmoEvolution(unittest.TestCase):
                             Cn2 = [0.5, 0.5], # Cn2 weights (total must be eq 1)
                             fov = 120.0,
                             target_device_idx=target_device_idx)
-            
+
         assert isinstance(atmo.outputs['layer_list'], list)
         assert len(atmo.outputs['layer_list']) == 2
-        
+
         for layer in atmo.outputs['layer_list']:
             assert isinstance(layer, Layer)
 
@@ -294,13 +294,13 @@ class TestAtmoEvolution(unittest.TestCase):
                 obj.post_trigger()
 
         # After first trigger, last_position should be approximately zero
-        np.testing.assert_allclose(atmo.last_position, 0.0, atol=1e-6)
+        np.testing.assert_allclose(cpuArray(atmo.last_position), 0.0, atol=1e-6)
 
         # last_effective_position should contain the extra_offset
         wind_speed_values = cpuArray(wind_speed.output.value)
         expected_extra_offset = wind_speed_values * extra_delta_time / atmo.pixel_pitch
         np.testing.assert_allclose(
-            atmo.last_effective_position, expected_extra_offset, rtol=1e-8
+            cpuArray(atmo.last_effective_position), expected_extra_offset, rtol=1e-8
         )
 
         for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
@@ -315,18 +315,18 @@ class TestAtmoEvolution(unittest.TestCase):
 
         # After second trigger, verify that:
         # 1. delta_time does not contain extra_delta_time
-        assert atmo.delta_time[0] == delta_time
+        assert cpuArray(atmo.delta_time)[0] == delta_time
 
         # 2. last_position has accumulated only delta_position (not extra_offset)
         expected_last_position = wind_speed_values * delta_time / atmo.pixel_pitch
         np.testing.assert_allclose(
-            atmo.last_position, expected_last_position, rtol=1e-8
+            cpuArray(atmo.last_position), expected_last_position, rtol=1e-8
         )
 
         # 3. last_effective_position = last_position + extra_offset
         expected_effective_position = expected_last_position + expected_extra_offset
         np.testing.assert_allclose(
-            atmo.last_effective_position, expected_effective_position, rtol=1e-8
+            cpuArray(atmo.last_effective_position), expected_effective_position, rtol=1e-8
         )
 
     @cpu_and_gpu
@@ -371,13 +371,13 @@ class TestAtmoEvolution(unittest.TestCase):
                 obj.post_trigger()
 
         # After first trigger, last_position should be approximately zero
-        np.testing.assert_allclose(atmo.last_position, 0.0, atol=1e-6)
-        
+        np.testing.assert_allclose(cpuArray(atmo.last_position), 0.0, atol=1e-6)
+
         # last_effective_position should contain the extra_offset
         wind_speed_values = cpuArray(wind_speed.output.value)
         expected_extra_offset = wind_speed_values * np.array(extra_delta_time) / atmo.pixel_pitch
         np.testing.assert_allclose(
-            atmo.last_effective_position, expected_extra_offset, rtol=1e-8
+            cpuArray(atmo.last_effective_position), expected_extra_offset, rtol=1e-8
         )
 
         for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
@@ -392,18 +392,18 @@ class TestAtmoEvolution(unittest.TestCase):
 
         # After second trigger, verify that:
         # 1. delta_time does not contain extra_delta_time
-        assert np.all(atmo.delta_time == delta_time)
-        
+        assert np.all(cpuArray(atmo.delta_time) == delta_time)
+
         # 2. last_position has accumulated only delta_position (not extra_offset)
         expected_last_position = wind_speed_values * delta_time / atmo.pixel_pitch
         np.testing.assert_allclose(
-            atmo.last_position, expected_last_position, rtol=1e-8
+            cpuArray(atmo.last_position), expected_last_position, rtol=1e-8
         )
-        
+
         # 3. last_effective_position = last_position + extra_offset
         expected_effective_position = expected_last_position + expected_extra_offset
         np.testing.assert_allclose(
-            atmo.last_effective_position, expected_effective_position, rtol=1e-8
+            cpuArray(atmo.last_effective_position), expected_effective_position, rtol=1e-8
         )
 
     @cpu_and_gpu
@@ -426,4 +426,4 @@ class TestAtmoEvolution(unittest.TestCase):
                              fov=120.0,
                              target_device_idx=target_device_idx)
         expected = cpuArray(heights) * airmass
-        np.testing.assert_allclose(atmo.pupil_distances, expected, rtol=1e-8)
+        np.testing.assert_allclose(cpuArray(atmo.pupil_distances), expected, rtol=1e-8)
