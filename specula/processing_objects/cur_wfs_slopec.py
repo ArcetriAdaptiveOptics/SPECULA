@@ -7,7 +7,7 @@ from specula.data_objects.pupdata import PupData
 
 class CurWfsSlopec(Slopec):
     """
-    Slope Computer for Curvature Wavefront Sensor.
+    Slope Computer for Curvature Wavefront Sensor processing object.
     Computes the normalized difference between intra-focal and extra-focal fluxes
     on a pixel-by-pixel basis using PupData indices.
     """
@@ -18,20 +18,12 @@ class CurWfsSlopec(Slopec):
                  target_device_idx: int = None,
                  precision: int = None):
 
-        self.pupdata1 = pupdata
-        self.pupdata2 = pupdata
+        self.pupdata = pupdata
 
         # Extract valid indices for both pupils using pupdata's xp object
         # (Needed before calling super().__init__ which calls nslopes)
-        all_idx1 = self.pupdata1.pupil_idx(0).astype(self.pupdata1.xp.int64)
-        self.pup_idx1 = all_idx1[all_idx1 >= 0]
-
-        all_idx2 = self.pupdata2.pupil_idx(0).astype(self.pupdata2.xp.int64)
-        self.pup_idx2 = all_idx2[all_idx2 >= 0]
-
-        if len(self.pup_idx1) != len(self.pup_idx2):
-            raise ValueError("PupData1 and PupData2 must have the same number of valid pixels"
-                             " for CWFS slope computation.")
+        all_idx = self.pupdata.pupil_idx(0).astype(self.pupdata.xp.int64)
+        self.pup_idx = all_idx[all_idx >= 0]
 
         super().__init__(sn=sn, interleave=interleave,
                          target_device_idx=target_device_idx, precision=precision)
@@ -44,23 +36,22 @@ class CurWfsSlopec(Slopec):
         self.inputs['in_pixels2'] = InputValue(type=Pixels)
 
         # Outputs to track the used pupils
-        self.outputs['out_pupdata1'] = self.pupdata1
-        self.outputs['out_pupdata2'] = self.pupdata2
+        self.outputs['out_pupdata'] = self.pupdata
 
         # Setup slopes display mapping (using the first pupdata as geometric reference)
-        self.slopes.single_mask = self.pupdata1.single_mask()
-        self.slopes.display_map = self.pupdata1.display_map
+        self.slopes.single_mask = self.pupdata.single_mask()
+        self.slopes.display_map = self.pupdata.display_map
 
         self.flat_p1 = None
         self.flat_p2 = None
 
     def nsubaps(self):
         # Every pixel is treated as a subaperture
-        return len(self.pup_idx1)
+        return len(self.pup_idx)
 
     def nslopes(self):
         # 1 signal (curvature) per valid pixel
-        return len(self.pup_idx1)
+        return len(self.pup_idx)
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
@@ -70,8 +61,8 @@ class CurWfsSlopec(Slopec):
 
     def trigger_code(self):
         # Extract valid pixels according to PupData
-        i1 = self.flat_p1[self.pup_idx1].astype(self.xp.float32)
-        i2 = self.flat_p2[self.pup_idx2].astype(self.xp.float32)
+        i1 = self.flat_p1[self.pup_idx].astype(self.xp.float32)
+        i2 = self.flat_p2[self.pup_idx].astype(self.xp.float32)
 
         # Compute Curvature Signal: S = (I1 - I2) / (I1 + I2)
         sum_i = i1 + i2
@@ -92,5 +83,4 @@ class CurWfsSlopec(Slopec):
 
     def post_trigger(self):
         super().post_trigger()
-        self.outputs['out_pupdata1'].generation_time = self.current_time
-        self.outputs['out_pupdata2'].generation_time = self.current_time
+        self.outputs['out_pupdata'].generation_time = self.current_time
