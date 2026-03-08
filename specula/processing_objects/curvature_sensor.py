@@ -24,26 +24,50 @@ class CurvatureSensor(BaseProcessingObj):
                  wavelengthInNm: float,
                  wanted_fov: float,
                  pxscale: float,
-                 output_resolution: int,
+                 number_px: int,
                  defocus_rms_nm: float,
                  fov_ovs_coeff: float = 2.0,
                  target_device_idx: int = None,
                  precision: int = None):
+        """
+        Parameters:
+        ----------
+
+        wavelengthInNm: float
+            Wavelength of the light in nanometers.
+        wanted_fov: float
+            Desired field of view in arcseconds.
+        pxscale: float
+            Desired pixel scale in arcseconds per pixel at the output.
+        number_px: int
+            Desired output resolution (number of pixels on one side of the square output image).
+        defocus_rms_nm: float
+            RMS of the defocus aberration in nanometers (controls the strength of the curvature).
+        fov_ovs_coeff : float, optional
+            Coefficient to determine the oversampling of the FoV.
+            A value larger than 1 is recommended to avoid FFT wrapping effects.
+            Default is 2.0.
+        target_device_idx : int, optional
+            Target device index for computation (CPU/GPU). Default is None (uses global setting).
+        precision : int, optional
+            Precision for computation (0 for double, 1 for single). Default is None
+            (uses global setting).
+        """
 
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         self.wavelength_in_nm = wavelengthInNm
         self.wanted_fov = wanted_fov
         self.pxscale = pxscale
-        self.output_resolution = output_resolution
+        self.number_px = number_px
         self.defocus_rms_nm = defocus_rms_nm
         self.fov_ovs_coeff = max(1.0, fov_ovs_coeff)
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
 
         # Final requested outputs
-        self._out_i1 = Intensity(self.output_resolution, self.output_resolution,
+        self._out_i1 = Intensity(self.number_px, self.number_px,
                                  precision=self.precision, target_device_idx=self.target_device_idx)
-        self._out_i2 = Intensity(self.output_resolution, self.output_resolution,
+        self._out_i2 = Intensity(self.number_px, self.number_px,
                                  precision=self.precision, target_device_idx=self.target_device_idx)
         self.outputs['out_i1'] = self._out_i1
         self.outputs['out_i2'] = self._out_i2
@@ -163,10 +187,10 @@ class CurvatureSensor(BaseProcessingObj):
         # Bin/Resample to the exact requested output_resolution using toccd
         # toccd handles the exact re-binning/interpolation preserving flux
         self._out_i1.i[:] = toccd(i1_fov,
-                                  (self.output_resolution, self.output_resolution),
+                                  (self.number_px, self.number_px),
                                   xp=self.xp)
         self._out_i2.i[:] = toccd(i2_fov,
-                                  (self.output_resolution, self.output_resolution),
+                                  (self.number_px, self.number_px),
                                   xp=self.xp)
 
 

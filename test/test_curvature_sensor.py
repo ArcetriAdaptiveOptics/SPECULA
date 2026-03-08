@@ -25,7 +25,7 @@ class TestCurvatureSensor(unittest.TestCase):
         t = 1
         size = 128
         wavelength = 500.0 # nm
-        defocus_rms = 250.0 # nm
+        defocus_rms = 1000.0 # nm
         pxscale = 0.1
         wanted_fov = 12.0
 
@@ -33,7 +33,7 @@ class TestCurvatureSensor(unittest.TestCase):
         cwfs = CurvatureSensor(wavelengthInNm=wavelength,
                                wanted_fov=wanted_fov,
                                pxscale=pxscale,
-                               output_resolution=size,
+                               number_px=size,
                                defocus_rms_nm=defocus_rms,
                                target_device_idx=target_device_idx)
 
@@ -83,22 +83,17 @@ class TestCurvatureSensor(unittest.TestCase):
         cwfs = CurvatureSensor(wavelengthInNm=wavelength,
                                wanted_fov=wanted_fov,
                                pxscale=pxscale,
-                               output_resolution=size,
+                               number_px=size,
                                defocus_rms_nm=defocus_rms,
                                target_device_idx=target_device_idx)
 
-        # Create PupData mapping for the central beam area
-        # We use a diaratio=0.8 to only consider pixels well inside the FoV
-        _, ids = make_mask(np_size=size, diaratio=0.8, get_idx=True, xp=np)
-        mask_ids = ids[0] * size + ids[1]
-
-        pupdata = PupData(ind_pup=mask_ids, framesize=(size, size),
-                          target_device_idx=target_device_idx)
-        pupdata.set_slopes_from_intensity()
-
-        # Setup Slopec passing the two pupdata objects
-        slopec = CurWfsSlopec(pupdata=pupdata,
+        # Setup Slopec
+        slopec = CurWfsSlopec(diameter=int(0.8*size),
+                              ccd_size=(size, size),
                               target_device_idx=target_device_idx)
+
+        # Extract valid pupil indices from PupData for later assertions
+        mask_ids = slopec.pupdata.ind_pup
 
         # Calculate a pixel pitch that results in a magnification of ~1.0
         req_dx = (wavelength * 1e-9) / (size * (pxscale / RAD2ASEC))

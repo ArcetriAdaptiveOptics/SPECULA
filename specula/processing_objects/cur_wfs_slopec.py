@@ -3,6 +3,7 @@ from specula.connections import InputValue
 from specula.data_objects.pixels import Pixels
 from specula.data_objects.slopes import Slopes
 from specula.data_objects.pupdata import PupData
+from specula.lib.make_mask import make_mask
 
 
 class CurWfsSlopec(Slopec):
@@ -12,13 +13,47 @@ class CurWfsSlopec(Slopec):
     on a pixel-by-pixel basis using PupData indices.
     """
     def __init__(self,
-                 pupdata: PupData,
+                 diameter: int,
+                 ccd_size: tuple,
                  sn: Slopes = None,
                  interleave: bool = False,
                  target_device_idx: int = None,
                  precision: int = None):
+        """
+        Parameters:
+        ----------
 
-        self.pupdata = pupdata
+        diameter: int
+            Diameter of the pupil in pixels (used to define valid pupil indices).
+        ccd_size: tuple
+            Size of the CCD in pixels (height, width).
+        sn: Slopes, optional
+            Slopes object for reference subtraction (if needed).
+        interleave: bool, optional
+            Whether to interleave slopes (not used in this implementation).
+        target_device_idx : int, optional
+            Target device index for computation (CPU/GPU). Default is None (uses global setting).
+        precision : int, optional
+            Precision for computation (0 for double, 1 for single). Default is None
+            (uses global setting).
+        """
+
+        cx = ccd_size[1]/2
+        cy = ccd_size[0]/2
+
+        _,ids = make_mask(np_size=ccd_size[0],
+                          diaratio = diameter/float(ccd_size[0]),
+                          get_idx=True)
+        mask_ids = ids[0]*ccd_size[1]+ids[1]
+
+        self.pupdata = PupData(
+            ind_pup=mask_ids,
+            radius=diameter/2,
+            cx=cx, cy=cy,
+            framesize=ccd_size,
+            target_device_idx=target_device_idx
+        )
+        self.pupdata.set_slopes_from_intensity()
 
         # Extract valid indices for both pupils using pupdata's xp object
         # (Needed before calling super().__init__ which calls nslopes)
