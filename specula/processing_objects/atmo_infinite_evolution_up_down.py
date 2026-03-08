@@ -117,6 +117,7 @@ class AtmoInfiniteEvolutionUpDown(AtmoInfiniteEvolution):
         self.acc_rows_up = np.zeros(self.n_infinite_phasescreens)
         self.acc_cols_up = np.zeros(self.n_infinite_phasescreens)
 
+
     def trigger_code(self):
         """Update both lists by saving/restoring phase screen state."""
 
@@ -180,6 +181,7 @@ class AtmoInfiniteEvolutionUpDown(AtmoInfiniteEvolution):
 
         self.last_t = self.current_time
 
+
     def _save_phase_screen_states(self):
         """Save current state using references."""
         saved = []
@@ -190,6 +192,7 @@ class AtmoInfiniteEvolutionUpDown(AtmoInfiniteEvolution):
                 'random_data_row': ps.random_data_row
             })
         return saved
+
 
     def _restore_phase_screen_states(self, saved_states):
         """Restore phase screens using references."""

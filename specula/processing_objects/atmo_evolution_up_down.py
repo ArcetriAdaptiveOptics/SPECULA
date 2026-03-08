@@ -124,41 +124,29 @@ class AtmoEvolutionUpDown(AtmoEvolution):
 
     def trigger_code(self):
         """Update both downward and upward layer lists with different time offsets."""
-
-        wind_speed = cpuArray(self.local_inputs['wind_speed'].value)
-        wind_direction = cpuArray(self.local_inputs['wind_direction'].value)
-
-        # Compute the delta position in pixels (time evolution)
-        delta_position = wind_speed * self.delta_time / self.pixel_pitch  # [pixel]
-
-        # Get quotient and remainder for wind direction
-        wdf, wdi = np.modf(wind_direction / 90.0)
-        wdf_full = wdf * 90
-
         # Process downward propagation
         new_position_down, effective_position_down = self._update_layer_list(
-            wind_speed=wind_speed,
-            delta_position=delta_position,
+            wind_speed=self.wind_speed,
+            delta_position=self.delta_position,
             extra_delta_time=self.extra_delta_time_down,
             last_position=self.last_position,
             layer_list=self.layer_list_down,
-            wdi=wdi,
-            wdf_full=wdf_full
+            wdi=self.wdi,
+            wdf_full=self.wdf_full
         )
 
         # Process upward propagation
         new_position_up, effective_position_up = self._update_layer_list(
-            wind_speed=wind_speed,
-            delta_position=delta_position,
+            wind_speed=self.wind_speed,
+            delta_position=self.delta_position,
             extra_delta_time=self.extra_delta_time_up,
             last_position=self.last_position_up,
             layer_list=self.layer_list_up,
-            wdi=wdi,
-            wdf_full=wdf_full
+            wdi=self.wdi,
+            wdf_full=self.wdf_full
         )
 
         # Update tracking
         self.last_position[:] = new_position_down
         self.last_position_up[:] = new_position_up
         self.last_effective_position[:] = effective_position_down
-        self.last_t = self.current_time

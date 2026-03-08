@@ -155,6 +155,11 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         if not np.isclose(np.sum(self.Cn2), 1.0, atol=1e-6):
             raise ValueError(f' Cn2 total must be 1. Instead is: {np.sum(self.Cn2)}.')
 
+        self.wind_speed = np.zeros(self.n_infinite_phasescreens, dtype=np.float32)
+        self.wind_direction = np.zeros(self.n_infinite_phasescreens, dtype=np.float32)
+        self.delta_position = np.zeros(self.n_infinite_phasescreens, dtype=np.float32)
+
+
     def initScreens(self, seed):
         self.seed = seed
         if self.seed <= 0:
@@ -202,6 +207,9 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
             raise ValueError(f'Wind direction input must be a'
                              f' {self.n_infinite_phasescreens}-elements array')
 
+        super().build_stream()
+
+
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
         self.delta_time = cpuArray(
@@ -219,23 +227,26 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         scale_wvl = self.ref_wavelengthInNm / (2 * np.pi)
         self.scale_coeff = scale_r0 * scale_wvl
 
+        self.wind_speed[:] = cpuArray(self.local_inputs['wind_speed'].value)
+        self.wind_direction[:] = cpuArray(self.local_inputs['wind_direction'].value)
+        self.delta_position[:] = self.wind_speed * self.delta_time / self.pixel_pitch
+
+
     @show_in_profiler('atmo_evolution.trigger_code')
     def trigger_code(self):
-        wind_speed = cpuArray(self.local_inputs['wind_speed'].value)
-        wind_direction = cpuArray(self.local_inputs['wind_direction'].value)
-
-        # Compute the delta position in pixels
-        delta_position = wind_speed * self.delta_time / self.pixel_pitch
-
         # We delegate all the logic to the _process_propagation_direction method
         self._process_propagation_direction(
-            wind_speed, wind_direction, delta_position,
+            self.wind_speed, self.wind_direction, self.delta_position,
             self.extra_delta_time, self.last_position,
             self.last_effective_position, self.acc_rows, self.acc_cols,
             self.layer_list
         )
 
+
+    def post_trigger(self):
+        super().post_trigger()
         self.last_t = self.current_time
+
 
     def _process_propagation_direction(self, wind_speed, wind_direction,
                                        delta_position, extra_delta_time,

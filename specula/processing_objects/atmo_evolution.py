@@ -151,14 +151,23 @@ class AtmoEvolution(BaseProcessingObj):
         if not np.isclose(np.sum(self.Cn2), 1.0, atol=1e-6):
             raise ValueError(f' Cn2 total must be 1. Instead is: {np.sum(self.Cn2)}.')
 
+        self.wind_speed = np.zeros(self.n_phasescreens, dtype=np.float32)
+        self.wind_direction = np.zeros(self.n_phasescreens, dtype=np.float32)
+        self.delta_position = np.zeros(self.n_phasescreens, dtype=np.float32)
+        self.wdi = np.zeros(self.n_phasescreens, dtype=np.int64)
+        self.wdf_full = np.zeros(self.n_phasescreens, dtype=np.float32)
+
+
     @property
     def seed(self):
         return self._seed
+
 
     @seed.setter
     def seed(self, value):
         self._seed = value
         self.compute()
+
 
     def compute(self):
         # Phase screens list
@@ -247,6 +256,7 @@ class AtmoEvolution(BaseProcessingObj):
 
         self.phasescreens_sizes_array = np.asarray(self.phasescreens_sizes)
 
+
     def setup(self):
         super().setup()
 
@@ -259,6 +269,9 @@ class AtmoEvolution(BaseProcessingObj):
             raise ValueError('Wind speed input must be a {self.n_phasescreens}-elements array')
         if len(self.local_inputs['wind_direction'].value) != self.n_phasescreens:
             raise ValueError('Wind direction input must be a {self.n_phasescreens}-elements array')
+        
+        super().build_stream()
+
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
@@ -272,32 +285,33 @@ class AtmoEvolution(BaseProcessingObj):
         else:
             self.scale_coeff = 0.0
 
+        self.wind_speed[:] = cpuArray(self.local_inputs['wind_speed'].value)
+        self.wind_direction[:] = cpuArray(self.local_inputs['wind_direction'].value)
+        self.delta_position[:] = self.wind_speed * self.delta_time / self.pixel_pitch
+        wdf, wdi = np.modf(self.wind_direction / 90.0)
+        self.wdi[:] = wdi
+        self.wdf_full[:] = wdf * 90
+
 
     def trigger_code(self):
-        wind_speed = cpuArray(self.local_inputs['wind_speed'].value)
-        wind_direction = cpuArray(self.local_inputs['wind_direction'].value)
-
-        # Compute the delta position in pixels (time evolution)
-        delta_position = wind_speed * self.delta_time / self.pixel_pitch  # [pixel]
-
-        # Get quotient and remainder for wind direction
-        wdf, wdi = np.modf(wind_direction / 90.0)
-        wdf_full = wdf * 90
-
         # Update layer list
         new_position, effective_position = self._update_layer_list(
-            wind_speed=wind_speed,
-            delta_position=delta_position,
+            wind_speed=self.wind_speed,
+            delta_position=self.delta_position,
             extra_delta_time=self.extra_delta_time,
             last_position=self.last_position,
             layer_list=self.layer_list,
-            wdi=wdi,
-            wdf_full=wdf_full
+            wdi=self.wdi,
+            wdf_full=self.wdf_full
         )
 
         # Update tracking
         self.last_position[:] = new_position
         self.last_effective_position[:] = effective_position
+
+
+    def post_trigger(self):
+        super().post_trigger()
         self.last_t = self.current_time
 
 
