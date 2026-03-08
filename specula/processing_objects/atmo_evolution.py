@@ -85,9 +85,10 @@ class AtmoEvolution(BaseProcessingObj):
         self.delta_time = None
 
         if not hasattr(extra_delta_time,"__len__"):
-            self.extra_delta_time = self.n_phasescreens*[extra_delta_time]
+            self.extra_delta_time = self.xp.asarray(self.n_phasescreens*[extra_delta_time],
+                                                    dtype=self.dtype)
         else:
-            self.extra_delta_time = extra_delta_time
+            self.extra_delta_time = self.xp.asarray(extra_delta_time, dtype=self.dtype)
 
         self.inputs['seeing'] = InputValue(type=BaseValue)
         self.inputs['wind_speed'] = InputValue(type=BaseValue)
@@ -159,9 +160,6 @@ class AtmoEvolution(BaseProcessingObj):
 
         self.wind_speed = self.xp.zeros(self.n_phasescreens, dtype=self.dtype)
         self.wind_direction = self.xp.zeros(self.n_phasescreens, dtype=self.dtype)
-        self.delta_position = self.xp.zeros(self.n_phasescreens, dtype=self.dtype)
-        self.wdi = self.xp.zeros(self.n_phasescreens, dtype=self.xp.int64)
-        self.wdf_full = self.xp.zeros(self.n_phasescreens, dtype=self.dtype)
 
 
     @property
@@ -290,27 +288,26 @@ class AtmoEvolution(BaseProcessingObj):
 
         wind_speed = cpuArray(self.local_inputs['wind_speed'].value)
         wind_direction = cpuArray(self.local_inputs['wind_direction'].value)
-        delta_position = wind_speed * self.delta_time / self.pixel_pitch
-        wdf, wdi = np.modf(wind_direction / 90.0)
-        wdf_full = wdf * 90
+
 
         self.wind_speed[:] = self.to_xp(wind_speed)
         self.wind_direction[:] = self.to_xp(wind_direction)
-        self.delta_position[:] = self.to_xp(delta_position)
-        self.wdi[:] = self.to_xp(wdi.astype(np.int64))
-        self.wdf_full[:] = self.to_xp(wdf_full)
 
 
     def trigger_code(self):
+        delta_position = self.wind_speed * self.delta_time / self.pixel_pitch
+        wdf, wdi = np.modf(self.wind_direction / 90.0)
+        wdf_full = wdf * 90
+
         # Update layer list
         new_position, effective_position = self._update_layer_list(
             wind_speed=self.wind_speed,
-            delta_position=self.delta_position,
+            delta_position=delta_position,
             extra_delta_time=self.extra_delta_time,
             last_position=self.last_position,
             layer_list=self.layer_list,
-            wdi=self.wdi,
-            wdf_full=self.wdf_full
+            wdi=wdi,
+            wdf_full=wdf_full
         )
 
         # Update tracking

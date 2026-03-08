@@ -85,9 +85,10 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         self.ref_wavelengthInNm = 500
 
         if not hasattr(extra_delta_time,"__len__"):
-            self.extra_delta_time = self.n_infinite_phasescreens*[extra_delta_time]
+            self.extra_delta_time = self.xp.asarray(self.n_infinite_phasescreens*[extra_delta_time],
+                                                    dtype=self.dtype)
         else:
-            self.extra_delta_time = extra_delta_time
+            self.extra_delta_time = self.xp.asarray(extra_delta_time, dtype=self.dtype)
 
         self.inputs['seeing'] = InputValue(type=BaseValue)
         self.inputs['wind_speed'] = InputValue(type=BaseValue)
@@ -227,19 +228,17 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         scale_wvl = self.ref_wavelengthInNm / (2 * np.pi)
         self.scale_coeff = scale_r0 * scale_wvl
 
-        wind_speed = cpuArray(self.local_inputs['wind_speed'].value)
-        delta_position = wind_speed * self.delta_time / self.pixel_pitch
-
-        self.wind_speed[:] = self.to_xp(wind_speed)
+        self.wind_speed[:] = self.local_inputs['wind_speed'].value
         self.wind_direction[:] = self.local_inputs['wind_direction'].value
-        self.delta_position[:] = self.to_xp(delta_position)
 
 
     @show_in_profiler('atmo_evolution.trigger_code')
     def trigger_code(self):
+        delta_position = self.wind_speed * self.delta_time / self.pixel_pitch
+
         # We delegate all the logic to the _process_propagation_direction method
         self._process_propagation_direction(
-            self.wind_speed, self.wind_direction, self.delta_position,
+            self.wind_speed, self.wind_direction, delta_position,
             self.extra_delta_time, self.last_position,
             self.last_effective_position, self.acc_rows, self.acc_cols,
             self.layer_list
