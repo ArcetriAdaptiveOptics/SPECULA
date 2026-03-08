@@ -142,6 +142,12 @@ class AtmoEvolution(BaseProcessingObj):
             self.layer_list.append(layer)
         self.outputs['layer_list'] = self.layer_list
 
+        # Phase screens list
+        self.phasescreens = []
+        self.phasescreens_sizes = []
+        self.pixel_phasescreens = None
+        self.phasescreens_sizes_array = None
+
         self.seed = seed
         self.scale_coeff = 1.0
 
@@ -150,11 +156,6 @@ class AtmoEvolution(BaseProcessingObj):
 
         if not np.isclose(np.sum(self.Cn2), 1.0, atol=1e-6):
             raise ValueError(f' Cn2 total must be 1. Instead is: {np.sum(self.Cn2)}.')
-
-        # Phase screens list
-        self.phasescreens = []
-        self.phasescreens_sizes = []
-        self.pixel_phasescreens = None
 
         self.wind_speed = self.xp.zeros(self.n_phasescreens, dtype=self.dtype)
         self.wind_direction = self.xp.zeros(self.n_phasescreens, dtype=self.dtype)
@@ -256,7 +257,7 @@ class AtmoEvolution(BaseProcessingObj):
             self.phasescreens.append(temp_screen)
             self.phasescreens_sizes.append(temp_screen.shape[1])
 
-        self.phasescreens_sizes_array = np.asarray(self.phasescreens_sizes)
+        self.phasescreens_sizes_array = self.to_xp(self.phasescreens_sizes)
 
 
     def setup(self):
