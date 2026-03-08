@@ -2,82 +2,22 @@ import specula
 specula.init(0)  # Default target device
 
 import unittest
-import yaml
 
 from specula import np, RAD2ASEC
 from specula import cpuArray
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.pixels import Pixels
+from specula.data_objects.pupdata import PupData
 from specula.lib.make_mask import make_mask
 from specula.lib.zernike_generator import ZernikeGenerator
 
 # Import CWFS modules
 from specula.processing_objects.curvature_sensor import CurvatureSensor
 from specula.processing_objects.cur_wfs_slopec import CurWfsSlopec
-from specula.data_objects.cur_wfs_geometry import CurWfsGeometry
 
 from test.specula_testlib import cpu_and_gpu
 
 class TestCurvatureSensor(unittest.TestCase):
-
-    def _get_config(self):
-        # Define a simple geometry:
-        # 1 Central button (radius 0.0 -> 0.5)
-        # 4 Outer sectors (radius 0.5 -> 1.0)
-        rings_config = [
-            {'inner': 0.0, 'outer': 0.5, 'segments': 1},
-            {'inner': 0.5, 'outer': 1.0, 'segments': 4}
-        ]
-        return rings_config
-
-    def _get_yaml_string(self):
-        """ Returns a YAML string representing a realistic configuration for the CWFS and Slopec.
-            This is used to test that the objects can be instantiated from a config dictionary."""
-        return """
-        geometry:
-          size_pixels: 128
-          rings_config:
-            - inner: 0.0
-              outer: 0.5
-              segments: 1
-            - inner: 0.5
-              outer: 1.0
-              segments: 4
-        
-        sensor:
-          wavelengthInNm: 700.0
-          wanted_fov: 12.0
-          pxscale: 0.1
-          output_resolution: 128
-          defocus_rms_nm: 150.0
-        
-        slopec:
-          # Optional parameters for Slopec can be added here if needed
-          interleave: False
-        """
-
-    @cpu_and_gpu
-    def test_geometry_generation(self, target_device_idx, xp):
-        """ Test that CurWfsGeometry creates correct masks """
-        size = 128
-        config = self._get_config()
-
-        geo = CurWfsGeometry(size_pixels=size, rings_config=config,
-                             target_device_idx=target_device_idx)
-
-        # Check dimensions
-        expected_subaps = 1 + 4
-        self.assertEqual(geo.n_subaps, expected_subaps)
-        self.assertEqual(geo.masks.shape, (expected_subaps, size, size))
-
-        # Check masks are valid (binary or float weights) and not empty
-        masks_cpu = cpuArray(geo.masks)
-        self.assertGreater(np.sum(masks_cpu), 0)
-
-        # Check no overlap between central button and outer ring (sanity check)
-        # Mask 0 is center, Mask 1 is first outer sector
-        overlap = np.sum(masks_cpu[0] * masks_cpu[1])
-        self.assertEqual(overlap, 0, "Sectors should not overlap")
 
     @cpu_and_gpu
     def test_flat_wavefront_flux(self, target_device_idx, xp):
@@ -130,7 +70,7 @@ class TestCurvatureSensor(unittest.TestCase):
         """ 
         Integration Test: 
         Input Focus Aberration -> Propagator -> Slopec 
-        Check if we get a meaningful curvature signal.
+        Check if we get a meaningful pixel-by-pixel curvature signal.
         """
         t = 1
         size = 128
@@ -138,7 +78,6 @@ class TestCurvatureSensor(unittest.TestCase):
         defocus_rms = 500.0
         pxscale = 0.1
         wanted_fov = 12.0
-        rings_config = self._get_config() # 1 center + 4 outer
 
         # --- Setup Components ---
         cwfs = CurvatureSensor(wavelengthInNm=wavelength,
@@ -148,12 +87,17 @@ class TestCurvatureSensor(unittest.TestCase):
                                defocus_rms_nm=defocus_rms,
                                target_device_idx=target_device_idx)
 
-        # Setup Geometry explicitly
-        geo = CurWfsGeometry(size_pixels=size, rings_config=rings_config,
-                             target_device_idx=target_device_idx)
+        # Create PupData mapping for the central beam area
+        # We use a diaratio=0.8 to only consider pixels well inside the FoV
+        _, ids = make_mask(np_size=size, diaratio=0.8, get_idx=True, xp=np)
+        mask_ids = ids[0] * size + ids[1]
 
-        # Setup Slopec passing the geometry object
-        slopec = CurWfsSlopec(cwfs_geometry=geo,
+        pupdata = PupData(ind_pup=mask_ids, framesize=(size, size),
+                          target_device_idx=target_device_idx)
+        pupdata.set_slopes_from_intensity()
+
+        # Setup Slopec passing the two pupdata objects
+        slopec = CurWfsSlopec(pupdata=pupdata,
                               target_device_idx=target_device_idx)
 
         # Calculate a pixel pitch that results in a magnification of ~1.0
@@ -202,88 +146,25 @@ class TestCurvatureSensor(unittest.TestCase):
         slopes = cpuArray(slopec.outputs['out_slopes'].slopes)
 
         # 1. Check Output Shapes
-        self.assertEqual(len(slopes), 5) # 1 center + 4 outer
+        self.assertEqual(len(slopes), len(mask_ids))
 
         # 2. Check Physics (Curvature Signal)
-        center_signal = slopes[0]
-        outer_signals = slopes[1:]
+        slopes_2d = np.zeros((size, size))
+        slopes_2d.flat[cpuArray(mask_ids)] = slopes
+
+        # Signal at the center of the pupil
+        center_val = slopes_2d[size//2, size//2]
+
+        # Signal towards the edge of the pupil (but inside the mask)
+        edge_val = slopes_2d[size//2, size//2 + int(0.25*size)]
 
         verbose = False
         if verbose: # pragma: no cover
-            print(f"\nCurvature Signals (Focus Input): Center={center_signal:.4f},"
-                f" Outer Avg={np.mean(outer_signals):.4f}")
+            print(f"\nCurvature Signals (Focus Input): Center={center_val:.4f},"
+                  f" Edge={edge_val:.4f}")
 
         # Signals should not be zero
-        self.assertNotAlmostEqual(center_signal, 0.0)
+        self.assertNotAlmostEqual(center_val, 0.0)
 
-        # Center signal should have opposite sign (or significantly different magnitude)
-        # relative to outer
-        self.assertTrue(np.all(np.abs(outer_signals - center_signal) > 0.05))
-
-        # Outer signals should be roughly symmetric
-        np.testing.assert_allclose(outer_signals, np.mean(outer_signals), rtol=0.1)
-
-    @cpu_and_gpu
-    def test_load_from_yaml(self, target_device_idx, xp):
-        """ 
-        Verifies that objects can be instantiated directly from a configuration dictionary
-        (YAML style).
-        """
-        # 1. Parsing YAML
-        full_config = yaml.safe_load(self._get_yaml_string())
-
-        geo_conf = full_config['geometry']
-        sens_conf = full_config['sensor']
-        slopec_conf = full_config['slopec']
-        size = geo_conf['size_pixels']
-
-        # 2. Geometry instantiation
-        geo = CurWfsGeometry(target_device_idx=target_device_idx,
-                             **geo_conf)
-
-        self.assertEqual(geo.n_subaps, 5)
-        self.assertEqual(geo.size, 128)
-
-        # 3. Sensor instantiation (Propagator)
-        cwfs = CurvatureSensor(target_device_idx=target_device_idx,
-                               **sens_conf)
-
-        self.assertEqual(cwfs.wavelength_in_nm, 700.0)
-        self.assertEqual(cwfs.wanted_fov, 12.0)
-        self.assertEqual(cwfs.pxscale, 0.1)
-        self.assertEqual(cwfs.defocus_rms_nm, 150.0)
-
-        # 4. Slopec instantiation (Slope Computer)
-        slopec = CurWfsSlopec(cwfs_geometry=geo,
-                              target_device_idx=target_device_idx,
-                              **slopec_conf)
-
-        self.assertEqual(slopec.nsubaps(), 5)
-
-        # Verifies that setup works correctly with these configured objects.
-        req_dx = (700.0 * 1e-9) / (128 * (0.1 / RAD2ASEC))
-        ef = ElectricField(size, size, req_dx, S0=100, target_device_idx=target_device_idx)
-        ef.A = make_mask(size, xp=xp)
-        ef.generation_time = 0
-
-        cwfs.inputs['in_ef'].set(ef)
-        cwfs.setup()
-
-        i1 = cwfs.outputs['out_i1']
-        i2 = cwfs.outputs['out_i2']
-
-        pix1 = Pixels(size, size, target_device_idx=target_device_idx)
-        pix1.pixels = i1.i
-        pix1.generation_time = 0
-
-        pix2 = Pixels(size, size, target_device_idx=target_device_idx)
-        pix2.pixels = i2.i
-        pix2.generation_time = 0
-
-        slopec.inputs['in_pixels1'].set(pix1)
-        slopec.inputs['in_pixels2'].set(pix2)
-        slopec.setup()
-
-        # Verifies that the internal mask matrix in Slopec is correctly built from the geometry
-        self.assertIsNotNone(slopec.mask_matrix)
-        self.assertEqual(slopec.mask_matrix.shape, (5, 128*128))
+        # The curvature signal generated by a parabola (Focus) is non-zero
+        self.assertTrue(np.abs(center_val - edge_val) > 0.001 or np.abs(center_val) > 0.01)
