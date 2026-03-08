@@ -213,8 +213,9 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
-        self.delta_time = cpuArray(
-            self.n_infinite_phasescreens*[self.t_to_seconds(self.current_time - self.last_t)]
+        self.delta_time = self.xp.asarray(
+            self.n_infinite_phasescreens*[self.t_to_seconds(self.current_time - self.last_t)],
+            dtype=self.dtype
         )
         seeing = float(cpuArray(self.local_inputs['seeing'].value[0]))
 

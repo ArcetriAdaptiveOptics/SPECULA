@@ -276,8 +276,9 @@ class AtmoEvolution(BaseProcessingObj):
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
-        self.delta_time = cpuArray(
-            self.n_phasescreens*[self.t_to_seconds(self.current_time - self.last_t)]
+        self.delta_time = self.xp.asarray(
+            self.n_phasescreens*[self.t_to_seconds(self.current_time - self.last_t)],
+            dtype=self.dtype
         )
         seeing = float(cpuArray(self.local_inputs['seeing'].value[0]))
         if seeing > 0:
@@ -286,12 +287,8 @@ class AtmoEvolution(BaseProcessingObj):
         else:
             self.scale_coeff = 0.0
 
-        wind_speed = cpuArray(self.local_inputs['wind_speed'].value)
-        wind_direction = cpuArray(self.local_inputs['wind_direction'].value)
-
-
-        self.wind_speed[:] = self.to_xp(wind_speed)
-        self.wind_direction[:] = self.to_xp(wind_direction)
+        self.wind_speed[:] = self.local_inputs['wind_speed'].value
+        self.wind_direction[:] = self.local_inputs['wind_direction'].value
 
 
     def trigger_code(self):
