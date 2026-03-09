@@ -18,7 +18,7 @@ pyr_override:
     in_ef: 'prop.out_source_ngs_ef'
 
 zwfs_override:
-  spot_radius_lambda: 2.0          
+  spot_radius_lambda: 1.0          
   inputs:
     in_ef: 'prop.out_source_ngs_ef'
 

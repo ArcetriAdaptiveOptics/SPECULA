@@ -152,7 +152,7 @@ ocam2:
 
 zwfs_slopes:
   class:             'ZwfsSlopec'
-  sn_object:         'z2.0wfs_slope_null'
+  # sn_object:         'z2.0wfs_slope_null'
   pup_diam:          48.0
   ccd_size:          120
   obsratio:          0.0
