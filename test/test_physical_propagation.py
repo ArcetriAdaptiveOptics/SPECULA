@@ -6,7 +6,7 @@ import unittest
 from specula import np
 from specula.data_objects.source import Source
 from specula.processing_objects.wave_generator import WaveGenerator
-from specula.processing_objects.atmo_infinite_evolution import AtmoInfiniteEvolution
+from specula.processing_objects.atmo_evolution import AtmoEvolution
 from specula.processing_objects.atmo_propagation import AtmoPropagation
 from specula.data_objects.simul_params import SimulParams
 from test.specula_testlib import cpu_and_gpu
@@ -24,12 +24,13 @@ class Test(unittest.TestCase):
         uplink_source = Source(polar_coordinates=[0.0, 0.0], magnitude=0, height=130, wavelengthInNm=1550)
         downlink_source = Source(polar_coordinates=[0.0, 0.0], magnitude=0, height=130, wavelengthInNm=1550)
 
-        atmo = AtmoInfiniteEvolution(simul_params,
-                                     L0=20,  # [m] Outer scale
-                                     heights=[0., 40., 120.],
-                                     Cn2=[0.5, 0.4, 0.1],
-                                     fov=8.0,
-                                     target_device_idx=target_device_idx)
+        atmo = AtmoEvolution(simul_params,
+                             L0=20,  # [m] Outer scale
+                             heights=[0., 40., 120.],
+                             Cn2=[0.5, 0.4, 0.1],
+                             fov=8.0,
+                             infinte_ps = True,
+                             target_device_idx=target_device_idx)
 
         prop_down = AtmoPropagation(simul_params, source_dict={'downlink_source': downlink_source},
                                     target_device_idx=target_device_idx, wavelengthInNm=1550, doFresnel=True)
@@ -71,12 +72,13 @@ class Test(unittest.TestCase):
 
         downlink_source = Source(polar_coordinates=[0.0, 0.0], magnitude=0, height=150., wavelengthInNm=1550)
 
-        atmo = AtmoInfiniteEvolution(simul_params,
-                                     L0=20,  # [m] Outer scale
-                                     heights=[0., 40., 120.],
-                                     Cn2=[0.5, 0.4, 0.1],
-                                     fov=8.0,
-                                     target_device_idx=target_device_idx)
+        atmo = AtmoEvolution(simul_params,
+                             L0=20,  # [m] Outer scale
+                             heights=[0., 40., 120.],
+                             Cn2=[0.5, 0.4, 0.1],
+                             fov=8.0,
+                             infinite_ps = True,
+                             target_device_idx=target_device_idx)
 
         prop_down1 = AtmoPropagation(simul_params, source_dict={'downlink_source': downlink_source},
                                      target_device_idx=target_device_idx, wavelengthInNm=1550, doFresnel=True,
@@ -121,12 +123,13 @@ class Test(unittest.TestCase):
 
         uplink_source = Source(polar_coordinates=[0.0, 0.0], magnitude=0, height=5500., wavelengthInNm=1550)
 
-        atmo = AtmoInfiniteEvolution(simul_params,
-                                     L0=20,  # [m] Outer scale
-                                     heights=[0., 40., 120.],
-                                     Cn2=[0.5, 0.4, 0.1],
-                                     fov=8.0,
-                                     target_device_idx=target_device_idx)
+        atmo = AtmoEvolution(simul_params,
+                             L0=20,  # [m] Outer scale
+                             heights=[0., 40., 120.],
+                             Cn2=[0.5, 0.4, 0.1],
+                             fov=8.0,
+                             infinite_ps = True,
+                             target_device_idx=target_device_idx)
 
         prop_up1 = AtmoPropagation(simul_params, source_dict={'uplink_source': uplink_source},
                                    target_device_idx=target_device_idx, wavelengthInNm=1550, upwards=True,

@@ -5,6 +5,7 @@ turbolenceFormulas = createTurbolenceFormulary()
 
 from specula.base_data_obj import BaseDataObj
 from specula import ASEC2RAD, RAD2ASEC, cpuArray, np
+from specula.data_objects.base_phase_screen import BasePhaseScreen
 
 def seeing_to_r0(seeing, wvl=500.e-9):
     return 0.9759*wvl/(seeing* ASEC2RAD)
@@ -22,11 +23,11 @@ def cn2_to_seeing(cn2, wvl=500.e-9):
     return seeing
 
 
-class InfinitePhaseScreen(BaseDataObj):
+class InfinitePhaseScreen(BasePhaseScreen):
     """
     Infinite Phase Screen Data object.
-    This class generates and holds an infinite phase screen generated using a stochastic
-    process that simulates atmospheric turbulence.
+    This class generates and holds an infinite phase screen using a stochastic
+    process, generating new columns on-the-fly as the extraction window moves.
     """
     def __init__(self, mx_size, pixel_scale, r0, L0, random_seed=None, stencil_size_factor=1,
                  xp=None, target_device_idx=None, precision=None):
@@ -34,14 +35,26 @@ class InfinitePhaseScreen(BaseDataObj):
 
         self.random_data_col = None
         self.random_data_row = None
-        self.requested_mx_size = int(mx_size)
-        self.mx_size = 2 ** (int( np.ceil(np.log2(mx_size)))) + 1
+
+        self.requested_mx_size = int(mx_size) + 2
+        self.mx_size = 2 ** (int( np.ceil(np.log2(self.requested_mx_size)))) + 1
+
         self.pixel_scale = pixel_scale
         self.r0 = r0
         self.L0 = L0
         if xp is not None:
             self.xp = xp
         self.stencil_size_factor = stencil_size_factor
+
+        # Simple 2-element cache for the current and previous requested steps
+        self.pos_0 = None
+        self.phase_0 = None
+        self.pos_1 = None
+        self.phase_1 = None
+        
+        # Absolute AR integer grid tracking
+        self.grid_x = 0
+        self.grid_y = 0
 
         # stencil size must be odd and >= 257
         base_stencil_size = int(stencil_size_factor * self.mx_size/2)*2 + 1
@@ -61,15 +74,18 @@ class InfinitePhaseScreen(BaseDataObj):
         self.A_mat = None
         self.B_mat = None
 
+        # Tracks the absolute position of the left edge (column 0) of our currently buffered screen
+        self.current_absolute_shift = 0
+
         if random_seed is None:
             raise ValueError("random_seed must be provided")
         else:
             self.random_seed = int(random_seed)
         self.rng = self.xp.random.default_rng(self.random_seed)
 
-        #self.set_stencil_coords_basic()
         self.set_stencil_coords()
         self.setup()
+
 
     def phase_covariance(self, r, r0, L0):
         r = cpuArray(r)
@@ -223,6 +239,59 @@ class InfinitePhaseScreen(BaseDataObj):
         if flush:
             self.random_data_col = None
             self.random_data_row = None
+
+
+    def extract_phase(self, shift_step: int, angle_deg: float, output_size: int):
+        """
+        Calculates the integer grid coordinates for the 1D shift, adds lines 
+        if necessary, and returns the discrete array. Caches the current 
+        and previous steps for sub-pixel interpolation by AtmoEvolution.
+        """
+        # 1. Cache hit: AtmoEvolution is asking for a frame we already have
+        if self.pos_0 is not None and shift_step == self.pos_0:
+            return self.phase_0
+        if self.pos_1 is not None and shift_step == self.pos_1:
+            return self.phase_1
+
+        # 2. Calculate the absolute target integer grid coordinates
+        angle_rad = np.radians(angle_deg)
+        target_grid_x = int(np.floor(shift_step * np.sin(angle_rad)))
+        target_grid_y = int(np.floor(shift_step * np.cos(angle_rad)))
+
+        # Calculate integer lines needed to catch up to the target
+        delta_x = target_grid_x - self.grid_x
+        delta_y = target_grid_y - self.grid_y
+
+        # Determine generation direction (1 for positive, 0 for negative)
+        sc = 1 if delta_x > 0 else 0
+        sr = 1 if delta_y > 0 else 0
+
+        # 3. Advance the AR generator (only integer lines!)
+        for _ in range(abs(delta_x)):
+            self.add_line(0, sc)
+        for _ in range(abs(delta_y)):
+            self.add_line(1, sr)
+
+        self.grid_x = target_grid_x
+        self.grid_y = target_grid_y
+
+        # 4. Extract the cleanly centered patch
+        start = (self.requested_mx_size - output_size) // 2
+        end = start + output_size
+
+        # Slicing creates a view. Since add_line uses xp.concatenate (which allocates
+        # new memory), our old cached views safely remain intact in memory!
+        new_phase = self.scrnRaw[start:end, start:end]
+
+        # 5. Shift the cache: the new step becomes pos_1, the old pos_1 shifts to pos_0
+        self.pos_0 = self.pos_1
+        self.phase_0 = self.phase_1
+
+        self.pos_1 = shift_step
+        self.phase_1 = new_phase
+
+        return self.phase_1
+
 
     @property
     def scrn(self):

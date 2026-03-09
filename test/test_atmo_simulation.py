@@ -13,7 +13,8 @@ import tempfile
 import yaml
     
 class TestAtmoSimulation(unittest.TestCase):
-    """Test AtmoEvolution and AtmoInfiniteEvolution by running a full simulation and checking the results"""
+    """Test AtmoEvolution with or without infinite phase screens by running
+    a full simulation and checking the results"""
 
     def setUp(self):
         """Set up test by ensuring calibration directory exists"""
@@ -134,7 +135,7 @@ class TestAtmoSimulation(unittest.TestCase):
             self.assertTrue(np.all(rel_diff1 < tolerance),
                             "Turbulence RMS from AtmoEvolution does not match theoretical RMS")
             self.assertTrue(np.all(rel_diff2 < tolerance),
-                            "Turbulence RMS from AtmoInfiniteEvolution does not match theoretical RMS")
+                            "Turbulence RMS from AtmoEvolution with infinite phase screens does not match theoretical RMS")
             print("Turbulence RMS match within tolerance.")
 
 

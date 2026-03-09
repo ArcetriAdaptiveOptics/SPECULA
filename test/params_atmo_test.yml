@@ -74,13 +74,14 @@ modal_analysis1:
 
 
 atmo2:
-  class:                'AtmoInfiniteEvolution'
+  class:                'AtmoEvolution'
   simul_params_ref:     'main'
   L0:                   [10]                 # [m] Outer scale
   heights:              [0.]                 # [m] layer heights at 0 zenith angle
   Cn2:                  [1.00]               # Cn2 weights (total must be eq 1)
   fov:                  0.0
   seed:                 12345                # Random seed for reproducibility
+  infinite_ps:          True                 # Use finite phase screens
   inputs:
     seeing: 'seeing.output'
     wind_speed: 'wind_speed.output'

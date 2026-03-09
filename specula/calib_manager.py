@@ -17,8 +17,6 @@ class CalibManager():
             'AtmoRandomPhase': 'phasescreens/',
             'AtmoEvolution': 'phasescreens/',
             'AtmoEvolutionUpDown': 'phasescreens/',
-            'AtmoInfiniteEvolution': 'phasescreens/',
-            'AtmoInfiniteEvolutionUpDown': 'phasescreens/',
             'slopenull': 'slopenulls/',
             'SnCalibrator': 'slopenulls/',
             'sn': 'slopenulls/',

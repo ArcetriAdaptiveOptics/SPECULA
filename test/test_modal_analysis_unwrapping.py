@@ -9,7 +9,7 @@ from specula import cpuArray
 
 from specula.data_objects.source import Source
 from specula.processing_objects.wave_generator import WaveGenerator
-from specula.processing_objects.atmo_infinite_evolution import AtmoInfiniteEvolution
+from specula.processing_objects.atmo_evolution import AtmoEvolution
 from specula.processing_objects.atmo_propagation import AtmoPropagation
 from specula.processing_objects.modal_analysis import ModalAnalysis
 from specula.data_objects.simul_params import SimulParams
@@ -30,12 +30,13 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
         seeing = WaveGenerator(constant=0.9, target_device_idx=target_device_idx)
         wind_speed = WaveGenerator(constant=[0, 0, 0, 0], target_device_idx=target_device_idx)
         wind_direction = WaveGenerator(constant=[0, 0, 0, 0], target_device_idx=target_device_idx)
-        atmo = AtmoInfiniteEvolution(simul_params,
-                                     L0=20,  # [m] Outer scale
-                                     heights=[0., 40., 120., 200.],
-                                     Cn2=[0.769, 0.104, 0.127, 0.0],
-                                     fov=8.0,
-                                     target_device_idx=target_device_idx)
+        atmo = AtmoEvolution(simul_params,
+                             L0=20,  # [m] Outer scale
+                             heights=[0., 40., 120., 200.],
+                             Cn2=[0.769, 0.104, 0.127, 0.0],
+                             fov=8.0,
+                             infinite_ps = True,
+                             target_device_idx=target_device_idx)
 
         # Physical and geometrical propagation to source
         uplink_source = Source(polar_coordinates=[0.0, 0.0], magnitude=0, height=300,

@@ -10,6 +10,7 @@ class AtmoEvolutionUpDown(AtmoEvolution):
     for upward and downward propagation.
     This class extends AtmoEvolution to provide two independent layer
     lists with different extra_delta_time values.
+    Supports both finite and infinite phase screens.
     """
 
     def __init__(self,
@@ -17,7 +18,7 @@ class AtmoEvolutionUpDown(AtmoEvolution):
                  L0: list,
                  heights: list,
                  Cn2: list,
-                 data_dir: str,
+                 data_dir: str = "",
                  extra_delta_time_down: float = 0,
                  extra_delta_time_up: float = 0,
                  fov: float = 0.0,
@@ -25,7 +26,9 @@ class AtmoEvolutionUpDown(AtmoEvolution):
                  seed: int = 1,
                  verbose: bool = False,
                  fov_in_m: float = None,
-                 pupil_position: list = [0, 0],
+                 pupil_position: list = None,
+                 infinite_ps: bool = False,
+                 stencil_size_factor: int = 1,
                  target_device_idx: int = None,
                  precision: int = None):
         """
@@ -61,14 +64,18 @@ class AtmoEvolutionUpDown(AtmoEvolution):
         fov_in_m : float, optional
             Field of view in meters. If provided, overrides fov parameter. Default is None.
         pupil_position : list, optional
-            [x, y] position of the pupil in meters. Default is [0, 0].
+            [x, y] position of the pupil in meters. Default is None (centers at [0,0]).
+        infinite_ps : bool, optional
+            If True, uses the Infinite Phase Screen model. Default is False.
+        stencil_size_factor : int, optional
+            Multiplier for the stencil size used in the infinite phase screen model. Default is 1.
         target_device_idx : int, optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
         precision : int, optional
             Precision for computation (0 for double, 1 for single). Default is None
             (uses global setting).
         """
-        # Initialize parent class with downward extra_delta_time
+        # Initialize parent class with downward extra_delta_time and the new unified arguments
         super().__init__(
             simul_params=simul_params,
             L0=L0,
@@ -82,6 +89,8 @@ class AtmoEvolutionUpDown(AtmoEvolution):
             verbose=verbose,
             fov_in_m=fov_in_m,
             pupil_position=pupil_position,
+            infinite_ps=infinite_ps,
+            stencil_size_factor=stencil_size_factor,
             target_device_idx=target_device_idx,
             precision=precision
         )
@@ -131,30 +140,24 @@ class AtmoEvolutionUpDown(AtmoEvolution):
         # Compute the delta position in pixels (time evolution)
         delta_position = wind_speed * self.delta_time / self.pixel_pitch  # [pixel]
 
-        # Get quotient and remainder for wind direction
-        wdf, wdi = np.modf(wind_direction / 90.0)
-        wdf_full = wdf * 90
-
-        # Process downward propagation
+        # Process downward propagation (using the unified wind_direction signature)
         new_position_down, effective_position_down = self._update_layer_list(
             wind_speed=wind_speed,
             delta_position=delta_position,
             extra_delta_time=self.extra_delta_time_down,
             last_position=self.last_position,
             layer_list=self.layer_list_down,
-            wdi=wdi,
-            wdf_full=wdf_full
+            wind_direction=wind_direction
         )
 
-        # Process upward propagation
+        # Process upward propagation (using the unified wind_direction signature)
         new_position_up, effective_position_up = self._update_layer_list(
             wind_speed=wind_speed,
             delta_position=delta_position,
             extra_delta_time=self.extra_delta_time_up,
             last_position=self.last_position_up,
             layer_list=self.layer_list_up,
-            wdi=wdi,
-            wdf_full=wdf_full
+            wind_direction=wind_direction
         )
 
         # Update tracking
