@@ -287,9 +287,9 @@ class CCD(BaseProcessingObj):
             if not self._keep_ADU_bias:
                 pixels -= self._ADU_bias
 
-            pixels[:] = (pixels / self._ADU_gain)
+            pixels /= self._ADU_gain
             if self._excess_noise:
-                pixels[:] = (pixels / self._emccd_gain)
+                pixels /= self._emccd_gain
             if self._darkcurrent_noise and not self._do_not_remove_dark:
                 pixels -= self._darkcurrent_level
 
