@@ -18,7 +18,7 @@ class ZernikeSensor(ModulatedPyramid):
                  pup_diam,
                  output_resolution,
                  spot_radius_lambda: float = 1.0,  # Spot radius in λ/D units, adjusted for ~50% light outside mask
-                 phase_shift: float = 3.141592653589793 / 2,  # π/2 phase shift
+                 phase_shift: float = 0.5, #3.141592653589793 / 2,  # π/2 phase shift
                  fft_res: float = 4.0,
                  target_device_idx=None,
                  precision=None):
@@ -44,8 +44,8 @@ class ZernikeSensor(ModulatedPyramid):
             target_device_idx=target_device_idx,
             precision=precision
         )
-        myexp = self.xp.exp(-2j * self.xp.pi * self.pyr_tlt, dtype=self.complex_dtype)
-        self.shifted_masked_exp = self.xp.fft.fftshift(myexp)
+        myexp = self.xp.exp(-1j * self.xp.pi * self.pyr_tlt, dtype=self.complex_dtype)
+        self.shifted_masked_exp = self.xp.fft.fftshift(myexp * self.fp_mask)
 
     def get_pyr_tlt(self, p, c):
         """
@@ -66,7 +66,7 @@ class ZernikeSensor(ModulatedPyramid):
         # In focal plane, 1 λ/D corresponds to fft_padding/fft_sampling pixels
         fft_sampling = p
         fft_padding = c
-        spot_radius_pixels = self.spot_radius_lambda * (fft_padding / fft_sampling) 
+        spot_radius_pixels = self.spot_radius_lambda * (1+fft_padding / fft_sampling) #(fft_padding / fft_sampling) 
         rr = self.xp.sqrt((xx+0.5)**2 + (yy+0.5)**2)
         phase_mask = self.xp.where(rr < spot_radius_pixels,
                                    self.phase_shift,

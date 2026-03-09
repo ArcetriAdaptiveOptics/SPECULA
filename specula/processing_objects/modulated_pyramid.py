@@ -617,6 +617,7 @@ class ModulatedPyramid(BaseProcessingObj):
         else:
             self.out_i.i[:] = ccd_internal
 
+        # self.transmission.value[:] *= self.xp.sum(self.out_i.i[:] )/self.xp.sum(ccd_internal)
         self.out_i.generation_time = self.current_time
         self.psf_tot.generation_time = self.current_time
         self.psf_bfm.generation_time = self.current_time

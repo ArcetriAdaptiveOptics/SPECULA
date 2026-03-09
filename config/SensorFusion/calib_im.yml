@@ -5,7 +5,7 @@
 pushpull:
   class:        'PushPullGenerator'
   nmodes:       1851                         # Number of DM actuators
-  amp:          10   
+  amp:          15   
   constant_amp: false #true
   outputs:   ['output']
 
@@ -22,7 +22,7 @@ pyr_im_calibrator:
 zwfs_im_calibrator:
   class:     'ImCalibrator'
   nmodes:    1851                         # Number of modes to calibrate
-  im_tag:    'z1.0wfs_1851modes_im'            # Output IM filename
+  im_tag:    'z2.0wfs_1851modes_im'            # Output IM filename
   overwrite: true                         # Overwrite existing files
   inputs:
     in_slopes:   'zwfs_slopes.out_slopes'      # WFS slopes input
@@ -53,8 +53,8 @@ pyr_override:
     in_ef: 'prop.out_source_ngs_ef'
 
 zwfs_override:
-  spot_radius_lambda: 0.5                     # Spot RADIUS in λ/D units
-  # phase_shift:        1.5707963267948966      # Spot phase delay (pi/2)
+  spot_radius_lambda: 1.0                     # Spot RADIUS in λ/D units
+  # phase_shift:        0.5      # Spot phase delay (pi/2)
   inputs: 
     in_ef: 'prop.out_source_ngs_ef'
 
