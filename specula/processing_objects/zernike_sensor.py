@@ -21,7 +21,7 @@ class ZernikeSensor(ModulatedPyramid):
                  precision=None):
 
         self.spot_radius_lambda = spot_radius_lambda
-        self.phase_shift = phase_shift_pi
+        self.phase_shift_pi = phase_shift_pi
 
         # Force modulation to zero (no modulation for Zernike sensor)
         super().__init__(
@@ -70,9 +70,9 @@ class ZernikeSensor(ModulatedPyramid):
         # Calculate distance from center
         rr = self.xp.sqrt((xx+0.5)**2 + (yy+0.5)**2)
 
-        # Create phase mask: self.phase_shift
+        # Create phase mask: self.phase_shift_pi
         phase_mask = self.xp.where(rr <= spot_radius_pixels,
-                                   self.phase_shift/2, # phase is multiplied by 2π during super().__init__
+                                   self.phase_shift_pi/2, # phase is multiplied by 2π during super().__init__
                                    0.0)
 
         return phase_mask
