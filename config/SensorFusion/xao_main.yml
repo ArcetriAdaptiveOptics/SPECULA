@@ -5,7 +5,7 @@ main:
   root_dir:          './calibration'       # CalibManager root directory (all the data are in subdirectories)
   pixel_pupil:       160                   # Must match influence function computation
   pixel_pitch:       0.0513                # [m] 8.2m / 160 pixels = 0.0513 m/pixel (Nyquist sampling of 10cm r0)
-  total_time:        0.700                 # [s] 1 second simulation
+  total_time:        1.000                 # [s] 1 second simulation
   time_step:         0.0005                # [s] 0.5ms time steps (2 kHz)
   zenithAngleInDeg:  0.0                   # [deg] Zenith observation (0 means no airmass)
   display_server:    false                 # Disable for batch runs
@@ -13,7 +13,7 @@ main:
 # Atmospheric conditions
 seeing:
   class:             'WaveGenerator'
-  constant:          1.0                  # [arcsec]
+  constant:          0.88                  # [arcsec]
   outputs:           ['output']
 
 wind_speed:
@@ -107,7 +107,7 @@ pyr_slopes:
   class:                  'PyrSlopec'
   pupdata_object:         'pyr_pupdata'           
   slopes_from_intensity:  true
-  # sn_object:            'pyr1.0_slope_null's
+  sn_object:            'pyr1.0_slope_null'
   inputs:
     in_pixels:        'cred1.out_pixels'
   outputs:           ['out_slopes']
@@ -152,7 +152,7 @@ ocam2:
 
 zwfs_slopes:
   class:             'ZwfsSlopec'
-  # sn_object:         'z2.0wfs_slope_null'
+  sn_object:         'z2.0wfs_slope_null'
   pup_diam:          48.0
   ccd_size:          120
   obsratio:          0.0
@@ -171,9 +171,10 @@ zwfs_modalrec:
 bootstrap:
   class:              'ScheduleGenerator'
   scheduled_values:   [[1.0, 0.0],
+                      [0.5, 0.5],
                       [0.0, 1.0]] # Nrows x Ncols, times x gains
   modes_per_group:    [1200,1200] # Ncols
-  scheduled_times:    [0.2] # Nrows-1
+  scheduled_times:    [0.1,0.3] # Nrows-1
 
 concat_wfs_modes:
   class:      'BaseOperation'

@@ -109,9 +109,9 @@ try:
     Nmodes = 4
     plt.figure()
     for i in range(Nmodes):
-        plt.plot(x, res[:,i],c=f'C{i:1.0f}')
-        plt.plot(x, pywfs_modes[:,i],'--',c=f'C{i:1.0f}')
-        plt.plot(x, zwfs_modes[:,i],':',c=f'C{i:1.0f}')
+        # plt.plot(x, res[:,i],c=f'C{i:1.0f}')
+        plt.plot(x, pywfs_modes[:,i]-res[:,i],'--',c=f'C{i:1.0f}')
+        plt.plot(x, zwfs_modes[:,i]-res[:,i],':',c=f'C{i:1.0f}')
     plt.xlabel('iteration #')
     plt.ylabel('RMS [nm]')
     plt.grid()
