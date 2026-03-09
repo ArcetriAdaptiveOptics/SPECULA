@@ -77,6 +77,19 @@ sn6_modes = pyr6_rec @ pyr6_sn
 # plt.title('Slope null modes')
 # plt.tight_layout()
 
+sn_hdu = fits.open('./calibration/slopenulls/z1.0wfs_slope_null.fits')
+z1wfs_sn = sn_hdu[1].data
+sn_hdu = fits.open('./calibration/slopenulls/z1.5wfs_slope_null.fits')
+z15wfs_sn = sn_hdu[1].data
+sn_hdu = fits.open('./calibration/slopenulls/z2.0wfs_slope_null.fits')
+z2wfs_sn = sn_hdu[1].data
+
+plt.figure()
+plt.plot(z1wfs_sn)
+plt.plot(z15wfs_sn)
+plt.plot(z2wfs_sn)
+plt.grid()
+
 ############################### Pupdata ##########################
 # Pyr
 npix = 120
@@ -110,8 +123,8 @@ z1wfs_frame = frame_hdu[0].data[0]
 frame_hdu = fits.open('./calibration/slopenulls/z1.5wfs_frame.fits')
 z15wfs_frame = frame_hdu[0].data[0]
 
-ccd_size = 60
-zwfs_mask = make_mask(np_size=ccd_size, diaratio = 48/ccd_size, obsratio=0.0)
+ccd_size = 120
+zwfs_mask = make_mask(np_size=ccd_size, diaratio = 40/ccd_size, obsratio=0.0)
 
 masked_frame = lambda frame, mask: frame/frame.max() + mask
 

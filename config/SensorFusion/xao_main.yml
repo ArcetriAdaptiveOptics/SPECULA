@@ -107,7 +107,7 @@ pyr_slopes:
   class:                  'PyrSlopec'
   pupdata_object:         'pyr_pupdata'           
   slopes_from_intensity:  true
-  sn_object:            'pyr1.0_slope_null'
+  # sn_object:            'pyr1.0_slope_null's
   inputs:
     in_pixels:        'cred1.out_pixels'
   outputs:           ['out_slopes']
@@ -122,13 +122,13 @@ pyr_modalrec:
 
 # ########################### ZWFS ####################################
 zwfs:
-  class:              'ZernikeSensor'
+  class:              'ZernikeSensor' 
   simul_params_ref:   'main'
-  pup_diam:           48.                     # Pupil diameter in subaps.
+  pup_diam:           40.                     # Pupil diameter in subaps.
   fov:                2.0                     # Requested field-of-view [arcsec]
   spot_radius_lambda: 1.0                     # Spot radius in λ/D units
   fft_res:            4.0
-  output_resolution:  60                     # Output sampling [usually corresponding to CCD pixels]
+  output_resolution:  120                     # Output sampling [usually corresponding to CCD pixels]
   wavelengthInNm:     1200                     # [nm] zWFS wavelength
   inputs:
     in_ef: 'ef_prop.out_ef' 
@@ -136,8 +136,8 @@ zwfs:
 ocam2:
   class:             'CCD'
   simul_params_ref:  'main'
-  size:              [60,60]             # Total detector size
-  dt:                0.0005               # [s] Integration time (4000 fps)
+  size:              [120,120]             # Total detector size
+  dt:                0.0005                # [s] Integration time (2000 fps)
   bandw:             400                   # [nm]
   photon_noise:      true                  # Enable photon noise
   readout_noise:     true                  # Enable read noise
@@ -151,9 +151,9 @@ ocam2:
 
 zwfs_slopes:
   class:             'ZwfsSlopec'
-  sn_object:         'z2.0wfs_slope_null'
-  pup_diam:          48.0
-  ccd_size:          60
+  # sn_object:         'z2.0wfs_slope_null'
+  pup_diam:          40.0
+  ccd_size:          120
   obsratio:          0.0
   inputs:
     in_pixels:        'ocam2.out_pixels'
@@ -170,7 +170,7 @@ zwfs_modalrec:
 bootstrap:
   class:              'ScheduleGenerator'
   scheduled_values:   [[1.0, 0.0],
-                      [0.0, 0.10]] # Nrows x Ncols, times x gains
+                      [0.0, 1.0]] # Nrows x Ncols, times x gains
   modes_per_group:    [1200,1200] # Ncols
   scheduled_times:    [0.2] # Nrows-1
 

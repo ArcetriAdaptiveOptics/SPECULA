@@ -6,7 +6,7 @@ pushpull:
   class:        'PushPullGenerator'
   nmodes:       1851                         # Number of DM actuators
   amp:          10   
-  constant_amp: true
+  constant_amp: false #true
   outputs:   ['output']
 
 # Interaction matrix calibrator
@@ -71,4 +71,4 @@ ocam2_override:
 
 # Remove unnecessary objects during calibration
 remove: ['atmo','seeing','wind_speed','wind_direction','data_store','atmo_mode_res', #'source_science',
-        'dm_mode_res','filter','psf', 'ef_prop','pyr_modalrec', 'zwfs_modalrec']
+        'dm_mode_res','filter','psf', 'ef_prop','pyr_modalrec', 'zwfs_modalrec', 'bootstrap', 'concat_wfs_modes']

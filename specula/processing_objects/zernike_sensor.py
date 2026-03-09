@@ -1,4 +1,7 @@
 from specula.processing_objects.modulated_pyramid import ModulatedPyramid
+# from specula.lib.utils import make_subpixel_shift_phase
+# from specula import cpuArray
+from specula.lib.toccd import toccd
 
 class ZernikeSensor(ModulatedPyramid):
     """
@@ -14,9 +17,9 @@ class ZernikeSensor(ModulatedPyramid):
                  fov,
                  pup_diam,
                  output_resolution,
-                 spot_radius_lambda: float=1.0,  # Spot radius in λ/D units
+                 spot_radius_lambda: float = 1.0,  # Spot radius in λ/D units, adjusted for ~50% light outside mask
                  phase_shift: float = 3.141592653589793 / 2,  # π/2 phase shift
-                 fft_res: float = 8.0,
+                 fft_res: float = 4.0,
                  target_device_idx=None,
                  precision=None):
 
@@ -33,14 +36,16 @@ class ZernikeSensor(ModulatedPyramid):
             mod_amp=0.0,
             mod_step=1,
             fft_res=fft_res,
-            pup_dist=1,
-            pup_margin=1,
-            min_pup_dist=1,
+            pup_dist=0,
+            pup_margin=0,
+            min_pup_dist=0,
             fov_errinf=0.1,
             fov_errsup=2.0,
             target_device_idx=target_device_idx,
             precision=precision
         )
+        myexp = self.xp.exp(-2j * self.xp.pi * self.pyr_tlt, dtype=self.complex_dtype)
+        self.shifted_masked_exp = self.xp.fft.fftshift(myexp)
 
     def get_pyr_tlt(self, p, c):
         """
@@ -56,22 +61,14 @@ class ZernikeSensor(ModulatedPyramid):
             phase_mask: 2D array with π/2 phase shift in central spot
         """
         A = int((p + c) // 2)
-
-        # Create focal plane coordinates
         xx, yy = self.xp.mgrid[-A:A, -A:A].astype(self.dtype)
-
         # Convert radius from λ/D units to pixels
         # In focal plane, 1 λ/D corresponds to fft_padding/fft_sampling pixels
         fft_sampling = p
         fft_padding = c
-        spot_radius_pixels = self.spot_radius_lambda * fft_padding/fft_sampling
-
-        # Calculate distance from center
-        rr = self.xp.sqrt(xx**2 + yy**2)
-
-        # Create phase mask: self.phase_shift (default π/2) inside circle, 0 outside
-        phase_mask = self.xp.where(rr <= spot_radius_pixels,
+        spot_radius_pixels = self.spot_radius_lambda * (fft_padding / fft_sampling) 
+        rr = self.xp.sqrt((xx+0.5)**2 + (yy+0.5)**2)
+        phase_mask = self.xp.where(rr < spot_radius_pixels,
                                    self.phase_shift,
                                    0.0)
-
         return phase_mask

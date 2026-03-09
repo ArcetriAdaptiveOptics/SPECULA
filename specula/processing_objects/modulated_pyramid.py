@@ -356,7 +356,7 @@ class ModulatedPyramid(BaseProcessingObj):
             'final_ccd_side': ccd_side
             }
         )
-
+        
         return result
 
     def get_pyr_tlt(self, p, c):
@@ -416,6 +416,7 @@ class ModulatedPyramid(BaseProcessingObj):
             pyr_tlt[idx_tip_m] = self.xp.min(pyr_tlt[idx_tip_m])
             print(f'get_pyr_tlt: {len(idx_tip_m[0])} pixels set to 0 to consider pyramid imperfect tip')
 
+        print(self.toccd_side,self.final_ccd_side,self.fft_res)
         return pyr_tlt / self.tilt_scale
 
     def get_tlt_f(self, p, c):
