@@ -1,5 +1,6 @@
 
 from specula.lib.calc_psf import calc_psf, calc_psf_geometry
+from specula.lib.radial_profile import computeRadialProfile
 
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_value import BaseValue
@@ -145,3 +146,28 @@ class PSF(BaseProcessingObj):
         self.int_psf.generation_time = self.current_time
         self.int_sr.generation_time = self.current_time
         self.std_psf.generation_time = self.current_time
+
+        
+    def get_psf_profile(self, psf_std:bool=False, show:bool=False):
+        if psf_std is True:
+            psf = self.std_psf.value
+        else:
+            psf = self.int_psf.value
+        norm_psf = psf/self.xp.max(psf)
+        profile,pix_dist = computeRadialProfile(norm_psf, xp=self.xp, dtype=self.dtype)
+        radial_dist = pix_dist/self.nd
+        if show:
+            try:
+                import matplotlib.pyplot as plt
+                from specula import cpuArray
+                plt.figure()
+                plt.plot(cpuArray(radial_dist),cpuArray(profile))
+                plt.grid()
+                plt.yscale('log')
+                plt.xlabel(r'$\lambda/D$')
+                plt.ylabel('PSF contrast')
+                plt.show()
+            except:
+                print('Failed to import matplotlib for display')
+        return profile, radial_dist
+        
