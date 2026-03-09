@@ -1,18 +1,15 @@
 
-import queue
-import multiprocessing as mp
-
 from specula.processing_objects.specula_input import SpeculaInput
 
 
-class SpeculaTerminalInput(SpeculaInput):
+class TerminalInput(SpeculaInput):
     """
-    Specula terminal input processing object. Handles input from a terminal.
+    Terminal input processing object. Handles input from a terminal.
     """
     def __init__(self,
                  output_list: list,
                  target_device_idx: int=None,
-                 precision:int =None):
+                 precision: int =None):
         """
         output_list: list of strings
             List of output names to be generated

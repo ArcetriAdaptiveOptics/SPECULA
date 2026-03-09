@@ -1,14 +1,14 @@
 
-from specula.base_processing_obj import BaseProcessingObj
-from specula.base_value import BaseValue
-from specula.connections import InputValue
-
 import queue
 import multiprocessing as mp
 
+from specula.base_value import BaseValue
+from specula.base_processing_obj import BaseProcessingObj
+
+
 class SpeculaInput(BaseProcessingObj):
     """
-    Specula Input processing object. Handles interactive inputs
+    Specula input processing object. Handles interactive inputs
 
     This class is meant to provide outputs that can be set
     interactively and/or asynchronously wrt. the normal simulation run.
@@ -31,7 +31,8 @@ class SpeculaInput(BaseProcessingObj):
             Precision for computation (0 for double, 1 for single). Default is None
             (uses global setting).
         """
-        super().__init__(target_device_idx=target_device_idx, precision=precision)
+        super().__init__(target_device_idx=target_device_idx,
+                         precision=precision)
 
         for name in output_list or []:
             self.outputs[name] = BaseValue(target_device_idx=target_device_idx, precision=precision)
@@ -43,16 +44,16 @@ class SpeculaInput(BaseProcessingObj):
         the callable must call put() with a tuple of two values:
         output name and output value.
         """
-        self._input_task = task
-
-    def setup(self):
-        super().setup()
         self.q = mp.Queue()
-        self.p = mp.Process(target = self._input_task, args=(self.q,))
+        self.p = mp.Process(target=task, args=(self.q,))
 
     def trigger_code(self):
         """
-        Get new value from the input queue and set corresponding outputs.
+        Get new values from the input queue and set corresponding outputs,
+        repeat until the input queue is empty.
+
+        We don't use self.q.empty() to check the queue status, since
+        it does not guarantee that the subsequent get() won't block.
         """
         try:
             while True:

@@ -46,9 +46,33 @@ class Integrator(IirFilter):
                                      f" must match length of ff {len(ff)}")
                 ff = [val for i, val in enumerate(ff) for _ in range(n_modes[i])]
 
+        self.ff = ff
+        self.n_modes = n_modes
         iir_filter_data = IirFilterData.from_gain_and_ff(int_gain, ff=ff,
                                                target_device_idx=target_device_idx)
+
+        self.inputs['int_gain'] = InputValue(type=BaseValue, optional=True)
 
         # Initialize IirFilter object
         super().__init__(simul_params, iir_filter_data, delay=delay, integration=integration,
                          target_device_idx=target_device_idx, precision=precision)
+
+        def prepare_trigger(self, t):
+
+            # Updated internal IIR filter data if gain input changes
+            if self.inputs['int_gain'].generation_time == self.current_time:
+
+                int_gain = self.inputs['int_gain'].get()
+                if self.n_modes is not None:
+                    if len(self.n_modes) != len(int_gain):
+                        raise ValueError(f"Length of int_gain {len(int_gain)} does not match"
+                                         f"length of n_modes {len(self.n_modes)}")
+
+                    int_gain = [val for i, val in enumerate(int_gain) for _ in range(self.n_modes[i])]
+
+                new_data = IirFilterData.from_gain_and_ff(int_gain, ff=self.ff,
+                                                          target_device_idx=target_device_idx)
+                self.iir_filter_data = iir_filter_data
+
+            super().prepare_trigger(t)
+
