@@ -52,7 +52,8 @@ class PyrSlopec(Slopec):
             self.pupdata.set_slopes_from_intensity(slopes_from_intensity)   # TODO we should not modify an external object,
                                                                             # since it could be used elsewhere
         pupil_idx = self.pupdata.pupil_idx
-        all_idx = self.xp.concatenate([pupil_idx(i) for i in range(4)]).astype(self.xp.int64)
+        all_idx = self.xp.concatenate([self.to_xp(pupil_idx(i), dtype=self.xp.int64) \
+                                       for i in range(4)])
         self.pup_idx  = all_idx[all_idx >= 0] # Exclude -1 padding
         self.pup_idx0 = pupil_idx(0)[pupil_idx(0) >= 0]  # Exclude -1 padding
         self.pup_idx1 = pupil_idx(1)[pupil_idx(1) >= 0]   # Exclude -1 padding

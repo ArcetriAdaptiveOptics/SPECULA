@@ -4,6 +4,11 @@ from astropy.io import fits
 
 
 class IFuncInv(BaseDataObj):
+    """
+    Inverse Influence Function data object.
+    This class holds the inverse influence function matrix and the corresponding mask.
+    Inverse influence functions data are stored as [pixels, modes].
+    """
     def __init__(self,
                  ifunc_inv,
                  mask,
@@ -12,6 +17,11 @@ class IFuncInv(BaseDataObj):
                 ):
         """
         Initialize an :class:`~specula.data_objects.ifunc_inv.IFuncInv` object.
+        
+        Note
+        ----
+        
+        The inverse influence function is used to compute a modal/zonal vector from a wavefront.
         """
         super().__init__(precision=precision, target_device_idx=target_device_idx)
         self._doZeroPad = False

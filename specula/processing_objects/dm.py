@@ -23,7 +23,6 @@ class DM(BaseProcessingObj):
                  nmodes: int=None,
                  nzern: int=None,
                  start_mode: int=None,
-                 input_offset: int=0,
                  idx_modes = None,
                  npixels: int=None,
                  obsratio: float=None,
@@ -59,8 +58,6 @@ class DM(BaseProcessingObj):
             This is used from mixed Zernike KL bases (not implemented yet).
         start_mode : int, optional
             Starting mode index for the DM modes.
-        input_offset : int, optional
-            Offset in the input command vector to start reading from, by default 0.
         idx_modes : list or array, optional
             Specific mode indices to use for the DM. If provided, `start_mode` and `nmodes` are ignored.
         npixels : int, optional
@@ -146,7 +143,6 @@ class DM(BaseProcessingObj):
         self.layer = Layer(s[0], s[1], self.pixel_pitch, height, target_device_idx=target_device_idx, precision=precision)
         self.layer.A = self._ifunc.mask_inf_func
 
-        self.input_offset = input_offset
         self.nmodes = nmodes - start_mode   # Input command vector is not supposed to include the modes before "start_mode"
 
         # Default sign is -1 to take into account the reflection in the propagation
@@ -158,7 +154,7 @@ class DM(BaseProcessingObj):
         input_commands = self.local_inputs['in_command'].value
 
         if self.nmodes is not None:
-            input_commands = input_commands[self.input_offset: self.input_offset + self.nmodes]
+            input_commands = input_commands[:self.nmodes]
 
         if self.m2c is not None:
             self.m2c_commands[:len(input_commands)] = input_commands

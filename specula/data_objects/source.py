@@ -8,8 +8,11 @@ from specula import ASEC2RAD
 degree2rad = np.pi / 180.
 
 class Source(BaseDataObj):
-    '''source'''
-
+    """
+    Source data object.
+    Holds the properties of a source, such as polar coordinates, magnitude, wavelength,
+    height, band, zero point, and error in coordinates.
+    """
     def __init__(self,
                  polar_coordinates: list,
                  magnitude: float,

@@ -108,3 +108,11 @@ html_static_path = ['_static']
 # The reST default role (used for this markup: `text`) to use for all
 # documents.
 default_role = 'py:obj'
+
+# Auto-generate API docs before building
+import subprocess
+import sys
+
+_scripts_dir = os.path.join(os.path.dirname(__file__), 'scripts')
+for script in ('generate_api_docs.py', 'generate_objects_summary.py'):
+    subprocess.run([sys.executable, os.path.join(_scripts_dir, script)], check=True)

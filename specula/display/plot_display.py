@@ -28,7 +28,7 @@ class PlotDisplay(BaseDisplay):
         self._x_axis = x_axis
         self._time_history = []
         self._labels = labels  # store labels
-        self._legend_added = False  # NEW: track if legend was added
+        self._legend_added = False  # track if legend was added
 
         # Setup inputs - can handle both single value and list of values
         self.inputs['value'] = InputValue(type=BaseValue, optional=True)
@@ -49,21 +49,7 @@ class PlotDisplay(BaseDisplay):
         if self._labels is not None:
             if index < len(self._labels):
                 return self._labels[index]
-            else:
-                return f'Input {index}'
 
-        # Try to extract name from input connection
-        # Access the InputList to get the actual input item metadata
-        if hasattr(self, 'inputs') and 'value_list' in self.inputs:
-            input_list = self.inputs['value_list']
-            if hasattr(input_list, 'input_values') and index < len(input_list.input_values):
-                item = input_list.input_values[index]
-                # Try to get the output reference information
-                if hasattr(item, 'output_ref') and item.output_ref is not None:
-                    # The output_ref should have the source object and output name
-                    # This would need to be tracked during connection setup
-                    pass
-                
         # Default fallback
         return f'Input {index}'
 
@@ -128,8 +114,8 @@ class PlotDisplay(BaseDisplay):
             # Create or update line
             if i >= len(self.lines):
                 # Create new line for this series with label
-                label = self._get_label(i)  # FIXED: removed unused data_list parameter
-                line = self.ax.plot(x, y, marker='.', 
+                label = self._get_label(i)  # removed unused data_list parameter
+                line = self.ax.plot(x, y, marker='.',
                                   color=plt.cm.tab10(i % 10),
                                   label=label)[0]
                 self.lines.append(line)

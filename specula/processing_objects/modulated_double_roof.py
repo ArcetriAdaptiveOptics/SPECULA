@@ -81,7 +81,7 @@ class ModulatedDoubleRoof(ModulatedPyramid):
         self.pup_dist = pup_dist
 
         # After initialization, create the second roof's exponential
-        iu = 1j  # complex unit
+        iu = self.xp.array(1j, dtype=self.complex_dtype)  # complex unit
         roof1_exp = self.xp.exp(-2 * self.xp.pi * iu * self.roof1_tlt, dtype=self.complex_dtype)
         roof2_exp = self.xp.exp(-2 * self.xp.pi * iu * self.roof2_tlt, dtype=self.complex_dtype)
 

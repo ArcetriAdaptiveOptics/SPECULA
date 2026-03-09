@@ -6,8 +6,11 @@ from specula.base_data_obj import BaseDataObj
 
 
 class ElectricField(BaseDataObj):
-    '''Electric field'''
-
+    """
+    Electric field data object.
+    This class represents a 2D electric field, storing both amplitude and phase information
+    for each pixel in a rectangular grid.
+    """
     def __init__(self,
                  dimx: int,
                  dimy: int,

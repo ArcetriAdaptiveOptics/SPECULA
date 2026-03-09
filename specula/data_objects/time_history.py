@@ -6,8 +6,11 @@ from specula.base_data_obj import BaseDataObj
 
 
 class TimeHistory(BaseDataObj):
-    '''Time history'''
-
+    """
+    Time history data object.
+    This class holds the time history of a variable, such as the seeing value, during the simulation.
+    The time history is stored as a 1D array,
+    """
     def __init__(self,
                  time_history,
                  target_device_idx: int=None,

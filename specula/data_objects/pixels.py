@@ -5,8 +5,11 @@ from specula.base_data_obj import BaseDataObj
 
 
 class Pixels(BaseDataObj):
-    '''Pixels data object. Holds a 2d array of pixels, which can be signed or unsigned.'''
-
+    """
+    Pixels data object.
+    Holds a 2d array of pixels, which can be signed or unsigned.
+    The number of bits per pixel can be set, up to 64 bits.
+    """
     def __init__(self, 
                  dimx: int,
                  dimy: int,

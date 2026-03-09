@@ -24,9 +24,6 @@ class Modalrec(BaseProcessingObj):
                  nSlopesToBeDiscarded: int=None,
                  dmNumber: int=0,
                  noProj: bool=False,
-                 input_modes_index: list=None,
-                 input_modes_slice: list=None,
-                 output_slice: list=None,
                  target_device_idx: int=None,
                  precision: int=None
                 ):
@@ -86,48 +83,11 @@ class Modalrec(BaseProcessingObj):
         if in_commands_size is None and polc:
             in_commands_size = intmat.intmat.shape[1]
         self.in_commands_size = in_commands_size
-        self.input_modes_index = input_modes_index
 
-        if output_slice is not None:
-            self.output_slice = slice(*output_slice)
-            start = self.output_slice.start if self.output_slice.start is not None else 0
-            stop = self.output_slice.stop if self.output_slice.stop is not None \
-                                          else self.recmat.recmat.shape[0]
-            step = abs(self.output_slice.step) if self.output_slice.step is not None else 1
-            nmodes = (stop - start) // step
+        if polc:
+            nmodes = self.projmat.nmodes
         else:
-            self.output_slice = slice(None, None, None)
-            if polc:
-                nmodes = self.projmat.nmodes
-            else:
-                nmodes = self.recmat.nmodes
-
-        if input_modes_slice is not None:
-            # Check if it's already a slice object
-            if isinstance(input_modes_slice, slice):
-                self.input_modes_slice = input_modes_slice
-            # If it is a list of lists/tuples, create multiple slices and concatenate the indices
-            elif isinstance(input_modes_slice[0], (list, tuple, slice)):
-                indices = []
-                for s in input_modes_slice:
-                    if isinstance(s, slice):
-                        indices.extend(range(
-                            s.start if s.start is not None else 0,
-                            s.stop if s.stop is not None else self.in_commands_size,
-                            s.step if s.step is not None else 1
-                        ))
-                    else:
-                        # s is a list/tuple like [start, stop, step]
-                        start = s[0]
-                        stop = s[1] if s[1] is not None else self.in_commands_size
-                        step = s[2] if len(s) > 2 else 1
-                        indices.extend(range(start, stop, step))
-                self.input_modes_slice = indices  # will be a list of indices
-            else:
-                # Classic case: single slice
-                self.input_modes_slice = slice(*input_modes_slice)
-        else:
-            self.input_modes_slice = slice(None, None, None)
+            nmodes = self.recmat.nmodes
 
         self.modes = BaseValue('output modes from modal reconstructor',
                                target_device_idx=target_device_idx,
@@ -213,13 +173,7 @@ class Modalrec(BaseProcessingObj):
 
             # (1) Compute pseudo open loop modes
             # (1.1) from commands to slopes
-            if self.input_modes_index is not None:
-                commands = self.commands[self.input_modes_index]
-            elif self.input_modes_slice is not None:
-                commands = self.commands[self.input_modes_slice]
-            else:
-                commands = self.commands
-            comm_slopes = self.intmat.intmat @ commands
+            comm_slopes = self.intmat.intmat @ self.commands
 
             # (1.2) from slopes to modes summing the measured slopes and the computed ones
             #     (i.e., assuming that the DM perfectly reproduces the commands)
@@ -233,12 +187,12 @@ class Modalrec(BaseProcessingObj):
                 output_modes = self.projmat.recmat @ self.pseudo_ol_modes.value
 
             # (3) remove the effect of the commands
-            output_modes -= commands
+            output_modes -= self.commands
 
         else:
             output_modes = self.recmat.recmat @ self.slopes
 
-        self.modes.value = output_modes[self.output_slice]
+        self.modes.value = output_modes
         self.modes.generation_time = self.current_time
 
     def setup(self):

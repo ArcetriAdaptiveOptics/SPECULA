@@ -62,7 +62,7 @@ Connection System
 
 The connection system (``specula.connections``) provides:
 
-- **InputValue/OutputValue**: Typed connections between objects
+- **InputValue**: Typed connections between objects
 - **Connection validation**: Ensures type compatibility
 - **Data flow management**: Handles data transfer between components
 - **Lazy evaluation**: Data is computed only when needed
@@ -84,25 +84,32 @@ Example Structure
 .. code-block:: python
 
     from specula.base_processing_obj import BaseProcessingObj
-    from specula.connections import InputValue, OutputValue
+    from specula.connections import InputValue
     
     class MyProcessor(BaseProcessingObj):
         def __init__(self, ...):
             super().__init__(...)
             
             # Define inputs and outputs
+            self.result = BaseValue(value = self.xp.zeros(100),
+                                    target_device_idx=target_device_idx,
+                                    precision=precision)
             self.inputs['data_in'] = InputValue(type=MyDataType)
-            self.outputs['result'] = OutputValue(type=MyResultType)
+            self.outputs['result'] = self.result
         
         def setup(self):
             # Initialize processing
+            super().setup()
             pass
             
         def trigger_code(self):
             # Main processing logic
             input_data = self.inputs['data_in'].get()
-            result = self.process(input_data)
-            self.outputs['result'].set(result)
+            self.result.value[:] = self.process(input_data)
+
+        def post_trigger(self):
+            super().post_trigger()
+            self.result.generation_time = self.current_time
 
 For detailed API documentation of all base classes, see :doc:`api/base_classes`.
 

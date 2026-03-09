@@ -77,6 +77,11 @@ class APPCoronagraph(Coronagraph):
 
 
 class PAPLCoronagraph(APPCoronagraph):
+    """
+    Phase-apodized-pupil Lyot (PAPL) coronagraph class.
+    This class implements a PAPL coronagraph, which uses a phase-only mask in the pupil plane
+    to create a dark hole in the focal plane.
+    """
 
     def __init__(self,
                  simul_params: SimulParams,

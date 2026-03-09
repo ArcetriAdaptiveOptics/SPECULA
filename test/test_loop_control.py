@@ -1,6 +1,7 @@
 import specula
 specula.init(0)  # Default target device
 
+import types
 import unittest
 
 from specula.loop_control import LoopControl
@@ -22,7 +23,7 @@ class MockProcessingObjNotReady(BaseProcessingObj):
 
 
 class MockProcessingObjReady(BaseProcessingObj):
-    '''Class that is alwasy ready and remmebers whether trigger() and post_trigger() were called'''
+    '''Class that is always ready and remembers whether trigger() and post_trigger() were called'''
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -64,6 +65,25 @@ class TestLoopControl(unittest.TestCase):
         loop.add(p, idx=0)
         # Must not raise
         loop.run(run_time=1, dt=1)
+
+    @cpu_and_gpu
+    def test_infinite_loop(self, target_device_idx, xp):
+        '''Test that setting run_time to -1 causes iteration to go beyond the run_time'''
+
+        loop = LoopControl()
+        p = MockProcessingObjReady()
+        p.count = 0
+
+        def trigger_count(self):
+            self.count += 1
+            if self.count > 20:
+                raise StopIteration()
+        p.trigger = types.MethodType(trigger_count, p)
+
+        loop.add(p, idx=0)
+        with self.assertRaises(StopIteration):
+            # We setup for 10 iterations and verify that we reach 20
+            loop.run(run_time=-1, dt=0.1)
 
 
 
