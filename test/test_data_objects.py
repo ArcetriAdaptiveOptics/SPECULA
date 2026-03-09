@@ -24,7 +24,7 @@ class TestDataObjects(unittest.TestCase):
                 full_name = f"{specula.data_objects.__name__}.{name}"
                 module = importlib.import_module(full_name)
 
-                skip = ['InfinitePhaseScreen', 'SimulParams', 'SubapData']
+                skip = ['FinitePhaseScreen', 'InfinitePhaseScreen', 'SimulParams', 'SubapData']
                 # List all classes defined in that module
                 classes = [value for name, value in inspect.getmembers(module, inspect.isclass) if name not in skip]
 

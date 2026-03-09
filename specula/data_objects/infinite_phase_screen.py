@@ -3,9 +3,8 @@ from symao.turbolence import createTurbolenceFormulary, ft_phase_screen0
 
 turbolenceFormulas = createTurbolenceFormulary()
 
-from specula.base_data_obj import BaseDataObj
 from specula import ASEC2RAD, RAD2ASEC, cpuArray, np
-from specula.data_objects.base_phase_screen import BasePhaseScreen
+from specula.base_data_obj import BaseDataObj
 
 def seeing_to_r0(seeing, wvl=500.e-9):
     return 0.9759*wvl/(seeing* ASEC2RAD)
@@ -23,7 +22,7 @@ def cn2_to_seeing(cn2, wvl=500.e-9):
     return seeing
 
 
-class InfinitePhaseScreen(BasePhaseScreen):
+class InfinitePhaseScreen(BaseDataObj):
     """
     Infinite Phase Screen Data object.
     This class generates and holds an infinite phase screen using a stochastic

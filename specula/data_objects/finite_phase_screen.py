@@ -1,6 +1,6 @@
-from specula.data_objects.base_phase_screen import BasePhaseScreen
+from specula.base_data_obj import BaseDataObj
 
-class FinitePhaseScreen(BasePhaseScreen):
+class FinitePhaseScreen(BaseDataObj):
     """
     Finite phase screen data object based on a pre-generated static map.
     It uses modulo arithmetic to cycle indefinitely over the map

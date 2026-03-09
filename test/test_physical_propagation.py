@@ -29,7 +29,7 @@ class Test(unittest.TestCase):
                              heights=[0., 40., 120.],
                              Cn2=[0.5, 0.4, 0.1],
                              fov=8.0,
-                             infinte_ps = True,
+                             infinite_ps = True,
                              target_device_idx=target_device_idx)
 
         prop_down = AtmoPropagation(simul_params, source_dict={'downlink_source': downlink_source},
