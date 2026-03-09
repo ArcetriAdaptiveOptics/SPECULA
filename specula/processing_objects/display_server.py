@@ -234,39 +234,13 @@ class DisplayServer(BaseProcessingObj):
         try:
             def _safe_extract(obj):
                 try:
-                    # First try array_for_display
+                    # Here we rely on the fact that all data objects have an array_for_display method that 
+                    # returns a CPU array or a list of CPU arrays, and that this method is implemented in a 
+                    # way that it can be called safely even if the object has some non-picklable attributes (like xp)
                     if hasattr(obj, 'array_for_display'):
                         result = obj.array_for_display()
                         if result is not None:
-                            return result
-                    
-                    # Try get() method
-                    if hasattr(obj, 'get'):
-                        result = obj.get()
-                        if result is not None:
-                            return result
-                    
-                    # Try as numpy array
-                    if isinstance(obj, np.ndarray):
-                        return obj
-                    
-                    # Try to convert to numpy array
-                    if hasattr(obj, 'shape'):
-                        # Might be a BaseValue or similar
-                        try:
-                            return np.array(obj)
-                        except:
-                            pass
-                    
-                    # Try to convert to numpy directly
-                    try:
-                        return np.array(obj)
-                    except:
-                        pass
-                    
-                    # Last resort: try to access .value
-                    if hasattr(obj, 'value'):
-                        return obj.value
+                            return result                   
                         
                 except Exception as e:
                     print(f"Error extracting array from {type(obj).__name__}: {e}")
