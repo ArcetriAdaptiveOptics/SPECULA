@@ -2,22 +2,63 @@ from specula.processing_objects.slopec import Slopec
 from specula.connections import InputValue
 from specula.data_objects.pixels import Pixels
 from specula.data_objects.slopes import Slopes
+from specula.data_objects.pupdata import PupData
+from specula.lib.make_mask import make_mask
+
 
 class CurWfsSlopec(Slopec):
     """
     Slope Computer for Curvature Wavefront Sensor processing object.
-    Computes the normalized difference between intra-focal and extra-focal fluxes.
+    Computes the normalized difference between intra-focal and extra-focal fluxes
+    on a pixel-by-pixel basis using PupData indices.
     """
     def __init__(self,
-                 cwfs_geometry, # The CurWFSGeometry object
-                 sn: Slopes=None,
-                 interleave: bool=False,
-                 target_device_idx: int=None,
-                 precision: int=None):
+                 diameter: int,
+                 ccd_size: tuple,
+                 sn: Slopes = None,
+                 interleave: bool = False,
+                 target_device_idx: int = None,
+                 precision: int = None):
+        """
+        Parameters:
+        ----------
 
-        # Geometry must be set BEFORE calling super().__init__
-        # because the base class calls self.nslopes() which uses self.geometry.
-        self.geometry = cwfs_geometry
+        diameter: int
+            Diameter of the pupil in pixels (used to define valid pupil indices).
+        ccd_size: tuple
+            Size of the CCD in pixels (height, width).
+        sn: Slopes, optional
+            Slopes object for reference subtraction (if needed).
+        interleave: bool, optional
+            Whether to interleave slopes (not used in this implementation).
+        target_device_idx : int, optional
+            Target device index for computation (CPU/GPU). Default is None (uses global setting).
+        precision : int, optional
+            Precision for computation (0 for double, 1 for single). Default is None
+            (uses global setting).
+        """
+
+        cx = ccd_size[1]/2
+        cy = ccd_size[0]/2
+
+        _,ids = make_mask(np_size=ccd_size[0],
+                          diaratio = diameter/float(ccd_size[0]),
+                          get_idx=True)
+        mask_ids = ids[0]*ccd_size[1]+ids[1]
+
+        self.pupdata = PupData(
+            ind_pup=mask_ids,
+            radius=diameter/2,
+            cx=cx, cy=cy,
+            framesize=ccd_size,
+            target_device_idx=target_device_idx
+        )
+        self.pupdata.set_slopes_from_intensity()
+
+        # Extract valid indices for both pupils using pupdata's xp object
+        # (Needed before calling super().__init__ which calls nslopes)
+        all_idx = self.pupdata.pupil_idx(0).astype(self.pupdata.xp.int64)
+        self.pup_idx = all_idx[all_idx >= 0]
 
         super().__init__(sn=sn, interleave=interleave,
                          target_device_idx=target_device_idx, precision=precision)
@@ -29,54 +70,52 @@ class CurWfsSlopec(Slopec):
         self.inputs['in_pixels1'] = InputValue(type=Pixels)
         self.inputs['in_pixels2'] = InputValue(type=Pixels)
 
-        # Pre-allocate variables
-        self.mask_matrix = None
-        self._flux1 = None
-        self._flux2 = None
+        # Outputs to track the used pupils
+        self.outputs['out_pupdata'] = self.pupdata
 
+        # Setup slopes display mapping (using the first pupdata as geometric reference)
+        self.slopes.single_mask = self.pupdata.single_mask()
+        self.slopes.display_map = self.pupdata.display_map
+
+        self.flat_p1 = None
+        self.flat_p2 = None
 
     def nsubaps(self):
-        return self.geometry.n_subaps
-
+        # Every pixel is treated as a subaperture
+        return len(self.pup_idx)
 
     def nslopes(self):
-        # 1 signal per subaperture (curvature)
-        return self.geometry.n_subaps
+        # 1 signal (curvature) per valid pixel
+        return len(self.pup_idx)
 
-
-    def setup(self):
-        super().setup()
-
-        # 1. Get the flattened mask matrix from the geometry object
-        self.mask_matrix = self.geometry.get_flattened_masks()
-
-        # 2. Allocate flux vectors
-        self._flux1 = self.xp.zeros(self.nsubaps(), dtype=self.dtype)
-        self._flux2 = self.xp.zeros(self.nsubaps(), dtype=self.dtype)
-
+    def prepare_trigger(self, t):
+        super().prepare_trigger(t)
+        # Flatten incoming pixel arrays
+        self.flat_p1 = self.local_inputs['in_pixels1'].pixels.flatten()
+        self.flat_p2 = self.local_inputs['in_pixels2'].pixels.flatten()
 
     def trigger_code(self):
-        # 1. Flatten input images
-        p1 = self.local_inputs['in_pixels1'].pixels.ravel()
-        p2 = self.local_inputs['in_pixels2'].pixels.ravel()
+        # Extract valid pixels according to PupData
+        i1 = self.flat_p1[self.pup_idx].astype(self.xp.float32)
+        i2 = self.flat_p2[self.pup_idx].astype(self.xp.float32)
 
-        # 2. Integrate flux using Matrix Multiplication
-        # (N_sectors, N_pix) @ (N_pix) -> (N_sectors)
-        self._flux1[:] = self.mask_matrix @ p1
-        self._flux2[:] = self.mask_matrix @ p2
-
-        # 3. Compute Curvature Signal
-        sum_flux = self._flux1 + self._flux2
+        # Compute Curvature Signal: S = (I1 - I2) / (I1 + I2)
+        sum_i = i1 + i2
 
         # Avoid division by zero
-        sum_flux = self.xp.where(sum_flux < 1e-9, 1.0, sum_flux)
+        sum_i = self.xp.where(sum_i < 1e-9, 1.0, sum_i)
 
-        signal = (self._flux1 - self._flux2) / sum_flux
+        signal = (i1 - i2) / sum_i
 
-        # 4. Store results
+        # Store results
         self.slopes.slopes[:] = signal
 
         # Update telemetry
-        self.flux_per_subaperture_vector.value[:] = sum_flux
-        self.total_counts.value[0] = self.xp.sum(sum_flux)
-        self.subap_counts.value[0] = self.xp.mean(sum_flux)
+        self.flux_per_subaperture_vector.value[:] = sum_i
+        total_int = self.xp.sum(sum_i)
+        self.total_counts.value[0] = total_int
+        self.subap_counts.value[0] = total_int / self.nsubaps()
+
+    def post_trigger(self):
+        super().post_trigger()
+        self.outputs['out_pupdata'].generation_time = self.current_time
