@@ -11,6 +11,8 @@ from specula.data_objects.pupilstop import Pupilstop
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.pixels import Pixels
 from specula.data_objects.slopes import Slopes
+from specula.data_objects.ifunc import IFunc
+from specula.data_objects.m2c import M2C
 from specula import cpuArray, np
 
 import matplotlib.pyplot as plt
@@ -121,11 +123,29 @@ class SprintPyr(BaseSprintEstimator):
         """Initialize with Pyramid-specific parameters and build internal pipeline"""
         super().setup()
 
+        # Build independent copies of DM data for internal pipeline
+        ifunc_obj = IFunc(
+            ifunc=self.dm.ifunc_obj.influence_function.copy(),
+            mask=self.dm.ifunc_obj.mask_inf_func.copy(),
+            type_str=self.dm.ifunc_obj.type_str,
+            target_device_idx=self.target_device_idx,
+            precision=self.precision
+        )
+
+        m2c_obj = None
+        if self.dm.m2c is not None:
+            m2c_obj = M2C(
+                m2c=self.dm.m2c.copy(),
+                target_device_idx=self.target_device_idx,
+                precision=self.precision
+            )
+
         # 1. Build Internal DM (sharing IFuncs with the main DM)
         self.internal_dm = DM(
             simul_params=self.simul_params,
             height=getattr(self.dm, 'height', 0.0),
-            ifunc=self.dm.ifunc_obj,
+            ifunc=ifunc_obj,
+            m2c=m2c_obj,
             target_device_idx=self.target_device_idx,
             precision=self.precision
         )
@@ -174,7 +194,9 @@ class SprintPyr(BaseSprintEstimator):
 
         # Extract valid subapertures for display/logging
         pupil_idx = self.slopec.pupdata.pupil_idx
-        self.idx_valid_sa = self.xp.concatenate([pupil_idx(i)[pupil_idx(i) >= 0] for i in range(4)])
+        self.idx_valid_sa = self.xp.concatenate([self.to_xp(pupil_idx(i),
+                                                 dtype=self.xp.int64)[pupil_idx(i) >= 0] \
+                                                 for i in range(4)])
 
         if self.verbose: # pragma: no cover
             print(f"  WFS type: Pyramid")
