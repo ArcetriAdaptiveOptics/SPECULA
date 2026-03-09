@@ -338,7 +338,7 @@ class ModulatedPyramid(BaseProcessingObj):
                              f" not enough to hold the pupil geometry."
                              f" Minimum allowed side is {min_ccd_side}")
 
-        internal_ccd_side = self.xp.around(fft_res * pup_diam / 2) * 2
+        internal_ccd_side = int(self.xp.around(fft_res * pup_diam / 2) * 2)
 
         # Theoretical fft resolution, and minimum fft resolution to hold the pupil geometry
         fft_res = internal_ccd_side / float(pup_diam)
