@@ -1004,7 +1004,7 @@ class Simul():
             disp.name = 'display_server'
 
         # Run simulation loop
-        self.loop.run(run_time=self.mainParams['total_time'], dt=self.mainParams['time_step'], speed_report=True)
+        self.loop.run(run_time=self.mainParams['total_time'], dt=self.mainParams['time_step'], speed_report=False)
 
         print(process_rank, 'Simulation finished', flush=True)
 #        if data_store.has_key('sr'):

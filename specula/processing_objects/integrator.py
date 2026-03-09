@@ -1,4 +1,7 @@
 
+
+from specula.base_value import BaseValue
+from specula.connections import InputValue
 from specula.processing_objects.iir_filter import IirFilter
 from specula.data_objects.iir_filter_data import IirFilterData
 from specula.data_objects.simul_params import SimulParams
@@ -51,11 +54,11 @@ class Integrator(IirFilter):
         iir_filter_data = IirFilterData.from_gain_and_ff(int_gain, ff=ff,
                                                target_device_idx=target_device_idx)
 
-        self.inputs['int_gain'] = InputValue(type=BaseValue, optional=True)
-
         # Initialize IirFilter object
         super().__init__(simul_params, iir_filter_data, delay=delay, integration=integration,
                          target_device_idx=target_device_idx, precision=precision)
+
+        self.inputs['int_gain'] = InputValue(type=BaseValue, optional=True)
 
         def prepare_trigger(self, t):
 

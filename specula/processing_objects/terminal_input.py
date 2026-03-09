@@ -1,4 +1,6 @@
 
+import sys
+
 from specula.processing_objects.specula_input import SpeculaInput
 
 
@@ -24,13 +26,17 @@ class TerminalInput(SpeculaInput):
                          precision=precision)
 
         def terminal_task(q):
-            tokens = input().split()
-            if len(tokens) == 1:
-                q.put(tokens[0], True)
-            elif len(tokens) == 2:
-                q.put(tokens[0], tokens[1])
-            else:
-                print('Input not recognized')
+            sys.stdin = open(0)
+
+            while True:
+                tokens = input('specula>').split()
+                if len(tokens) == 1:
+                    q.put((tokens[0], True))
+                elif len(tokens) == 2:
+                    value = float(tokens[1])
+                    q.put((tokens[0], value))
+                else:
+                    print('Input not recognized')
 
         self.set_input_task(terminal_task)
 

@@ -46,6 +46,7 @@ class SpeculaInput(BaseProcessingObj):
         """
         self.q = mp.Queue()
         self.p = mp.Process(target=task, args=(self.q,))
+        self.p.start()
 
     def trigger_code(self):
         """
