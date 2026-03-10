@@ -5,8 +5,8 @@
 pushpull:
   class:        'PushPullGenerator'
   nmodes:       1851                         # Number of DM actuators
-  amp:          15   
-  constant_amp: false #true
+  amp:          5   
+  constant_amp: true
   outputs:   ['output']
 
 # Interaction matrix calibrator
@@ -53,8 +53,7 @@ pyr_override:
     in_ef: 'prop.out_source_ngs_ef'
 
 zwfs_override:
-  spot_radius_lambda: 0.75                     # Spot RADIUS in λ/D units
-  # phase_shift:        0.5      # Spot phase delay (pi/2)
+  spot_radius_lambda: 0.750                     # Spot RADIUS in λ/D units
   inputs: 
     in_ef: 'prop.out_source_ngs_ef'
 

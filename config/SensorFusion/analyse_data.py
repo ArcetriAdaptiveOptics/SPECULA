@@ -92,37 +92,33 @@ try:
     plt.figure(figsize=(12,5))
     plt.subplot(1,2,1)
     show_psf(psf, title='PSF\n'+tn, cmap='inferno', ext=0.6, maxVal=np.max(psf), vmin=-6)    
-    coro_psf = data["psf_std"]
+    coro_psf = data["coro_psf_std"]
     coro_psf = np.sqrt(np.mean(coro_psf[init+1:]**2,axis=0))
     plt.subplot(1,2,2)
-    show_psf(coro_psf, title='Coronographic PSF\n'+tn, cmap='inferno', ext=0.6, maxVal=np.max(psf), vmin=-6)
+    show_psf(coro_psf, title='Coronagraphic PSF\n'+tn, cmap='inferno', ext=0.6, maxVal=np.max(psf), vmin=-6)
 except FileNotFoundError:
     print(f"psf.fits file not found in {data_dir}.")
 
 
 ##################### Modes ##########################
 try:
-    res = data['dm_res'][:800,:]#[init+1:, :]
-    pywfs_modes = data['pyr_modes'][:800,:]#[init+1:, :]
-    zwfs_modes = data['zwfs_modes'][:800,:]#[init+1:, :]
-    x = np.arange(res.shape[0])#+1+init
-    Nmodes = 4
+    res = data['dm_res'][init+1:, :]
+    pywfs_modes = data['pyr_modes'][init+1:, :]
+    zwfs_modes = data['zwfs_modes'][init+1:, :]
+    Nmodes = pywfs_modes.shape[1]
+    x = np.arange(Nmodes)+1
+    pyr_rec_rms = np.sqrt(np.mean((pywfs_modes-res[:,:Nmodes])**2,axis=0))
+    zwfs_rec_rms = np.sqrt(np.mean((zwfs_modes-res[:,:Nmodes])**2,axis=0))
     plt.figure()
-    for i in range(Nmodes):
-        # plt.plot(x, res[:,i],c=f'C{i:1.0f}')
-        plt.plot(x, pywfs_modes[:,i]-res[:,i],'--',c=f'C{i:1.0f}')
-        plt.plot(x, zwfs_modes[:,i]-res[:,i],':',c=f'C{i:1.0f}')
-    plt.xlabel('iteration #')
+    plt.plot(x, pyr_rec_rms, label='pyWFS')
+    plt.plot(x, zwfs_rec_rms, label='zWFS')
+    plt.title('Termporal Rec error RMS')
+    plt.xlabel('KL mode #')
     plt.ylabel('RMS [nm]')
+    plt.legend()
+    plt.xscale('log')
+    plt.yscale('log')
     plt.grid()
-    
-    mode_handles = [Line2D([0], [0], color=f'C{i}', linestyle='-', label=f'Mode {i}') for i in range(Nmodes)]
-    style_handles = [
-        Line2D([0], [0], color='k', linestyle='-', label='True'),
-        Line2D([0], [0], color='k', linestyle='--', label='PyWFS'),
-        Line2D([0], [0], color='k', linestyle=':', label='ZWFS')
-    ]
-    # plt.legend(handles=[mode_handles,style_handles], loc='best')
 
 except FileNotFoundError:
     print(f"pyr_modes.fits or zwfs_modes.fits file(s) not found in {data_dir}.")

@@ -15,11 +15,10 @@ def compute_ml_rec(im_tag:str, Nmodes:int, sn_tag:str=None, RON:float=None):
     im_hdul = fits.open('./calibration/im/'+im_tag+'_im.fits')
     intmat = im_hdul[1].data.copy()
     D = intmat[:,:Nmodes]
-    sn_hdul = fits.open('./calibration/slopenull/'+sn_tag+'_im.fits')
+    sn_hdul = fits.open('./calibration/slopenulls/'+sn_tag+'.fits')
     slope_null = sn_hdul[1].data.copy()
-    noise_cov = slope_null + RON
     flux = np.sum(slope_null)
-    noise_cov /= flux
+    noise_cov = slope_null + RON/flux
     DtCn = D.T @ np.diag(1/noise_cov)
     rec = np.linalg.pinv(DtCn @ D) @ DtCn
     return rec
@@ -66,12 +65,15 @@ def compute_zwfs_rec(Nmodes:int, im_tag:str='zwfs_1851modes', compute_ml:bool=Fa
 if __name__ == "__main__":
 
     Nmodes = 1200
-    rMods = np.array([0,0.5,1,3,4,6])
-    for rMod in rMods:
-        rec,_ = compute_pyr_rec(Nmodes=Nmodes,im_tag=f'pyr{rMod:1.1f}_1851modes')
-        save_rec(rec, rec_tag=f'pyr{rMod:1.1f}_{Nmodes:1.0f}modes')
+    # rMods = np.array([0,0.5,1,3,4,6])
+    # for rMod in rMods:
+    #     rec,_ = compute_pyr_rec(Nmodes=Nmodes,im_tag=f'pyr{rMod:1.1f}_1851modes')
+    #     save_rec(rec, rec_tag=f'pyr{rMod:1.1f}_{Nmodes:1.0f}modes')
 
     dotSizes = np.array([1,1.5,2])
     for dotSize in dotSizes:
         rec,_ = compute_zwfs_rec(Nmodes=Nmodes,im_tag=f'z{dotSize:1.1f}wfs_1851modes')
         save_rec(rec, rec_tag=f'z{dotSize:1.1f}wfs_{Nmodes:1.0f}modes')
+
+        rec,_ = compute_zwfs_rec(Nmodes=Nmodes,compute_ml=True,im_tag=f'z{dotSize:1.1f}wfs_1851modes',sn_tag='z1.0wfs_slope_null')
+        save_rec(rec, rec_tag=f'z{dotSize:1.1f}wfs_{Nmodes:1.0f}modes_ml')

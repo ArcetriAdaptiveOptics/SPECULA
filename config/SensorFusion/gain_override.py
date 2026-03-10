@@ -8,7 +8,8 @@ base_config = "xao_main.yml"
 
 for gain in gains:
     overrides = ("{"
-                f"filter.iit_gain: [{gain:.2f}], "
+                "main.total_time: 0.5, "
+                f"filter.iir_gain: {gain:.2f}, "
                 f"data_store.store_dir: ./output/gain_opt/gain_{gain:.2f}"
                 "}")
 

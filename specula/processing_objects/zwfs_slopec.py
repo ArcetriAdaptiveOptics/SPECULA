@@ -28,13 +28,13 @@ class ZwfsSlopec(Slopec):
                  obsratio:float = None,
                  sn: Slopes=None,
                  target_device_idx: int=None,
-                 thr_value: float=0,
+                 thr_value: float=0.0,
                  precision: int=None):
 
-        cx = ccd_size/2-0.5
-        cy = ccd_size/2-0.5
+        cx = ccd_size/2#-0.5
+        cy = ccd_size/2#-0.5
 
-        _,ids = make_mask(np_size=ccd_size, diaratio = pup_diam/float(ccd_size), obsratio=obsratio,get_idx=True) #xc=-0.5/float(ccd_size),yc=-0.5/float(ccd_size),
+        _,ids = make_mask(np_size=ccd_size, diaratio = pup_diam/float(ccd_size), obsratio=obsratio,get_idx=True)
         mask_ids = ids[0]*ccd_size+ids[1]
 
         self.pupdata = PupData(
@@ -68,10 +68,9 @@ class ZwfsSlopec(Slopec):
         self.flat_pixels = self.local_inputs['in_pixels'].pixels.flatten()
 
     def trigger_code(self):
-
         self.flat_pixels -= self.threshold
 
-        clamp_generic_less(0,0,self.flat_pixels, xp=self.xp) # unsure wheter this is required
+        # clamp_generic_less(0,0,self.flat_pixels, xp=self.xp) # unsure wheter this is required
         metaintensity = self.flat_pixels[self.pup_idx].astype(self.xp.float32)
         self.flux_per_subaperture_vector.value[:] = metaintensity
 

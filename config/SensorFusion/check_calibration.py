@@ -160,15 +160,15 @@ plt.imshow(masked_frame(z2wfs_frame,zwfs_mask),origin='lower',cmap='RdBu')
 plt.title(r'ZWFS 2.0 $\lambda/D$ pupil')
 plt.colorbar()
 
-plt.figure(figsize=(9,4))
-plt.subplot(1,2,1)
-plt.imshow(masked_frame(pyr0_frame,pyr_masks),origin='lower',cmap='RdBu')
-plt.title(r'pyWFS 0.0 $\lambda/D$ pupils'+f'\nPupil diameter = {2*np.mean(rad):1.1f} pix')
-plt.colorbar()
-plt.subplot(1,2,2)
-plt.imshow(masked_frame(pyr6_frame,pyr_masks),origin='lower',cmap='RdBu')
-plt.title(r'pyWFS 6.0 $\lambda/D$ pupils'+f'\nPupil diameter = {2*np.mean(rad):1.1f} pix')
-plt.colorbar()
+# plt.figure(figsize=(9,4))
+# plt.subplot(1,2,1)
+# plt.imshow(masked_frame(pyr0_frame,pyr_masks),origin='lower',cmap='RdBu')
+# plt.title(r'pyWFS 0.0 $\lambda/D$ pupils'+f'\nPupil diameter = {2*np.mean(rad):1.1f} pix')
+# plt.colorbar()
+# plt.subplot(1,2,2)
+# plt.imshow(masked_frame(pyr6_frame,pyr_masks),origin='lower',cmap='RdBu')
+# plt.title(r'pyWFS 6.0 $\lambda/D$ pupils'+f'\nPupil diameter = {2*np.mean(rad):1.1f} pix')
+# plt.colorbar()
 
 
 ###################### Throughput ###########################
@@ -199,9 +199,6 @@ z1wfs_thrp = np.sum(z1wfs_frame[zwfs_mask.astype(bool)])/flux
 z15wfs_thrp = np.sum(z15wfs_frame[zwfs_mask.astype(bool)])/flux
 z2wfs_thrp = np.sum(z2wfs_frame[zwfs_mask.astype(bool)])/flux
 
-print(pyr0_thrp,pyr05_thrp,pyr1_thrp,pyr3_thrp,pyr4_thrp,pyr6_thrp)
-print(z1wfs_thrp,z15wfs_thrp,z2wfs_thrp)
-
 
 ########################## Rec ##############################
 rec_hdu = fits.open('./calibration/rec/z1.0wfs_1200modes_rec.fits')
@@ -210,6 +207,9 @@ rec_hdu = fits.open('./calibration/rec/z1.5wfs_1200modes_rec.fits')
 z15wfs_rec = rec_hdu[1].data
 rec_hdu = fits.open('./calibration/rec/z2.0wfs_1200modes_rec.fits')
 z2wfs_rec = rec_hdu[1].data
+
+rec_hdu = fits.open('./calibration/rec/z1.0wfs_1200modes_ml_rec.fits')
+z1wfs_ml_rec = rec_hdu[1].data
 
 x = np.arange(np.shape(pyr1_rec)[0])+1
 z = np.arange(np.shape(z1wfs_rec)[0])+1
@@ -248,6 +248,7 @@ plt.subplot(1,2,2)
 plt.plot(z,rec_covariance(z1wfs_rec,mask=zwfs_mask,frame=z1wfs_frame,flux=flux),':',label='zWFS')
 plt.plot(z,rec_covariance(z15wfs_rec,mask=zwfs_mask,frame=z15wfs_frame,flux=flux),':',label='z1.5WFS')
 plt.plot(z,rec_covariance(z2wfs_rec,mask=zwfs_mask,frame=z2wfs_frame,flux=flux),':',label='z2WFS')
+plt.plot(z,rec_covariance(z1wfs_ml_rec,mask=zwfs_mask,frame=z1wfs_frame,flux=flux),':',label='zWFS (ML)')
 plt.legend()
 plt.xscale('log')
 plt.yscale('log')
@@ -271,10 +272,33 @@ plt.subplot(1,2,2)
 plt.plot(z,rec_phot_cov(z1wfs_rec,mask=zwfs_mask,frame=z1wfs_frame,flux=flux,sn=z1wfs_sn),':',label='zWFS')
 plt.plot(z,rec_phot_cov(z15wfs_rec,mask=zwfs_mask,frame=z15wfs_frame,flux=flux,sn=z15wfs_sn),':',label='z1.5WFS')
 plt.plot(z,rec_phot_cov(z2wfs_rec,mask=zwfs_mask,frame=z2wfs_frame,flux=flux,sn=z2wfs_sn),':',label='z2WFS')
+plt.plot(z,rec_phot_cov(z1wfs_ml_rec,mask=zwfs_mask,frame=z1wfs_frame,flux=flux,sn=z1wfs_sn),':',label='zWFS (ML)')
 plt.legend()
 plt.xscale('log')
 plt.yscale('log')
 plt.grid()
 plt.title('Reconstructor covariance')
+
+plt.figure(figsize=(9,4))
+plt.subplot(1,2,1)
+plt.plot(x,rec_covariance(pyr0_rec,mask=pyr_masks,frame=pyr0_frame,flux=flux),':',label=r'pyWFS 0.0 $\lambda/D$')
+plt.plot(x,rec_covariance(pyr3_rec,mask=pyr_masks,frame=pyr3_frame,flux=flux),':',label=r'pyWFS 3.0 $\lambda/D$')
+plt.plot(z,rec_covariance(z1wfs_rec,mask=zwfs_mask,frame=z1wfs_frame,flux=flux),':',label='zWFS')
+plt.plot(z,rec_covariance(z2wfs_rec,mask=zwfs_mask,frame=z2wfs_frame,flux=flux),':',label='z2WFS')
+plt.legend()
+plt.xscale('log')
+plt.yscale('log')
+plt.grid()
+plt.title('Reconstructor covariance\nRON')
+plt.subplot(1,2,2)
+plt.plot(x,rec_phot_cov(pyr0_rec,mask=pyr_masks,frame=pyr0_frame,flux=flux,sn=pyr0_sn),':',label=r'pyWFS 0.0 $\lambda/D$')
+plt.plot(x,rec_phot_cov(pyr3_rec,mask=pyr_masks,frame=pyr3_frame,flux=flux,sn=pyr3_sn),':',label=r'pyWFS 3.0 $\lambda/D$')
+plt.plot(z,rec_phot_cov(z1wfs_rec,mask=zwfs_mask,frame=z1wfs_frame,flux=flux,sn=z1wfs_sn),':',label='zWFS')
+plt.plot(z,rec_phot_cov(z2wfs_rec,mask=zwfs_mask,frame=z2wfs_frame,flux=flux,sn=z2wfs_sn),':',label='z2WFS')
+plt.legend()
+plt.xscale('log')
+plt.yscale('log')
+plt.grid()
+plt.title('Reconstructor covariance\nShot noise')
 
 plt.show()

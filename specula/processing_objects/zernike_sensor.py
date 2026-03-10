@@ -1,7 +1,7 @@
 from specula.processing_objects.modulated_pyramid import ModulatedPyramid
 # from specula.lib.utils import make_subpixel_shift_phase
 # from specula import cpuArray
-from specula.lib.toccd import toccd
+# from specula.lib.toccd import toccd
 
 class ZernikeSensor(ModulatedPyramid):
     """
