@@ -10,10 +10,6 @@ main:
   zenithAngleInDeg:  0.000
   display_server:    False
 
-input:
-  class:             'TerminalInput'
-  output_list:       ['int_gain']
-
 seeing:
   class:             'WaveGenerator'
   constant:          0.8                   # ["] seeing value
@@ -127,7 +123,6 @@ control:
   n_modes:           [30,     70,       100,      300]
   inputs:
       delta_comm: 'rec.out_modes'
-      int_gain: 'input.int_gain'
 
 
 dm:
@@ -145,7 +140,6 @@ psf:
   wavelengthInNm:    1650                 # [nm] Imaging wavelength
   nd:                8                    # padding coefficient for PSF computation
   start_time:        0.05                # PSF integration start time
-  verbose:           false
   inputs:
       in_ef:  'prop.out_on_axis_source_ef'
 
