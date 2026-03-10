@@ -10,6 +10,7 @@ main:
   zenithAngleInDeg:  0.000
   display_server:    False
 
+
 seeing:
   class:             'WaveGenerator'
   constant:          0.8                   # ["] seeing value
