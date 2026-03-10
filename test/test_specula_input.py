@@ -1,6 +1,8 @@
-import multiprocessing as mp
-import queue
+import sys
 import time
+import queue
+import multiprocessing as mp
+
 
 from specula.processing_objects.specula_input import SpeculaInput
 

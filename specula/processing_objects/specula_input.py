@@ -34,7 +34,7 @@ class SpeculaInput(BaseProcessingObj):
         super().__init__(target_device_idx=target_device_idx,
                          precision=precision)
 
-        for name in output_list or []:
+        for name in output_list:
             self.outputs[name] = BaseValue(target_device_idx=target_device_idx, precision=precision)
 
     def set_input_task(self, task):
