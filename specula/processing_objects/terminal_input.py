@@ -30,7 +30,9 @@ class TerminalInput(SpeculaInput):
 
             while True:
                 tokens = input('specula>').split()
-                if len(tokens) == 1:
+                if len(tokens) == 0:
+                    continue
+                elif len(tokens) == 1:
                     q.put((tokens[0], True))
                 elif len(tokens) == 2:
                     value = float(tokens[1])

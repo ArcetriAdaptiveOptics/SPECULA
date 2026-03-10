@@ -224,7 +224,6 @@ class FlaskServer():
         1) Queue all requested object names
         2) Get back all data objects, plot them, and send them back to the browser
         '''
-        print(args)
         client_id = request.sid
         response_queue = manager.Queue() # Separate response queue for each client
 

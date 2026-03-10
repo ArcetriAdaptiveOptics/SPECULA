@@ -59,7 +59,10 @@ class SpeculaInput(BaseProcessingObj):
         try:
             while True:
                 name, value = self.q.get(block=False)
-                self.outputs[name].set_value(value)
-                self.outputs[name].generation_time = self.current_time
+                try:
+                    self.outputs[name].set_value(value)
+                    self.outputs[name].generation_time = self.current_time
+                except KeyError:
+                    print('Unknown command', name)
         except queue.Empty:
             pass

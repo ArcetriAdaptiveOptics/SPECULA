@@ -1,5 +1,8 @@
 
 
+import numpy as np
+
+from specula import cpuArray
 from specula.base_value import BaseValue
 from specula.connections import InputValue
 from specula.processing_objects.iir_filter import IirFilter
@@ -10,7 +13,7 @@ from specula.data_objects.simul_params import SimulParams
 class Integrator(IirFilter):
     def __init__(self,
                  simul_params: SimulParams,
-                 int_gain: float,
+                 int_gain: list,
                  ff: list=None,
                  n_modes: int=None,
                  delay: float=0,
@@ -34,20 +37,10 @@ class Integrator(IirFilter):
         # - Raises ValueError if the lengths do not match.
         # Note: this behaviour (repeat each element of int_gain and ff by the corresponding
         #       number in n_modes) is the same as numpy.repeat
-        if n_modes is not None:
-            if isinstance(n_modes, int):
-                n_modes = [n_modes]
-            if len(n_modes) != len(int_gain):
-                raise ValueError(f"When n_modes is a list, length of n_modes {len(n_modes)} must"
-                                 f" match length of int_gain {len(int_gain)}")
-            int_gain = [val for i, val in enumerate(int_gain) for _ in range(n_modes[i])]
-            if ff is not None:
-                if isinstance(ff, int):
-                    ff = [ff]
-                if len(n_modes) != len(ff):
-                    raise ValueError(f"When n_modes is a list, length of n_modes {len(n_modes)}"
-                                     f" must match length of ff {len(ff)}")
-                ff = [val for i, val in enumerate(ff) for _ in range(n_modes[i])]
+        if isinstance(n_modes, int):
+            n_modes = [n_modes]
+        int_gain = self._repeat_for_nmodes(n_modes, int_gain, 'int_gain')
+        ff = self._repeat_for_nmodes(n_modes, ff, 'ff')
 
         self.ff = ff
         self.n_modes = n_modes
@@ -59,23 +52,36 @@ class Integrator(IirFilter):
                          target_device_idx=target_device_idx, precision=precision)
 
         self.inputs['int_gain'] = InputValue(type=BaseValue, optional=True)
+        self.inputs['reset'] = InputValue(type=BaseValue, optional=True)
 
-        def prepare_trigger(self, t):
+    def _repeat_for_nmodes(self, n_modes, array_to_repeat, array_name):
+        if n_modes is None or array_to_repeat is None:
+            return array_to_repeat
+        if type(n_modes) is list and (
+                type(array_to_repeat) is not list or
+                len(n_modes) != len(array_to_repeat)):
+            raise ValueError(f"When n_modes is a list, length of n_modes {len(n_modes)} must"
+                             f" match length of {array_name} {len(array_to_repeat)}")
+        return np.repeat(array_to_repeat, n_modes)
 
-            # Updated internal IIR filter data if gain input changes
-            if self.inputs['int_gain'].generation_time == self.current_time:
+    def prepare_trigger(self, t):
 
-                int_gain = self.inputs['int_gain'].get()
-                if self.n_modes is not None:
-                    if len(self.n_modes) != len(int_gain):
-                        raise ValueError(f"Length of int_gain {len(int_gain)} does not match"
-                                         f"length of n_modes {len(self.n_modes)}")
+        # Update internal IIR filter data if gain input changes
+        gain_input = self.local_inputs['int_gain']
+        if gain_input is not None and gain_input.generation_time == self.current_time:
 
-                    int_gain = [val for i, val in enumerate(int_gain) for _ in range(self.n_modes[i])]
+            int_gain = cpuArray(gain_input.get_value())
+            int_gain = self._repeat_for_nmodes(self.n_modes, [int_gain], 'int_gain')
 
-                new_data = IirFilterData.from_gain_and_ff(int_gain, ff=self.ff,
-                                                          target_device_idx=target_device_idx)
-                self.iir_filter_data = iir_filter_data
+            new_data = IirFilterData.from_gain_and_ff(int_gain, ff=self.ff,
+                                                      target_device_idx=self.target_device_idx)
+            self.iir_filter_data = new_data
 
-            super().prepare_trigger(t)
+        # Reset internal state
+        reset_input = self.local_inputs['reset']
+        if reset_input is not None and reset_input.generation_time == self.current_time:
+            self._ist *= 0
+            self._ost *= 0
+
+        super().prepare_trigger(t)
 
