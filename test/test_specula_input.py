@@ -4,6 +4,11 @@ import time
 
 from specula.processing_objects.specula_input import SpeculaInput
 
+
+def _dummy_task(q):
+    q.put(("x", 99))
+
+
 class TestSpeculaInput:
 
     def test_outputs_created(self):
@@ -40,6 +45,9 @@ class TestSpeculaInput:
         assert obj.outputs["x"].value == 1
         assert obj.outputs["y"].value == 2
 
+    # capfd is a pytest fixture, handled automatically
+    # when running tests
+
     def test_trigger_ignores_unknown_output(self, capfd):
         obj = SpeculaInput(output_list=["x"])
         obj.q = mp.Queue()
@@ -50,14 +58,10 @@ class TestSpeculaInput:
         obj.trigger_code()
 
         captured = capfd.readouterr()
-        print(captured)
         assert "Unknown output dummy" in captured.out
 
     def test_set_input_task_process(self):
         obj = SpeculaInput(output_list=["x"])
-
-        def _dummy_task(q):
-            q.put(("x", 99))
 
         obj.set_input_task(_dummy_task)
 
