@@ -55,7 +55,7 @@ class Simul():
                  diagram_title=None,
                  diagram_filename=None,
                  diagram_colors_on=False,
-                 speed_report=False,
+                 speed_report=True,
                  ):
         if len(param_files) < 1:
             raise ValueError('At least one Yaml parameter file must be present')
