@@ -36,25 +36,27 @@ class TerminalInput(SpeculaInput):
                          target_device_idx=target_device_idx,
                          precision=precision)
 
-        def terminal_task(q):
-            sys.stdin = open(0)
-
-            while True:
-                try:
-                    tokens = input('specula>').split()
-                    if len(tokens) == 0:
-                        continue
-                    elif len(tokens) == 1:
-                        q.put((tokens[0], True))
-                    elif len(tokens) == 2:
-                        value = float(tokens[1])
-                        q.put((tokens[0], value))
-                    else:
-                        print('Input not recognized')
-                except EOFError:
-                    break
-                except Exception as e:
-                    print(e)
-
         self.set_input_task(terminal_task)
+
+
+def terminal_task(q):
+    sys.stdin = open(0)
+
+    while True:
+        try:
+            tokens = input('specula>').split()
+            if len(tokens) == 0:
+                continue
+            elif len(tokens) == 1:
+                q.put((tokens[0], True))
+            elif len(tokens) == 2:
+                value = float(tokens[1])
+                q.put((tokens[0], value))
+            else:
+                print('Input not recognized')
+        except EOFError:
+            break
+        except Exception as e:
+            print(e)
+
 
