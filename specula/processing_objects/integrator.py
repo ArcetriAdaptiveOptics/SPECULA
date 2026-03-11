@@ -52,7 +52,6 @@ class Integrator(IirFilter):
                          target_device_idx=target_device_idx, precision=precision)
 
         self.inputs['int_gain'] = InputValue(type=BaseValue, optional=True)
-        self.inputs['reset'] = InputValue(type=BaseValue, optional=True)
 
     def _repeat_for_nmodes(self, n_modes, array_to_repeat, array_name):
         if n_modes is None or array_to_repeat is None:
@@ -65,6 +64,7 @@ class Integrator(IirFilter):
         return np.repeat(array_to_repeat, n_modes)
 
     def prepare_trigger(self, t):
+        super().prepare_trigger(t)
 
         # Update internal IIR filter data if gain input changes
         gain_input = self.local_inputs['int_gain']
@@ -76,12 +76,4 @@ class Integrator(IirFilter):
             new_data = IirFilterData.from_gain_and_ff(int_gain, ff=self.ff,
                                                       target_device_idx=self.target_device_idx)
             self.iir_filter_data = new_data
-
-        # Reset internal state
-        reset_input = self.local_inputs['reset']
-        if reset_input is not None and reset_input.generation_time == self.current_time:
-            self._ist *= 0
-            self._ost *= 0
-
-        super().prepare_trigger(t)
 
