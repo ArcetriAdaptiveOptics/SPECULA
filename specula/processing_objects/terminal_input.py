@@ -8,6 +8,17 @@ class TerminalInput(SpeculaInput):
     """
     Terminal input processing object. Handles input from a terminal.
     """
+
+    # Override __new__ to make sure that
+    # only one instance can be allocated.
+    _instance = None
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is not None:
+            raise RuntimeError("Only one instance of TerminalInput is allowed")
+
+        cls._instance = super().__new__(cls)
+        return cls._instance
+
     def __init__(self,
                  output_list: list,
                  target_device_idx: int=None,
