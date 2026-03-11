@@ -138,6 +138,8 @@ class IirFilterData(BaseDataObj):
         self.den = den
 
     def set_gain(self, gain, verbose=False):
+        if np.isscalar(gain) or np.ndim(gain) == 0:
+            gain = np.repeat(gain, self.nfilter)
         gain = self.to_xp(gain, dtype=self.dtype)
         if verbose:
             print('original gain:', self.gain)
@@ -145,25 +147,19 @@ class IirFilterData(BaseDataObj):
             nfilter = np.size(gain)
         else:
             nfilter = self.nfilter
+
+        finite = self.xp.isfinite(gain)
+        ordnum_over_1 = self.ordnum > 1
         if self.gain is None:
-            for i in range(nfilter):
-                if self.xp.isfinite(gain[i]):
-                    if self.ordnum[i] > 1:
-                        self.num[i, :] *= gain[i]
-                    else:
-                        self.num[i, - 1] = gain[i]
-                else:
-                    gain[i] = self.num[i, - 1]
+            self.num[ finite & ordnum_over_1, :] *= gain[finite & ordnum_over_1, np.newaxis]
+            self.num[ finite & ~ordnum_over_1, -1] = gain[finite & ordnum_over_1]
+            gain[~finite] = self.num[~finite, -1]
         else:
-            for i in range(nfilter):
-                if self.xp.isfinite(gain[i]):
-                    if self.ordnum[i] > 1:
-                        self.num[i, :] *= (gain[i] / self.gain[i])
-                    else:
-                        self.num[i, - 1] = gain[i] / self.gain[i]
-                else:
-                    gain[i] = self.gain[i]
-        self.gain = self.to_xp(gain, dtype=self.dtype)
+            ratio = gain / self.gain
+            self.num[ finite & ordnum_over_1, :] *= ratio[finite & ordnum_over_1, np.newaxis]
+            self.num[ finite & ~ordnum_over_1, -1] = ratio[finite & ~ordnum_over_1]
+            gain[~finite] = self.gain[~finite]
+        self.gain = gain
         if verbose:
             print('new gain:', self.gain)
 
