@@ -18,7 +18,7 @@ def get_mask(pyr:bool=True):
             f2d = f.reshape(np_size)
             wfs_mask += f2d
     else:
-        wfs_mask = make_mask(np_size=npix, diaratio = 48/npix, obsratio=0.1)
+        wfs_mask = make_mask(np_size=npix, diaratio = 48/npix, obsratio=0.0)
     return wfs_mask.astype(bool)
 
 
@@ -85,10 +85,10 @@ def compute_zwfs_rec(Nmodes:int, im_tag:str='zwfs_1851modes', compute_ml:bool=Fa
 if __name__ == "__main__":
 
     Nmodes = 1200
-    rMods = np.array([0,1,3])
-    for rMod in rMods:
-        rec,_ = compute_pyr_rec(Nmodes=Nmodes,im_tag=f'pyr{rMod:1.1f}_1851modes')
-        save_rec(rec, rec_tag=f'pyr{rMod:1.1f}_{Nmodes:1.0f}modes')
+    # rMods = np.array([0,0.5,1,2,3,4,6])
+    # for rMod in rMods:
+    #     rec,_ = compute_pyr_rec(Nmodes=Nmodes,im_tag=f'pyr{rMod:1.1f}_1851modes')
+    #     save_rec(rec, rec_tag=f'pyr{rMod:1.1f}_{Nmodes:1.0f}modes')
 
     dotSizes = np.array([1,1.5,2])
     for dotSize in dotSizes:

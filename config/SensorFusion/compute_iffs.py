@@ -11,10 +11,12 @@ from specula.data_objects.m2c import M2C
 from specula.calib_manager import CalibManager
 from specula import cpuArray
 
+from astropy.io import fits
+
 def compute_and_save_influence_functions(tag:str, pupil_pixels:int, n_acts:int, geom:str='circular',
                                          r0:float=10e-2, L0:float=25, zern_modes:int=2, D:float=8.2,
                                          obsratio:float=0.14, diaratio:float=1.0, doMechCoupling:bool=False,
-                                         couplingCoeffs=[0.31,0.05]):
+                                         couplingCoeffs=[0.31,0.05], pupil_mask_tag=None):
     """
     Compute zonal influence functions and modal basis for the SCAO tutorial
     Follows the same approach as test_modal_basis.py
@@ -56,8 +58,14 @@ def compute_and_save_influence_functions(tag:str, pupil_pixels:int, n_acts:int, 
     print(f"Central obstruction: {obsratio*100:.1f}%")
     print(f"r0 = {r0}m, L0 = {L0}m")
 
+
+    if pupil_mask_tag is not None:
+        fname = './calibration/pupilstop/'+pupil_mask_tag+f'_{Npix:1.0f}pixels.fits'
+        hdu = fits.open(fname)
+        pupil_mask = hdu[1].data
+
     # Step 1: Generate zonal influence functions
-    influence_functions, pupil_mask = compute_zonal_ifunc(
+    influence_functions, _ = compute_zonal_ifunc(
         pupil_pixels,
         n_actuators,
         geom=geom,
@@ -68,7 +76,7 @@ def compute_and_save_influence_functions(tag:str, pupil_pixels:int, n_acts:int, 
         slaving_thr=slavingThr,
         obsratio=obsratio,
         diaratio=diaratio,
-        mask=None,
+        mask=pupil_mask,
         xp=specula.xp,
         dtype=dtype,
         return_coordinates=False,
@@ -241,6 +249,7 @@ def compute_and_save_influence_functions(tag:str, pupil_pixels:int, n_acts:int, 
 
 if __name__ == "__main__":
     Npix = 160
-    compute_and_save_influence_functions(tag='bmc2k', pupil_pixels=Npix, n_acts=50, geom='alpao', r0=10e-2, obsratio=0.0)
+    compute_and_save_influence_functions(tag='bmc2k_vlt', pupil_pixels=Npix, n_acts=50,
+                                          geom='alpao', r0=10e-2, obsratio=0.0, pupil_mask_tag='vlt_pupil')
 
 

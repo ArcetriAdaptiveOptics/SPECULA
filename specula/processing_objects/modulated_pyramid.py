@@ -425,7 +425,6 @@ class ModulatedPyramid(BaseProcessingObj):
             pyr_tlt[idx_tip_m] = self.xp.min(pyr_tlt[idx_tip_m])
             print(f'get_pyr_tlt: {len(idx_tip_m[0])} pixels set to 0 to consider pyramid imperfect tip')
 
-        print(self.toccd_side,self.final_ccd_side,self.fft_res)
         return pyr_tlt / self.tilt_scale
 
     def get_tlt_f(self, p, c):
@@ -532,8 +531,9 @@ class ModulatedPyramid(BaseProcessingObj):
                     # Use 1/cos(angle) to compensate for intensity loss at large tilts
                     self.flux_factor_vector[tt] = 1.0 / self.xp.cos(normalized_angle)
 
-        print(f'Cached circular modulation with {self.mod_steps} steps, '
-            f'amplitude: {self.mod_amp:.2f}')
+        if self.mod_amp > 0.0:
+            print(f'Cached circular modulation with {self.mod_steps} steps, '
+                f'amplitude: {self.mod_amp:.2f}')
 
         # Common setup for both modes
         self.ffv = self.flux_factor_vector[:, self.xp.newaxis, self.xp.newaxis]

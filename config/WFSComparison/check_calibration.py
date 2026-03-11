@@ -26,30 +26,50 @@ plt.tight_layout()
 
 sn_hdu = fits.open('./calibration/slopenulls/pyr0.0_slope_null.fits')
 pyr0_sn = sn_hdu[1].data
+sn_hdu = fits.open('./calibration/slopenulls/pyr0.5_slope_null.fits')
+pyr05_sn = sn_hdu[1].data
 sn_hdu = fits.open('./calibration/slopenulls/pyr3.0_slope_null.fits')
 pyr3_sn = sn_hdu[1].data
+sn_hdu = fits.open('./calibration/slopenulls/pyr4.0_slope_null.fits')
+pyr4_sn = sn_hdu[1].data
+sn_hdu = fits.open('./calibration/slopenulls/pyr6.0_slope_null.fits')
+pyr6_sn = sn_hdu[1].data
 
 rec_hdu = fits.open('./calibration/rec/pyr0.0_1200modes_rec.fits')
 pyr0_rec = rec_hdu[1].data
+rec_hdu = fits.open('./calibration/rec/pyr0.5_1200modes_rec.fits')
+pyr05_rec = rec_hdu[1].data
 rec_hdu = fits.open('./calibration/rec/pyr3.0_1200modes_rec.fits')
 pyr3_rec = rec_hdu[1].data
+rec_hdu = fits.open('./calibration/rec/pyr4.0_1200modes_rec.fits')
+pyr4_rec = rec_hdu[1].data
+rec_hdu = fits.open('./calibration/rec/pyr6.0_1200modes_rec.fits')
+pyr6_rec = rec_hdu[1].data
 
 sn0_modes = pyr0_rec @ pyr0_sn
+sn05_modes = pyr05_rec @ pyr05_sn
 sn3_modes = pyr3_rec @ pyr3_sn
-
+sn4_modes = pyr4_rec @ pyr4_sn
+sn6_modes = pyr6_rec @ pyr6_sn
 
 plt.figure()
 plt.subplot(2,1,1)
 plt.plot(pyr0_sn,label=r'pyWFS 0.0 $\lambda/D$')
+plt.plot(pyr05_sn,label=r'pyWFS 0.5 $\lambda/D$')
 plt.plot(pyr1_sn,label=r'pyWFS 1.0 $\lambda/D$')
 plt.plot(pyr3_sn,label=r'pyWFS 3.0 $\lambda/D$')
+plt.plot(pyr4_sn,label=r'pyWFS 4.0 $\lambda/D$')
+plt.plot(pyr6_sn,label=r'pyWFS 6.0 $\lambda/D$')
 plt.legend()
 plt.grid()
 plt.title('Slope nulls')
 plt.subplot(2,1,2)
 plt.plot(x,abs(sn0_modes),label=r'pyWFS 0.0 $\lambda/D$')
+plt.plot(x,abs(sn05_modes),label=r'pyWFS 0.5 $\lambda/D$')
 plt.plot(x,abs(sn1_modes),label=r'pyWFS 1.0 $\lambda/D$')
 plt.plot(x,abs(sn3_modes),label=r'pyWFS 3.0 $\lambda/D$')
+plt.plot(x,abs(sn4_modes),label=r'pyWFS 4.0 $\lambda/D$')
+plt.plot(x,abs(sn6_modes),label=r'pyWFS 6.0 $\lambda/D$')
 plt.legend()
 plt.xscale('log')
 plt.yscale('log')
@@ -72,29 +92,29 @@ z15wfs_rec = rec_hdu[1].data
 rec_hdu = fits.open('./calibration/rec/z2.0wfs_1200modes_rec.fits')
 z2wfs_rec = rec_hdu[1].data
 
-# z1wfs_sn_modes = z1wfs_rec @ z1wfs_sn
-# z15wfs_sn_modes = z15wfs_rec @ z15wfs_sn
-# z2wfs_sn_modes = z2wfs_rec @ z2wfs_sn
+z1wfs_sn_modes = z1wfs_rec @ z1wfs_sn
+z15wfs_sn_modes = z15wfs_rec @ z15wfs_sn
+z2wfs_sn_modes = z2wfs_rec @ z2wfs_sn
 
 
-# plt.figure()
-# plt.subplot(2,1,1)
-# plt.plot(z1wfs_sn,label='zWFS')
-# plt.plot(z15wfs_sn,label='z1.5WFS')
-# plt.plot(z2wfs_sn,label='z2WFS')
-# plt.legend()
-# plt.grid()
-# plt.title('Slope nulls')
-# plt.subplot(2,1,2)
-# plt.plot(x,abs(z1wfs_sn_modes),label='zWFS')
-# plt.plot(x,abs(z15wfs_sn_modes),label='z1.5WFS')
-# plt.plot(x,abs(z2wfs_sn_modes),label='z2WFS')
-# plt.legend()
-# plt.xscale('log')
-# plt.yscale('log')
-# plt.grid()
-# plt.title('Slope null modes')
-# plt.tight_layout()
+plt.figure()
+plt.subplot(2,1,1)
+plt.plot(z1wfs_sn,label='zWFS')
+plt.plot(z15wfs_sn,label='z1.5WFS')
+plt.plot(z2wfs_sn,label='z2WFS')
+plt.legend()
+plt.grid()
+plt.title('Slope nulls')
+plt.subplot(2,1,2)
+plt.plot(x,abs(z1wfs_sn_modes),label='zWFS')
+plt.plot(x,abs(z15wfs_sn_modes),label='z1.5WFS')
+plt.plot(x,abs(z2wfs_sn_modes),label='z2WFS')
+plt.legend()
+plt.xscale('log')
+plt.yscale('log')
+plt.grid()
+plt.title('Slope null modes')
+plt.tight_layout()
 
 ############################### Pupdata ##########################
 # Pyr
@@ -116,10 +136,12 @@ for j in range(len(rad)):
 
 frame_hdu = fits.open('./calibration/slopenulls/pyr0.0_frame.fits') 
 pyr0_frame = frame_hdu[0].data[0]
+frame_hdu = fits.open('./calibration/slopenulls/pyr0.5_frame.fits') 
+pyr05_frame = frame_hdu[0].data[0]
 frame_hdu = fits.open('./calibration/slopenulls/pyr1.0_frame.fits') 
 pyr1_frame = frame_hdu[0].data[0]
-frame_hdu = fits.open('./calibration/slopenulls/pyr3.0_frame.fits') 
-pyr3_frame = frame_hdu[0].data[0]
+frame_hdu = fits.open('./calibration/slopenulls/pyr6.0_frame.fits') 
+pyr6_frame = frame_hdu[0].data[0]
 
 # ZWFS
 frame_hdu = fits.open('./calibration/slopenulls/z2.0wfs_frame.fits')
@@ -130,16 +152,58 @@ frame_hdu = fits.open('./calibration/slopenulls/z1.5wfs_frame.fits')
 z15wfs_frame = frame_hdu[0].data[0]
 
 ccd_size = 120
-zwfs_mask = make_mask(np_size=ccd_size, diaratio = 48/ccd_size, obsratio=0.1)
+zwfs_mask = make_mask(np_size=ccd_size, diaratio = 48/ccd_size, obsratio=0.0)
 
 masked_frame = lambda frame, mask: frame/frame.max() + mask
 
+# plt.figure(figsize=(9,4))
+# plt.subplot(1,2,1)
+# plt.imshow(masked_frame(pyr0_frame,pyr_masks),origin='lower',cmap='RdBu')
+# plt.title(r'pyWFS 0.0 $\lambda/D$ pupils'+f'\nPupil diameter = {2*np.mean(rad):1.1f} pix')
+# plt.colorbar()
+# plt.subplot(1,2,2)
+# plt.imshow(masked_frame(z1wfs_frame,zwfs_mask),origin='lower',cmap='RdBu')
+# plt.title(r'ZWFS 1.0 $\lambda/D$ pupil')
+# plt.colorbar()
+
+# plt.figure(figsize=(9,4))
+# plt.subplot(1,2,1)
+# plt.imshow(masked_frame(pyr05_frame,pyr_masks),origin='lower',cmap='RdBu')
+# plt.title(r'pyWFS 0.5 $\lambda/D$ pupils'+f'\nPupil diameter = {2*np.mean(rad):1.1f} pix')
+# plt.colorbar()
+# plt.subplot(1,2,2)
+# plt.imshow(masked_frame(z15wfs_frame,zwfs_mask),origin='lower',cmap='RdBu')
+# plt.title(r'ZWFS 1.5 $\lambda/D$ pupil')
+# plt.colorbar()
+
+# plt.figure(figsize=(9,4))
+# plt.subplot(1,2,1)
+# plt.imshow(masked_frame(pyr1_frame,pyr_masks),origin='lower',cmap='RdBu')
+# plt.title(r'pyWFS 1.0 $\lambda/D$ pupils'+f'\nPupil diameter = {2*np.mean(rad):1.1f} pix')
+# plt.colorbar()
+# plt.subplot(1,2,2)
+# plt.imshow(masked_frame(z2wfs_frame,zwfs_mask),origin='lower',cmap='RdBu')
+# plt.title(r'ZWFS 2.0 $\lambda/D$ pupil')
+# plt.colorbar()
+
+
+
 ###################### Throughput ###########################
-flux = np.sum(pyr3_frame)
+frame_hdu = fits.open('./calibration/slopenulls/pyr3.0_frame.fits') 
+pyr3_frame = frame_hdu[0].data[0]
+frame_hdu = fits.open('./calibration/slopenulls/pyr4.0_frame.fits') 
+pyr4_frame = frame_hdu[0].data[0]
+frame_hdu = fits.open('./calibration/slopenulls/pyr6.0_frame.fits') 
+pyr6_frame = frame_hdu[0].data[0]
+
+flux = np.sum(pyr6_frame)
 
 pyr0_thrp = np.sum(pyr0_frame[pyr_masks.astype(bool)])/flux
+pyr05_thrp = np.sum(pyr05_frame[pyr_masks.astype(bool)])/flux
 pyr1_thrp = np.sum(pyr1_frame[pyr_masks.astype(bool)])/flux
 pyr3_thrp = np.sum(pyr3_frame[pyr_masks.astype(bool)])/flux
+pyr4_thrp = np.sum(pyr4_frame[pyr_masks.astype(bool)])/flux
+pyr6_thrp = np.sum(pyr6_frame[pyr_masks.astype(bool)])/flux
 
 z1wfs_thrp = np.sum(z1wfs_frame[zwfs_mask.astype(bool)])/flux
 z15wfs_thrp = np.sum(z15wfs_frame[zwfs_mask.astype(bool)])/flux
@@ -169,8 +233,8 @@ plt.imshow(masked_frame(pyr1_frame,pyr_masks),origin='lower',cmap='RdBu')
 plt.title(r'pyWFS 1.0 $\lambda/D$ pupils'+f'\nThroughput = {pyr1_thrp*1e+2:1.1f}%')
 plt.colorbar()
 plt.subplot(1,3,3)
-plt.imshow(masked_frame(pyr3_frame,pyr_masks),origin='lower',cmap='RdBu')
-plt.title(r'pyWFS 3.0 $\lambda/D$ pupils'+f'\nThroughput = {pyr3_thrp*1e+2:1.1f}%')
+plt.imshow(masked_frame(pyr6_frame,pyr_masks),origin='lower',cmap='RdBu')
+plt.title(r'pyWFS 6.0 $\lambda/D$ pupils'+f'\nThroughput = {pyr6_thrp*1e+2:1.1f}%')
 plt.colorbar()
 
 
@@ -202,8 +266,11 @@ def rec_phot_cov(rec,frame,mask,sn,flux=None):
 plt.figure(figsize=(9,4))
 plt.subplot(1,2,1)
 plt.plot(x,rec_covariance(pyr0_rec,mask=pyr_masks,frame=pyr0_frame,flux=flux),':',label=r'pyWFS 0.0 $\lambda/D$')
+plt.plot(x,rec_covariance(pyr05_rec,mask=pyr_masks,frame=pyr05_frame,flux=flux),':',label=r'pyWFS 0.5 $\lambda/D$')
 plt.plot(x,rec_covariance(pyr1_rec,mask=pyr_masks,frame=pyr1_frame,flux=flux),':',label=r'pyWFS 1.0 $\lambda/D$')
 plt.plot(x,rec_covariance(pyr3_rec,mask=pyr_masks,frame=pyr3_frame,flux=flux),':',label=r'pyWFS 3.0 $\lambda/D$')
+plt.plot(x,rec_covariance(pyr4_rec,mask=pyr_masks,frame=pyr4_frame,flux=flux),':',label=r'pyWFS 4.0 $\lambda/D$')
+plt.plot(x,rec_covariance(pyr6_rec,mask=pyr_masks,frame=pyr6_frame,flux=flux),':',label=r'pyWFS 6.0 $\lambda/D$')
 plt.legend()
 plt.xscale('log')
 plt.yscale('log')
@@ -211,8 +278,11 @@ plt.grid()
 plt.title('Reconstructor covariance\nRON')
 plt.subplot(1,2,2)
 plt.plot(x,rec_phot_cov(pyr0_rec,mask=pyr_masks,frame=pyr0_frame,flux=flux,sn=pyr0_sn),':',label=r'pyWFS 0.0 $\lambda/D$')
+plt.plot(x,rec_phot_cov(pyr05_rec,mask=pyr_masks,frame=pyr05_frame,flux=flux,sn=pyr05_sn),':',label=r'pyWFS 0.5 $\lambda/D$')
 plt.plot(x,rec_phot_cov(pyr1_rec,mask=pyr_masks,frame=pyr1_frame,flux=flux,sn=pyr1_sn),':',label=r'pyWFS 1.0 $\lambda/D$')
 plt.plot(x,rec_phot_cov(pyr3_rec,mask=pyr_masks,frame=pyr3_frame,flux=flux,sn=pyr3_sn),':',label=r'pyWFS 3.0 $\lambda/D$')
+plt.plot(x,rec_phot_cov(pyr4_rec,mask=pyr_masks,frame=pyr4_frame,flux=flux,sn=pyr4_sn),':',label=r'pyWFS 4.0 $\lambda/D$')
+plt.plot(x,rec_phot_cov(pyr6_rec,mask=pyr_masks,frame=pyr6_frame,flux=flux,sn=pyr6_sn),':',label=r'pyWFS 6.0 $\lambda/D$')
 plt.legend()
 plt.xscale('log')
 plt.yscale('log')

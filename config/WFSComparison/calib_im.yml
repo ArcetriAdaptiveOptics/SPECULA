@@ -5,15 +5,15 @@
 pushpull:
   class:        'PushPullGenerator'
   nmodes:       1851                         # Number of DM actuators
-  amp:          5   
+  amp:          15   
   # constant_amp: true
   outputs:   ['output']
 
 # Interaction matrix calibrator
 pyr_im_calibrator:
   class:     'ImCalibrator'
-  nmodes:    1821                         # Number of modes to calibrate
-  im_tag:    'pyr0.5_1821modes_im'            # Output IM filename
+  nmodes:    1851                         # Number of modes to calibrate
+  im_tag:    'pyr0.5_1851modes_im'            # Output IM filename
   overwrite: true                         # Overwrite existing files
   inputs:
     in_slopes:   'pyr_slopes.out_slopes'      # WFS slopes input
@@ -21,8 +21,8 @@ pyr_im_calibrator:
 
 zwfs_im_calibrator:
   class:     'ImCalibrator'
-  nmodes:    1821                         # Number of modes to calibrate
-  im_tag:    'z1.5wfs_1821modes_im'            # Output IM filename
+  nmodes:    1851                         # Number of modes to calibrate
+  im_tag:    'z1.0wfs_1851modes_im'            # Output IM filename
   overwrite: true                         # Overwrite existing files
   inputs:
     in_slopes:   'zwfs_slopes.out_slopes'      # WFS slopes input
@@ -31,7 +31,7 @@ zwfs_im_calibrator:
 # Override main simulation parameters
 main_override:
   time_step: 0.0005
-  total_time: 1.821                 # 1851 modes × 2 (push+pull) × 0.0005s
+  total_time: 1.851                 # 1851 modes × 2 (push+pull) × 0.0005s
 
 # Disable atmosphere for clean calibration
 prop_override:
@@ -43,7 +43,7 @@ prop_override:
 # Override DM to use calibration commands
 dm_override:
   sign: 1                                 # Use positive sign for calibration (default is -1)
-  nmodes: 1821                            # Use all modes for calibration
+  nmodes: 1851                            # Use all modes for calibration
   inputs:
     in_command: 'pushpull.output'         # Connect to push-pull generator
 
@@ -53,7 +53,7 @@ pyr_override:
     in_ef: 'prop.out_source_ngs_ef'
 
 zwfs_override:
-  spot_radius_lambda: 0.75                     # Spot RADIUS in λ/D units
+  spot_radius_lambda: 0.50                     # Spot RADIUS in λ/D units
   inputs: 
     in_ef: 'prop.out_source_ngs_ef'
 
@@ -70,4 +70,4 @@ ocam2_override:
 
 # Remove unnecessary objects during calibration
 remove: ['atmo','seeing','wind_speed','wind_direction','data_store','atmo_mode_res', #'source_science',
-        'dm_mode_res','filter','psf', 'coro_psf', 'ef_prop','pyr_modalrec', 'zwfs_modalrec'] #, 'bootstrap', 'concat_wfs_modes'
+        'dm_mode_res','filter','psf', 'ef_prop','pyr_modalrec', 'zwfs_modalrec',]
