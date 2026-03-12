@@ -127,7 +127,7 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
       print(f"r0 = {r0}m, L0 = {L0}m")
       
       # Step 1: Generate zonal influence functions
-      influence_functions, pupil_mask = compute_zonal_ifunc(
+      influence_functions, pupil_mask, _, _ = compute_zonal_ifunc(
           pupil_pixels,
           n_actuators,
           circ_geom=circGeom,
@@ -140,8 +140,7 @@ Create a script ``compute_influence_functions.py`` (inspired by ``test_modal_bas
           diaratio=diaratio,
           mask=None,
           xp=specula.xp,
-          dtype=dtype,
-          return_coordinates=False
+          dtype=dtype
       )
       
       # Print statistics

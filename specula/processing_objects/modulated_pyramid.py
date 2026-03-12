@@ -264,6 +264,9 @@ class ModulatedPyramid(BaseProcessingObj):
                                  precision=precision)
         self.transmission = BaseValue(value=self.xp.zeros(1, dtype=self.dtype),
                                       target_device_idx=self.target_device_idx,
+                                      precision=precision)        
+        self.flux_frac_inside_ccd = BaseValue(value=self.xp.ones(1, dtype=self.dtype),
+                                      target_device_idx=self.target_device_idx,
                                       precision=precision)
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
@@ -271,6 +274,7 @@ class ModulatedPyramid(BaseProcessingObj):
         self.outputs['out_psf_tot'] = self.psf_tot
         self.outputs['out_psf_bfm'] = self.psf_bfm
         self.outputs['out_transmission'] = self.transmission
+        self.outputs['out_flux_frac_inside_detector'] = self.flux_frac_inside_ccd
 
         # Generate the geometric phase map of the pyramid faces
         self.pyr_tlt = self.get_pyr_tlt(fft_sampling, fft_padding)
@@ -334,7 +338,7 @@ class ModulatedPyramid(BaseProcessingObj):
                              f" not enough to hold the pupil geometry."
                              f" Minimum allowed side is {min_ccd_side}")
 
-        internal_ccd_side = self.xp.around(fft_res * pup_diam / 2) * 2
+        internal_ccd_side = int(self.xp.around(fft_res * pup_diam / 2) * 2)
 
         # Theoretical fft resolution, and minimum fft resolution to hold the pupil geometry
         fft_res = internal_ccd_side / float(pup_diam)
@@ -613,9 +617,11 @@ class ModulatedPyramid(BaseProcessingObj):
         elif self.final_ccd_side < self.toccd_side:
             delta = (self.toccd_side - self.final_ccd_side) // 2
             self.out_i.i[:] = ccd_internal[delta:delta + self.final_ccd_side, delta:delta + self.final_ccd_side]
+            self.flux_frac_inside_ccd.value[:] = self.xp.sum(self.out_i.i[:])/self.xp.sum(ccd_internal)
         else:
             self.out_i.i[:] = ccd_internal
-
+        
+        self.flux_frac_inside_ccd.generation_time = self.current_time
         self.out_i.generation_time = self.current_time
         self.psf_tot.generation_time = self.current_time
         self.psf_bfm.generation_time = self.current_time

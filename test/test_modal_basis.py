@@ -24,9 +24,9 @@ class TestGenerateModalBasis(unittest.TestCase):
         dtype = xp.float32
 
         # Generate zonal influence functions
-        influence_functions, pupil_mask = compute_zonal_ifunc(
-            pupil_pixels,
-            n_actuators,
+        influence_functions, pupil_mask, _, _ = compute_zonal_ifunc(
+            dim=pupil_pixels,
+            n_act=n_actuators,
             circ_geom=circGeom,
             angle_offset=angleOffset,
             do_mech_coupling=doMechCoupling,
@@ -37,8 +37,7 @@ class TestGenerateModalBasis(unittest.TestCase):
             diaratio=diaratio,
             mask=None,
             xp=xp,
-            dtype=dtype,
-            return_coordinates=False
+            dtype=dtype
         )
 
         # Test the dimensions of influence functions and mask
@@ -67,9 +66,9 @@ class TestGenerateModalBasis(unittest.TestCase):
         dtype = xp.float32
 
         # Generate zonal influence functions
-        influence_functions, pupil_mask = compute_zonal_ifunc(
-            pupil_pixels,
-            n_actuators,
+        influence_functions, pupil_mask, _, _ = compute_zonal_ifunc(
+            dim=pupil_pixels,
+            n_act=n_actuators,
             circ_geom=circGeom,
             angle_offset=angleOffset,
             do_mech_coupling=doMechCoupling,
@@ -80,8 +79,7 @@ class TestGenerateModalBasis(unittest.TestCase):
             diaratio=diaratio,
             mask=None,
             xp=xp,
-            dtype=dtype,
-            return_coordinates=False
+            dtype=dtype
         )
 
         # Generate the modal base

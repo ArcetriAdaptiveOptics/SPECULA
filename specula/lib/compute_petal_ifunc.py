@@ -4,8 +4,7 @@ from specula.lib.make_mask import make_mask
 
 def compute_petal_ifunc(dim, n_petals, xp=np, dtype=np.float32, angle_offset=0,
                         obsratio=0.0, diaratio=1.0, mask=None, spider=False,
-                        spider_width=2, add_tilts=False, return_coordinates=False,
-                        special_last_petal=False):
+                        spider_width=2, add_tilts=False, special_last_petal=False):
     """
     Computes influence functions for a segmented mirror with n_petals segments.
     Optionally adds spider arms shadows between petals and tip/tilt modes.
@@ -34,8 +33,6 @@ def compute_petal_ifunc(dim, n_petals, xp=np, dtype=np.float32, angle_offset=0,
         Width of spider arms in pixels
     add_tilts : bool
         Whether to add tip and tilt modes for each petal
-    return_coordinates : bool
-        Whether to return the coordinates array
     special_last_petal : bool
         Whether to use logical_or for the last petal to handle wrap-around angles.
         
@@ -131,16 +128,12 @@ def compute_petal_ifunc(dim, n_petals, xp=np, dtype=np.float32, angle_offset=0,
     # Create 2D array of influence functions
     ifs_2d = xp.array([ifs_cube[i][idx] for i in range(n_modes)], dtype=dtype)
 
-    # Create coordinates array if requested
-    if return_coordinates:
-        # Calculate centroids for each petal
-        coordinates = xp.zeros((2, n_petals))
-        for i in range(n_petals):
-            where_petal = xp.where(petal_masks[i])
-            if len(where_petal[0]) > 0:  # Make sure the petal contains points
-                coordinates[0, i] = xp.mean(where_petal[1])  # x coordinate
-                coordinates[1, i] = xp.mean(where_petal[0])  # y coordinate
+    # Calculate centroids for each petal
+    coordinates = xp.zeros((2, n_petals))
+    for i in range(n_petals):
+        where_petal = xp.where(petal_masks[i])
+        if len(where_petal[0]) > 0:  # Make sure the petal contains points
+            coordinates[0, i] = xp.mean(where_petal[1])  # x coordinate
+            coordinates[1, i] = xp.mean(where_petal[0])  # y coordinate
 
-        return ifs_2d, mask, coordinates
-    else:
-        return ifs_2d, mask
+    return ifs_2d, mask, coordinates

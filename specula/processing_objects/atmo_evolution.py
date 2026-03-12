@@ -22,7 +22,7 @@ class AtmoEvolution(BaseProcessingObj):
                  L0: list,           # TODO =[1.0],
                  heights: list,      # TODO =[0.0],
                  Cn2: list,          # TODO =[1.0],
-                 data_dir: str,      # TODO ="",
+                 data_dir: str = "", # TODO ="",
                  fov: float=0.0,
                  pixel_phasescreens: int=8192,
                  seed: int=1,
