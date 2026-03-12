@@ -13,7 +13,7 @@ pushpull:
 pyr_im_calibrator:
   class:     'ImCalibrator'
   nmodes:    1851                         # Number of modes to calibrate
-  im_tag:    'pyr0.5_1851modes_im'            # Output IM filename
+  im_tag:    'pyr0.0_1851modes_im'            # Output IM filename
   overwrite: true                         # Overwrite existing files
   inputs:
     in_slopes:   'pyr_slopes.out_slopes'      # WFS slopes input
@@ -22,7 +22,7 @@ pyr_im_calibrator:
 zwfs_im_calibrator:
   class:     'ImCalibrator'
   nmodes:    1851                         # Number of modes to calibrate
-  im_tag:    'z1.0wfs_1851modes_im'            # Output IM filename
+  im_tag:    'z2.0wfs_1851modes_im'            # Output IM filename
   overwrite: true                         # Overwrite existing files
   inputs:
     in_slopes:   'zwfs_slopes.out_slopes'      # WFS slopes input
@@ -48,12 +48,13 @@ dm_override:
     in_command: 'pushpull.output'         # Connect to push-pull generator
 
 pyr_override:
-  mod_amp: 0.5
+  mod_amp: 0.0
   inputs: 
     in_ef: 'prop.out_source_ngs_ef'
 
 zwfs_override:
-  spot_radius_lambda: 0.50                     # Spot RADIUS in λ/D units
+  fft_res: 32.0
+  spot_radius_lambda: 1.0                     # Spot RADIUS in λ/D units
   inputs: 
     in_ef: 'prop.out_source_ngs_ef'
 
@@ -70,4 +71,4 @@ ocam2_override:
 
 # Remove unnecessary objects during calibration
 remove: ['atmo','seeing','wind_speed','wind_direction','data_store','atmo_mode_res', #'source_science',
-        'dm_mode_res','filter','psf', 'ef_prop','pyr_modalrec', 'zwfs_modalrec',]
+        'dm_mode_res','filter','psf', 'ef_prop','pyr_modalrec', 'zwfs_modalrec', 'coro_psf']

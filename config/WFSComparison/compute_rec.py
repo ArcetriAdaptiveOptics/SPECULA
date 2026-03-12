@@ -4,6 +4,9 @@ import numpy as np
 import os
 from specula.lib.make_mask import make_mask
 
+from specula.lib.mmse_reconstructor import compute_mmse_reconstructor
+from specula.lib.modal_base_generator import compute_ifs_covmat
+
 def get_mask(pyr:bool=True):
     npix = 120
     if pyr:
@@ -97,3 +100,7 @@ if __name__ == "__main__":
 
         rec,_ = compute_zwfs_rec(Nmodes=Nmodes,compute_ml=True,im_tag=f'z{dotSize:1.1f}wfs_1851modes',frame_tag=f'z{dotSize:1.1f}wfs_frame')
         save_rec(rec, rec_tag=f'z{dotSize:1.1f}wfs_{Nmodes:1.0f}modes_ml')
+
+    
+    # rec,_ = compute_zwfs_rec(Nmodes=Nmodes,im_tag=f'z2.25wfs_1851modes')
+    # save_rec(rec, rec_tag=f'z2.25wfs_{Nmodes:1.0f}modes')

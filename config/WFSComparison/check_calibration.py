@@ -91,6 +91,8 @@ rec_hdu = fits.open('./calibration/rec/z1.5wfs_1200modes_rec.fits')
 z15wfs_rec = rec_hdu[1].data
 rec_hdu = fits.open('./calibration/rec/z2.0wfs_1200modes_rec.fits')
 z2wfs_rec = rec_hdu[1].data
+rec_hdu = fits.open('./calibration/rec/z2.25wfs_1200modes_rec.fits')
+z225wfs_rec = rec_hdu[1].data
 
 z1wfs_sn_modes = z1wfs_rec @ z1wfs_sn
 z15wfs_sn_modes = z15wfs_rec @ z15wfs_sn
@@ -150,9 +152,17 @@ frame_hdu = fits.open('./calibration/slopenulls/z1.0wfs_frame.fits')
 z1wfs_frame = frame_hdu[0].data[0]
 frame_hdu = fits.open('./calibration/slopenulls/z1.5wfs_frame.fits')
 z15wfs_frame = frame_hdu[0].data[0]
+frame_hdu = fits.open('./calibration/slopenulls/z1.25wfs_frame.fits')
+z125wfs_frame = frame_hdu[0].data[0]
+frame_hdu = fits.open('./calibration/slopenulls/z1.75wfs_frame.fits')
+z175wfs_frame = frame_hdu[0].data[0]
+frame_hdu = fits.open('./calibration/slopenulls/z2.25wfs_frame.fits')
+z225wfs_frame = frame_hdu[0].data[0]
+frame_hdu = fits.open('./calibration/slopenulls/z5.0wfs_frame.fits')
+z5wfs_frame = frame_hdu[0].data[0]
 
 ccd_size = 120
-zwfs_mask = make_mask(np_size=ccd_size, diaratio = 48/ccd_size, obsratio=0.0)
+zwfs_mask = make_mask(np_size=ccd_size, diaratio = 48/ccd_size, obsratio=0.0) # xc=0.5/ccd_size, yc=0.5/ccd_size, 
 
 masked_frame = lambda frame, mask: frame/frame.max() + mask
 
@@ -206,8 +216,11 @@ pyr4_thrp = np.sum(pyr4_frame[pyr_masks.astype(bool)])/flux
 pyr6_thrp = np.sum(pyr6_frame[pyr_masks.astype(bool)])/flux
 
 z1wfs_thrp = np.sum(z1wfs_frame[zwfs_mask.astype(bool)])/flux
+z125wfs_thrp = np.sum(z125wfs_frame[zwfs_mask.astype(bool)])/flux
 z15wfs_thrp = np.sum(z15wfs_frame[zwfs_mask.astype(bool)])/flux
+z175wfs_thrp = np.sum(z175wfs_frame[zwfs_mask.astype(bool)])/flux
 z2wfs_thrp = np.sum(z2wfs_frame[zwfs_mask.astype(bool)])/flux
+z225wfs_thrp = np.sum(z225wfs_frame[zwfs_mask.astype(bool)])/flux
 
 plt.figure(figsize=(14,4))
 plt.subplot(1,3,1)
@@ -215,12 +228,26 @@ plt.imshow(masked_frame(z1wfs_frame,zwfs_mask),origin='lower',cmap='RdBu')
 plt.title(r'ZWFS 1.0 $\lambda/D$ pupil'+f'\nThroughput = {z1wfs_thrp*1e+2:1.1f}%')
 plt.colorbar()
 plt.subplot(1,3,2)
+plt.imshow(masked_frame(z125wfs_frame,zwfs_mask),origin='lower',cmap='RdBu')
+plt.title(r'ZWFS 1.25 $\lambda/D$ pupil'+f'\nThroughput = {z125wfs_thrp*1e+2:1.1f}%')
+plt.colorbar()
+plt.subplot(1,3,3)
 plt.imshow(masked_frame(z15wfs_frame,zwfs_mask),origin='lower',cmap='RdBu')
 plt.title(r'ZWFS 1.5 $\lambda/D$ pupil'+f'\nThroughput = {z15wfs_thrp*1e+2:1.1f}%')
 plt.colorbar()
-plt.subplot(1,3,3)
+
+plt.figure(figsize=(14,4))
+plt.subplot(1,3,1)
+plt.imshow(masked_frame(z175wfs_frame,zwfs_mask),origin='lower',cmap='RdBu')
+plt.title(r'ZWFS 1.75 $\lambda/D$ pupil'+f'\nThroughput = {z175wfs_thrp*1e+2:1.1f}%')
+plt.colorbar()
+plt.subplot(1,3,2)
 plt.imshow(masked_frame(z2wfs_frame,zwfs_mask),origin='lower',cmap='RdBu')
 plt.title(r'ZWFS 2.0 $\lambda/D$ pupil'+f'\nThroughput = {z2wfs_thrp*1e+2:1.1f}%')
+plt.colorbar()
+plt.subplot(1,3,3)
+plt.imshow(masked_frame(z225wfs_frame,zwfs_mask),origin='lower',cmap='RdBu')
+plt.title(r'ZWFS 2.25 $\lambda/D$ pupil'+f'\nThroughput = {z225wfs_thrp*1e+2:1.1f}%')
 plt.colorbar()
 
 plt.figure(figsize=(14,4))
@@ -294,6 +321,7 @@ plt.subplot(1,2,1)
 plt.plot(z,rec_covariance(z1wfs_rec,mask=zwfs_mask,frame=z1wfs_frame,flux=flux),':',label='zWFS')
 plt.plot(z,rec_covariance(z15wfs_rec,mask=zwfs_mask,frame=z15wfs_frame,flux=flux),':',label='z1.5WFS')
 plt.plot(z,rec_covariance(z2wfs_rec,mask=zwfs_mask,frame=z2wfs_frame,flux=flux),':',label='z2WFS')
+# plt.plot(z,rec_covariance(z225wfs_rec,mask=zwfs_mask,frame=z225wfs_frame,flux=flux),':',label='z2.25WFS')
 # plt.plot(z,rec_covariance(z1wfs_ml_rec,mask=zwfs_mask,frame=z1wfs_frame,flux=flux),':',label='zWFS (ML)')
 plt.legend()
 plt.xscale('log')
@@ -304,6 +332,7 @@ plt.subplot(1,2,2)
 plt.plot(z,rec_phot_cov(z1wfs_rec,mask=zwfs_mask,frame=z1wfs_frame,flux=flux,sn=z1wfs_sn),':',label='zWFS')
 plt.plot(z,rec_phot_cov(z15wfs_rec,mask=zwfs_mask,frame=z15wfs_frame,flux=flux,sn=z15wfs_sn),':',label='z1.5WFS')
 plt.plot(z,rec_phot_cov(z2wfs_rec,mask=zwfs_mask,frame=z2wfs_frame,flux=flux,sn=z2wfs_sn),':',label='z2WFS')
+# plt.plot(z,rec_phot_cov(z225wfs_rec,mask=zwfs_mask,frame=z225wfs_frame,flux=flux,sn=z2wfs_sn),':',label='z2.25WFS')
 # plt.plot(z,rec_phot_cov(z1wfs_ml_rec,mask=zwfs_mask,frame=z1wfs_frame,flux=flux,sn=z1wfs_sn),':',label='zWFS (ML)')
 plt.legend()
 plt.xscale('log')

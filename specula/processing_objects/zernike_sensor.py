@@ -65,13 +65,14 @@ class ZernikeSensor(ModulatedPyramid):
         # In focal plane, 1 λ/D corresponds to fft_totsize/fft_sampling pixels
         fft_sampling = p
         fft_padding = c
-        spot_radius_pixels = self.spot_radius_lambda * (1+fft_padding/fft_sampling)
+        spot_radius_pixels = self.spot_radius_lambda * float(1+fft_padding/fft_sampling)
 
         # Calculate distance from center
-        rr = self.xp.sqrt((xx+0.5)**2 + (yy+0.5)**2)
+        dpix = 0.5
+        rr = self.xp.sqrt((xx+dpix)**2 + (yy+dpix)**2)
 
         # Create phase mask: self.phase_shift_pi
-        phase_mask = self.xp.where(rr <= spot_radius_pixels,
+        phase_mask = self.xp.where(rr < spot_radius_pixels,
                                    self.phase_shift_pi/2, # phase is multiplied by 2π during super().__init__
                                    0.0)
         return phase_mask

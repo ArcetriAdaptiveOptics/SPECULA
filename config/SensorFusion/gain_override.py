@@ -2,7 +2,7 @@ import specula
 import numpy as np
 
 # Range of gains to test
-gains = np.linspace(0.1, 1.0, 10)
+gains = np.linspace(0.1, 1.0, 10) #(0.2, 0.9, 8)#
 output_dir = "gain_override"
 base_config = "xao_main.yml"
 
@@ -10,6 +10,7 @@ for gain in gains:
     overrides = ("{"
                 "main.total_time: 0.5, "
                 f"filter.iir_gain: {gain:.2f}, "
+                # f"filter.g_track: {gain:.2f}, "
                 f"data_store.store_dir: ./output/gain_opt/gain_{gain:.2f}"
                 "}")
 

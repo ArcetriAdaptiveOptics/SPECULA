@@ -26,6 +26,8 @@ plt.tight_layout()
 
 sn_hdu = fits.open('./calibration/slopenulls/pyr0.0_slope_null.fits')
 pyr0_sn = sn_hdu[1].data
+sn_hdu = fits.open('./calibration/slopenulls/pyr0.0_sn_pc_s0.9_c.fits')
+pyr0_sn_pc = sn_hdu[1].data
 sn_hdu = fits.open('./calibration/slopenulls/pyr3.0_slope_null.fits')
 pyr3_sn = sn_hdu[1].data
 
@@ -35,12 +37,14 @@ rec_hdu = fits.open('./calibration/rec/pyr3.0_1200modes_rec.fits')
 pyr3_rec = rec_hdu[1].data
 
 sn0_modes = pyr0_rec @ pyr0_sn
+sn0_modes_pc = pyr0_rec @ pyr0_sn_pc
 sn3_modes = pyr3_rec @ pyr3_sn
 
 
 plt.figure()
 plt.subplot(2,1,1)
 plt.plot(pyr0_sn,label=r'pyWFS 0.0 $\lambda/D$')
+plt.plot(abs(pyr0_sn_pc),'--',label=r'pyWFS 0.0 $\lambda/D$ (PC)')
 plt.plot(pyr1_sn,label=r'pyWFS 1.0 $\lambda/D$')
 plt.plot(pyr3_sn,label=r'pyWFS 3.0 $\lambda/D$')
 plt.legend()
@@ -48,6 +52,7 @@ plt.grid()
 plt.title('Slope nulls')
 plt.subplot(2,1,2)
 plt.plot(x,abs(sn0_modes),label=r'pyWFS 0.0 $\lambda/D$')
+plt.plot(x,abs(sn0_modes_pc),'--',label=r'pyWFS 0.0 $\lambda/D$ (PC)')
 plt.plot(x,abs(sn1_modes),label=r'pyWFS 1.0 $\lambda/D$')
 plt.plot(x,abs(sn3_modes),label=r'pyWFS 3.0 $\lambda/D$')
 plt.legend()
@@ -72,29 +77,28 @@ z15wfs_rec = rec_hdu[1].data
 rec_hdu = fits.open('./calibration/rec/z2.0wfs_1200modes_rec.fits')
 z2wfs_rec = rec_hdu[1].data
 
-# z1wfs_sn_modes = z1wfs_rec @ z1wfs_sn
-# z15wfs_sn_modes = z15wfs_rec @ z15wfs_sn
-# z2wfs_sn_modes = z2wfs_rec @ z2wfs_sn
+z1wfs_sn_modes = z1wfs_rec @ z1wfs_sn
+z15wfs_sn_modes = z15wfs_rec @ z15wfs_sn
+z2wfs_sn_modes = z2wfs_rec @ z2wfs_sn
 
-
-# plt.figure()
-# plt.subplot(2,1,1)
-# plt.plot(z1wfs_sn,label='zWFS')
-# plt.plot(z15wfs_sn,label='z1.5WFS')
-# plt.plot(z2wfs_sn,label='z2WFS')
-# plt.legend()
-# plt.grid()
-# plt.title('Slope nulls')
-# plt.subplot(2,1,2)
-# plt.plot(x,abs(z1wfs_sn_modes),label='zWFS')
-# plt.plot(x,abs(z15wfs_sn_modes),label='z1.5WFS')
-# plt.plot(x,abs(z2wfs_sn_modes),label='z2WFS')
-# plt.legend()
-# plt.xscale('log')
-# plt.yscale('log')
-# plt.grid()
-# plt.title('Slope null modes')
-# plt.tight_layout()
+plt.figure()
+plt.subplot(2,1,1)
+plt.plot(z1wfs_sn,label='zWFS')
+plt.plot(z15wfs_sn,label='z1.5WFS')
+plt.plot(z2wfs_sn,label='z2WFS')
+plt.legend()
+plt.grid()
+plt.title('Slope nulls')
+plt.subplot(2,1,2)
+plt.plot(x,abs(z1wfs_sn_modes),label='zWFS')
+plt.plot(x,abs(z15wfs_sn_modes),label='z1.5WFS')
+plt.plot(x,abs(z2wfs_sn_modes),label='z2WFS')
+plt.legend()
+plt.xscale('log')
+plt.yscale('log')
+plt.grid()
+plt.title('Slope null modes')
+plt.tight_layout()
 
 ############################### Pupdata ##########################
 # Pyr
@@ -130,7 +134,7 @@ frame_hdu = fits.open('./calibration/slopenulls/z1.5wfs_frame.fits')
 z15wfs_frame = frame_hdu[0].data[0]
 
 ccd_size = 120
-zwfs_mask = make_mask(np_size=ccd_size, diaratio = 48/ccd_size, obsratio=0.1)
+zwfs_mask = make_mask(np_size=ccd_size, diaratio = 48/ccd_size, obsratio=0.0)#14)
 
 masked_frame = lambda frame, mask: frame/frame.max() + mask
 
@@ -176,8 +180,8 @@ plt.colorbar()
 
 ########################## Rec ##############################
 
-# rec_hdu = fits.open('./calibration/rec/z1.0wfs_1200modes_ml_rec.fits')
-# z1wfs_ml_rec = rec_hdu[1].data
+rec_hdu = fits.open('./calibration/rec/z1.0wfs_1200modes_ml_rec.fits')
+z1wfs_ml_rec = rec_hdu[1].data
 
 x = np.arange(np.shape(pyr1_rec)[0])+1
 z = np.arange(np.shape(z1wfs_rec)[0])+1
@@ -224,7 +228,7 @@ plt.subplot(1,2,1)
 plt.plot(z,rec_covariance(z1wfs_rec,mask=zwfs_mask,frame=z1wfs_frame,flux=flux),':',label='zWFS')
 plt.plot(z,rec_covariance(z15wfs_rec,mask=zwfs_mask,frame=z15wfs_frame,flux=flux),':',label='z1.5WFS')
 plt.plot(z,rec_covariance(z2wfs_rec,mask=zwfs_mask,frame=z2wfs_frame,flux=flux),':',label='z2WFS')
-# plt.plot(z,rec_covariance(z1wfs_ml_rec,mask=zwfs_mask,frame=z1wfs_frame,flux=flux),':',label='zWFS (ML)')
+plt.plot(z,rec_covariance(z1wfs_ml_rec,mask=zwfs_mask,frame=z1wfs_frame,flux=flux),':',label='zWFS (ML)')
 plt.legend()
 plt.xscale('log')
 plt.yscale('log')
@@ -234,7 +238,7 @@ plt.subplot(1,2,2)
 plt.plot(z,rec_phot_cov(z1wfs_rec,mask=zwfs_mask,frame=z1wfs_frame,flux=flux,sn=z1wfs_sn),':',label='zWFS')
 plt.plot(z,rec_phot_cov(z15wfs_rec,mask=zwfs_mask,frame=z15wfs_frame,flux=flux,sn=z15wfs_sn),':',label='z1.5WFS')
 plt.plot(z,rec_phot_cov(z2wfs_rec,mask=zwfs_mask,frame=z2wfs_frame,flux=flux,sn=z2wfs_sn),':',label='z2WFS')
-# plt.plot(z,rec_phot_cov(z1wfs_ml_rec,mask=zwfs_mask,frame=z1wfs_frame,flux=flux,sn=z1wfs_sn),':',label='zWFS (ML)')
+plt.plot(z,rec_phot_cov(z1wfs_ml_rec,mask=zwfs_mask,frame=z1wfs_frame,flux=flux,sn=z1wfs_sn),':',label='zWFS (ML)')
 plt.legend()
 plt.xscale('log')
 plt.yscale('log')

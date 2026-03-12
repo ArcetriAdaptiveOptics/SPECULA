@@ -4,6 +4,8 @@ import numpy as np
 import os
 from specula.lib.make_mask import make_mask
 
+from specula.lib.mmse_reconstructor import compute_mmse_reconstructor
+
 def get_mask(pyr:bool=True):
     npix = 120
     if pyr:
@@ -18,7 +20,7 @@ def get_mask(pyr:bool=True):
             f2d = f.reshape(np_size)
             wfs_mask += f2d
     else:
-        wfs_mask = make_mask(np_size=npix, diaratio = 48/npix, obsratio=0.1)
+        wfs_mask = make_mask(np_size=npix, diaratio = 48/npix, obsratio=0.0)
     return wfs_mask.astype(bool)
 
 
@@ -30,7 +32,7 @@ def compute_rec(im_tag:str, Nmodes:int):
     rec = (Vt.T * 1/S) @ U.T
     return rec
 
-def compute_ml_rec(im_tag:str, Nmodes:int, frame_tag:str=None, RON:float=None, isPyr:bool=True):    
+def compute_ml_rec(im_tag:str, Nmodes:int, frame_tag:str, cov_tag:str=None, RON:float=0.0, isPyr:bool=True):    
     im_hdul = fits.open('./calibration/im/'+im_tag+'_im.fits')
     intmat = im_hdul[1].data.copy()
     D = intmat[:,:Nmodes]
@@ -38,9 +40,15 @@ def compute_ml_rec(im_tag:str, Nmodes:int, frame_tag:str=None, RON:float=None, i
     frame_null = frame_hdul[0].data[0]
     wfs_mask = get_mask(pyr=isPyr)
     slope_null = frame_null[wfs_mask]
-    noise_cov = slope_null + RON
-    DtCn = D.T @ np.diag(1/noise_cov)
-    rec = np.linalg.pinv(DtCn @ D) @ DtCn
+    noise_cov = np.diag((slope_null + RON))
+    if cov_tag is None:
+        turb_cov = np.eye(Nmodes)
+    else:
+        cov_hdul = fits.open('./calibration/ifunc/'+cov_tag+'_turb_cov.fits')
+        turb_cov = np.diag(cov_hdul[0].data[:Nmodes])
+    rec = compute_mmse_reconstructor(interaction_matrix=D, c_atm=turb_cov, c_noise=noise_cov, verbose=True, xp=np, dtype=np.float64)
+    # DtCn = D.T @ np.diag(1/(slope_null + RON))
+    # rec = np.linalg.pinv(DtCn @ D) @ DtCn
     return rec
 
 
@@ -62,38 +70,39 @@ def save_rec(rec, rec_tag:str, overwrite:bool=True):
     print('Reconstructor saved as '+rec_tag+'_rec')
 
 
-def compute_pyr_rec(Nmodes:int, im_tag:str='pyr_1851modes', compute_ml:bool=False, frame_tag = ''):
+def compute_pyr_rec(Nmodes:int, im_tag:str='pyr_1821modes', compute_ml:bool=False, frame_tag = ''):
     if compute_ml is False:
         rec_tag = f'pyr_{Nmodes:1.0f}modes'
         rec = compute_rec(im_tag=im_tag, Nmodes=Nmodes)
     else:
         rec_tag = f'pyr_{Nmodes:1.0f}modes_ml'
-        rec = compute_ml_rec(im_tag=im_tag, Nmodes=Nmodes, frame_tag=frame_tag, RON=0.5, isPyr=True)
+        rec = compute_ml_rec(im_tag=im_tag, Nmodes=Nmodes, frame_tag=frame_tag, cov_tag='bmc2k_vlt', RON=0.5, isPyr=True)
     return rec, rec_tag
 
 
-def compute_zwfs_rec(Nmodes:int, im_tag:str='zwfs_1851modes', compute_ml:bool=False, frame_tag = ''):
+def compute_zwfs_rec(Nmodes:int, im_tag:str='zwfs_1821modes', compute_ml:bool=False, frame_tag = '', cov_tag=None):
     if compute_ml is False:
         rec_tag = f'zwfs_{Nmodes:1.0f}modes'
         rec = compute_rec(im_tag=im_tag, Nmodes=Nmodes)
     else:
         rec_tag = f'zwfs_{Nmodes:1.0f}modes_ml'
-        rec = compute_ml_rec(im_tag=im_tag, Nmodes=Nmodes, frame_tag=frame_tag, RON=0.5, isPyr=False)
+        rec = compute_ml_rec(im_tag=im_tag, Nmodes=Nmodes, frame_tag=frame_tag, cov_tag=cov_tag, RON=0.5, isPyr=False)
     return rec, rec_tag
 
 
 if __name__ == "__main__":
 
     Nmodes = 1200
-    rMods = np.array([0,1,3])
+    rMods = np.array([0,0.5,1,2,3])
     for rMod in rMods:
-        rec,_ = compute_pyr_rec(Nmodes=Nmodes,im_tag=f'pyr{rMod:1.1f}_1851modes')
+        rec,_ = compute_pyr_rec(Nmodes=Nmodes,im_tag=f'pyr{rMod:1.1f}_1821modes')
         save_rec(rec, rec_tag=f'pyr{rMod:1.1f}_{Nmodes:1.0f}modes')
 
     dotSizes = np.array([1,1.5,2])
     for dotSize in dotSizes:
-        rec,_ = compute_zwfs_rec(Nmodes=Nmodes,im_tag=f'z{dotSize:1.1f}wfs_1851modes')
+        rec,_ = compute_zwfs_rec(Nmodes=Nmodes,im_tag=f'z{dotSize:1.1f}wfs_1821modes')
         save_rec(rec, rec_tag=f'z{dotSize:1.1f}wfs_{Nmodes:1.0f}modes')
 
-        rec,_ = compute_zwfs_rec(Nmodes=Nmodes,compute_ml=True,im_tag=f'z{dotSize:1.1f}wfs_1851modes',frame_tag=f'z{dotSize:1.1f}wfs_frame')
+        rec,_ = compute_zwfs_rec(Nmodes=Nmodes,compute_ml=True, cov_tag='bmc2k_vlt', #cov_tag=None,
+                                 im_tag=f'z{dotSize:1.1f}wfs_1821modes',frame_tag=f'z{dotSize:1.1f}wfs_frame')
         save_rec(rec, rec_tag=f'z{dotSize:1.1f}wfs_{Nmodes:1.0f}modes_ml')

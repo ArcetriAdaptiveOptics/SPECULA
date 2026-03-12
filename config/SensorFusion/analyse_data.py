@@ -6,7 +6,10 @@ from specula.lib.radial_profile import computeRadialProfile
 from astropy.io import fits
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
+# from matplotlib.lines import Line2D
+
+from specula.base_value import BaseValue
+
 
 def show_psf(psf, oversampling:int=4, title:str='', ext=0.25, vmin=-8, vmax=0, cmap='inferno', maxVal=None):
     imageHalfSizeInPoints= psf.shape[0]/2
@@ -67,11 +70,22 @@ try:
     turb = data["atmo_res"][init+1:, :]
 
     x = np.arange(res.shape[1])+1
+    turb_rms = np.sqrt(np.mean(turb**2, axis=0))
+    res_rms = np.sqrt(np.mean(res**2, axis=0))
 
     # Plot RMS of residuals and turbulence
     plt.figure(figsize=(12, 6))
-    plt.plot(x,np.sqrt(np.mean(turb**2, axis=0)), '-.', label='Turbulence')
-    plt.plot(x,np.sqrt(np.mean(res**2, axis=0)), '-.', label='AO residuals')
+    plt.plot(x,turb_rms, '-.', label='Turbulence')
+    plt.plot(x,res_rms, '-.', label='AO residuals')
+
+    corr = res_rms/turb_rms
+    root_dir = './calibration/'
+    dir_path = os.path.join(root_dir, 'data')
+    os.makedirs(dir_path, exist_ok=True)
+    fname = os.path.join(dir_path,'correction_vector_1200modes.fits')
+    bv = BaseValue(description='correction_level',value=corr)
+    bv.save(filename=fname,overwrite=True)
+    rec_corr = bv.restore(fname)
 
     # plt.plot(x[:meas.shape[1]],np.sqrt(np.mean(meas**2, axis=0)), '--',label='Measured residuals')
 
@@ -120,7 +134,7 @@ try:
     plt.yscale('log')
     plt.grid()
 
-except FileNotFoundError:
+except:
     print(f"pyr_modes.fits or zwfs_modes.fits file(s) not found in {data_dir}.")
 
 

@@ -4,7 +4,7 @@ specula.init(-1)  # Use GPU device 0 (or -1 for CPU)
 import numpy as np
 import os
 from specula.lib.compute_zonal_ifunc import compute_zonal_ifunc
-from specula.lib.modal_base_generator import make_modal_base_from_ifs_fft
+from specula.lib.modal_base_generator import make_modal_base_from_ifs_fft, compute_ifs_covmat
 from specula.data_objects.ifunc import IFunc
 from specula.data_objects.ifunc_inv import IFuncInv
 from specula.data_objects.m2c import M2C
@@ -107,6 +107,13 @@ def compute_and_save_influence_functions(tag:str, pupil_pixels:int, n_acts:int, 
         dtype=dtype
     )
 
+    # turb_cov = compute_ifs_covmat(r0=r0, L0=L0, pupil_mask=pupil_mask,
+    #                               diameter=telescope_diameter,
+    #                               influence_functions=influence_functions,
+    #                               oversampling=oversampling,
+    #                               xp=specula.xp,
+    #                               dtype=dtype)
+
     print(f"KL basis shape: {kl_basis.shape}")
     print(f"Number of KL modes: {kl_basis.shape[0]}")
 
@@ -118,6 +125,8 @@ def compute_and_save_influence_functions(tag:str, pupil_pixels:int, n_acts:int, 
 
     # Step 4: Save using SPECULA data objects
     print(f"\nSaving influence functions and modal basis...")
+
+    fits.writeto(os.path.join(root_dir, 'ifunc', tag+'_turb_cov.fits'),cpuArray(singular_values['S2']),overwrite=True)
 
     # Create IFunc object and save
     ifunc_obj = IFunc(

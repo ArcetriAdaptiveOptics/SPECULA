@@ -13,7 +13,7 @@ main:
 # Atmospheric conditions
 seeing:
   class:             'WaveGenerator'
-  constant:          0.5                  # [arcsec]
+  constant:          0.88                  # [arcsec]
   outputs:           ['output']
 
 wind_speed:
@@ -81,7 +81,7 @@ pyr:
   pup_diam:          48.                     # Pupil diameter in subaps.
   pup_dist:          60.                     # Separation between pupil centers in subaps.
   fov:               2.0                     # Requested field-of-view [arcsec]
-  mod_amp:           1.0                     # Modulation radius (in lambda/D units)
+  mod_amp:           0.0                     # Modulation radius (in lambda/D units)
   output_resolution: 120                      # Output sampling [usually corresponding to CCD pixels]
   wavelengthInNm:    750                     # [nm] Pyramid wavelength
   inputs:
@@ -107,20 +107,64 @@ pyr_slopes:
   class:                  'PyrSlopec'
   pupdata_object:         'pyr_pupdata'           
   slopes_from_intensity:  true
-  # sn_object:            'pyr1.0_slope_null'
+  # sn_object:            'pyr0.0_sn_pc_s0.9_c' #'pyr2.0_slope_null' #
   inputs:
     in_pixels:        'cred1.out_pixels'
   outputs:           ['out_slopes']
 
 pyr_modalrec:
   class:             'Modalrec'
-  recmat_object:     'pyr1.0_1200modes_rec'        
+  recmat_object:     'pyr0.0_1200modes_rec'        
   inputs:
     in_slopes:       'pyr_slopes.out_slopes'
   outputs:           ['out_modes']
 
+# ######################### Unmod Pyr ##############################
+# pyr0:
+#   class:             'ModulatedPyramid'
+#   simul_params_ref:  'main'
+#   pup_diam:          48.                     # Pupil diameter in subaps.
+#   pup_dist:          60.                     # Separation between pupil centers in subaps.
+#   fov:               2.0                     # Requested field-of-view [arcsec]
+#   mod_amp:           0.0                     # Modulation radius (in lambda/D units)
+#   output_resolution: 120                      # Output sampling [usually corresponding to CCD pixels]
+#   wavelengthInNm:    750                     # [nm] Pyramid wavelength
+#   inputs:
+#     in_ef: 'ef_prop.out_ef' #'prop.out_source_ngs_ef'
 
-# ########################### ZWFS ####################################
+# cred10:
+#   class:             'CCD'
+#   simul_params_ref:  'main'
+#   size:              [120,120]            # Total detector size
+#   dt:                0.0005                # [s] Integration time (2000 fps)
+#   bandw:             400                   # [nm]
+#   photon_noise:      true                  # Enable photon noise
+#   readout_noise:     true                  # Enable read noise
+#   excess_noise:      true                  # Enable excess noise
+#   readout_level:     0.5                   # [e-/pix/frame] Read noise level
+#   emccd_gain:        400                   # EMCCD gain factor
+#   quantum_eff:       0.2                   # QE x transmission
+#   inputs:
+#     in_i:            'pyr0.out_i' 
+#   outputs:           ['out_pixels']
+
+# pyr0_slopes:
+#   class:                  'PyrSlopec'
+#   pupdata_object:         'pyr_pupdata'           
+#   slopes_from_intensity:  true
+#   sn_object:            'pyr0.0_slope_null' #'pyr0.0_sn_pc_s0.9_c095'  #'pyr0.0_slope_null_4kHz'
+#   inputs:
+#     in_pixels:        'cred10.out_pixels'
+#   outputs:           ['out_slopes']
+
+# pyr0_modalrec:
+#   class:             'Modalrec'
+#   recmat_object:     'pyr1.0_1200modes_rec'        
+#   inputs:
+#     in_slopes:       'pyr0_slopes.out_slopes'
+#   outputs:           ['out_modes']
+
+########################### ZWFS ####################################
 zwfs:
   class:              'ZernikeSensor' 
   simul_params_ref:   'main'
@@ -151,10 +195,10 @@ ocam2:
 
 zwfs_slopes:
   class:             'ZwfsSlopec'
-  # sn_object:         'z2.0wfs_slope_null'
+  sn_object:         'z2.0wfs_slope_null'
   pup_diam:          48.0
   ccd_size:          120
-  obsratio:          0.0
+  obsratio:          0.0 #14
   inputs:
     in_pixels:        'ocam2.out_pixels'
   outputs:           ['out_slopes']
@@ -166,11 +210,28 @@ zwfs_modalrec:
     in_slopes:       'zwfs_slopes.out_slopes'
   outputs:           ['out_modes']
 
+# ############################# OGC ##################################
+# optical_gains:
+#   class:  'BaseOperation'
+#   constant_max: 0.4
+#   inputs:
+#     in_value1: 'psf.out_sr'
+#   outputs: ['out_value']
+
+# ogc_modes:
+#   class:  'BaseOperation'
+#   div: true
+#   inputs:
+#     in_value1: 'pyr0_modalrec.out_modes'
+#     in_value2: 'optical_gains.out_value'
+#   outputs: ['out_value']
+
+
 ############################ Control ################################
 # bootstrap:
 #   class:              'ScheduleGenerator'
 #   scheduled_values:   [[1.0, 0.0],
-#                       [0.0, 1.0]] # Nrows x Ncols, times x gains
+#                       [0.7,0.5]] # Nrows x Ncols, times x gains
 #   modes_per_group:    [1200,1200] # Ncols
 #   scheduled_times:    [0.1] # Nrows-1
 
@@ -179,7 +240,7 @@ zwfs_modalrec:
 #   concat: true
 #   inputs:
 #     in_value1:  'pyr_modalrec.out_modes'
-#     in_value2:  'zwfs_modalrec.out_modes'
+#     in_value2:  'pyr0_modalrec.out_modes' #'zwfs_modalrec.out_modes'
 #   outputs: ['out_value']
 
 # filter:
@@ -204,17 +265,17 @@ zwfs_modalrec:
 #   outputs:           ['out_comm']
 
 # filter:
-#   class:                    'MultirateComplementaryFilter'
-#   simul_params_ref:         'main'
-#   delay:                    1             # Total temporal delay in time steps is this value +1
-#   iir_filter_data_object:  'iirfilter'  
-#   weights:                  [0.5,0.5]     # weigths for fast and slow measurements
-#   N_list:                   [1]           # ffast/slow frequency ratio (list)
-#   g_track:                  0.4           # gain
-#   inputs:
-#     in_ys: 'pyr_modalrec.out_modes'
-#     in_yf: 'zwfs_modalrec.out_modes'
-#   outputs:  ['out_comm']
+  # class:                    'MultirateComplementaryFilter'
+  # simul_params_ref:         'main'
+  # delay:                    1             # Total temporal delay in time steps is this value +1
+  # iir_filter_data_object:  'iirfilter'  
+  # weights:                  [0.5,0.5]     # weigths for fast and slow measurements
+  # N_list:                   [4]           # ffast/slow frequency ratio (list)
+  # g_track:                  0.3           # gain
+  # inputs:
+  #   in_ys: 'pyr_modalrec.out_modes'
+  #   in_yf: 'pyr0_modalrec.out_modes' #'zwfs_modalrec.out_modes'
+  # outputs:  ['out_comm']
 
 filter:
   class:                'IirFilter'
@@ -223,7 +284,7 @@ filter:
   delay:                1 # Total temporal delay in time steps is this value +1
   iir_filter_data_object:  'iirfilter'
   inputs:
-    delta_comm: 'pyr_modalrec.out_modes' 
+    delta_comm: 'pyr_modalrec.out_modes' #'ogc_modes.out_value' 
   outputs:  ['out_comm']
 
 dm:
@@ -247,7 +308,7 @@ psf:
   wavelengthInNm:    750                 # [nm] visible
   nd:                4                    # 4x padding for PSF
   start_time:        0.5                  # Start PSF integration after 500ms
-  verbose: false
+  # verbose: false
   inputs:
     in_ef:           'ef_prop.out_ef'
   outputs:           ['out_psf', 'out_std_psf', 'out_sr']
@@ -294,6 +355,7 @@ data_store:
                   'pyr_modes-pyr_modalrec.out_modes',
                   'zwfs_modes-zwfs_modalrec.out_modes',
                   'ccd1-cred1.out_pixels',
-                  'ccd2-ocam2.out_pixels']
+                  'ccd2-ocam2.out_pixels'
+                  ]
 
 # remove: ['']

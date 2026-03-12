@@ -11,6 +11,8 @@ dirs = sorted(glob.glob(os.path.join(output_base, "gain_*/2*/")))
 gains = []
 mean_sr = []
 
+init=200
+
 for d in dirs:
     # Find the YAML file to get the gain value
     yml_files = glob.glob(os.path.join(d, "*.yml"))
@@ -19,7 +21,7 @@ for d in dirs:
         with open(yml, "r") as f:
             yml_data = yaml.safe_load(f)
             if "filter" in yml_data:
-                gain = float(yml_data["filter"]["iir_gain"])
+                gain = float(yml_data["filter"]["iir_gain"])#["g_track"]) #
                 break
     if gain is None:
         # Fallback: parse from directory name
@@ -29,7 +31,7 @@ for d in dirs:
     if os.path.exists(sr_file):
         with fits.open(sr_file) as hdul:
             sr = hdul[0].data
-        mean_sr.append(sr[50:].mean())  # Ignore initial transient
+        mean_sr.append(sr[init:].mean())  # Ignore initial transient
         gains.append(gain)
         print(f"Gain {gain:.2f}: mean SR = {sr[50:].mean():.4f}")
     else:
@@ -38,7 +40,7 @@ for d in dirs:
 # Plot
 plt.figure()
 plt.plot(gains, mean_sr, marker='o')
-plt.xlabel("IIR Gain")
+plt.xlabel("IIR Gain") #"G track") #
 plt.ylabel("Mean Strehl Ratio")
 plt.title("Loop Gain Optimization")
 plt.grid(True)
