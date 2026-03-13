@@ -1,0 +1,30 @@
+
+
+pupil_calibrator:
+  class: 'DynamicPyrPupdataCalibrator'
+  dt: 0.1
+  thr1: 0.1
+  thr2: 0.25
+  output_tag:        'scao_pupdata'
+  inputs:
+    in_i: 'pyramid.out_i'
+
+seeing_override:
+  constant:    0.0
+  
+main_override:
+  total_time:  -1
+
+pyramid_override:
+  mod_amp:           10.0                     # Modulation radius (in lambda/D units)
+
+display:
+  class: 'PixelsPupInteractiveDisplay'
+  inputs:
+    in_pupdata: 'pupil_calibrator.out_pupdata'
+    in_pixels: 'detector.out_pixels'
+
+remove: ['slopec', 'rec','control', 'dm', 'psf']
+ 
+
+
