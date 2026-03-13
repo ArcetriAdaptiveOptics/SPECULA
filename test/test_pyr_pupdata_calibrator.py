@@ -1,7 +1,9 @@
 import specula
 specula.init(0)
 
+import os.path
 import unittest
+import tempfile
 import numpy as np
 from specula.data_objects.intensity import Intensity
 from specula.data_objects.pupdata import PupData
@@ -101,3 +103,201 @@ class TestPyrPupdataCalibrator(unittest.TestCase):
         
         self.assertEqual(float(radius), 0.0)
         self.assertTrue(bool(xp.all(center == 0.0)))
+
+
+class TestPyrPupdataCalibratorInitialization(unittest.TestCase):
+
+    @cpu_and_gpu
+    def test_invalid_dt_raises(self, target_device_idx, xp):
+        with self.assertRaises(ValueError):
+            PyrPupdataCalibrator(
+                data_dir=".",
+                dt=0,
+                target_device_idx=target_device_idx
+            )
+
+    @cpu_and_gpu
+    def test_valid_initialization(self, target_device_idx, xp):
+        calib = PyrPupdataCalibrator(
+            data_dir=".",
+            dt=1,
+            target_device_idx=target_device_idx
+        )
+
+        self.assertIsNotNone(calib.pupdata)
+        self.assertEqual(calib.thr1, 0.1)
+        self.assertEqual(calib.thr2, 0.25)
+
+
+class TestPyrPupdataCalibratorSetup(unittest.TestCase):
+
+    @cpu_and_gpu
+    def test_setup_requires_input(self, target_device_idx, xp):
+        calib = PyrPupdataCalibrator(
+            data_dir=".",
+            dt=1,
+            target_device_idx=target_device_idx
+        )
+
+        calib.local_inputs = {
+            "in_intensity": None,
+            "in_pixels": None
+        }
+
+        with self.assertRaises(ValueError):
+            calib.setup()
+
+
+class TestPyrPupdataCalibratorPupilAnalysis(unittest.TestCase):
+
+    @cpu_and_gpu
+    def test_single_pupil_detection(self, target_device_idx, xp):
+        calib = PyrPupdataCalibrator(
+            data_dir=".",
+            dt=1,
+            target_device_idx=target_device_idx
+        )
+
+        size = 64
+        image = xp.zeros((size, size))
+
+        cx, cy = 32, 32
+        r = 10
+
+        y, x = xp.mgrid[0:size, 0:size]
+        mask = (x - cx) ** 2 + (y - cy) ** 2 <= r ** 2
+        image[mask] = 1.0
+
+        center, radius = calib._analyze_single_pupil(image)
+
+        self.assertGreater(radius, 0)
+        self.assertTrue(abs(center[0] - cx) < 2)
+        self.assertTrue(abs(center[1] - cy) < 2)
+
+
+class TestPyrPupdataCalibratorRadialProfile(unittest.TestCase):
+
+    @cpu_and_gpu
+    def test_radial_profile_length(self, target_device_idx, xp):
+        calib = PyrPupdataCalibrator(
+            data_dir=".",
+            dt=1,
+            target_device_idx=target_device_idx
+        )
+
+        size = 64
+        image = xp.ones((size, size))
+        center = xp.array([32, 32])
+
+        profile = calib._radial_profile(image, center, 20, n_bins=15)
+
+        self.assertEqual(profile.shape[0], 15)
+
+
+class TestPyrPupdataCalibratorIndices(unittest.TestCase):
+
+    @cpu_and_gpu
+    def test_generate_indices_intensity_mode(self, target_device_idx, xp):
+        calib = PyrPupdataCalibrator(
+            data_dir=".",
+            dt=1,
+            slopes_from_intensity=True,
+            target_device_idx=target_device_idx
+        )
+
+        image_shape = (64, 64)
+
+        centers = xp.array([
+            [16, 16],
+            [48, 16],
+            [16, 48],
+            [48, 48]
+        ])
+
+        radii = xp.array([8, 8, 8, 8])
+
+        ind = calib._generate_indices(centers, radii, image_shape)
+
+        self.assertEqual(ind.shape[1], 4)
+        self.assertTrue(xp.any(ind >= 0))
+
+
+    @cpu_and_gpu
+    def test_generate_indices_geometric_mode(self, target_device_idx, xp):
+        calib = PyrPupdataCalibrator(
+            data_dir=".",
+            dt=1,
+            slopes_from_intensity=False,
+            target_device_idx=target_device_idx
+        )
+
+        image_shape = (64, 64)
+
+        centers = xp.array([
+            [16, 16],
+            [48, 16],
+            [16, 48],
+            [48, 48]
+        ])
+
+        radii = xp.array([8, 8, 8, 8])
+
+        ind = calib._generate_indices(centers, radii, image_shape)
+
+        self.assertEqual(ind.shape[1], 4)
+        self.assertTrue(xp.any(ind >= 0))
+
+
+class TestPyrPupdataCalibratorSave(unittest.TestCase):
+
+    @cpu_and_gpu
+    def test_save_creates_file(self, target_device_idx, xp):
+        with tempfile.TemporaryDirectory() as tmpdir:
+
+            calib = PyrPupdataCalibrator(
+                data_dir=tmpdir,
+                dt=1,
+                output_tag="test_pupdata",
+                overwrite=True,
+                target_device_idx=target_device_idx
+            )
+
+            calib.pupdata.ind_pup = xp.zeros((10, 4), dtype=int)
+            calib.pupdata.radius = xp.ones(4)
+            calib.pupdata.cx = xp.ones(4)
+            calib.pupdata.cy = xp.ones(4)
+            calib.pupdata.framesize = (64, 64)
+
+            calib._save()
+
+            expected = os.path.join(tmpdir, "test_pupdata.fits")
+
+            self.assertTrue(os.path.exists(expected))
+
+
+class TestPyrPupdataCalibratorObstruction(unittest.TestCase):
+
+    @cpu_and_gpu
+    def test_detect_obstruction_returns_float(self, target_device_idx, xp):
+        calib = PyrPupdataCalibrator(
+            data_dir=".",
+            dt=1,
+            target_device_idx=target_device_idx
+        )
+
+        size = 64
+        image = xp.ones((size, size))
+
+        centers = xp.array([
+            [16, 16],
+            [48, 16],
+            [16, 48],
+            [48, 48]
+        ])
+
+        radii = xp.array([10, 10, 10, 10])
+
+        ratio = calib._detect_obstruction(image, centers, radii)
+
+        self.assertIsInstance(float(ratio), float)
+        self.assertGreaterEqual(ratio, 0.0)

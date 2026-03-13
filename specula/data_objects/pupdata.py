@@ -121,9 +121,9 @@ class PupData(BaseDataObj):
         hdr = self.get_fits_header()
         fits.writeto(filename, np.zeros(2), hdr, overwrite=overwrite)
         fits.append(filename, cpuArray(self.ind_pup))
-        fits.append(filename, self.radius)
-        fits.append(filename, self.cx)
-        fits.append(filename, self.cy)
+        fits.append(filename, cpuArray(self.radius))
+        fits.append(filename, cpuArray(self.cx))
+        fits.append(filename, cpuArray(self.cy))
 
     @staticmethod
     def restore(filename, target_device_idx=None):

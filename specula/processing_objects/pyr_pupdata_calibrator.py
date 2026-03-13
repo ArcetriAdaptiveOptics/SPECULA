@@ -1,5 +1,6 @@
 import os
 from specula.base_processing_obj import BaseProcessingObj
+from specula.data_objects.intensity import Intensity
 from specula.data_objects.pixels import Pixels
 from specula.connections import InputValue
 from specula.data_objects.pupdata import PupData
@@ -16,8 +17,8 @@ class PyrPupdataCalibrator(BaseProcessingObj):
     """
 
     def __init__(self,
-                 dt: float,
                  data_dir: str,      # Set by main Simul object
+                 dt: float = None,
                  thr1: float = 0.1,
                  thr2: float = 0.25,
                  obs_thr: float = 0.8,
@@ -32,10 +33,13 @@ class PyrPupdataCalibrator(BaseProcessingObj):
                  precision: int = None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        if dt <= 0:
-            raise ValueError(f'dt (integration time) is {dt} and must be greater than zero')
 
-        self.dt = self.seconds_to_t(dt)
+        if dt is not None:   
+            if dt <= 0:
+                raise ValueError(f'dt (integration time) is {dt} and must be greater than zero')
+            self.dt = self.seconds_to_t(dt)
+        else:
+            self.dt = None
 
         self.thr1 = thr1
         self.thr2 = thr2
@@ -59,20 +63,32 @@ class PyrPupdataCalibrator(BaseProcessingObj):
         self.outputs['out_pupdata'] = self.pupdata
 
         # Inputs
-        self.inputs['in_pixels'] = InputValue(type=Pixels)
-        self.inputs['in_save'] = InputValue(type=BaseValue, optional=True)
+        self.inputs['in_i'] = InputValue(type=Intensity, optional=True)  
+        self.inputs['in_pixels'] = InputValue(type=Pixels, optional=True)
+
+    def setup(self):
+        super().setup()
+        if self.local_inputs['in_i'] is None and self.local_inputs['in_pixels'] is None:
+            raise ValueError("At least one input must be provided for calibration. ")
 
     def trigger_code(self):
         """Main calibration function"""
 
+        if self.local_inputs['in_i'] is not None:
+            value = self.local_inputs['in_i'].i
+        elif self.local_inputs['in_pixels'] is not None:
+            value = self.local_inputs['in_pixels'].pixels
+
+        # Integrate pixels or intensity over time
         if self.integrated_pixels is None:
-            px = self.local_inputs['in_pixels'].pixels
-            self.integrated_pixels = px * 0
+            self.integrated_pixels = value * 0
 
-        self.integrated_pixels += local_inputs['in_pixels'].pixels
+        self.integrated_pixels += value
 
-        if self.current_time % self.dt != 0:
-            return
+        # if dt is set, only trigger on multiples of dt, otherwise trigger on every frame
+        if self.dt is not None:
+            if self.current_time % self.dt != 0:
+                return
 
         image = self.integrated_pixels
 
@@ -102,13 +118,6 @@ class PyrPupdataCalibrator(BaseProcessingObj):
 
         # Reset integrated intensity
         self.integrated_pixels *= 0.0
-
-    def post_trigger(self):
-        super().post_trigger()
-
-        input_save = self.local_inputs['in_save']
-        if input_save is not None and input_save.generation_time == self.current_time:
-            self._save()
 
     def _analyze_pupils(self, image):
         """Find 4 pupil centers and radii"""
