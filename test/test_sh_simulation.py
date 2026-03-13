@@ -61,8 +61,10 @@ class TestShSimulation(unittest.TestCase):
             os.remove(self.subap_path)
         if os.path.exists(self.rec_path):
             os.remove(self.rec_path)
-        if os.path.exists(self.phasescreen_path):
-            os.remove(self.phasescreen_path)
+        ps_dir = os.path.dirname(self.phasescreen_path)
+        ps_base = os.path.basename(self.phasescreen_path).replace('_single.fits', '_*.fits')
+        for fpath in glob.glob(os.path.join(ps_dir, ps_base)):
+            os.remove(fpath)
 
         # Change back to original directory
         os.chdir(self.cwd)

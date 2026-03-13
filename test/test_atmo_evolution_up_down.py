@@ -24,7 +24,7 @@ class TestAtmoEvolutionUpDown(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         """Clean up after all tests by removing generated files"""
-        pattern = 'ps_seed*_dim8192_pixpit0.050_L023.0000_*.fits'
+        pattern = 'ps_seed*_pixpit0.050_L023.0000_*.fits'
         for fpath in glob.glob(os.path.join(cls.data_dir, pattern)):
             if os.path.exists(fpath):
                 os.remove(fpath)
