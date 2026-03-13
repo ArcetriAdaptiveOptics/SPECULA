@@ -294,6 +294,7 @@ class TestDisplayServerTrigger(unittest.TestCase):
         while not server.qout.empty():
             items.append(server.qout.get_nowait())
 
+        print(items)
         types = [i[0] for i in items if isinstance(i, tuple)]
         self.assertIn('image_terminator', types)
 
@@ -316,6 +317,7 @@ class TestDisplayServerTrigger(unittest.TestCase):
         server.qin.put(('client_xyz', ['obj1']))
 
         server.trigger()
+        time.sleep(0.001) # Queue context switch
 
         items = []
         while not server.qout.empty():
@@ -330,6 +332,7 @@ class TestDisplayServerTrigger(unittest.TestCase):
         server.t0 = time.time() - 2   # guarantee the 1-second check fires
 
         server.trigger()
+        time.sleep(0.001) # Queue context switch
 
         # Speed report is a 2-tuple (name, status_string)
         items = []
@@ -1256,7 +1259,7 @@ class TestImageFlaskServerHandleResponsesActual(unittest.TestCase):
         with remove_xp_np(obj):
             obj_bytes = pickle.dumps(obj)
             mock_fig = MagicMock()
-            mock_fig.savefig.side_effect = lambda buf, fmt: buf.write(b'\x89PNG\r\n\x1a\n')
+            mock_fig.savefig.side_effect = lambda buf, format: buf.write(b'\x89PNG\r\n\x1a\n')
             with patch.object(sio, 'emit') as mock_emit, \
                 patch('specula.lib.display_server_api.DataPlotter') as mock_dp:
                 mock_dp.plot_best_effort.return_value = mock_fig

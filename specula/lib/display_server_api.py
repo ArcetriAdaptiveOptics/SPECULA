@@ -236,8 +236,12 @@ class FlaskServer:
                     time.sleep(0.001)
                     
             except queue.Empty:
+                # After 60 seconds of inactivity, we assume
+                # that the simulation has ended and we can shut down the server.
                 break
             except EOFError:
+                # This can happen if the main process has ended and closed the queue.
+                # In that case, we should also shut down the server.
                 break
             except Exception as e:
                 break

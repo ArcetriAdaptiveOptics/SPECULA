@@ -95,16 +95,6 @@ class DisplayServer(BaseProcessingObj):
         print(f"[DisplayServer] Initialized in {self.mode} mode")
 
     def _trigger_image_mode(self):
-        t1 = time.time()
-        self.counter += 1
-        if t1 - self.t0 >= 1:
-            niters = self.counter - self.c0
-            speed = niters / (t1 - self.t0)
-            self.c0 = self.counter
-            self.t0 = t1
-            name, status = self.info_getter()
-            status_report = f"{status} - {speed:.2f} Hz"
-            self.qout.put((name, status_report))
 
         # Loop over data object requests
         # This loop is guaranteed to find an empty queue sooner or later,
@@ -146,12 +136,6 @@ class DisplayServer(BaseProcessingObj):
                 traceback.print_exc()
 
     def trigger(self):
-        if self.mode == 'image':
-            self._trigger_image_mode()
-        else:
-            self._trigger_data_mode()
-
-    def _trigger_data_mode(self):
         t1 = time.time()
         self.counter += 1
         if t1 - self.t0 >= 1:
@@ -164,7 +148,14 @@ class DisplayServer(BaseProcessingObj):
             try:
                 self.qout.put((name, status_report))
             except Exception as e:
-                print(f"[SIMULATION][DataMode] Error putting status: {e}")
+                print(f"[SIMULATION][{self.__class__.__name__}] Error putting status: {e}")
+
+        if self.mode == 'image':
+            self._trigger_image_mode()
+        else:
+            self._trigger_data_mode()
+
+    def _trigger_data_mode(self):
 
         processed = 0
         while True:
@@ -177,6 +168,7 @@ class DisplayServer(BaseProcessingObj):
                 responses = []
                 for i, name in enumerate(object_names):
                     dataobj = self.data_obj_getter(name)
+                    print('Got object for name:', name, '->', type(dataobj), dataobj)
                     if dataobj is None:
                         dataobj = BaseValue(value=None)
 
@@ -238,9 +230,7 @@ class DisplayServer(BaseProcessingObj):
                     # returns a CPU array or a list of CPU arrays, and that this method is implemented in a 
                     # way that it can be called safely even if the object has some non-picklable attributes (like xp)
                     if hasattr(obj, 'array_for_display'):
-                        result = obj.array_for_display()
-                        if result is not None:
-                            return result                   
+                        return obj.array_for_display()
                         
                 except Exception as e:
                     print(f"Error extracting array from {type(obj).__name__}: {e}")
