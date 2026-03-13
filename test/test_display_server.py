@@ -320,11 +320,19 @@ class TestDisplayServerTrigger(unittest.TestCase):
         server.trigger()
         time.sleep(0.001) # Queue context switch
 
-        items = []
-        while not server.qout.empty():
-            items.append(server.qout.get_nowait())
+        types = []
+        deadline = time.time() + 0.5
+        while time.time() < deadline:
+            try:
+                item = server.qout.get(timeout=0.05)
+            except _queue_module.Empty:
+                continue
 
-        types = [i[0] for i in items if isinstance(i, tuple)]
+            if isinstance(item, tuple):
+                types.append(item[0])
+                if item[0] == 'terminator':
+                    break
+
         self.assertIn('terminator', types)
 
     def test_trigger_puts_speed_report_after_one_second(self):
