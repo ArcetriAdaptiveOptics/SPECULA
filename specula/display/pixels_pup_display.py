@@ -174,7 +174,7 @@ class PixelsPupDisplay(BaseDisplay):
             self.img = self.ax.imshow(image, norm=norm)
 
             if not self._colorbar_added:
-                plt.colorbar(self.img, ax=self.ax)
+                plt.colorbar(self.img, ax=self.ax, location='left')
                 self._colorbar_added = True
 
         else:
