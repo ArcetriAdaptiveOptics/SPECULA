@@ -223,7 +223,7 @@ class BaseProcessingObj(BaseTimeObj):
         else:
             self.inputs_changed = False
             if self.verbose:
-                print('No inputs have been refreshed, skipping trigger')
+                print('No inputs have been refreshed, skipping trigger for object', self.name, flush=True)
         return self.inputs_changed
 
     def trigger(self):
