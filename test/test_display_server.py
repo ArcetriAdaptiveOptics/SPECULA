@@ -294,7 +294,6 @@ class TestDisplayServerTrigger(unittest.TestCase):
         while not server.qout.empty():
             items.append(server.qout.get_nowait())
 
-        print(items)
         types = [i[0] for i in items if isinstance(i, tuple)]
         self.assertIn('image_terminator', types)
 
