@@ -32,7 +32,8 @@ class FieldAnalyser:
                  wavelength_nm: float = 750.0,
                  start_time: float = 0.1,
                  end_time: Optional[float] = None,
-                 verbose: bool = False):
+                 verbose: bool = False,
+                 display: bool = False):
 
         self.data_dir = Path(data_dir)
         self.tracking_number = tracking_number
@@ -41,6 +42,7 @@ class FieldAnalyser:
         self.start_time = start_time
         self.end_time = end_time
         self.verbose = verbose
+        self.display = display
 
         # Loaded parameters
         self.params = None
@@ -355,6 +357,36 @@ class FieldAnalyser:
             print(f"  Sources: {source_refs}")
             print(f"  Outputs: {output_list}")
 
+    def _add_displays_to_params(self, replay_params: dict): # <--- NEW METHOD
+        """
+        Injects PhaseDisplay and DMDisplay objects into the YAML configuration
+        if the display flag is set to True.
+        """
+        if not self.display:
+            return
+
+        if self.verbose:
+            print("Injecting display objects into simulation parameters...")
+
+        # 1. Phase display for the first field source
+        if len(self.sources) > 0:
+            replay_params['ph_disp'] = {
+                'class': 'PhaseDisplay',
+                'inputs': {'phase': 'prop.out_field_source_0_ef'},
+                'title': 'PUPIL PHASE (Field Source 0)'
+            }
+
+        # 2. DM displays (automatically find all DMs in the simulation)
+        dm_keys = [k for k, v in replay_params.items() if isinstance(v, dict) and v.get('class') == 'DM']
+
+        for dm_key in dm_keys:
+            disp_key = f"{dm_key}_disp"
+            replay_params[disp_key] = {
+                'class': 'PhaseDisplay',
+                'inputs': {'phase': f'{dm_key}.out_layer'},
+                'title': f'{dm_key.upper()} SHAPE'
+            }
+
     def _run_simulation_with_params(self, params_dict: dict, output_dir: Path) -> Simul:
         """
         Common simulation execution logic using minimal temporary file
@@ -363,6 +395,8 @@ class FieldAnalyser:
         import os
 
         output_dir.mkdir(parents=True, exist_ok=True)
+
+        self._add_displays_to_params(params_dict)
 
         if self.verbose:
             print(f"Computing simulation with parameters to be saved by DataStore in: {output_dir}")
