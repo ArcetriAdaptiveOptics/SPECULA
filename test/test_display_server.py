@@ -288,6 +288,7 @@ class TestDisplayServerTrigger(unittest.TestCase):
         server.qin.put(('client_abc', ['obj1']))
 
         server.trigger()
+        time.sleep(0.001)  # Queue context switch
 
         # At minimum the terminator should have been queued
         items = []
