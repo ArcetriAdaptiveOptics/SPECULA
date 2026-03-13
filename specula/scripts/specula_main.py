@@ -35,6 +35,8 @@ def main():
                         help='Block diagram filename')
     parser.add_argument('--diagram-colors-on', action='store_true',
                         help='Enable colors in block diagram')
+    parser.add_argument('--no-speed-report', action='store_true',
+                        help='Disable speed report on standard output')
     parser.add_argument('yml_files', nargs='+', type=str,
                         help='YAML parameter files')
 

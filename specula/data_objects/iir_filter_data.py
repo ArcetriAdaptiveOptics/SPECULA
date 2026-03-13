@@ -141,6 +141,8 @@ class IirFilterData(BaseDataObj):
         self.den = den
 
     def set_gain(self, gain, verbose=False):
+        if np.isscalar(gain) or np.ndim(gain) == 0:
+            gain = np.repeat(gain, self.nfilter)
         gain = self.to_xp(gain, dtype=self.dtype)
         if verbose:
             print('original gain:', self.gain)
