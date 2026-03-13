@@ -64,6 +64,7 @@ class IirFilterData(BaseDataObj):
         self.zeros = None
         self.poles = None
         self.gain = None
+        self._num_normalized = None
         self.set_num(self.to_xp(num, dtype=self.dtype))
         self.set_den(self.to_xp(den, dtype=self.dtype))
 
@@ -101,10 +102,12 @@ class IirFilterData(BaseDataObj):
                 if np.sum(self.xp.abs(mynum[i, int(self.ordnum[i]):])) == 0:
                     mynum[i, :] = self.xp.roll(mynum[i, :], snum1 - int(self.ordnum[i]))
 
-        gain = self.xp.zeros(len(mynum), dtype=self.dtype)
-        for i in range(len(gain)):
-            gain[i] = mynum[i, - 1]
-        self.gain = gain
+        gain = mynum[:, -1]
+        self.gain = self.to_xp(gain, dtype=self.dtype)
+        self._num_normalized = self.to_xp(mynum, dtype=self.dtype)
+        nonzero_gain = self.xp.abs(self.gain) > 0
+        safe_gain = self.xp.where(nonzero_gain, self.gain, 1)
+        self._num_normalized = self._num_normalized / safe_gain[:, None]
         self.zeros = None 
         self.num = self.to_xp(mynum, dtype=self.dtype)
 
@@ -126,7 +129,7 @@ class IirFilterData(BaseDataObj):
         for i in range(self.nfilter):
             if self.ordnum[i] > 1:
                 num[i, snum1 - int(self.ordnum[i]):] = self.xp.poly(self.zeros[i, :int(self.ordnum[i]) - 1])
-        self.num = num
+        self.set_num(num)
 
     def set_poles(self, poles):
         self.poles = self.to_xp(poles, dtype=self.dtype)
@@ -141,29 +144,31 @@ class IirFilterData(BaseDataObj):
         gain = self.to_xp(gain, dtype=self.dtype)
         if verbose:
             print('original gain:', self.gain)
+
+        if self._num_normalized is None:
+            self._num_normalized = self.to_xp(self.num, dtype=self.dtype)
+            if self.gain is not None:
+                nonzero_gain = self.xp.abs(self.gain) > 0
+                safe_gain = self.xp.where(nonzero_gain, self.gain, 1)
+                self._num_normalized = self._num_normalized / safe_gain[:, None]
+
         if self.xp.size(gain) < self.nfilter:
             nfilter = np.size(gain)
         else:
             nfilter = self.nfilter
+
         if self.gain is None:
-            for i in range(nfilter):
-                if self.xp.isfinite(gain[i]):
-                    if self.ordnum[i] > 1:
-                        self.num[i, :] *= gain[i]
-                    else:
-                        self.num[i, - 1] = gain[i]
-                else:
-                    gain[i] = self.num[i, - 1]
+            current_gain = self.xp.zeros(self.nfilter, dtype=self.dtype)
+            current_gain[:nfilter] = gain[:nfilter]
         else:
-            for i in range(nfilter):
-                if self.xp.isfinite(gain[i]):
-                    if self.ordnum[i] > 1:
-                        self.num[i, :] *= (gain[i] / self.gain[i])
-                    else:
-                        self.num[i, - 1] = gain[i] / self.gain[i]
-                else:
-                    gain[i] = self.gain[i]
-        self.gain = self.to_xp(gain, dtype=self.dtype)
+            current_gain = self.to_xp(self.gain, dtype=self.dtype)
+
+        finite_gain = self.xp.isfinite(gain[:nfilter])
+        current_gain[:nfilter] = self.xp.where(finite_gain, gain[:nfilter], current_gain[:nfilter])
+
+        self.gain = self.to_xp(current_gain, dtype=self.dtype)
+        self.num = self.to_xp(self._num_normalized * self.gain[:, None], dtype=self.dtype)
+
         if verbose:
             print('new gain:', self.gain)
 
