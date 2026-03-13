@@ -222,7 +222,9 @@ def main_simul(yml_files: list,
                diagram: bool=False,
                diagram_title: str=None,
                diagram_filename: str=None,
-               diagram_colors_on: bool=False):
+               diagram_colors_on: bool=False,
+               no_speed_report: bool=False,
+               ):
 
     if mpi:
         try:
@@ -269,7 +271,8 @@ def main_simul(yml_files: list,
             diagram=diagram,
             diagram_filename=diagram_filename,
             diagram_title=diagram_title,
-            diagram_colors_on=diagram_colors_on
+            diagram_colors_on=diagram_colors_on,
+            speed_report=not no_speed_report,
         ).run()
 
     if profile:

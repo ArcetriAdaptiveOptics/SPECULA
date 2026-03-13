@@ -2,6 +2,8 @@ import specula
 specula.init(0)  # Default target device
 
 import unittest
+import os
+import glob
 
 from specula import np
 from specula import cpuArray
@@ -16,6 +18,13 @@ from specula.processing_objects.sh_slopec import ShSlopec
 from test.specula_testlib import cpu_and_gpu
 
 class TestShSlopec(unittest.TestCase):
+
+    @classmethod
+    def tearDownClass(cls):
+        test_dir = os.path.dirname(__file__)
+        for fpath in glob.glob(os.path.join(test_dir, 'ConvolutionKernel*.fits')):
+            if os.path.isfile(fpath):
+                os.remove(fpath)
 
     def get_sh(self, target_device_idx, xp, with_laser_launch=False):
         # pupil is 1m

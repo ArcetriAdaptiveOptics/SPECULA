@@ -54,7 +54,8 @@ class Simul():
                  diagram=False,
                  diagram_title=None,
                  diagram_filename=None,
-                 diagram_colors_on=False
+                 diagram_colors_on=False,
+                 speed_report=True,
                  ):
         if len(param_files) < 1:
             raise ValueError('At least one Yaml parameter file must be present')
@@ -79,7 +80,7 @@ class Simul():
         self.diagram_title = diagram_title
         self.diagram_filename = diagram_filename
         self.diagram_colors_on = diagram_colors_on
-        print('self.diagram_colors_on', self.diagram_colors_on)
+        self.speed_report = speed_report
 
     def split_output(self, output_name, get_ref=False, use_inputs=False):
         '''
@@ -1004,7 +1005,9 @@ class Simul():
             disp.name = 'display_server'
 
         # Run simulation loop
-        self.loop.run(run_time=self.mainParams['total_time'], dt=self.mainParams['time_step'], speed_report=True)
+        self.loop.run(run_time=self.mainParams['total_time'],
+                      dt=self.mainParams['time_step'],
+                      speed_report=self.speed_report)
 
         print(process_rank, 'Simulation finished', flush=True)
 #        if data_store.has_key('sr'):

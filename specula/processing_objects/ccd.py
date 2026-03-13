@@ -23,7 +23,7 @@ class CCD(BaseProcessingObj):
     """
     def __init__(self,
                  simul_params: SimulParams,
-                 size: int,           # TODO list=[80,80],
+                 size: list,          # TODO list=[80,80],
                  dt: float,           # TODO =0.001,
                  bandw: float,        # TODO =300.0,
                  binning: int=1,

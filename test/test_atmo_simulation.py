@@ -32,14 +32,12 @@ class TestAtmoSimulation(unittest.TestCase):
         cls.datadir = os.path.join(os.path.dirname(__file__), 'data')
         cls.calibdir = os.path.join(os.path.dirname(__file__), 'calib')
 
-        # Clean up copied calibration files
-        # this can be "single" or "double"
-        files = ['ps_seed1_dim8192_pixpit0.100_L010.0000_single.fits',
-                 'ps_seed1_dim8192_pixpit0.100_L010.0000_double.fits']
-        if os.path.exists(os.path.join(cls.calibdir, 'phasescreens', files[0])):
-            os.remove(os.path.join(cls.calibdir, 'phasescreens', files[0]))
-        elif os.path.exists(os.path.join(cls.calibdir, 'phasescreens', files[1])):
-            os.remove(os.path.join(cls.calibdir, 'phasescreens', files[1]))
+        # Clean up copied calibration files (single/double and naming variants)
+        phasescreens_dir = os.path.join(cls.calibdir, 'phasescreens')
+        pattern = 'ps_seed*_dim8192_pixpit0.100_L010.0000_*.fits'
+        for fpath in glob.glob(os.path.join(phasescreens_dir, pattern)):
+            if os.path.exists(fpath):
+                os.remove(fpath)
         
         # Remove test/data directory with timestamp
         output_dirs = glob.glob(os.path.join(cls.datadir, '2*'))

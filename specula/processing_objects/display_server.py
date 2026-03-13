@@ -1,29 +1,19 @@
-
 import io
-import os
-import socket
-import threading
 import time
 import base64
 import queue
 import pickle
 import typing
 import multiprocessing as mp
+import numpy as np
 from contextlib import contextmanager
 
-from flask import Flask, render_template, request
-from flask_socketio import SocketIO, join_room
-import socketio
-import socketio.exceptions
+from flask_socketio import SocketIO
 
 from specula.base_value import BaseValue
 from specula.base_processing_obj import BaseProcessingObj
-from specula.display.data_plotter import DataPlotter
 
-# Use a manager to create queues so that they can be
-# pickled between processes (ordinary mp.Queue cannot)
-manager = mp.Manager()
-
+from specula.lib.display_server_api import start_server
 
 class DisplayServer(BaseProcessingObj):
     """
@@ -31,14 +21,23 @@ class DisplayServer(BaseProcessingObj):
     Copies data objects to a separate process using multiprocessing queues.
     In this instance, the separate process is a Flask web server, but this class
     could be easily made generic to support different kinds of export processes.
+    
+    This object must *not* be run concurrently with any other in the simulation,
+    because it can in some cases temporarily modify the data objects (removing references
+    to the xp module to allow pickling)
+    It has two modes of operation: 'image' and 'data'. In 'image' mode, it renders and 
+    sends the images correspoinding to the displayed data objects. In 'data' mode, it sends
+    the raw data to the client, which is responsible for rendering.
+    
     """
     def __init__(self,
                  params_dict: dict,
                  input_ref_getter: typing.Callable,
                  output_ref_getter: typing.Callable,
                  info_getter: typing.Callable,
-                 host: str='0.0.0.0',
-                 port: int=0,    # Autoselect
+                 host: str = '0.0.0.0',
+                 port: int = 0,
+                 mode: str = 'image',
     ):
         """
         Note
@@ -49,11 +48,25 @@ class DisplayServer(BaseProcessingObj):
         to the xp module to allow pickling)
         """
         super().__init__()
-        self.qin = manager.Queue()    # Queue to receive dataobj requests from the Flask webserver
-        self.qout = manager.Queue()   # Queue to send regular status updates
+        self.mode = mode
+        
+        self.qin = mp.Queue()
+        self.qout = mp.Queue()
 
-        # Flask-SocketIO web server
-        self.p = mp.Process(target=start_server, args=(params_dict, self.qout, self.qin, host, port))  # qin becomes qout for the server
+        self.params_dict = params_dict
+
+        self.p = mp.Process(
+            target=start_server, 
+            args=(
+                params_dict, 
+                self.qout, 
+                self.qin, 
+                host, 
+                port,
+                self.mode
+            )
+        )
+        
         self.p.start()
 
         # Simulation speed calculation
@@ -64,24 +77,29 @@ class DisplayServer(BaseProcessingObj):
 
         # Heuristic to detect inputs: they usually start with "in_"
         def data_obj_getter(name):
-            if '.in_' in name:
-                return input_ref_getter(name)
-            else:
-                try:
-                    return output_ref_getter(name)
-                except ValueError:
-                    # Try inputs as well
+            try:
+                if '.in_' in name:
                     return input_ref_getter(name)
+                else:
+                    try:
+                        return output_ref_getter(name)
+                    except ValueError:
+                        return input_ref_getter(name)
+            except Exception as e:
+                print(f"[DisplayServer] Could not get object '{name}': {e}")
+                return None
 
         self.data_obj_getter = data_obj_getter
         self.info_getter = info_getter
 
-    def trigger(self):
+        print(f"[DisplayServer] Initialized in {self.mode} mode")
+
+    def _trigger_image_mode(self):
         t1 = time.time()
         self.counter += 1
         if t1 - self.t0 >= 1:
             niters = self.counter - self.c0
-            speed = niters / (t1-self.t0)
+            speed = niters / (t1 - self.t0)
             self.c0 = self.counter
             self.t0 = t1
             name, status = self.info_getter()
@@ -96,213 +114,236 @@ class DisplayServer(BaseProcessingObj):
 
         while True:
             try:
-                object_names, response_queue = self.qin.get(block=False)
+                request_data = self.qin.get(block=False)
+                client_id, object_names = request_data
+                
+                for name in object_names:
+                    dataobj = self.data_obj_getter(name)
+                    if dataobj is None:                        
+                        continue
+
+                    try:
+                        if isinstance(dataobj, list):
+                            dataobj_cpu = [x.copyTo(-1) for x in dataobj]
+                        else:
+                            dataobj_cpu = dataobj.copyTo(-1)
+
+                        with remove_xp_np(dataobj_cpu) as cleaned_dataobj:
+                            obj_bytes = pickle.dumps(cleaned_dataobj)
+                            self.qout.put(('image_data', client_id, name, obj_bytes))
+                    except Exception as e:
+                        print(f"[DisplayServer][ImageMode] Error processing {name}: {e}")
+                        import traceback
+                        traceback.print_exc()
+                
+                self.qout.put(('image_terminator', client_id, None, self.speed_report))
+                
             except queue.Empty:
                 return
+            except Exception as e:
+                print(f"[DisplayServer][ImageMode] Error processing request: {e}")
+                import traceback
+                traceback.print_exc()
 
-            for name in object_names:
-
-                # Find the requested object, make sure it's on CPU,
-                # and remove xp/np modules to prepare for pickling
-                dataobj = self.data_obj_getter(name)
-                if dataobj is None:
-                    dataobj = BaseValue(value=None)
-
-                if isinstance(dataobj, list):
-                    dataobj_cpu = [x.copyTo(-1) for x in dataobj]
-                else:
-                    dataobj_cpu = dataobj.copyTo(-1)
-
-                # Use an object copy without references to xp and np
-                with remove_xp_np(dataobj_cpu) as cleaned_dataobj:
-
-                    # Double pickle trick (we pickle, and then qout will pickle again)
-                    # to avoid some problems
-                    # with serialization of modules, which apparently
-                    # are still present even after the xp and np removal
-
-                    obj_bytes = pickle.dumps(cleaned_dataobj)
-                    response_queue.put((name, obj_bytes))
-
-            # Terminator
-            response_queue.put((None, self.speed_report))
-
-    def finalize(self):
-        self.p.terminate()
-
-
-base_dir = os.path.abspath(os.path.dirname(__file__))
-templates_dir = os.path.join(base_dir, "..", "scripts", "templates")
-
-# Global variables used by Flask-SocketIO            
-app = Flask('Specula_display_server', template_folder=templates_dir)
-sio = SocketIO(app)
-print("Template search paths:", app.jinja_loader.searchpath)
-server = None
-
-
-class FlaskServer():
-    '''
-    Flask-SocketIO web server
-    '''
-    def __init__(self, params_dict: dict,
-                 qin: mp.Queue,
-                 qout: mp.Queue,
-                 host: str='0.0.0.0',
-                 port: int=5000,
-                 ):
-        self.params_dict = params_dict
-        self.t0 = {}
-        self.qin = qin
-        self.qout = qout
-        self.plotters = {}
-        self.display_lock = threading.Lock()
-        self.host = host
-        self.port = port
-        self.actual_port = None  # Filled in later
-        self.frontend_connected = False
-
-    def run(self):
-        '''
-        Run the main server and a regular status update in a separate thread
-        '''
-        t = threading.Thread(target=self.status_update, args=(sio,))
-        t.start()
-
-        # If port == 0 (auto), we need to know which one is selected, but Flask won't tell us.
-        # Therefore, find one manually and then tell Flask to use it.
-        # There is a minor race condition here (if the port is re-used in the meantime).
-        if self.port == 0:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.bind(('127.0.0.1', 0))   # Auto-select one port
-                address, port = s.getsockname()
-                s.close()  # Release the port
-                self.actual_port = port
+    def trigger(self):
+        if self.mode == 'image':
+            self._trigger_image_mode()
         else:
-            self.actual_port = self.port
+            self._trigger_data_mode()
 
-        sio.run(app, host=self.host, allow_unsafe_werkzeug=True, port=self.actual_port)
+    def _trigger_data_mode(self):
+        t1 = time.time()
+        self.counter += 1
+        if t1 - self.t0 >= 1:
+            niters = self.counter - self.c0
+            speed = niters / (t1 - self.t0)
+            self.c0 = self.counter
+            self.t0 = t1
+            name, status = self.info_getter()
+            status_report = f"{status} - {speed:.2f} Hz"
+            try:
+                self.qout.put((name, status_report))
+            except Exception as e:
+                print(f"[SIMULATION][DataMode] Error putting status: {e}")
 
-    def shutdown(self):
-        '''Force process stop'''
-        import os
-        os._exit(0)
-
-    def status_update(self, sio):
-        sio_client = socketio.Client()
-        def connect():
-            if not self.frontend_connected:
-                sio_client.connect('http://localhost:8080')  # TODO get port number from os.environ
-                self.frontend_connected = True
-
+        processed = 0
         while True:
             try:
-                name, data = self.qin.get(timeout=60)
-            except queue.Empty:
-                # Timeout. Problem in the processing object. We bail out
-                print('No updates from simulation after 60 seconds, stopping status updates')
-                self.shutdown()
-            except EOFError:
-                print('Display server terminated, exiting web server')
-                self.shutdown()
+                request_data = self.qin.get(block=False)
+                processed += 1
+                
+                client_id, object_names = request_data
+                
+                responses = []
+                for i, name in enumerate(object_names):
+                    dataobj = self.data_obj_getter(name)
+                    if dataobj is None:
+                        dataobj = BaseValue(value=None)
 
-            # Terminator
-            if data is None:
-                break
-            # Fault-tolerant publishing
-            try:
-                connect()
-                sio_client.emit('simul_update', data={'name': name, 'status': data, 'port': self.actual_port})
-            except (socketio.exceptions.ConnectionError, socketio.exceptions.BadNamespaceError):
-                # No frontend server running, will try again next time
-                self.frontend_connected = False
-                time.sleep(1)
+                    try:
+                        if isinstance(dataobj, list):
+                            dataobj_cpu = [x.copyTo(-1) for x in dataobj]
+                        else:
+                            dataobj_cpu = dataobj.copyTo(-1)
+                        
+                        def _set_xp_attribute(obj):
+                            if not hasattr(obj, 'xp'):
+                                obj.xp = np
+                        
+                        if isinstance(dataobj_cpu, list):
+                            for obj in dataobj_cpu:
+                                _set_xp_attribute(obj)
+                        else:
+                            _set_xp_attribute(dataobj_cpu)
+                        
+                        processed_data = self._process_for_dpg(dataobj_cpu, name)
+                        responses.append((name, processed_data))
+                        
+                    except Exception as e:
+                        print(f"[SIMULATION][DataMode] Error preparing data for {name}: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        responses.append((name, {
+                            'type': 'error',
+                            'data': str(e),
+                            'name': name
+                        }))
 
-    @sio.on('newdata')
-    def handle_newdata(args):
-        '''Request for new data from the browser.
-        1) Queue all requested object names
-        2) Get back all data objects, plot them, and send them back to the browser
-        '''
-        print(args)
-        client_id = request.sid
-        response_queue = manager.Queue() # Separate response queue for each client
-
-        if client_id not in server.t0:
-            server.t0[client_id] = time.time()
-
-        # Queue data object requests to the simulation Processing object
-        server.qout.put((args, response_queue))
-
-        # Function to emit results back to the client
-        def emit_results():
-            while True:
+                for name, data in responses:
+                    try:
+                        self.qout.put(('data_response', client_id, name, data))
+                    except Exception as e:
+                        print(f"[SIMULATION][DataMode] Error putting response: {e}")
+                
                 try:
-                    name, obj_bytes = response_queue.get(timeout=30)
-                except queue.Empty:
-                    # Timeout. Problem in the processing object. We bail out
-                    break
-
-                if name is None: # Terminator
-                    speed_report = obj_bytes
-                    sio.emit('speed_report', speed_report)
-                    break
-
-                dataobj = pickle.loads(obj_bytes)
-
-                # We lock because multiple clients might be requesting
-                # the same plot and our plotting functions have a global state.
-                with server.display_lock:
-                    fig = DataPlotter.plot_best_effort(name, dataobj)
-
-                sio.emit('plot', {'name': name, 'imgdata': encode(fig) }, room=client_id)
-            done()
-
-        def done():
-            t1 = time.time()
-            t0 = server.t0[client_id]
-            freq = 1.0 / (t1 - t0) if t1 != t0 else 0
-            sio.emit('done', f'Display rate: {freq:.2f} Hz', room=client_id)
-            server.t0[client_id] = t1
-
-        # Emit results in a separate thread so it doesn't block the event loop
-        join_room(client_id)
-        if len(args) > 0:
-            threading.Thread(target=emit_results).start()
-        else:
-            done()
-
-    @sio.on('connect')
-    def handle_connect(*args):
-        '''On connection, send the entire parameter dictionary
-        so that the browser can refresh the view'''
-        client_id = request.sid
-
-        # Exclude DataStore since its input_list has a different format
-        # and cannot be displayed at the moment
-
-        # TODO .inf values cannot be parsed by the Javascript client
-        # For the moment, these are only present in the Source object,
-        # which is not a processing object and so is skipped.
-        display_params = {}
-        for k, v in server.params_dict.items():
-            if 'class' in v:
-                if v['class'] == 'DataStore':
-                    continue
-                if 'inputs' not in v and 'outputs' not in v:
-                    continue
-            display_params[k] = v
-        sio.emit('params', display_params, room=client_id)
-
-    @app.route('/')
-    def index():
-        return render_template('specula_display.html')
+                    self.qout.put(('terminator', client_id, None, self.speed_report))
+                except Exception as e:
+                    print(f"[SIMULATION][DataMode] Error putting terminator: {e}")
+                
+            except queue.Empty:
+                break
+            except Exception as e:
+                print(f"[SIMULATION][DataMode] Error processing request: {e}")
+                import traceback
+                traceback.print_exc()
+                break
 
 
-def start_server(params_dict, qin, qout, host, port):
-    global server
-    server = FlaskServer(params_dict, qin, qout, host=host, port=port)
-    server.run()
+    def _process_for_dpg(self, dataobj, name):
+        """Process data object for DPG plotting."""
+        try:
+            def _safe_extract(obj):
+                try:
+                    # Here we rely on the fact that all data objects have an array_for_display method that 
+                    # returns a CPU array or a list of CPU arrays, and that this method is implemented in a 
+                    # way that it can be called safely even if the object has some non-picklable attributes (like xp)
+                    if hasattr(obj, 'array_for_display'):
+                        result = obj.array_for_display()
+                        if result is not None:
+                            return result                   
+                        
+                except Exception as e:
+                    print(f"Error extracting array from {type(obj).__name__}: {e}")
+                    return None
+                return None
+            
+            if isinstance(dataobj, list):
+                arrays = []
+                for obj in dataobj:
+                    array = _safe_extract(obj)
+                    if array is not None:
+                        if not isinstance(array, np.ndarray):
+                            array = np.array(array)
+                        # Ensure it's float for plotting
+                        if np.issubdtype(array.dtype, np.integer):
+                            array = array.astype(np.float32)
+                        arrays.append(array)
+                
+                if arrays:
+                    # For 1D lists, check if we should combine them
+                    all_1d = all(arr.ndim == 1 for arr in arrays)
+                    same_length = all(arr.shape[0] == arrays[0].shape[0] for arr in arrays) if len(arrays) > 1 else True
+                    
+                    if all_1d and same_length and len(arrays) == 1:
+                        # Single 1D array
+                        array = arrays[0]
+                        return {
+                            'type': '1d_array',
+                            'data': array.tolist(),
+                            'shape': array.shape,
+                            'dtype': str(array.dtype),
+                            'name': name
+                        }
+                    elif all_1d and same_length:
+                        # Multiple 1D arrays of same length - stack them
+                        stacked = np.stack(arrays, axis=-1)
+                        return {
+                            'type': '2d_array',
+                            'data': stacked.tolist(),
+                            'shape': stacked.shape,
+                            'dtype': str(stacked.dtype),
+                            'name': name
+                        }
+                    else:
+                        # Mixed dimensions
+                        arrays_as_lists = [arr.tolist() for arr in arrays]
+                        return {
+                            'type': 'multi_data',
+                            'data': arrays_as_lists,
+                            'shapes': [arr.shape for arr in arrays],
+                            'dtypes': [str(arr.dtype) for arr in arrays],
+                            'name': name
+                        }
+            else:
+                array = _safe_extract(dataobj)
+                if array is not None:
+                    if not isinstance(array, np.ndarray):
+                        array = np.array(array)
+                    
+                    # Ensure it's float for plotting
+                    if np.issubdtype(array.dtype, np.integer):
+                        array = array.astype(np.float32)
+                    
+                    # Determine the type
+                    if array.ndim == 0:
+                        data_type = 'scalar'
+                    elif array.ndim == 1:
+                        data_type = '1d_array'
+                    elif array.ndim == 2:
+                        data_type = '2d_array'
+                    else:
+                        data_type = 'nd_array'
+                    
+                    return {
+                        'type': data_type,
+                        'data': array.tolist(),
+                        'shape': array.shape,
+                        'dtype': str(array.dtype),
+                        'name': name
+                    }
+            
+            return {
+                'type': 'unknown',
+                'data': None,
+                'name': name
+            }
+            
+        except Exception as e:
+            print(f"Error processing data for DPG ({name}): {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                'type': 'error',
+                'data': str(e),
+                'name': name
+            }
+
+
+    def finalize(self):
+        if hasattr(self, 'p') and self.p.is_alive():
+            self.p.terminate()
+            self.p.join()
+            print(f"[DisplayServer] Server process terminated")
 
 
 @contextmanager
@@ -336,7 +377,7 @@ def remove_xp_np(obj):
         for k, v in deleted.items():
             setattr(obj, k, v)
 
-    deleted =_remove(obj)    
+    deleted = _remove(obj)    
     yield obj
     _putback((obj, deleted))
 

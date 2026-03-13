@@ -64,8 +64,11 @@ class IirFilterData(BaseDataObj):
         self.zeros = None
         self.poles = None
         self.gain = None
-        self.set_num(self.to_xp(num, dtype=self.dtype))
-        self.set_den(self.to_xp(den, dtype=self.dtype))
+        self.num = None
+        self.den = None
+        self._num_normalized = None
+        self.set_num(cpuArray(num))
+        self.set_den(cpuArray(den))
 
     @property
     def nfilter(self):
@@ -73,97 +76,117 @@ class IirFilterData(BaseDataObj):
 
     def get_zeros(self):
         if self.zeros is None:
-            snum1 = self.num.shape[1]
-            zeros = self.xp.zeros((self.nfilter, snum1 - 1), dtype=self.dtype)
+            num_cpu = cpuArray(self.num)
+            ordnum_cpu = cpuArray(self.ordnum)
+            snum1 = num_cpu.shape[1]
+            zeros_cpu = np.zeros((self.nfilter, snum1 - 1))
             for i in range(self.nfilter):
-                if self.ordnum[i] > 1:
-                    roots = self.xp.roots(self.num[i, snum1 - int(self.ordnum[i]):])
+                oi = int(ordnum_cpu[i])
+                if oi > 1:
+                    roots = np.roots(num_cpu[i, snum1 - oi:])
                     if np.sum(np.abs(roots)) > 0:
-                        zeros[i, :int(self.ordnum[i]) - 1] = roots
-            self.zeros = zeros
+                        zeros_cpu[i, :oi - 1] = roots
+            self.zeros = self.to_xp(zeros_cpu, dtype=self.dtype)
         return self.zeros
 
     def get_poles(self):
         if self.poles is None:
-            sden1 = self.den.shape[1]
-            poles = self.xp.zeros((self.nfilter, sden1 - 1), dtype=self.dtype)
+            den_cpu = cpuArray(self.den)
+            ordden_cpu = cpuArray(self.ordden)
+            sden1 = den_cpu.shape[1]
+            poles_cpu = np.zeros((self.nfilter, sden1 - 1))
             for i in range(self.nfilter):
-                if self.ordden[i] > 1:
-                    poles[i, :int(self.ordden[i]) - 1] = self.xp.roots(self.den[i, sden1 - int(self.ordden[i]):])
-            self.poles = poles
+                oi = int(ordden_cpu[i])
+                if oi > 1:
+                    poles_cpu[i, :oi - 1] = np.roots(den_cpu[i, sden1 - oi:])
+            self.poles = self.to_xp(poles_cpu, dtype=self.dtype)
         return self.poles
 
     def set_num(self, num):
-        snum1 = num.shape[1]
-        mynum = num.copy()
+        mynum = cpuArray(num).copy()
+        ordnum_cpu = cpuArray(self.ordnum)
+        snum1 = mynum.shape[1]
         for i in range(len(mynum)):
-            if self.ordnum[i] < snum1:
-                if np.sum(self.xp.abs(mynum[i, int(self.ordnum[i]):])) == 0:
-                    mynum[i, :] = self.xp.roll(mynum[i, :], snum1 - int(self.ordnum[i]))
+            oi = int(ordnum_cpu[i])
+            if oi < snum1 and np.sum(np.abs(mynum[i, oi:])) == 0:
+                mynum[i, :] = np.roll(mynum[i, :], snum1 - oi)
 
-        gain = self.xp.zeros(len(mynum), dtype=self.dtype)
-        for i in range(len(gain)):
-            gain[i] = mynum[i, - 1]
-        self.gain = gain
-        self.zeros = None 
+        gain = mynum[:, -1]
+        nonzero_gain = np.abs(gain) > 0
+        safe_gain = np.where(nonzero_gain, gain, 1.0)
+        num_normalized = mynum / safe_gain[:, None]
+        self.gain = self.to_xp(gain, dtype=self.dtype)
+        self._num_normalized = self.to_xp(num_normalized, dtype=self.dtype)
+        self.zeros = None
         self.num = self.to_xp(mynum, dtype=self.dtype)
 
     def set_den(self, den):
-        sden1 = den.shape[1]
-        myden = den.copy()
+        myden = cpuArray(den).copy()
+        ordden_cpu = cpuArray(self.ordden)
+        sden1 = myden.shape[1]
         for i in range(len(myden)):
-            if self.ordden[i] < sden1:
-                if np.sum(self.xp.abs(myden[i, int(self.ordden[i]):])) == 0:
-                    myden[i, :] = self.xp.roll(myden[i, :], sden1 - int(self.ordden[i]))
+            oi = int(ordden_cpu[i])
+            if oi < sden1 and np.sum(np.abs(myden[i, oi:])) == 0:
+                myden[i, :] = np.roll(myden[i, :], sden1 - oi)
 
         self.den = self.to_xp(myden, dtype=self.dtype)
         self.poles = None
 
     def set_zeros(self, zeros):
-        self.zeros = self.to_xp(zeros, dtype=self.dtype)
-        num = self.xp.zeros((self.nfilter, self.zeros.shape[1] + 1), dtype=self.dtype)
-        snum1 = num.shape[1]
+        zeros_cpu = cpuArray(zeros)
+        ordnum_cpu = cpuArray(self.ordnum)
+        num_cpu = np.zeros((self.nfilter, zeros_cpu.shape[1] + 1))
+        snum1 = num_cpu.shape[1]
         for i in range(self.nfilter):
-            if self.ordnum[i] > 1:
-                num[i, snum1 - int(self.ordnum[i]):] = self.xp.poly(self.zeros[i, :int(self.ordnum[i]) - 1])
-        self.num = num
+            oi = int(ordnum_cpu[i])
+            if oi > 1:
+                num_cpu[i, snum1 - oi:] = np.poly(zeros_cpu[i, :oi - 1])
+        self.set_num(num_cpu)  # resets self.zeros = None internally
+        self.zeros = self.to_xp(zeros_cpu, dtype=self.dtype)
 
     def set_poles(self, poles):
-        self.poles = self.to_xp(poles, dtype=self.dtype)
-        den = self.xp.zeros((self.nfilter, self.poles.shape[1] + 1), dtype=self.dtype)
-        sden1 = den.shape[1]
+        poles_cpu = cpuArray(poles)
+        ordden_cpu = cpuArray(self.ordden)
+        den_cpu = np.zeros((self.nfilter, poles_cpu.shape[1] + 1))
+        sden1 = den_cpu.shape[1]
         for i in range(self.nfilter):
-            if self.ordden[i] > 1:
-                den[i, sden1 - int(self.ordden[i]):] = self.xp.poly(self.poles[i, :int(self.ordden[i]) - 1])
-        self.den = den
+            oi = int(ordden_cpu[i])
+            if oi > 1:
+                den_cpu[i, sden1 - oi:] = np.poly(poles_cpu[i, :oi - 1])
+        self.poles = self.to_xp(poles_cpu, dtype=self.dtype)
+        self.den = self.to_xp(den_cpu, dtype=self.dtype)
 
     def set_gain(self, gain, verbose=False):
+        if np.isscalar(gain) or np.ndim(gain) == 0:
+            gain = np.repeat(gain, self.nfilter)
         gain = self.to_xp(gain, dtype=self.dtype)
         if verbose:
             print('original gain:', self.gain)
+
+        if self._num_normalized is None:
+            self._num_normalized = self.to_xp(self.num, dtype=self.dtype)
+            if self.gain is not None:
+                nonzero_gain = self.xp.abs(self.gain) > 0
+                safe_gain = self.xp.where(nonzero_gain, self.gain, 1)
+                self._num_normalized = self._num_normalized / safe_gain[:, None]
+
         if self.xp.size(gain) < self.nfilter:
             nfilter = np.size(gain)
         else:
             nfilter = self.nfilter
+
         if self.gain is None:
-            for i in range(nfilter):
-                if self.xp.isfinite(gain[i]):
-                    if self.ordnum[i] > 1:
-                        self.num[i, :] *= gain[i]
-                    else:
-                        self.num[i, - 1] = gain[i]
-                else:
-                    gain[i] = self.num[i, - 1]
+            current_gain = self.xp.zeros(self.nfilter, dtype=self.dtype)
+            current_gain[:nfilter] = gain[:nfilter]
         else:
-            for i in range(nfilter):
-                if self.xp.isfinite(gain[i]):
-                    if self.ordnum[i] > 1:
-                        self.num[i, :] *= (gain[i] / self.gain[i])
-                    else:
-                        self.num[i, - 1] = gain[i] / self.gain[i]
-                else:
-                    gain[i] = self.gain[i]
-        self.gain = self.to_xp(gain, dtype=self.dtype)
+            current_gain = self.to_xp(self.gain, dtype=self.dtype)
+
+        finite_gain = self.xp.isfinite(gain[:nfilter])
+        current_gain[:nfilter] = self.xp.where(finite_gain, gain[:nfilter], current_gain[:nfilter])
+
+        self.gain = self.to_xp(current_gain, dtype=self.dtype)
+        self.num = self.to_xp(self._num_normalized * self.gain[:, None], dtype=self.dtype)
+
         if verbose:
             print('new gain:', self.gain)
 

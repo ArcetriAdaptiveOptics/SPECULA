@@ -1,4 +1,5 @@
 import os
+import glob
 import specula
 specula.init(0)  # Default target device
 
@@ -25,10 +26,8 @@ class TestAtmoEvolution(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         """Clean up after all tests by removing generated files"""
-        files = ['ps_seed1_dim8192_pixpit0.050_L023.0000_double.fits',
-                 'ps_seed1_dim8192_pixpit0.050_L023.0000_single.fits']
-        for fname in files:
-            fpath = os.path.join(cls.data_dir, fname)
+        pattern = 'ps_seed*_pixpit0.050_L023.0000_*.fits'
+        for fpath in glob.glob(os.path.join(cls.data_dir, pattern)):
             if os.path.exists(fpath):
                 os.remove(fpath)
 
