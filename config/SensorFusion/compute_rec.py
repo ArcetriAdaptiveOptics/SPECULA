@@ -6,6 +6,16 @@ from specula.lib.make_mask import make_mask
 
 from specula.lib.mmse_reconstructor import compute_mmse_reconstructor
 
+
+def radial_order(i_mode):
+    noll = i_mode + 2
+    return np.ceil(-3.0/2.0+np.sqrt(1+8*noll)/2.0)
+
+def von_karman_power(k,r0,L0,D):
+    C = 0.02289558710855519
+    B = k**2 + (D/L0)**2
+    return C * (r0/D)**(-5.0/3.0) * B**(-11.0/6.0)
+
 def get_mask(pyr:bool=True):
     npix = 120
     if pyr:
@@ -42,7 +52,14 @@ def compute_ml_rec(im_tag:str, Nmodes:int, frame_tag:str, cov_tag:str=None, RON:
     slope_null = frame_null[wfs_mask]
     noise_cov = np.diag((slope_null + RON))
     if cov_tag is None:
-        turb_cov = np.eye(Nmodes)
+        diam=8.2
+        k = radial_order(np.arange(Nmodes))/diam
+        turb_cov = np.diag(np.sqrt(von_karman_power(k,r0=10e-2,L0=25,D=diam))*(2*np.pi*500))
+        # import matplotlib.pyplot as plt
+        # plt.figure()
+        # plt.plot(k,np.diag(turb_cov))
+        # plt.grid()
+        # plt.show()
     else:
         cov_hdul = fits.open('./calibration/ifunc/'+cov_tag+'_turb_cov.fits')
         turb_cov = np.diag(cov_hdul[0].data[:Nmodes])
@@ -70,13 +87,13 @@ def save_rec(rec, rec_tag:str, overwrite:bool=True):
     print('Reconstructor saved as '+rec_tag+'_rec')
 
 
-def compute_pyr_rec(Nmodes:int, im_tag:str='pyr_1821modes', compute_ml:bool=False, frame_tag = ''):
+def compute_pyr_rec(Nmodes:int, im_tag:str='pyr_1821modes', compute_ml:bool=False, frame_tag = '', cov_tag=None):
     if compute_ml is False:
         rec_tag = f'pyr_{Nmodes:1.0f}modes'
         rec = compute_rec(im_tag=im_tag, Nmodes=Nmodes)
     else:
         rec_tag = f'pyr_{Nmodes:1.0f}modes_ml'
-        rec = compute_ml_rec(im_tag=im_tag, Nmodes=Nmodes, frame_tag=frame_tag, cov_tag='bmc2k_vlt', RON=0.5, isPyr=True)
+        rec = compute_ml_rec(im_tag=im_tag, Nmodes=Nmodes, frame_tag=frame_tag, cov_tag=cov_tag, RON=0.5, isPyr=True)
     return rec, rec_tag
 
 
@@ -98,11 +115,15 @@ if __name__ == "__main__":
         rec,_ = compute_pyr_rec(Nmodes=Nmodes,im_tag=f'pyr{rMod:1.1f}_1821modes')
         save_rec(rec, rec_tag=f'pyr{rMod:1.1f}_{Nmodes:1.0f}modes')
 
+    rec,_ = compute_pyr_rec(Nmodes=Nmodes,compute_ml=True, cov_tag=None, 
+                            im_tag=f'pyr1.0_1821modes',frame_tag=f'pyr1.0_frame')
+    save_rec(rec, rec_tag=f'pyr1.0_{Nmodes:1.0f}modes_ml')
+
     dotSizes = np.array([1,1.5,2])
     for dotSize in dotSizes:
         rec,_ = compute_zwfs_rec(Nmodes=Nmodes,im_tag=f'z{dotSize:1.1f}wfs_1821modes')
         save_rec(rec, rec_tag=f'z{dotSize:1.1f}wfs_{Nmodes:1.0f}modes')
 
-        rec,_ = compute_zwfs_rec(Nmodes=Nmodes,compute_ml=True, cov_tag='bmc2k_vlt', #cov_tag=None,
-                                 im_tag=f'z{dotSize:1.1f}wfs_1821modes',frame_tag=f'z{dotSize:1.1f}wfs_frame')
-        save_rec(rec, rec_tag=f'z{dotSize:1.1f}wfs_{Nmodes:1.0f}modes_ml')
+        # rec,_ = compute_zwfs_rec(Nmodes=Nmodes,compute_ml=True, cov_tag=None, #'bmc2k_vlt', #cov_tag=None,
+        #                          im_tag=f'z{dotSize:1.1f}wfs_1821modes',frame_tag=f'z{dotSize:1.1f}wfs_frame')
+        # save_rec(rec, rec_tag=f'z{dotSize:1.1f}wfs_{Nmodes:1.0f}modes_ml')

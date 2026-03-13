@@ -11,6 +11,18 @@ import matplotlib.pyplot as plt
 from specula.base_value import BaseValue
 
 
+def get_spectrum(data, dt:float=1.0):
+    freq = np.fft.rfftfreq(data.shape[-1], d=dt)
+    spe = np.fft.rfft(data, norm="ortho", axis=-1)
+    nn = np.sqrt(spe.shape[-1])
+    spe_norm = (np.abs(spe)) / nn
+    if len(spe.shape) > 1:
+        spe_norm[:,0] = 0 
+    else:
+        spe_norm[0] = 0
+    return spe_norm, freq
+
+
 def show_psf(psf, oversampling:int=4, title:str='', ext=0.25, vmin=-8, vmax=0, cmap='inferno', maxVal=None):
     imageHalfSizeInPoints= psf.shape[0]/2
     roi= [int(imageHalfSizeInPoints*(1-ext)), int(imageHalfSizeInPoints*(1+ext))]
@@ -96,6 +108,54 @@ try:
     plt.yscale('log')
     plt.legend()
     plt.grid(True)
+except FileNotFoundError:
+    print(f"dm_res.fits, pyr_res.fits or atmo_res.fits files not found in {data_dir}.")
+
+try:
+    comm = data["dm_cmd"][init+1:, :]
+    res = data["dm_res"][init+1:, :comm.shape[1]]
+    meas = data["pyr_modes"][init+1:, :comm.shape[1]]
+    zmeas = data["zwfs_modes"][init+1:, :comm.shape[1]]
+    
+    pol_modes = comm + meas
+    zpol_modes = comm + zmeas
+    turb_modes = res + comm
+
+    dt = 1/2000
+    # zpol_spe, f = get_spectrum(zpol_modes.T,dt=dt)
+    pol_spe, f = get_spectrum(pol_modes.T,dt=dt)
+    turb_spe, f = get_spectrum(turb_modes.T,dt=dt)
+
+    lo_mode_ids = [0,1,2,3,20]
+    plt.figure()
+    for mode in lo_mode_ids:
+        plt.loglog(f,pol_spe[mode,:]**2,label=f'Mode {mode:1.0f}')
+    plt.grid(which='both', alpha=0.3)
+    plt.xlabel('Frequency [Hz]')
+    plt.legend()
+    plt.xlim([1,1/dt/2])
+    plt.ylabel(r'RMS [$nm^2$]')
+    plt.tight_layout()
+
+    ho_mode_ids = [50,100,200,500,1000]
+    plt.figure()
+    for mode in ho_mode_ids:
+        plt.loglog(f,pol_spe[mode,:]**2,label=f'Mode {mode:1.0f}')
+    plt.grid(which='both', alpha=0.3)
+    plt.xlabel('Frequency [Hz]')
+    plt.legend()
+    plt.xlim([1,1/dt/2])
+    plt.ylabel(r'RMS [$nm^2$]')
+    plt.tight_layout()
+
+    # plt.figure()
+    # for k,mode in enumerate(ho_mode_ids):
+    #     plt.loglog(f,pol_spe[mode,:]-zpol_spe[mode,:],'--',c=f'C{k}',label=f'Mode {mode:1.0f}')
+    #     # plt.loglog(f,zpol_spe[mode,:],':',c=f'C{k}',label=f'')
+    # plt.grid(which='both', alpha=0.3)
+    # plt.xlabel('Frequency [Hz]')
+    # plt.legend()
+
 except FileNotFoundError:
     print(f"dm_res.fits, pyr_res.fits or atmo_res.fits files not found in {data_dir}.")
 

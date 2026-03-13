@@ -81,7 +81,7 @@ pyr:
   pup_diam:          48.                     # Pupil diameter in subaps.
   pup_dist:          60.                     # Separation between pupil centers in subaps.
   fov:               2.0                     # Requested field-of-view [arcsec]
-  mod_amp:           0.0                     # Modulation radius (in lambda/D units)
+  mod_amp:           1.0                     # Modulation radius (in lambda/D units)
   output_resolution: 120                      # Output sampling [usually corresponding to CCD pixels]
   wavelengthInNm:    750                     # [nm] Pyramid wavelength
   inputs:
@@ -107,14 +107,14 @@ pyr_slopes:
   class:                  'PyrSlopec'
   pupdata_object:         'pyr_pupdata'           
   slopes_from_intensity:  true
-  # sn_object:            'pyr0.0_sn_pc_s0.9_c' #'pyr2.0_slope_null' #
+  sn_object:            'pyr1.0_slope_null' #'pyr0.0_sn_pc_s0.9_c' #
   inputs:
     in_pixels:        'cred1.out_pixels'
   outputs:           ['out_slopes']
 
 pyr_modalrec:
   class:             'Modalrec'
-  recmat_object:     'pyr0.0_1200modes_rec'        
+  recmat_object:     'pyr1.0_1200modes_ml_rec'        
   inputs:
     in_slopes:       'pyr_slopes.out_slopes'
   outputs:           ['out_modes']
@@ -280,7 +280,7 @@ zwfs_modalrec:
 filter:
   class:                'IirFilter'
   simul_params_ref:     'main'
-  iir_gain:             0.4
+  iir_gain:             0.8
   delay:                1 # Total temporal delay in time steps is this value +1
   iir_filter_data_object:  'iirfilter'
   inputs:
@@ -308,7 +308,7 @@ psf:
   wavelengthInNm:    750                 # [nm] visible
   nd:                4                    # 4x padding for PSF
   start_time:        0.5                  # Start PSF integration after 500ms
-  # verbose: false
+  verbose: false
   inputs:
     in_ef:           'ef_prop.out_ef'
   outputs:           ['out_psf', 'out_std_psf', 'out_sr']
@@ -352,6 +352,7 @@ data_store:
                   'coro_psf_std-coro_psf.out_coronagraph_psf',
                   'atmo_res-atmo_mode_res.out_modes',
                   'dm_res-dm_mode_res.out_modes',
+                  'dm_cmd-filter.out_comm',
                   'pyr_modes-pyr_modalrec.out_modes',
                   'zwfs_modes-zwfs_modalrec.out_modes',
                   'ccd1-cred1.out_pixels',
