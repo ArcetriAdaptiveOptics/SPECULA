@@ -223,21 +223,11 @@ class TestProcessForDpg(unittest.TestCase):
         self.assertEqual(result['type'], '2d_array')
         self.assertEqual(result['shape'], (8, 3))
 
-    def test_numpy_array_passed_directly(self):
+    def test_numpy_array_passed_directly_return_unknown(self):
         server = self._make_server()
         arr = np.eye(3)
         result = server._process_for_dpg(arr, 'direct')
-        self.assertEqual(result['type'], '2d_array')
-
-    def test_get_method_fallback(self):
-        """If array_for_display returns None, _safe_extract should try .get()."""
-        server = self._make_server()
-        arr = np.array([7.0, 8.0])
-        obj = MagicMock()
-        obj.array_for_display.return_value = None
-        obj.get.return_value = arr
-        result = server._process_for_dpg(obj, 'get_fallback')
-        self.assertEqual(result['type'], '1d_array')
+        self.assertEqual(result['type'], 'unknown')
 
     def test_returns_unknown_when_no_data(self):
         server = self._make_server()
@@ -462,36 +452,37 @@ class TestStartServerParamsSanitisation(unittest.TestCase):
 # Tests for display params filtering (DataStore / inputs+outputs logic)
 # ---------------------------------------------------------------------------
 
+from specula.lib.display_server_api import filter_params_for_display as _filter
+
 class TestDisplayParamsFiltering(unittest.TestCase):
     """
     The same filtering logic appears in both image-mode and data-mode handlers.
     We test it independently.
     """ 
-    from specula.lib.display_server_api import filter_params_for_display as _filter
 
     def test_datastore_excluded(self):
         params = {'ds': {'class': 'DataStore', 'inputs': ['x']}}
-        result = self._filter(params)
+        result = _filter(params)
         self.assertNotIn('ds', result)
 
     def test_class_without_inputs_outputs_excluded(self):
         params = {'src': {'class': 'Source', 'mag': 5}}
-        result = self._filter(params)
+        result = _filter(params)
         self.assertNotIn('src', result)
 
     def test_class_with_inputs_included(self):
         params = {'wfs': {'class': 'Sensor', 'inputs': ['pupil']}}
-        result = self._filter(params)
+        result = _filter(params)
         self.assertIn('wfs', result)
 
     def test_class_with_outputs_included(self):
         params = {'dm': {'class': 'DM', 'outputs': ['phase']}}
-        result = self._filter(params)
+        result = _filter(params)
         self.assertIn('dm', result)
 
     def test_entry_without_class_always_included(self):
         params = {'meta': {'version': '1.0'}}
-        result = self._filter(params)
+        result = _filter(params)
         self.assertIn('meta', result)
 
     def test_mixed_params(self):
@@ -501,7 +492,7 @@ class TestDisplayParamsFiltering(unittest.TestCase):
             'wfs': {'class': 'Sensor', 'inputs': ['pupil']},
             'cfg': {'root_dir': '/tmp'},
         }
-        result = self._filter(params)
+        result = _filter(params)
         self.assertNotIn('ds', result)
         self.assertNotIn('src', result)
         self.assertIn('wfs', result)
@@ -995,30 +986,16 @@ class TestProcessForDpgExtra(unittest.TestCase):
         result = srv._process_for_dpg([obj], 'empty_list')
         self.assertIn(result['type'], ('unknown', 'error'))
 
-    def test_value_attribute_fallback(self):
-        """Last-resort .value path when np.array() raises."""
+    def test_random_class_returns_unknown(self):
+        """Test that an object not deriving from BaseDataObject is handled gracefully."""
         srv = self._make_server()
 
         class ObjWithValueOnly:
             def __init__(self):
                 self.value = np.array([1.0, 2.0, 3.0])
-            def __array__(self, dtype=None):
-                raise ValueError('cannot convert')
 
         result = srv._process_for_dpg(ObjWithValueOnly(), 'val_fb')
-        self.assertEqual(result['type'], '1d_array')
-
-    def test_shape_attribute_branch_converts_via_np_array(self):
-        """Object with .shape but not ndarray — converted via np.array(obj)."""
-        srv = self._make_server()
-
-        class HasShape:
-            shape = (4,)
-            def __array__(self, dtype=None):
-                return np.arange(4, dtype=np.float64)
-
-        result = srv._process_for_dpg(HasShape(), 'shaped')
-        self.assertEqual(result['type'], '1d_array')
+        self.assertEqual(result['type'], 'unknown')
 
     def test_list_integer_arrays_cast_to_float32(self):
         srv = self._make_server()
@@ -1202,6 +1179,7 @@ class TestImageFlaskServerStatusUpdate(unittest.TestCase):
 
     def test_breaks_on_none_data(self):
         srv, sq = self._make_server()
+        srv.shutdown = lambda: 0  # prevent actual shutdown
         sq.put(('sim', None))
         with patch('socketio.Client'):
             t = threading.Thread(target=srv.status_update,
@@ -1212,6 +1190,7 @@ class TestImageFlaskServerStatusUpdate(unittest.TestCase):
 
     def test_emits_simul_update_on_status_tuple(self):
         srv, sq = self._make_server()
+        srv.shutdown = lambda: 0  # prevent actual shutdown
         mock_client = MagicMock()
         sq.put(('sim_name', 'running at 10 Hz'))
         sq.put(('sim_name', None))
@@ -1225,6 +1204,7 @@ class TestImageFlaskServerStatusUpdate(unittest.TestCase):
 
     def test_requeues_non_2tuple_items(self):
         srv, sq = self._make_server()
+        srv.shutdown = lambda: 0  # prevent actual shutdown
         sq.put(('image_terminator', 'cli1', None, '5 Hz'))  # 4-tuple → requeue
         sq.put(('sim', None))
         with patch('socketio.Client'):
@@ -1239,6 +1219,7 @@ class TestImageFlaskServerStatusUpdate(unittest.TestCase):
         import socketio.exceptions
         srv, sq = self._make_server()
         srv.frontend_connected = True
+        srv.shutdown = lambda: 0  # prevent actual shutdown
         mock_client = MagicMock()
         mock_client.emit.side_effect = socketio.exceptions.ConnectionError()
         sq.put(('sim', 'running'))
@@ -1268,25 +1249,31 @@ class TestImageFlaskServerHandleResponsesActual(unittest.TestCase):
 
     def test_image_data_branch_emits_plot(self):
         from specula.lib.display_server_api import sio
+        from specula.processing_objects.display_server import remove_xp_np
         srv, sq = self._make_server()
         srv.client_types['cli1'] = 'web'
-        obj_bytes = pickle.dumps(_PicklableDataObj(np.eye(3)))
-        mock_fig = MagicMock()
-        mock_fig.savefig.side_effect = lambda buf, fmt: buf.write(b'\x89PNG\r\n\x1a\n')
-        with patch.object(sio, 'emit') as mock_emit, \
-             patch('specula.lib.display_server_api.DataPlotter') as mock_dp:
-            mock_dp.plot_best_effort.return_value = mock_fig
-            sq.put(('image_data', 'cli1', 'slopes', obj_bytes))
-            time.sleep(0.3)
+        obj = _PicklableDataObj(np.eye(3))
+        with remove_xp_np(obj):
+            obj_bytes = pickle.dumps(obj)
+            mock_fig = MagicMock()
+            mock_fig.savefig.side_effect = lambda buf, fmt: buf.write(b'\x89PNG\r\n\x1a\n')
+            with patch.object(sio, 'emit') as mock_emit, \
+                patch('specula.lib.display_server_api.DataPlotter') as mock_dp:
+                mock_dp.plot_best_effort.return_value = mock_fig
+                sq.put(('image_data', 'cli1', 'slopes', obj_bytes))
+                time.sleep(0.3)
         self.assertIn('plot', [c[0][0] for c in mock_emit.call_args_list])
 
     def test_image_data_unknown_client_not_emitted(self):
         from specula.lib.display_server_api import sio
+        from specula.processing_objects.display_server import remove_xp_np
         srv, sq = self._make_server()
-        obj_bytes = pickle.dumps(_PicklableDataObj(np.zeros(4)))
-        with patch.object(sio, 'emit') as mock_emit:
-            sq.put(('image_data', 'ghost', 'slopes', obj_bytes))
-            time.sleep(0.3)
+        obj = _PicklableDataObj(np.zeros(4))
+        with remove_xp_np(obj):
+            obj_bytes = pickle.dumps(obj)
+            with patch.object(sio, 'emit') as mock_emit:
+                sq.put(('image_data', 'ghost', 'slopes', obj_bytes))
+                time.sleep(0.3)
         self.assertEqual(
             len([c for c in mock_emit.call_args_list if c[0][0] == 'plot']), 0
         )
@@ -1431,6 +1418,7 @@ class TestDataFlaskServerStatusUpdate(unittest.TestCase):
         srv.status_queue = mock_q
         with patch.object(srv, 'shutdown') as mock_shutdown, \
              patch('socketio.Client'):
+            
             t = threading.Thread(target=srv.status_update,
                                  args=(MagicMock(),), daemon=True)
             t.start()

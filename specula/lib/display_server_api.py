@@ -236,11 +236,12 @@ class FlaskServer:
                     time.sleep(0.001)
                     
             except queue.Empty:
-                self.shutdown()
+                break
             except EOFError:
-                self.shutdown()
+                break
             except Exception as e:
-                self.shutdown()
+                break
+        self.shutdown()
 
     def handle_responses(self):
         while True:
