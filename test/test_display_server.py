@@ -2,6 +2,7 @@ import specula
 specula.init(0)  # Default target device
 
 import io
+import sys
 import pickle
 import queue as _queue_module
 import queue
@@ -796,6 +797,7 @@ class TestStatusRoute(unittest.TestCase):
         finally:
             api.server = original
 
+    @unittest.skipIf(sys.platform == 'darwin', reason='Not implemented on MacOSX')
     def test_status_image_mode(self):
         import specula.lib.display_server_api as api
         from specula.lib.display_server_api import ImageFlaskServer
@@ -819,6 +821,7 @@ class TestStatusRoute(unittest.TestCase):
         finally:
             api.server = original
 
+    @unittest.skipIf(sys.platform == 'darwin', reason='Not implemented on MacOSX')
     def test_status_data_mode(self):
         import specula.lib.display_server_api as api
         from specula.lib.display_server_api import DataFlaskServer
