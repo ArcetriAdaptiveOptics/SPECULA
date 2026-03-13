@@ -168,7 +168,6 @@ class DisplayServer(BaseProcessingObj):
                 responses = []
                 for i, name in enumerate(object_names):
                     dataobj = self.data_obj_getter(name)
-                    print('Got object for name:', name, '->', type(dataobj), dataobj)
                     if dataobj is None:
                         dataobj = BaseValue(value=None)
 
