@@ -34,11 +34,7 @@ base_dir = os.path.abspath(os.path.dirname(__file__))
 templates_dir = os.path.join(base_dir, "..", "scripts", "templates")
 
 app = Flask('Specula_display_server', template_folder=templates_dir)
-
-if async_mode:
-    sio = SocketIO(app, cors_allowed_origins="*", async_mode=async_mode)
-else:
-    sio = SocketIO(app, cors_allowed_origins="*")
+sio = SocketIO(app, cors_allowed_origins="*", async_mode=async_mode)
 
 server = None
 
@@ -153,7 +149,7 @@ def setup_data_mode_handlers():
         if client_id in server.client_subscriptions and output_to_unsubscribe in server.client_subscriptions[client_id]:
             server.client_subscriptions[client_id].remove(output_to_unsubscribe)
 
-class ImageFlaskServer:
+class FlaskServer:
     def __init__(self, params_dict: dict,
                  status_queue: mp.Queue,
                  request_queue: mp.Queue,
@@ -171,135 +167,20 @@ class ImageFlaskServer:
         self.actual_port = None
         self.frontend_connected = False
         self.client_types = {}
-        
-        self.response_handler_thread = threading.Thread(target=self.handle_image_responses, daemon=True)
-        self.response_handler_thread.start()
-
-    def run(self):
-        t = threading.Thread(target=self.status_update, args=(sio,))
-        t.start()
-
-        if self.port == 0:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.bind(('127.0.0.1', 0))
-                address, port = s.getsockname()
-                s.close()
-                self.actual_port = port
-        else:
-            self.actual_port = self.port
-
-        sio.run(app, host=self.host, allow_unsafe_werkzeug=True, port=self.actual_port)
-
-    def shutdown(self):
-        import os
-        os._exit(0)
-
-    def status_update(self, sio):
-        sio_client = socketio.Client()
-        
-        def connect():
-            if not self.frontend_connected:
-                try:
-                    sio_client.connect(f'http://localhost:8080')
-                    self.frontend_connected = True
-                except:
-                    pass
-
-        while True:
-            try:
-                item = self.status_queue.get(timeout=60)
-                
-                if isinstance(item, tuple) and len(item) == 2:
-                    name, data = item
-                    
-                    if data is None:
-                        break
-                    
-                    try:
-                        connect()
-                        sio_client.emit('simul_update', data={'name': name, 'status': data, 'port': self.actual_port})
-                    except (socketio.exceptions.ConnectionError, socketio.exceptions.BadNamespaceError):
-                        self.frontend_connected = False
-                        time.sleep(1)
-                else:
-                    self.status_queue.put(item)
-                    time.sleep(0.001)
-                    
-            except queue.Empty:
-                self.shutdown()
-            except EOFError:
-                self.shutdown()
-            except Exception as e:
-                self.shutdown()
-
-    def handle_image_responses(self):
-        while True:
-            try:
-                item = self.status_queue.get(timeout=1)
-                
-                if isinstance(item, tuple) and len(item) == 4:
-                    response_type, client_id, name, data = item
-                    
-                    if response_type == 'image_data':
-                        if client_id in self.client_types:
-                            try:
-                                dataobj = pickle.loads(data)
-                                
-                                with self.display_lock:
-                                    fig = DataPlotter.plot_best_effort(name, dataobj)
-                                
-                                sio.emit('plot', {'name': name, 'imgdata': encode(fig)}, room=client_id)
-                            except Exception as e:
-                                print(f"[SERVER][ImageMode] Error processing image data for {name}: {e}")
-                                import traceback
-                                traceback.print_exc()
-                    
-                    elif response_type == 'image_terminator':
-                        if client_id in self.client_types:
-                            try:
-                                sio.emit('speed_report', data, room=client_id)
-                                t1 = time.time()
-                                t0 = self.t0.get(client_id, t1)
-                                freq = 1.0 / (t1 - t0) if t1 != t0 else 0
-                                sio.emit('done', f'Display rate: {freq:.2f} Hz', room=client_id)
-                                self.t0[client_id] = t1
-                            except Exception as e:
-                                print(f"[SERVER][ImageMode] Error sending terminator to {client_id}: {e}")
-                else:
-                    self.status_queue.put(item)
-                    time.sleep(0.001)
-                    
-            except queue.Empty:
-                continue
-            except Exception as e:
-                print(f"[SERVER][ImageMode] Error in image response handler: {e}")
-                import traceback
-                traceback.print_exc()
-
-class DataFlaskServer:
-    def __init__(self, params_dict: dict,
-                 status_queue: mp.Queue,
-                 request_queue: mp.Queue,
-                 host: str = '0.0.0.0',
-                 port: int = 5000,
-                 ):
-        self.params_dict = params_dict
-        self.t0 = {}
-        self.status_queue = status_queue
-        self.request_queue = request_queue
-        self.display_lock = threading.Lock()
-        self.host = host
-        self.port = port
-        self.actual_port = None
-        self.frontend_connected = False
-        self.client_types = {}
         self.last_request_time = 0
         self.last_request_outputs = []
         self.client_subscriptions = {}
-
+        
+        self.response_handlers = {}
+        self.response_handlers['terminator'] = self.terminator_response_handler
+        self.response_handlers['image_terminator'] = self.terminator_response_handler
+        self.register_additional_response_handlers()
         self.response_handler_thread = threading.Thread(target=self.handle_responses, daemon=True)
         self.response_handler_thread.start()
 
+    def register_additional_response_handlers(self):
+        raise NotImplementedError("Subclasses must implement register_additional_response_handlers method")
+    
     def run(self):
         t = threading.Thread(target=self.status_update, args=(sio,))
         t.start()
@@ -316,7 +197,6 @@ class DataFlaskServer:
         sio.run(app, host=self.host, allow_unsafe_werkzeug=True, port=self.actual_port)
 
     def shutdown(self):
-        import os
         os._exit(0)
 
     def status_update(self, sio):
@@ -324,8 +204,9 @@ class DataFlaskServer:
         
         def connect():
             if not self.frontend_connected:
+                frontend_port = os.environ.get('SPECULA_PORT', '8080')
                 try:
-                    sio_client.connect(f'http://localhost:8080')
+                    sio_client.connect(f'http://localhost:{frontend_port}')
                     self.frontend_connected = True
                 except:
                     pass
@@ -340,7 +221,7 @@ class DataFlaskServer:
                     if name == 'data_response' or name == 'terminator':
                         self.status_queue.put(item)
                         continue
-                    
+ 
                     if data is None:
                         break
                     
@@ -365,44 +246,72 @@ class DataFlaskServer:
         while True:
             try:
                 item = self.status_queue.get(timeout=1)
-                
+
                 if isinstance(item, tuple) and len(item) == 2:
                     self.status_queue.put(item)
+                    time.sleep(0.001)
                     continue
+                
                 elif isinstance(item, tuple) and len(item) == 4:
                     response_type, client_id, name, data = item
                     
-                    if response_type == 'data_response':
-                        if client_id in self.client_types:
-                            try:
-                                sio.emit('data_update', {
-                                    'name': name,
-                                    'data': data
-                                }, room=client_id)
-                            except Exception as e:
-                                print(f"[SERVER][DataMode] Error emitting to {client_id}: {e}")
-                    
-                    elif response_type == 'terminator':
-                        if client_id in self.client_types:
-                            try:
-                                sio.emit('speed_report', data, room=client_id)
-                                t1 = time.time()
-                                t0 = self.t0.get(client_id, t1)
-                                freq = 1.0 / (t1 - t0) if t1 != t0 else 0
-                                sio.emit('done', f'Display rate: {freq:.2f} Hz', room=client_id)
-                                self.t0[client_id] = t1
-                            except Exception as e:
-                                print(f"[SERVER][DataMode] Error sending terminator to {client_id}: {e}")
+                    if response_type not in self.response_handlers:
+                        print(f"[SERVER] No handler for response type: {response_type}")
+                        continue
+
+                    try:
+                        self.response_handlers[response_type](client_id, name, data)
+                    except Exception as e:
+                        print(f"[SERVER][{self.__class__.__name__}] Error handling response of type {response_type} for {name}: {e}")
                 else:
-                    print(f"[SERVER][DataMode] Unknown item format: {item}")
+                    print(f"[SERVER][{self.__class__.__name__}] Unknown item format: {item}")
                     
             except queue.Empty:
                 continue
             except Exception as e:
-                print(f"[SERVER][DataMode] Error in response handler: {e}")
+                print(f"[SERVER][{self.__class__.__name__}] Error in response handler: {e}")
                 import traceback
                 traceback.print_exc()
 
+    def terminator_response_handler(self, client_id, name, data):
+        if client_id in self.client_types:
+            sio.emit('speed_report', data, room=client_id)
+            t1 = time.time()
+            t0 = self.t0.get(client_id, t1)
+            freq = 1.0 / (t1 - t0) if t1 != t0 else 0
+            sio.emit('done', f'Display rate: {freq:.2f} Hz', room=client_id)
+            self.t0[client_id] = t1
+
+
+class ImageFlaskServer(FlaskServer):
+
+    def image_response_handler(self, client_id, name, data):
+        if client_id in self.client_types:
+            dataobj = pickle.loads(data)
+            with self.display_lock:
+                fig = DataPlotter.plot_best_effort(name, dataobj)
+            sio.emit('plot', {'name': name, 'imgdata': encode(fig)}, room=client_id)
+
+    def register_additional_response_handlers(self):
+        self.response_handlers['image_data'] = self.image_response_handler
+
+
+class DataFlaskServer(FlaskServer):
+        
+    def data_response_handler(self, client_id, name, data):
+        if client_id in self.client_types:
+            try:
+                sio.emit('data_update', {
+                    'name': name,
+                    'data': data
+                }, room=client_id)
+            except Exception as e:
+                print(f"[SERVER][DataMode] Error emitting to {client_id}: {e}")
+    
+    def register_additional_response_handlers(self):
+        self.response_handlers['data_response'] = self.data_response_handler
+
+                    
 def start_server(params_dict, status_queue, request_queue, host, port, mode):
     global server
     
