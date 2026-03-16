@@ -398,38 +398,55 @@ class TestAtmoPropagation(unittest.TestCase):
         max_diff = np.max(np.abs(diff))
         assert max_diff < 0.02, f"Max difference after rotation is {max_diff}, should be < 0.02"
 
-    def test_source_chromatic_shift_switches(self):
-        """Test Source chromatic switch logic (disabled/equal wavelength)."""
-        layer = Layer(dimx=32, dimy=32, pixel_pitch=0.1, height=5000.0, target_device_idx=-1)
+    def test_atmo_chromatic_shift_switches(self):
+        """Test AtmoPropagation chromatic switch logic (disabled/equal wavelength)."""
+        simul_params = SimulParams(64, 0.1, zenithAngleInDeg=30.0)
+        atmo_layer = Layer(dimx=96, dimy=96, pixel_pitch=0.1, height=5000.0, target_device_idx=-1)
 
-        wfs_source = Source(
-            polar_coordinates=[0.0, 0.0],
-            magnitude=8,
-            wavelengthInNm=589.0,
-            target_device_idx=-1
-        )
-
-        sci_disabled = Source(
+        src_disabled = Source(
             polar_coordinates=[0.0, 0.0],
             magnitude=8,
             wavelengthInNm=2200.0,
-            wfs_source=wfs_source,
+            target_device_idx=-1
+        )
+        prop_disabled = AtmoPropagation(
+            simul_params,
+            source_dict={'src': src_disabled},
             enable_chromatic_effect=False,
             target_device_idx=-1
         )
-        sci_disabled.compute_chromatic_shifts([layer], zenith_angle_deg=30.0)
-        assert sci_disabled.chromatic_shifts_m == {}, "Chromatic shifts must be empty when effect is disabled"
+        prop_disabled.inputs['atmo_layer_list'].set([atmo_layer])
+        prop_disabled.inputs['common_layer_list'].set([])
+        prop_disabled.setup()
+        assert src_disabled.chromatic_shifts_m == {}, \
+               "Chromatic shifts must be empty when effect is disabled"
 
-        sci_equal_wl = Source(
+        with self.assertRaises(ValueError):
+            AtmoPropagation(
+                simul_params,
+                source_dict={'src': src_disabled},
+                enable_chromatic_effect=True,
+                target_device_idx=-1
+            )
+
+        src_equal_wl = Source(
             polar_coordinates=[0.0, 0.0],
             magnitude=8,
             wavelengthInNm=589.0,
-            wfs_source=wfs_source,
-            enable_chromatic_effect=True,
             target_device_idx=-1
         )
-        sci_equal_wl.compute_chromatic_shifts([layer], zenith_angle_deg=30.0)
-        assert sci_equal_wl.chromatic_shifts_m == {}, "Chromatic shifts must be empty for equal wavelengths"
+        prop_equal = AtmoPropagation(
+            simul_params,
+            source_dict={'src': src_equal_wl},
+            enable_chromatic_effect=True,
+            chromatic_reference_wavelengthInNm=589.0,
+            target_device_idx=-1
+        )
+        prop_equal.inputs['atmo_layer_list'].set([atmo_layer])
+        prop_equal.inputs['common_layer_list'].set([])
+        prop_equal.setup()
+        assert src_equal_wl.chromatic_shifts_m == {}, \
+            "Chromatic shifts must be empty for equal wavelengths"
 
     @cpu_and_gpu
     def test_chromatic_shift_is_computed_only_for_atmo_layers(self, target_device_idx, xp):
@@ -456,36 +473,33 @@ class TestAtmoPropagation(unittest.TestCase):
         common_layer.phaseInNm = xp.zeros((120, 120))
         common_layer.generation_time = 1
 
-        wfs_source = Source(
-            polar_coordinates=[0.0, 0.0],
-            magnitude=8,
-            wavelengthInNm=589.0,
-            target_device_idx=target_device_idx
-        )
         sci_source = Source(
             polar_coordinates=[5.0, 90.0],
             magnitude=8,
             wavelengthInNm=2200.0,
-            wfs_source=wfs_source,
-            enable_chromatic_effect=True,
             target_device_idx=target_device_idx
         )
 
         prop = AtmoPropagation(
             simul_params,
             source_dict={'sci': sci_source},
+            enable_chromatic_effect=True,
+            chromatic_reference_wavelengthInNm=589.0,
             target_device_idx=target_device_idx
         )
         prop.inputs['atmo_layer_list'].set([atmo_layer])
         prop.inputs['common_layer_list'].set([common_layer])
         prop.setup()
 
-        assert atmo_layer in sci_source.chromatic_shifts_m, "Atmospheric layer must have a chromatic shift"
-        assert common_layer not in sci_source.chromatic_shifts_m, "Common layer must not have a chromatic shift"
-        assert abs(sci_source.chromatic_shifts_m[atmo_layer]) > 0.0, "Atmo chromatic shift should be non-zero"
+        assert atmo_layer in sci_source.chromatic_shifts_m, \
+            "Atmospheric layer must have a chromatic shift"
+        assert common_layer not in sci_source.chromatic_shifts_m, \
+            "Common layer must not have a chromatic shift"
+        assert abs(sci_source.chromatic_shifts_m[atmo_layer]) > 0.0, \
+            "Atmo chromatic shift should be non-zero"
 
     @cpu_and_gpu
-    def test_chromatic_effect_does_not_change_common_layer_only_propagation(self, target_device_idx, xp):
+    def test_chromatic_effect_does_not_change_common_layer_only_prop(self, target_device_idx, xp):
         """Test that chromatic effect has no impact when only common layers are propagated."""
         pixel_pupil = 100
         simul_params = SimulParams(pixel_pupil, 0.1)
@@ -501,47 +515,55 @@ class TestAtmoPropagation(unittest.TestCase):
         common_layer.phaseInNm = xp.tile(x, (140, 1))
         common_layer.generation_time = 1
 
-        wfs_source = Source(
-            polar_coordinates=[0.0, 0.0],
-            magnitude=8,
-            wavelengthInNm=589.0,
-            target_device_idx=target_device_idx
-        )
-
-        source_chromatic = Source(
-            polar_coordinates=[12.0, 35.0],
-            magnitude=8,
-            wavelengthInNm=2200.0,
-            wfs_source=wfs_source,
-            enable_chromatic_effect=True,
-            target_device_idx=target_device_idx
-        )
         source_reference = Source(
             polar_coordinates=[12.0, 35.0],
             magnitude=8,
             wavelengthInNm=2200.0,
+            target_device_idx=target_device_idx
+        )
+        source_chromatic = Source(
+            polar_coordinates=[12.0, 35.0],
+            magnitude=8,
+            wavelengthInNm=2200.0,
+            target_device_idx=target_device_idx
+        )
+
+        prop_ref = AtmoPropagation(
+            simul_params,
+            source_dict={'ref': source_reference},
             enable_chromatic_effect=False,
             target_device_idx=target_device_idx
         )
+        prop_ref.inputs['atmo_layer_list'].set([])
+        prop_ref.inputs['common_layer_list'].set([common_layer])
 
-        prop = AtmoPropagation(
+        prop_ref.setup()
+        prop_ref.check_ready(1)
+        prop_ref.trigger()
+        prop_ref.post_trigger()
+
+        prop_chrom = AtmoPropagation(
             simul_params,
-            source_dict={'chrom': source_chromatic, 'ref': source_reference},
+            source_dict={'chrom': source_chromatic},
+            enable_chromatic_effect=True,
+            chromatic_reference_wavelengthInNm=589.0,
             target_device_idx=target_device_idx
         )
-        prop.inputs['atmo_layer_list'].set([])
-        prop.inputs['common_layer_list'].set([common_layer])
+        prop_chrom.inputs['atmo_layer_list'].set([])
+        prop_chrom.inputs['common_layer_list'].set([common_layer])
 
-        prop.setup()
-        prop.check_ready(1)
-        prop.trigger()
-        prop.post_trigger()
+        prop_chrom.setup()
+        prop_chrom.check_ready(1)
+        prop_chrom.trigger()
+        prop_chrom.post_trigger()
 
-        ef_chrom = prop.outputs['out_chrom_ef']
-        ef_ref = prop.outputs['out_ref_ef']
+        ef_ref = prop_ref.outputs['out_ref_ef']
+        ef_chrom = prop_chrom.outputs['out_chrom_ef']
 
         amp_diff = cpuArray(ef_chrom.A) - cpuArray(ef_ref.A)
         ph_diff = cpuArray(ef_chrom.phaseInNm) - cpuArray(ef_ref.phaseInNm)
 
-        assert np.max(np.abs(amp_diff)) < 1e-10, "Amplitude should be unchanged for common-layer-only propagation"
-        assert np.max(np.abs(ph_diff)) < 1e-10, "Phase should be unchanged for common-layer-only propagation"
+        assert np.max(np.abs(amp_diff)) < 1e-10, \
+            "Amplitude should be unchanged for common-layer-only propagation"
+        assert np.max(np.abs(ph_diff)) < 1e-10, \
+            "Phase should be unchanged for common-layer-only propagation"

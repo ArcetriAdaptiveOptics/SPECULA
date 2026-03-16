@@ -5,6 +5,7 @@ from specula.lib.interp2d import Interp2D
 from specula.data_objects.electric_field import ElectricField
 from specula.connections import InputList
 from specula.data_objects.layer import Layer
+from specula.lib.air_refraction import MatharAirRefraction
 from specula import cpuArray, show_in_profiler
 from specula.data_objects.simul_params import SimulParams
 import warnings
@@ -25,6 +26,9 @@ class AtmoPropagation(BaseProcessingObj):
                  source_dict: dict,     # TODO ={},
                  doFresnel: bool=False,
                  wavelengthInNm: float=500.0,
+                 telescope_altitude_m: float=3064.0,
+                 enable_chromatic_effect: bool=False,
+                 chromatic_reference_wavelengthInNm: float=None,
                  pupil_position=None,
                  mergeLayersContrib: bool=True,
                  upwards: bool=False,
@@ -51,6 +55,16 @@ class AtmoPropagation(BaseProcessingObj):
         wavelengthInNm : float, optional
             Wavelength in nanometers for Fresnel propagation. Required if doFresnel is True.
             Default is 500.0 nm.
+        telescope_altitude_m : float, optional
+            Telescope altitude above sea level in meters used by chromatic
+            anisoplanatism calculations (default: 3064.0 for ELT).
+        enable_chromatic_effect : bool, optional
+            If True, compute and apply chromatic anisoplanatism shifts for
+            atmospheric layers (default: False).
+        chromatic_reference_wavelengthInNm : float, optional
+            Reference wavelength in nanometers used for chromatic
+            anisoplanatism calculations, typically the WFS wavelength.
+            Required when ``enable_chromatic_effect`` is True.
         pupil_position : array-like, optional
             Position of the pupil in pixels. Default is None (centered).
         mergeLayersContrib : bool, optional
@@ -105,10 +119,20 @@ class AtmoPropagation(BaseProcessingObj):
 
         self.doFresnel = doFresnel
         self.wavelengthInNm = wavelengthInNm
+        self.telescope_altitude_m = telescope_altitude_m
+        self.enable_chromatic_effect = enable_chromatic_effect
+        self.chromatic_reference_wavelengthInNm = chromatic_reference_wavelengthInNm
+        self._air_refraction_model = None
         self.propagators = None
         self._block_size = {}
         self.padding = padding_factor
         self.band_limit_factor = band_limit_factor
+
+        if self.enable_chromatic_effect:
+            if self.chromatic_reference_wavelengthInNm is None:
+                raise ValueError('chromatic_reference_wavelengthInNm is required when '
+                                 'enable_chromatic_effect is True.')
+            self._air_refraction_model = MatharAirRefraction()
 
         if self.mergeLayersContrib:
             for name, source in self.source_dict.items():
@@ -267,6 +291,47 @@ class AtmoPropagation(BaseProcessingObj):
         for source_name in self.source_dict.keys():
             self.outputs['out_'+source_name+'_ef'].generation_time = self.current_time
 
+    @staticmethod
+    def _pressure_nasa(h_asl):
+        if h_asl < 11000.0:
+            T_h = 288.08 - 0.00649 * h_asl
+            return 1012.9 * (T_h / 288.08)**5.256
+        elif h_asl < 25000.0:
+            return 226.5 * np.exp(1.73 - 0.000157 * h_asl)
+        else:
+            T_h = 141.94 + 0.00299 * h_asl
+            return 24.88 * (T_h / 216.6)**-11.388
+
+    def compute_chromatic_shifts(self, source, atmo_layer_list):
+        source.chromatic_shifts_m = {}
+
+        if not self.enable_chromatic_effect:
+            return
+        if self._air_refraction_model is None:
+            self._air_refraction_model = MatharAirRefraction()
+        if source.wavelengthInNm == self.chromatic_reference_wavelengthInNm:
+            return
+
+        n_minus_1_ref = self._air_refraction_model.get_refractive_index(
+            self.chromatic_reference_wavelengthInNm * 1e-9)
+        n_minus_1_src = self._air_refraction_model.get_refractive_index(source.wavelengthInNm * 1e-9)
+        delta_N = n_minus_1_ref - n_minus_1_src
+
+        zeta_rad = np.radians(self.simul_params.zenithAngleInDeg)
+        sec_z = 1.0 / np.cos(zeta_rad)
+        tan_z = np.tan(zeta_rad)
+
+        g = 9.8
+        rho_s = 1.225
+
+        P_0_mbar = self._pressure_nasa(self.telescope_altitude_m)
+        delta_b0 = delta_N * sec_z * tan_z * ((P_0_mbar * 100.0) / (g * rho_s))
+
+        for layer in atmo_layer_list:
+            h_asl = self.telescope_altitude_m + float(layer.height)
+            P_h_mbar = self._pressure_nasa(h_asl)
+            source.chromatic_shifts_m[layer] = delta_b0 * (1.0 - (P_h_mbar / P_0_mbar))
+
     def setup_interpolators(self):
 
         self.interpolators = {}
@@ -274,7 +339,7 @@ class AtmoPropagation(BaseProcessingObj):
         for source in self.source_dict.values():
             self.interpolators[source] = {}
 
-            source.compute_chromatic_shifts(self.atmo_layer_list, self.simul_params.zenithAngleInDeg)
+            self.compute_chromatic_shifts(source, self.atmo_layer_list)
 
             for layer in layer_list:
                 diff_height = (source.height - layer.height) * self.airmass
