@@ -315,11 +315,13 @@ class AtmoPropagation(BaseProcessingObj):
             pixel_position_s = source.r * layer.height * self.airmass / layer.pixel_pitch
             pixel_position = pixel_position_s * cos_sin_phi
 
-        # Apply pre-computed chromatic lateral displacement (radial direction of the source).
-        # chromatic_shifts_m is a dict over atmo layers only; common layers get 0 via .get().
+        # Apply pre-computed chromatic lateral displacement.
+        # Dispersion always occurs along the elevation axis (typically the Y-axis).
+        # We assume the zenith-pointing direction maps to [0, 1] in pixel coordinates.
         chromatic_shift_px = source.chromatic_shifts_m.get(layer, 0.0) / layer.pixel_pitch
         if chromatic_shift_px != 0.0:
-            pixel_position = pixel_position + chromatic_shift_px * cos_sin_phi
+            elevation_vector = np.array([0.0, 1.0])
+            pixel_position = pixel_position + chromatic_shift_px * elevation_vector
 
         if np.isinf(source.height):
             pixel_pupmeta = self.pixel_pupil_size
