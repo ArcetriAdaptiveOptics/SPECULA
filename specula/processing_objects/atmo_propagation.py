@@ -270,10 +270,11 @@ class AtmoPropagation(BaseProcessingObj):
     def setup_interpolators(self):
 
         self.interpolators = {}
+        layer_list = self.common_layer_list + self.atmo_layer_list
         for source in self.source_dict.values():
             self.interpolators[source] = {}
 
-            layer_list = self.common_layer_list + self.atmo_layer_list
+            source.compute_chromatic_shifts(self.atmo_layer_list, self.simul_params.zenithAngleInDeg)
 
             for layer in layer_list:
                 diff_height = (source.height - layer.height) * self.airmass
@@ -313,6 +314,12 @@ class AtmoPropagation(BaseProcessingObj):
         else:
             pixel_position_s = source.r * layer.height * self.airmass / layer.pixel_pitch
             pixel_position = pixel_position_s * cos_sin_phi
+
+        # Apply pre-computed chromatic lateral displacement (radial direction of the source).
+        # chromatic_shifts_m is a dict over atmo layers only; common layers get 0 via .get().
+        chromatic_shift_px = source.chromatic_shifts_m.get(layer, 0.0) / layer.pixel_pitch
+        if chromatic_shift_px != 0.0:
+            pixel_position = pixel_position + chromatic_shift_px * cos_sin_phi
 
         if np.isinf(source.height):
             pixel_pupmeta = self.pixel_pupil_size
