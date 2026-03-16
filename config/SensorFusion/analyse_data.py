@@ -22,6 +22,18 @@ def get_spectrum(data, dt:float=1.0):
         spe_norm[0] = 0
     return spe_norm, freq
 
+def get_psd(data, dt:float, interval:float=0.2):
+    Ntot = np.shape(data)[1]
+    N = int(interval/dt)
+    Nspe = int(np.floor(Ntot/N))
+    for k in range(Nspe):
+        spe,f = get_spectrum(data[:,k*N:min((k+1)*N,Ntot)],dt)
+        if k == 0:
+            psd = spe**2/Nspe
+        else:
+            psd += spe**2/Nspe
+    return psd,f
+
 
 def show_psf(psf, oversampling:int=4, title:str='', ext=0.25, vmin=-8, vmax=0, cmap='inferno', maxVal=None):
     imageHalfSizeInPoints= psf.shape[0]/2
@@ -122,30 +134,52 @@ try:
     turb_modes = res + comm
 
     dt = 1/2000
-    # zpol_spe, f = get_spectrum(zpol_modes.T,dt=dt)
-    pol_spe, f = get_spectrum(pol_modes.T,dt=dt)
-    turb_spe, f = get_spectrum(turb_modes.T,dt=dt)
+    interval = 0.25
+    pol_psd, f = get_psd(pol_modes.T,dt=dt,interval=interval)
+    res_psd, f = get_psd(res.T,dt=dt,interval=interval)
+
+    flims = [1/interval,1/dt/2]
 
     lo_mode_ids = [0,1,2,3,20]
     plt.figure()
+    plt.subplot(2,2,1)
     for mode in lo_mode_ids:
-        plt.loglog(f,pol_spe[mode,:]**2,label=f'Mode {mode:1.0f}')
+        plt.loglog(f,pol_psd[mode,:],label=f'Mode {mode:1.0f}')
+    plt.grid(which='both', alpha=0.3)
+    # plt.xlabel('Frequency [Hz]')
+    plt.legend()
+    plt.xlim(flims)
+    plt.ylabel(r'RMS [$nm^2$]')
+    plt.title('Pseudo-open-loop PSD')
+    plt.subplot(2,2,3)
+    for mode in lo_mode_ids:
+        plt.loglog(f,res_psd[mode,:],label=f'Mode {mode:1.0f}')
     plt.grid(which='both', alpha=0.3)
     plt.xlabel('Frequency [Hz]')
     plt.legend()
-    plt.xlim([1,1/dt/2])
+    plt.xlim(flims)
     plt.ylabel(r'RMS [$nm^2$]')
-    plt.tight_layout()
+    plt.title('Residuals PSD')
 
     ho_mode_ids = [50,100,200,500,1000]
-    plt.figure()
+    plt.subplot(2,2,2)
     for mode in ho_mode_ids:
-        plt.loglog(f,pol_spe[mode,:]**2,label=f'Mode {mode:1.0f}')
+        plt.loglog(f,pol_psd[mode,:],label=f'Mode {mode:1.0f}')
+    plt.grid(which='both', alpha=0.3)
+    # plt.xlabel('Frequency [Hz]')
+    plt.legend()
+    plt.xlim(flims)
+    plt.ylabel(r'RMS [$nm^2$]')
+    plt.title('Pseudo-open-loop PSD')
+    plt.subplot(2,2,4)
+    for mode in ho_mode_ids:
+        plt.loglog(f,res_psd[mode,:],label=f'Mode {mode:1.0f}')
     plt.grid(which='both', alpha=0.3)
     plt.xlabel('Frequency [Hz]')
     plt.legend()
-    plt.xlim([1,1/dt/2])
+    plt.xlim(flims)
     plt.ylabel(r'RMS [$nm^2$]')
+    plt.title('Residuals PSD')
     plt.tight_layout()
 
     # plt.figure()
@@ -186,7 +220,7 @@ try:
     plt.figure()
     plt.plot(x, pyr_rec_rms, label='pyWFS')
     plt.plot(x, zwfs_rec_rms, label='zWFS')
-    plt.title('Termporal Rec error RMS')
+    plt.title('Rec error temporal RMS')
     plt.xlabel('KL mode #')
     plt.ylabel('RMS [nm]')
     plt.legend()

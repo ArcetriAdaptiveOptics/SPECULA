@@ -65,7 +65,7 @@ def compute_and_save_influence_functions(tag:str, pupil_pixels:int, n_acts:int, 
         pupil_mask = hdu[1].data
 
     # Step 1: Generate zonal influence functions
-    influence_functions, _ = compute_zonal_ifunc(
+    influence_functions,mask,coords,slaveMat = compute_zonal_ifunc(
         pupil_pixels,
         n_actuators,
         geom=geom,
@@ -79,7 +79,7 @@ def compute_and_save_influence_functions(tag:str, pupil_pixels:int, n_acts:int, 
         mask=pupil_mask,
         xp=specula.xp,
         dtype=dtype,
-        return_coordinates=False,
+        # return_coordinates=False,
     )
 
     # Print statistics
@@ -126,7 +126,7 @@ def compute_and_save_influence_functions(tag:str, pupil_pixels:int, n_acts:int, 
     # Step 4: Save using SPECULA data objects
     print(f"\nSaving influence functions and modal basis...")
 
-    fits.writeto(os.path.join(root_dir, 'ifunc', tag+'_turb_cov.fits'),cpuArray(singular_values['S2']),overwrite=True)
+    # fits.writeto(os.path.join(root_dir, 'ifunc', tag+'_turb_cov.fits'),cpuArray(singular_values['S2']),overwrite=True)
 
     # Create IFunc object and save
     ifunc_obj = IFunc(
@@ -258,7 +258,9 @@ def compute_and_save_influence_functions(tag:str, pupil_pixels:int, n_acts:int, 
 
 if __name__ == "__main__":
     Npix = 160
-    compute_and_save_influence_functions(tag='bmc2k_vlt', pupil_pixels=Npix, n_acts=50,
+    # compute_and_save_influence_functions(tag='bmc2k_vlt', pupil_pixels=Npix, n_acts=50,
+    #                                       geom='alpao', r0=10e-2, obsratio=0.0, pupil_mask_tag='vlt_pupil')
+    compute_and_save_influence_functions(tag='dm241_vlt', pupil_pixels=Npix, n_acts=17,
                                           geom='alpao', r0=10e-2, obsratio=0.0, pupil_mask_tag='vlt_pupil')
 
 

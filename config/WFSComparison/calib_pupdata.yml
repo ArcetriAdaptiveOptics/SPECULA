@@ -5,8 +5,8 @@ pyr_pupdata:
   thr1: 0.4 #0.1
   thr2: 0.25 #0.05
   display_debug: True
-  output_tag:        'pyr_pupdata'
-  overwrite: true
+  output_tag:        'pyr_pupdata_36x36'
+  overwrite: false
   inputs:
     in_i: 'pyr.out_i'
 
@@ -22,4 +22,4 @@ main_override:
 # Remove unnecessary components to avoid issues and speed up the calibration
 remove: ['atmo', 'seeing', 'wind_direction', 'wind_speed', 'cred1', 'pyr_slopes', 'dm',
           'ef_prop', 'ocam2', 'zwfs', 'zwfs_slopes','pyr_modalrec', 'zwfs_modalrec', 'filter',
-          'psf', 'dm_mode_res', 'atmo_mode_res', 'data_store']
+          'psf', 'dm_mode_res', 'atmo_mode_res', 'data_store','coro_psf']

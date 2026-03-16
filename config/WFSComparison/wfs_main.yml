@@ -125,7 +125,7 @@ zwfs:
   simul_params_ref:   'main'
   pup_diam:           48.                     # Pupil diameter in subaps.
   fov:                2.0                     # Requested field-of-view [arcsec]
-  spot_radius_lambda: 1.0                     # Spot radius in λ/D units
+  spot_radius_lambda: 0.5                     # Spot radius in λ/D units
   fft_res:            4.0
   output_resolution:  120                     # Output sampling [usually corresponding to CCD pixels]
   wavelengthInNm:     750                     # [nm] zWFS wavelength
@@ -150,7 +150,7 @@ ocam2:
 
 zwfs_slopes:
   class:             'ZwfsSlopec'
-  # sn_object:         'z2.0wfs_slope_null'
+  # sn_object:         'z1.0wfs_slope_null'
   pup_diam:          48.0
   ccd_size:          120
   obsratio:          0.0
@@ -160,7 +160,7 @@ zwfs_slopes:
 
 zwfs_modalrec:
   class:             'Modalrec'
-  recmat_object:     'z2.0wfs_1200modes_rec'        
+  recmat_object:     'z1.0wfs_1200modes_rec'        
   inputs:
     in_slopes:       'zwfs_slopes.out_slopes'
   outputs:           ['out_modes']

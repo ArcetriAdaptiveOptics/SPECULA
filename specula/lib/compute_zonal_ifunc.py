@@ -230,7 +230,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
 
     # If do_slaving=False, slave_mat might not be defined. Handle safely:
     if not do_slaving:
-        slave_mat = xp.zeros((n_act_tot, n_act_tot), dtype=dtype)
+        slave_mat = xp.eye((n_act_tot, n_act_tot), dtype=dtype)
     return ifs_2d, mask, coords, slave_mat
 
 

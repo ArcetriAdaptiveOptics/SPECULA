@@ -62,16 +62,16 @@ if __name__ == "__main__":
     path = root_dir + 'filter/'
     if not os.path.exists(path):
         os.mkdir(path)
-    file_name = path + 'iirfilter.fits'
+    file_name = path + 'iirfilter_150.fits'
     tiled_file_name = path + 'tiled_iirfilter.fits'
-    fs = 2000  # Frequenza di campionamento [Hz]
-    excluded_filters = 20 
-    n_filters = 1200
+    fs = 3000  # Frequenza di campionamento [Hz]
+    excluded_filters = 2 # was 20 
+    n_filters = 150
 
     start_pole = [1.0, 0.995]
-    end_pole = [0.85, 0.70] #[0.9, 0.75]
+    end_pole = [0.857, 0.825] #[0.9, 0.75]
     start_zero = [0.85, 0.45]
-    end_zero = [0.50, 0.25] #[0.55, 0.30]
+    end_zero = [0.525, 0.275] #[0.55, 0.30]
 
     # Parametro di potenza per controllare l'andamento
     power_exponent = 2.0  # Potenza > 1 concentra più valori verso l'inizio

@@ -5,7 +5,7 @@
 pushpull:
   class:        'PushPullGenerator'
   nmodes:       1851                         # Number of DM actuators
-  amp:          15   
+  amp:          5   
   # constant_amp: true
   outputs:   ['output']
 
@@ -49,14 +49,26 @@ dm_override:
 
 pyr_override:
   mod_amp: 0.0
+  # pup_diam: 12.0
+  # pup_dist: 16.0
   inputs: 
     in_ef: 'prop.out_source_ngs_ef'
+
 
 zwfs_override:
   fft_res: 32.0
   spot_radius_lambda: 1.0                     # Spot RADIUS in λ/D units
+  # phase_shift_pi:     0.5
+  # pup_diam: 12.0
   inputs: 
     in_ef: 'prop.out_source_ngs_ef'
+
+# Change when calibrating different Nsubaps
+# zwfs_slopes_override:
+#   pup_diam: 12.0
+
+# pyr_slopes_override:
+#   pupdata_object: 'pyr_pupdata_12x12'
 
 # Disable noise for clean measurements
 cred1_override:

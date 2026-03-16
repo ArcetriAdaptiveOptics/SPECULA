@@ -180,6 +180,8 @@ plt.colorbar()
 
 ########################## Rec ##############################
 
+rec_hdu = fits.open('./calibration/rec/pyr0.0_1200modes_ml_rec.fits')
+pyr0_ml_rec = rec_hdu[1].data
 rec_hdu = fits.open('./calibration/rec/z1.0wfs_1200modes_ml_rec.fits')
 z1wfs_ml_rec = rec_hdu[1].data
 
@@ -205,8 +207,10 @@ def rec_phot_cov(rec,frame,mask,sn,flux=None):
 
 
 pyr0_ron_cov = rec_covariance(pyr0_rec,mask=pyr_masks,frame=pyr0_frame,flux=flux)
+pyr0_ron_cov_ml = rec_covariance(pyr0_ml_rec,mask=pyr_masks,frame=pyr0_frame,flux=flux)
 pyr3_ron_cov = rec_covariance(pyr3_rec,mask=pyr_masks,frame=pyr3_frame,flux=flux)
 pyr0_phot_cov = rec_phot_cov(pyr0_rec,mask=pyr_masks,frame=pyr0_frame,flux=flux,sn=pyr0_sn)
+pyr0_phot_cov_ml = rec_phot_cov(pyr0_ml_rec,mask=pyr_masks,frame=pyr0_frame,flux=flux,sn=pyr0_sn)
 pyr3_phot_cov = rec_phot_cov(pyr3_rec,mask=pyr_masks,frame=pyr3_frame,flux=flux,sn=pyr3_sn)
 
 z1wfs_ron_cov = rec_covariance(z1wfs_rec,mask=zwfs_mask,frame=z1wfs_frame,flux=flux)
@@ -221,6 +225,7 @@ plt.subplot(1,2,1)
 plt.plot(x,pyr0_ron_cov,':',label=r'pyWFS 0.0 $\lambda/D$')
 plt.plot(x,rec_covariance(pyr1_rec,mask=pyr_masks,frame=pyr1_frame,flux=flux),':',label=r'pyWFS 1.0 $\lambda/D$')
 plt.plot(x,pyr3_ron_cov,':',label=r'pyWFS 3.0 $\lambda/D$')
+plt.plot(x,pyr0_ron_cov_ml,':',label=r'pyWFS 0.0 $\lambda/D$ (ML)')
 plt.legend()
 plt.xscale('log')
 plt.yscale('log')
@@ -230,6 +235,7 @@ plt.subplot(1,2,2)
 plt.plot(x,pyr0_phot_cov,':',label=r'pyWFS 0.0 $\lambda/D$')
 plt.plot(x,rec_phot_cov(pyr1_rec,mask=pyr_masks,frame=pyr1_frame,flux=flux,sn=pyr1_sn),':',label=r'pyWFS 1.0 $\lambda/D$')
 plt.plot(x,pyr3_phot_cov,':',label=r'pyWFS 3.0 $\lambda/D$')
+plt.plot(x,pyr0_phot_cov_ml,':',label=r'pyWFS 0.0 $\lambda/D$ (ML)')
 plt.legend()
 plt.xscale('log')
 plt.yscale('log')
