@@ -70,7 +70,7 @@ class CiaoCiaoSensor(BaseProcessingObj):
 
     def __init__(self,
                  wavelengthInNm: float,
-                 number_px: int = None,
+                 number_px: int,
                  diffRotAngleInDeg: float = 180.0,
                  tiltInArcsec=(0.0, 0.0),
                  rotAnglePhInDeg: float = 0.0,
@@ -87,7 +87,9 @@ class CiaoCiaoSensor(BaseProcessingObj):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.wavelength_in_nm = float(wavelengthInNm)
-        self.number_px = None if number_px is None else int(number_px)
+        if number_px <= 0:
+            raise ValueError('number_px must be a positive integer')
+        self.number_px = int(number_px)
         self.diff_rot_angle_in_deg = float(diffRotAngleInDeg)
         self.normalize_flux = bool(normalize_flux)
         self.rotAnglePhInDeg = float(rotAnglePhInDeg)
@@ -112,8 +114,10 @@ class CiaoCiaoSensor(BaseProcessingObj):
         self.tilt_in_arcsec = self._parse_tilt(tiltInArcsec)
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
-        self._out_i = None
-        self.outputs['out_i'] = None
+        self._out_i = Intensity(self.number_px, self.number_px,
+                                precision=self.precision,
+                                target_device_idx=self.target_device_idx)
+        self.outputs['out_i'] = self._out_i
 
         self._ef = None
         self._rot_ef = None
@@ -152,17 +156,6 @@ class CiaoCiaoSensor(BaseProcessingObj):
 
         in_ef = self.local_inputs['in_ef']
         dimx, dimy = in_ef.size
-
-        if self.number_px is None:
-            self.number_px = int(dimx)
-
-        if self.number_px <= 0:
-            raise ValueError('number_px must be a positive integer')
-
-        self._out_i = Intensity(self.number_px, self.number_px,
-                                precision=self.precision,
-                                target_device_idx=self.target_device_idx)
-        self.outputs['out_i'] = self._out_i
 
         self.ef_interpolator_in = EFInterpolator(
             in_ef=in_ef,
@@ -216,6 +209,10 @@ class CiaoCiaoSensor(BaseProcessingObj):
         self._interf_ef[:] = self._ef + self._rot_ef
         abs2(self._interf_ef, self._interf_i, xp=self.xp)
 
+    def post_trigger(self):
+        super().post_trigger()
+
+        # Resample to output resolution if needed
         if self.number_px == self._interf_i.shape[0]:
             self._out_i.i[:] = self._interf_i
         else:
@@ -223,9 +220,7 @@ class CiaoCiaoSensor(BaseProcessingObj):
                                      (self.number_px, self.number_px),
                                      xp=self.xp)
 
-    def post_trigger(self):
-        super().post_trigger()
-
+        # Normalize flux
         if self.normalize_flux:
             in_ef = self.local_inputs['in_ef']
             phot = in_ef.S0 * in_ef.masked_area()
