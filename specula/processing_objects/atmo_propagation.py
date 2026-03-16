@@ -341,24 +341,32 @@ class AtmoPropagation(BaseProcessingObj):
         if source.wavelengthInNm == self.chromatic_reference_wavelengthInNm:
             return
 
+        # 1. Compute delta refractivity using Standard Conditions (15 C, 101325 Pa, 0% RH)
         n_minus_1_ref = self._air_refraction_model.get_refractive_index(
             self.chromatic_reference_wavelengthInNm * 1e-9)
         n_minus_1_src = self._air_refraction_model.get_refractive_index(source.wavelengthInNm * 1e-9)
         delta_N = n_minus_1_ref - n_minus_1_src
 
+        # 2. Parameters for Devaney 2024 Eq. 1
         zeta_rad = np.radians(self.simul_params.zenithAngleInDeg)
         sec_z = 1.0 / np.cos(zeta_rad)
         tan_z = np.tan(zeta_rad)
 
-        g = 9.8
-        rho_s = 1.225
+        g = 9.8 # m/s^2
+        rho_s = 1.225 # kg/m^3
 
+        # Pressure at telescope altitude (P0 in mbar)
         P_0_mbar = self._pressure_nasa(self.telescope_altitude_m)
+        # Lateral separation of two rays at the telescope aperture (Devaney Eq 1)
+        # Note: Convert mbar to Pascal (1 mbar = 100 Pa)
         delta_b0 = delta_N * sec_z * tan_z * ((P_0_mbar * 100.0) / (g * rho_s))
 
         for layer in atmo_layer_list:
+            # Assuming layer.height is the distance above the telescope
             h_asl = self.telescope_altitude_m + float(layer.height)
             P_h_mbar = self._pressure_nasa(h_asl)
+
+            # Lateral separation at altitude h (Devaney Eq 6)
             source.chromatic_shifts_m[layer] = delta_b0 * (1.0 - (P_h_mbar / P_0_mbar))
 
     def setup_interpolators(self):
