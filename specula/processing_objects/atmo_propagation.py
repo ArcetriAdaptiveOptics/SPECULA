@@ -59,8 +59,9 @@ class AtmoPropagation(BaseProcessingObj):
             Telescope altitude above sea level in meters used by chromatic
             anisoplanatism calculations (default: 3064.0 for ELT).
         enable_chromatic_effect : bool, optional
-            If True, compute and apply chromatic anisoplanatism shifts for
-            atmospheric layers (default: False).
+            If True, compute and apply chromatic anisoplanatism shifts for atmospheric layers
+            (default: False).
+            From Devaney et al. "Chromatic Anisoplanatism in Adaptive Optics" SPIE, 2024 
         chromatic_reference_wavelengthInNm : float, optional
             Reference wavelength in nanometers used for chromatic
             anisoplanatism calculations, typically the WFS wavelength.
@@ -303,6 +304,34 @@ class AtmoPropagation(BaseProcessingObj):
             return 24.88 * (T_h / 216.6)**-11.388
 
     def compute_chromatic_shifts(self, source, atmo_layer_list):
+        """
+        Pre-compute the chromatic lateral displacement for each *atmospheric* layer.
+
+        Uses the MatharAirRefraction (Ciddor+Mathar) model to calculate precise 
+        refractivity across Visible and Mid-IR bands. Then applies the NASA standard 
+        atmospheric pressure profile to compute the exact lateral shift using the 
+        Devaney 2024 plane-parallel equations (Eq. 1 and Eq. 6).
+
+        The result is stored in :attr:`chromatic_shifts_m` as a **dict keyed by
+        Layer object**, containing the signed lateral displacement in metres.
+        Common layers (pupil stop, DM, etc.) are not included and will
+        implicitly receive a zero shift in the propagation code.
+
+        This method must be called before the interpolators are built.
+
+        Parameters
+        ----------
+        atmo_layer_list : list of Layer
+            Atmospheric turbulence layers only (not common layers such as
+            pupil stops or DMs).
+        zenith_angle_deg : float
+            Observation zenith angle in degrees.
+
+        Notes
+        -----
+        If enable_chromatic_effect is False or the two wavelengths are identical,
+        all shifts are zero.
+        """
         source.chromatic_shifts_m = {}
 
         if not self.enable_chromatic_effect:
