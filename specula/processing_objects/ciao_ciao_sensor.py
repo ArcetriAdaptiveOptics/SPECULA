@@ -35,16 +35,16 @@ class CiaoCiaoSensor(BaseProcessingObj):
         If a scalar is provided, it is interpreted as x tilt and y=0.
         Default is (0.0, 0.0).
     rotAnglePhInDeg : float, optional
-        Rotation angle in degrees applied to the input branch through EFInterpolator.
+        Rotation angle in degrees applied to the input branch.
         Default is 0.0.
     xShiftPhInPixel : float, optional
-        X shift in pixels applied to the input branch through EFInterpolator.
+        X shift in pixels applied to the input branch.
         Default is 0.0.
     yShiftPhInPixel : float, optional
-        Y shift in pixels applied to the input branch through EFInterpolator.
+        Y shift in pixels applied to the input branch.
         Default is 0.0.
     magnification : float, optional
-        Magnification applied to the input branch through EFInterpolator.
+        Magnification applied to the input branch.
         Default is 1.0.
     xShiftDiffPhInPixel : float, optional
         Additional differential X shift in pixels applied only to the second branch.
@@ -55,9 +55,9 @@ class CiaoCiaoSensor(BaseProcessingObj):
     magnificationDiff : float, optional
         Additional differential magnification applied only to the second branch.
         Default is 1.0.
-    channelFlux : float, optional
+    channel_flux : float, optional
         Relative flux of the input branch in [0, 1].
-        The rotated branch uses (1 - channelFlux).
+        The rotated branch uses (1 - channel_flux).
         Default is 0.5 (balanced channels).
     normalize_flux : bool, optional
         If True, normalize output intensity to input photons
@@ -80,7 +80,7 @@ class CiaoCiaoSensor(BaseProcessingObj):
                  xShiftDiffPhInPixel: float = 0.0,
                  yShiftDiffPhInPixel: float = 0.0,
                  magnificationDiff: float = 1.0,
-                 channelFlux: float = 0.5,
+                 channel_flux: float = 0.5,
                  normalize_flux: bool = True,
                  target_device_idx: int = None,
                  precision: int = None):
@@ -99,7 +99,9 @@ class CiaoCiaoSensor(BaseProcessingObj):
         self.xShiftDiffPhInPixel = float(xShiftDiffPhInPixel)
         self.yShiftDiffPhInPixel = float(yShiftDiffPhInPixel)
         self.magnificationDiff = float(magnificationDiff)
-        self.channel_flux = self._parse_channel_flux(channelFlux)
+        if channel_flux < 0.0 or channel_flux > 1.0:
+            raise ValueError('channel_flux must be in the [0, 1] range')
+        self.channel_flux = channel_flux
 
         norm_flux_0 = 2.0 * self.channel_flux
         norm_flux_1 = 2.0 * (1.0 - self.channel_flux)
@@ -136,12 +138,6 @@ class CiaoCiaoSensor(BaseProcessingObj):
             raise ValueError('tiltInArcsec must be a scalar or a tuple/list of length 2')
 
         return float(tiltInArcsec[0]), float(tiltInArcsec[1])
-
-    def _parse_channel_flux(self, channelFlux):
-        flux = float(channelFlux)
-        if flux < 0.0 or flux > 1.0:
-            raise ValueError('channelFlux must be in the [0, 1] range')
-        return flux
 
     def _build_tilt_phase_map_nm(self, in_ef):
         tilt_x_arcsec, tilt_y_arcsec = self.tilt_in_arcsec

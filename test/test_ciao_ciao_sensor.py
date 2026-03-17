@@ -80,7 +80,7 @@ class TestCiaoCiaoSensor(unittest.TestCase):
             number_px=dim,
             diffRotAngleInDeg=0.0,
             tiltInArcsec=(0.0, 0.0),
-            channelFlux=0.75,
+            channel_flux=0.75,
             normalize_flux=False,
             target_device_idx=target_device_idx
         )
