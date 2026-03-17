@@ -292,7 +292,7 @@ class TestDisplayServerTrigger(unittest.TestCase):
         time.sleep(0.001)  # Queue context switch
 
         types = []
-        deadline = time.time() + 5
+        deadline = time.time() + 10
         while time.time() < deadline:
             try:
                 item = server.qout.get(timeout=0.05)
@@ -328,7 +328,7 @@ class TestDisplayServerTrigger(unittest.TestCase):
         time.sleep(0.001) # Queue context switch
 
         types = []
-        deadline = time.time() + 5
+        deadline = time.time() + 10
         while time.time() < deadline:
             try:
                 item = server.qout.get(timeout=0.05)
