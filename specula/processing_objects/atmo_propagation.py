@@ -26,7 +26,7 @@ class AtmoPropagation(BaseProcessingObj):
                  source_dict: dict,     # TODO ={},
                  doFresnel: bool=False,
                  wavelengthInNm: float=500.0,
-                 telescope_altitude_m: float=3064.0,
+                 telescope_altitude_m: float=None,
                  enable_chromatic_effect: bool=False,
                  chromatic_reference_wavelengthInNm: float=None,
                  pupil_position=None,
@@ -57,7 +57,7 @@ class AtmoPropagation(BaseProcessingObj):
             Default is 500.0 nm.
         telescope_altitude_m : float, optional
             Telescope altitude above sea level in meters used by chromatic
-            anisoplanatism calculations (default: 3064.0 for ELT).
+            anisoplanatism calculations (default: None).
         enable_chromatic_effect : bool, optional
             If True, compute and apply chromatic anisoplanatism shifts for atmospheric layers
             (default: False).
@@ -131,8 +131,11 @@ class AtmoPropagation(BaseProcessingObj):
 
         if self.enable_chromatic_effect:
             if self.chromatic_reference_wavelengthInNm is None:
-                raise ValueError('chromatic_reference_wavelengthInNm is required when '
-                                 'enable_chromatic_effect is True.')
+                raise ValueError('chromatic_reference_wavelengthInNm is required when'
+                                 ' enable_chromatic_effect is True.')
+            if self.telescope_altitude_m is None:
+                raise ValueError('telescope_altitude_m is required when'
+                                 ' enable_chromatic_effect is True.')
             self._air_refraction_model = MatharAirRefraction()
 
         if self.mergeLayersContrib:

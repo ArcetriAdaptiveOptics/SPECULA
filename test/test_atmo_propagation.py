@@ -440,6 +440,7 @@ class TestAtmoPropagation(unittest.TestCase):
             source_dict={'src': src_equal_wl},
             enable_chromatic_effect=True,
             chromatic_reference_wavelengthInNm=589.0,
+            telescope_altitude_m=3064.0,
             target_device_idx=-1
         )
         prop_equal.inputs['atmo_layer_list'].set([atmo_layer])
@@ -485,6 +486,7 @@ class TestAtmoPropagation(unittest.TestCase):
             source_dict={'sci': sci_source},
             enable_chromatic_effect=True,
             chromatic_reference_wavelengthInNm=589.0,
+            telescope_altitude_m=3064.0,
             target_device_idx=target_device_idx
         )
         prop.inputs['atmo_layer_list'].set([atmo_layer])
@@ -547,6 +549,7 @@ class TestAtmoPropagation(unittest.TestCase):
             source_dict={'chrom': source_chromatic},
             enable_chromatic_effect=True,
             chromatic_reference_wavelengthInNm=589.0,
+            telescope_altitude_m=3064.0,
             target_device_idx=target_device_idx
         )
         prop_chrom.inputs['atmo_layer_list'].set([])
