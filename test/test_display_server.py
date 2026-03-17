@@ -1,7 +1,7 @@
 import specula
 specula.init(0)  # Default target device
 
-import io
+import os
 import sys
 import pickle
 import queue as _queue_module
@@ -10,7 +10,7 @@ import tempfile
 import threading
 import time
 import unittest
-from unittest.mock import MagicMock, patch, PropertyMock, call
+from unittest.mock import MagicMock, patch, call
 import multiprocessing as mp
 import numpy as np
 
