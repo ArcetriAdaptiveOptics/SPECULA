@@ -62,48 +62,28 @@ if __name__ == "__main__":
     path = root_dir + 'filter/'
     if not os.path.exists(path):
         os.mkdir(path)
-    file_name = path + 'iirfilter_150.fits'
-    tiled_file_name = path + 'tiled_iirfilter.fits'
-    fs = 3000  # Frequenza di campionamento [Hz]
+    fs = 2000  # sampling frequency
     excluded_filters = 2 # was 20 
-    n_filters = 150
+    n_filters = 1300
+    file_name = path + f'iirfilter_{n_filters}modes.fits'
+    tiled_file_name = path + f'tiled_iirfilter_{n_filters}modes.fits'
 
     start_pole = [1.0, 0.995]
-    end_pole = [0.857, 0.825] #[0.9, 0.75]
+    end_pole = [0.9, 0.75]
     start_zero = [0.85, 0.45]
-    end_zero = [0.525, 0.275] #[0.55, 0.30]
+    end_zero = [0.55, 0.30]
 
-    # Parametro di potenza per controllare l'andamento
-    power_exponent = 2.0  # Potenza > 1 concentra più valori verso l'inizio
-                          # Potenza < 1 concentra più valori verso la fine
-                          # Potenza = 1 equivale a linspace
+    power_exponent = 2.0
 
-    # Crea la progressione con andamento a potenza
     mode = np.linspace(0, n_filters-1, n_filters)
     t = create_stepped_t(n_filters,excluded_filters=excluded_filters)
-    t_powered = t**power_exponent     # Applica la potenza
+    t_powered = t**power_exponent 
 
-    # Mappa i valori powered sui range desiderati
     zero_values = start_zero[0] + (end_zero[0] - start_zero[0]) * t_powered
     zero2_values = start_zero[1] + (end_zero[1] - start_zero[1]) * t_powered
     pole_values = start_pole[0] + (end_pole[0] - start_pole[0]) * t_powered
     pole2_values = start_pole[1] + (end_pole[1] - start_pole[1]) * t_powered
 
-    plot_poles = False
-    if plot_poles:
-        import matplotlib.pyplot as plt
-        #plot pole2_values
-        plt.figure(figsize=(10, 5))
-        plt.plot(mode, pole2_values, label='Pole 2 Values', color='blue')
-        plt.plot(mode, pole_values, label='Pole 1 Values', color='red')
-        plt.xlabel('Mode')
-        plt.ylabel('Pole Value')
-        plt.title('Pole Values Progression')
-        plt.legend()
-        plt.grid()
-        plt.show()
-
-    # Calcola i coefficienti
     num_list = []
     den_list = []
     for i in range(n_filters):
@@ -113,11 +93,12 @@ if __name__ == "__main__":
         den_list.append([pole_values[i]*pole2_values[i], 
                          -pole_values[i]-pole2_values[i], 1.0])
 
-    # Crea l'array dei coefficienti
     num_array = np.array(num_list)
     den_array = np.array(den_list)
 
-    # Crea l'oggetto IirFilterData
+    iir_gain = 1.0
+    num_array *= iir_gain
+
     filter_data_complex = IirFilterData(
         ordnum=[3] * n_filters,
         ordden=[3] * n_filters,
@@ -132,6 +113,36 @@ if __name__ == "__main__":
         den=np.tile(den_array,[2,1])
     )
 
+    plot = True
+    if plot:
+        delay_frames = 2.0
+        import matplotlib.pyplot as plt
+        nw_delay, dw_delay = filter_data_complex.discrete_delay_tf(delay_frames)
+        freq = np.logspace(-2, np.log10(fs/2), 2000)
+        plt.figure(figsize=(16,5))
+        for mode in np.linspace(0,n_filters-1,5,dtype=int):
+            rtf = filter_data_complex.RTF(mode=mode, fs=fs, freq=freq, dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
+            ntf = filter_data_complex.NTF(mode=mode, fs=fs, freq=freq, dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
+            plt.subplot(1,2,1)
+            plt.loglog(freq,rtf,label=f'Mode {mode}')
+            plt.subplot(1,2,2)
+            plt.loglog(freq,ntf,label=f'Mode {mode}')
+        plt.subplot(1,2,1)
+        plt.legend()
+        plt.grid(which='both',alpha=0.3)
+        plt.xlim([1e-2,fs/2])
+        plt.xlabel('Frequency [Hz]')
+        plt.title('RTF')
+        plt.subplot(1,2,2)
+        plt.legend()
+        plt.grid(which='both',alpha=0.3)
+        plt.xlim([1e-2,fs/2])
+        plt.xlabel('Frequency [Hz]')
+        plt.title('NTF')
+
+        plt.show()
+
+
     filter_data_complex.save(file_name)
     print(f"Saved with native method: {file_name}")
     tiled_filter_data_complex.save(tiled_file_name)
@@ -139,12 +150,12 @@ if __name__ == "__main__":
 
     try:
         loaded_filter_native = IirFilterData.restore(file_name)
-        print(f"Loaded: {loaded_filter_native.nfilter} filtri")
+        print(f"Loaded: {loaded_filter_native.nfilter} filters")
         coeffs_match = np.allclose(loaded_filter_native.num, filter_data_complex.num) and \
                       np.allclose(loaded_filter_native.den, filter_data_complex.den)
         print(f"Matching filters: {coeffs_match}")
         loaded_filter_native = IirFilterData.restore(tiled_file_name)
-        print(f"Loaded: {loaded_filter_native.nfilter} filtri")
+        print(f"Loaded: {loaded_filter_native.nfilter} filters")
         coeffs_match = np.allclose(loaded_filter_native.num, tiled_filter_data_complex.num) and \
                       np.allclose(loaded_filter_native.den, tiled_filter_data_complex.den)
         print(f"Matching filters: {coeffs_match}")

@@ -18,7 +18,6 @@ class MultirateComplementaryFilter(BaseFilter):
                  g_track: float,
                  weights: list,
                  N_list: list,
-                 g_f: float = 0.0,
                  delay: float = 0,
                  idx_yf=None,
                  idx_ys=None,
@@ -49,9 +48,6 @@ class MultirateComplementaryFilter(BaseFilter):
         # Remove the default delta_comm input from BaseFilter as we use custom topology
         if 'delta_comm' in self.inputs:
             del self.inputs['delta_comm']
-
-        if not 'gain_mod' in self.local_inputs and g_f > 0.0:
-            self.g_f = g_f
 
         # Custom Inputs
         self.inputs['in_yf'] = InputValue(type=BaseValue, optional=True)
@@ -185,7 +181,7 @@ class MultirateComplementaryFilter(BaseFilter):
 
         factor = 1.0 / self.iir_filter_data.den[:, no - 1]
         num_contrib = self.xp.sum(self.iir_filter_data.num \
-                     * self.g_f * self._gain_mod[:, None] * self._ist, axis=1)
+                     * self._gain_mod[:, None] * self._ist, axis=1)
         den_contrib = self.xp.sum(self.iir_filter_data.den[:, :no - 1] \
                      * self._ost[:, :no - 1], axis=1)
 

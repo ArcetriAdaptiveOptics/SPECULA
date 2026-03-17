@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 # from matplotlib.lines import Line2D
 
 from specula.base_value import BaseValue
+from specula.data_objects.psd import PSD
+from specula.data_objects.iir_filter_data import IirFilterData
 
 
 def get_spectrum(data, dt:float=1.0):
@@ -22,16 +24,19 @@ def get_spectrum(data, dt:float=1.0):
         spe_norm[0] = 0
     return spe_norm, freq
 
-def get_psd(data, dt:float, interval:float=0.2):
-    Ntot = np.shape(data)[1]
-    N = int(interval/dt)
-    Nspe = int(np.floor(Ntot/N))
-    for k in range(Nspe):
-        spe,f = get_spectrum(data[:,k*N:min((k+1)*N,Ntot)],dt)
-        if k == 0:
-            psd = spe**2/Nspe
-        else:
-            psd += spe**2/Nspe
+def get_psd(data, dt:float):
+    psd_obj = PSD(data,dt)
+    psd = psd_obj.psd_data.copy()
+    f = psd_obj.freq_vec.copy()
+    # Ntot = np.shape(data)[1]
+    # N = int(interval/dt)
+    # Nspe = int(np.floor(Ntot/N))
+    # for k in range(Nspe):
+    #     spe,f = get_spectrum(data[:,k*N:min((k+1)*N,Ntot)],dt)
+    #     if k == 0:
+    #         psd = spe**2/Nspe
+    #     else:
+    #         psd += spe**2/Nspe
     return psd,f
 
 
@@ -73,7 +78,13 @@ for fname in glob.glob(os.path.join(data_dir, "*.fits")):
     data[key] = arr
     print('key:', key, 'type:', type(data[key]))
 
-init = 750
+################### Parameters #########################
+fs = 2000
+init = int(0.1*fs)
+delay_frames = 2.0
+gain = 0.4
+filter_data_complex = IirFilterData.restore('./calibration/filter/iirfilter_1300modes.fits')
+filter_data_complex.num *= gain
 
 #################### SR ######################
 try:
@@ -133,18 +144,22 @@ try:
     zpol_modes = comm + zmeas
     turb_modes = res + comm
 
-    dt = 1/2000
+    dt = 1/fs
     interval = 0.25
-    pol_psd, f = get_psd(pol_modes.T,dt=dt,interval=interval)
-    res_psd, f = get_psd(res.T,dt=dt,interval=interval)
+    pol_psd, f = get_psd(pol_modes.T,dt=dt)#,interval=interval)
+    res_psd, f = get_psd(res.T,dt=dt)#,interval=interval)
 
     flims = [1/interval,1/dt/2]
+    freq = np.logspace(-1,np.log10(fs/2),2000)
+    nw_delay, dw_delay = filter_data_complex.discrete_delay_tf(delay_frames)
 
     lo_mode_ids = [0,1,2,3,20]
     plt.figure()
     plt.subplot(2,2,1)
-    for mode in lo_mode_ids:
-        plt.loglog(f,pol_psd[mode,:],label=f'Mode {mode:1.0f}')
+    for k,mode in enumerate(lo_mode_ids):
+        rtf = filter_data_complex.RTF(mode=mode, fs=fs, freq=freq, dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
+        plt.loglog(f,pol_psd[mode,:],c=f'C{k}',label=f'Mode {mode:1.0f}')
+        plt.loglog(freq,rtf**-2,'--',c=f'C{k}',label='')
     plt.grid(which='both', alpha=0.3)
     # plt.xlabel('Frequency [Hz]')
     plt.legend()
@@ -163,8 +178,10 @@ try:
 
     ho_mode_ids = [50,100,200,500,1000]
     plt.subplot(2,2,2)
-    for mode in ho_mode_ids:
-        plt.loglog(f,pol_psd[mode,:],label=f'Mode {mode:1.0f}')
+    for k,mode in enumerate(ho_mode_ids):
+        rtf = filter_data_complex.RTF(mode=mode, fs=fs, freq=freq, dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
+        plt.loglog(f,pol_psd[mode,:],c=f'C{k}',label=f'Mode {mode:1.0f}')
+        plt.loglog(freq,rtf**-2,'--',c=f'C{k}',label='')
     plt.grid(which='both', alpha=0.3)
     # plt.xlabel('Frequency [Hz]')
     plt.legend()

@@ -40,9 +40,9 @@ def compute_ml_rec(im_tag:str, Nmodes:int, frame_tag:str=None, RON:float=None, i
     frame_null = frame_hdul[0].data[0]
     wfs_mask = get_mask(pyr=isPyr)
     slope_null = frame_null[wfs_mask]
-    noise_cov = np.diag(slope_null + RON)
-    turb_cov = np.eye(Nmodes)
-    rec = compute_mmse_reconstructor(interaction_matrix=D, c_atm=turb_cov, c_noise=noise_cov, verbose=True, xp=np, dtype=np.float64)
+    noise_cov_inv = np.diag(1/(slope_null + RON))
+    turb_cov = np.zeros([Nmodes, Nmodes])
+    rec = compute_mmse_reconstructor(interaction_matrix=D, c_atm=turb_cov, c_noise=noise_cov_inv, c_inverse=True, verbose=True, xp=np, dtype=np.float64)
     # DtCn = D.T @ np.diag(1/noise_cov)
     # rec = np.linalg.pinv(DtCn @ D) @ DtCn
     return rec

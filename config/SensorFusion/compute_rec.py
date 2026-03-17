@@ -61,7 +61,7 @@ def compute_ml_rec(im_tag:str, Nmodes:int, frame_tag:str, cov_tag:str=None, RON:
         # plt.grid()
         # plt.show()
     else:
-        turb_cov = np.eye(Nmodes)
+        turb_cov = np.zeros([Nmodes, Nmodes])
     rec = compute_mmse_reconstructor(interaction_matrix=D, c_atm=turb_cov, c_noise=noise_cov, verbose=True, xp=np, dtype=np.float64)
     # DtCn = D.T @ np.diag(1/(slope_null + RON))
     # rec = np.linalg.pinv(DtCn @ D) @ DtCn
@@ -108,23 +108,23 @@ def compute_zwfs_rec(Nmodes:int, im_tag:str='zwfs_1821modes', compute_ml:bool=Fa
 
 if __name__ == "__main__":
 
-    Nmodes = 1200
-    # rMods = np.array([0,0.5,1,2,3])
-    # for rMod in rMods:
-    #     rec,_ = compute_pyr_rec(Nmodes=Nmodes,im_tag=f'pyr{rMod:1.1f}_1821modes')
-    #     save_rec(rec, rec_tag=f'pyr{rMod:1.1f}_{Nmodes:1.0f}modes')
+    Nmodes = 1300
+    rMods = np.array([0,0.5,1,2,3])
+    for rMod in rMods:
+        rec,_ = compute_pyr_rec(Nmodes=Nmodes,im_tag=f'pyr{rMod:1.1f}_1821modes')
+        save_rec(rec, rec_tag=f'pyr{rMod:1.1f}_{Nmodes:1.0f}modes')
 
-    rec,_ = compute_pyr_rec(Nmodes=Nmodes,compute_ml=True, cov_tag=None, 
-                            im_tag=f'pyr0.0_1821modes',frame_tag=f'pyr0.0_frame')
-    save_rec(rec, rec_tag=f'pyr0.0_{Nmodes:1.0f}modes_ml')
+    # rec,_ = compute_pyr_rec(Nmodes=Nmodes,compute_ml=True, cov_tag=None, 
+    #                         im_tag=f'pyr0.0_1821modes',frame_tag=f'pyr0.0_frame')
+    # save_rec(rec, rec_tag=f'pyr0.0_{Nmodes:1.0f}modes_ml')
 
-    rec,_ = compute_pyr_rec(Nmodes=150,im_tag=f'pyr3.0_16x16_239modes')
-    save_rec(rec, rec_tag=f'pyr3.0_16x16_150modes')
+    # rec,_ = compute_pyr_rec(Nmodes=150,im_tag=f'pyr3.0_16x16_239modes')
+    # save_rec(rec, rec_tag=f'pyr3.0_16x16_150modes')
 
-    # dotSizes = np.array([1,1.5,2])
-    # for dotSize in dotSizes:
-    #     rec,_ = compute_zwfs_rec(Nmodes=Nmodes,im_tag=f'z{dotSize:1.1f}wfs_1821modes')
-    #     save_rec(rec, rec_tag=f'z{dotSize:1.1f}wfs_{Nmodes:1.0f}modes')
+    dotSizes = np.array([1,1.5,2])
+    for dotSize in dotSizes:
+        rec,_ = compute_zwfs_rec(Nmodes=Nmodes,im_tag=f'z{dotSize:1.1f}wfs_1821modes')
+        save_rec(rec, rec_tag=f'z{dotSize:1.1f}wfs_{Nmodes:1.0f}modes')
 
         # rec,_ = compute_zwfs_rec(Nmodes=Nmodes,compute_ml=True, cov_tag=None, #'bmc2k_vlt', #cov_tag=None,
         #                          im_tag=f'z{dotSize:1.1f}wfs_1821modes',frame_tag=f'z{dotSize:1.1f}wfs_frame')
