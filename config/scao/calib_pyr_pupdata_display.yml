@@ -19,7 +19,7 @@ pyramid_override:
   mod_amp:           10.0                     # Modulation radius (in lambda/D units)
 
 display:
-  class: 'PixelsPupInteractiveDisplay'
+  class: 'PixelsPupDisplay'
   inputs:
     in_pupdata: 'pupil_calibrator.out_pupdata'
     in_pixels: 'detector.out_pixels'
