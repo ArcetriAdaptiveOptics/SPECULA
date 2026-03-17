@@ -301,7 +301,7 @@ class TestDisplayServerTrigger(unittest.TestCase):
 
             if isinstance(item, tuple):
                 types.append(item[0])
-                if item[0] == 'terminator':
+                if item[0] == 'image_terminator':
                     break
 
         self.assertIn('image_terminator', types)
