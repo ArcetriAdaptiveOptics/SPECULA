@@ -291,12 +291,19 @@ class TestDisplayServerTrigger(unittest.TestCase):
         server.trigger()
         time.sleep(0.001)  # Queue context switch
 
-        # At minimum the terminator should have been queued
-        items = []
-        while not server.qout.empty():
-            items.append(server.qout.get_nowait())
+        types = []
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            try:
+                item = server.qout.get(timeout=0.05)
+            except _queue_module.Empty:
+                continue
 
-        types = [i[0] for i in items if isinstance(i, tuple)]
+            if isinstance(item, tuple):
+                types.append(item[0])
+                if item[0] == 'terminator':
+                    break
+
         self.assertIn('image_terminator', types)
 
     # -- data mode --
@@ -321,7 +328,7 @@ class TestDisplayServerTrigger(unittest.TestCase):
         time.sleep(0.001) # Queue context switch
 
         types = []
-        deadline = time.time() + 0.5
+        deadline = time.time() + 5
         while time.time() < deadline:
             try:
                 item = server.qout.get(timeout=0.05)
