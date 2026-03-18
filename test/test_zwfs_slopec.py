@@ -20,7 +20,7 @@ class TestSlopec(unittest.TestCase):
         pixels.pixels = xp.arange(25,  dtype=xp.uint16).reshape((5,5))
         pixels.generation_time = 1
 
-        slopec = ZwfsSlopec(diameter=3, ccd_size=(5,5), target_device_idx=target_device_idx)
+        slopec = ZwfsSlopec(pup_diam=3, ccd_size=5, target_device_idx=target_device_idx)
         slopec.inputs['in_pixels'].set(pixels)
         slopec.check_ready(1)
         slopec.trigger()
@@ -32,6 +32,7 @@ class TestSlopec(unittest.TestCase):
 
         got = cpuArray(slopes.slopes)
         np.testing.assert_array_almost_equal(got, want)
+        np.testing.assert_equal(slopec.nsubaps(),9)
 
     @cpu_and_gpu
     def test_zernslopec_slopesnull(self, target_device_idx, xp):
@@ -40,8 +41,8 @@ class TestSlopec(unittest.TestCase):
         pixels.generation_time = 1
         sn = Slopes(slopes=np.arange(9)/9, target_device_idx=target_device_idx)
 
-        slopec1 = ZwfsSlopec(diameter=3, ccd_size=(5,5), target_device_idx=target_device_idx)
-        slopec2 = ZwfsSlopec(diameter=3, ccd_size=(5,5), sn=sn, target_device_idx=target_device_idx)
+        slopec1 = ZwfsSlopec(pup_diam=3, ccd_size=5, target_device_idx=target_device_idx)
+        slopec2 = ZwfsSlopec(pup_diam=3, ccd_size=5, sn=sn, target_device_idx=target_device_idx)
         slopec1.inputs['in_pixels'].set(pixels)
         slopec2.inputs['in_pixels'].set(pixels)
         slopec1.check_ready(1)
@@ -68,7 +69,7 @@ class TestSlopec(unittest.TestCase):
         pixels.pixels = xp.arange(25, dtype=xp.uint16).reshape((5, 5))
         pixels.generation_time = 1
 
-        slopec = ZwfsSlopec(diameter=3, ccd_size=(5,5), target_device_idx=target_device_idx)
+        slopec = ZwfsSlopec(pup_diam=3, ccd_size=5, target_device_idx=target_device_idx)
         slopec.inputs['in_pixels'].set(pixels)
         slopec.check_ready(1)
         slopec.trigger()

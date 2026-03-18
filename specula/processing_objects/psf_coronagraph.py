@@ -42,6 +42,7 @@ class PsfCoronagraph(PSF):
                  target_device_idx: int = None,
                  precision: int = None,
                  verbose:bool = True,
+                 use_average_field:bool = True,
                 ):
         super().__init__(
             simul_params=simul_params,
@@ -53,6 +54,7 @@ class PsfCoronagraph(PSF):
             precision=precision,
             verbose=verbose,
         )
+        self.use_average_field = use_average_field
 
         # Additional outputs for coronagraph
         self.coronagraph_psf = BaseValue(target_device_idx=self.target_device_idx,
@@ -105,8 +107,14 @@ class PsfCoronagraph(PSF):
         # Only consider pixels where amplitude > 0 (inside pupil)
         pupil_mask = amp > 0
         if self.xp.sum(pupil_mask) > 0:
-            avg_electric_field = self.xp.sum(electric_field * pupil_mask) / self.xp.sum(pupil_mask)
-            electric_field_corrected = electric_field - avg_electric_field * pupil_mask
+            if self.use_average_field is True:
+                avg_electric_field = self.xp.sum(electric_field * pupil_mask) / self.xp.sum(pupil_mask)
+                electric_field_corrected = electric_field - avg_electric_field * pupil_mask
+            else:              
+                mean_phase = self.xp.sum(phase * pupil_mask) / self.xp.sum(pupil_mask)
+                var_phase = self.xp.sum(((phase - mean_phase) ** 2) * pupil_mask) / self.xp.sum(pupil_mask)
+                ec = self.xp.exp(-var_phase)
+                electric_field_corrected = (self.xp.sqrt(ec) - self.xp.exp(1j * phase)) * pupil_mask
         else:
             electric_field_corrected = electric_field
 
