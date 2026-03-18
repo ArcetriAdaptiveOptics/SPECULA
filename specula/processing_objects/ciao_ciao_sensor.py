@@ -145,14 +145,13 @@ class CiaoCiaoSensor(BaseProcessingObj):
         theta_y = tilt_y_arcsec / self.xp.asarray(RAD2ASEC)
 
         nx, ny = in_ef.size
+        if nx != ny:
+            raise ValueError(f'_build_tilt_phase_map_nm requires a square electric field'
+                             f' , got {nx}x{ny}')
         pitch = in_ef.pixel_pitch
 
-        # Explicitly build the physical grid in meters
-        x = (self.xp.arange(nx) - nx / 2.0) * pitch
-        y = (self.xp.arange(ny) - ny / 2.0) * pitch
-
-        # 'xy' indexing maps x to columns (horizontal) and y to rows (vertical)
-        xx, yy = self.xp.meshgrid(x, y, indexing='xy')
+        xx, yy = make_xy(nx, 0.5 * nx * pitch, xp=self.xp,
+                         dtype=self.dtype, zero_sampled=True)
 
         # theta (rad) * xx (meters) = OPD (meters) -> * 1e9 = OPD (nm)
         return (theta_x * xx + theta_y * yy) * 1e9
