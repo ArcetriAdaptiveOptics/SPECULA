@@ -141,10 +141,20 @@ class CiaoCiaoSensor(BaseProcessingObj):
 
     def _build_tilt_phase_map_nm(self, in_ef):
         tilt_x_arcsec, tilt_y_arcsec = self.tilt_in_arcsec
-        theta_x = tilt_x_arcsec / RAD2ASEC
-        theta_y = tilt_y_arcsec / RAD2ASEC
+        theta_x = tilt_x_arcsec / self.xp.asarray(RAD2ASEC)
+        theta_y = tilt_y_arcsec / self.xp.asarray(RAD2ASEC)
 
-        xx, yy = make_xy(in_ef.size[0], in_ef.pixel_pitch, xp=self.xp)
+        nx, ny = in_ef.size
+        pitch = in_ef.pixel_pitch
+
+        # Explicitly build the physical grid in meters
+        x = (self.xp.arange(nx) - nx / 2.0) * pitch
+        y = (self.xp.arange(ny) - ny / 2.0) * pitch
+
+        # 'xy' indexing maps x to columns (horizontal) and y to rows (vertical)
+        xx, yy = self.xp.meshgrid(x, y, indexing='xy')
+
+        # theta (rad) * xx (meters) = OPD (meters) -> * 1e9 = OPD (nm)
         return (theta_x * xx + theta_y * yy) * 1e9
 
     def setup(self):
@@ -185,7 +195,7 @@ class CiaoCiaoSensor(BaseProcessingObj):
 
         tilt_phase_nm = self._build_tilt_phase_map_nm(in_ef)
         tilt_phase_rad = tilt_phase_nm * ((2 * self.xp.pi) / self.wavelength_in_nm)
-        self._tilt_exp = self.xp.exp(1j * tilt_phase_rad, dtype=self.complex_dtype)
+        self._tilt_exp = self.xp.exp(self.complex_dtype(1j) * tilt_phase_rad)
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
