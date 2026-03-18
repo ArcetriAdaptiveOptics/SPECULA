@@ -258,8 +258,8 @@ def compute_and_save_influence_functions(tag:str, pupil_pixels:int, n_acts:int, 
 
 if __name__ == "__main__":
     Npix = 160
-    # compute_and_save_influence_functions(tag='bmc2k_vlt', pupil_pixels=Npix, n_acts=50,
-    #                                       geom='alpao', r0=10e-2, obsratio=0.0, pupil_mask_tag='vlt_pupil')
+    compute_and_save_influence_functions(tag='bmc2k_vlt', pupil_pixels=Npix, n_acts=50,
+                                          geom='alpao', r0=10e-2, obsratio=0.0, pupil_mask_tag='vlt_pupil')
     compute_and_save_influence_functions(tag='dm241_vlt', pupil_pixels=Npix, n_acts=17,
                                           geom='alpao', r0=10e-2, obsratio=0.0, pupil_mask_tag='vlt_pupil')
 
