@@ -5,7 +5,7 @@ pyr_pupdata:
   thr1: 0.1
   thr2: 0.4
   display_debug: True
-  output_tag:        'pyr_pupdata'
+  output_tag:        'pyr_pupdata_16x16'
   overwrite: false
   inputs:
     in_i: 'pyr.out_i'

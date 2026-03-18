@@ -2,12 +2,12 @@ import numpy as np
 
 def computeRadialProfile(image, centerInPxY=None, centerInPxX=None):#, xp=np, dtype=np.float64):
     if centerInPxX is None:
-        centerInPxX = (image.shape[1])/2
+        centerInPxX = (image.shape[1])/2+0.5
     if centerInPxY is None:
-        centerInPxY = (image.shape[0])/2
+        centerInPxY = (image.shape[0])/2+0.5
     yCoord, xCoord= np.indices(image.shape)
-    yCoord= (yCoord - centerInPxY)
-    xCoord= (xCoord - centerInPxX)
+    yCoord= (yCoord - centerInPxY).astype(float)
+    xCoord= (xCoord - centerInPxX).astype(float)
     rCoord=np.sqrt(xCoord**2 + yCoord**2)
     indexR= np.argsort(rCoord.flat)
     radialDistancesSorted= rCoord.flat[indexR]

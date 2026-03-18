@@ -2,7 +2,10 @@ import os
 import glob
 import specula
 specula.init(-1)  # Default target device
+
+from specula.lib.calc_psf import calc_psf
 from specula.lib.radial_profile import computeRadialProfile
+
 from astropy.io import fits
 import numpy as np
 import matplotlib.pyplot as plt
@@ -28,16 +31,14 @@ def get_psd(data, dt:float):
     psd_obj = PSD(data,dt)
     psd = psd_obj.psd_data.copy()
     f = psd_obj.freq_vec.copy()
-    # Ntot = np.shape(data)[1]
-    # N = int(interval/dt)
-    # Nspe = int(np.floor(Ntot/N))
-    # for k in range(Nspe):
-    #     spe,f = get_spectrum(data[:,k*N:min((k+1)*N,Ntot)],dt)
-    #     if k == 0:
-    #         psd = spe**2/Nspe
-    #     else:
-    #         psd += spe**2/Nspe
     return psd,f
+
+def get_reference_psf(pupil_tag:str='vlt_pupil_160pixels',nd:int=4):
+    hdu = fits.open(os.path.join('./calibration/pupilstop',pupil_tag+'.fits'))
+    pupil = hdu[1].data
+    psf = calc_psf(np.zeros_like(pupil),pupil.astype(float), imwidth=int(pupil.shape[1]*nd), normalize=True,
+                                            xp=np, complex_dtype=np.complex128)
+    return psf
 
 
 def show_psf(psf, oversampling:int=4, title:str='', ext=0.25, vmin=-8, vmax=0, cmap='inferno', maxVal=None):
@@ -82,7 +83,7 @@ for fname in glob.glob(os.path.join(data_dir, "*.fits")):
 fs = 2000
 init = int(0.1*fs)
 delay_frames = 2.0
-gain = 0.4
+gain = 0.5
 filter_data_complex = IirFilterData.restore('./calibration/filter/iirfilter_1300modes.fits')
 filter_data_complex.num *= gain
 
@@ -217,7 +218,7 @@ try:
     plt.figure(figsize=(12,5))
     plt.subplot(1,2,1)
     show_psf(psf, title='PSF\n'+tn, cmap='inferno', ext=0.6, maxVal=np.max(psf), vmin=-6)    
-    coro_psf = data["coro_psf_std"]
+    coro_psf = data["coro_psf"]
     coro_psf = np.sqrt(np.mean(coro_psf[init+1:]**2,axis=0))
     plt.subplot(1,2,2)
     show_psf(coro_psf, title='Coronagraphic PSF\n'+tn, cmap='inferno', ext=0.6, maxVal=np.max(psf), vmin=-6)
@@ -252,11 +253,12 @@ except:
 
 ################# PSF profiles #######################
 try:
-    psf_dl = data["ref_psf"][-1]
+    oversampling = 4
+    psf_dl = get_reference_psf(pupil_tag='vlt_pupil_160pixels',nd=oversampling)
     psf = data["psf"]
     psf = np.sqrt(np.mean(psf[init+1:]**2,axis=0))
-    coro_psf = data["coro_psf_std"][0]
-    oversampling = 4
+    coro_psf = data["coro_psf"]
+    coro_psf = np.sqrt(np.mean(coro_psf[init+1:]**2,axis=0))
     rad_psf, dist = computeRadialProfile(psf)#,dtype=np.float128)
     rad_psf_dl, dist = computeRadialProfile(psf_dl)#,dtype=np.float128)
     rad_cpsf, dist = computeRadialProfile(coro_psf)#,dtype=np.float128)
@@ -279,7 +281,7 @@ try:
     plt.grid()
     plt.title('Coronographic PSF radial profile (Std Dev)\n'+tn)
     plt.xlabel(r'$\lambda/D$')
-except:
+except FileNotFoundError:
     print(f"coro_psf.fits file not found in {data_dir}.")
 
 plt.show()

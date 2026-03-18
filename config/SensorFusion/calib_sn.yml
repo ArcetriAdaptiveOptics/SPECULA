@@ -1,24 +1,29 @@
 pyr_sn:
   class: 'SnCalibrator'
-  output_tag: 'pyr2.0_slope_null'           # Output filename
+  output_tag: 'pyr0.0_slope_null'           # Output filename
   overwrite: false
   inputs:
     in_slopes: 'pyr_slopes.out_slopes'
 
 zwfs_sn:
   class: 'SnCalibrator'
-  output_tag: 'z1.5wfs_slope_null'           # Output filename
+  output_tag: 'z2.0wfs_slope_null'           # Output filename
   overwrite: false
   inputs:
     in_slopes: 'zwfs_slopes.out_slopes'
 
 pyr_override:
-  mod_amp: 2.0
+  # mod_amp: 0.5
+  # pup_diam: 16.0
+  # pup_dist: 20.0
   inputs:
     in_ef: 'prop.out_source_ngs_ef'
 
+# pyr_slopes_override:
+#   pupdata_object: 'pyr_pupdata_16x16'
+
 zwfs_override:
-  spot_radius_lambda: 0.75         
+  spot_radius_lambda: 1.0         
   inputs:
     in_ef: 'prop.out_source_ngs_ef'
 
@@ -40,7 +45,7 @@ data_store_override:
   class:             'DataStore'
   store_dir:         './calibration/slopenulls'            # Data result directory: 'store_dir'/TN/
   inputs:
-    input_list: [ 'z1.5wfs_frame-ocam2.out_pixels','pyr2.0_frame-cred1.out_pixels',]
+    input_list: [ 'z2.0wfs_frame-ocam2.out_pixels','pyr0.5_frame-cred1.out_pixels',]
 
 # Remove closed-loop components (not needed for slope null)
 remove: ['atmo','seeing','wind_speed','wind_direction','atmo_mode_res', #'bootstrap', 'concat_wfs_modes', #'source_science',

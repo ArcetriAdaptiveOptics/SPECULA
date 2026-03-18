@@ -36,7 +36,7 @@ modal_analysis_random:
 scale_random:
   class:  'BaseOperation'
   # constant_mul: 0.95                    # correction level
-  constant_mul_data: 'correction_vector_1200modes'  # From file
+  constant_mul_data: 'correction_vector_1300modes'  # From file
   inputs:
     in_value1: 'modal_analysis_random.out_modes'
   outputs: ['out_value']
@@ -47,7 +47,7 @@ dm_random:
   simul_params_ref: 'main'
   ifunc_object:      'bmc2k_vlt_ifunc'      # Our computed influence functions
   m2c_object:        'bmc2k_vlt_m2c'        # Modal-to-command matrix
-  nmodes:            1200             # Number of controlled modes
+  nmodes:            1300             # Number of controlled modes
   height:            0                # Ground-conjugated DM
   inputs:
     in_command: 'scale_random.out_value'

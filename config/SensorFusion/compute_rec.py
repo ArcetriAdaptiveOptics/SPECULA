@@ -118,8 +118,8 @@ if __name__ == "__main__":
     #                         im_tag=f'pyr0.0_1821modes',frame_tag=f'pyr0.0_frame')
     # save_rec(rec, rec_tag=f'pyr0.0_{Nmodes:1.0f}modes_ml')
 
-    # rec,_ = compute_pyr_rec(Nmodes=150,im_tag=f'pyr3.0_16x16_239modes')
-    # save_rec(rec, rec_tag=f'pyr3.0_16x16_150modes')
+    rec,_ = compute_pyr_rec(Nmodes=150,im_tag=f'pyr0.0_16x16_239modes')
+    save_rec(rec, rec_tag=f'pyr0.0_16x16_150modes')
 
     dotSizes = np.array([1,1.5,2])
     for dotSize in dotSizes:
