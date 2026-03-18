@@ -460,7 +460,7 @@ class ModulatedPyramid(BaseProcessingObj):
     def cache_ttexp(self):
         """Cache tip/tilt exponentials for modulation or extended source"""
 
-        iu = 1j  # complex unit
+        iu = self.xp.array(1j, dtype=self.complex_dtype)  # complex unit
 
         # Determine number of rotation variants needed
         if self.mod_type == 'alternating':
