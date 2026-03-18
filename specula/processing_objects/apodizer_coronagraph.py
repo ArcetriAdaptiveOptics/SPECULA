@@ -62,7 +62,7 @@ class APPCoronagraph(Coronagraph):
                     pad_start:pad_start+self.fft_sampling] = self.xp.array(pupil)
         app = generate_app_keller(pad_pupil, self.xp.array(target_contrast),
                                   max_iterations=max_its, beta=beta, xp=self.xp,
-                                  dtype=self.complex_dtype)
+                                  complex_dtype=self.complex_dtype)
         apodizer_phase = self.xp.zeros(pupil.shape,dtype=self.complex_dtype)
         apodizer_phase[pupil>0] = self.xp.angle(app)[pad_pupil>0.0]
         return apodizer_phase, target_contrast
@@ -154,7 +154,7 @@ class PAPLCoronagraph(APPCoronagraph):
 
 # Outside the class on purpose, move inside or to its own module if you prefer
 def generate_app_keller(pupil, target_contrast, max_iterations:int,
-                        xp, dtype, beta:float=0):
+                        xp, complex_dtype, beta:float=0):
     """
     Function taken from HCIpy (Por et al. 2018):
     https://github.com/ehpor/hcipy/blob/master/hcipy/coronagraphy/apodizing_phase_plate.py
@@ -200,9 +200,11 @@ def generate_app_keller(pupil, target_contrast, max_iterations:int,
     """
     if beta < 0 or beta > 1:
         raise ValueError('Beta should be between 0 and 1.')
+    
+    iu = complex_dtype(1j)
 
     # initialize APP with pupil
-    app = pupil * xp.exp(1j*xp.zeros(pupil.shape),dtype=dtype)
+    app = pupil * xp.exp(iu*xp.zeros(pupil.shape), dtype=complex_dtype)
 
     # define dark zone as location where contrast is < 1e-1
     dark_zone = target_contrast < 0.1
@@ -224,7 +226,7 @@ def generate_app_keller(pupil, target_contrast, max_iterations:int,
         app = xp.fft.ifft2(xp.fft.ifftshift(new_image)) # determine pupil electric field
         app[~pupil.astype(bool)] = 0 # enforce pupil
         # app[pupil.astype(bool)] /= xp.abs(app[pupil.astype(bool)]) # enforce unity transmission within pupil
-        app = xp.asarray(pupil) * xp.exp(1j*xp.angle(app),dtype=dtype)
+        app = xp.asarray(pupil) * xp.exp(iu*xp.angle(app),dtype=complex_dtype)
 
     psf = xp.abs(image)**2
     contrast =  psf / xp.max(psf)
