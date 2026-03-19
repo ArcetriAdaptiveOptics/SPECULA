@@ -141,8 +141,8 @@ class CiaoCiaoSensor(BaseProcessingObj):
 
     def _build_tilt_phase_map_nm(self, in_ef):
         tilt_x_arcsec, tilt_y_arcsec = self.tilt_in_arcsec
-        theta_x = tilt_x_arcsec / self.xp.asarray(RAD2ASEC)
-        theta_y = tilt_y_arcsec / self.xp.asarray(RAD2ASEC)
+        theta_x = tilt_x_arcsec / RAD2ASEC
+        theta_y = tilt_y_arcsec / RAD2ASEC
 
         nx, ny = in_ef.size
         if nx != ny:

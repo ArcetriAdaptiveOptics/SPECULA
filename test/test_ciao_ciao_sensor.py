@@ -6,6 +6,8 @@ specula.init(0)
 from specula import cpuArray, np, RAD2ASEC
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.pixels import Pixels
+from specula.data_objects.pupilstop import Pupilstop
+from specula.data_objects.simul_params import SimulParams
 from specula.lib.compute_petal_ifunc import compute_petal_ifunc
 from specula.processing_objects.ciao_ciao_sensor import CiaoCiaoSensor
 from specula.processing_objects.ciao_ciao_slopec import CiaoCiaoSlopec 
@@ -241,7 +243,7 @@ class TestCiaoCiaoSlopec(unittest.TestCase):
     def get_synthetic_data(self, shape=(128, 128)):
         """
         Generates a synthetic interferogram with a carrier frequency,
-        and 6 dummy sector masks for testing.
+        and a full pupil mask for testing.
         """
         y, x = np.indices(shape)
 
@@ -253,19 +255,15 @@ class TestCiaoCiaoSlopec(unittest.TestCase):
         # Synthetic interferogram: I = 1 + cos(2*pi*(fx*x + fy*y))
         interferogram = 1.0 + np.cos(2 * np.pi * (freq_x * x + freq_y * y))
 
-        # Create 6 dummy sector masks (e.g., horizontal/vertical stripes for simplicity)
-        sector_masks = []
-        stripe_width = shape[1] // 6
-        for i in range(6):
-            mask = np.zeros(shape, dtype=bool)
-            mask[:, i*stripe_width:(i+1)*stripe_width] = True
-            sector_masks.append(mask)
+        # Full pupil mask (all pixels valid)
+        simul_params = SimulParams(pixel_pupil=shape[0], pixel_pitch=1.0)
+        pupil_mask = Pupilstop(simul_params, input_mask=np.ones(shape, dtype=np.float32))
 
         # Expected peak in the FFT for the given carrier frequency
         window_x = shape[1] // 2 + 10
         window_y = shape[0] // 2 + 5
 
-        return interferogram, sector_masks, window_x, window_y
+        return interferogram, pupil_mask, window_x, window_y
 
     @staticmethod
     def _compute_sector_pistons_from_opd(opd_map, sector_masks):
@@ -283,7 +281,7 @@ class TestCiaoCiaoSlopec(unittest.TestCase):
         """
         t = 1
         shape = (128, 128)
-        interf_data, sector_masks, win_x, win_y = self.get_synthetic_data(shape)
+        interf_data, pupil_mask, win_x, win_y = self.get_synthetic_data(shape)
 
         # Setup input Pixels object
         pixels = Pixels(*shape, target_device_idx=target_device_idx)
@@ -296,7 +294,7 @@ class TestCiaoCiaoSlopec(unittest.TestCase):
             window_x_in_pix=win_x,
             window_y_in_pix=win_y,
             window_sigma_in_pix=3.0,
-            sector_masks=sector_masks,
+            pupil_mask=pupil_mask,
             unwrap=False,
             target_device_idx=target_device_idx
         )
@@ -310,9 +308,9 @@ class TestCiaoCiaoSlopec(unittest.TestCase):
         slopes = slopec.outputs['out_slopes']
         flux_per_sub = slopec.outputs['out_flux_per_subaperture'].value
 
-        # Verify output shapes (flattened OPD + 6 sector flux diagnostics)
+        # Verify output shapes (flattened OPD)
         self.assertEqual(len(cpuArray(slopes.slopes)), shape[0] * shape[1])
-        self.assertEqual(len(cpuArray(flux_per_sub)), 6)
+        self.assertEqual(len(cpuArray(flux_per_sub)), 1)
 
         # Verify fluxes are positive
         self.assertTrue(xp.all(flux_per_sub > 0))
@@ -328,7 +326,7 @@ class TestCiaoCiaoSlopec(unittest.TestCase):
         """
         t = 1
         shape = (64, 64) # Smaller shape for faster unwrapping test
-        interf_data, sector_masks, win_x, win_y = self.get_synthetic_data(shape)
+        interf_data, pupil_mask, win_x, win_y = self.get_synthetic_data(shape)
 
         pixels = Pixels(*shape, target_device_idx=target_device_idx)
         pixels.pixels = xp.asarray(interf_data, dtype=pixels.pixels.dtype)
@@ -340,7 +338,7 @@ class TestCiaoCiaoSlopec(unittest.TestCase):
             window_x_in_pix=win_x,
             window_y_in_pix=win_y,
             window_sigma_in_pix=3.0,
-            sector_masks=sector_masks,
+            pupil_mask=pupil_mask,
             unwrap=True,  # <--- Testing the unwrapping path
             target_device_idx=target_device_idx
         )
@@ -428,8 +426,10 @@ class TestCiaoCiaoSlopec(unittest.TestCase):
             window_x_in_pix=window_x,
             window_y_in_pix=window_y,
             window_sigma_in_pix=window_sigma,
-            sector_masks=sector_masks,
-            unwrap=True,
+            pupil_mask=Pupilstop(SimulParams(pixel_pupil=dim, pixel_pitch=1.0),
+                                  input_mask=cpuArray(pupil_mask).astype(np.float32)),
+            diffRotAngleInDeg=360.0 / n_petals,
+            unwrap=False,
             target_device_idx=target_device_idx
         )
 

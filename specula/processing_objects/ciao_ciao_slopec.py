@@ -1,11 +1,14 @@
 from specula import cpuArray
+from specula.lib.interp2d import Interp2D
+from specula.data_objects.pupilstop import Pupilstop
 from specula.processing_objects.slopec import Slopec
 from specula.data_objects.slopes import Slopes
 from skimage.restoration import unwrap_phase
 
 class CiaoCiaoSlopec(Slopec):
     """
-    Slope computer for the CiaoCiao WFS.
+    Slope computer for the CiaoCiao WFS processing object.
+    
     Extracts the phase from an interferogram using the Fourier method:
     1. Computes the FFT of the interferogram.
     2. Isolates the carrier sideband using a Top-Flat Gaussian window.
@@ -20,7 +23,8 @@ class CiaoCiaoSlopec(Slopec):
                  window_x_in_pix: float,
                  window_y_in_pix: float,
                  window_sigma_in_pix: float,
-                 sector_masks: list,
+                 pupil_mask: Pupilstop,
+                 diffRotAngleInDeg: float = 0.0,
                  unwrap: bool = False,
                  sn: Slopes = None,
                  target_device_idx: int = None,
@@ -35,9 +39,16 @@ class CiaoCiaoSlopec(Slopec):
             Coordinates of the sideband center in the FFT.
         window_sigma_in_pix : float
             Width of the filtering window (Top Flat Gaussian).
-        sector_masks : list of ndarray
-            List of 2D boolean masks, one for each pupil sector,
-            used for diagnostic flux outputs.
+        pupil_mask : Pupilstop
+            Pupil mask defining the valid area. Its ``.A`` amplitude array is
+            used. The effective mask is the intersection
+            of this mask with a copy rotated by ``diffRotAngleInDeg``, mirroring
+            the overlap region seen by the CiaoCiao interferometer.
+        diffRotAngleInDeg : float, optional
+            Rotation angle in degrees applied to one branch of the interferometer
+            (same value as ``diffRotAngleInDeg`` in CiaoCiaoSensor). The effective
+            pupil mask is ``mask & rotate(mask, diffRotAngleInDeg)``.
+            Default is 0.0 (no rotation applied, mask used as-is).
         unwrap : bool, optional
             If True, performs 2D phase unwrapping using skimage (runs on CPU).
             Default is False.
@@ -47,13 +58,8 @@ class CiaoCiaoSlopec(Slopec):
         self.window_y = float(window_y_in_pix)
         self.window_sigma = float(window_sigma_in_pix)
         self.unwrap = bool(unwrap)
-        self._opd_shape = None
+        self.diffRotAngleInDeg = float(diffRotAngleInDeg)
         self._nslopes = 1
-
-        # The masks define the subapertures (sectors)
-        self.sector_masks_host = sector_masks
-        self._sector_masks_xp = None # Will be loaded onto the device in setup()
-
         self._window = None
 
         super().__init__(sn=sn,
@@ -61,8 +67,20 @@ class CiaoCiaoSlopec(Slopec):
                          precision=precision,
                          **kwargs)
 
+        if pupil_mask is not None:
+            mask = self.xp.asarray(pupil_mask.A, dtype=self.dtype) > 0.5
+            if self.diffRotAngleInDeg != 0.0:
+                interp = Interp2D(mask.shape, mask.shape,
+                                  rotInDeg=self.diffRotAngleInDeg,
+                                  dtype=self.dtype, xp=self.xp)
+                rotated = interp.interpolate(mask.astype(self.dtype)) > 0.5
+                mask = mask & rotated
+            self._pupil_mask_xp = mask
+        else:
+            self._pupil_mask_xp = None
+
     def nsubaps(self):
-        return len(self.sector_masks_host) if self.sector_masks_host else 1
+        return 1
 
     def nslopes(self):
         return self._nslopes
@@ -70,39 +88,28 @@ class CiaoCiaoSlopec(Slopec):
     def setup(self):
         super().setup()
 
-        # Transfer the sector masks to the current device (CPU/GPU)
-        self._sector_masks_xp = [self.xp.asarray(m, dtype=bool) for m in self.sector_masks_host]
-
         in_pixels = self.local_inputs['in_pixels']
-        self._opd_shape = in_pixels.pixels.shape
-        self._nslopes = int(self._opd_shape[0] * self._opd_shape[1])
-        if self.slopes.size != self._nslopes:
-            self.slopes.resize(self._nslopes)
+        nslopes = int(in_pixels.pixels.shape[0] * in_pixels.pixels.shape[1])
+        if self.slopes.size != nslopes:
+            self.slopes.resize(nslopes)
+        self._nslopes = nslopes
 
-    def _build_window(self, shape):
-        """Precomputes the Top Flat Gaussian Circular Window on the device."""
-        x = self.xp.arange(0, shape[1])
-        y = self.xp.arange(0, shape[0])
+        x = self.xp.arange(0, in_pixels.pixels.shape[1])
+        y = self.xp.arange(0, in_pixels.pixels.shape[0])
         xx, yy = self.xp.meshgrid(x, y)
 
         # Top Flat Gaussian: exp( - ( dx^2/2s^2 + dy^2/2s^2 )^2 )
         window = self.xp.exp(
-            -((xx - self.window_x)**2 / (2 * self.window_sigma**2) + 
+            -((xx - self.window_x)**2 / (2 * self.window_sigma**2) +
+              
               (yy - self.window_y)**2 / (2 * self.window_sigma**2))**2
         )
-        return window.astype(self.complex_dtype)
+
+        self._window = window.astype(self.complex_dtype)
 
     def trigger_code(self):
-        # Handle temporal accumulation (as in the IDL version)
-        if self.weight_int_pixel_dt > 0:
-            self.do_accumulation(self.current_time)
-
         # 1. Retrieve the interferogram (current pixels from the CCD)
         pixels = self.local_inputs['in_pixels'].pixels
-
-        # Initialize the window on the first valid pass
-        if self._window is None:
-            self._window = self._build_window(pixels.shape)
 
         # 2. Fourier Transform and shift
         ft_intensity = self.xp.fft.fftshift(self.xp.fft.fft2(pixels, norm='ortho'))
@@ -136,8 +143,11 @@ class CiaoCiaoSlopec(Slopec):
         # 8. Export OPD map as a flattened vector
         self.slopes.slopes[:] = opd.ravel()
 
-        # Diagnostic outputs: total and subaperture fluxes
-        flux_per_sub = self.xp.array([self.xp.sum(pixels[mask]) for mask in self._sector_masks_xp])
-        self.flux_per_subaperture_vector.value[:] = flux_per_sub
-        self.total_counts.value[0] = self.xp.sum(flux_per_sub)
-        self.subap_counts.value[0] = self.xp.mean(flux_per_sub)
+        # Diagnostic outputs: mean flux per pixel within the pupil mask
+        if self._pupil_mask_xp is not None:
+            flux_mean = self.xp.mean(pixels[self._pupil_mask_xp])
+        else:
+            flux_mean = self.xp.mean(pixels)
+        self.flux_per_subaperture_vector.value[:] = flux_mean
+        self.total_counts.value[0] = flux_mean
+        self.subap_counts.value[0] = flux_mean
