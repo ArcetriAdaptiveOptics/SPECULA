@@ -15,7 +15,8 @@ from specula.base_processing_obj import BaseProcessingObj
 class DataStore(BaseProcessingObj):
     """
     Data storage processing object.
-    Stores data values over time and saves them to disk at the end of the run.
+    Stores input values over time, optionally decimating them on a per-input
+    basis, and saves them to disk at the end of the run.
     """
     def __init__(self,
                 store_dir: str,         # TODO ="",
@@ -23,7 +24,41 @@ class DataStore(BaseProcessingObj):
                 first_suffix: int=0,
                 data_format: str='fits',
                 start_time: float=0,
-                create_tn: bool=True):
+                create_tn: bool=True,
+                store_every: int=1,
+                store_every_by_input: dict=None):
+        """
+        Parameters
+        ----------
+        store_dir : str
+            Base directory where data will be stored. A subdirectory with a timestamp
+            will be created inside this directory to hold the data files.
+        split_size : int, optional
+            If > 0, creates a new subdirectory and saves one chunk every
+            ``split_size`` trigger iterations after ``start_time``.
+            Default is 0 (no splitting, all data in one folder).
+        first_suffix : int, optional
+            Starting suffix for split folders. Default is 0.
+        data_format : str, optional
+            Format for saved data files. Supported values are 'fits' and 'pickle'.
+            Default is 'fits'.
+        start_time : float, optional
+            Time in seconds to wait before starting to store data.
+            Default is 0 (store from the beginning).
+        create_tn : bool, optional
+            If True, creates a timestamped subdirectory for storing data.
+            Default is True.
+        store_every : int, optional
+            Store one sample every ``N`` received samples for all inputs.
+            The decimation is sample-based and tracked independently for each
+            input, so an input that updates less frequently is counted only when
+            it produces a new sample. Default is 1 (store every sample).
+        store_every_by_input : dict, optional
+            Per-input decimation factors. Keys are the DataStore input names,
+            values are integers >= 1. When using ``input_list``, the key is the
+            alias before the dash, e.g. ``'comm'`` for ``'comm-control.out_comm'``.
+            This option is mutually exclusive with ``store_every != 1``.
+        """
         super().__init__()
         self.data_filename = ''
         self.today = time.strftime("%Y%m%d_%H%M%S")
@@ -36,7 +71,28 @@ class DataStore(BaseProcessingObj):
         self.split_size = split_size
         self.first_suffix = first_suffix
         self.start_time = self.seconds_to_t(start_time)
+        self.store_every = self._validate_store_every(store_every, 'store_every')
+        if store_every_by_input is not None and self.store_every != 1:
+            raise ValueError('store_every_by_input requires store_every == 1')
+        self.store_every_by_input = {
+            key: self._validate_store_every(value, f'store_every_by_input[{key!r}]')
+            for key, value in (store_every_by_input or {}).items()
+        }
+        self.input_sample_counters = defaultdict(int)
         self.init_storage()
+
+    @staticmethod
+    def _validate_store_every(value, name):
+        value = int(value)
+        if value < 1:
+            raise ValueError(f'{name} must be >= 1')
+        return value
+
+    def _should_store_input(self, input_name):
+        every = self.store_every_by_input.get(input_name, self.store_every)
+        sample_idx = self.input_sample_counters[input_name]
+        self.input_sample_counters[input_name] += 1
+        return sample_idx % every == 0
 
     def init_storage(self):
         self.storage = defaultdict(OrderedDict)
@@ -136,6 +192,8 @@ class DataStore(BaseProcessingObj):
 
         for k, item in self.local_inputs.items():
             if item is not None and item.generation_time == self.current_time:
+                if not self._should_store_input(k):
+                    continue
                 value = item.get_value()
                 v = cpuArray(value, force_copy=True)
                 self.storage[k][self.current_time] = v

@@ -282,6 +282,26 @@ Create a YAML configuration file, for example ``params_scao_pyr_basic.yml``:
      inputs:
        input_list: ['res_ef-prop.out_on_axis_source_ef']
 
+If the full-rate data volume is too large, ``DataStore`` can decimate what is
+written to disk for selected inputs:
+
+.. code-block:: yaml
+
+   data_store:
+     class:             'DataStore'
+     store_dir:         './output'
+     store_every_by_input:
+       res_ef:          50
+       sr:              5
+     inputs:
+       input_list: ['res_ef-prop.out_on_axis_source_ef',
+                    'sr-psf.out_sr']
+
+In this example, ``res_ef`` is stored every 50 received samples and ``sr``
+every 5. The keys in ``store_every_by_input`` are the aliases before the dash
+in ``input_list``. If you want a single cadence for all inputs, use
+``store_every`` instead. The two options cannot be combined.
+
 Part 2: Calibration
 -------------------
 

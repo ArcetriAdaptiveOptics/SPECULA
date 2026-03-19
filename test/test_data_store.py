@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 from specula.connections import InputValue
 from specula.base_data_obj import BaseDataObj
+from specula.base_value import BaseValue
 from specula.processing_objects.data_store import DataStore
 from test.specula_testlib import cpu_and_gpu
 
@@ -25,14 +26,131 @@ class TestDataStore(unittest.TestCase):
             os.mkdir(self.tmp_dir)
 
     def tearDown(self):
-       shutil.rmtree(self.tmp_dir, ignore_errors=True)
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
+
+    @staticmethod
+    def _make_input_value(target_device_idx):
+        return BaseValue(target_device_idx=target_device_idx)
+
+    @staticmethod
+    def _connect_input(store, name, value):
+        store.inputs[name] = InputValue(type=BaseValue)
+        store.inputs[name].set(value)
+
+    @staticmethod
+    def _stored_scalars(store, name):
+        values = list(store.storage[name].values())
+        if not values:
+            return np.array([])
+        return np.array([np.asarray(value).reshape(-1)[0] for value in values])
+
+    @cpu_and_gpu
+    def test_data_store_global_decimation(self, target_device_idx, xp):
+        store = DataStore(
+            store_dir=self.tmp_dir,
+            create_tn=False,
+            store_every=2
+        )
+        store.target_device_idx = target_device_idx
+
+        fast = self._make_input_value(target_device_idx)
+        slow = self._make_input_value(target_device_idx)
+        self._connect_input(store, 'fast', fast)
+        self._connect_input(store, 'slow', slow)
+        store.setup()
+
+        for t in range(6):
+            fast.set_value(np.array([10 + t], dtype=np.float32))
+            fast.generation_time = t
+            slow.set_value(np.array([20 + t], dtype=np.float32))
+            slow.generation_time = t
+
+            store.check_ready(t)
+            store.trigger()
+            store.post_trigger()
+
+        self.assertEqual(list(store.storage['fast'].keys()), [0, 2, 4])
+        self.assertEqual(list(store.storage['slow'].keys()), [0, 2, 4])
+        np.testing.assert_array_equal(self._stored_scalars(store, 'fast'), np.array([10, 12, 14]))
+        np.testing.assert_array_equal(self._stored_scalars(store, 'slow'), np.array([20, 22, 24]))
+
+    @cpu_and_gpu
+    def test_data_store_per_input_decimation(self, target_device_idx, xp):
+        store = DataStore(
+            store_dir=self.tmp_dir,
+            create_tn=False,
+            store_every_by_input={'slow': 3}
+        )
+        store.target_device_idx = target_device_idx
+
+        fast = self._make_input_value(target_device_idx)
+        slow = self._make_input_value(target_device_idx)
+        self._connect_input(store, 'fast', fast)
+        self._connect_input(store, 'slow', slow)
+        store.setup()
+
+        for t in range(6):
+            fast.set_value(np.array([10 + t], dtype=np.float32))
+            fast.generation_time = t
+            slow.set_value(np.array([20 + t], dtype=np.float32))
+            slow.generation_time = t
+
+            store.check_ready(t)
+            store.trigger()
+            store.post_trigger()
+
+        self.assertEqual(list(store.storage['fast'].keys()), [0, 1, 2, 3, 4, 5])
+        self.assertEqual(list(store.storage['slow'].keys()), [0, 3])
+        np.testing.assert_array_equal(self._stored_scalars(store, 'fast'),
+                                      np.array([10, 11, 12, 13, 14, 15]))
+        np.testing.assert_array_equal(self._stored_scalars(store, 'slow'),
+                                      np.array([20, 23]))
+
+    @cpu_and_gpu
+    def test_data_store_decimation_counts_samples_per_input(self, target_device_idx, xp):
+        store = DataStore(
+            store_dir=self.tmp_dir,
+            create_tn=False,
+            store_every=1,
+            store_every_by_input={'sparse': 2}
+        )
+        store.target_device_idx = target_device_idx
+
+        sparse = self._make_input_value(target_device_idx)
+        self._connect_input(store, 'sparse', sparse)
+        store.setup()
+
+        for t in range(7):
+            if t % 2 == 0:
+                sparse.set_value(np.array([100 + t], dtype=np.float32))
+                sparse.generation_time = t
+
+            if store.check_ready(t):
+                store.trigger()
+                store.post_trigger()
+
+        self.assertEqual(list(store.storage['sparse'].keys()), [0, 4])
+        np.testing.assert_array_equal(self._stored_scalars(store, 'sparse'), np.array([100, 104]))
+
+    def test_data_store_rejects_invalid_decimation_factor(self):
+        with self.assertRaises(ValueError):
+            DataStore(store_dir=self.tmp_dir, store_every=0)
+
+        with self.assertRaises(ValueError):
+            DataStore(store_dir=self.tmp_dir, store_every_by_input={'fast': 0})
+
+        with self.assertRaises(ValueError):
+            DataStore(store_dir=self.tmp_dir, store_every=2, store_every_by_input={'fast': 3})
 
     @cpu_and_gpu
     def test_data_store(self, target_device_idx, xp):
         params = {'main': {'class': 'SimulParams', 'root_dir': self.tmp_dir,
                            'time_step': 0.1, 'total_time': 0.2},
-                  'generator': {'class': 'WaveGenerator', 'target_device_idx': target_device_idx, 'amp': 1, 'freq': 2},
-                  'store': {'class': 'DataStore', 'store_dir': self.tmp_dir,
+                  'generator': {'class': 'WaveGenerator',
+                                'target_device_idx': target_device_idx,
+                                'amp': 1, 'freq': 2},
+                  'store': {'class': 'DataStore',
+                            'store_dir': self.tmp_dir,
                             'inputs': {'input_list': ['gen-generator.output']},
                             }
                   }
