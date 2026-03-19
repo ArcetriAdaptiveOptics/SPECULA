@@ -237,7 +237,7 @@ dm2:
   nmodes:            150             # Number of controlled modes
   height:            0                # Ground-conjugated DM
   inputs:
-    in_command:      'filter2.out_comm'
+    in_command:      'dcao_cmd2.out_value' #'filter2.out_comm' #
   outputs:           ['out_layer']
 
 filter1:
@@ -270,6 +270,23 @@ dm1:
   outputs:           ['out_layer']
 
 
+######################### dCAO compensation #########################
+cmd1_to_cmd2:
+  class: 'MVM'
+  recmat_object: 'bmc2k_vlt_1300modes_to_dm241_vlt_150modes'
+  inputs:
+    in_vector: 'filter1.out_comm'
+  outputs: ['out_vector']
+
+dcao_cmd2:
+  class: 'BaseOperation'
+  sub: true
+  inputs:
+    in_value1: 'filter2.out_comm'
+    in_value2: 'cmd1_to_cmd2.out_vector'
+  outputs:  ['out_value']
+
+
 ###########################################################
 ##################### POST-PROCESSING #####################
 # Coronagraphic and non-coronagraphic PSFs
@@ -277,8 +294,8 @@ psf:
   class:             'PSF'
   simul_params_ref:  'main'
   wavelengthInNm:    750                 # [nm] visible
-  nd:                4                    # 4x padding for PSF
-  start_time:        0.5                  # Start PSF integration after 500ms
+  nd:                4                   # 4x padding for PSF
+  start_time:        0.5                 # Start PSF integration after 500ms
   verbose: false
   inputs:
     in_ef:           'first_stage_prop.out_ef'
@@ -288,8 +305,8 @@ coro_psf:
   class:             'PsfCoronagraph'
   simul_params_ref:  'main'
   wavelengthInNm:    750                 # [nm] visible
-  nd:                4                    # 4x padding for PSF
-  start_time:        0.5                  # Start PSF integration after 500ms
+  nd:                4                   # 4x padding for PSF
+  start_time:        0.5                 # Start PSF integration after 500ms
   verbose: false
   # use_average_field: false
   inputs:

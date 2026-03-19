@@ -311,7 +311,7 @@ coro_psf:
   nd:                4                    # 4x padding for PSF
   start_time:        0.5                  # Start PSF integration after 500ms
   verbose: false
-  # use_average_field: false
+  use_average_field: false
   inputs:
     in_ef:           'ef_prop.out_ef' 
   outputs:           ['out_coronagraph_psf','out_std_coronagraph_psf']
@@ -341,6 +341,7 @@ data_store:
                   'psf-psf.out_psf',
                   'psf_std-psf.out_std_psf',
                   'coro_psf-coro_psf.out_coronagraph_psf',
+                  'coro_psf_std-coro_psf.out_std_coronagraph_psf',
                   'atmo_res-atmo_mode_res.out_modes',
                   'dm_res-dm_mode_res.out_modes',
                   'dm_cmd-filter.out_comm',

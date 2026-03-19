@@ -1,5 +1,6 @@
 import os
 import glob
+import yaml
 import specula
 specula.init(-1)  # Default target device
 
@@ -80,12 +81,24 @@ for fname in glob.glob(os.path.join(data_dir, "*.fits")):
     print('key:', key, 'type:', type(data[key]))
 
 ################### Parameters #########################
-fs = 2000
+params_path = os.path.join(data_dir,'params.yml')
+with open(params_path, 'r') as file:
+    params = yaml.safe_load(file)
+    fs = 1.0/float(params['main']['time_step'])
+    delay_frames = 1.0 + float(params['filter']['delay'])
+    if params['filter']['class'] == 'IirFilter':
+        gain = float(params['filter']['iir_gain'])
+        iir_path = os.path.join('./calibration/filter/',str(params['filter']['iir_filter_data_object'])+'.fits')
+        filter_data_complex = IirFilterData.restore(iir_path)
+        filter_data_complex.num *= gain
+    else:
+        gain = float(params['filter']['int_gain'])
+        try:
+            ff = float(params['filter']['ff'])
+        except KeyError:
+            ff = 1.0
+        filter_data_complex = IirFilterData.from_gain_and_ff(gain=[gain],ff=[ff])
 init = int(0.1*fs)
-delay_frames = 2.0
-gain = 0.5
-filter_data_complex = IirFilterData.restore('./calibration/filter/iirfilter_1300modes.fits')
-filter_data_complex.num *= gain
 
 #################### SR ######################
 try:
@@ -146,12 +159,11 @@ try:
     turb_modes = res + comm
 
     dt = 1/fs
-    interval = 0.25
-    pol_psd, f = get_psd(pol_modes.T,dt=dt)#,interval=interval)
+    pol_psd, f = get_psd(turb_modes.T,dt=dt)#,interval=interval)
     res_psd, f = get_psd(res.T,dt=dt)#,interval=interval)
 
-    flims = [1/interval,1/dt/2]
-    freq = np.logspace(-1,np.log10(fs/2),2000)
+    flims = [fs/init,1/dt/2]
+    freq = np.logspace(-2,np.log10(fs/2),2000)
     nw_delay, dw_delay = filter_data_complex.discrete_delay_tf(delay_frames)
 
     lo_mode_ids = [0,1,2,3,20]
@@ -159,7 +171,7 @@ try:
     plt.subplot(2,2,1)
     for k,mode in enumerate(lo_mode_ids):
         rtf = filter_data_complex.RTF(mode=mode, fs=fs, freq=freq, dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
-        plt.loglog(f,pol_psd[mode,:],c=f'C{k}',label=f'Mode {mode:1.0f}')
+        plt.loglog(f,pol_psd[mode,:]/np.min(pol_psd[mode,:][f<flims[-1]]),c=f'C{k}',label=f'Mode {mode:1.0f}')
         plt.loglog(freq,rtf**-2,'--',c=f'C{k}',label='')
     plt.grid(which='both', alpha=0.3)
     # plt.xlabel('Frequency [Hz]')
@@ -181,7 +193,7 @@ try:
     plt.subplot(2,2,2)
     for k,mode in enumerate(ho_mode_ids):
         rtf = filter_data_complex.RTF(mode=mode, fs=fs, freq=freq, dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
-        plt.loglog(f,pol_psd[mode,:],c=f'C{k}',label=f'Mode {mode:1.0f}')
+        plt.loglog(f,pol_psd[mode,:]/np.min(pol_psd[mode,:][f<flims[-1]]),c=f'C{k}',label=f'Mode {mode:1.0f}')
         plt.loglog(freq,rtf**-2,'--',c=f'C{k}',label='')
     plt.grid(which='both', alpha=0.3)
     # plt.xlabel('Frequency [Hz]')
@@ -217,11 +229,11 @@ try:
     psf = np.sqrt(np.mean(psf[init+1:]**2,axis=0))
     plt.figure(figsize=(12,5))
     plt.subplot(1,2,1)
-    show_psf(psf, title='PSF\n'+tn, cmap='inferno', ext=0.6, maxVal=np.max(psf), vmin=-6)    
+    show_psf(psf, title='PSF\n'+tn, cmap='inferno', ext=0.55, vmin=-6)    
     coro_psf = data["coro_psf"]
     coro_psf = np.sqrt(np.mean(coro_psf[init+1:]**2,axis=0))
     plt.subplot(1,2,2)
-    show_psf(coro_psf, title='Coronagraphic PSF\n'+tn, cmap='inferno', ext=0.6, maxVal=np.max(psf), vmin=-6)
+    show_psf(coro_psf, title='Coronagraphic PSF\n'+tn, cmap='inferno', ext=0.55,  vmin=-6)
 except FileNotFoundError:
     print(f"psf.fits file not found in {data_dir}.")
 
@@ -257,7 +269,7 @@ try:
     psf_dl = get_reference_psf(pupil_tag='vlt_pupil_160pixels',nd=oversampling)
     psf = data["psf"]
     psf = np.sqrt(np.mean(psf[init+1:]**2,axis=0))
-    coro_psf = data["coro_psf"]
+    coro_psf = data["coro_psf_std"]
     coro_psf = np.sqrt(np.mean(coro_psf[init+1:]**2,axis=0))
     rad_psf, dist = computeRadialProfile(psf)#,dtype=np.float128)
     rad_psf_dl, dist = computeRadialProfile(psf_dl)#,dtype=np.float128)

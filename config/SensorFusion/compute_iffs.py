@@ -7,6 +7,7 @@ from specula.lib.compute_zonal_ifunc import compute_zonal_ifunc
 from specula.lib.modal_base_generator import make_modal_base_from_ifs_fft, compute_ifs_covmat
 from specula.data_objects.ifunc import IFunc
 from specula.data_objects.ifunc_inv import IFuncInv
+from specula.data_objects.recmat import Recmat
 from specula.data_objects.m2c import M2C
 from specula.calib_manager import CalibManager
 from specula import cpuArray
@@ -253,8 +254,31 @@ def compute_and_save_influence_functions(tag:str, pupil_pixels:int, n_acts:int, 
 
     except Exception as e:
         print(f"⚠ File loading test failed: {e}")
-
     return ifunc_obj, m2c_obj
+
+
+def compute_and_save_dcao_matrix(first_stage_tag:str, second_stage_tag:str, N1_modes:int, N2_modes:int):
+    root_dir = './calibration'  
+    calib_manager = CalibManager(root_dir)
+
+    base_inv_filename = calib_manager.filename('ifunc', first_stage_tag+'_kl_inv')
+    MBInv = IFuncInv.restore(base_inv_filename)   
+    m2s_1 = MBInv.ifunc_inv.copy() 
+    base_inv_filename = calib_manager.filename('ifunc', second_stage_tag+'_kl_inv')
+    MBInv = IFuncInv.restore(base_inv_filename)   
+    m2s_2 = MBInv.ifunc_inv.copy() 
+
+    m1_to_m2 = np.linalg.pinv(m2s_2[:,:N2_modes]) @ m2s_1[:,:N1_modes]
+
+    m2m_obj = Recmat(recmat=m1_to_m2)
+    m2m_filename = calib_manager.filename('rec', first_stage_tag+f'_{N1_modes}modes_to_'+second_stage_tag+f'_{N2_modes}modes')
+    m2m_obj.save(m2m_filename, overwrite=True)
+    print("Saved " + m2m_filename)
+
+    loaded_m2m = Recmat.restore(m2m_filename)
+    assert loaded_m2m.recmat.shape == (N2_modes,N1_modes)
+    print("OK: m2m loading test passed")
+
 
 if __name__ == "__main__":
     Npix = 160
@@ -262,5 +286,6 @@ if __name__ == "__main__":
                                           geom='alpao', r0=10e-2, obsratio=0.0, pupil_mask_tag='vlt_pupil')
     compute_and_save_influence_functions(tag='dm241_vlt', pupil_pixels=Npix, n_acts=17,
                                           geom='alpao', r0=10e-2, obsratio=0.0, pupil_mask_tag='vlt_pupil')
+    compute_and_save_dcao_matrix(first_stage_tag='bmc2k_vlt',second_stage_tag='dm241_vlt',N1_modes=1300,N2_modes=150)
 
 
