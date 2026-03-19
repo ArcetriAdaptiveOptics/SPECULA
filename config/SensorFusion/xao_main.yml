@@ -171,7 +171,7 @@ zwfs:
   pup_diam:           48.                     # Pupil diameter in subaps.
   fov:                2.0                     # Requested field-of-view [arcsec]
   spot_radius_lambda: 0.75                     # Spot radius in λ/D units
-  fft_res:            4.0
+  fft_res:            8.0
   output_resolution:  120                     # Output sampling [usually corresponding to CCD pixels]
   wavelengthInNm:     750                     # [nm] zWFS wavelength
   inputs:
@@ -261,11 +261,11 @@ zwfs_modalrec:
 #     in_yf: 'zwfs_modalrec.out_modes'  #'pyr0_modalrec.out_modes' #
 #   outputs:  ['out_comm']
 
-gain_ramp:
-  class:             'ScheduleGenerator'
-  scheduled_values: [[0.5],[0.7]]
-  scheduled_times: [0.1]
-  modes_per_group: [1300]
+# gain_ramp:
+#   class:             'ScheduleGenerator'
+#   scheduled_values: [[0.5],[1.0]]
+#   scheduled_times: [0.1]
+#   modes_per_group: [1300]
 
 filter:
   class:                'IirFilter'
@@ -275,7 +275,7 @@ filter:
   iir_filter_data_object:  'iirfilter_1300modes'
   inputs:
     delta_comm: 'pyr_modalrec.out_modes' #'ogc_modes.out_value' 
-    gain_mod:   'gain_ramp.output'
+    # gain_mod:   'gain_ramp.output'
   outputs:  ['out_comm']
 
 dm:
