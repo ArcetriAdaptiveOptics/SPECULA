@@ -64,17 +64,17 @@ prop:
     common_layer_list: ['vlt_aperture']       # Pupil
   outputs:           ['out_source_ngs_ef'] 
 
-ef_prop:
+first_stage_prop:
   class: 'ElectricFieldCombinator'
   inputs:
     in_ef1: 'prop.out_source_ngs_ef'    # Turbulence
     in_ef2: 'dm1.out_layer:-1'          # DM1 correction
   outputs: ['out_ef']
 
-first_stage_prop:
+second_stage_prop:
   class: 'ElectricFieldCombinator'
   inputs:
-    in_ef1: 'ef_prop.out_ef'    # Turbulence
+    in_ef1: 'first_stage_prop.out_ef'    # Turbulence
     in_ef2: 'dm2.out_layer:-1'  # DM2 correction
   outputs: ['out_ef']
 
@@ -90,7 +90,7 @@ pyr:
   output_resolution: 120                      # Output sampling [usually corresponding to CCD pixels]
   wavelengthInNm:    750                     # [nm] Pyramid wavelength
   inputs:
-    in_ef: 'ef_prop.out_ef' #'prop.out_source_ngs_ef'
+    in_ef: 'first_stage_prop.out_ef' 
 
 cred1:
   class:             'CCD'
@@ -135,7 +135,7 @@ pyr0:
   output_resolution: 120                      # Output sampling [usually corresponding to CCD pixels]
   wavelengthInNm:    750                     # [nm] Pyramid wavelength
   inputs:
-    in_ef: 'first_stage_prop.out_ef' 
+    in_ef: 'second_stage_prop.out_ef' 
 
 cred2:
   class:             'CCD'
@@ -237,15 +237,15 @@ dm2:
   nmodes:            150             # Number of controlled modes
   height:            0                # Ground-conjugated DM
   inputs:
-    in_command:      'dcao_cmd2.out_value' #'filter2.out_comm' #
+    in_command:      'filter2.out_comm' #'dcao_cmd2.out_value' #
   outputs:           ['out_layer']
 
 filter1:
   class:             'Integrator'
   simul_params_ref:  'main'
   delay:             1                     # 1 frame delay (realistic)
-  int_gain:          [0.7]
-  n_modes:           [1300]                 # Number of modes to control
+  int_gain:          [0.7,0.6,0.5,0.0]
+  n_modes:           [2,100,1100,98]                 # Number of modes to control
   inputs:
     delta_comm:      'pyr_modalrec.out_modes' #
   outputs:           ['out_comm']
@@ -290,7 +290,7 @@ dcao_cmd2:
 ###########################################################
 ##################### POST-PROCESSING #####################
 # Coronagraphic and non-coronagraphic PSFs
-psf:
+psf1:
   class:             'PSF'
   simul_params_ref:  'main'
   wavelengthInNm:    750                 # [nm] visible
@@ -301,7 +301,7 @@ psf:
     in_ef:           'first_stage_prop.out_ef'
   outputs:           ['out_psf', 'out_std_psf', 'out_sr']
 
-coro_psf:
+coro_psf1:
   class:             'PsfCoronagraph'
   simul_params_ref:  'main'
   wavelengthInNm:    750                 # [nm] visible
@@ -313,18 +313,41 @@ coro_psf:
     in_ef:           'first_stage_prop.out_ef' 
   outputs:           ['out_coronagraph_psf','out_std_coronagraph_psf']
 
+psf2:
+  class:             'PSF'
+  simul_params_ref:  'main'
+  wavelengthInNm:    750                 # [nm] visible
+  nd:                4                   # 4x padding for PSF
+  start_time:        0.5                 # Start PSF integration after 500ms
+  verbose: false
+  inputs:
+    in_ef:           'second_stage_prop.out_ef'
+  outputs:           ['out_psf', 'out_std_psf', 'out_sr']
+
+coro_psf2:
+  class:             'PsfCoronagraph'
+  simul_params_ref:  'main'
+  wavelengthInNm:    750                 # [nm] visible
+  nd:                4                   # 4x padding for PSF
+  start_time:        0.5                 # Start PSF integration after 500ms
+  verbose: false
+  # use_average_field: false
+  inputs:
+    in_ef:           'second_stage_prop.out_ef' 
+  outputs:           ['out_coronagraph_psf','out_std_coronagraph_psf']
+
 dm2_mode_res:
   class:            'ModalAnalysis'
   ifunc_inv_object: 'bmc2k_vlt_kl_inv'
   inputs:
-    in_ef: ['first_stage_prop.out_ef']
+    in_ef: ['second_stage_prop.out_ef']
   outputs: ['out_modes']
 
 dm1_mode_res:
   class:            'ModalAnalysis'
   ifunc_inv_object: 'bmc2k_vlt_kl_inv'
   inputs:
-    in_ef: ['ef_prop.out_ef']
+    in_ef: ['first_stage_prop.out_ef']
   outputs: ['out_modes']
 
 atmo_mode_res:
@@ -341,10 +364,16 @@ data_store:
   inputs:
     input_list: ['dm1_cmd-filter1.out_comm',
                   'dm2_cmd-filter2.out_comm',
-                  'sr-psf.out_sr',
-                  'psf-psf.out_psf',
-                  'psf_std-psf.out_std_psf',
-                  'coro_psf_std-coro_psf.out_coronagraph_psf',
+                  'sr1-psf1.out_sr',
+                  'psf1-psf1.out_psf',
+                  # 'psf1_std-psf1.out_std_psf',
+                  'sr2-psf2.out_sr',
+                  'psf2-psf2.out_psf',
+                  # 'psf2_std-psf2.out_std_psf',
+                  # 'coro_psf1-coro_psf1.out_coronagraph_psf',
+                  'coro_psf1_std-coro_psf1.out_std_coronagraph_psf',
+                  # 'coro_psf2-coro_psf2.out_coronagraph_psf',
+                  'coro_psf2_std-coro_psf2.out_std_coronagraph_psf',
                   'atmo_res-atmo_mode_res.out_modes',
                   'dm1_res-dm1_mode_res.out_modes',
                   'dm1_cmd-filter1.out_comm',

@@ -16,18 +16,6 @@ from specula.base_value import BaseValue
 from specula.data_objects.psd import PSD
 from specula.data_objects.iir_filter_data import IirFilterData
 
-
-def get_spectrum(data, dt:float=1.0):
-    freq = np.fft.rfftfreq(data.shape[-1], d=dt)
-    spe = np.fft.rfft(data, norm="ortho", axis=-1)
-    nn = np.sqrt(spe.shape[-1])
-    spe_norm = (np.abs(spe)) / nn
-    if len(spe.shape) > 1:
-        spe_norm[:,0] = 0 
-    else:
-        spe_norm[0] = 0
-    return spe_norm, freq
-
 def get_psd(data, dt:float):
     psd_obj = PSD(data,dt)
     psd = psd_obj.psd_data.copy()
@@ -60,6 +48,21 @@ def show_psf(psf, oversampling:int=4, title:str='', ext=0.25, vmin=-8, vmax=0, c
     cbar.ax.set_title('Contrast')
     plt.title(title)
 
+def get_control_data(controller_name:str):
+    delay_frames = 1.0 + float(params[controller_name]['delay'])
+    if params[controller_name]['class'] == 'IirFilter':
+        gain = float(params[controller_name]['iir_gain'])
+        iir_path = os.path.join('./calibration/filter/',str(params[controller_name]['iir_filter_data_object'])+'.fits')
+        filter_data_complex = IirFilterData.restore(iir_path)
+        filter_data_complex.num *= gain
+    else:
+        gain = np.array(params[controller_name]['int_gain'])
+        try:
+            ff = np.array(params[controller_name]['ff'])
+        except KeyError:
+            ff = np.array([1.0])
+        filter_data_complex = IirFilterData.from_gain_and_ff(gain=gain.tolist(),ff=ff.tolist())
+    return filter_data_complex, delay_frames
 
 # Find all directories in ./output starting with '20'
 dirs = [d for d in glob.glob("./output/20*") if os.path.isdir(d)]
@@ -82,22 +85,20 @@ for fname in glob.glob(os.path.join(data_dir, "*.fits")):
 
 ################### Parameters #########################
 params_path = os.path.join(data_dir,'params.yml')
+
 with open(params_path, 'r') as file:
     params = yaml.safe_load(file)
     fs = 1.0/float(params['main']['time_step'])
-    delay_frames = 1.0 + float(params['filter']['delay'])
-    if params['filter']['class'] == 'IirFilter':
-        gain = float(params['filter']['iir_gain'])
-        iir_path = os.path.join('./calibration/filter/',str(params['filter']['iir_filter_data_object'])+'.fits')
-        filter_data_complex = IirFilterData.restore(iir_path)
-        filter_data_complex.num *= gain
-    else:
-        gain = float(params['filter']['int_gain'])
-        try:
-            ff = float(params['filter']['ff'])
-        except KeyError:
-            ff = 1.0
-        filter_data_complex = IirFilterData.from_gain_and_ff(gain=[gain],ff=[ff])
+    try:
+        filter_data_complex, delay_frames = get_control_data('filter')
+    except:
+        filter_data1, delay_frames1 = get_control_data('filter1')
+        filter_data2, delay_frames2 = get_control_data('filter2')
+        fs1 = 1.0/float(params['cred1']['dt'])
+        fs2 = 1.0/float(params['cred2']['dt'])
+        fs = np.max((fs1,fs2))
+        print(fs)
+
 init = int(0.1*fs)
 
 #################### SR ######################
@@ -110,8 +111,20 @@ try:
     plt.xlabel("Frame")
     plt.ylabel("SR")
     plt.grid(True)
-except FileNotFoundError:
-    print(f"sr.fits file not found in {data_dir}.")
+except KeyError:
+    try:
+        sr1 = data["sr1"]
+        sr2 = data["sr2"]
+        print(f"Average Strehl Ratio after {init:1.0f} iterations: {sr2[50:].mean():.4f}")
+        plt.figure()
+        plt.plot(sr1, '-.',label=r'$1^{st}$ stage')
+        plt.plot(sr2, '-.',label=r'$2^{nd}$ stage')
+        plt.title("Strehl Ratio\n"+tn)
+        plt.xlabel("Frame")
+        plt.ylabel("SR")
+        plt.grid(True)
+    except KeyError:
+        print(f"sr.fits file not found in {data_dir}.")
 
 ################ RESIDUALS ####################
 try:
@@ -131,7 +144,7 @@ try:
     root_dir = './calibration/'
     dir_path = os.path.join(root_dir, 'data')
     os.makedirs(dir_path, exist_ok=True)
-    fname = os.path.join(dir_path,'correction_vector_1200modes.fits')
+    fname = os.path.join(dir_path,f'correction_vector_{tn}.fits')
     bv = BaseValue(description='correction_level',value=corr)
     bv.save(filename=fname,overwrite=True)
     rec_corr = bv.restore(fname)
@@ -145,8 +158,33 @@ try:
     plt.yscale('log')
     plt.legend()
     plt.grid(True)
-except FileNotFoundError:
-    print(f"dm_res.fits, pyr_res.fits or atmo_res.fits files not found in {data_dir}.")
+except KeyError:
+    try:
+        res1 = data["dm1_res"][init+1:, :]
+        res2 = data["dm2_res"][init+1:, :]
+        turb = data["atmo_res"][init+1:, :]
+
+        x = np.arange(turb.shape[1])+1
+        turb_rms = np.sqrt(np.mean(turb**2, axis=0))
+        res1_rms = np.sqrt(np.mean(res1**2, axis=0))
+        res2_rms = np.sqrt(np.mean(res2**2, axis=0))
+
+        # Plot RMS of residuals and turbulence
+        plt.figure(figsize=(12, 6))
+        plt.plot(x,turb_rms, '-.', label='Turbulence')
+        plt.plot(x,res1_rms, '-.', label=r'$1^{st}$ stage residuals')
+        plt.plot(x,res2_rms, '-.', label=r'$2^{nd}$ stage residuals')
+
+        plt.title("Modal RMS amplitude\n"+tn)
+        plt.xlabel("Mode number")
+        plt.ylabel("RMS [nm]")
+        plt.xscale('log')
+        plt.yscale('log')
+        plt.legend()
+        plt.grid(True)
+        
+    except KeyError:
+        print(f"dm_res.fits, pyr_res.fits or atmo_res.fits files not found in {data_dir}.")
 
 try:
     comm = data["dm_cmd"][init+1:, :]
@@ -220,7 +258,7 @@ try:
     # plt.xlabel('Frequency [Hz]')
     # plt.legend()
 
-except FileNotFoundError:
+except KeyError:
     print(f"dm_res.fits, pyr_res.fits or atmo_res.fits files not found in {data_dir}.")
 
 ################### PSF ########################
@@ -234,8 +272,19 @@ try:
     coro_psf = np.sqrt(np.mean(coro_psf[init+1:]**2,axis=0))
     plt.subplot(1,2,2)
     show_psf(coro_psf, title='Coronagraphic PSF\n'+tn, cmap='inferno', ext=0.55,  vmin=-6)
-except FileNotFoundError:
-    print(f"psf.fits file not found in {data_dir}.")
+except KeyError:
+    try:
+        psf1 = data["psf1"]
+        psf1 = np.sqrt(np.mean(psf1[init+1:]**2,axis=0))
+        plt.figure(figsize=(12,5))
+        plt.subplot(1,2,1)
+        show_psf(psf1, title=r'$1^{st}$ stage PSF\n'+tn, cmap='Reds', ext=0.55, vmin=-6)    
+        psf2 = data["psf2"]
+        psf2 = np.sqrt(np.mean(psf2[init+1:]**2,axis=0))
+        plt.subplot(1,2,2)
+        show_psf(psf2, title=r'2^{st} stage PSF\n'+tn, cmap='Blues', ext=0.55, vmin=-6)   
+    except KeyError:
+        print(f"psf.fits file not found in {data_dir}.")
 
 
 ##################### Modes ##########################
@@ -257,23 +306,22 @@ try:
     plt.xscale('log')
     plt.yscale('log')
     plt.grid()
-
 except:
     print(f"pyr_modes.fits or zwfs_modes.fits file(s) not found in {data_dir}.")
 
 
 
 ################# PSF profiles #######################
+oversampling = 4
+psf_dl = get_reference_psf(pupil_tag='vlt_pupil_160pixels',nd=oversampling)
+rad_psf_dl, dist = computeRadialProfile(psf_dl)
 try:
-    oversampling = 4
-    psf_dl = get_reference_psf(pupil_tag='vlt_pupil_160pixels',nd=oversampling)
     psf = data["psf"]
     psf = np.sqrt(np.mean(psf[init+1:]**2,axis=0))
     coro_psf = data["coro_psf_std"]
     coro_psf = np.sqrt(np.mean(coro_psf[init+1:]**2,axis=0))
-    rad_psf, dist = computeRadialProfile(psf)#,dtype=np.float128)
-    rad_psf_dl, dist = computeRadialProfile(psf_dl)#,dtype=np.float128)
-    rad_cpsf, dist = computeRadialProfile(coro_psf)#,dtype=np.float128)
+    rad_psf, dist = computeRadialProfile(psf)
+    rad_cpsf, dist = computeRadialProfile(coro_psf)
     plt.figure(figsize=(12,5))
     plt.subplot(1,2,1)
     plt.plot(dist/oversampling, rad_psf/np.max(psf_dl), label=r'INT', c='blue')
@@ -293,7 +341,42 @@ try:
     plt.grid()
     plt.title('Coronographic PSF radial profile (Std Dev)\n'+tn)
     plt.xlabel(r'$\lambda/D$')
-except FileNotFoundError:
-    print(f"coro_psf.fits file not found in {data_dir}.")
+except KeyError:
+    try:
+        psf1 = data["psf1"]
+        psf1 = np.sqrt(np.mean(psf1[init+1:]**2,axis=0))
+        coro_psf1 = data["coro_psf1_std"]
+        coro_psf1 = np.sqrt(np.mean(coro_psf1[init+1:]**2,axis=0))
+        rad_psf1, dist = computeRadialProfile(psf1)
+        rad_cpsf1, dist = computeRadialProfile(coro_psf1)
+        psf2 = data["psf2"]
+        psf2 = np.sqrt(np.mean(psf2[init+1:]**2,axis=0))
+        coro_psf2 = data["coro_psf2_std"]
+        coro_psf2 = np.sqrt(np.mean(coro_psf2[init+1:]**2,axis=0))
+        rad_psf2, dist = computeRadialProfile(psf2)
+        rad_cpsf2, dist = computeRadialProfile(coro_psf2)
+        plt.figure(figsize=(12,5))
+        plt.subplot(1,2,1)
+        plt.plot(dist/oversampling, rad_psf1/np.max(psf_dl), label=r'$1^{st}$ stage')
+        plt.plot(dist/oversampling, rad_psf2/np.max(psf_dl), label=r'$2^{nd}$ stage')
+        plt.plot(dist/oversampling, rad_psf_dl/np.max(psf_dl), '--', label='Diffraction limit')
+        plt.legend()
+        plt.yscale('log')
+        plt.xlim([0,30])
+        plt.ylim([1e-7,1])
+        plt.grid()
+        plt.title('PSF radial profile (RMS)\n'+tn)
+        plt.xlabel(r'$\lambda/D$')
+        plt.subplot(1,2,2)
+        plt.plot(dist/oversampling, rad_cpsf1/np.max(psf_dl), label=r'$1^{st}$ stage')
+        plt.plot(dist/oversampling, rad_cpsf2/np.max(psf_dl), label=r'$2^{nd}$ stage')
+        plt.yscale('log')
+        plt.xlim([0,30])
+        plt.ylim([1e-7,1])
+        plt.grid()
+        plt.title('Coronographic PSF radial profile (Std Dev)\n'+tn)
+        plt.xlabel(r'$\lambda/D$')
+    except KeyError:
+        print(f"coro_psf.fits file not found in {data_dir}.")
 
 plt.show()
