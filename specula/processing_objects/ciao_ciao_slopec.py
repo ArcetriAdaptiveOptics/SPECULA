@@ -13,7 +13,7 @@ class CiaoCiaoSlopec(Slopec):
     4. Computes the inverse FFT.
     5. Extracts the phase (arctan2) and (optionally) unwraps it.
     6. Converts the phase to OPD.
-    7. Averages the OPD over the sector masks (petals) to get the signals (pistons).
+    7. Exports the OPD map as a flattened output vector.
     """
     def __init__(self,
                  wavelength_in_nm: float,
@@ -37,7 +37,7 @@ class CiaoCiaoSlopec(Slopec):
             Width of the filtering window (Top Flat Gaussian).
         sector_masks : list of ndarray
             List of 2D boolean masks, one for each pupil sector,
-            used to compute the average piston.
+            used for diagnostic flux outputs.
         unwrap : bool, optional
             If True, performs 2D phase unwrapping using skimage (runs on CPU).
             Default is False.
@@ -47,6 +47,8 @@ class CiaoCiaoSlopec(Slopec):
         self.window_y = float(window_y_in_pix)
         self.window_sigma = float(window_sigma_in_pix)
         self.unwrap = bool(unwrap)
+        self._opd_shape = None
+        self._nslopes = 1
 
         # The masks define the subapertures (sectors)
         self.sector_masks_host = sector_masks
@@ -63,14 +65,19 @@ class CiaoCiaoSlopec(Slopec):
         return len(self.sector_masks_host) if self.sector_masks_host else 1
 
     def nslopes(self):
-        # For CiaoCiao, we consider the average piston of each sector as a "slope"
-        return self.nsubaps()
+        return self._nslopes
 
     def setup(self):
         super().setup()
 
         # Transfer the sector masks to the current device (CPU/GPU)
         self._sector_masks_xp = [self.xp.asarray(m, dtype=bool) for m in self.sector_masks_host]
+
+        in_pixels = self.local_inputs['in_pixels']
+        self._opd_shape = in_pixels.pixels.shape
+        self._nslopes = int(self._opd_shape[0] * self._opd_shape[1])
+        if self.slopes.size != self._nslopes:
+            self.slopes.resize(self._nslopes)
 
     def _build_window(self, shape):
         """Precomputes the Top Flat Gaussian Circular Window on the device."""
@@ -126,13 +133,8 @@ class CiaoCiaoSlopec(Slopec):
         # 7. Convert to OPD (wrapped or unwrapped)
         opd = phase * self.wavelength / (2 * self.xp.pi)
 
-        # 8. Compute the piston for each sector
-        if self._sector_masks_xp is not None:
-            slopes_vec = self.xp.zeros(self.nslopes(), dtype=self.dtype)
-            for i, mask in enumerate(self._sector_masks_xp):
-                slopes_vec[i] = self.xp.mean(opd[mask])
-
-            self.slopes.slopes[:] = slopes_vec
+        # 8. Export OPD map as a flattened vector
+        self.slopes.slopes[:] = opd.ravel()
 
         # Diagnostic outputs: total and subaperture fluxes
         flux_per_sub = self.xp.array([self.xp.sum(pixels[mask]) for mask in self._sector_masks_xp])

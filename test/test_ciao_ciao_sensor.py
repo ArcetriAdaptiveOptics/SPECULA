@@ -267,6 +267,14 @@ class TestCiaoCiaoSlopec(unittest.TestCase):
 
         return interferogram, sector_masks, window_x, window_y
 
+    @staticmethod
+    def _compute_sector_pistons_from_opd(opd_map, sector_masks):
+        sector_means = []
+        for mask in sector_masks:
+            mask_cpu = cpuArray(mask) > 0.5
+            sector_means.append(np.mean(opd_map[mask_cpu]))
+        return np.asarray(sector_means)
+
     @cpu_and_gpu
     def test_ciaociao_slopec_pipeline(self, target_device_idx, xp):
         """
@@ -302,8 +310,8 @@ class TestCiaoCiaoSlopec(unittest.TestCase):
         slopes = slopec.outputs['out_slopes']
         flux_per_sub = slopec.outputs['out_flux_per_subaperture'].value
 
-        # Verify output shapes (6 sectors expected)
-        self.assertEqual(len(cpuArray(slopes.slopes)), 6)
+        # Verify output shapes (flattened OPD + 6 sector flux diagnostics)
+        self.assertEqual(len(cpuArray(slopes.slopes)), shape[0] * shape[1])
         self.assertEqual(len(cpuArray(flux_per_sub)), 6)
 
         # Verify fluxes are positive
@@ -346,8 +354,8 @@ class TestCiaoCiaoSlopec(unittest.TestCase):
         slopes = slopec.outputs['out_slopes']
 
         # If it didn't crash during the cpuArray <-> unwrap_phase <-> to_xp transfer,
-        # and produced 6 slope values, the pipeline is intact.
-        self.assertEqual(len(cpuArray(slopes.slopes)), 6)
+        # and produced an OPD map, the pipeline is intact.
+        self.assertEqual(len(cpuArray(slopes.slopes)), shape[0] * shape[1])
         self.assertFalse(xp.isnan(slopes.slopes).any())
 
     @cpu_and_gpu
@@ -421,7 +429,7 @@ class TestCiaoCiaoSlopec(unittest.TestCase):
             window_y_in_pix=window_y,
             window_sigma_in_pix=window_sigma,
             sector_masks=sector_masks,
-            unwrap=False,
+            unwrap=True,
             target_device_idx=target_device_idx
         )
 
@@ -431,14 +439,15 @@ class TestCiaoCiaoSlopec(unittest.TestCase):
         slopec.trigger()
         slopec.post_trigger()
 
-        measured_slopes = cpuArray(slopec.outputs['out_slopes'].slopes)
+        measured_opd = cpuArray(slopec.outputs['out_slopes'].slopes).reshape((dim, dim))
+        measured_pistons = self._compute_sector_pistons_from_opd(measured_opd, sector_masks)
 
         # 5. Validation
-        self.assertEqual(len(measured_slopes), n_petals)
-        self.assertTrue(np.any(np.abs(measured_slopes) > 0.0),
-                        "Measured slopes should not be entirely zero.")
-        self.assertFalse(np.isnan(measured_slopes).any(),
-                         "Measured slopes contain NaNs.")
+        self.assertEqual(len(measured_pistons), n_petals)
+        self.assertTrue(np.any(np.abs(measured_pistons) > 0.0),
+                "Measured pistons should not be entirely zero.")
+        self.assertFalse(np.isnan(measured_pistons).any(),
+                 "Measured pistons contain NaNs.")
 
         # 6. Optional Plotting Block (Set to True to debug)
         plot_debug = False
@@ -449,8 +458,8 @@ class TestCiaoCiaoSlopec(unittest.TestCase):
             ft_intensity = np.fft.fftshift(np.fft.fft2(cpuArray(interferogram), norm='ortho'))
             power_spectrum = np.log10(np.abs(ft_intensity) + 1e-12)
 
-            # Plot A: Input Phase, Interferogram, Power Spectrum with Window Location
-            fig, axs = plt.subplots(1, 4, figsize=(20, 4))
+            # Plot A: Input Phase, Interferogram, Power Spectrum, and recovered OPD
+            fig, axs = plt.subplots(1, 5, figsize=(24, 4))
 
             # Plot 1: Input Phase
             im0 = axs[0].imshow(cpuArray(phase_nm), origin='lower', cmap='viridis')
@@ -476,16 +485,21 @@ class TestCiaoCiaoSlopec(unittest.TestCase):
             axs[3].add_patch(circle)
             fig.colorbar(im3, ax=axs[3])
 
+            # Plot 5: Recovered OPD map
+            im4 = axs[4].imshow(measured_opd, origin='lower', cmap='coolwarm')
+            axs[4].set_title("Recovered OPD [nm]")
+            fig.colorbar(im4, ax=axs[4])
+
             plt.tight_layout()
 
             # Plot B: Real VS Measured Differential Pistons
             plt.figure(figsize=(6, 5))
-            plt.plot(range(n_petals), measured_slopes, alpha=0.8,
-                     color='dodgerblue', label='Measured Slopes')
+            plt.plot(range(n_petals), measured_pistons, alpha=0.8,
+                     color='dodgerblue', label='Measured Pistons')
             plt.plot(range(n_petals), pistons_nm, alpha=0.8,
                      color='coral', label='Input Pistons')
             plt.axhline(0, color='black', linewidth=1)
-            plt.title("Measured Slopes (Differential OPD)")
+            plt.title("Measured Sector Pistons (from OPD)")
             plt.xlabel("Sector Index")
             plt.ylabel("OPD [nm]")
             plt.legend()
