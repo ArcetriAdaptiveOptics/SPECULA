@@ -1,0 +1,53 @@
+# Interaction Matrix and Reconstructor Calibration
+# ================================================
+
+# Push-pull command generator
+pushpull:
+  class:        'PushPullGenerator'
+  nmodes:       1821                         # Number of DM actuators
+  amp:          15
+  outputs:   ['output']
+
+# Interaction matrix calibrator
+pyr_im_calibrator:
+  class:     'ImCalibrator'
+  nmodes:    1821                         # Number of modes to calibrate
+  im_tag:    'pyr0.5_1821modes_im'            # Output IM filename
+  overwrite: false                         # Overwrite existing files
+  inputs:
+    in_slopes:   'pyr_slopes.out_slopes'      # WFS slopes input
+    in_commands: 'pushpull.output'        # Push-pull commands
+
+# Override main simulation parameters
+main_override:
+  time_step: 0.000588
+  total_time: 1.821                 # 1821 modes × 2 (push+pull) × 0.000588s
+
+# Disable atmosphere for clean calibration
+prop_override:
+  source_dict_ref:   ['source_ngs']
+  inputs:
+    common_layer_list: ['pupilstop', 'dm.out_layer']  # Only pupil + DM
+  outputs:           ['out_source_ngs_ef']
+
+# Override DM to use calibration commands
+dm_override:
+  sign: 1                                 # Use positive sign for calibration (default is -1)
+  nmodes: 1821                            # Use all modes for calibration
+  inputs:
+    in_command: 'pushpull.output'         # Connect to push-pull generator
+
+pyr_override:
+  # mod_amp: 0.5
+  inputs: 
+    in_ef: 'prop.out_source_ngs_ef'
+
+# Disable noise for clean measurements
+ocam_override:
+  photon_noise:   false                   # No photon noise
+  readout_noise:  false                   # No read noise
+  excess_noise:   false                   # No excess noise
+
+# Remove unnecessary objects during calibration
+remove: ['atmo','seeing','wind_speed','wind_direction','data_store','atmo_mode_res',
+        'dm_mode_res','filter','psf', 'ef_prop','pyr_modalrec',] 

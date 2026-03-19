@@ -12,6 +12,8 @@ from specula.data_objects.m2c import M2C
 from specula.calib_manager import CalibManager
 from specula import cpuArray
 
+from specula.lib.make_mask import make_mask
+
 from astropy.io import fits
 
 def compute_and_save_influence_functions(tag:str, pupil_pixels:int, n_acts:int, geom:str='circular',
@@ -64,6 +66,8 @@ def compute_and_save_influence_functions(tag:str, pupil_pixels:int, n_acts:int, 
         fname = './calibration/pupilstop/'+pupil_mask_tag+f'_{Npix:1.0f}pixels.fits'
         hdu = fits.open(fname)
         pupil_mask = hdu[1].data
+    else:
+        pupil_mask = make_mask(np_size=Npix,diaratio=diaratio,obsratio=obsratio)
 
     # Step 1: Generate zonal influence functions
     influence_functions,mask,coords,slaveMat = compute_zonal_ifunc(
@@ -282,7 +286,7 @@ def compute_and_save_dcao_matrix(first_stage_tag:str, second_stage_tag:str, N1_m
 
 if __name__ == "__main__":
     Npix = 220
-    compute_and_save_influence_functions(tag='dsm660', pupil_pixels=Npix, n_acts=36,
+    compute_and_save_influence_functions(tag='dsm660', D=8.4, pupil_pixels=Npix, n_acts=30,
                                           geom='circular', r0=10e-2, obsratio=0.0)
 
 

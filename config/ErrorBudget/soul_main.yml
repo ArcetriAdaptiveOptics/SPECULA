@@ -34,7 +34,7 @@ source_ngs:
 # Telescope pupil geometry
 vlt_aperture:
   class:             'Pupilstop'
-  tag:               'vlt_pupil_160pixels'
+  simul_params_ref:   'main'
 
 
 # Multi-layer atmospheric model
@@ -81,11 +81,11 @@ pyr:
   inputs:
     in_ef: 'ef_prop.out_ef' #'prop.out_source_ngs_ef'
 
-cred1:
+ocam:
   class:             'CCD'
   simul_params_ref:  'main'
   size:              [120,120]            # Total detector size
-  dt:                0.0005                # [s] Integration time (2000 fps)
+  dt:                0.000588             # [s] Integration time (2000 fps)
   bandw:             400                   # [nm]
   photon_noise:      true                  # Enable photon noise
   readout_noise:     true                  # Enable read noise
@@ -101,9 +101,9 @@ pyr_slopes:
   class:                  'PyrSlopec'
   pupdata_object:         'pyr_pupdata'           
   # slopes_from_intensity:  true
-  sn_object:            'pyr3.0_slope_null'
+  # sn_object:            'pyr3.0_slope_null'
   inputs:
-    in_pixels:        'cred1.out_pixels'
+    in_pixels:        'ocam.out_pixels'
   outputs:           ['out_slopes']
 
 pyr_modalrec:
