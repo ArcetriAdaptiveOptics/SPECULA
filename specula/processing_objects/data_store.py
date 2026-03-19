@@ -94,6 +94,16 @@ class DataStore(BaseProcessingObj):
         self.input_sample_counters[input_name] += 1
         return sample_idx % every == 0
 
+    def _decimation_for_input(self, input_name):
+        return self.store_every_by_input.get(input_name, self.store_every)
+
+    def _header_with_storage_metadata(self, input_name, header):
+        hdr = header.copy()
+        hdr['DECIM'] = (self._decimation_for_input(input_name),
+                        'Stored one sample every N received samples')
+        hdr['DECMODE'] = ('SAMPLE', 'Decimation mode used by DataStore')
+        return hdr
+
     def init_storage(self):
         self.storage = defaultdict(OrderedDict)
 
@@ -117,7 +127,10 @@ class DataStore(BaseProcessingObj):
                     continue
 
                 filename = os.path.join(self.tn_dir, k + '.pickle')
-                hdr = self.inputs[k].get(target_device_idx=-1).get_fits_header()
+                hdr = self._header_with_storage_metadata(
+                    k,
+                    self.inputs[k].get(target_device_idx=-1).get_fits_header()
+                )
                 with open(filename, 'wb') as handle:
                     data_to_save = {'data': data[k], 'times': times[k], 'hdr': hdr}
                     pickle.dump(data_to_save, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -158,7 +171,7 @@ class DataStore(BaseProcessingObj):
                     continue
 
                 filename = os.path.join(self.tn_dir, k + '.fits')
-                hdr = self.local_inputs[k].get_fits_header()
+                hdr = self._header_with_storage_metadata(k, self.local_inputs[k].get_fits_header())
                 hdu_time = fits.ImageHDU(times[k], header=hdr)
                 hdu_data = fits.PrimaryHDU(data[k], header=hdr)
                 hdul = fits.HDUList([hdu_data, hdu_time])

@@ -8,6 +8,7 @@ from specula.simul import Simul
 
 from astropy.io import fits
 import numpy as np
+import pickle
 import unittest
 from unittest.mock import patch
 
@@ -175,9 +176,37 @@ class TestDataStore(unittest.TestCase):
         gen_times = fits.getdata(gen_file, ext=1)
         assert gen_times.dtype == np.uint64
 
+        gen_header = fits.getheader(gen_file)
+        self.assertEqual(gen_header['DECIM'], 1)
+        self.assertEqual(gen_header['DECMODE'], 'SAMPLE')
+
         # Make sure replay_params.yml exists
         replay_file = os.path.join(last_tn_dir, 'replay_params.yml')
         assert os.path.exists(replay_file), f"File {replay_file} does not exist"
+
+    def test_data_store_pickle_writes_decimation_metadata(self):
+        store = DataStore(
+            store_dir=self.tmp_dir,
+            data_format='pickle',
+            create_tn=False,
+            store_every_by_input={'fast': 3}
+        )
+        value = self._make_input_value(-1)
+        self._connect_input(store, 'fast', value)
+        store.setup()
+
+        value.set_value(np.array([1.0], dtype=np.float32))
+        value.generation_time = 0
+        store.check_ready(0)
+        store.trigger()
+        store.post_trigger()
+        store.save_pickle()
+
+        with open(os.path.join(self.tmp_dir, 'fast.pickle'), 'rb') as handle:
+            payload = pickle.load(handle)
+
+        self.assertEqual(payload['hdr']['DECIM'], 3)
+        self.assertEqual(payload['hdr']['DECMODE'], 'SAMPLE')
 
     @cpu_and_gpu
     def test_data_store_start_time(self, target_device_idx, xp):
