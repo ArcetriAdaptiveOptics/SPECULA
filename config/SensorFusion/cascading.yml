@@ -222,7 +222,7 @@ filter2:
   class:             'Integrator'
   simul_params_ref:  'main'
   delay:             1                     # 1 frame delay (realistic)
-  int_gain:          [0.5]
+  int_gain:          [0.4]
   n_modes:           [150]                 # Number of modes to control
   inputs:
     delta_comm:      'pyr0_modalrec.out_modes' #
@@ -308,7 +308,7 @@ coro_psf1:
   nd:                4                   # 4x padding for PSF
   start_time:        0.5                 # Start PSF integration after 500ms
   verbose: false
-  # use_average_field: false
+  use_average_field: false
   inputs:
     in_ef:           'first_stage_prop.out_ef' 
   outputs:           ['out_coronagraph_psf','out_std_coronagraph_psf']
@@ -331,7 +331,7 @@ coro_psf2:
   nd:                4                   # 4x padding for PSF
   start_time:        0.5                 # Start PSF integration after 500ms
   verbose: false
-  # use_average_field: false
+  use_average_field: false
   inputs:
     in_ef:           'second_stage_prop.out_ef' 
   outputs:           ['out_coronagraph_psf','out_std_coronagraph_psf']
