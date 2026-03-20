@@ -96,57 +96,7 @@ slopec:
   weightedPixRad: 4.0
   inputs:
     in_pixels:        'detector.out_pixels'
-  pupdata_object: 'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_rot6.2'     # tag of the pyramid WFS pupil data
+  pupdata_object: 'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_rot6.2'     # Unknown parameter (should be pupdata_object instead of subapdata_object)
   outputs:  ['out_slopes', 'out_subapdata']
 
 
-rec:
-  class:              'Modalrec'
-  recmat_object:      'scao_rec_n8_th0.5'         # reconstruction matrix tag
-  inputs:
-    in_slopes:        'slopec.out_slopes'
-  outputs:  ['out_modes', 'out_pseudo_ol_modes']
-
-
-control:
-  class:             'Integrator'
-  simul_params_ref:  'main'
-  simul_params_ref:  'main'
-  delay:             2                      # Total temporal delay in time steps
-  int_gain:          [0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5, # Integrator gain (for 'INT' control)
-                      0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,
-                      0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,
-                      0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5]  
-  inputs:
-      delta_comm: 'rec.out_modes'     
-  outputs:  ['out_comm']
-
-
-dm:
-  class:             'DM'
-  simul_params_ref:  'main'
-  type_str:          'zernike'              # modes type
-  nmodes:            40                     # number of modes
-  obsratio:          0.1                    # obstruction dimension ratio w.r.t. diameter
-  height:            0                      # DM height [m]
-  inputs:
-      in_command: 'control.out_comm'
-  outputs:  ['out_layer']
-
-
-psf:
-  class:             'PSF'
-  simul_params_ref:  'main'
-  wavelengthInNm:    1650                 # [nm] Imaging wavelength
-  nd:                8                    # padding coefficient for PSF computation
-  start_time:        0.0                  # PSF integration start time
-  inputs:
-      in_ef:  'prop.out_on_axis_source_ef'
-  outputs:  ['out_psf', 'out_sr']
-
-
-data_store:
-  class:             'DataStore'
-  store_dir:         './data'             # Data result directory: 'store_dir'/TN/
-  inputs:    
-    input_list: ['res_sr-psf.out_sr']
