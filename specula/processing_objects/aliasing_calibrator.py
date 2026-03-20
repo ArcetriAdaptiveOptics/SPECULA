@@ -43,7 +43,7 @@ class AliasingCalibrator(BaseProcessingObj):
         slopes_timehist = self.to_xp(self.slopes_list)
         dt = self.t_to_seconds(self.current_time)/(self._n_iter)
         modes_thist = self.rec @ slopes_timehist.T
-        modes_psd = PSD(modes_thist, dt=dt)
+        modes_psd = PSD(modes_thist, dt=dt, nperseg=1024)
         
         os.makedirs(os.path.dirname(self.aliasing_path), exist_ok=True)
         modes_psd.save(self.aliasing_path,overwrite=self.overwrite)
