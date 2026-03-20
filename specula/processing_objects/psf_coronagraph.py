@@ -114,7 +114,9 @@ class PsfCoronagraph(PSF):
                 mean_phase = self.xp.sum(phase * pupil_mask) / self.xp.sum(pupil_mask)
                 var_phase = self.xp.sum(((phase - mean_phase) ** 2) * pupil_mask) / self.xp.sum(pupil_mask)
                 ec = self.xp.exp(-var_phase)
-                electric_field_corrected = (self.xp.sqrt(ec) - self.xp.exp(1j * phase)) * pupil_mask
+                coherent_core = self.xp.sqrt(ec) * self.xp.exp(1j * mean_phase)
+                electric_field_corrected = (electric_field - coherent_core * amp) * pupil_mask         
+                # electric_field_corrected = (self.xp.sqrt(ec) - self.xp.exp(1j * phase)) * pupil_mask
         else:
             electric_field_corrected = electric_field
 

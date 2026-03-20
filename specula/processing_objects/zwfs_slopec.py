@@ -65,7 +65,7 @@ class ZwfsSlopec(Slopec):
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
-        self.flat_pixels = self.local_inputs['in_pixels'].pixels.flatten()
+        self.flat_pixels = self.to_xp(self.local_inputs['in_pixels'].pixels,dtype=self.xp.dtype).flatten()
 
     def trigger_code(self):
         self.flat_pixels -= self.threshold
