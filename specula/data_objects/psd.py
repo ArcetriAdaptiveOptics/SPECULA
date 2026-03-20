@@ -83,7 +83,12 @@ class PSD(BaseDataObj):
         return simpson(cpuArray(psd.T),cpuArray(freq),axis=0)
     
     def get_value(self):
-        return self.freq_vec, self.psd_data
+        return self.psd_data
+    
+    def set_value(self,v):
+        assert v.shape == self.psd_data.shape, \
+            f"Error: input array shape {v.shape} does not match PSD shape {self.psd_data.shape}"
+        self.psd_data[:]= self.to_xp(v)
 
     def save(self, filename):
         hdr = self.get_fits_header()
