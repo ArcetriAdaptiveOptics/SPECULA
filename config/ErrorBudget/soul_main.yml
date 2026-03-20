@@ -2,7 +2,7 @@
 # Main simulation parameters
 main:
   class:             'SimulParams'
-  root_dir:          './calibration'       # CalibManager root directory (all the data are in subdirectories)
+  root_dir:          '/raid1/mmenessini/calibration/SOUL/'       # CalibManager root directory (all the data are in subdirectories)
   pixel_pupil:       160                   # Must match influence function computation
   pixel_pitch:       0.0525            # [m] Pitch of the pupil phase array
   total_time:        10.9956                # [s] Total simulation running time

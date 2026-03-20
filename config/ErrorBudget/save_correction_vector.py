@@ -12,7 +12,7 @@ def save_correction_vector(min_corr:float,max_corr:float,
     residuals = np.ones(Nmodes)
     residuals[:Ncorrmodes] = tt[:Ncorrmodes]
     
-    dirpath = './calibration/data/'
+    dirpath = '/raid1/mmenessini/calibration/SOUL/data/'
     os.makedirs(dirpath,exist_ok=True)
     fname = f'correction_vector_{Ncorrmodes}modes_c{max_corr:1.2f}.fits'
     filepath = os.path.join(dirpath,fname)

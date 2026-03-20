@@ -1,5 +1,5 @@
 import specula
-specula.init(-1)  # Use GPU device 0 (or -1 for CPU)
+specula.init(0)  # Use GPU device 0 (or -1 for CPU)
 
 import numpy as np
 import os
@@ -16,7 +16,7 @@ from specula.lib.make_mask import make_mask
 
 from astropy.io import fits
 
-def compute_and_save_influence_functions(tag:str, pupil_pixels:int, n_acts:int, geom:str='circular',
+def compute_and_save_influence_functions(root_dir:str, tag:str, pupil_pixels:int, n_acts:int, geom:str='circular',
                                          r0:float=10e-2, L0:float=25, zern_modes:int=2, D:float=8.2,
                                          obsratio:float=0.14, diaratio:float=1.0, doMechCoupling:bool=False,
                                          couplingCoeffs=[0.31,0.05], pupil_mask_tag=None):
@@ -25,7 +25,6 @@ def compute_and_save_influence_functions(tag:str, pupil_pixels:int, n_acts:int, 
     Follows the same approach as test_modal_basis.py
     """
     # create calibration directory if it doesn't exist
-    root_dir = './calibration'
     os.makedirs(root_dir, exist_ok=True)
 
     # tags
@@ -63,7 +62,7 @@ def compute_and_save_influence_functions(tag:str, pupil_pixels:int, n_acts:int, 
 
 
     if pupil_mask_tag is not None:
-        fname = './calibration/pupilstop/'+pupil_mask_tag+f'_{Npix:1.0f}pixels.fits'
+        fname = os.path.join(root_dir,f'/pupilstop/'+pupil_mask_tag+f'_{Npix:1.0f}pixels.fits')
         hdu = fits.open(fname)
         pupil_mask = hdu[1].data
     else:
@@ -261,8 +260,7 @@ def compute_and_save_influence_functions(tag:str, pupil_pixels:int, n_acts:int, 
     return ifunc_obj, m2c_obj
 
 
-def compute_and_save_dcao_matrix(first_stage_tag:str, second_stage_tag:str, N1_modes:int, N2_modes:int):
-    root_dir = './calibration'  
+def compute_and_save_dcao_matrix(root_dir:str, first_stage_tag:str, second_stage_tag:str, N1_modes:int, N2_modes:int):
     calib_manager = CalibManager(root_dir)
 
     base_inv_filename = calib_manager.filename('ifunc', first_stage_tag+'_kl_inv')
@@ -286,7 +284,8 @@ def compute_and_save_dcao_matrix(first_stage_tag:str, second_stage_tag:str, N1_m
 
 if __name__ == "__main__":
     Npix = 160
-    compute_and_save_influence_functions(tag='asm', D=8.4, pupil_pixels=Npix, n_acts=29,
+    root_dir = '/raid1/mmenessini/calibration/SOUL'  
+    compute_and_save_influence_functions(root_dir, tag='asm', D=8.4, pupil_pixels=Npix, n_acts=29,
                                          r0=10e-2, obsratio=0.0)
 
 

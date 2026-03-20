@@ -2,7 +2,7 @@
 # Main simulation parameters
 main:
   class:             'SimulParams'
-  root_dir:          './calibration'       # CalibManager root directory (all the data are in subdirectories)
+  root_dir:          '/raid1/mmenessini/calibration/XAO'       # CalibManager root directory (all the data are in subdirectories)
   pixel_pupil:       160                   # Must match influence function computation
   pixel_pitch:       0.0513                # [m] 8.2m / 160 pixels = 0.0513 m/pixel (Nyquist sampling of 10cm r0)
   total_time:        1.000                 # [s] 1 second simulation
@@ -360,7 +360,7 @@ atmo_mode_res:
 # Data store for results
 data_store:
   class:             'DataStore'
-  store_dir:         './output'            # Data result directory: 'store_dir'/TN/
+  store_dir:         '/raid1/mmenessini/results/Cascading'            # Data result directory: 'store_dir'/TN/
   inputs:
     input_list: ['dm1_cmd-filter1.out_comm',
                   'dm2_cmd-filter2.out_comm',

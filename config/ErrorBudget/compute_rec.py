@@ -16,11 +16,11 @@ def von_karman_power(k,r0,L0,D):
     B = k**2 + (D/L0)**2
     return C * (r0/D)**(-5.0/3.0) * B**(-11.0/6.0)
 
-def get_mask(pyr:bool=True):
+def get_mask(root_dir:str, pyr:bool=True):
     npix = 120
     if pyr:
         np_size = (npix,npix)
-        pup_hdu = fits.open('./calibration/pupils/pyr_pupdata.fits')
+        pup_hdu = fits.open(os.path.join(root_dir,'pupils/pyr_pupdata.fits'))
         rad = pup_hdu[2].data
         pup_ids = pup_hdu[1].data
         wfs_mask = np.zeros(np_size)
@@ -34,19 +34,20 @@ def get_mask(pyr:bool=True):
     return wfs_mask.astype(bool)
 
 
-def compute_rec(im_tag:str, Nmodes:int):
-    hdul = fits.open('./calibration/im/'+im_tag+'_im.fits')
+def compute_rec(root_dir:str, im_tag:str, Nmodes:int):
+    print(root_dir)
+    hdul = fits.open(os.path.join(root_dir,'im/'+im_tag+'_im.fits'))
     intmat = hdul[1].data.copy()
     D = intmat[:,:Nmodes]
     U,S,Vt = np.linalg.svd(D,full_matrices=False)
     rec = (Vt.T * 1/S) @ U.T
     return rec
 
-def compute_ml_rec(im_tag:str, Nmodes:int, frame_tag:str, cov_tag:str=None, RON:float=0.0, isPyr:bool=True):    
-    im_hdul = fits.open('./calibration/im/'+im_tag+'_im.fits')
+def compute_ml_rec(root_dir:str, im_tag:str, Nmodes:int, frame_tag:str, cov_tag:str=None, RON:float=0.0, isPyr:bool=True):    
+    im_hdul = fits.open(os.path.join(root_dir,'im/'+im_tag+'_im.fits'))
     intmat = im_hdul[1].data.copy()
     D = intmat[:,:Nmodes]
-    frame_hdul = fits.open('./calibration/slopenulls/'+frame_tag+'.fits')
+    frame_hdul = fits.open(os.path.join(root_dir,'/slopenulls/'+frame_tag+'.fits'))
     frame_null = frame_hdul[0].data[0]
     wfs_mask = get_mask(pyr=isPyr)
     slope_null = frame_null[wfs_mask]
@@ -68,11 +69,12 @@ def compute_ml_rec(im_tag:str, Nmodes:int, frame_tag:str, cov_tag:str=None, RON:
     return rec
 
 
-def save_rec(rec, rec_tag:str, overwrite:bool=True):
-    path = './calibration/rec/'
+def save_rec(root_dir, rec, rec_tag:str, overwrite:bool=True):
+    path = os.path.join(root_dir, 'rec')
+    print(path)
     if not os.path.exists(path):
         os.mkdir(path)
-    filename = path+rec_tag+'_rec.fits'
+    filename = os.path.join(path, rec_tag+'_rec.fits')
     hdr = fits.Header()
     hdr['VERSION'] = 1
     hdr['PUP_TAG'] = ''
@@ -86,30 +88,31 @@ def save_rec(rec, rec_tag:str, overwrite:bool=True):
     print('Reconstructor saved as '+rec_tag+'_rec')
 
 
-def compute_pyr_rec(Nmodes:int, im_tag:str='pyr_1821modes', compute_ml:bool=False, frame_tag = '', cov_tag=None):
+def compute_pyr_rec(root_dir,Nmodes:int, im_tag:str, compute_ml:bool=False, frame_tag = '', cov_tag=None):
     if compute_ml is False:
         rec_tag = f'pyr_{Nmodes:1.0f}modes'
-        rec = compute_rec(im_tag=im_tag, Nmodes=Nmodes)
+        rec = compute_rec(root_dir,im_tag=im_tag, Nmodes=Nmodes)
     else:
         rec_tag = f'pyr_{Nmodes:1.0f}modes_ml'
-        rec = compute_ml_rec(im_tag=im_tag, Nmodes=Nmodes, frame_tag=frame_tag, cov_tag=cov_tag, RON=0.5, isPyr=True)
+        rec = compute_ml_rec(root_dir,im_tag=im_tag, Nmodes=Nmodes, frame_tag=frame_tag, cov_tag=cov_tag, RON=0.5, isPyr=True)
     return rec, rec_tag
 
 
-def compute_zwfs_rec(Nmodes:int, im_tag:str='zwfs_1821modes', compute_ml:bool=False, frame_tag = '', cov_tag=None):
+def compute_zwfs_rec(root_dir,Nmodes:int, im_tag:str, compute_ml:bool=False, frame_tag = '', cov_tag=None):
     if compute_ml is False:
         rec_tag = f'zwfs_{Nmodes:1.0f}modes'
-        rec = compute_rec(im_tag=im_tag, Nmodes=Nmodes)
+        rec = compute_rec(root_dir,im_tag=im_tag, Nmodes=Nmodes)
     else:
         rec_tag = f'zwfs_{Nmodes:1.0f}modes_ml'
-        rec = compute_ml_rec(im_tag=im_tag, Nmodes=Nmodes, frame_tag=frame_tag, cov_tag=cov_tag, RON=0.5, isPyr=False)
+        rec = compute_ml_rec(root_dir,im_tag=im_tag, Nmodes=Nmodes, frame_tag=frame_tag, cov_tag=cov_tag, RON=0.5, isPyr=False)
     return rec, rec_tag
 
 
 if __name__ == "__main__":
 
+    root_dir = '/raid1/mmenessini/calibration/SOUL'
     Nmodes = 500
     rMods = np.array([3])
     for rMod in rMods:
-        rec,_ = compute_pyr_rec(Nmodes=Nmodes,im_tag=f'pyr{rMod:1.1f}')
-        save_rec(rec, rec_tag=f'pyr{rMod:1.1f}_{Nmodes:1.0f}modes')
+        rec,_ = compute_pyr_rec(root_dir,Nmodes=Nmodes,im_tag=f'pyr{rMod:1.1f}')
+        save_rec(root_dir, rec, rec_tag=f'pyr{rMod:1.1f}_{Nmodes:1.0f}modes')
