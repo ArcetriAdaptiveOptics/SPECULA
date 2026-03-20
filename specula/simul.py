@@ -364,6 +364,14 @@ class Simul():
                 if name in skip_pars and name not in args:
                     continue
 
+                # Check that each parameter name is expected by the constructor of the class, after removing possible suffixes
+                parname = name
+                endings = ['_ref', '_data', '_object']
+                for ending in endings:
+                    parname = parname.removesuffix(ending)
+                if parname not in args:
+                    raise ValueError(f'Parameter {parname} is not expected by class {classname}')
+
                 # dict_ref field contains a dictionary of names and associated data objects (defined in the same yml file)
                 elif name.endswith('_dict_ref'):
                     if build_this_object:
