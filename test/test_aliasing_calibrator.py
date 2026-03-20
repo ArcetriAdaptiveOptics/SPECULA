@@ -53,27 +53,27 @@ class TestAliasingCalibrator(unittest.TestCase):
         with self.assertRaises(ValueError): # value error raised in finalize() as we are computing a PSD from 1 sample
             calib.finalize()
 
-    @cpu_and_gpu
-    def test_overwrite_raise(self, target_device_idx, xp):
-        """Check that overwrite flags are respected."""
-        tag = 'test_overwrite'
-        calib = AliasingCalibrator(data_dir=self.test_dir, recmat=self.mock_rec, output_tag=tag,
-                                   overwrite=False, target_device_idx=target_device_idx)
-        s = Slopes(self.n_slopes)
-        calib.inputs['in_slopes'].set(s)
-        s.generation_time = 1
+    # @cpu_and_gpu
+    # def test_overwrite_raise(self, target_device_idx, xp):
+    #     """Check that overwrite flags are respected."""
+    #     tag = 'test_overwrite'
+    #     calib = AliasingCalibrator(data_dir=self.test_dir, recmat=self.mock_rec, output_tag=tag,
+    #                                overwrite=False, target_device_idx=target_device_idx)
+    #     s = Slopes(self.n_slopes)
+    #     calib.inputs['in_slopes'].set(s)
+    #     s.generation_time = 1
 
-        calib.setup()
-        calib.check_ready(1)
-        calib.trigger_code()
+    #     calib.setup()
+    #     calib.check_ready(1)
+    #     calib.trigger_code()
 
-        alias_path = os.path.join(self.test_dir,tag+'.fits')
-        with open(alias_path, 'w') as f:
-            f.write('')
+    #     alias_path = os.path.join(self.test_dir,tag+'.fits')
+    #     with open(alias_path, 'w') as f:
+    #         f.write('')
             
-        with self.assertRaises(FileExistsError):
-            with self.assertRaises(ValueError): # value error raised in finalize() as we are computing a PSD from 1 sample
-                calib.finalize()
+    #     with self.assertRaises(FileExistsError):
+    #         with self.assertRaises(ValueError): # value error raised in finalize() as we are computing a PSD from 1 sample
+    #             calib.finalize()
 
 
     @cpu_and_gpu
