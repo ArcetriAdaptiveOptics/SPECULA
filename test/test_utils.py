@@ -8,7 +8,8 @@ from specula import cpuArray
 
 from specula.lib.utils import unravel_index_2d
 from specula.lib.utils import camelcase_to_snakecase
-from specula.lib.utils import get_type_hints  # Adjust import path
+from specula.lib.utils import get_type_hints
+from specula.lib.utils import remove_suffix
 
 from test.specula_testlib import cpu_and_gpu
 
@@ -116,3 +117,8 @@ class TestGetTypeHints(unittest.TestCase):
         # Default __init__ has no annotations
         self.assertEqual(hints, {})
 
+    def test_remove_suffix(self):
+        self.assertEqual(remove_suffix('parameter_ref', '_ref'), 'parameter')
+        self.assertEqual(remove_suffix('parameter_data', '_data'), 'parameter')
+        self.assertEqual(remove_suffix('parameter_object', '_object'), 'parameter')
+        self.assertEqual(remove_suffix('parameter', '_ref'), 'parameter')  # No suffix to remove
