@@ -390,8 +390,8 @@ class IirFilterData(BaseDataObj):
         if freq is None:
             freq = np.logspace(-3, np.log10(fs/2), 1000)
 
-        x = freq / (fs/2) * np.pi
-        z = np.exp(1j * x)
+        x = freq / (fs/2) * self.dtype(np.pi)
+        z = self.xp.exp(self.complex_dtype(1j) * x, dtype=self.complex_dtype)
 
         complex_tf = np.zeros(len(freq), dtype=complex)
         for i, zi in enumerate(z):
@@ -604,7 +604,7 @@ class IirFilterData(BaseDataObj):
 
             return max_gains
 
-    def resonance_frequency(self, mode, gain_factor=1.0, delay=None, dm=None, nw=None, dw=None, 
+    def resonance_frequency(self, mode, gain_factor=1.0, delay=None, dm=None, nw=None, dw=None,
                            fs=1000.0, freq=None):
         """Calculate resonance frequency of closed-loop system.
         
@@ -658,10 +658,10 @@ class IirFilterData(BaseDataObj):
         closed_loop_den = Cp_den + Cp_num
 
         # Calculate frequency response of denominator
-        x = freq / (fs/2) * np.pi
-        z = np.exp(1j * x)
+        x = freq / (fs/2) * self.dtype(np.pi)
+        z = np.exp(self.complex_dtype(1j) * x, dtype=self.complex_dtype)
 
-        denominator_response = np.zeros(len(freq), dtype=complex)
+        denominator_response = np.zeros(len(freq), dtype=self.complex_dtype)
         for i, zi in enumerate(z):
             denominator_response[i] = np.polyval(closed_loop_den[::-1], zi)
 
@@ -674,7 +674,7 @@ class IirFilterData(BaseDataObj):
 
         return resonance_freq, resonance_amplitude
 
-    def stability_analysis(self, mode=None, delay=None, dm=None, nw=None, dw=None, 
+    def stability_analysis(self, mode=None, delay=None, dm=None, nw=None, dw=None,
                           fs=1000.0, max_gain=20.0, n_gain=10000):
         """Comprehensive stability analysis for controller(s).
         

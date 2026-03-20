@@ -45,11 +45,11 @@ def calc_psf(phase, amp, xp=np, complex_dtype=np.complex64, imwidth=None, normal
     # Set up the complex array based on input dimensions and data type
     if imwidth is not None:
         u_ef = xp.zeros((imwidth, imwidth), dtype=complex_dtype)
-        result = amp * xp.exp(1j * phase, dtype=complex_dtype)
+        result = amp * xp.exp(complex_dtype(1j) * phase)
         s = result.shape
         u_ef[:s[0], :s[1]] = result
     else:
-        u_ef = amp * xp.exp(1j * phase, dtype=complex_dtype)
+        u_ef = amp * xp.exp(complex_dtype(1j) * phase)
     # Compute FFT (forward)
     u_fp = xp.fft.fft2(u_ef)
     # Center the PSF if required
