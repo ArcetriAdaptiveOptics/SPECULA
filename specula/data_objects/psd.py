@@ -11,7 +11,7 @@ from scipy.signal import welch
 
 
 class PSD(BaseDataObj):
-    def __init__(self, data = None, dt:float = None, fs:float = None, description='', target_device_idx=None, precision=None):
+    def __init__(self, data = None, dt:float = None, fs:float = None, description='', nperseg:int=256, target_device_idx=None, precision=None):
         """
         Initialize PSD object.
         """
@@ -28,7 +28,7 @@ class PSD(BaseDataObj):
             if fs is None:
                 fs = 1/dt
 
-            freq_vec,psd_data = welch(cpuArray(data),fs,nperseg=256,scaling='density',axis=-1)
+            freq_vec,psd_data = welch(cpuArray(data),fs,nperseg=nperseg,scaling='density',axis=-1)
         
             self.freq_vec = self.to_xp(freq_vec, force_copy=True, dtype=self.dtype)
             self.psd_data = self.to_xp(psd_data, force_copy=True, dtype=self.dtype)

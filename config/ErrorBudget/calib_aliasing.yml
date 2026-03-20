@@ -1,0 +1,80 @@
+# Aliasing Calibration
+# ================================================
+
+# Interaction matrix calibrator
+pyr_alias:
+  class:     'AliasingCalibrator'
+  output_tag:    'pyr3.0_s0.6_500modes_alias'       # Output filename
+  recmat_object: 'pyr3.0_500modes_rec'
+  overwrite: false                         # Overwrite existing files
+  inputs:
+    in_slopes:   'pyr_slopes.out_slopes'      # WFS slopes input
+
+# Override main simulation parameters
+main_override:
+  # time_step: 0.000588
+  total_time: 5.880                 # 10'000 frames
+
+################################## ATMO RESIDUAL #####################################
+seeing_random:
+  class:             'RandomGenerator'
+  amp:               0.0                 # Variation amplitude [arcsec]
+  constant:          0.6                 # Mean seeing [arcsec]
+  distribution:      'UNIFORM'           # Uniform distribution
+  outputs: ['output']
+
+# Random atmospheric phase generator
+atmo_random:
+  class:                'AtmoRandomPhase'
+  simul_params_ref:     'main'
+  L0:                   25               # [m] Outer scale
+  source_dict_ref:      ['source_ngs']
+  inputs:
+    seeing: 'seeing_random.output'
+    pupilstop: 'pupilstop'
+  outputs: ['out_source_ngs_ef']
+
+# Modal decomposition of atmospheric phase
+atmo_modes:
+  class: 'ModalAnalysis'
+  ifunc_inv_object: 'asm_kl_inv'
+  inputs:
+    in_ef: 'atmo_random.out_source_ngs_ef'
+  outputs: ['out_modes']
+
+
+# DM applying partial correction
+perfect_dm:
+  class: 'DM'
+  simul_params_ref:  'main'
+  ifunc_object:      'asm_ifunc'      # Our computed influence functions
+  m2c_object:        'asm_m2c'        # Modal-to-command matrix
+  nmodes:            500              # Number of controlled modes
+  height:            0.0              # Ground-conjugated DM
+  inputs:
+    in_command: 'atmo_modes.out_modes'
+  outputs: ['out_layer']
+
+ef_prop_override:
+  class: 'ElectricFieldCombinator'
+  inputs:
+    in_ef1: 'atmo_random.out_source_ngs_ef'    # Turbulence
+    in_ef2: 'perfect_dm.out_layer'              # Partial correction
+  outputs: ['out_ef']
+
+######################################################################################
+
+pyr_override:
+  # mod_amp: 0.5
+  inputs: 
+    in_ef: 'ef_prop.out_ef'
+
+# Disable noise for clean measurements
+ocam_override:
+  photon_noise:   false                   # No photon noise
+  readout_noise:  false                   # No read noise
+  excess_noise:   false                   # No excess noise
+
+# Remove unnecessary objects during calibration
+remove: ['atmo','seeing','wind_speed','wind_direction','data_store','atmo_mode_res', #'source_science',
+        'dm_mode_res','filter','psf','dm', 'prop','pyr_modalrec'] #, 'bootstrap', 'concat_wfs_modes'

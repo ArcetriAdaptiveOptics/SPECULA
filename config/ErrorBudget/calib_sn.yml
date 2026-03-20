@@ -1,6 +1,6 @@
 pyr_sn:
   class: 'SnCalibrator'
-  output_tag: 'pyr3.0_slope_null'           # Output filename
+  output_tag: 'pyr3.0_slope_null_ri'           # Output filename
   overwrite: false
   inputs:
     in_slopes: 'pyr_slopes.out_slopes'
@@ -12,8 +12,9 @@ pyr_override:
   inputs:
     in_ef: 'prop.out_source_ngs_ef'
 
-# pyr_slopes_override:
-#   pupdata_object: 'pyr_pupdata_16x16'
+pyr_slopes_override:
+  slopes_from_intensity: true
+  # pupdata_object: 'pyr_pupdata_16x16'
 
 main_override:
   total_time: 0.000588
@@ -23,6 +24,11 @@ ocam_override:
   photon_noise:   false                   # No photon noise
   readout_noise:  false                   # No read noise
   excess_noise:   false                   # No excess noise
+
+# data_store_override:
+#   store_dir:         '/raid1/mmenessini/git/SPECULA/config/ErrorBudget/slopenulls'             # Data result directory: 'store_dir'/TN/
+#   inputs:
+#     input_list: ['pyr3.0_frame_null-ocam.out_pixels']
 
 # Remove closed-loop components (not needed for slope null)
 remove: ['atmo','seeing','wind_speed','wind_direction','atmo_mode_res', 'data_store',

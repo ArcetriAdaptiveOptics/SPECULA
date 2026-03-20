@@ -26,6 +26,8 @@ def save_correction_vector(min_corr:float,max_corr:float,
 
 if __name__ == "__main__":
     min_corr = 0.01
-    max_corr = 0.99
     Ncorrmodes = 500
-    save_correction_vector(max_corr=max_corr,min_corr=min_corr,Ncorrmodes=Ncorrmodes)
+    save_correction_vector(max_corr=0.99,min_corr=min_corr,Ncorrmodes=Ncorrmodes)
+    save_correction_vector(max_corr=0.9,min_corr=min_corr,Ncorrmodes=Ncorrmodes)
+    save_correction_vector(max_corr=0.85,min_corr=min_corr,Ncorrmodes=Ncorrmodes)
+    save_correction_vector(max_corr=0.8,min_corr=min_corr,Ncorrmodes=Ncorrmodes)

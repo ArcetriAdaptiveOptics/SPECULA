@@ -43,8 +43,10 @@ class AliasingCalibrator(BaseProcessingObj):
 
     def finalize(self):
         slopes_thist = self.to_xp(self.slopes_list)
-        dt = self.current_time*1e-9/(self._n_iter)
-        modes_psd = PSD(self.rec @ slopes_thist.T, dt=dt)
+        dt = self.current_time*1e-9/(self._n_iter-1)
+        print(dt,slopes_thist.shape)
+        modes_psd = PSD(self.rec @ slopes_thist.T, dt=dt, nperseg=1024)
+        print(modes_psd.psd_data.shape)
         
         filename = self._filename
         if not filename.endswith('.fits'):
