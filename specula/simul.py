@@ -367,8 +367,10 @@ class Simul():
                 # Check that each parameter name is expected by the constructor of the class, after removing possible suffixes
                 parname = name
                 endings = ['_ref', '_data', '_object']
+                excluded = ['iir_filter_data']  # Special case for iir_filter_data, which ends in '_data'
                 for ending in endings:
-                    parname = parname.removesuffix(ending)
+                    if parname not in excluded:
+                        parname = parname.removesuffix(ending)
                 if parname not in args:
                     raise ValueError(f'Parameter {parname} is not expected by class {classname}')
 
