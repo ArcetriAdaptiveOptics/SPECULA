@@ -96,7 +96,7 @@ class ShSubapCalibrator(BaseProcessingObj):
                     mask_subap[int(self.xp.round(x[i, j] - np_sub / 2)):int(self.xp.round(x[i, j] + np_sub / 2)),
                         int(self.xp.round(y[i, j] - np_sub / 2)):int(self.xp.round(y[i, j] + np_sub / 2))] = 1
                     idxs[count] = self.xp.where(mask_subap == 1)
-                    map[count] = i * self._lenslet.dimx + j
+                    map[count] = j * self._lenslet.dimx + i
                     count += 1
 
         if count == 0:
