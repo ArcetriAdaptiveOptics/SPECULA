@@ -368,7 +368,10 @@ class Simul():
                 parname = name
                 if parname not in args:
                     for ending in ['_ref', '_data', '_object']:
-                        parname = remove_suffix(parname, ending)
+                        candidate = remove_suffix(parname, ending)
+                        if candidate in args:
+                            parname = candidate
+                            break
                 if parname not in args:
                     raise ValueError(f'Parameter {parname} is not expected by class {classname}')
 
