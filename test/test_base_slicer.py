@@ -1,4 +1,5 @@
 import specula
+from specula.loop_control import LoopControl
 specula.init(0)
 
 import unittest
@@ -11,15 +12,13 @@ class TestBaseSlicer(unittest.TestCase):
     def test_indices(self):
         arr = np.arange(10)
         value = BaseValue(value=arr)
-        value.generation_time = 1
+        value.generation_time = value.seconds_to_t(1)
         slicer = BaseSlicer(indices=[1, 3, 5])
         slicer.inputs['in_value'].set(value)
 
-        slicer.setup()
-        slicer.check_ready(1)
-        slicer.prepare_trigger(1)
-        slicer.trigger()
-        slicer.post_trigger()
+        loop = LoopControl()
+        loop.add(slicer, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
 
         output = cpuArray(slicer.outputs['out_value'].value)
         np.testing.assert_array_equal(output, [1, 3, 5])
@@ -27,15 +26,13 @@ class TestBaseSlicer(unittest.TestCase):
     def test_slice_args(self):
         arr = np.arange(10)
         value = BaseValue(value=arr)
-        value.generation_time = 1
+        value.generation_time = value.seconds_to_t(1)
         slicer = BaseSlicer(slice_args=[2, 7, 2])
         slicer.inputs['in_value'].set(value)
 
-        slicer.setup()
-        slicer.check_ready(1)
-        slicer.prepare_trigger(1)
-        slicer.trigger()
-        slicer.post_trigger()
+        loop = LoopControl()
+        loop.add(slicer, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
 
         output = cpuArray(slicer.outputs['out_value'].value)
         np.testing.assert_array_equal(output, [2, 4, 6])
@@ -43,15 +40,13 @@ class TestBaseSlicer(unittest.TestCase):
     def test_no_args(self):
         arr = np.arange(5)
         value = BaseValue(value=arr)
-        value.generation_time = 1
+        value.generation_time = value.seconds_to_t(1)
         slicer = BaseSlicer()
         slicer.inputs['in_value'].set(value)
 
-        slicer.setup()
-        slicer.check_ready(1)
-        slicer.prepare_trigger(1)
-        slicer.trigger()
-        slicer.post_trigger()
+        loop = LoopControl()
+        loop.add(slicer, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
 
         output = cpuArray(slicer.outputs['out_value'].value)
         np.testing.assert_array_equal(output, arr)
@@ -59,41 +54,41 @@ class TestBaseSlicer(unittest.TestCase):
     def test_slice_single_element(self):
         arr = np.arange(10)
         value = BaseValue(value=arr)
-        value.generation_time = 1
+        value.generation_time = value.seconds_to_t(1)
         slicer = BaseSlicer(slice_args=[5, 6, 1])
         slicer.inputs['in_value'].set(value)
-        slicer.setup()
-        slicer.check_ready(1)
-        slicer.prepare_trigger(1)
-        slicer.trigger()
-        slicer.post_trigger()
+
+        loop = LoopControl()
+        loop.add(slicer, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
+
         output = cpuArray(slicer.outputs['out_value'].value)
         np.testing.assert_array_equal(output, [5])
 
     def test_slice_empty(self):
         arr = np.arange(10)
         value = BaseValue(value=arr)
-        value.generation_time = 1
+        value.generation_time = value.seconds_to_t(1)
         slicer = BaseSlicer(slice_args=[3, 3, 1])
         slicer.inputs['in_value'].set(value)
-        slicer.setup()
-        slicer.check_ready(1)
-        slicer.prepare_trigger(1)
-        slicer.trigger()
-        slicer.post_trigger()
+
+        loop = LoopControl()
+        loop.add(slicer, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
+
         output = cpuArray(slicer.outputs['out_value'].value)
         np.testing.assert_array_equal(output, [])
 
     def test_slice_step_larger_than_range(self):
         arr = np.arange(10)
         value = BaseValue(value=arr)
-        value.generation_time = 1
+        value.generation_time = value.seconds_to_t(1)
         slicer = BaseSlicer(slice_args=[2, 5, 10])
         slicer.inputs['in_value'].set(value)
-        slicer.setup()
-        slicer.check_ready(1)
-        slicer.prepare_trigger(1)
-        slicer.trigger()
-        slicer.post_trigger()
+
+        loop = LoopControl()
+        loop.add(slicer, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
+
         output = cpuArray(slicer.outputs['out_value'].value)
         np.testing.assert_array_equal(output, [2])

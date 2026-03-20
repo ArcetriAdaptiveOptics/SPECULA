@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib
 
 from specula import cpuArray
+from specula.loop_control import LoopControl
 from specula.data_objects.simul_params import SimulParams
 from specula.data_objects.electric_field import ElectricField
 from specula.processing_objects.psf import PSF
@@ -41,15 +42,15 @@ class TestDisplays(unittest.TestCase):
         """Test PhaseDisplay initialization and trigger"""
         ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
                           S0=self.S0, target_device_idx=target_device_idx)
-        ef.generation_time = 1
+        ef.generation_time = ef.seconds_to_t(1)
 
         display = PhaseDisplay(title='Test Phase Display')
         display.inputs['phase'].set(ef)
 
         # Test trigger creates figure
-        display.setup()
-        display.check_ready(1)
-        display.trigger_code()
+        loop = LoopControl()
+        loop.add(display, idx=0)
+        loop.run(run_time=1, dt=1)
 
         self.assertEqual(display._title, 'Test Phase Display')
         self.assertIsNotNone(display.inputs['phase'])
@@ -67,15 +68,15 @@ class TestDisplays(unittest.TestCase):
         pixels_data = xp.arange(9).reshape((3,3))
         pixels = Pixels(3, 3, bits=16, signed=0, target_device_idx=target_device_idx)
         pixels.set_value(pixels_data)
-        pixels.generation_time = 1
+        pixels.generation_time = pixels.seconds_to_t(1)
 
         display = PixelsDisplay(title='Test Pixels Display')
         display.inputs['pixels'].set(pixels)
 
         # Test trigger creates figure and displays content
-        display.setup()
-        display.check_ready(1)
-        display.trigger_code()
+        loop = LoopControl()
+        loop.add(display, idx=0)
+        loop.run(run_time=1, dt=1)
 
         self.assertEqual(display._title, 'Test Pixels Display')
         self.assertIsNotNone(display.inputs['pixels'])
@@ -91,15 +92,15 @@ class TestDisplays(unittest.TestCase):
         """Test SlopecDisplay initialization and trigger"""
         slopes_data = xp.random.random(100)
         slopes = Slopes(slopes=slopes_data, target_device_idx=target_device_idx)
-        slopes.generation_time = 1
+        slopes.generation_time = slopes.seconds_to_t(1)
 
         display = SlopecDisplay(title='Test Slopes Display')
         display.inputs['slopes'].set(slopes)
 
         # Test trigger creates figure and displays content
-        display.setup()
-        display.check_ready(1)
-        display.trigger_code()
+        loop = LoopControl()
+        loop.add(display, idx=0)
+        loop.run(run_time=1, dt=1)
 
         self.assertEqual(display._title, 'Test Slopes Display')
         self.assertIsNotNone(display.inputs['slopes'])
@@ -116,7 +117,7 @@ class TestDisplays(unittest.TestCase):
         """Test PsfDisplay initialization and trigger"""
         ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
                           S0=self.S0, target_device_idx=target_device_idx)
-        ef.generation_time = 1
+        ef.generation_time = ef.seconds_to_t(1)
 
         simulParams = SimulParams(
             time_step=0.001, pixel_pupil=self.pixel_pupil, pixel_pitch=self.pixel_pitch
@@ -124,18 +125,14 @@ class TestDisplays(unittest.TestCase):
 
         psf = PSF(simulParams, wavelengthInNm=500, target_device_idx=target_device_idx)
         psf.inputs['in_ef'].set(ef)
-        psf.setup()
-        psf.check_ready(1)
-        psf.trigger()
-        psf.post_trigger()
 
         display = PsfDisplay(title='Test PSF Display')
         display.inputs['psf'].set(psf.outputs['out_psf'])
 
-        # Test trigger creates figure and displays content
-        display.setup()
-        display.check_ready(1)
-        display.trigger_code()
+        loop = LoopControl()
+        loop.add(psf, idx=0)
+        loop.add(display, idx=1)
+        loop.run(run_time=1, dt=1)
 
         self.assertEqual(display._title, 'Test PSF Display')
         self.assertIsNotNone(display.inputs['psf'])
@@ -155,15 +152,15 @@ class TestDisplays(unittest.TestCase):
         # Create test modes data
         modes_data = xp.random.random(20) * 100 - 50  # Random values between -50 and 50
         modes = BaseValue(value=modes_data, target_device_idx=target_device_idx)
-        modes.generation_time = 1
+        modes.generation_time = modes.seconds_to_t(1)
 
         display = ModesDisplay(title='Test Modes Display', yrange=(-100, 100))
         display.inputs['modes'].set(modes)
 
         # Test trigger creates figure and displays content
-        display.setup()
-        display.check_ready(1)
-        display.trigger_code()
+        loop = LoopControl()
+        loop.add(display, idx=0)
+        loop.run(run_time=1, dt=1)
 
         self.assertTrue(display._opened)
         self.assertIsNotNone(display.fig)
@@ -271,12 +268,13 @@ class TestDisplays(unittest.TestCase):
 
         # Create 3D vector
         vec = BaseValue(value=xp.array([1.0, 2.0, 3.0]), target_device_idx=target_device_idx)
-        vec.generation_time = 1
+        vec.generation_time = vec.seconds_to_t(1)
 
         display.inputs['vector'].set(vec)
-        display.setup()
-        display.check_ready(1)
-        display.trigger_code()
+
+        loop = LoopControl()
+        loop.add(display, idx=0)
+        loop.run(run_time=1, dt=1)
 
         self.assertTrue(display._opened)
         self.assertIsNotNone(display.lines)
@@ -299,12 +297,12 @@ class TestDisplays(unittest.TestCase):
 
         vec = BaseValue(value=xp.array([1.0, 2.0, 3.0, 4.0, 5.0]),
                        target_device_idx=target_device_idx)
-        vec.generation_time = 1
+        vec.generation_time = vec.seconds_to_t(1)
 
         display.inputs['vector'].set(vec)
-        display.setup()
-        display.check_ready(1)
-        display.trigger_code()
+        loop = LoopControl()
+        loop.add(display, idx=0)
+        loop.run(run_time=1, dt=1)
 
         # Should only have 2 lines (indices 0 and 2)
         self.assertEqual(len(display.lines), 2)
@@ -379,12 +377,12 @@ class TestDisplays(unittest.TestCase):
         display = PlotVectorDisplay(title='Scalar Vector')
 
         vec = BaseValue(value=xp.array([42.0]), target_device_idx=target_device_idx)
-        vec.generation_time = 1
+        vec.generation_time = vec.seconds_to_t(1)
 
         display.inputs['vector'].set(vec)
-        display.setup()
-        display.check_ready(1)
-        display.trigger_code()
+        loop = LoopControl()
+        loop.add(display, idx=0)
+        loop.run(run_time=1, dt=1)
 
         self.assertEqual(len(display.lines), 1)
 
@@ -398,12 +396,12 @@ class TestDisplays(unittest.TestCase):
         display = PlotVectorDisplay()
 
         vec = BaseValue(value=[1.5, 2.5, 3.5], target_device_idx=target_device_idx)
-        vec.generation_time = 1
+        vec.generation_time = vec.seconds_to_t(1)
 
         display.inputs['vector'].set(vec)
-        display.setup()
-        display.check_ready(1)
-        display.trigger_code()
+        loop = LoopControl()
+        loop.add(display, idx=0)
+        loop.run(run_time=1, dt=1)
 
         self.assertEqual(len(display.lines), 3)
 
@@ -418,12 +416,12 @@ class TestDisplays(unittest.TestCase):
         display = PlotVectorDisplay(legend_labels=labels)
 
         vec = BaseValue(value=xp.array([0.1, 0.2, 0.3]), target_device_idx=target_device_idx)
-        vec.generation_time = 1
+        vec.generation_time = vec.seconds_to_t(1)
 
         display.inputs['vector'].set(vec)
-        display.setup()
-        display.check_ready(1)
-        display.trigger_code()
+        loop = LoopControl()
+        loop.add(display, idx=0)
+        loop.run(run_time=1, dt=1)
 
         line_labels = [line.get_label() for line in display.lines]
         self.assertEqual(line_labels, labels)
@@ -439,12 +437,12 @@ class TestDisplays(unittest.TestCase):
         display = PlotVectorDisplay(yrange=yrange)
 
         vec = BaseValue(value=xp.array([5.0, -5.0]), target_device_idx=target_device_idx)
-        vec.generation_time = 1
+        vec.generation_time = vec.seconds_to_t(1)
 
         display.inputs['vector'].set(vec)
-        display.setup()
-        display.check_ready(1)
-        display.trigger_code()
+        loop = LoopControl()
+        loop.add(display, idx=0)
+        loop.run(run_time=1, dt=1)
 
         ylim = display.ax.get_ylim()
         self.assertEqual(ylim, yrange)
@@ -742,6 +740,7 @@ class TestDisplays(unittest.TestCase):
         from specula.base_value import BaseValue
 
         value = BaseValue(value=xp.array([42.5]), target_device_idx=target_device_idx)
+        value.generation_time = value.seconds_to_t(1)
 
         display = PlotDisplay(
             title='Single Input',
@@ -749,11 +748,9 @@ class TestDisplays(unittest.TestCase):
         )
         display.inputs['value'].set(value)
 
-        display.setup()
-
-        value.generation_time = 1
-        display.check_ready(1)
-        display.trigger_code()
+        loop = LoopControl()
+        loop.add(display, idx=0)
+        loop.run(run_time=1, dt=1)
 
         # Single input should not add legend
         self.assertFalse(display._legend_added)

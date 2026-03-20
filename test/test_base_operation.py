@@ -343,12 +343,10 @@ class TestBaseOperation(unittest.TestCase):
 
         for op in [op_scalar, op_vector]:
             op.inputs['in_value1'].set(value1)
-            op.setup()
-            op.check_ready(5)
-            op.prepare_trigger(5)
-            op.trigger()
-            op.post_trigger()
-            self.assertEqual(op.outputs['out_value'].generation_time, 5)
+            loop = LoopControl()
+            loop.add(op, idx=0)
+            loop.run(run_time=10, dt=5, t0=5)
+            self.assertEqual(op.outputs['out_value'].generation_time, value1.seconds_to_t(5))
 
     @cpu_and_gpu
     def test_scalar_vs_vector_consistency(self, target_device_idx, xp):
