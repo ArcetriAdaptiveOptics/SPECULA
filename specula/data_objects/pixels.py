@@ -42,7 +42,7 @@ class Pixels(BaseDataObj):
 
         self.signed = signed
         self.type = self._get_type(bits, signed)
-        self.pixels = self.xp.zeros((dimx, dimy), dtype=self.dtype)
+        self.pixels = self.xp.zeros((dimy, dimx), dtype=self.dtype)
         self.bpp = bits
         self.bytespp = (bits + 7) // 8  # bits self.xp.arounded to the next multiple of 8
 
