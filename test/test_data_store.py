@@ -145,24 +145,6 @@ class TestDataStore(unittest.TestCase):
                       downsample_factor=2,
                       downsample_factor_by_input={'fast': 3})
 
-    def test_data_store_rejects_conflicting_alias_and_new_names(self):
-        with self.assertRaises(ValueError):
-            DataStore(store_dir=self.tmp_dir, downsample_factor=2, store_every=3)
-
-        with self.assertRaises(ValueError):
-            DataStore(store_dir=self.tmp_dir,
-                      downsample_factor_by_input={'fast': 2},
-                      store_every_by_input={'fast': 3})
-
-    def test_data_store_accepts_legacy_alias_names(self):
-        store = DataStore(
-            store_dir=self.tmp_dir,
-            create_tn=False,
-            store_every=2,
-            store_every_by_input=None
-        )
-        self.assertEqual(store.downsample_factor, 2)
-
     @cpu_and_gpu
     def test_data_store(self, target_device_idx, xp):
         params = {'main': {'class': 'SimulParams', 'root_dir': self.tmp_dir,

@@ -2,7 +2,6 @@
 import os
 import numpy as np
 from astropy.io import fits
-import warnings
 
 from collections import OrderedDict, defaultdict
 import pickle
@@ -27,9 +26,7 @@ class DataStore(BaseProcessingObj):
                 start_time: float=0,
                 create_tn: bool=True,
                 downsample_factor: int=1,
-                downsample_factor_by_input: dict=None,
-                store_every: int=None,
-                store_every_by_input: dict=None):
+                downsample_factor_by_input: dict=None):
         """
         Parameters
         ----------
@@ -61,10 +58,6 @@ class DataStore(BaseProcessingObj):
             values are integers >= 1. When using ``input_list``, the key is the
             alias before the dash, e.g. ``'comm'`` for ``'comm-control.out_comm'``.
             This option is mutually exclusive with ``downsample_factor != 1``.
-        store_every : int, optional
-            Deprecated alias for ``downsample_factor``.
-        store_every_by_input : dict, optional
-            Deprecated alias for ``downsample_factor_by_input``.
         """
         super().__init__()
         self.data_filename = ''
@@ -78,27 +71,6 @@ class DataStore(BaseProcessingObj):
         self.split_size = split_size
         self.first_suffix = first_suffix
         self.start_time = self.seconds_to_t(start_time)
-        if store_every is not None:
-            warnings.warn(
-                'store_every is deprecated; use downsample_factor instead',
-                DeprecationWarning,
-                stacklevel=2
-            )
-            if downsample_factor != 1 and int(store_every) != int(downsample_factor):
-                raise ValueError('Use only one of downsample_factor or store_every')
-            downsample_factor = store_every
-
-        if store_every_by_input is not None:
-            warnings.warn(
-                'store_every_by_input is deprecated; use downsample_factor_by_input instead',
-                DeprecationWarning,
-                stacklevel=2
-            )
-            if (downsample_factor_by_input is not None and
-                    store_every_by_input != downsample_factor_by_input):
-                raise ValueError('Use only one of downsample_factor_by_input or store_every_by_input')
-            downsample_factor_by_input = store_every_by_input
-
         self.downsample_factor = self._validate_downsample_factor(
             downsample_factor,
             'downsample_factor'
@@ -109,8 +81,6 @@ class DataStore(BaseProcessingObj):
             key: self._validate_downsample_factor(value, f'downsample_factor_by_input[{key!r}]')
             for key, value in (downsample_factor_by_input or {}).items()
         }
-        self.store_every = self.downsample_factor
-        self.store_every_by_input = self.downsample_factor_by_input
         self.input_sample_counters = defaultdict(int)
         self.init_storage()
 
