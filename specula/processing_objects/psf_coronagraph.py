@@ -107,16 +107,15 @@ class PsfCoronagraph(PSF):
         # Only consider pixels where amplitude > 0 (inside pupil)
         pupil_mask = amp > 0
         if self.xp.sum(pupil_mask) > 0:
-            if self.use_average_field is True:
+            if self.use_average_field is True: # average field removal
                 avg_electric_field = self.xp.sum(electric_field * pupil_mask) / self.xp.sum(pupil_mask)
                 electric_field_corrected = electric_field - avg_electric_field * pupil_mask
-            else:              
+            else: # perfect coronagraph formula
                 mean_phase = self.xp.sum(phase * pupil_mask) / self.xp.sum(pupil_mask)
                 var_phase = self.xp.sum(((phase - mean_phase) ** 2) * pupil_mask) / self.xp.sum(pupil_mask)
-                ec = self.xp.exp(-var_phase)
-                coherent_core = self.xp.sqrt(ec) * self.xp.exp(1j * mean_phase)
+                ec = self.xp.exp(-var_phase, self.dtype)
+                coherent_core = self.xp.sqrt(ec) * self.xp.exp(1j * mean_phase, self.complex_dtype)
                 electric_field_corrected = (electric_field - coherent_core * amp) * pupil_mask         
-                # electric_field_corrected = (self.xp.sqrt(ec) - self.xp.exp(1j * phase)) * pupil_mask
         else:
             electric_field_corrected = electric_field
 

@@ -314,7 +314,7 @@ class ModulatedPyramid(BaseProcessingObj):
         pup_diam,               # pupil diameter in subapertures
         ccd_side,               # requested output ccd side, in pixels
         fov_errinf=0.1,         # accepted error in reducing FoV, default = 0.1 (-10%)
-        fov_errsup=1.0,         # accepted error in enlarging FoV, default = 0.5 (+50%)
+        fov_errsup=0.5,         # accepted error in enlarging FoV, default = 0.5 (+50%)
         pup_dist=None,          # pupil distance in subapertures, optional
         pup_margin=2,           # zone of respect around pupils for margins, optional, default=2px
         fft_res=3.0,            # requested minimum PSF sampling, 1.0 = 1 pixel / PSF, default=3.0

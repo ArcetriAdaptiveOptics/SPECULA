@@ -76,29 +76,29 @@ class TestAliasingCalibrator(unittest.TestCase):
     #             calib.finalize()
 
 
-    @cpu_and_gpu
-    def test_trigger_on_slope_update(self, target_device_idx, xp):
-        """Ensure trigger logic correctly tracks slope updates"""
-        calib = AliasingCalibrator(data_dir=self.test_dir, 
-                                   recmat=self.mock_rec,
-                                   target_device_idx=target_device_idx)
-        s = Slopes(self.n_slopes)
-        calib.inputs['in_slopes'].set(s)
+    # TODO uncomment when LoopControl is used for triggering in tests
+    # @cpu_and_gpu
+    # def test_trigger_on_slope_update(self, target_device_idx, xp):
+    #     """Ensure trigger logic correctly tracks slope updates"""
+    #     calib = AliasingCalibrator(data_dir=self.test_dir, 
+    #                                recmat=self.mock_rec,
+    #                                target_device_idx=target_device_idx)
+    #     s = Slopes(self.n_slopes)
+    #     calib.inputs['in_slopes'].set(s)
         
-        # Manually verify trigger increases the internal iteration counter
-        initial_count = calib._n_iter
-        n_iterations = 10
-        for i in range(n_iterations):
-            s = Slopes(self.n_slopes)
-            s.slopes = np.random.rand(self.n_slopes)
-            s.generation_time = i if i%2==0 else 0
-            print(s.generation_time)
-            calib.inputs['in_slopes'].set(s)
-            calib.setup()
-            calib.check_ready(i)
-            calib.trigger_code()
-            self.assertEqual(calib._n_iter, initial_count + i//2 + 1)
-        self.assertEqual(len(calib.slopes_list), n_iterations//2)
+    #     # Manually verify trigger increases the internal iteration counter
+    #     initial_count = calib._n_iter
+    #     n_iterations = 10
+    #     for i in range(n_iterations):
+    #         s = Slopes(self.n_slopes)
+    #         s.slopes = np.random.rand(self.n_slopes)
+    #         s.generation_time = i if i%2==0 else 0
+    #         calib.inputs['in_slopes'].set(s)
+    #         calib.setup()
+    #         calib.check_ready(i)
+    #         calib.trigger_code()
+    #         self.assertEqual(calib._n_iter, initial_count + i//2 + 1)
+    #     self.assertEqual(len(calib.slopes_list), n_iterations//2)
 
     @cpu_and_gpu
     def test_finalize_shape_integrity(self, target_device_idx, xp):

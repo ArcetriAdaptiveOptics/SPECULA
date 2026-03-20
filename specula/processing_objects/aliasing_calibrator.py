@@ -1,9 +1,7 @@
 import os
-import numpy as np
 
 from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.slopes import Slopes
-# from specula.base_value import BaseValue
 from specula.data_objects.recmat import Recmat
 from specula.data_objects.psd import PSD
 from specula.connections import InputValue
@@ -26,7 +24,7 @@ class AliasingCalibrator(BaseProcessingObj):
         self._data_dir = data_dir
         self.overwrite = overwrite
         self._filename = output_tag
-        self.rec = self.to_xp(recmat.recmat.copy())
+        self.rec = self.to_xp(recmat.recmat)
         self.slopes_list = []
         self._n_iter = 0
         self.inputs['in_slopes'] = InputValue(type=Slopes)
@@ -38,22 +36,14 @@ class AliasingCalibrator(BaseProcessingObj):
             raise FileExistsError(f'Aliasing PSDs file {self.aliasing_path} already exists, please remove it')
 
     def trigger_code(self):
-        # Only trigger if slopes have been refreshed
-        if self.local_inputs['in_slopes'].generation_time != self.current_time:
-            return
-
         self.slopes_list.append(self.local_inputs['in_slopes'].slopes.copy())
         self._n_iter += 1
 
     def finalize(self):
-        slopes_thist = self.to_xp(self.slopes_list)
-        dt = self.current_time*1e-9/(self._n_iter)
-        modes_thist = self.rec @ slopes_thist.T
+        slopes_timehist = self.to_xp(self.slopes_list)
+        dt = self.t_to_seconds(self.current_time)/(self._n_iter)
+        modes_thist = self.rec @ slopes_timehist.T
         modes_psd = PSD(modes_thist, dt=dt)
         
-        filename = self._filename
-        if not filename.endswith('.fits'):
-            filename += '.fits'
-        file_path = os.path.join(self._data_dir, filename)
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        modes_psd.save(file_path,overwrite=self.overwrite)
+        os.makedirs(os.path.dirname(self.aliasing_path), exist_ok=True)
+        modes_psd.save(self.aliasing_path,overwrite=self.overwrite)

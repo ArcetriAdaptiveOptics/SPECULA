@@ -2,12 +2,8 @@ from specula import np, cpuArray
 from astropy.io import fits
 from specula.base_data_obj import BaseDataObj
 
-# try:
 from scipy.integrate import simpson
 from scipy.signal import welch
-#     SCIPY_AVAILABLE = True
-# else:
-#     SCIPY_AVAILABLE = False
 
 
 class PSD(BaseDataObj):
@@ -26,7 +22,7 @@ class PSD(BaseDataObj):
                 raise ValueError('At least one of dt and fs inputs must be defined!')
             if fs is not None and dt is not None:
                 if fs != 1/dt:
-                    raise ValueError(f'The input sampling frequency {fs} is not the inverse of the given time step {dt}: choose the correct one!')
+                    raise ValueError(f'The input sampling frequency {fs} is not the inverse of the given time step {dt}')
             
             if fs is None:
                 fs = 1/dt
@@ -39,8 +35,8 @@ class PSD(BaseDataObj):
 
             freq_vec,psd_data = welch(cpuArray(data),fs,nperseg=nperseg,scaling='density',axis=-1)
         
-            self.freq_vec = self.to_xp(freq_vec, force_copy=True, dtype=self.dtype)
-            self.psd_data = self.to_xp(psd_data, force_copy=True, dtype=self.dtype)
+            self.freq_vec = self.to_xp(freq_vec, dtype=self.dtype)
+            self.psd_data = self.to_xp(psd_data, dtype=self.dtype)
             self.integrated_power = self.integrate_psd(self.psd_data, self.freq_vec)
         else:
             self.freq_vec = None
@@ -85,6 +81,9 @@ class PSD(BaseDataObj):
     @staticmethod
     def integrate_psd(psd,freq):
         return simpson(cpuArray(psd.T),cpuArray(freq),axis=0)
+    
+    def get_value(self):
+        return self.freq_vec, self.psd_data
 
     def save(self, filename):
         hdr = self.get_fits_header()
