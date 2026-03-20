@@ -7,10 +7,36 @@ from scipy.signal import welch
 
 
 class PSD(BaseDataObj):
+    """ 
+    PSD (Power Spectral Density) data object for storing and processing PSDs of time-series data.
+    Provides methods for interpolation, integration, plotting, and saving/restoring from FITS files.
+
+    """
     def __init__(self, data = None, dt:float = None, fs:float = None, nperseg:int=128,
                  overwrite:bool=False, description='', target_device_idx=None, precision=None):
         """
         Initialize PSD object.
+
+        Parameters
+        ----------
+        data : ndarray, optional
+            Time-series data to compute PSD from. Can be 1D or 2D array. If None, creates an empty PSD object.
+            The PSD is computed on the last axis.
+        dt : float, optional
+            Time step of data (inverse of sampling frequency).
+        fs : float, optional
+            Sampling frequency of data.
+            Either fs or dt must be provided. If both provided, they must be consistent (fs = 1/dt).
+        nperseg : int, optional
+            Number of samples per segment for Welch method. Default is 128.
+        overwrite : bool, optional
+            If True, overwrite existing files when saving. Default is False.
+        description : str, optional
+            Description string for the PSD data. Default is empty string.
+        target_device_idx : int, optional
+            Target device index for computation (e.g., GPU/CPU selection). Default is None.
+        precision : dtype, optional
+            Data type precision for computations. Default is None (uses default precision).
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         self.description = description

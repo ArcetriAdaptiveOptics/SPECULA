@@ -2,9 +2,9 @@ import numpy as np
 
 def computeRadialProfile(image, centerInPxY=None, centerInPxX=None, xp=np, dtype=np.float64):
     if centerInPxX is None:
-        centerInPxX = (image.shape[1])/2
+        centerInPxX = image.shape[1]/2
     if centerInPxY is None:
-        centerInPxY = (image.shape[0])/2
+        centerInPxY = image.shape[0]/2
     yCoord, xCoord= xp.indices(image.shape)
     yCoord= (yCoord - centerInPxY)
     xCoord= (xCoord - centerInPxX)

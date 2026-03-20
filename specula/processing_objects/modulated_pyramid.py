@@ -534,6 +534,8 @@ class ModulatedPyramid(BaseProcessingObj):
         if self.mod_amp > 0.0:
             print(f'Cached circular modulation with {self.mod_steps} steps, '
                 f'amplitude: {self.mod_amp:.2f}')
+        else:
+            print('Running unmodulated pyramid')
 
         # Common setup for both modes
         self.ffv = self.flux_factor_vector[:, self.xp.newaxis, self.xp.newaxis]

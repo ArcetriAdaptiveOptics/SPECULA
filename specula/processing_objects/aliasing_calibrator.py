@@ -41,7 +41,7 @@ class AliasingCalibrator(BaseProcessingObj):
 
     def finalize(self):
         slopes_timehist = self.to_xp(self.slopes_list)
-        dt = self.t_to_seconds(self.current_time)/(self._n_iter)
+        dt = self.t_to_seconds(self.current_time)/(self._n_iter-1)
         modes_thist = self.rec @ slopes_timehist.T
         modes_psd = PSD(modes_thist, dt=dt, nperseg=1024)
         

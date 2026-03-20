@@ -31,8 +31,8 @@ class ZwfsSlopec(Slopec):
                  thr_value: float=0.0,
                  precision: int=None):
 
-        cx = ccd_size/2#-0.5
-        cy = ccd_size/2#-0.5
+        cx = ccd_size/2
+        cy = ccd_size/2
 
         _,ids = make_mask(np_size=ccd_size, diaratio = pup_diam/float(ccd_size), obsratio=obsratio,get_idx=True)
         mask_ids = ids[0]*ccd_size+ids[1]
