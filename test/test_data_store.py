@@ -46,11 +46,11 @@ class TestDataStore(unittest.TestCase):
         return np.array([np.asarray(value).reshape(-1)[0] for value in values])
 
     @cpu_and_gpu
-    def test_data_store_global_decimation(self, target_device_idx, xp):
+    def test_data_store_global_downsampling(self, target_device_idx, xp):
         store = DataStore(
             store_dir=self.tmp_dir,
             create_tn=False,
-            store_every=2
+            downsample_factor=2
         )
         store.target_device_idx = target_device_idx
 
@@ -76,11 +76,11 @@ class TestDataStore(unittest.TestCase):
         np.testing.assert_array_equal(self._stored_scalars(store, 'slow'), np.array([20, 22, 24]))
 
     @cpu_and_gpu
-    def test_data_store_per_input_decimation(self, target_device_idx, xp):
+    def test_data_store_per_input_downsampling(self, target_device_idx, xp):
         store = DataStore(
             store_dir=self.tmp_dir,
             create_tn=False,
-            store_every_by_input={'slow': 3}
+            downsample_factor_by_input={'slow': 3}
         )
         store.target_device_idx = target_device_idx
 
@@ -108,12 +108,12 @@ class TestDataStore(unittest.TestCase):
                                       np.array([20, 23]))
 
     @cpu_and_gpu
-    def test_data_store_decimation_counts_samples_per_input(self, target_device_idx, xp):
+    def test_data_store_downsampling_counts_samples_per_input(self, target_device_idx, xp):
         store = DataStore(
             store_dir=self.tmp_dir,
             create_tn=False,
-            store_every=1,
-            store_every_by_input={'sparse': 2}
+            downsample_factor=1,
+            downsample_factor_by_input={'sparse': 2}
         )
         store.target_device_idx = target_device_idx
 
@@ -133,15 +133,35 @@ class TestDataStore(unittest.TestCase):
         self.assertEqual(list(store.storage['sparse'].keys()), [0, 4])
         np.testing.assert_array_equal(self._stored_scalars(store, 'sparse'), np.array([100, 104]))
 
-    def test_data_store_rejects_invalid_decimation_factor(self):
+    def test_data_store_rejects_invalid_downsampling_factor(self):
         with self.assertRaises(ValueError):
-            DataStore(store_dir=self.tmp_dir, store_every=0)
+            DataStore(store_dir=self.tmp_dir, downsample_factor=0)
 
         with self.assertRaises(ValueError):
-            DataStore(store_dir=self.tmp_dir, store_every_by_input={'fast': 0})
+            DataStore(store_dir=self.tmp_dir, downsample_factor_by_input={'fast': 0})
 
         with self.assertRaises(ValueError):
-            DataStore(store_dir=self.tmp_dir, store_every=2, store_every_by_input={'fast': 3})
+            DataStore(store_dir=self.tmp_dir,
+                      downsample_factor=2,
+                      downsample_factor_by_input={'fast': 3})
+
+    def test_data_store_rejects_conflicting_alias_and_new_names(self):
+        with self.assertRaises(ValueError):
+            DataStore(store_dir=self.tmp_dir, downsample_factor=2, store_every=3)
+
+        with self.assertRaises(ValueError):
+            DataStore(store_dir=self.tmp_dir,
+                      downsample_factor_by_input={'fast': 2},
+                      store_every_by_input={'fast': 3})
+
+    def test_data_store_accepts_legacy_alias_names(self):
+        store = DataStore(
+            store_dir=self.tmp_dir,
+            create_tn=False,
+            store_every=2,
+            store_every_by_input=None
+        )
+        self.assertEqual(store.downsample_factor, 2)
 
     @cpu_and_gpu
     def test_data_store(self, target_device_idx, xp):
@@ -184,12 +204,12 @@ class TestDataStore(unittest.TestCase):
         replay_file = os.path.join(last_tn_dir, 'replay_params.yml')
         assert os.path.exists(replay_file), f"File {replay_file} does not exist"
 
-    def test_data_store_pickle_writes_decimation_metadata(self):
+    def test_data_store_pickle_writes_downsampling_metadata(self):
         store = DataStore(
             store_dir=self.tmp_dir,
             data_format='pickle',
             create_tn=False,
-            store_every_by_input={'fast': 3}
+            downsample_factor_by_input={'fast': 3}
         )
         value = self._make_input_value(-1)
         self._connect_input(store, 'fast', value)
