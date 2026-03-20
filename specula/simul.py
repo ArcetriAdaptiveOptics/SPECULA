@@ -376,7 +376,7 @@ class Simul():
                 elif name.endswith('_dict_ref'):
                     if build_this_object:
                         data = {x : self.objs[x] for x in value}
-                        pars2[name[:-4]] = data
+                        pars2[parname] = data
                     for x in value:
                         a_ref = {}
                         a_ref['start'] = key
@@ -386,7 +386,7 @@ class Simul():
                 elif name.endswith('_ref'):
                     if build_this_object:
                         data = self.objs[value]
-                        pars2[name[:-4]] = data
+                        pars2[parname] = data
                     a_ref = {}
                     a_ref['start'] = key
                     a_ref['end'] = value
@@ -394,7 +394,6 @@ class Simul():
 
                 # data fields are read from a fits file
                 elif name.endswith('_data') and build_this_object:
-                    parname = name[:-5]
                     if value is None:
                         pars2[parname] = None
                     else:
@@ -405,7 +404,6 @@ class Simul():
                 # the name of the object is the string preceeding the "_object" suffix,
                 # while its type is inferred from the constructor of the current class
                 elif name.endswith('_object') and build_this_object:
-                    parname = name[:-7]
                     if value is None:
                         pars2[parname] = None
                     elif parname in hints:
