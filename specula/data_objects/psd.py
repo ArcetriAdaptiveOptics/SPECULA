@@ -93,6 +93,7 @@ class PSD(BaseDataObj):
     def save(self, filename):
         hdr = self.get_fits_header()
         hdr['DESC'] = self.description
+        hdr['NPERSEG'] = self.samplespersegment
         
         primary_hdu = fits.PrimaryHDU(cpuArray(self.psd_data), header=hdr)
         freq_hdu = fits.ImageHDU(cpuArray(self.freq_vec), name='FREQ')
@@ -121,3 +122,14 @@ class PSD(BaseDataObj):
         hdr['OBJ_TYPE'] = 'PSD'
         hdr['VERSION'] = 1
         return hdr
+    
+    @staticmethod
+    def from_header(hdr, target_device_idx=None):
+        version = hdr['VERSION']
+        if version != 1:
+            raise ValueError(f"Error: unknown version {version} in header")
+        description = hdr['DESC']
+        nperseg = hdr['NPERSEG']
+        psd = PSD(description=description,nperseg=nperseg,target_device_idx=target_device_idx)
+        return psd
+        

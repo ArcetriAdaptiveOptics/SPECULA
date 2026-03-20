@@ -65,13 +65,13 @@ class ZwfsSlopec(Slopec):
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
-        self.flat_pixels = self.to_xp(self.local_inputs['in_pixels'].pixels).flatten()
+        self.flat_pixels = self.to_xp(self.local_inputs['in_pixels'].pixels).flatten().astype(self.dtype)
 
     def trigger_code(self):
         self.flat_pixels -= self.threshold
 
         # clamp_generic_less(0,0,self.flat_pixels, xp=self.xp) # unsure wheter this is required
-        metaintensity = self.flat_pixels[self.pup_idx].astype(self.xp.float32)
+        metaintensity = self.flat_pixels[self.pup_idx].astype(self.dtype)
         self.flux_per_subaperture_vector.value[:] = metaintensity
 
         # Compute total intensity
