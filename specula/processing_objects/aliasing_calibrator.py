@@ -17,7 +17,7 @@ class AliasingCalibrator(BaseProcessingObj):
     def __init__(self,
                  data_dir: str,         # Set by main simul object
                  recmat: Recmat,
-                 output_tag: str = None,     
+                 output_tag: str = '',     
                  overwrite: bool = False,
                  target_device_idx: int = None,
                  precision: int = None
@@ -26,7 +26,7 @@ class AliasingCalibrator(BaseProcessingObj):
         self._data_dir = data_dir
         self.overwrite = overwrite
         self._filename = output_tag
-        self.rec = recmat.recmat.copy()
+        self.rec = self.to_xp(recmat.recmat.copy())
         self.slopes_list = []
         self._n_iter = 0
         self.inputs['in_slopes'] = InputValue(type=Slopes)
@@ -38,13 +38,18 @@ class AliasingCalibrator(BaseProcessingObj):
             raise FileExistsError(f'Aliasing PSDs file {self.aliasing_path} already exists, please remove it')
 
     def trigger_code(self):
+        # Only trigger if slopes have been refreshed
+        if self.local_inputs['in_slopes'].generation_time != self.current_time:
+            return
+
         self.slopes_list.append(self.local_inputs['in_slopes'].slopes.copy())
         self._n_iter += 1
 
     def finalize(self):
         slopes_thist = self.to_xp(self.slopes_list)
         dt = self.current_time*1e-9/(self._n_iter)
-        modes_psd = PSD(self.rec @ slopes_thist.T, dt=dt)
+        modes_thist = self.rec @ slopes_thist.T
+        modes_psd = PSD(modes_thist, dt=dt)
         
         filename = self._filename
         if not filename.endswith('.fits'):
