@@ -15,7 +15,7 @@ from specula.base_processing_obj import BaseProcessingObj
 class DataStore(BaseProcessingObj):
     """
     Data storage processing object.
-    Stores input values over time, optionally decimating them on a per-input
+    Stores input values over time, optionally downsampling them on a per-input
     basis, and saves them to disk at the end of the run.
     """
     def __init__(self,
@@ -50,11 +50,11 @@ class DataStore(BaseProcessingObj):
             Default is True.
         store_every : int, optional
             Store one sample every ``N`` received samples for all inputs.
-            The decimation is sample-based and tracked independently for each
+            The downsampling is sample-based and tracked independently for each
             input, so an input that updates less frequently is counted only when
             it produces a new sample. Default is 1 (store every sample).
         store_every_by_input : dict, optional
-            Per-input decimation factors. Keys are the DataStore input names,
+            Per-input downsampling factors. Keys are the DataStore input names,
             values are integers >= 1. When using ``input_list``, the key is the
             alias before the dash, e.g. ``'comm'`` for ``'comm-control.out_comm'``.
             This option is mutually exclusive with ``store_every != 1``.
@@ -94,15 +94,13 @@ class DataStore(BaseProcessingObj):
         self.input_sample_counters[input_name] += 1
         return sample_idx % every == 0
 
-    def _decimation_for_input(self, input_name):
+    def _downsampling_for_input(self, input_name):
         return self.store_every_by_input.get(input_name, self.store_every)
 
-    def _header_with_storage_metadata(self, input_name, header):
-        hdr = header.copy()
-        hdr['DECIM'] = (self._decimation_for_input(input_name),
-                        'Stored one sample every N received samples')
-        hdr['DECMODE'] = ('SAMPLE', 'Decimation mode used by DataStore')
-        return hdr
+    def update_header_with_storage_metadata(self, header, input_name):
+        header['DECIM'] = (self._downsampling_for_input(input_name),
+                           'Stored one sample every N received samples')
+        header['DECMODE'] = ('SAMPLE', 'Downsampling mode used by DataStore')
 
     def init_storage(self):
         self.storage = defaultdict(OrderedDict)
@@ -127,10 +125,8 @@ class DataStore(BaseProcessingObj):
                     continue
 
                 filename = os.path.join(self.tn_dir, k + '.pickle')
-                hdr = self._header_with_storage_metadata(
-                    k,
-                    self.inputs[k].get(target_device_idx=-1).get_fits_header()
-                )
+                hdr = self.inputs[k].get(target_device_idx=-1).get_fits_header()
+                self.update_header_with_storage_metadata(hdr, input_name=k)
                 with open(filename, 'wb') as handle:
                     data_to_save = {'data': data[k], 'times': times[k], 'hdr': hdr}
                     pickle.dump(data_to_save, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -171,7 +167,8 @@ class DataStore(BaseProcessingObj):
                     continue
 
                 filename = os.path.join(self.tn_dir, k + '.fits')
-                hdr = self._header_with_storage_metadata(k, self.local_inputs[k].get_fits_header())
+                hdr = self.local_inputs[k].get_fits_header()
+                self.update_header_with_storage_metadata(hdr, input_name=k)
                 hdu_time = fits.ImageHDU(times[k], header=hdr)
                 hdu_data = fits.PrimaryHDU(data[k], header=hdr)
                 hdul = fits.HDUList([hdu_data, hdu_time])
