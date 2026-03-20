@@ -71,12 +71,12 @@ class ShSubapCalibrator(BaseProcessingObj):
 
         idxs = {}
         map = {}
-        spot_intensity = self.xp.zeros((self._lenslet.dimx, self._lenslet.dimy))
-        x = self.xp.zeros((self._lenslet.dimx, self._lenslet.dimy))
-        y = self.xp.zeros((self._lenslet.dimx, self._lenslet.dimy))
+        spot_intensity = self.xp.zeros((self._lenslet.dimy, self._lenslet.dimx))
+        x = self.xp.zeros((self._lenslet.dimy, self._lenslet.dimx))
+        y = self.xp.zeros((self._lenslet.dimy, self._lenslet.dimx))
 
-        for i in range(self._lenslet.dimx):
-            for j in range(self._lenslet.dimy):
+        for i in range(self._lenslet.dimy):
+            for j in range(self._lenslet.dimx):
                 lens = self._lenslet.get(i, j)
                 x[i, j] = np / 2.0 * (1 + lens[0])
                 y[i, j] = np / 2.0 * (1 + lens[1])
@@ -89,14 +89,14 @@ class ShSubapCalibrator(BaseProcessingObj):
                 spot_intensity[i, j] = self.xp.sum(image * mask_subap)
 
         count = 0
-        for i in range(self._lenslet.dimx):
-            for j in range(self._lenslet.dimy):
+        for i in range(self._lenslet.dimy):
+            for j in range(self._lenslet.dimx):
                 if spot_intensity[i, j] > energy_th * self.xp.max(spot_intensity):
                     mask_subap *= 0
                     mask_subap[int(self.xp.round(x[i, j] - np_sub / 2)):int(self.xp.round(x[i, j] + np_sub / 2)),
                         int(self.xp.round(y[i, j] - np_sub / 2)):int(self.xp.round(y[i, j] + np_sub / 2))] = 1
                     idxs[count] = self.xp.where(mask_subap == 1)
-                    map[count] = j * self._lenslet.dimx + i
+                    map[count] = i * self._lenslet.dimx + j
                     count += 1
 
         if count == 0:

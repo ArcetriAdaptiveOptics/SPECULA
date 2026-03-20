@@ -102,8 +102,8 @@ class Pixels(BaseDataObj):
         hdr['BPP'] = self.bpp
         hdr['BYTESPP'] = self.bytespp
         hdr['SIGNED'] = self.signed
-        hdr['DIMX'] = self.pixels.shape[0]
-        hdr['DIMY'] = self.pixels.shape[1]
+        hdr['DIMX'] = self.pixels.shape[1]
+        hdr['DIMY'] = self.pixels.shape[0]
         return hdr
 
     def save(self, filename, overwrite=True):

@@ -364,11 +364,11 @@ class SH(BaseProcessingObj):
 
         self._cutpixels = int(np.round(fov_cut / fp4_pixel_pitch) / 2 * 2)
         self._cutsize = fft_size - self._cutpixels
-        self._psfimage = self._zeros_common((self._cutsize * self._lenslet.dimx,
-                                             self._cutsize * self._lenslet.dimy),
+        self._psfimage = self._zeros_common((self._cutsize * self._lenslet.dimy,
+                                             self._cutsize * self._lenslet.dimx),
                                             dtype=self.dtype)
         self._psf_reshaped_2d = self._zeros_common((self._cutsize,
-                                                    self._cutsize * self._lenslet.dimy),
+                                                    self._cutsize * self._lenslet.dimx),
                                                    dtype=self.dtype)
 
         # 1/2 Px tilt

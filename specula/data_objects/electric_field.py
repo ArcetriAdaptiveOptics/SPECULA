@@ -54,8 +54,8 @@ class ElectricField(BaseDataObj):
         dimy = int(dimy)
         self.pixel_pitch = pixel_pitch
         self.S0 = S0
-        A = self.xp.ones((dimx, dimy), dtype=self.dtype)
-        phaseInNm = self.xp.zeros((dimx, dimy), dtype=self.dtype)
+        A = self.xp.ones((dimy, dimx), dtype=self.dtype)
+        phaseInNm = self.xp.zeros((dimy, dimx), dtype=self.dtype)
         self.field = self.xp.stack((A, phaseInNm))
     
     @property
@@ -114,7 +114,7 @@ class ElectricField(BaseDataObj):
         '''
         dimx = int(dimx)
         dimy = int(dimy)
-        self.field = self.xp.zeros((2, dimx, dimy), dtype=self.dtype)
+        self.field = self.xp.zeros((2, dimy, dimx), dtype=self.dtype)
         if pitch is not None:
             self.pixel_pitch = pitch
         self.reset()
@@ -284,8 +284,8 @@ class ElectricField(BaseDataObj):
         hdr = fits.Header()
         hdr['VERSION'] = 1
         hdr['OBJ_TYPE'] = 'ElectricField'
-        hdr['DIMX'] = self.field[0].shape[0]
-        hdr['DIMY'] = self.field[0].shape[1]
+        hdr['DIMX'] = self.field[0].shape[1]
+        hdr['DIMY'] = self.field[0].shape[0]
         hdr['PIXPITCH'] = self.pixel_pitch
         hdr['S0'] = self.S0
         return hdr
