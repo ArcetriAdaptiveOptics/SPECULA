@@ -101,9 +101,9 @@ class DataStore(BaseProcessingObj):
         return self.downsample_factor_by_input.get(input_name, self.downsample_factor)
 
     def update_header_with_storage_metadata(self, header, input_name):
-        header['DECIM'] = (self._downsampling_for_input(input_name),
-                           'Stored one sample every N received samples')
-        header['DECMODE'] = ('SAMPLE', 'Downsampling mode used by DataStore')
+        header['DOWNSAMP'] = (self._downsampling_for_input(input_name),
+                              'Stored one sample every N received samples')
+        header['DSMODE'] = ('SAMPLE', 'Downsampling mode used by DataStore')
 
     def init_storage(self):
         self.storage = defaultdict(OrderedDict)

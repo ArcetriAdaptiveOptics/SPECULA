@@ -184,15 +184,15 @@ class FieldAnalyser:
                     payload = pickle.load(handle)
                 header = payload.get('hdr', {})
 
-            decimation = int(header.get('DECIM', 1))
-            if decimation > 1:
+            downsampling = int(header.get('DOWNSAMP', 1))
+            if downsampling > 1:
                 raise ValueError(
-                    f'FieldAnalyser does not support decimated replay inputs: '
-                    f'{file_path.name} was saved with DECIM={decimation}'
+                    f'FieldAnalyser does not support downsampled replay inputs: '
+                    f'{file_path.name} was saved with DOWNSAMP={downsampling}'
                 )
 
-            if 'DECIM' not in header and self.verbose:
-                print(f'Warning: replay input {file_path.name} has no DECIM metadata; assuming DECIM=1')
+            if 'DOWNSAMP' not in header and self.verbose:
+                print(f'Warning: replay input {file_path.name} has no DOWNSAMP metadata; assuming DOWNSAMP=1')
 
     def _build_replay_params_psf(self) -> dict:
         """

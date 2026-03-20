@@ -310,8 +310,8 @@ class TestShSimulation(unittest.TestCase):
 
         hdr = fits.Header()
         hdr['OBJ_TYPE'] = 'BaseValue'
-        hdr['DECIM'] = 4
-        hdr['DECMODE'] = 'SAMPLE'
+        hdr['DOWNSAMP'] = 4
+        hdr['DSMODE'] = 'SAMPLE'
 
         fits.HDUList([
             fits.PrimaryHDU(np.zeros((1, 1), dtype=np.float32), header=hdr),
@@ -334,7 +334,7 @@ class TestShSimulation(unittest.TestCase):
             }
         }
 
-        with self.assertRaisesRegex(ValueError, 'DECIM=4'):
+        with self.assertRaisesRegex(ValueError, 'DOWNSAMP=4'):
             analyzer._validate_replay_inputs_are_not_decimated(replay_params)
 
     def test_field_analyser_rejects_decimated_pickle_replay_inputs(self):
@@ -352,7 +352,7 @@ class TestShSimulation(unittest.TestCase):
         payload = {
             'data': np.zeros((1, 1), dtype=np.float32),
             'times': np.array([0], dtype=np.uint64),
-            'hdr': {'OBJ_TYPE': 'BaseValue', 'DECIM': 3, 'DECMODE': 'SAMPLE'}
+            'hdr': {'OBJ_TYPE': 'BaseValue', 'DOWNSAMP': 3, 'DSMODE': 'SAMPLE'}
         }
         with open(os.path.join(tn_dir, 'comm.pickle'), 'wb') as handle:
             pickle.dump(payload, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -373,7 +373,7 @@ class TestShSimulation(unittest.TestCase):
             }
         }
 
-        with self.assertRaisesRegex(ValueError, 'DECIM=3'):
+        with self.assertRaisesRegex(ValueError, 'DOWNSAMP=3'):
             analyzer._validate_replay_inputs_are_not_decimated(replay_params)
 
     def test_field_analyser_accepts_legacy_fits_replay_inputs_without_decim(self):

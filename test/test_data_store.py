@@ -179,8 +179,8 @@ class TestDataStore(unittest.TestCase):
         assert gen_times.dtype == np.uint64
 
         gen_header = fits.getheader(gen_file)
-        self.assertEqual(gen_header['DECIM'], 1)
-        self.assertEqual(gen_header['DECMODE'], 'SAMPLE')
+        self.assertEqual(gen_header['DOWNSAMP'], 1)
+        self.assertEqual(gen_header['DSMODE'], 'SAMPLE')
 
         # Make sure replay_params.yml exists
         replay_file = os.path.join(last_tn_dir, 'replay_params.yml')
@@ -207,8 +207,8 @@ class TestDataStore(unittest.TestCase):
         with open(os.path.join(self.tmp_dir, 'fast.pickle'), 'rb') as handle:
             payload = pickle.load(handle)
 
-        self.assertEqual(payload['hdr']['DECIM'], 3)
-        self.assertEqual(payload['hdr']['DECMODE'], 'SAMPLE')
+        self.assertEqual(payload['hdr']['DOWNSAMP'], 3)
+        self.assertEqual(payload['hdr']['DSMODE'], 'SAMPLE')
 
     @cpu_and_gpu
     def test_data_store_start_time(self, target_device_idx, xp):
