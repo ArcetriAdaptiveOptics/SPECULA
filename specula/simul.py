@@ -367,7 +367,7 @@ class Simul():
                 # Check that each parameter name is expected by the constructor of the class, after removing possible suffixes
                 parname = name
                 endings = ['_ref', '_data', '_object']
-                excluded = ['iir_filter_data']  # Special case for iir_filter_data, which ends in '_data'
+                excluded = ['iir_filter_data', 'ssr_filter_data']  # Special case for iir_filter_data, which ends in '_data'
                 for ending in endings:
                     if parname not in excluded:
                         parname = remove_suffix(parname, ending)
