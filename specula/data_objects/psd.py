@@ -11,12 +11,15 @@ from scipy.signal import welch
 
 
 class PSD(BaseDataObj):
-    def __init__(self, data = None, dt:float = None, fs:float = None, description='', target_device_idx=None, precision=None):
+    def __init__(self, data = None, dt:float = None, fs:float = None, nperseg:int=128,
+                 overwrite:bool=False, description='', target_device_idx=None, precision=None):
         """
         Initialize PSD object.
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         self.description = description
+        self.samplespersegment = nperseg
+        self.overwrite = overwrite
 
         if data is not None:
             if fs is None and dt is None:
@@ -28,7 +31,13 @@ class PSD(BaseDataObj):
             if fs is None:
                 fs = 1/dt
 
-            freq_vec,psd_data = welch(cpuArray(data),fs,nperseg=256,scaling='density',axis=-1)
+            if len(data.shape) > 2:
+                raise ValueError(f'Incorrect input data dimensions {data.shape}, only 2D arrays are supported')
+            
+            if max(data.shape) < nperseg:
+                raise ValueError(f'Data has shape {data.shape} but the requested number of samples for Welch method is {nperseg}')
+
+            freq_vec,psd_data = welch(cpuArray(data),fs,nperseg=nperseg,scaling='density',axis=-1)
         
             self.freq_vec = self.to_xp(freq_vec, force_copy=True, dtype=self.dtype)
             self.psd_data = self.to_xp(psd_data, force_copy=True, dtype=self.dtype)
@@ -77,7 +86,7 @@ class PSD(BaseDataObj):
     def integrate_psd(psd,freq):
         return simpson(cpuArray(psd.T),cpuArray(freq),axis=0)
 
-    def save(self, filename, overwrite=False):
+    def save(self, filename):
         hdr = self.get_fits_header()
         hdr['DESC'] = self.description
         
@@ -86,7 +95,7 @@ class PSD(BaseDataObj):
         power_hdu = fits.ImageHDU(cpuArray(self.integrated_power), name='INT_PWR')
         
         hdul = fits.HDUList([primary_hdu, freq_hdu, power_hdu])
-        hdul.writeto(filename, overwrite=overwrite)
+        hdul.writeto(filename, overwrite=self.overwrite)
 
     @staticmethod
     def restore(filename, target_device_idx=None):
