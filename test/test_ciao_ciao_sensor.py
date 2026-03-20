@@ -93,12 +93,11 @@ class TestCiaoCiaoSensor(unittest.TestCase):
         ef.generation_time = t
 
         wfs.inputs['in_ef'].set(ef)
-        wfs.setup()
 
-        assert wfs._ef.shape == (dimy, dimx)
-        assert wfs._rot_ef.shape == (dimy, dimx)
-        assert wfs._interf_ef.shape == (dimy, dimx)
-        assert wfs._interf_i.shape == (dimy, dimx)
+        # CiaoCiao requries a square input array
+        with self.assertRaises(ValueError):
+            wfs.setup()
+
 
     @cpu_and_gpu
     def test_channel_flux_unbalance(self, target_device_idx, xp):
