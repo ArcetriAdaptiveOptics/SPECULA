@@ -40,6 +40,13 @@ class TestPixels(unittest.TestCase):
             pass
 
     @cpu_and_gpu
+    def test_pixels_shape(self, target_device_idx, xp):
+        dimx = 10
+        dimy = 20
+        obj = Pixels(dimx, dimy, bits=16, signed=0, target_device_idx=target_device_idx)
+        self.assertEqual(obj.pixels.shape, (dimy, dimx))
+
+    @cpu_and_gpu
     def test_set_value_does_not_reallocate(self, target_device_idx, xp):
         
         pixels = Pixels(10, 10, target_device_idx=target_device_idx)
@@ -70,7 +77,9 @@ class TestPixels(unittest.TestCase):
     @cpu_and_gpu
     def test_fits_header(self, target_device_idx, xp):
         
-        pixels = Pixels(6, 5, bits=8, signed=1, target_device_idx=target_device_idx)
+        dimx = 6
+        dimy = 5
+        pixels = Pixels(dimx, dimy, bits=8, signed=1, target_device_idx=target_device_idx)
         hdr = pixels.get_fits_header()
         
         assert type(hdr) is fits.Header
@@ -80,8 +89,8 @@ class TestPixels(unittest.TestCase):
         assert hdr['BPP'] == 8
         assert hdr['BYTESPP'] == 1
         assert hdr['SIGNED'] == 1
-        assert hdr['DIMX'] == 6
-        assert hdr['DIMY'] == 5
+        assert hdr['DIMX'] == dimx
+        assert hdr['DIMY'] == dimy
 
     @cpu_and_gpu
     def test_set_with_invalid_shape(self, target_device_idx, xp):

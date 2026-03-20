@@ -31,6 +31,13 @@ class TestElectricField(unittest.TestCase):
         assert id_field_before == id_field_after
 
     @cpu_and_gpu
+    def test_ef_shape(self, target_device_idx, xp):
+        dimx = 10
+        dimy = 20
+        obj = ElectricField(dimx, dimy, 0.1, S0=1, target_device_idx=target_device_idx)
+        self.assertEqual(obj.A.shape, (dimy, dimx))
+
+    @cpu_and_gpu
     def test_set_value_does_not_reallocate(self, target_device_idx, xp):
 
         ef = ElectricField(10,10, 0.1, S0=1, target_device_idx=target_device_idx)
@@ -85,11 +92,13 @@ class TestElectricField(unittest.TestCase):
     @cpu_and_gpu
     def test_ef_reflection(self, target_device_idx, xp):
         pixel_pitch = 0.1
-        pixel_pupil = 10
-        ef1 = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx)
-        A1 = xp.ones((pixel_pupil, pixel_pupil))
-        ef1.A = A1
-        ef1.phaseInNm = 1 * xp.ones((pixel_pupil, pixel_pupil))
+
+        dimx = 10
+        dimy = 20
+
+        ef1 = ElectricField(dimx, dimy, pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        ef1.A[:] = 1
+        ef1.phaseInNm[:] = 1
 
         ef_reflection = ElectricFieldReflection(
             target_device_idx=target_device_idx
@@ -109,6 +118,7 @@ class TestElectricField(unittest.TestCase):
 
         assert np.allclose(out_ef.A, ef1.A)
         assert np.allclose(out_ef.phaseInNm, -1*ef1.phaseInNm)
+        assert out_ef.A.shape == (dimy, dimx)
 
     @cpu_and_gpu
     def test_save_and_restore(self, target_device_idx, xp):
@@ -176,17 +186,18 @@ class TestElectricField(unittest.TestCase):
 
     @cpu_and_gpu
     def test_fits_header(self, target_device_idx, xp):
-        pixel_pupil = 10
+        dimx = 10
+        dimy = 20
         pixel_pitch = 0.1
         S0 = 1.23
-        ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=S0, target_device_idx=target_device_idx)
+        ef = ElectricField(dimx, dimy, pixel_pitch, S0=S0, target_device_idx=target_device_idx)
 
         hdr = ef.get_fits_header()
 
         assert hdr['VERSION'] == 1
         assert hdr['OBJ_TYPE'] == 'ElectricField'
-        assert hdr['DIMX'] == pixel_pupil
-        assert hdr['DIMY'] == pixel_pupil
+        assert hdr['DIMX'] == dimx
+        assert hdr['DIMY'] == dimy
         assert hdr['PIXPITCH'] == pixel_pitch
         assert hdr['S0'] == S0        
         

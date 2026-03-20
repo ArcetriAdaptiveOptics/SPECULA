@@ -72,6 +72,35 @@ class TestCiaoCiaoSensor(unittest.TestCase):
         )
 
     @cpu_and_gpu
+    def test_ciaociao_shape(self, target_device_idx, xp):
+        t = 1
+        ref_S0 = 123.0
+        number_px = 48
+
+        wfs = CiaoCiaoSensor(
+            wavelengthInNm=750.0,
+            number_px=number_px,
+            diffRotAngleInDeg=180.0,
+            tiltInArcsec=(0.02, -0.01),
+            normalize_flux=True,
+            target_device_idx=target_device_idx
+        )
+
+        dimx = 10
+        dimy = 20
+
+        ef = ElectricField(dimx, dimy, 0.01, S0=ref_S0, target_device_idx=target_device_idx)
+        ef.generation_time = t
+
+        wfs.inputs['in_ef'].set(ef)
+        wfs.setup()
+
+        assert wfs._ef.shape == (dimy, dimx)
+        assert wfs._rot_ef.shape == (dimy, dimx)
+        assert wfs._interf_ef.shape == (dimy, dimx)
+        assert wfs._interf_i.shape == (dimy, dimx)
+
+    @cpu_and_gpu
     def test_channel_flux_unbalance(self, target_device_idx, xp):
         t = 1
         dim = 40
