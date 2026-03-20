@@ -108,7 +108,7 @@ pyr_slopes:
 
 pyr_modalrec:
   class:             'Modalrec'
-  recmat_object:     'pyr3.0_1300modes_rec'        
+  recmat_object:     'pyr3.0_500modes_rec'        
   inputs:
     in_slopes:       'pyr_slopes.out_slopes'
   outputs:           ['out_modes']
@@ -129,6 +129,7 @@ dm:
   ifunc_object:      'asm_ifunc'      # Our computed influence functions
   m2c_object:        'asm_m2c'        # Modal-to-command matrix
   height:            0                # Ground-conjugated DM
+  nmodes:            500
   inputs:
     in_command:      'filter.out_comm'
   outputs:           ['out_layer']

@@ -108,7 +108,7 @@ def compute_zwfs_rec(Nmodes:int, im_tag:str='zwfs_1821modes', compute_ml:bool=Fa
 
 if __name__ == "__main__":
 
-    Nmodes = 600
+    Nmodes = 500
     rMods = np.array([3])
     for rMod in rMods:
         rec,_ = compute_pyr_rec(Nmodes=Nmodes,im_tag=f'pyr{rMod:1.1f}')
