@@ -3,8 +3,8 @@
 main:
   class:             'SimulParams'
   root_dir:          './calibration'       # CalibManager root directory (all the data are in subdirectories)
-  pixel_pupil:       220                   # Must match influence function computation
-  pixel_pitch:       0.037372727            # [m] Pitch of the pupil phase array
+  pixel_pupil:       160                   # Must match influence function computation
+  pixel_pitch:       0.0525            # [m] Pitch of the pupil phase array
   total_time:        10.9956                # [s] Total simulation running time
   time_step:         0.000588               # [s] Simulation time step
   zenithAngleInDeg:  0.0                   # [deg] Zenith observation (0 means no airmass)
@@ -32,7 +32,7 @@ source_ngs:
   wavelengthInNm:    750                   # [nm] R-band for WFS
 
 # Telescope pupil geometry
-vlt_aperture:
+pupilstop:
   class:             'Pupilstop'
   simul_params_ref:   'main'
 
@@ -58,7 +58,7 @@ prop:
   source_dict_ref:   ['source_ngs'] 
   inputs:
     atmo_layer_list: ['atmo.layer_list']
-    common_layer_list: ['vlt_aperture']       # Pupil
+    common_layer_list: ['pupilstop']       # Pupil
   outputs:           ['out_source_ngs_ef'] 
 
 ef_prop:
@@ -126,8 +126,8 @@ filter:
 dm:
   class:             'DM'
   simul_params_ref:  'main'
-  ifunc_object:      'dsm660_ifunc'      # Our computed influence functions
-  m2c_object:        'dsm660_m2c'        # Modal-to-command matrix
+  ifunc_object:      'asm_ifunc'      # Our computed influence functions
+  m2c_object:        'asm_m2c'        # Modal-to-command matrix
   height:            0                # Ground-conjugated DM
   inputs:
     in_command:      'filter.out_comm'
@@ -150,14 +150,14 @@ psf:
 
 dm_mode_res:
   class:            'ModalAnalysis'
-  ifunc_inv_object: 'dsm660_kl_inv'
+  ifunc_inv_object: 'asm_kl_inv'
   inputs:
     in_ef: ['ef_prop.out_ef']
   outputs: ['out_modes']
 
 atmo_mode_res:
   class:            'ModalAnalysis'
-  ifunc_inv_object: 'dsm660_kl_inv'
+  ifunc_inv_object: 'asm_kl_inv'
   inputs:
     in_ef: ['prop.out_source_ngs_ef']
   outputs: ['out_modes']

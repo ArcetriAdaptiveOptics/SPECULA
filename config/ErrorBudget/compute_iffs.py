@@ -285,8 +285,8 @@ def compute_and_save_dcao_matrix(first_stage_tag:str, second_stage_tag:str, N1_m
 
 
 if __name__ == "__main__":
-    Npix = 220
-    compute_and_save_influence_functions(tag='dsm660', D=8.4, pupil_pixels=Npix, n_acts=30,
-                                          geom='circular', r0=10e-2, obsratio=0.0)
+    Npix = 160
+    compute_and_save_influence_functions(tag='asm', D=8.4, pupil_pixels=Npix, n_acts=29,
+                                         r0=10e-2, obsratio=0.0)
 
 
