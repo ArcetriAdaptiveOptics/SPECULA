@@ -48,7 +48,9 @@ class FourQuadrantCoronagraph(Coronagraph):
                                 yc=1.0+1./self.fft_totsize, xp=self.xp,
                                 square=True, xc = 1./self.fft_totsize)
         quad_mask = self.xp.logical_xor(left_mask,bottom_mask)
-        fp_mask = self.xp.exp(1j*quad_mask*self._phase_delay, dtype=self.complex_dtype)
+        iu = self.complex_dtype(1j)
+        phase_delay = self.dtype(self._phase_delay)
+        fp_mask = self.xp.exp(iu * quad_mask * phase_delay, dtype=self.complex_dtype)
         return fp_mask
 
     def make_pupil_plane_mask(self):

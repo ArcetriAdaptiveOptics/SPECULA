@@ -119,6 +119,16 @@ class TestBaseValue(unittest.TestCase):
             mock_to_xp.assert_called_once_with(obj.xp, [1, 2, 3], obj.dtype, True)
             self.assertEqual(result, "converted")
 
+    @cpu_and_gpu
+    def test_center_of_mass_available(self, target_device_idx, xp):
+        """Ensure center_of_mass helper is available and returns correct coordinates."""
+        obj = BaseTimeObj(target_device_idx=target_device_idx)
+        arr = obj.xp.zeros((5, 5), dtype=obj.dtype)
+        arr[1, 3] = 1
+        yc, xc = obj.ndimage_center_of_mass(arr)
+        self.assertAlmostEqual(float(yc), 1.0)
+        self.assertAlmostEqual(float(xc), 3.0)
+
     # ------ Time resolution tests
 
     @cpu_and_gpu

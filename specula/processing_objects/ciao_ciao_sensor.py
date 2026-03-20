@@ -144,7 +144,16 @@ class CiaoCiaoSensor(BaseProcessingObj):
         theta_x = tilt_x_arcsec / RAD2ASEC
         theta_y = tilt_y_arcsec / RAD2ASEC
 
-        xx, yy = make_xy(in_ef.size[0], in_ef.pixel_pitch, xp=self.xp)
+        nx, ny = in_ef.size
+        if nx != ny:
+            raise ValueError(f'_build_tilt_phase_map_nm requires a square electric field'
+                             f' , got {nx}x{ny}')
+        pitch = in_ef.pixel_pitch
+
+        xx, yy = make_xy(nx, 0.5 * nx * pitch, xp=self.xp,
+                         dtype=self.dtype, zero_sampled=True)
+
+        # theta (rad) * xx (meters) = OPD (meters) -> * 1e9 = OPD (nm)
         return (theta_x * xx + theta_y * yy) * 1e9
 
     def setup(self):
@@ -185,7 +194,7 @@ class CiaoCiaoSensor(BaseProcessingObj):
 
         tilt_phase_nm = self._build_tilt_phase_map_nm(in_ef)
         tilt_phase_rad = tilt_phase_nm * ((2 * self.xp.pi) / self.wavelength_in_nm)
-        self._tilt_exp = self.xp.exp(1j * tilt_phase_rad, dtype=self.complex_dtype)
+        self._tilt_exp = self.xp.exp(self.complex_dtype(1j) * tilt_phase_rad)
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)

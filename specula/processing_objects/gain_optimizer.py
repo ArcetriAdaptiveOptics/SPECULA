@@ -338,8 +338,9 @@ class GainOptimizer(BaseProcessingObj):
         den = self.to_xp(den_tuple, dtype=self.dtype)
 
         # Calculate transfer function
-        omega = 2 * np.pi * freq * t_int
-        z = self.xp.exp(1j * omega)
+        omega = 2 * self.dtype(np.pi) * freq * t_int
+        iu = self.complex_dtype(1j)
+        z = self.xp.exp(iu * omega, dtype=self.complex_dtype)
 
         # Calculate controller transfer function
         num_val = self.xp.polyval(num[::-1], z)

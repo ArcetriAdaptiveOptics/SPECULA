@@ -62,15 +62,20 @@ def calc_phasescreen(L0, dimension, pixel_pitch, xp, precision, seed=0, verbose=
 
     # Initialize the phasescreen
     phasescreen = xp.zeros((dimension, dimension), dtype=complex_dtype)
+    iu = complex_dtype(1j)
 
     if verbose:
         print("Compute noise matrix")
 
     # Fill in the noise matrix
-    phasescreen[half_dim:2 * half_dim, 0:2 * half_dim] = re_gauss[1:half_dim + 1, 1:2 * half_dim + 1] + 1j * im_gauss[1:half_dim + 1, 1:2 * half_dim + 1]
-    phasescreen[0:half_dim-1, 0:2 * half_dim] = xp.rot90(re_gauss,2)[1:half_dim, 1:2 * half_dim + 1] - 1j * xp.rot90(im_gauss,2)[1:half_dim, 1:2 * half_dim + 1]
-    phasescreen[half_dim, 0:half_dim] = re_gauss[0, 1:half_dim+1] + 1j * im_gauss[0, 1:half_dim+1]
-    phasescreen[half_dim, half_dim:2 * half_dim] = xp.flipud(re_gauss)[0, 0:half_dim] - 1j * xp.flipud(im_gauss)[0, 0:half_dim]
+    phasescreen[half_dim:2 * half_dim, 0:2 * half_dim] = re_gauss[1:half_dim + 1, 1:2 * half_dim + 1] \
+        + iu * im_gauss[1:half_dim + 1, 1:2 * half_dim + 1]
+    phasescreen[0:half_dim-1, 0:2 * half_dim] = xp.rot90(re_gauss,2)[1:half_dim, 1:2 * half_dim + 1] \
+        - iu * xp.rot90(im_gauss,2)[1:half_dim, 1:2 * half_dim + 1]
+    phasescreen[half_dim, 0:half_dim] = re_gauss[0, 1:half_dim+1] \
+        + iu * im_gauss[0, 1:half_dim+1]
+    phasescreen[half_dim, half_dim:2 * half_dim] = xp.flipud(re_gauss)[0, 0:half_dim] \
+        - iu * xp.flipud(im_gauss)[0, 0:half_dim]
     phasescreen[2*half_dim-1, :] = 0
     phasescreen[:, 2*half_dim-1] = 0
 
