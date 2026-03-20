@@ -158,10 +158,10 @@ class FieldAnalyser:
         """
         simul = Simul([])
         replay_params = simul.build_targeted_replay(self.params, 'prop', set_store_dir=str(self.tn_dir))
-        self._validate_replay_inputs_are_not_decimated(replay_params)
+        self._validate_replay_inputs_are_not_downsampled(replay_params)
         return replay_params
 
-    def _validate_replay_inputs_are_not_decimated(self, replay_params: dict):
+    def _validate_replay_inputs_are_not_downsampled(self, replay_params: dict):
         data_source = replay_params.get('data_source')
         if not data_source:
             return

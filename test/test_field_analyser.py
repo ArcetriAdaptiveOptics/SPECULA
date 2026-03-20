@@ -335,7 +335,7 @@ class TestShSimulation(unittest.TestCase):
         }
 
         with self.assertRaisesRegex(ValueError, 'DOWNSAMP=4'):
-            analyzer._validate_replay_inputs_are_not_decimated(replay_params)
+            analyzer._validate_replay_inputs_are_not_downsampled(replay_params)
 
     def test_field_analyser_rejects_decimated_pickle_replay_inputs(self):
         tracking_number = 'decimated_pickle_tn'
@@ -374,7 +374,7 @@ class TestShSimulation(unittest.TestCase):
         }
 
         with self.assertRaisesRegex(ValueError, 'DOWNSAMP=3'):
-            analyzer._validate_replay_inputs_are_not_decimated(replay_params)
+            analyzer._validate_replay_inputs_are_not_downsampled(replay_params)
 
     def test_field_analyser_accepts_legacy_fits_replay_inputs_without_decim(self):
         tracking_number = 'legacy_tn'
@@ -412,7 +412,7 @@ class TestShSimulation(unittest.TestCase):
             }
         }
 
-        analyzer._validate_replay_inputs_are_not_decimated(replay_params)
+        analyzer._validate_replay_inputs_are_not_downsampled(replay_params)
 
     def test_field_analyser_accepts_legacy_pickle_replay_inputs_without_hdr(self):
         tracking_number = 'legacy_pickle_tn'
@@ -449,4 +449,4 @@ class TestShSimulation(unittest.TestCase):
             }
         }
 
-        analyzer._validate_replay_inputs_are_not_decimated(replay_params)
+        analyzer._validate_replay_inputs_are_not_downsampled(replay_params)
