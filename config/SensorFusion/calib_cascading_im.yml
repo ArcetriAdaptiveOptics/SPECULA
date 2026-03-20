@@ -55,4 +55,4 @@ cred2_override:
 remove: ['atmo', 'seeing', 'wind_direction', 'wind_speed','dm1',
          'filter1',  'filter2','ef_prop','first_stage_prop', 'dm1_mode_res', 'dm2_mode_res', 
          'cred1', 'pyr', 'pyr_slopes', 'coro_psf',
-           'data_store', 'psf', 'pyr_modalrec', 'pyr0_modalrec','atmo_mode_res']
+           'data_store', 'psf', 'pyr_modalrec', 'pyr0_modalrec','atmo_modes']

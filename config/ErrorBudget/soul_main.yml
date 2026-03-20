@@ -156,7 +156,7 @@ dm_mode_res:
     in_ef: ['ef_prop.out_ef']
   outputs: ['out_modes']
 
-atmo_mode_res:
+atmo_modes:
   class:            'ModalAnalysis'
   ifunc_inv_object: 'asm_kl_inv'
   inputs:
@@ -172,7 +172,7 @@ data_store:
                   'sr-psf.out_sr',
                   'psf-psf.out_psf',
                   'psf_std-psf.out_std_psf',
-                  'atmo_res-atmo_mode_res.out_modes',
+                  'atmo_res-atmo_modes.out_modes',
                   'dm_res-dm_mode_res.out_modes',
                   'dm_cmd-filter.out_comm',
                   'pyr_modes-pyr_modalrec.out_modes',

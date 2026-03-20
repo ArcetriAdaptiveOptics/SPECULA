@@ -22,7 +22,7 @@ main_override:
 # Remove unnecessary components to avoid issues and speed up the calibration
 remove: ['atmo', 'seeing', 'wind_direction', 'wind_speed', 'cred1', 'pyr_slopes', 'dm',
          'filter', 'ef_prop', 'dm_mode_res', 'ocam2', 'zwfs', 'zwfs_slopes', 'coro_psf',
-           'data_store', 'psf', 'pyr_modalrec', 'zwfs_modalrec','atmo_mode_res']
+           'data_store', 'psf', 'pyr_modalrec', 'zwfs_modalrec','atmo_modes']
 # remove: ['atmo', 'seeing', 'wind_direction', 'wind_speed', 'cred1', 'pyr_slopes', 'dm1','dm2',
 #          'filter1',  'filter2','ef_prop','first_stage_prop', 'dm1_mode_res', 'dm2_mode_res', 
 #          'cred2', 'pyr0', 'pyr0_slopes', 'coro_psf',

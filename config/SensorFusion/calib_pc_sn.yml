@@ -77,6 +77,6 @@ cred1_override:
   excess_noise:   false                   # No excess noise
 
 # Remove closed-loop components (not needed for slope null)
-remove: ['atmo','seeing','wind_speed','wind_direction','atmo_mode_res','data_store', #'bootstrap', 'concat_wfs_modes', #'source_science',
+remove: ['atmo','seeing','wind_speed','wind_direction','atmo_modes','data_store', #'bootstrap', 'concat_wfs_modes', #'source_science',
         'dm','dm_mode_res','filter','psf','ef_prop','pyr_modalrec', 'zwfs_modalrec','coro_psf', 
         'zwfs','zwfs_slopes','ocam2',]

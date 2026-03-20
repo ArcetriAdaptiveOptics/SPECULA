@@ -48,7 +48,7 @@ data_store_override:
     input_list: [ 'z2.0wfs_frame-ocam2.out_pixels','pyr0.5_frame-cred1.out_pixels',]
 
 # Remove closed-loop components (not needed for slope null)
-remove: ['atmo','seeing','wind_speed','wind_direction','atmo_mode_res', #'bootstrap', 'concat_wfs_modes', #'source_science',
+remove: ['atmo','seeing','wind_speed','wind_direction','atmo_modes', #'bootstrap', 'concat_wfs_modes', #'source_science',
         'dm','dm_mode_res','filter','psf','ef_prop','pyr_modalrec', 'zwfs_modalrec','coro_psf', ]
 # remove: ['atmo', 'seeing', 'wind_direction', 'wind_speed', 'dm1','dm2',
 #          'filter1',  'filter2','ef_prop','first_stage_prop', 'dm1_mode_res', 'dm2_mode_res', 

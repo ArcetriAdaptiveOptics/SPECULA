@@ -52,5 +52,5 @@ ocam_override:
   excess_noise:   false                   # No excess noise
 
 # Remove unnecessary objects during calibration
-remove: ['atmo','seeing','wind_speed','wind_direction','data_store','atmo_mode_res',
+remove: ['atmo','seeing','wind_speed','wind_direction','data_store','atmo_modes',
         'dm_mode_res','filter','psf', 'ef_prop','pyr_modalrec',] 

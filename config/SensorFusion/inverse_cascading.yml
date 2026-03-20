@@ -310,7 +310,7 @@ dm1_mode_res:
     in_ef: ['ef_prop.out_ef']
   outputs: ['out_modes']
 
-atmo_mode_res:
+atmo_modes:
   class:            'ModalAnalysis'
   ifunc_inv_object: 'bmc2k_vlt_kl_inv'
   inputs:
@@ -328,7 +328,7 @@ data_store:
                   'psf-psf.out_psf',
                   'psf_std-psf.out_std_psf',
                   'coro_psf_std-coro_psf.out_coronagraph_psf',
-                  'atmo_res-atmo_mode_res.out_modes',
+                  'atmo_res-atmo_modes.out_modes',
                   'dm1_res-dm1_mode_res.out_modes',
                   'dm1_cmd-filter1.out_comm',
                   'dm2_res-dm2_mode_res.out_modes',

@@ -31,5 +31,5 @@ ocam_override:
 #     input_list: ['pyr3.0_frame_null-ocam.out_pixels']
 
 # Remove closed-loop components (not needed for slope null)
-remove: ['atmo','seeing','wind_speed','wind_direction','atmo_mode_res', 'data_store',
+remove: ['atmo','seeing','wind_speed','wind_direction','atmo_modes', 'data_store',
         'dm','dm_mode_res','filter','psf','ef_prop','pyr_modalrec', ]

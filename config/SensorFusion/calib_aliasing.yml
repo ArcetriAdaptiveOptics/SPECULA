@@ -24,33 +24,9 @@ main_override:
   total_time: 5.000                 # 2000 frames
 
 ################################## ATMO RESIDUAL #####################################
-seeing_random:
-  class:             'RandomGenerator'
-  amp:               0.0                 # Variation amplitude [arcsec]
+seeing_override:
   constant:          1.0                 # Mean seeing [arcsec]
-  distribution:      'UNIFORM'           # Uniform distribution in [0.9, 1.1]
-  outputs: ['output']
-
-# Random atmospheric phase generator
-atmo_random:
-  class:                'AtmoRandomPhase'
-  simul_params_ref:     'main'
-  L0:                   25               # [m] Outer scale
-  source_dict_ref:      ['source_ngs']
-  inputs:
-    seeing: 'seeing_random.output'
-    pupilstop: 'vlt_aperture'
-  outputs: ['out_source_ngs_ef']
-
-# Modal decomposition of atmospheric phase
-atmo_modes:
-  class: 'ModalAnalysis'
-  ifunc_inv_object: 'bmc2k_vlt_kl_inv'
-  inputs:
-    in_ef: 'atmo_random.out_source_ngs_ef'
-  outputs: ['out_modes']
-
-
+  
 # DM applying partial correction
 perfect_dm:
   class: 'DM'
@@ -64,11 +40,9 @@ perfect_dm:
   outputs: ['out_layer']
 
 ef_prop_override:
-  class: 'ElectricFieldCombinator'
   inputs:
-    in_ef1: 'atmo_random.out_source_ngs_ef'    # Turbulence
+    in_ef1: 'prop.out_source_ngs_ef'    # Turbulence
     in_ef2: 'perfect_dm.out_layer'              # Partial correction
-  outputs: ['out_ef']
 
 ######################################################################################
 
@@ -94,5 +68,5 @@ ocam2_override:
   excess_noise:   false                   # No excess noise
 
 # Remove unnecessary objects during calibration
-remove: ['atmo','seeing','wind_speed','wind_direction','data_store','atmo_mode_res', #'source_science',
+remove: ['atmo','seeing','wind_speed','wind_direction','data_store', #'source_science',
         'dm_mode_res','filter','psf', 'coro_psf', 'dm', 'prop','pyr_modalrec', 'zwfs_modalrec'] #, 'bootstrap', 'concat_wfs_modes'
