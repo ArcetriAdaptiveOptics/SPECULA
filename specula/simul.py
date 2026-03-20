@@ -10,7 +10,7 @@ from specula.base_processing_obj import BaseProcessingObj
 from specula.base_data_obj import BaseDataObj
 
 from specula.loop_control import LoopControl
-from specula.lib.utils import import_class, get_type_hints
+from specula.lib.utils import import_class, get_type_hints, remove_suffix
 from specula.calib_manager import CalibManager
 from specula.processing_objects.data_store import DataStore
 from specula.connections import InputList, InputValue
@@ -370,7 +370,7 @@ class Simul():
                 excluded = ['iir_filter_data']  # Special case for iir_filter_data, which ends in '_data'
                 for ending in endings:
                     if parname not in excluded:
-                        parname = parname.removesuffix(ending)
+                        parname = remove_suffix(parname, ending)
                 if parname not in args:
                     raise ValueError(f'Parameter {parname} is not expected by class {classname}')
 
