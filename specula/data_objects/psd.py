@@ -43,31 +43,31 @@ class PSD(BaseDataObj):
         self.samplespersegment = nperseg
         self.overwrite = overwrite
 
-        if data is not None:
-            if fs is None and dt is None:
-                raise ValueError('At least one of dt and fs inputs must be defined!')
-            if fs is not None and dt is not None:
-                if fs != 1/dt:
-                    raise ValueError(f'The input sampling frequency {fs} is not the inverse of the given time step {dt}')
-            
-            if fs is None:
-                fs = 1/dt
+        if fs is None and dt is None:
+            raise ValueError('At least one of dt and fs inputs must be defined!')
+        if fs is not None and dt is not None:
+            if fs != 1/dt:
+                raise ValueError(f'The input sampling frequency {fs} is not the inverse of the given time step {dt}')
+        if fs is None:
+            fs = 1/dt
+        self.fs = fs
 
+        if data is not None:
             if len(data.shape) > 2:
                 raise ValueError(f'Incorrect input data dimensions {data.shape}, only 2D arrays are supported')
             
             if max(data.shape) < nperseg:
                 raise ValueError(f'Data has shape {data.shape} but the requested number of samples for Welch method is {nperseg}')
 
-            freq_vec,psd_data = welch(cpuArray(data),fs,nperseg=nperseg,scaling='density',axis=-1)
+            _,psd_data = welch(cpuArray(data),fs,nperseg=nperseg,scaling='density',axis=-1)
         
-            self.freq_vec = self.to_xp(freq_vec, dtype=self.dtype)
             self.psd_data = self.to_xp(psd_data, dtype=self.dtype)
-            self.integrated_power = self.integrate_psd(self.psd_data, self.freq_vec)
+            self.integrated_power = self.integrate_psd(self.psd_data, self.get_freq_vec())
         else:
-            self.freq_vec = None
             self.psd_data = None
             self.integrated_power = None
+
+
 
     def get_integrated_power(self, freq_vec=None):
         """
@@ -83,15 +83,15 @@ class PSD(BaseDataObj):
     def interpolate(self, new_freq_vec):
         """Interpolates the [N, L] PSD onto a new [new_L] frequency vector."""
         new_freq = self.to_xp(new_freq_vec)
-        # Linear interpolation for each of the N PSDs
-        interpolated = self.xp.array([self.xp.interp(new_freq, self.freq_vec, p, right=0, left=0) for p in self.psd_data])
+        old_freq = self.get_freq_vec()
+        interpolated = self.xp.array([self.xp.interp(new_freq, old_freq, p, right=0, left=0) for p in self.psd_data])
         return interpolated
 
     def plot(self, mode:int=0, loglog=True, **kwargs):
         """Plots the PSD at index idx."""
         try:
             import matplotlib.pyplot as plt
-            freq = cpuArray(self.freq_vec)
+            freq = cpuArray(self.get_freq_vec())
             data = cpuArray(self.psd_data[mode])
             plt.figure()
             plot_func = plt.loglog if loglog else plt.plot
@@ -120,12 +120,12 @@ class PSD(BaseDataObj):
         hdr = self.get_fits_header()
         hdr['DESC'] = self.description
         hdr['NPERSEG'] = self.samplespersegment
+        hdr['SAMPFREQ'] = self.fs
         
         primary_hdu = fits.PrimaryHDU(cpuArray(self.psd_data), header=hdr)
-        freq_hdu = fits.ImageHDU(cpuArray(self.freq_vec), name='FREQ')
         power_hdu = fits.ImageHDU(cpuArray(self.integrated_power), name='INT_PWR')
         
-        hdul = fits.HDUList([primary_hdu, freq_hdu, power_hdu])
+        hdul = fits.HDUList([primary_hdu, power_hdu])
         hdul.writeto(filename, overwrite=self.overwrite)
 
     @staticmethod
@@ -133,15 +133,18 @@ class PSD(BaseDataObj):
         with fits.open(filename) as hdul:
             psd_data = hdul[0].data
             hdr = hdul[0].header
-            freq = hdul['FREQ'].data
             pwr = hdul['INT_PWR'].data
             
-            v = PSD(target_device_idx=target_device_idx)
-            v.description = hdr.get('DESC', '')
+            v = PSD(target_device_idx=target_device_idx,dt=1.0)
+            v = v.from_header(hdr,target_device_idx=target_device_idx)
             v.psd_data = v.to_xp(psd_data)
-            v.freq_vec = v.to_xp(freq)
             v.integrated_power = v.to_xp(pwr) # Loaded directly from file
         return v
+    
+    def get_freq_vec(self):
+        L = self.samplespersegment//2+1
+        fvec = self.xp.linspace(0,self.fs/2,L)
+        return fvec
 
     def get_fits_header(self):
         hdr = fits.Header()
@@ -156,6 +159,7 @@ class PSD(BaseDataObj):
             raise ValueError(f"Error: unknown version {version} in header")
         description = hdr['DESC']
         nperseg = hdr['NPERSEG']
-        psd = PSD(description=description,nperseg=nperseg,target_device_idx=target_device_idx)
+        fs = hdr['SAMPFREQ']
+        psd = PSD(description=description,fs=fs,nperseg=nperseg,target_device_idx=target_device_idx)
         return psd
         

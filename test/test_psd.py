@@ -31,7 +31,7 @@ class TestPSD(unittest.TestCase):
         L = psd_obj.samplespersegment // 2 + 1
         
         self.assertEqual(psd_obj.psd_data.shape, (self.n_modes, L))
-        self.assertEqual(psd_obj.freq_vec.shape, (L,))
+        self.assertEqual(psd_obj.get_freq_vec().shape, (L,))
         self.assertEqual(psd_obj.integrated_power.shape, (self.n_modes,))
 
     # @cpu_and_gpu
@@ -57,8 +57,8 @@ class TestPSD(unittest.TestCase):
         
         # Check metadata and data arrays
         self.assertEqual(restored.description, original.description)
+        self.assertEqual(restored.fs, original.fs)
         np.testing.assert_array_almost_equal(cpuArray(restored.psd_data), cpuArray(original.psd_data))
-        np.testing.assert_array_almost_equal(cpuArray(restored.freq_vec), cpuArray(original.freq_vec))
         np.testing.assert_array_almost_equal(cpuArray(restored.integrated_power), cpuArray(original.integrated_power))
 
     @cpu_and_gpu

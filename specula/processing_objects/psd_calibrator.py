@@ -24,26 +24,30 @@ class PSDCalibrator(BaseProcessingObj):
         self._data_dir = data_dir
         self.overwrite = overwrite
         self._filename = output_tag
-        self.rec = self.to_xp(recmat.recmat)
-        self.slopes_list = []
+        if recmat is not None:
+            self.rec = self.to_xp(recmat.recmat)
+        else:
+            self.rec = None
+        self.values_list = []
         self._n_iter = 0
-        self.inputs['in_slopes'] = InputValue(type=Slopes)
+        self.inputs['in_values'] = InputValue(type=Slopes)
 
         self.aliasing_path = os.path.join(self._data_dir, self._filename)
         if not self.aliasing_path.endswith('.fits'):
             self.aliasing_path += '.fits'
         if os.path.exists(self.aliasing_path) and not self.overwrite:
-            raise FileExistsError(f'Aliasing PSDs file {self.aliasing_path} already exists, please remove it')
+            raise FileExistsError(f'PSDs file {self.aliasing_path} already exists, please remove it')
 
     def trigger_code(self):
-        self.slopes_list.append(self.local_inputs['in_slopes'].slopes.copy())
+        self.values_list.append(self.local_inputs['in_values'].get_value())
         self._n_iter += 1
 
     def finalize(self):
-        slopes_timehist = self.to_xp(self.slopes_list)
+        values_timehist = self.to_xp(self.values_list).T
         dt = self.t_to_seconds(self.current_time)/(max(1,self._n_iter-1))
-        modes_thist = self.rec @ slopes_timehist.T
-        modes_psd = PSD(modes_thist, dt=dt, nperseg=1024)
+        if self.rec is not None:
+            values_timehist = self.rec @ values_timehist
+        modes_psd = PSD(values_timehist, dt=dt, nperseg=1024)
         
         os.makedirs(os.path.dirname(self.aliasing_path), exist_ok=True)
         modes_psd.save(self.aliasing_path,overwrite=self.overwrite)
