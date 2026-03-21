@@ -2,36 +2,10 @@ from astropy.io import fits
 from specula import cpuArray
 import numpy as np
 import os
-from specula.lib.make_mask import make_mask
 
+from .utils import get_pupil_mask, von_karman_power, radial_order
 from specula.lib.mmse_reconstructor import compute_mmse_reconstructor
 
-
-def radial_order(i_mode):
-    noll = i_mode + 2
-    return np.ceil(-3.0/2.0+np.sqrt(1+8*noll)/2.0)
-
-def von_karman_power(k,r0,L0,D):
-    C = 0.02289558710855519
-    B = k**2 + (D/L0)**2
-    return C * (r0/D)**(-5.0/3.0) * B**(-11.0/6.0)
-
-def get_mask(pyr:bool=True):
-    npix = 120
-    if pyr:
-        np_size = (npix,npix)
-        pup_hdu = fits.open('./calibration/pupils/pyr_pupdata.fits')
-        rad = pup_hdu[2].data
-        pup_ids = pup_hdu[1].data
-        wfs_mask = np.zeros(np_size)
-        for j in range(len(rad)):
-            f = np.zeros(npix**2)
-            np.put(f, pup_ids[:,j], 1)
-            f2d = f.reshape(np_size)
-            wfs_mask += f2d
-    else:
-        wfs_mask = make_mask(np_size=npix, diaratio = 48/npix, obsratio=0.0)
-    return wfs_mask.astype(bool)
 
 
 def compute_rec(im_tag:str, Nmodes:int):
@@ -48,7 +22,7 @@ def compute_ml_rec(im_tag:str, Nmodes:int, frame_tag:str, cov_tag:str=None, RON:
     D = intmat[:,:Nmodes]
     frame_hdul = fits.open('./calibration/slopenulls/'+frame_tag+'.fits')
     frame_null = frame_hdul[0].data[0]
-    wfs_mask = get_mask(pyr=isPyr)
+    wfs_mask = get_pupil_mask(pyr=isPyr)
     slope_null = frame_null[wfs_mask]
     noise_cov = np.diag((slope_null + RON))
     if cov_tag is not None:
