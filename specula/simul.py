@@ -376,7 +376,7 @@ class Simul():
                     raise ValueError(f'Parameter {parname} is not expected by class {classname}')
 
                 # dict_ref field contains a dictionary of names and associated data objects (defined in the same yml file)
-                elif name.endswith('_dict_ref'):
+                elif name.endswith('_dict_ref') and parname != name:
                     if build_this_object:
                         data = {x : self.objs[x] for x in value}
                         pars2[parname] = data
@@ -386,7 +386,7 @@ class Simul():
                         a_ref['end'] = x
                         self.references.append(a_ref)
 
-                elif name.endswith('_ref'):
+                elif name.endswith('_ref') and parname != name:
                     if build_this_object:
                         data = self.objs[value]
                         pars2[parname] = data
@@ -396,7 +396,7 @@ class Simul():
                     self.references.append(a_ref)
 
                 # data fields are read from a fits file
-                elif name.endswith('_data') and build_this_object:
+                elif name.endswith('_data') and parname != name and build_this_object:
                     if value is None:
                         pars2[parname] = None
                     else:
@@ -406,7 +406,7 @@ class Simul():
                 # object fields are data objects which are loaded from a fits file
                 # the name of the object is the string preceeding the "_object" suffix,
                 # while its type is inferred from the constructor of the current class
-                elif name.endswith('_object') and build_this_object:
+                elif name.endswith('_object') and parname != name and build_this_object:
                     if value is None:
                         pars2[parname] = None
                     elif parname in hints:
