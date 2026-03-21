@@ -4,7 +4,7 @@ pyr_pupdata:
   class: 'PyrPupdataCalibrator'
   thr1: 0.1
   thr2: 0.4
-  display_debug: True
+  display_debug: false
   output_tag:        'pyr_pupdata'
   overwrite: false
   inputs:

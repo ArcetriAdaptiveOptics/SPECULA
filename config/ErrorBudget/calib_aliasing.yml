@@ -12,7 +12,6 @@ pyr_alias:
 
 # Override main simulation parameters
 main_override:
-  # time_step: 0.000588
   total_time: 5.880                 # 10'000 frames
 
 ################################## ATMO RESIDUAL #####################################
@@ -40,7 +39,6 @@ ef_prop_override:
 ######################################################################################
 
 pyr_override:
-  # mod_amp: 0.5
   inputs: 
     in_ef: 'ef_prop.out_ef'
 

@@ -42,8 +42,8 @@ pyr_override:
   inputs: 
     in_ef: 'prop.out_source_ngs_ef'
 
-pyr_slopes_override:
-  slopes_from_intensity: false
+# pyr_slopes_override:
+#   slopes_from_intensity: false
 
 # Disable noise for clean measurements
 ocam_override:

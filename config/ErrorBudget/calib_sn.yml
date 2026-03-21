@@ -6,15 +6,8 @@ pyr_sn:
     in_slopes: 'pyr_slopes.out_slopes'
 
 pyr_override:
-  # mod_amp: 0.5
-  # pup_diam: 16.0
-  # pup_dist: 20.0
   inputs:
     in_ef: 'prop.out_source_ngs_ef'
-
-pyr_slopes_override:
-  slopes_from_intensity: true
-  # pupdata_object: 'pyr_pupdata_16x16'
 
 main_override:
   total_time: 0.000588
