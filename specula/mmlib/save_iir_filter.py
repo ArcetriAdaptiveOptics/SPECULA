@@ -3,59 +3,26 @@ specula.init(-1)  # Default target device
 
 import os
 import numpy as np
+from .utils import radial_order
 from specula.data_objects.iir_filter_data import IirFilterData
 
+def optimal_ff(V, fs, D, n):
+    # Calculate the optimal ff for a given V, fs, D, and n
+    ff = 1 - 0.6 * np.pi * V / D * (n + 1) / fs
+    return ff
+
 def create_stepped_t(n_filters, excluded_filters=None):
-    """
-    Crea un vettore t a gradini con gruppi di dimensione crescente
-    Primo gruppo: 2 elementi costanti
-    Secondo gruppo: 3 elementi costanti
-    Terzo gruppo: 4 elementi costanti
-    E così via...
-    """
-    t = np.zeros(n_filters)
-    current_idx = 0
-    group_size = 2  # Inizia con gruppi di 2
-
-    # Calcola quanti gruppi servono
-    total_elements = 0
-    groups_needed = 0
-    temp_group_size = 2
-    while total_elements < n_filters:
-        total_elements += temp_group_size
-        groups_needed += 1
-        temp_group_size += 1
-
-    # Calcola quanti gruppi sono esclusi
-    groups_excluded = 0
+    n = radial_order(n_filters)
     if excluded_filters is not None:
-        total_elements = 0
-        temp_group_size = 2
-        while total_elements < excluded_filters:
-            total_elements += temp_group_size
-            groups_excluded += 1
-            temp_group_size += 1
-
-    group_t_values = np.zeros(groups_needed)
-
-    # Crea i valori t per ogni gruppo (da 0 a 1)
-    if groups_needed > 1:
-        group_t_values[groups_excluded:] = np.linspace(0, 1, groups_needed-groups_excluded)
+        n_min = radial_order(excluded_filters)
     else:
-        group_t_values = [0]
-
-    # Riempi il vettore t
-    current_idx = 0
-    for group_idx in range(groups_needed):
-        if current_idx >= n_filters:
-            break
-
-        elements_to_fill = min(group_size, n_filters - current_idx)
-        t[current_idx:current_idx + elements_to_fill] = group_t_values[group_idx]
-        current_idx += elements_to_fill
-        group_size += 1
-
+        n_min = 0
+    rad_t = np.zeros(n)
+    rad_t[n_min:] = np.linspace(0, 1, n - n_min)
+    t = np.hstack([np.repeat(rad_t[i-2],i) for i in range(2, len(rad_t)+2)])
+    t = t[:n_filters]  # Ensure we only have n_filters elements
     return t
+
 
 if __name__ == "__main__":
     root_dir = '/home/matte/git/SPECULA/config/SensorFusion/calibration/'

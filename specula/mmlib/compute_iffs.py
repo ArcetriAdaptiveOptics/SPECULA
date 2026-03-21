@@ -30,6 +30,19 @@ def compute_and_save_influence_functions(root_dir:str, tag:str, pupil_pixels:int
     m2c_tag = tag+'_m2c'
     base_inv_tag = tag+'_kl_inv'
 
+    ifunc_filename = calib_manager.filename('ifunc', ifunc_tag)
+    m2c_filename = calib_manager.filename('m2c', m2c_tag)
+    base_inv_filename = calib_manager.filename('ifunc', base_inv_tag)
+
+    try:
+        kl_basis_inv = IFuncInv.restore(base_inv_filename)
+        ifunc = IFunc.restore(ifunc_filename)
+        m2c = M2C.restore(m2c_filename)
+        print("Files already exist - skipping computation")
+        return
+    except FileNotFoundError:
+        pass
+
     # initialize calibration manager
     calib_manager = CalibManager(root_dir)
 
@@ -133,7 +146,6 @@ def compute_and_save_influence_functions(root_dir:str, tag:str, pupil_pixels:int
         ifunc=influence_functions,
         mask=pupil_mask
     )
-    ifunc_filename = calib_manager.filename('ifunc', ifunc_tag)
     ifunc_obj.save(ifunc_filename, overwrite=True)
     print("OK: " + ifunc_filename + " (zonal influence functions)")
 
@@ -141,7 +153,6 @@ def compute_and_save_influence_functions(root_dir:str, tag:str, pupil_pixels:int
     m2c_obj = M2C(
         m2c=m2c
     )
-    m2c_filename = calib_manager.filename('m2c', m2c_tag)
     m2c_obj.save(m2c_filename, overwrite=True)
     print("OK: " + m2c_filename + " (KL modal basis)")
 
@@ -151,7 +162,6 @@ def compute_and_save_influence_functions(root_dir:str, tag:str, pupil_pixels:int
         ifunc_inv=kl_basis_inv,
         mask=pupil_mask
     )
-    base_inv_filename = calib_manager.filename('ifunc', base_inv_tag)
     ifunc_inv_obj.save(base_inv_filename, overwrite=True)
     print("OK: " + base_inv_filename + " (inverse modal base)")
 
