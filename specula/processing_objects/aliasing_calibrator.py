@@ -7,14 +7,14 @@ from specula.data_objects.psd import PSD
 from specula.connections import InputValue
 
 
-class AliasingCalibrator(BaseProcessingObj):
+class PSDCalibrator(BaseProcessingObj):
     """
-    Aliasing PSD calibrator processing object.
-    Analyzes a set of slope measurements to compute the temporal PSD.
+    PSD calibrator processing object.
+    Analyzes a set of inputs to compute the temporal PSD.
     """
     def __init__(self,
                  data_dir: str,         # Set by main simul object
-                 recmat: Recmat,
+                 recmat: Recmat = None,
                  output_tag: str = '',     
                  overwrite: bool = False,
                  target_device_idx: int = None,
@@ -41,7 +41,7 @@ class AliasingCalibrator(BaseProcessingObj):
 
     def finalize(self):
         slopes_timehist = self.to_xp(self.slopes_list)
-        dt = self.t_to_seconds(self.current_time)/(self._n_iter-1)
+        dt = self.t_to_seconds(self.current_time)/(max(1,self._n_iter-1))
         modes_thist = self.rec @ slopes_timehist.T
         modes_psd = PSD(modes_thist, dt=dt, nperseg=1024)
         
