@@ -24,9 +24,9 @@ class TestSpatioTempArray(unittest.TestCase):
         sta = SpatioTempArray(array_3d, time_vec,
                               target_device_idx=target_device_idx)
 
-        self.assertEqual(sta.array.shape, (10, 10, 5))
+        self.assertEqual(sta.array.shape, (5, 10, 10))
         self.assertEqual(sta.time_vector.shape, (5,))
-        np.testing.assert_array_almost_equal(cpuArray(sta.get_value()), array_3d)
+        np.testing.assert_array_almost_equal(cpuArray(sta.get_value()), np.moveaxis(array_3d, -1, 0))
         np.testing.assert_array_almost_equal(cpuArray(sta.get_time_vector()), time_vec)
 
     @cpu_and_gpu
@@ -38,7 +38,7 @@ class TestSpatioTempArray(unittest.TestCase):
         sta = SpatioTempArray(array_2d, time_vec,
                               target_device_idx=target_device_idx)
 
-        self.assertEqual(sta.array.shape, (20, 8))
+        self.assertEqual(sta.array.shape, (8, 20))
         self.assertEqual(sta.time_vector.shape, (8,))
 
     @cpu_and_gpu
@@ -63,7 +63,7 @@ class TestSpatioTempArray(unittest.TestCase):
             SpatioTempArray(array_3d, time_vec,
                             target_device_idx=target_device_idx)
 
-        self.assertIn("Last dimension", str(context.exception))
+        self.assertIn("Selected temporal dimension", str(context.exception))
 
     @cpu_and_gpu
     def test_set_value(self, target_device_idx, xp):
@@ -77,7 +77,7 @@ class TestSpatioTempArray(unittest.TestCase):
         new_array = np.ones((10, 10, 5)) * 2.5
         sta.set_value(new_array)
 
-        np.testing.assert_array_almost_equal(cpuArray(sta.get_value()), new_array)
+        np.testing.assert_array_almost_equal(cpuArray(sta.get_value()), np.moveaxis(new_array, -1, 0))
 
     @cpu_and_gpu
     def test_set_time_vector(self, target_device_idx, xp):
@@ -105,7 +105,7 @@ class TestSpatioTempArray(unittest.TestCase):
 
         display_array = sta.array_for_display()
         np.testing.assert_array_almost_equal(cpuArray(display_array),
-                                             array_3d)
+                             np.moveaxis(array_3d, -1, 0))
 
     @cpu_and_gpu
     def test_save_restore(self, target_device_idx, xp):
@@ -125,7 +125,7 @@ class TestSpatioTempArray(unittest.TestCase):
                                                    target_device_idx=target_device_idx)
 
             np.testing.assert_array_almost_equal(cpuArray(sta_restored.get_value()),
-                                                 array_3d)
+                                                 np.moveaxis(array_3d, -1, 0))
             np.testing.assert_array_almost_equal(cpuArray(sta_restored.get_time_vector()),
                                                  time_vec)
 
@@ -148,7 +148,7 @@ class TestSpatioTempArray(unittest.TestCase):
         sta_from_header = SpatioTempArray.from_header(hdr, target_device_idx=-1)
 
         # Check shapes are correct
-        self.assertEqual(sta_from_header.array.shape, (10, 10, 5))
+        self.assertEqual(sta_from_header.array.shape, (5, 10, 10))
         self.assertEqual(sta_from_header.time_vector.shape, (5,))
 
     def test_from_header_invalid_version(self):
@@ -202,5 +202,17 @@ class TestSpatioTempArray(unittest.TestCase):
         sta = SpatioTempArray(array_4d, time_vec,
                               target_device_idx=target_device_idx)
 
-        self.assertEqual(sta.array.shape, (8, 8, 8, 10))
+        self.assertEqual(sta.array.shape, (10, 8, 8, 8))
         self.assertEqual(sta.time_vector.shape, (10,))
+
+    @cpu_and_gpu
+    def test_creation_time_first_input(self, target_device_idx, xp):
+        """Test that time-first input is accepted without axis move."""
+        array_3d_tf = np.random.rand(5, 10, 10)
+        time_vec = np.array([0.0, 0.1, 0.2, 0.3, 0.4])
+
+        sta = SpatioTempArray(array_3d_tf, time_vec, time_axis=0,
+                              target_device_idx=target_device_idx)
+
+        self.assertEqual(sta.array.shape, (5, 10, 10))
+        np.testing.assert_array_almost_equal(cpuArray(sta.get_value()), array_3d_tf)

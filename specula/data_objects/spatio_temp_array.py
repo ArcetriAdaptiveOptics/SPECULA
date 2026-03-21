@@ -1,3 +1,4 @@
+import os
 from astropy.io import fits
 import numpy as np
 from specula import cpuArray
@@ -9,12 +10,14 @@ class SpatioTempArray(BaseDataObj):
     """
     Spatio-temporal array data object.
     This class holds a multi-dimensional spatio-temporal array with an associated time vector.
-    The temporal dimension can be on the last axis, and multiple spatial dimensions are supported.
-    array[..., i] is associated with time_vector[i].
+    Input arrays can have temporal evolution on the first or last axis.
+    Internally, data are always stored in time-first layout:
+    array[i, ...] is associated with time_vector[i].
     """
     def __init__(self,
                  array,
                  time_vector,
+                 time_axis: int = -1,
                  target_device_idx: int = None,
                  precision: int = None):
         """
@@ -23,12 +26,15 @@ class SpatioTempArray(BaseDataObj):
         Parameters
         ----------
         array : array-like
-            N-dimensional array with temporal evolution on the last axis.
+            N-dimensional array with temporal evolution on first or last axis.
             Can be 1D (time only), 2D (spatial + time), 3D (spatial + spatial + time), etc.
             Typically in nm for phase screens.
         time_vector : array-like
-            1D array of time values corresponding to the last axis of array.
-            Must have length equal to array.shape[-1].
+            1D array of time values corresponding to the selected temporal axis of array.
+            Must have length equal to array.shape[time_axis].
+        time_axis : int, optional
+            Temporal axis of input array. Supported values are 0 (time-first) and -1 (time-last).
+            Internal storage is always time-first. Default is -1.
         target_device_idx : int, optional
             Device to be targeted for data storage. Set to -1 for CPU,
             to 0 for the first GPU device, 1 for the second GPU device, etc.
@@ -39,22 +45,50 @@ class SpatioTempArray(BaseDataObj):
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        self.array = self.to_xp(array)
         self.time_vector = self.to_xp(time_vector)
+        input_array = self.to_xp(array)
 
-        if self.array.shape[-1] != self.time_vector.shape[0]:
+        if time_axis not in (0, -1):
+            raise ValueError(f"Unsupported time_axis={time_axis}. Supported values are 0 and -1")
+
+        if input_array.ndim == 0:
+            raise ValueError("array must have at least one dimension")
+
+        if input_array.shape[time_axis] != self.time_vector.shape[0]:
             raise ValueError(
-                f"Last dimension of array ({self.array.shape[-1]}) must match "
+                f"Selected temporal dimension of array ({input_array.shape[time_axis]}) must match "
                 f"length of time_vector ({self.time_vector.shape[0]})"
             )
 
+        if time_axis == -1 and input_array.ndim > 1:
+            self.array = self.xp.moveaxis(input_array, -1, 0)
+        else:
+            self.array = input_array
+
+        self.array = self.xp.ascontiguousarray(self.array)
+
     def get_value(self):
-        """Get the array data."""
+        """Get array data in internal time-first layout: array[time, ...]."""
         return self.array
 
     def set_value(self, val):
-        """Set the array data in-place."""
-        self.array[...] = self.to_xp(val)
+        """Set array data in-place accepting time-first or time-last layout."""
+        arr = self.to_xp(val)
+
+        if arr.shape == self.array.shape:
+            self.array[...] = arr
+            return
+
+        if arr.ndim == self.array.ndim and arr.ndim > 1 and arr.shape[-1] == self.array.shape[0]:
+            converted = self.xp.moveaxis(arr, -1, 0)
+            if converted.shape == self.array.shape:
+                self.array[...] = converted
+                return
+
+        raise ValueError(
+            f"Input shape {arr.shape} is incompatible with internal shape {self.array.shape}. "
+            "Expected time-first shape or time-last equivalent."
+        )
 
     def get_time_vector(self):
         """Get the time vector."""
@@ -68,8 +102,10 @@ class SpatioTempArray(BaseDataObj):
         """
         Save the SpatioTempArray data to a FITS file.
 
-        The array is stored as primary HDU and the time vector as an extension.
+        The array is stored in internal time-first layout as primary HDU
+        and the time vector as an extension.
         """
+        filename = os.fspath(filename)
         hdr = self.get_fits_header()
 
         # Primary HDU with array
@@ -79,7 +115,10 @@ class SpatioTempArray(BaseDataObj):
         time_hdu = fits.ImageHDU(cpuArray(self.time_vector), name='TIME_VECTOR')
 
         hdul = fits.HDUList([primary_hdu, time_hdu])
-        hdul.writeto(filename, overwrite=True)
+        try:
+            hdul.writeto(filename, overwrite=True)
+        finally:
+            hdul.close()
 
     @staticmethod
     def restore(filename, target_device_idx=None):
@@ -98,19 +137,17 @@ class SpatioTempArray(BaseDataObj):
         SpatioTempArray
             Restored object.
         """
-        hdul = fits.open(filename)
+        filename = os.fspath(filename)
+        with fits.open(filename, memmap=False) as hdul:
+            hdr = hdul[0].header  # pylint: disable=no-member
+            version = hdr.get('VERSION')
+            if version != 1:
+                raise ValueError(f"Unknown version {version} in file {filename}")
 
-        hdr = hdul[0].header # pylint: disable=invalid-name
-        version = hdr.get('VERSION')
-        if version != 1:
-            raise ValueError(f"Unknown version {version} in file {filename}")
+            array = hdul[0].data.copy()  # pylint: disable=no-member
+            time_vector = hdul['TIME_VECTOR'].data.copy()  # pylint: disable=no-member
 
-        array = hdul[0].data # pylint: disable=invalid-name
-        time_vector = hdul['TIME_VECTOR'].data # pylint: disable=invalid-name
-
-        hdul.close()
-
-        return SpatioTempArray(array, time_vector, target_device_idx=target_device_idx)
+        return SpatioTempArray(array, time_vector, time_axis=0, target_device_idx=target_device_idx)
 
     def array_for_display(self):
         """Return the array data for display purposes."""
@@ -122,17 +159,19 @@ class SpatioTempArray(BaseDataObj):
         
         Uses abbreviated keywords to comply with FITS standard (max 8 characters).
         Saves shape as space-separated string in ARSHAPE comment for readability.
+        Internal temporal axis is stored in TAXIS (always 0).
         """
         hdr = fits.Header()
         hdr['VERSION'] = 1
         hdr['OBJ_TYPE'] = 'SpatioTempArray'
 
-        # Store shape as space-separated dimensions  
+        # Store shape as space-separated dimensions
         shape_str = ' '.join(str(d) for d in self.array.shape)
         hdr['ARSHAPE'] = shape_str
         hdr.add_comment(f"Array shape: {self.array.shape}", before='ARSHAPE')
 
         hdr['NTIME'] = self.time_vector.shape[0]
+        hdr['TAXIS'] = 0
         return hdr
 
     @staticmethod

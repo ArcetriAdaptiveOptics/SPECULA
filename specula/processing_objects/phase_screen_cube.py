@@ -1,5 +1,4 @@
 import numpy as np
-from astropy.io import fits
 
 from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.electric_field import ElectricField
@@ -30,8 +29,8 @@ class PhaseScreenCube(BaseProcessingObj):
         simul_params : SimulParams
             Simulation parameters object containing pupil size, pixel pitch, zenith angle, etc.
         cube : SpatioTempArray
-            Spatio-temporal array containing the phase screen cube. The array should have 
-            shape (x, y, time) with the temporal evolution on the third dimension. 
+            Spatio-temporal array containing the phase screen cube.
+            Internally data are accessed as time-first: shape (time, x, y).
             The phase screens should be in nm. The time_vector must be provided in seconds.
         pixel_scale : float
             Phase screens' pixel size in m.
@@ -84,7 +83,7 @@ class PhaseScreenCube(BaseProcessingObj):
         self.time_vector = self.to_xp(self.cube.time_vector)
         
         dim = self.phasescreens.shape
-        self.scaling_fact = dim[0]/self.pixel_pupil*self.pixel_scale/self.pixel_pitch
+        self.scaling_fact = dim[1]/self.pixel_pupil*self.pixel_scale/self.pixel_pitch
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
@@ -101,8 +100,8 @@ class PhaseScreenCube(BaseProcessingObj):
 
         # Linear interpolation between two time steps
         time_step = self.time_vector[idx_first_positive] - self.time_vector[idx_last_non_positive]
-        self.cur_screen = 1./time_step*(dt[idx_first_positive]*self.phasescreens[:,:,idx_last_non_positive] + 
-                                        np.abs(dt[idx_last_non_positive])*self.phasescreens[:,:,idx_first_positive])
+        self.cur_screen = 1./time_step*(dt[idx_first_positive]*self.phasescreens[idx_last_non_positive, :, :] + 
+                        np.abs(dt[idx_last_non_positive])*self.phasescreens[idx_first_positive, :, :])
 
         in_ef = ElectricField(self.cur_screen.shape[0], self.cur_screen.shape[1], self.pixel_scale,
                                target_device_idx=self.target_device_idx)
