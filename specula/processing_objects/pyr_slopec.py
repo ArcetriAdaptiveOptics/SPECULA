@@ -108,7 +108,7 @@ class PyrSlopec(Slopec):
         inv_factor = self.xp.zeros(1, dtype=self.dtype)
 
         if self.slopes_from_intensity:
-            inv_factor[0] = self.total_intensity / (4 * self.nsubaps())
+            inv_factor[0] = self.total_intensity /  self.nsubaps() #4 * self.nsubaps())
             factor = 1.0 / inv_factor[0]
             self.sx = factor * self.xp.concatenate([A, B])
             self.sy = factor * self.xp.concatenate([C, D])

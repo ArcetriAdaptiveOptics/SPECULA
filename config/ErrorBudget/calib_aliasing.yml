@@ -1,22 +1,12 @@
 # Aliasing Calibration
 # ================================================
-
-# Interaction matrix calibrator
-pyr_alias:
-  class:     'AliasingCalibrator'
-  output_tag:    'pyr3.0_s0.6_500modes_alias'       # Output filename
-  recmat_object: 'pyr3.0_500modes_rec'
-  overwrite: false                         # Overwrite existing files
-  inputs:
-    in_slopes:   'pyr_slopes.out_slopes'      # WFS slopes input
-
 # Override main simulation parameters
 main_override:
   total_time: 5.880                 # 10'000 frames
 
 ################################## ATMO RESIDUAL #####################################
-seeing_override:
-  constant:          0.6                  # [arcsec]
+# seeing_override:
+#   constant:          0.6                  # [arcsec]
 
 # DM applying partial correction
 perfect_dm:
@@ -48,6 +38,24 @@ ocam_override:
   readout_noise:  false                   # No read noise
   excess_noise:   false                   # No excess noise
 
+pyr_rec_modes:
+  class:            'ModalAnalysis'
+  ifunc_inv_object: 'asm_kl_inv'
+  inputs:
+    in_ef: ['prop.out_source_ngs_ef']
+  outputs: ['out_modes']
+
+# Data store for results
+data_store_override:
+  class:             'DataStore'
+  store_dir:         '/raid1/mmenessini/calibration/SOUL/scratch_aliasing'             # Data result directory: 'store_dir'/TN/
+  inputs:
+    input_list: [
+                  'atmo_res-atmo_modes.out_modes',
+                  'pyr_modes-pyr_modalrec.out_modes',
+                  ]
+
+
 # Remove unnecessary objects during calibration
-remove: ['atmo','seeing','wind_speed','wind_direction','data_store', #'source_science',
-        'dm_mode_res','filter','psf','dm', 'prop','pyr_modalrec'] #, 'bootstrap', 'concat_wfs_modes'
+remove: ['atmo','seeing','wind_speed','wind_direction', #'source_science',
+        'dm_mode_res','filter','psf','dm', 'prop'] #, 'bootstrap', 'concat_wfs_modes'

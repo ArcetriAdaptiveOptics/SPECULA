@@ -1,14 +1,22 @@
+import os
 import specula
 import numpy as np
+from astropy.io import fits
+
+from specula.mmlib.utils import get_pupil_mask
+from specula.mmlib.compute_rec import compute_and_save_rec
 
 
 rMods = np.array([2,3,4,5,6])
-n_subaps = np.array([10,20,30,40])
-n_modes = np.array([54,200,450,660])
+n_subaps = np.array([10,20,40])
+n_modes = np.array([54,450,660])
 seeings = np.array([0.6,0.8,1.0,1.2,1.4])
 
+npix = 120
 
 main_config = 'soul_main.yml'
+root_dir='/raid1/mmenessini/calibration/SOUL/'
+
 
 # 1. Calibrate pupdata vs n_subaps
 for n_subap in n_subaps:
@@ -16,7 +24,7 @@ for n_subap in n_subaps:
     overrides = ("{"
                 f"pyr.pup_diam: {n_subap:.1f}, "
                 f"pyr.pup_dist: {pup_dist:.1f}, "
-                f"pyr_pupdata.output_tag: 'pyr_pupdata_{n_subap:.0f}x{n_subap:.0f}"
+                f"pyr_pupdata.output_tag: 'pyr_pupdata_{n_subap:.0f}x{n_subap:.0f}, "
                 "}")
     specula.main_simul(yml_files=[main_config, 'calib_pupdata.yml'], overrides=overrides)
 
@@ -28,29 +36,81 @@ for n_subap in n_subaps:
                     f"pyr.pup_diam: {n_subap:.1f}, "
                     f"pyr.pup_dist: {pup_dist:.1f}, "
                     f"pyr.mod_amp: {rMod:.1f}, "
-                    f"pyr_slopes.pupdata_object: 'pyr_pupdata_{n_subap:.0f}x{n_subap:.0f}"
-                    f"pyr_sn.output_tag: 'pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_sn"
+                    f"pyr_slopes.pupdata_object: 'pyr_pupdata_{n_subap:.0f}x{n_subap:.0f}, "
+                    f"pyr_sn.output_tag: 'pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_sn, "
+                    f"data_store.inputs.input_list: ['pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_frame_null-ocam.out_pixels'], "
                     "}")
         specula.main_simul(yml_files=[main_config, 'calib_sn.yml'], overrides=overrides)
 
+# 2.5 compute sensor throughput
+pyr_thrp = np.zeros([len(rMods),len(n_subap)])
+for j,n_subap in enumerate(n_subaps):
+    pupdatapath = os.path.join(root_dir,f'pupils/pyr_pupdata_{n_subap:.0f}x{n_subap:.0f}.fits')
+    pyr_mask = get_pupil_mask(filepath=pupdatapath,npix=npix,pyr=True)
+    for i,rMod in enumerate(rMods):
+        frame = fits.getdata(os.path.join(root_dir,f'scratch_frames/pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_frame_null.fits'))
+        thrp = np.sum(frame[pyr_mask])/np.sum(frame)
+        pyr_thrp[i,j] = thrp
+        fits.writeto(os.path.join(root_dir,f'slopenulls/pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_throughput.fits', thrp))
+
 # 3. Calibrate IM vs n_subaps, rMods
-for n_subap in n_subaps:
+for i,n_subap in enumerate(n_subaps):
     pup_dist = 48/40*n_subap
     for rMod in rMods:
+        tag = f'pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}'
+        im_tag = tag+'_im'
         overrides = ("{"
                     f"pyr.pup_diam: {n_subap:.1f}, "
                     f"pyr.pup_dist: {pup_dist:.1f}, "
                     f"pyr.mod_amp: {rMod:.1f}, "
-                    f"pyr_slopes.pupdata_object: 'pyr_pupdata_{n_subap:.0f}x{n_subap:.0f}"
-                    f"pyr_im_calibrator.im_tag: 'pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_im"
+                    f"pyr_slopes.pupdata_object: 'pyr_pupdata_{n_subap:.0f}x{n_subap:.0f}, "
+                    f"pyr_im_calibrator.im_tag: '{im_tag}', "
                     "}")
         specula.main_simul(yml_files=[main_config, 'calib_im.yml'], overrides=overrides)
+        for N in n_modes[:i]:
+            rec_tag = tag+f'_{N:1.0f}modes_rec'
+            compute_and_save_rec(root_dir, im_tag=im_tag, rec_tag=rec_tag, Nmodes=N)
 
-# 3.5 Compute Rec
 
 # 4. Calibrate aliasing vs n_subaps, n_modes, r0
+for i,n_subap in enumerate(n_subaps):
+    pup_dist = 48/40*n_subap
+    for rMod in rMods:
+        for seeing in seeings:
+            for N in n_modes[:i]:
+                overrides = ("{"
+                            f"pyr.pup_diam: {n_subap:.1f}, "
+                            f"pyr.pup_dist: {pup_dist:.1f}, "
+                            f"pyr.mod_amp: {rMod:.1f}, "
+                            f"pyr_slopes.pupdata_object: 'pyr_pupdata_{n_subap:.0f}x{n_subap:.0f}, "
+                            f"seeing.constant: {seeing:1.1f}, "
+                            f"perfect_dm.nmodes: {N:1.0f}, "
+                            "}")
+                specula.main_simul(yml_files=[main_config, 'calib_aliasing.yml'], overrides=overrides)
 
-# 5. Calibrate SIMPC vs n_subap, rMods, r0
+
+# 4.5 Compute correction vectors for SIMPC
+# ...
+
+# 5. Calibrate SIMPC vs n_subap, rMods, r0/correction
+for i,n_subap in enumerate(n_subaps):
+    pup_dist = 48/40*n_subap
+    for rMod in rMods:
+        for seeing in seeings:
+            tag = f'pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_s{seeing:1.1f}'
+            im_tag = tag+'_simpc'
+            overrides = ("{"
+                        f"pyr.pup_diam: {n_subap:.1f}, "
+                        f"pyr.pup_dist: {pup_dist:.1f}, "
+                        f"pyr.mod_amp: {rMod:.1f}, "
+                        f"pyr_slopes.pupdata_object: 'pyr_pupdata_{n_subap:.0f}x{n_subap:.0f}, "
+                        f"seeing_random.constant: {seeing:1.1f}, "
+                        f"pyr_im_calibrator.im_tag: '{im_tag}', "
+                        "}")
+            specula.main_simul(yml_files=[main_config, 'calib_simpc.yml'], overrides=overrides)
+            for N in n_modes[:i]:
+                rec_tag = tag+f'_{N:1.0f}modes_rec'
+                compute_and_save_rec(root_dir, im_tag=im_tag, rec_tag=rec_tag, Nmodes=N)
 
 
 
