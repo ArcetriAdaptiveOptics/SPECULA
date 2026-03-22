@@ -1,14 +1,15 @@
 import os
+import yaml
 import numpy as np
 import matplotlib.pyplot as plt
 from astropy.io import fits
+from scipy.signal import welch
 
 import specula
 specula.init(-1)  # Default target device
 
 from specula.lib.calc_psf import calc_psf
 from specula.lib.make_mask import make_mask
-from specula.data_objects.psd import PSD
 from specula.data_objects.iir_filter_data import IirFilterData
 
 
@@ -39,26 +40,32 @@ def get_pupil_mask(filepath:str,npix:int, pyr:bool=True):
     return wfs_mask.astype(bool)
 
 
-def get_psd(data, dt:float):
-    psd_obj = PSD(data,dt)
-    psd = psd_obj.psd_data.copy()
-    f = psd_obj.freq_vec.copy()
+def get_psd(data, dt:float, nperseg:int=1024):
+    f,psd=welch(data,fs=1/dt,nperseg=1024,scaling='density',axis=-1)
     return psd,f
 
 
-def get_reference_psf(pupil_tag:str='vlt_pupil_160pixels',nd:int=4):
-    hdu = fits.open(os.path.join('./calibration/pupilstop',pupil_tag+'.fits'))
+def get_reference_psf(root_dir:str,pupil_tag:str='vlt_pupil_160pixels',nd:int=4):
+    hdu = fits.open(os.path.join(root_dir,'pupilstop',pupil_tag+'.fits'))
     pupil = hdu[1].data
     psf = calc_psf(np.zeros_like(pupil),pupil.astype(float), imwidth=int(pupil.shape[1]*nd), normalize=True,
                                             xp=np, complex_dtype=np.complex128)
     return psf
 
+def read_freq(params_path:str, obj_name:str=None):
+    with open(params_path, 'r') as file:
+        params = yaml.safe_load(file)
+        if obj_name is None:
+            fs = 1.0/float(params['main']['time_step'])
+        else:
+            fs = 1.0/float(params[obj_name]['dt'])
+    return fs
 
-def get_control_data(controller_name:str, params):
+def get_control_data(root_dir:str,controller_name:str, params):
     delay_frames = 1.0 + float(params[controller_name]['delay'])
     if params[controller_name]['class'] == 'IirFilter':
         gain = float(params[controller_name]['iir_gain'])
-        iir_path = os.path.join('./calibration/filter/',str(params[controller_name]['iir_filter_data_object'])+'.fits')
+        iir_path = os.path.join(root_dir,'filter/',str(params[controller_name]['iir_filter_data_object'])+'.fits')
         filter_data_complex = IirFilterData.restore(iir_path)
         filter_data_complex.num *= gain
     else:

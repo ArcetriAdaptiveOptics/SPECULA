@@ -3,7 +3,7 @@ import specula
 import numpy as np
 from astropy.io import fits
 
-from specula.mmlib.utils import get_pupil_mask
+from specula.mmlib.utils import get_pupil_mask, read_freq, get_psd
 from specula.mmlib.compute_rec import compute_and_save_rec
 
 
@@ -73,6 +73,9 @@ for i,n_subap in enumerate(n_subaps):
 
 
 # 4. Calibrate aliasing vs n_subaps, n_modes, r0
+aliaspath = os.path.join(root_dir,'aliasing')
+os.makedirs(aliaspath,exist_ok=True)
+fs = read_freq(params_path=f'./{main_config}')
 for i,n_subap in enumerate(n_subaps):
     pup_dist = 48/40*n_subap
     for rMod in rMods:
@@ -87,18 +90,28 @@ for i,n_subap in enumerate(n_subaps):
                             f"perfect_dm.nmodes: {N:1.0f}, "
                             "}")
                 specula.main_simul(yml_files=[main_config, 'calib_aliasing.yml'], overrides=overrides)
+                alias_modes = fits.getdata(os.path.join(root_dir,'scratch_aliasing','pyr_modes.fits'))
+                psd,f = get_psd(alias_modes.T, nperseg=1024, dt=1/fs)
+                tag = f'pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_s{seeing:1.1f}_{N:1.0f}modes_alias_PSD'
+                fits.writeto(os.path.join(aliaspath,tag+'.fits'),psd)
+                print('Saved aliasing PSD as: '+tag)
 
 
 # 4.5 Compute correction vectors for SIMPC
 # ...
 
 # 5. Calibrate SIMPC vs n_subap, rMods, r0/correction
+ogpath = os.path.join(root_dir,'optgains')
+os.makedirs(ogpath,exist_ok=True)
 for i,n_subap in enumerate(n_subaps):
     pup_dist = 48/40*n_subap
     for rMod in rMods:
+        im_tag = f'pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_im'
+        im = fits.getdata(os.path.join(root_dir,'im',im_tag+'.fits'))
+        im_norm = np.diag(im.T @ im)
         for seeing in seeings:
             tag = f'pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_s{seeing:1.1f}'
-            im_tag = tag+'_simpc'
+            simpc_tag = tag+'_simpc'
             overrides = ("{"
                         f"pyr.pup_diam: {n_subap:.1f}, "
                         f"pyr.pup_dist: {pup_dist:.1f}, "
@@ -108,9 +121,14 @@ for i,n_subap in enumerate(n_subaps):
                         f"pyr_im_calibrator.im_tag: '{im_tag}', "
                         "}")
             specula.main_simul(yml_files=[main_config, 'calib_simpc.yml'], overrides=overrides)
-            for N in n_modes[:i]:
-                rec_tag = tag+f'_{N:1.0f}modes_rec'
-                compute_and_save_rec(root_dir, im_tag=im_tag, rec_tag=rec_tag, Nmodes=N)
+
+            simpc = im = fits.getdata(os.path.join(root_dir,'im',simpc_tag+'.fits'))
+            og = np.diag(simpc.T @ im)/im_norm
+            fits.writeto(os.path.join(ogpath,tag+'_og.fits'))
+            print('Saved optical gains as: '+tag+'_og')
+            # for N in n_modes[:i]:
+            #     rec_tag = tag+f'_{N:1.0f}modes_rec'
+            #     compute_and_save_rec(root_dir, im_tag=im_tag, rec_tag=rec_tag, Nmodes=N)
 
 
 

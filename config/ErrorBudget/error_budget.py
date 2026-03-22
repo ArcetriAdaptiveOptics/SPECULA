@@ -75,7 +75,7 @@ class AOErrorBudgetMachine:
         flux = B0 * 10**(-magnitude/2.5) * self.area
         return flux * self.throughput / frequency
     
-    def pyr_thrp(self, rMod:float):
+    def pyr_thrp(self, rMod:float, n_subap:int):
         raise NotImplementedError
 
     def fitting_error(self, r0:float, n_modes:int):
@@ -96,9 +96,9 @@ class AOErrorBudgetMachine:
         raise NotImplementedError
 
 
-    def slope_noise_variance(self, sn_ri, mag:float, fs:float, rMod:float):
+    def slope_noise_variance(self, sn_ri, mag:float, fs:float, rMod:float, n_subap:int):
         n_subaps = int(len(sn_ri)/4)
-        n_phot = self.n_photons(frequancy=fs, magnitude=mag)*self.pyr_thrp(rMod)
+        n_phot = self.n_photons(frequancy=fs, magnitude=mag)*self.pyr_thrp(rMod,n_subap)
         phot_per_pix = sn_ri*n_phot/n_subaps/4
         pixel_variance = self.F_excess ** 2 * (phot_per_pix + self.sky_bkg + self.dark_curr) + self.RON
         if self.slopes_from_intensity is False:
