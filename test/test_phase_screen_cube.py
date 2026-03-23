@@ -6,6 +6,7 @@ import unittest
 
 from specula import cpuArray
 from specula import np
+from astropy.io import fits
 
 from specula.data_objects.source import Source
 from specula.base_time_obj import BaseTimeObj
@@ -15,6 +16,7 @@ from specula.processing_objects.atmo_propagation import AtmoPropagation
 from specula.data_objects.layer import Layer
 from specula.data_objects.pupilstop import Pupilstop
 from specula.data_objects.simul_params import SimulParams
+from specula.data_objects.spatio_temp_array import SpatioTempArray
 from specula.processing_objects.phase_screen_cube import PhaseScreenCube
 
 from test.specula_testlib import cpu_and_gpu
@@ -24,18 +26,46 @@ class TestPhaseScreenCube(unittest.TestCase):
 
     data_dir = os.path.join(os.path.dirname(__file__), 'data')
 
+    @staticmethod
+    def load_cube_from_fits(fits_file, target_device_idx=-1):
+        """
+        Load phase screen cube from FITS file into a SpatioTempArray.
+        
+        Parameters
+        ----------
+        fits_file : str
+            Path to FITS file with phase screen cube.
+        target_device_idx : int
+            Target device index for the array.
+            
+        Returns
+        -------
+        SpatioTempArray
+            Cube with shape (x, y, time).
+        """
+        with fits.open(fits_file) as hdul:
+            cube_data = hdul[0].data.T.astype(np.float64)
+
+        # cube_data has shape (x, y, time) after transpose
+        time_vector = np.arange(cube_data.shape[2]) * 10  # time_step = 10 seconds
+
+        return SpatioTempArray(cube_data, time_vector, target_device_idx=target_device_idx)
+
     @cpu_and_gpu
     def setUp(self, target_device_idx, xp):
         self.simul_params = SimulParams(pixel_pupil=80, pixel_pitch=0.05, time_step=1)
 
         on_axis_source = Source(polar_coordinates=[0.0, 0.0], magnitude=8, wavelengthInNm=750)
-        source_dict = {'on_axis_source':on_axis_source}
+        source_dict = {'on_axis_source': on_axis_source}
+
+        # Load phase screen cube from FITS into SpatioTempArray
+        fits_file = os.path.join(self.data_dir, 'phase_screen_cube_test.fits')
+        cube = self.load_cube_from_fits(fits_file, target_device_idx=target_device_idx)
 
         self.cube = PhaseScreenCube(self.simul_params,
-                                    os.path.join(self.data_dir,'phase_screen_cube_test.fits'),
-                                    time_step = 10,
-                                    pixel_scale = 0.1,
-                                    source_dict = source_dict,
+                                    cube=cube,
+                                    pixel_scale=0.1,
+                                    source_dict=source_dict,
                                     target_device_idx=target_device_idx)
 
         pupilstop = Pupilstop(self.simul_params,
@@ -43,11 +73,11 @@ class TestPhaseScreenCube(unittest.TestCase):
         self.cube.inputs['pupilstop'].set(pupilstop)
 
         pupilstop.generation_time = 4e9
-    
+
     @cpu_and_gpu
     def test_screen_cube(self, target_device_idx, xp):
         '''Test that the phase screen is correctly read and interpolated for the current step'''
-        
+
         self.cube.check_ready(4e9)
         self.cube.trigger()
         self.cube.post_trigger()
@@ -72,9 +102,3 @@ class TestPhaseScreenCube(unittest.TestCase):
         np.testing.assert_array_almost_equal(cpuArray(answer1),
                                              cpuArray(exp_screen1),
                                              decimal = 2)
-
-
-
-
-
-        

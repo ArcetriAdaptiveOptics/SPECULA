@@ -242,4 +242,119 @@ class TestSimul(unittest.TestCase):
         assert params['dm'] == original_params['dm']      # Unchanged
         assert 'dm2' not in params
 
+    def test_unknown_parameter_raises_value_error(self):
+        '''Test that a YAML parameter not present in the class constructor raises ValueError'''
+        yml = '''
+        main:
+          class: 'SimulParams'
+          root_dir: dummy
+
+        test:
+          class: 'Source'
+          polar_coordinates: [1, 2]
+          magnitude: 1.0
+          wavelengthInNm: 500.0
+          nonexistent_param: value
+        '''
+        simul = Simul([])
+        params = yaml.safe_load(yml)
+        with self.assertRaises(ValueError):
+            simul.build_objects(params)
+
+    def test_data_suffix_stripped_and_null_passed(self):
+        '''
+        Test that a _data suffix in a YAML key is stripped to match the constructor
+        argument name, and that a null value passes None to that argument.
+        E.g. slopes_data: null strips to slopes, passing None to Slopes(slopes=None).
+        '''
+        yml = '''
+        main:
+          class: 'SimulParams'
+          root_dir: dummy
+
+        test:
+          class: 'Slopes'
+          length: 10
+          slopes_data: null
+        '''
+        simul = Simul([])
+        params = yaml.safe_load(yml)
+        simul.build_objects(params)
+        # slopes_data: null → strips _data suffix → slopes=None → Slopes initializes as zeros
+        assert simul.objs['test'].slopes.shape == (10,)
+
+    def test_ref_suffix_resolves_referenced_object(self):
+        '''
+        Test that a _ref suffix in a YAML key is stripped and the value is resolved
+        by looking up the named object already present in simul.objs.
+        Uses IirFilter with simul_params_ref and iir_filter_data_ref to exercise:
+        - simul_params_ref → strips to simul_params (plain arg)
+        - iir_filter_data_ref → strips to iir_filter_data (arg that itself ends in _data)
+        '''
+        yml = '''
+        main:
+          class: 'SimulParams'
+          root_dir: dummy
+          time_step: 0.001
+          total_time: 0.1
+
+        iir_data:
+          class: 'IirFilterData'
+          ordnum: [2]
+          ordden: [2]
+          num: [[0.0, 0.3]]
+          den: [[-1.0, 1.0]]
+
+        control:
+          class: 'IirFilter'
+          simul_params_ref: main
+          iir_filter_data_ref: iir_data
+          delay: 0
+        '''
+        simul = Simul([])
+        params = yaml.safe_load(yml)
+        simul.build_objects(params)
+
+        from specula.data_objects.iir_filter_data import IirFilterData
+        assert isinstance(simul.objs['control'].iir_filter_data, IirFilterData)
+        assert simul.objs['control'].iir_filter_data is simul.objs['iir_data']
+
+    def test_direct_constructor_arg_ending_in_data(self):
+        '''
+        Test that a constructor arg that itself ends in _data (e.g. foo_data) is passed
+        directly via the else branch, NOT routed to FITS-file reading.
+        The parname != name guard on the _data branch ensures this: when no suffix was
+        stripped (parname == name), the value is assigned directly.
+        '''
+        from unittest.mock import patch
+        from specula.base_data_obj import BaseDataObj
+        from specula.lib.utils import import_class as real_import_class
+
+        class ClassWithDirectDataArg(BaseDataObj):
+            def __init__(self, foo_data=None, target_device_idx=None, precision=None):
+                super().__init__(target_device_idx=target_device_idx, precision=precision)
+                self.foo_data = foo_data
+
+        def mock_import(classname, additional_modules=None):
+            if classname == 'ClassWithDirectDataArg':
+                return ClassWithDirectDataArg
+            return real_import_class(classname, additional_modules)
+
+        yml = '''
+        main:
+          class: 'SimulParams'
+          root_dir: dummy
+
+        test:
+          class: 'ClassWithDirectDataArg'
+          foo_data: direct_value
+        '''
+        with patch('specula.simul.import_class', side_effect=mock_import):
+            simul = Simul([])
+            params = yaml.safe_load(yml)
+            simul.build_objects(params)
+            # foo_data is a direct constructor arg; it should be passed directly,
+            # not routed to FITS-file reading (which would fail or mangled the value)
+            assert simul.objs['test'].foo_data == 'direct_value'
+
 

@@ -33,7 +33,7 @@ class ZernikeSensor(ModulatedPyramid):
             mod_amp=0.0,
             mod_step=1,
             fft_res=fft_res,
-            pup_dist=0,
+            pup_dist=1,
             pup_margin=0,
             min_pup_dist=0,
             fov_errinf=0.1,
@@ -57,22 +57,19 @@ class ZernikeSensor(ModulatedPyramid):
             phase_mask: 2D array with phase shift in central spot
         """
         A = int((p + c) // 2)
-
-        # Create focal plane coordinates
         xx, yy = self.xp.mgrid[-A:A, -A:A].astype(self.dtype)
-
         # Convert radius from λ/D units to pixels
         # In focal plane, 1 λ/D corresponds to fft_totsize/fft_sampling pixels
         fft_sampling = p
         fft_padding = c
-        spot_radius_pixels = self.spot_radius_lambda * (1+fft_padding/fft_sampling)
+        spot_radius_pixels = self.spot_radius_lambda * float(1+fft_padding/fft_sampling)
 
         # Calculate distance from center
-        rr = self.xp.sqrt((xx+0.5)**2 + (yy+0.5)**2)
+        dpix = 0.5
+        rr = self.xp.sqrt((xx+dpix)**2 + (yy+dpix)**2)
 
         # Create phase mask: self.phase_shift_pi
-        phase_mask = self.xp.where(rr <= spot_radius_pixels,
+        phase_mask = self.xp.where(rr < spot_radius_pixels,
                                    self.phase_shift_pi/2, # phase is multiplied by 2π during super().__init__
                                    0.0)
-
         return phase_mask

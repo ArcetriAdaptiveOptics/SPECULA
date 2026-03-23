@@ -365,7 +365,7 @@ class ModulatedPyramid(BaseProcessingObj):
             'final_ccd_side': ccd_side
             }
         )
-
+        
         return result
 
     def get_pyr_tlt(self, p, c):
@@ -531,8 +531,11 @@ class ModulatedPyramid(BaseProcessingObj):
                     # Use 1/cos(angle) to compensate for intensity loss at large tilts
                     self.flux_factor_vector[tt] = 1.0 / self.xp.cos(normalized_angle)
 
-        print(f'Cached circular modulation with {self.mod_steps} steps, '
-            f'amplitude: {self.mod_amp:.2f}')
+        if self.mod_amp > 0.0:
+            print(f'Cached circular modulation with {self.mod_steps} steps, '
+                f'amplitude: {self.mod_amp:.2f}')
+        else:
+            print('Running unmodulated pyramid')
 
         # Common setup for both modes
         self.ffv = self.flux_factor_vector[:, self.xp.newaxis, self.xp.newaxis]

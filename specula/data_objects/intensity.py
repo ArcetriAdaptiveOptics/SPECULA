@@ -17,7 +17,7 @@ class Intensity(BaseDataObj):
         Initialize an :class:`~specula.data_objects.intensity.Intensity` object.
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-        self.i = self.xp.zeros((dimx, dimy), dtype=self.dtype)
+        self.i = self.xp.zeros((dimy, dimx), dtype=self.dtype)
 
     def get_value(self):
         '''
@@ -41,8 +41,8 @@ class Intensity(BaseDataObj):
         hdr = fits.Header()
         hdr['VERSION'] = 1
         hdr['OBJ_TYPE'] = 'Intensity'
-        hdr['DIMX'] = self.i.shape[0]
-        hdr['DIMY'] = self.i.shape[1]
+        hdr['DIMX'] = self.i.shape[1]
+        hdr['DIMY'] = self.i.shape[0]
         return hdr
 
     def save(self, filename, overwrite=True):

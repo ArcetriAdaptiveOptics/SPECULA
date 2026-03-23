@@ -101,6 +101,20 @@ def get_type_hints(type):
         hints.update(typing.get_type_hints(getattr(x, '__init__')))
     return hints
 
+def remove_suffix(s, suffix):
+    '''Remove the specified suffix from the string if it exists.
+
+    Parameters:
+        s (str): The input string.
+        suffix (str): The suffix to remove.
+    Returns:
+        str: The string with the suffix removed if it was present, otherwise the original string.
+
+    Needed for Python 3.8 compatibility, as str.removesuffix is only available in Python 3.9 and later.
+    '''
+    if s.endswith(suffix):
+        return s[:-len(suffix)]
+    return s
 
 def unravel_index_2d(idxs, shape, xp):
     '''Unravel linear indexes in a 2d-shape (in row-major C order)

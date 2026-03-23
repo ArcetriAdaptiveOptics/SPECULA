@@ -1,11 +1,11 @@
 import numpy as np
-from astropy.io import fits
 
 from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.electric_field import ElectricField
 from specula.base_value import BaseValue
 from specula.data_objects.layer import Layer
 from specula.data_objects.pupilstop import Pupilstop
+from specula.data_objects.spatio_temp_array import SpatioTempArray
 from specula.connections import InputValue
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.extrapolation_2d import EFInterpolator
@@ -13,13 +13,12 @@ from specula.lib.extrapolation_2d import EFInterpolator
 class PhaseScreenCube(BaseProcessingObj):
     """
     User-defined phase screen cube data object.
-    Reads a phase screen cube from a FITS file and applies it on the specified line of sight.
+    Applies a spatio-temporal phase screen cube on the specified line of sight.
     The cube's temporal sampling does not need to match the simulation's sampling.
     """
     def __init__(self,
                  simul_params: SimulParams,
-                 file_name: str,
-                 time_step: float,
+                 cube: SpatioTempArray,
                  pixel_scale: float,
                  source_dict: dict,
                  verbose=None,
@@ -29,11 +28,10 @@ class PhaseScreenCube(BaseProcessingObj):
         ----------
         simul_params : SimulParams
             Simulation parameters object containing pupil size, pixel pitch, zenith angle, etc.
-        file_name : str
-            Full path to a FITS file containing the phase screen cube. The cube should 
-            have the temporal evolution on the third dimension. The phase screens should be in nm.
-        time_step : float
-            Time resolution of the phase screen cube in seconds.
+        cube : SpatioTempArray
+            Spatio-temporal array containing the phase screen cube.
+            Internally data are accessed as time-first: shape (time, x, y).
+            The phase screens should be in nm. The time_vector must be provided in seconds.
         pixel_scale : float
             Phase screens' pixel size in m.
         source_dict : dict
@@ -47,18 +45,16 @@ class PhaseScreenCube(BaseProcessingObj):
         super().__init__(target_device_idx=target_device_idx)
 
         self.simul_params = simul_params
+        self.cube = cube
 
         self.pixel_pupil = self.simul_params.pixel_pupil
         self.pixel_pitch = self.simul_params.pixel_pitch
+        self.pixel_scale = pixel_scale
 
         self.source_dict = source_dict
         self.step_counter = 0
         
         self.pupilstop = None
-
-        self.file_name = file_name
-        self.time_step = time_step
-        self.pixel_scale = pixel_scale
 
         self.verbose = verbose if verbose is not None else False
 
@@ -79,15 +75,15 @@ class PhaseScreenCube(BaseProcessingObj):
         self.inputs['pupilstop'] = InputValue(type=Pupilstop)
 
     def initScreens(self):
-        with fits.open(self.file_name) as hdul:
-            temp_screen = hdul[0].data.T.astype(self.dtype)
-
-        self.phasescreens = temp_screen
+        """
+        Initialize phase screens from the cube data object.
+        Computes the scaling factor to map the cube spatial dimensions to the pupil grid.
+        """
+        self.phasescreens = self.to_xp(self.cube.array, dtype=self.dtype)
+        self.time_vector = self.to_xp(self.cube.time_vector)
         
-        dim = temp_screen.shape
-        self.time_vector = np.arange(dim[2])*self.time_step
-
-        self.scaling_fact = dim[0]/self.pixel_pupil*self.pixel_scale/self.pixel_pitch
+        dim = self.phasescreens.shape
+        self.scaling_fact = dim[1]/self.pixel_pupil*self.pixel_scale/self.pixel_pitch
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
@@ -102,8 +98,10 @@ class PhaseScreenCube(BaseProcessingObj):
             idx_first_positive = len(dt)-1
         idx_last_non_positive = idx_first_positive - 1
 
-        self.cur_screen = 1./self.time_step*(dt[idx_first_positive]*self.phasescreens[:,:,idx_last_non_positive] + 
-                                            np.abs(dt[idx_last_non_positive])*self.phasescreens[:,:,idx_first_positive])
+        # Linear interpolation between two time steps
+        time_step = self.time_vector[idx_first_positive] - self.time_vector[idx_last_non_positive]
+        self.cur_screen = 1./time_step*(dt[idx_first_positive]*self.phasescreens[idx_last_non_positive, :, :] + 
+                        np.abs(dt[idx_last_non_positive])*self.phasescreens[idx_first_positive, :, :])
 
         in_ef = ElectricField(self.cur_screen.shape[0], self.cur_screen.shape[1], self.pixel_scale,
                                target_device_idx=self.target_device_idx)

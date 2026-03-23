@@ -23,6 +23,10 @@ class PsfCoronagraph(PSF):
     nd : float, optional
         Numerical density of the PSF (pixels per lambda/D). If None, it is calculated
         based on the input ElectricField and pixel size.
+    use_average_field : bool, optional
+        If True, the average electric field over the pupil is subtracted to compute the coronagraph PSF.
+        If False, the perfect coronagraph formula is applied for the computation. Default is True (average field removal).
+        The perfect coronagraph formula is Equation (1) in Cavarroc et al. 2006
     pixel_size_mas : float, optional
         Desired pixel size of the PSF in milliarcseconds. If None, it is calculated
         based on the input ElectricField and numerical density.
@@ -37,6 +41,7 @@ class PsfCoronagraph(PSF):
                  simul_params: SimulParams,
                  wavelengthInNm: float,
                  nd: float=None,
+                 use_average_field:bool = True,
                  pixel_size_mas: float=None,
                  start_time: float=0.0,
                  target_device_idx: int = None,
@@ -53,6 +58,7 @@ class PsfCoronagraph(PSF):
             precision=precision,
             verbose=verbose,
         )
+        self.use_average_field = use_average_field
 
         # Additional outputs for coronagraph
         self.coronagraph_psf = BaseValue(target_device_idx=self.target_device_idx,
@@ -101,12 +107,22 @@ class PsfCoronagraph(PSF):
         # Step 1: Calculate electric field from incoming phase screen
         electric_field = amp * self.xp.exp(1j * phase, dtype=self.complex_dtype)
 
-        # Step 2: Calculate and subtract the average electric field over the pupil
-        # Only consider pixels where amplitude > 0 (inside pupil)
+        # Step 2: Calculate  the field after the perfect coronagraph:
+        # if self.use_average_field is True, we subtract the average electric field over the pupil
+        # if self.use_average_field is False, we apply the perfect coronagraph formula.
+        # The two formulas are equivalent at high angular separations, but the average field
+        # removal produces infinite contrast near the PSF core.
         pupil_mask = amp > 0
         if self.xp.sum(pupil_mask) > 0:
-            avg_electric_field = self.xp.sum(electric_field * pupil_mask) / self.xp.sum(pupil_mask)
-            electric_field_corrected = electric_field - avg_electric_field * pupil_mask
+            if self.use_average_field is True: # average field removal
+                avg_electric_field = self.xp.sum(electric_field * pupil_mask) / self.xp.sum(pupil_mask)
+                electric_field_corrected = electric_field - avg_electric_field * pupil_mask
+            else: # perfect coronagraph formula (Cavarroc et al. 2006, Eq. 1)
+                mean_phase = self.xp.sum(phase * pupil_mask) / self.xp.sum(pupil_mask)
+                var_phase = self.xp.sum(((phase - mean_phase) ** 2) * pupil_mask) / self.xp.sum(pupil_mask)
+                ec = self.xp.exp(-var_phase, self.dtype)
+                coherent_core = self.xp.sqrt(ec) * self.xp.exp(1j * mean_phase, self.complex_dtype) * amp
+                electric_field_corrected = electric_field - coherent_core * pupil_mask         
         else:
             electric_field_corrected = electric_field
 
