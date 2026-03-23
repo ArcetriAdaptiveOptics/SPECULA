@@ -249,7 +249,7 @@ class TestSsrIirEquivalence(unittest.TestCase):
     def test_reset_equivalence(self, target_device_idx, xp):
         """Test that reset works identically for both implementations"""
         simul_params = SimulParams(time_step=0.001)
-        dt = simul_params.time_steptest_reset_equivalence
+        dt = simul_params.time_step
 
         gains = [1.0]
 
