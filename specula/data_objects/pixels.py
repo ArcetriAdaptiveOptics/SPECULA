@@ -42,7 +42,7 @@ class Pixels(BaseDataObj):
 
         self.signed = signed
         self.type = self._get_type(bits, signed)
-        self.pixels = self.xp.zeros((dimx, dimy), dtype=self.dtype)
+        self.pixels = self.xp.zeros((dimy, dimx), dtype=self.dtype)
         self.bpp = bits
         self.bytespp = (bits + 7) // 8  # bits self.xp.arounded to the next multiple of 8
 
@@ -102,8 +102,8 @@ class Pixels(BaseDataObj):
         hdr['BPP'] = self.bpp
         hdr['BYTESPP'] = self.bytespp
         hdr['SIGNED'] = self.signed
-        hdr['DIMX'] = self.pixels.shape[0]
-        hdr['DIMY'] = self.pixels.shape[1]
+        hdr['DIMX'] = self.pixels.shape[1]
+        hdr['DIMY'] = self.pixels.shape[0]
         return hdr
 
     def save(self, filename, overwrite=True):

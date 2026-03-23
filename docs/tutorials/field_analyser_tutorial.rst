@@ -85,6 +85,8 @@ To enable efficient field analysis, you need to configure your simulation's `Dat
 - If your controller object is named `ctrl`, save `ctrl.out_comm`
 - If you use a different controller class, check its output name in the documentation
 - The key is to save the **commands sent to the DM**, not the DM surface itself
+- The replay input files must not be downsampled. If a `DataStore` file was saved
+  with `DOWNSAMP > 1`, `FieldAnalyser` now rejects it explicitly.
 
 **What Gets Saved:**
 

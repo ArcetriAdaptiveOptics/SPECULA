@@ -2,6 +2,8 @@ import unittest
 import os
 import shutil
 import glob
+import pickle
+import yaml
 import specula
 specula.init(-1,precision=1)  # Default target device
 
@@ -62,6 +64,11 @@ class TestShSimulation(unittest.TestCase):
                 field_dir = os.path.join(self.datadir, base_name + suffix)
                 if os.path.isdir(field_dir):
                     shutil.rmtree(field_dir)
+
+        for dirname in ['decimated_tn', 'decimated_pickle_tn', 'legacy_tn', 'legacy_pickle_tn']:
+            path = os.path.join(self.datadir, dirname)
+            if os.path.isdir(path):
+                shutil.rmtree(path)
 
         # Clean up copied calibration files
         if os.path.exists(self.subap_path):
@@ -277,14 +284,169 @@ class TestShSimulation(unittest.TestCase):
             err_msg="Phase cube values do not match between simulation and FieldAnalyser"
         )
 
-        print(f"FieldAnalyser test successful!")
+        print("FieldAnalyser test successful!")
 
         # Verify that FieldAnalyser output files were created
         psf_output_dir = analyzer.psf_output_dir
         self.assertTrue(psf_output_dir.exists(), "PSF output directory should exist")
 
-        psf_filename, sr_filename = analyzer._get_psf_filenames(source_dict = analyzer.sources[0])
+        psf_filename, _ = analyzer._get_psf_filenames(source_dict = analyzer.sources[0])
         psf_path = psf_output_dir / f"{psf_filename}.fits"
         self.assertTrue(psf_path.exists(), f"PSF output file should exist: {psf_path}")
 
         print(f"FieldAnalyser PSF file saved: {psf_path}")
+
+    def test_field_analyser_rejects_decimated_replay_inputs(self):
+        tracking_number = 'decimated_tn'
+        tn_dir = os.path.join(self.datadir, tracking_number)
+        os.makedirs(tn_dir, exist_ok=True)
+
+        params = {
+            'main': {'class': 'SimulParams', 'pixel_pupil': 8, 'pixel_pitch': 1.0},
+            'prop': {'class': 'AtmoPropagation'}
+        }
+        with open(os.path.join(tn_dir, 'params.yml'), 'w', encoding='utf-8') as outfile:
+            yaml.dump(params, outfile)
+
+        hdr = fits.Header()
+        hdr['OBJ_TYPE'] = 'BaseValue'
+        hdr['DOWNSAMP'] = 4
+        hdr['DSMODE'] = 'SAMPLE'
+
+        fits.HDUList([
+            fits.PrimaryHDU(np.zeros((1, 1), dtype=np.float32), header=hdr),
+            fits.ImageHDU(np.array([0], dtype=np.uint64), header=hdr)
+        ]).writeto(os.path.join(tn_dir, 'comm.fits'), overwrite=True)
+
+        analyzer = FieldAnalyser(
+            data_dir=self.datadir,
+            tracking_number=tracking_number,
+            polar_coordinates=np.array([[0.0, 0.0]]),
+            verbose=False
+        )
+
+        replay_params = {
+            'data_source': {
+                'class': 'DataSource',
+                'store_dir': tn_dir,
+                'data_format': 'fits',
+                'outputs': ['comm']
+            }
+        }
+
+        with self.assertRaisesRegex(ValueError, 'DOWNSAMP=4'):
+            analyzer._validate_replay_inputs_are_not_downsampled(replay_params)
+
+    def test_field_analyser_rejects_decimated_pickle_replay_inputs(self):
+        tracking_number = 'decimated_pickle_tn'
+        tn_dir = os.path.join(self.datadir, tracking_number)
+        os.makedirs(tn_dir, exist_ok=True)
+
+        params = {
+            'main': {'class': 'SimulParams', 'pixel_pupil': 8, 'pixel_pitch': 1.0},
+            'prop': {'class': 'AtmoPropagation'}
+        }
+        with open(os.path.join(tn_dir, 'params.yml'), 'w', encoding='utf-8') as outfile:
+            yaml.dump(params, outfile)
+
+        payload = {
+            'data': np.zeros((1, 1), dtype=np.float32),
+            'times': np.array([0], dtype=np.uint64),
+            'hdr': {'OBJ_TYPE': 'BaseValue', 'DOWNSAMP': 3, 'DSMODE': 'SAMPLE'}
+        }
+        with open(os.path.join(tn_dir, 'comm.pickle'), 'wb') as handle:
+            pickle.dump(payload, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+        analyzer = FieldAnalyser(
+            data_dir=self.datadir,
+            tracking_number=tracking_number,
+            polar_coordinates=np.array([[0.0, 0.0]]),
+            verbose=False
+        )
+
+        replay_params = {
+            'data_source': {
+                'class': 'DataSource',
+                'store_dir': tn_dir,
+                'data_format': 'pickle',
+                'outputs': ['comm']
+            }
+        }
+
+        with self.assertRaisesRegex(ValueError, 'DOWNSAMP=3'):
+            analyzer._validate_replay_inputs_are_not_downsampled(replay_params)
+
+    def test_field_analyser_accepts_legacy_fits_replay_inputs_without_decim(self):
+        tracking_number = 'legacy_tn'
+        tn_dir = os.path.join(self.datadir, tracking_number)
+        os.makedirs(tn_dir, exist_ok=True)
+
+        params = {
+            'main': {'class': 'SimulParams', 'pixel_pupil': 8, 'pixel_pitch': 1.0},
+            'prop': {'class': 'AtmoPropagation'}
+        }
+        with open(os.path.join(tn_dir, 'params.yml'), 'w', encoding='utf-8') as outfile:
+            yaml.dump(params, outfile)
+
+        hdr = fits.Header()
+        hdr['OBJ_TYPE'] = 'BaseValue'
+
+        fits.HDUList([
+            fits.PrimaryHDU(np.zeros((1, 1), dtype=np.float32), header=hdr),
+            fits.ImageHDU(np.array([0], dtype=np.uint64), header=hdr)
+        ]).writeto(os.path.join(tn_dir, 'comm.fits'), overwrite=True)
+
+        analyzer = FieldAnalyser(
+            data_dir=self.datadir,
+            tracking_number=tracking_number,
+            polar_coordinates=np.array([[0.0, 0.0]]),
+            verbose=False
+        )
+
+        replay_params = {
+            'data_source': {
+                'class': 'DataSource',
+                'store_dir': tn_dir,
+                'data_format': 'fits',
+                'outputs': ['comm']
+            }
+        }
+
+        analyzer._validate_replay_inputs_are_not_downsampled(replay_params)
+
+    def test_field_analyser_accepts_legacy_pickle_replay_inputs_without_hdr(self):
+        tracking_number = 'legacy_pickle_tn'
+        tn_dir = os.path.join(self.datadir, tracking_number)
+        os.makedirs(tn_dir, exist_ok=True)
+
+        params = {
+            'main': {'class': 'SimulParams', 'pixel_pupil': 8, 'pixel_pitch': 1.0},
+            'prop': {'class': 'AtmoPropagation'}
+        }
+        with open(os.path.join(tn_dir, 'params.yml'), 'w', encoding='utf-8') as outfile:
+            yaml.dump(params, outfile)
+
+        payload = {
+            'data': np.zeros((1, 1), dtype=np.float32),
+            'times': np.array([0], dtype=np.uint64)
+        }
+        with open(os.path.join(tn_dir, 'comm.pickle'), 'wb') as handle:
+            pickle.dump(payload, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+        analyzer = FieldAnalyser(
+            data_dir=self.datadir,
+            tracking_number=tracking_number,
+            polar_coordinates=np.array([[0.0, 0.0]]),
+            verbose=False
+        )
+
+        replay_params = {
+            'data_source': {
+                'class': 'DataSource',
+                'store_dir': tn_dir,
+                'data_format': 'pickle',
+                'outputs': ['comm']
+            }
+        }
+
+        analyzer._validate_replay_inputs_are_not_downsampled(replay_params)

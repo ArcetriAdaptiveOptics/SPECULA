@@ -12,15 +12,14 @@ def computeRadialProfile(image, centerInPxY=None, centerInPxX=None, xp=np, dtype
     indexR= xp.argsort(rCoord.flat)
     radialDistancesSorted= rCoord.flat[indexR]
     imageValuesSortedByRadialDistance= image.flat[indexR]
-    integerPartOfRadialDistances= radialDistancesSorted.astype(dtype)
+    integerPartOfRadialDistances= radialDistancesSorted.astype(int)
     deltaRadialDistance= integerPartOfRadialDistances[1:] - \
         integerPartOfRadialDistances[:-1]
     radialDistanceChanges= xp.where(deltaRadialDistance)[0]
     nPxInBinZero= radialDistanceChanges[0]+ 1
     nPxInRadialBin= radialDistanceChanges[1:] - \
         radialDistanceChanges[:-1]
-    imageRadialCumSum= xp.cumsum(imageValuesSortedByRadialDistance,
-                                 dtype=dtype)
+    imageRadialCumSum= xp.cumsum(imageValuesSortedByRadialDistance,dtype=dtype)
     imageSumInBinZero= imageRadialCumSum[radialDistanceChanges[0]]
     imageSumInRadialBin= \
         imageRadialCumSum[radialDistanceChanges[1:]] - \

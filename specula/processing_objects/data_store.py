@@ -15,7 +15,8 @@ from specula.base_processing_obj import BaseProcessingObj
 class DataStore(BaseProcessingObj):
     """
     Data storage processing object.
-    Stores data values over time and saves them to disk at the end of the run.
+    Stores input values over time, optionally downsampling them on a per-input
+    basis, and saves them to disk at the end of the run.
     """
     def __init__(self,
                 store_dir: str,         # TODO ="",
@@ -23,7 +24,41 @@ class DataStore(BaseProcessingObj):
                 first_suffix: int=0,
                 data_format: str='fits',
                 start_time: float=0,
-                create_tn: bool=True):
+                create_tn: bool=True,
+                downsample_factor: int=1,
+                downsample_factor_by_input: dict=None):
+        """
+        Parameters
+        ----------
+        store_dir : str
+            Base directory where data will be stored. A subdirectory with a timestamp
+            will be created inside this directory to hold the data files.
+        split_size : int, optional
+            If > 0, creates a new subdirectory and saves one chunk every
+            ``split_size`` trigger iterations after ``start_time``.
+            Default is 0 (no splitting, all data in one folder).
+        first_suffix : int, optional
+            Starting suffix for split folders. Default is 0.
+        data_format : str, optional
+            Format for saved data files. Supported values are 'fits' and 'pickle'.
+            Default is 'fits'.
+        start_time : float, optional
+            Time in seconds to wait before starting to store data.
+            Default is 0 (store from the beginning).
+        create_tn : bool, optional
+            If True, creates a timestamped subdirectory for storing data.
+            Default is True.
+        downsample_factor : int, optional
+            Store one sample every ``N`` received samples for all inputs.
+            The downsampling is sample-based and tracked independently for each
+            input, so an input that updates less frequently is counted only when
+            it produces a new sample. Default is 1 (store every sample).
+        downsample_factor_by_input : dict, optional
+            Per-input downsampling factors. Keys are the DataStore input names,
+            values are integers >= 1. When using ``input_list``, the key is the
+            alias before the dash, e.g. ``'comm'`` for ``'comm-control.out_comm'``.
+            This option is mutually exclusive with ``downsample_factor != 1``.
+        """
         super().__init__()
         self.data_filename = ''
         self.today = time.strftime("%Y%m%d_%H%M%S")
@@ -36,7 +71,39 @@ class DataStore(BaseProcessingObj):
         self.split_size = split_size
         self.first_suffix = first_suffix
         self.start_time = self.seconds_to_t(start_time)
+        self.downsample_factor = self._validate_downsample_factor(
+            downsample_factor,
+            'downsample_factor'
+        )
+        if downsample_factor_by_input is not None and self.downsample_factor != 1:
+            raise ValueError('downsample_factor_by_input requires downsample_factor == 1')
+        self.downsample_factor_by_input = {
+            key: self._validate_downsample_factor(value, f'downsample_factor_by_input[{key!r}]')
+            for key, value in (downsample_factor_by_input or {}).items()
+        }
+        self.input_sample_counters = defaultdict(int)
         self.init_storage()
+
+    @staticmethod
+    def _validate_downsample_factor(value, name):
+        value = int(value)
+        if value < 1:
+            raise ValueError(f'{name} must be >= 1')
+        return value
+
+    def _should_store_input(self, input_name):
+        every = self.downsample_factor_by_input.get(input_name, self.downsample_factor)
+        sample_idx = self.input_sample_counters[input_name]
+        self.input_sample_counters[input_name] += 1
+        return sample_idx % every == 0
+
+    def _downsampling_for_input(self, input_name):
+        return self.downsample_factor_by_input.get(input_name, self.downsample_factor)
+
+    def update_header_with_storage_metadata(self, header, input_name):
+        header['DOWNSAMP'] = (self._downsampling_for_input(input_name),
+                              'Stored one sample every N received samples')
+        header['DSMODE'] = ('SAMPLE', 'Downsampling mode used by DataStore')
 
     def init_storage(self):
         self.storage = defaultdict(OrderedDict)
@@ -62,6 +129,7 @@ class DataStore(BaseProcessingObj):
 
                 filename = os.path.join(self.tn_dir, k + '.pickle')
                 hdr = self.inputs[k].get(target_device_idx=-1).get_fits_header()
+                self.update_header_with_storage_metadata(hdr, input_name=k)
                 with open(filename, 'wb') as handle:
                     data_to_save = {'data': data[k], 'times': times[k], 'hdr': hdr}
                     pickle.dump(data_to_save, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -103,6 +171,7 @@ class DataStore(BaseProcessingObj):
 
                 filename = os.path.join(self.tn_dir, k + '.fits')
                 hdr = self.local_inputs[k].get_fits_header()
+                self.update_header_with_storage_metadata(hdr, input_name=k)
                 hdu_time = fits.ImageHDU(times[k], header=hdr)
                 hdu_data = fits.PrimaryHDU(data[k], header=hdr)
                 hdul = fits.HDUList([hdu_data, hdu_time])
@@ -136,6 +205,8 @@ class DataStore(BaseProcessingObj):
 
         for k, item in self.local_inputs.items():
             if item is not None and item.generation_time == self.current_time:
+                if not self._should_store_input(k):
+                    continue
                 value = item.get_value()
                 v = cpuArray(value, force_copy=True)
                 self.storage[k][self.current_time] = v

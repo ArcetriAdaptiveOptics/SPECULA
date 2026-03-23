@@ -157,7 +157,42 @@ class FieldAnalyser:
         but with modified DataStore input_list containing only DM commands
         """
         simul = Simul([])
-        return simul.build_targeted_replay(self.params, 'prop', set_store_dir=str(self.tn_dir))
+        replay_params = simul.build_targeted_replay(self.params, 'prop', set_store_dir=str(self.tn_dir))
+        self._validate_replay_inputs_are_not_downsampled(replay_params)
+        return replay_params
+
+    def _validate_replay_inputs_are_not_downsampled(self, replay_params: dict):
+        data_source = replay_params.get('data_source')
+        if not data_source:
+            return
+
+        data_format = data_source.get('data_format', 'fits')
+        if data_format not in ('fits', 'pickle'):
+            return
+
+        store_dir = Path(data_source.get('store_dir', self.tn_dir))
+        extension = '.fits' if data_format == 'fits' else '.pickle'
+
+        for output_name in data_source.get('outputs', []):
+            file_path = store_dir / f'{output_name}{extension}'
+            if data_format == 'fits':
+                with fits.open(file_path) as hdul:
+                    header = hdul[0].header
+            else:
+                import pickle
+                with open(file_path, 'rb') as handle:
+                    payload = pickle.load(handle)
+                header = payload.get('hdr', {})
+
+            downsampling = int(header.get('DOWNSAMP', 1))
+            if downsampling > 1:
+                raise ValueError(
+                    f'FieldAnalyser does not support downsampled replay inputs: '
+                    f'{file_path.name} was saved with DOWNSAMP={downsampling}'
+                )
+
+            if 'DOWNSAMP' not in header and self.verbose:
+                print(f'Warning: replay input {file_path.name} has no DOWNSAMP metadata; assuming DOWNSAMP=1')
 
     def _build_replay_params_psf(self) -> dict:
         """

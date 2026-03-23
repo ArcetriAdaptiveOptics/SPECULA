@@ -91,15 +91,13 @@ class TestCiaoCiaoSensor(unittest.TestCase):
         dimy = 20
 
         ef = ElectricField(dimx, dimy, 0.01, S0=ref_S0, target_device_idx=target_device_idx)
-        ef.generation_time = ef.seconds_to_t(t)
+        ef.generation_time = t
 
         wfs.inputs['in_ef'].set(ef)
-        wfs.setup()
 
-        assert wfs._ef.shape == (dimy, dimx)
-        assert wfs._rot_ef.shape == (dimy, dimx)
-        assert wfs._interf_ef.shape == (dimy, dimx)
-        assert wfs._interf_i.shape == (dimy, dimx)
+        # CiaoCiao requires a square input array
+        with self.assertRaises(ValueError):
+            wfs.setup()
 
     @cpu_and_gpu
     def test_channel_flux_unbalance(self, target_device_idx, xp):
