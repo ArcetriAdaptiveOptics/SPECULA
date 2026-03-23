@@ -36,7 +36,16 @@ class Pixels(BaseDataObj):
             Precision for computation (default: None).
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
+        self.resize(dimx, dimy, bits=bits, signed=signed)
 
+    def resize(self,
+               dimx: int,
+               dimy: int,
+               bits=16,
+               signed=0):
+        """
+        Resize the pixels array to new dimensions and optionally change the bits and signedness.
+        """
         if bits > 64:
             raise ValueError("Cannot create pixel object with more than 64 bits per pixel")
 
@@ -60,7 +69,10 @@ class Pixels(BaseDataObj):
             [self.xp.uint64, self.xp.int64],
             [self.xp.uint64, self.xp.int64]
         ]
-        return type_matrix[(bits - 1) // 8][signed]
+        try:
+            return type_matrix[(bits - 1) // 8][signed]
+        except IndexError:
+            raise ValueError(f"Invalid combination of bits={bits} and signed={signed}")
 
     def get_value(self):
         '''Get the pixel values as a numpy/cupy array'''

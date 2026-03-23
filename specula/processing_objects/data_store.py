@@ -6,10 +6,10 @@ from astropy.io import fits
 from collections import OrderedDict, defaultdict
 import pickle
 import yaml
-import time
 
 from specula import cpuArray
 from specula.base_processing_obj import BaseProcessingObj
+from specula.lib import utils
 
 
 class DataStore(BaseProcessingObj):
@@ -61,7 +61,7 @@ class DataStore(BaseProcessingObj):
         """
         super().__init__()
         self.data_filename = ''
-        self.today = time.strftime("%Y%m%d_%H%M%S")
+        self.today = utils.make_tn()
         self.tn_dir = store_dir
         self.tn_dir_orig = store_dir     # Extra copy needed when suffix is used
         self.data_format = data_format

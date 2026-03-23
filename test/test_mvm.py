@@ -108,7 +108,7 @@ class TestMVM(unittest.TestCase):
         with self.assertRaises(ValueError) as cm:
             mvm.setup()
 
-        self.assertIn("InputValue is empty and not optional", str(cm.exception))
+        self.assertIn("Input in_vector of object MVM is empty and not optional", str(cm.exception))
 
     @cpu_and_gpu
     def test_mvm_none_recmat_initialization(self, target_device_idx, xp):

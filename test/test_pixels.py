@@ -97,3 +97,21 @@ class TestPixels(unittest.TestCase):
         pixels = Pixels(10, 10, target_device_idx=target_device_idx)
         with self.assertRaises(AssertionError):
             pixels.set_value(xp.ones((5, 5), dtype=xp.float32))
+
+    @cpu_and_gpu
+    def test_resize(self, target_device_idx, xp):
+        pixels = Pixels(10, 10, bits=16, signed=0, target_device_idx=target_device_idx)
+        pixels.resize(20, 15, bits=8, signed=1)
+
+        assert pixels.pixels.shape == (15, 20)
+        assert pixels.bpp == 8
+        assert pixels.signed == 1
+        assert pixels.dtype == xp.int8
+        assert pixels.bytespp == 1
+
+    @cpu_and_gpu
+    def test_invalid_bits_and_signed(self, target_device_idx, xp):
+        with self.assertRaises(ValueError):
+            Pixels(10, 10, bits=12, signed=0, target_device_idx=target_device_idx)
+        with self.assertRaises(ValueError):
+            Pixels(10, 10, bits=16, signed=2, target_device_idx=target_device_idx)

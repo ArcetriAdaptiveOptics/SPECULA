@@ -1,8 +1,9 @@
 import re
+import time
 import typing
 import importlib
 import warnings
-from specula import to_xp, np
+from specula import to_xp
 from specula.lib.make_xy import make_xy
 
 
@@ -332,3 +333,6 @@ def make_subpixel_shift_phase(shape, xp, dtype,
     phase_ramp = xp.exp(-2j * xp.pi * (freq_x * shift_x + freq_y * shift_y), dtype=dtype)
 
     return phase_ramp
+
+def make_tn():
+    return time.strftime("%Y%m%d_%H%M%S")
