@@ -3,6 +3,7 @@ import specula
 import numpy as np
 from astropy.io import fits
 
+from specula.mmlib.yaml_overrides import write_yaml_overrides
 from specula.mmlib.utils import get_pupil_mask, read_freq, get_psd
 from specula.mmlib.compute_rec import compute_and_save_rec
 
@@ -29,6 +30,7 @@ for n_subap in n_subaps:
                 f"pyr.pup_dist: {pup_dist:.1f}, "
                 f"pyr_pupdata.output_tag: 'pyr_pupdata_{n_subap:.0f}x{n_subap:.0f}', "
                 "}")
+    write_yaml_overrides(input_string=overrides)
     try:
         specula.main_simul(yml_files=[main_config, 'calib_pupdata.yml'], overrides=overrides)
     except OSError:
@@ -44,10 +46,11 @@ for n_subap in n_subaps:
                     f"pyr.mod_amp: {rMod:.1f}, "
                     f"pyr_slopes.pupdata_object: 'pyr_pupdata_{n_subap:.0f}x{n_subap:.0f}', "
                     f"pyr_sn.output_tag: 'pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_sn', "
-                    f"data_store.store_dir:         '{root_dir}/frames/', "  
+                    f"data_store.store_dir:         '{root_dir}frames/', "  
                     f"data_store.create_tn: false, "
                     f"data_store.inputs.input_list: ['pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_frame_null-ocam.out_pixels'], "
                     "}")
+        write_yaml_overrides(input_string=overrides)
         try:
             specula.main_simul(yml_files=[main_config, 'calib_sn.yml'], overrides=overrides)
         except OSError:
