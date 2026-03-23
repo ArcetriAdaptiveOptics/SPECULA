@@ -223,14 +223,12 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
         coords = coordinates
     else:
         coords = coordinates
+        slave_mat = xp.zeros((n_act_tot, n_act_tot), dtype=dtype)
 
     ifs_2d = xp.array([ifs_cube[i][idx] for i in range(n_act_tot)], dtype=dtype)
 
     print("\nComputation completed.")
 
-    # If do_slaving=False, slave_mat might not be defined. Handle safely:
-    if not do_slaving:
-        slave_mat = xp.zeros((n_act_tot, n_act_tot), dtype=dtype)
     return ifs_2d, mask, coords, slave_mat
 
 

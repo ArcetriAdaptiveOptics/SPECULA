@@ -23,25 +23,25 @@ class ZwfsSlopec(Slopec):
     """
     
     def __init__(self,
-                 diameter: int,
-                 ccd_size: tuple,
+                 pup_diam: float,
+                 ccd_size: int,
                  obsratio:float = None,
                  sn: Slopes=None,
                  target_device_idx: int=None,
-                 thr_value: float=0,
+                 thr_value: float=0.0,
                  precision: int=None):
 
-        cx = ccd_size[1]/2
-        cy = ccd_size[0]/2
+        cx = ccd_size/2
+        cy = ccd_size/2
 
-        _,ids = make_mask(np_size=ccd_size[0], diaratio = diameter/float(ccd_size[0]), obsratio=obsratio,get_idx=True)
-        mask_ids = ids[0]*ccd_size[1]+ids[1]
+        _,ids = make_mask(np_size=ccd_size, diaratio = pup_diam/float(ccd_size), obsratio=obsratio,get_idx=True)
+        mask_ids = ids[0]*ccd_size+ids[1]
 
         self.pupdata = PupData(
             ind_pup=mask_ids,
-            radius=diameter/2,
+            radius=pup_diam/2,
             cx=cx,cy=cy,
-            framesize=ccd_size,
+            framesize=[ccd_size,ccd_size],
             target_device_idx=target_device_idx
         )
         self.pupdata.set_slopes_from_intensity()
@@ -65,14 +65,13 @@ class ZwfsSlopec(Slopec):
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
-        self.flat_pixels = self.local_inputs['in_pixels'].pixels.flatten()
+        self.flat_pixels = self.to_xp(self.local_inputs['in_pixels'].pixels).flatten().astype(self.dtype)
 
     def trigger_code(self):
-
         self.flat_pixels -= self.threshold
 
-        clamp_generic_less(0,0,self.flat_pixels, xp=self.xp) # unsure wheter this is required
-        metaintensity = self.flat_pixels[self.pup_idx].astype(self.xp.float32)
+        # clamp_generic_less(0,0,self.flat_pixels, xp=self.xp) # unsure wheter this is required
+        metaintensity = self.flat_pixels[self.pup_idx].astype(self.dtype)
         self.flux_per_subaperture_vector.value[:] = metaintensity
 
         # Compute total intensity
@@ -80,7 +79,7 @@ class ZwfsSlopec(Slopec):
         self.total_counts.value[0] = self.total_intensity
         self.subap_counts.value[0] = self.total_intensity / self.nsubaps()
 
-        norm_factor = self.total_intensity / self.nsubaps()
+        norm_factor = self.xp.sum(metaintensity) / self.nsubaps()
         self.slopes.slopes = metaintensity / norm_factor
 
     def post_trigger(self):

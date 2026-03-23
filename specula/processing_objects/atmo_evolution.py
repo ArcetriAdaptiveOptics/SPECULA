@@ -161,7 +161,7 @@ class AtmoEvolution(BaseProcessingObj):
         self.pixel_phasescreens = int(self.xp.max(self.pixel_layer))
         temp_screens = []
 
-        if len(self.xp.unique(self.L0)) == 1:
+        if len(self.xp.unique(self.to_xp(self.L0))) == 1:
             # Number of rectangular phase screens from a single square phasescreen
             n_ps_from_square_ps = self.xp.floor(
                 self.pixel_square_phasescreens / self.pixel_phasescreens
