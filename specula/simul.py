@@ -771,9 +771,14 @@ class Simul():
         print('overrides:', self.overrides)
         if len(self.overrides) > 0:
             for k, v in yaml.full_load(self.overrides).items():
-                obj_name, param_name = k.split('.')
-                params[obj_name][param_name] = v
-                print(obj_name, param_name, v)
+                try:
+                    obj_name, param_name = k.split('.')
+                    params[obj_name][param_name] = v
+                    print(obj_name, param_name, v)
+                except ValueError:
+                    obj_name, param_name, subparam_name = k.split('.')
+                    params[obj_name][param_name][subparam_name] = v
+                    print(obj_name, param_name, subparam_name, v)
 
     def arrangeInGrid(self, trigger_order, trigger_order_idx):
         rows = []

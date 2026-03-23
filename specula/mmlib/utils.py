@@ -23,7 +23,7 @@ def von_karman_power(k,r0,L0,D):
     B = k**2 + (D/L0)**2
     return C * (r0/D)**(-5.0/3.0) * B**(-11.0/6.0)
 
-def get_pupil_mask(filepath:str,npix:int, pyr:bool=True):
+def get_pupil_mask(npix:int, filepath:str='', pyr:bool=True, pupdiam=None, obsratio=0.0):
     if pyr:
         np_size = (npix,npix)
         pup_hdu = fits.open(filepath)
@@ -36,7 +36,7 @@ def get_pupil_mask(filepath:str,npix:int, pyr:bool=True):
             f2d = f.reshape(np_size)
             wfs_mask += f2d
     else:
-        wfs_mask = make_mask(np_size=npix, diaratio = 48/npix, obsratio=0.0)
+        wfs_mask = make_mask(np_size=npix, diaratio = pupdiam/npix, obsratio=obsratio)
     return wfs_mask.astype(bool)
 
 

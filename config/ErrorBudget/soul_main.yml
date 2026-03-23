@@ -99,7 +99,7 @@ ocam:
 
 pyr_slopes:
   class:                  'PyrSlopec'
-  pupdata_object:         'pyr_pupdata'           
+  pupdata_object:         'pyr_pupdata_40x40'           
   # slopes_from_intensity:  true
   # sn_object:            'pyr3.0_slope_null'
   inputs:

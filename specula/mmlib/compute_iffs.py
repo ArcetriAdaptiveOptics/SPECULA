@@ -5,6 +5,7 @@ import numpy as np
 import os
 from specula.lib.compute_zonal_ifunc import compute_zonal_ifunc
 from specula.lib.modal_base_generator import make_modal_base_from_ifs_fft
+from specula.lib.make_mask import make_mask
 from specula.data_objects.ifunc import IFunc
 from specula.data_objects.ifunc_inv import IFuncInv
 from specula.data_objects.recmat import Recmat
@@ -25,6 +26,9 @@ def compute_and_save_influence_functions(root_dir:str, tag:str, pupil_pixels:int
     # create calibration directory if it doesn't exist
     os.makedirs(root_dir, exist_ok=True)
 
+    # initialize calibration manager
+    calib_manager = CalibManager(root_dir)
+
     # tags
     ifunc_tag = tag+'_ifunc'
     m2c_tag = tag+'_m2c'
@@ -34,17 +38,15 @@ def compute_and_save_influence_functions(root_dir:str, tag:str, pupil_pixels:int
     m2c_filename = calib_manager.filename('m2c', m2c_tag)
     base_inv_filename = calib_manager.filename('ifunc', base_inv_tag)
 
-    try:
-        kl_basis_inv = IFuncInv.restore(base_inv_filename)
-        ifunc = IFunc.restore(ifunc_filename)
-        m2c = M2C.restore(m2c_filename)
-        print("Files already exist - skipping computation")
-        return
-    except FileNotFoundError:
-        pass
+    # try:
+    #     kl_basis_inv = IFuncInv.restore(base_inv_filename)
+    #     ifunc = IFunc.restore(ifunc_filename)
+    #     m2c = M2C.restore(m2c_filename)
+    #     print("Files already exist - skipping computation")
+    #     return
+    # except FileNotFoundError:
+    #     pass
 
-    # initialize calibration manager
-    calib_manager = CalibManager(root_dir)
 
     # DM and pupil parameters for VLT-like telescope
     pupil_pixels = pupil_pixels
@@ -76,6 +78,8 @@ def compute_and_save_influence_functions(root_dir:str, tag:str, pupil_pixels:int
         fname = os.path.join(root_dir,'pupilstop/'+pupil_mask_tag+f'_{Npix:1.0f}pixels.fits')
         hdu = fits.open(fname)
         pupil_mask = hdu[1].data
+    else:
+        pupil_mask = make_mask(np_size=Npix, diaratio=1.0, obsratio=obsratio)
 
     # Step 1: Generate zonal influence functions
     influence_functions,mask,coords,slaveMat = compute_zonal_ifunc(
@@ -279,6 +283,7 @@ def compute_and_save_dcao_matrix(root_dir,first_stage_tag:str, second_stage_tag:
     m1_to_m2 = np.linalg.pinv(m2s_2[:,:N2_modes]) @ m2s_1[:,:N1_modes]
 
     m2m_obj = Recmat(recmat=m1_to_m2)
+    os.makedirs(os.path.join(root_dir,'rec'),exist_ok=True)
     m2m_filename = calib_manager.filename('rec', first_stage_tag+f'_{N1_modes}modes_to_'+second_stage_tag+f'_{N2_modes}modes')
     m2m_obj.save(m2m_filename, overwrite=True)
     print("Saved " + m2m_filename)
@@ -289,12 +294,15 @@ def compute_and_save_dcao_matrix(root_dir,first_stage_tag:str, second_stage_tag:
 
 
 if __name__ == "__main__":
-    root_dir = '/raid1/mmenessini/calibration/SOUL'
+    root_dir = '/raid1/mmenessini/calibration/XAO'
     Npix = 160
-    compute_and_save_influence_functions(root_dir,tag='bmc2k_vlt', pupil_pixels=Npix, n_acts=50,
-                                          geom='alpao', r0=10e-2, obsratio=0.0, pupil_mask_tag='vlt_pupil')
-    compute_and_save_influence_functions(root_dir,tag='dm241_vlt', pupil_pixels=Npix, n_acts=17,
-                                          geom='alpao', r0=10e-2, obsratio=0.0, pupil_mask_tag='vlt_pupil')
+    # compute_and_save_influence_functions(root_dir,tag='bmc2k_vlt', pupil_pixels=Npix, n_acts=50,
+    #                                       geom='alpao', r0=10e-2, obsratio=0.0, pupil_mask_tag='vlt_pupil')
+    # compute_and_save_influence_functions(root_dir,tag='dm241_vlt', pupil_pixels=Npix, n_acts=17,
+    #                                       geom='alpao', r0=10e-2, obsratio=0.0, pupil_mask_tag='vlt_pupil')
     compute_and_save_dcao_matrix(root_dir,first_stage_tag='bmc2k_vlt',second_stage_tag='dm241_vlt',N1_modes=1300,N2_modes=150)
 
-
+    root_dir = '/raid1/mmenessini/calibration/SOUL'
+    Npix = 160
+    compute_and_save_influence_functions(root_dir,tag='asm', pupil_pixels=Npix, n_acts=30,
+                                          geom='circular', r0=10e-2, obsratio=0.0, D=8.4)

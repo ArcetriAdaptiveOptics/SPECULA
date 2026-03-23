@@ -11,7 +11,7 @@ from specula.data_objects.pupilstop import Pupilstop
 from specula.data_objects.simul_params import SimulParams
 
 def save_pupil_to_size(data_dir:str, destination_dir:str, tag:str, Npix:int, thr:float=0.5, D:float=8.2):
-    hdu = fits.open(os.path.join(data_dir, 'telescope', tag+'_512pixels.fits'))
+    hdu = fits.open(os.path.join(data_dir, tag+'_512pixels.fits'))
     data = hdu[0].data
     pupil = data[:,:,0]
     new_pupil = toccd(pupil,(Npix,Npix),xp=specula.xp)
@@ -28,7 +28,7 @@ def save_pupil_to_size(data_dir:str, destination_dir:str, tag:str, Npix:int, thr
 if __name__ == "__main__":
 
     data_dir = '/raid1/mmenessini/calibration/VLT'
-    destination_dir = '/raid1/mmenessini/calibration/pupilstop'
+    destination_dir = '/raid1/mmenessini/calibration/XAO/pupilstop'
     tag = 'vlt_pupil'
     Npix = 160
     aperture=save_pupil_to_size(data_dir, destination_dir, tag, Npix, thr=0.69)

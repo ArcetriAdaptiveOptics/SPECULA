@@ -41,11 +41,11 @@ ocam2_override:
   readout_noise:  false                   # No read noise
   excess_noise:   false                   # No excess noise
 
-data_store_override:
-  class:             'DataStore'
-  store_dir:         './calibration/slopenulls'            # Data result directory: 'store_dir'/TN/
-  inputs:
-    input_list: [ 'z2.0wfs_frame-ocam2.out_pixels','pyr0.5_frame-cred1.out_pixels',]
+# data_store_override:
+#   class:             'DataStore'
+#   store_dir:         './calibration/slopenulls'            # Data result directory: 'store_dir'/TN/
+#   inputs:
+#     input_list: [ 'z2.0wfs_frame-ocam2.out_pixels','pyr0.5_frame-cred1.out_pixels',]
 
 # Remove closed-loop components (not needed for slope null)
 remove: ['atmo','seeing','wind_speed','wind_direction','atmo_modes', #'bootstrap', 'concat_wfs_modes', #'source_science',

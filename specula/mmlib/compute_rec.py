@@ -9,15 +9,16 @@ from specula.lib.mmse_reconstructor import compute_mmse_reconstructor
 
 def compute_and_save_rec(root_dir:str, im_tag:str, rec_tag:str, Nmodes:int, 
                 ml:bool=False, slope_null=None, RON:float=0.0, 
-                mmse:bool=False, diam:float=None):
+                mmse:bool=False, diam:float=None, overwrite:bool=False):
+    print(rec_tag,im_tag)
     rec = compute_rec(root_dir, im_tag, Nmodes, ml=ml, slope_null=slope_null, RON=RON, mmse=mmse, diam=diam)
-    save_rec(root_dir, rec, rec_tag, overwrite=False)
+    save_rec(root_dir, rec, rec_tag, overwrite=overwrite)
 
 
 def compute_rec(root_dir:str, im_tag:str, Nmodes:int, 
                 ml:bool=False, slope_null=None, RON:float=0.0, 
                 mmse:bool=False, diam:float=None):    
-    im_hdul = fits.open(os.path.join(root_dir,'im',im_tag+'_im.fits'))
+    im_hdul = fits.open(os.path.join(root_dir,'im',im_tag+'.fits'))
     intmat = im_hdul[1].data.copy()
     D = intmat[:,:Nmodes]
     if ml or mmse:
@@ -40,7 +41,7 @@ def save_rec(root_dir:str, rec, rec_tag:str, overwrite:bool=False):
     path = os.path.join(root_dir,'rec')
     if not os.path.exists(path):
         os.mkdir(path)
-    filename = os.path.join(path,rec_tag+'_rec.fits')
+    filename = os.path.join(path,rec_tag+'.fits')
     hdr = fits.Header()
     hdr['VERSION'] = 1
     hdr['PUP_TAG'] = ''

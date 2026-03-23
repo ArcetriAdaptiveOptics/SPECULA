@@ -18,10 +18,10 @@ ocam_override:
   readout_noise:  false                   # No read noise
   excess_noise:   false                   # No excess noise
 
-data_store_override:
-  store_dir:         '/raid1/mmenessini/calibration/SOUL/scratch_frames'             # Data result directory: 'store_dir'/TN/
-  inputs:
-    input_list: ['pyr3.0_frame_null-ocam.out_pixels']
+# data_store_override:
+#   store_dir:         '/raid1/mmenessini/calibration/SOUL/frames'             # Data result directory: 'store_dir'/TN/
+#   inputs:
+#     input_list: ['pyr3.0_frame_null-ocam.out_pixels']
 
 # Remove closed-loop components (not needed for slope null)
 remove: ['atmo','seeing','wind_speed','wind_direction','atmo_modes', #'data_store',
