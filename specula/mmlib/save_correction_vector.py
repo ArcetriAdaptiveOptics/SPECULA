@@ -9,7 +9,7 @@ def save_correction_vector(min_corr:float,max_corr:float,
         Ncorrmodes = Nmodes
     cc = np.linspace(max_corr,min_corr,max_rad_order-2)
     tt = np.hstack([np.repeat(cc[i-2],i) for i in range(2,max_rad_order)])
-    residuals = np.ones(Nmodes)
+    residuals = np.zeros(Nmodes)
     residuals[:Ncorrmodes] = tt[:Ncorrmodes]
     
     dirpath = '/raid1/mmenessini/calibration/SOUL/data/'
@@ -25,7 +25,7 @@ def save_correction_vector(min_corr:float,max_corr:float,
 
 
 if __name__ == "__main__":
-    Ncorrmodes = 600
+    Ncorrmodes = 500
     save_correction_vector(max_corr=0.99,min_corr=0.2,Ncorrmodes=Ncorrmodes)
     save_correction_vector(max_corr=0.9,min_corr=0.2,Ncorrmodes=Ncorrmodes)
     save_correction_vector(max_corr=0.85,min_corr=0.2,Ncorrmodes=Ncorrmodes)

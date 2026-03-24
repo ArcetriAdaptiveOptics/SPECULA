@@ -4,7 +4,7 @@
 # Push-pull command generator
 pushpull:
   class:        'PushPullGenerator'
-  nmodes:       660                         # Number of DM actuators
+  # nmodes:       660                         # Number of DM actuators
   amp:          10  
   ncycles:      100
   # constant_amp: true
@@ -13,17 +13,17 @@ pushpull:
 # Interaction matrix calibrator
 pyr_im_calibrator:
   class:     'ImCalibrator'
-  nmodes:    660                         # Number of modes to calibrate
-  im_tag:    'pyr3.0_s1.4_c0.9_im'            # Output IM filename
+  # nmodes:    660                         # Number of modes to calibrate
+  # im_tag:    'pyr3.0_s1.4_c0.9_im'            # Output IM filename
   overwrite: false                         # Overwrite existing files
   inputs:
     in_slopes:   'pyr_slopes.out_slopes'      # WFS slopes input
     in_commands: 'pushpull.output'        # Push-pull commands
 
-# Override main simulation parameters
-main_override:
-  # time_step: 0.0005
-  total_time: 77.616                 # 660 modes × 2 (push+pull) × 0.000588s x 100 cycles
+# # Override main simulation parameters
+# main_override:
+#   # time_step: 0.0005
+#   total_time: 77.616                 # 660 modes × 2 (push+pull) × 0.000588s x 100 cycles
 
 ################################## ATMO RESIDUAL #####################################
 seeing_random:
@@ -67,7 +67,7 @@ dm_random:
   simul_params_ref:  'main'
   ifunc_object:      'asm_ifunc'      # Our computed influence functions
   m2c_object:        'asm_m2c'        # Modal-to-command matrix
-  nmodes:            660            # Number of controlled modes
+  # nmodes:            660            # Number of controlled modes
   height:            0.0                # Ground-conjugated DM
   inputs:
     in_command: 'scale_random.out_value'
@@ -92,12 +92,12 @@ ef_mode:
 # Override DM to use calibration commands
 dm_override:
   sign: 1                                 # Use positive sign for calibration (default is -1)
-  nmodes: 660                            # Use all modes for calibration
+  # nmodes: 660                            # Use all modes for calibration
   inputs:
     in_command: 'pushpull.output'         # Connect to push-pull generator
 
 pyr_override:
-  mod_amp: 3.0
+  # mod_amp: 3.0
   inputs: 
     in_ef: 'ef_mode.out_ef'
 
