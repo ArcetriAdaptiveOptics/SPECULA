@@ -1,5 +1,7 @@
 import os
 import specula
+specula.init(0)
+
 import numpy as np
 from astropy.io import fits
 

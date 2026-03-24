@@ -108,7 +108,7 @@ pyr_slopes:
 
 pyr_modalrec:
   class:             'Modalrec'
-  recmat_object:     'pyr3.0_500modes_rec'        
+  recmat_object:     'pyr3.0_40x40_660modes_rec'        
   inputs:
     in_slopes:       'pyr_slopes.out_slopes'
   outputs:           ['out_modes']

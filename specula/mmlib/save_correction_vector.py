@@ -3,7 +3,7 @@ from astropy.io import fits
 import os
 
 def save_correction_vector(min_corr:float,max_corr:float,
-                        max_rad_order:int=35,Nmodes:int=630,
+                        max_rad_order:int=36,Nmodes:int=660,
                         Ncorrmodes:int=None):
     if Ncorrmodes is None:
         Ncorrmodes = Nmodes
@@ -25,9 +25,8 @@ def save_correction_vector(min_corr:float,max_corr:float,
 
 
 if __name__ == "__main__":
-    min_corr = 0.01
-    Ncorrmodes = 500
-    save_correction_vector(max_corr=0.99,min_corr=min_corr,Ncorrmodes=Ncorrmodes)
-    save_correction_vector(max_corr=0.9,min_corr=min_corr,Ncorrmodes=Ncorrmodes)
-    save_correction_vector(max_corr=0.85,min_corr=min_corr,Ncorrmodes=Ncorrmodes)
-    save_correction_vector(max_corr=0.8,min_corr=min_corr,Ncorrmodes=Ncorrmodes)
+    Ncorrmodes = 600
+    save_correction_vector(max_corr=0.99,min_corr=0.2,Ncorrmodes=Ncorrmodes)
+    save_correction_vector(max_corr=0.9,min_corr=0.2,Ncorrmodes=Ncorrmodes)
+    save_correction_vector(max_corr=0.85,min_corr=0.2,Ncorrmodes=Ncorrmodes)
+    save_correction_vector(max_corr=0.8,min_corr=0.2,Ncorrmodes=Ncorrmodes)

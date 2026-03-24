@@ -1,5 +1,7 @@
 import os
 import specula
+specula.init(0)
+
 import numpy as np
 from astropy.io import fits
 
@@ -10,7 +12,7 @@ from specula.mmlib.compute_rec import compute_and_save_rec
 
 rMods = np.array([2,3,4,5,6])
 n_subaps = np.array([10,20,40])
-n_modes = np.array([54,240,660])
+n_modes = np.array([54,120,660])
 seeings = np.array([0.6,0.8,1.0,1.2,1.4])
 
 max_pup_dist = 48
@@ -19,7 +21,7 @@ min_pup_dist = 14
 npix = 120
 
 main_config = 'soul_main.yml'
-root_dir='/raid1/mmenessini/calibration/SOUL/'
+root_dir='/raid1/mmenessini/calibration/SOUL'
 
 
 # 1. Calibrate pupdata vs n_subaps
@@ -32,8 +34,9 @@ for n_subap in n_subaps:
                 "}")
     write_yaml_overrides(input_string=overrides)
     try:
-        specula.main_simul(yml_files=[main_config, 'calib_pupdata.yml'], overrides=overrides)
-    except OSError:
+        os.system(f"specula {main_config} calib_pupdata.yml temp_overrides.yml")
+        # specula.main_simul(yml_files=[main_config, 'calib_pupdata.yml'], overrides=overrides)
+    except FileExistsError: #OSError:
         pass
 
 # 2. Calibrate sn vs n_subaps, rMods
@@ -52,8 +55,9 @@ for n_subap in n_subaps:
                     "}")
         write_yaml_overrides(input_string=overrides)
         try:
-            specula.main_simul(yml_files=[main_config, 'calib_sn.yml'], overrides=overrides)
-        except OSError:
+            os.system(f"specula {main_config} calib_sn.yml temp_overrides.yml")
+            # specula.main_simul(yml_files=[main_config, 'calib_sn.yml'], overrides=overrides)
+        except FileExistsError: #OSError:
             pass
 
 # 2.5 compute sensor throughput
@@ -81,9 +85,11 @@ for i,n_subap in enumerate(n_subaps):
                     f"pyr_slopes.pupdata_object: 'pyr_pupdata_{n_subap:.0f}x{n_subap:.0f}', "
                     f"pyr_im_calibrator.im_tag: 'pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_im', "
                     "}")
+        write_yaml_overrides(input_string=overrides)
         try:
-            specula.main_simul(yml_files=[main_config, 'calib_im.yml'], overrides=overrides)
-        except OSError:
+            os.system(f"specula {main_config} calib_im.yml temp_overrides.yml")
+            # specula.main_simul(yml_files=[main_config, 'calib_im.yml'], overrides=overrides)
+        except FileExistsError: #OSError:
             pass
         for N in n_modes[:i]:
             rec_tag = tag+f'_{N:1.0f}modes_rec'
@@ -103,16 +109,22 @@ for i,n_subap in enumerate(n_subaps):
                             f"pyr.pup_diam: {n_subap:.1f}, "
                             f"pyr.pup_dist: {pup_dist:.1f}, "
                             f"pyr.mod_amp: {rMod:.1f}, "
+                            f"pyr_modalrec.recmat_object: 'pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_{N:1.0f}modes_rec', "
                             f"pyr_slopes.pupdata_object: 'pyr_pupdata_{n_subap:.0f}x{n_subap:.0f}', "
                             f"seeing.constant: {seeing:1.1f}, "
                             f"perfect_dm.nmodes: {N:1.0f}, "
                             "}")
-                specula.main_simul(yml_files=[main_config, 'calib_aliasing.yml'], overrides=overrides)
-                alias_modes = fits.getdata(os.path.join(root_dir,'scratch_aliasing','pyr_modes.fits'))
-                psd,f = get_psd(alias_modes.T, nperseg=1024, dt=1/fs)
-                tag = f'pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_s{seeing:1.1f}_{N:1.0f}modes_alias_PSD'
-                fits.writeto(os.path.join(aliaspath,tag+'.fits'),psd)
-                print('Saved aliasing PSD as: '+tag)
+                write_yaml_overrides(input_string=overrides)
+                try:
+                    os.system(f"specula {main_config} calib_aliasing.yml temp_overrides.yml")
+                    # specula.main_simul(yml_files=[main_config, 'calib_aliasing.yml'], overrides=overrides) #
+                    alias_modes = fits.getdata(os.path.join(root_dir,'scratch_aliasing','pyr_modes.fits'))
+                    psd,f = get_psd(alias_modes.T, nperseg=1024, dt=1/fs)
+                    tag = f'pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_s{seeing:1.1f}_{N:1.0f}modes_alias_PSD'
+                    fits.writeto(os.path.join(aliaspath,tag+'.fits'),psd,overwrite=True)
+                    print('Saved aliasing PSD as: '+tag)
+                except FileExistsError:
+                    pass
 
 
 # 4.5 Compute correction vectors for SIMPC
@@ -138,29 +150,17 @@ for i,n_subap in enumerate(n_subaps):
                         f"seeing_random.constant: {seeing:1.1f}, "
                         f"pyr_im_calibrator.im_tag: '{im_tag}', "
                         "}")
-            specula.main_simul(yml_files=[main_config, 'calib_simpc.yml'], overrides=overrides)
+            write_yaml_overrides(input_string=overrides)
+            try:
+                os.system(f"specula {main_config} calib_simpc.yml temp_overrides.yml")
+                # specula.main_simul(yml_files=[main_config, 'calib_simpc.yml'], overrides=overrides)
+                simpc = im = fits.getdata(os.path.join(root_dir,'im',simpc_tag+'.fits'))
+                og = np.diag(simpc.T @ im)/im_norm
+                fits.writeto(os.path.join(ogpath,tag+'_og.fits'))
+                print('Saved optical gains as: '+tag+'_og')
+                # for N in n_modes[:i]:
+                #     rec_tag = tag+f'_{N:1.0f}modes_rec'
+                #     compute_and_save_rec(root_dir, im_tag=im_tag, rec_tag=rec_tag, Nmodes=N)
+            except FileExistsError:
+                pass
 
-            simpc = im = fits.getdata(os.path.join(root_dir,'im',simpc_tag+'.fits'))
-            og = np.diag(simpc.T @ im)/im_norm
-            fits.writeto(os.path.join(ogpath,tag+'_og.fits'))
-            print('Saved optical gains as: '+tag+'_og')
-            # for N in n_modes[:i]:
-            #     rec_tag = tag+f'_{N:1.0f}modes_rec'
-            #     compute_and_save_rec(root_dir, im_tag=im_tag, rec_tag=rec_tag, Nmodes=N)
-
-
-
-# # Range of gains to test
-# gains = np.linspace(0.1, 1.0, 10) #(0.2, 0.9, 8)#
-# output_dir = "gain_override"
-# base_config = "xao_main.yml"
-
-# for gain in gains:
-#     overrides = ("{"
-#                 "main.total_time: 0.5, "
-#                 f"filter.iir_gain: {gain:.2f}, "
-#                 # f"filter.g_track: {gain:.2f}, "
-#                 f"data_store.store_dir: ./output/gain_opt/gain_{gain:.2f}"
-#                 "}")
-
-#     specula.main_simul(yml_files=[base_config], overrides=overrides)

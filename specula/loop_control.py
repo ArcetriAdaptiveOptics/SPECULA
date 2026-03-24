@@ -8,7 +8,7 @@ from specula import process_comm, process_rank, MPI_DBG
 
 class LoopControl(BaseTimeObj):
     def __init__(self, stepping=False, verbose=False):
-        super().__init__(target_device_idx=-1, precision=1)
+        super().__init__(target_device_idx=0, precision=1)
         self.trigger_lists = defaultdict(list)
         self.verbose = verbose
         self.run_time = None

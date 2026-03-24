@@ -52,7 +52,7 @@ def save_rec(root_dir:str, rec, rec_tag:str, overwrite:bool=False):
     hdul.append(fits.ImageHDU(data=cpuArray(rec), name='REC'))
     hdul.writeto(filename, overwrite=overwrite)
     hdul.close()
-    print('Reconstructor saved as '+rec_tag+'_rec')
+    print('Reconstructor saved as '+rec_tag)
 
 
 # def compute_pyr_rec(Nmodes:int, im_tag:str='pyr_1821modes', compute_ml:bool=False, frame_tag = '', cov_tag=None):

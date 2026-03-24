@@ -23,7 +23,7 @@ pyr_im_calibrator:
 # Override main simulation parameters
 main_override:
   # time_step: 0.0005
-  total_time: 74.088                 # 630 modes × 2 (push+pull) × 0.000588s x 100 cycles
+  total_time: 77.616                 # 660 modes × 2 (push+pull) × 0.000588s x 100 cycles
 
 ################################## ATMO RESIDUAL #####################################
 seeing_random:
@@ -49,14 +49,14 @@ atmo_random:
 modal_analysis_random:
   class: 'ModalAnalysis'
   ifunc_inv_object: 'asm_kl_inv'
+  nmodes: 660
   inputs:
     in_ef: 'atmo_random.out_source_ngs_ef'
   outputs: ['out_modes']
 
 scale_random:
   class:  'BaseOperation'
-  # constant_mul: 0.90                    # 90% correction level
-  constant_mul_data: 'correction_vector_500modes_c0.99' 
+  constant_mul_data: 'correction_vector_600modes_c0.99' 
   inputs:
     in_value1: 'modal_analysis_random.out_modes'
   outputs: ['out_value']
