@@ -13,7 +13,6 @@ from specula.lib.make_mask import make_mask
 from specula.data_objects.iir_filter_data import IirFilterData
 
 
-
 def radial_order(i_mode):
     noll = i_mode + 2
     return int(np.ceil(-3.0/2.0+np.sqrt(1+8*noll)/2.0))
@@ -41,7 +40,7 @@ def get_pupil_mask(npix:int, filepath:str='', pyr:bool=True, pupdiam=None, obsra
 
 
 def get_psd(data, dt:float, nperseg:int=1024):
-    f,psd=welch(data,fs=1/dt,nperseg=1024,scaling='density',axis=-1)
+    f,psd=welch(data,fs=1/dt,nperseg=nperseg,scaling='density',axis=-1)
     return psd,f
 
 
