@@ -10,18 +10,13 @@ pyr_override:
     in_ef: 'prop.out_source_ngs_ef'
 
 main_override:
-  total_time: 0.000588
+  total_time: 0.000588 # acquire single frame
 
 # Disable noise for clean measurements
 ocam_override:
   photon_noise:   false                   # No photon noise
   readout_noise:  false                   # No read noise
   excess_noise:   false                   # No excess noise
-
-# data_store_override:
-#   store_dir:         '/raid1/mmenessini/calibration/SOUL/frames'             # Data result directory: 'store_dir'/TN/
-#   inputs:
-#     input_list: ['pyr3.0_frame_null-ocam.out_pixels']
 
 # Remove closed-loop components (not needed for slope null)
 remove: ['atmo','seeing','wind_speed','wind_direction','atmo_modes', #'data_store',

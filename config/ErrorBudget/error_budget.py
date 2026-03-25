@@ -131,13 +131,14 @@ class AOErrorBudgetMachine:
     def wfs_noise_error(self, fs:float, magnitude:float, n_subap:int, rMod:float, n_modes:int, ogs=None):
         frame = fits.getdata(op.join(self.root_dir,'frames',f'pyr{rMod:1.1f}_{n_subap:1.0f}x{n_subap:1.0f}_frame_null.fits'))
         pyr_mask = get_pupil_mask(npix=max(frame.shape),filepath=op.join(self.root_dir,'pupils',f'pyr_pupdata_{n_subap:1.0f}x{n_subap:1.0f}.fits'))
-        sn_ri = frame[pyr_mask]
-        slope_var = self.slope_noise_variance(self, sn_ri, mag=magnitude, fs=fs, rMod=rMod, n_subap=n_subap)
+        sn = frame[pyr_mask]
+        slope_var = self.slope_noise_variance(self, sn, mag=magnitude, fs=fs, rMod=rMod, n_subap=n_subap)
         rec = self.get_rec(rMod=rMod, n_subap=n_subap, n_modes=n_modes)    
         flux = np.sum(frame)
         norm = np.mean(frame[pyr_mask.astype(bool)])/4
         norm_rec = rec / (norm / flux)
-        
+        sig2 = norm_rec @ slope_var @ norm_rec.T
+        return np.sqrt(sig2)
 
     def aliasing_error(self, r0:float, fs:float, n_modes:int, n_subap:int, rMod:float, mode_id:int=None):
         freq = self.get_freq_vec(fs)
