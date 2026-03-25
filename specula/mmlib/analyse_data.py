@@ -44,10 +44,10 @@ def plot_output_data(root_dir:str):
         params = yaml.safe_load(file)
         fs = 1.0/float(params['main']['time_step'])
         try:
-            filter_data_complex, delay_frames = get_control_data('filter',params=params)
+            filter_data_complex, delay_frames = get_control_data(root_dir,'filter',params=params)
         except:
-            filter_data1, delay_frames1 = get_control_data('filter1',params=params)
-            filter_data2, delay_frames2 = get_control_data('filter2',params=params)
+            filter_data1, delay_frames1 = get_control_data(root_dir,'filter1',params=params)
+            filter_data2, delay_frames2 = get_control_data(root_dir,'filter2',params=params)
             fs1 = 1.0/float(params['cred1']['dt'])
             fs2 = 1.0/float(params['cred2']['dt'])
             fs = np.max((fs1,fs2))
@@ -152,20 +152,20 @@ def plot_output_data(root_dir:str):
         turb_modes = res + comm
 
         dt = 1/fs
-        pol_psd, f = get_psd(turb_modes.T,dt=dt)#,interval=interval)
+        pol_psd, f = get_psd(pol_modes.T,dt=dt)#,interval=interval)
         res_psd, f = get_psd(res.T,dt=dt)#,interval=interval)
 
-        flims = [fs/init,1/dt/2]
+        flims = [0.1,1/dt/2]
         freq = np.logspace(-2,np.log10(fs/2),2000)
         nw_delay, dw_delay = filter_data_complex.discrete_delay_tf(delay_frames)
 
         lo_mode_ids = [0,1,2,3,20]
-        plt.figure()
+        plt.figure(figsize=(18,18))
         plt.subplot(2,2,1)
         for k,mode in enumerate(lo_mode_ids):
-            rtf = filter_data_complex.RTF(mode=mode, fs=fs, freq=freq, dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
             plt.loglog(f,pol_psd[mode,:]/np.min(pol_psd[mode,:][f<flims[-1]]),c=f'C{k}',label=f'Mode {mode:1.0f}')
-            plt.loglog(freq,rtf**-2,'--',c=f'C{k}',label='')
+            # rtf = filter_data_complex.RTF(mode=mode, fs=fs, freq=freq, dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
+            # plt.loglog(freq,rtf**-2,'--',c=f'C{k}',label='')
         plt.grid(which='both', alpha=0.3)
         # plt.xlabel('Frequency [Hz]')
         plt.legend()
@@ -185,9 +185,9 @@ def plot_output_data(root_dir:str):
         ho_mode_ids = [50,100,200,500,1000]
         plt.subplot(2,2,2)
         for k,mode in enumerate(ho_mode_ids):
-            rtf = filter_data_complex.RTF(mode=mode, fs=fs, freq=freq, dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
             plt.loglog(f,pol_psd[mode,:]/np.min(pol_psd[mode,:][f<flims[-1]]),c=f'C{k}',label=f'Mode {mode:1.0f}')
-            plt.loglog(freq,rtf**-2,'--',c=f'C{k}',label='')
+            # rtf = filter_data_complex.RTF(mode=mode, fs=fs, freq=freq, dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
+            # plt.loglog(freq,rtf**-2,'--',c=f'C{k}',label='')
         plt.grid(which='both', alpha=0.3)
         # plt.xlabel('Frequency [Hz]')
         plt.legend()
@@ -213,7 +213,7 @@ def plot_output_data(root_dir:str):
         # plt.xlabel('Frequency [Hz]')
         # plt.legend()
 
-    except KeyError:
+    except:
         print(f"dm_res.fits, pyr_res.fits or atmo_res.fits files not found in {data_dir}.")
 
     ################### PSF ########################
@@ -249,9 +249,25 @@ def plot_output_data(root_dir:str):
         zwfs_modes = data['zwfs_modes'][init+1:, :]
         Nmodes = pywfs_modes.shape[1]
         x = np.arange(Nmodes)+1
+
+        pyr_meas_std = np.std(pywfs_modes,axis=0)
+        zwfs_meas_std = np.std(zwfs_modes,axis=0)
+        modes_std = np.std(res[:,:Nmodes],axis=0)
+
+        # pyr_ogs = np.sqrt(np.mean((pywfs_modes/res[:,:Nmodes])**2,axis=0))
+        # zwfs_ogs = np.sqrt(np.mean((zwfs_modes/res[:,:Nmodes])**2,axis=0))
+        plt.figure(figsize=(12,5))
+        plt.subplot(1,2,1)
+        plt.plot(x, pyr_meas_std/modes_std,'--', c='C0', label='pyWFS')
+        plt.plot(x, zwfs_meas_std/modes_std,'--', c='C1',label='zWFS')
+        plt.title('mode STD: measured over true')
+        plt.xlabel('KL mode #')
+        plt.legend()
+        plt.xscale('log')
+        plt.grid()
         pyr_rec_rms = np.sqrt(np.mean((pywfs_modes-res[:,:Nmodes])**2,axis=0))
         zwfs_rec_rms = np.sqrt(np.mean((zwfs_modes-res[:,:Nmodes])**2,axis=0))
-        plt.figure()
+        plt.subplot(1,2,2)
         plt.plot(x, pyr_rec_rms, label='pyWFS')
         plt.plot(x, zwfs_rec_rms, label='zWFS')
         plt.title('Rec error temporal RMS')
@@ -268,12 +284,12 @@ def plot_output_data(root_dir:str):
 
     ################# PSF profiles #######################
     oversampling = 4
-    psf_dl = get_reference_psf(pupil_tag='vlt_pupil_160pixels',nd=oversampling)
+    psf_dl = get_reference_psf(root_dir=root_dir,pupil_tag='vlt_pupil_160pixels',nd=oversampling)
     rad_psf_dl, dist = computeRadialProfile(psf_dl)
     try:
         psf = data["psf"]
         psf = np.sqrt(np.mean(psf[init+1:]**2,axis=0))
-        coro_psf = data["coro_psf_std"]
+        coro_psf = data["coro_psf"]
         coro_psf = np.sqrt(np.mean(coro_psf[init+1:]**2,axis=0))
         rad_psf, dist = computeRadialProfile(psf)
         rad_cpsf, dist = computeRadialProfile(coro_psf)
@@ -336,6 +352,6 @@ def plot_output_data(root_dir:str):
 
 
 if __name__ == "__main__":
-    root_dir = '/raid1/mmenessini/results/SOUL'
+    root_dir = '/raid1/mmenessini/results/XAO'
     plot_output_data(root_dir=root_dir)
     plt.show()

@@ -1,0 +1,31 @@
+main_override:
+  total_time: 1.0
+
+gainramp:
+  class:             'ScheduleGenerator'
+  scheduled_values: [[0.2],[1.0]]
+  scheduled_times: [0.01]
+  modes_per_group: [1300]
+
+gfilter:
+  class:                'IirFilter'
+  simul_params_ref:     'main'
+  delay:                1 # Total temporal delay in time steps is this value +1
+  iir_filter_data_object:  'iirfilter_1300modes'
+  inputs:
+    delta_comm: 'pyr_modalrec.out_modes'  
+    gain_mod:   'gainramp.output'
+  outputs:  ['out_comm']
+
+dm_override:
+  inputs:
+    in_command:      'gfilter.out_comm'
+
+data_store_override:
+  class:             'DataStore'
+  create_tn: false
+  inputs:
+    input_list: ['sr-psf.out_sr']
+
+# Remove closed-loop components (not needed for slope null)
+remove: ['atmo_modes','dm_mode_res','coro_psf', 'filter']

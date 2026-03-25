@@ -1,5 +1,7 @@
-import specula
+# import specula
 import numpy as np
+import os
+from specula.mmlib.yaml_overrides import write_yaml_overrides
 
 # Range of gains to test
 gains = np.linspace(0.1, 1.0, 10) #(0.2, 0.9, 8)#
@@ -7,11 +9,11 @@ output_dir = "gain_override"
 base_config = "xao_main.yml"
 
 for gain in gains:
+    print(f'Testing gain {gain}')
     overrides = ("{"
-                "main.total_time: 0.5, "
-                f"filter.iir_gain: {gain:.2f}, "
-                # f"filter.g_track: {gain:.2f}, "
-                f"data_store.store_dir: ./output/gain_opt/gain_{gain:.2f}"
+                f"gainramp.scheduled_values: [[0.2],[{gain:.2f}]], "
+                f"gainramp.scheduled_times: [0.01], "
+                f"data_store.store_dir: '/raid1/mmenessini/results/XAO/gain_opt/gain_{gain:.2f}'"
                 "}")
-
-    specula.main_simul(yml_files=[base_config], overrides=overrides)
+    write_yaml_overrides(input_string=overrides)
+    os.system(f"specula {base_config} calib_gain.yml temp_overrides.yml")

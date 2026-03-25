@@ -6,7 +6,7 @@ import numpy as np
 from astropy.io import fits
 
 from specula.mmlib.yaml_overrides import write_yaml_overrides
-from specula.mmlib.utils import get_pupil_mask
+# from specula.mmlib.utils import get_pupil_mask
 from specula.mmlib.compute_rec import compute_and_save_rec
 
 
@@ -109,9 +109,9 @@ for i,n_subap in enumerate(n_subaps):
             # specula.main_simul(yml_files=[main_config, 'calib_im.yml'], overrides=overrides)
         except FileExistsError: #OSError:
             pass
-        for N in n_modes[:i]:
+        for N in n_modes[:i+1]:
             rec_tag = pyr_tag+f'_{N:1.0f}modes_rec'
-            compute_and_save_rec(root_dir, im_tag=pyr_im_tag, rec_tag=rec_tag, Nmodes=N)
+            compute_and_save_rec(root_dir, im_tag=pyr_im_tag, rec_tag=rec_tag, Nmodes=N, overwrite=True)
             rec_tag = zwfs_tag+f'_{N:1.0f}modes_rec'
-            compute_and_save_rec(root_dir, im_tag=zwfs_im_tag, rec_tag=rec_tag, Nmodes=N)
+            compute_and_save_rec(root_dir, im_tag=zwfs_im_tag, rec_tag=rec_tag, Nmodes=N, overwrite=True)
 

@@ -7,7 +7,8 @@ from astropy.io import fits
 
 
 def plot_gain_optimization(root_dir:str, init:int=200):
-    dirs = sorted(glob.glob(os.path.join(root_dir, "gain_*/2*/")))
+    dirs = sorted(glob.glob(os.path.join(root_dir, "gain_opt/*")))
+    print(dirs,os.path.join(root_dir, "gain_opt/*"),root_dir)
 
     gains = []
     mean_sr = []

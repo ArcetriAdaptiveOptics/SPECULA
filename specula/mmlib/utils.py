@@ -16,7 +16,7 @@ from specula.data_objects.iir_filter_data import IirFilterData
 
 def radial_order(i_mode):
     noll = i_mode + 2
-    return np.ceil(-3.0/2.0+np.sqrt(1+8*noll)/2.0)
+    return int(np.ceil(-3.0/2.0+np.sqrt(1+8*noll)/2.0))
 
 def von_karman_power(k,r0,L0,D):
     C = 0.02289558710855519

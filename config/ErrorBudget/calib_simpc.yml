@@ -4,7 +4,7 @@
 # Push-pull command generator
 pushpull:
   class:        'PushPullGenerator'
-  # nmodes:       660                         # Number of DM actuators
+  nmodes:       660                         # Number of DM actuators
   amp:          10  
   ncycles:      100
   # constant_amp: true
@@ -13,77 +13,86 @@ pushpull:
 # Interaction matrix calibrator
 pyr_im_calibrator:
   class:     'ImCalibrator'
-  # nmodes:    660                         # Number of modes to calibrate
-  # im_tag:    'pyr3.0_s1.4_c0.9_im'            # Output IM filename
+  nmodes:    660                         # Number of modes to calibrate
+  im_tag:    'pyr3.0_s1.4_c0.9_im'            # Output IM filename
   overwrite: false                         # Overwrite existing files
   inputs:
     in_slopes:   'pyr_slopes.out_slopes'      # WFS slopes input
     in_commands: 'pushpull.output'        # Push-pull commands
 
-# # Override main simulation parameters
-# main_override:
-#   # time_step: 0.0005
-#   total_time: 77.616                 # 660 modes × 2 (push+pull) × 0.000588s x 100 cycles
+# Override main simulation parameters
+main_override:
+  total_time: 77.616                 # 660 modes × 2 (push+pull) × 0.000588s x 100 cycles
 
 ################################## ATMO RESIDUAL #####################################
-seeing_random:
-  class:             'RandomGenerator'
-  amp:               0.0                 # Variation amplitude [arcsec]
-  constant:          1.4                 # Mean seeing [arcsec]
-  distribution:      'UNIFORM'           # 
-  outputs: ['output']
+# seeing_random:
+#   class:             'RandomGenerator'
+#   amp:               0.0                 # Variation amplitude [arcsec]
+#   constant:          1.4                 # Mean seeing [arcsec]
+#   distribution:      'UNIFORM'           # 
+#   outputs: ['output']
 
-# Random atmospheric phase generator
-atmo_random:
-  class:                'AtmoRandomPhase'
-  simul_params_ref:     'main'
-  L0:                   25               # [m] Outer scale
-  source_dict_ref:      ['source_ngs']
-  update_interval:      2                 # Update after push-pull
-  inputs:
-    seeing:             'seeing_random.output'
-    pupilstop:          'pupilstop'
-  outputs:              ['out_source_ngs_ef']
+# # Random atmospheric phase generator
+# atmo_random:
+#   class:                'AtmoRandomPhase'
+#   simul_params_ref:     'main'
+#   L0:                   25               # [m] Outer scale
+#   source_dict_ref:      ['source_ngs']
+#   update_interval:      2                 # Update after push-pull
+#   inputs:
+#     seeing:             'seeing_random.output'
+#     pupilstop:          'pupilstop'
+#   outputs:              ['out_source_ngs_ef']
 
-# Modal decomposition of atmospheric phase
-modal_analysis_random:
-  class: 'ModalAnalysis'
-  ifunc_inv_object: 'asm_kl_inv'
-  nmodes: 660
-  inputs:
-    in_ef: 'atmo_random.out_source_ngs_ef'
-  outputs: ['out_modes']
+# # Modal decomposition of atmospheric phase
+# modal_analysis_random:
+#   class: 'ModalAnalysis'
+#   ifunc_inv_object: 'asm_kl_inv'
+#   nmodes: 660
+#   inputs:
+#     in_ef: 'atmo_random.out_source_ngs_ef'
+#   outputs: ['out_modes']
 
-scale_random:
-  class:  'BaseOperation'
-  constant_mul_data: 'correction_vector_600modes_c0.99' 
-  inputs:
-    in_value1: 'modal_analysis_random.out_modes'
-  outputs: ['out_value']
+# scale_random:
+#   class:  'BaseOperation'
+#   constant_mul_data: 'correction_vector_600modes_c0.99' 
+#   inputs:
+#     in_value1: 'modal_analysis_random.out_modes'
+#   outputs: ['out_value']
 
-# DM applying partial correction
-dm_random:
-  class: 'DM'
-  simul_params_ref:  'main'
-  ifunc_object:      'asm_ifunc'      # Our computed influence functions
-  m2c_object:        'asm_m2c'        # Modal-to-command matrix
-  # nmodes:            660            # Number of controlled modes
-  height:            0.0                # Ground-conjugated DM
-  inputs:
-    in_command: 'scale_random.out_value'
-  outputs: ['out_layer']
+# # DM applying partial correction
+# dm_random:
+#   class: 'DM'
+#   simul_params_ref:  'main'
+#   ifunc_object:      'asm_ifunc'      # Our computed influence functions
+#   m2c_object:        'asm_m2c'        # Modal-to-command matrix
+#   # nmodes:            660            # Number of controlled modes
+#   height:            0.0                # Ground-conjugated DM
+#   inputs:
+#     in_command: 'scale_random.out_value'
+#   outputs: ['out_layer']
+
+# atmo_pc:
+#   class: 'ElectricFieldCombinator'
+#   inputs:
+#     in_ef1: 'atmo_random.out_source_ngs_ef'    # Turbulence
+#     in_ef2: 'dm_random.out_layer'              # Partial correction
+#   outputs: ['out_ef']
 
 atmo_pc:
-  class: 'ElectricFieldCombinator'
+  class:              'PhaseScreenCube'
+  simul_params_ref:   'main'
+  file_name:          '/raid1/mmenessini/calibration/SOUL/phasescreens/phase_cubeNm.fits'
+  time_step:          0.000588 # same as main
+  pixel_scale:        0.0525 # same as main
+  source_dict_ref:    ['source_ngs']
   inputs:
-    in_ef1: 'atmo_random.out_source_ngs_ef'    # Turbulence
-    in_ef2: 'dm_random.out_layer'              # Partial correction
-  outputs: ['out_ef']
+    pupilstop:        ['pupilstop']
 
 ef_mode:
   class: 'ElectricFieldCombinator'
   inputs:
-    in_ef1: 'atmo_pc.out_ef'    # Partially corrected turbulence
+    in_ef1: 'atmo_pc.out_source_ngs_ef'    # Partially corrected turbulence
     in_ef2: 'dm.out_layer'      # Mode amplitudes
   outputs: ['out_ef']
 
@@ -92,7 +101,7 @@ ef_mode:
 # Override DM to use calibration commands
 dm_override:
   sign: 1                                 # Use positive sign for calibration (default is -1)
-  # nmodes: 660                            # Use all modes for calibration
+  nmodes: 660                            # Use all modes for calibration
   inputs:
     in_command: 'pushpull.output'         # Connect to push-pull generator
 
@@ -109,4 +118,4 @@ ocam_override:
 
 # Remove unnecessary objects during calibration
 remove: ['atmo','seeing','wind_speed','wind_direction','data_store','atmo_modes', #'source_science',
-        'dm_mode_res','filter','psf', 'ef_prop', 'prop','pyr_modalrec',] #, 'bootstrap', 'concat_wfs_modes'
+        'dm_mode_res','filter','psf', 'ef_prop', 'prop','pyr_modalrec'] #, 'bootstrap', 'concat_wfs_modes'

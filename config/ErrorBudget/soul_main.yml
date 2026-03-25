@@ -168,7 +168,7 @@ data_store:
   class:             'DataStore'
   store_dir:         '/raid1/mmenessini/results/SOUL'             # Data result directory: 'store_dir'/TN/
   inputs:
-    input_list: ['dm_cmd-filter.out_comm',
+    input_list: [
                   'sr-psf.out_sr',
                   'psf-psf.out_psf',
                   'psf_std-psf.out_std_psf',
