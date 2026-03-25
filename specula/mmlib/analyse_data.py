@@ -2,7 +2,7 @@ import os
 import glob
 import yaml
 import specula
-specula.init(-1)  # Default target device
+specula.init(0)  # Default target device
 
 from .utils import show_psf, get_control_data, get_psd, get_reference_psf
 from specula.lib.radial_profile import computeRadialProfile
@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 from specula.base_value import BaseValue
 
 
-def plot_output_data(root_dir:str):
+def plot_output_data(root_dir:str,calib_dir:str):
 
     # Find all directories in ./output starting with '20'
     dirs = [d for d in glob.glob(os.path.join(root_dir,"20*")) if os.path.isdir(d)]
@@ -44,16 +44,14 @@ def plot_output_data(root_dir:str):
         params = yaml.safe_load(file)
         fs = 1.0/float(params['main']['time_step'])
         try:
-            filter_data_complex, delay_frames = get_control_data(root_dir,'filter',params=params)
+            filter_data_complex, delay_frames = get_control_data(root_dir,calib_dir,'filter','gain_ramp',params=params)
         except:
-            filter_data1, delay_frames1 = get_control_data(root_dir,'filter1',params=params)
-            filter_data2, delay_frames2 = get_control_data(root_dir,'filter2',params=params)
+            filter_data1, delay_frames1 = get_control_data(root_dir,calib_dir,'filter1','gain_ramp',params=params)
+            filter_data2, delay_frames2 = get_control_data(root_dir,calib_dir,'filter2','gain_ramp',params=params)
             fs1 = 1.0/float(params['cred1']['dt'])
             fs2 = 1.0/float(params['cred2']['dt'])
-            fs = np.max((fs1,fs2))
-            print(fs)
 
-    init = int(0.1*fs)
+    init = int(1.0*fs)
 
     #################### SR ######################
     try:
@@ -96,8 +94,7 @@ def plot_output_data(root_dir:str):
         plt.plot(x,res_rms, '-.', label='AO residuals')
 
         corr = res_rms/turb_rms
-        root_dir = './calibration/'
-        dir_path = os.path.join(root_dir, 'data')
+        dir_path = os.path.join(calib_dir, 'data')
         os.makedirs(dir_path, exist_ok=True)
         fname = os.path.join(dir_path,f'correction_vector_{tn}.fits')
         bv = BaseValue(description='correction_level',value=corr)
@@ -284,7 +281,7 @@ def plot_output_data(root_dir:str):
 
     ################# PSF profiles #######################
     oversampling = 4
-    psf_dl = get_reference_psf(root_dir=root_dir,pupil_tag='vlt_pupil_160pixels',nd=oversampling)
+    psf_dl = get_reference_psf(root_dir=calib_dir,pupil_tag='vlt_pupil_160pixels',nd=oversampling)
     rad_psf_dl, dist = computeRadialProfile(psf_dl)
     try:
         psf = data["psf"]

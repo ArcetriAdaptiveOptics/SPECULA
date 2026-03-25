@@ -81,7 +81,7 @@ pyr:
   pup_diam:          48.                     # Pupil diameter in subaps.
   pup_dist:          60.                     # Separation between pupil centers in subaps.
   fov:               2.0                     # Requested field-of-view [arcsec]
-  mod_amp:           3.0                     # Modulation radius (in lambda/D units)
+  mod_amp:           1.0                     # Modulation radius (in lambda/D units)
   output_resolution: 120                      # Output sampling [usually corresponding to CCD pixels]
   wavelengthInNm:    750                     # [nm] Pyramid wavelength
   inputs:
@@ -107,14 +107,14 @@ pyr_slopes:
   class:                  'PyrSlopec'
   pupdata_object:         'pyr_pupdata_48x48'           
   slopes_from_intensity:  true
-  sn_object:            'pyr3.0_48x48_sn'
+  sn_object:            'pyr1.0_48x48_sn'
   inputs:
     in_pixels:        'cred1.out_pixels'
   outputs:           ['out_slopes']
 
 pyr_modalrec:
   class:             'Modalrec'
-  recmat_object:     'pyr3.0_48x48_1300modes_rec'        
+  recmat_object:     'pyr1.0_48x48_1300modes_rec'        
   inputs:
     in_slopes:       'pyr_slopes.out_slopes'
   outputs:           ['out_modes']
@@ -237,15 +237,15 @@ zwfs_modalrec:
 #     gain_mod: 'bootstrap.output'
 #   outputs:  ['out_comm']
 
-filter:
-  class:             'Integrator'
-  simul_params_ref:  'main'
-  delay:             1                     # 1 frame delay (realistic)
-  int_gain:          [0.4]
-  n_modes:           [1300]                 # Number of modes to control
-  inputs:
-    delta_comm:      'pyr_modalrec.out_modes' #
-  outputs:           ['out_comm']
+# filter:
+#   class:             'Integrator'
+#   simul_params_ref:  'main'
+#   delay:             1                     # 1 frame delay (realistic)
+#   int_gain:          [0.4]
+#   n_modes:           [1300]                 # Number of modes to control
+#   inputs:
+#     delta_comm:      'pyr_modalrec.out_modes' #
+#   outputs:           ['out_comm']
 
 # filter:
 #   class:                    'MultirateComplementaryFilter'
@@ -261,21 +261,21 @@ filter:
 #     in_yf: 'zwfs_modalrec.out_modes'  #'pyr0_modalrec.out_modes' #
 #   outputs:  ['out_comm']
 
-# gain_ramp:
-#   class:             'ScheduleGenerator'
-#   scheduled_values: [[0.2],[1.0]]
-#   scheduled_times: [0.01]
-#   modes_per_group: [1300]
+gain_ramp:
+  class:             'ScheduleGenerator'
+  scheduled_values: [[0.2],[0.5]]
+  scheduled_times: [0.01]
+  modes_per_group: [1300]
 
-# filter:
-#   class:                'IirFilter'
-#   simul_params_ref:     'main'
-#   delay:                1 # Total temporal delay in time steps is this value +1
-#   iir_filter_data_object:  'iirfilter_1300modes'
-#   inputs:
-#     delta_comm: 'pyr_modalrec.out_modes' #'ogc_modes.out_value' 
-#     gain_mod:   'gain_ramp.output'
-#   outputs:  ['out_comm']
+filter:
+  class:                'IirFilter'
+  simul_params_ref:     'main'
+  delay:                1 # Total temporal delay in time steps is this value +1
+  iir_filter_data_object:  'iirfilter_1300modes'
+  inputs:
+    delta_comm: 'pyr_modalrec.out_modes' #'ogc_modes.out_value' 
+    gain_mod:   'gain_ramp.output'
+  outputs:  ['out_comm']
 
 dm:
   class:             'DM'
@@ -297,7 +297,7 @@ psf:
   simul_params_ref:  'main'
   wavelengthInNm:    750                 # [nm] visible
   nd:                4                    # 4x padding for PSF
-  start_time:        0.5                  # Start PSF integration after 500ms
+  start_time:        1.0                  # Start PSF integration after 500ms
   verbose: false
   inputs:
     in_ef:           'ef_prop.out_ef'
@@ -308,7 +308,7 @@ coro_psf:
   simul_params_ref:  'main'
   wavelengthInNm:    750                 # [nm] visible
   nd:                4                    # 4x padding for PSF
-  start_time:        0.5                  # Start PSF integration after 500ms
+  start_time:        1.0                  # Start PSF integration after 500ms
   verbose: false
   use_average_field: false
   inputs:

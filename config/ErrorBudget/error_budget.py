@@ -9,10 +9,8 @@ class AOErrorBudgetMachine:
     A Semianalytical Error Budget Machine for AO systems with Pyramid WFS.
     Based on Agapito & Pinna (JATIS 2019).
     """
-    def __init__(self, base_path:str, controller: IirFilterData = None, 
-                 telescope_diameter=8.2, dm_type:str='asm', slopes_from_intensity:bool=False,
-                 throughput=0.3, delay_frames=2.0, obsratio=0.0, dm_cutoff_hz=None,
-                 RON:float=0.0, F_excess:float=1.0, dark_curr:float=0.0, sky_bkg:float=0.0 ):
+    def __init__(self, base_path:str, telescope_diameter=8.2, 
+                 throughput=0.3, obsratio=0.0, dm_type:str='asm'):
         
         self.root_dir = base_path
 
@@ -20,21 +18,33 @@ class AOErrorBudgetMachine:
         self.D = telescope_diameter
         self.dm_type = dm_type
         self.area = np.pi/4 * (self.D**2- (obsratio*self.D)**2)
+        self.throughput = throughput  
         
         # Control Loop & Hardware
-        self.delay_frames = delay_frames 
-        self.dm_cutoff_hz = dm_cutoff_hz # Hz (None for ideal DM)
-        self.controller = controller
+        self.delay_frames = None
+        self.dm_cutoff_hz = None
+        self.controller = None
 
         # Detector parameters
+        self.RON = None
+        self.F_excess = None
+        self.sky_bkg = None
+        self.dark_curr = None
+        self.slopes_from_intensity = None
+        
+
+    def set_control_parameters(self, controller:IirFilterData, delay_frames:float, dm_cutoff_hz:float=None):
+        self.controller = controller
+        self.delay_frames = delay_frames
+        self.dm_cutoff_hz = dm_cutoff_hz
+
+    def set_detector_parameters(self, RON:float, slopes_from_intensity:bool=False, 
+                                F_excess:float=1.0, sky_bkg:float=0.0, dark_curr:float=0.0):
         self.RON = RON 
-        self.throughput = throughput  
         self.F_excess = F_excess
         self.sky_bkg = sky_bkg
         self.dark_curr = dark_curr
         self.slopes_from_intensity = slopes_from_intensity
-        
-
 
     def get_rtf(self, mode:int, fs:float):
         freq = self.get_freq_vec()

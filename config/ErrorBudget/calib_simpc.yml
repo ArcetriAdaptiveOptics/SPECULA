@@ -83,7 +83,7 @@ atmo_pc:
   class:              'PhaseScreenCube'
   simul_params_ref:   'main'
   file_name:          '/raid1/mmenessini/calibration/SOUL/phasescreens/phase_cubeNm.fits'
-  time_step:          0.000588 # same as main
+  time_step:          1.0 # same as main
   pixel_scale:        0.0525 # same as main
   source_dict_ref:    ['source_ngs']
   inputs:
@@ -106,7 +106,6 @@ dm_override:
     in_command: 'pushpull.output'         # Connect to push-pull generator
 
 pyr_override:
-  # mod_amp: 3.0
   inputs: 
     in_ef: 'ef_mode.out_ef'
 

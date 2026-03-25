@@ -6,7 +6,7 @@ from astropy.io import fits
 from scipy.signal import welch
 
 import specula
-specula.init(-1)  # Default target device
+specula.init(0)  # Default target device
 
 from specula.lib.calc_psf import calc_psf
 from specula.lib.make_mask import make_mask
@@ -61,11 +61,11 @@ def read_freq(params_path:str, obj_name:str=None):
             fs = 1.0/float(params[obj_name]['dt'])
     return fs
 
-def get_control_data(root_dir:str,controller_name:str, params):
+def get_control_data(root_dir:str,calib_dir:str,controller_name:str, gain_mod_name:str, params):
     delay_frames = 1.0 + float(params[controller_name]['delay'])
     if params[controller_name]['class'] == 'IirFilter':
-        gain = float(params[controller_name]['iir_gain'])
-        iir_path = os.path.join(root_dir,'filter/',str(params[controller_name]['iir_filter_data_object'])+'.fits')
+        gain = float(params[gain_mod_name]['scheduled_values'][-1][0])
+        iir_path = os.path.join(calib_dir,'filter',str(params[controller_name]['iir_filter_data_object'])+'.fits')
         filter_data_complex = IirFilterData.restore(iir_path)
         filter_data_complex.num *= gain
     else:
