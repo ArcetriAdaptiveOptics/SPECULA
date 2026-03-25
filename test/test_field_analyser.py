@@ -5,7 +5,7 @@ import glob
 import pickle
 import yaml
 import specula
-specula.init(-1,precision=1)  # Default target device
+specula.init(0)  # Default target device
 
 from specula import np
 from specula.simul import Simul
@@ -67,6 +67,10 @@ class TestShSimulation(unittest.TestCase):
 
         for dirname in ['decimated_tn', 'decimated_pickle_tn', 'legacy_tn', 'legacy_pickle_tn']:
             path = os.path.join(self.datadir, dirname)
+            if os.path.isdir(path):
+                shutil.rmtree(path)
+
+        for path in glob.glob(os.path.join(self.datadir, 'modal_unit_*')):
             if os.path.isdir(path):
                 shutil.rmtree(path)
 
@@ -450,3 +454,177 @@ class TestShSimulation(unittest.TestCase):
         }
 
         analyzer._validate_replay_inputs_are_not_downsampled(replay_params)
+
+
+class TestModalParamsHandling(unittest.TestCase):
+    """Unit tests for the simplified modal_params pass-through to ModalAnalysis."""
+
+    def setUp(self):
+        self.datadir = os.path.join(os.path.dirname(__file__), 'data')
+        self._created_tn_dirs = []
+
+    def tearDown(self):
+        for tn_dir in self._created_tn_dirs:
+            if os.path.isdir(tn_dir):
+                shutil.rmtree(tn_dir)
+
+    def _make_analyzer(self, tn_name, pixel_pupil=8):
+        tn_dir = os.path.join(self.datadir, f'modal_unit_{tn_name}')
+        os.makedirs(tn_dir, exist_ok=True)
+        self._created_tn_dirs.append(tn_dir)
+        params = {
+            'main': {'class': 'SimulParams', 'pixel_pupil': pixel_pupil, 'pixel_pitch': 1.0},
+            'prop': {'class': 'AtmoPropagation'}
+        }
+        with open(os.path.join(tn_dir, 'params.yml'), 'w', encoding='utf-8') as f:
+            yaml.dump(params, f)
+        return FieldAnalyser(
+            data_dir=self.datadir,
+            tracking_number=f'modal_unit_{tn_name}',
+            polar_coordinates=np.array([[0.0, 0.0]]),
+            verbose=False
+        )
+
+    def _fake_replay_base(self):
+        return {
+            'main': {'pixel_pupil': 8},
+            'prop': {'class': 'AtmoPropagation'}
+        }
+
+    # ------------------------------------------------------------------
+    # _get_modal_filename
+    # ------------------------------------------------------------------
+
+    def test_modal_filename_with_ifunc_ref(self):
+        """ifunc_ref appears in filename; nmodes/type_str absent."""
+        analyzer = self._make_analyzer('filename_ifunc_ref')
+        source = {'polar_coordinates': [15.0, 45.0]}
+        fname = analyzer._get_modal_filename(source, {'ifunc_ref': 'my_ifunc', 'obsratio': 0.1})
+        self.assertIn('_ifrefmy_ifunc', fname)
+        self.assertIn('_obs0.10', fname)
+        self.assertNotIn('nmodes', fname)
+
+    def test_modal_filename_with_ifunc_inv_ref(self):
+        """ifunc_inv_ref appears in filename."""
+        analyzer = self._make_analyzer('filename_ifunc_inv_ref')
+        source = {'polar_coordinates': [0.0, 0.0]}
+        fname = analyzer._get_modal_filename(source, {'ifunc_inv_ref': 'my_ifunc_inv'})
+        self.assertIn('_ifinvrefmy_ifunc_inv', fname)
+
+    def test_modal_filename_legacy_nmodes(self):
+        """Legacy nmodes+type_str appear in filename as before."""
+        analyzer = self._make_analyzer('filename_legacy')
+        source = {'polar_coordinates': [0.0, 0.0]}
+        fname = analyzer._get_modal_filename(source, {'nmodes': 50, 'type_str': 'zernike'})
+        self.assertIn('_nmodes50', fname)
+        self.assertIn('_zernike', fname)
+
+    # ------------------------------------------------------------------
+    # _build_replay_params_modal  (patching I/O-heavy methods)
+    # ------------------------------------------------------------------
+
+    def test_build_replay_modal_with_ifunc_ref(self):
+        """ifunc_ref is passed to ModalAnalysis; no separate IFunc entry is created."""
+        from unittest.mock import patch
+        analyzer = self._make_analyzer('build_ifunc_ref')
+        with patch.object(analyzer, '_build_replay_params_from_datastore',
+                          return_value=self._fake_replay_base()), \
+             patch.object(analyzer, '_add_field_sources_to_params'):
+            result = analyzer._build_replay_params_modal(
+                {'ifunc_ref': 'my_ifunc', 'nmodes': 50}
+            )
+        ma = result['modal_analysis_0']
+        self.assertEqual(ma['class'], 'ModalAnalysis')
+        self.assertEqual(ma['ifunc_ref'], 'my_ifunc')
+        self.assertEqual(ma['nmodes'], 50)
+        self.assertNotIn('modal_analysis_ifunc', result)
+
+    def test_build_replay_modal_with_ifunc_inv_ref(self):
+        """ifunc_inv_ref is passed to ModalAnalysis."""
+        from unittest.mock import patch
+        analyzer = self._make_analyzer('build_ifunc_inv_ref')
+        with patch.object(analyzer, '_build_replay_params_from_datastore',
+                          return_value=self._fake_replay_base()), \
+             patch.object(analyzer, '_add_field_sources_to_params'):
+            result = analyzer._build_replay_params_modal({'ifunc_inv_ref': 'my_inv'})
+        ma = result['modal_analysis_0']
+        self.assertEqual(ma['ifunc_inv_ref'], 'my_inv')
+        self.assertNotIn('ifunc_ref', ma)
+
+    def test_build_replay_modal_with_type_str(self):
+        """Legacy type_str/nmodes/npixels/obsratio are forwarded verbatim."""
+        from unittest.mock import patch
+        analyzer = self._make_analyzer('build_type_str')
+        with patch.object(analyzer, '_build_replay_params_from_datastore',
+                          return_value=self._fake_replay_base()), \
+             patch.object(analyzer, '_add_field_sources_to_params'):
+            result = analyzer._build_replay_params_modal(
+                {'type_str': 'zernike', 'nmodes': 30, 'npixels': 8, 'obsratio': 0.2}
+            )
+        ma = result['modal_analysis_0']
+        self.assertEqual(ma['type_str'], 'zernike')
+        self.assertEqual(ma['nmodes'], 30)
+        self.assertEqual(ma['npixels'], 8)
+        self.assertEqual(ma['obsratio'], 0.2)
+        self.assertNotIn('ifunc_ref', ma)
+
+    # ------------------------------------------------------------------
+    # compute_modal_analysis  default-setting logic
+    # ------------------------------------------------------------------
+
+    def test_defaults_set_without_ifunc(self):
+        """Without ifunc_ref/ifunc_inv_ref, type_str, nmodes, npixels defaults are added."""
+        from unittest.mock import patch
+        analyzer = self._make_analyzer('defaults_no_ifunc')
+        modal_params = {}
+        with patch.object(analyzer, '_build_replay_params_modal',
+                          side_effect=RuntimeError('stop')):
+            try:
+                analyzer.compute_modal_analysis(modal_params=modal_params, force_recompute=True)
+            except RuntimeError:
+                pass
+        self.assertEqual(modal_params['type_str'], 'zernike')
+        self.assertEqual(modal_params['nmodes'], 100)
+        self.assertEqual(modal_params['npixels'], 8)  # from params.yml pixel_pupil
+
+    def test_no_defaults_with_ifunc_ref(self):
+        """With ifunc_ref, type_str/nmodes/npixels defaults are NOT added."""
+        from unittest.mock import patch
+        analyzer = self._make_analyzer('no_defaults_ifunc_ref')
+        modal_params = {'ifunc_ref': 'my_ifunc'}
+        with patch.object(analyzer, '_build_replay_params_modal',
+                          side_effect=RuntimeError('stop')):
+            try:
+                analyzer.compute_modal_analysis(modal_params=modal_params, force_recompute=True)
+            except RuntimeError:
+                pass
+        self.assertNotIn('type_str', modal_params)
+        self.assertNotIn('nmodes', modal_params)
+        self.assertNotIn('npixels', modal_params)
+
+    def test_no_defaults_with_ifunc_inv_ref(self):
+        """With ifunc_inv_ref, type_str/nmodes/npixels defaults are NOT added."""
+        from unittest.mock import patch
+        analyzer = self._make_analyzer('no_defaults_ifunc_inv_ref')
+        modal_params = {'ifunc_inv_ref': 'my_inv'}
+        with patch.object(analyzer, '_build_replay_params_modal',
+                          side_effect=RuntimeError('stop')):
+            try:
+                analyzer.compute_modal_analysis(modal_params=modal_params, force_recompute=True)
+            except RuntimeError:
+                pass
+        self.assertNotIn('type_str', modal_params)
+        self.assertNotIn('nmodes', modal_params)
+
+    def test_ifunc_string_alias_normalized_to_ifunc_ref(self):
+        """Legacy 'ifunc' string value is silently normalized to 'ifunc_ref'."""
+        from unittest.mock import patch
+        analyzer = self._make_analyzer('ifunc_alias')
+        modal_params = {'ifunc': 'my_ifunc'}
+        with patch.object(analyzer, '_build_replay_params_modal',
+                          side_effect=RuntimeError('stop')):
+            try:
+                analyzer.compute_modal_analysis(modal_params=modal_params, force_recompute=True)
+            except RuntimeError:
+                pass
+        self.assertEqual(modal_params.get('ifunc_ref'), 'my_ifunc')
