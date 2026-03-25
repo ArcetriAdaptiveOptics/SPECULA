@@ -2,7 +2,7 @@
 # ================================================
 # Override main simulation parameters
 main_override:
-  total_time: 7.056                # 12'000 frames
+  total_time: 11.76                # 20'000 frames x 0.000588 s
 
 ################################## ATMO RESIDUAL #####################################
 
@@ -43,10 +43,7 @@ data_store_override:
   store_dir:         '/raid1/mmenessini/calibration/SOUL/scratch_aliasing'             # Data result directory: 'store_dir'/TN/
   create_tn: false
   inputs:
-    input_list: [
-                  'atmo_res-atmo_modes.out_modes',
-                  'pyr_modes-pyr_modalrec.out_modes',
-                  ]
+    input_list: ['pyr_modes-pyr_modalrec.out_modes',]
 
 
 # Remove unnecessary objects during calibration

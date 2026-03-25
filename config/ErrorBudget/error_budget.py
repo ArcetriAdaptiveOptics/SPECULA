@@ -1,7 +1,11 @@
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 
+import os.path as op
+from astropy.io import fits
+
 from scipy.integrate import simpson
+from specula.mmlib.utils import radial_order, von_karman_power, get_pupil_mask
 from specula.data_objects.iir_filter_data import IirFilterData
 
 class AOErrorBudgetMachine:
@@ -9,7 +13,7 @@ class AOErrorBudgetMachine:
     A Semianalytical Error Budget Machine for AO systems with Pyramid WFS.
     Based on Agapito & Pinna (JATIS 2019).
     """
-    def __init__(self, base_path:str, telescope_diameter=8.2, 
+    def __init__(self, base_path:str, telescope_diameter=8.2, L0:float=25,
                  throughput=0.3, obsratio=0.0, dm_type:str='asm'):
         
         self.root_dir = base_path
@@ -19,6 +23,8 @@ class AOErrorBudgetMachine:
         self.dm_type = dm_type
         self.area = np.pi/4 * (self.D**2- (obsratio*self.D)**2)
         self.throughput = throughput  
+
+        self.L0 = L0
         
         # Control Loop & Hardware
         self.delay_frames = None
@@ -47,7 +53,7 @@ class AOErrorBudgetMachine:
         self.slopes_from_intensity = slopes_from_intensity
 
     def get_rtf(self, mode:int, fs:float):
-        freq = self.get_freq_vec()
+        freq = self.get_freq_vec(fs)
         nw_delay, dw_delay = self.controller.discrete_delay_tf(self.delay_frames)
         if self.dm_cutoff_hz is not None:
             lpf_obj = IirFilterData.lpf_from_fc(fc=self.dm_cutoff_hz, fs=fs, n_ord=4)
@@ -79,36 +85,114 @@ class AOErrorBudgetMachine:
     @staticmethod
     def rad2nm(rad, lambdaInM):
         return rad*lambdaInM/(2*np.pi)*1e+9
+    
+    @staticmethod
+    def r02seeing(r0):
+        return 0.98 * 500e-9/r0
+    
+    def analytical_atmo_psd(self,mode_id:int,r0:float,V:float,freq):
+        n = radial_order(i_mode=mode_id)
+        f_cut = 0.3 * (n+1) * V / self.D 
+        psd = np.ones_like(freq)
+        if n == 1:
+            psd[freq<=f_cut] = (freq[freq<=f_cut] / f_cut) ** (-2.0/3.0)
+        psd[freq>f_cut] = (freq[freq>f_cut] / f_cut) ** (-17.0/3.0)
+        vkp = von_karman_power(n/self.D, r0, self.L0, self.D) * (2*np.pi*500e-9)**2 # in m
+        psd *= vkp/simpson(psd,freq)
+        return psd
 
     def n_photons(self, frequency, magnitude):
         B0 = 1e+10
         flux = B0 * 10**(-magnitude/2.5) * self.area
         return flux * self.throughput / frequency
     
-    def pyr_thrp(self, rMod:float, n_subap:int):
-        raise NotImplementedError
+    def total_error(self, r0:float, n_modes:int, fs:float, V:float, n_subap:float, rMod:float, magnitude:float):
+        ogs = self.get_optical_gains(r0=r0,n_subap=n_subap,rMod=rMod)
+        fitInNm = self.fitting_error(r0=r0,n_modes=n_modes)
+        aliasInNm = self.aliasing_error(r0=r0,fs=fs,n_modes=n_modes,n_subap=n_subap,rMod=rMod)
+        WFSnoiseInNm = self.wfs_noise_error(fs=fs, magnitude=magnitude, n_subap=n_subap, rMod=rMod, ogs=ogs)
+        lagInNm2 = 0.0
+        for i in range(n_modes):
+            lagInNm2 += self.servo_lag_error(r0=r0, fs=fs, V=V, mode_id=i)**2
+        lagInNm = np.sqrt(lagInNm2)
+        totInNm = np.sqrt(fitInNm**2 + lagInNm**2 + WFSnoiseInNm**2 + aliasInNm**2)
+        error_budget = {'Total error [nm]': totInNm, 'Servo-lag error [nm]': lagInNm, 
+                        'Fitting error [nm]': fitInNm, 'Aliasing error [nm]': aliasInNm, 
+                        'WFS noise error [nm]': WFSnoiseInNm}
+        return totInNm, error_budget
+
 
     def fitting_error(self, r0:float, n_modes:int):
-        d_over_r0 = (self.D / r0)**(5/3)
+        d_over_r0 = self.D / r0
         if self.dm_type == "asm":
-            sigma2_fit = 0.2778 * (n_modes**-0.9) * d_over_r0
+            sigma2_fit = 0.2778 * (n_modes**-0.9) * d_over_r0**(5/3)
         else:
-            sigma2_fit = 0.2944 * (n_modes**(-5/6)) * d_over_r0
+            sigma2_fit = 0.2944 * n_modes**(-np.sqrt(3)/2) * d_over_r0**(5/3)
         return self.rad2nm(np.sqrt(sigma2_fit))
 
-    def servo_lag_error(self, r0:float, frequency:float):
-        raise NotImplementedError
+    def servo_lag_error(self, r0:float, fs:float, V:float, mode_id:int):
+        freq = self.get_freq_vec(fs)
+        atmo_psd = self.analytical_atmo_psd(mode_id, r0, V, freq)
+        rtf = self.get_rtf(mode=mode_id,fs=fs)
+        atmoResInM = simpson(atmo_psd * rtf**2, freq)
+        return np.sqrt(atmoResInM)*1e+9
     
-    def wfs_noise_error(self, frequency:float, magnitude:float, n_subaps:int, rMod:float):
-        raise NotImplementedError
+    def wfs_noise_error(self, fs:float, magnitude:float, n_subap:int, rMod:float, n_modes:int, ogs=None):
+        frame = fits.getdata(op.join(self.root_dir,'frames',f'pyr{rMod:1.1f}_{n_subap:1.0f}x{n_subap:1.0f}_frame_null.fits'))
+        pyr_mask = get_pupil_mask(npix=max(frame.shape),filepath=op.join(self.root_dir,'pupils',f'pyr_pupdata_{n_subap:1.0f}x{n_subap:1.0f}.fits'))
+        sn = frame[pyr_mask]
+        slope_var = self.slope_noise_variance(self, sn, mag=magnitude, fs=fs, rMod=rMod, n_subap=n_subap)
+        rec = self.get_rec(rMod=rMod, n_subap=n_subap, n_modes=n_modes)    
+        flux = np.sum(frame)
+        norm = np.mean(frame[pyr_mask.astype(bool)])/4
+        norm_rec = rec / (norm / flux)
+        sig2 = norm_rec @ slope_var @ norm_rec.T
+        return np.sqrt(sig2)
 
-    def aliasing_error(self, r0:float, n_modes:int, n_subaps:int, rMod:float):
-        raise NotImplementedError
+    def aliasing_error(self, r0:float, fs:float, n_modes:int, n_subap:int, rMod:float, mode_id:int=None):
+        freq = self.get_freq_vec(fs)
+        alias_psd = self.get_alias_psd(r0=r0,n_subap=n_subap,rMod=rMod,n_mdoes=n_modes)
+        if mode_id is not None:
+            ntf = self.get_ntf(mode=mode_id,fs=fs)
+            aliasResInM2 = simpson(alias_psd[mode_id] * ntf**2, freq)
+        else:
+            aliasResInM2 = 0.0        
+            for mode_id in n_modes:
+                ntf = self.get_ntf(mode=mode_id,fs=fs)
+                aliasResInM2 += simpson(alias_psd[mode_id] * ntf**2, freq)
+        return np.sqrt(aliasResInM2)*1e+9
 
+    def get_optical_gains(self,r0:float, n_subap:float, rMod:float):
+        try:
+            seeing = self.r02seeing(r0)
+            ogs = fits.getdata(op.join(self.root_dir,'optgains',f'pyr{rMod:1.1f}_{n_subap:1.0f}x{n_subap:1.0f}_s{seeing:1.1f}_og.fits'))
+        except FileNotFoundError:
+            ogs = 1.0
+        return ogs
+    
+    def get_alias_psd(self, r0:float, n_subap:float, rMod:float, n_modes:float):
+        seeing = self.r02seeing(r0)
+        alias_psd = fits.getdata(op.join(self.root_dir,'aliasing',f'pyr{rMod:1.1f}_{n_subap:1.0f}x{n_subap:1.0f}_s{seeing:1.1f}_{n_modes}modes_alias_PSD.fits'))
+        return alias_psd
+        
+    def get_pyr_thrp(self, rMod:float, n_subap:int):
+        try:
+            thrp = fits.getdata(op.join(self.root_dir, 'slopenulls', f'pyr{rMod:1.1f}_{n_subap:1.0f}x{n_subap:1.0f}_throughput.fits'))
+        except FileNotFoundError:
+            print('Pyramid throughput not found for this configuration')
+            thrp = 1.0
+        return thrp
+    
+    def get_rec(self, rMod:float, n_subap:float, n_modes:int):
+        im = fits.getdata(op.join(self.root_dir,'im',f'pyr{rMod:1.1f}_{n_subap:1.0f}x{n_subap:1.0f}_im.fits'))
+        D = im[:,:n_modes]
+        U,S,Vt = np.linalg.svd(D,full_matrices=False)
+        rec = (Vt.T * 1/S) @ U.T
+        return rec
 
     def slope_noise_variance(self, sn_ri, mag:float, fs:float, rMod:float, n_subap:int):
         n_subaps = int(len(sn_ri)/4)
-        n_phot = self.n_photons(frequancy=fs, magnitude=mag)*self.pyr_thrp(rMod,n_subap)
+        n_phot = self.n_photons(frequancy=fs, magnitude=mag)*self.get_pyr_thrp(rMod,n_subap)
         phot_per_pix = sn_ri*n_phot/n_subaps/4
         pixel_variance = self.F_excess ** 2 * (phot_per_pix + self.sky_bkg + self.dark_curr) + self.RON
         if self.slopes_from_intensity is False:
