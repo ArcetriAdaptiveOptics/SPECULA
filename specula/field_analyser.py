@@ -128,6 +128,10 @@ class FieldAnalyser:
             modal_filename += f"_nmodes{modal_params['nmodes']}"
         elif 'nzern' in modal_params:
             modal_filename += f"_nzern{modal_params['nzern']}"
+        elif 'ifunc_ref' in modal_params:
+            modal_filename += f"_ifref{modal_params['ifunc_ref']}"
+        elif 'ifunc_inv_ref' in modal_params:
+            modal_filename += f"_ifinvref{modal_params['ifunc_inv_ref']}"
 
         if 'type_str' in modal_params:
             modal_filename += f"_{modal_params['type_str']}"
@@ -261,34 +265,22 @@ class FieldAnalyser:
         # Add field sources to existing parameters
         self._add_field_sources_to_params(replay_params)
 
-        # Create simple IFunc with modal_params (let ModalAnalysis handle the complexity)
-        ifunc_config = {
-            'class': 'IFunc',
-            'type_str': modal_params.get('type_str', 'zernike'),
-            'nmodes': modal_params.get('nmodes', modal_params.get('nzern', 100)),
-            'npixels': modal_params.get('npixels', replay_params['main']['pixel_pupil'])
-        }
-
-        # Add optional parameters if present
-        for param in ['obsratio', 'diaratio', 'start_mode', 'idx_modes']:
-            if param in modal_params:
-                ifunc_config[param] = modal_params[param]
-
-        replay_params['modal_analysis_ifunc'] = ifunc_config
-
         # Add ModalAnalysis for each source
         modal_input_list = []
         for i, source_dict in enumerate(self.sources):
             modal_name = f'modal_analysis_{i}'
             modal_config = {
                 'class': 'ModalAnalysis',
-                'ifunc_ref': 'modal_analysis_ifunc',
                 'inputs': {'in_ef': f'prop.out_field_source_{i}_ef'},
                 'outputs': ['out_modes']
             }
 
-            # Add ModalAnalysis-specific parameters
-            for param in ['dorms', 'wavelengthInNm']:
+            # Pass ModalAnalysis arguments directly
+            for param in [
+                'ifunc_ref', 'ifunc_inv_ref', 'type_str', 'npixels', 'nzern',
+                'obsratio', 'diaratio', 'pupilstop_ref', 'nmodes',
+                'wavelengthInNm', 'dorms', 'n_inputs'
+            ]:
                 if param in modal_params:
                     modal_config[param] = modal_params[param]
 
@@ -536,22 +528,30 @@ class FieldAnalyser:
         Calculate field modal analysis using replay system
 
         Args:
-            modal_params: Simple dictionary with basic parameters:
-                        - type_str: 'zernike', 'kl', etc. (default: 'zernike')
-                        - nmodes/nzern: number of modes (default: 100)
-                        - obsratio, diaratio: pupil parameters (optional)
-                        - dorms: compute RMS flag (optional)
-                        If None, attempts to extract from DM configuration
+            modal_params: Dictionary of ModalAnalysis arguments.
+                        Typical keys: ifunc_ref, ifunc_inv_ref, type_str,
+                        nmodes/nzern, npixels, obsratio, diaratio,
+                        wavelengthInNm, dorms.
+                        If None, attempts to extract from DM configuration.
             force_recompute: Force recomputation even if files exist
         """
         if modal_params is None:
             modal_params = self._extract_modal_params_from_dm()
 
-        # Validate and set defaults
-        if 'nmodes' not in modal_params and 'nzern' not in modal_params:
-            modal_params['nmodes'] = 100
-        if 'type_str' not in modal_params:
-            modal_params['type_str'] = 'zernike'
+        # Normalize legacy alias and set defaults for generated modal basis
+        if 'ifunc' in modal_params and 'ifunc_ref' not in modal_params and isinstance(modal_params['ifunc'], str):
+            modal_params['ifunc_ref'] = modal_params['ifunc']
+
+        has_explicit_ifunc = ('ifunc_ref' in modal_params) or ('ifunc_inv_ref' in modal_params)
+        if not has_explicit_ifunc:
+            if 'nmodes' not in modal_params and 'nzern' not in modal_params:
+                modal_params['nmodes'] = 100
+            if 'type_str' not in modal_params:
+                modal_params['type_str'] = 'zernike'
+            if 'npixels' not in modal_params:
+                main_cfg = self.params.get('main', {}) if self.params else {}
+                if 'pixel_pupil' in main_cfg:
+                    modal_params['npixels'] = main_cfg['pixel_pupil']
 
         # Check if files exist
         all_exist = True
@@ -709,7 +709,7 @@ class FieldAnalyser:
                     modal_params = {}
 
                     # Direct copy of relevant parameters
-                    for param in ['type_str', 'nmodes', 'nzern', 'obsratio', 'diaratio']:
+                    for param in ['type_str', 'nmodes', 'nzern', 'obsratio', 'diaratio', 'ifunc_ref']:
                         if param in obj_config:
                             modal_params[param] = obj_config[param]
 
@@ -721,11 +721,12 @@ class FieldAnalyser:
                                 if param in ifunc_config and param not in modal_params:
                                     modal_params[param] = ifunc_config[param]
 
-                    # Ensure we have basic parameters
-                    if 'nmodes' not in modal_params and 'nzern' not in modal_params:
-                        modal_params['nmodes'] = 100
-                    if 'type_str' not in modal_params:
-                        modal_params['type_str'] = 'zernike'
+                    # Ensure we have basic parameters only if no explicit IFunc reference is provided
+                    if 'ifunc_ref' not in modal_params:
+                        if 'nmodes' not in modal_params and 'nzern' not in modal_params:
+                            modal_params['nmodes'] = 100
+                        if 'type_str' not in modal_params:
+                            modal_params['type_str'] = 'zernike'
 
                     if self.verbose:
                         print(f"Extracted modal parameters from DM '{obj_name}': {modal_params}")
