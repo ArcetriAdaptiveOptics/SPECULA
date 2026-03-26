@@ -1,17 +1,15 @@
 import specula
 specula.init(0)  # Default target device
 
-import importlib
-import inspect
 import os
 import shutil
 import unittest
-from pathlib import Path
 from astropy.io import fits
 
 from specula import np
 from specula.base_data_obj import BaseDataObj
 from specula.calib_manager import CalibManager
+from test.specula_testlib import iter_data_object_classes
 
 class TestCalibManager(unittest.TestCase):
 
@@ -105,23 +103,12 @@ class TestCalibManager(unittest.TestCase):
     def test_calibmanager_has_mapping_for_every_serializable_data_object(self):
         calib_manager = CalibManager(self.rootdir)
         mapped_types = set(calib_manager._subdirs)
-        data_objects_dir = Path(__file__).resolve().parents[1] / 'specula' / 'data_objects'
-
         missing = []
-        for path in data_objects_dir.glob('*.py'):
-            if path.name == '__init__.py':
+        for klass in iter_data_object_classes(require_methods=['save', 'restore']):
+            if not issubclass(klass, BaseDataObj) or klass is BaseDataObj:
                 continue
-
-            module = importlib.import_module(f'specula.data_objects.{path.stem}')
-            for class_name, klass in inspect.getmembers(module, inspect.isclass):
-                if klass.__module__ != module.__name__:
-                    continue
-                if not issubclass(klass, BaseDataObj) or klass is BaseDataObj:
-                    continue
-                if not hasattr(klass, 'save') or not hasattr(klass, 'restore'):
-                    continue
-                if class_name not in mapped_types:
-                    missing.append(class_name)
+            if klass.__name__ not in mapped_types:
+                missing.append(klass.__name__)
 
         self.assertEqual(
             sorted(missing),
