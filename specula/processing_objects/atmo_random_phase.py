@@ -80,7 +80,7 @@ class AtmoRandomPhase(BaseProcessingObj):
         self.layer_height = layer_height
         self.layer_outputs = {}
         self.ef_outputs = {}
-        
+
         self.pupilstop = None
 
         self.inputs['seeing'] = InputValue(type=BaseValue)
@@ -120,6 +120,7 @@ class AtmoRandomPhase(BaseProcessingObj):
                           precision=self.precision, target_device_idx=self.target_device_idx)
             ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
                                target_device_idx=self.target_device_idx)
+            # The electric field output shares the same array as the layer output
             ef.field = layer.field
             if source is not None:
                 ef.S0 = source.phot_density()
@@ -186,9 +187,12 @@ class AtmoRandomPhase(BaseProcessingObj):
 
         for output_name, layer in self.layer_outputs.items():
             layer.phaseInNm[:] = current_phase
-            layer.A = self.pupilstop.A
+            layer.A[:] = self.pupilstop.A
             layer.generation_time = self.current_time
 
+            # Update the corresponding electric field output generation time
+            # Note: the electric field output shares the same array (ef.field)
+            #       as the layer output (layer.field)
             ef_output_name = output_name.replace('_layer', '_ef')
             self.ef_outputs[ef_output_name].generation_time = self.current_time
 
