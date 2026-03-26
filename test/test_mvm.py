@@ -8,6 +8,7 @@ from specula.data_objects.recmat import Recmat
 from specula.base_value import BaseValue
 
 from test.specula_testlib import cpu_and_gpu
+from specula.loop_control import LoopControl
 
 
 class TestMVM(unittest.TestCase):
@@ -31,12 +32,14 @@ class TestMVM(unittest.TestCase):
         input_vector = xp.array([1, 2, 3, 4], dtype=xp.float64)
         input_value = BaseValue('test input', value=input_vector,
                                 target_device_idx=target_device_idx)
+        input_value.generation_time = 0
 
         # Set up and run
         mvm.inputs['in_vector'].set(input_value)
-        mvm.setup()
-        mvm.prepare_trigger(0)
-        mvm.trigger_code()
+
+        loop = LoopControl()
+        loop.add(mvm, idx=0)
+        loop.run(run_time=1, dt=1)
 
         # Expected result: matrix @ vector
         expected = matrix @ input_vector

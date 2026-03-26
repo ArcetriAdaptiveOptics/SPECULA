@@ -1,6 +1,7 @@
 import unittest
 
 import specula
+from specula.loop_control import LoopControl
 specula.init(0)
 
 from specula import cpuArray, np, RAD2ASEC
@@ -53,13 +54,13 @@ class TestCiaoCiaoSensor(unittest.TestCase):
         )
 
         ef = ElectricField(64, 64, 0.01, S0=ref_S0, target_device_idx=target_device_idx)
-        ef.generation_time = t
+        ef.generation_time = ef.seconds_to_t(t)
 
         wfs.inputs['in_ef'].set(ef)
-        wfs.setup()
-        wfs.check_ready(t)
-        wfs.trigger()
-        wfs.post_trigger()
+
+        loop = LoopControl()
+        loop.add(wfs, idx=0)
+        loop.run(run_time=t*2, dt=t, t0=t)
 
         out_i = wfs.outputs['out_i']
 
@@ -94,10 +95,9 @@ class TestCiaoCiaoSensor(unittest.TestCase):
 
         wfs.inputs['in_ef'].set(ef)
 
-        # CiaoCiao requries a square input array
+        # CiaoCiao requires a square input array
         with self.assertRaises(ValueError):
             wfs.setup()
-
 
     @cpu_and_gpu
     def test_channel_flux_unbalance(self, target_device_idx, xp):
@@ -115,13 +115,12 @@ class TestCiaoCiaoSensor(unittest.TestCase):
         )
 
         ef = ElectricField(dim, dim, 0.02, S0=1.0, target_device_idx=target_device_idx)
-        ef.generation_time = t
-
+        ef.generation_time = ef.seconds_to_t(t)
         wfs.inputs['in_ef'].set(ef)
-        wfs.setup()
-        wfs.check_ready(t)
-        wfs.trigger()
-        wfs.post_trigger()
+
+        loop = LoopControl()
+        loop.add(wfs, idx=0)
+        loop.run(run_time=t*2, dt=t, t0=t)
 
         out = cpuArray(wfs.outputs['out_i'].i)
         expected_constant = (np.sqrt(1.5) + np.sqrt(0.5)) ** 2
@@ -157,13 +156,13 @@ class TestCiaoCiaoSensor(unittest.TestCase):
         ef = ElectricField(dim, dim, 0.01, S0=1.0, target_device_idx=target_device_idx)
         ef.A[:] = pupil_mask
         ef.phaseInNm[:] = phase_nm
-        ef.generation_time = t
+        ef.generation_time = ef.seconds_to_t(t)
 
         wfs.inputs['in_ef'].set(ef)
-        wfs.setup()
-        wfs.check_ready(t)
-        wfs.trigger()
-        wfs.post_trigger()
+
+        loop = LoopControl()
+        loop.add(wfs, idx=0)
+        loop.run(run_time=t*2, dt=t, t0=t)
 
         out = cpuArray(wfs.outputs['out_i'].i)
 
@@ -220,13 +219,12 @@ class TestCiaoCiaoSensor(unittest.TestCase):
         ef = ElectricField(dim, dim, 0.01, S0=1.0, target_device_idx=target_device_idx)
         ef.A[:] = pupil_mask
         ef.phaseInNm[:] = phase_nm
-        ef.generation_time = t
-
+        ef.generation_time = ef.seconds_to_t(t)
         wfs.inputs['in_ef'].set(ef)
-        wfs.setup()
-        wfs.check_ready(t)
-        wfs.trigger()
-        wfs.post_trigger()
+
+        loop = LoopControl()
+        loop.add(wfs, idx=0)
+        loop.run(run_time=t*2, dt=t, t0=t)
 
         out = cpuArray(wfs.outputs['out_i'].i)
         cos_delta = np.clip(out / 2.0 - 1.0, -1.0, 1.0)
@@ -314,7 +312,7 @@ class TestCiaoCiaoSlopec(unittest.TestCase):
         # Setup input Pixels object
         pixels = Pixels(*shape, target_device_idx=target_device_idx)
         pixels.pixels = xp.asarray(interf_data, dtype=pixels.pixels.dtype)
-        pixels.generation_time = t
+        pixels.generation_time = pixels.seconds_to_t(t)
 
         # Initialize Slopec
         slopec = CiaoCiaoSlopec(
@@ -328,10 +326,10 @@ class TestCiaoCiaoSlopec(unittest.TestCase):
         )
 
         slopec.inputs['in_pixels'].set(pixels)
-        slopec.setup()
-        slopec.check_ready(t)
-        slopec.trigger()
-        slopec.post_trigger()
+
+        loop = LoopControl()
+        loop.add(slopec, idx=0)
+        loop.run(run_time=t*2, dt=t, t0=t)
 
         slopes = slopec.outputs['out_slopes']
         flux_per_sub = slopec.outputs['out_flux_per_subaperture'].value
@@ -344,7 +342,7 @@ class TestCiaoCiaoSlopec(unittest.TestCase):
         self.assertTrue(xp.all(flux_per_sub > 0))
 
         # Check generation time propagation
-        self.assertEqual(slopes.generation_time, t)
+        self.assertEqual(slopes.generation_time, slopes.seconds_to_t(t))
 
     @cpu_and_gpu
     def test_ciaociao_slopec_unwrap(self, target_device_idx, xp):
@@ -358,7 +356,7 @@ class TestCiaoCiaoSlopec(unittest.TestCase):
 
         pixels = Pixels(*shape, target_device_idx=target_device_idx)
         pixels.pixels = xp.asarray(interf_data, dtype=pixels.pixels.dtype)
-        pixels.generation_time = t
+        pixels.generation_time = pixels.seconds_to_t(t)
 
         # Initialize Slopec with unwrap=True
         slopec = CiaoCiaoSlopec(
@@ -372,10 +370,10 @@ class TestCiaoCiaoSlopec(unittest.TestCase):
         )
 
         slopec.inputs['in_pixels'].set(pixels)
-        slopec.setup()
-        slopec.check_ready(t)
-        slopec.trigger()
-        slopec.post_trigger()
+
+        loop = LoopControl()
+        loop.add(slopec, idx=0)
+        loop.run(run_time=t*2, dt=t, t0=t)
 
         slopes = slopec.outputs['out_slopes']
 
@@ -434,20 +432,20 @@ class TestCiaoCiaoSlopec(unittest.TestCase):
         ef = ElectricField(dim, dim, pixel_pitch, S0=1.0, target_device_idx=target_device_idx)
         ef.A[:] = pupil_mask
         ef.phaseInNm[:] = phase_nm
-        ef.generation_time = t
+        ef.generation_time = ef.seconds_to_t(t)
 
         sensor.inputs['in_ef'].set(ef)
-        sensor.setup()
-        sensor.check_ready(t)
-        sensor.trigger()
-        sensor.post_trigger()
+
+        loop = LoopControl()
+        loop.add(sensor, idx=0)
+        loop.run(run_time=t*2, dt=t, t0=t)
 
         interferogram = sensor.outputs['out_i'].i
 
         # 4. Setup CiaoCiaoSlopec
         pixels = Pixels(dim, dim, target_device_idx=target_device_idx)
         pixels.pixels = interferogram
-        pixels.generation_time = t
+        pixels.generation_time = pixels.seconds_to_t(t)
 
         slopec = CiaoCiaoSlopec(
             wavelength_in_nm=wavelength_in_nm,
@@ -462,10 +460,10 @@ class TestCiaoCiaoSlopec(unittest.TestCase):
         )
 
         slopec.inputs['in_pixels'].set(pixels)
-        slopec.setup()
-        slopec.check_ready(t)
-        slopec.trigger()
-        slopec.post_trigger()
+
+        loop = LoopControl()
+        loop.add(slopec, idx=0)
+        loop.run(run_time=t*2, dt=t, t0=t)
 
         measured_opd = cpuArray(slopec.outputs['out_slopes'].slopes).reshape((dim, dim))
         measured_pistons = self._compute_sector_pistons_from_opd(measured_opd, sector_masks)

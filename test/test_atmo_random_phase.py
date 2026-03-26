@@ -1,6 +1,7 @@
 import os
 import glob
 import specula
+from specula.loop_control import LoopControl
 specula.init(0)  # Default target device
 
 import unittest
@@ -64,18 +65,19 @@ class TestAtmoRandomPhase(unittest.TestCase):
 
         atmo.inputs['pupilstop'].set(pupilstop)
         atmo.inputs['seeing'].set(seeing)
-        atmo.setup()
+
+        loop = LoopControl()
+        loop.add(atmo, idx=1)
+        loop.start(run_time=0.003, dt=0.001)
 
         # Run for 3 steps and collect phases
         phases = []
         for step in range(3):
+
             current_time = atmo.seconds_to_t(step * 0.001)
             seeing.generation_time = current_time
             pupilstop.generation_time = current_time
-
-            atmo.check_ready(current_time)
-            atmo.trigger()
-            atmo.post_trigger()
+            loop.iter()
 
             phases.append(cpuArray(atmo.outputs['out_on_axis_source_ef'].phaseInNm.copy()))
 
@@ -105,19 +107,17 @@ class TestAtmoRandomPhase(unittest.TestCase):
 
         atmo.inputs['pupilstop'].set(pupilstop)
         atmo.inputs['seeing'].set(seeing)
-        atmo.setup()
+
+        loop = LoopControl()
+        loop.add(atmo, idx=1)
+        loop.start(run_time=5, dt=1)
 
         # Run for 5 steps (less than update_interval)
         phases = []
         for step in range(5):
-            current_time = atmo.seconds_to_t(step * 0.001)
-            seeing.generation_time = current_time
-            pupilstop.generation_time = current_time
-
-            atmo.check_ready(current_time)
-            atmo.trigger()
-            atmo.post_trigger()
-
+            seeing.generation_time = step
+            pupilstop.generation_time = step
+            loop.iter()
             phases.append(cpuArray(atmo.outputs['out_on_axis_source_ef'].phaseInNm.copy()))
 
         # All phases should be identical (same screen, only scaling might differ slightly)
@@ -149,7 +149,10 @@ class TestAtmoRandomPhase(unittest.TestCase):
 
         atmo.inputs['pupilstop'].set(pupilstop)
         atmo.inputs['seeing'].set(seeing)
-        atmo.setup()
+
+        loop = LoopControl()
+        loop.add(atmo, idx=1)
+        loop.start(run_time=0.010, dt=0.001)
 
         # Run for 10 steps and track when position changes
         positions = []
@@ -157,11 +160,7 @@ class TestAtmoRandomPhase(unittest.TestCase):
             current_time = atmo.seconds_to_t(step * 0.001)
             seeing.generation_time = current_time
             pupilstop.generation_time = current_time
-
-            atmo.check_ready(current_time)
-            atmo.trigger()
-            atmo.post_trigger()
-
+            loop.iter()
             positions.append(atmo.last_position)
 
         # Position should change every update_interval steps
