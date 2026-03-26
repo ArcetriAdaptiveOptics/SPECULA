@@ -129,9 +129,6 @@ class AtmoRandomPhase(BaseProcessingObj):
             self.outputs[layer_output_name] = layer
             self.outputs[ef_output_name] = ef
 
-        self.layer = next(iter(self.layer_outputs.values()))
-        self.ef = next(iter(self.ef_outputs.values()))
-
         if self.seed < 1:
             raise ValueError('Seed must be >1')
 
@@ -188,7 +185,7 @@ class AtmoRandomPhase(BaseProcessingObj):
         current_phase = self.phasescreens[self.new_position,:,:] * self.scale_coeff
 
         for output_name, layer in self.layer_outputs.items():
-            layer.phaseInNm = current_phase
+            layer.phaseInNm[:] = current_phase
             layer.A = self.pupilstop.A
             layer.generation_time = self.current_time
 

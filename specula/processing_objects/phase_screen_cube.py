@@ -85,9 +85,6 @@ class PhaseScreenCube(BaseProcessingObj):
             self.outputs[layer_output_name] = layer
             self.outputs[ef_output_name] = ef
 
-        self.layer = next(iter(self.layer_outputs.values()))
-        self.ef = next(iter(self.ef_outputs.values()))
-
         self.initScreens()
 
         self.inputs['pupilstop'] = InputValue(type=Pupilstop)
@@ -99,7 +96,7 @@ class PhaseScreenCube(BaseProcessingObj):
         """
         self.phasescreens = self.to_xp(self.cube.array, dtype=self.dtype)
         self.time_vector = self.to_xp(self.cube.time_vector)
-        
+
         dim = self.phasescreens.shape
         self.scaling_fact = dim[1]/self.pixel_pupil*self.pixel_scale/self.pixel_pitch
 
@@ -109,7 +106,7 @@ class PhaseScreenCube(BaseProcessingObj):
 
         if self.t_to_seconds(t) > np.max(self.time_vector):
             raise ValueError('Error: the simulation is too long with respect to the input phase screen cube!')
-        
+
         dt = self.time_vector-self.t_to_seconds(t)
         idx_first_positive = np.searchsorted(dt, 0, side='right')
         if idx_first_positive >= len(dt):
@@ -123,7 +120,7 @@ class PhaseScreenCube(BaseProcessingObj):
 
         in_ef = ElectricField(self.cur_screen.shape[0], self.cur_screen.shape[1], self.pixel_scale,
                                target_device_idx=self.target_device_idx)
-        
+
         in_ef.phaseInNm = self.cur_screen
 
         self.ef_interpolator = EFInterpolator(
@@ -141,7 +138,7 @@ class PhaseScreenCube(BaseProcessingObj):
     def trigger_code(self):
         current_phase = self.ef_interpolator.interpolated_ef().phaseInNm
         for output_name, layer in self.layer_outputs.items():
-            layer.phaseInNm = current_phase
+            layer.phaseInNm[:] = current_phase
             layer.A = self.pupilstop.A
             layer.generation_time = self.current_time
 
