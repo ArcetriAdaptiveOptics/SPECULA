@@ -13,6 +13,7 @@ import unittest
 from unittest.mock import patch
 
 from specula.connections import InputValue
+from specula.loop_control import LoopControl
 from specula.base_data_obj import BaseDataObj
 from specula.base_value import BaseValue
 from specula.processing_objects.data_store import DataStore
@@ -60,15 +61,16 @@ class TestDataStore(unittest.TestCase):
         self._connect_input(store, 'slow', slow)
         store.setup()
 
+        loop = LoopControl()
+        loop.add(store, idx=0)
+        loop.start(run_time=store.t_to_seconds(6), dt=store.t_to_seconds(1))
+
         for t in range(6):
             fast.set_value(np.array([10 + t], dtype=np.float32))
-            fast.generation_time = t
+            fast.generation_time = t 
             slow.set_value(np.array([20 + t], dtype=np.float32))
             slow.generation_time = t
-
-            store.check_ready(t)
-            store.trigger()
-            store.post_trigger()
+            loop.iter()
 
         self.assertEqual(list(store.storage['fast'].keys()), [0, 2, 4])
         self.assertEqual(list(store.storage['slow'].keys()), [0, 2, 4])

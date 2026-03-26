@@ -108,8 +108,6 @@ class TestBaseProcessingObj(unittest.TestCase):
 
         obj.inputs['test1'] = InputValue(type=BaseValue, optional=True)
         obj.inputs['test2'] = InputValue(type=BaseValue, optional=True)
-        obj.local_inputs['test1'] = None
-        obj.local_inputs['test2'] = None
         self.assertTrue(obj.checkInputTimes())
 
     @cpu_and_gpu
@@ -118,9 +116,11 @@ class TestBaseProcessingObj(unittest.TestCase):
 
         obj.inputs['test1'] = InputValue(type=BaseValue, optional=True)
         obj.inputs['test2'] = InputValue(type=BaseValue, optional=True)
-        obj.local_inputs['test1'] = BaseValue()
-        obj.local_inputs['test2'] = None
-        obj.local_inputs['test1'].generation_time = 1 # Simulate non-refreshed inputs
+
+        value = BaseValue()
+        obj.inputs['test1'].set(value)
+        value.generation_time = 1 # Simulate non-refreshed inputs
+
         obj.current_time = 2
         self.assertFalse(obj.checkInputTimes())
 

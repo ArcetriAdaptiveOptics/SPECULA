@@ -6,6 +6,7 @@ import unittest
 import numpy as np
 
 from specula import cpuArray, RAD2ASEC
+from specula.loop_control import LoopControl
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.pixels import Pixels
 from specula.data_objects.simul_params import SimulParams
@@ -146,32 +147,24 @@ class TestIdealDerivativeSensor(unittest.TestCase):
         print("min max of x_tilt:", x_tilt.min(), x_tilt.max())
 
         ef.phaseInNm[:] = x_tilt
-        ef.generation_time = t
+        ef.generation_time = 0
 
         # Process with SH
         sh.inputs['in_ef'].set(ef)
-        sh.setup()
-        sh.check_ready(t)
-        sh.trigger()
-        sh.post_trigger()
 
-        # Process SH output with slopec
         pixels = Pixels(*sh.outputs['out_i'].i.shape, target_device_idx=target_device_idx)
         pixels.pixels = sh.outputs['out_i'].i
-        pixels.generation_time = t
+        pixels.generation_time = 0
 
         slopec.inputs['in_pixels'].set(pixels)
-        slopec.setup()
-        slopec.check_ready(t)
-        slopec.trigger()
-        slopec.post_trigger()
-
-        # Process with IdealDerivativeSensor
         ideal_sensor.inputs['in_ef'].set(ef)
-        ideal_sensor.setup()
-        ideal_sensor.check_ready(t)
-        ideal_sensor.trigger()
-        ideal_sensor.post_trigger()
+
+
+        loop = LoopControl()
+        loop.add(sh, idx=0)
+        loop.add(ideal_sensor, idx=0)
+        loop.add(slopec, idx=1)
+        loop.run(run_time=1, dt=1)
 
         # Compare slopes
         sh_slopes_x = cpuArray(slopec.outputs['out_slopes'].xslopes)

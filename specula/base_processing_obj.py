@@ -63,6 +63,8 @@ class BaseProcessingObj(BaseTimeObj):
         if len(self.inputs)==0:
             return True
 
+        self.get_all_inputs()
+
         # Inputs are all optional, and none of them is set: always trigger
         if all((self.inputs[k].optional is True and
                 self.local_inputs[k] is None)
@@ -135,7 +137,7 @@ class BaseProcessingObj(BaseTimeObj):
         '''
         # Double check that we can execute
         if not self.inputs_changed:
-            raise RuntimeError("trigger() called when the object's inputs have not changed")
+            raise RuntimeError("post_trigger() called when the object's inputs have not changed")
 
         # Reset inputs flag
         self.inputs_changed = False

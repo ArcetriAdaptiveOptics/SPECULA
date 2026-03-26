@@ -4,6 +4,7 @@ import specula
 specula.init(0)
 
 from specula import cpuArray, np, RAD2ASEC
+from specula.loop_control import LoopControl
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.pixels import Pixels
 from specula.data_objects.pupilstop import Pupilstop
@@ -220,13 +221,12 @@ class TestCiaoCiaoSensor(unittest.TestCase):
         ef = ElectricField(dim, dim, 0.01, S0=1.0, target_device_idx=target_device_idx)
         ef.A[:] = pupil_mask
         ef.phaseInNm[:] = phase_nm
-        ef.generation_time = t
-
+        ef.generation_time = 0
         wfs.inputs['in_ef'].set(ef)
-        wfs.setup()
-        wfs.check_ready(t)
-        wfs.trigger()
-        wfs.post_trigger()
+
+        loop = LoopControl()
+        loop.add(wfs, idx=0)
+        loop.run(run_time=1, dt=1)
 
         out = cpuArray(wfs.outputs['out_i'].i)
         cos_delta = np.clip(out / 2.0 - 1.0, -1.0, 1.0)
