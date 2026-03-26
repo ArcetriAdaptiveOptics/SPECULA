@@ -3,12 +3,12 @@
 Field Analyser Tutorial: Post-Processing PSF, Modal Analysis, and Phase Cubes
 =============================================================================
 
-This tutorial demonstrates how to use SPECULA's `FieldAnalyser` to compute the Point Spread Function (PSF), modal coefficients, and phase cubes **after** running a simulation.  
+This tutorial demonstrates how to use SPECULA's ``FieldAnalyser`` to compute the Point Spread Function (PSF), modal coefficients, and phase cubes **after** running a simulation.  
 Unlike the main simulation tutorials, here we focus on post-processing: extracting and analyzing results from previously generated simulation data.
 
 **Goals:**
 
-- Learn how to use the `FieldAnalyser` class for post-processing
+- Learn how to use the ``FieldAnalyser`` class for post-processing
 
 - Understand what data to save during simulation for efficient replay
 
@@ -25,7 +25,7 @@ Unlike the main simulation tutorials, here we focus on post-processing: extracti
 Overview
 --------
 
-The `FieldAnalyser` is a powerful tool for post-processing SPECULA simulation results.  
+The ``FieldAnalyser`` is a powerful tool for post-processing SPECULA simulation results.  
 It allows you to:
 
 - Recompute the PSF for arbitrary field points and wavelengths
@@ -44,7 +44,7 @@ This is especially useful for:
 
 **Key Concept: Efficient Replay with DM Commands**
 
-The major computational advantage of `FieldAnalyser` is that it can replay the simulation using **only the saved DM commands**, without re-running the WFS and all related computationally expensive objects (detectors, slope computation, reconstructors, controllers, etc.). 
+The major computational advantage of ``FieldAnalyser`` is that it can replay the simulation using **only the saved DM commands**, without re-running the WFS and all related computationally expensive objects (detectors, slope computation, reconstructors, controllers, etc.). 
 
 By saving the DM input commands (i.e., the control signals applied to the DM), the replay process can:
 
@@ -57,7 +57,7 @@ This provides a significant **speedup** while maintaining full accuracy for wave
 Step 1: Configuring Your Simulation for Field Analysis
 ------------------------------------------------------
 
-To enable efficient field analysis, you need to configure your simulation's `DataStore` to save the **DM input commands** (i.e., the output of the controller). Here's an example configuration for a Single Conjugate AO (SCAO) simulation:
+To enable efficient field analysis, you need to configure your simulation's ``DataStore`` to save the **DM input commands** (i.e., the output of the controller). Here's an example configuration for a Single Conjugate AO (SCAO) simulation:
 
 .. code-block:: yaml
 
@@ -73,27 +73,27 @@ To enable efficient field analysis, you need to configure your simulation's `Dat
           - 'sr-psf.out_sr'                           # Optional: save original SR
           - 'psf-psf.out_int_psf'                     # Optional: save original PSF
 
-**Critical Point:** You must save the **DM input commands** (the controller output) for `FieldAnalyser` to work efficiently. 
+**Critical Point:** You must save the **DM input commands** (the controller output) for ``FieldAnalyser`` to work efficiently. 
 
-- In the example above, this is `control.out_comm` (from the Integrator controller)
-- **The exact name depends on your simulation configuration** (e.g., `control.out_comm`, `my_controller.output`, etc.)
+- In the example above, this is ``control.out_comm`` (from the Integrator controller)
+- **The exact name depends on your simulation configuration** (e.g., ``control.out_comm``, ``my_controller.output``, etc.)
 - This is the signal that **enters** the DM, not the DM surface output
 - Without saving these commands, the entire simulation (including WFS processing) would need to be re-run
 
 **Important:** The object name and output name may vary depending on your configuration:
 
-- If your controller object is named `ctrl`, save `ctrl.out_comm`
+- If your controller object is named ``ctrl``, save ``ctrl.out_comm``
 - If you use a different controller class, check its output name in the documentation
 - The key is to save the **commands sent to the DM**, not the DM surface itself
-- The replay input files must not be downsampled. If a `DataStore` file was saved
-  with `DOWNSAMP > 1`, `FieldAnalyser` now rejects it explicitly.
+- The replay input files must not be downsampled. If a ``DataStore`` file was saved
+    with ``DOWNSAMP > 1``, ``FieldAnalyser`` now rejects it explicitly.
 - DataStore writes the SPECULA global precision in ``replay_params.yml``
     (``data_source.global_precision``), and FieldAnalyser reuses it to force
     consistent replay precision.
 
 **What Gets Saved:**
 
-- **DM commands** (`control.out_comm` or similar): Time series of control signals applied to DM - **required**
+- **DM commands** (``control.out_comm`` or similar): Time series of control signals applied to DM - **required**
 - **Modal coefficients** (optional): For comparison with recomputed values
 - **PSF/SR** (optional): For validation of recomputed PSFs
 
@@ -114,22 +114,22 @@ To enable efficient field analysis, you need to configure your simulation's `Dat
 Step 2: Locate Your Simulation Output
 -------------------------------------
 
-After running a simulation, SPECULA saves results in a timestamped directory (e.g., `data/20240703_153000/`).  
+After running a simulation, SPECULA saves results in a timestamped directory (e.g., ``data/20240703_153000/``).  
 This directory should contain:
 
 **Required files:**
 
-- `params.yml` - Original simulation parameters
-- `replay_params.yml` - Automatically generated replay configuration
-- `comm.fits` - Saved DM commands (or different name based on your prefix)
+- ``params.yml`` - Original simulation parameters
+- ``replay_params.yml`` - Automatically generated replay configuration
+- ``comm.fits`` - Saved DM commands (or different name based on your prefix)
 
 **Optional files (for comparison):**
 
-- `res_modes.fits` - Original modal coefficients
-- `sr.fits` - Original Strehl ratio
-- `psf.fits` - Original PSF
+- ``res_modes.fits`` - Original modal coefficients
+- ``sr.fits`` - Original Strehl ratio
+- ``psf.fits`` - Original PSF
 
-**Note:** The exact filenames depend on the `input_list` in your `DataStore` configuration. The naming pattern is:
+**Note:** The exact filenames depend on the ``input_list`` in your ``DataStore`` configuration. The naming pattern is:
 
 .. code-block:: none
 
@@ -137,10 +137,10 @@ This directory should contain:
 
 where:
 
-- `{prefix}` is the part **before** the dash in your input_list entry (e.g., `comm`, `res_modes`, `psf`)
-- `{extension}` is the data format (e.g., `.fits`, `.pkl`)
+- ``{prefix}`` is the part **before** the dash in your ``input_list`` entry (e.g., ``comm``, ``res_modes``, ``psf``)
+- ``{extension}`` is the data format (e.g., ``.fits``, ``.pkl``)
 
-**The part after the dash** (e.g., `control.out_comm`) is used **only** to identify which data to save from the simulation, not for the filename.
+**The part after the dash** (e.g., ``control.out_comm``) is used **only** to identify which data to save from the simulation, not for the filename.
 
 **Examples:**
 
@@ -159,7 +159,7 @@ where:
 Step 3: Using FieldAnalyser in Python
 -------------------------------------
 
-You can use the `FieldAnalyser` class interactively or in a script.  
+You can use the ``FieldAnalyser`` class interactively or in a script.  
 Below is an example script that loads the latest simulation output and computes the PSF, modal coefficients, and phase cubes for the on-axis source.
 
 .. code-block:: python
@@ -226,7 +226,7 @@ Every keyword argument accepted by ``ModalAnalysis.__init__`` can be used here, 
 the ``_ref`` variants (SPECULA YAML convention for referencing objects already present
 in the simulation configuration).
 
-**``modal_params=None``: auto-extract from the DM**
+``modal_params=None``: auto-extract from the DM
 
 If you pass ``modal_params=None`` (or omit it entirely), ``FieldAnalyser``
 automatically extracts the modal basis parameters from the DM configuration in
@@ -258,7 +258,7 @@ modes. You can also set all Zernike-related parameters explicitly:
         }
     )
 
-**Passing an IFunc object by reference (``ifunc_ref``)**
+Passing an IFunc object by reference (``ifunc_ref``)
 
 If ``params.yml`` already contains an ``IFunc`` object (e.g., defined under the key
 ``my_ifunc``), you can reference it by name.  The object must be **present in the YAML
@@ -290,7 +290,7 @@ SPECULA object-reference mechanism:
    If you use ``ifunc_ref`` or ``ifunc_inv_ref``, the automatic Zernike defaults
    (``type_str``, ``nmodes``, ``npixels``) are **not** added.
 
-**Using calibration objects by tag (``ifunc_object``)**
+Using calibration objects by tag (``ifunc_object``)
 
 In production workflows, a more realistic pattern is to use calibration object tags
 (``_object`` parameters) rather than passing Python objects in memory. This tells
@@ -320,16 +320,16 @@ for the complete list.
 
 **Behind the Scenes:**
 
-When you call `compute_field_psf()`, `FieldAnalyser`:
+When you call ``compute_field_psf()``, ``FieldAnalyser``:
 
-1. Reads the saved DM commands from the DataStore files (e.g., `comm.fits`)
-2. Uses `build_targeted_replay` to create a minimal replay configuration
+1. Reads the saved DM commands from the DataStore files (e.g., ``comm.fits``)
+2. Uses ``build_targeted_replay`` to create a minimal replay configuration
 3. Creates a replay chain that includes:
    
-   - `DataSource` object to read saved DM commands
-   - `DM` object to apply commands and generate wavefront
-   - `AtmoPropagation` to propagate through atmosphere
-   - `PSF` object to compute PSF at specified wavelength
+    - ``DataSource`` object to read saved DM commands
+    - ``DM`` object to apply commands and generate wavefront
+    - ``AtmoPropagation`` to propagate through atmosphere
+    - ``PSF`` object to compute PSF at specified wavelength
 
 4. **Skips entirely:**
    
@@ -383,7 +383,7 @@ You can use matplotlib to visualize the PSF, modal coefficients, or phase slices
 Step 5: Comparing with Simulation Outputs
 -----------------------------------------
 
-You can compare the results from `FieldAnalyser` with those saved during the simulation (e.g., `psf.fits`, `res_modes.fits`) to verify consistency.
+You can compare the results from ``FieldAnalyser`` with those saved during the simulation (e.g., ``psf.fits``, ``res_modes.fits``) to verify consistency.
 
 .. code-block:: python
 
@@ -412,7 +412,7 @@ You can compare the results from `FieldAnalyser` with those saved during the sim
 Advanced Usage: Multiple Field Points
 -------------------------------------
 
-One of the key advantages of `FieldAnalyser` is computing PSFs at multiple field positions efficiently:
+One of the key advantages of ``FieldAnalyser`` is computing PSFs at multiple field positions efficiently:
 
 .. code-block:: python
 
@@ -446,12 +446,12 @@ Tips and Customizations
 -----------------------
 
 - **Storage optimization:** Save DM commands in FITS format (more compact than pickle)
-- **Time range:** Use `start_time` and `end_time` to analyze specific portions of the simulation
+- **Time range:** Use ``start_time`` and ``end_time`` to analyze specific portions of the simulation
 - **Wavelength scanning:** Recompute PSFs at different wavelengths without re-running atmosphere/WFS
 - **Field mapping:** Generate PSF maps across the field of view efficiently
-- **Caching:** Set `force_recompute=False` to reuse previously computed results
-- **Controller names:** Always check your controller object name in `params.yml` before configuring DataStore
-- **Multiple DMs:** For multi-DM systems, save all DM commands: `['dm1.out_comm', 'dm2.out_comm']`
+- **Caching:** Set ``force_recompute=False`` to reuse previously computed results
+- **Controller names:** Always check your controller object name in ``params.yml`` before configuring DataStore
+- **Multiple DMs:** For multi-DM systems, save all DM commands: ``['dm1.out_comm', 'dm2.out_comm']``
 
 **What to Save for Different Configurations:**
 
@@ -463,18 +463,18 @@ Tips and Customizations
      - Controller Output
      - DataStore Entry
    * - SCAO with Integrator
-     - `control.out_comm`
-     - `'comm-control.out_comm'`
+    - ``control.out_comm``
+    - ``'comm-control.out_comm'``
    * - MCAO with 2 DMs
-     - `control0.out_comm`, `control1.out_comm`
-     - `['comm0-control0.out_comm', 'comm1-control1.out_comm']`
+    - ``control0.out_comm``, ``control1.out_comm``
+    - ``['comm0-control0.out_comm', 'comm1-control1.out_comm']``
    * - Open loop control
-     - `rec.out_modes`
-     - `'ol_comm-rec.out_modes'`
+    - ``rec.out_modes``
+    - ``'ol_comm-rec.out_modes'``
 
 **Conclusion**
 
-With `FieldAnalyser`, you can efficiently post-process SPECULA simulation results by:
+With ``FieldAnalyser``, you can efficiently post-process SPECULA simulation results by:
 
 1. Saving **DM input commands** (controller outputs) during the original simulation
 2. Replaying only the propagation path (DM → atmosphere → PSF)
@@ -488,4 +488,4 @@ This provides significant computational savings while maintaining full accuracy 
    - :ref:`scao_tutorial` for a complete SCAO workflow with calibration
    - `DataStore <../specula/processing_objects/data_store.py>`_ for data saving configuration
    - `build_targeted_replay <../specula/simul.py>`_ for understanding the replay mechanism
-   - SPECULA API documentation for details on `FieldAnalyser` and controller classes
+    - SPECULA API documentation for details on ``FieldAnalyser`` and controller classes
