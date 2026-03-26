@@ -628,3 +628,73 @@ class TestModalParamsHandling(unittest.TestCase):
             except RuntimeError:
                 pass
         self.assertEqual(modal_params.get('ifunc_ref'), 'my_ifunc')
+
+    def test_no_defaults_with_ifunc_direct(self):
+        """With ifunc (non-string, direct object), defaults are NOT added."""
+        from unittest.mock import patch
+        analyzer = self._make_analyzer('no_defaults_ifunc_direct')
+        mock_ifunc = object()  # any non-string value
+        modal_params = {'ifunc': mock_ifunc}
+        with patch.object(analyzer, '_build_replay_params_modal',
+                          side_effect=RuntimeError('stop')):
+            try:
+                analyzer.compute_modal_analysis(modal_params=modal_params, force_recompute=True)
+            except RuntimeError:
+                pass
+        self.assertNotIn('type_str', modal_params)
+        self.assertNotIn('nmodes', modal_params)
+        self.assertNotIn('npixels', modal_params)
+
+    # ------------------------------------------------------------------
+    # _get_modal_filename — new ifunc / ifunc_inv (no _ref) branches
+    # ------------------------------------------------------------------
+
+    def test_modal_filename_with_ifunc_string(self):
+        """Direct ifunc string value appears in filename."""
+        analyzer = self._make_analyzer('filename_ifunc_str')
+        source = {'polar_coordinates': [0.0, 0.0]}
+        fname = analyzer._get_modal_filename(source, {'ifunc': 'my_ifunc'})
+        self.assertIn('_ifuncmy_ifunc', fname)
+
+    def test_modal_filename_with_ifunc_object(self):
+        """Direct ifunc non-string value produces 'custom' tag in filename."""
+        analyzer = self._make_analyzer('filename_ifunc_obj')
+        source = {'polar_coordinates': [0.0, 0.0]}
+        fname = analyzer._get_modal_filename(source, {'ifunc': object()})
+        self.assertIn('_ifunccustom', fname)
+
+    def test_modal_filename_with_ifunc_inv_string(self):
+        """Direct ifunc_inv string value appears in filename."""
+        analyzer = self._make_analyzer('filename_ifinv_str')
+        source = {'polar_coordinates': [0.0, 0.0]}
+        fname = analyzer._get_modal_filename(source, {'ifunc_inv': 'my_inv'})
+        self.assertIn('_ifinvmy_inv', fname)
+
+    # ------------------------------------------------------------------
+    # _build_replay_params_modal — direct ifunc forwarded in config
+    # ------------------------------------------------------------------
+
+    def test_build_replay_modal_passes_ifunc_direct(self):
+        """Direct ifunc param is forwarded verbatim into ModalAnalysis config."""
+        from unittest.mock import patch
+        analyzer = self._make_analyzer('build_ifunc_direct')
+        mock_ifunc = object()
+        with patch.object(analyzer, '_build_replay_params_from_datastore',
+                          return_value=self._fake_replay_base()), \
+             patch.object(analyzer, '_add_field_sources_to_params'):
+            result = analyzer._build_replay_params_modal({'ifunc': mock_ifunc})
+        ma = result['modal_analysis_0']
+        self.assertIs(ma['ifunc'], mock_ifunc)
+        self.assertNotIn('type_str', ma)
+
+    # ------------------------------------------------------------------
+    # _MODAL_ANALYSIS_PARAMS introspection sanity check
+    # ------------------------------------------------------------------
+
+    def test_modal_analysis_params_contains_expected_keys(self):
+        """_MODAL_ANALYSIS_PARAMS must include all known ModalAnalysis __init__ args."""
+        from specula.field_analyser import _MODAL_ANALYSIS_PARAMS
+        for key in ('ifunc', 'ifunc_inv', 'type_str', 'npixels', 'nmodes',
+                    'obsratio', 'diaratio', 'dorms', 'wavelengthInNm',
+                    'ifunc_ref', 'ifunc_inv_ref', 'pupilstop_ref'):
+            self.assertIn(key, _MODAL_ANALYSIS_PARAMS, msg=f"'{key}' missing from _MODAL_ANALYSIS_PARAMS")
