@@ -1,5 +1,4 @@
 
-import inspect
 import numpy as np
 from pathlib import Path
 from typing import Dict, Optional, Tuple
@@ -9,15 +8,6 @@ import specula
 
 from specula.simul import Simul
 from specula.lib.calc_psf import calc_psf_geometry
-from specula.processing_objects.modal_analysis import ModalAnalysis as _ModalAnalysis
-
-# ModalAnalysis __init__ params + their _ref/_object variants, computed once at import time
-_MODAL_ANALYSIS_BASE_PARAMS = set(inspect.signature(_ModalAnalysis.__init__).parameters) - {'self'}
-_MODAL_ANALYSIS_PARAMS = (
-    _MODAL_ANALYSIS_BASE_PARAMS
-    | {p + '_ref' for p in _MODAL_ANALYSIS_BASE_PARAMS}
-    | {p + '_object' for p in _MODAL_ANALYSIS_BASE_PARAMS}
-)
 
 class FieldAnalyser:
     """
@@ -148,12 +138,12 @@ class FieldAnalyser:
             val = modal_params['ifunc']
             modal_filename += f"_ifunc{val if isinstance(val, str) else 'custom'}"
         elif 'ifunc_inv_ref' in modal_params:
-            modal_filename += f"_ifinvref{modal_params['ifunc_inv_ref']}"
+            modal_filename += f"_ifref{modal_params['ifunc_inv_ref']}"
         elif 'ifunc_inv_object' in modal_params:
-            modal_filename += f"_ifinvobj{modal_params['ifunc_inv_object']}"
+            modal_filename += f"_ifobj{modal_params['ifunc_inv_object']}"
         elif 'ifunc_inv' in modal_params:
             val = modal_params['ifunc_inv']
-            modal_filename += f"_ifinv{val if isinstance(val, str) else 'custom'}"
+            modal_filename += f"_ifunc{val if isinstance(val, str) else 'custom'}"
 
         if 'type_str' in modal_params:
             modal_filename += f"_{modal_params['type_str']}"
@@ -349,10 +339,8 @@ class FieldAnalyser:
                 'outputs': ['out_modes']
             }
 
-            # Pass all recognised ModalAnalysis params (introspected + _ref variants)
-            for param in _MODAL_ANALYSIS_PARAMS:
-                if param in modal_params:
-                    modal_config[param] = modal_params[param]
+            # Forward all modal params as-is; unsupported keys will be caught at object creation time.
+            modal_config.update(modal_params)
 
             replay_params[modal_name] = modal_config
 
@@ -610,19 +598,6 @@ class FieldAnalyser:
         if modal_params is None:
             modal_params = self._extract_modal_params_from_dm()
 
-        has_explicit_ifunc = ('ifunc_ref' in modal_params) or ('ifunc_inv_ref' in modal_params) \
-                             or ('ifunc_object' in modal_params) or ('ifunc_inv_object' in modal_params) \
-                             or ('ifunc' in modal_params) or ('ifunc_inv' in modal_params)
-        if not has_explicit_ifunc:
-            if 'nmodes' not in modal_params and 'nzern' not in modal_params:
-                modal_params['nmodes'] = 100
-            if 'type_str' not in modal_params:
-                modal_params['type_str'] = 'zernike'
-            if 'npixels' not in modal_params:
-                main_cfg = self.params.get('main', {}) if self.params else {}
-                if 'pixel_pupil' in main_cfg:
-                    modal_params['npixels'] = main_cfg['pixel_pupil']
-
         # Check if files exist
         all_exist = True
         if not force_recompute:
@@ -767,9 +742,14 @@ class FieldAnalyser:
         """
         Extract modal parameters from DM configuration with simple fallback
         """
+        main_cfg = self.params.get('main', {}) if self.params else {}
+
         # Try to find a DM with height=0 and extract basic parameters
         if self.params is None:
-            return {'type_str': 'zernike', 'nmodes': 100}
+            modal_params = {'type_str': 'zernike', 'nmodes': 100}
+            if 'pixel_pupil' in main_cfg:
+                modal_params['npixels'] = main_cfg['pixel_pupil']
+            return modal_params
 
         # Look for DM with height=0
         for obj_name, obj_config in self.params.items():
@@ -779,7 +759,7 @@ class FieldAnalyser:
                     modal_params = {}
 
                     # Direct copy of relevant parameters
-                    for param in ['type_str', 'nmodes', 'nzern', 'obsratio', 'diaratio',
+                    for param in ['type_str', 'nmodes', 'nzern', 'npixels', 'obsratio', 'diaratio',
                                   'ifunc_ref', 'ifunc_inv_ref', 'ifunc_object', 'ifunc_inv_object']:
                         if param in obj_config:
                             modal_params[param] = obj_config[param]
@@ -802,6 +782,8 @@ class FieldAnalyser:
                             modal_params['nmodes'] = 100
                         if 'type_str' not in modal_params:
                             modal_params['type_str'] = 'zernike'
+                        if 'npixels' not in modal_params and 'pixel_pupil' in main_cfg:
+                            modal_params['npixels'] = main_cfg['pixel_pupil']
 
                     if self.verbose:
                         print(f"Extracted modal parameters from DM '{obj_name}': {modal_params}")
@@ -812,4 +794,7 @@ class FieldAnalyser:
         if self.verbose:
             print("No suitable DM found, using default modal parameters")
 
-        return {'type_str': 'zernike', 'nmodes': 100}
+        modal_params = {'type_str': 'zernike', 'nmodes': 100}
+        if 'pixel_pupil' in main_cfg:
+            modal_params['npixels'] = main_cfg['pixel_pupil']
+        return modal_params

@@ -107,7 +107,7 @@ To enable efficient field analysis, you need to configure your simulation's ``Da
 
 **Comparison with Full Simulation Storage:**
 
-- Phase cubes: (npixels × npixels × n_frames × 8 bytes) for single precision floating point (units: nm)
+- Phase cubes: (npixels × npixels × n_frames × 4 bytes) for single precision floating point (units: nm)
 - Example: 160×160 pixels, 1000 frames = ~200 MB
 - **Saving only DM commands typically reduces storage compared to phase cubes**
 
@@ -240,8 +240,8 @@ simulation already contains an ``IFunc`` object whose parameters you want to reu
 
 **Zernike modes (explicit)**
 
-When no ``ifunc``/``ifunc_ref``/``ifunc_object`` is provided, ``FieldAnalyser`` defaults to Zernike
-modes. You can also set all Zernike-related parameters explicitly:
+When no ``ifunc``/``ifunc_ref``/``ifunc_object`` is provided, provide Zernike
+parameters explicitly:
 
 .. code-block:: python
 
@@ -249,10 +249,9 @@ modes. You can also set all Zernike-related parameters explicitly:
         modal_params={
             'type_str': 'zernike',  # basis type (only 'zernike' is supported)
             'nmodes': 100,          # number of modes
-            'npixels': 160,         # pupil sampling (auto-filled from params if omitted)
+            'npixels': 160,         # pupil sampling (required if no ifunc/ifunc_ref/ifunc_object is used)
             'obsratio': 0.12,       # central obstruction ratio
             'diaratio': 1.0,        # pupil diameter ratio
-            'obsratio': 0.12,
             'dorms': True,          # output RMS instead of std
             'wavelengthInNm': 1650.0,
         }
@@ -287,8 +286,8 @@ SPECULA object-reference mechanism:
    When a ``_ref`` key is used (``ifunc_ref``, ``ifunc_inv_ref``, ``pupilstop_ref``),
    the referenced object **must already exist** in the tracking number ``params.yml``.
    ``FieldAnalyser`` does not create new objects — it only wires references.
-   If you use ``ifunc_ref`` or ``ifunc_inv_ref``, the automatic Zernike defaults
-   (``type_str``, ``nmodes``, ``npixels``) are **not** added.
+   If you use ``ifunc_ref`` or ``ifunc_inv_ref``, Zernike parameters
+   (``type_str``, ``nmodes``, ``npixels``) are usually unnecessary.
 
 Using calibration objects by tag (``ifunc_object``)
 
@@ -463,14 +462,14 @@ Tips and Customizations
      - Controller Output
      - DataStore Entry
    * - SCAO with Integrator
-    - ``control.out_comm``
-    - ``'comm-control.out_comm'``
+     - ``control.out_comm``
+     - ``'comm-control.out_comm'``
    * - MCAO with 2 DMs
-    - ``control0.out_comm``, ``control1.out_comm``
-    - ``['comm0-control0.out_comm', 'comm1-control1.out_comm']``
+     - ``control0.out_comm``, ``control1.out_comm``
+     - ``['comm0-control0.out_comm', 'comm1-control1.out_comm']``
    * - Open loop control
-    - ``rec.out_modes``
-    - ``'ol_comm-rec.out_modes'``
+     - ``rec.out_modes``
+     - ``'ol_comm-rec.out_modes'``
 
 **Conclusion**
 

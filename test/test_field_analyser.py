@@ -56,23 +56,23 @@ class TestShSimulation(unittest.TestCase):
         data_dirs = glob.glob(os.path.join(self.datadir, '2*'))
         for data_dir in data_dirs:
             if os.path.isdir(data_dir) and os.path.exists(f"{data_dir}/res_sr.fits"):
-                shutil.rmtree(data_dir)
+                shutil.rmtree(data_dir, ignore_errors=True)
 
             # Also remove FieldAnalyser output directories
             base_name = os.path.basename(data_dir)
             for suffix in ['_PSF', '_MA', '_CUBE']:
                 field_dir = os.path.join(self.datadir, base_name + suffix)
                 if os.path.isdir(field_dir):
-                    shutil.rmtree(field_dir)
+                    shutil.rmtree(field_dir, ignore_errors=True)
 
         for dirname in ['decimated_tn', 'decimated_pickle_tn', 'legacy_tn', 'legacy_pickle_tn']:
             path = os.path.join(self.datadir, dirname)
             if os.path.isdir(path):
-                shutil.rmtree(path)
+                shutil.rmtree(path, ignore_errors=True)
 
         for path in glob.glob(os.path.join(self.datadir, 'modal_unit_*')):
             if os.path.isdir(path):
-                shutil.rmtree(path)
+                shutil.rmtree(path, ignore_errors=True)
 
         # Clean up copied calibration files
         if os.path.exists(self.subap_path):
@@ -505,11 +505,11 @@ class TestModalParamsHandling(unittest.TestCase):
         self.assertNotIn('nmodes', fname)
 
     def test_modal_filename_with_ifunc_inv_ref(self):
-        """ifunc_inv_ref appears in filename."""
+        """ifunc_inv_ref uses the same filename tag as ifunc_ref."""
         analyzer = self._make_analyzer('filename_ifunc_inv_ref')
         source = {'polar_coordinates': [0.0, 0.0]}
         fname = analyzer._get_modal_filename(source, {'ifunc_inv_ref': 'my_ifunc_inv'})
-        self.assertIn('_ifinvrefmy_ifunc_inv', fname)
+        self.assertIn('_ifrefmy_ifunc_inv', fname)
 
     def test_modal_filename_legacy_nmodes(self):
         """Legacy nmodes+type_str appear in filename as before."""
@@ -572,10 +572,10 @@ class TestModalParamsHandling(unittest.TestCase):
     # compute_modal_analysis  default-setting logic
     # ------------------------------------------------------------------
 
-    def test_defaults_set_without_ifunc(self):
-        """Without ifunc_ref/ifunc_inv_ref, type_str, nmodes, npixels defaults are added."""
+    def test_no_defaults_without_ifunc(self):
+        """Without explicit ifunc keys, compute_modal_analysis does not inject defaults."""
         from unittest.mock import patch
-        analyzer = self._make_analyzer('defaults_no_ifunc')
+        analyzer = self._make_analyzer('no_defaults_no_ifunc')
         modal_params = {}
         with patch.object(analyzer, '_build_replay_params_modal',
                           side_effect=RuntimeError('stop')):
@@ -583,9 +583,7 @@ class TestModalParamsHandling(unittest.TestCase):
                 analyzer.compute_modal_analysis(modal_params=modal_params, force_recompute=True)
             except RuntimeError:
                 pass
-        self.assertEqual(modal_params['type_str'], 'zernike')
-        self.assertEqual(modal_params['nmodes'], 100)
-        self.assertEqual(modal_params['npixels'], 8)  # from params.yml pixel_pupil
+        self.assertEqual(modal_params, {})
 
     def test_no_defaults_with_ifunc_ref(self):
         """With ifunc_ref, type_str/nmodes/npixels defaults are NOT added."""
@@ -668,11 +666,11 @@ class TestModalParamsHandling(unittest.TestCase):
         self.assertIn('_ifunccustom', fname)
 
     def test_modal_filename_with_ifunc_inv_string(self):
-        """Direct ifunc_inv string value appears in filename."""
+        """Direct ifunc_inv string uses the same filename tag as ifunc."""
         analyzer = self._make_analyzer('filename_ifinv_str')
         source = {'polar_coordinates': [0.0, 0.0]}
         fname = analyzer._get_modal_filename(source, {'ifunc_inv': 'my_inv'})
-        self.assertIn('_ifinvmy_inv', fname)
+        self.assertIn('_ifuncmy_inv', fname)
 
     # ------------------------------------------------------------------
     # _build_replay_params_modal — direct ifunc forwarded in config
@@ -692,16 +690,20 @@ class TestModalParamsHandling(unittest.TestCase):
         self.assertNotIn('type_str', ma)
 
     # ------------------------------------------------------------------
-    # _MODAL_ANALYSIS_PARAMS introspection sanity check
+    # _build_replay_params_modal — passthrough behavior
     # ------------------------------------------------------------------
 
-    def test_modal_analysis_params_contains_expected_keys(self):
-        """_MODAL_ANALYSIS_PARAMS must include all known ModalAnalysis __init__ args."""
-        from specula.field_analyser import _MODAL_ANALYSIS_PARAMS
-        for key in ('ifunc', 'ifunc_inv', 'type_str', 'npixels', 'nmodes',
-                    'obsratio', 'diaratio', 'dorms', 'wavelengthInNm',
-                    'ifunc_ref', 'ifunc_inv_ref', 'pupilstop_ref'):
-            self.assertIn(key, _MODAL_ANALYSIS_PARAMS, msg=f"'{key}' missing from _MODAL_ANALYSIS_PARAMS")
+    def test_build_replay_modal_passes_unknown_key_through(self):
+        """modal_params are passed as-is to ModalAnalysis configuration."""
+        from unittest.mock import patch
+        analyzer = self._make_analyzer('build_unknown_modal_key')
+        with patch.object(analyzer, '_build_replay_params_from_datastore',
+                          return_value=self._fake_replay_base()), \
+             patch.object(analyzer, '_add_field_sources_to_params'):
+            result = analyzer._build_replay_params_modal({'custom_key': 123})
+
+        ma = result['modal_analysis_0']
+        self.assertEqual(ma['custom_key'], 123)
 
 
 class TestReplayPrecisionHandling(unittest.TestCase):
