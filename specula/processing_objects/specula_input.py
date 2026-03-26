@@ -60,7 +60,9 @@ class SpeculaInput(BaseProcessingObj):
             while True:
                 name, value = self.q.get(block=False)
                 try:
-                    self.outputs[name].set_value(value)
+                    # Replace value directly instead of using set_value
+                    # so that we can accept any valid type instead of just numeric ones
+                    self.outputs[name].value = value
                     self.outputs[name].generation_time = self.current_time
                 except KeyError:
                     print('Unknown output', name)

@@ -46,21 +46,22 @@ class DynamicPyrPupdataCalibrator(PyrPupdataCalibrator):
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
 
+        # Use float() to accept string values as well
         input_dt = self.local_inputs['in_dt']
         if input_dt is not None and input_dt.generation_time == self.current_time:
-            self._dt = input_dt.value
+            self.dt = self.seconds_to_t(float(input_dt.value))
         
         input_thr1 = self.local_inputs['in_thr1']
         if input_thr1 is not None and input_thr1.generation_time == self.current_time:
-            self._thr1 = input_thr1.value
+            self.thr1 = float(input_thr1.value)
 
         input_thr2 = self.local_inputs['in_thr2']
         if input_thr2 is not None and input_thr2.generation_time == self.current_time:
-            self._thr2 = input_thr2.value   
+            self.thr2 = float(input_thr2.value)
 
         input_output_tag = self.local_inputs['in_output_tag']
         if input_output_tag is not None and input_output_tag.generation_time == self.current_time:
-            self._filename = input_output_tag.value
+            self.filename = str(input_output_tag.value)
 
     def post_trigger(self):
         super().post_trigger()
@@ -72,10 +73,11 @@ class DynamicPyrPupdataCalibrator(PyrPupdataCalibrator):
 
         # Update output params with current values
         self.outputs['out_params'].value = {
-            'dt': self._dt,
-            'thr1': self._thr1,
-            'thr2': self._thr2,
-            'filename': self._filename
+            'dt': self.t_to_seconds(self.dt),
+            'thr1': self.thr1,
+            'thr2': self.thr2,
+            'filename': self.filename,
+            'status': self.status_string,
         }
 
         self.outputs['out_params'].generation_time = self.current_time
