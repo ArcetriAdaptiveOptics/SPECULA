@@ -616,10 +616,10 @@ class TestModalParamsHandling(unittest.TestCase):
         self.assertNotIn('type_str', modal_params)
         self.assertNotIn('nmodes', modal_params)
 
-    def test_ifunc_string_alias_normalized_to_ifunc_ref(self):
-        """Legacy 'ifunc' string value is silently normalized to 'ifunc_ref'."""
+    def test_no_defaults_with_ifunc_string(self):
+        """With string-valued ifunc, defaults are not added and the key is preserved."""
         from unittest.mock import patch
-        analyzer = self._make_analyzer('ifunc_alias')
+        analyzer = self._make_analyzer('no_defaults_ifunc_string')
         modal_params = {'ifunc': 'my_ifunc'}
         with patch.object(analyzer, '_build_replay_params_modal',
                           side_effect=RuntimeError('stop')):
@@ -627,7 +627,11 @@ class TestModalParamsHandling(unittest.TestCase):
                 analyzer.compute_modal_analysis(modal_params=modal_params, force_recompute=True)
             except RuntimeError:
                 pass
-        self.assertEqual(modal_params.get('ifunc_ref'), 'my_ifunc')
+        self.assertEqual(modal_params.get('ifunc'), 'my_ifunc')
+        self.assertNotIn('ifunc_ref', modal_params)
+        self.assertNotIn('type_str', modal_params)
+        self.assertNotIn('nmodes', modal_params)
+        self.assertNotIn('npixels', modal_params)
 
     def test_no_defaults_with_ifunc_direct(self):
         """With ifunc (non-string, direct object), defaults are NOT added."""
