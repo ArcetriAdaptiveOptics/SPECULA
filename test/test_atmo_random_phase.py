@@ -1,13 +1,13 @@
 import os
 import glob
 import specula
-from specula.loop_control import LoopControl
 specula.init(0)  # Default target device
 
 import unittest
 
 from specula import cpuArray, np
 from specula.data_objects.source import Source
+from specula.loop_control import LoopControl
 from specula.processing_objects.atmo_random_phase import AtmoRandomPhase
 from specula.data_objects.simul_params import SimulParams
 from specula.data_objects.pupilstop import Pupilstop
@@ -32,17 +32,38 @@ class TestAtmoRandomPhase(unittest.TestCase):
         on_axis_source = Source(polar_coordinates=[0.0, 0.0], magnitude=8, wavelengthInNm=750)
         lgs1_source = Source( polar_coordinates=[45.0, 0.0], height=90000, magnitude=5, wavelengthInNm=589)
 
-        simulParams = SimulParams(pixel_pupil=160, pixel_pitch=0.05)
+        simulParams = SimulParams(pixel_pupil=16, pixel_pitch=0.05)
         atmo = AtmoRandomPhase(simulParams,
                             L0=23,  # [m] Outer scale
                             data_dir=data_dir,
                             source_dict = {'on_axis_source': on_axis_source,
                                             'lgs1_source': lgs1_source},
+                            pixel_phasescreens=32,
                             target_device_idx=target_device_idx)
 
-        assert len(atmo.outputs) == 2
         assert 'out_on_axis_source_ef' in atmo.outputs
         assert 'out_lgs1_source_ef' in atmo.outputs
+        assert 'out_on_axis_source_layer' in atmo.outputs
+        assert 'out_lgs1_source_layer' in atmo.outputs
+        assert atmo.outputs['out_on_axis_source_layer'].field is atmo.outputs['out_on_axis_source_ef'].field
+        assert atmo.outputs['out_lgs1_source_layer'].field is atmo.outputs['out_lgs1_source_ef'].field
+        assert atmo.outputs['out_on_axis_source_layer'] is not atmo.outputs['out_lgs1_source_layer']
+        assert atmo.outputs['out_on_axis_source_ef'] is not atmo.outputs['out_lgs1_source_ef']
+
+    @cpu_and_gpu
+    def test_default_output_names_without_source_dict(self, target_device_idx, xp):
+        data_dir = os.path.join(os.path.dirname(__file__), 'data')
+        simul_params = SimulParams(pixel_pupil=16, pixel_pitch=0.05)
+        atmo = AtmoRandomPhase(simul_params,
+                            L0=23,
+                            data_dir=data_dir,
+                            source_dict=None,
+                            pixel_phasescreens=32,
+                            target_device_idx=target_device_idx)
+
+        assert 'out_ef' in atmo.outputs
+        assert 'out_layer' in atmo.outputs
+        assert atmo.outputs['out_layer'].field is atmo.outputs['out_ef'].field
 
     @cpu_and_gpu
     def test_update_interval_default(self, target_device_idx, xp):
