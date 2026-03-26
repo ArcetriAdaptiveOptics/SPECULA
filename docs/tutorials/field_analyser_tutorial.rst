@@ -215,6 +215,102 @@ Below is an example script that loads the latest simulation output and computes 
     print("Modal coefficients shape:", modes.shape)
     print("Phase cube shape:", phase_cube.shape)
 
+Understanding ``modal_params``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``modal_params`` is a dictionary that is passed **verbatim** to ``ModalAnalysis``.
+Every keyword argument accepted by ``ModalAnalysis.__init__`` can be used here, plus
+the ``_ref`` variants (SPECULA YAML convention for referencing objects already present
+in the simulation configuration).
+
+**``modal_params=None``: auto-extract from the DM**
+
+If you pass ``modal_params=None`` (or omit it entirely), ``FieldAnalyser``
+automatically extracts the modal basis parameters from the DM configuration in
+``params.yml`` (via ``_extract_modal_params_from_dm``). This is convenient when the
+simulation already contains an ``IFunc`` object whose parameters you want to reuse:
+
+.. code-block:: python
+
+    # Let FieldAnalyser decide automatically from the DM configuration
+    modal_results = analyser.compute_modal_analysis()
+
+**Zernike modes (explicit)**
+
+When no ``ifunc``/``ifunc_ref`` is provided, ``FieldAnalyser`` defaults to Zernike
+modes. You can also set all Zernike-related parameters explicitly:
+
+.. code-block:: python
+
+    modal_results = analyser.compute_modal_analysis(
+        modal_params={
+            'type_str': 'zernike',  # basis type (only 'zernike' is supported)
+            'nmodes': 100,          # number of modes
+            'npixels': 160,         # pupil sampling (auto-filled from params if omitted)
+            'obsratio': 0.12,       # central obstruction ratio
+            'diaratio': 1.0,        # pupil diameter ratio
+            'obsratio': 0.12,
+            'dorms': True,          # output RMS instead of std
+            'wavelengthInNm': 1650.0,
+        }
+    )
+
+**Passing an IFunc object by reference (``ifunc_ref``)**
+
+If ``params.yml`` already contains an ``IFunc`` object (e.g., defined under the key
+``my_ifunc``), you can reference it by name.  The object must be **present in the YAML
+configuration** of the tracking number — ``FieldAnalyser`` will load it via the normal
+SPECULA object-reference mechanism:
+
+.. code-block:: python
+
+    modal_results = analyser.compute_modal_analysis(
+        modal_params={
+            'ifunc_ref': 'my_ifunc',   # key of the IFunc object in params.yml
+            'nmodes': 50,              # optionally restrict to fewer modes
+            'dorms': True,
+        }
+    )
+
+    # Same for the inverse interaction matrix
+    modal_results = analyser.compute_modal_analysis(
+        modal_params={
+            'ifunc_inv_ref': 'my_ifunc_inv',  # key of the IFuncInv object in params.yml
+        }
+    )
+
+.. note::
+
+   When a ``_ref`` key is used (``ifunc_ref``, ``ifunc_inv_ref``, ``pupilstop_ref``),
+   the referenced object **must already exist** in the tracking number ``params.yml``.
+   ``FieldAnalyser`` does not create new objects — it only wires references.
+   If you use ``ifunc_ref`` or ``ifunc_inv_ref``, the automatic Zernike defaults
+   (``type_str``, ``nmodes``, ``npixels``) are **not** added.
+
+**Passing an IFunc object directly (``ifunc``)**
+
+You can also pass a Python ``IFunc`` (or ``IFuncInv``) object directly.  This is
+useful when you have computed a custom interaction matrix in memory:
+
+.. code-block:: python
+
+    from specula.data_objects.ifunc import IFunc
+
+    my_custom_ifunc = IFunc(...)  # built programmatically
+
+    modal_results = analyser.compute_modal_analysis(
+        modal_params={
+            'ifunc': my_custom_ifunc,
+            'dorms': True,
+        }
+    )
+
+**Full parameter reference**
+
+All parameters accepted by ``ModalAnalysis.__init__`` are valid ``modal_params`` keys.
+See the :class:`~specula.processing_objects.modal_analysis.ModalAnalysis` API documentation
+for the complete list.
+
 **Behind the Scenes:**
 
 When you call `compute_field_psf()`, `FieldAnalyser`:

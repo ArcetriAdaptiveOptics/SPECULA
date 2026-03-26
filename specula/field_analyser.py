@@ -1,4 +1,5 @@
 
+import inspect
 import numpy as np
 from pathlib import Path
 from typing import Dict, Optional, Tuple
@@ -7,6 +8,13 @@ from astropy.io import fits
 
 from specula.simul import Simul
 from specula.lib.calc_psf import calc_psf_geometry
+from specula.processing_objects.modal_analysis import ModalAnalysis as _ModalAnalysis
+
+# ModalAnalysis __init__ params + their _ref variants, computed once at import time
+_MODAL_ANALYSIS_PARAMS = (
+    set(inspect.signature(_ModalAnalysis.__init__).parameters) - {'self'}
+    | {p + '_ref' for p in inspect.signature(_ModalAnalysis.__init__).parameters if p != 'self'}
+)
 
 class FieldAnalyser:
     """
@@ -130,8 +138,14 @@ class FieldAnalyser:
             modal_filename += f"_nzern{modal_params['nzern']}"
         elif 'ifunc_ref' in modal_params:
             modal_filename += f"_ifref{modal_params['ifunc_ref']}"
+        elif 'ifunc' in modal_params:
+            val = modal_params['ifunc']
+            modal_filename += f"_ifunc{val if isinstance(val, str) else 'custom'}"
         elif 'ifunc_inv_ref' in modal_params:
             modal_filename += f"_ifinvref{modal_params['ifunc_inv_ref']}"
+        elif 'ifunc_inv' in modal_params:
+            val = modal_params['ifunc_inv']
+            modal_filename += f"_ifinv{val if isinstance(val, str) else 'custom'}"
 
         if 'type_str' in modal_params:
             modal_filename += f"_{modal_params['type_str']}"
@@ -275,12 +289,8 @@ class FieldAnalyser:
                 'outputs': ['out_modes']
             }
 
-            # Pass ModalAnalysis arguments directly
-            for param in [
-                'ifunc_ref', 'ifunc_inv_ref', 'type_str', 'npixels', 'nzern',
-                'obsratio', 'diaratio', 'pupilstop_ref', 'nmodes',
-                'wavelengthInNm', 'dorms', 'n_inputs'
-            ]:
+            # Pass all recognised ModalAnalysis params (introspected + _ref variants)
+            for param in _MODAL_ANALYSIS_PARAMS:
                 if param in modal_params:
                     modal_config[param] = modal_params[param]
 
@@ -542,7 +552,8 @@ class FieldAnalyser:
         if 'ifunc' in modal_params and 'ifunc_ref' not in modal_params and isinstance(modal_params['ifunc'], str):
             modal_params['ifunc_ref'] = modal_params['ifunc']
 
-        has_explicit_ifunc = ('ifunc_ref' in modal_params) or ('ifunc_inv_ref' in modal_params)
+        has_explicit_ifunc = ('ifunc_ref' in modal_params) or ('ifunc_inv_ref' in modal_params) \
+                             or ('ifunc' in modal_params) or ('ifunc_inv' in modal_params)
         if not has_explicit_ifunc:
             if 'nmodes' not in modal_params and 'nzern' not in modal_params:
                 modal_params['nmodes'] = 100
