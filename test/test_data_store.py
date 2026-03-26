@@ -210,6 +210,27 @@ class TestDataStore(unittest.TestCase):
         self.assertEqual(payload['hdr']['DOWNSAMP'], 3)
         self.assertEqual(payload['hdr']['DSMODE'], 'SAMPLE')
 
+    def test_save_params_writes_global_precision_in_replay_params(self):
+        store = DataStore(store_dir=self.tmp_dir, create_tn=False)
+        store.params = {'main': {'class': 'SimulParams'}}
+        store.replay_params = {
+            'data_source': {
+                'class': 'DataSource',
+                'store_dir': '/tmp',
+                'outputs': []
+            }
+        }
+        store.tn_dir = self.tmp_dir
+        store.precision = 1
+
+        store.save_params()
+
+        replay_file = os.path.join(self.tmp_dir, 'replay_params.yml')
+        self.assertTrue(os.path.exists(replay_file))
+        with open(replay_file, 'r', encoding='utf-8') as handle:
+            replay_cfg = yaml.safe_load(handle)
+        self.assertEqual(replay_cfg['data_source']['global_precision'], 1)
+
     @cpu_and_gpu
     def test_data_store_start_time(self, target_device_idx, xp):
         params = {'main': {'class': 'SimulParams', 'root_dir': self.tmp_dir,

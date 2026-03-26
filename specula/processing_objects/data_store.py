@@ -147,6 +147,7 @@ class DataStore(BaseProcessingObj):
         # Check if replay_params exists before using it
         if hasattr(self, 'replay_params') and self.replay_params is not None:
             self.replay_params['data_source']['store_dir'] = self.tn_dir
+            self.replay_params['data_source']['global_precision'] = int(self.precision)
             filename = os.path.join(self.tn_dir, 'replay_params.yml')
             with open(filename, 'w') as outfile:
                 yaml.dump(self.replay_params, outfile, default_flow_style=False, sort_keys=False)

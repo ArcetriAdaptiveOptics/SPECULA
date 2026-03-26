@@ -87,6 +87,9 @@ To enable efficient field analysis, you need to configure your simulation's `Dat
 - The key is to save the **commands sent to the DM**, not the DM surface itself
 - The replay input files must not be downsampled. If a `DataStore` file was saved
   with `DOWNSAMP > 1`, `FieldAnalyser` now rejects it explicitly.
+- DataStore writes the SPECULA global precision in ``replay_params.yml``
+    (``data_source.global_precision``), and FieldAnalyser reuses it to force
+    consistent replay precision.
 
 **What Gets Saved:**
 
@@ -237,7 +240,7 @@ simulation already contains an ``IFunc`` object whose parameters you want to reu
 
 **Zernike modes (explicit)**
 
-When no ``ifunc``/``ifunc_ref`` is provided, ``FieldAnalyser`` defaults to Zernike
+When no ``ifunc``/``ifunc_ref``/``ifunc_object`` is provided, ``FieldAnalyser`` defaults to Zernike
 modes. You can also set all Zernike-related parameters explicitly:
 
 .. code-block:: python
@@ -287,23 +290,27 @@ SPECULA object-reference mechanism:
    If you use ``ifunc_ref`` or ``ifunc_inv_ref``, the automatic Zernike defaults
    (``type_str``, ``nmodes``, ``npixels``) are **not** added.
 
-**Passing an IFunc object directly (``ifunc``)**
+**Using calibration objects by tag (``ifunc_object``)**
 
-You can also pass a Python ``IFunc`` (or ``IFuncInv``) object directly.  This is
-useful when you have computed a custom interaction matrix in memory:
+In production workflows, a more realistic pattern is to use calibration object tags
+(``_object`` parameters) rather than passing Python objects in memory. This tells
+SPECULA to restore the calibration object from the calibration repository:
 
 .. code-block:: python
 
-    from specula.data_objects.ifunc import IFunc
-
-    my_custom_ifunc = IFunc(...)  # built programmatically
-
     modal_results = analyser.compute_modal_analysis(
         modal_params={
-            'ifunc': my_custom_ifunc,
+            'ifunc_object': 'my_ifunc_tag',
+            # or: 'ifunc_inv_object': 'my_ifunc_inv_tag',
             'dorms': True,
         }
     )
+
+.. note::
+
+   ``ifunc`` / ``ifunc_inv`` (direct Python objects) are still supported,
+   but ``ifunc_ref`` and especially ``ifunc_object`` are usually the practical
+   choices in replay/post-processing pipelines.
 
 **Full parameter reference**
 

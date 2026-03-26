@@ -5,15 +5,18 @@ from pathlib import Path
 from typing import Dict, Optional, Tuple
 import yaml
 from astropy.io import fits
+import specula
 
 from specula.simul import Simul
 from specula.lib.calc_psf import calc_psf_geometry
 from specula.processing_objects.modal_analysis import ModalAnalysis as _ModalAnalysis
 
-# ModalAnalysis __init__ params + their _ref variants, computed once at import time
+# ModalAnalysis __init__ params + their _ref/_object variants, computed once at import time
+_MODAL_ANALYSIS_BASE_PARAMS = set(inspect.signature(_ModalAnalysis.__init__).parameters) - {'self'}
 _MODAL_ANALYSIS_PARAMS = (
-    set(inspect.signature(_ModalAnalysis.__init__).parameters) - {'self'}
-    | {p + '_ref' for p in inspect.signature(_ModalAnalysis.__init__).parameters if p != 'self'}
+    _MODAL_ANALYSIS_BASE_PARAMS
+    | {p + '_ref' for p in _MODAL_ANALYSIS_BASE_PARAMS}
+    | {p + '_object' for p in _MODAL_ANALYSIS_BASE_PARAMS}
 )
 
 class FieldAnalyser:
@@ -56,6 +59,7 @@ class FieldAnalyser:
         self.params = None
         self.sources = []
         self.distances = []
+        self.replay_precision = None
 
         # Paths - modify to create separate directories
         self.tn_dir = self.data_dir / tracking_number
@@ -138,11 +142,15 @@ class FieldAnalyser:
             modal_filename += f"_nzern{modal_params['nzern']}"
         elif 'ifunc_ref' in modal_params:
             modal_filename += f"_ifref{modal_params['ifunc_ref']}"
+        elif 'ifunc_object' in modal_params:
+            modal_filename += f"_ifobj{modal_params['ifunc_object']}"
         elif 'ifunc' in modal_params:
             val = modal_params['ifunc']
             modal_filename += f"_ifunc{val if isinstance(val, str) else 'custom'}"
         elif 'ifunc_inv_ref' in modal_params:
             modal_filename += f"_ifinvref{modal_params['ifunc_inv_ref']}"
+        elif 'ifunc_inv_object' in modal_params:
+            modal_filename += f"_ifinvobj{modal_params['ifunc_inv_object']}"
         elif 'ifunc_inv' in modal_params:
             val = modal_params['ifunc_inv']
             modal_filename += f"_ifinv{val if isinstance(val, str) else 'custom'}"
@@ -177,7 +185,39 @@ class FieldAnalyser:
         simul = Simul([])
         replay_params = simul.build_targeted_replay(self.params, 'prop', set_store_dir=str(self.tn_dir))
         self._validate_replay_inputs_are_not_downsampled(replay_params)
+        replay_precision = self._get_saved_replay_precision()
+        self.replay_precision = replay_precision
+        if self.verbose:
+            if replay_precision is None:
+                print('FieldAnalyser did not find saved replay precision; using current SPECULA precision state')
+            else:
+                print(f'FieldAnalyser loaded replay precision={replay_precision} from replay_params.yml')
+        self._ensure_replay_precision(replay_precision)
         return replay_params
+
+    def _get_saved_replay_precision(self) -> Optional[int]:
+        replay_params_file = self.tn_dir / 'replay_params.yml'
+        if not replay_params_file.exists():
+            return None
+
+        with open(replay_params_file, 'r', encoding='utf-8') as handle:
+            saved_replay_params = yaml.safe_load(handle) or {}
+
+        data_source_cfg = saved_replay_params.get('data_source', {})
+        if not isinstance(data_source_cfg, dict):
+            return None
+
+        precision = data_source_cfg.get('global_precision', None)
+        if precision is None:
+            return None
+
+        precision = int(precision)
+        if precision not in (0, 1):
+            if self.verbose:
+                print(f'Warning: invalid global_precision={precision} in replay_params.yml; ignoring it')
+            return None
+
+        return precision
 
     def _validate_replay_inputs_are_not_downsampled(self, replay_params: dict):
         data_source = replay_params.get('data_source')
@@ -211,6 +251,26 @@ class FieldAnalyser:
 
             if 'DOWNSAMP' not in header and self.verbose:
                 print(f'Warning: replay input {file_path.name} has no DOWNSAMP metadata; assuming DOWNSAMP=1')
+
+    def _ensure_replay_precision(self, replay_precision: Optional[int]):
+        if replay_precision not in (0, 1):
+            return
+
+        if specula.global_precision == replay_precision:
+            return
+
+        if specula.default_target_device_idx is None:
+            if self.verbose:
+                print('Warning: SPECULA not initialized yet, cannot enforce replay precision automatically')
+            return
+
+        specula.init(
+            device_idx=specula.default_target_device_idx,
+            precision=replay_precision,
+            rank=specula.process_rank,
+            comm=specula.process_comm,
+            mpi_dbg=specula.MPI_DBG,
+        )
 
     def _build_replay_params_psf(self) -> dict:
         """
@@ -461,7 +521,7 @@ class FieldAnalyser:
                 pass  # File cleanup failure is not critical
 
     def compute_field_psf(self,
-                        psf_sampling: Optional[float] = None, 
+                        psf_sampling: Optional[float] = None,
                         psf_pixel_size_mas: Optional[float] = None,
                         force_recompute: bool = False) -> Dict:
         """
@@ -533,13 +593,15 @@ class FieldAnalyser:
 
         return results
 
-    def compute_modal_analysis(self, modal_params: Optional[Dict] = None, force_recompute: bool = False) -> Dict:
+    def compute_modal_analysis(self, modal_params: Optional[Dict] = None,
+                               force_recompute: bool = False) -> Dict:
         """
         Calculate field modal analysis using replay system
 
         Args:
             modal_params: Dictionary of ModalAnalysis arguments.
-                        Typical keys: ifunc_ref, ifunc_inv_ref, type_str,
+                        Typical keys: ifunc_ref, ifunc_inv_ref, ifunc_object,
+                        ifunc_inv_object, type_str,
                         nmodes/nzern, npixels, obsratio, diaratio,
                         wavelengthInNm, dorms.
                         If None, attempts to extract from DM configuration.
@@ -548,11 +610,8 @@ class FieldAnalyser:
         if modal_params is None:
             modal_params = self._extract_modal_params_from_dm()
 
-        # Normalize legacy alias and set defaults for generated modal basis
-        if 'ifunc' in modal_params and 'ifunc_ref' not in modal_params and isinstance(modal_params['ifunc'], str):
-            modal_params['ifunc_ref'] = modal_params['ifunc']
-
         has_explicit_ifunc = ('ifunc_ref' in modal_params) or ('ifunc_inv_ref' in modal_params) \
+                             or ('ifunc_object' in modal_params) or ('ifunc_inv_object' in modal_params) \
                              or ('ifunc' in modal_params) or ('ifunc_inv' in modal_params)
         if not has_explicit_ifunc:
             if 'nmodes' not in modal_params and 'nzern' not in modal_params:
@@ -720,7 +779,8 @@ class FieldAnalyser:
                     modal_params = {}
 
                     # Direct copy of relevant parameters
-                    for param in ['type_str', 'nmodes', 'nzern', 'obsratio', 'diaratio', 'ifunc_ref']:
+                    for param in ['type_str', 'nmodes', 'nzern', 'obsratio', 'diaratio',
+                                  'ifunc_ref', 'ifunc_inv_ref', 'ifunc_object', 'ifunc_inv_object']:
                         if param in obj_config:
                             modal_params[param] = obj_config[param]
 
@@ -732,8 +792,12 @@ class FieldAnalyser:
                                 if param in ifunc_config and param not in modal_params:
                                     modal_params[param] = ifunc_config[param]
 
-                    # Ensure we have basic parameters only if no explicit IFunc reference is provided
-                    if 'ifunc_ref' not in modal_params:
+                    # Ensure we have basic parameters only if no explicit IFunc source is provided
+                    has_explicit_ifunc = any(
+                        name in modal_params for name in
+                        ('ifunc_ref', 'ifunc_inv_ref', 'ifunc_object', 'ifunc_inv_object', 'ifunc', 'ifunc_inv')
+                    )
+                    if not has_explicit_ifunc:
                         if 'nmodes' not in modal_params and 'nzern' not in modal_params:
                             modal_params['nmodes'] = 100
                         if 'type_str' not in modal_params:

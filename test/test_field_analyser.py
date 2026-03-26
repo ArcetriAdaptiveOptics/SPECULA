@@ -698,3 +698,78 @@ class TestModalParamsHandling(unittest.TestCase):
                     'obsratio', 'diaratio', 'dorms', 'wavelengthInNm',
                     'ifunc_ref', 'ifunc_inv_ref', 'pupilstop_ref'):
             self.assertIn(key, _MODAL_ANALYSIS_PARAMS, msg=f"'{key}' missing from _MODAL_ANALYSIS_PARAMS")
+
+
+class TestReplayPrecisionHandling(unittest.TestCase):
+    def setUp(self):
+        self.datadir = os.path.join(os.path.dirname(__file__), 'data')
+        self._created_tn_dirs = []
+
+    def tearDown(self):
+        for tn_dir in self._created_tn_dirs:
+            if os.path.isdir(tn_dir):
+                shutil.rmtree(tn_dir)
+
+    def _make_analyzer(self, tn_name):
+        tn_dir = os.path.join(self.datadir, f'precision_unit_{tn_name}')
+        os.makedirs(tn_dir, exist_ok=True)
+        self._created_tn_dirs.append(tn_dir)
+        params = {
+            'main': {'class': 'SimulParams', 'pixel_pupil': 8, 'pixel_pitch': 1.0},
+            'prop': {'class': 'AtmoPropagation'}
+        }
+        with open(os.path.join(tn_dir, 'params.yml'), 'w', encoding='utf-8') as handle:
+            yaml.dump(params, handle)
+
+        analyzer = FieldAnalyser(
+            data_dir=self.datadir,
+            tracking_number=f'precision_unit_{tn_name}',
+            polar_coordinates=np.array([[0.0, 0.0]]),
+            verbose=False,
+        )
+        return analyzer, tn_dir
+
+    def test_get_saved_replay_precision_reads_global_precision(self):
+        analyzer, tn_dir = self._make_analyzer('read_global_precision')
+        replay_cfg = {
+            'data_source': {
+                'class': 'DataSource',
+                'global_precision': 1,
+            }
+        }
+        with open(os.path.join(tn_dir, 'replay_params.yml'), 'w', encoding='utf-8') as handle:
+            yaml.dump(replay_cfg, handle)
+
+        self.assertEqual(analyzer._get_saved_replay_precision(), 1)
+
+    def test_get_saved_replay_precision_returns_none_when_missing(self):
+        analyzer, _ = self._make_analyzer('missing_global_precision')
+        self.assertIsNone(analyzer._get_saved_replay_precision())
+
+    def test_ensure_replay_precision_calls_specula_init_on_mismatch(self):
+        from unittest.mock import patch
+        analyzer, _ = self._make_analyzer('ensure_precision_mismatch')
+        with patch('specula.field_analyser.specula.init') as mock_init, \
+             patch('specula.field_analyser.specula.global_precision', 0), \
+             patch('specula.field_analyser.specula.default_target_device_idx', -1), \
+             patch('specula.field_analyser.specula.process_rank', None), \
+             patch('specula.field_analyser.specula.process_comm', None), \
+             patch('specula.field_analyser.specula.MPI_DBG', False):
+            analyzer._ensure_replay_precision(1)
+
+        mock_init.assert_called_once_with(
+            device_idx=-1,
+            precision=1,
+            rank=None,
+            comm=None,
+            mpi_dbg=False,
+        )
+
+    def test_ensure_replay_precision_skips_if_already_matching(self):
+        from unittest.mock import patch
+        analyzer, _ = self._make_analyzer('ensure_precision_match')
+        with patch('specula.field_analyser.specula.init') as mock_init, \
+             patch('specula.field_analyser.specula.global_precision', 1):
+            analyzer._ensure_replay_precision(1)
+
+        mock_init.assert_not_called()
