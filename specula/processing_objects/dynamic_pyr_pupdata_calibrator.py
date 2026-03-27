@@ -11,8 +11,6 @@ class DynamicPyrPupdataCalibrator(PyrPupdataCalibrator):
     A version of PyrPupdataCalibrator that
     can save its output when receiving a trigger on the 'in_save' input.
     """
-    
-
     def __init__(self,
                  data_dir: str,      # Set by main Simul object
                  dt: float = None,
@@ -46,18 +44,22 @@ class DynamicPyrPupdataCalibrator(PyrPupdataCalibrator):
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
 
-        # Use float() to accept string values as well
-        input_dt = self.local_inputs['in_dt']
-        if input_dt is not None and input_dt.generation_time == self.current_time:
-            self.dt = self.seconds_to_t(float(input_dt.value))
+        # Interactive inputs are protected from exceptions
+        try:
+            # Use float() to accept string values as well
+            input_dt = self.local_inputs['in_dt']
+            if input_dt is not None and input_dt.generation_time == self.current_time:
+                self.dt = self.seconds_to_t(float(input_dt.value))
         
-        input_thr1 = self.local_inputs['in_thr1']
-        if input_thr1 is not None and input_thr1.generation_time == self.current_time:
-            self.thr1 = float(input_thr1.value)
+            input_thr1 = self.local_inputs['in_thr1']
+            if input_thr1 is not None and input_thr1.generation_time == self.current_time:
+                self.thr1 = float(input_thr1.value)
 
-        input_thr2 = self.local_inputs['in_thr2']
-        if input_thr2 is not None and input_thr2.generation_time == self.current_time:
-            self.thr2 = float(input_thr2.value)
+            input_thr2 = self.local_inputs['in_thr2']
+            if input_thr2 is not None and input_thr2.generation_time == self.current_time:
+                self.thr2 = float(input_thr2.value)
+        except Exception as e:
+            print(f'Exception: {e.__name__}: {e}')
 
     def trigger_code(self):
 

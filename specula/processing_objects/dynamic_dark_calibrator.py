@@ -30,7 +30,7 @@ class DynamicDarkCalibrator(BaseProcessingObj):
 
         # Inputs
         self.inputs['in_pixels'] = InputValue(type=Pixels)
-        self.inputs['in_trigger'] = InputValue(type=BaseValue)
+        self.inputs['in_trigger'] = InputValue(type=BaseValue, optional=True)
         self.inputs['in_nframes'] = InputValue(type=BaseValue, optional=True)
         self.inputs['in_load'] = InputValue(type=BaseValue, optional=True)
         self.inputs['in_save'] = InputValue(type=BaseValue, optional=True)
@@ -52,8 +52,9 @@ class DynamicDarkCalibrator(BaseProcessingObj):
 
     def setup(self):
         """Resize output darkframe to match input pixel dimensions and properties"""
+        super().setup()
 
-        in_pixels = self.inputs['in_pixels'].get(target_device_idx=self.target_device_idx)
+        in_pixels = self.local_inputs['in_pixels']
 
         dimy, dimx = in_pixels.size
         self.darkframe.resize(dimx,
@@ -68,7 +69,6 @@ class DynamicDarkCalibrator(BaseProcessingObj):
 
     def trigger_code(self):
         """Main calibration function"""
-
         
         value = self.local_inputs['in_pixels'].pixels
 
@@ -77,6 +77,7 @@ class DynamicDarkCalibrator(BaseProcessingObj):
 
         if self.counter == 0:
             return
+
         self.integrated_pixels += value
         self.counter -= 1
 
@@ -97,21 +98,25 @@ class DynamicDarkCalibrator(BaseProcessingObj):
         if input_reset is not None and input_reset.generation_time == self.current_time:
             self.darkframe.pixels *= 0
 
-        input_nframes = self.local_inputs['in_nframes']
-        if input_nframes is not None and input_nframes.generation_time == self.current_time:
-            nframes = int(input_nframes.value)
-            if nframes <= 0:
-                raise ValueError(f'Number of frames is {nframes} and must be greater than zero')
-            self.nframes = nframes
+        # Interactive inputs are protected frome exceptions
+        try:
+            input_nframes = self.local_inputs['in_nframes']
+            if input_nframes is not None and input_nframes.generation_time == self.current_time:
+                nframes = int(input_nframes.value)
+                if nframes <= 0:
+                    raise ValueError(f'Number of frames is {nframes} and must be greater than zero')
+                self.nframes = nframes
 
-        input_load = self.local_inputs['in_load']
-        if input_load is not None and input_load.generation_time == self.current_time:
-            filename = str(input_load.value)
-            if not filename.endswith('.fits'):
-                filename += '.fits'
-            fullpath = os.path.join(self.data_dir, filename)
-            self.darkframe.restore(fullpath)
-            self.darkframe.generation_time = self.current_time
+            input_load = self.local_inputs['in_load']
+            if input_load is not None and input_load.generation_time == self.current_time:
+                filename = str(input_load.value)
+                if not filename.endswith('.fits'):
+                    filename += '.fits'
+                fullpath = os.path.join(self.data_dir, filename)
+                self.darkframe.restore(fullpath)
+                self.darkframe.generation_time = self.current_time
+        except Exception as e:
+            print(f'Exception: {e.__name__}: {e}')
 
     def post_trigger(self):
         super().post_trigger()
