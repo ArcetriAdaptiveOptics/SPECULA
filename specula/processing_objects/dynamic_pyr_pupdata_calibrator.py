@@ -42,5 +42,5 @@ class DynamicPyrPupdataCalibrator(PyrPupdataCalibrator):
 
         input_save = self.local_inputs['in_save']
         if input_save is not None and input_save.generation_time == self.current_time:
-            self._save()
+            self._save(input_save.value)
 

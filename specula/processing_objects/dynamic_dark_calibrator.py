@@ -7,7 +7,7 @@ from specula.data_objects.simul_params import SimulParams
 from specula.lib import utils
 
 
-class DarkCalibrator(BaseProcessingObj):
+class DynamicDarkCalibrator(BaseProcessingObj):
     """
     Dark calibrator processing object. Calibrator for pixel dark frames.
     """
