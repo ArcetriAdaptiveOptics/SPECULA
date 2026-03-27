@@ -161,7 +161,7 @@ def plot_output_data(root_dir:str,calib_dir:str):
         plt.subplot(2,2,1)
         for k,mode in enumerate(lo_mode_ids):
             plt.loglog(f,pol_psd[mode,:]/np.min(pol_psd[mode,:][f<flims[-1]]),c=f'C{k}',label=f'Mode {mode:1.0f}')
-            rtf = filter_data_complex.RTF(mode=mode, fs=fs, freq=freq, dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
+            rtf = filter_data_complex.RTF(mode=mode, fs=fs, freq=specula.xp.array(freq), dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
             plt.loglog(freq,rtf**-2,'--',c=f'C{k}',label='')
         plt.grid(which='both', alpha=0.3)
         # plt.xlabel('Frequency [Hz]')
@@ -183,7 +183,7 @@ def plot_output_data(root_dir:str,calib_dir:str):
         plt.subplot(2,2,2)
         for k,mode in enumerate(ho_mode_ids):
             plt.loglog(f,pol_psd[mode,:]/np.min(pol_psd[mode,:][f<flims[-1]]),c=f'C{k}',label=f'Mode {mode:1.0f}')
-            rtf = filter_data_complex.RTF(mode=mode, fs=fs, freq=freq, dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
+            rtf = filter_data_complex.RTF(mode=mode, fs=fs, freq=specula.xp.array(freq), dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
             plt.loglog(freq,rtf**-2,'--',c=f'C{k}',label='')
         plt.grid(which='both', alpha=0.3)
         # plt.xlabel('Frequency [Hz]')
@@ -210,7 +210,7 @@ def plot_output_data(root_dir:str,calib_dir:str):
         # plt.xlabel('Frequency [Hz]')
         # plt.legend()
 
-    except:
+    except KeyError:
         print(f"dm_res.fits, pyr_res.fits or atmo_res.fits files not found in {data_dir}.")
 
     ################### PSF ########################

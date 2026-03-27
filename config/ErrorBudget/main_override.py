@@ -10,7 +10,7 @@ from specula.mmlib.utils import get_pupil_mask, read_freq, get_psd
 from specula.mmlib.compute_rec import compute_and_save_rec
 
 
-rMods = np.array([0,1,2,3,4]) #([2,3,4,5,6])
+rMods = np.array([0,0.5,1,2,3,4]) #([2,3,4,5,6])
 n_subaps = np.array([10,20,40])
 n_modes = np.array([54,120,660])
 seeings = np.array([0.6,0.8,1.0,1.2,1.4])
@@ -70,7 +70,7 @@ for j,n_subap in enumerate(n_subaps):
         thrp = np.sum(frame[pyr_mask])/np.sum(frame)
         pyr_thrp[i,j] = thrp
         fits.writeto(os.path.join(root_dir,f'slopenulls/pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_throughput.fits'), np.array([thrp]), overwrite=True)
-print(pyr_thrp)
+# print(pyr_thrp)
 
 # 3. Calibrate IM vs n_subaps, rMods
 for i,n_subap in enumerate(n_subaps):

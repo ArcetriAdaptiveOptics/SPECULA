@@ -84,10 +84,6 @@ class AOErrorBudgetMachine:
         return self.xp.logspace(-2, self.xp.log10(fs/2), 4000)
     
     @staticmethod
-    def rad2nm(rad, lambdaInM):
-        return rad*lambdaInM/(2*np.pi)*1e+9
-    
-    @staticmethod
     def r02seeing(r0):
         return 0.98 * 500e-9/r0
 
@@ -132,14 +128,14 @@ class AOErrorBudgetMachine:
             sigma2_fit = 0.2778 * (n_modes**-0.9) * d_over_r0**(5/3)
         else:
             sigma2_fit = 0.2944 * n_modes**(-self.xp.sqrt(3)/2) * d_over_r0**(5/3)
-        return self.rad2nm(self.xp.sqrt(sigma2_fit),500e-9)
+        return (self.xp.sqrt(sigma2_fit)*500e-9/(2*np.pi))*1e+9
 
     def servo_lag_error(self, r0:float, fs:float, V:float, mode_id:int):
         freq = self.get_freq_vec(fs)
         atmo_psd = self.analytical_atmo_psd(mode_id, r0, V, freq)
         rtf = self.get_rtf(mode=mode_id,fs=fs)
-        atmoResInM = self.integrate_psd(atmo_psd * rtf**2, freq)
-        return self.xp.sqrt(atmoResInM)*1e+9
+        atmoResInM = self.xp.sqrt(self.integrate_psd(atmo_psd * rtf**2, freq))
+        return atmoResInM*1e+9
     
     def wfs_noise_error(self, fs:float, magnitude:float, n_subap:int, rMod:float, n_modes:int, ogs=None):
         frame = fits.getdata(op.join(self.root_dir,'frames',f'pyr{rMod:1.1f}_{n_subap:1.0f}x{n_subap:1.0f}_frame_null.fits'))

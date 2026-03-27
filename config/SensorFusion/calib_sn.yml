@@ -8,7 +8,7 @@ pyr_sn:
 zwfs_sn:
   class: 'SnCalibrator'
   output_tag: 'z2.0wfs_slope_null'           # Output filename
-  overwrite: false
+  overwrite: true
   inputs:
     in_slopes: 'zwfs_slopes.out_slopes'
 
