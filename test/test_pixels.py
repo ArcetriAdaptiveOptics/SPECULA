@@ -106,12 +106,12 @@ class TestPixels(unittest.TestCase):
         assert pixels.pixels.shape == (15, 20)
         assert pixels.bpp == 8
         assert pixels.signed == 1
-        assert pixels.dtype == xp.int8
+        assert pixels.type == xp.int8
         assert pixels.bytespp == 1
 
     @cpu_and_gpu
     def test_invalid_bits_and_signed(self, target_device_idx, xp):
         with self.assertRaises(ValueError):
-            Pixels(10, 10, bits=12, signed=0, target_device_idx=target_device_idx)
+            Pixels(10, 10, bits=71, signed=0, target_device_idx=target_device_idx)
         with self.assertRaises(ValueError):
             Pixels(10, 10, bits=16, signed=2, target_device_idx=target_device_idx)
