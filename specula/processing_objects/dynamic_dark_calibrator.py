@@ -106,8 +106,11 @@ class DynamicDarkCalibrator(BaseProcessingObj):
 
         input_load = self.local_inputs['in_load']
         if input_load is not None and input_load.generation_time == self.current_time:
-            filename = os.path.join(self.data_dir, input_load.value)
-            self.darkframe.restore(filename)
+            filename = str(input_load.value)
+            if not filename.endswith('.fits'):
+                filename += '.fits'
+            fullpath = os.path.join(self.data_dir, filename)
+            self.darkframe.restore(fullpath)
             self.darkframe.generation_time = self.current_time
 
     def post_trigger(self):

@@ -152,15 +152,14 @@ class PixelsPupDisplay(BaseDisplay):
 
 
         image = cpuArray(pixels.pixels)
-
         image = self._apply_crop(image)
+        img_min = image.min()
+        img_max = image.max()
 
         norm = None
 
         if self._log_scale:
 
-            img_min = image.min()
-            img_max = image.max()
 
             ratio = 1e-6
 
@@ -186,6 +185,7 @@ class PixelsPupDisplay(BaseDisplay):
         else:
 
             self.img.set_data(image)
+            self.img.set_clim(img_min, img_max)
 
             if norm is not None:
                 self.img.set_norm(norm)
