@@ -5,15 +5,15 @@ specula.init(0)
 import unittest
 import numpy as np
 from specula.base_value import BaseValue
-from specula.processing_objects.dark_calibrator import DarkCalibrator
+from specula.processing_objects.dynamic_dark_calibrator import DynamicDarkCalibrator
 from test.specula_testlib import cpu_and_gpu
 
-class TestDarkCalibrator(unittest.TestCase):
+class TestDynamicDarkCalibrator(unittest.TestCase):
 
     @cpu_and_gpu
     def test_invalid_nframes_raises(self, target_device_idx, xp):
         with self.assertRaises(ValueError):
-            DarkCalibrator(
+            DynamicDarkCalibrator(
                 data_dir=".",
                 nframes=0,
                 target_device_idx=target_device_idx
@@ -21,7 +21,7 @@ class TestDarkCalibrator(unittest.TestCase):
 
     @cpu_and_gpu
     def test_valid_initialization(self, target_device_idx, xp):
-        calib = DarkCalibrator(
+        calib = DynamicDarkCalibrator(
             data_dir=".",
             nframes=1,
             target_device_idx=target_device_idx
@@ -32,7 +32,7 @@ class TestDarkCalibrator(unittest.TestCase):
 
     @cpu_and_gpu
     def test_darkframe_output_properties(self, target_device_idx, xp):
-        calib = DarkCalibrator(
+        calib = DynamicDarkCalibrator(
             data_dir=".",
             nframes=1,
             target_device_idx=target_device_idx
@@ -53,7 +53,7 @@ class TestDarkCalibrator(unittest.TestCase):
 
     @cpu_and_gpu
     def test_darkcalibrator_trigger_inputs(self, target_device_idx, xp):
-        calib = DarkCalibrator(
+        calib = DynamicDarkCalibrator(
             data_dir=".",
             nframes=2,
             target_device_idx=target_device_idx

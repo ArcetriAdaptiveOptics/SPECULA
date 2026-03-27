@@ -1,6 +1,7 @@
 import specula
 specula.init(0)  # Default target device
 
+import time
 import unittest
 
 from specula import np
@@ -10,6 +11,7 @@ from specula.lib.utils import unravel_index_2d
 from specula.lib.utils import camelcase_to_snakecase
 from specula.lib.utils import get_type_hints
 from specula.lib.utils import remove_suffix
+from specula.lib.utils import make_tn
 
 from test.specula_testlib import cpu_and_gpu
 
@@ -122,3 +124,19 @@ class TestGetTypeHints(unittest.TestCase):
         self.assertEqual(remove_suffix('parameter_data', '_data'), 'parameter')
         self.assertEqual(remove_suffix('parameter_object', '_object'), 'parameter')
         self.assertEqual(remove_suffix('parameter', '_ref'), 'parameter')  # No suffix to remove
+
+    def test_make_tn_format(self):
+        """Output should match YYYYMMDD_HHMMSS format"""
+        tn = make_tn()
+        pattern = r"^\d{8}_\d{6}$"
+        self.assertRegex(tn, pattern)
+
+    def test_make_tn_changes_over_time(self):
+        """Two calls separated by time should produce different values"""
+        tn1 = make_tn()
+        time.sleep(2)
+        tn2 = make_tn()
+        self.assertNotEqual(tn1, tn2)
+
+
+
