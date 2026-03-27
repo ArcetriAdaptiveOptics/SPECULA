@@ -59,10 +59,6 @@ class DynamicPyrPupdataCalibrator(PyrPupdataCalibrator):
         if input_thr2 is not None and input_thr2.generation_time == self.current_time:
             self.thr2 = float(input_thr2.value)
 
-        input_output_tag = self.local_inputs['in_output_tag']
-        if input_output_tag is not None and input_output_tag.generation_time == self.current_time:
-            self.filename = str(input_output_tag.value)
-
     def trigger_code(self):
 
         try:
@@ -85,7 +81,6 @@ class DynamicPyrPupdataCalibrator(PyrPupdataCalibrator):
             'dt': self.t_to_seconds(self.dt),
             'thr1': self.thr1,
             'thr2': self.thr2,
-            'filename': self.filename,
             'status': self.status_string,
         }
 
