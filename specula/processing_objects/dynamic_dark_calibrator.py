@@ -34,6 +34,7 @@ class DynamicDarkCalibrator(BaseProcessingObj):
         self.inputs['in_nframes'] = InputValue(type=BaseValue, optional=True)
         self.inputs['in_load'] = InputValue(type=BaseValue, optional=True)
         self.inputs['in_save'] = InputValue(type=BaseValue, optional=True)
+        self.inputs['in_reset'] = InputValue(type=BaseValue, optional=True)
 
         # Outputs
         self.darkframe = Pixels(
@@ -41,7 +42,13 @@ class DynamicDarkCalibrator(BaseProcessingObj):
             target_device_idx=self.target_device_idx,
             precision=self.precision
         )
+        self.subtracted_pixels = Pixels(
+            dimx=0, dimy=0,  # Will be set after first trigger
+            target_device_idx=self.target_device_idx,
+            precision=self.precision
+        )
         self.outputs['out_darkframe'] = self.darkframe
+        self.outputs['out_subtracted_pixels'] = self.subtracted_pixels
 
     def setup(self):
         """Resize output darkframe to match input pixel dimensions and properties"""
@@ -53,16 +60,23 @@ class DynamicDarkCalibrator(BaseProcessingObj):
                               dimy,
                               in_pixels.bpp,
                               in_pixels.signed)
+        self.subtracted_pixels.resize(dimx,
+                                      dimy,
+                                      in_pixels.bpp,
+                                      in_pixels.signed)
         self.integrated_pixels = self.darkframe.pixels * 0
 
     def trigger_code(self):
         """Main calibration function"""
 
-        if self.counter == 0:
-            return
         
         value = self.local_inputs['in_pixels'].pixels
 
+        self.subtracted_pixels.pixels = value - self.darkframe.pixels
+        self.subtracted_pixels.generation_time = self.current_time
+
+        if self.counter == 0:
+            return
         self.integrated_pixels += value
         self.counter -= 1
 
@@ -79,9 +93,13 @@ class DynamicDarkCalibrator(BaseProcessingObj):
         if input_trigger is not None and input_trigger.generation_time == self.current_time:
             self.counter = self.nframes
 
+        input_reset = self.local_inputs['in_reset']
+        if input_reset is not None and input_reset.generation_time == self.current_time:
+            self.darkframe.pixels *= 0
+
         input_nframes = self.local_inputs['in_nframes']
         if input_nframes is not None and input_nframes.generation_time == self.current_time:
-            nframes = input_nframes.value
+            nframes = int(input_nframes.value)
             if nframes <= 0:
                 raise ValueError(f'Number of frames is {nframes} and must be greater than zero')
             self.nframes = nframes
