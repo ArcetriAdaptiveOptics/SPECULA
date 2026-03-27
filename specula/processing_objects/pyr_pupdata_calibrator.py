@@ -94,33 +94,28 @@ class PyrPupdataCalibrator(BaseProcessingObj):
         image = self.integrated_pixels
 
         # Analyze pupils
-        try:
-            centers, radii = self._analyze_pupils(image)
+        centers, radii = self._analyze_pupils(image)
 
-            # Auto-detect obstruction
-            if self.auto_detect_obstruction:
-                self.central_obstruction_ratio = self._detect_obstruction(image, centers, radii)
+        # Auto-detect obstruction
+        if self.auto_detect_obstruction:
+            self.central_obstruction_ratio = self._detect_obstruction(image, centers, radii)
 
-            # Debug plot
-            if self.display_debug:
-                self._debug_plot(image, centers, radii)
+        # Debug plot
+        if self.display_debug:
+            self._debug_plot(image, centers, radii)
 
-            # Generate indices
-            ind_pup = self._generate_indices(centers, radii, image.shape)
+        # Generate indices
+        ind_pup = self._generate_indices(centers, radii, image.shape)
 
-            # Create PupData (reorder to match IDL)
-            pup_order = [1, 0, 2, 3]
-            self.pupdata.ind_pup = ind_pup[:, pup_order]
-            self.pupdata.radius = radii[pup_order]
-            self.pupdata.cx = centers[pup_order, 0]
-            self.pupdata.cy = centers[pup_order, 1]
-            self.pupdata.framesize = image.shape
-            self.pupdata.slopes_from_intensity = self.slopes_from_intensity
-            self.pupdata.generation_time = self.current_time
-            self.status_string = "OK"
-        except (ValueError, TypeError) as e:
-            # Skip iterations in case of errors
-            self.status_string = f'{e.__class__.__name__}: {e}'
+        # Create PupData (reorder to match IDL)
+        pup_order = [1, 0, 2, 3]
+        self.pupdata.ind_pup = ind_pup[:, pup_order]
+        self.pupdata.radius = radii[pup_order]
+        self.pupdata.cx = centers[pup_order, 0]
+        self.pupdata.cy = centers[pup_order, 1]
+        self.pupdata.framesize = image.shape
+        self.pupdata.slopes_from_intensity = self.slopes_from_intensity
+        self.pupdata.generation_time = self.current_time
 
         # Reset integrated intensity
         self.integrated_pixels *= 0.0

@@ -63,6 +63,15 @@ class DynamicPyrPupdataCalibrator(PyrPupdataCalibrator):
         if input_output_tag is not None and input_output_tag.generation_time == self.current_time:
             self.filename = str(input_output_tag.value)
 
+    def trigger_code(self):
+
+        try:
+            super().trigger_code()
+            self.status_string = 'OK'
+        except (ValueError, TypeError) as e:
+            # Skip iterations in case of errors
+            self.status_string = f'{e.__class__.__name__}: {e}'
+
     def post_trigger(self):
         super().post_trigger()
 
