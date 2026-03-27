@@ -10,7 +10,6 @@ pupil_calibrator:
     in_i: 'pyramid.out_i'
     in_thr1:  'terminal.thr1'
     in_thr2:  'terminal.thr2'
-    in_output_tag: 'terminal.filename'
     in_save: 'terminal.save'
 
 seeing_override:
@@ -31,7 +30,7 @@ display:
 
 terminal:
   class: 'TerminalInput'
-  output_list: ['thr1', 'thr2', 'filename', 'save']
+  output_list: ['thr1', 'thr2', 'save']
 
 remove: ['slopec', 'rec','control', 'dm', 'psf']
  
