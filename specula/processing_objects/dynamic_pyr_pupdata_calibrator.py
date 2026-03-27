@@ -36,11 +36,56 @@ class DynamicPyrPupdataCalibrator(PyrPupdataCalibrator):
                          target_device_idx=target_device_idx, precision=precision)
 
         self.inputs['in_save'] = InputValue(type=BaseValue, optional=True)
+        self.inputs['in_dt'] = InputValue(type=BaseValue, optional=True)
+        self.inputs['in_thr1'] = InputValue(type=BaseValue, optional=True)
+        self.inputs['in_thr2'] = InputValue(type=BaseValue, optional=True)
+        self.inputs['in_output_tag'] = InputValue(type=BaseValue, optional=True)
+
+        self.outputs['out_params'] = BaseValue()
+
+    def prepare_trigger(self, t):
+        super().prepare_trigger(t)
+
+        # Use float() to accept string values as well
+        input_dt = self.local_inputs['in_dt']
+        if input_dt is not None and input_dt.generation_time == self.current_time:
+            self.dt = self.seconds_to_t(float(input_dt.value))
+        
+        input_thr1 = self.local_inputs['in_thr1']
+        if input_thr1 is not None and input_thr1.generation_time == self.current_time:
+            self.thr1 = float(input_thr1.value)
+
+        input_thr2 = self.local_inputs['in_thr2']
+        if input_thr2 is not None and input_thr2.generation_time == self.current_time:
+            self.thr2 = float(input_thr2.value)
+
+    def trigger_code(self):
+
+        try:
+            super().trigger_code()
+            self.status_string = 'OK'
+        except (ValueError, TypeError) as e:
+            # Skip iterations in case of errors
+            self.status_string = f'{e.__class__.__name__}: {e}'
 
     def post_trigger(self):
         super().post_trigger()
 
+        # Save pupdata if requested
         input_save = self.local_inputs['in_save']
         if input_save is not None and input_save.generation_time == self.current_time:
             self._save(input_save.value)
+
+        # Update output params with current values
+        self.outputs['out_params'].value = {
+            'dt': self.t_to_seconds(self.dt),
+            'thr1': self.thr1,
+            'thr2': self.thr2,
+            'status': self.status_string,
+        }
+
+        self.outputs['out_params'].generation_time = self.current_time
+
+
+
 

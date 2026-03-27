@@ -5,6 +5,7 @@ from matplotlib.patches import Circle
 
 from specula import cpuArray
 
+from specula.base_value import BaseValue
 from specula.display.base_display import BaseDisplay
 from specula.connections import InputValue
 from specula.data_objects.pixels import Pixels
@@ -40,6 +41,7 @@ class PixelsPupDisplay(BaseDisplay):
         self.input_key = 'in_pixels' # Used by base class to identify which input to trigger on
         self.inputs["in_pixels"] = InputValue(type=Pixels)
         self.inputs["in_pupdata"] = InputValue(type=PupData)
+        self.inputs["in_params"] = InputValue(type=BaseValue, optional=True)
 
         # display objects
         self.circles = []
@@ -123,6 +125,10 @@ class PixelsPupDisplay(BaseDisplay):
 
         info += "\n" + dist_text
         info += "\n" + f"Generated at t={self.t_to_seconds(pupdata.generation_time):.2f} sec"
+
+        if self.local_inputs['in_params'] is not None:
+            for key, value in self.local_inputs['in_params'].value.items():
+                info += f"\n{key} = {value}"
 
         if self.text_block is None:
 

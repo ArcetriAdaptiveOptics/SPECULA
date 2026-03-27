@@ -13,6 +13,7 @@ import unittest
 from unittest.mock import patch
 
 from specula.connections import InputValue
+from specula.loop_control import LoopControl
 from specula.base_data_obj import BaseDataObj
 from specula.base_value import BaseValue
 from specula.processing_objects.data_store import DataStore
@@ -60,15 +61,16 @@ class TestDataStore(unittest.TestCase):
         self._connect_input(store, 'slow', slow)
         store.setup()
 
+        loop = LoopControl()
+        loop.add(store, idx=0)
+        loop.start(run_time=store.t_to_seconds(6), dt=store.t_to_seconds(1))
+
         for t in range(6):
             fast.set_value(np.array([10 + t], dtype=np.float32))
-            fast.generation_time = t
+            fast.generation_time = t 
             slow.set_value(np.array([20 + t], dtype=np.float32))
             slow.generation_time = t
-
-            store.check_ready(t)
-            store.trigger()
-            store.post_trigger()
+            loop.iter()
 
         self.assertEqual(list(store.storage['fast'].keys()), [0, 2, 4])
         self.assertEqual(list(store.storage['slow'].keys()), [0, 2, 4])
@@ -209,6 +211,27 @@ class TestDataStore(unittest.TestCase):
 
         self.assertEqual(payload['hdr']['DOWNSAMP'], 3)
         self.assertEqual(payload['hdr']['DSMODE'], 'SAMPLE')
+
+    def test_save_params_writes_global_precision_in_replay_params(self):
+        store = DataStore(store_dir=self.tmp_dir, create_tn=False)
+        store.params = {'main': {'class': 'SimulParams'}}
+        store.replay_params = {
+            'data_source': {
+                'class': 'DataSource',
+                'store_dir': '/tmp',
+                'outputs': []
+            }
+        }
+        store.tn_dir = self.tmp_dir
+        store.precision = 1
+
+        store.save_params()
+
+        replay_file = os.path.join(self.tmp_dir, 'replay_params.yml')
+        self.assertTrue(os.path.exists(replay_file))
+        with open(replay_file, 'r', encoding='utf-8') as handle:
+            replay_cfg = yaml.safe_load(handle)
+        self.assertEqual(replay_cfg['data_source']['global_precision'], 1)
 
     @cpu_and_gpu
     def test_data_store_start_time(self, target_device_idx, xp):

@@ -1,4 +1,5 @@
 import specula
+from specula.loop_control import LoopControl
 specula.init(0)  # Default target device
 
 import unittest
@@ -73,7 +74,7 @@ class TestCCD(unittest.TestCase):
     @cpu_and_gpu
     def test_ccd_excess_noise_trigger(self, target_device_idx, xp):
         t_seconds = 1
-        t = int(1e9)*t_seconds  # Convert 1 second to simulation time step
+
         average_i = 10.0
         emccd_gain = 400.0
         simul_params = SimulParams(time_step=t_seconds)
@@ -89,14 +90,13 @@ class TestCCD(unittest.TestCase):
         i = Intensity(dimx=10, dimy=10, target_device_idx=target_device_idx)
         # Set up the input intensity with a known value
         i.i[:] = average_i
-        i.generation_time = t
+        i.generation_time = i.seconds_to_t(t_seconds)
         ccd.inputs['in_i'].set(i)
-        ccd.loop_dt = t
-        ccd.setup()
-        # Execute the trigger method
-        ccd.check_ready(t)
-        ccd.trigger()
-        ccd.post_trigger()
+
+        loop = LoopControl()
+        loop.add(ccd, idx=0)
+        loop.run(run_time=t_seconds*2, dt=t_seconds, t0=t_seconds)
+        
         # Check that the average pixel value is close to the expected value
         actual = float(xp.mean(ccd._pixels.pixels))
         expected = average_i * emccd_gain
@@ -109,7 +109,7 @@ class TestCCD(unittest.TestCase):
     @cpu_and_gpu
     def test_ccd_noise_trigger(self, target_device_idx, xp):
         t_seconds = 1
-        t = int(1e9)*t_seconds  # Convert 1 second to simulation time step
+
         average_i = 10.0
         emccd_gain = 400.0
         readout_level = 1.0
@@ -131,14 +131,13 @@ class TestCCD(unittest.TestCase):
         i = Intensity(dimx=10, dimy=10, target_device_idx=target_device_idx)
         # Set up the input intensity with a known value
         i.i[:] = average_i
-        i.generation_time = t
+        i.generation_time = i.seconds_to_t(t_seconds)
         ccd.inputs['in_i'].set(i)
-        ccd.loop_dt = t
-        ccd.setup()
-        # Execute the trigger method
-        ccd.check_ready(t)
-        ccd.trigger()
-        ccd.post_trigger()
+
+        loop = LoopControl()
+        loop.add(ccd, idx=0)
+        loop.run(run_time=t_seconds*2, dt=t_seconds, t0=t_seconds)
+
         # Check that the average pixel value is close to the expected value
         actual = float(xp.mean(ccd._pixels.pixels))
         expected = average_i

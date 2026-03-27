@@ -1,12 +1,9 @@
 import unittest
-import importlib
-import pkgutil
-import inspect
 
 import specula
 specula.init(0)  # Default target device
 
-import specula.data_objects
+from test.specula_testlib import iter_data_object_classes
 
 class TestDataObjects(unittest.TestCase):
 
@@ -16,25 +13,9 @@ class TestDataObjects(unittest.TestCase):
         
         get_value, set_value, save, restore, from_header and get_fits_header
         '''
-        def generate_data_classes():
-            # Iterate over all modules in the package path
-            for finder, name, ispkg in pkgutil.iter_modules(specula.data_objects.__path__):
+        skip = ['InfinitePhaseScreen', 'SimulParams', 'SubapData']
 
-                # Import submodule
-                full_name = f"{specula.data_objects.__name__}.{name}"
-                module = importlib.import_module(full_name)
-
-                skip = ['InfinitePhaseScreen', 'SimulParams', 'SubapData']
-                # List all classes defined in that module
-                classes = [value for name, value in inspect.getmembers(module, inspect.isclass) if name not in skip]
-
-                # Filter: only classes whose __module__ matches the submodule (not external ones)
-                classes = [cls for cls in classes if cls.__module__ == module.__name__ and cls.__name__[0] != '_']
-
-                for c in classes:
-                    yield c
-
-        for klass in generate_data_classes():
+        for klass in iter_data_object_classes(skip=skip):
             assert hasattr(klass, 'get_value')
             assert hasattr(klass, 'set_value')
             assert hasattr(klass, 'save')

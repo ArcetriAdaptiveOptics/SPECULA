@@ -1,4 +1,5 @@
 import os
+
 from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.intensity import Intensity
 from specula.data_objects.pixels import Pixels

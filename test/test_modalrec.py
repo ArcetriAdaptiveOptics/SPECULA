@@ -9,6 +9,7 @@ from specula.data_objects.recmat import Recmat
 from specula.data_objects.intmat import Intmat
 from specula.data_objects.slopes import Slopes
 from specula.base_value import BaseValue
+from specula.loop_control import LoopControl
 
 from test.specula_testlib import cpu_and_gpu
 
@@ -81,10 +82,6 @@ class TestModalrec(unittest.TestCase):
         )
         rec.inputs['in_slopes'].set(slopes)
         rec.inputs['in_commands'].set(commands)
-        rec.setup()
-        rec.prepare_trigger(0)
-        rec.trigger_code()
-        out1 = rec.modes.value.copy()
 
         # ModalrecImplicitPolc
         rec2 = ModalrecImplicitPolc(
@@ -95,9 +92,14 @@ class TestModalrec(unittest.TestCase):
         )
         rec2.inputs['in_slopes'].set(slopes_ip)
         rec2.inputs['in_commands'].set(commands_ip)
-        rec2.setup()
-        rec2.prepare_trigger(0)
-        rec2.trigger_code()
+
+        loop = LoopControl()
+        loop.add(rec, idx=0)
+        loop.add(rec2, idx=0)
+
+        loop.run(dt=1, run_time=1)
+
+        out1 = rec.modes.value.copy()
         out2 = rec2.modes.value.copy()
 
         xp.testing.assert_allclose(out1, out2, rtol=1e-10, atol=1e-12)
@@ -289,9 +291,9 @@ class TestModalrec(unittest.TestCase):
         rec.inputs['in_slopes'].set(slopes)
         rec.inputs['in_commands'].set(commands)
 
-        rec.setup()
-        rec.prepare_trigger(0)
-        rec.trigger_code()
+        loop = LoopControl()
+        loop.add(rec, idx=0)
+        loop.run(run_time=1, dt=1)
 
         # Should not crash and produce valid output
         self.assertEqual(rec.modes.value.shape[0], 2)

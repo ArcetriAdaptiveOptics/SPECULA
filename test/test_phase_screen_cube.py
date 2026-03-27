@@ -85,6 +85,9 @@ class TestPhaseScreenCube(unittest.TestCase):
         answer0 = self.cube.cur_screen
         answer1 = self.cube.outputs['out_on_axis_source_ef'].phaseInNm
 
+        assert 'out_on_axis_source_layer' in self.cube.outputs
+        assert self.cube.outputs['out_on_axis_source_layer'].field is self.cube.outputs['out_on_axis_source_ef'].field
+
         #Expected
         screen0 = np.transpose(np.resize(np.linspace(-1,1,100),(100,100)))
         screen1 = np.transpose(screen0)*2
@@ -102,3 +105,18 @@ class TestPhaseScreenCube(unittest.TestCase):
         np.testing.assert_array_almost_equal(cpuArray(answer1),
                                              cpuArray(exp_screen1),
                                              decimal = 2)
+
+    @cpu_and_gpu
+    def test_default_output_names_without_source_dict(self, target_device_idx, xp):
+        fits_file = os.path.join(self.data_dir, 'phase_screen_cube_test.fits')
+        cube = self.load_cube_from_fits(fits_file, target_device_idx=target_device_idx)
+
+        phase_screen_cube = PhaseScreenCube(self.simul_params,
+                                            cube=cube,
+                                            pixel_scale=0.1,
+                                            source_dict=None,
+                                            target_device_idx=target_device_idx)
+
+        assert 'out_ef' in phase_screen_cube.outputs
+        assert 'out_layer' in phase_screen_cube.outputs
+        assert phase_screen_cube.outputs['out_layer'].field is phase_screen_cube.outputs['out_ef'].field

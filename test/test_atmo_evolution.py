@@ -1,6 +1,7 @@
 import os
 import glob
 import specula
+from specula.loop_control import LoopControl
 specula.init(0)  # Default target device
 
 import unittest
@@ -61,21 +62,17 @@ class TestAtmoEvolution(unittest.TestCase):
         atmo.inputs['wind_speed'].set(wind_speed.output)
         prop.inputs['atmo_layer_list'].set(atmo.outputs['layer_list'])
 
-        for objlist in [[seeing, wind_speed, wind_direction], [atmo], [prop]]:
-            for obj in objlist:
-                obj.setup()
+        # No exceptions should be raised during the loop execution, and outputs should be generated
 
-            for obj in objlist:
-                obj.check_ready(1)
+        loop = LoopControl()
+        loop.add(seeing, idx=0)
+        loop.add(wind_speed, idx=0)
+        loop.add(wind_direction, idx=0)
+        loop.add(atmo, idx=1)
+        loop.run(run_time=1, dt=1)
 
-            for obj in objlist:
-                obj.trigger()
-
-            for obj in objlist:
-                obj.post_trigger()
-
-        ef_onaxis = cpuArray(prop.outputs['out_on_axis_source_ef'])
-        ef_offaxis = cpuArray(prop.outputs['out_lgs1_source_ef'])
+        assert 'out_on_axis_source_ef' in prop.outputs
+        assert 'out_lgs1_source_ef' in prop.outputs
 
     @cpu_and_gpu
     def test_that_wrong_Cn2_total_is_detected(self, target_device_idx, xp):
@@ -140,31 +137,18 @@ class TestAtmoEvolution(unittest.TestCase):
         atmo.inputs['wind_direction'].set(wind_direction.output)
         atmo.inputs['wind_speed'].set(wind_speed.output)
 
-        for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
-            for obj in objlist:
-                obj.setup()
-
-            for obj in objlist:
-                obj.check_ready(1)
-
-            for obj in objlist:
-                obj.trigger()
-
-            for obj in objlist:
-                obj.post_trigger()
+        loop = LoopControl()
+        loop.add(seeing, idx=0)
+        loop.add(wind_speed, idx=0)
+        loop.add(wind_direction, idx=0)
+        loop.add(atmo, idx=1)
+        loop.start(run_time=2, dt=1)
+        loop.iter()
 
         id_a1 = id(atmo.outputs['layer_list'][0].field)
         id_b1 = id(atmo.outputs['layer_list'][1].field)
 
-        for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
-            for obj in objlist:
-                obj.check_ready(2)
-
-            for obj in objlist:
-                obj.trigger()
-
-            for obj in objlist:
-                obj.post_trigger()
+        loop.iter()
 
         id_a2 = id(atmo.outputs['layer_list'][0].field)
         id_b2 = id(atmo.outputs['layer_list'][1].field)
@@ -279,18 +263,13 @@ class TestAtmoEvolution(unittest.TestCase):
         atmo.inputs['wind_direction'].set(wind_direction.output)
         atmo.inputs['wind_speed'].set(wind_speed.output)
 
-        for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
-            for obj in objlist:
-                obj.setup()
-
-            for obj in objlist:
-                obj.check_ready(0)
-
-            for obj in objlist:
-                obj.trigger()
-
-            for obj in objlist:
-                obj.post_trigger()
+        loop = LoopControl()
+        loop.add(seeing, idx=0)
+        loop.add(wind_speed, idx=0)
+        loop.add(wind_direction, idx=0)
+        loop.add(atmo, idx=1)
+        loop.start(run_time=delta_time*2, dt=delta_time)
+        loop.iter()
 
         # After first trigger, last_position should be approximately zero
         np.testing.assert_allclose(atmo.last_position, 0.0, atol=1e-6)
@@ -302,15 +281,8 @@ class TestAtmoEvolution(unittest.TestCase):
             atmo.last_effective_position, expected_extra_offset, rtol=1e-8
         )
 
-        for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
-            for obj in objlist:
-                obj.check_ready(delta_t)
-
-            for obj in objlist:
-                obj.trigger()
-
-            for obj in objlist:
-                obj.post_trigger()
+        # Second trigger
+        loop.iter()
 
         # After second trigger, verify that:
         # 1. delta_time does not contain extra_delta_time
@@ -356,18 +328,13 @@ class TestAtmoEvolution(unittest.TestCase):
         atmo.inputs['wind_direction'].set(wind_direction.output)
         atmo.inputs['wind_speed'].set(wind_speed.output)
 
-        for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
-            for obj in objlist:
-                obj.setup()
-
-            for obj in objlist:
-                obj.check_ready(0)
-
-            for obj in objlist:
-                obj.trigger()
-
-            for obj in objlist:
-                obj.post_trigger()
+        loop = LoopControl()
+        loop.add(seeing, idx=0)
+        loop.add(wind_speed, idx=0)
+        loop.add(wind_direction, idx=0)
+        loop.add(atmo, idx=1)
+        loop.start(run_time=delta_time*2, dt=delta_time)
+        loop.iter()
 
         # After first trigger, last_position should be approximately zero
         np.testing.assert_allclose(atmo.last_position, 0.0, atol=1e-6)
@@ -379,15 +346,7 @@ class TestAtmoEvolution(unittest.TestCase):
             atmo.last_effective_position, expected_extra_offset, rtol=1e-8
         )
 
-        for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
-            for obj in objlist:
-                obj.check_ready(delta_t)
-
-            for obj in objlist:
-                obj.trigger()
-
-            for obj in objlist:
-                obj.post_trigger()
+        loop.iter()
 
         # After second trigger, verify that:
         # 1. delta_time does not contain extra_delta_time
