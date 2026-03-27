@@ -257,7 +257,6 @@ class TestPyrPupdataCalibratorSave(unittest.TestCase):
             calib = PyrPupdataCalibrator(
                 data_dir=tmpdir,
                 dt=1,
-                output_tag="test_pupdata",
                 overwrite=True,
                 target_device_idx=target_device_idx
             )
@@ -268,7 +267,7 @@ class TestPyrPupdataCalibratorSave(unittest.TestCase):
             calib.pupdata.cy = xp.ones(4)
             calib.pupdata.framesize = (64, 64)
 
-            calib._save()
+            calib._save("test_pupdata")
 
             expected = os.path.join(tmpdir, "test_pupdata.fits")
 
