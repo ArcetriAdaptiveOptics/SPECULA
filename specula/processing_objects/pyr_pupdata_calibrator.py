@@ -5,6 +5,7 @@ from specula.data_objects.intensity import Intensity
 from specula.data_objects.pixels import Pixels
 from specula.connections import InputValue
 from specula.data_objects.pupdata import PupData
+from specula.lib import utils
 from specula import cpuArray
 
 
