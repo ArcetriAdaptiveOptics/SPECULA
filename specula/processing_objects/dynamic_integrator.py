@@ -53,7 +53,6 @@ class DynamicIntegrator(Integrator):
         precision : int, optional
             Numerical precision for internal data  (0 for double, 1 for single).
         """
-        Numerical precision for internal data representation.
         super().__init__(simul_params=simul_params,
                          int_gain=int_gain,
                          ff=ff,
