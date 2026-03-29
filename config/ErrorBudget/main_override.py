@@ -104,7 +104,7 @@ for i,n_subap in enumerate(n_subaps):
 ogpath = os.path.join(root_dir,'optgains')
 os.makedirs(ogpath,exist_ok=True)
 fs = read_freq(params_path=f'./{main_config}')
-ncycles = 100
+ncycles = 40
 for i,n_subap in enumerate(n_subaps):
     pup_dist = np.max((min_pup_dist,max_pup_dist/max(n_subaps)*n_subap))
     N = n_modes[i]
@@ -122,8 +122,8 @@ for i,n_subap in enumerate(n_subaps):
                         f"pyr.pup_dist: {pup_dist:.1f}, "
                         f"pyr.mod_amp: {rMod:.1f}, "
                         f"pushpull.nmodes: {N:1.0f}, "
+                        f"pushpull.ntiles: {ncycles:1.0f}, "
                         f"pyr_im_calibrator.nmodes: {N:1.0f}, "
-                        # f"modal_analysis_random.nmodes: {N:1.0f}, "
                         f"dm_random.nmodes: {N:1.0f}, "
                         f"dm.nmodes: {N:1.0f}, "
                         f"pyr_slopes.pupdata_object: 'pyr_pupdata_{n_subap:.0f}x{n_subap:.0f}', "
@@ -167,10 +167,14 @@ for i,n_subap in enumerate(n_subaps):
                     os.system(f"specula {main_config} calib_aliasing.yml temp_overrides.yml")
                     # specula.main_simul(yml_files=[main_config, 'calib_aliasing.yml'], overrides=overrides) #
                     alias_modes = fits.getdata(os.path.join(root_dir,'scratch_aliasing','pyr_modes.fits'))
-                    psd,f = get_psd(alias_modes.T, nperseg=1024, dt=1/fs)
-                    tag = f'pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_s{seeing:1.1f}_{N:1.0f}modes_alias_PSD'
-                    fits.writeto(os.path.join(aliaspath,tag+'.fits'),psd,overwrite=True)
-                    print('Saved aliasing PSD as: '+tag)
+                    # psd,f = get_psd(alias_modes.T, nperseg=1024, dt=1/fs)
+                    # tag = f'pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_s{seeing:1.1f}_{N:1.0f}modes_alias_PSD'
+                    # fits.writeto(os.path.join(aliaspath,tag+'.fits'),psd,overwrite=True)
+                    # print('Saved aliasing PSD as: '+tag)
+                    alias_rms = np.sqrt(np.mean(alias_modes**2,axis=0)) 
+                    tag = f'pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_s{seeing:1.1f}_{N:1.0f}modes_alias'
+                    fits.writeto(os.path.join(aliaspath,tag+'.fits'),alias_rms,overwrite=True)
+                    print('Saved aliasing as: '+tag)
                 except FileExistsError:
                     pass
 

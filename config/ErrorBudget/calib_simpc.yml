@@ -6,7 +6,7 @@ pushpull:
   class:        'PushPullGenerator'
   nmodes:       660                         # Number of DM actuators
   amp:          10  
-  ncycles:      100
+  ntiles:       40
   # constant_amp: true
   outputs:   ['output']
 
@@ -22,72 +22,62 @@ pyr_im_calibrator:
 
 # Override main simulation parameters
 main_override:
-  total_time: 77.616                 # 660 modes × 2 (push+pull) × 0.000588s x 100 cycles
+  total_time: 77.616                 # 660 modes × 2 (push+pull) × 0.000588s x 40 cycles
 
 ################################## ATMO RESIDUAL #####################################
-# seeing_random:
-#   class:             'RandomGenerator'
-#   amp:               0.0                 # Variation amplitude [arcsec]
-#   constant:          1.4                 # Mean seeing [arcsec]
-#   distribution:      'UNIFORM'           # 
-#   outputs: ['output']
+seeing_random:
+  class:             'RandomGenerator'
+  amp:               0.0                 # Variation amplitude [arcsec]
+  constant:          1.4                 # Mean seeing [arcsec]
+  distribution:      'UNIFORM'           # 
+  outputs: ['output']
 
-# # Random atmospheric phase generator
-# atmo_random:
-#   class:                'AtmoRandomPhase'
-#   simul_params_ref:     'main'
-#   L0:                   25               # [m] Outer scale
-#   source_dict_ref:      ['source_ngs']
-#   update_interval:      2                 # Update after push-pull
-#   inputs:
-#     seeing:             'seeing_random.output'
-#     pupilstop:          'pupilstop'
-#   outputs:              ['out_source_ngs_ef']
+# Random atmospheric phase generator
+atmo_random:
+  class:                'AtmoRandomPhase'
+  simul_params_ref:     'main'
+  L0:                   25               # [m] Outer scale
+  source_dict_ref:      ['source_ngs']
+  update_interval:      1320                 # Update after push-pull of all modes
+  inputs:
+    seeing:             'seeing_random.output'
+    pupilstop:          'pupilstop'
+  outputs:              ['out_source_ngs_ef']
 
-# # Modal decomposition of atmospheric phase
-# modal_analysis_random:
-#   class: 'ModalAnalysis'
-#   ifunc_inv_object: 'asm_kl_inv'
-#   nmodes: 660
-#   inputs:
-#     in_ef: 'atmo_random.out_source_ngs_ef'
-#   outputs: ['out_modes']
+# Modal decomposition of atmospheric phase
+modal_analysis_random:
+  class: 'ModalAnalysis'
+  ifunc_inv_object: 'asm_kl_inv'
+  nmodes: 660
+  inputs:
+    in_ef: 'atmo_random.out_source_ngs_ef'
+  outputs: ['out_modes']
 
-# scale_random:
-#   class:  'BaseOperation'
-#   constant_mul_data: 'correction_vector_600modes_c0.99' 
-#   inputs:
-#     in_value1: 'modal_analysis_random.out_modes'
-#   outputs: ['out_value']
+scale_random:
+  class:  'BaseOperation'
+  constant_mul_data: 'correction_vector_600modes_c0.99' 
+  inputs:
+    in_value1: 'modal_analysis_random.out_modes'
+  outputs: ['out_value']
 
-# # DM applying partial correction
-# dm_random:
-#   class: 'DM'
-#   simul_params_ref:  'main'
-#   ifunc_object:      'asm_ifunc'      # Our computed influence functions
-#   m2c_object:        'asm_m2c'        # Modal-to-command matrix
-#   # nmodes:            660            # Number of controlled modes
-#   height:            0.0                # Ground-conjugated DM
-#   inputs:
-#     in_command: 'scale_random.out_value'
-#   outputs: ['out_layer']
-
-# atmo_pc:
-#   class: 'ElectricFieldCombinator'
-#   inputs:
-#     in_ef1: 'atmo_random.out_source_ngs_ef'    # Turbulence
-#     in_ef2: 'dm_random.out_layer'              # Partial correction
-#   outputs: ['out_ef']
+# DM applying partial correction
+dm_random:
+  class: 'DM'
+  simul_params_ref:  'main'
+  ifunc_object:      'asm_ifunc'      # Our computed influence functions
+  m2c_object:        'asm_m2c'        # Modal-to-command matrix
+  # nmodes:            660            # Number of controlled modes
+  height:            0.0                # Ground-conjugated DM
+  inputs:
+    in_command: 'scale_random.out_value'
+  outputs: ['out_layer']
 
 atmo_pc:
-  class:              'PhaseScreenCube'
-  simul_params_ref:   'main'
-  file_name:          '/raid1/mmenessini/calibration/SOUL/phasescreens/phase_cubeNm.fits'
-  time_step:          1.0 # same as main
-  pixel_scale:        0.0525 # same as main
-  source_dict_ref:    ['source_ngs']
+  class: 'ElectricFieldCombinator'
   inputs:
-    pupilstop:        ['pupilstop']
+    in_ef1: 'atmo_random.out_source_ngs_ef'    # Turbulence
+    in_ef2: 'dm_random.out_layer'              # Partial correction
+  outputs: ['out_ef']
 
 ef_mode:
   class: 'ElectricFieldCombinator'
