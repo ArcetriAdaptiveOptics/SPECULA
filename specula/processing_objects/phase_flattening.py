@@ -33,8 +33,8 @@ class PhaseFlattening(BaseProcessingObj):
         in_ef = self.local_inputs['in_ef']
 
         self._out_ef.resize(
-            dimx=in_ef.A.shape[0],
-            dimy=in_ef.A.shape[1],
+            dimx=in_ef.A.shape[1],
+            dimy=in_ef.A.shape[0],
             pitch=in_ef.pixel_pitch,
         )
 

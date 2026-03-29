@@ -56,8 +56,8 @@ class Layer(ElectricField):
         hdr = fits.Header()
         hdr['VERSION'] = 1
         hdr['OBJ_TYPE'] = 'Layer'
-        hdr['DIMX'] = self.field[0].shape[0]
-        hdr['DIMY'] = self.field[0].shape[1]
+        hdr['DIMX'] = self.field[0].shape[1]
+        hdr['DIMY'] = self.field[0].shape[0]
         hdr['PIXPITCH'] = self.pixel_pitch
         hdr['HEIGHT'] = self.height
         hdr['SHIFTX'] = float(self.shiftXYinPixel[0])

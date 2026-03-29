@@ -6,6 +6,7 @@ specula.init(0)  # Default target device
 
 from specula import cpuArray
 from specula.simul import Simul
+from specula.loop_control import LoopControl
 from specula.processing_objects.wave_generator import WaveGenerator
 from specula.processing_objects.data_buffer import DataBuffer
 from specula.base_data_obj import BaseDataObj
@@ -167,21 +168,10 @@ class TestDataBuffer(unittest.TestCase):
         buffer.emit_buffered_data = track_emit
 
 
-        # Simulate steps manually
-        for step in range(total_steps):
-            current_time = step * 0.1
-
-            # Update generator
-            generator.current_time = current_time
-            generator.check_ready(current_time)
-            generator.trigger()
-            generator.post_trigger()
-
-            # Update buffer
-            buffer.current_time = current_time
-            buffer.check_ready(current_time)
-            buffer.trigger()
-            buffer.post_trigger()
+        loop = LoopControl()
+        loop.add(generator, idx=0)
+        loop.add(buffer, idx=1)
+        loop.run(run_time=total_steps, dt=1)
 
         # Finalize buffer to emit remaining data
         buffer.finalize()

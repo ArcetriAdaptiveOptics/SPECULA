@@ -14,32 +14,33 @@ from test.specula_testlib import cpu_and_gpu
 
 class TestIntensity(unittest.TestCase):
     def setUp(self):
-        self.shape = (4, 5)
+        self.dimxy = (5, 4)
+        self.shape = (self.dimxy[1], self.dimxy[0])  # (dimy, dimx) for array shape
 
     @cpu_and_gpu
     def test_initialization_and_get_value(self, target_device_idx, xp):
-        obj = Intensity(*self.shape, target_device_idx=target_device_idx)
+        obj = Intensity(*self.dimxy, target_device_idx=target_device_idx)
         self.assertEqual(obj.i.shape, self.shape)
         np.testing.assert_array_equal(cpuArray(obj.get_value()), np.zeros(self.shape))
 
     @cpu_and_gpu
     def test_set_value(self, target_device_idx, xp):
-        obj = Intensity(*self.shape, target_device_idx=target_device_idx)
+        obj = Intensity(*self.dimxy, target_device_idx=target_device_idx)
         new_val = xp.random.rand(*self.shape).astype(xp.float32)
         obj.set_value(new_val)
         np.testing.assert_array_equal(cpuArray(obj.get_value()), cpuArray(new_val))
 
     @cpu_and_gpu
     def test_set_value_wrong_shape(self, target_device_idx, xp):
-        obj = Intensity(*self.shape, target_device_idx=target_device_idx)
+        obj = Intensity(*self.dimxy, target_device_idx=target_device_idx)
         wrong_shape = xp.random.rand(2, 2).astype(xp.float32)
         with self.assertRaises(AssertionError):
             obj.set_value(wrong_shape)
 
     @cpu_and_gpu
     def test_sum(self, target_device_idx, xp):
-        obj1 = Intensity(*self.shape, target_device_idx=target_device_idx)
-        obj2 = Intensity(*self.shape, target_device_idx=target_device_idx)
+        obj1 = Intensity(*self.dimxy, target_device_idx=target_device_idx)
+        obj2 = Intensity(*self.dimxy, target_device_idx=target_device_idx)
         obj1.set_value(xp.ones(self.shape, dtype=xp.float32))
         obj2.set_value(xp.ones(self.shape, dtype=xp.float32) * 2)
 
@@ -49,17 +50,17 @@ class TestIntensity(unittest.TestCase):
 
     @cpu_and_gpu
     def test_get_fits_header(self, target_device_idx, xp):
-        obj = Intensity(*self.shape, target_device_idx=target_device_idx)
+        obj = Intensity(*self.dimxy, target_device_idx=target_device_idx)
         hdr = obj.get_fits_header()
         self.assertIsInstance(hdr, fits.Header)
         self.assertEqual(hdr["VERSION"], 1)
         self.assertEqual(hdr["OBJ_TYPE"], "Intensity")
-        self.assertEqual(hdr["DIMX"], self.shape[0])
-        self.assertEqual(hdr["DIMY"], self.shape[1])
+        self.assertEqual(hdr["DIMX"], self.shape[1])
+        self.assertEqual(hdr["DIMY"], self.shape[0])
 
     @cpu_and_gpu
     def test_save_restore_roundtrip(self, target_device_idx, xp):
-        obj = Intensity(*self.shape, target_device_idx=target_device_idx)
+        obj = Intensity(*self.dimxy, target_device_idx=target_device_idx)
         data = xp.random.rand(*self.shape).astype(xp.float32)
         obj.set_value(data)
 
@@ -74,8 +75,8 @@ class TestIntensity(unittest.TestCase):
 
                 # Primary HDU: header only, no data
                 self.assertEqual(hdul[0].header["OBJ_TYPE"], "Intensity") # pylint: disable=no-member
-                self.assertEqual(hdul[0].header["DIMX"], self.shape[0])   # pylint: disable=no-member
-                self.assertEqual(hdul[0].header["DIMY"], self.shape[1])   # pylint: disable=no-member
+                self.assertEqual(hdul[0].header["DIMX"], self.shape[1])   # pylint: disable=no-member
+                self.assertEqual(hdul[0].header["DIMY"], self.shape[0])   # pylint: disable=no-member
                 self.assertIsNone(hdul[0].data)                           # pylint: disable=no-member
 
                 # Second HDU: intensity data
@@ -108,7 +109,7 @@ class TestIntensity(unittest.TestCase):
         hdr = fits.Header()
         hdr["VERSION"] = 1
         hdr["OBJ_TYPE"] = "Intensity"
-        hdr["DIMX"], hdr["DIMY"] = self.shape
+        hdr["DIMX"], hdr["DIMY"] = self.dimxy
         intensity = Intensity.from_header(hdr, target_device_idx=target_device_idx)
         self.assertEqual(intensity.i.shape, self.shape)
 
@@ -119,7 +120,7 @@ class TestIntensity(unittest.TestCase):
 
     @cpu_and_gpu
     def test_array_for_display(self, target_device_idx, xp):
-        obj = Intensity(*self.shape, target_device_idx=target_device_idx)
+        obj = Intensity(*self.dimxy, target_device_idx=target_device_idx)
         data = xp.random.rand(*self.shape).astype(xp.float32)
         obj.set_value(data)
         np.testing.assert_array_equal(cpuArray(obj.array_for_display()), cpuArray(data))

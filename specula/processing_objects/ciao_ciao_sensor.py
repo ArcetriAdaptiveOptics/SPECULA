@@ -160,7 +160,7 @@ class CiaoCiaoSensor(BaseProcessingObj):
         super().setup()
 
         in_ef = self.local_inputs['in_ef']
-        dimx, dimy = in_ef.size
+        dimy, dimx = in_ef.size
 
         self.ef_interpolator_in = EFInterpolator(
             in_ef=in_ef,
@@ -187,10 +187,10 @@ class CiaoCiaoSensor(BaseProcessingObj):
             precision=self.precision
         )
 
-        self._ef = self.xp.zeros((dimx, dimy), dtype=self.complex_dtype)
-        self._rot_ef = self.xp.zeros((dimx, dimy), dtype=self.complex_dtype)
-        self._interf_ef = self.xp.zeros((dimx, dimy), dtype=self.complex_dtype)
-        self._interf_i = self.xp.zeros((dimx, dimy), dtype=self.dtype)
+        self._ef = self.xp.zeros((dimy, dimx), dtype=self.complex_dtype)
+        self._rot_ef = self.xp.zeros((dimy, dimx), dtype=self.complex_dtype)
+        self._interf_ef = self.xp.zeros((dimy, dimx), dtype=self.complex_dtype)
+        self._interf_i = self.xp.zeros((dimy, dimx), dtype=self.dtype)
 
         tilt_phase_nm = self._build_tilt_phase_map_nm(in_ef)
         tilt_phase_rad = tilt_phase_nm * ((2 * self.xp.pi) / self.wavelength_in_nm)

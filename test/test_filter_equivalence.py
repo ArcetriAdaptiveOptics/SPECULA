@@ -4,6 +4,8 @@ specula.init(0)  # Default target device
 import unittest
 import numpy as np
 from specula import cpuArray
+from specula.loop_control import LoopControl
+
 from specula.data_objects.ssr_filter_data import SsrFilterData
 from specula.processing_objects.ssr_filter import SsrFilter
 from specula.processing_objects.integrator import Integrator
@@ -47,23 +49,23 @@ class TestSsrIirEquivalence(unittest.TestCase):
         iir_integrator.setup()
 
         # Run simulation
+        loop = LoopControl()
+        loop.add(ssr_filter, idx=0)
+        loop.add(iir_integrator, idx=0)
+        loop.start(run_time=n_steps*dt, dt=dt)
+
         for step in range(n_steps):
             t = ssr_filter.seconds_to_t(step * dt)
             input_value.generation_time = t
 
-            # SSR filter
-            ssr_filter.check_ready(t)
-            ssr_filter.trigger()
-            ssr_filter.post_trigger()
-
-            # IIR filter
-            iir_integrator.check_ready(t)
-            iir_integrator.trigger()
-            iir_integrator.post_trigger()
+            loop.iter()
 
             # Compare outputs
             ssr_output = cpuArray(ssr_filter.outputs['out_comm'].value)
             iir_output = cpuArray(iir_integrator.outputs['out_comm'].value)
+
+            assert ssr_filter.outputs['out_comm'].generation_time == t
+            assert iir_integrator.outputs['out_comm'].generation_time == t
 
             np.testing.assert_allclose(ssr_output, iir_output, rtol=1e-6,
                                       err_msg=f"Outputs differ at step {step}")
@@ -96,8 +98,10 @@ class TestSsrIirEquivalence(unittest.TestCase):
         ssr_filter.inputs['delta_comm'].set(input_value)
         iir_integrator.inputs['delta_comm'].set(input_value)
 
-        ssr_filter.setup()
-        iir_integrator.setup()
+        loop = LoopControl()
+        loop.add(ssr_filter, idx=0)
+        loop.add(iir_integrator, idx=0)
+        loop.start(run_time=n_steps*dt, dt=dt)
 
         # Run simulation with varying input (sinusoidal)
         for step in range(n_steps):
@@ -112,19 +116,14 @@ class TestSsrIirEquivalence(unittest.TestCase):
             input_value.value = xp.array(input_array)
             input_value.generation_time = t
 
-            # SSR filter
-            ssr_filter.check_ready(t)
-            ssr_filter.trigger()
-            ssr_filter.post_trigger()
-
-            # IIR filter
-            iir_integrator.check_ready(t)
-            iir_integrator.trigger()
-            iir_integrator.post_trigger()
+            loop.iter()
 
             # Compare outputs
             ssr_output = cpuArray(ssr_filter.outputs['out_comm'].value)
             iir_output = cpuArray(iir_integrator.outputs['out_comm'].value)
+
+            assert ssr_filter.outputs['out_comm'].generation_time == t
+            assert iir_integrator.outputs['out_comm'].generation_time == t
 
             np.testing.assert_allclose(ssr_output, iir_output, rtol=1e-6,
                                       err_msg=f"Outputs differ at step {step}")
@@ -157,23 +156,17 @@ class TestSsrIirEquivalence(unittest.TestCase):
         ssr_filter.inputs['delta_comm'].set(input_value)
         iir_integrator.inputs['delta_comm'].set(input_value)
 
-        ssr_filter.setup()
-        iir_integrator.setup()
+        loop = LoopControl()
+        loop.add(ssr_filter, idx=0)
+        loop.add(iir_integrator, idx=0)
+        loop.start(run_time=n_steps*dt, dt=dt)
 
         # Run simulation
         for step in range(n_steps):
             t = ssr_filter.seconds_to_t(step * dt)
             input_value.generation_time = t
 
-            # SSR filter
-            ssr_filter.check_ready(t)
-            ssr_filter.trigger()
-            ssr_filter.post_trigger()
-
-            # IIR filter
-            iir_integrator.check_ready(t)
-            iir_integrator.trigger()
-            iir_integrator.post_trigger()
+            loop.iter()
 
             # Compare outputs
             ssr_output = cpuArray(ssr_filter.outputs['out_comm'].value)
@@ -228,8 +221,10 @@ class TestSsrIirEquivalence(unittest.TestCase):
         ssr_filter.inputs['delta_comm'].set(input_value)
         iir_integrator.inputs['delta_comm'].set(input_value)
 
-        ssr_filter.setup()
-        iir_integrator.setup()
+        loop = LoopControl()
+        loop.add(ssr_filter, idx=0)
+        loop.add(iir_integrator, idx=0)
+        loop.start(run_time=n_steps*dt, dt=dt)
 
         # Run simulation with random input
         for step in range(n_steps):
@@ -240,15 +235,7 @@ class TestSsrIirEquivalence(unittest.TestCase):
             input_value.value = xp.array(random_input)
             input_value.generation_time = t
 
-            # SSR filter
-            ssr_filter.check_ready(t)
-            ssr_filter.trigger()
-            ssr_filter.post_trigger()
-
-            # IIR filter
-            iir_integrator.check_ready(t)
-            iir_integrator.trigger()
-            iir_integrator.post_trigger()
+            loop.iter()
 
             # Compare outputs
             ssr_output = cpuArray(ssr_filter.outputs['out_comm'].value)
@@ -281,21 +268,18 @@ class TestSsrIirEquivalence(unittest.TestCase):
         # Connect and setup
         ssr_filter.inputs['delta_comm'].set(input_value)
         iir_integrator.inputs['delta_comm'].set(input_value)
-        ssr_filter.setup()
-        iir_integrator.setup()
+
+        loop = LoopControl()
+        loop.add(ssr_filter, idx=0)
+        loop.add(iir_integrator, idx=0)
+        loop.start(run_time=6*dt, dt=dt)
 
         # Run for a few steps
         for step in range(5):
             t = ssr_filter.seconds_to_t(step * dt)
             input_value.generation_time = t
 
-            ssr_filter.check_ready(t)
-            ssr_filter.trigger()
-            ssr_filter.post_trigger()
-
-            iir_integrator.check_ready(t)
-            iir_integrator.trigger()
-            iir_integrator.post_trigger()
+            loop.iter()
 
         # Verify they have accumulated state
         ssr_before = cpuArray(ssr_filter.outputs['out_comm'].value)
@@ -312,13 +296,7 @@ class TestSsrIirEquivalence(unittest.TestCase):
         input_value.value = xp.zeros(1, dtype=xp.float32)
         input_value.generation_time = t
 
-        ssr_filter.check_ready(t)
-        ssr_filter.trigger()
-        ssr_filter.post_trigger()
-
-        iir_integrator.check_ready(t)
-        iir_integrator.trigger()
-        iir_integrator.post_trigger()
+        loop.iter()
 
         # Both should output zero
         ssr_after = cpuArray(ssr_filter.outputs['out_comm'].value)
