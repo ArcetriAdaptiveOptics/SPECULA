@@ -181,3 +181,33 @@ class TestPhaseFlattening(unittest.TestCase):
         # Check no reallocation occurred
         assert id(phase_flattener.outputs['out_ef'].field) == output_field_id, \
             "Output field should not be reallocated"
+
+    @cpu_and_gpu
+    def test_phase_flattening_shape(self, target_device_idx, xp):
+        """Test that phase flattening doesn't cause memory reallocation"""
+        dimx = 10
+        dimy = 20
+        pixel_pitch = 0.1
+
+        # Create phase flattener
+        phase_flattener = PhaseFlattening(
+            target_device_idx=target_device_idx
+        )
+
+        # Create input
+        ef_in = ElectricField(dimx, dimy, pixel_pitch, 
+                             S0=1, target_device_idx=target_device_idx)
+        ef_in.A[:] = 1
+        ef_in.phaseInNm[:] = 100
+
+        phase_flattener.inputs['in_ef'].set(ef_in)
+
+        # First trigger to setup
+        t = 1
+        ef_in.generation_time = t
+        phase_flattener.check_ready(t)
+        phase_flattener.setup()
+        phase_flattener.trigger()
+        phase_flattener.post_trigger()
+
+        assert phase_flattener.outputs['out_ef'].A.shape == (dimy, dimx)

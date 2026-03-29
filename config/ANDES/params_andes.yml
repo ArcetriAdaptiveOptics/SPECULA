@@ -261,7 +261,8 @@ data_store:
                  'res-modal_analysis.out_modes',
                  'pixels-detector.out_pixels',
                  'slopes-slopec.out_slopes',
-                 'modes-modalrec.out_modes']
+                 'modes-modalrec.out_modes',
+                 'sr-psf.out_sr']
 
 #sc_disp:
 #  class:            'SlopecDisplay'

@@ -17,13 +17,15 @@ class DataSource(BaseProcessingObj):
     def __init__(self,
                 outputs: list,         # TODO =[],
                 store_dir: str,        # TODO ="",
-                data_format: str='fits'):
+                data_format: str='fits',
+                global_precision: int=None):
         super().__init__()
         self.items = {}
         self.storage = {}
         self.data_filename = ''
         self.tn_dir = store_dir
         self.data_format = data_format
+        self.global_precision = global_precision
         self.headers = {}
         self.obj_type = {}
 

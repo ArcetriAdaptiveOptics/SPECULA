@@ -7,7 +7,9 @@ import unittest
 from astropy.io import fits
 
 from specula import np
+from specula.base_data_obj import BaseDataObj
 from specula.calib_manager import CalibManager
+from test.specula_testlib import iter_data_object_classes
 
 class TestCalibManager(unittest.TestCase):
 
@@ -97,3 +99,19 @@ class TestCalibManager(unittest.TestCase):
         fits.writeto(expected, data)
 
         np.testing.assert_array_equal(calib_manager.read_data(name), data)
+
+    def test_calibmanager_has_mapping_for_every_serializable_data_object(self):
+        calib_manager = CalibManager(self.rootdir)
+        mapped_types = set(calib_manager._subdirs)
+        missing = []
+        for klass in iter_data_object_classes(require_methods=['save', 'restore']):
+            if not issubclass(klass, BaseDataObj) or klass is BaseDataObj:
+                continue
+            if klass.__name__ not in mapped_types:
+                missing.append(klass.__name__)
+
+        self.assertEqual(
+            sorted(missing),
+            [],
+            msg=f'Missing CalibManager mappings for data objects: {sorted(missing)}',
+        )

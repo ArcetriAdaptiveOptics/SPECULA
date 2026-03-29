@@ -1,4 +1,5 @@
 import specula
+from specula.loop_control import LoopControl
 specula.init(0)  # Default target device
 
 import unittest
@@ -101,15 +102,12 @@ class TestAtmoInfiniteEvolutionUpDown(unittest.TestCase):
         atmo1.inputs['wind_direction'].set(wind_direction.output)
         atmo1.inputs['wind_speed'].set(wind_speed.output)
 
-        for objlist in [[seeing, wind_speed, wind_direction], [atmo1]]:
-            for obj in objlist:
-                obj.setup()
-            for obj in objlist:
-                obj.check_ready(0)
-            for obj in objlist:
-                obj.trigger()
-            for obj in objlist:
-                obj.post_trigger()
+        loop = LoopControl()
+        loop.add(seeing, idx=0)
+        loop.add(wind_speed, idx=0)
+        loop.add(wind_direction, idx=0)
+        loop.add(atmo1, idx=1)
+        loop.run(run_time=1, dt=1)
 
         phase_down_1 = cpuArray(atmo1.layer_list_down[0].phaseInNm.copy())
         phase_up_1 = cpuArray(atmo1.layer_list_up[0].phaseInNm.copy())
@@ -135,15 +133,12 @@ class TestAtmoInfiniteEvolutionUpDown(unittest.TestCase):
         atmo2.inputs['wind_direction'].set(wind_direction2.output)
         atmo2.inputs['wind_speed'].set(wind_speed2.output)
 
-        for objlist in [[seeing2, wind_speed2, wind_direction2], [atmo2]]:
-            for obj in objlist:
-                obj.setup()
-            for obj in objlist:
-                obj.check_ready(0)
-            for obj in objlist:
-                obj.trigger()
-            for obj in objlist:
-                obj.post_trigger()
+        loop = LoopControl()
+        loop.add(seeing2, idx=0)
+        loop.add(wind_speed2, idx=0)
+        loop.add(wind_direction2, idx=0)
+        loop.add(atmo2, idx=1)
+        loop.run(run_time=1, dt=1)
 
         phase_down_2 = cpuArray(atmo2.layer_list_down[0].phaseInNm.copy())
         phase_up_2 = cpuArray(atmo2.layer_list_up[0].phaseInNm.copy())
@@ -189,15 +184,13 @@ class TestAtmoInfiniteEvolutionUpDown(unittest.TestCase):
         atmo.inputs['wind_direction'].set(wind_direction.output)
         atmo.inputs['wind_speed'].set(wind_speed.output)
 
-        for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
-            for obj in objlist:
-                obj.setup()
-            for obj in objlist:
-                obj.check_ready(0)
-            for obj in objlist:
-                obj.trigger()
-            for obj in objlist:
-                obj.post_trigger()
+        loop = LoopControl()
+        loop.add(seeing, idx=0)
+        loop.add(wind_speed, idx=0)
+        loop.add(wind_direction, idx=0)
+        loop.add(atmo, idx=1)
+        loop.start(run_time=0.02, dt=0.01)
+        loop.iter()  # First trigger
 
         # Check that both layer lists have valid data
         for i, _ in enumerate(atmo.layer_list_down):
@@ -217,13 +210,7 @@ class TestAtmoInfiniteEvolutionUpDown(unittest.TestCase):
         phase_up_1 = cpuArray(atmo.layer_list_up[0].phaseInNm.copy())
 
         # Second trigger
-        for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
-            for obj in objlist:
-                obj.check_ready(BaseTimeObj().seconds_to_t(0.01))
-            for obj in objlist:
-                obj.trigger()
-            for obj in objlist:
-                obj.post_trigger()
+        loop.iter()
 
         # Store phase values after second trigger
         phase_down_2 = cpuArray(atmo.layer_list_down[0].phaseInNm.copy())
@@ -267,15 +254,12 @@ class TestAtmoInfiniteEvolutionUpDown(unittest.TestCase):
         atmo.inputs['wind_direction'].set(wind_direction.output)
         atmo.inputs['wind_speed'].set(wind_speed.output)
 
-        for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
-            for obj in objlist:
-                obj.setup()
-            for obj in objlist:
-                obj.check_ready(0)
-            for obj in objlist:
-                obj.trigger()
-            for obj in objlist:
-                obj.post_trigger()
+        loop = LoopControl()
+        loop.add(seeing, idx=0)
+        loop.add(wind_speed, idx=0)
+        loop.add(wind_direction, idx=0)
+        loop.add(atmo, idx=1)
+        loop.run(run_time=1, dt=1)
 
         # Check that phases are different between up and down
         for i, _ in enumerate(atmo.layer_list_down):
@@ -382,15 +366,12 @@ class TestAtmoInfiniteEvolutionUpDown(unittest.TestCase):
         atmo.inputs['wind_direction'].set(wind_direction.output)
         atmo.inputs['wind_speed'].set(wind_speed.output)
 
-        for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
-            for obj in objlist:
-                obj.setup()
-            for obj in objlist:
-                obj.check_ready(0)
-            for obj in objlist:
-                obj.trigger()
-            for obj in objlist:
-                obj.post_trigger()
+        loop = LoopControl()
+        loop.add(seeing, idx=0)
+        loop.add(wind_speed, idx=0)
+        loop.add(wind_direction, idx=0)
+        loop.add(atmo, idx=1)
+        loop.run(run_time=1, dt=1)
 
         # Check that extra_delta_time arrays are correctly set
         np.testing.assert_allclose(
@@ -429,15 +410,13 @@ class TestAtmoInfiniteEvolutionUpDown(unittest.TestCase):
         atmo.inputs['wind_speed'].set(wind_speed.output)
 
         # First trigger
-        for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
-            for obj in objlist:
-                obj.setup()
-            for obj in objlist:
-                obj.check_ready(0)
-            for obj in objlist:
-                obj.trigger()
-            for obj in objlist:
-                obj.post_trigger()
+        loop = LoopControl()
+        loop.add(seeing, idx=0)
+        loop.add(wind_speed, idx=0)
+        loop.add(wind_direction, idx=0)
+        loop.add(atmo, idx=1)
+        loop.start(run_time=2, dt=1)
+        loop.iter()
 
         # Store layer field IDs
         id_down_0_1 = id(atmo.outputs['layer_list_down'][0].field)
@@ -446,13 +425,7 @@ class TestAtmoInfiniteEvolutionUpDown(unittest.TestCase):
         id_up_1_1 = id(atmo.outputs['layer_list_up'][1].field)
 
         # Second trigger
-        for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
-            for obj in objlist:
-                obj.check_ready(1)
-            for obj in objlist:
-                obj.trigger()
-            for obj in objlist:
-                obj.post_trigger()
+        loop.iter()
 
         # Check that IDs haven't changed
         id_down_0_2 = id(atmo.outputs['layer_list_down'][0].field)
@@ -499,15 +472,12 @@ class TestAtmoInfiniteEvolutionUpDown(unittest.TestCase):
         atmo.inputs['wind_direction'].set(wind_direction.output)
         atmo.inputs['wind_speed'].set(wind_speed.output)
 
-        for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
-            for obj in objlist:
-                obj.setup()
-            for obj in objlist:
-                obj.check_ready(0)
-            for obj in objlist:
-                obj.trigger()
-            for obj in objlist:
-                obj.post_trigger()
+        loop = LoopControl()
+        loop.add(seeing, idx=0)
+        loop.add(wind_speed, idx=0)
+        loop.add(wind_direction, idx=0)
+        loop.add(atmo, idx=1)
+        loop.run(run_time=1, dt=1)
 
         # Verify extra_delta_time values
         np.testing.assert_allclose(
@@ -564,15 +534,12 @@ class TestAtmoInfiniteEvolutionUpDown(unittest.TestCase):
         atmo.inputs['wind_direction'].set(wind_direction.output)
         atmo.inputs['wind_speed'].set(wind_speed.output)
 
-        for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
-            for obj in objlist:
-                obj.setup()
-            for obj in objlist:
-                obj.check_ready(0)
-            for obj in objlist:
-                obj.trigger()
-            for obj in objlist:
-                obj.post_trigger()
+        loop = LoopControl()
+        loop.add(seeing, idx=0)
+        loop.add(wind_speed, idx=0)
+        loop.add(wind_direction, idx=0)
+        loop.add(atmo, idx=1)
+        loop.run(run_time=1, dt=1)
 
         # After first trigger, acc_rows and acc_cols should be different for up and down
         # (because they have different extra_delta_time)

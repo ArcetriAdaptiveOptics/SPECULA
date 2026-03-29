@@ -3,6 +3,7 @@ import sys
 
 from specula.processing_objects.specula_input import SpeculaInput
 
+output_list_for_help = None
 
 class TerminalInput(SpeculaInput):
     """
@@ -23,6 +24,8 @@ class TerminalInput(SpeculaInput):
                  output_list: list,
                  target_device_idx: int=None,
                  precision: int =None):
+        global output_list_for_help
+
         """
         output_list: list of strings
             List of output names to be generated
@@ -36,6 +39,7 @@ class TerminalInput(SpeculaInput):
                          target_device_idx=target_device_idx,
                          precision=precision)
 
+        output_list_for_help = output_list
         self.set_input_task(terminal_task)
 
 
@@ -44,13 +48,16 @@ def terminal_task(q):
 
     while True:
         try:
-            tokens = input('specula>').split()
+            tokens = [x.strip() for x in input('specula>').split()]
             if len(tokens) == 0:
                 continue
             elif len(tokens) == 1:
-                q.put((tokens[0], True))
+                if tokens[0] == 'help':
+                    print_help()
+                else:
+                    q.put((tokens[0], False))
             elif len(tokens) == 2:
-                value = float(tokens[1])
+                value = tokens[1]
                 q.put((tokens[0], value))
             else:
                 print('Input not recognized')
@@ -58,5 +65,8 @@ def terminal_task(q):
             break
         except Exception as e:
             print(e)
+
+def print_help():
+    print(output_list_for_help)
 
 

@@ -1,9 +1,11 @@
 import os
+
 from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.intensity import Intensity
 from specula.data_objects.pixels import Pixels
 from specula.connections import InputValue
 from specula.data_objects.pupdata import PupData
+from specula.lib import utils
 from specula import cpuArray
 
 
@@ -383,15 +385,14 @@ class PyrPupdataCalibrator(BaseProcessingObj):
         except ImportError:
             print("Matplotlib not available for debug plotting")
 
-    def _save(self):
+    def _save(self, filename):
         """Save pupil data"""
-        if self.filename is None:
-            raise ValueError("Cannot save pupil data: no filename has been set")
+        if filename is None:
+            filename = utils.make_tn()
 
         if self.pupdata is None:
             raise ValueError("No pupil data to save")
 
-        filename = self.filename
         if not filename.endswith('.fits'):
             filename += '.fits'
         file_path = os.path.join(self.data_dir, filename)
@@ -405,5 +406,5 @@ class PyrPupdataCalibrator(BaseProcessingObj):
 
     def finalize(self):
         if self.save_on_exit:
-            self._save()
+            self._save(self.filename)
 
