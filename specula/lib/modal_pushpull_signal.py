@@ -16,7 +16,7 @@ def modal_pushpull_signal(
     ncycles: int = 1,
     repeat_ncycles: bool = False,
     nsamples: int = 1,
-    ntiles: int = 1,
+    repeat_full_sequence: bool = False,
     xp=np,
 ) -> np.ndarray:
     """
@@ -53,9 +53,10 @@ def modal_pushpull_signal(
         If True, generates `ncycles` of push followed by `ncycles` of pull.
         Default is False.
     nsamples : int, optional
-        Number of samples to hold in each position. Default is 1.
-    ntiles : int, optional
-        Number of times to repeat the entire time history (calibration). Default is 1.
+        Number of samples to hold in each position. Default is 1.    
+    repeat_full_sequence: bool, optional
+        If true, generates 'ncycles' of the pushpull sequence for each mode.
+        Default is False
     xp : module, optional
         Array module to use (e.g., numpy or cupy). Default is numpy.
 
@@ -112,8 +113,11 @@ def modal_pushpull_signal(
         if repeat_ncycles:
             time_hist[n_pokes*hist_idx*ncycles:n_pokes*(hist_idx+1)*ncycles, mode] = \
                 xp.repeat(poke_pattern, ncycles)
-        else:
+        elif repeat_full_sequence is False:
             for j in range(ncycles):
                 time_hist[n_pokes*(ncycles*hist_idx+j):n_pokes*(ncycles*hist_idx+j+1), mode] = poke_pattern
+    
+    if repeat_full_sequence:
+        time_hist = xp.tile(time_hist, [ncycles, 1])
 
-    return xp.tile(xp.repeat(time_hist, nsamples, axis=0), [ntiles,1])
+    return xp.repeat(time_hist, nsamples, axis=0)
