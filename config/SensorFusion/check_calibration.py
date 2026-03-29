@@ -2,17 +2,20 @@
 from astropy.io import fits
 import numpy as np
 import matplotlib.pyplot as plt
+import os.path as op
 
 from specula.lib.make_mask import make_mask
 
-sn_hdu = fits.open('./calibration/slopenulls/pyr1.0_slope_null.fits')
+root_dir = '/raid1/mmenessini/calibration/XAO'
+
+sn_hdu = fits.open(op.join(root_dir,'slopenulls/pyr1.0_slope_null.fits'))
 pyr1_sn = sn_hdu[1].data
 plt.figure()
 plt.subplot(2,1,1)
 plt.plot(pyr1_sn)
 plt.grid()
 plt.title('Slope nulls')
-rec_hdu = fits.open('./calibration/rec/pyr1.0_1300modes_rec.fits')
+rec_hdu = fits.open(op.join(root_dir,'rec/pyr1.0_1300modes_rec.fits'))
 pyr1_rec = rec_hdu[1].data
 sn1_modes = pyr1_rec @ pyr1_sn
 x = np.arange(len(sn1_modes))+1
@@ -24,16 +27,16 @@ plt.grid()
 plt.title('Slope null modes')
 plt.tight_layout()
 
-sn_hdu = fits.open('./calibration/slopenulls/pyr0.0_slope_null.fits')
+sn_hdu = fits.open(op.join(root_dir,'slopenulls/pyr0.0_slope_null.fits'))
 pyr0_sn = sn_hdu[1].data
-# sn_hdu = fits.open('./calibration/slopenulls/pyr0.0_sn_pc_s0.9_c.fits')
+# sn_hdu = fits.open(op.join(root_dir,'slopenulls/pyr0.0_sn_pc_s0.9_c.fits'))
 # pyr0_sn_pc = sn_hdu[1].data
-sn_hdu = fits.open('./calibration/slopenulls/pyr3.0_slope_null.fits')
+sn_hdu = fits.open(op.join(root_dir,'slopenulls/pyr3.0_slope_null.fits'))
 pyr3_sn = sn_hdu[1].data
 
-rec_hdu = fits.open('./calibration/rec/pyr0.0_1300modes_rec.fits')
+rec_hdu = fits.open(op.join(root_dir,'rec/pyr0.0_1300modes_rec.fits'))
 pyr0_rec = rec_hdu[1].data
-rec_hdu = fits.open('./calibration/rec/pyr3.0_1300modes_rec.fits')
+rec_hdu = fits.open(op.join(root_dir,'rec/pyr3.0_1300modes_rec.fits'))
 pyr3_rec = rec_hdu[1].data
 
 sn0_modes = pyr0_rec @ pyr0_sn
@@ -62,19 +65,19 @@ plt.grid()
 plt.title('Slope null modes')
 plt.tight_layout()
 
-sn_hdu = fits.open('./calibration/slopenulls/z1.0wfs_slope_null.fits')
+sn_hdu = fits.open(op.join(root_dir,'slopenulls/z1.0wfs_slope_null.fits'))
 z1wfs_sn = sn_hdu[1].data
-sn_hdu = fits.open('./calibration/slopenulls/z1.5wfs_slope_null.fits')
+sn_hdu = fits.open(op.join(root_dir,'slopenulls/z1.5wfs_slope_null.fits'))
 z15wfs_sn = sn_hdu[1].data
-sn_hdu = fits.open('./calibration/slopenulls/z2.0wfs_slope_null.fits')
+sn_hdu = fits.open(op.join(root_dir,'slopenulls/z2.0wfs_slope_null.fits'))
 z2wfs_sn = sn_hdu[1].data
 
 
-rec_hdu = fits.open('./calibration/rec/z1.0wfs_1300modes_rec.fits')
+rec_hdu = fits.open(op.join(root_dir,'rec/z1.0wfs_1300modes_rec.fits'))
 z1wfs_rec = rec_hdu[1].data
-rec_hdu = fits.open('./calibration/rec/z1.5wfs_1300modes_rec.fits')
+rec_hdu = fits.open(op.join(root_dir,'rec/z1.5wfs_1300modes_rec.fits'))
 z15wfs_rec = rec_hdu[1].data
-rec_hdu = fits.open('./calibration/rec/z2.0wfs_1300modes_rec.fits')
+rec_hdu = fits.open(op.join(root_dir,'rec/z2.0wfs_1300modes_rec.fits'))
 z2wfs_rec = rec_hdu[1].data
 
 z1wfs_sn_modes = z1wfs_rec @ z1wfs_sn
@@ -105,7 +108,7 @@ plt.tight_layout()
 npix = 120
 np_size = (npix,npix)
 
-pup_hdu = fits.open('./calibration/pupils/pyr_pupdata.fits')
+pup_hdu = fits.open(op.join(root_dir,'pupils/pyr_pupdata.fits'))
 rad = pup_hdu[2].data
 cx = pup_hdu[3].data
 cy = pup_hdu[4].data
@@ -118,19 +121,19 @@ for j in range(len(rad)):
     f2d = f.reshape(np_size)
     pyr_masks += f2d
 
-frame_hdu = fits.open('./calibration/slopenulls/pyr0.0_frame.fits') 
+frame_hdu = fits.open(op.join(root_dir,'slopenulls/pyr0.0_frame.fits')) 
 pyr0_frame = frame_hdu[0].data[0]
-frame_hdu = fits.open('./calibration/slopenulls/pyr1.0_frame.fits') 
+frame_hdu = fits.open(op.join(root_dir,'slopenulls/pyr1.0_frame.fits')) 
 pyr1_frame = frame_hdu[0].data[0]
-frame_hdu = fits.open('./calibration/slopenulls/pyr3.0_frame.fits') 
+frame_hdu = fits.open(op.join(root_dir,'slopenulls/pyr3.0_frame.fits')) 
 pyr3_frame = frame_hdu[0].data[0]
 
 # ZWFS
-frame_hdu = fits.open('./calibration/slopenulls/z2.0wfs_frame.fits')
+frame_hdu = fits.open(op.join(root_dir,'slopenulls/z2.0wfs_frame.fits'))
 z2wfs_frame = frame_hdu[0].data[0]
-frame_hdu = fits.open('./calibration/slopenulls/z1.0wfs_frame.fits')
+frame_hdu = fits.open(op.join(root_dir,'slopenulls/z1.0wfs_frame.fits'))
 z1wfs_frame = frame_hdu[0].data[0]
-frame_hdu = fits.open('./calibration/slopenulls/z1.5wfs_frame.fits')
+frame_hdu = fits.open(op.join(root_dir,'slopenulls/z1.5wfs_frame.fits'))
 z15wfs_frame = frame_hdu[0].data[0]
 
 ccd_size = 120
@@ -180,9 +183,9 @@ plt.colorbar()
 
 ########################## Rec ##############################
 
-# rec_hdu = fits.open('./calibration/rec/pyr0.0_1300modes_ml_rec.fits')
+# rec_hdu = fits.open(op.join(root_dir,'rec/pyr0.0_1300modes_ml_rec.fits'))
 # pyr0_ml_rec = rec_hdu[1].data
-# rec_hdu = fits.open('./calibration/rec/z1.0wfs_1300modes_ml_rec.fits')
+# rec_hdu = fits.open(op.join(root_dir,'rec/z1.0wfs_1300modes_ml_rec.fits'))
 # z1wfs_ml_rec = rec_hdu[1].data
 
 x = np.arange(np.shape(pyr1_rec)[0])+1

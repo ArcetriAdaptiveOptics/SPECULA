@@ -6,7 +6,7 @@ pushpull:
   class:        'PushPullGenerator'
   nmodes:       1821                         # Number of DM actuators
   amp:          10  
-  ncycles:      100
+  ntiles:       40
   # constant_amp: true
   outputs:   ['output']
 
@@ -48,7 +48,7 @@ atmo_random:
   simul_params_ref:     'main'
   L0:                   25               # [m] Outer scale
   source_dict_ref:      ['source_ngs']
-  update_interval:      2                 # Update after push-pull
+  update_interval:      3642                 # Update after IM calibration
   inputs:
     seeing:             'seeing_random.output'
     pupilstop:          'vlt_aperture'
