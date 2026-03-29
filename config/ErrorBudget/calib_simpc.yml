@@ -105,6 +105,14 @@ ocam_override:
   readout_noise:  false                   # No read noise
   excess_noise:   false                   # No excess noise
 
+atmo_pc_modes:
+  class: 'ModalAnalysis'
+  ifunc_inv_object: 'asm_kl_inv'
+  nmodes: 660
+  inputs:
+    in_ef: 'atmo_pc.out_ef'
+  outputs: ['out_modes']
+
 # Remove unnecessary objects during calibration
-remove: ['atmo','seeing','wind_speed','wind_direction','data_store','atmo_modes', #'source_science',
+remove: ['atmo','seeing','wind_speed','wind_direction','atmo_modes', #'source_science',
         'dm_mode_res','filter','psf', 'ef_prop', 'prop','pyr_modalrec'] #, 'bootstrap', 'concat_wfs_modes'

@@ -32,7 +32,7 @@ zwfs_im_calibrator:
 # Override main simulation parameters
 main_override:
   time_step: 0.0005
-  total_time: 182.1                 # 1821 modes × 2 (push+pull) × 0.0005s x 100 cycles
+  total_time: 72.44                 # 1821 modes × 2 (push+pull) × 0.0005s x 40 cycles
 
 ################################## ATMO RESIDUAL #####################################
 seeing_random:

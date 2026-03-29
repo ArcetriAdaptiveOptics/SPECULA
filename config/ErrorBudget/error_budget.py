@@ -147,6 +147,8 @@ class AOErrorBudgetMachine:
         norm = self.xp.mean(frame[pyr_mask.astype(bool)])/4
         norm_rec = rec / (norm / flux)
         sig2 = norm_rec @ slope_var @ norm_rec.T
+        if ogs is not None:
+            sig2 /= ogs**2
         return self.xp.sqrt(sig2)
 
     def aliasing_error(self, r0:float, fs:float, n_modes:int, n_subap:int, rMod:float, mode_id:int=None):

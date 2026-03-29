@@ -122,13 +122,16 @@ for i,n_subap in enumerate(n_subaps):
                         f"pyr.pup_dist: {pup_dist:.1f}, "
                         f"pyr.mod_amp: {rMod:.1f}, "
                         f"pushpull.nmodes: {N:1.0f}, "
-                        f"pushpull.ntiles: {ncycles:1.0f}, "
+                        f"pushpull.ncycles: {ncycles:1.0f}, "
                         f"pyr_im_calibrator.nmodes: {N:1.0f}, "
                         f"dm_random.nmodes: {N:1.0f}, "
                         f"dm.nmodes: {N:1.0f}, "
                         f"pyr_slopes.pupdata_object: 'pyr_pupdata_{n_subap:.0f}x{n_subap:.0f}', "
                         f"seeing_random.constant: {seeing:1.1f}, "
                         f"pyr_im_calibrator.im_tag: '{simpc_tag}', "
+                        f"data_store.store_dir:         '{os.path.join(root_dir,'scratch_simpc')}', "  
+                        f"data_store.create_tn: false, "
+                        f"data_store.inputs.input_list: ['s{seeing:1.1f}_{N:1.0f}modes_atmo-atmo_pc_modes.out_modes','{N:1.0f}modes_pushpull-pushpull.output'], "
                         "}")
             write_yaml_overrides(input_string=overrides)
             try:
@@ -136,6 +139,16 @@ for i,n_subap in enumerate(n_subaps):
                 # specula.main_simul(yml_files=[main_config, 'calib_simpc.yml'], overrides=overrides)
                 simpc = fits.getdata(os.path.join(root_dir,'im',simpc_tag+'.fits'))
                 og = np.diag(simpc.T @ im)/im_norm
+                atmo_modes = fits.getdata(os.path.join(root_dir,'scratch_simpc','s{seeing:1.1f}_{N:1.0f}modes_atmo.fits'))
+                print(atmo_modes.shape)
+                atmo_rms = np.sqrt(np.mean(atmo_modes**2,axis=0))
+                import matplotlib.pyplot as plt
+                plt.figure()
+                plt.loglog(atmo_rms)
+                plt.grid()
+                plt.show()
+                atmo_res = np.sqrt(np.sum(atmo_rms**2))
+                tag += f'_{atmo_res:1.0f}Nm'
                 fits.writeto(os.path.join(ogpath,tag+'_og.fits'),og)
                 print('Saved optical gains as: '+tag+'_og')
                 # for N in n_modes[:i]:
