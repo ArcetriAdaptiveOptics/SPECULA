@@ -1,4 +1,5 @@
 import specula
+from specula import simul
 specula.init(0)  # Default target device
 
 import unittest
@@ -282,6 +283,36 @@ class TestSimul(unittest.TestCase):
         simul.build_objects(params)
         # slopes_data: null → strips _data suffix → slopes=None → Slopes initializes as zeros
         assert simul.objs['test'].slopes.shape == (10,)
+
+    def test_overrides(self):
+        yml = '''
+        main:
+          class: 'SimulParams'
+          root_dir: dummy
+          time_step: 0.001
+          total_time: 0.1  
+        
+        test:
+          class: 'Slopes'
+          length: 10
+          slopes_data: null
+          inputs:
+            in_pixels: 1.0
+        '''
+        simul = Simul([])
+        params = yaml.safe_load(yml)
+        simul.build_objects(params)
+
+        simul.overrides = ("{main.total_time: 0.2, test.inputs.in_pixels: 2.0}")
+        simul.apply_overrides(params)
+        simul.build_objects(params)
+        assert simul.objs['main'].total_time == 0.2
+
+        simul.overrides = ("{test.inputs.in.pixels: 2.0}")
+        with self.assertRaises(ValueError):
+            simul.apply_overrides(params)
+        
+
 
     def test_ref_suffix_resolves_referenced_object(self):
         '''

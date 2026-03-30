@@ -788,7 +788,7 @@ class Simul():
                     params[parts[0]][parts[1]][parts[2]] = v
                     print(*parts, v)
                 else:
-                    raise ValueError(f"Incorrect number of parts detected in override: {parts}. Did you add/forget a '.'?")
+                    raise ValueError(f"Unknown number of parts detected in override: {parts}. Did you add/forget a '.'?")
 
     def arrangeInGrid(self, trigger_order, trigger_order_idx):
         rows = []
