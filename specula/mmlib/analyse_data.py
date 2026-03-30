@@ -44,10 +44,10 @@ def plot_output_data(root_dir:str,calib_dir:str):
         params = yaml.safe_load(file)
         fs = 1.0/float(params['main']['time_step'])
         try:
-            filter_data_complex, delay_frames = get_control_data(root_dir,calib_dir,'filter','gain_ramp',params=params)
+            filter_data_complex, delay_frames = get_control_data(calib_dir,'filter','gain_ramp',params=params)
         except:
-            filter_data1, delay_frames1 = get_control_data(root_dir,calib_dir,'filter1','gain_ramp',params=params)
-            filter_data2, delay_frames2 = get_control_data(root_dir,calib_dir,'filter2','gain_ramp',params=params)
+            filter_data1, delay_frames1 = get_control_data(calib_dir,'filter1','gain_ramp',params=params)
+            filter_data2, delay_frames2 = get_control_data(calib_dir,'filter2','gain_ramp',params=params)
             fs1 = 1.0/float(params['cred1']['dt'])
             fs2 = 1.0/float(params['cred2']['dt'])
 
@@ -230,11 +230,11 @@ def plot_output_data(root_dir:str,calib_dir:str):
             psf1 = np.sqrt(np.mean(psf1[init+1:]**2,axis=0))
             plt.figure(figsize=(12,5))
             plt.subplot(1,2,1)
-            show_psf(psf1, title=r'$1^{st}$ stage PSF\n'+tn, cmap='Reds', ext=0.55, vmin=-6)    
+            show_psf(psf1, title=r'$1^{st}$ stage PSF'+'\n'+tn, cmap='Reds', ext=0.55, vmin=-6)    
             psf2 = data["psf2"]
             psf2 = np.sqrt(np.mean(psf2[init+1:]**2,axis=0))
             plt.subplot(1,2,2)
-            show_psf(psf2, title=r'2^{st} stage PSF\n'+tn, cmap='Blues', ext=0.55, vmin=-6)   
+            show_psf(psf2, title=r'$2^{nd}$ stage PSF'+'\n'+tn, cmap='Blues', ext=0.55, vmin=-6)   
         except KeyError:
             print(f"psf.fits file not found in {data_dir}.")
 

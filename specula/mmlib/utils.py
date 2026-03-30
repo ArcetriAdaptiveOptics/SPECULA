@@ -17,6 +17,12 @@ def radial_order(i_mode):
     noll = i_mode + 2
     return int(np.ceil(-3.0/2.0+np.sqrt(1+8*noll)/2.0))
 
+# def von_karman_power(n,r0,L0,D):
+#     k = n / D
+#     C = 0.02289558710855519
+#     B = k**2 + (D/L0)**2
+#     return np.sqrt(C) * (r0/D)**(-5.0/6.0) * B**(-11.0/12.0)
+
 def von_karman_power(k,r0,L0,D):
     C = 0.02289558710855519
     B = k**2 + (D/L0)**2
@@ -60,10 +66,13 @@ def read_freq(params_path:str, obj_name:str=None):
             fs = 1.0/float(params[obj_name]['dt'])
     return fs
 
-def get_control_data(root_dir:str,calib_dir:str,controller_name:str, gain_mod_name:str, params):
+def get_control_data(calib_dir:str,controller_name:str, gain_mod_name:str, params):
     delay_frames = 1.0 + float(params[controller_name]['delay'])
     if params[controller_name]['class'] == 'IirFilter':
-        gain = float(params[gain_mod_name]['scheduled_values'][-1][0])
+        try:
+            gain = float(params[gain_mod_name]['scheduled_values'][-1][0])
+        except:
+            gain = 1.0
         iir_path = os.path.join(calib_dir,'filter',str(params[controller_name]['iir_filter_data_object'])+'.fits')
         filter_data_complex = IirFilterData.restore(iir_path)
         filter_data_complex.num *= gain

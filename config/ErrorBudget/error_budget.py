@@ -97,7 +97,7 @@ class AOErrorBudgetMachine:
         if n == 1:
             psd[freq<=f_cut] = (freq[freq<=f_cut] / f_cut) ** (-2.0/3.0)
         psd[freq>f_cut] = (freq[freq>f_cut] / f_cut) ** (-17.0/3.0)
-        vkp = von_karman_power(n/self.D, r0, self.L0, self.D) * (2*self.xp.pi*500e-9)**2 # in m
+        vkp = von_karman_power(n/self.D, r0, self.L0, self.D) * (500e-9/(2*self.xp.pi))**2 # in m
         psd *= vkp/self.integrate_psd(psd,freq)
         return psd
 
@@ -138,20 +138,24 @@ class AOErrorBudgetMachine:
         return atmoResInM*1e+9
     
     def wfs_noise_error(self, fs:float, magnitude:float, n_subap:int, rMod:float, n_modes:int, ogs=None):
-        frame = fits.getdata(op.join(self.root_dir,'frames',f'pyr{rMod:1.1f}_{n_subap:1.0f}x{n_subap:1.0f}_frame_null.fits'))
+        frame = fits.getdata(op.join(self.root_dir,'frames',f'pyr{rMod:1.1f}_{n_subap:1.0f}x{n_subap:1.0f}_frame_null.fits'))[0]
         pyr_mask = get_pupil_mask(npix=max(frame.shape),filepath=op.join(self.root_dir,'pupils',f'pyr_pupdata_{n_subap:1.0f}x{n_subap:1.0f}.fits'))
-        sn = frame[pyr_mask]
-        slope_var = self.slope_noise_variance(self, sn, mag=magnitude, fs=fs, rMod=rMod, n_subap=n_subap)
+        sn = self.xp.array(frame[pyr_mask])
+        slope_var = self.slope_noise_variance(sn_ri=sn, mag=magnitude, fs=fs, rMod=rMod, n_subap=n_subap)
         rec = self.get_rec(rMod=rMod, n_subap=n_subap, n_modes=n_modes)    
         flux = self.xp.sum(frame)
         norm = self.xp.mean(frame[pyr_mask.astype(bool)])/4
         norm_rec = rec / (norm / flux)
-        sig2 = norm_rec @ slope_var @ norm_rec.T
-        return self.xp.sqrt(sig2)
+        sig2 = self.xp.diag(norm_rec @ self.xp.diag(slope_var) @ norm_rec.T)
+        import matplotlib.pyplot as plt
+        plt.figure()
+        plt.loglog(np.arange(len(sig2))+1, sig2.get(),'-.')
+        plt.grid(which='both',alpha=0.4)
+        return self.xp.sqrt(self.xp.sum(sig2)) # IM is already in nm, no need to convert
 
     def aliasing_error(self, r0:float, fs:float, n_modes:int, n_subap:int, rMod:float, mode_id:int=None):
         freq = self.get_freq_vec(fs)
-        alias_psd = self.get_alias_psd(r0=r0,n_subap=n_subap,rMod=rMod,n_mdoes=n_modes)
+        alias_psd = self.get_alias_psd(r0=r0,n_subap=n_subap,rMod=rMod,n_modes=n_modes)
         if mode_id is not None:
             ntf = self.get_ntf(mode=mode_id,fs=fs)
             aliasResInM2 = self.integrate_psd(alias_psd[mode_id] * ntf**2, freq)
@@ -173,27 +177,28 @@ class AOErrorBudgetMachine:
     def get_alias_psd(self, r0:float, n_subap:float, rMod:float, n_modes:float):
         seeing = self.r02seeing(r0)
         alias_psd = fits.getdata(op.join(self.root_dir,'aliasing',f'pyr{rMod:1.1f}_{n_subap:1.0f}x{n_subap:1.0f}_s{seeing:1.1f}_{n_modes}modes_alias_PSD.fits'))
-        return alias_psd
+        return self.xp.array(alias_psd)
         
     def get_pyr_thrp(self, rMod:float, n_subap:int):
         try:
-            thrp = fits.getdata(op.join(self.root_dir, 'slopenulls', f'pyr{rMod:1.1f}_{n_subap:1.0f}x{n_subap:1.0f}_throughput.fits'))
+            thrp = fits.getdata(op.join(self.root_dir, 'slopenulls', f'pyr{rMod:1.1f}_{n_subap:1.0f}x{n_subap:1.0f}_throughput.fits'))[0]
         except FileNotFoundError:
             print('Pyramid throughput not found for this configuration')
             thrp = 1.0
-        return thrp
+        return float(thrp)
     
     def get_rec(self, rMod:float, n_subap:float, n_modes:int):
         im = fits.getdata(op.join(self.root_dir,'im',f'pyr{rMod:1.1f}_{n_subap:1.0f}x{n_subap:1.0f}_im.fits'))
-        D = im[:,:n_modes]
+        D = self.xp.array(im[:,:n_modes])
         U,S,Vt = self.xp.linalg.svd(D,full_matrices=False)
         rec = (Vt.T * 1/S) @ U.T
         return rec
 
     def slope_noise_variance(self, sn_ri, mag:float, fs:float, rMod:float, n_subap:int):
         n_subaps = int(len(sn_ri)/4)
-        n_phot = self.n_photons(frequancy=fs, magnitude=mag)*self.get_pyr_thrp(rMod,n_subap)
+        n_phot = self.n_photons(frequency=fs, magnitude=mag)*self.get_pyr_thrp(rMod,n_subap)
         phot_per_pix = sn_ri*n_phot/n_subaps/4
+        print(n_phot, phot_per_pix)
         pixel_variance = self.F_excess ** 2 * (phot_per_pix + self.sky_bkg + self.dark_curr) + self.RON
         if self.slopes_from_intensity is False:
             weights = self.xp.array([[1,1,-1,-1],[-1,1,1,-1]])
