@@ -9,7 +9,63 @@ from specula.lib import utils
 
 class DynamicDarkCalibrator(BaseProcessingObj):
     """
-    Dark calibrator processing object. Calibrator for pixel dark frames.
+    Dynamic dark frame calibrator for pixel streams.
+
+    This processing object computes and applies a dark frame correction
+    by averaging a configurable number of input frames. The resulting
+    dark frame is subtracted from incoming pixel data in all subsequent
+    loop iterations.
+
+    The calibration process is controlled via input triggers and can
+    be dynamically reset, updated, saved, or loaded during runtime.
+
+    Inputs
+    ------
+    in_pixels : Pixels
+        Input pixel frame to be processed.
+
+    Interactive inputs
+    ------------------
+    in_trigger : BaseValue, optional
+        Trigger signal to start dark frame acquisition. When received,
+        the object begins integrating `nframes` frames.
+    in_nframes : BaseValue, optional
+        Dynamically updates the number of frames used for calibration.
+    in_load : BaseValue, optional
+        Filename of a dark frame to load from disk (FITS format).
+    in_save : BaseValue, optional
+        Filename used to save the current dark frame to disk.
+    in_reset : BaseValue, optional
+        Resets the current dark frame to zero.
+
+    Outputs
+    -------
+    out_darkframe : Pixels
+        The current dark frame computed by averaging input frames.
+    out_subtracted_pixels : Pixels
+        Input pixels with the dark frame subtracted.
+
+    Behavior
+    --------
+    - On trigger, accumulates `nframes` input frames and computes their mean
+      to update the dark frame.
+    - Continuously outputs dark-subtracted pixel data.
+    - Supports runtime interaction for resetting, saving, loading, and
+      modifying calibration parameters.
+
+    .. note::
+        The dark frame is only updated after all ``nframes`` have been collected.
+
+    .. note::
+        Output pixel dimensions and properties are initialized during :meth:`setup`.
+
+    .. note::
+        Dark frames are stored in FITS format.
+
+    .. seealso::
+        :class:`~specula.base_processing_obj.BaseProcessingObj`,
+        :class:`~specula.data_objects.pixels.Pixels`
+
     """
     def __init__(self,
                  data_dir: str,      # Set by main Simul object
@@ -17,6 +73,23 @@ class DynamicDarkCalibrator(BaseProcessingObj):
                  overwrite: bool = False,
                  target_device_idx: int = None,
                  precision: int = None):
+        """
+        Parameters
+        ----------
+        data_dir : str
+            Directory where dark frames are saved to and loaded from.
+            Usually set automatically by CalibManager.
+        nframes : int
+            Number of frames to integrate when computing the dark frame.
+            Must be greater than zero.
+        overwrite : bool, optional
+            If True, overwrite existing files when saving dark frames.
+            Default is False.
+        target_device_idx : int, optional
+            Target device index for computation (e.g., CPU/GPU selection).
+        precision : int, optional
+            Numerical precision for internal data.
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         if nframes <= 0:
