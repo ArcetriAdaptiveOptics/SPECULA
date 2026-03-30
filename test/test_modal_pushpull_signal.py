@@ -74,6 +74,14 @@ class TestModalPushPullSignal(unittest.TestCase):
         # No negative values at all
         self.assertTrue(np.all(result >= 0))
 
+    def test_repeat_ncycles_behavior(self):
+        """Test repeat_ncycles=True creates push then pull for each mode."""
+        vect_amplitude = np.array([2.0])
+        result = modal_pushpull_signal(1, vect_amplitude=vect_amplitude, ncycles=2, repeat_ncycles=True)
+        # First 2 samples = +2.0, next 2 samples = -2.0
+        expected = np.array([2.0, 2.0, -2.0, -2.0])
+        np.testing.assert_array_equal(result[:, 0], expected)
+
     def test_repeat_full_sequence_behavior(self):
         """Test repeat_full_sequence=True repeats the modal push-pull sequence ncycles times."""
         vect_amplitude = np.array([2.0, 3.0])

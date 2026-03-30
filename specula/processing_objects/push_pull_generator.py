@@ -17,6 +17,7 @@ class PushPullGenerator(BaseGenerator):
                  vect_amplitude: list = None,
                  ncycles: int = 1,
                  nsamples: int = 1,
+                 repeat_ncycles: bool = False,
                  repeat_full_sequence: bool = False,
                  target_device_idx: int = None,
                  precision: int = None):
@@ -45,6 +46,7 @@ class PushPullGenerator(BaseGenerator):
                 vect_amplitude=vect_amplitude,
                 only_push=True,
                 repeat_full_sequence=repeat_full_sequence,
+                repeat_ncycles=repeat_ncycles,
                 ncycles=ncycles
             )
         elif push_pull_type == 'PUSHPULL':
@@ -56,6 +58,7 @@ class PushPullGenerator(BaseGenerator):
                 vect_amplitude=vect_amplitude,
                 pattern=pattern,
                 repeat_full_sequence=repeat_full_sequence,
+                repeat_ncycles=repeat_ncycles,
                 ncycles=ncycles,
                 nsamples=nsamples
             )
