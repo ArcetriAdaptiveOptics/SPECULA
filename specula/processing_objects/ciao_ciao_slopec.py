@@ -156,6 +156,12 @@ class CiaoCiaoSlopec(Slopec):
         # 7. Convert to OPD (wrapped or unwrapped)
         opd = phase * self.wavelength / (2 * self.xp.pi)
 
+        # set 0 outside the pupil mask to avoid noise propagation in the displays
+        if self._pupil_mask_xp is not None:
+            # define valid mask where value > 0.5 (in case of interpolation artifacts)
+            valid_mask = self._pupil_mask_xp > 0.5
+            opd = opd * valid_mask
+
         # 8. Export OPD map as a flattened vector
         self.slopes.slopes[:] = opd.ravel()
 
