@@ -242,21 +242,21 @@ dm2:
   outputs:           ['out_layer']
 
 filter1:
-  # class:             'Integrator'
-  # simul_params_ref:  'main'
-  # delay:             1                     # 1 frame delay (realistic)
-  # int_gain:          [0.6]
-  # n_modes:           [1300]                 # Number of modes to control
-  # inputs:
-  #   delta_comm:      'pyr_modalrec.out_modes' #
-  # outputs:           ['out_comm']
-  class:                'IirFilter'
-  simul_params_ref:     'main'
-  delay:                1 # Total temporal delay in time steps is this value +1
-  iir_filter_data_object:  'iirfilter_1300modes'
+  class:             'Integrator'
+  simul_params_ref:  'main'
+  delay:             1                     # 1 frame delay (realistic)
+  int_gain:          [0.6]
+  n_modes:           [1300]                 # Number of modes to control
   inputs:
-    delta_comm: 'pyr_modalrec.out_modes' #'ogc_modes.out_value' 
-  outputs:  ['out_comm']
+    delta_comm:      'pyr_modalrec.out_modes' #
+  outputs:           ['out_comm']
+  # class:                'IirFilter'
+  # simul_params_ref:     'main'
+  # delay:                1 # Total temporal delay in time steps is this value +1
+  # iir_filter_data_object:  'iirfilter_1300modes'
+  # inputs:
+  #   delta_comm: 'pyr_modalrec.out_modes' #'ogc_modes.out_value' 
+  # outputs:  ['out_comm']
 
 dm1:
   class:             'DM'
@@ -308,7 +308,7 @@ coro_psf1:
   nd:                4                   # 4x padding for PSF
   start_time:        1.0                 # Start PSF integration after 500ms
   verbose: false
-  # use_average_field: false
+  use_average_field: false
   inputs:
     in_ef:           'first_stage_prop.out_ef' 
   outputs:           ['out_coronagraph_psf','out_std_coronagraph_psf']
@@ -319,7 +319,7 @@ psf2:
   wavelengthInNm:    750                 # [nm] visible
   nd:                4                   # 4x padding for PSF
   start_time:        1.0                 # Start PSF integration after 500ms
-  # verbose: false
+  verbose: false
   inputs:
     in_ef:           'second_stage_prop.out_ef'
   outputs:           ['out_psf', 'out_std_psf', 'out_sr']
@@ -331,7 +331,7 @@ coro_psf2:
   nd:                4                   # 4x padding for PSF
   start_time:        1.0                 # Start PSF integration after 500ms
   verbose: false
-  # use_average_field: false
+  use_average_field: false
   inputs:
     in_ef:           'second_stage_prop.out_ef' 
   outputs:           ['out_coronagraph_psf','out_std_coronagraph_psf']

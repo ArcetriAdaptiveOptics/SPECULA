@@ -142,11 +142,15 @@ class AOErrorBudgetMachine:
         pyr_mask = get_pupil_mask(npix=max(frame.shape),filepath=op.join(self.root_dir,'pupils',f'pyr_pupdata_{n_subap:1.0f}x{n_subap:1.0f}.fits'))
         sn = self.xp.array(frame[pyr_mask])
         slope_var = self.slope_noise_variance(sn_ri=sn, mag=magnitude, fs=fs, rMod=rMod, n_subap=n_subap)
-        rec = self.get_rec(rMod=rMod, n_subap=n_subap, n_modes=n_modes)    
-        flux = self.xp.sum(frame)
-        norm = self.xp.mean(frame[pyr_mask.astype(bool)])/4
-        norm_rec = rec / (norm / flux)
-        sig2 = self.xp.diag(norm_rec @ self.xp.diag(slope_var) @ norm_rec.T)
+        rec = self.get_rec(rMod=rMod, n_subap=n_subap, n_modes=n_modes)  
+        sig2 = self.xp.diag(rec @ self.xp.diag(slope_var) @ rec.T)  
+        # flux = self.xp.sum(frame)
+        # norm = self.xp.mean(frame[pyr_mask.astype(bool)])/4
+        # norm_rec = rec / (norm / flux)
+        # Nph = self.n_photons(frequency=fs, magnitude=magnitude)*self.get_pyr_thrp(rMod, n_subap)
+        # ron_cov = self.xp.diag(norm_rec @ norm_rec.T) * RON/Nph**2
+        # shot_cov = rec @ np.diag(sn/ (norm / flux)) @ rec.T * (1/Nph)
+        # sig2 = ron_cov + shot_cov
         import matplotlib.pyplot as plt
         plt.figure()
         plt.loglog(np.arange(len(sig2))+1, sig2.get(),'-.')
@@ -198,7 +202,6 @@ class AOErrorBudgetMachine:
         n_subaps = int(len(sn_ri)/4)
         n_phot = self.n_photons(frequency=fs, magnitude=mag)*self.get_pyr_thrp(rMod,n_subap)
         phot_per_pix = sn_ri*n_phot/n_subaps/4
-        print(n_phot, phot_per_pix)
         pixel_variance = self.F_excess ** 2 * (phot_per_pix + self.sky_bkg + self.dark_curr) + self.RON
         if self.slopes_from_intensity is False:
             weights = self.xp.array([[1,1,-1,-1],[-1,1,1,-1]])

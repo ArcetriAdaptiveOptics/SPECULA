@@ -10,7 +10,7 @@ from specula.mmlib.utils import get_pupil_mask, read_freq, get_psd
 from specula.mmlib.compute_rec import compute_and_save_rec
 
 
-rMods = np.array([0,0.5,1,2,3,4]) #([2,3,4,5,6])
+rMods = np.array([2,3,4,5,6])
 n_subaps = np.array([10,20,40])
 n_modes = np.array([54,120,660])
 seeings = np.array([0.6,0.8,1.0,1.2,1.4])

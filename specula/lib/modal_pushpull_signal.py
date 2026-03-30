@@ -112,9 +112,13 @@ def modal_pushpull_signal(
             time_hist[n_pokes*hist_idx*ncycles:n_pokes*(hist_idx+1)*ncycles, mode] = \
                 xp.repeat(poke_pattern, ncycles)
         elif repeat_full_sequence:
-            time_hist = xp.tile(time_hist,[ncycles,1])
+            time_hist[n_pokes*(hist_idx):n_pokes*(hist_idx+1), mode] = poke_pattern
         else:
             for j in range(ncycles):
                 time_hist[n_pokes*(ncycles*hist_idx+j):n_pokes*(ncycles*hist_idx+j+1), mode] = poke_pattern
+
+    if repeat_full_sequence:
+        time_hist = xp.tile(time_hist[:n_pokes * real_n_modes,:],[ncycles,1])
+
 
     return xp.repeat(time_hist, nsamples, axis=0)
