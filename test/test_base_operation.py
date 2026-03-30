@@ -1,4 +1,5 @@
 import specula
+from specula.loop_control import LoopControl
 specula.init(0)  # Default target device
 
 import unittest
@@ -16,19 +17,17 @@ class TestBaseOperation(unittest.TestCase):
 
         value1 = BaseValue(value=xp.array([1]), target_device_idx=target_device_idx)
         value2 = BaseValue(value=xp.array([2]), target_device_idx=target_device_idx)
-        value1.generation_time = 1
-        value2.generation_time = 1
+        value1.generation_time = value1.seconds_to_t(1)
+        value2.generation_time = value1.seconds_to_t(1)
 
         op = BaseOperation(sum=True, target_device_idx=target_device_idx)
         op.inputs['in_value1'].set(value1)
         op.inputs['in_value2'].set(value2)
 
-        op.setup()
-        op.check_ready(1)
-        op.prepare_trigger(1)
-        op.trigger()
-        op.post_trigger()
-
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
+        
         assert cpuArray(op.outputs['out_value'].value) == 3
 
     @cpu_and_gpu
@@ -36,18 +35,16 @@ class TestBaseOperation(unittest.TestCase):
 
         value1 = BaseValue(value=xp.array([1]), target_device_idx=target_device_idx)
         value2 = BaseValue(value=xp.array([2]), target_device_idx=target_device_idx)
-        value1.generation_time = 1
-        value2.generation_time = 1
+        value1.generation_time = value1.seconds_to_t(1)
+        value2.generation_time = value1.seconds_to_t(1)
 
         op = BaseOperation(sub=True, target_device_idx=target_device_idx)
         op.inputs['in_value1'].set(value1)
         op.inputs['in_value2'].set(value2)
 
-        op.setup()
-        op.check_ready(1)
-        op.prepare_trigger(1)
-        op.trigger()
-        op.post_trigger()
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
 
         assert cpuArray(op.outputs['out_value'].value) == -1
 
@@ -56,18 +53,16 @@ class TestBaseOperation(unittest.TestCase):
 
         value1 = BaseValue(value=xp.array([2]), target_device_idx=target_device_idx)
         value2 = BaseValue(value=xp.array([3]), target_device_idx=target_device_idx)
-        value1.generation_time = 1
-        value2.generation_time = 1
+        value1.generation_time = value1.seconds_to_t(1)
+        value2.generation_time = value1.seconds_to_t(1)
 
         op = BaseOperation(mul=True, target_device_idx=target_device_idx)
         op.inputs['in_value1'].set(value1)
         op.inputs['in_value2'].set(value2)
 
-        op.setup()
-        op.check_ready(1)
-        op.prepare_trigger(1)
-        op.trigger()
-        op.post_trigger()
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
 
         assert cpuArray(op.outputs['out_value'].value) == 6
 
@@ -76,18 +71,16 @@ class TestBaseOperation(unittest.TestCase):
 
         value1 = BaseValue(value=xp.array([6.0]), target_device_idx=target_device_idx)
         value2 = BaseValue(value=xp.array([3.0]), target_device_idx=target_device_idx)
-        value1.generation_time = 1
-        value2.generation_time = 1
+        value1.generation_time = value1.seconds_to_t(1)
+        value2.generation_time = value1.seconds_to_t(1)
 
         op = BaseOperation(div=True, target_device_idx=target_device_idx)
         op.inputs['in_value1'].set(value1)
         op.inputs['in_value2'].set(value2)
 
-        op.setup()
-        op.check_ready(1)
-        op.prepare_trigger(1)
-        op.trigger()
-        op.post_trigger()
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
 
         assert cpuArray(op.outputs['out_value'].value) == 2
 
@@ -96,18 +89,16 @@ class TestBaseOperation(unittest.TestCase):
 
         value1 = BaseValue(value=xp.array([1, 2]), target_device_idx=target_device_idx)
         value2 = BaseValue(value=xp.array([3.0]), target_device_idx=target_device_idx)
-        value1.generation_time = 1
-        value2.generation_time = 1
+        value1.generation_time = value1.seconds_to_t(1)
+        value2.generation_time = value1.seconds_to_t(1)
 
         op = BaseOperation(concat=True, target_device_idx=target_device_idx)
         op.inputs['in_value1'].set(value1)
         op.inputs['in_value2'].set(value2)
 
-        op.setup()
-        op.check_ready(1)
-        op.prepare_trigger(1)
-        op.trigger()
-        op.post_trigger()
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
 
         output_value = cpuArray(op.outputs['out_value'].value)
                      
@@ -117,16 +108,14 @@ class TestBaseOperation(unittest.TestCase):
     def test_const_sum(self, target_device_idx, xp):
 
         value1 = BaseValue(value=xp.array([6.0]), target_device_idx=target_device_idx)
-        value1.generation_time = 1
+        value1.generation_time = value1.seconds_to_t(1)
 
         op = BaseOperation(constant_sum=2, target_device_idx=target_device_idx)
         op.inputs['in_value1'].set(value1)
 
-        op.setup()
-        op.check_ready(1)
-        op.prepare_trigger(1)
-        op.trigger()
-        op.post_trigger()
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
 
         assert cpuArray(op.outputs['out_value'].value) == 8
 
@@ -134,16 +123,14 @@ class TestBaseOperation(unittest.TestCase):
     def test_const_sub(self, target_device_idx, xp):
 
         value1 = BaseValue(value=xp.array([6.0]), target_device_idx=target_device_idx)
-        value1.generation_time = 1
+        value1.generation_time = value1.seconds_to_t(1)
 
         op = BaseOperation(constant_sub=2, target_device_idx=target_device_idx)
         op.inputs['in_value1'].set(value1)
 
-        op.setup()
-        op.check_ready(1)
-        op.prepare_trigger(1)
-        op.trigger()
-        op.post_trigger()
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
 
         assert cpuArray(op.outputs['out_value'].value) == 4
 
@@ -151,16 +138,14 @@ class TestBaseOperation(unittest.TestCase):
     def test_const_mul(self, target_device_idx, xp):
 
         value1 = BaseValue(value=xp.array([6.0]), target_device_idx=target_device_idx)
-        value1.generation_time = 1
+        value1.generation_time = value1.seconds_to_t(1)
 
         op = BaseOperation(constant_mul=2, target_device_idx=target_device_idx)
         op.inputs['in_value1'].set(value1)
 
-        op.setup()
-        op.check_ready(1)
-        op.prepare_trigger(1)
-        op.trigger()
-        op.post_trigger()
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
 
         assert cpuArray(op.outputs['out_value'].value) == 12
 
@@ -168,16 +153,14 @@ class TestBaseOperation(unittest.TestCase):
     def test_const_div(self, target_device_idx, xp):
 
         value1 = BaseValue(value=xp.array([6.0]), target_device_idx=target_device_idx)
-        value1.generation_time = 1
+        value1.generation_time = value1.seconds_to_t(1)
 
         op = BaseOperation(constant_div=2, target_device_idx=target_device_idx)
         op.inputs['in_value1'].set(value1)
 
-        op.setup()
-        op.check_ready(1)
-        op.prepare_trigger(1)
-        op.trigger()
-        op.post_trigger()
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
 
         assert cpuArray(op.outputs['out_value'].value) == 3
 
@@ -186,7 +169,7 @@ class TestBaseOperation(unittest.TestCase):
         '''Test that setup() raises ValueError when input2 has not been set'''
 
         value1 = BaseValue(value=xp.array([6.0]), target_device_idx=target_device_idx)
-        value1.generation_time = 1
+        value1.generation_time = value1.seconds_to_t(1)
 
         # All these must raise an exception in setup() with a single input
         ops = []
@@ -216,9 +199,9 @@ class TestBaseOperation(unittest.TestCase):
         '''Test that value1 is not overwritten'''
 
         value1 = BaseValue(value=xp.array([1.0]), target_device_idx=target_device_idx)
-        value1.generation_time = 1
         value2 = BaseValue(value=xp.array([2.0]), target_device_idx=target_device_idx)
-        value2.generation_time = 1
+        value1.generation_time = value1.seconds_to_t(1)
+        value2.generation_time = value2.seconds_to_t(1)
 
         ops = []
         ops.append(BaseOperation(sum=True, target_device_idx=target_device_idx))
@@ -239,19 +222,19 @@ class TestBaseOperation(unittest.TestCase):
             assert op.inputs['in_value1'].get(target_device_idx=target_device_idx).value == 1.0
 
         value1 = BaseValue(value=xp.array([1.0]), target_device_idx=target_device_idx)
-        value1.generation_time = 1
         value2 = BaseValue(value=xp.array([2.0]), target_device_idx=target_device_idx)
-        value2.generation_time = 1
+        value1.generation_time = value1.seconds_to_t(1)
+        value2.generation_time = value1.seconds_to_t(1)
 
         op = BaseOperation(concat=True, target_device_idx=target_device_idx)
 
         op.inputs['in_value1'].set(value1)
         op.inputs['in_value2'].set(value2)
-        op.setup()
-        op.check_ready(1)
-        op.prepare_trigger(1)
-        op.trigger()
-        op.post_trigger()
+
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
+
         assert op.inputs['in_value1'].get(target_device_idx=target_device_idx).value == 1.0
 
     @cpu_and_gpu
@@ -259,17 +242,15 @@ class TestBaseOperation(unittest.TestCase):
         """Test constant multiplication with vector"""
 
         value1 = BaseValue(value=xp.array([2.0, 3.0, 4.0]), target_device_idx=target_device_idx)
-        value1.generation_time = 1
+        value1.generation_time = value1.seconds_to_t(1)
 
         # Test with list
         op = BaseOperation(constant_mul=[2, 3, 0.5], target_device_idx=target_device_idx)
         op.inputs['in_value1'].set(value1)
 
-        op.setup()
-        op.check_ready(1)
-        op.prepare_trigger(1)
-        op.trigger()
-        op.post_trigger()
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
 
         expected = xp.array([4.0, 9.0, 2.0])  # [2*2, 3*3, 4*0.5]
         np.testing.assert_array_almost_equal(cpuArray(op.outputs['out_value'].value),
@@ -280,18 +261,16 @@ class TestBaseOperation(unittest.TestCase):
         """Test constant multiplication with numpy array"""
 
         value1 = BaseValue(value=xp.array([2.0, 3.0, 4.0]), target_device_idx=target_device_idx)
-        value1.generation_time = 1
+        value1.generation_time = value1.seconds_to_t(1)
 
         # Test with numpy array
         multiplier = np.array([0.1, 2.0, 1.5])
         op = BaseOperation(constant_mul=multiplier, target_device_idx=target_device_idx)
         op.inputs['in_value1'].set(value1)
 
-        op.setup()
-        op.check_ready(1)
-        op.prepare_trigger(1)
-        op.trigger()
-        op.post_trigger()
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
 
         expected = xp.array([0.2, 6.0, 6.0])  # [2*0.1, 3*2.0, 4*1.5]
         np.testing.assert_array_almost_equal(cpuArray(op.outputs['out_value'].value),
@@ -302,16 +281,14 @@ class TestBaseOperation(unittest.TestCase):
         """Test constant addition with vector"""
 
         value1 = BaseValue(value=xp.array([1.0, 2.0, 3.0]), target_device_idx=target_device_idx)
-        value1.generation_time = 1
+        value1.generation_time = value1.seconds_to_t(1)
 
         op = BaseOperation(constant_sum=[10, -5, 0.5], target_device_idx=target_device_idx)
         op.inputs['in_value1'].set(value1)
 
-        op.setup()
-        op.check_ready(1)
-        op.prepare_trigger(1)
-        op.trigger()
-        op.post_trigger()
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
 
         expected = xp.array([11.0, -3.0, 3.5])  # [1+10, 2-5, 3+0.5]
         np.testing.assert_array_almost_equal(cpuArray(op.outputs['out_value'].value),
@@ -322,16 +299,14 @@ class TestBaseOperation(unittest.TestCase):
         """Test constant division with vector (implemented as 1/constant_div * value)"""
 
         value1 = BaseValue(value=xp.array([6.0, 8.0, 10.0]), target_device_idx=target_device_idx)
-        value1.generation_time = 1
+        value1.generation_time = value1.seconds_to_t(1)
 
         op = BaseOperation(constant_div=[2, 4, 0.5], target_device_idx=target_device_idx)
         op.inputs['in_value1'].set(value1)
 
-        op.setup()
-        op.check_ready(1)
-        op.prepare_trigger(1)
-        op.trigger()
-        op.post_trigger()
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
 
         expected = xp.array([3.0, 2.0, 20.0])  # [6/2, 8/4, 10/0.5]
         np.testing.assert_array_almost_equal(cpuArray(op.outputs['out_value'].value),
@@ -342,16 +317,14 @@ class TestBaseOperation(unittest.TestCase):
         """Test constant subtraction with vector (implemented as value + (-constant_sub))"""
 
         value1 = BaseValue(value=xp.array([10.0, 5.0, 3.0]), target_device_idx=target_device_idx)
-        value1.generation_time = 1
+        value1.generation_time = value1.seconds_to_t(1)
 
         op = BaseOperation(constant_sub=[2, 1, -1], target_device_idx=target_device_idx)
         op.inputs['in_value1'].set(value1)
 
-        op.setup()
-        op.check_ready(1)
-        op.prepare_trigger(1)
-        op.trigger()
-        op.post_trigger()
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
 
         expected = xp.array([8.0, 4.0, 4.0])  # [10-2, 5-1, 3-(-1)]
         np.testing.assert_array_almost_equal(cpuArray(op.outputs['out_value'].value),
@@ -362,7 +335,7 @@ class TestBaseOperation(unittest.TestCase):
         """Test that generation_time is set for both scalar and vector constants"""
 
         value1 = BaseValue(value=xp.array([1.0, 2.0]), target_device_idx=target_device_idx)
-        value1.generation_time = 5
+        value1.generation_time = value1.seconds_to_t(5)
 
         # Test one scalar and one vector operation
         op_scalar = BaseOperation(constant_mul=2.0, target_device_idx=target_device_idx)
@@ -370,37 +343,33 @@ class TestBaseOperation(unittest.TestCase):
 
         for op in [op_scalar, op_vector]:
             op.inputs['in_value1'].set(value1)
-            op.setup()
-            op.check_ready(5)
-            op.prepare_trigger(5)
-            op.trigger()
-            op.post_trigger()
-            self.assertEqual(op.outputs['out_value'].generation_time, 5)
+            loop = LoopControl()
+            loop.add(op, idx=0)
+            loop.run(run_time=10, dt=5, t0=5)
+            self.assertEqual(op.outputs['out_value'].generation_time, value1.seconds_to_t(5))
 
     @cpu_and_gpu
     def test_scalar_vs_vector_consistency(self, target_device_idx, xp):
         """Test that scalar and vector constants give same results when appropriate"""
 
         value1 = BaseValue(value=xp.array([2.0, 2.0, 2.0]), target_device_idx=target_device_idx)
-        value1.generation_time = 1
+        value1.generation_time = value1.seconds_to_t(1)
 
         # Test scalar multiplication
         op_scalar = BaseOperation(constant_mul=3.0, target_device_idx=target_device_idx)
         op_scalar.inputs['in_value1'].set(value1)
-        op_scalar.setup()
-        op_scalar.check_ready(1)
-        op_scalar.prepare_trigger(1)
-        op_scalar.trigger()
-        op_scalar.post_trigger()
+
+        loop = LoopControl()
+        loop.add(op_scalar, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
 
         # Test vector multiplication with same value
         op_vector = BaseOperation(constant_mul=[3.0, 3.0, 3.0], target_device_idx=target_device_idx)
         op_vector.inputs['in_value1'].set(value1)
-        op_vector.setup()
-        op_vector.check_ready(1)
-        op_vector.prepare_trigger(1)
-        op_vector.trigger()
-        op_vector.post_trigger()
+
+        loop = LoopControl()
+        loop.add(op_vector, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
 
         # Results should be identical
         np.testing.assert_array_equal(
@@ -414,12 +383,13 @@ class TestBaseOperation(unittest.TestCase):
 
         value1 = BaseValue(value=xp.array([1.0, 2.0, 3.0]),
                            target_device_idx=target_device_idx)
-        value1.generation_time = 1
+        value1.generation_time = value1.seconds_to_t(1)
 
         # Vector with wrong length should cause an error during trigger
         op = BaseOperation(constant_mul=[1.0, 2.0],
                            target_device_idx=target_device_idx)  # 2 elements vs 3
         op.inputs['in_value1'].set(value1)
+
         op.setup()
         op.check_ready(1)
         op.prepare_trigger(1)
@@ -434,7 +404,7 @@ class TestBaseOperation(unittest.TestCase):
 
         value1 = BaseValue(value=xp.array([1.0, 2.0]),
                            target_device_idx=target_device_idx)
-        value1.generation_time = 1
+        value1.generation_time = value1.seconds_to_t(1)
 
         # Test that constant_div (scalar) overrides constant_mul (vector)
         # According to your code, the last one wins
@@ -444,11 +414,10 @@ class TestBaseOperation(unittest.TestCase):
             target_device_idx=target_device_idx
         )
         op.inputs['in_value1'].set(value1)
-        op.setup()
-        op.check_ready(1)
-        op.prepare_trigger(1)
-        op.trigger()
-        op.post_trigger()
+
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
 
         # Should be value1 / 2.0 = [0.5, 1.0]
         expected = xp.array([0.5, 1.0])
@@ -460,16 +429,15 @@ class TestBaseOperation(unittest.TestCase):
         """Test behavior with empty arrays"""
 
         value1 = BaseValue(value=xp.array([]), target_device_idx=target_device_idx)
-        value1.generation_time = 1
+        value1.generation_time = value1.seconds_to_t(1)
 
         op = BaseOperation(constant_mul=2.0, target_device_idx=target_device_idx)
         op.inputs['in_value1'].set(value1)
-        op.setup()
-        op.check_ready(1)
-        op.prepare_trigger(1)
-        op.trigger()
-        op.post_trigger()
+
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
 
         # Should produce empty array
         self.assertEqual(len(op.outputs['out_value'].value), 0)
-        self.assertEqual(op.outputs['out_value'].generation_time, 1)
+        self.assertEqual(op.outputs['out_value'].generation_time, value1.seconds_to_t(1))

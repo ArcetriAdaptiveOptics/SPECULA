@@ -6,6 +6,8 @@ import unittest
 from unittest.mock import MagicMock
 
 from specula import cp, cpuArray
+from specula.base_value import BaseValue
+from specula.connections import InputValue
 from specula.base_processing_obj import BaseProcessingObj
 
 from test.specula_testlib import cpu_and_gpu
@@ -99,6 +101,28 @@ class TestBaseProcessingObj(unittest.TestCase):
 
         obj.current_time = 0
         self.assertTrue(obj.checkInputTimes())
+
+    @cpu_and_gpu
+    def test_check_input_times_returns_true_for_invalid_optional_inputs(self, target_device_idx, xp):
+        obj = BaseProcessingObj(target_device_idx=target_device_idx)
+
+        obj.inputs['test1'] = InputValue(type=BaseValue, optional=True)
+        obj.inputs['test2'] = InputValue(type=BaseValue, optional=True)
+        self.assertTrue(obj.checkInputTimes())
+
+    @cpu_and_gpu
+    def test_check_input_times_returns_false_for_valid_optional_inputs(self, target_device_idx, xp):
+        obj = BaseProcessingObj(target_device_idx=target_device_idx)
+
+        obj.inputs['test1'] = InputValue(type=BaseValue, optional=True)
+        obj.inputs['test2'] = InputValue(type=BaseValue, optional=True)
+
+        value = BaseValue()
+        obj.inputs['test1'].set(value)
+        value.generation_time = 1 # Simulate non-refreshed inputs
+
+        obj.current_time = 2
+        self.assertFalse(obj.checkInputTimes())
 
     @cpu_and_gpu
     def test_post_trigger_resets_inputs_changed(self, target_device_idx, xp):

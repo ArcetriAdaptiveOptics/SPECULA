@@ -68,7 +68,7 @@ class CiaoCiaoSlopec(Slopec):
                          **kwargs)
 
         if pupil_mask is not None:
-            mask = self.xp.asarray(pupil_mask.A, dtype=self.dtype) > 0.5
+            mask = self.to_xp(pupil_mask.A, dtype=self.dtype) > 0.5
             if self.diffRotAngleInDeg != 0.0:
                 interp = Interp2D(mask.shape, mask.shape,
                                   rotInDeg=self.diffRotAngleInDeg,

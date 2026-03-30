@@ -7,6 +7,7 @@ import unittest
 from specula import np
 from specula import cpuArray
 
+from specula.loop_control import LoopControl
 from specula.data_objects.source import Source
 from specula.data_objects.pupilstop import Pupilstop
 from specula.data_objects.layer import Layer
@@ -70,10 +71,9 @@ class TestAtmoPropagation(unittest.TestCase):
         prop.inputs['common_layer_list'].set([layer])  # Only ground layer
 
         # Setup and run
-        prop.setup()
-        prop.check_ready(1)
-        prop.trigger()
-        prop.post_trigger()
+        loop = LoopControl()
+        loop.add(prop, idx=0)
+        loop.run(run_time=1, dt=1, t0=0)
 
         # Get output
         output_ef = prop.outputs['out_on_axis_ef']
@@ -145,10 +145,9 @@ class TestAtmoPropagation(unittest.TestCase):
         prop.inputs['common_layer_list'].set([])
 
         # Setup and run
-        prop.setup()
-        prop.check_ready(1)
-        prop.trigger()
-        prop.post_trigger()
+        loop = LoopControl()
+        loop.add(prop, idx=0)
+        loop.run(run_time=1, dt=1, t0=0)
 
         # Get output
         output_ef = prop.outputs['out_on_axis_ef']
@@ -215,10 +214,9 @@ class TestAtmoPropagation(unittest.TestCase):
         prop.inputs['atmo_layer_list'].set([])
         prop.inputs['common_layer_list'].set([layer])
 
-        prop.setup()
-        prop.check_ready(1)
-        prop.trigger()
-        prop.post_trigger()
+        loop = LoopControl()
+        loop.add(prop, idx=0)
+        loop.run(run_time=1, dt=1, t0=0)
 
         output_ef = prop.outputs['out_off_axis_ef']
         output_amplitude = cpuArray(output_ef.A)
@@ -326,10 +324,10 @@ class TestAtmoPropagation(unittest.TestCase):
                                target_device_idx=target_device_idx)
         prop.inputs['atmo_layer_list'].set([])
         prop.inputs['common_layer_list'].set([layer])
-        prop.setup()
-        prop.check_ready(1)
-        prop.trigger()
-        prop.post_trigger()
+
+        loop = LoopControl()
+        loop.add(prop, idx=0)
+        loop.run(run_time=1, dt=1, t0=0)
 
         output_ef = prop.outputs['out_on_axis_ef']
         output_amplitude = cpuArray(output_ef.A)
@@ -383,10 +381,10 @@ class TestAtmoPropagation(unittest.TestCase):
                                target_device_idx=target_device_idx)
         prop.inputs['atmo_layer_list'].set([])
         prop.inputs['common_layer_list'].set([layer])
-        prop.setup()
-        prop.check_ready(1)
-        prop.trigger()
-        prop.post_trigger()
+
+        loop = LoopControl()
+        loop.add(prop, idx=0)
+        loop.run(run_time=1, dt=1, t0=0)
 
         output_ef = prop.outputs['out_on_axis_ef']
         output_amplitude = cpuArray(output_ef.A)
@@ -539,11 +537,6 @@ class TestAtmoPropagation(unittest.TestCase):
         prop_ref.inputs['atmo_layer_list'].set([])
         prop_ref.inputs['common_layer_list'].set([common_layer])
 
-        prop_ref.setup()
-        prop_ref.check_ready(1)
-        prop_ref.trigger()
-        prop_ref.post_trigger()
-
         prop_chrom = AtmoPropagation(
             simul_params,
             source_dict={'chrom': source_chromatic},
@@ -555,10 +548,10 @@ class TestAtmoPropagation(unittest.TestCase):
         prop_chrom.inputs['atmo_layer_list'].set([])
         prop_chrom.inputs['common_layer_list'].set([common_layer])
 
-        prop_chrom.setup()
-        prop_chrom.check_ready(1)
-        prop_chrom.trigger()
-        prop_chrom.post_trigger()
+        loop = LoopControl()
+        loop.add(prop_chrom, idx=0)
+        loop.add(prop_ref, idx=0)
+        loop.run(run_time=1, dt=1, t0=0)
 
         ef_ref = prop_ref.outputs['out_ref_ef']
         ef_chrom = prop_chrom.outputs['out_chrom_ef']

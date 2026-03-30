@@ -18,11 +18,12 @@ class AtmoRandomPhase(BaseProcessingObj):
                  simul_params: SimulParams,
                  L0: float=1.0,
                  data_dir: str="",
-                 source_dict: dict={},
+                 source_dict: dict=None,
                  wavelengthInNm: float=500.0,
                  pixel_phasescreens=None,
                  seed: int=1,
                  update_interval: int=1,
+                 layer_height: float=0.0,
                  verbose=None,
                  target_device_idx=None,
                  precision=None):
@@ -37,6 +38,8 @@ class AtmoRandomPhase(BaseProcessingObj):
             Directory path for storing/loading phase screen data (automatically set by simul.py).
         source_dict : dict, optional
             Dictionary of sources for the atmospheric phase screens.
+            If omitted or empty, the object exposes a single pair of outputs named
+            out_ef and out_layer.
         wavelengthInNm : float, optional
             Wavelength in nanometers for scaling the phase screens, by default 500.0 nm
         pixel_phasescreens : int, optional
@@ -45,6 +48,8 @@ class AtmoRandomPhase(BaseProcessingObj):
             Seed for random number generation, by default 1.
         update_interval : int, optional
             Number of triggers between phase screen updates, by default 1.
+        layer_height : float, optional
+            Height in meters assigned to the output layers, by default 0.0.
         verbose : bool, optional
             If True, enables verbose output during phase screen generation.
             Default is None (no verbose output).
@@ -62,7 +67,7 @@ class AtmoRandomPhase(BaseProcessingObj):
         self.pixel_pitch = self.simul_params.pixel_pitch
         self.zenithAngleInDeg = self.simul_params.zenithAngleInDeg
 
-        self.source_dict = source_dict
+        self.source_dict = source_dict or {}
         self.new_position = 0
         self.last_position = 0
         self.update_interval = update_interval
@@ -72,7 +77,10 @@ class AtmoRandomPhase(BaseProcessingObj):
         self.wavelengthInNm = wavelengthInNm
         self.scale_coeff = 1.0
         self.seed = seed
-        
+        self.layer_height = layer_height
+        self.layer_outputs = {}
+        self.ef_outputs = {}
+
         self.pupilstop = None
 
         self.inputs['seeing'] = InputValue(type=BaseValue)
@@ -102,17 +110,25 @@ class AtmoRandomPhase(BaseProcessingObj):
 
         self.verbose = verbose if verbose is not None else False
 
-        # Initialize layer list with correct heights
-        self.layer_list = []
-        layer = Layer(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, 0,
-                      precision=self.precision, target_device_idx=self.target_device_idx)
-        self.layer_list.append(layer)
+        output_specs = list(self.source_dict.items()) if self.source_dict else [(None, None)]
 
-        for name, source in source_dict.items():
+        for name, source in output_specs:
+            layer_output_name = 'out_layer' if name is None else 'out_'+name+'_layer'
+            ef_output_name = 'out_ef' if name is None else 'out_'+name+'_ef'
+
+            layer = Layer(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, self.layer_height,
+                          precision=self.precision, target_device_idx=self.target_device_idx)
             ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
                                target_device_idx=self.target_device_idx)
-            ef.S0 = source.phot_density()
-            self.outputs['out_'+name+'_ef'] = ef
+            # The electric field output shares the same array as the layer output
+            ef.field = layer.field
+            if source is not None:
+                ef.S0 = source.phot_density()
+
+            self.layer_outputs[layer_output_name] = layer
+            self.ef_outputs[ef_output_name] = ef
+            self.outputs[layer_output_name] = layer
+            self.outputs[ef_output_name] = ef
 
         if self.seed < 1:
             raise ValueError('Seed must be >1')
@@ -167,11 +183,18 @@ class AtmoRandomPhase(BaseProcessingObj):
             self.new_position = 0
 
     def trigger_code(self):
-        for name, source in self.source_dict.items():
-            self.outputs['out_'+name+'_ef'].phaseInNm = \
-                self.phasescreens[self.new_position,:,:] * self.scale_coeff
-            self.outputs['out_'+name+'_ef'].A = self.pupilstop.A
-            self.outputs['out_'+name+'_ef'].generation_time = self.current_time
+        current_phase = self.phasescreens[self.new_position,:,:] * self.scale_coeff
+
+        for output_name, layer in self.layer_outputs.items():
+            layer.phaseInNm[:] = current_phase
+            layer.A[:] = self.pupilstop.A
+            layer.generation_time = self.current_time
+
+            # Update the corresponding electric field output generation time
+            # Note: the electric field output shares the same array (ef.field)
+            #       as the layer output (layer.field)
+            ef_output_name = output_name.replace('_layer', '_ef')
+            self.ef_outputs[ef_output_name].generation_time = self.current_time
 
     def post_trigger(self):
         super().post_trigger()

@@ -12,7 +12,7 @@ from specula.processing_objects.zwfs_slopec import ZwfsSlopec
 
 from test.specula_testlib import cpu_and_gpu
 
-class TestSlopec(unittest.TestCase):
+class TestZWFSlopec(unittest.TestCase):
 
     @cpu_and_gpu
     def test_slopec(self, target_device_idx, xp):
@@ -28,18 +28,18 @@ class TestSlopec(unittest.TestCase):
         slopes = slopec.outputs['out_slopes']
 
         pix_in_pupil = cpuArray(pixels.pixels[1:4,1:4]).flatten()
-        want = pix_in_pupil / (xp.mean(pix_in_pupil))
+        want = cpuArray(pix_in_pupil / (xp.mean(pix_in_pupil)))
 
         got = cpuArray(slopes.slopes)
         np.testing.assert_array_almost_equal(got, want)
-        np.testing.assert_equal(slopec.nsubaps(),9)
+        np.testing.assert_equal(cpuArray(slopec.nsubaps()),9)
 
     @cpu_and_gpu
     def test_zernslopec_slopesnull(self, target_device_idx, xp):
         pixels = Pixels(5, 5, target_device_idx=target_device_idx)
         pixels.pixels = xp.arange(25,  dtype=xp.uint16).reshape((5,5))
         pixels.generation_time = 1
-        sn = Slopes(slopes=np.arange(9)/9, target_device_idx=target_device_idx)
+        sn = Slopes(slopes=xp.arange(9)/9, target_device_idx=target_device_idx)
 
         slopec1 = ZwfsSlopec(pup_diam=3, ccd_size=5, target_device_idx=target_device_idx)
         slopec2 = ZwfsSlopec(pup_diam=3, ccd_size=5, sn=sn, target_device_idx=target_device_idx)
