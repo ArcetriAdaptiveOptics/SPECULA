@@ -1009,7 +1009,6 @@ class Simul():
             self.loop.add(disp, idx+1)
             disp.name = 'display_server'
 
-        print(self.loop.target_device_idx)
         # Run simulation loop
         self.loop.run(run_time=self.mainParams['total_time'],
                       dt=self.mainParams['time_step'],

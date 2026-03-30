@@ -184,8 +184,8 @@ class AOErrorBudgetMachine:
             thrp = fits.getdata(op.join(self.root_dir, 'slopenulls', f'pyr{rMod:1.1f}_{n_subap:1.0f}x{n_subap:1.0f}_throughput.fits'))[0]
         except FileNotFoundError:
             print('Pyramid throughput not found for this configuration')
-            thrp = 1.0
-        return float(thrp)
+            thrp = 1.0-self.xp.exp(-(0.35+0.72*rMod))
+        return thrp
     
     def get_rec(self, rMod:float, n_subap:float, n_modes:int):
         im = fits.getdata(op.join(self.root_dir,'im',f'pyr{rMod:1.1f}_{n_subap:1.0f}x{n_subap:1.0f}_im.fits'))
