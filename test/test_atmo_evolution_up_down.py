@@ -1,6 +1,7 @@
 import os
 import glob
 import specula
+from specula.loop_control import LoopControl
 specula.init(0)  # Default target device
 
 import unittest
@@ -118,15 +119,12 @@ class TestAtmoEvolutionUpDown(unittest.TestCase):
         atmo.inputs['wind_direction'].set(wind_direction.output)
         atmo.inputs['wind_speed'].set(wind_speed.output)
 
-        for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
-            for obj in objlist:
-                obj.setup()
-            for obj in objlist:
-                obj.check_ready(0)
-            for obj in objlist:
-                obj.trigger()
-            for obj in objlist:
-                obj.post_trigger()
+        loop = LoopControl()
+        loop.add(seeing, idx=0)
+        loop.add(wind_speed, idx=0)
+        loop.add(wind_direction, idx=0)
+        loop.add(atmo, idx=1)
+        loop.run(run_time=1, dt=1)
 
         # After first trigger, check positions
         wind_speed_values = cpuArray(wind_speed.output.value)
@@ -172,25 +170,12 @@ class TestAtmoEvolutionUpDown(unittest.TestCase):
         atmo.inputs['wind_direction'].set(wind_direction.output)
         atmo.inputs['wind_speed'].set(wind_speed.output)
 
-        # First trigger at t=0
-        for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
-            for obj in objlist:
-                obj.setup()
-            for obj in objlist:
-                obj.check_ready(0)
-            for obj in objlist:
-                obj.trigger()
-            for obj in objlist:
-                obj.post_trigger()
-
-        # Second trigger at t=delta_t
-        for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
-            for obj in objlist:
-                obj.check_ready(delta_t)
-            for obj in objlist:
-                obj.trigger()
-            for obj in objlist:
-                obj.post_trigger()
+        loop = LoopControl()
+        loop.add(seeing, idx=0)
+        loop.add(wind_speed, idx=0)
+        loop.add(wind_direction, idx=0)
+        loop.add(atmo, idx=1)
+        loop.run(run_time=delta_time*2, dt=delta_time)
 
         wind_speed_values = cpuArray(wind_speed.output.value)
 
@@ -241,15 +226,12 @@ class TestAtmoEvolutionUpDown(unittest.TestCase):
         atmo.inputs['wind_direction'].set(wind_direction.output)
         atmo.inputs['wind_speed'].set(wind_speed.output)
 
-        for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
-            for obj in objlist:
-                obj.setup()
-            for obj in objlist:
-                obj.check_ready(0)
-            for obj in objlist:
-                obj.trigger()
-            for obj in objlist:
-                obj.post_trigger()
+        loop = LoopControl()
+        loop.add(seeing, idx=0)
+        loop.add(wind_speed, idx=0)
+        loop.add(wind_direction, idx=0)
+        loop.add(atmo, idx=1)
+        loop.run(run_time=1, dt=1)
 
         # Check that extra_delta_time arrays are correctly set
         np.testing.assert_allclose(
@@ -288,16 +270,14 @@ class TestAtmoEvolutionUpDown(unittest.TestCase):
         atmo.inputs['wind_direction'].set(wind_direction.output)
         atmo.inputs['wind_speed'].set(wind_speed.output)
 
+        loop = LoopControl()
+        loop.add(seeing, idx=0)
+        loop.add(wind_speed, idx=0)
+        loop.add(wind_direction, idx=0)
+        loop.add(atmo, idx=1)
+        loop.start(run_time=2, dt=1)
         # First trigger
-        for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
-            for obj in objlist:
-                obj.setup()
-            for obj in objlist:
-                obj.check_ready(0)
-            for obj in objlist:
-                obj.trigger()
-            for obj in objlist:
-                obj.post_trigger()
+        loop.iter()
 
         # Store layer field IDs
         id_down_0_1 = id(atmo.outputs['layer_list_down'][0].field)
@@ -306,13 +286,7 @@ class TestAtmoEvolutionUpDown(unittest.TestCase):
         id_up_1_1 = id(atmo.outputs['layer_list_up'][1].field)
 
         # Second trigger
-        for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
-            for obj in objlist:
-                obj.check_ready(1)
-            for obj in objlist:
-                obj.trigger()
-            for obj in objlist:
-                obj.post_trigger()
+        loop.iter()
 
         # Check that IDs haven't changed
         id_down_0_2 = id(atmo.outputs['layer_list_down'][0].field)
@@ -361,19 +335,12 @@ class TestAtmoEvolutionUpDown(unittest.TestCase):
         atmo.inputs['wind_direction'].set(wind_direction.output)
         atmo.inputs['wind_speed'].set(wind_speed.output)
 
-        for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
-            for obj in objlist:
-                obj.setup()
-            for obj in objlist:
-                obj.check_ready(0)
-            for obj in objlist:
-                obj.trigger()
-            for obj in objlist:
-                obj.post_trigger()
-
-        # Check that the time difference is correctly applied
-        wind_speed_values = cpuArray(wind_speed.output.value)
-        expected_offset_down = wind_speed_values * light_travel_time / atmo.pixel_pitch
+        loop = LoopControl()
+        loop.add(seeing, idx=0)
+        loop.add(wind_speed, idx=0)
+        loop.add(wind_direction, idx=0)
+        loop.add(atmo, idx=1)
+        loop.run(run_time=1, dt=1)
 
         # The downlink should have a significant phase screen offset compared to uplink
         # We can verify this by checking the stored extra_delta_time values

@@ -10,7 +10,7 @@ from specula.base_processing_obj import BaseProcessingObj
 from specula.base_data_obj import BaseDataObj
 
 from specula.loop_control import LoopControl
-from specula.lib.utils import import_class, get_type_hints
+from specula.lib.utils import import_class, get_type_hints, remove_suffix
 from specula.calib_manager import CalibManager
 from specula.processing_objects.data_store import DataStore
 from specula.connections import InputList, InputValue
@@ -364,29 +364,39 @@ class Simul():
                 if name in skip_pars and name not in args:
                     continue
 
+                # Check that each parameter name is expected by the constructor of the class, after removing possible suffixes
+                parname = name
+                if parname not in args:
+                    for ending in ['_ref', '_data', '_object']:
+                        candidate = remove_suffix(parname, ending)
+                        if candidate in args:
+                            parname = candidate
+                            break
+                if parname not in args:
+                    raise ValueError(f'Parameter {parname} is not expected by class {classname}')
+
                 # dict_ref field contains a dictionary of names and associated data objects (defined in the same yml file)
-                elif name.endswith('_dict_ref'):
+                elif name.endswith('_dict_ref') and parname != name:
                     if build_this_object:
                         data = {x : self.objs[x] for x in value}
-                        pars2[name[:-4]] = data
+                        pars2[parname] = data
                     for x in value:
                         a_ref = {}
                         a_ref['start'] = key
                         a_ref['end'] = x
                         self.references.append(a_ref)
 
-                elif name.endswith('_ref'):
+                elif name.endswith('_ref') and parname != name:
                     if build_this_object:
                         data = self.objs[value]
-                        pars2[name[:-4]] = data
+                        pars2[parname] = data
                     a_ref = {}
                     a_ref['start'] = key
                     a_ref['end'] = value
                     self.references.append(a_ref)
 
                 # data fields are read from a fits file
-                elif name.endswith('_data') and build_this_object:
-                    parname = name[:-5]
+                elif name.endswith('_data') and parname != name and build_this_object:
                     if value is None:
                         pars2[parname] = None
                     else:
@@ -396,8 +406,7 @@ class Simul():
                 # object fields are data objects which are loaded from a fits file
                 # the name of the object is the string preceeding the "_object" suffix,
                 # while its type is inferred from the constructor of the current class
-                elif name.endswith('_object') and build_this_object:
-                    parname = name[:-7]
+                elif name.endswith('_object') and parname != name and build_this_object:
                     if value is None:
                         pars2[parname] = None
                     elif parname in hints:

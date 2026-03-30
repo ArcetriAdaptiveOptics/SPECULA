@@ -146,6 +146,6 @@ class InputValue(InputList):
             else:
                 obj_info = f" (from {self.requesting_obj_name}.{self.input_name})" \
                            if self.requesting_obj_name else ""
-                raise ValueError(f'InputValue is empty and not optional. '
+                raise ValueError(f'Input {self.input_name} of object {self.requesting_obj_name} is empty and not optional. '
                                 f'Input type: {self.output_ref_type}{obj_info}')
         return values_list[0]

@@ -56,11 +56,11 @@ class Lenslet(BaseDataObj):
         raise NotImplementedError
 
     @property
-    def dimx(self):
+    def dimy(self):
         return len(self._lenses)
 
     @property
-    def dimy(self):
+    def dimx(self):
         return len(self._lenses[0]) if self._lenses else 0
 
     def get(self, x, y):

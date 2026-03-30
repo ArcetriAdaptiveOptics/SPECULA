@@ -151,13 +151,6 @@ class AtmoEvolution(BaseProcessingObj):
         if not np.isclose(np.sum(self.Cn2), 1.0, atol=1e-6):
             raise ValueError(f' Cn2 total must be 1. Instead is: {np.sum(self.Cn2)}.')
 
-    @property
-    def seed(self):
-        return self._seed
-
-    @seed.setter
-    def seed(self, value):
-        self._seed = value
         self.compute()
 
     def compute(self):
@@ -168,7 +161,7 @@ class AtmoEvolution(BaseProcessingObj):
         self.pixel_phasescreens = int(self.xp.max(self.pixel_layer))
         temp_screens = []
 
-        if len(self.xp.unique(self.to_xp(self.L0))) == 1: #xp.unique(self.L0)) == 1:
+        if len(self.xp.unique(self.to_xp(self.L0))) == 1:
             # Number of rectangular phase screens from a single square phasescreen
             n_ps_from_square_ps = self.xp.floor(
                 self.pixel_square_phasescreens / self.pixel_phasescreens

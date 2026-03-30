@@ -139,7 +139,7 @@ class TestZernikeSensor(unittest.TestCase):
 
         intensity_diff -= intensity.i.copy()
 
-        plot_debug = True
+        plot_debug = False
         if plot_debug:
             import matplotlib.pyplot as plt
             plt.figure()

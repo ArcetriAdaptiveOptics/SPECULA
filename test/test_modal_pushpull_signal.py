@@ -82,6 +82,16 @@ class TestModalPushPullSignal(unittest.TestCase):
         expected = np.array([2.0, 2.0, -2.0, -2.0])
         np.testing.assert_array_equal(result[:, 0], expected)
 
+    def test_repeat_full_sequence_behavior(self):
+        """Test repeat_full_sequence=True repeats the modal push-pull sequence ncycles times."""
+        vect_amplitude = np.array([2.0, 3.0])
+        result = modal_pushpull_signal(2, vect_amplitude=vect_amplitude, ncycles=3, repeat_full_sequence=True)
+        self.assertEqual(result.shape, (12, 2))  # 2 modes * 2 pokes * 3 cycles = 12 rows
+        expected1 = np.array([2.0, -2.0, 0.0, 0.0, 2.0, -2.0, 0.0, 0.0, 2.0, -2.0, 0.0, 0.0]) # First mode repeated 3 times
+        np.testing.assert_array_equal(result[:, 0], expected1)
+        expected2 = np.array([0.0, 0.0, 3.0, -3.0, 0.0, 0.0, 3.0, -3.0, 0.0, 0.0, 3.0, -3.0])  # Second mode repeats 3 times
+        np.testing.assert_array_equal(result[:, 1], expected2)
+
     def test_nsamples_repetition(self):
         """Test nsamples > 1 repeats each row accordingly."""
         vect_amplitude = np.array([1.0])
@@ -180,21 +190,20 @@ class TestModalPushPullSignal(unittest.TestCase):
         n_modes = 4
         amplitude = 2.0
         first_mode = 1
-        ncycles = 2
+        nsamples = 2
 
         result = modal_pushpull_signal(
             n_modes=n_modes,
             amplitude=amplitude,
             first_mode=first_mode,
-            repeat_ncycles=True,
-            ncycles=ncycles,
+            nsamples=nsamples,
             constant=True,
             xp=np
         )
 
         # Expected shape: 2 * real_n_modes * ncycles rows, n_modes cols
         real_n_modes = n_modes - first_mode
-        expected_rows = 2 * real_n_modes * ncycles
+        expected_rows = 2 * real_n_modes * nsamples
         self.assertEqual(result.shape, (expected_rows, n_modes))
 
         # Verify columns before first_mode are always zero
@@ -205,12 +214,12 @@ class TestModalPushPullSignal(unittest.TestCase):
             col = result[:, mode]
             # The pattern: [ +A, +A, -A, -A ] for ncycles=2
             expected_pattern = np.concatenate(
-                [np.full(ncycles, amplitude), np.full(ncycles, -amplitude)]
+                [np.full(nsamples, amplitude), np.full(nsamples, -amplitude)]
             )
             # Each mode should have the same expected block repeated
             repeated_blocks = np.tile(expected_pattern, 1)  # Single block per mode
-            x1 = (mode-first_mode)*(ncycles*2)
-            x2 = x1 + ncycles*2
+            x1 = (mode-first_mode)*(nsamples*2)
+            x2 = x1 + nsamples*2
             self.assertTrue(np.array_equal(col[x1:x2], repeated_blocks))
 
     @patch("specula.lib.modal_pushpull_signal.ZernikeGenerator.degree", return_value=(1,))

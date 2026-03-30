@@ -132,8 +132,9 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
                 # Compute FWHM from stddev
                 fwhm_x = 2.0 * np.sqrt(2.0 * np.log(2.0)) * np.abs(p.x_stddev.value)
                 fwhm_y = 2.0 * np.sqrt(2.0 * np.log(2.0)) * np.abs(p.y_stddev.value)
-                beta1[i] = np.sqrt(max(0, fwhm_x**2 - sh_spot_fwhm**2))
-                beta2[i] = np.sqrt(max(0, fwhm_y**2 - sh_spot_fwhm**2))
+                local_sh_spot_fwhm = min(fwhm_x, fwhm_y)
+                beta1[i] = np.sqrt(max(0, fwhm_x**2 - local_sh_spot_fwhm**2))
+                beta2[i] = np.sqrt(max(0, fwhm_y**2 - local_sh_spot_fwhm**2))
             except Exception as e:
                 beta1[i] = 0
                 beta2[i] = 0

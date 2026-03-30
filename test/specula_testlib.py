@@ -1,6 +1,11 @@
 
 from astropy.io import fits
 from specula import cp, np
+import importlib
+import inspect
+import pkgutil
+
+import specula.data_objects
 
 def cpu_and_gpu(f):
     '''
@@ -57,3 +62,34 @@ def assert_HDU_contents_match(data_path, ref_path, decimal=5):
                         decimal=decimal,
                         err_msg=f"Data in HDU #{i} does not match reference"
                     )
+
+
+def iter_data_object_classes(skip=None, require_methods=None):
+    """
+    Iterate over classes defined in ``specula.data_objects`` submodules.
+
+    Parameters
+    ----------
+    skip : iterable of str, optional
+        Class names to exclude.
+    require_methods : iterable of str, optional
+        If provided, only classes exposing all listed attributes are yielded.
+    """
+    skip = set(skip or [])
+    required = tuple(require_methods or [])
+
+    for _, module_name, _ in pkgutil.iter_modules(specula.data_objects.__path__):
+        full_name = f"{specula.data_objects.__name__}.{module_name}"
+        module = importlib.import_module(full_name)
+
+        for class_name, klass in inspect.getmembers(module, inspect.isclass):
+            if class_name in skip:
+                continue
+            if klass.__module__ != module.__name__:
+                continue
+            if class_name.startswith('_'):
+                continue
+            if required and not all(hasattr(klass, meth) for meth in required):
+                continue
+
+            yield klass

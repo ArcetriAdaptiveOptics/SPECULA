@@ -55,9 +55,23 @@ class BaseProcessingObj(BaseTimeObj):
         self.remote_outputs[name].append(remote_output)
 
     def checkInputTimes(self):
+        '''
+        Determine whether this processing object needs to execute
+        the trigger method, based on the input states
+        '''
+        # No inputs: always trigger
         if len(self.inputs)==0:
             return True
+
         self.get_all_inputs()
+
+        # Inputs are all optional, and none of them is set: always trigger
+        if all((self.inputs[k].optional is True and
+                self.local_inputs[k] is None)
+               for k in self.inputs):
+            return True
+
+        # Otherwise, only trigger if at least one input has been refreshed.
         for input_name, input_obj in self.local_inputs.items():
             if type(input_obj) is not list:
                 input_obj = [input_obj]
@@ -123,7 +137,7 @@ class BaseProcessingObj(BaseTimeObj):
         '''
         # Double check that we can execute
         if not self.inputs_changed:
-            raise RuntimeError("trigger() called when the object's inputs have not changed")
+            raise RuntimeError("post_trigger() called when the object's inputs have not changed")
 
         # Reset inputs flag
         self.inputs_changed = False

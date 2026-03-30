@@ -1,9 +1,11 @@
 import os
+
 from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.intensity import Intensity
 from specula.data_objects.pixels import Pixels
 from specula.connections import InputValue
 from specula.data_objects.pupdata import PupData
+from specula.lib import utils
 from specula import cpuArray
 
 
@@ -11,9 +13,32 @@ class PyrPupdataCalibrator(BaseProcessingObj):
     """
     Pyramid PupData Calibrator processing object. Calibrator for pyramid pupils.
 
-    Analyzes a calibration image of the 4 pupils to extract their centers and radii,
-    generates pixel indices for each pupil, and saves the resulting PupData object.
+    This processing object analyzes a calibration image containing four
+    pyramid pupils to estimate their geometric properties (centers and radii),
+    detect possible central obstructions, and generate pixel index maps for
+    each pupil. The resulting data is stored in a :class:`PupData` object.
+
     Optional features include automatic central obstruction detection and debug plotting.
+
+    The calibration can operate on either intensity or pixel inputs and supports
+    optional temporal integration, obstruction detection, and debug visualization.
+
+    Inputs
+    ------
+    in_i : Intensity, optional
+        Input intensity data.
+    in_pixels : Pixels, optional
+        Input pixel data.
+
+    Outputs
+    -------
+    out_pupdata : PupData
+        Extracted pupil data, including centers, radii, and pixel indices.
+
+    Notes
+    -----
+    - At least one input (``in_i`` or ``in_pixels``) must be provided.
+    - Pupil ordering is rearranged to match PASSATA conventions.
     """
 
     def __init__(self,
@@ -31,6 +56,45 @@ class PyrPupdataCalibrator(BaseProcessingObj):
                  save_on_exit: bool = True,
                  target_device_idx: int = None,
                  precision: int = None):
+        """
+        Parameters
+        ----------
+        data_dir : str
+            Directory where calibration outputs are saved.
+        dt : float, optional
+            Integration time in seconds. If provided, frames are accumulated and
+            processed only at multiples of ``dt``.
+        thr1 : float, optional
+            First threshold for pupil segmentation. Default is 0.1.
+        thr2 : float, optional
+            Second threshold for refined segmentation. Default is 0.25.
+        obs_thr : float, optional
+            Scaling factor for obstruction detection. Default is 0.8.
+        slopes_from_intensity : bool, optional
+            If True, generate pupil indices directly from intensity masks.
+            Otherwise, use geometric translation. Default is False.
+        output_tag : str, optional
+            Filename used when saving calibration results.
+        auto_detect_obstruction : bool, optional
+            Enable automatic detection of central obstruction. Default is True.
+        min_obstruction_ratio : float, optional
+            Minimum allowed obstruction ratio. Default is 0.05.
+        display_debug : bool, optional
+            If True, display debug plots during calibration. Default is False.
+        overwrite : bool, optional
+            If True, overwrite existing files when saving. Default is False.
+        save_on_exit : bool, optional
+            If True, automatically save calibration data on finalize. Default is True.
+        target_device_idx : int, optional
+            Target device index for computation.
+        precision : int, optional
+            Numerical precision for internal data.
+
+        Raises
+        ------
+        ValueError
+            If ``dt`` is provided and is not positive.
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
 
@@ -120,7 +184,21 @@ class PyrPupdataCalibrator(BaseProcessingObj):
         self.integrated_pixels *= 0.0
 
     def _analyze_pupils(self, image):
-        """Find 4 pupil centers and radii"""
+        """
+        Detect pupil centers and radii in four quadrants.
+
+        Parameters
+        ----------
+        image : array-like
+            Input image.
+
+        Returns
+        -------
+        centers : ndarray of shape (4, 2)
+            Estimated (x, y) coordinates of pupil centers.
+        radii : ndarray of shape (4,)
+            Estimated pupil radii.
+        """
         h, w = image.shape
         cy, cx = h // 2, w // 2
         dim = min(cx, cy)
@@ -147,7 +225,24 @@ class PyrPupdataCalibrator(BaseProcessingObj):
         return centers, radii
 
     def _analyze_single_pupil(self, image):
-        """Analyze single pupil quadrant"""
+        """
+        Analyze a single pupil region.
+
+        Uses a two-level thresholding approach to extract a binary mask,
+        then computes centroid and radius.
+
+        Parameters
+        ----------
+        image : array-like
+            Input quadrant image.
+
+        Returns
+        -------
+        center : ndarray of shape (2,)
+            Estimated (x, y) center. These coordinates will be 0 if no valid region is found.
+        radius : float
+            Estimated radius. Returns 0 if no valid region is found.
+        """
         # Two-level thresholding
         min_val, max_val = float(self.xp.min(image)), float(self.xp.max(image))
         s1 = min_val + (max_val - min_val) * self.thr1
@@ -169,7 +264,27 @@ class PyrPupdataCalibrator(BaseProcessingObj):
             return self.xp.array([0.0, 0.0]), 0.0
 
     def _detect_obstruction(self, image, centers, radii):
-        """Simple obstruction detection"""
+        """
+        Estimate central obstruction ratio.
+
+        Parameters
+        ----------
+        image : array-like
+            Input image.
+        centers : ndarray
+            Pupil centers.
+        radii : ndarray
+            Pupil radii.
+
+        Returns
+        -------
+        float
+            Estimated obstruction ratio (0 if none detected).
+
+        Notes
+        -----
+        Detection is based on radial intensity profiles and gradient analysis.
+        """
         obstruction_ratios = []
 
         for i in range(4):
@@ -201,7 +316,25 @@ class PyrPupdataCalibrator(BaseProcessingObj):
             return 0.0
 
     def _radial_profile(self, image, center, max_radius, n_bins=20):
-        """Extract radial intensity profile"""
+        """
+        Compute radial intensity profile.
+
+        Parameters
+        ----------
+        image : array-like
+            Input image.
+        center : array-like
+            Pupil center (x, y).
+        max_radius : float
+            Maximum radius to consider.
+        n_bins : int, optional
+            Number of radial bins. Default is 20.
+
+        Returns
+        -------
+        ndarray
+            Radial intensity profile.
+        """
         h, w = image.shape
         y, x = self.xp.mgrid[0:h, 0:w]
         r = self.xp.sqrt((x - center[0])**2 + (y - center[1])**2)
@@ -217,7 +350,33 @@ class PyrPupdataCalibrator(BaseProcessingObj):
         return self.xp.array(profile)
 
     def _generate_indices(self, centers, radii, image_shape):
-        """Generate pupil pixel indices with optional obstruction"""
+        """
+        Generate pixel indices for each pupil.
+
+        Parameters
+        ----------
+        centers : ndarray
+            Pupil centers.
+        radii : ndarray
+            Pupil radii.
+        image_shape : tuple
+            Shape of the input image.
+
+        Returns
+        -------
+        ndarray
+            Array of pixel indices for each pupil.
+
+        Raises
+        ------
+        ValueError
+            If no valid pupils are detected or indices cannot be generated.
+
+        Depending on the "self.slopes_from_intensity" parameter, indices are either
+        calculated for each pupil independently (if the parameter is True), or derived
+        from a single pupil mask that is replicated four times and translated to match
+        each pupil (if the parameter is False).
+        """
         h, w = image_shape
         y_coords, x_coords = self.xp.mgrid[0:h, 0:w]
 
@@ -333,7 +492,22 @@ class PyrPupdataCalibrator(BaseProcessingObj):
         return ind_pup
 
     def _debug_plot(self, image, centers, radii):
-        """Simple debug plot"""
+        """
+        Display debug visualization of detected pupils.
+
+        Parameters
+        ----------
+        image : array-like
+            Input image.
+        centers : ndarray
+            Pupil centers.
+        radii : ndarray
+            Pupil radii.
+
+        Notes
+        -----
+        Requires ``matplotlib``. If unavailable, a warning is printed.
+        """
         try:
             import matplotlib.pyplot as plt
             from matplotlib.patches import Circle
@@ -383,15 +557,27 @@ class PyrPupdataCalibrator(BaseProcessingObj):
         except ImportError:
             print("Matplotlib not available for debug plotting")
 
-    def _save(self):
-        """Save pupil data"""
-        if self.filename is None:
-            raise ValueError("Cannot save pupil data: no filename has been set")
+    def _save(self, filename):
+        """
+        Save pupil calibration data to disk.
+
+        Parameters
+        ----------
+        filename : str
+            Output filename (FITS format). If no extension is provided,
+            ``.fits`` is appended.
+
+        Raises
+        ------
+        ValueError
+            If no pupil data is available to save.
+        """
+        if filename is None:
+            filename = utils.make_tn()
 
         if self.pupdata is None:
             raise ValueError("No pupil data to save")
 
-        filename = self.filename
         if not filename.endswith('.fits'):
             filename += '.fits'
         file_path = os.path.join(self.data_dir, filename)
@@ -405,5 +591,5 @@ class PyrPupdataCalibrator(BaseProcessingObj):
 
     def finalize(self):
         if self.save_on_exit:
-            self._save()
+            self._save(self.filename)
 

@@ -1,11 +1,11 @@
 import numpy as np
-from astropy.io import fits
 
 from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.electric_field import ElectricField
 from specula.base_value import BaseValue
 from specula.data_objects.layer import Layer
 from specula.data_objects.pupilstop import Pupilstop
+from specula.data_objects.spatio_temp_array import SpatioTempArray
 from specula.connections import InputValue
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.extrapolation_2d import EFInterpolator
@@ -13,15 +13,15 @@ from specula.lib.extrapolation_2d import EFInterpolator
 class PhaseScreenCube(BaseProcessingObj):
     """
     User-defined phase screen cube data object.
-    Reads a phase screen cube from a FITS file and applies it on the specified line of sight.
+    Applies a spatio-temporal phase screen cube on the specified line of sight.
     The cube's temporal sampling does not need to match the simulation's sampling.
     """
     def __init__(self,
                  simul_params: SimulParams,
-                 file_name: str,
-                 time_step: float,
+                 cube: SpatioTempArray,
                  pixel_scale: float,
-                 source_dict: dict,
+                 source_dict: dict=None,
+                 layer_height: float=0.0,
                  verbose=None,
                  target_device_idx=None):
         """
@@ -29,15 +29,18 @@ class PhaseScreenCube(BaseProcessingObj):
         ----------
         simul_params : SimulParams
             Simulation parameters object containing pupil size, pixel pitch, zenith angle, etc.
-        file_name : str
-            Full path to a FITS file containing the phase screen cube. The cube should 
-            have the temporal evolution on the third dimension. The phase screens should be in nm.
-        time_step : float
-            Time resolution of the phase screen cube in seconds.
+        cube : SpatioTempArray
+            Spatio-temporal array containing the phase screen cube.
+            Internally data are accessed as time-first: shape (time, x, y).
+            The phase screens should be in nm. The time_vector must be provided in seconds.
         pixel_scale : float
             Phase screens' pixel size in m.
-        source_dict : dict
+        source_dict : dict, optional
             Dictionary of the source corresponding to the line of sight of the phase screen.
+            If omitted or empty, the object exposes a single pair of outputs named
+            out_ef and out_layer.
+        layer_height : float, optional
+            Height in meters assigned to the output layer, by default 0.0.
         verbose : bool, optional
             If True, enables verbose output during phase screen generation.
             Default is None (no verbose output).
@@ -47,47 +50,56 @@ class PhaseScreenCube(BaseProcessingObj):
         super().__init__(target_device_idx=target_device_idx)
 
         self.simul_params = simul_params
+        self.cube = cube
 
         self.pixel_pupil = self.simul_params.pixel_pupil
         self.pixel_pitch = self.simul_params.pixel_pitch
-
-        self.source_dict = source_dict
-        self.step_counter = 0
-        
-        self.pupilstop = None
-
-        self.file_name = file_name
-        self.time_step = time_step
         self.pixel_scale = pixel_scale
+
+        self.source_dict = source_dict or {}
+        self.step_counter = 0
+        self.layer_height = layer_height
+        self.layer_outputs = {}
+        self.ef_outputs = {}
+
+        self.pupilstop = None
 
         self.verbose = verbose if verbose is not None else False
 
-        # Initialize layer list
-        self.layer_list = []
-        layer = Layer(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, 0,
-                      target_device_idx=self.target_device_idx)
-        self.layer_list.append(layer)
+        output_specs = list(self.source_dict.items()) if self.source_dict else [(None, None)]
 
-        for name, source in source_dict.items():
+        for name, source in output_specs:
+            layer_output_name = 'out_layer' if name is None else 'out_'+name+'_layer'
+            ef_output_name = 'out_ef' if name is None else 'out_'+name+'_ef'
+
+            layer = Layer(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, self.layer_height,
+                          target_device_idx=self.target_device_idx)
             ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
                                target_device_idx=self.target_device_idx)
-            ef.S0 = source.phot_density()
-            self.outputs['out_'+name+'_ef'] = ef
+            # The electric field output shares the same array as the layer output
+            ef.field = layer.field
+            if source is not None:
+                ef.S0 = source.phot_density()
+
+            self.layer_outputs[layer_output_name] = layer
+            self.ef_outputs[ef_output_name] = ef
+            self.outputs[layer_output_name] = layer
+            self.outputs[ef_output_name] = ef
 
         self.initScreens()
 
         self.inputs['pupilstop'] = InputValue(type=Pupilstop)
 
     def initScreens(self):
-        with fits.open(self.file_name) as hdul:
-            temp_screen = hdul[0].data.T.astype(self.dtype)
+        """
+        Initialize phase screens from the cube data object.
+        Computes the scaling factor to map the cube spatial dimensions to the pupil grid.
+        """
+        self.phasescreens = self.to_xp(self.cube.array, dtype=self.dtype)
+        self.time_vector = self.to_xp(self.cube.time_vector)
 
-        self.phasescreens = temp_screen
-        
-        dim = temp_screen.shape
-        self.time_vector = np.arange(dim[2])*self.time_step
-
-        self.scaling_fact = dim[0]/self.pixel_pupil*self.pixel_scale/self.pixel_pitch
+        dim = self.phasescreens.shape
+        self.scaling_fact = dim[1]/self.pixel_pupil*self.pixel_scale/self.pixel_pitch
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
@@ -95,19 +107,21 @@ class PhaseScreenCube(BaseProcessingObj):
 
         if self.t_to_seconds(t) > np.max(self.time_vector):
             raise ValueError('Error: the simulation is too long with respect to the input phase screen cube!')
-        
+
         dt = self.time_vector-self.t_to_seconds(t)
         idx_first_positive = np.searchsorted(dt, 0, side='right')
         if idx_first_positive >= len(dt):
             idx_first_positive = len(dt)-1
         idx_last_non_positive = idx_first_positive - 1
 
-        self.cur_screen = 1./self.time_step*(dt[idx_first_positive]*self.phasescreens[:,:,idx_last_non_positive] + 
-                                            np.abs(dt[idx_last_non_positive])*self.phasescreens[:,:,idx_first_positive])
+        # Linear interpolation between two time steps
+        time_step = self.time_vector[idx_first_positive] - self.time_vector[idx_last_non_positive]
+        self.cur_screen = 1./time_step*(dt[idx_first_positive]*self.phasescreens[idx_last_non_positive, :, :] + 
+                        np.abs(dt[idx_last_non_positive])*self.phasescreens[idx_first_positive, :, :])
 
         in_ef = ElectricField(self.cur_screen.shape[0], self.cur_screen.shape[1], self.pixel_scale,
                                target_device_idx=self.target_device_idx)
-        
+
         in_ef.phaseInNm = self.cur_screen
 
         self.ef_interpolator = EFInterpolator(
@@ -123,10 +137,17 @@ class PhaseScreenCube(BaseProcessingObj):
 
 
     def trigger_code(self):
-        for name, source in self.source_dict.items():
-            self.outputs['out_'+name+'_ef'].phaseInNm = self.ef_interpolator.interpolated_ef().phaseInNm
-            self.outputs['out_'+name+'_ef'].A = self.pupilstop.A
-            self.outputs['out_'+name+'_ef'].generation_time = self.current_time
+        current_phase = self.ef_interpolator.interpolated_ef().phaseInNm
+        for output_name, layer in self.layer_outputs.items():
+            layer.phaseInNm[:] = current_phase
+            layer.A[:] = self.pupilstop.A
+            layer.generation_time = self.current_time
+
+            # Update the corresponding electric field output generation time
+            # Note: the electric field output shares the same array (ef.field)
+            #       as the layer output (layer.field)
+            ef_output_name = output_name.replace('_layer', '_ef')
+            self.ef_outputs[ef_output_name].generation_time = self.current_time
 
     def post_trigger(self):
         super().post_trigger()
