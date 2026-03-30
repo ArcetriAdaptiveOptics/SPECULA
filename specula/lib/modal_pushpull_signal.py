@@ -14,7 +14,6 @@ def modal_pushpull_signal(
     only_push: bool = False,
     pattern: Sequence[float] = [1, -1],
     ncycles: int = 1,
-    repeat_ncycles: bool = False,
     nsamples: int = 1,
     repeat_full_sequence: bool = False,
     xp=np,
@@ -49,9 +48,6 @@ def modal_pushpull_signal(
         Push-pull pattern. Default is ``[-1, 1]``, but can be any sequence of numbers.
     ncycles : int, optional
         Number of push-pull cycles. Default is 1.
-    repeat_ncycles : bool, optional
-        If True, generates `ncycles` of push followed by `ncycles` of pull.
-        Default is False.
     nsamples : int, optional
         Number of samples to hold in each position. Default is 1.    
     repeat_full_sequence: bool, optional
@@ -110,14 +106,13 @@ def modal_pushpull_signal(
     for mode in range(first_mode, n_modes):
         hist_idx = mode - first_mode
         poke_pattern = vect_amplitude[mode] * xp.array(pattern)
-        if repeat_ncycles:
-            time_hist[n_pokes*hist_idx*ncycles:n_pokes*(hist_idx+1)*ncycles, mode] = \
-                xp.repeat(poke_pattern, ncycles)
-        elif repeat_full_sequence is False:
+        if repeat_full_sequence:
+            time_hist[n_pokes*(hist_idx):n_pokes*(hist_idx+1), mode] = poke_pattern
+        else:
             for j in range(ncycles):
                 time_hist[n_pokes*(ncycles*hist_idx+j):n_pokes*(ncycles*hist_idx+j+1), mode] = poke_pattern
     
     if repeat_full_sequence:
-        time_hist = xp.tile(time_hist, [ncycles, 1])
+        time_hist = xp.tile(time_hist[:n_pokes * real_n_modes,:], [ncycles, 1])
 
     return xp.repeat(time_hist, nsamples, axis=0)
