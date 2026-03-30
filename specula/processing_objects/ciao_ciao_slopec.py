@@ -61,23 +61,13 @@ class CiaoCiaoSlopec(Slopec):
         self.diffRotAngleInDeg = float(diffRotAngleInDeg)
         self._nslopes = 1
         self._window = None
+        self._input_pupil_mask = pupil_mask
+        self._pupil_mask_xp = None
 
         super().__init__(sn=sn,
                          target_device_idx=target_device_idx,
                          precision=precision,
                          **kwargs)
-
-        if pupil_mask is not None:
-            mask = self.to_xp(pupil_mask.A, dtype=self.dtype) > 0.5
-            if self.diffRotAngleInDeg != 0.0:
-                interp = Interp2D(mask.shape, mask.shape,
-                                  rotInDeg=self.diffRotAngleInDeg,
-                                  dtype=self.dtype, xp=self.xp)
-                rotated = interp.interpolate(mask.astype(self.dtype)) > 0.5
-                mask = mask & rotated
-            self._pupil_mask_xp = mask
-        else:
-            self._pupil_mask_xp = None
 
     def nsubaps(self):
         return 1
@@ -100,6 +90,26 @@ class CiaoCiaoSlopec(Slopec):
         # reconstruct the original 2D image.
         self.slopes.single_mask = self.xp.ones(shape, dtype=self.dtype)
         self.slopes.display_map = self.xp.arange(nslopes)
+
+        if self._input_pupil_mask is not None:
+            mask = self.to_xp(self._input_pupil_mask.A, dtype=self.dtype)
+            if mask.shape != shape:
+                resize_interp = Interp2D(mask.shape, shape, dtype=self.dtype, xp=self.xp)
+                mask = resize_interp.interpolate(mask)
+            mask = mask > 0.5
+            if self.diffRotAngleInDeg != 0.0:
+                rotate_interp = Interp2D(
+                    shape,
+                    shape,
+                    rotInDeg=self.diffRotAngleInDeg,
+                    dtype=self.dtype,
+                    xp=self.xp,
+                )
+                rotated = rotate_interp.interpolate(mask.astype(self.dtype)) > 0.5
+                mask = mask & rotated
+            self._pupil_mask_xp = mask
+        else:
+            self._pupil_mask_xp = None
 
         x = self.xp.arange(0, shape[1])
         y = self.xp.arange(0, shape[0])
