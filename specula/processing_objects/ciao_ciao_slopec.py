@@ -89,19 +89,25 @@ class CiaoCiaoSlopec(Slopec):
         super().setup()
 
         in_pixels = self.local_inputs['in_pixels']
-        nslopes = int(in_pixels.pixels.shape[0] * in_pixels.pixels.shape[1])
+        shape = in_pixels.pixels.shape
+        nslopes = int(shape[0] * shape[1])
         if self.slopes.size != nslopes:
             self.slopes.resize(nslopes)
         self._nslopes = nslopes
 
-        x = self.xp.arange(0, in_pixels.pixels.shape[1])
-        y = self.xp.arange(0, in_pixels.pixels.shape[0])
+        # CiaoCiao exports a flattened 2D OPD map rather than X/Y subap slopes.
+        # Populate the Slopes remapping metadata so the standard display can
+        # reconstruct the original 2D image.
+        self.slopes.single_mask = self.xp.ones(shape, dtype=self.dtype)
+        self.slopes.display_map = self.xp.arange(nslopes)
+
+        x = self.xp.arange(0, shape[1])
+        y = self.xp.arange(0, shape[0])
         xx, yy = self.xp.meshgrid(x, y)
 
         # Top Flat Gaussian: exp( - ( dx^2/2s^2 + dy^2/2s^2 )^2 )
         window = self.xp.exp(
             -((xx - self.window_x)**2 / (2 * self.window_sigma**2) +
-              
               (yy - self.window_y)**2 / (2 * self.window_sigma**2))**2
         )
 
