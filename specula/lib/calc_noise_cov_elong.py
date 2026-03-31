@@ -71,6 +71,20 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
     h_in_ma = h_in_m * airmass
     na_thickness_in_ma = na_thickness_in_m * airmass
 
+    # Convert sub-aperture indices to 2D coordinates
+    y_idx, x_idx = np.unravel_index(sub_aps_index, (n_sub_aps, n_sub_aps))
+
+    # Coordinates with respect to center (Forziamo esplicitamente X in colonna 0 e Y in colonna 1)
+    coord_sub_aps = np.zeros((len(sub_aps_index), 2), dtype=float)
+    coord_sub_aps[:, 0] = x_idx - float(n_sub_aps / 2)  # X AXIS
+    coord_sub_aps[:, 1] = y_idx - float(n_sub_aps / 2)  # Y AXIS
+
+    coord_sub_aps *= diameter_in_m / n_sub_aps
+
+    # Coordinates with respect to launcher
+    coord_sub_aps[:, 0] -= launcher_coord_in_m[0]
+    coord_sub_aps[:, 1] -= launcher_coord_in_m[1]
+
     if user_pofile_xy is not None or eta_is_not_one:
         pix_for_sa = round(7 * sub_aps_fov / sh_spot_fwhm)
 
@@ -94,15 +108,6 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
                                 sh_spot_fwhm, sub_aps_fov / pix_for_sa,
                                 pix_for_sa, overs=2,
                                 theta=theta_val, doCube=True)
-
-        # Calculate coord_sub_aps for use in dist0_xy later
-        sub_aps_index_2d = np.array(np.unravel_index(sub_aps_index, (n_sub_aps, n_sub_aps))).T
-        coord_sub_aps = sub_aps_index_2d.astype(float)
-        coord_sub_aps[:, 0] -= float(n_sub_aps / 2)
-        coord_sub_aps[:, 1] -= float(n_sub_aps / 2)
-        coord_sub_aps *= diameter_in_m / n_sub_aps
-        coord_sub_aps[:, 0] -= launcher_coord_in_m[0]
-        coord_sub_aps[:, 1] -= launcher_coord_in_m[1]
 
         beta1 = np.zeros(len(sub_aps_index))
         beta2 = np.zeros(len(sub_aps_index))
@@ -147,22 +152,6 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
                 eta[i] = 1.0
     else:
         eta = np.ones(len(sub_aps_index))
-
-        # Convert sub-aperture indices to 2D coordinates
-        # In IDL: subApsIndex2D = array_indices(fltarr(nSubAps,nSubAps),subApsIndex)
-        sub_aps_index_2d = np.array(np.unravel_index(sub_aps_index,
-                                                     (n_sub_aps, n_sub_aps),
-                                                     order='F')).T
-
-        # Coordinates with respect to center
-        coord_sub_aps = sub_aps_index_2d.astype(float)
-        coord_sub_aps[:, 0] -= float(n_sub_aps / 2)
-        coord_sub_aps[:, 1] -= float(n_sub_aps / 2)
-        coord_sub_aps *= diameter_in_m / n_sub_aps
-
-        # Coordinates with respect to launcher
-        coord_sub_aps[:, 0] -= launcher_coord_in_m[0]
-        coord_sub_aps[:, 1] -= launcher_coord_in_m[1]
 
         # Calculate beta1 and beta2 from geometry, handling zero coordinates
         with np.errstate(divide='ignore', invalid='ignore'):
