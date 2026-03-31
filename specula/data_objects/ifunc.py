@@ -1,10 +1,9 @@
 from specula import cpuArray
 from specula.base_data_obj import BaseDataObj
-from specula.data_objects.ifunc_inv import IFuncInv
+from specula.data_objects.ifunc_inv import IFuncInv, cut_modes
 from astropy.io import fits
 
 from specula.lib.compute_zonal_ifunc import compute_zonal_ifunc
-
 from specula.lib.compute_zern_ifunc import compute_zern_ifunc
 
 def compute_kl_ifunc(*args, **kwargs):
@@ -145,6 +144,9 @@ class IFunc(BaseDataObj):
 
         self._influence_function[:] = self.to_xp(v)
 
+    def cut(self, start_mode=None, nmodes=None, idx_modes=None):
+        return cut_modes(self.influence_function, start_mode=start_mode, nmodes=nmodes, idx_modes=idx_modes)
+
     def ifunc_2d_to_3d(self, normalize=True):
         '''Convert a 2D influence function to a 3D array using a mask.'''
         npixels = self._mask_inf_func.shape[0]
@@ -182,28 +184,6 @@ class IFunc(BaseDataObj):
         hdul.append(fits.ImageHDU(data=cpuArray(self._mask_inf_func), name='MASK_INF_FUNC'))
         hdul.writeto(filename, overwrite=overwrite)
         hdul.close()  # Force close for Windows
-
-    def cut(self, start_mode=None, nmodes=None, idx_modes=None):
-
-        if idx_modes is not None:
-            if start_mode is not None:
-                start_mode = None
-                print('ifunc.cut: start_mode cannot be set together with idx_modes. Setting to None start_mode.')
-            if nmodes is not None:
-                nmodes = None
-                print('ifunc.cut: nmodes cannot be set together with idx_modes. Setting to None nmodes.')
-
-        nrows, ncols = self.influence_function.shape
-
-        if start_mode is None:
-            start_mode = 0
-        if nmodes is None:
-            nmodes = nrows
-
-        if idx_modes is not None:
-            self._influence_function = self._influence_function[idx_modes, :]
-        else:
-            self._influence_function = self._influence_function[start_mode:nmodes, :]
 
     @staticmethod
     def restore(filename, target_device_idx=None, exten=1):
