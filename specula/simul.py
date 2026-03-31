@@ -83,7 +83,7 @@ class Simul():
         self.diagram_filename = diagram_filename
         self.diagram_colors_on = diagram_colors_on
         self.speed_report = speed_report
-        self.logger = RankLogger(logging.getLogger('specula.simul'))
+        self.logger = RankLogger(logging.getLogger('specula.simul'), {})
         self.logger.setLevel(log_level)
 
     def split_output(self, output_name, get_ref=False, use_inputs=False):

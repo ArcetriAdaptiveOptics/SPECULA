@@ -118,7 +118,7 @@ def init(device_idx=-1,
     logging.getLogger().setLevel(log_level)
 
     orig_logger = logging.getLogger('specula')
-    main_logger = RankLogger(orig_logger)
+    main_logger = RankLogger(orig_logger, {})
 
     process_comm = comm
     process_rank = rank
