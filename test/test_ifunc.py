@@ -230,3 +230,32 @@ class TestIFunv(unittest.TestCase):
             # Make sure we actually tested some pairs
             self.assertGreater(tested_pairs, 0,
                              msg=f"No opposite actuator pairs found for {circ_geom} geometry")
+
+    @cpu_and_gpu
+    def test_cut_with_idx_modes(self, target_device_idx, xp):
+        '''Test that cutting modes with idx_modes works correctly'''
+        mask = make_mask(64)
+        ifunc = IFunc(type_str='zernike', mask=mask, nmodes=10, npixels=64, target_device_idx=target_device_idx)
+        original_ifunc = cpuArray(ifunc.influence_function)
+
+        # Cut to modes 2, 4, 6
+        idx_modes = [2, 4, 6]
+        ifunc.cut(idx_modes=idx_modes)
+
+        expected_ifunc = original_ifunc[idx_modes, :]
+        np.testing.assert_array_equal(cpuArray(ifunc.influence_function), expected_ifunc)
+
+    @cpu_and_gpu
+    def test_cut_with_mode_range(self, target_device_idx, xp):
+        '''Test that cutting modes with start_mode and nmodes works correctly'''
+        mask = make_mask(64)
+        ifunc = IFunc(type_str='zernike', mask=mask, nmodes=10, npixels=64, target_device_idx=target_device_idx)
+        original_ifunc = cpuArray(ifunc.influence_function)
+
+        # Cut to modes 3 to 7 (5 modes starting from mode 3)
+        start_mode = 3
+        nmodes = 5
+        ifunc.cut(start_mode=start_mode, nmodes=nmodes)
+
+        expected_ifunc = original_ifunc[start_mode:start_mode+nmodes, :]
+        np.testing.assert_array_equal(cpuArray(ifunc.influence_function), expected_ifunc)
