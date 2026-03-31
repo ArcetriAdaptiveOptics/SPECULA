@@ -150,7 +150,9 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
 
         # Convert sub-aperture indices to 2D coordinates
         # In IDL: subApsIndex2D = array_indices(fltarr(nSubAps,nSubAps),subApsIndex)
-        sub_aps_index_2d = np.array(np.unravel_index(sub_aps_index, (n_sub_aps, n_sub_aps))).T
+        sub_aps_index_2d = np.array(np.unravel_index(sub_aps_index,
+                                                     (n_sub_aps, n_sub_aps),
+                                                     order='F')).T
 
         # Coordinates with respect to center
         coord_sub_aps = sub_aps_index_2d.astype(float)
@@ -164,17 +166,19 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
 
         # Calculate beta1 and beta2 from geometry, handling zero coordinates
         with np.errstate(divide='ignore', invalid='ignore'):
-            beta1_temp = (np.arctan((h_in_ma - na_thickness_in_ma/2.0) / coord_sub_aps[:, 1]) -
-                         np.arctan((h_in_ma + na_thickness_in_ma/2.0) / coord_sub_aps[:, 1])) \
+            beta1_temp = (np.arctan2((h_in_ma - na_thickness_in_ma/2.0), coord_sub_aps[:, 0]) -
+                         np.arctan2((h_in_ma + na_thickness_in_ma/2.0), coord_sub_aps[:, 0])) \
                              * rad2arcsec
-            beta2_temp = (np.arctan((h_in_ma - na_thickness_in_ma/2.0) / coord_sub_aps[:, 0]) -
-                         np.arctan((h_in_ma + na_thickness_in_ma/2.0) / coord_sub_aps[:, 0])) \
+            beta2_temp = (np.arctan2((h_in_ma - na_thickness_in_ma/2.0), coord_sub_aps[:, 1]) -
+                         np.arctan2((h_in_ma + na_thickness_in_ma/2.0), coord_sub_aps[:, 1])) \
                              * rad2arcsec
 
         # Replace inf/nan with 0 (physically: when aligned with launcher,
         # elongation in that direction is undefined/zero)
         beta1 = np.nan_to_num(beta1_temp, nan=0.0, posinf=0.0, neginf=0.0)
         beta2 = np.nan_to_num(beta2_temp, nan=0.0, posinf=0.0, neginf=0.0)
+
+    sigma2 = sh_spot_fwhm**2
 
     if verbose:
         print('launcher coordinates [m]:', launcher_coord_in_m)
@@ -184,8 +188,8 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
         print('min max coordinate Y', np.min(coord_sub_aps[:, 1]), np.max(coord_sub_aps[:, 1]))
         print('min max beta 1', np.min(beta1), np.max(beta1))
         print('min max beta 2', np.min(beta2), np.max(beta2))
-
-    sigma2 = sh_spot_fwhm**2
+        print('min max eta', np.min(eta), np.max(eta))
+        print('sigma_noise2', sigma2)
 
     if only_diag:
         # For diagonal-only covariance matrix
