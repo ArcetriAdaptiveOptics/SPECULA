@@ -216,10 +216,10 @@ class ExtSourcePyramid(ModulatedPyramid):
 
     @staticmethod
     def input_names():
-        return ModulatedPyramid.input_names() | {
+        return ModulatedPyramid.input_names().update( {
             'ext_source_coeff': (BaseValue, 'Extended source coefficients array of shape (n_points, 4)'
                                             ' with columns: [tip_coeff, tilt_coeff, focus_coeff, flux]')
-        }        
+        } )
 
 
     def _get_pyramid_face_angles_at_fov_radius(self):
