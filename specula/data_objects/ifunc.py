@@ -145,7 +145,7 @@ class IFunc(BaseDataObj):
         self._influence_function[:] = self.to_xp(v)
 
     def cut(self, start_mode=None, nmodes=None, idx_modes=None):
-        return cut_modes(self.influence_function, start_mode=start_mode, nmodes=nmodes, idx_modes=idx_modes)
+        self.influence_function = cut_modes(self.influence_function, start_mode=start_mode, nmodes=nmodes, idx_modes=idx_modes)
 
     def ifunc_2d_to_3d(self, normalize=True):
         '''Convert a 2D influence function to a 3D array using a mask.'''
