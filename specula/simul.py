@@ -802,9 +802,15 @@ class Simul():
         self.logger.info('overrides: ' + str(self.overrides))
         if len(self.overrides) > 0:
             for k, v in yaml.full_load(self.overrides).items():
-                obj_name, param_name = k.split('.')
-                params[obj_name][param_name] = v
-                self.logger.debug(f'{obj_name} {param_name} {v}')
+                parts = k.split('.')
+                if len(parts) == 2:
+                    params[parts[0]][parts[1]] = v
+                    self.logger.debug(f'{parts} {v}')
+                elif len(parts) == 3:
+                    params[parts[0]][parts[1]][parts[2]] = v
+                    self.logger.debug(f'{parts} {v}')
+                else:
+                    raise ValueError(f"Invalid number of parts detected in override: {parts}. Did you add/forget a '.'?")
 
     def arrangeInGrid(self, trigger_order, trigger_order_idx):
         rows = []
