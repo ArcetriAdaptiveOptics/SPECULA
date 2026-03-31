@@ -65,6 +65,6 @@ class SpeculaInput(BaseProcessingObj):
                     self.outputs[name].value = value
                     self.outputs[name].generation_time = self.current_time
                 except KeyError:
-                    self.logger.error('Unknown output', name)
+                    self.logger.error(f'Unknown output: {name}')
         except queue.Empty:
             pass
