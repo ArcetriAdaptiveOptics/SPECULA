@@ -157,15 +157,16 @@ class AOErrorBudgetMachine:
         plt.grid(which='both',alpha=0.4)
         return self.xp.sqrt(self.xp.sum(sig2)) # IM is already in nm, no need to convert
 
+
     def aliasing_error(self, r0:float, fs:float, n_modes:int, n_subap:int, rMod:float, mode_id:int=None):
         freq = self.get_freq_vec(fs)
-        alias_psd = self.get_alias_psd(r0=r0,n_subap=n_subap,rMod=rMod,n_modes=n_modes)
+        alias_psd = self.get_alias_psd(r0=r0,n_subap=n_subap,rMod=rMod,n_modes=n_modes,fs=fs)
         if mode_id is not None:
             ntf = self.get_ntf(mode=mode_id,fs=fs)
             aliasResInM2 = self.integrate_psd(alias_psd[mode_id] * ntf**2, freq)
         else:
             aliasResInM2 = 0.0        
-            for mode_id in n_modes:
+            for mode_id in range(n_modes):
                 ntf = self.get_ntf(mode=mode_id,fs=fs)
                 aliasResInM2 += self.integrate_psd(alias_psd[mode_id] * ntf**2, freq)
         return self.xp.sqrt(aliasResInM2)*1e+9
@@ -178,9 +179,18 @@ class AOErrorBudgetMachine:
             ogs = 1.0
         return ogs
     
-    def get_alias_psd(self, r0:float, n_subap:float, rMod:float, n_modes:float):
+    def get_alias_psd(self, r0:float, n_subap:float, rMod:float, n_modes:float, fs:float, V:float):
         seeing = self.r02seeing(r0)
-        alias_psd = fits.getdata(op.join(self.root_dir,'aliasing',f'pyr{rMod:1.1f}_{n_subap:1.0f}x{n_subap:1.0f}_s{seeing:1.1f}_{n_modes}modes_alias_PSD.fits'))
+        alias_power = fits.getdata(op.join(self.root_dir,'aliasing',f'pyr{rMod:1.1f}_{n_subap:1.0f}x{n_subap:1.0f}_s{seeing:1.1f}_{n_modes}modes_alias.fits'))
+        n = radial_order(i_mode=n_modes)
+        freq = self.get_freq_vec(fs=fs)
+        f_cut = 0.3 * (n+1) * V / self.D 
+        psd = self.xp.ones_like(freq)
+        psd[freq>f_cut] = (freq[freq>f_cut] / f_cut) ** (-17.0/3.0)
+        psd /= self.integrate_psd(psd, freq)
+        alias_psd = self.xp.zeros((n_modes, len(freq)))
+        for mode_id in range(n_modes):
+            alias_psd[mode_id] = alias_power[mode_id] * psd
         return self.xp.array(alias_psd)
         
     def get_pyr_thrp(self, rMod:float, n_subap:int):
@@ -198,15 +208,30 @@ class AOErrorBudgetMachine:
         rec = (Vt.T * 1/S) @ U.T
         return rec
 
-    def slope_noise_variance(self, sn_ri, mag:float, fs:float, rMod:float, n_subap:int):
-        n_subaps = int(len(sn_ri)/4)
+    # def slope_noise_variance(self, sn_ri, mag:float, fs:float, rMod:float, n_subap:int, n_pupils:int=4):
+    #     n_subaps = int(len(sn_ri) / n_pupils)
+    #     n_phot = self.n_photons(frequency=fs, magnitude=mag) * self.get_pyr_thrp(rMod, n_subap)
+    #     phot_per_pix = sn_ri * n_phot 
+    #     pixel_variance = self.F_excess**2 * (phot_per_pix + self.sky_bkg + self.dark_curr) + self.RON**2
+    #     scale_factor_sq = (n_subaps / n_phot)**2
+    #     if self.slopes_from_intensity is False:
+    #         pixel_variance_grouped = pixel_variance.reshape([n_pupils, n_subaps])
+    #         slope_var_1D = self.xp.sum(pixel_variance_grouped, axis=0) * scale_factor_sq
+    #         slope_variance = self.xp.concatenate((slope_var_1D, slope_var_1D))
+    #     else:
+    #         slope_variance = pixel_variance * scale_factor_sq
+    #     return slope_variance.flatten()
+
+    def slope_noise_variance(self, sn_ri, mag:float, fs:float, rMod:float, n_subap:int, n_pupils:int=4):
+        sn_ri /= xp.sum(sn_ri)
+        n_subaps = int(len(sn_ri)/n_pupils)
         n_phot = self.n_photons(frequency=fs, magnitude=mag)*self.get_pyr_thrp(rMod,n_subap)
-        phot_per_pix = sn_ri*n_phot/n_subaps/4
+        phot_per_pix = sn_ri*n_phot/(n_subaps*n_pupils)
         pixel_variance = self.F_excess ** 2 * (phot_per_pix + self.sky_bkg + self.dark_curr) + self.RON
         if self.slopes_from_intensity is False:
             weights = self.xp.array([[1,1,-1,-1],[-1,1,1,-1]])
             weights = weights / self.xp.sum(abs(weights), axis=1)[:,None]
-            pixel_variance = pixel_variance.reshape([4,n_subaps])
+            pixel_variance = pixel_variance.reshape([n_pupils,n_subaps])
             slope_variance = weights**2 @ pixel_variance / n_phot ** 2   
         else:
             slope_variance = pixel_variance / n_phot ** 2                       
