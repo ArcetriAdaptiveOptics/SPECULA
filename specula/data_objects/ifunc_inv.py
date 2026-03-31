@@ -3,12 +3,14 @@ from specula.base_data_obj import BaseDataObj
 from astropy.io import fits
 
 
-def cut_modes(ifunc, start_mode=None, nmodes=None, idx_modes=None, modes_on_first_axis=True):
+def cut_modes(matrix, start_mode=None, nmodes=None, idx_modes=None, modes_on_first_axis=True):
     """
     Cut the an influence function (or an inverse one) to a subset of modes.
     
     Parameters
     ----------
+    matrix : array-like
+        The matrix to cut. Shape should be (nmodes, npixels) for
     start_mode : int, optional
         Starting mode index (default: 0)
     nmodes : int, optional
@@ -27,7 +29,7 @@ def cut_modes(ifunc, start_mode=None, nmodes=None, idx_modes=None, modes_on_firs
             nmodes = None
             print('cut_modes: nmodes cannot be set together with idx_modes. Setting to None nmodes.')
 
-    orig_nmodes = ifunc.shape[0 if modes_on_first_axis else 1]
+    orig_nmodes = matrix.shape[0 if modes_on_first_axis else 1]
 
     if start_mode is None:
         start_mode = 0
@@ -35,14 +37,14 @@ def cut_modes(ifunc, start_mode=None, nmodes=None, idx_modes=None, modes_on_firs
         nmodes = orig_nmodes
 
     if idx_modes is not None:
-        new_slice = slice(idx_modes, None, None)
+        new_slice = idx_modes
     else:
-        new_slice = slice(start_mode, nmodes, None)
+        new_slice = slice(start_mode, start_mode + nmodes, None)
 
     if modes_on_first_axis:
-        return ifunc[new_slice, :]
+        return matrix[new_slice, :]
     else:
-        return ifunc[:, new_slice]
+        return matrix[:, new_slice]
 
 
 class IFuncInv(BaseDataObj):
@@ -127,7 +129,7 @@ class IFuncInv(BaseDataObj):
         The inverse influence function has shape (npixels, nmodes), so we cut along axis 1 (columns).
         This is the opposite of IFunc which has shape (nmodes, npixels) and cuts along axis 0 (rows).
         """
-        return cut_modes(self.ifunc_inv, start_mode=start_mode, nmodes=nmodes, idx_modes=idx_modes, modes_on_first_axis=False)
+        self.ifunc_inv = cut_modes(self.ifunc_inv, start_mode=start_mode, nmodes=nmodes, idx_modes=idx_modes, modes_on_first_axis=False)
 
     @staticmethod
     def from_header(hdr):
