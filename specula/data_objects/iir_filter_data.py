@@ -458,7 +458,7 @@ class IirFilterData(BaseDataObj):
             stable = np.all(np.abs(poles) < 1.0)
             max_pole_mag = np.max(np.abs(poles)) if len(poles) > 0 else 0
 
-            self.logger.debugrint(f"Maximum pole magnitude: {max_pole_mag}")
+            self.logger.debug(f"Maximum pole magnitude: {max_pole_mag}")
             self.logger.debug(f"Stable (discrete): {stable}")
 
             return stable
