@@ -116,34 +116,39 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
         # Calculate max flux (note the different array ordering between IDL and Python)
         max_flux = np.max(np.sum(np.sum(spots_temp, axis=1), axis=1))
 
+
         for i, sub_ap_index_i in enumerate(sub_aps_index):
             spot_i = spots_temp[sub_ap_index_i, :, :]
 
-            # Create 2D coordinate grid for fitting
-            y, x = np.mgrid[:spot_i.shape[0], :spot_i.shape[1]]
-            # Initial guess: center at the middle, max amplitude, estimated sigma
-            p_init = models.Gaussian2D(
-                amplitude=np.max(spot_i),
-                x_mean=spot_i.shape[1]/2,
-                y_mean=spot_i.shape[0]/2,
-                x_stddev=sh_spot_fwhm/(2.355 * sub_aps_fov/spot_i.shape[1]),
-                y_stddev=sh_spot_fwhm/(2.355 * sub_aps_fov/spot_i.shape[0]),
-                theta=0
-            )
-            fit_p = fitting.LevMarLSQFitter()
+            # 1D marginalization (like IDL: total(spot, 1) and total(spot, 2))
+            x_aver = np.sum(spot_i, axis=0)  # X profile
+            y_aver = np.sum(spot_i, axis=1)  # Y profile
+
+            pix_for_sa_actual = spot_i.shape[0]
+            grid = (np.arange(pix_for_sa_actual) - pix_for_sa_actual / 2.0 + 0.5) \
+                 * sub_aps_fov / pix_for_sa_actual
+
+            fit_1d = fitting.LevMarLSQFitter()
+
             try:
-                # Fit the 2D Gaussian model to the spot
-                p = fit_p(p_init, x, y, spot_i)
-                # Compute FWHM from stddev
-                fwhm_x = 2.0 * np.sqrt(2.0 * np.log(2.0)) * np.abs(p.x_stddev.value)
-                fwhm_y = 2.0 * np.sqrt(2.0 * np.log(2.0)) * np.abs(p.y_stddev.value)
-                local_sh_spot_fwhm = min(fwhm_x, fwhm_y)
-                beta1[i] = np.sqrt(max(0, fwhm_x**2 - local_sh_spot_fwhm**2))
-                beta2[i] = np.sqrt(max(0, fwhm_y**2 - local_sh_spot_fwhm**2))
+                # 1D fit over X
+                p_init_x = models.Gaussian1D(amplitude=np.max(x_aver), mean=0,
+                                             stddev=sh_spot_fwhm/2.355)
+                p_x = fit_1d(p_init_x, grid, x_aver)
+                fwhm_x = 2.0 * np.sqrt(2.0 * np.log(2.0)) * np.abs(p_x.stddev.value)
+                beta1[i] = np.sqrt(max(0, fwhm_x**2 - sh_spot_fwhm**2))
+
+                # 1D fit over Y
+                p_init_y = models.Gaussian1D(amplitude=np.max(y_aver), mean=0,
+                                             stddev=sh_spot_fwhm/2.355)
+                p_y = fit_1d(p_init_y, grid, y_aver)
+                fwhm_y = 2.0 * np.sqrt(2.0 * np.log(2.0)) * np.abs(p_y.stddev.value)
+                beta2[i] = np.sqrt(max(0, fwhm_y**2 - sh_spot_fwhm**2))
+
             except Exception as e:
                 beta1[i] = 0
                 beta2[i] = 0
-                print(f"Warning: 2D Gaussian fit failed for sub-aperture {i}: {e}")
+                print(f"Warning: 1D Gaussian fit failed for sub-aperture {i}: {e}")
 
             # Compute eta (flux normalization)
             if eta_is_not_one:
