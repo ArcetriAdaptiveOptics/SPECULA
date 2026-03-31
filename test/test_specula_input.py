@@ -2,6 +2,7 @@ import sys
 import time
 import queue
 import multiprocessing as mp
+from unittest.mock import MagicMock
 
 
 from specula.processing_objects.specula_input import SpeculaInput
@@ -50,17 +51,18 @@ class TestSpeculaInput:
     # capfd is a pytest fixture, handled automatically
     # when running tests
 
-    def test_trigger_ignores_unknown_output(self, capfd):
+    def test_trigger_ignores_unknown_output(self):
         obj = SpeculaInput(output_list=["x"])
         obj.q = mp.Queue()
 
         obj.q.put(("dummy", 5))
         time.sleep(0.001)    # Allow task switch
 
+        obj.logger.log = MagicMock()  # Mock logger to capture error messages
+
         obj.trigger_code()
 
-        captured = capfd.readouterr()
-        assert "Unknown output dummy" in captured.out
+        assert "Unknown output" in obj.logger.log.call_args[0][1]  # Check that error was logged
 
     def test_set_input_task_process(self):
         obj = SpeculaInput(output_list=["x"])
