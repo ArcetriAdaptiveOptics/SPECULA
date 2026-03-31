@@ -1,4 +1,3 @@
-from specula import np
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_value import BaseValue
 from specula.connections import InputList
@@ -16,50 +15,44 @@ class ModalrecMultirate(BaseProcessingObj):
 
     def __init__(self,
                  recmat_dict: dict,
+                 validity_masks: list,
                  n_modes_total: int,
-                 validity_masks: list = None,
                  target_device_idx: int = None,
                  precision: int = None):
         """
         Parameters:
         -----------
         recmat_dict : dict
-            A dictionary mapping a validity tuple to a Recmat, OR a dictionary
-            of Recmat objects loaded by SPECULA's YAML parser (using _dict_ref).
+            A dictionary of Recmat objects loaded by SPECULA's YAML parser (using _dict_ref).
+        validity_masks : list of lists
+            List of boolean masks corresponding to the matrices in recmat_dict.
+            Required to explicitly map objects to sensor validity states.
         n_modes_total : int
             The total size of the output modal vector (e.g., 9 for MORFEO LO loop).
-        validity_masks : list of lists, optional
-            List of boolean masks corresponding to the matrices in recmat_dict.
-            Required when instantiated via YAML to explicitly map objects to sensor states.
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         if not recmat_dict:
             raise ValueError("recmat_dict cannot be empty.")
+        if not validity_masks:
+            raise ValueError("validity_masks must be provided to map reconstruction"
+                             " matrices to sensor states.")
 
         self.n_modes_total = n_modes_total
         self.recmat_dict = {}
 
         # =====================================================================
-        # DICTIONARY MAPPING (Handling both YAML initialization and Unit Tests)
+        # DICTIONARY MAPPING
         # =====================================================================
-        if validity_masks is not None:
-            # SPECULA (YAML) Case: We receive a dict via `_dict_ref` and explicit masks
-            rec_objects = list(recmat_dict.values())
-            if len(rec_objects) != len(validity_masks):
-                raise ValueError(f"Number of matrices ({len(rec_objects)}) and "
-                                 f"masks ({len(validity_masks)}) do not match.")
-            
-            # Map the ordered objects to the provided boolean tuples
-            for mask, rec_obj in zip(validity_masks, rec_objects):
-                self.recmat_dict[tuple(mask)] = rec_obj
-        else:
-            # Unit Test Case: The dictionary keys are already boolean tuples
-            for key, rec_obj in recmat_dict.items():
-                if not isinstance(key, tuple):
-                    raise ValueError("If validity_masks is not provided, "
-                                     "recmat_dict keys must be tuples.")
-                self.recmat_dict[key] = rec_obj
+        rec_objects = list(recmat_dict.values())
+
+        if len(rec_objects) != len(validity_masks):
+            raise ValueError(f"Number of matrices ({len(rec_objects)}) and "
+                             f"masks ({len(validity_masks)}) do not match.")
+
+        # Map the ordered objects to the provided boolean tuples
+        for mask, rec_obj in zip(validity_masks, rec_objects):
+            self.recmat_dict[tuple(mask)] = rec_obj
 
         # Prepare the output value
         self.out_modes = BaseValue('output dynamic modes from multirate reconstructor',
