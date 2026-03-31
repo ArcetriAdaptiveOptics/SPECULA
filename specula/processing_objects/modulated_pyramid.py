@@ -96,23 +96,6 @@ class ModulatedPyramid(BaseProcessingObj):
     precision : int, optional
         Numerical precision: 32 (1) or 64 (0) bits (default: None, uses system default)
     
-    Inputs
-    ------
-    in_ef : ElectricField
-        Input electric field from the telescope pupil. Contains complex amplitude
-        and phase information that will be modulated and propagated through the pyramid.   
-    
-    Outputs
-    -------
-    out_i : Intensity
-        Output intensity on detector CCD (shape: final_ccd_side × final_ccd_side)
-    out_psf_tot : BaseValue
-        Total PSF after focal plane mask application (shape: fft_totsize × fft_totsize)
-    out_psf_bfm : BaseValue
-        PSF before focal plane mask (shape: fft_totsize × fft_totsize)
-    out_transmission : BaseValue
-        Scalar value representing total flux transmission through the system
-
     Notes
     -----
     The modulation types have different characteristics:
@@ -305,6 +288,20 @@ class ModulatedPyramid(BaseProcessingObj):
 
         # Derived classes can disable streams
         self.stream_enable = True
+
+    @staticmethod
+    def input_names():
+        return {'in_ef': (ElectricField, 'Input electric field from the telescope pupil.'
+                                         'Contains complex amplitude and phase information '
+                                         'that will be modulated and propagated through the pyramid.')}
+    
+    @staticmethod
+    def output_names():
+        return {'out_i': (Intensity, 'Output intensity on detector CCD (shape: final_ccd_side × final_ccd_side)'),
+                'out_psf_tot': (BaseValue, 'Total PSF after focal plane mask application (shape: fft_totsize × fft_totsize)'),
+                'out_psf_bfm': (BaseValue, 'PSF before focal plane mask (shape: fft_totsize × fft_totsize)'),
+                'out_transmission': (BaseValue, 'Scalar value representing total flux transmission through the system'),
+                'out_flux_frac_inside_detector': (BaseValue, 'Fraction of total flux that falls inside the CCD area')}
 
     def calc_pyr_geometry(self,
         DpupPix,                # number of pixels of input phase array
