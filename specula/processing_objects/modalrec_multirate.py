@@ -1,3 +1,4 @@
+from specula import np
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_value import BaseValue
 from specula.connections import InputList
@@ -10,7 +11,7 @@ class ModalrecMultirate(BaseProcessingObj):
     This object dynamically selects the appropriate Reconstruction Matrix (Recmat)
     based on which sensors have provided a new measurement at the current time step.
     It outputs a fixed-size vector of modes (e.g., 9 modes: 3x Tip-Tilt + 3x Plate Scale),
-    where unobservable modes are correctly set to 0.
+    where unobservable modes are naturally attenuated by the MMSE reconstructor.
     """
 
     def __init__(self,
@@ -35,8 +36,7 @@ class ModalrecMultirate(BaseProcessingObj):
         if not recmat_dict:
             raise ValueError("recmat_dict cannot be empty.")
         if not validity_masks:
-            raise ValueError("validity_masks must be provided to map reconstruction"
-                             " matrices to sensor states.")
+            raise ValueError("validity_masks must be provided to map reconstruction matrices to sensor states.")
 
         self.n_modes_total = n_modes_total
         self.recmat_dict = {}
@@ -45,49 +45,44 @@ class ModalrecMultirate(BaseProcessingObj):
         # DICTIONARY MAPPING
         # =====================================================================
         rec_objects = list(recmat_dict.values())
-
+        
         if len(rec_objects) != len(validity_masks):
             raise ValueError(f"Number of matrices ({len(rec_objects)}) and "
                              f"masks ({len(validity_masks)}) do not match.")
-
-        # Map the ordered objects to the provided boolean tuples
+        
         for mask, rec_obj in zip(validity_masks, rec_objects):
             self.recmat_dict[tuple(mask)] = rec_obj
 
         # =====================================================================
-        # SANITY CHECKS (Dimensions and Observability)
+        # SANITY CHECKS (Dimensions and Consistency)
         # =====================================================================
         if self.recmat_dict:
-            # Helper to safely count zero rows using the target device framework (numpy/cupy)
-            def count_zero_rows(mat):
-                mat_xp = self.to_xp(mat)
-                row_sums = self.xp.sum(self.xp.abs(mat_xp), axis=1)
-                return int(self.xp.sum(row_sums < 1e-10))
-
             n_sensors = len(list(self.recmat_dict.keys())[0])
             all_true_mask = tuple([True] * n_sensors)
-
-            # Determine the baseline of unobservable modes (from the "all-sensors" state)
-            base_zero_rows = 0
+            
+            # Baseline maximum number of slopes (columns) from the all-True state
+            max_cols = 0
             if all_true_mask in self.recmat_dict:
-                base_zero_rows = count_zero_rows(self.recmat_dict[all_true_mask].recmat)
+                max_cols = self.recmat_dict[all_true_mask].recmat.shape[1]
 
             for mask, rec_obj in self.recmat_dict.items():
                 mat = rec_obj.recmat
-
+                
                 # Check A: Matrix row size must perfectly match n_modes_total
                 if mat.shape[0] != self.n_modes_total:
                     raise ValueError(f"Matrix for mask {mask} has {mat.shape[0]} rows, "
                                      f"but n_modes_total is defined as {self.n_modes_total}.")
+                
+                # Check B: Matrix must accept at least some slopes
+                if mat.shape[1] == 0:
+                    raise ValueError(f"Matrix for mask {mask} has 0 columns. "
+                                     f"It must accept at least some slopes.")
 
-                # Check B: Dropping sensors should not magically increase observability
-                if mask != all_true_mask:
-                    zero_rows = count_zero_rows(mat)
-                    if zero_rows < base_zero_rows:
-                        raise ValueError(f"Logical inconsistency: mask {mask} has {zero_rows}"
-                                         f" unobservable modes (zero rows), which is less than"
-                                         f" the all-True baseline ({base_zero_rows} zero rows)."
-                                         f" Dropping sensors cannot increase observability!")
+                # Check C: Dropping sensors should decrease or maintain the number of columns
+                if max_cols > 0 and mat.shape[1] > max_cols:
+                    raise ValueError(f"Logical inconsistency: mask {mask} requires {mat.shape[1]} slopes (columns), "
+                                     f"which exceeds the baseline all-True state ({max_cols} slopes). "
+                                     f"Dropping sensors cannot increase the number of input slopes!")
 
         # Prepare the output value
         self.out_modes = BaseValue('output dynamic modes from multirate reconstructor',
@@ -119,7 +114,6 @@ class ModalrecMultirate(BaseProcessingObj):
                 raise ValueError(f"Validity tuple {validity_tuple} length does not match "
                                  f"number of sensors ({self._n_sensors}).")
 
-            # Extract the raw array and move to target device
             self.xp_recmat_dict[validity_tuple] = self.to_xp(recmat_obj.recmat, dtype=self.dtype)
 
     def trigger_code(self):
@@ -130,7 +124,6 @@ class ModalrecMultirate(BaseProcessingObj):
 
         # 1. Check which sensors have fresh data (Dynamic Scheduler)
         for s in slopes_list:
-            # A slope is "valid" if its generation time matches the current system time
             is_valid = s.generation_time == self.current_time
             validity.append(is_valid)
 

@@ -14,35 +14,33 @@ from test.specula_testlib import cpu_and_gpu
 class TestModalrecMultirate(unittest.TestCase):
 
     def _setup_reconstructor(self, target_device_idx, xp):
-        """
-        Helper method to build the reconstructor and mock data.
-        """
         self.n_modes = 5
         self.n_slopes_per_wfs = 2
 
-        # 1. Create Mock Reconstruction Matrices for a 2-sensor system
+        # 1. Create Mock Reconstruction Matrices
+        # Both sensors active -> 4 columns
         mat_both = xp.full((self.n_modes, 4), 1.0, dtype=xp.float32)
+
+        # Single sensor active -> 2 columns
         mat_s1 = xp.full((self.n_modes, 2), 2.0, dtype=xp.float32)
         mat_s2 = xp.full((self.n_modes, 2), 3.0, dtype=xp.float32)
 
-        # Add a zero row to s1 to simulate a lost mode (perfectly valid physically)
-        mat_s1[4, :] = 0.0
+        # Simulate MMSE natural attenuation for unobservable modes (rows 3 and 4)
+        mat_s1[3:, :] = 0.1
+        mat_s2[3:, :] = 0.1
 
-        # Dictionary with arbitrary string keys (simulating YAML _dict_ref behavior)
         recmat_dict = {
             'rec_both': Recmat(mat_both, target_device_idx=target_device_idx),
             'rec_s1': Recmat(mat_s1, target_device_idx=target_device_idx),
             'rec_s2': Recmat(mat_s2, target_device_idx=target_device_idx)
         }
 
-        # Explicit masks in the same order
         validity_masks = [
             [True, True],
             [True, False],
             [False, True]
         ]
 
-        # 2. Initialize the Reconstructor
         rec = ModalrecMultirate(
             recmat_dict=recmat_dict,
             validity_masks=validity_masks,
@@ -50,15 +48,12 @@ class TestModalrecMultirate(unittest.TestCase):
             target_device_idx=target_device_idx
         )
 
-        # 3. Create Input Slopes objects
         slopes_s1 = Slopes(length=self.n_slopes_per_wfs, target_device_idx=target_device_idx)
         slopes_s2 = Slopes(length=self.n_slopes_per_wfs, target_device_idx=target_device_idx)
 
-        # Set dummy slope values: S1 = [10, 10], S2 = [20, 20]
         slopes_s1.slopes[:] = 10.0
         slopes_s2.slopes[:] = 20.0
 
-        # Connect inputs
         rec.inputs['in_slopes_list'].set([slopes_s1, slopes_s2])
         rec.local_inputs['in_slopes_list'] = rec.inputs['in_slopes_list'].get(target_device_idx)
         rec.setup()
@@ -67,7 +62,6 @@ class TestModalrecMultirate(unittest.TestCase):
 
     @cpu_and_gpu
     def test_both_sensors_valid(self, target_device_idx, xp):
-        """Test Case 1: Both sensors have fresh data"""
         rec, s1, s2 = self._setup_reconstructor(target_device_idx, xp)
 
         current_time = 1.0
@@ -78,29 +72,31 @@ class TestModalrecMultirate(unittest.TestCase):
         rec.trigger_code()
 
         out = cpuArray(rec.out_modes.value)
+        # 1.0 * 10 + 1.0 * 10 + 1.0 * 20 + 1.0 * 20 = 60.0
         np.testing.assert_allclose(out, 60.0)
         self.assertEqual(rec.out_modes.generation_time, current_time)
 
     @cpu_and_gpu
     def test_single_sensor_valid(self, target_device_idx, xp):
-        """Test Case 2: Only Sensor 1 has fresh data (Multirate Asynchronous)"""
         rec, s1, s2 = self._setup_reconstructor(target_device_idx, xp)
 
         current_time = 2.0
         s1.generation_time = current_time
-        s2.generation_time = 1.0
+        s2.generation_time = 1.0  # Old frame
 
         rec.check_ready(current_time)
         rec.trigger_code()
 
         out = cpuArray(rec.out_modes.value)
-        # Mode 4 is intentionally set to 0.0 in mat_s1 inside _setup_reconstructor
-        expected = np.array([40.0, 40.0, 40.0, 40.0, 0.0])
+
+        # Expected outputs due to MMSE attenuation mock
+        # Observable modes (0, 1, 2): 2.0 * 10 + 2.0 * 10 = 40.0
+        # Attenuated modes (3, 4): 0.1 * 10 + 0.1 * 10 = 2.0
+        expected = np.array([40.0, 40.0, 40.0, 2.0, 2.0])
         np.testing.assert_allclose(out, expected)
 
     @cpu_and_gpu
     def test_zero_stuffing_no_sensors_valid(self, target_device_idx, xp):
-        """Test Case 3: No sensors are valid. Verifies ZERO-STUFFING."""
         rec, s1, s2 = self._setup_reconstructor(target_device_idx, xp)
 
         current_time = 3.0
@@ -115,8 +111,7 @@ class TestModalrecMultirate(unittest.TestCase):
 
     @cpu_and_gpu
     def test_sanity_check_dimensions(self, target_device_idx, xp):
-        """Test that matrix row dimensions must match n_modes_total"""
-        # Matrix with 4 rows, but n_modes_total is 5
+        """Test that matrix row dimensions must exactly match n_modes_total"""
         mat_wrong = xp.full((4, 4), 1.0, dtype=xp.float32)
         recmat_dict = {'rec_both': Recmat(mat_wrong, target_device_idx=target_device_idx)}
 
@@ -125,15 +120,14 @@ class TestModalrecMultirate(unittest.TestCase):
                               n_modes_total=5, target_device_idx=target_device_idx)
 
     @cpu_and_gpu
-    def test_sanity_check_observability(self, target_device_idx, xp):
-        """Test that dropping sensors cannot magically increase observability (fewer zero rows)"""
+    def test_sanity_check_columns_consistency(self, target_device_idx, xp):
+        """Test that dropping sensors cannot increase the required number of slopes (columns)"""
 
-        # All-True matrix has 2 unobservable modes (rows of zeros)
-        mat_both = xp.full((5, 4), 1.0, dtype=xp.float32)
-        mat_both[3:, :] = 0.0
+        # Baseline All-True has 2 columns
+        mat_both = xp.full((5, 2), 1.0, dtype=xp.float32)
 
-        # Single sensor matrix has 0 unobservable modes (Physically impossible!)
-        mat_s1 = xp.full((5, 2), 2.0, dtype=xp.float32)
+        # Single sensor matrix mysteriously requires 4 columns -> Error!
+        mat_s1 = xp.full((5, 4), 2.0, dtype=xp.float32)
 
         recmat_dict = {
             'rec_both': Recmat(mat_both, target_device_idx=target_device_idx),
@@ -141,7 +135,6 @@ class TestModalrecMultirate(unittest.TestCase):
         }
         validity_masks = [[True, True], [True, False]]
 
-        # The class should throw a ValueError because mat_s1 has fewer zero rows than mat_both
         with self.assertRaisesRegex(ValueError, "Logical inconsistency"):
-            ModalrecMultirate(recmat_dict=recmat_dict, validity_masks=validity_masks,
+            ModalrecMultirate(recmat_dict=recmat_dict, validity_masks=validity_masks, 
                               n_modes_total=5, target_device_idx=target_device_idx)
