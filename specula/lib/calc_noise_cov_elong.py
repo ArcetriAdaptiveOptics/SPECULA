@@ -74,7 +74,7 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
     # Convert sub-aperture indices to 2D coordinates
     y_idx, x_idx = np.unravel_index(sub_aps_index, (n_sub_aps, n_sub_aps))
 
-    # Coordinates with respect to center (Forziamo esplicitamente X in colonna 0 e Y in colonna 1)
+    # Coordinates with respect to center (X in column 0 and Y in column 1)
     coord_sub_aps = np.zeros((len(sub_aps_index), 2), dtype=float)
     coord_sub_aps[:, 0] = x_idx - float(n_sub_aps / 2)  # X AXIS
     coord_sub_aps[:, 1] = y_idx - float(n_sub_aps / 2)  # Y AXIS
