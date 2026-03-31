@@ -6,7 +6,7 @@ from specula import RankLogger
 
 
 class CalibManager():
-    def __init__(self, root_dir, log_level='INFO'):
+    def __init__(self, root_dir):
         """
         Initialize the calibration manager object.
 
@@ -82,9 +82,8 @@ class CalibManager():
             'projection': 'popt/'
         }
         self.root_dir = root_dir
-        orig_logger = logging.getLogger('calib_manager')
+        orig_logger = logging.getLogger('specula.calib_manager')
         self.logger = RankLogger(orig_logger, {})
-        self.logger.setLevel(log_level)
 
     def root_subdir(self, type):
         """

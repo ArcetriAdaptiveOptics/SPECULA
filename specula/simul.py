@@ -83,7 +83,7 @@ class Simul():
         self.diagram_filename = diagram_filename
         self.diagram_colors_on = diagram_colors_on
         self.speed_report = speed_report
-        self.logger = RankLogger(logging.getLogger('Simul'), {})
+        self.logger = RankLogger(logging.getLogger('specula.simul'))
         self.logger.setLevel(log_level)
 
     def split_output(self, output_name, get_ref=False, use_inputs=False):
@@ -227,7 +227,7 @@ class Simul():
                 order.append(leaf)
                 order_index.append(index)
                 del params[leaf]
-                self.remove_inputs(params, leaf)
+                self.remove_inputs(params, leaf, log=False)
             end = len(params)
             if start == end:
                 raise ValueError('Cannot determine trigger order: circular loop detected in {leaves}')
@@ -298,7 +298,7 @@ class Simul():
 
         self.setSimulParams(params)
 
-        cm = CalibManager(self.mainParams['root_dir'], log_level=self.logger.level)
+        cm = CalibManager(self.mainParams['root_dir'])
         skip_pars = 'class inputs outputs'.split()
         if 'add_modules' in self.mainParams:
             additional_modules = self.mainParams['add_modules']
@@ -355,9 +355,9 @@ class Simul():
                 # tags are restored into each process (multiple copies), target_rank is not checked
                 self.logger.info(f'Restoring: {filename}')
                 self.objs[key] = klass.restore(filename, target_device_idx=target_device_idx)
-                self.set_obj_log_level(self.objs[key], pars)
-                self.objs[key].printMemUsage()
                 self.objs[key].name = key
+                self.obj_init_logging(self.objs[key], pars)
+                self.objs[key].printMemUsage()
                 self.objs[key].tag = pars['tag']
                 continue
 
@@ -429,7 +429,8 @@ class Simul():
                         filename = cm.filename(parname, value)  # TODO use partype instead of parname?
                         self.logger.info(f'Restoring: {filename}')
                         parobj = partype.restore(filename, target_device_idx=target_device_idx)
-                        self.set_obj_log_level(parobj, pars)
+                        parobj.name = 'restored'
+                        self.obj_init_logging(parobj, pars)
                         parobj.printMemUsage()
 
                         # Set data_tag
@@ -466,20 +467,20 @@ class Simul():
             my_params.update(pars2)
             try:
                 self.objs[key] = klass(**my_params)
-                self.set_obj_log_level(self.objs[key], my_params)
+                self.objs[key].name = key
+                self.obj_init_logging(self.objs[key], my_params)
             except Exception:
                 self.logger.error('Exception building {key}')
                 raise
             if classname != 'SimulParams':
                 self.objs[key].stopMemUsageCount()
 
-            self.objs[key].name = key
 
             # TODO this could be more general like the getters above
             if type(self.objs[key]) is DataStore:
                 self.objs[key].setParams(params)
 
-    def set_obj_log_level(self, obj, pars):
+    def obj_init_logging(self, obj, pars):
         '''
         Set the log level of the object according to the "verbose" parameter in the pars dictionary, which
         can be either a boolean or an integer. If the parameter is not present, the log level of the Simul object is used.
@@ -494,8 +495,11 @@ class Simul():
             else:
                 raise ValueError(f'Invalid value for "verbose" parameter: {pars["verbose"]} (should be an integer number or True/False)')
         else:
-            level = self.logger.level
-        obj.set_log_level(level)
+            level = None
+        if hasattr(obj, 'name'):
+            obj.init_logging(obj.name, level)
+        else:
+            obj.init_logging(None, level)
 
     def connect(self, output_name, input_name, dest_object):
         '''
@@ -739,7 +743,7 @@ class Simul():
                 else:
                     yield (k, v)
 
-    def remove_inputs(self, params, obj_to_remove):
+    def remove_inputs(self, params, obj_to_remove, log=True):
         '''
         Modify params removing all references to the specified object name
         '''
@@ -753,12 +757,13 @@ class Simul():
                         owner = self.output_owner(output_name)
                         if owner == obj_to_remove:
                             del obj_inputs_copy[input_name]
-                            self.logger.info(f'Deleted {input_name} from {obj[key]}')
+                            if log:
+                                self.logger.info(f'Deleted {input_name} from {obj[key]}')
                     elif isinstance(output_name, list):
                         newlist = [x for x in output_name if self.output_owner(x) != obj_to_remove]
                         diff = set(output_name).difference(set(newlist))
                         obj_inputs_copy[input_name] = newlist
-                        if len(diff) > 0:
+                        if len(diff) > 0 and log:
                             self.logger.info(f'Deleted {diff} from {obj[key]}')
                 obj[key] = obj_inputs_copy
         return params
@@ -1021,7 +1026,7 @@ class Simul():
                     obj.setReplayParams(replay_params)
 
         # Initialize housekeeping objects
-        self.loop = LoopControl(stepping=self.stepping, log_level=self.logger.level)
+        self.loop = LoopControl(stepping=self.stepping)
 
         # Build loop
         for name, idx in zip(self.trigger_order, self.trigger_order_idx):
@@ -1037,9 +1042,9 @@ class Simul():
         if 'display_server' in self.mainParams and self.mainParams['display_server'] and process_rank in [0, None]:
             from specula.processing_objects.display_server import DisplayServer
             disp = DisplayServer(params, self.input_ref, self.output_ref, self.get_info)
+            disp.name = 'display_server'
             self.objs['display_server'] = disp
             self.loop.add(disp, idx+1)
-            disp.name = 'display_server'
 
         # Run simulation loop
         self.loop.run(run_time=self.mainParams['total_time'],

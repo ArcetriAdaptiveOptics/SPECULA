@@ -59,6 +59,11 @@ class RankLogger(logging.LoggerAdapter):
         self.log(self.MPI_SEND_DBG_LEVEL, msg, *args, **kwargs)
 
     def process(self, msg, kwargs):
+        if self.extra:
+            extra = kwargs.get("extra", {})
+            merged = {**self.extra, **extra}
+            kwargs["extra"] = merged
+
         if process_rank is None:
             return msg, kwargs
         else:
@@ -93,14 +98,27 @@ def init(device_idx=-1,
     global main_logger
 
     if log_format is None:
-        log_format="%(asctime)s [%(levelname)s]: %(message)s (from %(name)s)"
+        log_format="%(asctime)s [%(levelname)s]: [%(name)s]: %(message)s"
+    formatter = logging.Formatter(log_format)
 
-    logging.basicConfig(level=log_level,
-                        format=log_format,
-                        )
+    class ConditionalFormatter(logging.Formatter):
+        '''
+        Log formatter that adds the extra "instance name"
+        to the logger name in the formatted string
+        '''
+        def format(self, record):
+            if hasattr(record, "instance_name") and record.instance_name:
+                record.name = f'{record.name} - {record.instance_name}'
+            return formatter.format(record)
 
-    orig_logger = logging.getLogger('main')
-    main_logger = RankLogger(orig_logger, {})
+    handler = logging.StreamHandler()
+    handler.setFormatter(ConditionalFormatter())
+
+    logging.getLogger().addHandler(handler)
+    logging.getLogger().setLevel(log_level)
+
+    orig_logger = logging.getLogger('specula')
+    main_logger = RankLogger(orig_logger)
 
     process_comm = comm
     process_rank = rank

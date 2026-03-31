@@ -8,9 +8,9 @@ from specula import process_comm, process_rank
 
 
 class LoopControl(BaseTimeObj):
-    def __init__(self, stepping=False, log_level=logging.INFO):
-        super().__init__(target_device_idx=-1, precision=1,
-                         loglevel=log_level)
+    def __init__(self, stepping=False):
+        super().__init__(target_device_idx=-1, precision=1)
+        self.logger.extra['instance_name'] = None
         self.trigger_lists = defaultdict(list)
         self.run_time = None
         self.dt = None

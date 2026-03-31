@@ -93,8 +93,8 @@ class AtmoEvolution(BaseProcessingObj):
 
         if self.zenithAngleInDeg is not None:
             self.airmass = 1.0 / np.cos(np.radians(self.zenithAngleInDeg), dtype=self.dtype)
-            self.logger.info(f'AtmoEvolution: zenith angle is defined as: {self.zenithAngleInDeg} deg')
-            self.logger.info(f'AtmoEvolution: airmass is: {self.airmass}')
+            self.logger.info(f'zenith angle is defined as: {self.zenithAngleInDeg} deg')
+            self.logger.info(f'airmass is: {self.airmass}')
         else:
             self.airmass = 1.0
 

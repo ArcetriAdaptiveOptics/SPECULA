@@ -10,7 +10,7 @@ from specula import cpu_complex_dtype_list, gpu_complex_dtype_list
 
 
 class BaseTimeObj:
-    def __init__(self, target_device_idx=None, precision=None, loglevel=logging.INFO):
+    def __init__(self, target_device_idx=None, precision=None):
         """
         Creates a new base_time object.
 
@@ -18,10 +18,8 @@ class BaseTimeObj:
         precision (int, optional): if None will use the global_precision, otherwise pass 0 for double, 1 for single
         target_device_idx (int, optional): if None will use the default_target_device_idx, otherwise pass -1 for cpu, i for GPU of index i
         """
-        name = 'object_name_to_be_defined'
-        orig_logger = logging.getLogger(f'{name} - {self.__class__.__name__}')
-        self.logger = RankLogger(orig_logger, {})
-        self.logger.setLevel(loglevel)
+        orig_logger = logging.getLogger('specula.'+self.__class__.__name__)
+        self.logger = RankLogger(orig_logger, extra={'instance_name': 'initialising'})
 
         self._time_resolution = int(1e9)
         self.gpu_bytes_used = 0
@@ -74,6 +72,9 @@ class BaseTimeObj:
         self._lu_factor = lu_factor
         self._lu_solve = lu_solve
         self._scipy_ifft2 = scipy_ifft2
+
+    def init_logging(self, name, level):
+        self.logger.extra['instance_name'] = name
 
     def set_log_level(self, loglevel):
         self.logger.setLevel(loglevel)
