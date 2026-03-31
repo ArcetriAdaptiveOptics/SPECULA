@@ -188,10 +188,10 @@ class IFunc(BaseDataObj):
         if idx_modes is not None:
             if start_mode is not None:
                 start_mode = None
-                print('ifunc.cut: start_mode cannot be set together with idx_modes. Setting to None start_mode.')
+                self.logger.warning('ifunc.cut: start_mode cannot be set together with idx_modes. Setting to None start_mode.')
             if nmodes is not None:
                 nmodes = None
-                print('ifunc.cut: nmodes cannot be set together with idx_modes. Setting to None nmodes.')
+                self.logger.warning('ifunc.cut: nmodes cannot be set together with idx_modes. Setting to None nmodes.')
 
         nrows, ncols = self.influence_function.shape
 

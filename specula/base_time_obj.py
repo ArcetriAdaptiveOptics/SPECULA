@@ -1,15 +1,16 @@
 
+import logging
 from functools import wraps
 from inspect import signature
 
-from specula import np, cp, to_xp, process_rank
+from specula import np, cp, to_xp, RankLogger
 from specula import global_precision, default_target_device, default_target_device_idx
 from specula import cpu_float_dtype_list, gpu_float_dtype_list
 from specula import cpu_complex_dtype_list, gpu_complex_dtype_list
 
 
 class BaseTimeObj:
-    def __init__(self, target_device_idx=None, precision=None):
+    def __init__(self, target_device_idx=None, precision=None, loglevel=logging.INFO):
         """
         Creates a new base_time object.
 
@@ -17,6 +18,11 @@ class BaseTimeObj:
         precision (int, optional): if None will use the global_precision, otherwise pass 0 for double, 1 for single
         target_device_idx (int, optional): if None will use the default_target_device_idx, otherwise pass -1 for cpu, i for GPU of index i
         """
+        name = 'object_name_to_be_defined'
+        orig_logger = logging.getLogger(f'{name} - {self.__class__.__name__}')
+        self.logger = RankLogger(orig_logger, {})
+        self.logger.setLevel(loglevel)
+
         self._time_resolution = int(1e9)
         self.gpu_bytes_used = 0
 
@@ -69,6 +75,9 @@ class BaseTimeObj:
         self._lu_solve = lu_solve
         self._scipy_ifft2 = scipy_ifft2
 
+    def set_log_level(self, loglevel):
+        self.logger.setLevel(loglevel)
+
     def t_to_seconds(self, t):
         return float(t) / float(self._time_resolution)
 
@@ -87,7 +96,7 @@ class BaseTimeObj:
 
     def printMemUsage(self):
         if hasattr(self, 'target_device_idx') and self.target_device_idx >= 0:
-            print(process_rank, f'\tcupy memory used by {self.__class__.__name__}: {self.gpu_bytes_used / (1024*1024)} MB')
+            self.logger.info(f'cupy memory used by {self.__class__.__name__}: {self.gpu_bytes_used / (1024*1024)} MB')
 
     def monitorMem(f):
 

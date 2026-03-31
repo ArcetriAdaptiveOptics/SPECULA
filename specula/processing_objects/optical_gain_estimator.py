@@ -60,8 +60,6 @@ class OpticalGainEstimator(BaseProcessingObj):
         self.outputs['optical_gain'] = self.optical_gain
         self.outputs['output'] = self.output
 
-        self.verbose = False
-
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
 
@@ -97,11 +95,9 @@ class OpticalGainEstimator(BaseProcessingObj):
             self.optical_gain.value = updated_gain
             self.optical_gain.generation_time = self.current_time
 
-            if self.verbose:
-                print(f"Optical gain updated: {float(current_gain):.6f} -> {float(updated_gain):.6f}")
+            self.logger.info(f"Optical gain updated: {float(current_gain):.6f} -> {float(updated_gain):.6f}")
         else:
-            if self.verbose:
-                print("Warning: demod_command too small, skipping optical gain update")
+            self.logger.info("Warning: demod_command too small, skipping optical gain update")
 
     def _calculate_output(self, t):
         """
@@ -128,5 +124,4 @@ class OpticalGainEstimator(BaseProcessingObj):
         self.output.value = output
         self.output.generation_time = t
 
-        if self.verbose:
-            print(f'Optical gain output: {output}')
+        self.logger.info(f'Optical gain output: {output}')

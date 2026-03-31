@@ -194,12 +194,12 @@ class TestDataSource(unittest.TestCase):
         ds.storage["test_signal"] = {1.0: np.array([1, 2, 3])}
 
         # Capture print output
-        with patch('builtins.print') as mock_print:
+        with patch.object(ds.logger, "log") as mock_log:
             ds.trigger_code()
 
             # Verify warning was printed
-            mock_print.assert_called_once()
-            call_args = mock_print.call_args[0][0]
+            mock_log.assert_called_once()
+            call_args = mock_log.call_args[0][1]
             self.assertIn('Warning', call_args)
             self.assertIn('test_signal', call_args)
             self.assertIn('0.5', call_args)

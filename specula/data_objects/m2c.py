@@ -54,11 +54,11 @@ class M2C(BaseDataObj):
         if idx_modes is not None:
             if start_mode is not None:
                 start_mode = None
-                print('m2c.cut: start_mode cannot be set together with idx_modes.'
+                self.logger.warning('m2c.cut: start_mode cannot be set together with idx_modes.'
                       ' Setting to None start_mode.')
             if nmodes is not None:
                 nmodes = None
-                print('m2c.cut: nmodes cannot be set together with idx_modes.'
+                self.logger.warning('m2c.cut: nmodes cannot be set together with idx_modes.'
                       ' Setting to None nmodes.')
 
         nrows, ncols = self.m2c.shape

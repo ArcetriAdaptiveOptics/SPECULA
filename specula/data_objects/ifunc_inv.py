@@ -88,10 +88,10 @@ class IFuncInv(BaseDataObj):
         if idx_modes is not None:
             if start_mode is not None:
                 start_mode = None
-                print('ifunc_inv.cut: start_mode cannot be set together with idx_modes. Setting to None start_mode.')
+                self.logger.warning('ifunc_inv.cut: start_mode cannot be set together with idx_modes. Setting to None start_mode.')
             if nmodes is not None:
                 nmodes = None
-                print('ifunc_inv.cut: nmodes cannot be set together with idx_modes. Setting to None nmodes.')
+                self.logger.warning('ifunc_inv.cut: nmodes cannot be set together with idx_modes. Setting to None nmodes.')
 
         nrows, ncols = self.ifunc_inv.shape
 

@@ -1,3 +1,4 @@
+import logging
 import numpy as np
 
 from specula.base_processing_obj import BaseProcessingObj
@@ -24,7 +25,6 @@ class AtmoRandomPhase(BaseProcessingObj):
                  seed: int=1,
                  update_interval: int=1,
                  layer_height: float=0.0,
-                 verbose=None,
                  target_device_idx=None,
                  precision=None):
         """
@@ -50,9 +50,6 @@ class AtmoRandomPhase(BaseProcessingObj):
             Number of triggers between phase screen updates, by default 1.
         layer_height : float, optional
             Height in meters assigned to the output layers, by default 0.0.
-        verbose : bool, optional
-            If True, enables verbose output during phase screen generation.
-            Default is None (no verbose output).
         target_device_idx : int, optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
         precision : int, optional
@@ -87,8 +84,8 @@ class AtmoRandomPhase(BaseProcessingObj):
 
         if self.zenithAngleInDeg is not None:
             self.airmass = 1.0 / np.cos(np.radians(self.zenithAngleInDeg))
-            print(f'AtmoRandomPhase: zenith angle is defined as: {self.zenithAngleInDeg} deg')
-            print(f'AtmoRandomPhase: airmass is: {self.airmass}')
+            self.logger.info(f'AtmoRandomPhase: zenith angle is defined as: {self.zenithAngleInDeg} deg')
+            self.logger.info(f'AtmoRandomPhase: airmass is: {self.airmass}')
         else:
             self.airmass = 1.0
 
@@ -107,8 +104,6 @@ class AtmoRandomPhase(BaseProcessingObj):
         # Error if phase-screens dimension is smaller than maximum layer dimension
         if self.pixel_square_phasescreens < self.pixel_layer_size:
             raise ValueError('Error: phase-screens dimension must be greater than layer dimension!')
-
-        self.verbose = verbose if verbose is not None else False
 
         output_specs = list(self.source_dict.items()) if self.source_dict else [(None, None)]
 
@@ -146,7 +141,8 @@ class AtmoRandomPhase(BaseProcessingObj):
                                                    self.pixel_square_phasescreens,
                                                    self.pixel_pitch, self.data_dir,
                                                    seed=self.seed, precision=self.precision,
-                                                   verbose=self.verbose, xp=self.xp)
+                                                   verbose=self.logger.level <= logging.DEBUG,
+                                                   xp=self.xp)
         # number of slices to be cut from the 2D array
         num_slices = self.pixel_square_phasescreens // self.pixel_pupil
 

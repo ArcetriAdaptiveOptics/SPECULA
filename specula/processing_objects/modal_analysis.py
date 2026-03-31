@@ -75,7 +75,6 @@ class ModalAnalysis(BaseProcessingObj):
         self.rms.value = self.xp.zeros(1, dtype=self.dtype)
         self.dorms = dorms
         self.wavelengthInNm = wavelengthInNm
-        self.verbose = False  # Verbose flag for debugging output
 
         if nmodes is None:
             self._n_modes = self.phase2modes.size[1]
@@ -161,7 +160,6 @@ class ModalAnalysis(BaseProcessingObj):
             self.rms.value[:] = self.xp.std(ph)
             self.rms.generation_time = self.current_time
 
-        if self.verbose:
-            print(f"First residual values: {m[:min(6, len(m))]}")
-            if self.dorms:
-                print(f"Phase RMS: {self.rms.value}")
+        self.logger.debug(f"First residual values: {m[:min(6, len(m))]}")
+        if self.dorms:
+            self.logger.debug(f"Phase RMS: {self.rms.value}")

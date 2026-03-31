@@ -1,3 +1,4 @@
+import logging
 from specula.base_processing_obj import BaseProcessingObj
 from specula.connections import InputValue
 from specula.base_value import BaseValue
@@ -44,8 +45,6 @@ class Demodulator(BaseProcessingObj):
         # Outputs
         self.outputs['output'] = self.output
 
-        self.verbose = False
-
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
         self.input = self.local_inputs['in_data']
@@ -89,7 +88,7 @@ class Demodulator(BaseProcessingObj):
                 carrier_freq=float(self.carrier_frequencies[i]),
                 sampling_freq=sampling_freq,
                 cumulated=True,
-                verbose=self.verbose,
+                verbose=self.logger.level <= logging.DEBUG,
                 xp=self.xp,
                 dtype=self.dtype
             )
@@ -103,5 +102,4 @@ class Demodulator(BaseProcessingObj):
         self.output.value = values
         self.output.generation_time = t
 
-        if self.verbose:
-            print(f"Demodulated value at t={self.t_to_seconds(t):.3f}s: {values}")
+        self.logger.info(f"Demodulated value at t={self.t_to_seconds(t):.3f}s: {values}")

@@ -45,14 +45,12 @@ class PSF(BaseProcessingObj):
                  start_time: float=0.0,
                  target_device_idx: int = None,
                  precision: int = None,
-                 verbose:bool = True,
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         if wavelengthInNm <= 0:
             raise ValueError('PSF wavelength must be >0')
         self.wavelengthInNm = wavelengthInNm
-        self.wave_str = f"{int(wavelengthInNm)}nm"
 
         self.psf_pixel_size, self.nd = calc_psf_geometry(
                                             simul_params.pixel_pupil,
@@ -61,7 +59,6 @@ class PSF(BaseProcessingObj):
                                             nd,
                                             pixel_size_mas)
 
-        self.verbose = verbose
         self.start_time = start_time
 
         self.sr = BaseValue(target_device_idx=self.target_device_idx,
@@ -123,8 +120,7 @@ class PSF(BaseProcessingObj):
         self.sr.value = self.psf.value[self.out_size[0] // 2, \
                                        self.out_size[1] // 2] / self.ref.i[self.out_size[0] // 2, \
                                        self.out_size[1] // 2]
-        if self.verbose:
-            print('SR at ' + self.wave_str + ':', self.sr.value, flush=True)
+        self.logger.info(f'SR at {int(self.wavelengthInNm)}nm : {self.sr.value}')
 
     def post_trigger(self):
         super().post_trigger()
@@ -146,7 +142,6 @@ class PSF(BaseProcessingObj):
         self.int_psf.generation_time = self.current_time
         self.int_sr.generation_time = self.current_time
         self.std_psf.generation_time = self.current_time
-
         
     def get_psf_profile(self, psf_std:bool=False, show:bool=False):
         if psf_std is True:
@@ -168,6 +163,6 @@ class PSF(BaseProcessingObj):
                 plt.ylabel('PSF contrast')
                 plt.show()
             except:
-                print('Failed to import matplotlib for display')
+                self.logger.error('Failed to import matplotlib for display')
         return profile, radial_dist
         

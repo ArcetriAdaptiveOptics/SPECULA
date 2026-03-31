@@ -259,7 +259,6 @@ class FieldAnalyser:
             precision=replay_precision,
             rank=specula.process_rank,
             comm=specula.process_comm,
-            mpi_dbg=specula.MPI_DBG,
         )
 
     def _build_replay_params_psf(self) -> dict:

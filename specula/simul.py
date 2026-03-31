@@ -1,3 +1,4 @@
+import logging
 import re
 import typing
 import inspect
@@ -5,7 +6,7 @@ import itertools
 from copy import deepcopy
 from pathlib import Path
 from collections import Counter, namedtuple
-from specula import process_rank, MPI_DBG
+from specula import RankLogger, process_rank
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_data_obj import BaseDataObj
 
@@ -56,9 +57,11 @@ class Simul():
                  diagram_filename=None,
                  diagram_colors_on=False,
                  speed_report=True,
+                 log_level=logging.INFO,
                  ):
         if len(param_files) < 1:
             raise ValueError('At least one Yaml parameter file must be present')
+
         self.is_dataobj = {}
         self.connections = []
         self.references = []
@@ -69,7 +72,6 @@ class Simul():
         self.param_files = param_files
         self.objs = {}
         self.simul_idx = simul_idx
-        self.verbose = False  #TODO
         self.mainParams = None
         if overrides is None:
             self.overrides = []
@@ -81,6 +83,8 @@ class Simul():
         self.diagram_filename = diagram_filename
         self.diagram_colors_on = diagram_colors_on
         self.speed_report = speed_report
+        self.logger = RankLogger(logging.getLogger('Simul'), {})
+        self.logger.setLevel(log_level)
 
     def split_output(self, output_name, get_ref=False, use_inputs=False):
         '''
@@ -228,7 +232,7 @@ class Simul():
             if start == end:
                 raise ValueError('Cannot determine trigger order: circular loop detected in {leaves}')
         if len(params) > 0:
-            print('Warning: the following objects will not be triggered:', params.keys())
+            self.logger.warning(f'the following objects will not be triggered: {params.keys()}')
         return order, order_index
 
     def setSimulParams(self, params):
@@ -294,14 +298,14 @@ class Simul():
 
         self.setSimulParams(params)
 
-        cm = CalibManager(self.mainParams['root_dir'])
+        cm = CalibManager(self.mainParams['root_dir'], log_level=self.logger.level)
         skip_pars = 'class inputs outputs'.split()
         if 'add_modules' in self.mainParams:
             additional_modules = self.mainParams['add_modules']
         else:
             additional_modules = []
 
-        if MPI_DBG: print(process_rank, 'building objects')
+        self.logger.mpi_debug(f'building objects')
 
         for key in self.build_order(params):
 
@@ -349,8 +353,9 @@ class Simul():
                     raise ValueError('Extra parameters with "tag" are not allowed')
                 filename = cm.filename(classname, pars['tag'])
                 # tags are restored into each process (multiple copies), target_rank is not checked
-                print('Restoring:', filename)
+                self.logger.info(f'Restoring: {filename}')
                 self.objs[key] = klass.restore(filename, target_device_idx=target_device_idx)
+                self.set_obj_log_level(self.objs[key], pars)
                 self.objs[key].printMemUsage()
                 self.objs[key].name = key
                 self.objs[key].tag = pars['tag']
@@ -422,13 +427,13 @@ class Simul():
                                     break
                         # data objects are restored into each process (multiple copies), target_rank is not checked
                         filename = cm.filename(parname, value)  # TODO use partype instead of parname?
-                        print('Restoring:', filename)
+                        self.logger.info(f'Restoring: {filename}')
                         parobj = partype.restore(filename, target_device_idx=target_device_idx)
+                        self.set_obj_log_level(parobj, pars)
                         parobj.printMemUsage()
 
                         # Set data_tag
                         parobj.tag = value
-
                         pars2[parname] = parobj
                     else:
                         raise ValueError(f'No type hint for parameter {parname} of class {classname}')
@@ -461,8 +466,9 @@ class Simul():
             my_params.update(pars2)
             try:
                 self.objs[key] = klass(**my_params)
+                self.set_obj_log_level(self.objs[key], my_params)
             except Exception:
-                print('Exception building', key)
+                self.logger.error('Exception building {key}')
                 raise
             if classname != 'SimulParams':
                 self.objs[key].stopMemUsageCount()
@@ -472,6 +478,24 @@ class Simul():
             # TODO this could be more general like the getters above
             if type(self.objs[key]) is DataStore:
                 self.objs[key].setParams(params)
+
+    def set_obj_log_level(self, obj, pars):
+        '''
+        Set the log level of the object according to the "verbose" parameter in the pars dictionary, which
+        can be either a boolean or an integer. If the parameter is not present, the log level of the Simul object is used.
+        '''
+        if 'verbose' in pars:
+            if pars['verbose'] is True:
+                level = logging.INFO
+            elif pars['verbose'] is False:
+                level = logging.WARNING
+            elif type(level) is int:
+                level = int(pars['verbose'])
+            else:
+                raise ValueError(f'Invalid value for "verbose" parameter: {pars["verbose"]} (should be an integer number or True/False)')
+        else:
+            level = self.logger.level
+        obj.set_log_level(level)
 
     def connect(self, output_name, input_name, dest_object):
         '''
@@ -493,15 +517,15 @@ class Simul():
         if send or recv:
             tag = computeTag(output.obj_name, dest_object, output.output_key, input_name)
 
-        if MPI_DBG: print(process_rank, f'{output.obj_name}.{output.output_key} -> {dest_object} : {send=} {recv=} {local=}', flush=True)
+        self.logger.mpi_debug(f'{output.obj_name}.{output.output_key} -> {dest_object} : {send=} {recv=} {local=}')
 
         if recv:
-            if MPI_DBG: print(process_rank, f'CONNECT Connecting remote output {output.obj_name}.{output.output_key} to local input {dest_object}.{input_name} with tag {tag}')
+            self.logger.mpi_debug(f'CONNECT Connecting remote output {output.obj_name}.{output.output_key} to local input {dest_object}.{input_name} with tag {tag}')
             self.objs[dest_object].inputs[input_name].append(None,
                                                             remote_rank = self.remote_objs_ranks[output.obj_name],
                                                             tag=tag)
         if local:
-            if MPI_DBG: print(process_rank, f'CONNECT Connecting local output {output.obj_name}.{output.output_key} to local input {dest_object}.{input_name}')
+            self.logger.mpi_debug(f'CONNECT Connecting local output {output.obj_name}.{output.output_key} to local input {dest_object}.{input_name}')
             self.objs[dest_object].inputs[input_name].append(output.ref)
 
         if send:
@@ -513,7 +537,7 @@ class Simul():
         
         for dest_object, pars in params.items():
 
-            if MPI_DBG: print(process_rank, 'connect_objects for', dest_object, flush=True)
+            self.logger.mpi_debug(f'connect_objects for {dest_object}')
 
             local_dest_object = dest_object in self.objs.keys()
 
@@ -537,8 +561,8 @@ class Simul():
 
             for input_name, output_name in pars['inputs'].items():
 
-                if MPI_DBG: print(process_rank, 'ASSIGNMENT of input_name:', input_name, flush=True)
-                if MPI_DBG: print(process_rank, 'output_name', output_name, flush=True)
+                self.logger.mpi_debug(f'ASSIGNMENT of input_name: {input_name}')
+                self.logger.mpi_debug(f'{output_name=}')
 
                 if local_dest_object and input_name != 'input_list':
                     if not input_name in self.objs[dest_object].inputs:
@@ -548,7 +572,7 @@ class Simul():
                     raise ValueError(f'Object {dest_object}: invalid input definition type {type(output_name)}')
 
                 for single_output_name in output_name if isinstance(output_name, list) else [output_name]:
-                    if MPI_DBG: print(process_rank, 'List input', flush=True)
+                    self.logger.mpi_debug(f'List input')
 
                     output = self.split_output(single_output_name, get_ref=True)
 
@@ -567,7 +591,7 @@ class Simul():
                     try:
                         self.connect(single_output_name, input_name, dest_object)
                     except ValueError:
-                        print(f'Exception while connecting {single_output_name} {dest_object}.{input_name}')
+                        self.logger.error(f'Exception while connecting {single_output_name} {dest_object}.{input_name}')
                         raise
 
 
@@ -627,9 +651,9 @@ class Simul():
                 if 'inputs' in pars.keys():
                     for input_name, output_name_full in pars['inputs'].items():
                         if type(output_name_full) is list:
-                            print('TODO: list of inputs is not handled in output replay')
+                            self.logger.warning('TODO: list of inputs is not handled in output replay')
                             continue
-                        print('output_name_full', output_name_full)
+                        self.logger.debug(f'{output_name_full=}')
                         if output_name_full in data_source_outputs.keys():
                             replay_params[key]['inputs'][input_name] = 'data_source.' + data_source_outputs[output_name_full]
 
@@ -729,15 +753,13 @@ class Simul():
                         owner = self.output_owner(output_name)
                         if owner == obj_to_remove:
                             del obj_inputs_copy[input_name]
-                            if self.verbose:
-                                print(f'Deleted {input_name} from {obj[key]}')
+                            self.logger.info(f'Deleted {input_name} from {obj[key]}')
                     elif isinstance(output_name, list):
                         newlist = [x for x in output_name if self.output_owner(x) != obj_to_remove]
                         diff = set(output_name).difference(set(newlist))
                         obj_inputs_copy[input_name] = newlist
                         if len(diff) > 0:
-                            if self.verbose:
-                                print(f'Deleted {diff} from {obj[key]}')
+                            self.logger.info(f'Deleted {diff} from {obj[key]}')
                 obj[key] = obj_inputs_copy
         return params
 
@@ -763,7 +785,7 @@ class Simul():
                     if objname not in params:
                         raise ValueError(f'Parameter file has no object named {objname}')
                     del params[objname]
-                    print(f'Removed {objname}')
+                    self.logger.info(f'Removed {objname}')
                     # Remove corresponding inputs
                     params = self.remove_inputs(params, objname)
             elif name.endswith('_override'):
@@ -777,12 +799,12 @@ class Simul():
                 params[name] = values
 
     def apply_overrides(self, params):
-        print('overrides:', self.overrides)
+        self.logger.info('overrides: ' + str(self.overrides))
         if len(self.overrides) > 0:
             for k, v in yaml.full_load(self.overrides).items():
                 obj_name, param_name = k.split('.')
                 params[obj_name][param_name] = v
-                print(obj_name, param_name, v)
+                self.logger.debug(f'{obj_name} {param_name} {v}')
 
     def arrangeInGrid(self, trigger_order, trigger_order_idx):
         rows = []
@@ -819,7 +841,7 @@ class Simul():
     def buildDiagram(self, params):
         from orthogram import Color, DiagramDef, write_png, Side,  FontWeight, FontStyle, TextOrientation
 
-        print('Building diagram...')        
+        self.logger.info('Building diagram...')        
         title_fontsize = 48*2
         block_fontsize = 42*2
         arrow_fontsize = 24*2
@@ -948,17 +970,17 @@ class Simul():
 
 
         write_png(d, self.diagram_filename)
-        print('Diagram saved.')
+        self.logger.info('Diagram saved.')
 
     def run(self):
         params = {}
         # Read YAML file(s)
-        print('Reading parameters from', self.param_files[0])
+        self.logger.info('Reading parameters from ' + self.param_files[0])
         with open(self.param_files[0], 'r') as stream:
             params = yaml.safe_load(stream)
 
         for filename in self.param_files[1:]:
-            print('Reading additional parameters from', filename)
+            self.logger.info('Reading additional parameters from ' + filename)
             with open(filename, 'r') as stream:
                 additional_params = yaml.safe_load(stream)                
                 self.combine_params(params, additional_params)
@@ -967,8 +989,8 @@ class Simul():
         self.apply_overrides(params)
 
         self.trigger_order, self.trigger_order_idx = self.build_trigger_order(params)
-        print(f'{self.trigger_order=}')
-        print(f'{self.trigger_order_idx=}')
+        self.logger.info(f'{self.trigger_order=}')
+        self.logger.info(f'{self.trigger_order_idx=}')
 
         if not self.isReplay(params):
             replay_params = self.build_replay(params)
@@ -993,7 +1015,7 @@ class Simul():
                     obj.setReplayParams(replay_params)
 
         # Initialize housekeeping objects
-        self.loop = LoopControl(stepping=self.stepping)
+        self.loop = LoopControl(stepping=self.stepping, log_level=self.logger.level)
 
         # Build loop
         for name, idx in zip(self.trigger_order, self.trigger_order_idx):
@@ -1003,7 +1025,7 @@ class Simul():
                     self.loop.add(obj, idx)
         
         self.loop.max_global_order = max(self.trigger_order_idx)
-        print('self.loop.max_global_order', self.loop.max_global_order, flush=True)
+        self.logger.debug(f'{self.loop.max_global_order=}')
 
         # Default display web server
         if 'display_server' in self.mainParams and self.mainParams['display_server'] and process_rank in [0, None]:
@@ -1018,9 +1040,9 @@ class Simul():
                       dt=self.mainParams['time_step'],
                       speed_report=self.speed_report)
 
-        print(process_rank, 'Simulation finished', flush=True)
+        self.logger.debug(f'Simulation finished')
 #        if data_store.has_key('sr'):
-#            print(f"Mean Strehl Ratio (@{params['psf']['wavelengthInNm']}nm) : {store.mean('sr', init=min([50, 0.1 * self.mainParams['total_time'] / self.mainParams['time_step']])) * 100.}")
+#            self.logger.info(f"Mean Strehl Ratio (@{params['psf']['wavelengthInNm']}nm) : {store.mean('sr', init=min([50, 0.1 * self.mainParams['total_time'] / self.mainParams['time_step']])) * 100.}")
 
     def get_info(self):
         '''Quick info string intended for web interfaces'''

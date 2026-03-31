@@ -22,7 +22,6 @@ class PhaseScreenCube(BaseProcessingObj):
                  pixel_scale: float,
                  source_dict: dict=None,
                  layer_height: float=0.0,
-                 verbose=None,
                  target_device_idx=None):
         """
         Parameters
@@ -41,9 +40,6 @@ class PhaseScreenCube(BaseProcessingObj):
             out_ef and out_layer.
         layer_height : float, optional
             Height in meters assigned to the output layer, by default 0.0.
-        verbose : bool, optional
-            If True, enables verbose output during phase screen generation.
-            Default is None (no verbose output).
         target_device_idx : int, optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
         """
@@ -63,8 +59,6 @@ class PhaseScreenCube(BaseProcessingObj):
         self.ef_outputs = {}
 
         self.pupilstop = None
-
-        self.verbose = verbose if verbose is not None else False
 
         output_specs = list(self.source_dict.items()) if self.source_dict else [(None, None)]
 

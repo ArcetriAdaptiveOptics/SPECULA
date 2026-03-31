@@ -79,13 +79,13 @@ class TestBaseValue(unittest.TestCase):
     def test_print_mem_usage_calls_print_on_gpu(self, target_device_idx, xp):
         """Ensure printMemUsage prints only for GPU."""
         obj = BaseTimeObj(target_device_idx=target_device_idx)
-        with patch("builtins.print") as mock_print:
+        with patch.object(obj.logger, "log") as mock_log:
             obj.gpu_bytes_used = 1048576  # 1MB
             obj.printMemUsage()
             if target_device_idx >= 0:
-                mock_print.assert_called_once()
+                mock_log.assert_called_once()
             else:
-                mock_print.assert_not_called()
+                mock_log.assert_not_called()
 
     # ---------- MONITORMEM DECORATOR TESTS ----------
 

@@ -69,7 +69,7 @@ class DataSource(BaseProcessingObj):
 
     def size(self, name, dimensions=False):
         if name not in self.storage:
-            print(f'The key: {name} is not stored in the object!')
+            self.logger.error(f'The key: {name} is not stored in the object!')
             return -1
         h = self.storage[name]
         return h.shape if not dimensions else h.shape[dimensions]
@@ -81,5 +81,4 @@ class DataSource(BaseProcessingObj):
                 self.outputs[k].set_value(self.outputs[k].xp.array(storage_dict[self.current_time]))
                 self.outputs[k].generation_time = self.current_time
             else:
-                if self.verbose:
-                    print(f'Warning: No data for key {k} at time {self.current_time}')
+                self.logger.info(f'Warning: No data for key {k} at time {self.current_time}')
