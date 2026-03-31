@@ -54,6 +54,41 @@ class ModalrecMultirate(BaseProcessingObj):
         for mask, rec_obj in zip(validity_masks, rec_objects):
             self.recmat_dict[tuple(mask)] = rec_obj
 
+        # =====================================================================
+        # SANITY CHECKS (Dimensions and Observability)
+        # =====================================================================
+        if self.recmat_dict:
+            # Helper to safely count zero rows using the target device framework (numpy/cupy)
+            def count_zero_rows(mat):
+                mat_xp = self.to_xp(mat)
+                row_sums = self.xp.sum(self.xp.abs(mat_xp), axis=1)
+                return int(self.xp.sum(row_sums < 1e-10))
+
+            n_sensors = len(list(self.recmat_dict.keys())[0])
+            all_true_mask = tuple([True] * n_sensors)
+
+            # Determine the baseline of unobservable modes (from the "all-sensors" state)
+            base_zero_rows = 0
+            if all_true_mask in self.recmat_dict:
+                base_zero_rows = count_zero_rows(self.recmat_dict[all_true_mask].recmat)
+
+            for mask, rec_obj in self.recmat_dict.items():
+                mat = rec_obj.recmat
+
+                # Check A: Matrix row size must perfectly match n_modes_total
+                if mat.shape[0] != self.n_modes_total:
+                    raise ValueError(f"Matrix for mask {mask} has {mat.shape[0]} rows, "
+                                     f"but n_modes_total is defined as {self.n_modes_total}.")
+
+                # Check B: Dropping sensors should not magically increase observability
+                if mask != all_true_mask:
+                    zero_rows = count_zero_rows(mat)
+                    if zero_rows < base_zero_rows:
+                        raise ValueError(f"Logical inconsistency: mask {mask} has {zero_rows}"
+                                         f" unobservable modes (zero rows), which is less than"
+                                         f" the all-True baseline ({base_zero_rows} zero rows)."
+                                         f" Dropping sensors cannot increase observability!")
+
         # Prepare the output value
         self.out_modes = BaseValue('output dynamic modes from multirate reconstructor',
                                    target_device_idx=target_device_idx,

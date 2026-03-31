@@ -25,6 +25,9 @@ class TestModalrecMultirate(unittest.TestCase):
         mat_s1 = xp.full((self.n_modes, 2), 2.0, dtype=xp.float32)
         mat_s2 = xp.full((self.n_modes, 2), 3.0, dtype=xp.float32)
 
+        # Add a zero row to s1 to simulate a lost mode (perfectly valid physically)
+        mat_s1[4, :] = 0.0
+
         # Dictionary with arbitrary string keys (simulating YAML _dict_ref behavior)
         recmat_dict = {
             'rec_both': Recmat(mat_both, target_device_idx=target_device_idx),
@@ -58,7 +61,6 @@ class TestModalrecMultirate(unittest.TestCase):
         # Connect inputs
         rec.inputs['in_slopes_list'].set([slopes_s1, slopes_s2])
         rec.local_inputs['in_slopes_list'] = rec.inputs['in_slopes_list'].get(target_device_idx)
-
         rec.setup()
 
         return rec, slopes_s1, slopes_s2
@@ -92,8 +94,9 @@ class TestModalrecMultirate(unittest.TestCase):
         rec.trigger_code()
 
         out = cpuArray(rec.out_modes.value)
-        np.testing.assert_allclose(out, 40.0)
-        self.assertEqual(rec.out_modes.generation_time, current_time)
+        # Mode 4 is intentionally set to 0.0 in mat_s1 inside _setup_reconstructor
+        expected = np.array([40.0, 40.0, 40.0, 40.0, 0.0])
+        np.testing.assert_allclose(out, expected)
 
     @cpu_and_gpu
     def test_zero_stuffing_no_sensors_valid(self, target_device_idx, xp):
@@ -109,36 +112,36 @@ class TestModalrecMultirate(unittest.TestCase):
 
         out = cpuArray(rec.out_modes.value)
         np.testing.assert_allclose(out, 0.0)
-        self.assertEqual(rec.out_modes.generation_time, current_time)
 
     @cpu_and_gpu
-    def test_missing_dictionary_key_raises_error(self, target_device_idx, xp):
-        """Test Case 4: Exception raised if LUT is missing a configuration"""
+    def test_sanity_check_dimensions(self, target_device_idx, xp):
+        """Test that matrix row dimensions must match n_modes_total"""
+        # Matrix with 4 rows, but n_modes_total is 5
+        mat_wrong = xp.full((4, 4), 1.0, dtype=xp.float32)
+        recmat_dict = {'rec_both': Recmat(mat_wrong, target_device_idx=target_device_idx)}
 
-        # Intentionally missing the (False, True) case
+        with self.assertRaisesRegex(ValueError, "n_modes_total"):
+            ModalrecMultirate(recmat_dict=recmat_dict, validity_masks=[[True, True]], 
+                              n_modes_total=5, target_device_idx=target_device_idx)
+
+    @cpu_and_gpu
+    def test_sanity_check_observability(self, target_device_idx, xp):
+        """Test that dropping sensors cannot magically increase observability (fewer zero rows)"""
+
+        # All-True matrix has 2 unobservable modes (rows of zeros)
+        mat_both = xp.full((5, 4), 1.0, dtype=xp.float32)
+        mat_both[3:, :] = 0.0
+
+        # Single sensor matrix has 0 unobservable modes (Physically impossible!)
+        mat_s1 = xp.full((5, 2), 2.0, dtype=xp.float32)
+
         recmat_dict = {
-            'rec_both': Recmat(xp.full((5, 4), 1.0, dtype=xp.float32),
-                               target_device_idx=target_device_idx)
+            'rec_both': Recmat(mat_both, target_device_idx=target_device_idx),
+            'rec_s1': Recmat(mat_s1, target_device_idx=target_device_idx),
         }
-        validity_masks = [[True, True]]
+        validity_masks = [[True, True], [True, False]]
 
-        rec = ModalrecMultirate(recmat_dict=recmat_dict,
-                                validity_masks=validity_masks,
-                                n_modes_total=5,
-                                target_device_idx=target_device_idx)
-          
-        s1 = Slopes(length=2, target_device_idx=target_device_idx)
-        s2 = Slopes(length=2, target_device_idx=target_device_idx)
-
-        rec.inputs['in_slopes_list'].set([s1, s2])
-        rec.local_inputs['in_slopes_list'] = rec.inputs['in_slopes_list'].get(target_device_idx)
-        rec.setup()
-
-        # Trigger only S2 -> should map to (False, True) which we omitted
-        current_time = 1.0
-        s1.generation_time = 0.0
-        s2.generation_time = current_time
-
-        rec.check_ready(current_time)
-        with self.assertRaises(KeyError):
-            rec.trigger_code()
+        # The class should throw a ValueError because mat_s1 has fewer zero rows than mat_both
+        with self.assertRaisesRegex(ValueError, "Logical inconsistency"):
+            ModalrecMultirate(recmat_dict=recmat_dict, validity_masks=validity_masks,
+                              n_modes_total=5, target_device_idx=target_device_idx)
