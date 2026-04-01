@@ -1,13 +1,17 @@
 import os
+import logging
 
 from specula import cpuArray
 from astropy.io import fits
 
 from specula.lib.calc_phasescreen import calc_phasescreen
 
-def phasescreens_manager(L0, dimension, pixel_pitch, directory, xp, precision, seed=None, verbose=False):
+def phasescreens_manager(L0, dimension, pixel_pitch, directory, xp, precision, seed=None, verbose=False, logger=None):
     if seed is None:
         seed = [0]
+
+    if logger is None:
+        logger = logging.getLogger(__name__)
     
     precision_str = 'single' if precision==1 else 'double'
 
@@ -43,10 +47,10 @@ def phasescreens_manager(L0, dimension, pixel_pitch, directory, xp, precision, s
             phasescreen = fits.getdata(os.path.join(directory, phasescreen_name3), memmap=True)
         else:
             # Calculate the phase screen if it does not exist
-            print('Calculating phasescreen...')
+            logger.info('Calculating phasescreen...')
             phasescreen = calc_phasescreen(L0i, dimension, pixel_pitch, seed=element, precision=precision, verbose=verbose, xp=xp)
             fits.writeto(os.path.join(directory, phasescreen_name), cpuArray(phasescreen), overwrite=True)
-            print('Done')
+            logger.info('Done')
         
         # Add the phase screen to the list
         phasescreens.append(phasescreen)

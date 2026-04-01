@@ -1,9 +1,6 @@
-
-# Python2/3 compatibility
-from __future__ import print_function
+import logging
 
 # TODO add astropy units
-
 
 def n_phot(
         mag,
@@ -15,7 +12,7 @@ def n_phot(
         e0=None,
         back_mag=None,
         model='default',
-        verbose=False):
+        logger=None):
     '''
     This routine computes from a source magnitude the corresponding
     number of photons for a given band, a given surface and a given time
@@ -45,6 +42,8 @@ def n_phot(
      back_mag = sky background default magnitude [FLOAT].
      model    = use the specified model instead the the default one (Lena 96).
                      Available model are: 'MAORY-1'   (phase A of Maory MCAO-EELT)
+     logger   = logger object, optional
+                logging.Logger instance to log output.
 
     OUTPUTS:
 
@@ -147,9 +146,14 @@ def n_phot(
                         Alfio Puglisi (OAA) [alfio.puglisi@inaf.it]
                          - translated to Python
                          - removed DOUBLE keyword
- 
+                      apr 2026
+                         Alfio Puglisi (OAA) [alfio.puglisi@inaf.it]
+                            - added logging and replaced print statements with logger calls
 
     '''
+    if  logger is None:
+        logger = logging.getLogger(__name__)
+
     mymodel = get_model(model)
 
     if band is None and lambda_ is None:
@@ -175,9 +179,9 @@ def n_phot(
         # Band not given. Use lambda to index lambda table and find band
 
         if lambda_ < min(mymodel.lambda_tab):
-            print('    ATTENTION:  lambda is < of the smallest element in lambda_tab')
+            logger.warning('lambda is < of the smallest element in lambda_tab')
         if lambda_ > max(mymodel.lambda_tab):
-            print('    ATTENTION:  lambda is > of the greater element in lambda_tab')
+            logger.warning('lambda is > of the greater element in lambda_tab')
 
         # Na band is chosen only if lambda is between 588.9 and 589.1 nm,
         # otherwise the band is searched in the other elements of lambda_tab
@@ -192,10 +196,9 @@ def n_phot(
         values = list(map(lambda x: abs(x - lambda_), values))
         idx_band = values.index(min(values))
 
-    if verbose:
-        print('BAND index number       : ', idx_band)
-        print('BAND                    : ', mymodel.band_tab[idx_band])
-        print('BAND CENTRAL WAVELENGTH : ', mymodel.lambda_tab[idx_band])
+    logger.info('BAND index number       : ', idx_band)
+    logger.info('BAND                    : ', mymodel.band_tab[idx_band])
+    logger.info('BAND CENTRAL WAVELENGTH : ', mymodel.lambda_tab[idx_band])
 
     if width is None:
         width = mymodel.width_tab[idx_band]  # bandwidth[m]

@@ -1,9 +1,10 @@
+import logging
 from specula import cpuArray
 from specula.base_data_obj import BaseDataObj
 from astropy.io import fits
 
 
-def cut_modes(matrix, start_mode=None, nmodes=None, idx_modes=None, modes_on_first_axis=True):
+def cut_modes(matrix, start_mode=None, nmodes=None, idx_modes=None, modes_on_first_axis=True, logger=None):
     """
     Cut the an influence function (or an inverse one) to a subset of modes.
     
@@ -20,14 +21,20 @@ def cut_modes(matrix, start_mode=None, nmodes=None, idx_modes=None, modes_on_fir
     modes_on_first_axis : bool, optional
         Whether the modes are on the first axis (rows) or second axis (columns) of the input array (default: True).
         For IFunc, modes are on the first axis. For IFuncInv, modes are on the second axis.
+    logger : logger object, optional
+        logging.Logger instance to log output.
+        If None, a default logger will be used.
     """
+    if logger is None:
+        logger = logging.getLogger(__name__)
+
     if idx_modes is not None:
         if start_mode is not None:
             start_mode = None
-            print('cut_modes: start_mode cannot be set together with idx_modes. Setting to None start_mode.')
+            logger.warning('cut_modes: start_mode cannot be set together with idx_modes. Setting to None start_mode.')
         if nmodes is not None:
             nmodes = None
-            print('cut_modes: nmodes cannot be set together with idx_modes. Setting to None nmodes.')
+            logger.warning('cut_modes: nmodes cannot be set together with idx_modes. Setting to None nmodes.')
 
     orig_nmodes = matrix.shape[0 if modes_on_first_axis else 1]
 

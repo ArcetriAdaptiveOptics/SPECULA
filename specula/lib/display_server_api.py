@@ -1,6 +1,7 @@
 import io
 import os
 import socket
+import logging
 import threading
 import time
 import queue
@@ -155,7 +156,13 @@ class FlaskServer:
                  request_queue: mp.Queue,
                  host: str = '0.0.0.0',
                  port: int = 5000,
+                 logger: logging.Logger = None
                  ):
+        if logger is None:
+            self.logger = logging.getLogger(__name__)
+        else:
+            self.logger = logger
+
         self.params_dict = params_dict
         self.t0 = {}
         self.status_queue = status_queue
@@ -261,20 +268,20 @@ class FlaskServer:
                     response_type, client_id, name, data = item
                     
                     if response_type not in self.response_handlers:
-                        print(f"[SERVER] No handler for response type: {response_type}")
+                        self.logger.error(f"[SERVER] No handler for response type: {response_type}")
                         continue
 
                     try:
                         self.response_handlers[response_type](client_id, name, data)
                     except Exception as e:
-                        print(f"[SERVER][{self.__class__.__name__}] Error handling response of type {response_type} for {name}: {e}")
+                        self.logger.error(f"[SERVER][{self.__class__.__name__}] Error handling response of type {response_type} for {name}: {e}")
                 else:
-                    print(f"[SERVER][{self.__class__.__name__}] Unknown item format: {item}")
+                    self.logger.error(f"[SERVER][{self.__class__.__name__}] Unknown item format: {item}")
                     
             except queue.Empty:
                 continue
             except Exception as e:
-                print(f"[SERVER][{self.__class__.__name__}] Error in response handler: {e}")
+                self.logger.error(f"[SERVER][{self.__class__.__name__}] Error in response handler: {e}")
                 import traceback
                 traceback.print_exc()
 
@@ -311,7 +318,7 @@ class DataFlaskServer(FlaskServer):
                     'data': data
                 }, room=client_id)
             except Exception as e:
-                print(f"[SERVER][DataMode] Error emitting to {client_id}: {e}")
+                self.logger.error(f"[SERVER][DataMode] Error emitting to {client_id}: {e}")
     
     def register_additional_response_handlers(self):
         self.response_handlers['data_response'] = self.data_response_handler

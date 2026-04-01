@@ -108,7 +108,10 @@ def init(device_idx=-1,
         '''
         def format(self, record):
             if hasattr(record, "instance_name") and record.instance_name:
-                record.name = f'{record.name} - {record.instance_name}'
+                if record.levelno <= logging.DEBUG or record.instance_name in ['initialising', 'restored']:
+                    record.name = f'{record.name} - {record.instance_name}'
+                else:
+                    record.name = record.instance_name
             return formatter.format(record)
 
     handler = logging.StreamHandler()

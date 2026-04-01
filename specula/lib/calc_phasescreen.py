@@ -1,19 +1,24 @@
+import logging
 from specula import cpuArray, float_dtype_list
 from specula import complex_dtype_list
 from specula.lib.calc_spatialfrequency import calc_spatialfrequency
 
 
-def calc_phasescreen(L0, dimension, pixel_pitch, xp, precision, seed=0, verbose=False):
-    if verbose:
-        print("Phase-screen computation")
+def calc_phasescreen(L0, dimension, pixel_pitch, xp, precision, seed=0, verbose=False, logger=None):
+
+    if logger is None:
+        # This logger will propagate to the root logger,
+        # so it will use the configuration of the root logger.
+        logger = logging.getLogger(__name__)
+
+    logger.debug("Phase-screen computation")
 
     # Ensure that the dimension is a multiple of 2
     n = int(xp.ceil(xp.log2(float(dimension))))
     if dimension != 2**n:
         # Force dimension to be a multiple of 2^n
         dimension = 2**n
-        if verbose:
-            print(f"Dimension is not a multiple of 2, it has been set to {dimension}")
+        logger.info(f"Dimension is not a multiple of 2, it has been set to {dimension}")
 
     # Data type based on precision
     dtype = float_dtype_list[precision]
@@ -25,8 +30,7 @@ def calc_phasescreen(L0, dimension, pixel_pitch, xp, precision, seed=0, verbose=
     # Create random Gaussian matrices for the real and imaginary parts
     half_dim = dimension // 2
 
-    if verbose:
-        print("Compute random matrices")
+    logger.debug("Compute random matrices")
 
     # "seed" must be a numpy array even when using CuPY 
     rng = xp.random.RandomState(cpuArray(seed))
@@ -45,9 +49,9 @@ def calc_phasescreen(L0, dimension, pixel_pitch, xp, precision, seed=0, verbose=
         idx_inf = xp.where(~temp)[0]
         idx_fin = xp.where(temp)[0]
         if len(idx_inf[0]) > 0.01 * temp.size:
-            print("Not finite elements are more than 1% of the total!")
+            logger.error("Not finite elements are more than 1% of the total!")
             return None
-        print(f"Not finite elements: {len(idx_inf[0])}")
+        logger.info(f"Not finite elements: {len(idx_inf[0])}")
         re_gauss[idx_inf] = xp.mean(re_gauss[idx_fin])
 
     if not xp.isfinite(im_gauss).all():
@@ -55,17 +59,16 @@ def calc_phasescreen(L0, dimension, pixel_pitch, xp, precision, seed=0, verbose=
         idx_inf = xp.where(~temp)[0]
         idx_fin = xp.where(temp)[0]
         if len(idx_inf[0]) > 0.01 * temp.size:
-            print("Not finite elements are more than 1% of the total!")
+            logger.error("Not finite elements are more than 1% of the total!")
             return None
-        print(f"Not finite elements: {len(idx_inf[0])}")
+        logger.info(f"Not finite elements: {len(idx_inf[0])}")
         im_gauss[idx_inf] = xp.mean(im_gauss[idx_fin])
 
     # Initialize the phasescreen
     phasescreen = xp.zeros((dimension, dimension), dtype=complex_dtype)
     iu = complex_dtype(1j)
 
-    if verbose:
-        print("Compute noise matrix")
+    logger.debug("Compute noise matrix")
 
     # Fill in the noise matrix
     phasescreen[half_dim:2 * half_dim, 0:2 * half_dim] = re_gauss[1:half_dim + 1, 1:2 * half_dim + 1] \
@@ -79,8 +82,7 @@ def calc_phasescreen(L0, dimension, pixel_pitch, xp, precision, seed=0, verbose=
     phasescreen[2*half_dim-1, :] = 0
     phasescreen[:, 2*half_dim-1] = 0
 
-    if verbose:
-        print("Compute spatial frequency matrix")
+    logger.debug("Compute spatial frequency matrix")
 
     # Compute spatial frequency matrix
     spatial_frequency = calc_spatialfrequency(dimension, xp=xp, precision=precision)
@@ -92,9 +94,9 @@ def calc_phasescreen(L0, dimension, pixel_pitch, xp, precision, seed=0, verbose=
         idx_inf = xp.where(~temp)[0]
         idx_fin = xp.where(temp)[0]
         if len(idx_inf[0]) > 0.01 * temp.size:
-            print("Not finite elements are more than 1% of the total!")
+            logger.error("Not finite elements are more than 1% of the total!")
             return None
-        print(f"Not finite elements: {len(idx_inf[0])}")
+        logger.info(f"Not finite elements: {len(idx_inf[0])}")
         phasescreen[idx_inf] = xp.mean(phasescreen[idx_fin])
 
     # Apply spatial frequency
