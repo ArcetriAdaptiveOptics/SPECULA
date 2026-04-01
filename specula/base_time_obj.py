@@ -76,9 +76,6 @@ class BaseTimeObj:
     def init_logging(self, name, level):
         self.logger.extra['instance_name'] = name
 
-    def set_log_level(self, loglevel):
-        self.logger.setLevel(loglevel)
-
     def t_to_seconds(self, t):
         return float(t) / float(self._time_resolution)
 
