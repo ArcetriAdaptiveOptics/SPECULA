@@ -177,7 +177,6 @@ class AtmoEvolution(BaseProcessingObj):
             square_phasescreens = phasescreens_manager(L0, self.pixel_square_phasescreens,
                                                         self.pixel_pitch, self.data_dir,
                                                         seed=seed, precision=self.precision,
-                                                        verbose=self.logger.level <= logging.DEBUG,
                                                         xp=self.xp)
 
             square_ps_index = -1
@@ -209,7 +208,6 @@ class AtmoEvolution(BaseProcessingObj):
                                                        self.data_dir,
                                                        seed=seed,
                                                        precision=self.precision,
-                                                       verbose=self.logger.level <= logging.DEBUG,
                                                        xp=self.xp)
 
             for i in range(self.n_phasescreens):

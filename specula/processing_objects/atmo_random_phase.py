@@ -141,7 +141,6 @@ class AtmoRandomPhase(BaseProcessingObj):
                                                    self.pixel_square_phasescreens,
                                                    self.pixel_pitch, self.data_dir,
                                                    seed=self.seed, precision=self.precision,
-                                                   verbose=self.logger.level <= logging.DEBUG,
                                                    xp=self.xp)
         # number of slices to be cut from the 2D array
         num_slices = self.pixel_square_phasescreens // self.pixel_pupil

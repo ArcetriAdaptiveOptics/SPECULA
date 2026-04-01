@@ -3,8 +3,7 @@ Signal demodulation utilities.
 Based on demodulate_passata.pro from PASSATA/LBT-SOUL.
 """
 import logging
-from numpy import np
-
+import numpy as np
 
 def demodulate_signal(signal_data, carrier_freq, sampling_freq,
                      cumulated=True, xp=np, dtype=np.float32, logger=None):

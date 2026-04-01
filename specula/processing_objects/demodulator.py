@@ -88,7 +88,6 @@ class Demodulator(BaseProcessingObj):
                 carrier_freq=float(self.carrier_frequencies[i]),
                 sampling_freq=sampling_freq,
                 cumulated=True,
-                verbose=self.logger.level <= logging.DEBUG,
                 xp=self.xp,
                 dtype=self.dtype
             )
