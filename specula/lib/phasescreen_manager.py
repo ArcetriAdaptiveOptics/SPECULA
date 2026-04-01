@@ -6,7 +6,7 @@ from astropy.io import fits
 
 from specula.lib.calc_phasescreen import calc_phasescreen
 
-def phasescreens_manager(L0, dimension, pixel_pitch, directory, xp, precision, seed=None, verbose=False, logger=None):
+def phasescreens_manager(L0, dimension, pixel_pitch, directory, xp, precision, seed=None, logger=None):
     if seed is None:
         seed = [0]
 
@@ -48,7 +48,7 @@ def phasescreens_manager(L0, dimension, pixel_pitch, directory, xp, precision, s
         else:
             # Calculate the phase screen if it does not exist
             logger.info('Calculating phasescreen...')
-            phasescreen = calc_phasescreen(L0i, dimension, pixel_pitch, seed=element, precision=precision, verbose=verbose, xp=xp)
+            phasescreen = calc_phasescreen(L0i, dimension, pixel_pitch, seed=element, precision=precision, xp=xp)
             fits.writeto(os.path.join(directory, phasescreen_name), cpuArray(phasescreen), overwrite=True)
             logger.info('Done')
         

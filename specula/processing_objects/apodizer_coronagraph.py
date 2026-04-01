@@ -1,3 +1,5 @@
+import logging
+
 from specula.processing_objects.abstract_coronagraph import Coronagraph
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.make_mask import make_mask
@@ -62,7 +64,7 @@ class APPCoronagraph(Coronagraph):
                     pad_start:pad_start+self.fft_sampling] = self.xp.array(pupil)
         app = generate_app_keller(pad_pupil, self.xp.array(target_contrast),
                                   max_iterations=max_its, beta=beta, xp=self.xp,
-                                  complex_dtype=self.complex_dtype)
+                                  complex_dtype=self.complex_dtype, logger=self.logger)
         apodizer_phase = self.xp.zeros(pupil.shape,dtype=self.complex_dtype)
         apodizer_phase[pupil>0] = self.xp.angle(app)[pad_pupil>0.0]
         return apodizer_phase, target_contrast
@@ -154,7 +156,7 @@ class PAPLCoronagraph(APPCoronagraph):
 
 # Outside the class on purpose, move inside or to its own module if you prefer
 def generate_app_keller(pupil, target_contrast, max_iterations:int,
-                        xp, complex_dtype, beta:float=0):
+                        xp, complex_dtype, beta:float=0, logger=None):
     """
     Function taken from HCIpy (Por et al. 2018):
     https://github.com/ehpor/hcipy/blob/master/hcipy/coronagraphy/apodizing_phase_plate.py
@@ -186,6 +188,8 @@ def generate_app_keller(pupil, target_contrast, max_iterations:int,
         The acceleration parameter. The default is 0 (no acceleration).
         Good values for beta are typically between 0.3 and 0.9. Values larger
         than 1.0 will not work.
+    logger : logging.Logger, optional
+        Logger for logging messages. If None, a default logger will be used.
 
     Returns
     -------
@@ -201,6 +205,9 @@ def generate_app_keller(pupil, target_contrast, max_iterations:int,
     if beta < 0 or beta > 1:
         raise ValueError('Beta should be between 0 and 1.')
     
+    if logger is None:
+        logger = logging.getLogger(__name__)
+
     iu = complex_dtype(1j)
 
     # initialize APP with pupil
@@ -237,8 +244,8 @@ def generate_app_keller(pupil, target_contrast, max_iterations:int,
                       f' reached, worst contrast in dark hole is:'
                       f' {xp.log10(xp.max(contrast[dark_zone])):1.1f}')
 
-    print(f'Apodizer computed: average contrast in dark hole is'
-          f' {xp.mean(xp.log10(contrast[dark_zone])):1.1f}, Strehl'
-          f' is {xp.max(psf)/xp.max(ref_psf)*1e+2:1.2f}%')
+    logger.info(f'Apodizer computed: average contrast in dark hole is'
+                f' {xp.mean(xp.log10(contrast[dark_zone])):1.1f}, Strehl'
+                f' is {xp.max(psf)/xp.max(ref_psf)*1e+2:1.2f}%')
 
     return xp.array(app)

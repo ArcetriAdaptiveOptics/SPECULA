@@ -196,9 +196,9 @@ def n_phot(
         values = list(map(lambda x: abs(x - lambda_), values))
         idx_band = values.index(min(values))
 
-    logger.info('BAND index number       : ', idx_band)
-    logger.info('BAND                    : ', mymodel.band_tab[idx_band])
-    logger.info('BAND CENTRAL WAVELENGTH : ', mymodel.lambda_tab[idx_band])
+    logger.info(f'BAND index number       : {idx_band}')
+    logger.info(f'BAND                    : {mymodel.band_tab[idx_band]}')
+    logger.info(f'BAND CENTRAL WAVELENGTH : {mymodel.lambda_tab[idx_band]}')
 
     if width is None:
         width = mymodel.width_tab[idx_band]  # bandwidth[m]
@@ -303,5 +303,4 @@ n_phot.__annotations__ = {
     'e0': float,
     'back_mag': float,
     'model': str,
-    'verbose': bool,
 }
