@@ -6,8 +6,10 @@ from astropy.io import fits
 from specula.lib.compute_zonal_ifunc import compute_zonal_ifunc
 from specula.lib.compute_zern_ifunc import compute_zern_ifunc
 
+
 def compute_kl_ifunc(*args, **kwargs):
     raise NotImplementedError
+
 
 def compute_mixed_ifunc(*args, **kwargs):
     raise NotImplementedError

@@ -30,7 +30,7 @@ class BaseTimeObj:
         else:
             self.target_device_idx = target_device_idx
 
-        if self.target_device_idx>=0:
+        if self.target_device_idx >= 0:
             self._target_device = cp.cuda.Device(self.target_device_idx)      # GPU case
             self.dtype = gpu_float_dtype_list[self.precision]
             self.complex_dtype = gpu_complex_dtype_list[self.precision]
@@ -43,7 +43,7 @@ class BaseTimeObj:
             self.xp = np
             self.xp_str = 'np'
 
-        if self.target_device_idx>=0:
+        if self.target_device_idx >= 0:
             from cupyx.scipy.ndimage import rotate as ndimage_rotate
             from cupyx.scipy.ndimage import shift as ndimage_shift
             from cupyx.scipy.ndimage import center_of_mass as ndimage_center_of_mass

@@ -571,7 +571,7 @@ class FieldAnalyser:
 
         # Setup replay parameters and run simulation
         replay_params = self._build_replay_params_psf()
-        simul = self._run_simulation_with_params(replay_params, self.psf_output_dir)
+        _ = self._run_simulation_with_params(replay_params, self.psf_output_dir)
 
         if self.verbose:
             print(f"Actual PSF pixel size: {self.psf_pixel_size_mas:.2f} mas")
@@ -619,7 +619,7 @@ class FieldAnalyser:
 
         # Setup replay parameters and run simulation
         replay_params = self._build_replay_params_modal(modal_params)
-        simul = self._run_simulation_with_params(replay_params, self.modal_output_dir)
+        _ = self._run_simulation_with_params(replay_params, self.modal_output_dir)
 
         # Extract results from DataStore (files are automatically saved)
         results = self._load_modal_results(modal_params)
@@ -650,7 +650,7 @@ class FieldAnalyser:
 
         # Setup replay parameters and run simulation
         replay_params = self._build_replay_params_cube()
-        simul = self._run_simulation_with_params(replay_params, self.cube_output_dir)
+        _ = self._run_simulation_with_params(replay_params, self.cube_output_dir)
 
         # Extract results from DataStore (files are automatically saved)
         results = self._load_cube_results()

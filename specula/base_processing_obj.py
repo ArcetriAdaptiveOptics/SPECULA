@@ -27,7 +27,7 @@ class BaseProcessingObj(BaseTimeObj):
         self.verbose = 0
 
         # Stream/input management
-        self.stream  = None
+        self.stream = None
         self.inputs_changed = False
         self.cuda_graph = None
 
@@ -60,7 +60,7 @@ class BaseProcessingObj(BaseTimeObj):
         the trigger method, based on the input states
         '''
         # No inputs: always trigger
-        if len(self.inputs)==0:
+        if len(self.inputs) == 0:
             return True
 
         self.get_all_inputs()
@@ -147,7 +147,6 @@ class BaseProcessingObj(BaseTimeObj):
             if self.cuda_graph:
                 self.stream.synchronize()
 
-
     def send_remote_output(self, item, dest_rank, dest_tag, first_mpi_send=True, out_name=''):
         if MPI_SEND_DBG: print(process_rank, f'SEND to rank {dest_rank} {dest_tag=} {(dest_tag in self.sent_valid)=} (from {self.name}.{out_name})', flush=True)
         if first_mpi_send or not dest_tag in self.sent_valid:
@@ -156,7 +155,7 @@ class BaseProcessingObj(BaseTimeObj):
             item.xp = 0            
             process_comm.ibsend(item, dest=dest_rank, tag=dest_tag)
             item.xp = xp_orig
-        else:            
+        else:
             buffer = item.get_value()
             if MPI_SEND_DBG:  print(process_rank, dest_tag, 'SEND .device', buffer.device)
             if MPI_SEND_DBG: print(process_rank, 'SEND with Buffer', dest_tag, type(buffer), buffer, flush=True)
@@ -167,7 +166,6 @@ class BaseProcessingObj(BaseTimeObj):
             process_comm.ibsend(item.generation_time, dest=dest_rank, tag=dest_tag+1)
         if item.get_value() is not None:
             self.sent_valid[dest_tag] = True
-
 
     # this method implements the mpi send call of the outputs connected to remote inputs
     def send_outputs(self, skip_delayed=False, delayed_only=False, first_mpi_send=True):
@@ -209,7 +207,7 @@ class BaseProcessingObj(BaseTimeObj):
         return cls._streams[target_device_idx]
 
     def build_stream(self, allow_parallel=True):
-        if self.target_device_idx>=0:
+        if self.target_device_idx >= 0:
             self._target_device.use()
             if allow_parallel:
                 self.stream = cp.cuda.Stream(non_blocking=False)
@@ -246,13 +244,13 @@ class BaseProcessingObj(BaseTimeObj):
             raise RuntimeError("trigger() called when the object's inputs have not changed")
 
         with show_in_profiler(self.__class__.__name__+'.trigger'):
-            if self.target_device_idx>=0:
+            if self.target_device_idx >= 0:
                 self._target_device.use()
-            if self.target_device_idx>=0 and self.cuda_graph:
+            if self.target_device_idx >= 0 and self.cuda_graph:
                 self.cuda_graph.launch(stream=self.stream)
             else:
                 self.trigger_code()
-             
+
     def setup(self):
         """
         Override this method to perform any setup
@@ -260,7 +258,6 @@ class BaseProcessingObj(BaseTimeObj):
 
         The base class implementation also checks that
         all non-optional inputs have been set.
-        
         """
         if self.target_device_idx >= 0:
             self._target_device.use()
@@ -276,6 +273,3 @@ class BaseProcessingObj(BaseTimeObj):
         the simulation is completed
         '''
         pass
-
-
-
