@@ -36,18 +36,13 @@ ocam_override:
   readout_noise:  false                   # No read noise
   excess_noise:   false                   # No excess noise
 
-atmo_modes_override:
-  inputs:
-    in_ef: ['ef_prop.out_ef']
-
 # Data store for results
 data_store_override:
-  class:             'DataStore'
-  store_dir:         '/raid1/mmenessini/calibration/SOUL/scratch_aliasing'             # Data result directory: 'store_dir'/TN/
+  store_dir:         '/raid1/mmenessini/calibration/SOUL/scratch_aliasing' 
   create_tn: false
   inputs:
-    input_list: ['pyr_modes-pyr_modalrec.out_modes','atmo_res-atmo_modes.out_modes']
+    input_list: ['pyr_modes-pyr_modalrec.out_modes']
 
 
 # Remove unnecessary objects during calibration
-remove: ['dm_mode_res','filter','psf','dm'] #, 'bootstrap', 'concat_wfs_modes'
+remove: ['dm_mode_res','filter','psf','dm'] 
