@@ -10,7 +10,7 @@ from specula import process_rank
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_data_obj import BaseDataObj
 
-from specula.log import get_specula_logger
+from specula.log import get_level_names_mapping, get_specula_logger
 from specula.loop_control import LoopControl
 from specula.lib.utils import import_class, get_type_hints, remove_suffix
 from specula.calib_manager import CalibManager
@@ -485,7 +485,7 @@ class Simul():
         Set the log level of the object according to the "verbose" parameter in the pars dictionary, which
         can be either a boolean or an integer. If the parameter is not present, the log level of the Simul object is used.
         '''
-        levels = logging.getLevelNamesMapping()
+        levels = get_level_names_mapping()
         if 'verbose' in pars:
             if pars['verbose'] is True:
                 level = logging.DEBUG
