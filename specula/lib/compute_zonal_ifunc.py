@@ -1,4 +1,4 @@
-import logging
+from specula.log import get_specula_logger
 
 from scipy.interpolate import Rbf
 import numpy as np
@@ -71,7 +71,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
         idx = xp.where(mask)
 
     if logger is None:
-        logger = logging.getLogger(__name__)
+        logger = get_specula_logger(__name__)
 
     # ----------------------------------------------------------
     # ----------------------------------------------------------
@@ -342,7 +342,7 @@ def apply_slaving(ifs_cube, coordinates, idx, step, slaving_thr=0.1,
     Routes to standard (proximity) or linear (PTT extrapolation) weighting logic.
     """
     if logger is None:
-        logger = logging.getLogger(__name__)
+        logger = get_specula_logger(__name__)
 
     n_act_tot = ifs_cube.shape[0]
 

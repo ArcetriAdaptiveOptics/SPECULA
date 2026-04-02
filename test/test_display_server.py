@@ -1,4 +1,4 @@
-import logging
+from specula.log import get_specula_logger
 import specula
 specula.init(0)  # Default target device
 
@@ -162,7 +162,7 @@ class TestProcessForDpg(unittest.TestCase):
                 server.speed_report = ''
                 server.data_obj_getter = lambda name: None
                 server.info_getter = lambda: ('sim', 'running')
-                server.logger = logging.getLogger('test_logger')
+                server.logger = get_specula_logger('test_logger')
                 return server
 
     def test_scalar_array(self):
@@ -265,7 +265,7 @@ class TestDisplayServerTrigger(unittest.TestCase):
                 server.c0 = 0
                 server.speed_report = ''
                 server.info_getter = lambda: ('sim', 'running')
-                server.logger = logging.getLogger('test_logger')
+                server.logger = get_specula_logger('test_logger')
                 return server
 
     # -- image mode --
@@ -391,7 +391,7 @@ class TestDisplayServerFinalize(unittest.TestCase):
         with patch.object(mp.Process, 'start'):
             with patch('specula.processing_objects.display_server.start_server'):
                 server = DisplayServer.__new__(DisplayServer)
-                server.logger = logging.getLogger('test_logger')
+                server.logger = get_specula_logger('test_logger')
                 mock_proc = MagicMock()
                 mock_proc.is_alive.return_value = True
                 server.p = mock_proc
@@ -1050,7 +1050,7 @@ class TestDisplayServerTriggerExtra(unittest.TestCase):
         srv.c0 = 0
         srv.speed_report = ''
         srv.info_getter = lambda: ('sim', 'running')
-        srv.logger = logging.getLogger('test_logger')
+        srv.logger = get_specula_logger('test_logger')
         return srv
 
     def test_trigger_image_list_dataobj(self):

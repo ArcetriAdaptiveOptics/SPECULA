@@ -1,15 +1,16 @@
-import logging
 import re
 import typing
 import inspect
+import logging
 import itertools
 from copy import deepcopy
 from pathlib import Path
 from collections import Counter, namedtuple
-from specula import RankLogger, process_rank
+from specula import process_rank
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_data_obj import BaseDataObj
 
+from specula.log import get_specula_logger
 from specula.loop_control import LoopControl
 from specula.lib.utils import import_class, get_type_hints, remove_suffix
 from specula.calib_manager import CalibManager
@@ -83,7 +84,7 @@ class Simul():
         self.diagram_filename = diagram_filename
         self.diagram_colors_on = diagram_colors_on
         self.speed_report = speed_report
-        self.logger = RankLogger(logging.getLogger('specula.simul'), {})
+        self.logger = get_specula_logger(__name__)
         self.logger.setLevel(log_level)
 
     def split_output(self, output_name, get_ref=False, use_inputs=False):
@@ -299,7 +300,7 @@ class Simul():
         self.setSimulParams(params)
 
         cm = CalibManager(self.mainParams['root_dir'])
-        skip_pars = 'class inputs outputs'.split()
+        skip_pars = 'class inputs outputs verbose'.split()
         if 'add_modules' in self.mainParams:
             additional_modules = self.mainParams['add_modules']
         else:
@@ -429,8 +430,7 @@ class Simul():
                         filename = cm.filename(parname, value)  # TODO use partype instead of parname?
                         self.logger.info(f'Restoring: {filename}')
                         parobj = partype.restore(filename, target_device_idx=target_device_idx)
-                        parobj.name = 'restored'
-                        self.obj_init_logging(parobj, pars)
+                        self.obj_init_logging(parobj)
                         parobj.printMemUsage()
 
                         # Set data_tag
@@ -468,7 +468,7 @@ class Simul():
             try:
                 self.objs[key] = klass(**my_params)
                 self.objs[key].name = key
-                self.obj_init_logging(self.objs[key], my_params)
+                self.obj_init_logging(self.objs[key], pars)
             except Exception:
                 self.logger.error('Exception building {key}')
                 raise
@@ -480,22 +480,26 @@ class Simul():
             if type(self.objs[key]) is DataStore:
                 self.objs[key].setParams(params)
 
-    def obj_init_logging(self, obj, pars):
+    def obj_init_logging(self, obj, pars={}):
         '''
         Set the log level of the object according to the "verbose" parameter in the pars dictionary, which
         can be either a boolean or an integer. If the parameter is not present, the log level of the Simul object is used.
         '''
+        levels = logging.getLevelNamesMapping()
         if 'verbose' in pars:
             if pars['verbose'] is True:
-                level = logging.INFO
+                level = logging.DEBUG
             elif pars['verbose'] is False:
-                level = logging.WARNING
-            elif type(level) is int:
+                level = logging.INFO
+            elif type(pars['verbose']) is int:
                 level = int(pars['verbose'])
+            elif type(pars['verbose']) is str and pars['verbose'].upper() in levels.keys():
+                level = levels[pars['verbose'].upper()]
             else:
-                raise ValueError(f'Invalid value for "verbose" parameter: {pars["verbose"]} (should be an integer number or True/False)')
+                raise ValueError(f'Invalid value for "verbose" parameter: {pars["verbose"]} (should be an integer number or True/False or a level string)')
+            del pars['verbose']
         else:
-            level = None
+            level = self.logger.getEffectiveLevel()
         if hasattr(obj, 'name'):
             obj.init_logging(obj.name, level)
         else:

@@ -1,4 +1,4 @@
-import logging
+from specula.log import get_specula_logger
 import numpy as np
 from specula import RAD2ASEC
 
@@ -53,7 +53,7 @@ def calc_geometry(
     if logger is None:
         # This logger will propagate to the root logger,
         # so it will use the configuration of the root logger.
-        logger = logging.getLogger(__name__)
+        logger = get_specula_logger(__name__)
 
     fov_internal = wavelengthInNm * 1e-9 / pixel_pitch * RAD2ASEC
 

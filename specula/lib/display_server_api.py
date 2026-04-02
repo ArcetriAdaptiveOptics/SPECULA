@@ -1,7 +1,8 @@
 import io
+import logging
 import os
 import socket
-import logging
+from specula.log import get_specula_logger
 import threading
 import time
 import queue
@@ -159,7 +160,7 @@ class FlaskServer:
                  logger: logging.Logger = None
                  ):
         if logger is None:
-            self.logger = logging.getLogger(__name__)
+            self.logger = get_specula_logger(__name__)
         else:
             self.logger = logger
 

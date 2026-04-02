@@ -2,7 +2,7 @@
 Signal demodulation utilities.
 Based on demodulate_passata.pro from PASSATA/LBT-SOUL.
 """
-import logging
+from specula.log import get_specula_logger
 import numpy as np
 
 def demodulate_signal(signal_data, carrier_freq, sampling_freq,
@@ -60,7 +60,7 @@ def demodulate_signal(signal_data, carrier_freq, sampling_freq,
     - LBT-SOUL calibration software (2020)
     """
     if logger is None:
-        logger = logging.getLogger(__name__)
+        logger = get_specula_logger(__name__)
 
     # Convert to array
     data = xp.asarray(signal_data, dtype=dtype)

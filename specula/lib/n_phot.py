@@ -1,4 +1,4 @@
-import logging
+from specula.log import get_specula_logger
 
 # TODO add astropy units
 
@@ -152,7 +152,7 @@ def n_phot(
 
     '''
     if  logger is None:
-        logger = logging.getLogger(__name__)
+        logger = get_specula_logger(__name__)
 
     mymodel = get_model(model)
 

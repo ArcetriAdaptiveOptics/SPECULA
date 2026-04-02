@@ -1,4 +1,4 @@
-import logging
+from specula.log import get_specula_logger
 from specula import cpuArray
 from specula.base_data_obj import BaseDataObj
 from astropy.io import fits
@@ -26,7 +26,7 @@ def cut_modes(matrix, start_mode=None, nmodes=None, idx_modes=None, modes_on_fir
         If None, a default logger will be used.
     """
     if logger is None:
-        logger = logging.getLogger(__name__)
+        logger = get_specula_logger(__name__)
 
     if idx_modes is not None:
         if start_mode is not None:

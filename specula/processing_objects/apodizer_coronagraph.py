@@ -1,4 +1,4 @@
-import logging
+from specula.log import get_specula_logger
 
 from specula.processing_objects.abstract_coronagraph import Coronagraph
 from specula.data_objects.simul_params import SimulParams
@@ -206,7 +206,7 @@ def generate_app_keller(pupil, target_contrast, max_iterations:int,
         raise ValueError('Beta should be between 0 and 1.')
     
     if logger is None:
-        logger = logging.getLogger(__name__)
+        logger = get_specula_logger(__name__)
 
     iu = complex_dtype(1j)
 

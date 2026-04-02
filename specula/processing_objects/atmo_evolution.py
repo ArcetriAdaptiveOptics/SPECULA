@@ -1,4 +1,3 @@
-import logging
 from specula import cpuArray, ASEC2RAD, np
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_value import BaseValue

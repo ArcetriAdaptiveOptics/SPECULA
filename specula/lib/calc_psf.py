@@ -1,4 +1,4 @@
-import logging
+from specula.log import get_specula_logger
 import numpy as np
 from collections import namedtuple
 
@@ -125,7 +125,7 @@ def calc_psf_sampling(pixel_pupil: int,
         psf_sampling: The calculated sampling factor
     """
     if logger is None:
-        logger = logging.getLogger(__name__)
+        logger = get_specula_logger(__name__)
 
     # Calculate pupil diameter in meters
     dim_pup_in_m = pixel_pupil * pixel_pitch

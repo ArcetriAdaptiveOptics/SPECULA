@@ -1,12 +1,11 @@
-from collections import defaultdict
 import logging
+from collections import defaultdict
 
 from specula import cpuArray, default_target_device, cp
 from specula import show_in_profiler
 from specula import process_comm
 from specula.base_time_obj import BaseTimeObj
 from specula.data_objects.layer import Layer
-
 
 class BaseProcessingObj(BaseTimeObj):
 

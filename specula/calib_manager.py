@@ -1,8 +1,8 @@
 
-import logging
 import os
 from astropy.io import fits
-from specula import RankLogger
+
+from specula.log import get_specula_logger
 
 
 class CalibManager():
@@ -82,8 +82,7 @@ class CalibManager():
             'projection': 'popt/'
         }
         self.root_dir = root_dir
-        orig_logger = logging.getLogger('specula.calib_manager')
-        self.logger = RankLogger(orig_logger, {})
+        self.logger = get_specula_logger('specula.calib_manager')
 
     def root_subdir(self, type):
         """

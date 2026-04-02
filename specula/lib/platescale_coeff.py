@@ -1,5 +1,5 @@
 import numpy as np
-import logging
+from specula.log import get_specula_logger
 
 from scipy.linalg import pinv
 from specula import cpuArray
@@ -28,7 +28,7 @@ def platescale_coeff(dm_list, start_modes, pixel_pupil, logger=None):
         Dictionary containing plate scale parameters
     """
     if logger is None:
-        logger = logging.getLogger(__name__)
+        logger = get_specula_logger(__name__)
 
     # plate scale modes are 3: focus and 2 astigmatism modes
     n_modes_ps = 3

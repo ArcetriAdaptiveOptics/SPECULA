@@ -4,6 +4,8 @@ import logging
 import functools
 from functools import wraps
 
+from specula.log import get_specula_logger, init_logging
+
 cpu_float_dtype_list = [np.float64, np.float32]
 cpu_complex_dtype_list = [np.complex128, np.complex64]
 array_types = []
@@ -39,41 +41,6 @@ RAD2ASEC = 1.0 / ASEC2RAD
 # This can be checked later looking at the value of gpuEnabled.
 
 
-class RankLogger(logging.LoggerAdapter):
-    '''
-    LoggerAdapter that adds the process rank to the log messages,
-    when running in a distributed environment.
-    If process_rank is None, it does not add the rank to the log messages.
-
-    It also defines custom log levels for MPI debugging, below the standard DEBUG level (10):
-    - MPI_DBG_LEVEL (6): General MPI debugging messages
-    - MPI_SEND_DBG_LEVEL (5): Detailed messages for MPI send/receive operations
-    '''
-    # Custom log levels for MPI debugging, below the standard DEBUG level (10)
-    MPI_DBG_LEVEL = 6
-    MPI_SEND_DBG_LEVEL = 5
-
-    def mpi_debug(self, msg, *args, **kwargs):
-        self.log(self.MPI_DBG_LEVEL, msg, *args, **kwargs)
-    def mpi_send_debug(self, msg, *args, **kwargs):
-        self.log(self.MPI_SEND_DBG_LEVEL, msg, *args, **kwargs)
-
-    def process(self, msg, kwargs):
-        if self.extra:
-            extra = kwargs.get("extra", {})
-            merged = {**self.extra, **extra}
-            kwargs["extra"] = merged
-
-        if process_rank is None:
-            return msg, kwargs
-        else:
-            return f'rank={process_rank}\t{msg}', kwargs
-
-    @property
-    def level(self):
-        return self.logger.level
-
-
 def init(device_idx=-1,
          precision=0,
          rank=None,
@@ -97,34 +64,11 @@ def init(device_idx=-1,
     global process_rank
     global main_logger
 
-    if log_format is None:
-        log_format="%(asctime)s [%(levelname)s]: [%(name)s]: %(message)s"
-    formatter = logging.Formatter(log_format)
-
-    class ConditionalFormatter(logging.Formatter):
-        '''
-        Log formatter that adds the extra "instance name"
-        to the logger name in the formatted string
-        '''
-        def format(self, record):
-            if hasattr(record, "instance_name") and record.instance_name:
-                if record.levelno <= logging.DEBUG or record.instance_name in ['initialising', 'restored']:
-                    record.name = f'{record.name} - {record.instance_name}'
-                else:
-                    record.name = record.instance_name
-            return formatter.format(record)
-
-    handler = logging.StreamHandler()
-    handler.setFormatter(ConditionalFormatter())
-
-    logging.getLogger().addHandler(handler)
-    logging.getLogger().setLevel(log_level)
-
-    orig_logger = logging.getLogger('specula')
-    main_logger = RankLogger(orig_logger, {})
-
     process_comm = comm
     process_rank = rank
+
+    init_logging(log_format=log_format, log_level=log_level, process_rank=rank)
+    main_logger = get_specula_logger(__name__)
 
     default_target_device_idx = device_idx
     systemDisable = os.environ.get('SPECULA_DISABLE_GPU', 'FALSE')
@@ -282,14 +226,17 @@ def main_simul(yml_files: list,
                precision: int=1,
                profile: bool=False,
                mpi: bool=False,
-               mpidbg: bool=False,
                stepping: bool=False,
                diagram: bool=False,
                diagram_title: str=None,
                diagram_filename: str=None,
                diagram_colors_on: bool=False,
                no_speed_report: bool=False,
+               log_level: str='INFO',
                ):
+
+    # Set logging level for the "parent" specula logger
+    logging.getLogger('specula').setLevel(log_level)
 
     if mpi:
         try:
@@ -338,6 +285,7 @@ def main_simul(yml_files: list,
             diagram_title=diagram_title,
             diagram_colors_on=diagram_colors_on,
             speed_report=not no_speed_report,
+            log_level=log_level,
         ).run()
 
     if profile:

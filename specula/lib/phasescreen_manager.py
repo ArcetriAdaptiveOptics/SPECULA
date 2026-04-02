@@ -1,5 +1,5 @@
 import os
-import logging
+from specula.log import get_specula_logger
 
 from specula import cpuArray
 from astropy.io import fits
@@ -11,7 +11,7 @@ def phasescreens_manager(L0, dimension, pixel_pitch, directory, xp, precision, s
         seed = [0]
 
     if logger is None:
-        logger = logging.getLogger(__name__)
+        logger = get_specula_logger(__name__)
     
     precision_str = 'single' if precision==1 else 'double'
 
