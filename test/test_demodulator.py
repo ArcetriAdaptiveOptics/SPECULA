@@ -374,7 +374,7 @@ class TestDemodulateSignal(unittest.TestCase):
         # Demodulate (vectorized)
         amps_demod, phases_demod = demodulate_signal(
             slopes_time, carrier_freq, sampling_freq,
-            cumulated=True, verbose=False, xp=xp
+            cumulated=True, xp=xp
         )
 
         # Apply phase correction
