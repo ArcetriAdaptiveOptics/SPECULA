@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 
 from specula import cpuArray, default_target_device, cp, MPI_DBG, MPI_SEND_DBG
 from specula import show_in_profiler
@@ -6,6 +6,10 @@ from specula import process_comm, process_rank
 from specula.base_time_obj import BaseTimeObj
 from specula.connections import InputList, InputValue
 from specula.data_objects.layer import Layer
+
+
+InputDesc = namedtuple('InputDesc', 'type desc')
+OutputDesc = namedtuple('OutputDesc', 'type desc')
 
 
 class BaseProcessingObj(BaseTimeObj):
