@@ -50,9 +50,7 @@ class TestElectricField(unittest.TestCase):
         
         assert id_field_before == id_field_after
         
-
-    @cpu_and_gpu
-    def test_ef_combinator(self, target_device_idx, xp):
+    def _combinator_efs(self, target_device_idx, xp):
         pixel_pitch = 0.1
         pixel_pupil = 10
         ef1 = ElectricField(pixel_pupil,pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx)
@@ -66,6 +64,19 @@ class TestElectricField(unittest.TestCase):
         A2[9, 9] = 0        
         ef2.A = A2
         ef2.phaseInNm = 3 * xp.ones((pixel_pupil, pixel_pupil))
+
+        ef3 = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=3, target_device_idx=target_device_idx)
+        A3 = xp.ones((pixel_pupil, pixel_pupil))
+        A3[1, 1] = 0.5
+        ef3.A = A3
+        ef3.phaseInNm = 2 * xp.ones((pixel_pupil, pixel_pupil))
+
+        return ef1, ef2, ef3
+
+    @cpu_and_gpu
+    def test_ef_combinator(self, target_device_idx, xp):
+        
+        ef1, ef2, ef3 = self._combinator_efs(target_device_idx, xp)
 
         ef_combinator = ElectricFieldCombinator(
             target_device_idx=target_device_idx
@@ -89,12 +100,7 @@ class TestElectricField(unittest.TestCase):
         assert np.allclose(out_ef.phaseInNm, ef1.phaseInNm + ef2.phaseInNm)
         assert np.allclose(out_ef.S0, ef1.S0 + ef2.S0)
 
-        # Create a third electric field to verify the list handles > 2 items
-        ef3 = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=3, target_device_idx=target_device_idx)
-        A3 = xp.ones((pixel_pupil, pixel_pupil))
-        A3[1, 1] = 0.5
-        ef3.A = A3
-        ef3.phaseInNm = 2 * xp.ones((pixel_pupil, pixel_pupil))
+        # Third electric field to verify the list handles > 2 items
         ef3.generation_time = t
 
         # Initialize a new combinator for the list test
@@ -117,15 +123,101 @@ class TestElectricField(unittest.TestCase):
         assert np.allclose(out_ef_list.phaseInNm, ef1.phaseInNm + ef2.phaseInNm + ef3.phaseInNm)
         assert np.allclose(out_ef_list.S0, ef1.S0 + ef2.S0 + ef3.S0)
 
-        #test error if both list and legacy inputs are provided
+    @cpu_and_gpu
+    def test_ef_combinator_raises_if_both_list_and_pair_inputs_are_provided(self, target_device_idx, xp):
         ef_combinator_all = ElectricFieldCombinator(
             target_device_idx=target_device_idx
         )
+
+        ef1, ef2, ef3 = self._combinator_efs(target_device_idx, xp)
+
         ef_combinator_all.inputs['in_ef1'].set(ef1)
         ef_combinator_all.inputs['in_ef2'].set(ef2)
         ef_combinator_all.inputs['in_ef_list'].set([ef1, ef2, ef3])
 
-        ef_combinator_all.check_ready(t)
+        ef_combinator_all.check_ready(t=1)
+        with self.assertRaises(ValueError):
+            ef_combinator_all.setup()
+
+    @cpu_and_gpu
+    def test_ef_combinator_raises_if_no_list_and_pair_inputs_are_provided(self, target_device_idx, xp):
+        ef_combinator_all = ElectricFieldCombinator(
+            target_device_idx=target_device_idx
+        )
+
+        ef_combinator_all.check_ready(t=1)
+        with self.assertRaises(ValueError):
+            ef_combinator_all.setup()
+
+    @cpu_and_gpu
+    def test_ef_combinator_raises_if_only_one_of_pair_inputs_is_provided(self, target_device_idx, xp):
+        ef_combinator_all = ElectricFieldCombinator(
+            target_device_idx=target_device_idx
+        )
+
+        ef1, ef2, ef3 = self._combinator_efs(target_device_idx, xp)
+
+        ef_combinator_all.inputs['in_ef1'].set(ef1)
+
+        ef_combinator_all.check_ready(t=1)
+        with self.assertRaises(ValueError):
+            ef_combinator_all.setup()
+
+    @cpu_and_gpu
+    def test_ef_combinator_raises_if_differing_shape_pair(self, target_device_idx, xp):
+        ef_combinator_all = ElectricFieldCombinator(
+            target_device_idx=target_device_idx
+        )
+
+        ef1, ef2, ef3 = self._combinator_efs(target_device_idx, xp)
+        ef1.resize(100, 100, 1)
+
+        ef_combinator_all.inputs['in_ef1'].set(ef1)
+        ef_combinator_all.inputs['in_ef2'].set(ef2)
+
+        ef_combinator_all.check_ready(t=1)
+        with self.assertRaises(ValueError):
+            ef_combinator_all.setup()
+
+    @cpu_and_gpu
+    def test_ef_combinator_raises_if_differing_shape_list(self, target_device_idx, xp):
+        ef_combinator_all = ElectricFieldCombinator(
+            target_device_idx=target_device_idx
+        )
+
+        ef1, ef2, ef3 = self._combinator_efs(target_device_idx, xp)
+        ef1.resize(100, 100, 1)
+        ef_combinator_all.inputs['in_ef_list'].set([ef1, ef2, ef3])
+
+
+    @cpu_and_gpu
+    def test_ef_combinator_raises_if_differing_pitch_pair(self, target_device_idx, xp):
+        ef_combinator_all = ElectricFieldCombinator(
+            target_device_idx=target_device_idx
+        )
+
+        ef1, ef2, ef3 = self._combinator_efs(target_device_idx, xp)
+        ef1.pixel_pitch = 3.1415
+
+        ef_combinator_all.inputs['in_ef1'].set(ef1)
+        ef_combinator_all.inputs['in_ef2'].set(ef2)
+
+        ef_combinator_all.check_ready(t=1)
+        with self.assertRaises(ValueError):
+            ef_combinator_all.setup()
+
+    @cpu_and_gpu
+    def test_ef_combinator_raises_if_differing_pitch_list(self, target_device_idx, xp):
+        ef_combinator_all = ElectricFieldCombinator(
+            target_device_idx=target_device_idx
+        )
+
+        ef1, ef2, ef3 = self._combinator_efs(target_device_idx, xp)
+        ef1.pixel_pitch = 3.1415
+
+        ef_combinator_all.inputs['in_ef_list'].set([ef1, ef2, ef3])
+
+        ef_combinator_all.check_ready(t=1)
         with self.assertRaises(ValueError):
             ef_combinator_all.setup()
 

@@ -48,66 +48,46 @@ class ElectricFieldCombinator(BaseProcessingObj):
                 "or BOTH 'in_ef1' and 'in_ef2' to be connected."
             )
 
-        # Priority check: if a list is provided, use it to configure output shape
         if has_list:
             first_ef = in_ef_list[0]
-            
             # Verify that all provided fields have matching shapes
             for i, ef in enumerate(in_ef_list[1:]):
                 if first_ef.A.shape != ef.A.shape:
                     raise ValueError(f"Input electric field list index {i+1} shape {ef.A.shape} does not match index 0 shape {first_ef.A.shape}")
-
-            self._out_ef.resize(
-                dimx=first_ef.A.shape[0],
-                dimy=first_ef.A.shape[1],
-                pitch=first_ef.pixel_pitch,
-            )
-            # Return early to bypass the legacy logic
-            return
-
-        # Legacy execution: Pair configuration
-        if in_ef1.A.shape != in_ef2.A.shape:
-            raise ValueError(f"Input electric field no. 1 shape {in_ef1.A.shape} does not match electric field no. 2 shape {in_ef2.A.shape}")
+                if first_ef.pixel_pitch != ef.pixel_pitch:
+                    raise ValueError(f"Input electric field list index {i+1} pixel pitch {ef.pixel_pitch} does not match index 0 shape {first_ef.pixel_pitch}")
+        else:
+            # Same check for pair configuration
+            if in_ef1.A.shape != in_ef2.A.shape:
+                raise ValueError(f"Input electric field no. 1 shape {in_ef1.A.shape} does not match electric field no. 2 shape {in_ef2.A.shape}")
+            if in_ef1.pixel_pitch != in_ef2.pixel_pitch:
+                raise ValueError(f"Input electric field no. 1 pixel_pitch {in_ef1.pixel_pitch} does not match electric field no. 2 pixel_pitch {in_ef2.pixel_pitch}")
+            first_ef = in_ef1
 
         self._out_ef.resize(
-            dimx=in_ef1.A.shape[0],
-            dimy=in_ef1.A.shape[1],
-            pitch=in_ef1.pixel_pitch,
+            dimx=first_ef.A.shape[0],
+            dimy=first_ef.A.shape[1],
+            pitch=first_ef.pixel_pitch,
         )
+        self.has_list = has_list
 
     def trigger(self):
-        # Priority check: if the list is present, perform math on the list
-        in_ef_list = self.local_inputs.get('in_ef_list')
-        if in_ef_list is not None and len(in_ef_list) > 0:
+        if self.has_list:
+            in_ef_list = self.local_inputs.get('in_ef_list')
+        else:
+            in_ef1 = self.local_inputs['in_ef1']
+            in_ef2 = self.local_inputs['in_ef2']
+            in_ef_list = [in_ef1, in_ef2]
             
-            # Initialize the output arrays/values using the first field
-            self._out_ef.phaseInNm[:] = in_ef_list[0].phaseInNm
-            self._out_ef.A[:] = in_ef_list[0].A
-            self._out_ef.S0 = in_ef_list[0].S0
-            
-            # Accumulate values from the rest of the list
-            for in_ef in in_ef_list[1:]:
-                self._out_ef.phaseInNm[:] += in_ef.phaseInNm
-                self._out_ef.A[:] *= in_ef.A
-                self._out_ef.S0 += in_ef.S0
-                
-            self._out_ef.generation_time = self.current_time
-            # Return early to bypass the legacy logic
-            return
+        # Initialize the output arrays/values using the first field
+        self._out_ef.phaseInNm[:] = in_ef_list[0].phaseInNm
+        self._out_ef.A[:] = in_ef_list[0].A
+        self._out_ef.S0 = in_ef_list[0].S0
         
-        # Get the input electric fields
-        in_ef1 = self.local_inputs['in_ef1']
-        in_ef2 = self.local_inputs['in_ef2']
-
-        # Combine the electric fields
-        # Add phases
-        self._out_ef.phaseInNm[:] = in_ef1.phaseInNm + in_ef2.phaseInNm
-
-        # Multiply amplitudes
-        self._out_ef.A[:] = in_ef1.A * in_ef2.A
-
-        # Combine S0 values
-        self._out_ef.S0 = in_ef1.S0 + in_ef2.S0
-
-        # Set the generation time to the current time
+        # Accumulate values from the rest of the list
+        for in_ef in in_ef_list[1:]:
+            self._out_ef.phaseInNm += in_ef.phaseInNm
+            self._out_ef.A *= in_ef.A
+            self._out_ef.S0 += in_ef.S0
+            
         self._out_ef.generation_time = self.current_time
