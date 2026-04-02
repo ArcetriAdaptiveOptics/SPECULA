@@ -27,7 +27,7 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
                                    pixel_pitch=0.01, time_step=1)
 
         # Atmosphere
-        seeing = WaveGenerator(constant=0.9, target_device_idx=target_device_idx)
+        seeing = WaveGenerator(constant=2.5, target_device_idx=target_device_idx)
         wind_speed = WaveGenerator(constant=[0, 0, 0, 0], target_device_idx=target_device_idx)
         wind_direction = WaveGenerator(constant=[0, 0, 0, 0], target_device_idx=target_device_idx)
         atmo = AtmoInfiniteEvolution(simul_params,
@@ -38,7 +38,7 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
                                      target_device_idx=target_device_idx)
 
         # Physical and geometrical propagation to source
-        uplink_source = Source(polar_coordinates=[0.0, 0.0], magnitude=0, height=300,
+        uplink_source = Source(polar_coordinates=[0.0, 0.0], magnitude=0, height=5000,
                                wavelengthInNm=1550)
         prop_up_phys = AtmoPropagation(simul_params, source_dict={'uplink_source': uplink_source},
                                   target_device_idx=target_device_idx, wavelengthInNm=1550,
@@ -47,9 +47,9 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
                                   target_device_idx=target_device_idx)
 
         # Modal analysis
-        modal_analsis_phys = ModalAnalysis(npixels=120, nmodes=2,
+        modal_analsis_phys = ModalAnalysis(npixels=120, nmodes=10,
                                            type_str='zernike', wavelengthInNm=1550, dorms=True)
-        modal_analsis_geom = ModalAnalysis(npixels=120, nmodes=2,
+        modal_analsis_geom = ModalAnalysis(npixels=120, nmodes=10,
                                            type_str='zernike', dorms=True)
 
         atmo.inputs['seeing'].set(seeing.output)
@@ -75,4 +75,5 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
 
         modes_phys = cpuArray(modal_analsis_phys.outputs['out_modes'].value)
         modes_geom = cpuArray(modal_analsis_geom.outputs['out_modes'].value)
-        np.testing.assert_allclose(modes_phys, modes_geom, rtol=3)
+        rel_error = np.mean(abs((modes_phys - modes_geom))/abs(modes_geom))
+        np.testing.assert_array_less(rel_error, 0.2)
