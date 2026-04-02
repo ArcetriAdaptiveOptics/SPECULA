@@ -39,7 +39,7 @@ atmo_random:
   simul_params_ref:     'main'
   L0:                   25               # [m] Outer scale
   source_dict_ref:      ['source_ngs']
-  update_interval:      1320                 # Update after push-pull of all modes
+  # update_interval:      1320                 # Update after push-pull of all modes
   inputs:
     seeing:             'seeing_random.output'
     pupilstop:          'pupilstop'

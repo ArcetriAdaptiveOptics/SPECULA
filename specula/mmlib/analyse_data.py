@@ -4,6 +4,8 @@ import yaml
 import specula
 specula.init(0)  # Default target device
 
+from specula import cpuArray
+
 from .utils import show_psf, get_control_data, get_psd, get_reference_psf
 from specula.lib.radial_profile import computeRadialProfile
 
@@ -50,6 +52,8 @@ def plot_output_data(root_dir:str,calib_dir:str):
             filter_data2, delay_frames2 = get_control_data(calib_dir,'filter2','gain_ramp',params=params)
             fs1 = 1.0/float(params['cred1']['dt'])
             fs2 = 1.0/float(params['cred2']['dt'])
+            init1 = int(np.round(1.0*fs1))
+            init2 = int(np.round(1.0*fs2))
 
     init = int(1.0*fs)
 
@@ -154,7 +158,7 @@ def plot_output_data(root_dir:str,calib_dir:str):
 
         flims = [0.1,1/dt/2]
         freq = np.logspace(-2,np.log10(fs/2),2000)
-        nw_delay, dw_delay = filter_data_complex.discrete_delay_tf(delay_frames)
+        nw_delay, dw_delay = filter_data_complex.discrete_delay_tf(delay_frames1)
 
         lo_mode_ids = [0,1,2,3,20]
         plt.figure(figsize=(18,18))
@@ -212,11 +216,17 @@ def plot_output_data(root_dir:str,calib_dir:str):
 
     except KeyError:
 
-        try:
-            comm1 = data["dm1_cmd"][init+1:, :]
-            res2 = data["dm2_res"][init+1:, :comm.shape[1]]
+        try: 
+            comm1 = data["dm1_cmd"][init1:, :]
+            comm2 = data["dm2_cmd"][init2:, :]
+            res1 = data["dm1_res"][init1:, :comm1.shape[1]]
+            res2 = data["dm2_res"][init2:, :comm1.shape[1]]
+
+            res1 = np.repeat(res1, fs2/fs1, axis=0)
+            comm1 = np.repeat(comm1,fs2/fs1, axis=0)
             
-            turb_modes = res1 + comm1
+            turb_modes = res2 + comm1
+            turb_modes[:, :comm2.shape[1]] += comm2
 
             dt = 1/fs
             pol_psd, f = get_psd(turb_modes.T,dt=dt)#,interval=interval)
@@ -224,21 +234,21 @@ def plot_output_data(root_dir:str,calib_dir:str):
 
             flims = [0.1,1/dt/2]
             freq = np.logspace(-2,np.log10(fs/2),2000)
-            nw_delay, dw_delay = filter_data_complex.discrete_delay_tf(delay_frames)
+            nw_delay, dw_delay = filter_data1.discrete_delay_tf(delay_frames1)
 
             lo_mode_ids = [0,1,2,3,20]
-            plt.figure(figsize=(18,18))
+            plt.figure(figsize=(12,12))
             plt.subplot(2,2,1)
             for k,mode in enumerate(lo_mode_ids):
                 plt.loglog(f,pol_psd[mode,:]/np.min(pol_psd[mode,:][f<flims[-1]]),c=f'C{k}',label=f'Mode {mode:1.0f}')
-                rtf = filter_data_complex.RTF(mode=mode, fs=fs, freq=specula.xp.array(freq), dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
-                plt.loglog(freq,rtf**-2,'--',c=f'C{k}',label='')
+                # rtf = filter_data1.RTF(mode=mode, fs=fs, freq=cpuArray(freq), dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
+                # plt.loglog(freq,rtf**-2,'--',c=f'C{k}',label='')
             plt.grid(which='both', alpha=0.3)
             # plt.xlabel('Frequency [Hz]')
             plt.legend()
             plt.xlim(flims)
             plt.ylabel(r'RMS [$nm^2$]')
-            plt.title('Pseudo-open-loop PSD')
+            plt.title('Turbulence PSD')
             plt.subplot(2,2,3)
             for mode in lo_mode_ids:
                 plt.loglog(f,res_psd[mode,:],label=f'Mode {mode:1.0f}')
@@ -253,14 +263,14 @@ def plot_output_data(root_dir:str,calib_dir:str):
             plt.subplot(2,2,2)
             for k,mode in enumerate(ho_mode_ids):
                 plt.loglog(f,pol_psd[mode,:]/np.min(pol_psd[mode,:][f<flims[-1]]),c=f'C{k}',label=f'Mode {mode:1.0f}')
-                rtf = filter_data_complex.RTF(mode=mode, fs=fs, freq=specula.xp.array(freq), dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
-                plt.loglog(freq,rtf**-2,'--',c=f'C{k}',label='')
+                # rtf = filter_data1.RTF(mode=mode, fs=fs, freq=cpuArray(freq), dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
+                # plt.loglog(freq,rtf**-2,'--',c=f'C{k}',label='')
             plt.grid(which='both', alpha=0.3)
             # plt.xlabel('Frequency [Hz]')
             plt.legend()
             plt.xlim(flims)
             plt.ylabel(r'RMS [$nm^2$]')
-            plt.title('Pseudo-open-loop PSD')
+            plt.title('Turbulence PSD')
             plt.subplot(2,2,4)
             for mode in ho_mode_ids:
                 plt.loglog(f,res_psd[mode,:],label=f'Mode {mode:1.0f}')
@@ -288,14 +298,14 @@ def plot_output_data(root_dir:str,calib_dir:str):
     except KeyError:
         try:
             psf1 = data["psf1"]
-            psf1 = np.sqrt(np.mean(psf1[init+1:]**2,axis=0))
+            psf1 = np.sqrt(np.mean(psf1[init1:]**2,axis=0))
             plt.figure(figsize=(12,5))
             plt.subplot(1,2,1)
-            show_psf(psf1, title=r'$1^{st}$ stage PSF'+'\n'+tn, cmap='Reds', ext=0.55, vmin=-6)    
+            show_psf(psf1, title=r'$1^{st}$ stage PSF'+'\n'+tn, cmap='inferno', ext=0.55, vmin=-6)    
             psf2 = data["psf2"]
-            psf2 = np.sqrt(np.mean(psf2[init+1:]**2,axis=0))
+            psf2 = np.sqrt(np.mean(psf2[init2:]**2,axis=0))
             plt.subplot(1,2,2)
-            show_psf(psf2, title=r'$2^{nd}$ stage PSF'+'\n'+tn, cmap='Blues', ext=0.55, vmin=-6)   
+            show_psf(psf2, title=r'$2^{nd}$ stage PSF'+'\n'+tn, cmap='inferno', ext=0.55, vmin=-6)   
         except KeyError:
             print(f"psf.fits file not found in {data_dir}.")
 
@@ -373,15 +383,15 @@ def plot_output_data(root_dir:str,calib_dir:str):
     except KeyError:
         try:
             psf1 = data["psf1"]
-            psf1 = np.sqrt(np.mean(psf1[init+1:]**2,axis=0))
-            coro_psf1 = data["coro_psf1_std"]
-            coro_psf1 = np.sqrt(np.mean(coro_psf1[init+1:]**2,axis=0))
+            psf1 = np.sqrt(np.mean(psf1[init1:]**2,axis=0))
+            coro_psf1 = data["coro_psf1"]
+            coro_psf1 = np.sqrt(np.mean(coro_psf1[init1:]**2,axis=0))
             rad_psf1, dist = computeRadialProfile(psf1)
             rad_cpsf1, dist = computeRadialProfile(coro_psf1)
             psf2 = data["psf2"]
-            psf2 = np.sqrt(np.mean(psf2[init+1:]**2,axis=0))
-            coro_psf2 = data["coro_psf2_std"]
-            coro_psf2 = np.sqrt(np.mean(coro_psf2[init+1:]**2,axis=0))
+            psf2 = np.sqrt(np.mean(psf2[init2:]**2,axis=0))
+            coro_psf2 = data["coro_psf2"]
+            coro_psf2 = np.sqrt(np.mean(coro_psf2[init2:]**2,axis=0))
             rad_psf2, dist = computeRadialProfile(psf2)
             rad_cpsf2, dist = computeRadialProfile(coro_psf2)
             plt.figure(figsize=(12,5))

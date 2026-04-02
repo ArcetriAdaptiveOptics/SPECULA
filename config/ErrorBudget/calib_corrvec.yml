@@ -1,0 +1,12 @@
+# Correction vector calibration
+# ================================================
+main_override:
+  total_time: 1.176
+
+data_store_override:
+  store_dir:         '/raid1/mmenessini/calibration/SOUL/data'
+  create_tn:         false             
+  inputs:
+    input_list: ['atmo_res-atmo_modes.out_modes','dm_res-dm_mode_res.out_modes',]
+
+remove: ['psf'] 

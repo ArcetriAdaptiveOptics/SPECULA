@@ -131,7 +131,7 @@ pyr0:
   pup_diam:          24.                     # Pupil diameter in subaps.
   pup_dist:          30.                     # Separation between pupil centers in subaps.
   fov:               2.0                     # Requested field-of-view [arcsec]
-  mod_amp:           0.0                     # Modulation radius (in lambda/D units)
+  mod_amp:           1.0                     # Modulation radius (in lambda/D units)
   output_resolution: 120                      # Output sampling [usually corresponding to CCD pixels]
   wavelengthInNm:    750                     # [nm] Pyramid wavelength
   inputs:
@@ -141,7 +141,7 @@ cred2:
   class:             'CCD'
   simul_params_ref:  'main'
   size:              [120,120]            # Total detector size
-  dt:                0.001               # [s] Integration time (2000 fps)
+  dt:                0.00025               # [s] Integration time (2000 fps)
   bandw:             400                   # [nm]
   photon_noise:      true                  # Enable photon noise
   readout_noise:     true                  # Enable read noise
@@ -157,14 +157,14 @@ pyr0_slopes:
   class:                  'PyrSlopec'
   pupdata_object:         'pyr_pupdata_24x24'           
   slopes_from_intensity:  true
-  sn_object:            'pyr0.0_24x24_sn'
+  sn_object:            'pyr1.0_24x24_sn'
   inputs:
     in_pixels:        'cred2.out_pixels'
   outputs:           ['out_slopes']
 
 pyr0_modalrec:
   class:             'Modalrec'
-  recmat_object:     'pyr0.0_24x24_150modes_rec'        
+  recmat_object:     'pyr1.0_24x24_300modes_rec'        
   inputs:
     in_slopes:       'pyr0_slopes.out_slopes'
   outputs:           ['out_modes']
@@ -217,35 +217,46 @@ pyr0_modalrec:
 
 
 ############################ Control ################################
+bootstrap:
+  class:              'ScheduleGenerator'
+  scheduled_values:   [[0.5],[0.7]] # Nrows x Ncols, times x gains
+  modes_per_group:    [300] # Ncols
+  scheduled_times:    [0.01] # Nrows-1
 
 filter2:
-  class:             'Integrator'
-  simul_params_ref:  'main'
-  delay:             1                     # 1 frame delay (realistic)
-  int_gain:          [0.4]
-  # ff:                [0.7]
-  n_modes:           [150]                 # Number of modes to control
+  # class:             'Integrator'
+  # simul_params_ref:  'main'
+  # delay:             1                     # 1 frame delay (realistic)
+  # int_gain:          [0.7]
+  # n_modes:           [300]                 # Number of modes to control
+  # inputs:
+  #   delta_comm:      'pyr0_modalrec.out_modes' #
+  # outputs:           ['out_comm']
+  class:                'IirFilter'
+  simul_params_ref:     'main'
+  delay:                1 # Total temporal delay in time steps is this value +1
+  iir_filter_data_object:  'iirfilter_300modes'
   inputs:
-    delta_comm:      'pyr0_modalrec.out_modes' #
-  outputs:           ['out_comm']
-
+    delta_comm: 'pyr0_modalrec.out_modes'
+    gain_mod: 'bootstrap.output'
+  outputs:  ['out_comm']
 
 dm2:
   class:             'DM'
   simul_params_ref:  'main'
-  ifunc_object:      'dm241_vlt_ifunc'      # Our computed influence functions
-  m2c_object:        'dm241_vlt_m2c'        # Modal-to-command matrix
-  nmodes:            150             # Number of controlled modes
+  ifunc_object:      'bmc2k_vlt_ifunc'      # Our computed influence functions
+  m2c_object:        'bmc2k_vlt_m2c'        # Modal-to-command matrix
+  nmodes:            300             # Number of controlled modes
   height:            0                # Ground-conjugated DM
   inputs:
-    in_command:      'filter2.out_comm' #'dcao_cmd2.out_value' #
+    in_command:      'dcao_cmd2.out_value' #'filter2.out_comm' #'
   outputs:           ['out_layer']
 
 filter1:
   class:             'Integrator'
   simul_params_ref:  'main'
   delay:             1                     # 1 frame delay (realistic)
-  int_gain:          [0.0]
+  int_gain:          [0.6]
   n_modes:           [1300]                 # Number of modes to control
   inputs:
     delta_comm:      'pyr_modalrec.out_modes' #
@@ -273,7 +284,7 @@ dm1:
 ######################### dCAO compensation #########################
 cmd1_to_cmd2:
   class: 'MVM'
-  recmat_object: 'bmc2k_vlt_1300modes_to_dm241_vlt_150modes'
+  recmat_object: 'bmc2k_vlt_1300modes_to_bmc2k_vlt_300modes' #'bmc2k_vlt_1300modes_to_dm468_vlt_300modes' #'bmc2k_vlt_1300modes_to_dm241_vlt_150modes'
   inputs:
     in_vector: 'filter1.out_comm'
   outputs: ['out_vector']
@@ -370,15 +381,13 @@ data_store:
                   'sr2-psf2.out_sr',
                   'psf2-psf2.out_psf',
                   # 'psf2_std-psf2.out_std_psf',
-                  # 'coro_psf1-coro_psf1.out_coronagraph_psf',
-                  'coro_psf1_std-coro_psf1.out_std_coronagraph_psf',
-                  # 'coro_psf2-coro_psf2.out_coronagraph_psf',
-                  'coro_psf2_std-coro_psf2.out_std_coronagraph_psf',
+                  'coro_psf1-coro_psf1.out_coronagraph_psf',
+                  # 'coro_psf1_std-coro_psf1.out_std_coronagraph_psf',
+                  'coro_psf2-coro_psf2.out_coronagraph_psf',
+                  # 'coro_psf2_std-coro_psf2.out_std_coronagraph_psf',
                   'atmo_res-atmo_modes.out_modes',
                   'dm1_res-dm1_mode_res.out_modes',
-                  'dm1_cmd-filter1.out_comm',
                   'dm2_res-dm2_mode_res.out_modes',
-                  'dm2_cmd-filter2.out_comm',
                   'stage1_modes-pyr_modalrec.out_modes',
                   'stage2_modes-pyr0_modalrec.out_modes',
                   'ccd1-cred1.out_pixels',

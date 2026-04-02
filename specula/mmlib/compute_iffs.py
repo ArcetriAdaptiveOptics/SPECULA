@@ -75,7 +75,7 @@ def compute_and_save_influence_functions(root_dir:str, tag:str, pupil_pixels:int
 
 
     if pupil_mask_tag is not None:
-        fname = os.path.join(root_dir,'pupilstop/'+pupil_mask_tag+f'_{Npix:1.0f}pixels.fits')
+        fname = os.path.join(root_dir,'pupilstop/'+pupil_mask_tag+f'_{pupil_pixels:1.0f}pixels.fits')
         hdu = fits.open(fname)
         pupil_mask = hdu[1].data
     else:

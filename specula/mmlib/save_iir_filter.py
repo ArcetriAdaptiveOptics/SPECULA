@@ -168,7 +168,7 @@ if __name__ == "__main__":
     os.makedirs(path,exist_ok=True)
 
     fs = 2000  # sampling frequency
-    n_filters = 1300
+    n_filters = 300
     excluded_filters = 2
     make_tiled = False
     file_name = os.path.join(path,f'iirfilter_{n_filters}modes.fits')

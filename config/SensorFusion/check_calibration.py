@@ -30,6 +30,8 @@ def check_calibration(root_dir:str):
 
     sn_hdu = fits.open(op.join(root_dir,'slopenulls/pyr0.0_16x16_sn.fits'))
     pyr0_16x16_sn = sn_hdu[1].data
+    sn_hdu = fits.open(op.join(root_dir,'slopenulls/pyr0.0_24x24_sn.fits'))
+    pyr0_24x24_sn = sn_hdu[1].data
     sn_hdu = fits.open(op.join(root_dir,'slopenulls/pyr0.0_48x48_sn.fits'))
     pyr0_sn = sn_hdu[1].data
     # sn_hdu = fits.open(op.join(root_dir,'slopenulls/pyr0.0_sn_pc_s0.9_c.fits'))
@@ -39,6 +41,8 @@ def check_calibration(root_dir:str):
 
     rec_hdu = fits.open(op.join(root_dir,'rec/pyr0.0_16x16_150modes_rec.fits'))
     pyr0_16x16_rec = rec_hdu[1].data
+    rec_hdu = fits.open(op.join(root_dir,'rec/pyr0.0_24x24_300modes_rec.fits'))
+    pyr0_24x24_rec = rec_hdu[1].data
     rec_hdu = fits.open(op.join(root_dir,'rec/pyr0.0_48x48_1300modes_rec.fits'))
     pyr0_rec = rec_hdu[1].data
     rec_hdu = fits.open(op.join(root_dir,'rec/pyr3.0_48x48_1300modes_rec.fits'))
@@ -114,9 +118,12 @@ def check_calibration(root_dir:str):
     pyr_masks = get_pupil_mask(npix=ccd_size, filepath=op.join(root_dir,'pupils/pyr_pupdata_48x48.fits'), pyr=True)
     pyr_masks_16x16 = get_pupil_mask(npix=ccd_size, filepath=op.join(root_dir,'pupils/pyr_pupdata_16x16.fits'), pyr=True)
 
-
     frame_hdu = fits.open(op.join(root_dir,'frames/pyr0.0_16x16_frame.fits')) 
-    pyr0_16x16_frame = frame_hdu[0].data[0]
+    pyr0_16x16_frame = frame_hdu[0].data[0]    
+    
+    pyr_masks_24x24 = get_pupil_mask(npix=ccd_size, filepath=op.join(root_dir,'pupils/pyr_pupdata_24x24.fits'), pyr=True)
+    frame_hdu = fits.open(op.join(root_dir,'frames/pyr0.0_24x24_frame.fits')) 
+    pyr0_24x24_frame = frame_hdu[0].data[0]
 
     frame_hdu = fits.open(op.join(root_dir,'frames/pyr0.0_48x48_frame.fits')) 
     pyr0_frame = frame_hdu[0].data[0]
@@ -179,6 +186,11 @@ def check_calibration(root_dir:str):
     plt.figure()
     plt.imshow(masked_frame(pyr0_16x16_frame,pyr_masks_16x16),origin='lower',cmap='RdBu')
     plt.colorbar()
+
+
+    plt.figure()
+    plt.imshow(masked_frame(pyr0_24x24_frame,pyr_masks_24x24),origin='lower',cmap='RdBu')
+    plt.colorbar()
     ########################## Rec ##############################
 
     # rec_hdu = fits.open(op.join(root_dir,'rec/pyr0.0_1300modes_ml_rec.fits'))
@@ -208,10 +220,12 @@ def check_calibration(root_dir:str):
 
 
     pyr0_16x16_ron_cov = rec_covariance(pyr0_16x16_rec,mask=pyr_masks_16x16,frame=pyr0_16x16_frame,flux=flux)
+    pyr0_24x24_ron_cov = rec_covariance(pyr0_24x24_rec,mask=pyr_masks_24x24,frame=pyr0_24x24_frame,flux=flux)
     pyr0_ron_cov = rec_covariance(pyr0_rec,mask=pyr_masks,frame=pyr0_frame,flux=flux)
     # pyr0_ron_cov_ml = rec_covariance(pyr0_ml_rec,mask=pyr_masks,frame=pyr0_frame,flux=flux)
     pyr3_ron_cov = rec_covariance(pyr3_rec,mask=pyr_masks,frame=pyr3_frame,flux=flux)
     pyr0_16x16_phot_cov = rec_phot_cov(pyr0_16x16_rec,mask=pyr_masks_16x16,frame=pyr0_16x16_frame,flux=flux,sn=pyr0_16x16_sn)
+    pyr0_24x24_phot_cov = rec_phot_cov(pyr0_24x24_rec,mask=pyr_masks_24x24,frame=pyr0_24x24_frame,flux=flux,sn=pyr0_24x24_sn)
     pyr0_phot_cov = rec_phot_cov(pyr0_rec,mask=pyr_masks,frame=pyr0_frame,flux=flux,sn=pyr0_sn)
     # pyr0_phot_cov_ml = rec_phot_cov(pyr0_ml_rec,mask=pyr_masks,frame=pyr0_frame,flux=flux,sn=pyr0_sn)
     pyr3_phot_cov = rec_phot_cov(pyr3_rec,mask=pyr_masks,frame=pyr3_frame,flux=flux,sn=pyr3_sn)
@@ -224,6 +238,7 @@ def check_calibration(root_dir:str):
     z2wfs_shot_cov = rec_phot_cov(z2wfs_rec,mask=zwfs_mask,frame=z2wfs_frame,flux=flux,sn=z2wfs_sn)
 
     x16 = np.arange(len(pyr0_16x16_phot_cov))+1
+    x24 = np.arange(len(pyr0_24x24_phot_cov))+1
 
     plt.figure(figsize=(9,4))
     plt.subplot(1,2,1)
@@ -231,6 +246,7 @@ def check_calibration(root_dir:str):
     plt.plot(x,rec_covariance(pyr1_rec,mask=pyr_masks,frame=pyr1_frame,flux=flux),':',label=r'pyWFS 1.0 $\lambda/D$')
     plt.plot(x,pyr3_ron_cov,':',label=r'pyWFS 3.0 $\lambda/D$')
     plt.plot(x16,pyr0_16x16_ron_cov,':',label=r'pyWFS 0.0 $\lambda/D$ (16x16)')
+    plt.plot(x24,pyr0_24x24_ron_cov,':',label=r'pyWFS 0.0 $\lambda/D$ (24x24)')
     # plt.plot(x,pyr0_ron_cov_ml,':',label=r'pyWFS 0.0 $\lambda/D$ (ML)')
     plt.legend()
     plt.xscale('log')
@@ -242,6 +258,7 @@ def check_calibration(root_dir:str):
     plt.plot(x,rec_phot_cov(pyr1_rec,mask=pyr_masks,frame=pyr1_frame,flux=flux,sn=pyr1_sn),':',label=r'pyWFS 1.0 $\lambda/D$')
     plt.plot(x,pyr3_phot_cov,':',label=r'pyWFS 3.0 $\lambda/D$')
     plt.plot(x16,pyr0_16x16_phot_cov,':',label=r'pyWFS 0.0 $\lambda/D$ (16x16)')
+    plt.plot(x24,pyr0_24x24_phot_cov,':',label=r'pyWFS 0.0 $\lambda/D$ (24x24)')
     # plt.plot(x,pyr0_phot_cov_ml,':',label=r'pyWFS 0.0 $\lambda/D$ (ML)')
     plt.legend()
     plt.xscale('log')
