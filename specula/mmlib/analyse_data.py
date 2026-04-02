@@ -142,10 +142,10 @@ def plot_output_data(root_dir:str,calib_dir:str):
         comm = data["dm_cmd"][init+1:, :]
         res = data["dm_res"][init+1:, :comm.shape[1]]
         meas = data["pyr_modes"][init+1:, :comm.shape[1]]
-        zmeas = data["zwfs_modes"][init+1:, :comm.shape[1]]
+        # zmeas = data["zwfs_modes"][init+1:, :comm.shape[1]]
         
         pol_modes = comm + meas
-        zpol_modes = comm + zmeas
+        # zpol_modes = comm + zmeas
         turb_modes = res + comm
 
         dt = 1/fs
@@ -211,7 +211,68 @@ def plot_output_data(root_dir:str,calib_dir:str):
         # plt.legend()
 
     except KeyError:
-        print(f"dm_res.fits, pyr_res.fits or atmo_res.fits files not found in {data_dir}.")
+
+        try:
+            comm1 = data["dm1_cmd"][init+1:, :]
+            res2 = data["dm2_res"][init+1:, :comm.shape[1]]
+            
+            turb_modes = res1 + comm1
+
+            dt = 1/fs
+            pol_psd, f = get_psd(turb_modes.T,dt=dt)#,interval=interval)
+            res_psd, f = get_psd(res2.T,dt=dt)#,interval=interval)
+
+            flims = [0.1,1/dt/2]
+            freq = np.logspace(-2,np.log10(fs/2),2000)
+            nw_delay, dw_delay = filter_data_complex.discrete_delay_tf(delay_frames)
+
+            lo_mode_ids = [0,1,2,3,20]
+            plt.figure(figsize=(18,18))
+            plt.subplot(2,2,1)
+            for k,mode in enumerate(lo_mode_ids):
+                plt.loglog(f,pol_psd[mode,:]/np.min(pol_psd[mode,:][f<flims[-1]]),c=f'C{k}',label=f'Mode {mode:1.0f}')
+                rtf = filter_data_complex.RTF(mode=mode, fs=fs, freq=specula.xp.array(freq), dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
+                plt.loglog(freq,rtf**-2,'--',c=f'C{k}',label='')
+            plt.grid(which='both', alpha=0.3)
+            # plt.xlabel('Frequency [Hz]')
+            plt.legend()
+            plt.xlim(flims)
+            plt.ylabel(r'RMS [$nm^2$]')
+            plt.title('Pseudo-open-loop PSD')
+            plt.subplot(2,2,3)
+            for mode in lo_mode_ids:
+                plt.loglog(f,res_psd[mode,:],label=f'Mode {mode:1.0f}')
+            plt.grid(which='both', alpha=0.3)
+            plt.xlabel('Frequency [Hz]')
+            plt.legend()
+            plt.xlim(flims)
+            plt.ylabel(r'RMS [$nm^2$]')
+            plt.title('Residuals PSD')
+
+            ho_mode_ids = [50,100,200,500,1000]
+            plt.subplot(2,2,2)
+            for k,mode in enumerate(ho_mode_ids):
+                plt.loglog(f,pol_psd[mode,:]/np.min(pol_psd[mode,:][f<flims[-1]]),c=f'C{k}',label=f'Mode {mode:1.0f}')
+                rtf = filter_data_complex.RTF(mode=mode, fs=fs, freq=specula.xp.array(freq), dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
+                plt.loglog(freq,rtf**-2,'--',c=f'C{k}',label='')
+            plt.grid(which='both', alpha=0.3)
+            # plt.xlabel('Frequency [Hz]')
+            plt.legend()
+            plt.xlim(flims)
+            plt.ylabel(r'RMS [$nm^2$]')
+            plt.title('Pseudo-open-loop PSD')
+            plt.subplot(2,2,4)
+            for mode in ho_mode_ids:
+                plt.loglog(f,res_psd[mode,:],label=f'Mode {mode:1.0f}')
+            plt.grid(which='both', alpha=0.3)
+            plt.xlabel('Frequency [Hz]')
+            plt.legend()
+            plt.xlim(flims)
+            plt.ylabel(r'RMS [$nm^2$]')
+            plt.title('Residuals PSD')
+            plt.tight_layout()
+        except KeyError:
+            print(f"dm_res.fits, pyr_res.fits or atmo_res.fits files not found in {data_dir}.")
 
     ################### PSF ########################
     try:

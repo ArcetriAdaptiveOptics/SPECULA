@@ -1,0 +1,11 @@
+main_override:
+  total_time: 1.0
+
+data_store_override:
+  class:             'DataStore'
+  create_tn: false
+  inputs:
+    input_list: ['sr-psf2.out_sr']
+
+# Remove closed-loop components (not needed for slope null)
+remove: ['atmo_modes','dm1_mode_res','coro_psf1','dm2_mode_res','coro_psf2','psf1']

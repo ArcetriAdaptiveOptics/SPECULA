@@ -6,7 +6,8 @@ pushpull:
   class:        'PushPullGenerator'
   nmodes:       660                         # Number of DM actuators
   amp:          10  
-  ntiles:       40
+  ncycles:       40
+  repeat_full_sequence: true
   # constant_amp: true
   outputs:   ['output']
 
@@ -22,7 +23,7 @@ pyr_im_calibrator:
 
 # Override main simulation parameters
 main_override:
-  total_time: 77.616                 # 660 modes × 2 (push+pull) × 0.000588s x 40 cycles
+  total_time: 31.0646                # 660 modes × 2 (push+pull) × 0.000588s x 40 cycles
 
 ################################## ATMO RESIDUAL #####################################
 seeing_random:
@@ -82,7 +83,7 @@ atmo_pc:
 ef_mode:
   class: 'ElectricFieldCombinator'
   inputs:
-    in_ef1: 'atmo_pc.out_source_ngs_ef'    # Partially corrected turbulence
+    in_ef1: 'atmo_pc.out_ef'    # Partially corrected turbulence
     in_ef2: 'dm.out_layer'      # Mode amplitudes
   outputs: ['out_ef']
 

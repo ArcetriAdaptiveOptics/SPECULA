@@ -296,13 +296,13 @@ def compute_and_save_dcao_matrix(root_dir,first_stage_tag:str, second_stage_tag:
 if __name__ == "__main__":
     root_dir = '/raid1/mmenessini/calibration/XAO'
     Npix = 160
-    # compute_and_save_influence_functions(root_dir,tag='bmc2k_vlt', pupil_pixels=Npix, n_acts=50,
-    #                                       geom='alpao', r0=10e-2, obsratio=0.0, pupil_mask_tag='vlt_pupil')
-    # compute_and_save_influence_functions(root_dir,tag='dm241_vlt', pupil_pixels=Npix, n_acts=17,
-    #                                       geom='alpao', r0=10e-2, obsratio=0.0, pupil_mask_tag='vlt_pupil')
+    compute_and_save_influence_functions(root_dir,tag='bmc2k_vlt', pupil_pixels=Npix, n_acts=50,
+                                          geom='alpao', r0=10e-2, obsratio=0.0, pupil_mask_tag='vlt_pupil')
+    compute_and_save_influence_functions(root_dir,tag='dm241_vlt', pupil_pixels=Npix, n_acts=17,
+                                          geom='alpao', r0=10e-2, obsratio=0.0, pupil_mask_tag='vlt_pupil')
     compute_and_save_dcao_matrix(root_dir,first_stage_tag='bmc2k_vlt',second_stage_tag='dm241_vlt',N1_modes=1300,N2_modes=150)
 
-    root_dir = '/raid1/mmenessini/calibration/SOUL'
-    Npix = 160
-    compute_and_save_influence_functions(root_dir,tag='asm', pupil_pixels=Npix, n_acts=30,
-                                          geom='circular', r0=10e-2, obsratio=0.0, D=8.4)
+    # root_dir = '/raid1/mmenessini/calibration/SOUL'
+    # Npix = 160
+    # compute_and_save_influence_functions(root_dir,tag='asm', pupil_pixels=Npix, n_acts=30,
+    #                                       geom='circular', r0=10e-2, obsratio=0.0, D=8.4)

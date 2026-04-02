@@ -123,4 +123,5 @@ def modal_pushpull_signal(
     if repeat_full_sequence:
         time_hist = xp.tile(time_hist, [ncycles, 1])
 
+
     return xp.repeat(time_hist, nsamples, axis=0)

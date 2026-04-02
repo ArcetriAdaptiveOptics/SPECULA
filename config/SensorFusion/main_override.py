@@ -10,10 +10,10 @@ from specula.mmlib.utils import get_pupil_mask
 from specula.mmlib.compute_rec import compute_and_save_rec
 
 
-rMods = np.array([0.5,4,6]) #([0,1,3])
+rMods = np.array([0,1,3]) #([0.5,4,6]) #
 dotRadii = np.array([1.0,1.5,2.0])/2.0
-n_subaps = np.array([48])#([12,24,36,48])
-n_modes = np.array([75,150,300,660,1300])
+n_subaps = np.array([16,24,48])#([12,24,36,48])
+n_modes = np.array([150,300,1300])
 # seeings = np.array([0.6,0.8,1.0,1.2,1.4])
 max_pup_dist = 60
 min_pup_dist = 16
@@ -52,10 +52,10 @@ for n_subap in n_subaps:
                     f"zwfs.pup_diam: {n_subap:.1f}, "
                     f"zwfs.spot_radius_lambda: {dotRadius:.1f}, "
                     f"zwfs_slopes.pup_diam: {n_subap:.1f}, "
-                    f"zwfs_sn.output_tag: 'z{dotRadius:1.1f}wfs_{n_subap:.0f}x{n_subap:.0f}_sn', "
-                    f"data_store.store_dir:         '{os.path.join(root_dir,'frames')}', "  
+                    f"zwfs_sn.output_tag: 'z{dotRadius*2:1.1f}wfs_{n_subap:.0f}x{n_subap:.0f}_sn', "
+                    f"data_store.store_dir:         {os.path.join(root_dir,'frames')}, "  
                     f"data_store.create_tn: false, "
-                    f"data_store.inputs.input_list: ['pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_frame-cred1.out_pixels','z{dotRadius:1.1f}wfs_{n_subap:.0f}x{n_subap:.0f}_frame-ocam2.out_pixels'], "
+                    f"data_store.inputs.input_list: ['pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_frame-cred1.out_pixels','z{dotRadius*2:1.1f}wfs_{n_subap:.0f}x{n_subap:.0f}_frame-ocam2.out_pixels'], "
                     "}")
         write_yaml_overrides(input_string=overrides)
         try:
@@ -77,10 +77,10 @@ for j,n_subap in enumerate(n_subaps):
         pyr_thrp[i,j] = thrp
         fits.writeto(os.path.join(root_dir,f'slopenulls/pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_throughput.fits'), np.array([thrp]),overwrite=True)
     for i,dotRadius in enumerate(dotRadii):
-        frame = fits.getdata(os.path.join(root_dir,f'frames/z{dotRadius:1.1f}wfs_{n_subap:.0f}x{n_subap:.0f}_frame.fits'))[0]
+        frame = fits.getdata(os.path.join(root_dir,f'frames/z{dotRadius*2:1.1f}wfs_{n_subap:.0f}x{n_subap:.0f}_frame.fits'))[0]
         thrp = np.sum(frame[zwfs_mask])/np.sum(frame)
         zwfs_thrp[i,j] = thrp
-        fits.writeto(os.path.join(root_dir,f'slopenulls/z{dotRadius:1.1f}wfs_{n_subap:.0f}x{n_subap:.0f}_throughput.fits'), np.array([thrp]),overwrite=True)
+        fits.writeto(os.path.join(root_dir,f'slopenulls/z{dotRadius*2:1.1f}wfs_{n_subap:.0f}x{n_subap:.0f}_throughput.fits'), np.array([thrp]),overwrite=True)
 print(pyr_thrp,zwfs_thrp)
 
 # 3. Calibrate IM vs n_subaps, rMods
@@ -89,7 +89,7 @@ for i,n_subap in enumerate(n_subaps):
     for rMod,dotRadius in zip(rMods,dotRadii):
         pyr_tag = f'pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}'
         pyr_im_tag = pyr_tag+'_im'        
-        zwfs_tag = f'z{dotRadius:1.1f}wfs_{n_subap:.0f}x{n_subap:.0f}'
+        zwfs_tag = f'z{dotRadius*2:1.1f}wfs_{n_subap:.0f}x{n_subap:.0f}'
         zwfs_im_tag = zwfs_tag+'_im'
         overrides = ("{"
                     f"pyr.pup_diam: {n_subap:.1f}, "
@@ -98,7 +98,7 @@ for i,n_subap in enumerate(n_subaps):
                     f"pyr_slopes.pupdata_object: 'pyr_pupdata_{n_subap:.0f}x{n_subap:.0f}', "
                     f"pyr_im_calibrator.im_tag: '{pyr_im_tag}', "
                     f"zwfs.pup_diam: {n_subap:.1f}, "
-                    f"zwfs.fft_res: 16.0, "
+                    f"zwfs.fft_res: 12.0, "
                     f"zwfs.spot_radius_lambda: {dotRadius:.1f}, "
                     f"zwfs_slopes.pup_diam: {n_subap:.1f}, "
                     f"zwfs_im_calibrator.im_tag: '{zwfs_im_tag}', "
