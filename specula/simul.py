@@ -386,6 +386,44 @@ class Simul():
                         a_ref['end'] = x
                         self.references.append(a_ref)
 
+                # dict_object fields contain a dictionary of tags to be restored as data objects
+                elif name.endswith('_dict_object') and parname != name and build_this_object:
+                    if value is None:
+                        pars2[parname] = None
+                    elif not isinstance(value, dict):
+                        raise ValueError(f'Parameter {name} must be a dictionary of tags')
+                    elif parname in hints:
+                        partype = hints[parname]
+
+                        # Handle Optional and Union types (for python <3.11)
+                        if hasattr(partype, "__origin__") and partype.__origin__ is typing.Union:
+                            for arg in partype.__args__:
+                                if arg is not type(None):
+                                    partype = arg
+                                    break
+
+                        origin = typing.get_origin(partype)
+                        args_t = typing.get_args(partype)
+                        if origin not in (dict, typing.Dict) or len(args_t) != 2:
+                            raise ValueError(f'Parameter {parname} must be typed as dict[str, DataObjType]')
+
+                        value_type = args_t[1]
+                        if not isinstance(value_type, type):
+                            raise ValueError(f'Cannot infer dict value type for parameter {parname}')
+
+                        loaded = {}
+                        for dict_key, tag in value.items():
+                            filename = cm.filename(value_type.__name__, tag)
+                            print('Restoring:', filename)
+                            obj = value_type.restore(filename, target_device_idx=target_device_idx)
+                            obj.printMemUsage()
+                            obj.tag = tag
+                            loaded[dict_key] = obj
+
+                        pars2[parname] = loaded
+                    else:
+                        raise ValueError(f'No type hint for parameter {parname} of class {classname}')
+
                 elif name.endswith('_ref') and parname != name:
                     if build_this_object:
                         data = self.objs[value]
