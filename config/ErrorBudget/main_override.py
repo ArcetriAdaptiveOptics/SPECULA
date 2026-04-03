@@ -121,7 +121,7 @@ root_dir='/raid1/mmenessini/calibration/SOUL'
 #         try:
 #             corrvec = fits.getdata(os.path.join(root_dir,'data',tag+'.fits'))
 #             print('Correction vector '+tag+' already exists: skipping computation')
-#         except FileExistsError:
+#         except FileNotFoundError:
 #             os.system(f"specula {main_config} calib_corrvec.yml temp_overrides.yml")
 #             atmo_modes = fits.getdata(os.path.join(root_dir,'scratch_corrvec',f's{seeing:1.1f}_{N:1.0f}modes_atmo.fits'))
 #             res_modes = fits.getdata(os.path.join(root_dir,'scratch_corrvec',f's{seeing:1.1f}_{N:1.0f}modes_res.fits'))
@@ -217,15 +217,16 @@ for i,n_subap in enumerate(n_subaps):
                             f"perfect_dm.nmodes: {N:1.0f}, "
                             "}")
                 write_yaml_overrides(input_string=overrides)
+                tag = f'pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_s{seeing:1.1f}_{N:1.0f}modes_alias'
                 try:
+                    alias_rms = fits.getdata(os.path.join(aliaspath,tag+'.fits'))
+                    print('Aliasing power file '+tag+' already exists: skipping computation')
+                except FileNotFoundError:
                     os.system(f"specula {main_config} calib_aliasing.yml temp_overrides.yml")
                     alias_modes = fits.getdata(os.path.join(root_dir,'scratch_aliasing','pyr_modes.fits'))
                     alias_rms = np.sqrt(np.mean(alias_modes**2,axis=0)) 
-                    tag = f'pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_s{seeing:1.1f}_{N:1.0f}modes_alias'
                     fits.writeto(os.path.join(aliaspath,tag+'.fits'),alias_rms,overwrite=True)
-                    print('Saved aliasing as: '+tag)
-                except FileExistsError:
-                    pass
+                    print('Saved aliasing power as: '+tag)
 
 
 
