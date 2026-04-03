@@ -146,9 +146,7 @@ class ModalAnalysis(BaseProcessingObj):
 
 
     def unwrap_2d(self, p):
-        unwrapped_p = cpuArray(self.xp.copy(p))
-        unwrapped_p = self.unwrap_ls(unwrapped_p)
-
+        unwrapped_p = self.unwrap_ls(cpuArray(p))
         return self.to_xp(unwrapped_p)
 
     def setup(self):
