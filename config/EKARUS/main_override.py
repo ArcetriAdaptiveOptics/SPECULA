@@ -201,7 +201,6 @@ for i,n_subap in enumerate(n_subaps):
         im = im[:,:N]
         im_norm = np.diag(im.T @ im)
         for seeing in seeings:
-            cv_tag = f's{seeing:1.1f}_{N:1.0f}modes_corrvec'
             tag = f'pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_s{seeing:1.1f}'
             simpc_tag = tag+'_simpc_pl'
             overrides = ("{"
