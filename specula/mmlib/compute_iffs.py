@@ -38,14 +38,14 @@ def compute_and_save_influence_functions(root_dir:str, tag:str, pupil_pixels:int
     m2c_filename = calib_manager.filename('m2c', m2c_tag)
     base_inv_filename = calib_manager.filename('ifunc', base_inv_tag)
 
-    # try:
-    #     kl_basis_inv = IFuncInv.restore(base_inv_filename)
-    #     ifunc = IFunc.restore(ifunc_filename)
-    #     m2c = M2C.restore(m2c_filename)
-    #     print("Files already exist - skipping computation")
-    #     return
-    # except FileNotFoundError:
-    #     pass
+    try:
+        kl_basis_inv = IFuncInv.restore(base_inv_filename)
+        ifunc = IFunc.restore(ifunc_filename)
+        m2c = M2C.restore(m2c_filename)
+        print("Files already exist - skipping computation")
+        return
+    except FileNotFoundError:
+        pass
 
 
     # DM and pupil parameters for VLT-like telescope
@@ -124,13 +124,6 @@ def compute_and_save_influence_functions(root_dir:str, tag:str, pupil_pixels:int
         dtype=dtype
     )
 
-    # turb_cov = compute_ifs_covmat(r0=r0, L0=L0, pupil_mask=pupil_mask,
-    #                               diameter=telescope_diameter,
-    #                               influence_functions=influence_functions,
-    #                               oversampling=oversampling,
-    #                               xp=specula.xp,
-    #                               dtype=dtype)
-
     print(f"KL basis shape: {kl_basis.shape}")
     print(f"Number of KL modes: {kl_basis.shape[0]}")
 
@@ -172,20 +165,6 @@ def compute_and_save_influence_functions(root_dir:str, tag:str, pupil_pixels:int
     # Step 5: Optional visualization
     try:
       import matplotlib.pyplot as plt
-
-    #   plt.figure(figsize=(12,3.5))
-    #   plt.subplot(1,3,3)
-    #   plt.imshow(pmask-cpuArray(pupil_mask),origin='lower',cmap='gray')
-    #   plt.colorbar()
-    #   plt.title('ARTE - SPECULA')
-    #   plt.subplot(1,3,1)
-    #   plt.imshow(pmask,origin='lower',cmap='gray')
-    #   plt.colorbar()
-    #   plt.title('ARTE')
-    #   plt.subplot(1,3,2)
-    #   plt.imshow(cpuArray(pupil_mask),origin='lower',cmap='gray')
-    #   plt.colorbar()
-    #   plt.title('SPECULA')
 
       print(f"\nGenerating visualization...")
 
@@ -306,3 +285,9 @@ if __name__ == "__main__":
     # Npix = 160
     # compute_and_save_influence_functions(root_dir,tag='asm', pupil_pixels=Npix, n_acts=30,
     #                                       geom='circular', r0=10e-2, obsratio=0.0, D=8.4)
+
+
+    # root_dir = '/raid1/mmenessini/calibration/EKARUS'
+    # Npix = 120
+    # compute_and_save_influence_functions(root_dir,tag='dm468', pupil_pixels=Npix, n_acts=24,
+    #                                       geom='alpao', r0=5e-2, obsratio=0.3, D=1.82)

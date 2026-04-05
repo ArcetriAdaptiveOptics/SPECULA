@@ -1,0 +1,23 @@
+pyr_sn:
+  class: 'SnCalibrator'
+  output_tag: 'pyr3.0_slope_null_ri'           # Output filename
+  overwrite: false
+  inputs:
+    in_slopes: 'pyr_slopes.out_slopes'
+
+pyr_override:
+  inputs:
+    in_ef: 'prop.out_source_ngs_ef'
+
+main_override:
+  total_time: 0.001 # acquire single frame
+
+# Disable noise for clean measurements
+ocam_override:
+  photon_noise:   false                   # No photon noise
+  readout_noise:  false                   # No read noise
+  excess_noise:   false                   # No excess noise
+
+# Remove closed-loop components (not needed for slope null)
+remove: ['atmo','seeing','wind_speed','wind_direction','atmo_modes', #'data_store',
+        'dm','dm_mode_res','filter','psf','ef_prop','pyr_modalrec', ]

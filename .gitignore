@@ -144,8 +144,5 @@ dmypy.json
 main/scao/calib/*
 main/scao/output/*
 
-# EKARUS config data output
-config/EKARUS/*
-
 # Nsys profiler repots
 *.nsys-rep
