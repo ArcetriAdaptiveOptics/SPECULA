@@ -135,6 +135,39 @@ class TestPSF(unittest.TestCase):
         self.assertAlmostEqual(float(psf.int_sr.value), 1.0, places=6)
 
     @cpu_and_gpu
+    def test_psf_profile_metrics_outputs(self, target_device_idx, xp):
+        """Test optional PSF profile/FWHM/EE outputs."""
+        simul_params, ef, wavelengthInNm = self.get_basic_setup(target_device_idx, pixel_pupil=40)
+
+        psf = PSF(simul_params=simul_params, wavelengthInNm=wavelengthInNm,
+                  nd=2.0, start_time=0.0, compute_profile_metrics=True,
+                  ee_radius_in_lambda_d=1.0, target_device_idx=target_device_idx)
+
+        psf.inputs['in_ef'].set(ef)
+        psf.setup()
+
+        for t in range(1, 4):
+            ef.phaseInNm[:] = 0.0
+            ef.A[:] = 1.0
+            ef.generation_time = t
+
+            psf.check_ready(t)
+            psf.trigger()
+            psf.post_trigger()
+
+        psf.finalize()
+
+        profile_data = cpuArray(psf.psf_profile.value)
+        ee_data = cpuArray(psf.encircled_energy.value)
+        ee_at_radius = np.atleast_1d(cpuArray(psf.encircled_energy_at_radius.value))
+
+        self.assertEqual(profile_data.shape[0], 2)
+        self.assertEqual(ee_data.shape[0], 2)
+        self.assertGreater(float(psf.psf_fwhm.value), 0.0)
+        self.assertGreaterEqual(float(ee_at_radius[0]), 0.0)
+        self.assertLessEqual(float(ee_at_radius[0]), 1.0)
+
+    @cpu_and_gpu
     def test_coronagraph_with_zero_phase(self, target_device_idx, xp):
         """Test coronagraph PSF with zero phase - should give perfect suppression"""
         simul_params, ef, wavelengthInNm = self.get_basic_setup(target_device_idx)
@@ -165,6 +198,38 @@ class TestPSF(unittest.TestCase):
 
         # Should have very good suppression (< 1e-10)
         self.assertLess(suppression_ratio, 1e-10)
+
+    @cpu_and_gpu
+    def test_coronagraph_profile_metrics_outputs(self, target_device_idx, xp):
+        """Test coronagraph compatibility of optional profile outputs."""
+        simul_params, ef, wavelengthInNm = self.get_basic_setup(target_device_idx, pixel_pupil=40)
+
+        psf_coro = PsfCoronagraph(simul_params=simul_params, wavelengthInNm=wavelengthInNm,
+                                  nd=2.0, start_time=0.0, compute_profile_metrics=True,
+                                  ee_radius_in_lambda_d=1.0, target_device_idx=target_device_idx)
+
+        psf_coro.inputs['in_ef'].set(ef)
+        psf_coro.setup()
+
+        for t in range(1, 4):
+            ef.phaseInNm[:] = 20.0 * xp.random.randn(*ef.phaseInNm.shape)
+            ef.A[:] = 1.0
+            ef.generation_time = t
+
+            psf_coro.check_ready(t)
+            psf_coro.trigger()
+            psf_coro.post_trigger()
+
+        psf_coro.finalize()
+
+        profile_data = cpuArray(psf_coro.coronagraph_psf_profile.value)
+        ee_data = cpuArray(psf_coro.coronagraph_encircled_energy.value)
+        ee_at_radius = np.atleast_1d(cpuArray(psf_coro.coronagraph_encircled_energy_at_radius.value))
+
+        self.assertEqual(profile_data.shape[0], 2)
+        self.assertEqual(ee_data.shape[0], 2)
+        self.assertGreaterEqual(float(ee_at_radius[0]), 0.0)
+        self.assertLessEqual(float(ee_at_radius[0]), 1.0)
 
     @cpu_and_gpu
     def test_coronagraph_with_aber(self, target_device_idx, xp):
