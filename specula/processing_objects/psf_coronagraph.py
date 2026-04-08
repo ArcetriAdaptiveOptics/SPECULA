@@ -87,6 +87,14 @@ class PsfCoronagraph(PSF):
                                                       precision=precision)
         self.coronagraph_encircled_energy_at_radius = BaseValue(target_device_idx=self.target_device_idx,
                                                                 precision=precision)
+        self.int_coronagraph_psf_profile = BaseValue(target_device_idx=self.target_device_idx,
+                                                     precision=precision)
+        self.int_coronagraph_psf_fwhm = BaseValue(target_device_idx=self.target_device_idx,
+                                                  precision=precision)
+        self.int_coronagraph_encircled_energy = BaseValue(target_device_idx=self.target_device_idx,
+                                                          precision=precision)
+        self.int_coronagraph_encircled_energy_at_radius = BaseValue(target_device_idx=self.target_device_idx,
+                                                                    precision=precision)
 
         self.outputs['out_coronagraph_psf'] = self.coronagraph_psf
         self.outputs['out_int_coronagraph_psf'] = self.int_coronagraph_psf
@@ -95,6 +103,10 @@ class PsfCoronagraph(PSF):
         self.outputs['out_coronagraph_psf_fwhm'] = self.coronagraph_psf_fwhm
         self.outputs['out_coronagraph_encircled_energy'] = self.coronagraph_encircled_energy
         self.outputs['out_coronagraph_encircled_energy_at_radius'] = self.coronagraph_encircled_energy_at_radius
+        self.outputs['out_int_coronagraph_psf_profile'] = self.int_coronagraph_psf_profile
+        self.outputs['out_int_coronagraph_psf_fwhm'] = self.int_coronagraph_psf_fwhm
+        self.outputs['out_int_coronagraph_encircled_energy'] = self.int_coronagraph_encircled_energy
+        self.outputs['out_int_coronagraph_encircled_energy_at_radius'] = self.int_coronagraph_encircled_energy_at_radius
 
         # Reference complex amplitude for perfect coronagraph
         self.ref_complex_amplitude = None
@@ -203,7 +215,7 @@ class PsfCoronagraph(PSF):
         self.coronagraph_psf.generation_time = self.current_time
 
         if self.compute_profile_metrics and self.compute_metrics_in_trigger:
-            self._store_profile_metrics(
+            self._set_profile_outputs(
                 self.coronagraph_psf.value,
                 self.coronagraph_psf_profile,
                 self.coronagraph_psf_fwhm,
@@ -219,12 +231,12 @@ class PsfCoronagraph(PSF):
             variance = self._sum_coronagraph_psf_squared / self.count - self.int_coronagraph_psf.value ** 2
             self.std_coronagraph_psf.value = self.xp.sqrt(self.xp.maximum(variance, 0))
             if self.compute_profile_metrics:
-                self._store_profile_metrics(
+                self._set_profile_outputs(
                     self.int_coronagraph_psf.value,
-                    self.coronagraph_psf_profile,
-                    self.coronagraph_psf_fwhm,
-                    self.coronagraph_encircled_energy,
-                    self.coronagraph_encircled_energy_at_radius,
+                    self.int_coronagraph_psf_profile,
+                    self.int_coronagraph_psf_fwhm,
+                    self.int_coronagraph_encircled_energy,
+                    self.int_coronagraph_encircled_energy_at_radius,
                 )
 
         self.int_coronagraph_psf.generation_time = self.current_time

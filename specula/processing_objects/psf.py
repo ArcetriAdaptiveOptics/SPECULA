@@ -1,10 +1,10 @@
 
 from specula.lib.calc_psf import calc_psf, calc_psf_geometry
 from specula.lib.radial_profile import (
-    computeRadialProfile,
-    computeFWHMFromProfile,
-    computeEncircledEnergy,
-    getEncircledEnergyAtDistance,
+    compute_radial_profile,
+    compute_fwhm_from_profile,
+    compute_encircled_energy,
+    get_encircled_energy_at_distance,
 )
 
 from specula.base_processing_obj import BaseProcessingObj
@@ -103,6 +103,14 @@ class PSF(BaseProcessingObj):
                                           precision=precision)
         self.encircled_energy_at_radius = BaseValue(target_device_idx=self.target_device_idx,
                                                     precision=precision)
+        self.int_psf_profile = BaseValue(target_device_idx=self.target_device_idx,
+                                         precision=precision)
+        self.int_psf_fwhm = BaseValue(target_device_idx=self.target_device_idx,
+                                      precision=precision)
+        self.int_encircled_energy = BaseValue(target_device_idx=self.target_device_idx,
+                                              precision=precision)
+        self.int_encircled_energy_at_radius = BaseValue(target_device_idx=self.target_device_idx,
+                                                        precision=precision)
         self.ref = None
         self.count = 0
         self.first = True
@@ -118,6 +126,10 @@ class PSF(BaseProcessingObj):
         self.outputs['out_psf_fwhm'] = self.psf_fwhm
         self.outputs['out_encircled_energy'] = self.encircled_energy
         self.outputs['out_encircled_energy_at_radius'] = self.encircled_energy_at_radius
+        self.outputs['out_int_psf_profile'] = self.int_psf_profile
+        self.outputs['out_int_psf_fwhm'] = self.int_psf_fwhm
+        self.outputs['out_int_encircled_energy'] = self.int_encircled_energy
+        self.outputs['out_int_encircled_energy_at_radius'] = self.int_encircled_energy_at_radius
 
     def setup(self):
         super().setup()
@@ -169,19 +181,19 @@ class PSF(BaseProcessingObj):
         else:
             norm_psf = psf / peak
 
-        profile, pix_dist, n_px_in_bin = computeRadialProfile(
+        profile, pix_dist, n_px_in_bin = compute_radial_profile(
             norm_psf,
             xp=self.xp,
             dtype=self.dtype,
             return_counts=True,
         )
         radial_dist = pix_dist / self.nd
-        fwhm = computeFWHMFromProfile(profile, radial_dist, xp=self.xp, dtype=self.dtype)
-        ee = computeEncircledEnergy(profile, n_px_in_bin, xp=self.xp, dtype=self.dtype)
+        fwhm = compute_fwhm_from_profile(profile, radial_dist, xp=self.xp, dtype=self.dtype)
+        ee = compute_encircled_energy(profile, n_px_in_bin, xp=self.xp, dtype=self.dtype)
 
         ee_at_radius = None
         if self.ee_radius_in_lambda_d is not None:
-            ee_at_radius = getEncircledEnergyAtDistance(
+            ee_at_radius = get_encircled_energy_at_distance(
                 ee,
                 radial_dist,
                 self.ee_radius_in_lambda_d,
@@ -190,8 +202,8 @@ class PSF(BaseProcessingObj):
             )
         return profile, radial_dist, fwhm, ee, ee_at_radius
 
-    def _store_profile_metrics(self, psf, profile_output, fwhm_output,
-                               ee_output, ee_at_radius_output):
+    def _set_profile_outputs(self, psf, profile_output, fwhm_output,
+                             ee_output, ee_at_radius_output):
         metrics = self._compute_profile_metrics(psf)
         if metrics is None:
             return
@@ -218,7 +230,7 @@ class PSF(BaseProcessingObj):
         self.sr.generation_time = self.current_time
 
         if self.compute_profile_metrics and self.compute_metrics_in_trigger:
-            self._store_profile_metrics(
+            self._set_profile_outputs(
                 self.psf.value,
                 self.psf_profile,
                 self.psf_fwhm,
@@ -233,12 +245,12 @@ class PSF(BaseProcessingObj):
             variance = self._sum_psf_squared / self.count - self.int_psf.value ** 2
             self.std_psf.value = self.xp.sqrt(self.xp.maximum(variance, 0))
             if self.compute_profile_metrics:
-                self._store_profile_metrics(
+                self._set_profile_outputs(
                     self.int_psf.value,
-                    self.psf_profile,
-                    self.psf_fwhm,
-                    self.encircled_energy,
-                    self.encircled_energy_at_radius,
+                    self.int_psf_profile,
+                    self.int_psf_fwhm,
+                    self.int_encircled_energy,
+                    self.int_encircled_energy_at_radius,
                 )
 
         self.int_psf.generation_time = self.current_time
