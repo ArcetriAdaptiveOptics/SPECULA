@@ -68,7 +68,14 @@ def read_freq(params_path:str, obj_name:str=None):
 
 def get_control_data(calib_dir:str,controller_name:str, gain_mod_name:str, params):
     delay_frames = 1.0 + float(params[controller_name]['delay'])
-    if params[controller_name]['class'] == 'IirFilter':
+    if params[controller_name]['class'] == 'Integrator':
+        gain = np.array(params[controller_name]['int_gain'])
+        try:
+            ff = np.array(params[controller_name]['ff'])
+        except KeyError:
+            ff = np.array([1.0])
+        filter_data_complex = IirFilterData.from_gain_and_ff(gain=gain.tolist(),ff=ff.tolist())
+    else:
         try:
             gain = float(params[gain_mod_name]['scheduled_values'][-1][0])
         except:
@@ -76,13 +83,6 @@ def get_control_data(calib_dir:str,controller_name:str, gain_mod_name:str, param
         iir_path = os.path.join(calib_dir,'filter',str(params[controller_name]['iir_filter_data_object'])+'.fits')
         filter_data_complex = IirFilterData.restore(iir_path)
         filter_data_complex.num *= gain
-    else:
-        gain = np.array(params[controller_name]['int_gain'])
-        try:
-            ff = np.array(params[controller_name]['ff'])
-        except KeyError:
-            ff = np.array([1.0])
-        filter_data_complex = IirFilterData.from_gain_and_ff(gain=gain.tolist(),ff=ff.tolist())
     return filter_data_complex, delay_frames
 
 

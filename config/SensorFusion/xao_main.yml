@@ -5,8 +5,8 @@ main:
   root_dir:          '/raid1/mmenessini/calibration/XAO'       # CalibManager root directory (all the data are in subdirectories)
   pixel_pupil:       160                   # Must match influence function computation
   pixel_pitch:       0.0513                # [m] 8.2m / 160 pixels = 0.0513 m/pixel (Nyquist sampling of 10cm r0)
-  total_time:        10.000                 # [s] 1 second simulation
-  time_step:         0.0005                # [s] 0.5ms time steps (2 kHz)
+  total_time:        4.000                 # [s] 1 second simulation
+  time_step:         0.00025                # [s] 0.5ms time steps (2 kHz)
   zenithAngleInDeg:  0.0                   # [deg] Zenith observation (0 means no airmass)
   display_server:    false                 # Disable for batch runs
 
@@ -81,7 +81,7 @@ pyr:
   pup_diam:          48.                     # Pupil diameter in subaps.
   pup_dist:          60.                     # Separation between pupil centers in subaps.
   fov:               2.0                     # Requested field-of-view [arcsec]
-  mod_amp:           1.0                     # Modulation radius (in lambda/D units)
+  mod_amp:           3.0                     # Modulation radius (in lambda/D units)
   output_resolution: 120                      # Output sampling [usually corresponding to CCD pixels]
   wavelengthInNm:    750                     # [nm] Pyramid wavelength
   inputs:
@@ -91,7 +91,7 @@ cred1:
   class:             'CCD'
   simul_params_ref:  'main'
   size:              [120,120]            # Total detector size
-  dt:                0.0005                # [s] Integration time (2000 fps)
+  dt:                0.001                # [s] Integration time (2000 fps)
   bandw:             400                   # [nm]
   photon_noise:      true                  # Enable photon noise
   readout_noise:     true                  # Enable read noise
@@ -107,14 +107,14 @@ pyr_slopes:
   class:                  'PyrSlopec'
   pupdata_object:         'pyr_pupdata_48x48'           
   slopes_from_intensity:  true
-  # sn_object:            'pyr1.0_48x48_sn'
+  sn_object:            'pyr3.0_48x48_sn'
   inputs:
     in_pixels:        'cred1.out_pixels'
   outputs:           ['out_slopes']
 
 pyr_modalrec:
   class:             'Modalrec'
-  recmat_object:     'pyr1.0_48x48_1300modes_rec'        
+  recmat_object:     'pyr3.0_48x48_1300modes_rec'        
   inputs:
     in_slopes:       'pyr_slopes.out_slopes'
   outputs:           ['out_modes']
@@ -181,7 +181,7 @@ ocam2:
   class:             'CCD'
   simul_params_ref:  'main'
   size:              [120,120]             # Total detector size
-  dt:                0.0005                # [s] Integration time (2000 fps)
+  dt:                0.00025                # [s] Integration time (2000 fps)
   bandw:             400                   # [nm]
   photon_noise:      true                  # Enable photon noise
   readout_noise:     true                  # Enable read noise
@@ -195,7 +195,7 @@ ocam2:
 
 zwfs_slopes:
   class:             'ZwfsSlopec'
-  # sn_object:         'z1.5wfs_48x48_sn'
+  sn_object:         'z1.5wfs_48x48_sn'
   pup_diam:          48.0
   ccd_size:          120
   obsratio:          0.0 #14
@@ -247,19 +247,19 @@ zwfs_modalrec:
 #     delta_comm:      'pyr_modalrec.out_modes' #
 #   outputs:           ['out_comm']
 
-# filter:
-#   class:                    'MultirateComplementaryFilter'
-#   simul_params_ref:         'main'
-#   delay:                    1             # Total temporal delay in time steps is this value +1
-#   iir_filter_data_object:  'iirfilter'  
-#   weights:                  [0.5,0.5]     # weigths for fast and slow measurements
-#   N_list:                   [2]           # ffast/slow frequency ratio (list)
-#   g_track:                  0.9           # gain
-#   g_f:                      0.5
-#   inputs:
-#     in_ys: 'pyr_modalrec.out_modes'
-#     in_yf: 'zwfs_modalrec.out_modes'  #'pyr0_modalrec.out_modes' #
-#   outputs:  ['out_comm']
+filter:
+  class:                    'MultirateComplementaryFilter'
+  simul_params_ref:         'main'
+  delay:                    1             # Total temporal delay in time steps is this value +1
+  iir_filter_data_object:  'iirfilter_1300modes'  
+  weights:                  [0.5,0.5]     # weigths for fast and slow measurements
+  N_list:                   [4]           # ffast/slow frequency ratio (list)
+  g_track:                  0.9           # gain
+  inputs:
+    in_ys: 'pyr_modalrec.out_modes'
+    in_yf: 'zwfs_modalrec.out_modes'  #'pyr0_modalrec.out_modes' #
+    gain_mod:                 'gain_ramp.output'
+  outputs:  ['out_comm']
 
 gain_ramp:
   class:             'ScheduleGenerator'
@@ -267,15 +267,15 @@ gain_ramp:
   scheduled_times: [0.01]
   modes_per_group: [1300]
 
-filter:
-  class:                'IirFilter'
-  simul_params_ref:     'main'
-  delay:                1 # Total temporal delay in time steps is this value +1
-  iir_filter_data_object:  'iirfilter_1300modes'
-  inputs:
-    delta_comm: 'pyr_modalrec.out_modes' #'ogc_modes.out_value' 
-    gain_mod:   'gain_ramp.output'
-  outputs:  ['out_comm']
+# filter:
+#   class:                'IirFilter'
+#   simul_params_ref:     'main'
+#   delay:                1 # Total temporal delay in time steps is this value +1
+#   iir_filter_data_object:  'iirfilter_1300modes'
+#   inputs:
+#     delta_comm: 'pyr_modalrec.out_modes' #'ogc_modes.out_value' 
+#     gain_mod:   'gain_ramp.output'
+#   outputs:  ['out_comm']
 
 dm:
   class:             'DM'

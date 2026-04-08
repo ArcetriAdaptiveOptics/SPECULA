@@ -390,7 +390,7 @@ class IirFilterData(BaseDataObj):
         if freq is None:
             freq = np.logspace(-3, np.log10(fs/2), 1000)
 
-        x = freq / (fs/2) * np.pi #self.dtype(np.pi)
+        x =  self.xp.array(freq / (fs/2) * np.pi) #self.dtype(np.pi)
         z = cpuArray(self.xp.exp(self.complex_dtype(1j) * x, dtype=self.complex_dtype))
 
         complex_tf = np.zeros(len(freq), dtype=complex)

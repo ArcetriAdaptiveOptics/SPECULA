@@ -46,45 +46,50 @@ atmo_random:
   outputs:              ['out_source_ngs_ef']
 
 # Modal decomposition of atmospheric phase
-modal_analysis_random:
+atmo_random_modes:
   class: 'ModalAnalysis'
   ifunc_inv_object: 'asm_kl_inv'
-  nmodes: 660
+  nmodes: 720
   inputs:
     in_ef: 'atmo_random.out_source_ngs_ef'
   outputs: ['out_modes']
 
-scale_random:
+atmo_correction:
   class:  'BaseOperation'
-  constant_mul_data: 'correction_vector_600modes_c0.99-0.20' 
+  constant_mul_data: 'correction_vector_600modes_c0.99' 
   inputs:
-    in_value1: 'modal_analysis_random.out_modes'
+    in_value1: 'atmo_random_modes.out_modes'
   outputs: ['out_value']
 
-# DM applying partial correction
-dm_random:
-  class: 'DM'
-  simul_params_ref:  'main'
-  ifunc_object:      'asm_ifunc'      # Our computed influence functions
-  m2c_object:        'asm_m2c'        # Modal-to-command matrix
-  # nmodes:            660            # Number of controlled modes
-  height:            0.0                # Ground-conjugated DM
+atmo_res:
+  class:  'BaseOperation'
+  sub: true
   inputs:
-    in_command: 'scale_random.out_value'
-  outputs: ['out_layer']
+    in_value1: 'atmo_random_modes.out_modes'
+    in_value2: 'atmo_correction.out_value'
+  outputs: ['out_value']
 
-atmo_pc:
-  class: 'ElectricFieldCombinator'
+pushpull_in_pc:
+  class:  'BaseOperation'
+  sub: true
   inputs:
-    in_ef1: 'atmo_random.out_source_ngs_ef'    # Turbulence
-    in_ef2: 'dm_random.out_layer'              # Partial correction
-  outputs: ['out_ef']
+    in_value1: 'atmo_res.out_value'
+    in_value2: 'pushpull.output'
+  outputs: ['out_value']
+
+prop_override:
+  class:             'AtmoPropagation'
+  simul_params_ref:  'main'
+  source_dict_ref:   ['source_ngs'] 
+  inputs:
+    common_layer_list: ['pupilstop']       # Pupil
+  outputs:           ['out_source_ngs_ef'] 
 
 ef_mode:
   class: 'ElectricFieldCombinator'
   inputs:
-    in_ef1: 'atmo_pc.out_ef'    # Partially corrected turbulence
-    in_ef2: 'dm.out_layer'      # Mode amplitudes
+    in_ef1: 'prop.out_source_ngs_ef'    # Unaberrated calibration source
+    in_ef2: 'dm.out_layer'              # Mode amplitudes
   outputs: ['out_ef']
 
 ######################################################################################
@@ -94,7 +99,7 @@ dm_override:
   sign: 1                                 # Use positive sign for calibration (default is -1)
   nmodes: 660                            # Use all modes for calibration
   inputs:
-    in_command: 'pushpull.output'         # Connect to push-pull generator
+    in_command: 'pushpull_in_pc.output'         # Connect to push-pull generator
 
 pyr_override:
   inputs: 
@@ -115,4 +120,4 @@ atmo_pc_modes:
 
 # Remove unnecessary objects during calibration
 remove: ['atmo','seeing','wind_speed','wind_direction','atmo_modes', #'source_science',
-        'dm_mode_res','filter','psf', 'ef_prop', 'prop','pyr_modalrec'] #, 'bootstrap', 'concat_wfs_modes'
+        'dm_mode_res','filter','psf', 'ef_prop','pyr_modalrec'] #, 'bootstrap', 'concat_wfs_modes'

@@ -50,10 +50,13 @@ def plot_output_data(root_dir:str,calib_dir:str):
         except:
             filter_data1, delay_frames1 = get_control_data(calib_dir,'filter1','gain_ramp',params=params)
             filter_data2, delay_frames2 = get_control_data(calib_dir,'filter2','gain_ramp',params=params)
-            fs1 = 1.0/float(params['cred1']['dt'])
+        fs1 = 1.0/float(params['cred1']['dt'])
+        try:
             fs2 = 1.0/float(params['cred2']['dt'])
-            init1 = int(np.round(1.0*fs1))
-            init2 = int(np.round(1.0*fs2))
+        except:
+            fs2 = 1.0/float(params['ocam2']['dt'])
+        init1 = int(np.round(1.0*fs1))
+        init2 = int(np.round(1.0*fs2))
 
     init = int(1.0*fs)
 
@@ -143,11 +146,16 @@ def plot_output_data(root_dir:str,calib_dir:str):
             print(f"dm_res.fits, pyr_res.fits or atmo_res.fits files not found in {data_dir}.")
 
     try:
-        comm = data["dm_cmd"][init+1:, :]
-        res = data["dm_res"][init+1:, :comm.shape[1]]
-        meas = data["pyr_modes"][init+1:, :comm.shape[1]]
-        # zmeas = data["zwfs_modes"][init+1:, :comm.shape[1]]
-        
+        comm = data["dm_cmd"][init:, :]
+        res = data["dm_res"][init:, :comm.shape[1]]
+        if fs1 > fs2:
+            print(fs1,fs2)
+            meas = data["pyr_modes"][init1:, :comm.shape[1]]
+            meas = np.repeat(meas, fs/fs1, axis=0)
+        else:
+            meas = data["zwfs_modes"][init2:, :comm.shape[1]]
+            meas = np.repeat(meas, fs/fs2, axis=0)
+
         pol_modes = comm + meas
         # zpol_modes = comm + zmeas
         turb_modes = res + comm
@@ -158,14 +166,14 @@ def plot_output_data(root_dir:str,calib_dir:str):
 
         flims = [0.1,1/dt/2]
         freq = np.logspace(-2,np.log10(fs/2),2000)
-        nw_delay, dw_delay = filter_data_complex.discrete_delay_tf(delay_frames1)
+        nw_delay, dw_delay = filter_data_complex.discrete_delay_tf(delay_frames)
 
         lo_mode_ids = [0,1,2,3,20]
         plt.figure(figsize=(18,18))
         plt.subplot(2,2,1)
         for k,mode in enumerate(lo_mode_ids):
             plt.loglog(f,pol_psd[mode,:]/np.min(pol_psd[mode,:][f<flims[-1]]),c=f'C{k}',label=f'Mode {mode:1.0f}')
-            rtf = filter_data_complex.RTF(mode=mode, fs=fs, freq=specula.xp.array(freq), dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
+            rtf = filter_data_complex.RTF(mode=mode, fs=fs, freq=freq, dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
             plt.loglog(freq,rtf**-2,'--',c=f'C{k}',label='')
         plt.grid(which='both', alpha=0.3)
         # plt.xlabel('Frequency [Hz]')
@@ -187,7 +195,7 @@ def plot_output_data(root_dir:str,calib_dir:str):
         plt.subplot(2,2,2)
         for k,mode in enumerate(ho_mode_ids):
             plt.loglog(f,pol_psd[mode,:]/np.min(pol_psd[mode,:][f<flims[-1]]),c=f'C{k}',label=f'Mode {mode:1.0f}')
-            rtf = filter_data_complex.RTF(mode=mode, fs=fs, freq=specula.xp.array(freq), dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
+            rtf = filter_data_complex.RTF(mode=mode, fs=fs, freq=freq, dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
             plt.loglog(freq,rtf**-2,'--',c=f'C{k}',label='')
         plt.grid(which='both', alpha=0.3)
         # plt.xlabel('Frequency [Hz]')
@@ -241,8 +249,8 @@ def plot_output_data(root_dir:str,calib_dir:str):
             plt.subplot(2,2,1)
             for k,mode in enumerate(lo_mode_ids):
                 plt.loglog(f,pol_psd[mode,:]/np.min(pol_psd[mode,:][f<flims[-1]]),c=f'C{k}',label=f'Mode {mode:1.0f}')
-                # rtf = filter_data1.RTF(mode=mode, fs=fs, freq=cpuArray(freq), dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
-                # plt.loglog(freq,rtf**-2,'--',c=f'C{k}',label='')
+                rtf = filter_data1.RTF(mode=mode, fs=fs, freq=freq, dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
+                plt.loglog(freq,rtf**-2,'--',c=f'C{k}',label='')
             plt.grid(which='both', alpha=0.3)
             # plt.xlabel('Frequency [Hz]')
             plt.legend()
@@ -263,8 +271,8 @@ def plot_output_data(root_dir:str,calib_dir:str):
             plt.subplot(2,2,2)
             for k,mode in enumerate(ho_mode_ids):
                 plt.loglog(f,pol_psd[mode,:]/np.min(pol_psd[mode,:][f<flims[-1]]),c=f'C{k}',label=f'Mode {mode:1.0f}')
-                # rtf = filter_data1.RTF(mode=mode, fs=fs, freq=cpuArray(freq), dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
-                # plt.loglog(freq,rtf**-2,'--',c=f'C{k}',label='')
+                rtf = filter_data1.RTF(mode=mode, fs=fs, freq=freq, dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
+                plt.loglog(freq,rtf**-2,'--',c=f'C{k}',label='')
             plt.grid(which='both', alpha=0.3)
             # plt.xlabel('Frequency [Hz]')
             plt.legend()
@@ -312,9 +320,9 @@ def plot_output_data(root_dir:str,calib_dir:str):
 
     ##################### Modes ##########################
     try:
-        res = data['dm_res'][init+1:, :]
-        pywfs_modes = data['pyr_modes'][init+1:, :]
-        zwfs_modes = data['zwfs_modes'][init+1:, :]
+        res = data['dm_res'][init:, :]
+        pywfs_modes = data['pyr_modes'][init1:, :]
+        zwfs_modes = data['zwfs_modes'][init2:, :]
         Nmodes = pywfs_modes.shape[1]
         x = np.arange(Nmodes)+1
 
@@ -333,6 +341,9 @@ def plot_output_data(root_dir:str,calib_dir:str):
         plt.legend()
         plt.xscale('log')
         plt.grid()
+        
+        pywfs_modes = np.repeat(pywfs_modes, fs/fs1, axis=0)
+        zwfs_modes = np.repeat(zwfs_modes, fs/fs2, axis=0)
         pyr_rec_rms = np.sqrt(np.mean((pywfs_modes-res[:,:Nmodes])**2,axis=0))
         zwfs_rec_rms = np.sqrt(np.mean((zwfs_modes-res[:,:Nmodes])**2,axis=0))
         plt.subplot(1,2,2)
