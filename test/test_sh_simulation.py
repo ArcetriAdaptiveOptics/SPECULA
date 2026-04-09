@@ -1,9 +1,11 @@
+import gc
 import unittest
 import os
 import shutil
 import subprocess
 import glob
 import specula
+import time
 specula.init(0,precision=1)
 
 from specula import np
@@ -36,12 +38,12 @@ class TestShSimulation(unittest.TestCase):
 
         # Copy reference calibration files
         if os.path.exists(self.subap_ref_path):
-            shutil.copy(self.subap_ref_path, self.subap_path)
+            shutil.copyfile(self.subap_ref_path, self.subap_path)
         else:
             self.fail(f"Reference file {self.subap_ref_path} not found")
 
         if os.path.exists(self.rec_ref_path):
-            shutil.copy(self.rec_ref_path, self.rec_path)
+            shutil.copyfile(self.rec_ref_path, self.rec_path)
         else:
             self.fail("Reference file {self.rec_path} not found")
 
@@ -50,17 +52,28 @@ class TestShSimulation(unittest.TestCase):
 
     def tearDown(self):
         """Clean up after test by removing generated files"""
+        gc.collect()  # Force garbage collection to make sure FITS files are closed before deleting
+        
         # Remove test/data directory with timestamp
         data_dirs = glob.glob(os.path.join(self.datadir, '2*'))
         for data_dir in data_dirs:
             if os.path.isdir(data_dir) and os.path.exists(f"{data_dir}/res_sr.fits"):
                 shutil.rmtree(data_dir)
 
-        # Clean up copied calibration files
-        if os.path.exists(self.subap_path):
-            os.remove(self.subap_path)
-        if os.path.exists(self.rec_path):
-            os.remove(self.rec_path)
+        # Clean up copied calibration files with retry for Windows
+        for fpath in [self.subap_path, self.rec_path]:
+            if os.path.exists(fpath):
+                max_retries = 5
+                for attempt in range(max_retries):
+                    try:
+                        os.remove(fpath)
+                        break
+                    except PermissionError:
+                        if attempt < max_retries - 1:
+                            time.sleep(0.5)  # Wait before retrying
+                        else:
+                            raise
+        
         ps_dir = os.path.dirname(self.phasescreen_path)
         ps_base = os.path.basename(self.phasescreen_path).replace('_single.fits', '_*.fits')
         for fpath in glob.glob(os.path.join(ps_dir, ps_base)):
