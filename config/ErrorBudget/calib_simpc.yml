@@ -49,7 +49,7 @@ atmo_random:
 modal_analysis_random:
   class: 'ModalAnalysis'
   ifunc_inv_object: 'asm_kl_inv'
-  nmodes: 660
+  nmodes: 720
   inputs:
     in_ef: 'atmo_random.out_source_ngs_ef'
   outputs: ['out_modes']

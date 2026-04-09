@@ -131,6 +131,20 @@ for i,n_subap in enumerate(n_subaps):
             fits.writeto(os.path.join(root_dir,'data',tag+'.fits'),corrvec)
             print('Saved correction vector as: '+tag)
 
+# Add perfect correction vectors (seeing 0")
+atmo_modes = fits.getdata(os.path.join(root_dir,'scratch_corrvec',f's{seeing:1.1f}_{N:1.0f}modes_atmo.fits'))
+L = len(atmo_modes)
+for i,N in enumerate(n_modes):
+    tag = f's0.0_{N:1.0f}modes_corrvec'
+    try:
+        corrvec = fits.getdata(os.path.join(root_dir,'data',tag+'.fits'))
+        print('Correction vector '+tag+' already exists: skipping computation')
+    except FileNotFoundError:
+        corrvec = np.zeros(L)
+        corrvec[:N] = 1.0 # perfect correction up to mode N
+        fits.writeto(os.path.join(root_dir,'data',tag+'.fits'),corrvec)
+        print('Saved correction vector as: '+tag)
+
 
 # 4. Calibrate SIMPC vs n_subap, rMods, r0/correction
 ogpath = os.path.join(root_dir,'optgains')
@@ -174,11 +188,10 @@ for i,n_subap in enumerate(n_subaps):
                 # specula.main_simul(yml_files=[main_config, 'calib_simpc.yml'], overrides=overrides)
                 simpc = fits.getdata(os.path.join(root_dir,'im',simpc_tag+'.fits'))
                 og = np.diag(simpc.T @ im)/im_norm
-                cog = np.sqrt((np.diag(simpc.T @ simpc)/im_norm)**2 - og**2)
+                cog = np.sqrt(np.diag(simpc.T @ simpc)/im_norm - og**2)
                 atmo_modes = fits.getdata(os.path.join(root_dir,'scratch_simpc',f's{seeing:1.1f}_{N:1.0f}modes_atmo.fits'))
-                print(atmo_modes.shape)
                 atmo_rms = np.sqrt(np.mean(atmo_modes**2,axis=0))
-                atmo_res = np.sqrt(np.sum(atmo_rms**2))
+                atmo_res = np.sqrt(np.sum(atmo_rms[:N]**2))
                 tag += f'_{atmo_res:1.0f}Nm'
                 fits.writeto(os.path.join(ogpath,tag+'_og.fits'),og)
                 print('Saved optical gains as: '+tag+'_og')
@@ -187,7 +200,7 @@ for i,n_subap in enumerate(n_subaps):
             except FileExistsError:
                 pass
 
-# 4.5 Calibrate SIMPC vs n_subap, rMods fro PERFECT correction
+# 4.5 Calibrate SIMPC vs n_subap, rMods for PERFECT correction
 ogpath = os.path.join(root_dir,'optgains')
 os.makedirs(ogpath,exist_ok=True)
 fs = read_freq(params_path=f'./{main_config}')
@@ -195,6 +208,7 @@ ncycles = 40
 for i,n_subap in enumerate(n_subaps):
     pup_dist = np.max((min_pup_dist,max_pup_dist/max(n_subaps)*n_subap))
     N = n_modes[i]
+    cv_tag = f's0.0_{N:1.0f}modes_corrvec'
     for rMod in rMods:
         im_tag = f'pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_im'
         im = fits.getdata(os.path.join(root_dir,'im',im_tag+'.fits'))
@@ -216,11 +230,11 @@ for i,n_subap in enumerate(n_subaps):
                         f"dm.nmodes: {N:1.0f}, "
                         f"pyr_slopes.pupdata_object: 'pyr_pupdata_{n_subap:.0f}x{n_subap:.0f}', "
                         f"seeing_random.constant: {seeing:1.1f}, "
-                        f"dm_random.in_commands: 'modal_Naalysis_random.out_modes', "
+                        f"scale_random.constant_mul_data: {cv_tag}, "
                         f"pyr_im_calibrator.im_tag: '{simpc_tag}', "
                         f"data_store.store_dir:         '{os.path.join(root_dir,'scratch_simpc')}', "  
                         f"data_store.create_tn: false, "
-                        f"data_store.inputs.input_list: ['s{seeing:1.1f}_{N:1.0f}modes_atmo-atmo_pc_modes.out_modes'], " #,'{N:1.0f}modes_pushpull-pushpull.output'
+                        f"data_store.inputs.input_list: ['{N:1.0f}modes_pushpull-pushpull.output'], "
                         "}")
             write_yaml_overrides(input_string=overrides)
             try:
@@ -228,12 +242,7 @@ for i,n_subap in enumerate(n_subaps):
                 # specula.main_simul(yml_files=[main_config, 'calib_simpc.yml'], overrides=overrides)
                 simpc = fits.getdata(os.path.join(root_dir,'im',simpc_tag+'.fits'))
                 og = np.diag(simpc.T @ im)/im_norm
-                cog = np.sqrt((np.diag(simpc.T @ simpc)/im_norm)**2 - og**2)
-                atmo_modes = fits.getdata(os.path.join(root_dir,'scratch_simpc',f's{seeing:1.1f}_{N:1.0f}modes_atmo.fits'))
-                print(atmo_modes.shape)
-                atmo_rms = np.sqrt(np.mean(atmo_modes**2,axis=0))
-                atmo_res = np.sqrt(np.sum(atmo_rms**2))
-                tag += f'_{atmo_res:1.0f}Nm'
+                cog = np.sqrt(np.diag(simpc.T @ simpc)/im_norm - og**2)
                 fits.writeto(os.path.join(ogpath,tag+'_og_pl.fits'),og)
                 print('Saved optical gains as: '+tag+'_og_pl')
                 fits.writeto(os.path.join(ogpath,tag+'_compl_og_pl.fits'),cog)
