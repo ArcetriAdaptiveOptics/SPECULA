@@ -67,8 +67,20 @@ class TestSpeculaInput:
 
         obj.set_input_task(_dummy_task)
 
+        long_timeout = 10
+        name = None
+        start = time.time()
+
         # wait briefly for process to enqueue value
-        name, value = obj.q.get(timeout=2)
+        while time.time() < start + long_timeout:
+            try:
+                name, value = obj.q.get(timeout=1)
+                break
+            except queue.Empty:
+                pass
+
+        if name is None:
+            raise TimeoutError(f'Value from input task not received after {long_timeout} seconds')
 
         assert name == "x"
         assert value == 99

@@ -22,6 +22,7 @@ class PhaseScreenCube(BaseProcessingObj):
                  pixel_scale: float,
                  source_dict: dict=None,
                  layer_height: float=0.0,
+                 scale_factor: float=1.0,
                  verbose=None,
                  target_device_idx=None):
         """
@@ -41,6 +42,9 @@ class PhaseScreenCube(BaseProcessingObj):
             out_ef and out_layer.
         layer_height : float, optional
             Height in meters assigned to the output layer, by default 0.0.
+        scale_factor : float, optional
+            Scaling factor applied to the phase screens, by default 1.0. This can be used 
+            to adjust the amplitude of the phase screens if needed.
         verbose : bool, optional
             If True, enables verbose output during phase screen generation.
             Default is None (no verbose output).
@@ -55,6 +59,7 @@ class PhaseScreenCube(BaseProcessingObj):
         self.pixel_pupil = self.simul_params.pixel_pupil
         self.pixel_pitch = self.simul_params.pixel_pitch
         self.pixel_scale = pixel_scale
+        self.scale_factor = scale_factor
 
         self.source_dict = source_dict or {}
         self.step_counter = 0
@@ -99,7 +104,7 @@ class PhaseScreenCube(BaseProcessingObj):
         self.time_vector = self.to_xp(self.cube.time_vector)
 
         dim = self.phasescreens.shape
-        self.scaling_fact = dim[1]/self.pixel_pupil*self.pixel_scale/self.pixel_pitch
+        self.bin_fact = dim[1]/self.pixel_pupil*self.pixel_scale/self.pixel_pitch
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
@@ -116,7 +121,7 @@ class PhaseScreenCube(BaseProcessingObj):
 
         # Linear interpolation between two time steps
         time_step = self.time_vector[idx_first_positive] - self.time_vector[idx_last_non_positive]
-        self.cur_screen = 1./time_step*(dt[idx_first_positive]*self.phasescreens[idx_last_non_positive, :, :] + 
+        self.cur_screen = self.scale_factor/time_step*(dt[idx_first_positive]*self.phasescreens[idx_last_non_positive, :, :] + 
                         np.abs(dt[idx_last_non_positive])*self.phasescreens[idx_first_positive, :, :])
 
         in_ef = ElectricField(self.cur_screen.shape[0], self.cur_screen.shape[1], self.pixel_scale,
@@ -127,7 +132,7 @@ class PhaseScreenCube(BaseProcessingObj):
         self.ef_interpolator = EFInterpolator(
             in_ef,
             (self.pixel_pupil,self.pixel_pupil),
-            magnification = self.scaling_fact,
+            magnification = self.bin_fact,
             target_device_idx=self.target_device_idx,
             use_out_ef_cache=False, # we cannot reuse the cache here because the interpolated array
                                     # is computed in prepare_trigger, but is used in trigger_code

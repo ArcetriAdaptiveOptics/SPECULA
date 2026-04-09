@@ -1,6 +1,5 @@
 import os
 from astropy.io import fits
-import numpy as np
 from specula import cpuArray
 
 from specula.base_data_obj import BaseDataObj
@@ -156,7 +155,7 @@ class SpatioTempArray(BaseDataObj):
     def get_fits_header(self):
         """
         Get the FITS header for saving.
-        
+
         Uses abbreviated keywords to comply with FITS standard (max 8 characters).
         Saves shape as space-separated string in ARSHAPE comment for readability.
         Internal temporal axis is stored in TAXIS (always 0).
@@ -178,7 +177,7 @@ class SpatioTempArray(BaseDataObj):
     def from_header(hdr, target_device_idx=None, precision=None):
         """
         Create empty SpatioTempArray from FITS header metadata.
-        
+
         This creates an object with uninitialised arrays of the correct shape
         based on the header metadata (used for pre-allocation before loading data).
 
