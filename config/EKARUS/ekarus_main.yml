@@ -73,7 +73,7 @@ pyr:
   simul_params_ref:  'main'
   pup_diam:          40.                     # Pupil diameter in subaps.
   pup_dist:          48.                     # Separation between pupil centers in subaps.
-  fov:               2.0                     # Requested field-of-view [arcsec]
+  fov:               4.0                     # Requested field-of-view [arcsec]
   mod_amp:           5.0                     # Modulation radius (in lambda/D units)
   output_resolution: 120                      # Output sampling [usually corresponding to CCD pixels]
   wavelengthInNm:    750                     # [nm] Pyramid wavelength
@@ -142,7 +142,7 @@ psf:
   wavelengthInNm:    750                 # [nm] visible
   nd:                4                    # 4x padding for PSF
   start_time:        0.5                  # Start PSF integration after 500ms
-  verbose: false
+  # verbose: false
   inputs:
     in_ef:           'ef_prop.out_ef'
   outputs:           ['out_psf', 'out_std_psf', 'out_sr']

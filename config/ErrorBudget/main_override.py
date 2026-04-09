@@ -305,35 +305,48 @@ for i,n_subap in enumerate(n_subaps):
             except FileExistsError:
                 pass
 
-# # 5. Calibrate aliasing vs n_subaps, n_modes, r0
-# aliaspath = os.path.join(root_dir,'aliasing')
-# os.makedirs(aliaspath,exist_ok=True)
-# for i,n_subap in enumerate(n_subaps):
-#     pup_dist = np.max((min_pup_dist,max_pup_dist/max(n_subaps)*n_subap))
-#     for rMod in rMods:
-#         for seeing in seeings:
-#             modes_vec = n_modes.copy() if i == len(n_subaps)-1 and seeing == 1.0 else np.array([n_modes[i]])
-#             for N in modes_vec:
-#                 overrides = ("{"
-#                             f"pyr.pup_diam: {n_subap:.1f}, "
-#                             f"pyr.pup_dist: {pup_dist:.1f}, "
-#                             f"pyr.mod_amp: {rMod:.1f}, "
-#                             f"pyr_modalrec.recmat_object: 'pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_{N:1.0f}modes_rec', "
-#                             f"pyr_slopes.pupdata_object: 'pyr_pupdata_{n_subap:.0f}x{n_subap:.0f}', "
-#                             f"seeing.constant: {seeing:1.1f}, "
-#                             f"perfect_dm.nmodes: {N:1.0f}, "
-#                             "}")
-#                 write_yaml_overrides(input_string=overrides)
-#                 tag = f'pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_s{seeing:1.1f}_{N:1.0f}modes_alias'
-#                 try:
-#                     alias_rms = fits.getdata(os.path.join(aliaspath,tag+'.fits'))
-#                     print('Aliasing power file '+tag+' already exists: skipping computation')
-#                 except FileNotFoundError:
-#                     os.system(f"specula {main_config} calib_aliasing.yml temp_overrides.yml")
-#                     alias_modes = fits.getdata(os.path.join(root_dir,'scratch_aliasing','pyr_modes.fits'))
-#                     alias_rms = np.sqrt(np.mean(alias_modes**2,axis=0)) 
-#                     fits.writeto(os.path.join(aliaspath,tag+'.fits'),alias_rms,overwrite=True)
-#                     print('Saved aliasing power as: '+tag)
+# 5. Calibrate aliasing vs n_subaps, n_modes, r0
+aliaspath = os.path.join(root_dir,'aliasing')
+os.makedirs(aliaspath,exist_ok=True)
+for i,n_subap in enumerate(n_subaps):
+    pup_dist = np.max((min_pup_dist,max_pup_dist/max(n_subaps)*n_subap))
+    for rMod in rMods:
+        for seeing in seeings:
+            modes_vec = n_modes.copy() if i == len(n_subaps)-1 and seeing == 1.0 else np.array([n_modes[i]])
+            for N in modes_vec:
+                tag = f'pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_s{seeing:1.1f}'
+                rec_tag = tag+f'_{N:1.0f}modes_rec'   
+                try:
+                    rec = fits.getdata(os.path.join(root_dir,'rec',rec_tag+'.fits'))
+                    print('Reconstructor '+rec_tag+' already exists: skipping computation')
+                except FileNotFoundError:
+                    simpc_tag = tag+'_simpc'
+                    compute_and_save_rec(root_dir, im_tag=simpc_tag, rec_tag=rec_tag, Nmodes=N, overwrite=True)
+                overrides = ("{"
+                            f"pyr.pup_diam: {n_subap:.1f}, "
+                            f"pyr.pup_dist: {pup_dist:.1f}, "
+                            f"pyr.mod_amp: {rMod:.1f}, "
+                            f"pyr_modalrec.recmat_object: 'pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_{N:1.0f}modes_rec', "
+                            f"pyr_pc_modalrec.recmat_object: '{rec_tag}', "
+                            f"pyr_slopes.pupdata_object: 'pyr_pupdata_{n_subap:.0f}x{n_subap:.0f}', "
+                            f"seeing.constant: {seeing:1.1f}, "
+                            f"perfect_dm.nmodes: {N:1.0f}, "
+                            "}")
+                write_yaml_overrides(input_string=overrides)
+                tag = f'pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_s{seeing:1.1f}_{N:1.0f}modes_alias'
+                try:
+                    alias_rms = fits.getdata(os.path.join(aliaspath,tag+'.fits'))
+                    print('Aliasing power file '+tag+' already exists: skipping computation')
+                except FileNotFoundError:
+                    os.system(f"specula {main_config} calib_aliasing.yml temp_overrides.yml")
+                    alias_modes = fits.getdata(os.path.join(root_dir,'scratch_aliasing','pyr_modes.fits'))
+                    alias_rms = np.sqrt(np.mean(alias_modes**2,axis=0)) 
+                    fits.writeto(os.path.join(aliaspath,tag+'.fits'),alias_rms,overwrite=True)
+                    print('Saved aliasing power as: '+tag)
+                    alias_pc_modes = fits.getdata(os.path.join(root_dir,'scratch_aliasing','pyr_pc_modes.fits'))
+                    alias_pc_rms = np.sqrt(np.mean(alias_pc_modes**2,axis=0)) 
+                    fits.writeto(os.path.join(aliaspath,'pc_'+tag+'.fits'),alias_pc_rms,overwrite=True)
+                    print('Saved aliasing power as: pc_'+tag)
 
 
 

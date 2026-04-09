@@ -4,7 +4,7 @@
 # Push-pull command generator
 pushpull:
   class:        'PushPullGenerator'
-  nmodes:       450                         # Number of DM actuators
+  nmodes:       443                         # Number of DM actuators
   amp:          10  
   ncycles:       40
   repeat_full_sequence: true
@@ -13,7 +13,7 @@ pushpull:
 # Interaction matrix calibrator
 pyr_im_calibrator:
   class:     'ImCalibrator'
-  nmodes:    450                         # Number of modes to calibrate
+  nmodes:    443                         # Number of modes to calibrate
   im_tag:    'pyr3.0_s2.4_c0.9_im'            # Output IM filename
   overwrite: false                         # Overwrite existing files
   inputs:
@@ -88,7 +88,7 @@ ef_mode:
 # Override DM to use calibration commands
 dm_override:
   sign: 1                                 # Use positive sign for calibration (default is -1)
-  nmodes: 450                            # Use all modes for calibration
+  nmodes: 443                            # Use all modes for calibration
   inputs:
     in_command: 'pushpull.output'         # Connect to push-pull generator
 
