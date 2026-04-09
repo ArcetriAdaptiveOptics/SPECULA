@@ -1,5 +1,5 @@
 import numpy as np
-from specula import cp, to_xp
+from specula import cp
 from scipy.interpolate import RegularGridInterpolator
 
 class Interp2D():
@@ -221,8 +221,8 @@ class Interp2D():
             yy[np.where(yy > input_shape[0] - 1)] = input_shape[0] - 1
             xx[np.where(xx > input_shape[1] - 1)] = input_shape[1] - 1
 
-            self.yy = to_xp(self.xp, yy, dtype=dtype).ravel()
-            self.xx = to_xp(self.xp, xx, dtype=dtype).ravel()
+            self.yy = self.to_xp(yy, dtype=dtype).ravel()
+            self.xx = self.to_xp(xx, dtype=dtype).ravel()
 
             self.scale_x = None
             self.scale_y = None
