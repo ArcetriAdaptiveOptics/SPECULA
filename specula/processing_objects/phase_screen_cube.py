@@ -2,7 +2,6 @@ import numpy as np
 
 from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.electric_field import ElectricField
-from specula.base_value import BaseValue
 from specula.data_objects.layer import Layer
 from specula.data_objects.pupilstop import Pupilstop
 from specula.data_objects.spatio_temp_array import SpatioTempArray
