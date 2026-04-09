@@ -19,15 +19,16 @@ class TestModalrecMultirate(unittest.TestCase):
     @cpu_and_gpu
     def test_outputs_created_in_init(self, target_device_idx, xp):
         n_modes = 5
-        recmat_dict = {
-            'rec_v11': Recmat(xp.ones((n_modes, 4), dtype=xp.float32), target_device_idx=target_device_idx),
-            'rec_v10': Recmat(xp.ones((n_modes, 2), dtype=xp.float32), target_device_idx=target_device_idx),
-            'rec_v01': Recmat(xp.ones((n_modes, 2), dtype=xp.float32), target_device_idx=target_device_idx)
-        }
+        recmat_list = [
+            Recmat(xp.ones((n_modes, 4), dtype=xp.float32), target_device_idx=target_device_idx),
+            Recmat(xp.ones((n_modes, 2), dtype=xp.float32), target_device_idx=target_device_idx),
+            Recmat(xp.ones((n_modes, 2), dtype=xp.float32), target_device_idx=target_device_idx)
+        ]
+        validity_masks = [[True, True], [True, False], [False, True]]
 
         rec = ModalrecMultirate(
-            recmat_dict=recmat_dict,
-            validity_masks=None,
+            recmat_list=recmat_list,
+            validity_masks=validity_masks,
             n_modes_total=n_modes,
             target_device_idx=target_device_idx
         )
@@ -51,11 +52,11 @@ class TestModalrecMultirate(unittest.TestCase):
         mat_s1 = xp.full((self.n_modes, 2), 2.0, dtype=xp.float32)
         mat_s2 = xp.full((self.n_modes, 2), 3.0, dtype=xp.float32)
 
-        recmat_dict = {
-            'rec_both': Recmat(mat_both, target_device_idx=target_device_idx),
-            'rec_s1': Recmat(mat_s1, target_device_idx=target_device_idx),
-            'rec_s2': Recmat(mat_s2, target_device_idx=target_device_idx)
-        }
+        recmat_list = [
+            Recmat(mat_both, target_device_idx=target_device_idx),
+            Recmat(mat_s1, target_device_idx=target_device_idx),
+            Recmat(mat_s2, target_device_idx=target_device_idx)
+        ]
 
         validity_masks = [
             [True, True],
@@ -64,7 +65,7 @@ class TestModalrecMultirate(unittest.TestCase):
         ]
 
         rec = ModalrecMultirate(
-            recmat_dict=recmat_dict,
+            recmat_list=recmat_list,
             validity_masks=validity_masks,
             n_modes_total=self.n_modes,
             target_device_idx=target_device_idx
@@ -146,28 +147,28 @@ class TestModalrecMultirate(unittest.TestCase):
     def test_sanity_check_dimensions(self, target_device_idx, xp):
         """Test that matrix row dimensions must exactly match n_modes_total"""
         mat_wrong = xp.full((4, 4), 1.0, dtype=xp.float32)
-        recmat_dict = {'rec_both': Recmat(mat_wrong, target_device_idx=target_device_idx)}
+        recmat_list = [Recmat(mat_wrong, target_device_idx=target_device_idx)]
 
         with self.assertRaisesRegex(ValueError, "n_modes_total"):
-            ModalrecMultirate(recmat_dict=recmat_dict, validity_masks=[[True, True]],
+            ModalrecMultirate(recmat_list=recmat_list, validity_masks=[[True, True]],
                               n_modes_total=5, target_device_idx=target_device_idx)
 
     @cpu_and_gpu
-    def test_infer_masks_from_dict_keys(self, target_device_idx, xp):
+    def test_setup_loads_masks_from_list_order(self, target_device_idx, xp):
         n_modes = 5
         mat_both = xp.full((n_modes, 4), 1.0, dtype=xp.float32)
         mat_s1 = xp.full((n_modes, 2), 2.0, dtype=xp.float32)
         mat_s2 = xp.full((n_modes, 2), 3.0, dtype=xp.float32)
 
-        recmat_dict = {
-            'rec_v11': Recmat(mat_both, target_device_idx=target_device_idx),
-            'rec_v10': Recmat(mat_s1, target_device_idx=target_device_idx),
-            'rec_v01': Recmat(mat_s2, target_device_idx=target_device_idx)
-        }
+        recmat_list = [
+            Recmat(mat_both, target_device_idx=target_device_idx),
+            Recmat(mat_s1, target_device_idx=target_device_idx),
+            Recmat(mat_s2, target_device_idx=target_device_idx)
+        ]
 
         rec = ModalrecMultirate(
-            recmat_dict=recmat_dict,
-            validity_masks=None,
+            recmat_list=recmat_list,
+            validity_masks=[[True, True], [True, False], [False, True]],
             n_modes_total=n_modes,
             target_device_idx=target_device_idx
         )
@@ -178,21 +179,19 @@ class TestModalrecMultirate(unittest.TestCase):
         rec.local_inputs['in_slopes_list'] = rec.inputs['in_slopes_list'].get(target_device_idx)
         rec.setup()
 
-        self.assertIn((True, True), rec.xp_recmat_dict)
-        self.assertIn((True, False), rec.xp_recmat_dict)
-        self.assertIn((False, True), rec.xp_recmat_dict)
+        self.assertIn((True, True), rec.xp_recmat_by_mask)
+        self.assertIn((True, False), rec.xp_recmat_by_mask)
+        self.assertIn((False, True), rec.xp_recmat_by_mask)
 
     @cpu_and_gpu
     def test_sanity_check_columns(self, target_device_idx, xp):
         n_modes = 5
         mat_bad = xp.full((n_modes, 3), 1.0, dtype=xp.float32)
-        recmat_dict = {
-            'rec_v10': Recmat(mat_bad, target_device_idx=target_device_idx)
-        }
+        recmat_list = [Recmat(mat_bad, target_device_idx=target_device_idx)]
 
         rec = ModalrecMultirate(
-            recmat_dict=recmat_dict,
-            validity_masks=None,
+            recmat_list=recmat_list,
+            validity_masks=[[True, False]],
             n_modes_total=n_modes,
             target_device_idx=target_device_idx
         )
@@ -205,8 +204,8 @@ class TestModalrecMultirate(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "expected"):
             rec.setup()
 
-    def test_integration_simul_with_dict_object(self):
-        """Integration test: Simul builds ModalrecMultirate from recmat_dict_object."""
+    def test_integration_simul_with_list_object(self):
+        """Integration test: Simul builds ModalrecMultirate from `recmat_list_object`."""
         class DummySimulParams:
             def __init__(self, root_dir='dummy', **_kwargs):
                 self.root_dir = root_dir
@@ -229,12 +228,8 @@ class TestModalrecMultirate(unittest.TestCase):
                 'class': 'ModalrecMultirate',
                 'target_device_idx': -1,
                 'precision': 0,
-                'recmat_dict_object': {
-                    'rec_v11': 'tag_both',
-                    'rec_v10': 'tag_s1',
-                    'rec_v01': 'tag_s2'
-                },
-                'validity_masks': None,
+                'recmat_list_object': ['tag_both', 'tag_s1', 'tag_s2'],
+                'validity_masks': [[True, True], [True, False], [False, True]],
                 'n_modes_total': 5
             }
         }
@@ -246,5 +241,49 @@ class TestModalrecMultirate(unittest.TestCase):
 
                 rec_obj = simul.objs['rec']
                 self.assertIsInstance(rec_obj, ModalrecMultirate)
-                self.assertEqual(set(rec_obj.recmat_dict.keys()),
+                self.assertEqual(set(rec_obj.recmat_by_mask.keys()),
                                  {(True, True), (True, False), (False, True)})
+
+    def test_integration_simul_with_list_object_and_validity_masks(self):
+        """Integration test: Simul builds ModalrecMultirate from a list of recmat tags."""
+        class DummySimulParams:
+            def __init__(self, root_dir='dummy', **_kwargs):
+                self.root_dir = root_dir
+
+        def mock_import(classname, additional_modules=None):
+            if classname == 'SimulParams':
+                return DummySimulParams
+            return real_import_class(classname, additional_modules)
+
+        rec_both = Recmat(np.ones((5, 4), dtype=np.float32), target_device_idx=-1, precision=0)
+        rec_s1 = Recmat(np.ones((5, 2), dtype=np.float32), target_device_idx=-1, precision=0)
+        rec_s2 = Recmat(np.ones((5, 2), dtype=np.float32), target_device_idx=-1, precision=0)
+
+        params = {
+            'main': {
+                'class': 'SimulParams',
+                'root_dir': 'dummy'
+            },
+            'rec': {
+                'class': 'ModalrecMultirate',
+                'target_device_idx': -1,
+                'precision': 0,
+                'recmat_list_object': ['tag_both', 'tag_s1', 'tag_s2'],
+                'validity_masks': [[True, True], [True, False], [False, True]],
+                'n_modes_total': 5
+            }
+        }
+
+        with patch('specula.simul.import_class', side_effect=mock_import):
+            with patch('specula.data_objects.recmat.Recmat.restore',
+                       side_effect=[rec_both, rec_s1, rec_s2]):
+                simul = Simul([])
+                simul.build_objects(params)
+
+                rec_obj = simul.objs['rec']
+                self.assertIsInstance(rec_obj, ModalrecMultirate)
+                self.assertEqual(set(rec_obj.recmat_by_mask.keys()),
+                                 {(True, True), (True, False), (False, True)})
+                self.assertEqual(rec_obj.recmat_by_mask[(True, True)].tag, 'tag_both')
+                self.assertEqual(rec_obj.recmat_by_mask[(True, False)].tag, 'tag_s1')
+                self.assertEqual(rec_obj.recmat_by_mask[(False, True)].tag, 'tag_s2')

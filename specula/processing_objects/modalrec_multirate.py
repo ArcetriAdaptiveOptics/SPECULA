@@ -7,90 +7,63 @@ from specula.data_objects.slopes import Slopes
 class ModalrecMultirate(BaseProcessingObj):
     """
     Multirate Tomographic Reconstructor processing object (for MORFEO-like systems).
-    
+
     This object dynamically selects the appropriate Reconstruction Matrix (Recmat)
     based on which sensors have provided a new measurement at the current time step.
-    
-    It mathematically slices the selected matrix into N blocks (one per sensor), 
-    outputting N independent modal vectors of size M. The downstream multirate 
+
+    It mathematically slices the selected matrix into N blocks (one per sensor),
+    outputting N independent modal vectors of size M. The downstream multirate
     controller will fuse these partial modal projections.
     """
 
     def __init__(self,
-                 recmat_dict: dict[str, Recmat],
-                 validity_masks: list | None,
-                 n_modes_total: int,
+                 recmat_list: list[Recmat] | None = None,
+                 validity_masks: list | None = None,
+                 n_modes_total: int | None = None,
                  target_device_idx: int = None,
                  precision: int = None):
         """
         Parameters:
         -----------
-        recmat_dict : dict
-            A dictionary of Recmat objects loaded by SPECULA's YAML parser (using _dict_ref).
-        validity_masks : list of lists, optional
-            List of boolean masks corresponding to the matrices in recmat_dict.
-            If None, masks are inferred from recmat_dict keys when possible.
+        recmat_list : list of `Recmat`
+            Ordered list of reconstruction matrices.
+        validity_masks : list of lists
+            Boolean masks that associate each matrix in `recmat_list` to a sensor-validity state.
         n_modes_total : int
             The total size of the output modal vector (M).
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        if not recmat_dict:
-            raise ValueError("recmat_dict cannot be empty.")
+        if n_modes_total is None:
+            raise ValueError("n_modes_total must be provided.")
+        if not recmat_list:
+            raise ValueError("recmat_list cannot be empty.")
+        if validity_masks is None:
+            raise ValueError("validity_masks must be provided when recmat_list is used.")
+        if len(recmat_list) != len(validity_masks):
+            raise ValueError(f"Number of matrices ({len(recmat_list)}) and masks ({len(validity_masks)}) do not match.")
 
         self.n_modes_total = n_modes_total
-        self.recmat_dict = {}
-        self.xp_recmat_dict = {}
+        self.recmat_by_mask = {}
+        self.xp_recmat_by_mask = {}
 
-        # =====================================================================
-        # DICTIONARY MAPPING
-        # =====================================================================
-        if validity_masks is None:
-            for key, rec_obj in recmat_dict.items():
-                if isinstance(key, tuple):
-                    mask_tuple = key
-                elif isinstance(key, list):
-                    mask_tuple = tuple(key)
-                elif isinstance(key, str):
-                    bitstring = key
-                    if '_v' in key:
-                        bitstring = key.rsplit('_v', 1)[1]
-                    if not bitstring or any(ch not in '01' for ch in bitstring):
-                        raise ValueError("Cannot infer validity mask from recmat_dict key "
-                                         f"'{key}'. Use tuple/list keys, '_v<bits>' suffix, "
-                                         "or provide validity_masks explicitly.")
-                    mask_tuple = tuple(ch == '1' for ch in bitstring)
-                else:
-                    raise ValueError("Cannot infer validity mask from non-string/non-sequence key "
-                                     f"'{key}'.")
-
-                if mask_tuple in self.recmat_dict:
-                    raise ValueError(f"Duplicated validity mask {mask_tuple}.")
-                self.recmat_dict[mask_tuple] = rec_obj
-        else:
-            rec_objects = list(recmat_dict.values())
-            if len(rec_objects) != len(validity_masks):
-                raise ValueError(f"Number of matrices ({len(rec_objects)}) and "
-                                 f"masks ({len(validity_masks)}) do not match.")
-
-            for mask, rec_obj in zip(validity_masks, rec_objects):
-                mask_tuple = tuple(mask)
-                if mask_tuple in self.recmat_dict:
-                    raise ValueError(f"Duplicated validity mask {mask_tuple}.")
-                self.recmat_dict[mask_tuple] = rec_obj
+        for mask, rec_obj in zip(validity_masks, recmat_list):
+            mask_tuple = tuple(mask)
+            if mask_tuple in self.recmat_by_mask:
+                raise ValueError(f"Duplicated validity mask {mask_tuple}.")
+            self.recmat_by_mask[mask_tuple] = rec_obj
 
         # =====================================================================
         # SANITY CHECKS (Dimensions)
         # =====================================================================
-        if self.recmat_dict:
-            for mask, rec_obj in self.recmat_dict.items():
-                mat = rec_obj.recmat
-                if mat.shape[0] != self.n_modes_total:
-                    raise ValueError(f"Matrix for mask {mask} has {mat.shape[0]} rows, "
-                                     f"but n_modes_total is defined as {self.n_modes_total}.")
+        for mask, rec_obj in self.recmat_by_mask.items():
+            mat = rec_obj.recmat
+            if mat.shape[0] != self.n_modes_total:
+                raise ValueError(f"Matrix for mask {mask} has {mat.shape[0]} rows, "
+                                 f"but n_modes_total is defined as {self.n_modes_total}.")
 
         # Infer number of sensors from validity tuples and create outputs upfront.
-        mask_lengths = {len(mask) for mask in self.recmat_dict.keys()}
+        mask_lengths = {len(mask) for mask in self.recmat_by_mask.keys()}
         if len(mask_lengths) != 1:
             raise ValueError("All validity masks must have the same length.")
 
@@ -126,7 +99,7 @@ class ModalrecMultirate(BaseProcessingObj):
 
         # Move matrices to the target device
         slopes_per_sensor = [s.slopes.shape[0] for s in slopes_list]
-        for validity_tuple, recmat_obj in self.recmat_dict.items():
+        for validity_tuple, recmat_obj in self.recmat_by_mask.items():
             if len(validity_tuple) != self.n_sensors:
                 raise ValueError(f"Validity tuple {validity_tuple} length does not match "
                                  f"number of connected sensors ({self.n_sensors}).")
@@ -137,7 +110,7 @@ class ModalrecMultirate(BaseProcessingObj):
                 raise ValueError(f"Matrix for mask {validity_tuple} has {n_cols} columns, "
                                  f"expected {expected_cols} from active sensors.")
 
-            self.xp_recmat_dict[validity_tuple] = self.to_xp(recmat_obj.recmat, dtype=self.dtype)
+            self.xp_recmat_by_mask[validity_tuple] = self.to_xp(recmat_obj.recmat, dtype=self.dtype)
 
     def trigger_code(self):
         slopes_list = self.local_inputs['in_slopes_list']
@@ -156,10 +129,10 @@ class ModalrecMultirate(BaseProcessingObj):
             return
 
         # 2. Fetch the correct matrix from the Look-Up Table
-        if validity_tuple not in self.xp_recmat_dict:
+        if validity_tuple not in self.xp_recmat_by_mask:
             raise KeyError(f"No reconstruction matrix provided for validity state {validity_tuple}")
 
-        current_recmat = self.xp_recmat_dict[validity_tuple]
+        current_recmat = self.xp_recmat_by_mask[validity_tuple]
 
         # 3. Dynamic Matrix Slicing and Multiplication
         col_offset = 0
