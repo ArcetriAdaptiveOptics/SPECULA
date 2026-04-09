@@ -98,6 +98,35 @@ class TestRecmat(unittest.TestCase):
         np.testing.assert_array_equal(cpuArray(restored.recmat), data)
         self.assertEqual(restored.norm_factor, 2.0)
 
+    @cpu_and_gpu
+    def test_restore_fails_with_wrong_version(self, target_device_idx, xp):
+        """Test that restore fails with wrong FITS version."""
+        from astropy.io import fits
+        hdr = fits.Header()
+        hdr['VERSION'] = 999  # Unsupported version
+        fits.writeto(self.filename, np.zeros((2,2)), hdr, overwrite=True)
+
+        with self.assertRaises(ValueError):
+            Recmat.restore(self.filename)
+
+    @cpu_and_gpu
+    def test_restore_with_mode2reLayer(self, target_device_idx, xp):
+        """Test restoring Recmat with modes2recLayer."""
+        from astropy.io import fits
+        recmat_data = np.arange(6).reshape((3, 2)).astype(np.float32)
+        modes2recLayer_data = np.array([[1, 0], [0, 1], [1, 1]], dtype=np.float32)
+
+        hdr = fits.Header()
+        hdr['VERSION'] = 1
+        hdr['NORMFACT'] = 1.0
+        fits.writeto(self.filename, np.zeros((2,2)), hdr, overwrite=True)
+        fits.append(self.filename, recmat_data)
+        fits.append(self.filename, modes2recLayer_data)
+
+        restored = Recmat.restore(self.filename)
+        np.testing.assert_array_equal(cpuArray(restored.recmat), recmat_data)
+        np.testing.assert_array_equal(restored.modes2recLayer, None)  # TODO not initialized in Recmat yet
+
 
 if __name__ == "__main__":
     unittest.main()

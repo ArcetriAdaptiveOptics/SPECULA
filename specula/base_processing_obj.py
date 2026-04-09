@@ -1,10 +1,15 @@
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 
 from specula import cpuArray, default_target_device, cp, MPI_DBG, MPI_SEND_DBG
 from specula import show_in_profiler
 from specula import process_comm, process_rank
 from specula.base_time_obj import BaseTimeObj
+from specula.connections import InputList, InputValue
 from specula.data_objects.layer import Layer
+
+
+InputDesc = namedtuple('InputDesc', 'type desc')
+OutputDesc = namedtuple('OutputDesc', 'type desc')
 
 
 class BaseProcessingObj(BaseTimeObj):
@@ -27,7 +32,7 @@ class BaseProcessingObj(BaseTimeObj):
         self.verbose = 0
 
         # Stream/input management
-        self.stream  = None
+        self.stream = None
         self.inputs_changed = False
         self.cuda_graph = None
 
@@ -60,7 +65,7 @@ class BaseProcessingObj(BaseTimeObj):
         the trigger method, based on the input states
         '''
         # No inputs: always trigger
-        if len(self.inputs)==0:
+        if len(self.inputs) == 0:
             return True
 
         self.get_all_inputs()
@@ -147,7 +152,6 @@ class BaseProcessingObj(BaseTimeObj):
             if self.cuda_graph:
                 self.stream.synchronize()
 
-
     def send_remote_output(self, item, dest_rank, dest_tag, first_mpi_send=True, out_name=''):
         if MPI_SEND_DBG: print(process_rank, f'SEND to rank {dest_rank} {dest_tag=} {(dest_tag in self.sent_valid)=} (from {self.name}.{out_name})', flush=True)
         if first_mpi_send or not dest_tag in self.sent_valid:
@@ -156,7 +160,7 @@ class BaseProcessingObj(BaseTimeObj):
             item.xp = 0            
             process_comm.ibsend(item, dest=dest_rank, tag=dest_tag)
             item.xp = xp_orig
-        else:            
+        else:
             buffer = item.get_value()
             if MPI_SEND_DBG:  print(process_rank, dest_tag, 'SEND .device', buffer.device)
             if MPI_SEND_DBG: print(process_rank, 'SEND with Buffer', dest_tag, type(buffer), buffer, flush=True)
@@ -167,7 +171,6 @@ class BaseProcessingObj(BaseTimeObj):
             process_comm.ibsend(item.generation_time, dest=dest_rank, tag=dest_tag+1)
         if item.get_value() is not None:
             self.sent_valid[dest_tag] = True
-
 
     # this method implements the mpi send call of the outputs connected to remote inputs
     def send_outputs(self, skip_delayed=False, delayed_only=False, first_mpi_send=True):
@@ -209,7 +212,7 @@ class BaseProcessingObj(BaseTimeObj):
         return cls._streams[target_device_idx]
 
     def build_stream(self, allow_parallel=True):
-        if self.target_device_idx>=0:
+        if self.target_device_idx >= 0:
             self._target_device.use()
             if allow_parallel:
                 self.stream = cp.cuda.Stream(non_blocking=False)
@@ -246,13 +249,13 @@ class BaseProcessingObj(BaseTimeObj):
             raise RuntimeError("trigger() called when the object's inputs have not changed")
 
         with show_in_profiler(self.__class__.__name__+'.trigger'):
-            if self.target_device_idx>=0:
+            if self.target_device_idx >= 0:
                 self._target_device.use()
-            if self.target_device_idx>=0 and self.cuda_graph:
+            if self.target_device_idx >= 0 and self.cuda_graph:
                 self.cuda_graph.launch(stream=self.stream)
             else:
                 self.trigger_code()
-             
+
     def setup(self):
         """
         Override this method to perform any setup
@@ -260,7 +263,6 @@ class BaseProcessingObj(BaseTimeObj):
 
         The base class implementation also checks that
         all non-optional inputs have been set.
-        
         """
         if self.target_device_idx >= 0:
             self._target_device.use()
@@ -277,5 +279,46 @@ class BaseProcessingObj(BaseTimeObj):
         '''
         pass
 
+    def sanity_check(self):
+        '''
+        Check that all inputs and outputs have been setup correctly.
+        '''
+        self.check_input_names()
+        self.check_output_names()
 
+    def check_input_names(self):
+        '''
+        Check that all input names declared in self.input_names are present in self.inputs
+        with the correct type (InputValue or list of InputValue).
+        '''
+        if not hasattr(self, 'input_names'):
+            return
+        input_dict = self.input_names()
+        for k, v in input_dict.items():
+            if not k in self.inputs:
+                raise ValueError(f"Input {k} declared in input_names but not present in inputs")
+            if not isinstance(self.inputs[k], (InputValue, InputList)):
+                raise TypeError(f"Input {k} must be an InputValue or an InputList")
+            if self.inputs[k].output_ref_type is not v[0]:
+                raise TypeError(f"Input {k} must be of type {v[0]}, but got {self.inputs[k].type}")
 
+        for k in self.inputs:
+            if not k in input_dict:
+                raise ValueError(f"Input {k} present in inputs but not declared in input_names")
+
+    def check_output_names(self):
+        '''
+        Check that all output names declared in self.output_names are present in self.outputs
+        '''
+        if not hasattr(self, 'output_names'):
+            return
+        output_list = self.output_names()
+        for k, v in output_list.items():
+            if not k in self.outputs:
+                raise ValueError(f"Output {k} declared in output_names but not present in outputs")
+            if not isinstance(self.outputs[k], v[0]):
+                raise TypeError(f"Output {k} must be of type {v[0]}, but got {type(self.outputs[k])}")
+
+        for k in self.outputs:
+            if not k in output_list:
+                raise ValueError(f"Output {k} present in outputs but not declared in output_names")

@@ -780,9 +780,15 @@ class Simul():
         print('overrides:', self.overrides)
         if len(self.overrides) > 0:
             for k, v in yaml.full_load(self.overrides).items():
-                obj_name, param_name = k.split('.')
-                params[obj_name][param_name] = v
-                print(obj_name, param_name, v)
+                parts = k.split('.')
+                if len(parts) == 2:
+                    params[parts[0]][parts[1]] = v
+                    print(*parts, v)
+                elif len(parts) == 3:
+                    params[parts[0]][parts[1]][parts[2]] = v
+                    print(*parts, v)
+                else:
+                    raise ValueError(f"Unknown number of parts detected in override: {parts}. Did you add/forget a '.'?")
 
     def arrangeInGrid(self, trigger_order, trigger_order_idx):
         rows = []

@@ -248,4 +248,6 @@ class DataStore(BaseProcessingObj):
         if self.split_size == 0:
             if self.create_tn:
                 self.create_TN_folder()
+            else:
+                os.makedirs(self.tn_dir_orig,exist_ok=True)
             self.save()

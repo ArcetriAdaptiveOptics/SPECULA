@@ -534,7 +534,7 @@ class IirFilterData(BaseDataObj):
         return max_stable
 
     def max_stable_gain(self, mode=None, delay=None, dm=None, nw=None, dw=None, 
-                    max_gain=20.0, n_gain=10000, tolerance=1e-6):
+                              max_gain=20.0, n_gain=10000, tolerance=1e-6):
         """Calculate maximum stable gain for closed-loop system.
         
         This function finds the maximum controller gain that maintains stability
@@ -605,7 +605,7 @@ class IirFilterData(BaseDataObj):
             return max_gains
 
     def resonance_frequency(self, mode, gain_factor=1.0, delay=None, dm=None, nw=None, dw=None,
-                           fs=1000.0, freq=None):
+                                  fs=1000.0, freq=None):
         """Calculate resonance frequency of closed-loop system.
         
         Args:
@@ -675,7 +675,7 @@ class IirFilterData(BaseDataObj):
         return resonance_freq, resonance_amplitude
 
     def stability_analysis(self, mode=None, delay=None, dm=None, nw=None, dw=None,
-                          fs=1000.0, max_gain=20.0, n_gain=10000):
+                                 fs=1000.0, max_gain=20.0, n_gain=10000):
         """Comprehensive stability analysis for controller(s).
         
         Args:
@@ -814,7 +814,6 @@ class IirFilterData(BaseDataObj):
             num[0] = 1.
 
         return num, den
-
 
     @staticmethod
     def from_gain_and_ff(gain, ff=None, target_device_idx=None):
@@ -994,10 +993,10 @@ class IirFilterData(BaseDataObj):
         Args:
             mode: Index of the filter to convert (default: 0)
             dt: Sampling time for discrete-time system (default: None for continuous-time)
-            
+
         Returns:
             control.TransferFunction: The transfer function object
-            
+
         Raises:
             ImportError: If control library is not installed
         """
@@ -1025,13 +1024,13 @@ class IirFilterData(BaseDataObj):
 
     def to_control_tf_list(self, dt: float = None):
         """Convert all filters to a list of control.TransferFunction objects.
-        
+
         Args:
             dt: Sampling time for discrete-time system (default: None for continuous-time)
-            
+
         Returns:
             list: List of control.TransferFunction objects
-            
+
         Raises:
             ImportError: If control library is not installed
         """
@@ -1045,11 +1044,11 @@ class IirFilterData(BaseDataObj):
     @staticmethod
     def from_control_tf(tf_list, target_device_idx: int = None):
         """Create IirFilterData from control.TransferFunction objects.
-        
+
         Args:
             tf_list: Single control.TransferFunction or list of control.TransferFunction objects
             target_device_idx: Target device index (default: None)
-            
+
         Returns:
             IirFilterData: New IirFilterData object
         """
@@ -1096,18 +1095,18 @@ class IirFilterData(BaseDataObj):
     def bode_plot(self, mode: int = 0, dt: float = None, omega: np.ndarray = None,
                   plot: bool = True, **kwargs):
         """Create Bode plot for a specific filter using control library.
-        
+
         Args:
             mode: Index of the filter to plot (default: 0)
             dt: Sampling time for discrete-time system (default: None)
             omega: Frequency vector (default: auto-generated)
             plot: Whether to display the plot (default: True)
             **kwargs: Additional arguments passed to control.bode_plot
-            
+
         Returns:
             tuple: (magnitude, phase, frequency) arrays
             or ControlPlot object
-            
+
         Raises:
             ImportError: If control library is not installed
         """
@@ -1134,18 +1133,18 @@ class IirFilterData(BaseDataObj):
     def nyquist_plot(self, mode: int = 0, dt: float = None, omega: np.ndarray = None,
                      plot: bool = True, **kwargs):
         """Create Nyquist plot for a specific filter using control library.
-        
+
         Args:
             mode: Index of the filter to plot (default: 0)
             dt: Sampling time for discrete-time system (default: None)
             omega: Frequency vector (default: auto-generated)
             plot: Whether to display the plot (default: True)
             **kwargs: Additional arguments passed to control.nyquist_plot
-            
+
         Returns:
             tuple: (real, imaginary, frequency) arrays
             or ControlPlot object
-            
+
         Raises:
             ImportError: If control library is not installed
         """
@@ -1174,16 +1173,16 @@ class IirFilterData(BaseDataObj):
 
     def step_response(self, mode: int = 0, dt: float = None, T: np.ndarray = None, **kwargs):
         """Compute step response for a specific filter using control library.
-        
+
         Args:
             mode: Index of the filter (default: 0)
             dt: Sampling time for discrete-time system (default: None)
             T: Time vector (default: auto-generated)
             **kwargs: Additional arguments passed to control.step_response
-            
+
         Returns:
             tuple: (time, response) arrays
-            
+
         Raises:
             ImportError: If control library is not installed
         """
@@ -1210,10 +1209,10 @@ class IirFilterData(BaseDataObj):
             dt: Sampling time for discrete-time system (default: None)
             T: Time vector (default: auto-generated)
             **kwargs: Additional arguments passed to control.impulse_response
-            
+
         Returns:
             tuple: (time, response) arrays
-            
+
         Raises:
             ImportError: If control library is not installed
         """
@@ -1234,18 +1233,18 @@ class IirFilterData(BaseDataObj):
 
     def stability_margins(self, mode: int = 0, dt: float = None):
         """Compute stability margins for a specific filter using control library.
-        
+
         Args:
             mode: Index of the filter (default: 0)
             dt: Sampling time for discrete-time system (default: None)
-            
+
         Returns:
             tuple: (gain_margin, phase_margin, wg, wp) where:
                    - gain_margin: Gain margin in dB
                    - phase_margin: Phase margin in degrees
                    - wg: Frequency at gain margin
                    - wp: Frequency at phase margin
-            
+
         Raises:
             ImportError: If control library is not installed
         """
@@ -1259,16 +1258,16 @@ class IirFilterData(BaseDataObj):
 
     def pole_zero_map(self, mode: int = 0, dt: float = None, plot: bool = True, **kwargs):
         """Create pole-zero map for a specific filter using control library.
-        
+
         Args:
             mode: Index of the filter (default: 0)
             dt: Sampling time for discrete-time system (default: None)
             plot: Whether to display the plot (default: True)
             **kwargs: Additional arguments passed to control.pzmap
-            
+
         Returns:
             tuple: (poles, zeros) arrays
-            
+
         Raises:
             ImportError: If control library is not installed
         """
