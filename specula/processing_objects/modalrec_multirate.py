@@ -41,7 +41,8 @@ class ModalrecMultirate(BaseProcessingObj):
         if validity_masks is None:
             raise ValueError("validity_masks must be provided when recmat_list is used.")
         if len(recmat_list) != len(validity_masks):
-            raise ValueError(f"Number of matrices ({len(recmat_list)}) and masks ({len(validity_masks)}) do not match.")
+            raise ValueError(f"Number of matrices ({len(recmat_list)}) and masks"
+                             f" ({len(validity_masks)}) do not match.")
 
         self.n_modes_total = n_modes_total
         self.recmat_by_mask = {}
@@ -49,6 +50,8 @@ class ModalrecMultirate(BaseProcessingObj):
         self.recmat_layout_by_mask = {}
         self.sensor_col_offsets = None
 
+        # build a look-up table (dictionary) that maps each validity mask to
+        # its corresponding reconstruction matrix
         for mask, rec_obj in zip(validity_masks, recmat_list):
             mask_tuple = tuple(mask)
             if mask_tuple in self.recmat_by_mask:
@@ -64,19 +67,21 @@ class ModalrecMultirate(BaseProcessingObj):
                 raise ValueError(f"Matrix for mask {mask} has {mat.shape[0]} rows, "
                                  f"but n_modes_total is defined as {self.n_modes_total}.")
 
-        # Infer number of sensors from validity tuples and create outputs upfront.
+        # Build a set of unique mask lengths to ensure all masks have the same number of sensors
         mask_lengths = {len(mask) for mask in self.recmat_by_mask.keys()}
         if len(mask_lengths) != 1:
             raise ValueError("All validity masks must have the same length.")
 
+        # Convert the single element set to an iterable and extract
+        # the first (and only) element to get the number of sensors
         self.n_sensors = next(iter(mask_lengths))
         if self.n_sensors < 1:
             raise ValueError("At least one sensor is required.")
 
-        # Register input port
+        # Register input list
         self.inputs['in_slopes_list'] = InputList(type=Slopes)
 
-        # Create fixed output ports using topology inferred from mask tuples.
+        # Create fixed output list
         self.out_modes_list = []
         for i in range(self.n_sensors):
             out_val = BaseValue(f'output modes for sensor {i}',
@@ -84,8 +89,8 @@ class ModalrecMultirate(BaseProcessingObj):
                                 precision=self.precision)
             out_val.value = self.xp.zeros(self.n_modes_total, dtype=self.dtype)
 
-            port_name = f'out_modes_{i}'
-            self.outputs[port_name] = out_val
+            output_name = f'out_modes_{i}'
+            self.outputs[output_name] = out_val
             self.out_modes_list.append(out_val)
 
     def setup(self):
@@ -99,7 +104,8 @@ class ModalrecMultirate(BaseProcessingObj):
             raise ValueError(f"Connected sensors ({len(slopes_list)}) do not match "
                              f"reconstructor topology ({self.n_sensors}).")
 
-        # Move matrices to the target device
+        # Precompute column offsets starting from the size of the slopes vector for each sensor.
+        # This allows us to quickly slice the reconstruction matrices during the trigger.
         slopes_per_sensor = [s.slopes.shape[0] for s in slopes_list]
         total_cols = sum(slopes_per_sensor)
         self.sensor_col_offsets = [0]
@@ -111,23 +117,34 @@ class ModalrecMultirate(BaseProcessingObj):
                 raise ValueError(f"Validity tuple {validity_tuple} length does not match "
                                  f"number of connected sensors ({self.n_sensors}).")
 
-            active_cols = sum(slopes_per_sensor[i] for i, active in enumerate(validity_tuple) if active)
+            # Calculate the expected number of columns for this mask based on active sensors
+            active_cols = sum(slopes_per_sensor[i] for i,
+                              active in enumerate(validity_tuple) if active)
             n_cols = recmat_obj.recmat.shape[1]
             if n_cols == total_cols:
+                # full means the matrix has columns for all sensors,
+                # with zero-columns for inactive ones
                 self.recmat_layout_by_mask[validity_tuple] = 'full'
             elif n_cols == active_cols:
+                # compact means the matrix only has columns for active sensors,
+                # concatenated together
                 self.recmat_layout_by_mask[validity_tuple] = 'compact'
             else:
                 raise ValueError(
                     f"Matrix for mask {validity_tuple} has {n_cols} columns, expected either "
-                    f"{active_cols} from active sensors or {total_cols} from the full sensor vector."
+                    f"{active_cols} from active sensors or {total_cols} from the full sensor "
+                    f"vector."
                 )
 
-            self.xp_recmat_by_mask[validity_tuple] = self.to_xp(recmat_obj.recmat, dtype=self.dtype)
+            # Move matrices to the target device
+            self.xp_recmat_by_mask[validity_tuple] = self.to_xp(recmat_obj.recmat,
+                                                                dtype=self.dtype)
 
     def trigger_code(self):
         slopes_list = self.local_inputs['in_slopes_list']
 
+        # Determine a list of booleans indicating which sensors have new data
+        # at the current time step
         validity = []
         for s in slopes_list:
             validity.append(s.generation_time == self.current_time)
@@ -137,7 +154,8 @@ class ModalrecMultirate(BaseProcessingObj):
         # 1. Zero-Stuffing condition: No sensors active
         if not any(validity):
             for i in range(self.n_sensors):
-                self.out_modes_list[i].value[:] = 0.0
+                self.out_modes_list[i].value[:] = self.xp.zeros(self.n_modes_total,
+                                                                dtype=self.dtype)
                 self.out_modes_list[i].generation_time = self.current_time
             return
 
@@ -167,9 +185,10 @@ class ModalrecMultirate(BaseProcessingObj):
                 R_block = current_recmat[:, start:end]
 
                 # Project this sensor slopes into the full M-dimensional modal space
-                self.out_modes_list[i].value = R_block @ s.slopes
+                self.out_modes_list[i].value[:] = R_block @ s.slopes
             else:
                 # Sensor is inactive, output M zeros
-                self.out_modes_list[i].value[:] = 0.0
+                self.out_modes_list[i].value[:] = self.xp.zeros(self.n_modes_total,
+                                                                dtype=self.dtype)
 
             self.out_modes_list[i].generation_time = self.current_time
