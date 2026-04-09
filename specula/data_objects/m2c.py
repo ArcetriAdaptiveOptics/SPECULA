@@ -1,5 +1,4 @@
 
-import numpy as np
 from astropy.io import fits
 
 from specula import cpuArray
@@ -36,7 +35,7 @@ class M2C(BaseDataObj):
 
     def set_value(self, v):
         '''
-        Set new values for the m2c matrix field    
+        Set new values for the m2c matrix field
         Arrays are not reallocated
         '''
         assert v.shape == self.m2c.shape, \

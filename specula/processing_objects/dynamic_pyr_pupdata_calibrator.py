@@ -109,11 +109,17 @@ class DynamicPyrPupdataCalibrator(PyrPupdataCalibrator):
             input_dt = self.local_inputs['in_dt']
             if input_dt is not None and input_dt.generation_time == self.current_time:
                 self.dt = self.seconds_to_t(float(input_dt.value))
-        
+        except Exception as e:
+            print(f'Exception: {e.__name__}: {e}')
+
+        try:
             input_thr1 = self.local_inputs['in_thr1']
             if input_thr1 is not None and input_thr1.generation_time == self.current_time:
                 self.thr1 = float(input_thr1.value)
+        except Exception as e:
+            print(f'Exception: {e.__name__}: {e}')
 
+        try:
             input_thr2 = self.local_inputs['in_thr2']
             if input_thr2 is not None and input_thr2.generation_time == self.current_time:
                 self.thr2 = float(input_thr2.value)

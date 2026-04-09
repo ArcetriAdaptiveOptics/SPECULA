@@ -13,7 +13,7 @@ def get_properties(cls):
     result = []
     classlist = cls.__mro__
     for cc in classlist:
-        result.extend([attr for attr, value in vars(cc).items() if isinstance(value, property) ]) 
+        result.extend([attr for attr, value in vars(cc).items() if isinstance(value, property) ])
     return result
 
 
@@ -44,7 +44,7 @@ class BaseDataObj(BaseTimeObj):
         '''
         # Get a list of all attributes, but skip properties
         pp = get_properties(type(self))
-        attr_list = [attr for attr in dir(self) if attr not in pp]       
+        attr_list = [attr for attr in dir(self) if attr not in pp]
 
         for attr in attr_list:
             self_attr = getattr(self, attr)

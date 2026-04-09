@@ -1,5 +1,6 @@
 import os
-import hashlib, json
+import json
+import hashlib
 
 import numpy as np
 from astropy.io import fits
@@ -105,6 +106,7 @@ def lgs_map_sh(nsh, diam, rl, zb, dz, profz, fwhmb, ps, ssp,
 
     return ccd
 
+
 class ConvolutionKernel(BaseDataObj):
     """
     Convolution Kernel data object.
@@ -117,7 +119,7 @@ class ConvolutionKernel(BaseDataObj):
                  pxscale: float,
                  pupil_size_m: float,
                  dimension: int,
-                 launcher_pos: list=[0.0,0.0,0.0],
+                 launcher_pos: list=[0.0, 0.0, 0.0],
                  seeing: float=0.0,
                  launcher_size: float=0.0,
                  zfocus: float=90e3,
@@ -305,7 +307,7 @@ class ConvolutionKernel(BaseDataObj):
     def save(self, filename):
         """
         Save the kernel to a FITS file.
-        
+
         Parameters:
             filename (str): Path to save the FITS file
             hdr (fits.Header, optional): Additional header information

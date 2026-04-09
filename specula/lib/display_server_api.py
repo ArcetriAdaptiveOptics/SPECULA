@@ -251,7 +251,7 @@ class FlaskServer:
                 # This can happen if the main process has ended and closed the queue.
                 # In that case, we should also shut down the server.
                 break
-            except Exception as e:
+            except Exception:
                 break
         self.shutdown()
 
@@ -363,9 +363,11 @@ def start_server(params_dict, status_queue, request_queue, host, port, mode):
     
     server.run()
 
+
 @app.route('/')
 def index():
     return render_template('specula_display.html')
+
 
 @app.route('/status')
 def status():    

@@ -4,7 +4,7 @@ astropy
 matplotlib
 symao >= 1.0.1
 astro-seeing >= 1.1
-synim == 1.0.5
+synim == 1.1.3
 flask-socketio
 python-socketio
 requests

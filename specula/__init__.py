@@ -72,7 +72,7 @@ def init(device_idx=-1,
 
     default_target_device_idx = device_idx
     systemDisable = os.environ.get('SPECULA_DISABLE_GPU', 'FALSE')
-    if systemDisable=='FALSE':
+    if systemDisable == 'FALSE':
         try:
             import cupy as cp
             main_logger.info("Cupy import successfull. Installed version is: "+ cp.__version__)
@@ -82,15 +82,14 @@ def init(device_idx=-1,
             main_logger.warning("Cupy import failed. SPECULA will fall back to CPU use.")
             cp = None
             xp = np
-            default_target_device_idx=-1
+            default_target_device_idx = -1
     else:
         main_logger.info("env variable SPECULA_DISABLE_GPU prevents using the GPU.")
         cp = None
         xp = np
-        default_target_device_idx=-1
+        default_target_device_idx = -1
 
-
-    if default_target_device_idx>=0:
+    if default_target_device_idx >= 0:
         xp = cp
         gpu_float_dtype_list = [cp.float64, cp.float32]
         gpu_complex_dtype_list = [cp.complex128, cp.complex64]
@@ -116,7 +115,7 @@ def init(device_idx=-1,
     global_precision = precision
     float_dtype = float_dtype_list[global_precision]
     complex_dtype = complex_dtype_list[global_precision]
-    
+
     # Patch cupy's missing RandomState.random() method
     if cp is not None:
         cp.random.RandomState.random = cp.random.RandomState.random_sample
@@ -140,9 +139,9 @@ def to_xp(xp, v, dtype=None, force_copy=False):
     '''
     if xp is cp:
         if isinstance(v, cp.ndarray) and not force_copy:
-            retval =  v
+            retval = v
         else:
-            retval =  cp.array(v)
+            retval = cp.array(v)
     else:
         if cp is not None and isinstance(v, cp.ndarray):
             retval = v.get()
@@ -192,7 +191,7 @@ def fuse(kernel_name=None):
     '''
     Replacement of cupy.fuse() allowing runtime
     dispatch to cupy or numpy.
-    
+
     Fused function takes an xp argument that will
     cause it to run as a fused kernel or a standard
     numpy function. The xp argument can be used
@@ -208,6 +207,7 @@ def fuse(kernel_name=None):
             f_gpu = cp.fuse(kernel_name=kernel_name)(f_cp)
         else:
             f_gpu = None
+
         @wraps(f)
         def wrapper(*args, xp, **kwargs):
             if xp == cp:
@@ -219,7 +219,7 @@ def fuse(kernel_name=None):
 
 
 def main_simul(yml_files: list,
-               nsimul = 1,
+               nsimul=1,
                cpu: bool=False,
                overrides: str=None,
                target: int=0,

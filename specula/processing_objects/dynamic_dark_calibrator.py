@@ -179,7 +179,10 @@ class DynamicDarkCalibrator(BaseProcessingObj):
                 if nframes <= 0:
                     raise ValueError(f'Number of frames is {nframes} and must be greater than zero')
                 self.nframes = nframes
+        except Exception as e:
+            print(f'Exception: {e.__name__}: {e}')
 
+        try:
             input_load = self.local_inputs['in_load']
             if input_load is not None and input_load.generation_time == self.current_time:
                 filename = str(input_load.value)

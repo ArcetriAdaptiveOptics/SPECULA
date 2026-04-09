@@ -53,7 +53,7 @@ class Recmat(BaseDataObj):
                 proj[idx, :] = self.xp.identity(len(idx))
                 self.proj_list.append(proj)
             self.modes2recLayer = modes2recLayer
-            
+
     def reduce_size(self, nModesToBeDiscarded):
         if nModesToBeDiscarded >= self.nmodes:
             raise ValueError(f"nModesToBeDiscarded should be less than nmodes (<{self.nmodes})")
@@ -93,7 +93,7 @@ class Recmat(BaseDataObj):
         recmat = fits.getdata(filename, ext=1)
         with fits.open(filename) as hdul:
             num_ext = len(hdul)
-        if num_ext >= 3:                
+        if num_ext >= 3:
             mode2reLayer = fits.getdata(filename, ext=2)
         else:
             mode2reLayer = None
