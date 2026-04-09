@@ -1,10 +1,8 @@
 
 from specula.processing_objects.integrator import Integrator
-from specula.data_objects.iir_filter_data import IirFilterData
 from specula.data_objects.simul_params import SimulParams
 from specula.connections import InputValue
 from specula.base_value import BaseValue
-from specula import cpuArray
 
 
 class DynamicIntegrator(Integrator):

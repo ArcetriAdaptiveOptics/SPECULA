@@ -19,7 +19,7 @@ from specula.base_value import BaseValue
 from specula.processing_objects.dm import DM
 from specula.processing_objects.sh import SH
 from specula.processing_objects.sh_slopec import ShSlopec
-from specula import cpuArray, np, xp
+from specula import cpuArray, np
 from typing import Union
 
 
