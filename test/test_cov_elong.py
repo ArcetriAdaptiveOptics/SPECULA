@@ -137,7 +137,19 @@ class TestCovTRunc(unittest.TestCase):
         self.assertEqual(cov.shape[0], cov.shape[1])
         self.assertEqual(cov.shape[0], 2 * len(cpuArray(sub_aps_index_1D)))
         # Check that diagonal is positive
-        self.assertTrue(np.all(cpuArray(np.diag(cov)) > 0))
+        diag_cpu = cpuArray(np.diag(cov))
+        self.assertTrue(np.all(diag_cpu > 0))
+
+        # Check that not all cross-terms are zero (indicating that elongation is being captured by the covariance)
+        # Being the launcher at [3.0, 3.0, 0] (diagonal), we expect strong coupling between X and Y modes,
+        # so the cross-terms should not be all zero.
+        n_valid = len(cpuArray(sub_aps_index_1D))
+        cross_terms = cpuArray(np.diag(cov, k=n_valid)) # Extract the cross-terms (cov[i, i + n_valid])
+                                                        # that represent the coupling between X and Y modes
+                                                        # of the same sub-aperture
+
+        # At least one cross-term should be significantly different from zero
+        self.assertTrue(np.any(np.abs(cross_terms) > 1e-3))
 
     @cpu_and_gpu
     def test_cov_with_theta(self, target_device_idx, xp):
@@ -204,6 +216,14 @@ class TestCovTRunc(unittest.TestCase):
         self.assertTrue(np.all(cpuArray(np.diag(cov_full)) > 0))
         self.assertTrue(np.all(cpuArray(np.diag(cov_diag)) > 0))
 
+        # Check that off-diagonal elements of the full matrix are small (due to truncation)
+        cov_diag_cpu = cpuArray(cov_diag)
+        off_diagonal_elements = cov_diag_cpu[~np.eye(cov_diag_cpu.shape[0], dtype=bool)]
+        np.testing.assert_allclose(off_diagonal_elements, 0.0, atol=1e-10)
+
+        # Check that the trace of the full matrix is not zero (indicating that it has valid values)
+        self.assertTrue(np.sum(np.diag(cov_full)) > 0)
+
     @cpu_and_gpu
     def test_coord_sub_aps_consistency(self, target_device_idx, xp):
         """Test that coord_sub_aps is properly defined in all code paths"""
@@ -263,3 +283,38 @@ class TestCovTRunc(unittest.TestCase):
             expected_size = 2 * len(cpuArray(sub_aps_index_1D))
             self.assertEqual(cov.shape[0], expected_size)
             self.assertTrue(np.all(cpuArray(np.diag(cov)) > 0))
+
+    @cpu_and_gpu
+    def test_xy_symmetry_physics(self, target_device_idx, xp):
+        """Check that a launcher on the X-axis does not produce elongation in Y on the X-axis"""
+        diameter_in_m = 8.0
+        zenith_angle_in_deg = 30.
+        na_thickness_in_m = 10e3
+        launcher_coord_in_m = [5.0, 0.0, 0.0] # Launcher purely on X-axis
+        n_sub_aps = 4
+        mask_sub_aps = make_mask(n_sub_aps, xp=xp)
+        sub_aps_index = xp.where(mask_sub_aps)
+        sub_aps_index_1D = xp.ravel_multi_index(sub_aps_index, mask_sub_aps.shape)
+
+        cov_full = calc_noise_cov_elong(
+            diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, launcher_coord_in_m,
+            sub_aps_index_1D, n_sub_aps, sub_aps_fov=5.0, sh_spot_fwhm=1.0, 
+            sigma_noise2=1.0, t_g_parameter=0.0, h_in_m=90e3, only_diag=False, verbose=False
+        )
+
+        n_valid = len(cpuArray(sub_aps_index_1D))
+
+        # Y coordinates of sub-apertures. unravel_index returns (Y, X) coordinates.
+        y_coords, x_coords = xp.unravel_index(sub_aps_index_1D, (n_sub_aps, n_sub_aps))
+
+        # Look for sub-apertures that are on the horizontal center line (Y-axis) of the grid.
+        # For n_sub_aps=4, the center Y would be between indices 1 and 2 (0-based), so we can check for those.
+        center_y_idx = n_sub_aps // 2
+        on_axis_mask = y_coords == center_y_idx
+
+        # For these sub-apertures, the cross-term (cov_full[i, i + n_valid]) MUST be ~0
+        for i in range(n_valid):
+            if on_axis_mask[i]:
+                cross_term = cov_full[i, i + n_valid]
+                # Check that the cross-term is numerically zero
+                np.testing.assert_allclose(cpuArray(cross_term), 0.0, atol=1e-7)

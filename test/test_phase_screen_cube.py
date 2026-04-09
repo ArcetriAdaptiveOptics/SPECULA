@@ -67,10 +67,18 @@ class TestPhaseScreenCube(unittest.TestCase):
                                     pixel_scale=0.1,
                                     source_dict=source_dict,
                                     target_device_idx=target_device_idx)
+        
+        self.cube_scaled = PhaseScreenCube(self.simul_params,
+                                    cube=cube,
+                                    pixel_scale=0.1,
+                                    scale_factor=0.7,
+                                    source_dict=source_dict,
+                                    target_device_idx=target_device_idx)
 
         pupilstop = Pupilstop(self.simul_params,
                               target_device_idx=target_device_idx)
         self.cube.inputs['pupilstop'].set(pupilstop)
+        self.cube_scaled.inputs['pupilstop'].set(pupilstop)
 
         pupilstop.generation_time = 4e9
 
@@ -82,8 +90,14 @@ class TestPhaseScreenCube(unittest.TestCase):
         self.cube.trigger()
         self.cube.post_trigger()
 
+        self.cube_scaled.check_ready(4e9)
+        self.cube_scaled.trigger()
+        self.cube_scaled.post_trigger()
+
         answer0 = self.cube.cur_screen
         answer1 = self.cube.outputs['out_on_axis_source_ef'].phaseInNm
+        answer2 = self.cube_scaled.cur_screen
+        answer3 = self.cube_scaled.outputs['out_on_axis_source_ef'].phaseInNm
 
         assert 'out_on_axis_source_layer' in self.cube.outputs
         assert self.cube.outputs['out_on_axis_source_layer'].field is self.cube.outputs['out_on_axis_source_ef'].field
@@ -105,6 +119,12 @@ class TestPhaseScreenCube(unittest.TestCase):
         np.testing.assert_array_almost_equal(cpuArray(answer1),
                                              cpuArray(exp_screen1),
                                              decimal = 2)
+        np.testing.assert_array_almost_equal(cpuArray(answer2),
+                                             cpuArray(exp_screen0*0.7))
+        np.testing.assert_array_almost_equal(cpuArray(answer3),
+                                             cpuArray(exp_screen1*0.7),
+                                             decimal = 2)
+
 
     @cpu_and_gpu
     def test_default_output_names_without_source_dict(self, target_device_idx, xp):
