@@ -93,3 +93,29 @@ def iter_data_object_classes(skip=None, require_methods=None):
                 continue
 
             yield klass
+
+
+def iter_processing_object_classes(skip=None):
+    """
+    Iterate over classes defined in ``specula.processing_object`` submodules.
+
+    Parameters
+    ----------
+    skip : iterable of str, optional
+        Class names to exclude.
+    """
+    skip = set(skip or [])
+
+    for _, module_name, _ in pkgutil.iter_modules(specula.processing_objects.__path__):
+        full_name = f"{specula.processing_objects.__name__}.{module_name}"
+        module = importlib.import_module(full_name)
+
+        for class_name, klass in inspect.getmembers(module, inspect.isclass):
+            if class_name in skip:
+                continue
+            if klass.__module__ != module.__name__:
+                continue
+            if class_name.startswith('_'):
+                continue
+
+            yield klass

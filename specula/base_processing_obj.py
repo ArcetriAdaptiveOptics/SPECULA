@@ -1,10 +1,15 @@
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 
 from specula import cpuArray, default_target_device, cp, MPI_DBG, MPI_SEND_DBG
 from specula import show_in_profiler
 from specula import process_comm, process_rank
 from specula.base_time_obj import BaseTimeObj
+from specula.connections import InputList, InputValue
 from specula.data_objects.layer import Layer
+
+
+InputDesc = namedtuple('InputDesc', 'type desc')
+OutputDesc = namedtuple('OutputDesc', 'type desc')
 
 
 class BaseProcessingObj(BaseTimeObj):
@@ -273,3 +278,47 @@ class BaseProcessingObj(BaseTimeObj):
         the simulation is completed
         '''
         pass
+
+    def sanity_check(self):
+        '''
+        Check that all inputs and outputs have been setup correctly.
+        '''
+        self.check_input_names()
+        self.check_output_names()
+
+    def check_input_names(self):
+        '''
+        Check that all input names declared in self.input_names are present in self.inputs
+        with the correct type (InputValue or list of InputValue).
+        '''
+        if not hasattr(self, 'input_names'):
+            return
+        input_dict = self.input_names()
+        for k, v in input_dict.items():
+            if not k in self.inputs:
+                raise ValueError(f"Input {k} declared in input_names but not present in inputs")
+            if not isinstance(self.inputs[k], (InputValue, InputList)):
+                raise TypeError(f"Input {k} must be an InputValue or an InputList")
+            if self.inputs[k].output_ref_type is not v[0]:
+                raise TypeError(f"Input {k} must be of type {v[0]}, but got {self.inputs[k].type}")
+
+        for k in self.inputs:
+            if not k in input_dict:
+                raise ValueError(f"Input {k} present in inputs but not declared in input_names")
+
+    def check_output_names(self):
+        '''
+        Check that all output names declared in self.output_names are present in self.outputs
+        '''
+        if not hasattr(self, 'output_names'):
+            return
+        output_list = self.output_names()
+        for k, v in output_list.items():
+            if not k in self.outputs:
+                raise ValueError(f"Output {k} declared in output_names but not present in outputs")
+            if not isinstance(self.outputs[k], v[0]):
+                raise TypeError(f"Output {k} must be of type {v[0]}, but got {type(self.outputs[k])}")
+
+        for k in self.outputs:
+            if not k in output_list:
+                raise ValueError(f"Output {k} present in outputs but not declared in output_names")
