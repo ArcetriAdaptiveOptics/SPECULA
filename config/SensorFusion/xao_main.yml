@@ -107,7 +107,7 @@ pyr_slopes:
   class:                  'PyrSlopec'
   pupdata_object:         'pyr_pupdata_48x48'           
   slopes_from_intensity:  true
-  sn_object:            'pyr3.0_48x48_sn'
+  # sn_object:            'pyr3.0_48x48_sn'
   inputs:
     in_pixels:        'cred1.out_pixels'
   outputs:           ['out_slopes']
@@ -195,7 +195,7 @@ ocam2:
 
 zwfs_slopes:
   class:             'ZwfsSlopec'
-  sn_object:         'z1.5wfs_48x48_sn'
+  # sn_object:         'z1.5wfs_48x48_sn'
   pup_diam:          48.0
   ccd_size:          120
   obsratio:          0.0 #14

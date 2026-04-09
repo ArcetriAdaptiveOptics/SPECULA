@@ -12,10 +12,15 @@ from specula.lib.calc_psf import calc_psf
 from specula.lib.make_mask import make_mask
 from specula.data_objects.iir_filter_data import IirFilterData
 
+def r0_from_seeing(seeing):
+    return 0.98*500e-9/seeing*180/np.pi*3600
+
+def seeing_from_r0(r0):
+    return 0.98*500e-9/r0*180/np.pi*3600
 
 def radial_order(i_mode):
     noll = i_mode + 2
-    return int(np.ceil(-3.0/2.0+np.sqrt(1+8*noll)/2.0))
+    return (np.ceil(-3.0/2.0+np.sqrt(1+8*noll)/2.0)).astype(int)
 
 # def von_karman_power(n,r0,L0,D):
 #     k = n / D

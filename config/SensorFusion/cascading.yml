@@ -74,8 +74,8 @@ first_stage_prop:
 second_stage_prop:
   class: 'ElectricFieldCombinator'
   inputs:
-    in_ef1: 'first_stage_prop.out_ef'    # Turbulence
-    in_ef2: 'dm2.out_layer:-1'  # DM2 correction
+    in_ef1: 'first_stage_prop.out_ef'    # DM1 corrected turbulence
+    in_ef2: 'dm2.out_layer:-1'           # DM2 correction
   outputs: ['out_ef']
 
 
@@ -164,7 +164,7 @@ pyr0_slopes:
 
 pyr0_modalrec:
   class:             'Modalrec'
-  recmat_object:     'pyr1.0_24x24_300modes_rec'        
+  recmat_object:     'pyr1.0_24x24_300modes_dm468_rec'        
   inputs:
     in_slopes:       'pyr0_slopes.out_slopes'
   outputs:           ['out_modes']
@@ -219,7 +219,7 @@ pyr0_modalrec:
 ############################ Control ################################
 bootstrap:
   class:              'ScheduleGenerator'
-  scheduled_values:   [[0.5],[0.7]] # Nrows x Ncols, times x gains
+  scheduled_values:   [[0.0],[0.0]] # Nrows x Ncols, times x gains
   modes_per_group:    [300] # Ncols
   scheduled_times:    [0.01] # Nrows-1
 
@@ -244,12 +244,12 @@ filter2:
 dm2:
   class:             'DM'
   simul_params_ref:  'main'
-  ifunc_object:      'bmc2k_vlt_ifunc'      # Our computed influence functions
-  m2c_object:        'bmc2k_vlt_m2c'        # Modal-to-command matrix
+  ifunc_object:      'dm468_vlt_ifunc' #'bmc2k_vlt_ifunc' #
+  m2c_object:        'dm468_vlt_m2c'  # 'bmc2k_vlt_m2c'  #
   nmodes:            300             # Number of controlled modes
   height:            0                # Ground-conjugated DM
   inputs:
-    in_command:      'dcao_cmd2.out_value' #'filter2.out_comm' #'
+    in_command:      'filter2.out_comm' #''dcao_cmd2.out_value' #
   outputs:           ['out_layer']
 
 filter1:
@@ -284,7 +284,7 @@ dm1:
 ######################### dCAO compensation #########################
 cmd1_to_cmd2:
   class: 'MVM'
-  recmat_object: 'bmc2k_vlt_1300modes_to_bmc2k_vlt_300modes' #'bmc2k_vlt_1300modes_to_dm468_vlt_300modes' #'bmc2k_vlt_1300modes_to_dm241_vlt_150modes'
+  recmat_object: 'bmc2k_vlt_1300modes_to_dm468_vlt_300modes' #'bmc2k_vlt_1300modes_to_bmc2k_vlt_300modes' #'bmc2k_vlt_1300modes_to_dm468_vlt_300modes' #'bmc2k_vlt_1300modes_to_dm241_vlt_150modes'
   inputs:
     in_vector: 'filter1.out_comm'
   outputs: ['out_vector']

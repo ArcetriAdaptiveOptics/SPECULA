@@ -72,7 +72,7 @@ pyr:
   class:             'ModulatedPyramid'
   simul_params_ref:  'main'
   pup_diam:          40.                     # Pupil diameter in subaps.
-  pup_dist:          48.                     # Separation between pupil centers in subaps.
+  pup_dist:          60.                     # Separation between pupil centers in subaps.
   fov:               4.0                     # Requested field-of-view [arcsec]
   mod_amp:           5.0                     # Modulation radius (in lambda/D units)
   output_resolution: 120                      # Output sampling [usually corresponding to CCD pixels]
@@ -106,7 +106,7 @@ pyr_slopes:
 
 pyr_modalrec:
   class:             'Modalrec'
-  recmat_object:     'pyr3.0_40x40_400modes_rec'        
+  recmat_object:     'pyr5.0_40x40_443modes_rec'        
   inputs:
     in_slopes:       'pyr_slopes.out_slopes'
   outputs:           ['out_modes']
@@ -115,9 +115,9 @@ filter:
   class:             'Integrator'
   simul_params_ref:  'main'
   delay:             1                      # Total temporal delay in time steps
-  int_gain:          [0.55,   0.45,     0.40,     0.35]
-  ff:                [1.0,    0.999996, 0.999365, 0.977895]
-  n_modes:           [30,     70,       100,      200]
+  int_gain:          [0.9,0.8,0.0]
+  ff:                [0.99,0.95,0.7]
+  n_modes:           [2,200,241]
   inputs:
       delta_comm: 'pyr_modalrec.out_modes'
 
@@ -127,7 +127,7 @@ dm:
   ifunc_object:      'dm468_ifunc'      # Our computed influence functions
   m2c_object:        'dm468_m2c'        # Modal-to-command matrix
   height:            0                # Ground-conjugated DM
-  nmodes:            400
+  nmodes:            443
   inputs:
     in_command:      'filter.out_comm'
   outputs:           ['out_layer']

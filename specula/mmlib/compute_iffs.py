@@ -1,5 +1,5 @@
 import specula
-specula.init(-1)  # Use GPU device 0 (or -1 for CPU)
+# specula.init(-1)  # Use GPU device 0 (or -1 for CPU)
 
 import numpy as np
 import os
@@ -290,4 +290,4 @@ if __name__ == "__main__":
     root_dir = '/raid1/mmenessini/calibration/EKARUS'
     Npix = 120
     compute_and_save_influence_functions(root_dir,tag='dm468', pupil_pixels=Npix, n_acts=24,
-                                          geom='alpao', r0=5e-2, obsratio=0.3, D=1.82)
+                                          geom='alpao', r0=5e-2, pupil_mask_tag='copernico_pupil', D=1.82)
