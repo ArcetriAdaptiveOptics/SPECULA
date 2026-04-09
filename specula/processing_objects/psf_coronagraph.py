@@ -156,9 +156,9 @@ class PsfCoronagraph(PSF):
             else: # perfect coronagraph formula (Cavarroc et al. 2006, Eq. 1)
                 mean_phase = self.xp.sum(phase * pupil_mask) / self.xp.sum(pupil_mask)
                 var_phase = self.xp.sum(((phase - mean_phase) ** 2) * pupil_mask) / self.xp.sum(pupil_mask)
-                ec = self.xp.exp(-var_phase, self.dtype)
-                coherent_core = self.xp.sqrt(ec) * self.xp.exp(1j * mean_phase, self.complex_dtype) * amp
-                electric_field_corrected = electric_field - coherent_core * pupil_mask         
+                ec = self.xp.exp(-var_phase, dtype=self.dtype)
+                coherent_core = self.xp.sqrt(ec) * self.xp.exp(1j * mean_phase, dtype=self.complex_dtype) * amp
+                electric_field_corrected = electric_field - coherent_core * pupil_mask
         else:
             electric_field_corrected = electric_field
 
