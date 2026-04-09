@@ -65,7 +65,6 @@ def compute_petal_ifunc(dim, n_petals, xp=np, dtype=np.float32, angle_offset=0,
     x = x - center
 
     # Convert to polar coordinates
-    r = xp.sqrt(x**2 + y**2)
     theta = xp.arctan2(y, x) + xp.radians(angle_offset)
 
     # Wrap angles to [0, 2π]

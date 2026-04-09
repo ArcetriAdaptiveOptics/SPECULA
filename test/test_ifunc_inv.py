@@ -105,3 +105,28 @@ class TestIFuncInv(unittest.TestCase):
         with self.assertRaises(NotImplementedError):
             IFuncInv.from_header({})
 
+    @cpu_and_gpu
+    def test_cut_with_idx_modes(self, target_device_idx, xp):
+        ifunc_inv = xp.random.rand(*self.shape).astype(xp.float32)
+        mask = xp.random.choice([0, 1], size=self.shape).astype(xp.uint8)
+        obj = IFuncInv(ifunc_inv, mask, target_device_idx=target_device_idx)
+
+        idx_modes = [0, 2]
+        obj.cut(idx_modes=idx_modes)
+
+        expected_shape = (self.shape[0], len(idx_modes))
+        self.assertEqual(obj.ifunc_inv.shape, expected_shape)
+
+    @cpu_and_gpu
+    def test_cut_with_start_mode_and_nmodes(self, target_device_idx, xp):
+        ifunc_inv = xp.random.rand(*self.shape).astype(xp.float32)
+        mask = xp.random.choice([0, 1], size=self.shape).astype(xp.uint8)
+        obj = IFuncInv(ifunc_inv, mask, target_device_idx=target_device_idx)
+
+        start_mode = 1
+        nmodes = 2
+        obj.cut(start_mode=start_mode, nmodes=nmodes)
+
+        expected_shape = (self.shape[0], nmodes)
+        self.assertEqual(obj.ifunc_inv.shape, expected_shape)
+       

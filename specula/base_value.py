@@ -3,6 +3,7 @@ from specula import np, array_types, cpuArray
 from astropy.io import fits
 from specula.base_data_obj import BaseDataObj
 
+
 class BaseValue(BaseDataObj):
     def __init__(self, description='', value=None, target_device_idx=None, precision=None):
         """

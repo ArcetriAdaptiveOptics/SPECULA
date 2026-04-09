@@ -1,4 +1,3 @@
-import os
 import pkgutil
 from pathlib import Path
 
@@ -67,14 +66,14 @@ def main():
             "filename": "processing_objects"
         },
         "Data Objects": {
-            "path": specula_path / "data_objects", 
+            "path": specula_path / "data_objects",
             "package": "specula.data_objects",
             "description": "Data objects for representing simulation data.",
             "filename": "data_objects"
         },
         "Utility Functions": {
             "path": specula_path / "lib",
-            "package": "specula.lib", 
+            "package": "specula.lib",
             "description": "Utility functions and libraries.",
             "filename": "lib"
         }
@@ -93,7 +92,7 @@ def main():
             # Generate content
             content = generate_simple_api_doc(
                 category_name,
-                all_modules, 
+                all_modules,
                 config["description"]
             )
 
@@ -130,6 +129,7 @@ def main():
     print("\nGenerated files:")
     for rst_file in sorted(api_docs_path.glob("*.rst")):
         print(f"  - {rst_file.name}")
+
 
 if __name__ == "__main__":
     main()

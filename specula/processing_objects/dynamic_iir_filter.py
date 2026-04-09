@@ -63,8 +63,10 @@ class DynamicIirFilter(IirFilter):
             self.reset_states()
 
         # Update internal IIR filter data if gain input changes
-        gain_input = self.local_inputs['int_gain']
-        if gain_input is not None and gain_input.generation_time == self.current_time:
-            int_gain = cpuArray(gain_input.get_value())
-            self.iir_filter_data.set_gain(int_gain)
-
+        try:
+            gain_input = self.local_inputs['int_gain']
+            if gain_input is not None and gain_input.generation_time == self.current_time:
+                int_gain = cpuArray(gain_input.get_value())
+                self.iir_filter_data.set_gain(int_gain)
+        except Exception as e:
+            print(f'Exception: {e.__name__}: {e}')

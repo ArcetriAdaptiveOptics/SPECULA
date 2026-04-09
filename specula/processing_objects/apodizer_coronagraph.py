@@ -42,7 +42,6 @@ class APPCoronagraph(Coronagraph):
                                                           symmetric_dark_hole=make_symmetric, max_its=max_its)
         self.apodizer = self.xp.exp(1j*apodizer_phase, dtype=self.complex_dtype)
 
-
     def define_apodizing_phase(self, pupil, contrast,
                                iwa:float, owa:float, beta:float,
                             symmetric_dark_hole:bool=False, 
@@ -67,10 +66,8 @@ class APPCoronagraph(Coronagraph):
         apodizer_phase[pupil>0] = self.xp.angle(app)[pad_pupil>0.0]
         return apodizer_phase, target_contrast
 
-
     def make_focal_plane_mask(self):
         return self.xp.ones([self.fft_totsize,self.fft_totsize],dtype=self.dtype)
-
 
     def make_pupil_plane_mask(self):
         return self.xp.ones([self.fft_sampling,self.fft_sampling],dtype=self.dtype)
@@ -132,7 +129,6 @@ class PAPLCoronagraph(APPCoronagraph):
                         target_device_idx=target_device_idx,
                         precision=precision)
 
-
     def make_focal_plane_mask(self):
         if self._knife_edge:
             xc = 2*(self._fedge * self.fft_res + self.fft_totsize//2)/ self.fft_totsize
@@ -144,7 +140,6 @@ class PAPLCoronagraph(APPCoronagraph):
             fp_mask = make_mask(self.fft_totsize, diaratio=fp_diaratio,
                                 obsratio=fp_obsratio, xp=self.xp)
         return fp_mask
-
 
     def make_pupil_stop(self):
         pp_mask = make_mask(self.fft_sampling, diaratio=self._outPupilStop,

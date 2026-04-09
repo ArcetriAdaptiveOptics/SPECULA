@@ -128,7 +128,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
         step = float(dim - 1) / float(n_act - 1)
 
     else:
-      raise ValueError("Unrecognized geometry type! Avaliable types are: 'circular', 'alpao', 'square'")
+        raise ValueError("Unrecognized geometry type! Avaliable types are: 'circular', 'alpao', 'square'")
 
     coordinates = xp.vstack((x, y))
     grid_x, grid_y = xp.meshgrid(xp.arange(dim), xp.arange(dim))
@@ -259,6 +259,7 @@ def _compute_weights_standard(coordinates, idx_master, idx_slave, step, xp, dtyp
     W_ms /= col_sums
 
     return W_ms
+
 
 def _compute_weights_linear(coordinates, idx_master, idx_slave, step,
                             edge_constraint_weight, search_radius_steps, xp, dtype):
