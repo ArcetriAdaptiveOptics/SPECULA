@@ -10,7 +10,7 @@ class Pixels(BaseDataObj):
     Holds a 2d array of pixels, which can be signed or unsigned.
     The number of bits per pixel can be set, up to 64 bits.
     """
-    def __init__(self, 
+    def __init__(self,
                  dimx: int,
                  dimy: int,
                  bits: int=16,

@@ -43,7 +43,7 @@ class Pupilstop(Layer):
         self.obs_diam = obs_diam
 
         if self._input_mask is not None:
-            self._input_mask = self.to_xp(input_mask,dtype=self.dtype)
+            self._input_mask = self.to_xp(input_mask, dtype=self.dtype)
             mask_amp = self._input_mask
         else:
             mask_amp = make_mask(self.pixel_pupil, obs_diam, mask_diam, xp=self.xp)

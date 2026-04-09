@@ -1,10 +1,11 @@
 from seeing.integrator import evaluateFormula, cpulib
 from symao.turbolence import createTurbolenceFormulary, ft_phase_screen0
 
-turbolenceFormulas = createTurbolenceFormulary()
-
 from specula.base_data_obj import BaseDataObj
 from specula import ASEC2RAD, RAD2ASEC, cpuArray, np
+
+turbolenceFormulas = createTurbolenceFormulary()
+
 
 def seeing_to_r0(seeing, wvl=500.e-9):
     return 0.9759*wvl/(seeing* ASEC2RAD)

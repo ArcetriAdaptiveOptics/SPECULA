@@ -57,7 +57,7 @@ class ElectricField(BaseDataObj):
         A = self.xp.ones((dimy, dimx), dtype=self.dtype)
         phaseInNm = self.xp.zeros((dimy, dimx), dtype=self.dtype)
         self.field = self.xp.stack((A, phaseInNm))
-    
+
     @property
     def A(self):
         return self.field[0]
@@ -75,17 +75,17 @@ class ElectricField(BaseDataObj):
         self.field[1, :, :] = self.to_xp(value)
 
     def __str__(self):
-        return 'A: '+ str(self.field[0]) + 'Phase: ' + str(self.field[1])
+        return 'A: ' + str(self.field[0]) + 'Phase: ' + str(self.field[1])
 
     def set_value(self, v):
         '''
         Set new values for phase and amplitude
-        
+
         Arrays are not reallocated
         '''
         # Should not expect a list, but a 2xNxN array
 
-        #assert len(v) == 2, "Input must be a sequence of [amplitude, phase]"
+        # assert len(v) == 2, "Input must be a sequence of [amplitude, phase]"
         assert v[0].shape == self.field[0].shape, \
             f"Error: input array shape {v[0].shape} does not match amplitude shape {self.field[0].shape}"
         assert v[1].shape == self.phaseInNm.shape, \
@@ -99,7 +99,7 @@ class ElectricField(BaseDataObj):
     def reset(self):
         '''
         Reset to zero phase and unitary amplitude
-        
+
         Arrays are not reallocated
         '''
         self.field[0] *= 0
@@ -109,7 +109,7 @@ class ElectricField(BaseDataObj):
     def resize(self, dimx, dimy, pitch=None):
         '''
         Resize the electric field
-        
+
         The pixel pitch and S0 are not changed
         '''
         dimx = int(dimx)
@@ -156,7 +156,7 @@ class ElectricField(BaseDataObj):
             slicey = np.s_[:]
         if slicex is None:
             slicex = np.s_[:]
-        return self.field[1,slicey, slicex] * ((2 * self.xp.pi) / wavelengthInNm)
+        return self.field[1, slicey, slicex] * ((2 * self.xp.pi) / wavelengthInNm)
 
     def ef_at_lambda(self, wavelengthInNm, slicey=None, slicex=None, out=None):
         """
