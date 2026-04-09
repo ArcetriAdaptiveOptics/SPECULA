@@ -34,7 +34,6 @@ class AtmoPropagation(BaseProcessingObj):
                  mergeLayersContrib: bool=True,
                  upwards: bool=False,
                  padding_factor: int=1,
-                 band_limit_factor: float=1.0,
                  target_device_idx=None,
                  precision=None):
         """
@@ -280,6 +279,9 @@ class AtmoPropagation(BaseProcessingObj):
                     self.angular_spectrum_propagation(output_ef.ef_at_lambda(self.wavelengthInNm), self.propagators[li])
                     output_ef.phaseInNm[:] = self.xp.angle(self.output_ef_fresnel) * self.wavelengthInNm / (2 * self.xp.pi)
                     output_ef.A[:] = abs(self.output_ef_fresnel)
+
+        if self.upwards:
+            output_ef.phaseInNm *= -1
 
     def post_trigger(self):
         super().post_trigger()
