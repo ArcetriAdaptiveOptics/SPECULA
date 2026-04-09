@@ -46,6 +46,8 @@ class ModalrecMultirate(BaseProcessingObj):
         self.n_modes_total = n_modes_total
         self.recmat_by_mask = {}
         self.xp_recmat_by_mask = {}
+        self.recmat_layout_by_mask = {}
+        self.sensor_col_offsets = None
 
         for mask, rec_obj in zip(validity_masks, recmat_list):
             mask_tuple = tuple(mask)
@@ -99,16 +101,27 @@ class ModalrecMultirate(BaseProcessingObj):
 
         # Move matrices to the target device
         slopes_per_sensor = [s.slopes.shape[0] for s in slopes_list]
+        total_cols = sum(slopes_per_sensor)
+        self.sensor_col_offsets = [0]
+        for n_slopes in slopes_per_sensor:
+            self.sensor_col_offsets.append(self.sensor_col_offsets[-1] + n_slopes)
+
         for validity_tuple, recmat_obj in self.recmat_by_mask.items():
             if len(validity_tuple) != self.n_sensors:
                 raise ValueError(f"Validity tuple {validity_tuple} length does not match "
                                  f"number of connected sensors ({self.n_sensors}).")
 
-            expected_cols = sum(slopes_per_sensor[i] for i, active in enumerate(validity_tuple) if active)
+            active_cols = sum(slopes_per_sensor[i] for i, active in enumerate(validity_tuple) if active)
             n_cols = recmat_obj.recmat.shape[1]
-            if n_cols != expected_cols:
-                raise ValueError(f"Matrix for mask {validity_tuple} has {n_cols} columns, "
-                                 f"expected {expected_cols} from active sensors.")
+            if n_cols == total_cols:
+                self.recmat_layout_by_mask[validity_tuple] = 'full'
+            elif n_cols == active_cols:
+                self.recmat_layout_by_mask[validity_tuple] = 'compact'
+            else:
+                raise ValueError(
+                    f"Matrix for mask {validity_tuple} has {n_cols} columns, expected either "
+                    f"{active_cols} from active sensors or {total_cols} from the full sensor vector."
+                )
 
             self.xp_recmat_by_mask[validity_tuple] = self.to_xp(recmat_obj.recmat, dtype=self.dtype)
 
@@ -135,17 +148,26 @@ class ModalrecMultirate(BaseProcessingObj):
         current_recmat = self.xp_recmat_by_mask[validity_tuple]
 
         # 3. Dynamic Matrix Slicing and Multiplication
-        col_offset = 0
+        layout = self.recmat_layout_by_mask[validity_tuple]
+        compact_col_offset = 0
+
         for i, s in enumerate(slopes_list):
             if validity[i]:
                 n_slopes = s.slopes.shape[0]
 
+                if layout == 'full':
+                    start = self.sensor_col_offsets[i]
+                    end = self.sensor_col_offsets[i + 1]
+                else:
+                    start = compact_col_offset
+                    end = compact_col_offset + n_slopes
+                    compact_col_offset = end
+
                 # Extract the M x (N_slopes) block for this specific sensor
-                R_block = current_recmat[:, col_offset : col_offset + n_slopes]
+                R_block = current_recmat[:, start:end]
 
                 # Project this sensor slopes into the full M-dimensional modal space
                 self.out_modes_list[i].value = R_block @ s.slopes
-                col_offset += n_slopes
             else:
                 # Sensor is inactive, output M zeros
                 self.out_modes_list[i].value[:] = 0.0

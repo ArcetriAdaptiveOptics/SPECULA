@@ -184,6 +184,33 @@ class TestModalrecMultirate(unittest.TestCase):
         self.assertIn((False, True), rec.xp_recmat_by_mask)
 
     @cpu_and_gpu
+    def test_accepts_full_width_matrices_for_multirate_masks(self, target_device_idx, xp):
+        n_modes = 5
+        mat_all = xp.full((n_modes, 6), 1.0, dtype=xp.float32)
+        mat_110 = xp.full((n_modes, 6), 2.0, dtype=xp.float32)
+        mat_101 = xp.full((n_modes, 6), 3.0, dtype=xp.float32)
+
+        rec = ModalrecMultirate(
+            recmat_list=[
+                Recmat(mat_all, target_device_idx=target_device_idx),
+                Recmat(mat_110, target_device_idx=target_device_idx),
+                Recmat(mat_101, target_device_idx=target_device_idx),
+            ],
+            validity_masks=[[True, True, True], [True, True, False], [True, False, True]],
+            n_modes_total=n_modes,
+            target_device_idx=target_device_idx
+        )
+
+        slopes = [Slopes(length=2, target_device_idx=target_device_idx) for _ in range(3)]
+        rec.inputs['in_slopes_list'].set(slopes)
+        rec.local_inputs['in_slopes_list'] = rec.inputs['in_slopes_list'].get(target_device_idx)
+        rec.setup()
+
+        self.assertEqual(rec.recmat_layout_by_mask[(True, True, True)], 'full')
+        self.assertEqual(rec.recmat_layout_by_mask[(True, True, False)], 'full')
+        self.assertEqual(rec.recmat_layout_by_mask[(True, False, True)], 'full')
+
+    @cpu_and_gpu
     def test_sanity_check_columns(self, target_device_idx, xp):
         n_modes = 5
         mat_bad = xp.full((n_modes, 3), 1.0, dtype=xp.float32)
@@ -201,7 +228,7 @@ class TestModalrecMultirate(unittest.TestCase):
         rec.inputs['in_slopes_list'].set([slopes_s1, slopes_s2])
         rec.local_inputs['in_slopes_list'] = rec.inputs['in_slopes_list'].get(target_device_idx)
 
-        with self.assertRaisesRegex(ValueError, "expected"):
+        with self.assertRaisesRegex(ValueError, "expected either"):
             rec.setup()
 
     def test_integration_simul_with_list_object(self):
