@@ -36,12 +36,12 @@ class TestShSimulation(unittest.TestCase):
 
         # Copy reference calibration files
         if os.path.exists(self.subap_ref_path):
-            shutil.copy(self.subap_ref_path, self.subap_path)
+            shutil.copyfile(self.subap_ref_path, self.subap_path)
         else:
             self.fail(f"Reference file {self.subap_ref_path} not found")
 
         if os.path.exists(self.rec_ref_path):
-            shutil.copy(self.rec_ref_path, self.rec_path)
+            shutil.copyfile(self.rec_ref_path, self.rec_path)
         else:
             self.fail("Reference file {self.rec_path} not found")
 
