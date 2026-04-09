@@ -33,7 +33,8 @@ class PsfCoronagraph(PSF):
     start_time : float, optional
         Time (in seconds) after which to start integrating PSF and SR. Default is 0.0.
     compute_profile_metrics : bool, optional
-        If True, also compute radial-profile-derived coronagraph metrics.
+        If True, compute coronagraph radial-profile outputs for the instantaneous,
+        integrated and standard-deviation coronagraph PSFs.
     compute_metrics_in_trigger : bool, optional
         If True, update those metrics after each trigger as well.
     ee_radius_in_lambda_d : float or array-like, optional
@@ -81,32 +82,17 @@ class PsfCoronagraph(PSF):
                                              precision=precision)
         self.coronagraph_psf_profile = BaseValue(target_device_idx=self.target_device_idx,
                                                  precision=precision)
-        self.coronagraph_psf_fwhm = BaseValue(target_device_idx=self.target_device_idx,
-                                              precision=precision)
-        self.coronagraph_encircled_energy = BaseValue(target_device_idx=self.target_device_idx,
-                                                      precision=precision)
-        self.coronagraph_encircled_energy_at_radius = BaseValue(target_device_idx=self.target_device_idx,
-                                                                precision=precision)
         self.int_coronagraph_psf_profile = BaseValue(target_device_idx=self.target_device_idx,
                                                      precision=precision)
-        self.int_coronagraph_psf_fwhm = BaseValue(target_device_idx=self.target_device_idx,
-                                                  precision=precision)
-        self.int_coronagraph_encircled_energy = BaseValue(target_device_idx=self.target_device_idx,
-                                                          precision=precision)
-        self.int_coronagraph_encircled_energy_at_radius = BaseValue(target_device_idx=self.target_device_idx,
-                                                                    precision=precision)
+        self.std_coronagraph_psf_profile = BaseValue(target_device_idx=self.target_device_idx,
+                                                     precision=precision)
 
         self.outputs['out_coronagraph_psf'] = self.coronagraph_psf
         self.outputs['out_int_coronagraph_psf'] = self.int_coronagraph_psf
         self.outputs['out_std_coronagraph_psf'] = self.std_coronagraph_psf
         self.outputs['out_coronagraph_psf_profile'] = self.coronagraph_psf_profile
-        self.outputs['out_coronagraph_psf_fwhm'] = self.coronagraph_psf_fwhm
-        self.outputs['out_coronagraph_encircled_energy'] = self.coronagraph_encircled_energy
-        self.outputs['out_coronagraph_encircled_energy_at_radius'] = self.coronagraph_encircled_energy_at_radius
         self.outputs['out_int_coronagraph_psf_profile'] = self.int_coronagraph_psf_profile
-        self.outputs['out_int_coronagraph_psf_fwhm'] = self.int_coronagraph_psf_fwhm
-        self.outputs['out_int_coronagraph_encircled_energy'] = self.int_coronagraph_encircled_energy
-        self.outputs['out_int_coronagraph_encircled_energy_at_radius'] = self.int_coronagraph_encircled_energy_at_radius
+        self.outputs['out_std_coronagraph_psf_profile'] = self.std_coronagraph_psf_profile
 
         # Reference complex amplitude for perfect coronagraph
         self.ref_complex_amplitude = None
@@ -215,12 +201,9 @@ class PsfCoronagraph(PSF):
         self.coronagraph_psf.generation_time = self.current_time
 
         if self.compute_profile_metrics and self.compute_metrics_in_trigger:
-            self._set_profile_outputs(
+            self._set_radial_profile_output(
                 self.coronagraph_psf.value,
                 self.coronagraph_psf_profile,
-                self.coronagraph_psf_fwhm,
-                self.coronagraph_encircled_energy,
-                self.coronagraph_encircled_energy_at_radius,
             )
 
     def finalize(self):
@@ -231,12 +214,13 @@ class PsfCoronagraph(PSF):
             variance = self._sum_coronagraph_psf_squared / self.count - self.int_coronagraph_psf.value ** 2
             self.std_coronagraph_psf.value = self.xp.sqrt(self.xp.maximum(variance, 0))
             if self.compute_profile_metrics:
-                self._set_profile_outputs(
+                self._set_radial_profile_output(
                     self.int_coronagraph_psf.value,
                     self.int_coronagraph_psf_profile,
-                    self.int_coronagraph_psf_fwhm,
-                    self.int_coronagraph_encircled_energy,
-                    self.int_coronagraph_encircled_energy_at_radius,
+                )
+                self._set_radial_profile_output(
+                    self.std_coronagraph_psf.value,
+                    self.std_coronagraph_psf_profile,
                 )
 
         self.int_coronagraph_psf.generation_time = self.current_time

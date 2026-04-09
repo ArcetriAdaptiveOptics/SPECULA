@@ -171,7 +171,7 @@ class PSF(BaseProcessingObj):
         if self.verbose:
             print('SR at ' + self.wave_str + ':', self.sr.value, flush=True)
 
-    def _compute_profile_metrics(self, psf):
+    def _compute_radial_profile_data(self, psf):
         if psf is None:
             return None
 
@@ -188,6 +188,14 @@ class PSF(BaseProcessingObj):
             return_counts=True,
         )
         radial_dist = pix_dist / self.nd
+        return profile, radial_dist, n_px_in_bin
+
+    def _compute_profile_metrics(self, psf):
+        radial_profile_data = self._compute_radial_profile_data(psf)
+        if radial_profile_data is None:
+            return None
+
+        profile, radial_dist, n_px_in_bin = radial_profile_data
         fwhm = compute_fwhm_from_profile(profile, radial_dist, xp=self.xp, dtype=self.dtype)
         ee = compute_encircled_energy(profile, n_px_in_bin, xp=self.xp, dtype=self.dtype)
 
@@ -201,6 +209,15 @@ class PSF(BaseProcessingObj):
                 dtype=self.dtype,
             )
         return profile, radial_dist, fwhm, ee, ee_at_radius
+
+    def _set_radial_profile_output(self, psf, profile_output):
+        radial_profile_data = self._compute_radial_profile_data(psf)
+        if radial_profile_data is None:
+            return
+
+        profile, radial_dist, _ = radial_profile_data
+        profile_output.value = self.xp.vstack([radial_dist, profile])
+        profile_output.generation_time = self.current_time
 
     def _set_profile_outputs(self, psf, profile_output, fwhm_output,
                              ee_output, ee_at_radius_output):

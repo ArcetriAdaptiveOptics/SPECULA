@@ -215,13 +215,12 @@ class TestPSF(unittest.TestCase):
 
     @cpu_and_gpu
     def test_coronagraph_profile_metrics_outputs(self, target_device_idx, xp):
-        """Test distinct coronagraph frame and integrated profile outputs."""
+        """Test coronagraph radial profiles for frame, integrated and std PSFs."""
         simul_params, ef, wavelengthInNm = self.get_basic_setup(target_device_idx, pixel_pupil=40)
 
         psf_coro = PsfCoronagraph(simul_params=simul_params, wavelengthInNm=wavelengthInNm,
                                   nd=2.0, start_time=0.0, compute_profile_metrics=True,
-                                  compute_metrics_in_trigger=True, ee_radius_in_lambda_d=1.0,
-                                  target_device_idx=target_device_idx)
+                                  compute_metrics_in_trigger=True, target_device_idx=target_device_idx)
 
         psf_coro.inputs['in_ef'].set(ef)
         psf_coro.setup()
@@ -243,18 +242,15 @@ class TestPSF(unittest.TestCase):
         psf_coro.finalize()
 
         profile_data = cpuArray(psf_coro.coronagraph_psf_profile.value)
-        ee_data = cpuArray(psf_coro.coronagraph_encircled_energy.value)
         int_profile_data = cpuArray(psf_coro.int_coronagraph_psf_profile.value)
-        int_ee_data = cpuArray(psf_coro.int_coronagraph_encircled_energy.value)
-        int_ee_at_radius = np.atleast_1d(cpuArray(psf_coro.int_coronagraph_encircled_energy_at_radius.value))
+        std_profile_data = cpuArray(psf_coro.std_coronagraph_psf_profile.value)
 
         np.testing.assert_allclose(profile_data, frame_profile_before_finalize)
         self.assertEqual(profile_data.shape[0], 2)
-        self.assertEqual(ee_data.shape[0], 2)
         self.assertEqual(int_profile_data.shape[0], 2)
-        self.assertEqual(int_ee_data.shape[0], 2)
-        self.assertGreaterEqual(float(int_ee_at_radius[0]), 0.0)
-        self.assertLessEqual(float(int_ee_at_radius[0]), 1.0)
+        self.assertEqual(std_profile_data.shape[0], 2)
+        self.assertFalse(hasattr(psf_coro, 'coronagraph_psf_fwhm'))
+        self.assertFalse(hasattr(psf_coro, 'coronagraph_encircled_energy'))
 
     @cpu_and_gpu
     def test_coronagraph_with_aber(self, target_device_idx, xp):
