@@ -115,7 +115,7 @@ def main():
         print(f"Scanning {cat['path']}...")
         modules = scan_package(cat['path'], cat['package'])
         if not modules:
-            print(f"  No modules found.")
+            print("  No modules found.")
             continue
 
         content = generate_rst_table(cat['name'], modules, cat['description'])

@@ -1,4 +1,6 @@
 from specula import fuse
+
+from specula.base_processing_obj import InputDesc
 from specula.processing_objects.modulated_pyramid import ModulatedPyramid
 from specula.base_value import BaseValue
 from specula.connections import InputValue
@@ -214,6 +216,14 @@ class ExtSourcePyramid(ModulatedPyramid):
         # Add dedicated input for extended source coefficients
         self.inputs['ext_source_coeff'] = InputValue(type=BaseValue)
 
+    @classmethod
+    def input_names(cls):
+        input_names = super().input_names()
+        input_names.update( {
+            'ext_source_coeff': InputDesc(BaseValue, 'Extended source coefficients array of shape (n_points, 4)'
+                                                     ' with columns: [tip_coeff, tilt_coeff, focus_coeff, flux]')
+        })
+        return input_names
 
     def _get_pyramid_face_angles_at_fov_radius(self):
         """

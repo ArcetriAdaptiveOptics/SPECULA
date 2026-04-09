@@ -4,7 +4,6 @@ import argparse
 import specula
 specula.init(-1)
 
-from specula.lib.utils import import_class, get_type_hints
 from specula.calib_manager import CalibManager
 
 
