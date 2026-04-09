@@ -95,6 +95,7 @@ class LoopControl(BaseTimeObj):
                     element.startMemUsageCount()
                     self.logger.mpi_debug(f'' + str(element) + ' setup')
                     element.setup()
+                    element.sanity_check()
                     self.logger.mpi_debug(f'' + str(element) + ' stopMemUsageCount')
                     element.stopMemUsageCount()
                     self.logger.mpi_debug(f'' + str(element) + ' printMemUsage')
