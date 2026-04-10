@@ -84,16 +84,6 @@ def calc_phasescreen(L0, dimension, pixel_pitch, xp, precision, seed=0, verbose=
     spatial_frequency = calc_spatialfrequency(dimension, xp=xp, precision=precision)
     spatial_frequency = spatial_frequency / m_dimension**2
 
-    # Check for non-finite elements and handle them
-    if not xp.isfinite(phasescreen).all():
-        temp = xp.isfinite(phasescreen)
-        idx_inf = xp.where(~temp)
-        idx_fin = xp.where(temp)
-        if len(idx_inf[0]) > 0.01 * temp.size:
-            raise ValueError("Not finite elements are more than 1% of the total!")
-        print(f"Not finite elements: {len(idx_inf[0])}")
-        phasescreen[idx_inf] = xp.mean(phasescreen[idx_fin])
-
     # Apply spatial frequency
     phasescreen *= (spatial_frequency + 1. / L0**2)**(-11./12.)
     phasescreen *= xp.sqrt(0.033/2./m_dimension**2) * (2 * xp.pi)**(2./3.) * xp.sqrt(0.06) * (1 / pixel_pitch)**(5./6.)

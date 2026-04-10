@@ -64,3 +64,19 @@ class TestCalcPhasescreen(unittest.TestCase):
         finally:
             xp.sqrt = original_sqrt
         
+    @cpu_and_gpu
+    def test_calc_phasescreen_not_finite_overall(self, target_device_idx, xp):
+        """Test that the non-finite elements are detected."""
+        L0 = 25.0
+        dimension = 128
+        pixel_pitch = 0.01
+        precision = 1
+        seed = 42
+
+        phasescreen = calc_phasescreen(L0, dimension, pixel_pitch, xp, precision, seed=seed)
+
+        assert xp.isfinite(phasescreen).all()
+        
+
+
+
