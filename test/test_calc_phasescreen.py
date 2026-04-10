@@ -1,0 +1,31 @@
+import unittest
+import numpy as np
+
+import specula
+specula.init(0)  # Default target device
+
+from specula.lib.calc_phasescreen import calc_phasescreen
+from test.specula_testlib import cpu_and_gpu
+
+class TestCalcPhasescreen(unittest.TestCase):
+
+    @cpu_and_gpu
+    def test_calc_phasescreen_not_finite(self, target_device_idx, xp):
+        """Test that the non-finite elements are detected."""
+        L0 = 25.0
+        dimension = 128
+        pixel_pitch = 0.01
+        precision = 1
+        seed = 42
+
+        def mock_sqrt(x):
+            nelements = len(x.flat)
+            n_10percent = int(0.1 * nelements)+1
+            y = x.copy()
+            y.flat[:n_10percent] = np.inf
+            return y
+        xp.sqrt = mock_sqrt
+
+        phasescreen = calc_phasescreen(L0, dimension, pixel_pitch, xp, precision, seed=seed)
+        assert phasescreen is None
+        

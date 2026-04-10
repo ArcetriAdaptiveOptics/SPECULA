@@ -42,8 +42,8 @@ def calc_phasescreen(L0, dimension, pixel_pitch, xp, precision, seed=0, verbose=
     # Check for non-finite elements and handle them
     if not xp.isfinite(re_gauss).all():
         temp = xp.isfinite(re_gauss)
-        idx_inf = xp.where(~temp)[0]
-        idx_fin = xp.where(temp)[0]
+        idx_inf = xp.where(~temp)
+        idx_fin = xp.where(temp)
         if len(idx_inf[0]) > 0.01 * temp.size:
             print("Not finite elements are more than 1% of the total!")
             return None
@@ -52,8 +52,8 @@ def calc_phasescreen(L0, dimension, pixel_pitch, xp, precision, seed=0, verbose=
 
     if not xp.isfinite(im_gauss).all():
         temp = xp.isfinite(im_gauss)
-        idx_inf = xp.where(~temp)[0]
-        idx_fin = xp.where(temp)[0]
+        idx_inf = xp.where(~temp)
+        idx_fin = xp.where(temp)
         if len(idx_inf[0]) > 0.01 * temp.size:
             print("Not finite elements are more than 1% of the total!")
             return None
