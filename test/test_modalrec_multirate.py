@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import unittest
 from unittest.mock import patch
 
@@ -21,8 +23,8 @@ class TestModalrecMultirate(unittest.TestCase):
         n_modes = 5
         recmat_list = [
             Recmat(xp.ones((n_modes, 4), dtype=xp.float32), target_device_idx=target_device_idx),
-            Recmat(xp.ones((n_modes, 2), dtype=xp.float32), target_device_idx=target_device_idx),
-            Recmat(xp.ones((n_modes, 2), dtype=xp.float32), target_device_idx=target_device_idx)
+            Recmat(xp.ones((n_modes, 4), dtype=xp.float32), target_device_idx=target_device_idx),
+            Recmat(xp.ones((n_modes, 4), dtype=xp.float32), target_device_idx=target_device_idx)
         ]
         validity_masks = [[True, True], [True, False], [False, True]]
 
@@ -48,9 +50,9 @@ class TestModalrecMultirate(unittest.TestCase):
         # M=5 rows. N=2 sensors -> 4 columns if both active.
         mat_both = xp.full((self.n_modes, 4), 1.0, dtype=xp.float32)
 
-        # Single sensor active -> 2 columns
-        mat_s1 = xp.full((self.n_modes, 2), 2.0, dtype=xp.float32)
-        mat_s2 = xp.full((self.n_modes, 2), 3.0, dtype=xp.float32)
+        # Single-sensor validity states still use the full 2-sensor geometry
+        mat_s1 = xp.full((self.n_modes, 4), 2.0, dtype=xp.float32)
+        mat_s2 = xp.full((self.n_modes, 4), 3.0, dtype=xp.float32)
 
         recmat_list = [
             Recmat(mat_both, target_device_idx=target_device_idx),
@@ -157,8 +159,8 @@ class TestModalrecMultirate(unittest.TestCase):
     def test_setup_loads_masks_from_list_order(self, target_device_idx, xp):
         n_modes = 5
         mat_both = xp.full((n_modes, 4), 1.0, dtype=xp.float32)
-        mat_s1 = xp.full((n_modes, 2), 2.0, dtype=xp.float32)
-        mat_s2 = xp.full((n_modes, 2), 3.0, dtype=xp.float32)
+        mat_s1 = xp.full((n_modes, 4), 2.0, dtype=xp.float32)
+        mat_s2 = xp.full((n_modes, 4), 3.0, dtype=xp.float32)
 
         recmat_list = [
             Recmat(mat_both, target_device_idx=target_device_idx),
@@ -206,9 +208,10 @@ class TestModalrecMultirate(unittest.TestCase):
         rec.local_inputs['in_slopes_list'] = rec.inputs['in_slopes_list'].get(target_device_idx)
         rec.setup()
 
-        self.assertEqual(rec.recmat_layout_by_mask[(True, True, True)], 'full')
-        self.assertEqual(rec.recmat_layout_by_mask[(True, True, False)], 'full')
-        self.assertEqual(rec.recmat_layout_by_mask[(True, False, True)], 'full')
+        self.assertEqual(rec.n_sensors, 3)
+        self.assertIn((True, True, True), rec.xp_recmat_by_mask)
+        self.assertIn((True, True, False), rec.xp_recmat_by_mask)
+        self.assertIn((True, False, True), rec.xp_recmat_by_mask)
 
     @cpu_and_gpu
     def test_sanity_check_columns(self, target_device_idx, xp):
@@ -228,7 +231,7 @@ class TestModalrecMultirate(unittest.TestCase):
         rec.inputs['in_slopes_list'].set([slopes_s1, slopes_s2])
         rec.local_inputs['in_slopes_list'] = rec.inputs['in_slopes_list'].get(target_device_idx)
 
-        with self.assertRaisesRegex(ValueError, "expected either"):
+        with self.assertRaisesRegex(ValueError, "full sensor vector"):
             rec.setup()
 
     def test_integration_simul_with_list_object(self):
@@ -243,8 +246,8 @@ class TestModalrecMultirate(unittest.TestCase):
             return real_import_class(classname, additional_modules)
 
         rec_both = Recmat(np.ones((5, 4), dtype=np.float32), target_device_idx=-1, precision=0)
-        rec_s1 = Recmat(np.ones((5, 2), dtype=np.float32), target_device_idx=-1, precision=0)
-        rec_s2 = Recmat(np.ones((5, 2), dtype=np.float32), target_device_idx=-1, precision=0)
+        rec_s1 = Recmat(np.ones((5, 4), dtype=np.float32), target_device_idx=-1, precision=0)
+        rec_s2 = Recmat(np.ones((5, 4), dtype=np.float32), target_device_idx=-1, precision=0)
 
         params = {
             'main': {
@@ -283,8 +286,8 @@ class TestModalrecMultirate(unittest.TestCase):
             return real_import_class(classname, additional_modules)
 
         rec_both = Recmat(np.ones((5, 4), dtype=np.float32), target_device_idx=-1, precision=0)
-        rec_s1 = Recmat(np.ones((5, 2), dtype=np.float32), target_device_idx=-1, precision=0)
-        rec_s2 = Recmat(np.ones((5, 2), dtype=np.float32), target_device_idx=-1, precision=0)
+        rec_s1 = Recmat(np.ones((5, 4), dtype=np.float32), target_device_idx=-1, precision=0)
+        rec_s2 = Recmat(np.ones((5, 4), dtype=np.float32), target_device_idx=-1, precision=0)
 
         params = {
             'main': {

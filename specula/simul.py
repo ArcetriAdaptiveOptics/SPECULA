@@ -21,6 +21,7 @@ import hashlib
 
 
 Output = namedtuple('Output', 'obj_name output_key delay ref input_name')
+UNION_ORIGINS = (typing.Union,) + ((types.UnionType,) if hasattr(types, 'UnionType') else ())
 
 
 def computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name):
@@ -410,7 +411,7 @@ class Simul():
                         partype = hints[parname]
                         type_candidates = []
                         union_origin = typing.get_origin(partype)
-                        if union_origin in (typing.Union, types.UnionType):
+                        if union_origin in UNION_ORIGINS:
                             type_candidates = [arg for arg in typing.get_args(partype)
                                                if arg is not type(None)]
                         else:
@@ -450,7 +451,7 @@ class Simul():
                         partype = hints[parname]
                         type_candidates = []
                         union_origin = typing.get_origin(partype)
-                        if union_origin in (typing.Union, types.UnionType):
+                        if union_origin in UNION_ORIGINS:
                             type_candidates = [arg for arg in typing.get_args(partype)
                                                if arg is not type(None)]
                         else:
@@ -777,7 +778,10 @@ class Simul():
                     add_key(desc.obj_name)
             # Add all references to other objects
             for k, v in params[key].items():
-                if k.endswith('_dict_ref'):
+                if k.endswith('_list_ref'):
+                    for objname in v:
+                        add_key(objname)
+                elif k.endswith('_dict_ref'):
                     for objname in v:
                         add_key(objname)
                 elif k.endswith('_ref'):
@@ -785,7 +789,7 @@ class Simul():
 
         for key in target_object_names:
             add_key(key)
-        
+
         return replay_params
 
     def iterate_inputs(self, pars):

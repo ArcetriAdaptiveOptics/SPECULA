@@ -24,6 +24,27 @@ class MultirateComplementaryFilter(BaseFilter):
                  validate_sync: bool = True,
                  target_device_idx=None,
                  precision=None):
+        """
+        Parameters
+        ----------
+        simul_params : SimulParams
+            Simulation timing parameters.
+        iir_filter_data : IirFilterData
+            IIR controller coefficients for the fused command.
+        g_track : float
+            Tracking gain applied to the barycentric slow-sensor contribution.
+        weights : list
+            DC fusion weights for `[fast_sensor, slow_sensor_1, ...]`.
+        N_list : list
+            Downsampling factors for the slow sensors, in the same order as `in_ys`.
+        delay : float, optional
+            Output delay in frames.
+        idx_yf, idx_ys : optional
+            Index selections used when routing inputs from a single `in_vec` vector.
+        validate_sync : bool, optional
+            If `True`, enforce explicit multirate timestamp consistency on separate inputs.
+            Set it to `False` when slow branches are already zero-stuffed upstream.
+        """
 
         self.n_slow_sensors = len(N_list)
 

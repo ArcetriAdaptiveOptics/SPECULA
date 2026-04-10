@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import specula
 from specula import simul
 specula.init(0)  # Default target device
@@ -10,6 +12,7 @@ import copy
 import numpy as np
 from specula.simul import Simul
 from specula.connections import InputValue, InputList
+from specula.data_objects.recmat import Recmat
 
 class DummyObj:
     def __init__(self):
@@ -21,7 +24,7 @@ class DummyOutput:
 
 class DummyOutputDerived(DummyOutput):
     pass
-  
+
 
 class TestSimul(unittest.TestCase):
 
@@ -405,7 +408,7 @@ class TestSimul(unittest.TestCase):
 
         class ClassWithDictObjectArg(BaseDataObj):
             def __init__(self,
-                         recmat_dict: dict[str, Recmat],
+                         recmat_dict: dict[str, 'Recmat'],
                          target_device_idx=None,
                          precision=None):
                 super().__init__(target_device_idx=target_device_idx, precision=precision)
@@ -469,7 +472,7 @@ class TestSimul(unittest.TestCase):
 
         class ClassWithListObjectArg(BaseDataObj):
             def __init__(self,
-                         recmat_list: list[Recmat],
+                         recmat_list: list['Recmat'],
                          target_device_idx=None,
                          precision=None):
                 super().__init__(target_device_idx=target_device_idx, precision=precision)
@@ -516,6 +519,23 @@ class TestSimul(unittest.TestCase):
                 assert first_path.endswith('/rec/tag_fast.fits')
                 assert second_path.endswith('/rec/tag_slow.fits')
 
+    def test_build_targeted_replay_follows_list_ref_dependencies(self):
+        params = {
+            'main': {'class': 'SimulParams', 'root_dir': 'dummy'},
+            'src_a': {'class': 'Source'},
+            'src_b': {'class': 'Source'},
+            'consumer': {
+                'class': 'DummyClass',
+                'source_list_ref': ['src_a', 'src_b']
+            }
+        }
+
+        replay = Simul([]).build_targeted_replay(params, 'consumer')
+
+        assert 'consumer' in replay
+        assert 'src_a' in replay
+        assert 'src_b' in replay
+
     def test_integration_simul_modalrec_with_list_object(self):
         '''
         Integration-style test: Simul builds ModalrecMultirate and injects
@@ -535,8 +555,8 @@ class TestSimul(unittest.TestCase):
             return real_import_class(classname, additional_modules)
 
         rec_both = Recmat(np.ones((5, 4), dtype=np.float32), target_device_idx=-1, precision=0)
-        rec_s1 = Recmat(np.ones((5, 2), dtype=np.float32), target_device_idx=-1, precision=0)
-        rec_s2 = Recmat(np.ones((5, 2), dtype=np.float32), target_device_idx=-1, precision=0)
+        rec_s1 = Recmat(np.ones((5, 4), dtype=np.float32), target_device_idx=-1, precision=0)
+        rec_s2 = Recmat(np.ones((5, 4), dtype=np.float32), target_device_idx=-1, precision=0)
 
         params = {
             'main': {
