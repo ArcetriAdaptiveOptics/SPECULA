@@ -9,6 +9,8 @@ from unittest.mock import patch
 
 import yaml
 import copy
+from typing import Dict, List
+
 import numpy as np
 from specula.simul import Simul
 from specula.connections import InputValue, InputList
@@ -408,7 +410,7 @@ class TestSimul(unittest.TestCase):
 
         class ClassWithDictObjectArg(BaseDataObj):
             def __init__(self,
-                         recmat_dict: dict[str, 'Recmat'],
+                         recmat_dict: Dict[str, 'Recmat'],
                          target_device_idx=None,
                          precision=None):
                 super().__init__(target_device_idx=target_device_idx, precision=precision)
@@ -472,7 +474,7 @@ class TestSimul(unittest.TestCase):
 
         class ClassWithListObjectArg(BaseDataObj):
             def __init__(self,
-                         recmat_list: list['Recmat'],
+                         recmat_list: List['Recmat'],
                          target_device_idx=None,
                          precision=None):
                 super().__init__(target_device_idx=target_device_idx, precision=precision)
