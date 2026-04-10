@@ -94,8 +94,8 @@ class OpticalGainEstimator(BaseProcessingObj):
 
             self.optical_gain.value = updated_gain
             self.optical_gain.generation_time = self.current_time
-
-            self.logger.info(f"Optical gain updated: {float(current_gain):.6f} -> {float(updated_gain):.6f}")
+            
+            self.logger.info(f"Optical gain updated: {float(current_gain.squeeze()):.6f} -> {float(updated_gain.squeeze()):.6f}")
         else:
             self.logger.info("Warning: demod_command too small, skipping optical gain update")
 
