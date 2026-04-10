@@ -21,6 +21,7 @@ class MultirateComplementaryFilter(BaseFilter):
                  delay: float = 0,
                  idx_yf=None,
                  idx_ys=None,
+                 validate_sync: bool = True,
                  target_device_idx=None,
                  precision=None):
 
@@ -44,6 +45,7 @@ class MultirateComplementaryFilter(BaseFilter):
         self.idx_yf = idx_yf
         self.idx_ys = idx_ys
         self.N_list = N_list
+        self.validate_sync = validate_sync
 
         # Remove the default delta_comm input from BaseFilter as we use custom topology
         if 'delta_comm' in self.inputs:
@@ -126,8 +128,10 @@ class MultirateComplementaryFilter(BaseFilter):
         else:
             self._gain_mod = self.xp.ones(self._nfilter, dtype=self.dtype)
 
-        # 3. Synchronization Check (Only in separate input mode)
-        if not self._use_vector_input:
+        # 3. Synchronization Check (Only in separate input mode).
+        # Disable this when slow inputs are already zero-stuffed upstream and therefore
+        # legitimately carry the current generation_time at every fast frame.
+        if self.validate_sync and not self._use_vector_input:
             t_fast = self.local_inputs['in_yf'].generation_time
             expected_frame = self._cpu_frame_counter + 1
 
