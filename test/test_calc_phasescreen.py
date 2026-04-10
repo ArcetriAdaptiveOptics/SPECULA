@@ -24,8 +24,12 @@ class TestCalcPhasescreen(unittest.TestCase):
             y = x.copy()
             y.flat[:n_10percent] = np.inf
             return y
-        xp.sqrt = mock_sqrt
 
-        phasescreen = calc_phasescreen(L0, dimension, pixel_pitch, xp, precision, seed=seed)
-        assert phasescreen is None
+        original_sqrt = xp.sqrt
+        xp.sqrt = mock_sqrt
+        try:
+            phasescreen = calc_phasescreen(L0, dimension, pixel_pitch, xp, precision, seed=seed)
+            assert phasescreen is None
+        finally:
+            xp.sqrt = original_sqrt
         
