@@ -33,10 +33,7 @@ class Demodulator(BaseProcessingObj):
 
         # Outputs
         self.output = BaseValue(target_device_idx=target_device_idx, precision=precision)
-        if len(self.mode_numbers) == 1:
-            self.output.value = self.dtype(0.0)
-        else:
-            self.output.value = self.xp.zeros(len(self.mode_numbers), dtype=self.dtype)
+        self.output.value = self.xp.zeros(len(self.mode_numbers), dtype=self.dtype)
 
         # Inputs
         self.inputs['in_data'] = InputValue(type=BaseValue)
@@ -46,20 +43,17 @@ class Demodulator(BaseProcessingObj):
 
         self.verbose = False
 
-    def prepare_trigger(self, t):
-        super().prepare_trigger(t)
-        self.input = self.local_inputs['in_data']
-
     def trigger_code(self):
         t = self.current_time
+        data = self.local_inputs['in_data'].get_value()
 
         # Extract data for the specified modes
-        if self.input.value.ndim > 1:
+        if data.ndim > 1:
             # Multi-dimensional data - extract modes
-            mode_data = self.input.value[self.mode_numbers]
+            mode_data = data[self.mode_numbers]
         else:
             # 1D data
-            mode_data = self.input.value
+            mode_data = data
 
         self.data_history.append(mode_data.copy())
         self.time_history.append(t)
@@ -100,7 +94,7 @@ class Demodulator(BaseProcessingObj):
         self.time_history = []
 
         # Set output
-        self.output.value = values
+        self.output.value[:] = values
         self.output.generation_time = t
 
         if self.verbose:
