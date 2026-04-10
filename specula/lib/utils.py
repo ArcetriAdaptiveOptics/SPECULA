@@ -22,7 +22,7 @@ def camelcase_to_snakecase(s):
     return ''.join([x.lower() for x in result])
 
 
-def import_class(classname, additional_modules=[]):
+def import_class(classname, additional_modules=None):
     '''
     Dynamically import a class by name from the appropriate specula submodule.
 
@@ -54,6 +54,9 @@ def import_class(classname, additional_modules=[]):
     AttributeError
         If the class is not found in the located module.
     '''
+    if additional_modules is None:
+        additional_modules = []
+
     modulename = camelcase_to_snakecase(classname)
     module_paths = ['specula.processing_objects',
                     'specula.data_objects',

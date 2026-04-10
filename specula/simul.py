@@ -55,6 +55,14 @@ def _resolve_dataobj_type(type_arg, owner_class):
             if isinstance(candidate, type):
                 return candidate
 
+    for candidate_name in candidate_names:
+        try:
+            candidate = import_class(candidate_name)
+        except (ImportError, AttributeError, ModuleNotFoundError):
+            continue
+        if isinstance(candidate, type):
+            return candidate
+
     return None
 
 
