@@ -198,7 +198,7 @@ class SH(BaseProcessingObj):
                     raise ValueError('set_fov_res_to_turbpxsc property should be set'
                                      ' to one only if turb. pix. sc. is < sensor pix. sc.')
                 self._fov_resolution_arcsec = turbulence_pxscale
-                self.logger.warning('WARNING: set_fov_res_to_turbpxsc property is set.')
+                self.logger.warning('set_fov_res_to_turbpxsc property is set.')
                 self.logger.warning('FoV internal resolution parameter will be set to turb. pix. sc.')
             elif turbulence_pxscale < sensor_pxscale_arcsec and sensor_pxscale_arcsec / 2.0 > 0.5:
                 self._fov_resolution_arcsec = turbulence_pxscale * 0.5

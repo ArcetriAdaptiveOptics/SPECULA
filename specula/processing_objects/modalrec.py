@@ -149,7 +149,7 @@ class Modalrec(BaseProcessingObj):
 
     def trigger_code(self):
         if self.recmat.recmat is None:
-            self.logger.warning("WARNING: modalrec skipping reconstruction because recmat is NULL")
+            self.logger.warning("skipping reconstruction because recmat is NULL")
             return
 
         # In the polc case, commands may be *alwats* refreshed if they are set with -1

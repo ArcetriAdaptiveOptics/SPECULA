@@ -1,6 +1,11 @@
+import sys
 import logging
 
-import sys
+# String to show in the logs in place
+# of an instance name  while the object
+# is initialising and the name is not know yet
+
+INIT_PLACEHOLDER_NAME = 'initialising'
 
 
 def get_specula_logger(name):
@@ -56,7 +61,7 @@ class SpeculaFilter(logging.Filter):
 
     def filter(self, record):
         if hasattr(record, "instance_name") and record.instance_name:
-            if record.levelno <= logging.DEBUG or record.instance_name in ['initialising']:
+            if record.levelno <= logging.DEBUG or record.instance_name in [INIT_PLACEHOLDER_NAME]:
                 record.name = f'{record.name} - {record.instance_name}'
             else:
                 record.name = record.instance_name
@@ -74,14 +79,13 @@ class SpeculaAdapter(logging.LoggerAdapter):
     def __init__(self, logger):
         super().__init__(logger, {})
 
-    # Custom log levels for MPI debugging, below the standard DEBUG level (10)
     MPI_DBG_LEVEL = 6
     MPI_SEND_DBG_LEVEL = 5
 
     def mpi_debug(self, msg, *args, **kwargs):
-        self.log(6, msg, *args, **kwargs)
+        self.log(self.MPI_DBG_LEVEL, msg, *args, **kwargs)
     def mpi_send_debug(self, msg, *args, **kwargs):
-        self.log(5, msg, *args, **kwargs)
+        self.log(self.MPI_SEND_DBG_LEVEL, msg, *args, **kwargs)
 
     @property
     def level(self):

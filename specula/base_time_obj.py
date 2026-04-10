@@ -6,7 +6,7 @@ from specula import np, cp, to_xp
 from specula import global_precision, default_target_device, default_target_device_idx
 from specula import cpu_float_dtype_list, gpu_float_dtype_list
 from specula import cpu_complex_dtype_list, gpu_complex_dtype_list
-from specula.log import get_specula_logger
+from specula.log import get_specula_logger, INIT_PLACEHOLDER_NAME
 
 
 class BaseTimeObj:
@@ -16,10 +16,11 @@ class BaseTimeObj:
 
         Parameters:
         precision (int, optional): if None will use the global_precision, otherwise pass 0 for double, 1 for single
-        target_device_idx (int, optional): if None will use the default_target_device_idx, otherwise pass -1 for cpu, i for GPU of index i
+        target_device_idx (int, optional): if None will use the default_target_device_idx,
+        otherwise pass -1 for cpu, i for GPU of index i
         """
         self.logger = get_specula_logger('specula.'+self.__class__.__name__)
-        self.logger.set_instance_name('initialising')
+        self.logger.set_instance_name(INIT_PLACEHOLDER_NAME)
 
         self._time_resolution = int(1e9)
         self.gpu_bytes_used = 0
