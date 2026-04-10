@@ -92,17 +92,8 @@ class OpticalGainEstimator(BaseProcessingObj):
             # Update formula from IDL code
             updated_gain = current_gain - (1.0 - ratio) * self.gain * current_gain
 
-            if hasattr(current_gain, 'ndim'):
-                if current_gain.ndim > 0:
-                    current_gain = current_gain[0]
-
-            if hasattr(updated_gain, 'ndim'):
-                if updated_gain.ndim > 0:
-                    updated_gain = updated_gain[0]
-
             self.optical_gain.value = updated_gain
             self.optical_gain.generation_time = self.current_time
-
 
             self.logger.info(f"Optical gain updated: {float(current_gain):.6f} -> {float(updated_gain):.6f}")
         else:
