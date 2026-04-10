@@ -3,7 +3,6 @@ from specula.base_processing_obj import BaseProcessingObj
 from specula.base_value import BaseValue
 from specula.data_objects.pixels import Pixels
 from specula.connections import InputValue
-from specula.data_objects.simul_params import SimulParams
 from specula.lib import utils
 
 
