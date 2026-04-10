@@ -24,6 +24,40 @@ Output = namedtuple('Output', 'obj_name output_key delay ref input_name')
 UNION_ORIGINS = (typing.Union,) + ((types.UnionType,) if hasattr(types, 'UnionType') else ())
 
 
+def _resolve_dataobj_type(type_arg, owner_class):
+    """Resolve a concrete data-object class from a container type argument."""
+    if isinstance(type_arg, type):
+        return type_arg
+
+    ref_name = None
+    if isinstance(type_arg, typing.ForwardRef):
+        ref_name = type_arg.__forward_arg__
+    elif isinstance(type_arg, str):
+        ref_name = type_arg
+
+    if not ref_name:
+        return None
+
+    ref_name = ref_name.strip("'\"")
+    candidate_names = [ref_name]
+    if '.' in ref_name:
+        candidate_names.append(ref_name.rsplit('.', 1)[-1])
+
+    namespaces = []
+    init_method = getattr(owner_class, '__init__', None)
+    if init_method is not None:
+        namespaces.append(getattr(init_method, '__globals__', {}))
+    namespaces.append(vars(owner_class))
+
+    for namespace in namespaces:
+        for candidate_name in candidate_names:
+            candidate = namespace.get(candidate_name)
+            if isinstance(candidate, type):
+                return candidate
+
+    return None
+
+
 def computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name):
     s = output_obj_name + '%' + dest_object + '%' + str(output_attr_name) + '%' + str(input_attr_name)
     rr = int(hashlib.sha256(s.encode('utf-8')).hexdigest(), 16) % 10**6
@@ -421,9 +455,11 @@ class Simul():
                         for candidate in type_candidates:
                             origin = typing.get_origin(candidate)
                             args_t = typing.get_args(candidate)
-                            if origin in (list, typing.List, tuple) and len(args_t) >= 1 and isinstance(args_t[0], type):
-                                value_type = args_t[0]
-                                break
+                            if origin in (list, typing.List, tuple) and len(args_t) >= 1:
+                                resolved_type = _resolve_dataobj_type(args_t[0], klass)
+                                if resolved_type is not None:
+                                    value_type = resolved_type
+                                    break
 
                         if value_type is None:
                             raise ValueError(f'Parameter {parname} must be typed as list[DataObjType]')
@@ -461,9 +497,11 @@ class Simul():
                         for candidate in type_candidates:
                             origin = typing.get_origin(candidate)
                             args_t = typing.get_args(candidate)
-                            if origin in (dict, typing.Dict) and len(args_t) == 2 and isinstance(args_t[1], type):
-                                value_type = args_t[1]
-                                break
+                            if origin in (dict, typing.Dict) and len(args_t) == 2:
+                                resolved_type = _resolve_dataobj_type(args_t[1], klass)
+                                if resolved_type is not None:
+                                    value_type = resolved_type
+                                    break
 
                         if value_type is None:
                             raise ValueError(f'Parameter {parname} must be typed as dict[str, DataObjType]')
