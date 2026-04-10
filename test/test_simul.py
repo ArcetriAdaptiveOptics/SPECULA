@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import yaml
 import copy
+from pathlib import PureWindowsPath
 from typing import Dict, List
 
 import numpy as np
@@ -29,6 +30,10 @@ class DummyOutputDerived(DummyOutput):
 
 
 class TestSimul(unittest.TestCase):
+
+    @staticmethod
+    def _path_suffix_parts(path):
+        return PureWindowsPath(path).parts[-2:]
 
     def test_none_object_in_parameter_dict_is_none(self):
         '''
@@ -455,8 +460,8 @@ class TestSimul(unittest.TestCase):
                 assert mock_restore.call_count == 2
                 first_path = mock_restore.call_args_list[0].args[0]
                 second_path = mock_restore.call_args_list[1].args[0]
-                assert first_path.endswith('/rec/tag_fast.fits')
-                assert second_path.endswith('/rec/tag_slow.fits')
+                assert self._path_suffix_parts(first_path) == ('rec', 'tag_fast.fits')
+                assert self._path_suffix_parts(second_path) == ('rec', 'tag_slow.fits')
 
     def test_list_object_suffix_stripped_and_loaded(self):
         '''
@@ -518,8 +523,8 @@ class TestSimul(unittest.TestCase):
                 assert mock_restore.call_count == 2
                 first_path = mock_restore.call_args_list[0].args[0]
                 second_path = mock_restore.call_args_list[1].args[0]
-                assert first_path.endswith('/rec/tag_fast.fits')
-                assert second_path.endswith('/rec/tag_slow.fits')
+                assert self._path_suffix_parts(first_path) == ('rec', 'tag_fast.fits')
+                assert self._path_suffix_parts(second_path) == ('rec', 'tag_slow.fits')
 
     def test_build_targeted_replay_follows_list_ref_dependencies(self):
         params = {
