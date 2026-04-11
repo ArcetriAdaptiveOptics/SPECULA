@@ -8,16 +8,16 @@ from specula.lib.mmse_reconstructor import compute_mmse_reconstructor
 
 
 def compute_and_save_rec(root_dir:str, im_tag:str, rec_tag:str, Nmodes:int, 
-                ml:bool=False, slope_null=None, RON:float=0.0, 
+                ml:bool=False, slope_null=None, RON:float=0.0, r0=None, L0=25,
                 mmse:bool=False, diam:float=None, overwrite:bool=False):
     print(rec_tag,im_tag)
-    rec = compute_rec(root_dir, im_tag, Nmodes, ml=ml, slope_null=slope_null, RON=RON, mmse=mmse, diam=diam)
+    rec = compute_rec(root_dir, im_tag, Nmodes, ml=ml, slope_null=slope_null, RON=RON, mmse=mmse, diam=diam, r0=r0, L0=L0)
     save_rec(root_dir, rec, rec_tag, overwrite=overwrite)
 
 
 def compute_rec(root_dir:str, im_tag:str, Nmodes:int, 
                 ml:bool=False, slope_null=None, RON:float=0.0, 
-                mmse:bool=False, diam:float=None):    
+                mmse:bool=False, diam:float=None, r0=None, L0=None):    
     im_hdul = fits.open(os.path.join(root_dir,'im',im_tag+'.fits'))
     intmat = im_hdul[1].data.copy()
     D = intmat[:,:Nmodes]
@@ -25,7 +25,7 @@ def compute_rec(root_dir:str, im_tag:str, Nmodes:int,
         noise_cov = np.diag((slope_null + RON))
         if mmse:
             k = radial_order(np.arange(Nmodes))/diam
-            turb_cov = np.diag(np.sqrt(von_karman_power(k,r0=10e-2,L0=25,D=diam))*(2*np.pi*500))**2
+            turb_cov = np.diag(np.sqrt(von_karman_power(k,r0=r0,L0=L0,D=diam))*(2*np.pi*500))**2
         else:
             turb_cov = np.zeros([Nmodes, Nmodes])
         rec = compute_mmse_reconstructor(interaction_matrix=D, c_atm=turb_cov, c_noise=noise_cov, verbose=True, xp=np, dtype=np.float64)

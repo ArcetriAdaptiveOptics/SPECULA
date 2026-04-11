@@ -128,6 +128,7 @@ root_dir='/raid1/mmenessini/calibration/SOUL'
 #             atmo_rms = np.sqrt(np.mean(atmo_modes**2,axis=0))
 #             res_rms = np.sqrt(np.mean(res_modes**2,axis=0))
 #             corrvec = 1.0-res_rms/atmo_rms
+#             corrvec = np.maximum(0.0,corrvec)
 #             fits.writeto(os.path.join(root_dir,'data',tag+'.fits'),corrvec)
 #             print('Saved correction vector as: '+tag)
 

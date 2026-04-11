@@ -4,7 +4,7 @@
 # Push-pull command generator
 pushpull:
   class:        'PushPullGenerator'
-  nmodes:       239                         # Number of DM actuators
+  nmodes:       463                         # Number of DM actuators
   amp:          10   # was 5!
   # constant_amp: true
   outputs:   ['output']
@@ -12,47 +12,65 @@ pushpull:
 # Interaction matrix calibrator
 pyr_im_calibrator:
   class:     'ImCalibrator'
-  nmodes:    239                         # Number of modes to calibrate
-  im_tag:    'pyr0.0_16x16_239modes_im'            # Output IM filename
+  nmodes:    463                         # Number of modes to calibrate
+  im_tag:    'pyr0.0_463modes_24x24_im'            # Output IM filename
   overwrite: false                         # Overwrite existing files
   inputs:
-    in_slopes:   'pyr0_slopes.out_slopes'      # WFS slopes input
+    in_slopes:   'pyr_slopes.out_slopes'      # WFS slopes input
     in_commands: 'pushpull.output'        # Push-pull commands
 
+zwfs_im_calibrator:
+  class:     'ImCalibrator'
+  nmodes:    463                         # Number of modes to calibrate
+  im_tag:    'z1.5wfs_463modes_12x12_im'            # Output IM filename
+  overwrite: false                         # Overwrite existing files
+  inputs:
+    in_slopes:   'zwfs_slopes.out_slopes'      # WFS slopes input
+    in_commands: 'pushpull.output'        # Push-pull commands
 
 # Override main simulation parameters
 main_override:
-  time_step: 0.0005
-  total_time: 0.239                 # 239 modes × 2 (push+pull) × 0.0005s
+  time_step: 0.00025
+  total_time: 0.2315                 # 463 modes × 2 (push+pull) × 0.00025s
 
 # Disable atmosphere for clean calibration
 prop_override:
   source_dict_ref:   ['source_ngs']
   inputs:
-    common_layer_list: ['vlt_aperture', 'dm2.out_layer']  # Only pupil + DM
+    common_layer_list: ['vlt_aperture', 'dm.out_layer']  # Only pupil + DM
   outputs:           ['out_source_ngs_ef']
 
 # Override DM to use calibration commands
-
-dm2_override:
+dm_override:
   sign: 1                                 # Use positive sign for calibration (default is -1)
-  nmodes: 239                            # Use all modes for calibration
+  nmodes: 463                            # Use all modes for calibration
   inputs:
     in_command: 'pushpull.output'         # Connect to push-pull generator
 
-pyr0_override:
+pyr_override:
+  inputs: 
+    in_ef: 'prop.out_source_ngs_ef'
+
+zwfs_override:
+  fft_res: 16.0
+  spot_radius_lambda: 0.750                     # Spot RADIUS in λ/D units
   inputs: 
     in_ef: 'prop.out_source_ngs_ef'
 
 # Disable noise for clean measurements
-cred2_override:
-  dt: 0.0005
+cred1_override:
+  dt: 0.00025
   photon_noise:   false                   # No photon noise
   readout_noise:  false                   # No read noise
   excess_noise:   false                   # No excess noise
 
+ocam2_override:
+  dt: 0.00025
+  photon_noise:   false                   # No photon noise
+  readout_noise:  false                   # No read noise
+  excess_noise:   false                   # No excess noise
+
+
 # Remove unnecessary objects during calibration
-remove: ['atmo', 'seeing', 'wind_direction', 'wind_speed','dm1',
-         'filter1',  'filter2','ef_prop','first_stage_prop', 'dm1_mode_res', 'dm2_mode_res', 
-         'cred1', 'pyr', 'pyr_slopes', 'coro_psf',
-           'data_store', 'psf', 'pyr_modalrec', 'pyr0_modalrec','atmo_modes']
+remove: ['atmo','seeing','wind_speed','wind_direction','data_store','atmo_modes', #'source_science',
+        'dm_mode_res','filter','psf', 'coro_psf', 'ef_prop','pyr_modalrec', 'zwfs_modalrec'] #, 'bootstrap', 'concat_wfs_modes'
