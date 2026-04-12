@@ -132,5 +132,5 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
 
         modes_phys = cpuArray(modal_analsis_phys.outputs['out_modes'].value)
         modes_geom = cpuArray(modal_analsis_geom.outputs['out_modes'].value)
-        rel_error = np.mean(abs((modes_phys + modes_geom))/abs(modes_geom))
+        rel_error = np.mean(abs((modes_phys - modes_geom))/abs(modes_geom))
         np.testing.assert_array_less(rel_error, 0.2)

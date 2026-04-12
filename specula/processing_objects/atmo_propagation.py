@@ -278,6 +278,8 @@ class AtmoPropagation(BaseProcessingObj):
                     self.amp[:] = interpolator.interpolate(layer.A)
 
                 if self.doFresnel:
+                    if self.upwards:
+                        self.phi *= -1
                     self.ef_fresnel *= self.amp * self.xp.exp(1j * self.phi / self.wavelengthInNm * 2 * self.xp.pi, dtype=self.complex_dtype)
 
                     if self.propagators[li] is not None:
@@ -288,6 +290,8 @@ class AtmoPropagation(BaseProcessingObj):
 
             if self.doFresnel:
                 output_ef.phaseInNm[:] = self.xp.angle(self.ef_fresnel) * self.wavelengthInNm / (2 * self.xp.pi)
+                if self.upwards:
+                    output_ef.phaseInNm *= -1
                 output_ef.A[:] = abs(self.ef_fresnel)
 
     def post_trigger(self):
