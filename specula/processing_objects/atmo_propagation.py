@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 degree2rad = np.pi / 180.
+from scipy.ndimage import zoom
 
 class AtmoPropagation(BaseProcessingObj):
     """
@@ -75,12 +76,8 @@ class AtmoPropagation(BaseProcessingObj):
         upwards : bool, optional
             If True, propagation is performed upwards (from ground to source). Default is False
             (downwards).
-        padding : int, optional
+        padding_factor : int, optional
             Factor for zero padding in Fresnel propagation to avoid numerical issues with FFTs.
-        band_limit_factor: float, optional
-            Factor in (0,1) for bandlimit filter in angular spectrum propagation.
-            If set to 1.0 no bandlimit filter is applied, if set to 0 the full bandlimit filter
-            is applied.
         target_device_idx : int, optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
         precision : int, optional
@@ -103,6 +100,8 @@ class AtmoPropagation(BaseProcessingObj):
         if doFresnel and wavelengthInNm is None:
             raise ValueError('get_atmo_propagation: wavelengthInNm is required when doFresnel key'
                              ' is set to correctly simulate physical propagation.')
+        if padding_factor < 1:
+            raise ValueError('get_atmo_propagation: padding_factor must be greater than 1.')
 
         self.mergeLayersContrib = mergeLayersContrib
         self.upwards = upwards
@@ -160,69 +159,25 @@ class AtmoPropagation(BaseProcessingObj):
 
     # Scalable Angular Spectrum Propagation Method
     # Jason D. Schmidt, Numerical Simulation of Optical Wave Propagation with Examples in MATLAB
-    def asm_propagator(self, distanceInM):
+    def asm_propagator(self, distanceInM, d_in, d_out):
         k = 2 * np.pi / (self.wavelengthInNm * 1e-9)
-        df = 1 / (self.ef_size_padded * self.pixel_pitch)
-        d_out = self.wavelengthInNm * 1e-9 * distanceInM / (self.ef_size_padded * self.pixel_pitch)
-        mag = max(d_out / self.pixel_pitch, 1.0)
+        df = 1 / (self.ef_size_padded * d_in)
 
-        x, y = self.xp.meshgrid(self.xp.arange(self.ef_size_padded) - self.ef_size_padded / 2,
-                                self.xp.arange(self.ef_size_padded) - self.ef_size_padded / 2, indexing='ij')
+        coord = self.xp.arange(-self.ef_size_padded / 2, self.ef_size_padded / 2)
+        x, y = self.xp.meshgrid(coord, coord)
 
-        H_in = self.xp.exp(1j * k / 2 * (1 - mag) / distanceInM * (
-                    (x * self.pixel_pitch) ** 2 + (y * self.pixel_pitch) ** 2)) / mag if mag != 1 else None
-        H_out = self.xp.exp(
-            1j * k / 2 * (mag - 1) / (mag * distanceInM) * ((x * d_out) ** 2 + (y * d_out) ** 2)) if mag != 1 else None
+        mag = 1
+        if d_out != d_in:
+            mag = d_out / d_in
+            H_in = self.xp.exp(1j * k / 2 * (1 - mag) / distanceInM * ((x * d_in) ** 2 + (y * d_in) ** 2)) / mag
+            H_out = self.xp.exp(1j * k / 2 * (mag - 1) / (mag * distanceInM) * ((x * d_out) ** 2 + (y * d_out) ** 2))
+        else:
+            H_in = None
+            H_out = None
+
         H_ASM = self.xp.exp(-1j * np.pi ** 2 * 2 * distanceInM / mag / k * ((x * df) ** 2 + (y * df) ** 2))
 
         return [H_in, H_ASM, H_out]
-
-    def scalable_angular_spectrum(self, z):
-        lbd = self.wavelengthInNm*1e-9
-        L = self.pixel_pupil * self.pixel_pitch
-        L_new = self.ef_size_padded * self.pixel_pitch
-        N_new = self.ef_size_padded
-        k = 2 * np.pi / lbd
-        df = 1 / L_new
-        Lf = N_new * df
-
-        N = self.pixel_pupil
-        z_limit = (- 4 * L * np.sqrt(8 * L ** 2 / N ** 2 + lbd ** 2) * np.sqrt(
-            L ** 2 * 1 / (8 * L ** 2 + N ** 2 * lbd ** 2)) \
-                   / (lbd * (-1 + 2 * np.sqrt(2) * np.sqrt(L ** 2 * 1 / (8 * L ** 2 + N ** 2 * lbd ** 2)))))
-
-        # freq space coordinates for padded array
-        f_y = self.xp.fft.fftfreq(N_new, 1 / Lf).reshape(1, 1, N_new)
-        f_x = f_y.reshape(1, N_new, 1)
-
-        # real space coordinates for padded array
-        y = self.xp.fft.ifftshift((self.xp.linspace(-L_new / 2, L_new / 2, N_new, endpoint=False)).reshape(1, 1, N_new), axes=-1)
-        x = y.reshape(1, N_new, 1)
-
-        # bandlimit helper
-        cx = lbd * f_x
-        cy = lbd * f_y
-        tx = L_new / 2 / z + self.xp.abs(lbd * f_x)
-        ty = L_new / 2 / z + self.xp.abs(lbd * f_y)
-
-        # bandlimit filter for precompensation, not smoothened!
-        W = (cx ** 2 * (1 + tx ** 2) / tx ** 2 + cy ** 2 <= 1) * (cy ** 2 * (1 + ty ** 2) / ty ** 2 + cx ** 2 <= 1)
-
-        # calculate kernels
-        H_AS = self.xp.sqrt(0j + 1 - self.xp.abs(f_x * lbd) ** 2 - self.xp.abs(f_y * lbd) ** 2)
-        H_Fr = 1 - self.xp.abs(f_x * lbd) ** 2 / 2 - self.xp.abs(f_y * lbd) ** 2 / 2
-        delta_H = W * self.xp.exp(1j * k * z * (H_AS - H_Fr))
-
-        # output coordinates
-        dq = lbd * z / L_new
-        Q = dq * self.ef_size_padded
-
-        q_y = self.xp.fft.ifftshift((self.xp.linspace(-Q / 2, Q / 2, N_new, endpoint=False)).reshape(1, 1, N_new), axes=-1)
-        q_x = q_y.reshape(1, N_new, 1)
-        H_1 = self.xp.exp(1j * k / (2 * z) * (x ** 2 + y ** 2))
-        H_2 = self.xp.exp(1j * k * z) * self.xp.exp(1j * k / (2 * z) * (q_x ** 2 + q_y ** 2))
-
-        return [self.xp.squeeze(delta_H), self.xp.squeeze(H_1), self.xp.squeeze(H_2)]
 
     def doFresnel_setup(self):
         layer_list = self.common_layer_list + self.atmo_layer_list
@@ -238,7 +193,7 @@ class AtmoPropagation(BaseProcessingObj):
 
         # set up fresnel propagator if height difference is not 0
         height_diffs = np.diff(height_layers, append=source_height)
-        self.propagators = [self.asm_propagator(diff) if diff != 0 else None for diff in height_diffs]
+        self.propagators = [self.asm_propagator(diff, self.pixel_pitch, self.pixel_pitch) if diff != 0 else None for diff in height_diffs]
 
         # adapt for downwards propagation
         if not self.upwards:
@@ -252,8 +207,7 @@ class AtmoPropagation(BaseProcessingObj):
         self.ft_ef1 = self.xp.zeros([self.ef_size_padded, self.ef_size_padded], dtype=self.complex_dtype)
         self.ef_fresnel_padded = self.xp.zeros([self.ef_size_padded, self.ef_size_padded],
                                                dtype=self.complex_dtype)
-        self.output_ef_fresnel = self.xp.zeros([self.pixel_pupil, self.pixel_pupil], dtype=self.complex_dtype)
-        self.in_ef_fresnel = self.xp.zeros([self.pixel_pupil, self.pixel_pupil], dtype=self.complex_dtype)
+        self.ef_fresnel = self.xp.zeros([self.pixel_pupil, self.pixel_pupil], dtype=self.complex_dtype)
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
@@ -272,19 +226,6 @@ class AtmoPropagation(BaseProcessingObj):
                 )
                 layer.phaseInNm[~mask_valid] = local_mean[~mask_valid]
 
-    def angular_spectrum_propagation_new(self, ef_in, propagator):
-        s = (self.ef_size_padded - self.pixel_pupil) // 2
-        self.ef_padded[s:s + self.pixel_pupil, s:s + self.pixel_pupil] = ef_in
-
-        self.ft_ef1[:] = self.xp.fft.fft2(self.xp.fft.fftshift(self.ef_padded, axes=(-1, -2)), axes=(-1, -2))
-        self.ef_fresnel_padded[:] = self.xp.fft.ifft2(self.ft_ef1 * propagator[0],axes=(-1, -2))
-        self.ef_fresnel_padded[:] = self.xp.fft.fft2(propagator[1] * self.ef_fresnel_padded,axes=(-1, -2))
-        if propagator[2] is not None:
-            self.ef_fresnel_padded *= propagator[2]
-        self.ef_fresnel_padded[:] = self.xp.fft.fftshift(self.ef_fresnel_padded, axes=(-1, -2))
-
-        self.output_ef_fresnel[:] = self.ef_fresnel_padded[s:s + self.pixel_pupil, s:s + self.pixel_pupil]
-
     def angular_spectrum_propagation(self, ef_in, propagator):
         s = (self.ef_size_padded - self.pixel_pupil) // 2
         self.ef_padded[s:s + self.pixel_pupil, s:s + self.pixel_pupil] = ef_in
@@ -293,12 +234,13 @@ class AtmoPropagation(BaseProcessingObj):
             self.ef_padded *= propagator[0]
         self.ft_ef1[:] = self.xp.fft.fft2(self.xp.fft.fftshift(self.ef_padded, axes=(-2, -1)), axes=(-2, -1), norm="ortho")
         self.ef_fresnel_padded[:] = self.xp.fft.fftshift(self.xp.fft.ifft2(self.ft_ef1 * self.xp.fft.fftshift(propagator[1], axes=(-2, -1)), norm="ortho",axes=(-2, -1)), axes=(-2, -1))
-        if propagator[0] is not None:
-            self.ef_padded *= propagator[2]
+        if propagator[2] is not None:
+            self.ef_fresnel_padded *= propagator[2]
 
         # unpadding
-        self.output_ef_fresnel[:] = self.ef_fresnel_padded[s:s + self.pixel_pupil, s:s + self.pixel_pupil]
+        self.ef_fresnel[:] = self.ef_fresnel_padded[s:s + self.pixel_pupil, s:s + self.pixel_pupil]
 
+    @show_in_profiler('atmo_propagation.trigger_code')
     def trigger_code(self):
         layer_list = self.common_layer_list + self.atmo_layer_list
         if not self.upwards:  # reverse layers for downwards propagation
@@ -308,8 +250,8 @@ class AtmoPropagation(BaseProcessingObj):
 
             # reset field
             if self.doFresnel:
-                self.in_ef_fresnel[:] *= 0
-                self.in_ef_fresnel[:] += 1
+                self.ef_fresnel[:] *= 0
+                self.ef_fresnel[:] += 1
 
             if self.mergeLayersContrib:
                 output_ef = self.outputs['out_'+source_name+'_ef']
@@ -336,70 +278,17 @@ class AtmoPropagation(BaseProcessingObj):
                     self.amp[:] = interpolator.interpolate(layer.A)
 
                 if self.doFresnel:
-                    if self.upwards:
-                       self.phi *= -1
-                    self.in_ef_fresnel *= self.amp * self.xp.exp(1j * self.phi / self.wavelengthInNm * 2 * self.xp.pi, dtype=self.complex_dtype)
+                    self.ef_fresnel *= self.amp * self.xp.exp(1j * self.phi / self.wavelengthInNm * 2 * self.xp.pi, dtype=self.complex_dtype)
 
                     if self.propagators[li] is not None:
-                        self.angular_spectrum_propagation(self.in_ef_fresnel, self.propagators[li])
-                        self.in_ef_fresnel[:] = self.output_ef_fresnel
-                    else:
-                        self.output_ef_fresnel[:] = self.in_ef_fresnel
-
+                        self.angular_spectrum_propagation(self.ef_fresnel, self.propagators[li])
                 else:
                     output_ef.A *= self.amp
                     output_ef.phaseInNm += self.phi
 
             if self.doFresnel:
-                output_ef.phaseInNm[:] = self.xp.angle(self.output_ef_fresnel) * self.wavelengthInNm / (2 * self.xp.pi)
-                output_ef.A[:] = abs(self.output_ef_fresnel)
-
-    @show_in_profiler('atmo_propagation.trigger_code')
-    def trigger_code_old(self):
-        layer_list = self.common_layer_list + self.atmo_layer_list
-        if not self.upwards:  # reverse layers for downwards propagation
-            layer_list = layer_list[::-1]
-
-        for source_name, source in self.source_dict.items():
-
-            if self.mergeLayersContrib:
-                output_ef = self.outputs['out_'+source_name+'_ef']
-                output_ef.reset()
-            else:
-                output_ef_list = self.outputs['out_'+source_name+'_ef']
-
-            self.output_ef_fresnel *= 0
-            self.output_ef_fresnel += 1
-            for li, layer in enumerate(layer_list):
-
-                if not self.mergeLayersContrib:
-                    output_ef = output_ef_list[li]
-                    output_ef.reset()
-
-                interpolator = self.interpolators[source][layer]
-                if interpolator is None:
-                    topleft = [(layer.size[0] - self.pixel_pupil_size) // 2, \
-                               (layer.size[1] - self.pixel_pupil_size) // 2]
-                    output_ef.product(layer, subrect=topleft)
-
-                    x2 = topleft[0] + output_ef.size[0]
-                    y2 = topleft[1] + output_ef.size[1]
-                    self.output_ef_fresnel *= layer.field[0, topleft[0]: x2, topleft[1]: y2] * self.xp.exp(1j * layer.field[1, topleft[0]: x2, topleft[1]: y2] / (self.wavelengthInNm * 1e-9) * 2 * np.pi)
-                else:
-                    output_ef.A *= interpolator.interpolate(layer.A)
-                    output_ef.phaseInNm += interpolator.interpolate(layer.phaseInNm)
-                    self.output_ef_fresnel *= interpolator.interpolate(layer.A) * self.xp.exp(1j * interpolator.interpolate(layer.phaseInNm) / (self.wavelengthInNm * 1e-9) * 2 * np.pi)
-
-                if self.doFresnel and self.propagators[li] is not None:
-                    self.angular_spectrum_propagation(self.output_ef_fresnel, self.propagators[li])
-
-            if self.doFresnel:
-                output_ef.phaseInNm[:] = self.xp.angle(self.output_ef_fresnel) * self.wavelengthInNm / (2 * self.xp.pi)
-                output_ef.A[:] = abs(self.output_ef_fresnel)
-                plt.figure()
-                plt.imshow(cpuArray(output_ef.phaseInNm))
-                plt.show()
-
+                output_ef.phaseInNm[:] = self.xp.angle(self.ef_fresnel) * self.wavelengthInNm / (2 * self.xp.pi)
+                output_ef.A[:] = abs(self.ef_fresnel)
 
     def post_trigger(self):
         super().post_trigger()
@@ -602,4 +491,4 @@ class AtmoPropagation(BaseProcessingObj):
         self.setup_interpolators()
         if self.doFresnel:
             self.doFresnel_setup()
-        #self.build_stream()
+        self.build_stream()

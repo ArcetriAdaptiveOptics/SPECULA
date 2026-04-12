@@ -57,7 +57,7 @@ class Test(unittest.TestCase):
             for obj in objlist:
                 obj.post_trigger()
         downlink_phase = prop_down.outputs['out_downlink_source_ef'].phaseInNm
-        uplink_phase = -prop_up.outputs['out_uplink_source_ef'].phaseInNm
+        uplink_phase = prop_up.outputs['out_uplink_source_ef'].phaseInNm
 
         rms = xp.sqrt(xp.mean((downlink_phase / np.max(downlink_phase) - uplink_phase / np.max(uplink_phase)) ** 2))
         print(rms)
@@ -65,7 +65,7 @@ class Test(unittest.TestCase):
 
     @cpu_and_gpu
     def test_physicalProp_padding(self, target_device_idx, xp):
-        simul_params = SimulParams(zenithAngleInDeg=0.0, pixel_pupil=120, pixel_pitch=0.008333, time_step=1)
+        simul_params = SimulParams(zenithAngleInDeg=0.0, pixel_pupil=240, pixel_pitch=0.008333, time_step=1)
 
         seeing = WaveGenerator(constant=0.7, target_device_idx=target_device_idx)
         wind_speed = WaveGenerator(constant=[0, 0, 0], target_device_idx=target_device_idx)
@@ -111,3 +111,56 @@ class Test(unittest.TestCase):
         rms = xp.sqrt(
             xp.mean((downlink_phase1 / np.max(downlink_phase1) - downlink_phase2 / np.max(downlink_phase2)) ** 2))
         self.assertTrue(rms < 0.1)
+
+    @cpu_and_gpu
+    def test_physicalProp_scaling(self, target_device_idx, xp): # TODO implement test example from git of schmidt
+        simul_params = SimulParams(zenithAngleInDeg=75.0, pixel_pupil=120, pixel_pitch=0.008333, time_step=1)
+
+        seeing = WaveGenerator(constant=0.7, target_device_idx=target_device_idx)
+        wind_speed = WaveGenerator(constant=[0, 0, 0], target_device_idx=target_device_idx)
+        wind_direction = WaveGenerator(constant=[0, 0, 0], target_device_idx=target_device_idx)
+
+        uplink_source = Source(polar_coordinates=[0.0, 0.0], magnitude=0, height=400000., wavelengthInNm=1550)
+
+        atmo = AtmoInfiniteEvolution(simul_params,
+                                     L0=20,  # [m] Outer scale
+                                     heights=[0., 4000., 12000.],
+                                     Cn2=[0.5, 0.4, 0.1],
+                                     fov=8.0,
+                                     seed=1,
+                                     target_device_idx=target_device_idx)
+
+        prop_up = AtmoPropagation(simul_params, source_dict={'uplink_source': uplink_source},
+                                     target_device_idx=target_device_idx, wavelengthInNm=1550, doFresnel=False,
+                                     upwards=True)
+        atmo.inputs['seeing'].set(seeing.output)
+        atmo.inputs['wind_direction'].set(wind_direction.output)
+        atmo.inputs['wind_speed'].set(wind_speed.output)
+        prop_up.inputs['atmo_layer_list'].set(atmo.outputs['layer_list'])
+
+        for objlist in [[seeing, wind_speed, wind_direction], [atmo], [prop_up]]:
+            for obj in objlist:
+                obj.setup()
+
+            for obj in objlist:
+                obj.check_ready(1)
+
+            for obj in objlist:
+                obj.trigger()
+
+            for obj in objlist:
+                obj.post_trigger()
+
+        uplink_phase1 = prop_up.outputs['out_uplink_source_ef'].phaseInNm
+
+        modal_analysis = ModalAnalysis(npixels=120, nmodes=10, type_str='zernike', wavelengthInNm=1550, dorms=True)
+        unwrapped_phase = modal_analysis.unwrap_2d(uplink_phase1)
+
+        total = xp.sum(unwrapped_phase)
+
+        plt.figure()
+        plt.imshow(cpuArray(unwrapped_phase))
+        plt.show()
+
+        #self.assertTrue(int(total) == 32760)
+
