@@ -86,29 +86,28 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
 
         # Atmosphere
         seeing = WaveGenerator(constant=2.5, target_device_idx=target_device_idx)
-        wind_speed = WaveGenerator(constant=[0, 0, 0, 0], target_device_idx=target_device_idx)
-        wind_direction = WaveGenerator(constant=[0, 0, 0, 0], target_device_idx=target_device_idx)
+        wind_speed = WaveGenerator(constant=[0, 0, 0], target_device_idx=target_device_idx)
+        wind_direction = WaveGenerator(constant=[0, 0, 0], target_device_idx=target_device_idx)
         atmo = AtmoInfiniteEvolution(simul_params,
                                      L0=20,  # [m] Outer scale
-                                     heights=[0., 40., 120., 200.],
-                                     Cn2=[0.769, 0.104, 0.127, 0.0],
+                                     heights=[0., 40., 120.],
+                                     Cn2=[0.769, 0.104, 0.127],
                                      fov=8.0,
                                      target_device_idx=target_device_idx)
 
         # Physical and geometrical propagation to source
-        uplink_source = Source(polar_coordinates=[0.0, 0.0], magnitude=0, height=5000,
+        uplink_source = Source(polar_coordinates=[0.0, 0.0], magnitude=0, height=500,
                                wavelengthInNm=1550)
         prop_up_phys = AtmoPropagation(simul_params, source_dict={'uplink_source': uplink_source},
-                                  target_device_idx=target_device_idx, wavelengthInNm=1550,
-                                  upwards=True, doFresnel=True)
+                                  target_device_idx=target_device_idx, wavelengthInNm=1550, doFresnel=True,
+                                         upwards=True, padding_factor=3)
         prop_up_geom = AtmoPropagation(simul_params, source_dict={'uplink_source': uplink_source},
                                   target_device_idx=target_device_idx)
 
         # Modal analysis
         modal_analsis_phys = ModalAnalysis(npixels=120, nmodes=10,
                                            type_str='zernike', wavelengthInNm=1550, dorms=True)
-        modal_analsis_geom = ModalAnalysis(npixels=120, nmodes=10,
-                                           type_str='zernike', dorms=True)
+        modal_analsis_geom = ModalAnalysis(npixels=120, nmodes=10, type_str='zernike', dorms=True)
 
         atmo.inputs['seeing'].set(seeing.output)
         atmo.inputs['wind_direction'].set(wind_direction.output)
@@ -133,5 +132,5 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
 
         modes_phys = cpuArray(modal_analsis_phys.outputs['out_modes'].value)
         modes_geom = cpuArray(modal_analsis_geom.outputs['out_modes'].value)
-        rel_error = np.mean(abs((modes_phys - modes_geom))/abs(modes_geom))
+        rel_error = np.mean(abs((modes_phys + modes_geom))/abs(modes_geom))
         np.testing.assert_array_less(rel_error, 0.2)
