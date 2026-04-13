@@ -193,7 +193,8 @@ class AtmoPropagation(BaseProcessingObj):
 
         # set up fresnel propagator if height difference is not 0
         height_diffs = np.diff(height_layers, append=source_height)
-        self.propagators = [self.asm_propagator(diff, self.pixel_pitch, self.pixel_pitch) if diff != 0 else None for diff in height_diffs]
+        self.propagators = [self.asm_propagator(diff, self.pixel_pitch, self.pixel_pitch) if diff != 0 else None for
+                            diff in height_diffs]
 
         # adapt for downwards propagation
         if not self.upwards:
@@ -232,8 +233,11 @@ class AtmoPropagation(BaseProcessingObj):
 
         if propagator[0] is not None:
             self.ef_padded *= propagator[0]
-        self.ft_ef1[:] = self.xp.fft.fft2(self.xp.fft.fftshift(self.ef_padded, axes=(-2, -1)), axes=(-2, -1), norm="ortho")
-        self.ef_fresnel_padded[:] = self.xp.fft.fftshift(self.xp.fft.ifft2(self.ft_ef1 * self.xp.fft.fftshift(propagator[1], axes=(-2, -1)), norm="ortho",axes=(-2, -1)), axes=(-2, -1))
+        self.ft_ef1[:] = self.xp.fft.fft2(self.xp.fft.fftshift(self.ef_padded, axes=(-2, -1)), axes=(-2, -1),
+                                          norm="ortho")
+        self.ef_fresnel_padded[:] = self.xp.fft.fftshift(
+            self.xp.fft.ifft2(self.ft_ef1 * self.xp.fft.fftshift(propagator[1], axes=(-2, -1)), norm="ortho",
+                              axes=(-2, -1)), axes=(-2, -1))
         if propagator[2] is not None:
             self.ef_fresnel_padded *= propagator[2]
 

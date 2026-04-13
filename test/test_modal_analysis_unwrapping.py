@@ -42,7 +42,8 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
 
         # Physical and geometrical propagation to source
         uplink_source = Source(polar_coordinates=[0.0, 0.0], magnitude=0, height=400, wavelengthInNm=1550)
-        prop_up = AtmoPropagation(simul_params, source_dict={'uplink_source': uplink_source}, target_device_idx=target_device_idx, wavelengthInNm=1550)
+        prop_up = AtmoPropagation(simul_params, source_dict={'uplink_source': uplink_source},
+                                  target_device_idx=target_device_idx, wavelengthInNm=1550)
 
         atmo.inputs['seeing'].set(seeing.output)
         atmo.inputs['wind_direction'].set(wind_direction.output)
@@ -73,8 +74,8 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
         unwrapped_phase = modal_analysis.unwrap_2d(wrapped_phase)
         unwrapped_phase_skimage = unwrap_phase(cpuArray(wrapped_phase), rng=1)
 
-        rel_error_1 = np.mean(np.abs((cpuArray(phase) - cpuArray(unwrapped_phase)))/np.abs(cpuArray(phase)))
-        rel_error_2 = np.mean(np.abs((cpuArray(phase) - cpuArray(unwrapped_phase_skimage))) /np.abs(cpuArray(phase)))
+        rel_error_1 = np.mean(np.abs((cpuArray(phase) - cpuArray(unwrapped_phase))) / np.abs(cpuArray(phase)))
+        rel_error_2 = np.mean(np.abs((cpuArray(phase) - cpuArray(unwrapped_phase_skimage))) / np.abs(cpuArray(phase)))
 
         np.testing.assert_array_less(rel_error_1, rel_error_2)
 
