@@ -1,13 +1,21 @@
+from __future__ import annotations
+
 import specula
 from specula import simul
 specula.init(0)  # Default target device
 
 import unittest
+from unittest.mock import patch
 
 import yaml
 import copy
+from pathlib import PureWindowsPath
+from typing import Dict, List
+
+import numpy as np
 from specula.simul import Simul
 from specula.connections import InputValue, InputList
+from specula.data_objects.recmat import Recmat
 
 class DummyObj:
     def __init__(self):
@@ -19,9 +27,13 @@ class DummyOutput:
 
 class DummyOutputDerived(DummyOutput):
     pass
-  
+
 
 class TestSimul(unittest.TestCase):
+
+    @staticmethod
+    def _path_suffix_parts(path):
+        return PureWindowsPath(path).parts[-2:]
 
     def test_none_object_in_parameter_dict_is_none(self):
         '''
@@ -357,7 +369,6 @@ class TestSimul(unittest.TestCase):
         The parname != name guard on the _data branch ensures this: when no suffix was
         stripped (parname == name), the value is assigned directly.
         '''
-        from unittest.mock import patch
         from specula.base_data_obj import BaseDataObj
         from specula.lib.utils import import_class as real_import_class
 
@@ -387,5 +398,195 @@ class TestSimul(unittest.TestCase):
             # foo_data is a direct constructor arg; it should be passed directly,
             # not routed to FITS-file reading (which would fail or mangled the value)
             assert simul.objs['test'].foo_data == 'direct_value'
+
+    def test_dict_object_suffix_stripped_and_loaded(self):
+        '''
+        Test generic _dict_object behavior:
+        - recmat_dict_object strips to constructor arg recmat_dict
+        - each dict value is treated as a tag and restored as the hinted object type
+        '''
+        from specula.base_data_obj import BaseDataObj
+        from specula.data_objects.recmat import Recmat
+        from specula.lib.utils import import_class as real_import_class
+
+        class DummySimulParams:
+            def __init__(self, root_dir='dummy', **_kwargs):
+                self.root_dir = root_dir
+
+        class ClassWithDictObjectArg(BaseDataObj):
+            def __init__(self,
+                         recmat_dict: Dict[str, 'Recmat'],
+                         target_device_idx=None,
+                         precision=None):
+                super().__init__(target_device_idx=target_device_idx, precision=precision)
+                self.recmat_dict = recmat_dict
+
+        def mock_import(classname, additional_modules=None):
+            if classname == 'SimulParams':
+                return DummySimulParams
+            if classname == 'ClassWithDictObjectArg':
+                return ClassWithDictObjectArg
+            return real_import_class(classname, additional_modules)
+
+        rec_a = Recmat(np.ones((2, 2), dtype=np.float32), target_device_idx=-1, precision=0)
+        rec_b = Recmat(np.full((2, 2), 2.0, dtype=np.float32), target_device_idx=-1, precision=0)
+
+        params = {
+            'main': {
+                'class': 'SimulParams',
+                'root_dir': 'dummy'
+            },
+            'test': {
+                'class': 'ClassWithDictObjectArg',
+                'target_device_idx': -1,
+                'precision': 0,
+                'recmat_dict_object': {
+                    'rec_v10': 'tag_fast',
+                    'rec_v01': 'tag_slow'
+                }
+            }
+        }
+
+        with patch('specula.simul.import_class', side_effect=mock_import):
+            with patch('specula.data_objects.recmat.Recmat.restore', side_effect=[rec_a, rec_b]) as mock_restore:
+                simul = Simul([])
+                simul.build_objects(params)
+
+                obj = simul.objs['test']
+                assert set(obj.recmat_dict.keys()) == {'rec_v10', 'rec_v01'}
+                assert isinstance(obj.recmat_dict['rec_v10'], Recmat)
+                assert isinstance(obj.recmat_dict['rec_v01'], Recmat)
+
+                assert mock_restore.call_count == 2
+                first_path = mock_restore.call_args_list[0].args[0]
+                second_path = mock_restore.call_args_list[1].args[0]
+                assert self._path_suffix_parts(first_path) == ('rec', 'tag_fast.fits')
+                assert self._path_suffix_parts(second_path) == ('rec', 'tag_slow.fits')
+
+    def test_list_object_suffix_stripped_and_loaded(self):
+        '''
+        Test generic _list_object behavior:
+        - recmat_list_object strips to constructor arg recmat_list
+        - each list value is treated as a tag and restored as the hinted object type
+        '''
+        from specula.base_data_obj import BaseDataObj
+        from specula.data_objects.recmat import Recmat
+        from specula.lib.utils import import_class as real_import_class
+
+        class DummySimulParams:
+            def __init__(self, root_dir='dummy', **_kwargs):
+                self.root_dir = root_dir
+
+        class ClassWithListObjectArg(BaseDataObj):
+            def __init__(self,
+                         recmat_list: List['Recmat'],
+                         target_device_idx=None,
+                         precision=None):
+                super().__init__(target_device_idx=target_device_idx, precision=precision)
+                self.recmat_list = recmat_list
+
+        def mock_import(classname, additional_modules=None):
+            if classname == 'SimulParams':
+                return DummySimulParams
+            if classname == 'ClassWithListObjectArg':
+                return ClassWithListObjectArg
+            return real_import_class(classname, additional_modules)
+
+        rec_a = Recmat(np.ones((2, 2), dtype=np.float32), target_device_idx=-1, precision=0)
+        rec_b = Recmat(np.full((2, 2), 2.0, dtype=np.float32), target_device_idx=-1, precision=0)
+
+        params = {
+            'main': {
+                'class': 'SimulParams',
+                'root_dir': 'dummy'
+            },
+            'test': {
+                'class': 'ClassWithListObjectArg',
+                'target_device_idx': -1,
+                'precision': 0,
+                'recmat_list_object': ['tag_fast', 'tag_slow']
+            }
+        }
+
+        with patch('specula.simul.import_class', side_effect=mock_import):
+            with patch('specula.data_objects.recmat.Recmat.restore', side_effect=[rec_a, rec_b]) as mock_restore:
+                simul = Simul([])
+                simul.build_objects(params)
+
+                obj = simul.objs['test']
+                assert len(obj.recmat_list) == 2
+                assert isinstance(obj.recmat_list[0], Recmat)
+                assert isinstance(obj.recmat_list[1], Recmat)
+                assert obj.recmat_list[0].tag == 'tag_fast'
+                assert obj.recmat_list[1].tag == 'tag_slow'
+
+                assert mock_restore.call_count == 2
+                first_path = mock_restore.call_args_list[0].args[0]
+                second_path = mock_restore.call_args_list[1].args[0]
+                assert self._path_suffix_parts(first_path) == ('rec', 'tag_fast.fits')
+                assert self._path_suffix_parts(second_path) == ('rec', 'tag_slow.fits')
+
+    def test_build_targeted_replay_follows_list_ref_dependencies(self):
+        params = {
+            'main': {'class': 'SimulParams', 'root_dir': 'dummy'},
+            'src_a': {'class': 'Source'},
+            'src_b': {'class': 'Source'},
+            'consumer': {
+                'class': 'DummyClass',
+                'source_list_ref': ['src_a', 'src_b']
+            }
+        }
+
+        replay = Simul([]).build_targeted_replay(params, 'consumer')
+
+        assert 'consumer' in replay
+        assert 'src_a' in replay
+        assert 'src_b' in replay
+
+    def test_integration_simul_modalrec_with_list_object(self):
+        '''
+        Integration-style test: Simul builds ModalrecMultirate and injects
+        recmat_list via _list_object using mocked Recmat.restore.
+        '''
+        from specula.data_objects.recmat import Recmat
+        from specula.processing_objects.modalrec_multirate import ModalrecMultirate
+        from specula.lib.utils import import_class as real_import_class
+
+        class DummySimulParams:
+            def __init__(self, root_dir='dummy', **_kwargs):
+                self.root_dir = root_dir
+
+        def mock_import(classname, additional_modules=None):
+            if classname == 'SimulParams':
+                return DummySimulParams
+            return real_import_class(classname, additional_modules)
+
+        rec_both = Recmat(np.ones((5, 4), dtype=np.float32), target_device_idx=-1, precision=0)
+        rec_s1 = Recmat(np.ones((5, 4), dtype=np.float32), target_device_idx=-1, precision=0)
+        rec_s2 = Recmat(np.ones((5, 4), dtype=np.float32), target_device_idx=-1, precision=0)
+
+        params = {
+            'main': {
+                'class': 'SimulParams',
+                'root_dir': 'dummy'
+            },
+            'rec': {
+                'class': 'ModalrecMultirate',
+                'target_device_idx': -1,
+                'precision': 0,
+                'recmat_list_object': ['tag_both', 'tag_s1', 'tag_s2'],
+                'validity_masks': [[True, True], [True, False], [False, True]],
+                'n_modes_total': 5
+            }
+        }
+
+        with patch('specula.simul.import_class', side_effect=mock_import):
+            with patch('specula.data_objects.recmat.Recmat.restore', side_effect=[rec_both, rec_s1, rec_s2]):
+                simul = Simul([])
+                simul.build_objects(params)
+
+                rec_obj = simul.objs['rec']
+                assert isinstance(rec_obj, ModalrecMultirate)
+                assert set(rec_obj.recmat_by_mask.keys()) == {(True, True), (True, False), (False, True)}
 
 

@@ -501,3 +501,36 @@ class TestDemodulateSignal(unittest.TestCase):
 
         # Both should give similar results for clean signal
         self.assertAlmostEqual(amp_cum, amp_sim, delta=0.1)
+
+    def test_demodulate_multiple_modes(self):
+        """Demodulate 2d vectors"""
+
+        if self.verbose: # pragma: no cover
+            print(f"\n{'='*70}")
+            print(f"Testing demodulation of multiple signals")
+            print(f"{'='*70}")
+
+        # Generate test signals
+        duration = 0.2
+        dt = 0.001
+        carrier_freq = 10.0
+        amplitude = 3.0
+        time = np.arange(0, duration, dt)
+        phase_shift = np.pi/3
+        signal1 = amplitude * np.sin(2 * np.pi * carrier_freq * time)
+        signal2 = amplitude * 0.5 * np.sin(2 * np.pi * carrier_freq * time + phase_shift)
+
+        signal = np.array([signal1, signal2]).T
+
+        # Simple demodulation
+        amp, phase = demodulate_signal(
+            signal, carrier_freq, 1.0/dt, cumulated=False, xp=np
+        )
+
+        diff_amp = amp[0] / amp[1]
+        diff_phase = phase[0] - phase[1]
+
+        self.assertAlmostEqual(diff_amp, 2.0, places=1)
+        self.assertAlmostEqual(diff_phase, np.pi/3, places=1)
+
+
