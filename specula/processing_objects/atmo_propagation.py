@@ -250,8 +250,7 @@ class AtmoPropagation(BaseProcessingObj):
 
             # reset field
             if self.doFresnel:
-                self.ef_fresnel[:] *= 0
-                self.ef_fresnel[:] += 1
+                self.ef_fresnel[:] = 1
 
             if self.mergeLayersContrib:
                 output_ef = self.outputs['out_'+source_name+'_ef']
@@ -274,7 +273,7 @@ class AtmoPropagation(BaseProcessingObj):
                     self.phi[:] = layer.field[1, topleft[0]: x2, topleft[1]: y2]
                     self.amp[:] = layer.field[0, topleft[0]: x2, topleft[1]: y2]
                 else:
-                    self.phi[:] = (interpolator.interpolate(layer.phaseInNm))
+                    self.phi[:] = interpolator.interpolate(layer.phaseInNm)
                     self.amp[:] = interpolator.interpolate(layer.A)
 
                 if self.doFresnel:
