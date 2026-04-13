@@ -72,7 +72,7 @@ class ImCalibrator(BaseProcessingObj):
     @classmethod
     def output_names(cls):
         return {'out_intmat': OutputDesc(Intmat, 'Accumulated interaction matrix'),
-                'out_single_im': OutputDesc(Intmat, 'Per-mode interaction matrix contributions (list)')}
+                'out_single_im': OutputDesc(list, 'Per-mode interaction matrix contributions (list)')}
 
     @staticmethod
     def generate_im_tag(pupilstop, source, dm, sensor, slopec, nmodes, first_mode=0):

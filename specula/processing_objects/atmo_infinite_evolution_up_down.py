@@ -127,7 +127,8 @@ class AtmoInfiniteEvolutionUpDown(AtmoInfiniteEvolution):
 
     @classmethod
     def output_names(cls):
-        return {'layer_list_down': OutputDesc(list, 'List of atmospheric phase screen layers for downward propagation'),
+        return {'layer_list': OutputDesc(list, 'Backward-compatible alias for layer_list_down'),
+                'layer_list_down': OutputDesc(list, 'List of atmospheric phase screen layers for downward propagation'),
                 'layer_list_up': OutputDesc(list, 'List of atmospheric phase screen layers for upward propagation')}
 
     def trigger_code(self):

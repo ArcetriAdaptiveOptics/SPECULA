@@ -106,7 +106,7 @@ class ModalAnalysis(BaseProcessingObj):
     def output_names(cls):
         return {'out_modes': OutputDesc(BaseValue, 'Modal coefficients from the combined/single input electric field'),
                 'rms': OutputDesc(BaseValue, 'RMS of the wavefront'),
-                'out_modes_list': OutputDesc(BaseValue, 'Per-input modal coefficient vectors (list, one per connected input)')}
+                'out_modes_list': OutputDesc(list, 'Per-input modal coefficient vectors (list, one per connected input)')}
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
