@@ -9,13 +9,9 @@ from specula.lib.air_refraction import MatharAirRefraction
 from specula import cpuArray, show_in_profiler
 from specula.data_objects.simul_params import SimulParams
 
-from scipy.signal.windows import tukey
-import matplotlib.pyplot as plt
-
 import numpy as np
 
 degree2rad = np.pi / 180.
-from scipy.ndimage import zoom
 
 class AtmoPropagation(BaseProcessingObj):
     """
