@@ -7,7 +7,7 @@ Can be connected to SPRINT estimator output to generate corrected IM and RM.
 """
 
 from specula.lib.synim_utils import compute_im_synim
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.connections import InputValue
 from specula.data_objects.intmat import Intmat
 from specula.data_objects.recmat import Recmat
@@ -186,6 +186,15 @@ class ImShSynimGenerator(BaseProcessingObj):
         self.outputs['out_intmat'] = self.output_intmat
         if compute_rec:
             self.outputs['out_recmat'] = self.output_recmat
+
+    @classmethod
+    def input_names(cls):
+        return {'in_misreg_params': InputDesc(BaseValue, 'Mis-registration parameters (optional, from SPRINT estimator)')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_intmat': OutputDesc(Intmat, 'Computed interaction matrix from SynIM geometric model'),
+                'out_recmat': OutputDesc(Recmat, 'Computed reconstruction matrix (optional, if compute_rec=True)')}
 
     def setup(self):
         """Initialize and extract parameters"""

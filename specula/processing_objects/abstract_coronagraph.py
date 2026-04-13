@@ -1,7 +1,7 @@
 from specula.lib.extrapolation_2d import EFInterpolator
 from specula.lib.toccd import toccd
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.connections import InputValue
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.simul_params import SimulParams
@@ -183,6 +183,14 @@ class Coronagraph(BaseProcessingObj):
         in_ef = self.local_inputs['in_ef']
         self.out_ef.S0 = in_ef.S0 * transmission
         self.out_ef.generation_time = self.current_time
+
+    @classmethod
+    def input_names(cls):
+        return {'in_ef': InputDesc(ElectricField, 'Input electric field from the telescope pupil')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_ef': OutputDesc(ElectricField, 'Output electric field after coronagraph mask application')}
 
     def setup(self):
         super().setup()

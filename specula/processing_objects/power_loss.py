@@ -1,5 +1,5 @@
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.connections import InputValue
 from specula.data_objects.simul_params import SimulParams
@@ -37,6 +37,14 @@ class PowerLoss(BaseProcessingObj):
         self.inputs['se_sr'] = InputValue(type=BaseValue)
         self.power_loss = BaseValue(target_device_idx=self.target_device_idx)
         self.outputs['out_power_loss'] = self.power_loss
+
+    @classmethod
+    def input_names(cls):
+        return {'se_sr': InputDesc(BaseValue, 'Input Strehl ratio or flux value')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_power_loss': OutputDesc(BaseValue, 'Output power loss in dB')}
 
     def trigger_code(self):
         se_sr = self.local_inputs['se_sr']

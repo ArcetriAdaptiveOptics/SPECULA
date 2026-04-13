@@ -138,8 +138,8 @@ class AtmoRandomPhase(BaseProcessingObj):
         self.inputs['pupilstop'] = InputValue(type=Pupilstop)
 
     def input_names(self):
-        return {'seeing': InputDesc(BaseValue, 'Seeing value'),
-                'pupilstop': InputDesc(Pupilstop, 'Pupil stop mask')}
+        return {'seeing': InputDesc(BaseValue, 'Atmospheric seeing value'),
+                'pupilstop': InputDesc(Pupilstop, 'Pupil stop mask defining the valid pupil area')}
 
     def output_names(self):
         result = {}

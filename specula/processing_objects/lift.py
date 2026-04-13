@@ -2,7 +2,7 @@ import logging
 import math
 from collections import namedtuple
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.connections import InputValue
 from specula.base_value import BaseValue
 from specula import cpuArray, np
@@ -134,6 +134,15 @@ class Lift(BaseProcessingObj):
         self.set_modalbase(self.ifunc.influence_function,
                            mask,
                            diameter=self.simul_params.pixel_pupil * self.simul_params.pixel_pitch)
+
+    @classmethod
+    def input_names(cls):
+        return {'in_pixels': InputDesc(Pixels, 'Input pixel data from the WFS detector')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_pistons': OutputDesc(BaseValue, 'Estimated piston coefficients per subaperture'),
+                'out_zern': OutputDesc(BaseValue, 'Estimated Zernike modal coefficients')}
 
     def _build_reference_coeffs(self, ref_zern_amp):
         airef = self.xp.zeros(self.nmodes, dtype=self.dtype)

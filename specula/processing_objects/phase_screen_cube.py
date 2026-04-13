@@ -1,6 +1,6 @@
 import numpy as np
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.layer import Layer
 from specula.data_objects.pupilstop import Pupilstop
@@ -139,6 +139,15 @@ class PhaseScreenCube(BaseProcessingObj):
 
         self.ef_interpolator.interpolate()
 
+
+    @classmethod
+    def input_names(cls):
+        return {'pupilstop': InputDesc(Pupilstop, 'Pupil stop defining the valid telescope aperture')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_layer': OutputDesc(Layer, 'Output atmospheric phase layer (default single-source name)'),
+                'out_ef': OutputDesc(ElectricField, 'Output electric field for the line of sight (default single-source name)')}
 
     def trigger_code(self):
         current_phase = self.ef_interpolator.interpolated_ef().phaseInNm

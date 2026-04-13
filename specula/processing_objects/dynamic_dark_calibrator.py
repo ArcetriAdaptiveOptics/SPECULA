@@ -1,5 +1,5 @@
 import os
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.data_objects.pixels import Pixels
 from specula.connections import InputValue
@@ -121,6 +121,20 @@ class DynamicDarkCalibrator(BaseProcessingObj):
         )
         self.outputs['out_darkframe'] = self.darkframe
         self.outputs['out_subtracted_pixels'] = self.subtracted_pixels
+
+    @classmethod
+    def input_names(cls):
+        return {'in_pixels': InputDesc(Pixels, 'Input pixel frame to be dark-subtracted'),
+                'in_trigger': InputDesc(BaseValue, 'Trigger signal to start dark frame acquisition (optional)'),
+                'in_nframes': InputDesc(BaseValue, 'Dynamically updates the number of integration frames (optional)'),
+                'in_load': InputDesc(BaseValue, 'Filename of a dark frame to load from disk (optional)'),
+                'in_save': InputDesc(BaseValue, 'Filename to save the current dark frame to disk (optional)'),
+                'in_reset': InputDesc(BaseValue, 'Resets the current dark frame to zero (optional)')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_darkframe': OutputDesc(Pixels, 'Current dark frame computed by averaging input frames'),
+                'out_subtracted_pixels': OutputDesc(Pixels, 'Input pixels with the dark frame subtracted')}
 
     def setup(self):
         """Resize output darkframe to match input pixel dimensions and properties"""

@@ -1,5 +1,5 @@
 from specula.base_value import BaseValue
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 
 
 class BaseGenerator(BaseProcessingObj):
@@ -29,6 +29,14 @@ class BaseGenerator(BaseProcessingObj):
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
         self.current_time_gpu[:] = self.current_time_seconds
+
+    @classmethod
+    def input_names(cls):
+        return {}
+
+    @classmethod
+    def output_names(cls):
+        return {'output': OutputDesc(BaseValue, 'Generated output signal')}
 
     def trigger_code(self):
         """Implement signal generation logic in subclasses"""

@@ -1,5 +1,5 @@
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.connections import InputValue
 
@@ -101,6 +101,15 @@ class BaseOperation(BaseProcessingObj):
         self.inputs['in_value1'] = InputValue(type=BaseValue)
         self.inputs['in_value2'] = InputValue(type=BaseValue, optional=True)
         self.outputs['out_value'] = self.out_value
+
+    @classmethod
+    def input_names(cls):
+        return {'in_value1': InputDesc(BaseValue, 'First input value vector'),
+                'in_value2': InputDesc(BaseValue, 'Second input value vector (optional)')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_value': OutputDesc(BaseValue, 'Output value vector after applying the operation')}
 
     def setup(self):
         super().setup()

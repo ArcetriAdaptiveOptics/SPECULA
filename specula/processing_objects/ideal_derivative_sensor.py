@@ -1,4 +1,4 @@
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.connections import InputValue
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.slopes import Slopes
@@ -65,6 +65,14 @@ class IdealDerivativeSensor(BaseProcessingObj):
         # Setup inputs and outputs
         self.inputs['in_ef'] = InputValue(type=ElectricField)
         self.outputs['out_slopes'] = self.slopes
+
+    @classmethod
+    def input_names(cls):
+        return {'in_ef': InputDesc(ElectricField, 'Input electric field from which wavefront slopes are derived')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_slopes': OutputDesc(Slopes, 'Computed wavefront slopes from the ideal derivative sensor')}
 
     def setup(self):
         """Setup the sensor geometry and caching."""
