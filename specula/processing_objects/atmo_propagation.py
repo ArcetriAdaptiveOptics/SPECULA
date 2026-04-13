@@ -1,6 +1,6 @@
 from specula.lib.make_xy import make_xy
 from specula.lib.utils import local_mean_rebin
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.lib.interp2d import Interp2D
 from specula.data_objects.electric_field import ElectricField
 from specula.connections import InputList
@@ -156,6 +156,16 @@ class AtmoPropagation(BaseProcessingObj):
         self.inputs['common_layer_list'] = InputList(type=Layer)
 
         self.airmass = 1. / np.cos(np.radians(self.simul_params.zenithAngleInDeg), dtype=self.dtype)
+
+    def input_names(self):
+        return {'atmo_layer_list': InputDesc(Layer, 'List of atmospheric turbulence layers (optional)'),
+                'common_layer_list': InputDesc(Layer, 'List of common turbulence layers shared across sources')}
+
+    def output_names(self):
+        result = {}
+        for source_name in self.source_dict:
+            result['out_' + source_name + '_ef'] = OutputDesc(ElectricField, f'Electric field output for source {source_name}')
+        return result
 
     # Band-limited angular spectrum method for numerical simulation of free-space propagation in far and near fields
     # K. Matsushima, T. Shimobaba

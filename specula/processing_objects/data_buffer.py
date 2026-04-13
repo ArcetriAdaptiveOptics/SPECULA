@@ -18,6 +18,16 @@ class DataBuffer(BaseProcessingObj):
         self.step_counter = 0
         self.buffered_outputs = {}
 
+    def check_input_names(self):
+        # DataBuffer inputs are added dynamically via input_list;
+        # skip the static input_names validation.
+        pass
+
+    def check_output_names(self):
+        # DataBuffer outputs are created dynamically in setOutputs();
+        # skip the static output_names validation.
+        pass
+
     def setOutputs(self):
         # Create output objects for each input (like DataStore does)
         for input_name, input_obj in self.inputs.items():
