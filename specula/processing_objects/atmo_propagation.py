@@ -100,7 +100,7 @@ class AtmoPropagation(BaseProcessingObj):
             raise ValueError('get_atmo_propagation: padding_factor must be greater than 1.')
 
         self.mergeLayersContrib = mergeLayersContrib
-        self.upwards = upwards
+        self.prop_sign = -1 if upwards else 1
         self.pixel_pupil_size = self.pixel_pupil
         self.source_dict = source_dict
         if pupil_position is not None:
@@ -205,7 +205,7 @@ class AtmoPropagation(BaseProcessingObj):
                             diff in height_diffs]
 
         # adapt for downwards propagation
-        if not self.upwards:
+        if self.prop_sign == 1:
             self.propagators = self.propagators[::-1]
             # no propagation from the source downwards
             self.propagators.pop(0)
@@ -255,7 +255,7 @@ class AtmoPropagation(BaseProcessingObj):
     @show_in_profiler('atmo_propagation.trigger_code')
     def trigger_code(self):
         layer_list = self.common_layer_list + self.atmo_layer_list
-        if not self.upwards:  # reverse layers for downwards propagation
+        if self.prop_sign == 1:  # reverse layers for downwards propagation
             layer_list = layer_list[::-1]
 
         for source_name, source in self.source_dict.items():
@@ -289,10 +289,8 @@ class AtmoPropagation(BaseProcessingObj):
                     self.amp[:] = interpolator.interpolate(layer.A)
 
                 if self.doFresnel:
-                    if self.upwards:
-                        self.phi *= -1
-                    self.ef_fresnel *= self.amp * self.xp.exp(1j * self.phi / self.wavelengthInNm * 2 * self.xp.pi, dtype=self.complex_dtype)
-
+                    self.ef_fresnel *= self.amp * self.xp.exp(
+                        self.prop_sign * 1j * self.phi / self.wavelengthInNm * 2 * self.xp.pi, dtype=self.complex_dtype)
                     if self.propagators[li] is not None:
                         self.angular_spectrum_propagation(self.ef_fresnel, self.propagators[li])
                 else:
@@ -300,9 +298,8 @@ class AtmoPropagation(BaseProcessingObj):
                     output_ef.phaseInNm += self.phi
 
             if self.doFresnel:
-                output_ef.phaseInNm[:] = self.xp.angle(self.ef_fresnel) * self.wavelengthInNm / (2 * self.xp.pi)
-                if self.upwards:
-                    output_ef.phaseInNm *= -1
+                output_ef.phaseInNm[:] = self.prop_sign * self.xp.angle(self.ef_fresnel) * self.wavelengthInNm / (
+                            2 * self.xp.pi)
                 output_ef.A[:] = abs(self.ef_fresnel)
 
     def post_trigger(self):
