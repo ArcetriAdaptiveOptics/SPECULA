@@ -1,6 +1,6 @@
 import os
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.data_objects.intensity import Intensity
 from specula.data_objects.lenslet import Lenslet
 from specula.connections import InputValue
@@ -39,6 +39,15 @@ class ShSubapCalibrator(BaseProcessingObj):
 
         self.inputs['in_i'] = InputValue(type=Intensity, optional=True)
         self.inputs['in_pixels'] = InputValue(type=Pixels, optional=True)
+
+    @classmethod
+    def input_names(cls):
+        return {'in_i': InputDesc(Intensity, 'Input intensity image (optional)'),
+                'in_pixels': InputDesc(Pixels, 'Input pixel image (optional)')}
+
+    @classmethod
+    def output_names(cls):
+        return {}
 
     def setup(self):
         super().setup()

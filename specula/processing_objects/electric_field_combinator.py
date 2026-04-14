@@ -1,7 +1,7 @@
 from specula.connections import InputValue, InputList
 
 from specula.data_objects.electric_field import ElectricField
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 
 
 class ElectricFieldCombinator(BaseProcessingObj):
@@ -28,6 +28,16 @@ class ElectricFieldCombinator(BaseProcessingObj):
             )
 
         self.outputs['out_ef'] = self._out_ef
+
+    @classmethod
+    def input_names(cls):
+        return {'in_ef1': InputDesc(ElectricField, 'First input electric field (optional, use with in_ef2)'),
+                'in_ef2': InputDesc(ElectricField, 'Second input electric field (optional, use with in_ef1)'),
+                'in_ef_list': InputDesc(ElectricField, 'List of input electric fields to combine (optional)')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_ef': OutputDesc(ElectricField, 'Combined output electric field')}
 
     def setup(self):
         super().setup()

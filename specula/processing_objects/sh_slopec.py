@@ -2,12 +2,14 @@
 import numpy as np
 
 from specula import fuse
+from specula.base_processing_obj import InputDesc, OutputDesc
+from specula.base_value import BaseValue
+from specula.data_objects.pixels import Pixels
+from specula.data_objects.slopes import Slopes
+from specula.data_objects.subap_data import SubapData
 from specula.lib.make_mask import make_mask
 from specula.lib.make_xy import make_xy
 from specula.lib.utils import unravel_index_2d
-from specula.data_objects.slopes import Slopes
-from specula.data_objects.subap_data import SubapData
-from specula.base_value import BaseValue
 
 from specula.processing_objects.slopec import Slopec
 
@@ -83,6 +85,18 @@ class ShSlopec(Slopec):
 
         self.slopes.single_mask = self.subapdata.single_mask()
         self.slopes.display_map = self.subapdata.display_map
+
+    @classmethod
+    def input_names(cls):
+        return {'in_pixels': InputDesc(Pixels, 'Input pixel data from detector')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_slopes': OutputDesc(Slopes, 'Computed wavefront slopes'),
+                'out_flux_per_subaperture': OutputDesc(BaseValue, 'Flux per subaperture'),
+                'out_total_counts': OutputDesc(BaseValue, 'Total photon counts'),
+                'out_subap_counts': OutputDesc(BaseValue, 'Counts per subaperture'),
+                'out_subapdata': OutputDesc(SubapData, 'Subaperture data with geometry information')}
 
     def nsubaps(self):
         return self.subapdata.n_subaps

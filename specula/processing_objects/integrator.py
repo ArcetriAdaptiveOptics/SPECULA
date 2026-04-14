@@ -1,5 +1,7 @@
 
 from specula.processing_objects.iir_filter import IirFilter
+from specula.base_processing_obj import InputDesc, OutputDesc
+from specula.base_value import BaseValue
 from specula.data_objects.iir_filter_data import IirFilterData
 from specula.data_objects.simul_params import SimulParams
 
@@ -52,3 +54,13 @@ class Integrator(IirFilter):
         # Initialize IirFilter object
         super().__init__(simul_params, iir_filter_data, delay=delay, integration=integration,
                          target_device_idx=target_device_idx, precision=precision)
+
+    @classmethod
+    def input_names(cls):
+        return {'delta_comm': InputDesc(BaseValue, 'Input delta command vector'),
+                'gain_mod': InputDesc(BaseValue, 'Optional gain modulation vector (optional)')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_comm': OutputDesc(BaseValue, 'Output command vector with delay applied'),
+                'out_comm_no_delay': OutputDesc(BaseValue, 'Output command vector without delay (for POLC)')}

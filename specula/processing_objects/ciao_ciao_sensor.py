@@ -1,5 +1,5 @@
 from specula import RAD2ASEC, fuse
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.connections import InputValue
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.intensity import Intensity
@@ -129,6 +129,14 @@ class CiaoCiaoSensor(BaseProcessingObj):
 
         self.ef_interpolator_in = None
         self.ef_interpolator_rot = None
+
+    @classmethod
+    def input_names(cls):
+        return {'in_ef': InputDesc(ElectricField, 'Input electric field')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_i': OutputDesc(Intensity, 'Output interference intensity pattern')}
 
     def _parse_tilt(self, tiltInArcsec):
         if isinstance(tiltInArcsec, (int, float)):

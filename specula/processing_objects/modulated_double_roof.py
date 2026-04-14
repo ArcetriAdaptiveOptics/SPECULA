@@ -1,6 +1,10 @@
 from specula import fuse
 
 from specula.processing_objects.modulated_pyramid import ModulatedPyramid
+from specula.base_processing_obj import InputDesc, OutputDesc
+from specula.data_objects.electric_field import ElectricField
+from specula.data_objects.intensity import Intensity
+from specula.base_value import BaseValue
 from specula.lib.make_xy import make_xy
 from specula.data_objects.simul_params import SimulParams
 
@@ -152,6 +156,18 @@ class ModulatedDoubleRoof(ModulatedPyramid):
 
         # Return the first roof for compatibility (the second will be accessed directly)
         return self.roof1_tlt
+
+    @classmethod
+    def input_names(cls):
+        return {'in_ef': InputDesc(ElectricField, 'Input electric field from the telescope pupil')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_i': OutputDesc(Intensity, 'Output intensity image from double-roof pyramid WFS'),
+                'out_psf_tot': OutputDesc(BaseValue, 'Total PSF after focal plane mask application'),
+                'out_psf_bfm': OutputDesc(BaseValue, 'PSF before focal plane mask'),
+                'out_transmission': OutputDesc(BaseValue, 'Scalar value representing total flux transmission'),
+                'out_flux_frac_inside_detector': OutputDesc(BaseValue, 'Fraction of total flux inside the CCD area')}
 
     def trigger_code(self):
         u_tlt_const = self.ef * self.tlt_f

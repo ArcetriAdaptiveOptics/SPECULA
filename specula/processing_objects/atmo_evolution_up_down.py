@@ -1,4 +1,6 @@
 from specula import cpuArray, np
+from specula.base_processing_obj import InputDesc, OutputDesc
+from specula.base_value import BaseValue
 from specula.processing_objects.atmo_evolution import AtmoEvolution
 from specula.data_objects.layer import Layer
 from specula.data_objects.simul_params import SimulParams
@@ -121,6 +123,18 @@ class AtmoEvolutionUpDown(AtmoEvolution):
 
         # Track positions for up propagation separately
         self.last_position_up = np.zeros(self.n_phasescreens, dtype=self.dtype)
+
+    @classmethod
+    def input_names(cls):
+        return {'seeing': InputDesc(BaseValue, 'Atmospheric seeing value'),
+                'wind_speed': InputDesc(BaseValue, 'Wind speed for each atmospheric layer'),
+                'wind_direction': InputDesc(BaseValue, 'Wind direction for each atmospheric layer')}
+
+    @classmethod
+    def output_names(cls):
+        return {'layer_list': OutputDesc(list, 'Backward-compatible alias for layer_list_down'),
+                'layer_list_down': OutputDesc(list, 'List of atmospheric phase screen layers for downward propagation'),
+                'layer_list_up': OutputDesc(list, 'List of atmospheric phase screen layers for upward propagation')}
 
     def trigger_code(self):
         """Update both downward and upward layer lists with different time offsets."""

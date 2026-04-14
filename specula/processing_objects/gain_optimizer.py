@@ -2,7 +2,7 @@ import numpy as np
 from scipy import signal
 from functools import lru_cache
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.connections import InputValue
 from specula.base_value import BaseValue
 from specula.data_objects.iir_filter_data import IirFilterData
@@ -86,6 +86,16 @@ class GainOptimizer(BaseProcessingObj):
         self.outputs['optimized_gain'] = self.optimized_gain
 
         self.verbose = verbose
+
+    @classmethod
+    def input_names(cls):
+        return {'delta_comm': InputDesc(BaseValue, 'Input delta command vector from the WFS'),
+                'out_comm': InputDesc(BaseValue, 'Current output command vector from the controller'),
+                'optical_gain': InputDesc(BaseValue, 'Optional optical gain for compensation (optional)')}
+
+    @classmethod
+    def output_names(cls):
+        return {'optimized_gain': OutputDesc(BaseValue, 'Optimized gain vector for the IIR filter modes')}
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)

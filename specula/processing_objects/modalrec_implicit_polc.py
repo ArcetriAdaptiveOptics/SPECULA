@@ -1,4 +1,7 @@
 from specula.processing_objects.modalrec import Modalrec
+from specula.base_processing_obj import InputDesc, OutputDesc
+from specula.base_value import BaseValue
+from specula.data_objects.slopes import Slopes
 from specula.data_objects.intmat import Intmat
 from specula.data_objects.recmat import Recmat
 
@@ -73,6 +76,18 @@ class ModalrecImplicitPolc(Modalrec):
 
         # Now self.intmat can be removed to save memor
         self.intmat = None
+
+    @classmethod
+    def input_names(cls):
+        return {'in_slopes': InputDesc(Slopes, 'Input wavefront slope vector (optional)'),
+                'in_slopes_list': InputDesc(Slopes, 'List of input slope vectors (optional)'),
+                'in_commands': InputDesc(BaseValue, 'Current output command vector for implicit POLC'),
+                'in_commands_list': InputDesc(BaseValue, 'List of current command vectors for implicit POLC (optional)')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_modes': OutputDesc(BaseValue, 'Reconstructed modal command vector'),
+                'out_pseudo_ol_modes': OutputDesc(BaseValue, 'Pseudo open-loop modal estimate')}
 
     def prepare_trigger(self, t):
         # Call parent's prepare_trigger which handles slopes

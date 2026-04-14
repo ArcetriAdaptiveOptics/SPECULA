@@ -1,6 +1,6 @@
 from specula import cpuArray, process_rank, process_comm, MPI_SEND_DBG
 from specula import np, cp
-from specula.lib.flatten import flatten
+from specula.lib.utils import flatten
 
 
 class _InputItem():
@@ -93,7 +93,7 @@ class InputList():
         self.input_name = None
 
     def get(self, target_device_idx):
-        return flatten([v.get(target_device_idx) for v in self.input_values])
+        return list(flatten(v.get(target_device_idx) for v in self.input_values))
 
     def set(self, values_list, remote_rank=None, tag=None):
         """

@@ -1,7 +1,10 @@
 from specula import cpuArray
 from specula.lib.interp2d import Interp2D
+from specula.data_objects.pixels import Pixels
 from specula.data_objects.pupilstop import Pupilstop
 from specula.processing_objects.slopec import Slopec
+from specula.base_processing_obj import InputDesc, OutputDesc
+from specula.base_value import BaseValue
 from specula.data_objects.slopes import Slopes
 from skimage.restoration import unwrap_phase
 
@@ -68,6 +71,29 @@ class CiaoCiaoSlopec(Slopec):
                          target_device_idx=target_device_idx,
                          precision=precision,
                          **kwargs)
+
+        if pupil_mask is not None:
+            mask = self.to_xp(pupil_mask.A, dtype=self.dtype) > 0.5
+            if self.diffRotAngleInDeg != 0.0:
+                interp = Interp2D(mask.shape, mask.shape,
+                                  rotInDeg=self.diffRotAngleInDeg,
+                                  dtype=self.dtype, xp=self.xp)
+                rotated = interp.interpolate(mask.astype(self.dtype)) > 0.5
+                mask = mask & rotated
+            self._pupil_mask_xp = mask
+        else:
+            self._pupil_mask_xp = None
+
+    @classmethod
+    def input_names(cls):
+        return {'in_pixels': InputDesc(Pixels, 'Input interferogram pixel data from detector')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_slopes': OutputDesc(Slopes, 'Computed OPD map as a flattened slope vector'),
+                'out_flux_per_subaperture': OutputDesc(BaseValue, 'Mean flux per pixel within the pupil mask'),
+                'out_total_counts': OutputDesc(BaseValue, 'Total photon counts'),
+                'out_subap_counts': OutputDesc(BaseValue, 'Counts per subaperture')}
 
     def nsubaps(self):
         return 1

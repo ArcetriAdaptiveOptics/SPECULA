@@ -3,7 +3,7 @@ import os
 import pickle
 from astropy.io import fits
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.lib.utils import import_class
 
@@ -36,6 +36,19 @@ class DataSource(BaseProcessingObj):
                 self.outputs[k] = import_class(self.obj_type[k]).from_header(self.headers[k])
             else:
                 self.outputs[k] = BaseValue(target_device_idx=self.target_device_idx)
+
+    @classmethod
+    def input_names(cls):
+        return {}
+
+    @classmethod
+    def output_names(cls):
+        return {}
+
+    def check_output_names(self):
+        # DataSource outputs are created dynamically from stored data files;
+        # skip the static output_names validation.
+        pass
 
     def loadFromFile(self, name):
         if name in self.items:

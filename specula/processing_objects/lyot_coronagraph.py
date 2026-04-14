@@ -1,4 +1,6 @@
 from specula.processing_objects.abstract_coronagraph import Coronagraph
+from specula.base_processing_obj import InputDesc, OutputDesc
+from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.make_mask import make_mask
 from specula import RAD2ASEC
@@ -49,6 +51,14 @@ class LyotCoronagraph(Coronagraph):
                          target_device_idx=target_device_idx,
                          precision=precision)
 
+
+    @classmethod
+    def input_names(cls):
+        return {'in_ef': InputDesc(ElectricField, 'Input electric field from the telescope pupil')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_ef': OutputDesc(ElectricField, 'Output electric field after Lyot coronagraph mask application')}
 
     def make_focal_plane_mask(self):
         # Mask centered on the crosshair between 4 pixels
