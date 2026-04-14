@@ -120,16 +120,11 @@ class AtmoInfiniteEvolutionUpDown(AtmoInfiniteEvolution):
         self.acc_cols_up = np.zeros(self.n_infinite_phasescreens)
 
     @classmethod
-    def input_names(cls):
-        return {'seeing': InputDesc(BaseValue, 'Atmospheric seeing value'),
-                'wind_speed': InputDesc(BaseValue, 'Wind speed for each atmospheric layer'),
-                'wind_direction': InputDesc(BaseValue, 'Wind direction for each atmospheric layer')}
-
-    @classmethod
     def output_names(cls):
-        return {'layer_list': OutputDesc(list, 'Backward-compatible alias for layer_list_down'),
-                'layer_list_down': OutputDesc(list, 'List of atmospheric phase screen layers for downward propagation'),
-                'layer_list_up': OutputDesc(list, 'List of atmospheric phase screen layers for upward propagation')}
+        result = super().output_names()
+        result.update({'layer_list_down': OutputDesc(list, 'List of atmospheric phase screen layers for downward propagation'),
+                'layer_list_up': OutputDesc(list, 'List of atmospheric phase screen layers for upward propagation')})
+        return result
 
     def trigger_code(self):
         """Update both lists by saving/restoring phase screen state."""

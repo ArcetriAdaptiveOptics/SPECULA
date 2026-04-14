@@ -87,16 +87,12 @@ class ShSlopec(Slopec):
         self.slopes.display_map = self.subapdata.display_map
 
     @classmethod
-    def input_names(cls):
-        return {'in_pixels': InputDesc(Pixels, 'Input pixel data from detector')}
-
-    @classmethod
     def output_names(cls):
-        return {'out_slopes': OutputDesc(Slopes, 'Computed wavefront slopes'),
-                'out_flux_per_subaperture': OutputDesc(BaseValue, 'Flux per subaperture'),
-                'out_total_counts': OutputDesc(BaseValue, 'Total photon counts'),
-                'out_subap_counts': OutputDesc(BaseValue, 'Counts per subaperture'),
-                'out_subapdata': OutputDesc(SubapData, 'Subaperture data with geometry information')}
+        result =super().output_names()
+        result.update({ 
+            'out_subapdata': OutputDesc(SubapData, 'Subaperture data with geometry information')         
+        })
+        return result
 
     def nsubaps(self):
         return self.subapdata.n_subaps

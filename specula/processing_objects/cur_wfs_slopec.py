@@ -89,11 +89,11 @@ class CurWfsSlopec(Slopec):
 
     @classmethod
     def output_names(cls):
-        return {'out_slopes': OutputDesc(Slopes, 'Computed curvature wavefront slopes'),
-                'out_flux_per_subaperture': OutputDesc(BaseValue, 'Flux per subaperture'),
-                'out_total_counts': OutputDesc(BaseValue, 'Total photon counts'),
-                'out_subap_counts': OutputDesc(BaseValue, 'Counts per subaperture'),
-                'out_pupdata': OutputDesc(PupData, 'Pupil data with subaperture geometry')}
+        result = super().output_names()
+        result.update({
+            'out_pupdata': OutputDesc(PupData, 'Pupil data with subaperture geometry')
+        })
+        return result
 
     def nsubaps(self):
         # Every pixel is treated as a subaperture

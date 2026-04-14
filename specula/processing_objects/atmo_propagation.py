@@ -236,6 +236,15 @@ class AtmoPropagation(BaseProcessingObj):
                                                dtype=self.complex_dtype)
         self.output_ef_fresnel = self.xp.zeros([self.pixel_pupil, self.pixel_pupil], dtype=self.complex_dtype)
 
+    @classmethod
+    def input_names(cls):
+        return {'atmo_layer_list': InputDesc(Layer, 'List of atmospheric turbulence layers (optional)'),
+                'common_layer_list': InputDesc(Layer, 'List of common turbulence layers shared across sources')}
+
+    @classmethod
+    def output_names(cls):
+        return {}
+
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
 
@@ -501,3 +510,8 @@ class AtmoPropagation(BaseProcessingObj):
         if self.doFresnel:
             self.doFresnel_setup()
         self.build_stream()
+
+    def check_output_names(self):
+        # AtmoPropagation outputs are created dynamically from stored data files;
+        # skip the static output_names validation.
+        pass

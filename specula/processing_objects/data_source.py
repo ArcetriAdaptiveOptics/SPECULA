@@ -45,11 +45,6 @@ class DataSource(BaseProcessingObj):
     def output_names(cls):
         return {}
 
-    def check_output_names(self):
-        # DataSource outputs are created dynamically from stored data files;
-        # skip the static output_names validation.
-        pass
-
     def loadFromFile(self, name):
         if name in self.items:
             raise ValueError(f'Storing already has an object with name {name}')
@@ -96,3 +91,8 @@ class DataSource(BaseProcessingObj):
             else:
                 if self.verbose:
                     print(f'Warning: No data for key {k} at time {self.current_time}')
+
+    def check_output_names(self):
+        # DataSource outputs are created dynamically from stored data files;
+        # skip the static output_names validation.
+        pass

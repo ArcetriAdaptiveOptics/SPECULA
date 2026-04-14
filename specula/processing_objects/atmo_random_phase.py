@@ -137,17 +137,20 @@ class AtmoRandomPhase(BaseProcessingObj):
 
         self.inputs['pupilstop'] = InputValue(type=Pupilstop)
 
-    def input_names(self):
+    @classmethod
+    def input_names(cls):
         return {'seeing': InputDesc(BaseValue, 'Atmospheric seeing value'),
                 'pupilstop': InputDesc(Pupilstop, 'Pupil stop mask defining the valid pupil area')}
 
-    def output_names(self):
-        result = {}
-        for name in self.layer_outputs:
-            result[name] = OutputDesc(Layer, f'Output layer {name}')
-        for name in self.ef_outputs:
-            result[name] = OutputDesc(ElectricField, f'Output electric field {name}')
-        return result
+    @classmethod
+    def output_names(cls):
+        return {'out_layer': OutputDesc(Layer, 'Output phase screen layer (default, when no source_dict is provided)'),
+                'out_ef': OutputDesc(ElectricField, 'Output electric field (default, when no source_dict is provided)')}
+
+    def check_output_names(self):
+        # AtmoRandomPhase outputs are created dynamically from inputs;
+        # skip the static output_names validation.
+        pass
 
     def initScreens(self):
         # Seed

@@ -9,6 +9,7 @@ from specula import cp, cpuArray
 from specula.base_value import BaseValue
 from specula.connections import InputList, InputValue
 from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import InputDesc, OutputDesc
 
 from test.specula_testlib import cpu_and_gpu
 
@@ -270,21 +271,21 @@ class TestBaseProcessingObj(unittest.TestCase):
 
     def test_check_input_names_raises_if_input_missing(self):
         obj = BaseProcessingObj(target_device_idx=-1)
-        obj.input_names = MagicMock(return_value={"input1": BaseValue})
+        obj.input_names = MagicMock(return_value={"input1": InputDesc(BaseValue, 'Some description')})
         obj.inputs = {}
         with self.assertRaises(ValueError):
             obj.check_input_names()
 
     def test_check_input_names_raises_if_input_wrong_type(self):
         obj = BaseProcessingObj(target_device_idx=-1)
-        obj.input_names = MagicMock(return_value={"input1": BaseValue})
+        obj.input_names = MagicMock(return_value={"input1": InputDesc(BaseValue, 'Some description')})
         obj.inputs = {"input1": "not an InputValue"}
         with self.assertRaises(TypeError):
             obj.check_input_names()
     
     def test_check_input_names_raises_if_input_wrong_type_in_list(self):
         obj = BaseProcessingObj(target_device_idx=-1)
-        obj.input_names = MagicMock(return_value={"input1": BaseValue})
+        obj.input_names = MagicMock(return_value={"input1": InputDesc(BaseValue, 'Some description')})
         obj.inputs = {"input1": ["not an InputValue"]}
         with self.assertRaises(TypeError):
             obj.check_input_names()

@@ -116,13 +116,12 @@ class Modalrec(BaseProcessingObj):
             self.inputs['in_commands_list'] = InputList(type=BaseValue, optional=True)
             # TODO complete static allocation above
 
-    def input_names(self):
-        result = {'in_slopes': InputDesc(Slopes, 'Input wavefront slope vector (optional, use with in_slopes_list)'),
-                  'in_slopes_list': InputDesc(Slopes, 'List of input slope vectors for multi-sensor reconstruction (optional)')}
-        if self.polc:
-            result['in_commands'] = InputDesc(BaseValue, 'Current output command vector for POLC (optional)')
-            result['in_commands_list'] = InputDesc(BaseValue, 'List of current command vectors for POLC (optional)')
-        return result
+    @classmethod
+    def input_names(cls):
+        return {'in_slopes': InputDesc(Slopes, 'Input wavefront slope vector (optional, use with in_slopes_list)'),
+                'in_slopes_list': InputDesc(Slopes, 'List of input slope vectors for multi-sensor reconstruction (optional)'),
+                'in_commands': InputDesc(BaseValue, 'Current output command vector for POLC (optional)'),
+                'in_commands_list': InputDesc(BaseValue, 'List of current command vectors for POLC (optional)')}
 
     @classmethod
     def output_names(cls):
