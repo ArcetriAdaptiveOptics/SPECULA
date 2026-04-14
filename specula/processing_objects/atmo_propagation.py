@@ -153,9 +153,21 @@ class AtmoPropagation(BaseProcessingObj):
 
         self.airmass = 1. / np.cos(np.radians(self.simul_params.zenithAngleInDeg), dtype=self.dtype)
 
-    # Scalable Angular Spectrum Propagation Method
-    # Jason D. Schmidt, Numerical Simulation of Optical Wave Propagation with Examples in MATLAB
     def asm_propagator(self, distanceInM, d_in, d_out):
+        """
+        Jason D. Schmidt, Numerical Simulation of Optical Wave Propagation with Examples in MATLAB
+        Computes the propagators used for the Angular Spectrum Propagation Method.
+        Applies an automatic scaling if the input grid spacing d_in is not equal to the output grid spacing d_out.
+
+        Parameters
+        ----------
+        distanceInM : float
+            Propagation distance in meter.
+        d_in : float
+            Grid spacing in the source plane
+        d_out : float
+            Grid spacing in the destination plane
+        """
         k = 2 * np.pi / (self.wavelengthInNm * 1e-9)
         df = 1 / (self.ef_size_padded * d_in)
 
