@@ -13,6 +13,14 @@ from test.specula_testlib import cpu_and_gpu
 class TestCCD(unittest.TestCase):
 
     @cpu_and_gpu
+    def test_ccd_negative_dt(self, target_device_idx, xp):
+        simul_params = SimulParams(time_step = 2)
+
+        with self.assertRaises(ValueError):
+            ccd = CCD(simul_params, size=(2,2), dt=-1, bandw=300,
+                      target_device_idx=target_device_idx)
+
+    @cpu_and_gpu
     def test_ccd_wrong_dt(self, target_device_idx, xp):
         simul_params = SimulParams(time_step = 2)
 
