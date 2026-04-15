@@ -1,5 +1,5 @@
 from specula import cp, np
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.processing_objects.base_filter import BaseFilter
 from specula.base_value import BaseValue
 from specula.connections import InputValue, InputList
@@ -96,6 +96,18 @@ class MultirateComplementaryFilter(BaseFilter):
         self._use_vector_input = False
         self._cpu_frame_counter = 0
 
+
+    @classmethod
+    def input_names(cls):
+        return {'in_yf': InputDesc(BaseValue, 'Fast sensor measurement vector (optional, use with in_ys)'),
+                'in_ys': InputDesc(BaseValue, 'List of slow sensor measurement vectors (optional, use with in_yf)'),
+                'in_vec': InputDesc(BaseValue, 'Combined measurement vector (optional, alternative to in_yf+in_ys)'),
+                'gain_mod': InputDesc(BaseValue, 'Optional gain modulation vector (optional)')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_comm': OutputDesc(BaseValue, 'Output fused command vector with delay applied'),
+                'out_comm_no_delay': OutputDesc(BaseValue, 'Output fused command vector without delay (for POLC)')}
 
     def setup(self):
         super().setup()

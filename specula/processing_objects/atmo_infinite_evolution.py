@@ -1,7 +1,7 @@
 import numpy as np
 from specula import show_in_profiler
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.data_objects.layer import Layer
 from specula.connections import InputValue
@@ -154,6 +154,16 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
 
         if not np.isclose(np.sum(self.Cn2), 1.0, atol=1e-6):
             raise ValueError(f' Cn2 total must be 1. Instead is: {np.sum(self.Cn2)}.')
+
+    @classmethod
+    def input_names(cls):
+        return {'seeing': InputDesc(BaseValue, 'Atmospheric seeing value'),
+                'wind_speed': InputDesc(BaseValue, 'Wind speed for each atmospheric layer'),
+                'wind_direction': InputDesc(BaseValue, 'Wind direction for each atmospheric layer')}
+
+    @classmethod
+    def output_names(cls):
+        return {'layer_list': OutputDesc(list, 'List of atmospheric infinite phase screen layers')}
 
     def initScreens(self, seed):
         self.seed = seed

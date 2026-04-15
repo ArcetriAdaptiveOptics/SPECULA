@@ -1,7 +1,7 @@
 import os
 import numpy as np
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.processing_objects.im_calibrator import ImCalibrator
 from specula.processing_objects.dm import DM
 from specula.data_objects.slopes import Slopes
@@ -101,6 +101,16 @@ class MultiImCalibrator(BaseProcessingObj):
             tags.append(tag)
 
         return tags
+
+    @classmethod
+    def input_names(cls):
+        return {'in_slopes_list': InputDesc(Slopes, 'List of input slope vectors, one per WFS/sensor pair'),
+                'in_commands_list': InputDesc(BaseValue, 'List of input command vectors, one per WFS/sensor pair')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_intmat_list': OutputDesc(Intmat, 'List of per-WFS/sensor interaction matrices'),
+                'out_intmat_full': OutputDesc(Intmat, 'Full stacked interaction matrix from all sensors')}
 
     def trigger_code(self):
 

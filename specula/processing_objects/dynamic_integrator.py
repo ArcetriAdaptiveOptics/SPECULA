@@ -1,5 +1,6 @@
 
 from specula.processing_objects.integrator import Integrator
+from specula.base_processing_obj import InputDesc, OutputDesc
 from specula.data_objects.simul_params import SimulParams
 from specula.connections import InputValue
 from specula.base_value import BaseValue
@@ -62,6 +63,18 @@ class DynamicIntegrator(Integrator):
 
         self.inputs['reset'] = InputValue(type=BaseValue, optional=True)
         self.inputs['int_gain'] = InputValue(type=BaseValue, optional=True)
+
+    @classmethod
+    def input_names(cls):
+        return {'delta_comm': InputDesc(BaseValue, 'Input delta command vector'),
+                'gain_mod': InputDesc(BaseValue, 'Optional gain modulation vector (optional)'),
+                'reset': InputDesc(BaseValue, 'Trigger to reset internal integrator state (optional)'),
+                'int_gain': InputDesc(BaseValue, 'Dynamic integrator gain update (optional)')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_comm': OutputDesc(BaseValue, 'Output command vector with delay applied'),
+                'out_comm_no_delay': OutputDesc(BaseValue, 'Output command vector without delay (for POLC)')}
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)

@@ -7,7 +7,7 @@ from specula.lib.radial_profile import (
     get_encircled_energy_at_distance,
 )
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.intensity import Intensity
@@ -130,6 +130,28 @@ class PSF(BaseProcessingObj):
         self.outputs['out_int_psf_fwhm'] = self.int_psf_fwhm
         self.outputs['out_int_encircled_energy'] = self.int_encircled_energy
         self.outputs['out_int_encircled_energy_at_radius'] = self.int_encircled_energy_at_radius
+
+    @classmethod
+    def input_names(cls):
+        return {'in_ef': InputDesc(ElectricField, 'Input electric field from the telescope pupil')}
+
+    @classmethod
+    def output_names(cls):
+        return {
+            'out_sr': OutputDesc(BaseValue, 'Instantaneous Strehl ratio'),
+            'out_psf': OutputDesc(BaseValue, 'Instantaneous PSF'),
+            'out_int_sr': OutputDesc(BaseValue, 'Time-integrated Strehl ratio'),
+            'out_int_psf': OutputDesc(BaseValue, 'Time-integrated PSF'),
+            'out_std_psf': OutputDesc(BaseValue, 'Standard deviation of PSF over time'),
+            'out_psf_profile': OutputDesc(BaseValue, 'Radial profile of the instantaneous PSF'),
+            'out_psf_fwhm': OutputDesc(BaseValue, 'FWHM of the instantaneous PSF'),
+            'out_encircled_energy': OutputDesc(BaseValue, 'Encircled energy of the instantaneous PSF'),
+            'out_encircled_energy_at_radius': OutputDesc(BaseValue, 'Encircled energy at specified radius for instantaneous PSF'),
+            'out_int_psf_profile': OutputDesc(BaseValue, 'Radial profile of the integrated PSF'),
+            'out_int_psf_fwhm': OutputDesc(BaseValue, 'FWHM of the integrated PSF'),
+            'out_int_encircled_energy': OutputDesc(BaseValue, 'Encircled energy of the integrated PSF'),
+            'out_int_encircled_energy_at_radius': OutputDesc(BaseValue, 'Encircled energy at specified radius for integrated PSF'),
+        }
 
     def setup(self):
         super().setup()

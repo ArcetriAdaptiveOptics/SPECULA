@@ -1,5 +1,5 @@
 from specula import cpuArray
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.connections import InputValue, InputList
 from specula.data_objects.electric_field import ElectricField
@@ -96,6 +96,17 @@ class ModalAnalysis(BaseProcessingObj):
         for _ in range(self._n_inputs):
             self.outputs['out_modes_list'].append(BaseValue('modes', target_device_idx=self.target_device_idx))
         self.out_modes_list = self.outputs['out_modes_list']
+
+    @classmethod
+    def input_names(cls):
+        return {'in_ef': InputDesc(ElectricField, 'Input electric field for modal analysis (optional, use with in_ef_list)'),
+                'in_ef_list': InputDesc(ElectricField, 'List of input electric fields for multi-source modal analysis (optional)')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_modes': OutputDesc(BaseValue, 'Modal coefficients from the combined/single input electric field'),
+                'rms': OutputDesc(BaseValue, 'RMS of the wavefront'),
+                'out_modes_list': OutputDesc(list, 'Per-input modal coefficient vectors (list, one per connected input)')}
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)

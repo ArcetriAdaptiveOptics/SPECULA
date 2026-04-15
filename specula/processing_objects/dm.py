@@ -6,7 +6,7 @@ from specula.data_objects.m2c import M2C
 from specula.data_objects.ifunc import IFunc
 from specula.data_objects.layer import Layer
 from specula.data_objects.pupilstop import Pupilstop
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.data_objects.simul_params import SimulParams
 
 class DM(BaseProcessingObj):
@@ -149,6 +149,14 @@ class DM(BaseProcessingObj):
         self.sign = sign
         self.inputs['in_command'] = InputValue(type=BaseValue)
         self.outputs['out_layer'] = self.layer
+
+    @classmethod
+    def input_names(cls):
+        return {'in_command': InputDesc(BaseValue, 'Input command vector for DM actuators')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_layer': OutputDesc(Layer, 'Output wavefront layer produced by the DM')}
 
     def trigger_code(self):
         input_commands = self.local_inputs['in_command'].value

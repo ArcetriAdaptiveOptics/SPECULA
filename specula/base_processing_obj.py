@@ -295,6 +295,8 @@ class BaseProcessingObj(BaseTimeObj):
             return
         input_dict = self.input_names()
         for k, v in input_dict.items():
+            if v[1].endswith("(optional)"):
+                continue
             if not k in self.inputs:
                 raise ValueError(f"Input {k} declared in input_names but not present in inputs")
             if not isinstance(self.inputs[k], (InputValue, InputList)):

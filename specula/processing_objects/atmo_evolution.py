@@ -1,5 +1,5 @@
 from specula import cpuArray, ASEC2RAD, np
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.data_objects.layer import Layer
 from specula.lib.phasescreen_manager import phasescreens_manager
@@ -152,6 +152,16 @@ class AtmoEvolution(BaseProcessingObj):
             raise ValueError(f' Cn2 total must be 1. Instead is: {np.sum(self.Cn2)}.')
 
         self.compute()
+
+    @classmethod
+    def input_names(cls):
+        return {'seeing': InputDesc(BaseValue, 'Atmospheric seeing value'),
+                'wind_speed': InputDesc(BaseValue, 'Wind speed for each atmospheric layer'),
+                'wind_direction': InputDesc(BaseValue, 'Wind direction for each atmospheric layer')}
+
+    @classmethod
+    def output_names(cls):
+        return {'layer_list': OutputDesc(list, 'List of atmospheric phase screen layers')}
 
     def compute(self):
         # Phase screens list

@@ -1,4 +1,4 @@
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.connections import InputValue
 from specula.base_value import BaseValue
 from specula.data_objects.simul_params import SimulParams
@@ -42,6 +42,14 @@ class Demodulator(BaseProcessingObj):
         self.outputs['output'] = self.output
 
         self.verbose = False
+
+    @classmethod
+    def input_names(cls):
+        return {'in_data': InputDesc(BaseValue, 'Input data signal to demodulate')}
+
+    @classmethod
+    def output_names(cls):
+        return {'output': OutputDesc(BaseValue, 'Demodulated modal amplitude output')}
 
     def trigger_code(self):
         t = self.current_time

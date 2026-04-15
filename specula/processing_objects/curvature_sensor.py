@@ -3,7 +3,7 @@ from specula import fuse, RAD2ASEC
 from specula.connections import InputValue
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.intensity import Intensity
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.lib.zernike_generator import ZernikeGenerator
 from specula.lib.extrapolation_2d import EFInterpolator
 from specula.lib.mask import CircularMask
@@ -84,6 +84,15 @@ class CurvatureSensor(BaseProcessingObj):
         self.actual_internal_pxscale = None
 
         self.internal_res = 0
+
+    @classmethod
+    def input_names(cls):
+        return {'in_ef': InputDesc(ElectricField, 'Input electric field')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_i1': OutputDesc(Intensity, 'Intra-focal intensity image'),
+                'out_i2': OutputDesc(Intensity, 'Extra-focal intensity image')}
 
     def setup(self):
         super().setup()

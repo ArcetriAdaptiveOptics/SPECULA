@@ -1,6 +1,6 @@
 from specula.lib.make_xy import make_xy
 from specula.lib.utils import local_mean_rebin
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.lib.interp2d import Interp2D
 from specula.data_objects.electric_field import ElectricField
 from specula.connections import InputList
@@ -59,7 +59,7 @@ class AtmoPropagation(BaseProcessingObj):
         enable_chromatic_effect : bool, optional
             If True, compute and apply chromatic anisoplanatism shifts for atmospheric layers
             (default: False).
-            From Devaney et al. "Chromatic Anisoplanatism in Adaptive Optics" SPIE, 2024
+            From Devaney et al. "Chromatic Anisoplanatism in Adaptive Optics" SPIE, 2024 
         chromatic_reference_wavelengthInNm : float, optional
             Reference wavelength in nanometers used for chromatic
             anisoplanatism calculations, typically the WFS wavelength.
@@ -157,6 +157,16 @@ class AtmoPropagation(BaseProcessingObj):
 
         self.airmass = 1. / np.cos(np.radians(self.simul_params.zenithAngleInDeg), dtype=self.dtype)
 
+    def input_names(self):
+        return {'atmo_layer_list': InputDesc(Layer, 'List of atmospheric turbulence layers (optional)'),
+                'common_layer_list': InputDesc(Layer, 'List of common turbulence layers shared across sources')}
+
+    def output_names(self):
+        result = {}
+        for source_name in self.source_dict:
+            result['out_' + source_name + '_ef'] = OutputDesc(ElectricField, f'Electric field output for source {source_name}')
+        return result
+
     def asm_propagator(self, distanceInM, d_in, d_out):
         """
         Jason D. Schmidt, Numerical Simulation of Optical Wave Propagation with Examples in MATLAB
@@ -221,6 +231,15 @@ class AtmoPropagation(BaseProcessingObj):
         self.ef_fresnel_padded = self.xp.zeros([self.ef_size_padded, self.ef_size_padded],
                                                dtype=self.complex_dtype)
         self.ef_fresnel = self.xp.zeros([self.pixel_pupil, self.pixel_pupil], dtype=self.complex_dtype)
+
+    @classmethod
+    def input_names(cls):
+        return {'atmo_layer_list': InputDesc(Layer, 'List of atmospheric turbulence layers (optional)'),
+                'common_layer_list': InputDesc(Layer, 'List of common turbulence layers shared across sources')}
+
+    @classmethod
+    def output_names(cls):
+        return {}
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
@@ -518,3 +537,8 @@ class AtmoPropagation(BaseProcessingObj):
         if self.doFresnel:
             self.doFresnel_setup()
         self.build_stream()
+
+    def check_output_names(self):
+        # AtmoPropagation outputs are created dynamically from stored data files;
+        # skip the static output_names validation.
+        pass

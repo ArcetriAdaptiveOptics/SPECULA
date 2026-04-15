@@ -1,5 +1,7 @@
 from specula import cpuArray, np
 from specula.processing_objects.atmo_infinite_evolution import AtmoInfiniteEvolution
+from specula.base_processing_obj import InputDesc, OutputDesc
+from specula.base_value import BaseValue
 from specula.data_objects.layer import Layer
 from specula.data_objects.simul_params import SimulParams
 
@@ -116,6 +118,13 @@ class AtmoInfiniteEvolutionUpDown(AtmoInfiniteEvolution):
         )
         self.acc_rows_up = np.zeros(self.n_infinite_phasescreens)
         self.acc_cols_up = np.zeros(self.n_infinite_phasescreens)
+
+    @classmethod
+    def output_names(cls):
+        result = super().output_names()
+        result.update({'layer_list_down': OutputDesc(list, 'List of atmospheric phase screen layers for downward propagation'),
+                'layer_list_up': OutputDesc(list, 'List of atmospheric phase screen layers for upward propagation')})
+        return result
 
     def trigger_code(self):
         """Update both lists by saving/restoring phase screen state."""
