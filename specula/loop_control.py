@@ -95,6 +95,7 @@ class LoopControl(BaseTimeObj):
                     element.startMemUsageCount()
                     if MPI_DBG: print(process_rank, element, 'setup', flush=True)
                     element.setup()
+                    element.sanity_check()
                     if MPI_DBG: print(process_rank, element, 'stopMemUsageCount', flush=True)
                     element.stopMemUsageCount()
                     if MPI_DBG: print(process_rank, element, 'printMemUsage', flush=True)

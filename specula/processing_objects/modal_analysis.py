@@ -1,5 +1,5 @@
 from specula import cpuArray
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.connections import InputValue, InputList
 from specula.data_objects.electric_field import ElectricField
@@ -8,7 +8,8 @@ from specula.data_objects.ifunc import IFunc
 from specula.data_objects.ifunc_inv import IFuncInv
 from specula.lib.compute_zern_ifunc import compute_zern_ifunc
 
-from skimage.restoration import unwrap_phase
+from scipy.fftpack import idct, dct
+import numpy as np
 
 class ModalAnalysis(BaseProcessingObj):
     """
@@ -96,14 +97,67 @@ class ModalAnalysis(BaseProcessingObj):
             self.outputs['out_modes_list'].append(BaseValue('modes', target_device_idx=self.target_device_idx))
         self.out_modes_list = self.outputs['out_modes_list']
 
+    @classmethod
+    def input_names(cls):
+        return {'in_ef': InputDesc(ElectricField, 'Input electric field for modal analysis (optional, use with in_ef_list)'),
+                'in_ef_list': InputDesc(ElectricField, 'List of input electric fields for multi-source modal analysis (optional)')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_modes': OutputDesc(BaseValue, 'Modal coefficients from the combined/single input electric field'),
+                'rms': OutputDesc(BaseValue, 'RMS of the wavefront'),
+                'out_modes_list': OutputDesc(list, 'Per-input modal coefficient vectors (list, one per connected input)')}
+
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
         self.in_ef = self.local_inputs['in_ef']
         self.in_ef_list = self.local_inputs['in_ef_list']
 
+    # Least squares phase unwrapping by solving the Poisson equation using the discrete cosine transform
+    # Z. Zhao, Phase Unwrapping Algorithms by Solving the Poisson Equation
+    def unwrap_ls(self, phase_wrap):
+
+        # Wrapped phase differences (Gradients)
+        dx = np.diff(phase_wrap, axis=1)
+        dx = np.mod(dx + np.pi, 2 * np.pi) - np.pi
+
+        dy = np.diff(phase_wrap, axis=0)
+        dy = np.mod(dy + np.pi, 2 * np.pi) - np.pi
+
+        # Calculate the Divergence (right-hand side of Poisson equation)
+        rows, cols = phase_wrap.shape
+        rho = np.zeros((rows, cols))
+        rho[:, 1:-1] = np.diff(dx, axis=1)
+        rho[1:-1, :] += np.diff(dy, axis=0)
+
+        # Boundary conditions
+        rho[:, 0] = dx[:, 0]
+        rho[:, -1] = -dx[:, -1]
+        rho[0, :] += dy[0, :]
+        rho[-1, :] += -dy[-1, :]
+
+        # 2D discrete cosine transform
+        dct_rho = dct(dct(rho, axis=0, norm='ortho'), axis=1, norm='ortho')
+
+        # Create the Eigenvalues of the Laplacian in DCT domain
+        N, M = rho.shape
+        v = np.cos(np.pi * np.arange(N) / N)
+        u = np.cos(np.pi * np.arange(M) / M)
+
+        # Finite difference Laplacian
+        denom = 2 * (v.reshape(-1, 1) + u - 2)
+
+        # Solve in frequency domain
+        denom[0, 0] = 1.0
+        dct_phi = dct_rho / denom
+        dct_phi[0, 0] = 0.0 # avoid division by zero
+
+        # Inverse 2D DCT
+        return idct(idct(dct_phi, axis=0, norm='ortho'), axis=1, norm='ortho')
+
+
     def unwrap_2d(self, p):
-        unwrapped_p = cpuArray(self.xp.copy(p))
-        unwrapped_p = unwrap_phase(unwrapped_p, wrap_around=[True, True], rng=1)
+        unwrapped_p = self.unwrap_ls(cpuArray(p))
         return self.to_xp(unwrapped_p)
 
     def setup(self):

@@ -1,7 +1,7 @@
 from specula.lib.extrapolation_2d import EFInterpolator
 from specula.lib.toccd import toccd
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.connections import InputValue
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.simul_params import SimulParams
@@ -106,24 +106,20 @@ class Coronagraph(BaseProcessingObj):
         self.ef_out = self.xp.zeros((self.fft_sampling, self.fft_sampling),
                                     dtype=self.complex_dtype)
 
-
     def make_apodizer(self):
         """ Override this method to add an apodizer.
         By default, no apodizer mask is considered """
         return 1.0
 
-
     @abstractmethod
     def make_focal_plane_mask(self):
-        """ Override this method to create the 
+        """ Override this method to create the
         desired focal plane (complex) mask """
-
 
     @abstractmethod
     def make_pupil_plane_mask(self):
         """ Override this method to create the 
         desired pupil plane (complex) mask """
-
 
     def _pupil_to_focal_plane(self, pup_ef):
         self.ef_pad[:] = 0  # Clear the array
@@ -137,13 +133,11 @@ class Coronagraph(BaseProcessingObj):
 
         return self.xp.fft.fft2(self.ef_pad)
 
-
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
 
         self.ef_interpolator.interpolate()
         self.ef_interpolator.interpolated_ef().ef_at_lambda(self.wavelength_in_nm, out=self.ef_in)
-
 
     def trigger_code(self):
 
@@ -166,7 +160,6 @@ class Coronagraph(BaseProcessingObj):
 
         # Step 5: Apply pupil stop
         self.ef_out[:] = ef_pp * self.pupil_mask
-
 
     def post_trigger(self):
         super().post_trigger()
@@ -191,6 +184,13 @@ class Coronagraph(BaseProcessingObj):
         self.out_ef.S0 = in_ef.S0 * transmission
         self.out_ef.generation_time = self.current_time
 
+    @classmethod
+    def input_names(cls):
+        return {'in_ef': InputDesc(ElectricField, 'Input electric field from the telescope pupil')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_ef': OutputDesc(ElectricField, 'Output electric field after coronagraph mask application')}
 
     def setup(self):
         super().setup()

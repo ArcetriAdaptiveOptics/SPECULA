@@ -1,4 +1,4 @@
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.connections import InputList
 from specula.data_objects.simul_params import SimulParams
@@ -39,6 +39,14 @@ class LinearCombination(BaseProcessingObj):
             self.ps_coeff = self.xp.array(platescale_coeff([dm1,dm3], start_modes, self.pixel_pupil)[0])
         else:
             self.ps_coeff = self.xp.zeros(3)
+
+    @classmethod
+    def input_names(cls):
+        return {'in_vectors_list': InputDesc(BaseValue, 'List of input command vectors to linearly combine')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_vector': OutputDesc(BaseValue, 'Output combined command vector')}
 
     def trigger_code(self):
         in_vectors = self.local_inputs['in_vectors_list']

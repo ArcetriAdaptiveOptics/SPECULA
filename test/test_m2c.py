@@ -66,7 +66,7 @@ class TestM2C(unittest.TestCase):
         data = xp.arange(np.prod(self.shape)).reshape(self.shape).astype(xp.float32)
         obj = M2C(m2c=data, target_device_idx=target_device_idx)
         obj.cut(start_mode=1, nmodes=3)
-        expected = data[:, 1:3]
+        expected = data[:, 1:4]
         np.testing.assert_array_equal(cpuArray(obj.get_value()), cpuArray(expected))
 
     @cpu_and_gpu

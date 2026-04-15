@@ -2,6 +2,7 @@ from specula.data_objects.convolution_kernel import ConvolutionKernel, lgs_map_s
 
 from astropy.io import fits
 
+
 class GaussianConvolutionKernel(ConvolutionKernel):
     """
     Gaussian Convolution Kernel data object.
@@ -54,7 +55,7 @@ class GaussianConvolutionKernel(ConvolutionKernel):
     def calculate_lgs_map(self):
         self.real_kernels = lgs_map_sh(
             self.dimx, self.pupil_size_m, 0, 90e3, [0], profz=[1.0], fwhmb=self.spot_size, ps=self.pxscale,
-            ssp=self.dimension, overs=1, theta=self.lgs_tt, xp=self.xp )
+            ssp=self.dimension, overs=1, theta=self.lgs_tt, xp=self.xp)
 
         self.process_kernels(return_fft=self.return_fft)
 

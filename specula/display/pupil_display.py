@@ -95,8 +95,8 @@ def pupil_display(frame, sx, sy, slopemap, real_ccd_side, cirlceDisp=None, NEGAT
             if cirlceDisp:
                 for i in range(cirlceDisp):
                     for j in range(cirlceDisp):
-                        circ = plt.Circle(((1 + 2 * i) / (2 * cirlceDisp) * real_ccd_side * MAGNIFY, 
-                                           (1 + 2 * j) / (2 * cirlceDisp) * real_ccd_side * MAGNIFY), 
+                        circ = plt.Circle(((1 + 2 * i) / (2 * cirlceDisp) * real_ccd_side * MAGNIFY,
+                                           (1 + 2 * j) / (2 * cirlceDisp) * real_ccd_side * MAGNIFY),
                                           10, color='red', fill=False)
                         ax.add_patch(circ)
     

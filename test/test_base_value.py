@@ -56,27 +56,6 @@ class TestBaseValue(unittest.TestCase):
         self.assertEqual(hdr["NDARRAY"], 0)
         self.assertEqual(float(hdr["VALUE"]), 3.1415)
 
-
-    @cpu_and_gpu
-    def test_save_restore_roundtrip_scalar(self, target_device_idx, xp):
-
-        try:
-            os.unlink(self.filename)
-        except FileNotFoundError:
-            pass
-
-        data = 3.1415
-        v = BaseValue(value=data, target_device_idx=target_device_idx)
-        v.save(self.filename)
-        v2 = BaseValue.restore(self.filename)
-
-        assert v2.value == 3.1415
-
-        # Check FITS header for ndarray info
-        hdr = fits.getheader(self.filename)
-        self.assertEqual(hdr["NDARRAY"], 0)
-        self.assertEqual(float(hdr["VALUE"]), 3.1415)
-
     @cpu_and_gpu
     def test_save_restore_roundtrip_empty(self, target_device_idx, xp):
 

@@ -1,7 +1,7 @@
 import warnings
 
 from specula import fuse
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.connections import InputValue
 from specula.data_objects.pixels import Pixels
 from specula.data_objects.intensity import Intensity
@@ -234,6 +234,15 @@ class CCD(BaseProcessingObj):
         self._notUniformQe = False
         self._normNotUniformQe = False
         self._gaussian_noise = None
+
+    @classmethod
+    def input_names(cls):
+        return {'in_i': InputDesc(Intensity, 'Input intensity field from wavefront sensor')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_pixels': OutputDesc(Pixels, 'Output pixel data after noise and binning'),
+                'integrated_i': OutputDesc(Intensity, 'Integrated intensity over the exposure')}
 
     def trigger_code(self):
         if self.start_time > 0 and self.current_time < self.start_time:

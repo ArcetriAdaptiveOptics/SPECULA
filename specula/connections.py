@@ -1,6 +1,6 @@
 from specula import cpuArray, process_rank, process_comm, MPI_SEND_DBG
 from specula import np, cp
-from specula.lib.flatten import flatten
+from specula.lib.utils import flatten
 
 
 class _InputItem():
@@ -28,7 +28,6 @@ class _InputItem():
         self.requesting_obj_name = requesting_obj_name
         self.input_name = input_name
 
-
     def receive_new_value(self, first_mpi_receive=True):
         if MPI_SEND_DBG: print(process_rank,
                                f'RECV from rank {self.remote_rank} {self.tag=} type={self.output_ref_type})',
@@ -40,7 +39,7 @@ class _InputItem():
                 new_value.xp = cp
             else:
                 new_value.xp = np
-        else:            
+        else:
             if MPI_SEND_DBG: print(process_rank, f'Recv with Buffer', flush=True)
             new_value = self.cloned_value
             buffer = cpuArray(self.cloned_value.get_value())
@@ -94,7 +93,7 @@ class InputList():
         self.input_name = None
 
     def get(self, target_device_idx):
-        return flatten([v.get(target_device_idx) for v in self.input_values])
+        return list(flatten(v.get(target_device_idx) for v in self.input_values))
 
     def set(self, values_list, remote_rank=None, tag=None):
         """
@@ -147,5 +146,5 @@ class InputValue(InputList):
                 obj_info = f" (from {self.requesting_obj_name}.{self.input_name})" \
                            if self.requesting_obj_name else ""
                 raise ValueError(f'Input {self.input_name} of object {self.requesting_obj_name} is empty and not optional. '
-                                f'Input type: {self.output_ref_type}{obj_info}')
+                                 f'Input type: {self.output_ref_type}{obj_info}')
         return values_list[0]

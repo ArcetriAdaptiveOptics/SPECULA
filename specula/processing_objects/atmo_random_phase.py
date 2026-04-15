@@ -1,6 +1,6 @@
 import numpy as np
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.data_objects.electric_field import ElectricField
 from specula.base_value import BaseValue
 from specula.data_objects.layer import Layer
@@ -136,6 +136,21 @@ class AtmoRandomPhase(BaseProcessingObj):
         self.initScreens()
 
         self.inputs['pupilstop'] = InputValue(type=Pupilstop)
+
+    @classmethod
+    def input_names(cls):
+        return {'seeing': InputDesc(BaseValue, 'Atmospheric seeing value'),
+                'pupilstop': InputDesc(Pupilstop, 'Pupil stop mask defining the valid pupil area')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_layer': OutputDesc(Layer, 'Output phase screen layer (default, when no source_dict is provided)'),
+                'out_ef': OutputDesc(ElectricField, 'Output electric field (default, when no source_dict is provided)')}
+
+    def check_output_names(self):
+        # AtmoRandomPhase outputs are created dynamically from inputs;
+        # skip the static output_names validation.
+        pass
 
     def initScreens(self):
         # Seed

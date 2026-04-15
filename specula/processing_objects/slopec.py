@@ -1,5 +1,5 @@
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.connections import InputValue
 from specula.data_objects.pixels import Pixels
@@ -73,6 +73,17 @@ class Slopec(BaseProcessingObj):
         self.outputs['out_flux_per_subaperture'] = self.flux_per_subaperture_vector
         self.outputs['out_total_counts'] = self.total_counts
         self.outputs['out_subap_counts'] = self.subap_counts
+
+    @classmethod
+    def input_names(cls):
+        return {'in_pixels': InputDesc(Pixels, 'Input pixel data from detector')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_slopes': OutputDesc(Slopes, 'Computed wavefront slopes'),
+                'out_flux_per_subaperture': OutputDesc(BaseValue, 'Flux per subaperture'),
+                'out_total_counts': OutputDesc(BaseValue, 'Total photon counts'),
+                'out_subap_counts': OutputDesc(BaseValue, 'Counts per subaperture')}
 
     # Derived classes must implement this method
     def nsubaps(self):

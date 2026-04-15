@@ -1,7 +1,11 @@
 
 
 from specula.base_value import BaseValue
+from specula.base_processing_obj import InputDesc, OutputDesc
 from specula.connections import InputValue
+from specula.data_objects.intensity import Intensity
+from specula.data_objects.pixels import Pixels
+from specula.data_objects.pupdata import PupData
 from specula.processing_objects.pyr_pupdata_calibrator import PyrPupdataCalibrator
 
 
@@ -100,6 +104,21 @@ class DynamicPyrPupdataCalibrator(PyrPupdataCalibrator):
 
         self.outputs['out_params'] = BaseValue()
 
+    @classmethod
+    def input_names(cls):
+        return {'in_i': InputDesc(Intensity, 'Input intensity from the pyramid WFS detector (optional)'),
+                'in_pixels': InputDesc(Pixels, 'Input pixel data from the detector (optional)'),
+                'in_save': InputDesc(BaseValue, 'Trigger to save the current calibration data (optional)'),
+                'in_dt': InputDesc(BaseValue, 'Dynamically update the time step in seconds (optional)'),
+                'in_thr1': InputDesc(BaseValue, 'Dynamically update the first threshold (optional)'),
+                'in_thr2': InputDesc(BaseValue, 'Dynamically update the second threshold (optional)'),
+                'in_output_tag': InputDesc(BaseValue, 'Dynamically update the output tag (optional)')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_pupdata': OutputDesc(PupData, 'Calibrated pupil data with subaperture geometry'),
+                'out_params': OutputDesc(BaseValue, 'Dictionary with current calibration parameters and status')}
+
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
 
@@ -109,11 +128,17 @@ class DynamicPyrPupdataCalibrator(PyrPupdataCalibrator):
             input_dt = self.local_inputs['in_dt']
             if input_dt is not None and input_dt.generation_time == self.current_time:
                 self.dt = self.seconds_to_t(float(input_dt.value))
-        
+        except Exception as e:
+            print(f'Exception: {e.__name__}: {e}')
+
+        try:
             input_thr1 = self.local_inputs['in_thr1']
             if input_thr1 is not None and input_thr1.generation_time == self.current_time:
                 self.thr1 = float(input_thr1.value)
+        except Exception as e:
+            print(f'Exception: {e.__name__}: {e}')
 
+        try:
             input_thr2 = self.local_inputs['in_thr2']
             if input_thr2 is not None and input_thr2.generation_time == self.current_time:
                 self.thr2 = float(input_thr2.value)

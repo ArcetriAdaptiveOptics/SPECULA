@@ -1,4 +1,5 @@
 from specula.processing_objects.iir_filter import IirFilter
+from specula.base_processing_obj import InputDesc, OutputDesc
 from specula.data_objects.iir_filter_data import IirFilterData
 from specula.data_objects.simul_params import SimulParams
 from specula.connections import InputValue
@@ -54,6 +55,18 @@ class DynamicIirFilter(IirFilter):
         self.inputs['reset'] = InputValue(type=BaseValue, optional=True)
         self.inputs['int_gain'] = InputValue(type=BaseValue, optional=True)
 
+    @classmethod
+    def input_names(cls):
+        return {'delta_comm': InputDesc(BaseValue, 'Input delta command vector'),
+                'gain_mod': InputDesc(BaseValue, 'Optional gain modulation vector (optional)'),
+                'reset': InputDesc(BaseValue, 'Trigger to reset internal filter state (optional)'),
+                'int_gain': InputDesc(BaseValue, 'Dynamic integrator gain update (optional)')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_comm': OutputDesc(BaseValue, 'Output command vector with delay applied'),
+                'out_comm_no_delay': OutputDesc(BaseValue, 'Output command vector without delay (for POLC)')}
+
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
 
@@ -63,8 +76,10 @@ class DynamicIirFilter(IirFilter):
             self.reset_states()
 
         # Update internal IIR filter data if gain input changes
-        gain_input = self.local_inputs['int_gain']
-        if gain_input is not None and gain_input.generation_time == self.current_time:
-            int_gain = cpuArray(gain_input.get_value())
-            self.iir_filter_data.set_gain(int_gain)
-
+        try:
+            gain_input = self.local_inputs['int_gain']
+            if gain_input is not None and gain_input.generation_time == self.current_time:
+                int_gain = cpuArray(gain_input.get_value())
+                self.iir_filter_data.set_gain(int_gain)
+        except Exception as e:
+            print(f'Exception: {e.__name__}: {e}')
