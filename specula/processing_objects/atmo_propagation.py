@@ -316,7 +316,7 @@ class AtmoPropagation(BaseProcessingObj):
                         self.angular_spectrum_propagation(self.ef_fresnel, self.propagators[li])
                 else:
                     output_ef.A *= self.ef_temp.A
-                    output_ef.phaseInNm += self.ef_temp.phaseInNm
+                    output_ef.phaseInNm += self.prop_sign * self.ef_temp.phaseInNm
 
             if self.doFresnel:
                 output_ef.phaseInNm[:] = self.prop_sign * self.xp.angle(self.ef_fresnel) * self.wavelengthInNm / (
