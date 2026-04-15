@@ -1,4 +1,5 @@
 import importlib.util
+import sys
 import tempfile
 import textwrap
 import unittest
@@ -17,15 +18,26 @@ class TestGenerateObjectsSummary(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(textwrap.dedent(content), encoding='utf-8')
 
-    def test_inherited_io_resolution_with_super_update(self):
+    def test_extract_classes_resolves_super_update(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
-            base_file = root / 'base_obj.py'
-            child_file = root / 'child_obj.py'
+            pkg = root / 'pkg_inherited'
+            base_file = pkg / 'base_obj.py'
+            child_file = pkg / 'child_obj.py'
+
+            self._write_file(pkg / '__init__.py', '')
 
             self._write_file(
                 base_file,
                 """
+                from collections import namedtuple
+
+                InputDesc = namedtuple('InputDesc', 'type desc')
+                OutputDesc = namedtuple('OutputDesc', 'type desc')
+
+                class BaseValue:
+                    pass
+
                 class BaseObj:
                     @classmethod
                     def input_names(cls):
@@ -45,6 +57,8 @@ class TestGenerateObjectsSummary(unittest.TestCase):
             self._write_file(
                 child_file,
                 """
+                from .base_obj import BaseObj, BaseValue, OutputDesc
+
                 class ChildObj(BaseObj):
                     @classmethod
                     def input_names(cls):
@@ -60,11 +74,22 @@ class TestGenerateObjectsSummary(unittest.TestCase):
                 """,
             )
 
-            registry = {}
-            registry.update(generate_objects_summary.extract_classes_from_file(base_file))
-            registry.update(generate_objects_summary.extract_classes_from_file(child_file))
+            sys.path.insert(0, str(root))
+            self.addCleanup(lambda: sys.path.remove(str(root)) if str(root) in sys.path else None)
 
-            inputs, outputs = generate_objects_summary.get_inherited_io('ChildObj', registry)
+            registry = {}
+            registry.update(generate_objects_summary.extract_classes_from_file(
+                base_file,
+                module_name='pkg_inherited.base_obj',
+            ))
+            registry.update(generate_objects_summary.extract_classes_from_file(
+                child_file,
+                module_name='pkg_inherited.child_obj',
+            ))
+
+            info = registry['ChildObj']
+            inputs = info['named_inputs']
+            outputs = info['named_outputs']
 
             self.assertEqual(inputs['in_value'], False)
             self.assertEqual(inputs['in_optional'], True)
@@ -74,12 +99,22 @@ class TestGenerateObjectsSummary(unittest.TestCase):
     def test_generate_rst_table_includes_resolved_io(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
-            pkg = root / 'pkg'
+            pkg = root / 'pkg_simple'
             file_path = pkg / 'child_obj.py'
+
+            self._write_file(pkg / '__init__.py', '')
 
             self._write_file(
                 file_path,
                 """
+                from collections import namedtuple
+
+                InputDesc = namedtuple('InputDesc', 'type desc')
+                OutputDesc = namedtuple('OutputDesc', 'type desc')
+
+                class BaseValue:
+                    pass
+
                 class ChildObj:
                     @classmethod
                     def input_names(cls):
@@ -96,13 +131,14 @@ class TestGenerateObjectsSummary(unittest.TestCase):
                 """,
             )
 
-            registry = generate_objects_summary.build_global_registry(root)
-            modules = [('pkg.child_obj', file_path)]
+            modules = [('pkg_simple.child_obj', file_path)]
+
+            sys.path.insert(0, str(root))
+            self.addCleanup(lambda: sys.path.remove(str(root)) if str(root) in sys.path else None)
 
             rst = generate_objects_summary.generate_rst_table(
                 'Processing Objects',
                 modules,
-                registry,
                 description='Synthetic test table.',
                 include_io=True,
             )

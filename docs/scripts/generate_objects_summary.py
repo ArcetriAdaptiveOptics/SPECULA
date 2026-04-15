@@ -1,68 +1,11 @@
-import ast
+import importlib
+import importlib.util
+import inspect
 import pkgutil
 import textwrap
+import uuid
+import warnings
 from pathlib import Path
-
-
-def expr_to_string(node):
-    """Best-effort conversion of AST expression to readable string."""
-    if isinstance(node, ast.Constant):
-        if isinstance(node.value, str):
-            return node.value
-        if node.value is None:
-            return 'None'
-        return str(node.value)
-
-    if isinstance(node, getattr(ast, 'Str', type(None))):
-        return node.s
-
-    if isinstance(node, ast.Name):
-        return '{' + node.id + '}'
-
-    if isinstance(node, ast.Attribute):
-        base = expr_to_string(node.value)
-        return '{' + f"{base}.{node.attr}" + '}'
-
-    if isinstance(node, ast.JoinedStr):
-        parts = []
-        for value in node.values:
-            if isinstance(value, ast.Constant) and isinstance(value.value, str):
-                parts.append(value.value)
-            elif isinstance(value, ast.FormattedValue):
-                parts.append('{'+ expr_to_string(value.value) + '}')
-        return ''.join(parts)
-
-    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
-        left = expr_to_string(node.left)
-        right = expr_to_string(node.right)
-        return f"{left}{right}"
-
-    if hasattr(ast, 'unparse'):
-        return '{' + ast.unparse(node) + '}'
-
-    return '{expr}'
-
-
-def get_slice_value(slice_node):
-    """Helper to safely extract string values from AST slices across Python versions."""
-    if isinstance(slice_node, ast.Constant):
-        return slice_node.value
-    elif isinstance(slice_node, getattr(ast, 'Str', type(None))):
-        return slice_node.s
-    elif isinstance(slice_node, getattr(ast, 'Index', type(None))):
-        if isinstance(slice_node.value, ast.Constant):
-            return slice_node.value.value
-        elif isinstance(slice_node.value, getattr(ast, 'Str', type(None))):
-            return getattr(slice_node.value, 's', None)
-    return None
-
-
-def get_subscript_key(slice_node):
-    """Return a readable key for subscript slices, including dynamic expressions."""
-    value = get_slice_value(slice_node)
-    if value is not None:
-        return value
-    return expr_to_string(slice_node)
 
 
 def format_port_name(name):
@@ -70,267 +13,200 @@ def format_port_name(name):
     return str(name).replace('{', '[').replace('}', ']')
 
 
-def is_super_method_call(node, method_name):
-    """Return True when node is super().<method_name>() call."""
-    if not isinstance(node, ast.Call):
-        return False
-    if not isinstance(node.func, ast.Attribute):
-        return False
-    if node.func.attr != method_name:
-        return False
-    base = node.func.value
-    return isinstance(base, ast.Call) and isinstance(base.func, ast.Name) and base.func.id == 'super'
+def _first_doc_paragraph(docstring):
+    if not docstring:
+        return ''
+
+    lines = docstring.splitlines()
+    short_lines = []
+    for line in lines:
+        if line.strip() == '':
+            break
+        short_lines.append(line.strip())
+
+    return ' '.join(short_lines)
 
 
-def parse_optional_from_input_desc(value_node):
-    """Extract optional flag from InputDesc(..., '...optional...')."""
-    if not isinstance(value_node, ast.Call):
-        return False
-
-    if not isinstance(value_node.func, ast.Name) or value_node.func.id != 'InputDesc':
-        return False
-
-    desc_node = None
-    if len(value_node.args) >= 2:
-        desc_node = value_node.args[1]
-    else:
-        for kw in value_node.keywords:
-            if kw.arg == 'desc':
-                desc_node = kw.value
-                break
-
-    if desc_node is None:
-        return False
-
-    desc_str = expr_to_string(desc_node)
-    return '(optional)' in str(desc_str).lower()
+def _get_short_doc(klass):
+    docstring = inspect.getdoc(klass) or inspect.getdoc(getattr(klass, '__init__', None))
+    return _first_doc_paragraph(docstring)
 
 
-def parse_port_dict(dict_node, is_input):
-    """Parse static port dict AST node and return parsed entries."""
-    if not isinstance(dict_node, ast.Dict):
+def _is_optional_input(desc_obj):
+    # InputDesc is a namedtuple(type, desc), but this parser also accepts
+    # tuple-like or object-like variants used by tests and custom code.
+    desc_text = ''
+    if hasattr(desc_obj, 'desc'):
+        desc_text = getattr(desc_obj, 'desc')
+    elif isinstance(desc_obj, tuple) and len(desc_obj) >= 2:
+        desc_text = desc_obj[1]
+
+    return '(optional)' in str(desc_text).lower()
+
+
+def _safe_call_class_port_method(klass, method_name):
+    method = getattr(klass, method_name, None)
+    if method is None or not callable(method):
         return None
 
-    if is_input:
-        parsed = {}
-        for key_node, value_node in zip(dict_node.keys, dict_node.values):
-            if key_node is None:
-                continue
-            key_name = get_subscript_key(key_node)
-            if key_name:
-                parsed[key_name] = parse_optional_from_input_desc(value_node)
-        return parsed
+    try:
+        return method()
+    except (AttributeError, KeyError, NameError, TypeError, ValueError, RuntimeError) as exc:
+        warnings.warn(
+            f"Skipping {klass.__module__}.{klass.__name__}.{method_name}() due to error: {exc}",
+            RuntimeWarning,
+        )
+        return None
 
-    parsed = []
-    for key_node in dict_node.keys:
-        if key_node is None:
+
+def _normalize_input_ports(raw_inputs):
+    if not isinstance(raw_inputs, dict):
+        return {}
+
+    normalized = {}
+    for name, desc in raw_inputs.items():
+        normalized[str(name)] = _is_optional_input(desc)
+    return normalized
+
+
+def _normalize_output_ports(raw_outputs):
+    if isinstance(raw_outputs, dict):
+        keys = raw_outputs.keys()
+    elif isinstance(raw_outputs, (list, tuple, set)):
+        keys = raw_outputs
+    else:
+        return []
+
+    names = []
+    for key in keys:
+        key_str = str(key)
+        if key_str not in names:
+            names.append(key_str)
+    return names
+
+
+def _build_class_info(klass, module_repr=''):
+    raw_inputs = _safe_call_class_port_method(klass, 'input_names')
+    raw_outputs = _safe_call_class_port_method(klass, 'output_names')
+
+    return {
+        'class': klass,
+        'doc': _get_short_doc(klass),
+        'bases': [base.__name__ for base in klass.__bases__ if hasattr(base, '__name__')],
+        'named_inputs': _normalize_input_ports(raw_inputs),
+        'named_outputs': _normalize_output_ports(raw_outputs),
+        'module': module_repr or klass.__module__,
+    }
+
+
+def _iter_module_classes(module):
+    classes = []
+    for class_name, klass in inspect.getmembers(module, inspect.isclass):
+        if class_name.startswith('_'):
             continue
-        key_name = get_subscript_key(key_node)
-        if key_name and key_name not in parsed:
-            parsed.append(key_name)
-    return parsed
+        if klass.__module__ != module.__name__:
+            continue
+        classes.append((class_name, klass))
+    return classes
 
 
-def merge_ports(current_ports, new_ports, is_input):
-    """Merge parsed ports preserving order for outputs."""
-    if is_input:
-        merged = dict(current_ports)
-        merged.update(new_ports)
-        return merged
+def _load_module_from_file(filepath, module_name=None):
+    if module_name is None:
+        module_name = f"_specula_docs_summary_{filepath.stem}_{uuid.uuid4().hex}"
 
-    merged = list(current_ports)
-    for name in new_ports:
-        if name not in merged:
-            merged.append(name)
-    return merged
+    spec = importlib.util.spec_from_file_location(module_name, filepath)
+    if spec is None or spec.loader is None:
+        return None
 
+    module = importlib.util.module_from_spec(spec)
 
-def extract_named_ports(class_node, method_name, is_input):
-    """Extract static ports from input_names/output_names methods.
+    try:
+        spec.loader.exec_module(module)
+    except (
+        AttributeError,
+        ImportError,
+        NameError,
+        RuntimeError,
+        SyntaxError,
+        TypeError,
+        ValueError,
+    ) as exc:
+        warnings.warn(
+            f"Skipping module {filepath} due to import error: {exc}",
+            RuntimeWarning,
+        )
+        return None
 
-    Returns
-    -------
-    tuple
-        (mode, ports) where mode is one of:
-        - None: method not found or not statically parseable
-        - 'replace': method returns full local dictionary
-        - 'extend': method starts from super().<method_name>() and extends it
-    """
-    method_node = None
-    for item in class_node.body:
-        if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)) and item.name == method_name:
-            method_node = item
-            break
-
-    if method_node is None:
-        return None, None
-
-    var_values = {}
-    super_seeded_vars = set()
-
-    empty_ports = {} if is_input else []
-
-    for stmt in method_node.body:
-        if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name):
-            target_name = stmt.targets[0].id
-
-            if is_super_method_call(stmt.value, method_name):
-                var_values[target_name] = dict(empty_ports) if is_input else list(empty_ports)
-                super_seeded_vars.add(target_name)
-                continue
-
-            parsed = parse_port_dict(stmt.value, is_input=is_input)
-            if parsed is not None:
-                var_values[target_name] = parsed
-                continue
-
-        if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call):
-            call = stmt.value
-            if isinstance(call.func, ast.Attribute) and call.func.attr == 'update':
-                if isinstance(call.func.value, ast.Name) and call.args:
-                    target_name = call.func.value.id
-                    parsed = parse_port_dict(call.args[0], is_input=is_input)
-                    if target_name in var_values and parsed is not None:
-                        var_values[target_name] = merge_ports(var_values[target_name], parsed, is_input=is_input)
-                        continue
-
-        if isinstance(stmt, ast.Return):
-            parsed = parse_port_dict(stmt.value, is_input=is_input)
-            if parsed is not None:
-                return 'replace', parsed
-
-            if isinstance(stmt.value, ast.Name) and stmt.value.id in var_values:
-                mode = 'extend' if stmt.value.id in super_seeded_vars else 'replace'
-                return mode, var_values[stmt.value.id]
-
-            if is_super_method_call(stmt.value, method_name):
-                return 'extend', dict(empty_ports) if is_input else list(empty_ports)
-
-    return None, None
+    return module
 
 
-def extract_classes_from_file(filepath):
+def _load_module(module_name, filepath):
+    try:
+        return importlib.import_module(module_name), module_name
+    except ImportError:
+        module = _load_module_from_file(filepath, module_name=module_name)
+        return module, (module_name if module is not None else str(filepath))
+
+
+def extract_classes_from_file(filepath, module_name=None):
     """Return a dict with class info (doc, bases, inputs, outputs) for a file."""
     results = {}
-    try:
-        source = filepath.read_text(encoding='utf-8')
-        tree = ast.parse(source)
-    except (SyntaxError, UnicodeDecodeError, FileNotFoundError):
+    filepath = Path(filepath)
+    if module_name:
+        module, module_repr = _load_module(module_name, filepath)
+    else:
+        module = _load_module_from_file(filepath)
+        module_repr = str(filepath)
+
+    if module is None:
         return results
 
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.ClassDef):
-            continue
+    for class_name, klass in _iter_module_classes(module):
+        results[class_name] = _build_class_info(klass, module_repr=module_repr)
 
-        # 1. Extract Docstring
-        docstring = ast.get_docstring(node)
-        if not docstring:
-            for item in node.body:
-                if isinstance(item, ast.FunctionDef) and item.name == '__init__':
-                    docstring = ast.get_docstring(item)
-                    break
-        short = ''
-        if docstring:
-            lines = docstring.splitlines()
-            short_lines = []
-            for line in lines:
-                if line.strip() == '':
-                    break
-                short_lines.append(line.strip())
-            short = ' '.join(short_lines)
-            
-        # 2. Extract Base Classes
-        bases = []
-        for b in node.bases:
-            if isinstance(b, ast.Name):
-                bases.append(b.id)
-            elif isinstance(b, ast.Attribute):
-                bases.append(b.attr)
-                
-        input_names_mode, named_inputs = extract_named_ports(node, 'input_names', is_input=True)
-        output_names_mode, named_outputs = extract_named_ports(node, 'output_names', is_input=False)
-
-        results[node.name] = {
-            'doc': short,
-            'bases': bases,
-            'input_names_mode': input_names_mode,
-            'output_names_mode': output_names_mode,
-            'named_inputs': named_inputs,
-            'named_outputs': named_outputs,
-            'module': str(filepath),
-        }
     return results
-
-
-def build_global_registry(specula_path):
-    """Scan the entire specula codebase to build a global class registry for inheritance."""
-    registry = {}
-    for filepath in specula_path.rglob('*.py'):
-        classes = extract_classes_from_file(filepath)
-        registry.update(classes)
-    return registry
-
-
-def get_inherited_io(classname, registry, resolved=None):
-    """Resolve final inputs/outputs by applying inherited and local mutations."""
-    if resolved is None:
-        resolved = set()
-    if classname in resolved or classname not in registry:
-        return {}, []
-        
-    resolved.add(classname)
-    info = registry[classname]
-
-    all_inputs = {}
-    all_outputs = []
-
-    for base in info['bases']:
-        base_in, base_out = get_inherited_io(base, registry, resolved)
-        for k, v in base_in.items():
-            if k not in all_inputs:
-                all_inputs[k] = v
-        for o in base_out:
-            if o not in all_outputs:
-                all_outputs.append(o)
-
-    # Resolve only from explicit input_names/output_names declarations.
-    if info.get('input_names_mode') == 'replace':
-        all_inputs = dict(info.get('named_inputs') or {})
-    elif info.get('input_names_mode') == 'extend':
-        all_inputs.update(info.get('named_inputs') or {})
-
-    if info.get('output_names_mode') == 'replace':
-        all_outputs = list(info.get('named_outputs') or [])
-    elif info.get('output_names_mode') == 'extend':
-        for out_name in info.get('named_outputs') or []:
-            if out_name not in all_outputs:
-                all_outputs.append(out_name)
-  
-    return all_inputs, all_outputs
 
 
 def scan_package(package_path, package_name):
     """Scan a package directory and return list of (module_name, filepath)."""
     modules = []
-    if not Path(package_path).exists():
+    package_path = Path(package_path)
+    if not package_path.exists():
         return modules
+
     for _, modname, ispkg in pkgutil.iter_modules([str(package_path)]):
         if not ispkg:
             modules.append((
                 f"{package_name}.{modname}",
-                Path(package_path) / f"{modname}.py"
+                package_path / f"{modname}.py",
             ))
+
     return sorted(modules)
 
 
-def generate_rst_table(category_name, modules, registry, description='', include_io=False):
+def _iter_module_class_infos(module_name, filepath):
+    module, module_repr = _load_module(module_name, filepath)
+
+    if module is None:
+        return []
+
+    infos = []
+    for class_name, klass in _iter_module_classes(module):
+        infos.append((module_name, class_name, _build_class_info(klass, module_repr=module_repr)))
+    return infos
+
+
+def generate_rst_table(category_name, modules, description='', include_io=False):
     """Generate RST content with a table listing class names, descriptions, and I/O."""
     valid_classes = []
     for module_name, filepath in modules:
-        classes_in_file = extract_classes_from_file(filepath)
-        for classname, info in classes_in_file.items():
-            if not classname.startswith('_'):
-                valid_classes.append((module_name, classname, info))
+        module_classes = _iter_module_class_infos(module_name, filepath)
+        if include_io:
+            module_classes = [
+                item for item in module_classes
+                if item[2].get('named_inputs') or item[2].get('named_outputs')
+            ]
+        valid_classes.extend(module_classes)
 
     title = f"{category_name} Summary"
     lines = [
@@ -367,7 +243,6 @@ def generate_rst_table(category_name, modules, registry, description='', include
         full_name = f"{module_name}.{classname}"
         lines.append(f'   * - :class:`~{full_name}`')
 
-        # Description Column
         desc = info['doc'] if info['doc'] else '*No description available.*'
         wrapped_lines = textwrap.wrap(desc, width=50)
         cell_content = '\n       | '.join(wrapped_lines)
@@ -375,9 +250,9 @@ def generate_rst_table(category_name, modules, registry, description='', include
             cell_content = '| ' + cell_content
         lines.append(f'     - {cell_content}')
 
-        # I/O Columns (Only for Processing Objects)
         if has_io:
-            inputs, outputs = get_inherited_io(classname, registry)
+            inputs = info.get('named_inputs') or {}
+            outputs = info.get('named_outputs') or []
 
             in_list = [
                 f"{format_port_name(k)} *(opt)*" if opt else format_port_name(k)
@@ -387,7 +262,6 @@ def generate_rst_table(category_name, modules, registry, description='', include
             in_str = ', '.join(in_list) if in_list else '-'
             out_str = ', '.join(out_list) if out_list else '-'
 
-            # Textwrap handles long comma-separated lists gracefully in RST
             in_lines = textwrap.wrap(in_str, width=30)
             in_wrapped = '\n       | '.join(in_lines)
             if len(in_lines) > 1:
@@ -409,9 +283,6 @@ def main():
     specula_path = Path(__file__).parent.parent.parent / 'specula'
     api_docs_path = Path(__file__).parent.parent / 'api'
     api_docs_path.mkdir(exist_ok=True)
-
-    print("Building global class registry for inheritance resolution...")
-    registry = build_global_registry(specula_path)
 
     categories = [
         {
@@ -442,7 +313,6 @@ def main():
         content = generate_rst_table(
             cat['name'],
             modules,
-            registry,
             cat['description'],
             include_io=cat.get('include_io', False),
         )
