@@ -288,52 +288,40 @@ class AtmoPropagation(BaseProcessingObj):
                 self.ef_fresnel[:] = 1
 
             if self.mergeLayersContrib:
-                output_ef = self.outputs['out_'+source_name+'_ef']
+                output_ef = self.outputs['out_' + source_name + '_ef']
                 output_ef.reset()
             else:
-                output_ef_list = self.outputs['out_'+source_name+'_ef']
+                output_ef_list = self.outputs['out_' + source_name + '_ef']
 
-            for source_name, source in self.source_dict.items():
-
-                # reset field
-                if self.doFresnel:
-                    self.ef_fresnel[:] = 1
-
-                if self.mergeLayersContrib:
-                    output_ef = self.outputs['out_' + source_name + '_ef']
+            for li, layer in enumerate(layer_list):
+                if not self.mergeLayersContrib:
+                    output_ef = output_ef_list[li]
                     output_ef.reset()
+
+                interpolator = self.interpolators[source][layer]
+                if interpolator is None:
+                    topleft = [(layer.size[0] - self.pixel_pupil_size) // 2, \
+                               (layer.size[1] - self.pixel_pupil_size) // 2]
+                    x2 = topleft[0] + output_ef.size[0]
+                    y2 = topleft[1] + output_ef.size[1]
+                    self.ef_temp.A[:] = layer.A[topleft[0]: x2, topleft[1]: y2]
+                    self.ef_temp.phaseInNm[:] = self.prop_sign * layer.phaseInNm[topleft[0]: x2, topleft[1]: y2]
                 else:
-                    output_ef_list = self.outputs['out_' + source_name + '_ef']
-
-                for li, layer in enumerate(layer_list):
-                    if not self.mergeLayersContrib:
-                        output_ef = output_ef_list[li]
-                        output_ef.reset()
-
-                    interpolator = self.interpolators[source][layer]
-                    if interpolator is None:
-                        topleft = [(layer.size[0] - self.pixel_pupil_size) // 2, \
-                                   (layer.size[1] - self.pixel_pupil_size) // 2]
-                        x2 = topleft[0] + output_ef.size[0]
-                        y2 = topleft[1] + output_ef.size[1]
-                        self.ef_temp.A[:] = layer.A[topleft[0]: x2, topleft[1]: y2]
-                        self.ef_temp.phaseInNm[:] = self.prop_sign * layer.phaseInNm[topleft[0]: x2, topleft[1]: y2]
-                    else:
-                        self.ef_temp.A[:] = interpolator.interpolate(layer.A)
-                        self.ef_temp.phaseInNm[:] = self.prop_sign * interpolator.interpolate(layer.phaseInNm)
-
-                    if self.doFresnel:
-                        self.ef_fresnel *= self.ef_temp.ef_at_lambda(self.wavelengthInNm)
-                        if self.propagators[li] is not None:
-                            self.angular_spectrum_propagation(self.ef_fresnel, self.propagators[li])
-                    else:
-                        output_ef.A *= self.ef_temp.A
-                        output_ef.phaseInNm += self.ef_temp.phaseInNm
+                    self.ef_temp.A[:] = interpolator.interpolate(layer.A)
+                    self.ef_temp.phaseInNm[:] = self.prop_sign * interpolator.interpolate(layer.phaseInNm)
 
                 if self.doFresnel:
-                    output_ef.phaseInNm[:] = self.prop_sign * self.xp.angle(self.ef_fresnel) * self.wavelengthInNm / (
-                            2 * self.xp.pi)
-                    output_ef.A[:] = abs(self.ef_fresnel)
+                    self.ef_fresnel *= self.ef_temp.ef_at_lambda(self.wavelengthInNm)
+                    if self.propagators[li] is not None:
+                        self.angular_spectrum_propagation(self.ef_fresnel, self.propagators[li])
+                else:
+                    output_ef.A *= self.ef_temp.A
+                    output_ef.phaseInNm += self.ef_temp.phaseInNm
+
+            if self.doFresnel:
+                output_ef.phaseInNm[:] = self.prop_sign * self.xp.angle(self.ef_fresnel) * self.wavelengthInNm / (
+                        2 * self.xp.pi)
+                output_ef.A[:] = abs(self.ef_fresnel)
 
     def post_trigger(self):
         super().post_trigger()
