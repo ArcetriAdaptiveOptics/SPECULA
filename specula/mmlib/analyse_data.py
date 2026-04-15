@@ -50,13 +50,17 @@ def plot_output_data(root_dir:str,calib_dir:str):
         except:
             filter_data1, delay_frames1 = get_control_data(calib_dir,'filter1','gain_ramp',params=params)
             filter_data2, delay_frames2 = get_control_data(calib_dir,'filter2','gain_ramp',params=params)
-        fs1 = 1.0/float(params['cred1']['dt'])
+
         try:
-            fs2 = 1.0/float(params['cred2']['dt'])
+            fs1 = 1.0/float(params['cred1']['dt'])
+            try:
+                fs2 = 1.0/float(params['cred2']['dt'])
+            except:
+                fs2 = 1.0/float(params['ocam2']['dt'])
+            init1 = int(np.round(1.0*fs1))
+            init2 = int(np.round(1.0*fs2))
         except:
-            fs2 = 1.0/float(params['ocam2']['dt'])
-        init1 = int(np.round(1.0*fs1))
-        init2 = int(np.round(1.0*fs2))
+            pass
 
     init = int(1.0*fs)
 

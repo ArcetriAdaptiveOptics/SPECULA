@@ -120,10 +120,10 @@ root_dir='/raid1/mmenessini/calibration/XAO'
 for i,n_subap in enumerate(n_subaps):
     pup_dist = np.max((min_pup_dist,max_pup_dist/max(n_subaps)*n_subap))
     for rMod,dotRadius in zip(rMods,dotRadii):
-        pyr_tag = f'pyr{rMod:1.1f}_463modes_{n_subap:.0f}x{n_subap:.0f}'
-        pyr_im_tag = pyr_tag+'_im'        
-        zwfs_tag = f'z{dotRadius*2:1.1f}wfs_463modes_{n_subap:.0f}x{n_subap:.0f}'
-        zwfs_im_tag = zwfs_tag+'_im'
+        pyr_tag = f'pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}'
+        pyr_im_tag = pyr_tag+'_463modes_im'        
+        zwfs_tag = f'z{dotRadius*2:1.1f}wfs_{n_subap:.0f}x{n_subap:.0f}'
+        zwfs_im_tag = zwfs_tag+'_463modes_im'
         overrides = ("{"
                     f"pyr.pup_diam: {n_subap:.1f}, "
                     f"pyr.pup_dist: {pup_dist:.1f}, "

@@ -5,7 +5,7 @@ main:
   root_dir:          '/raid1/mmenessini/calibration/EKARUS/'       # CalibManager root directory (all the data are in subdirectories)
   pixel_pupil:       120                   # Must match influence function computation
   pixel_pitch:       0.015167            # [m] Pitch of the pupil phase array
-  total_time:        10.0                # [s] Total simulation running time
+  total_time:        2.0                # [s] Total simulation running time
   time_step:         0.001               # [s] Simulation time step
   zenithAngleInDeg:  0.0                   # [deg] Zenith observation (0 means no airmass)
   display_server:    false                 # Disable for batch runs
@@ -106,7 +106,7 @@ pyr_slopes:
 
 pyr_modalrec:
   class:             'Modalrec'
-  recmat_object:     'pyr5.0_40x40_443modes_rec'        
+  recmat_object:     'pyr5.0_40x40_440modes_rec'        
   inputs:
     in_slopes:       'pyr_slopes.out_slopes'
   outputs:           ['out_modes']
@@ -117,7 +117,7 @@ filter:
   delay:             1                      # Total temporal delay in time steps
   int_gain:          [0.9,0.8,0.0]
   ff:                [0.99,0.95,0.7]
-  n_modes:           [2,200,241]
+  n_modes:           [2,200,238]
   inputs:
       delta_comm: 'pyr_modalrec.out_modes'
 
@@ -127,7 +127,7 @@ dm:
   ifunc_object:      'dm468_ifunc'      # Our computed influence functions
   m2c_object:        'dm468_m2c'        # Modal-to-command matrix
   height:            0                # Ground-conjugated DM
-  nmodes:            443
+  nmodes:            440
   inputs:
     in_command:      'filter.out_comm'
   outputs:           ['out_layer']

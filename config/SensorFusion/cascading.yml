@@ -131,7 +131,7 @@ pyr0:
   pup_diam:          24.                     # Pupil diameter in subaps.
   pup_dist:          30.                     # Separation between pupil centers in subaps.
   fov:               2.0                     # Requested field-of-view [arcsec]
-  mod_amp:           1.0                     # Modulation radius (in lambda/D units)
+  mod_amp:           0.0                     # Modulation radius (in lambda/D units)
   output_resolution: 120                      # Output sampling [usually corresponding to CCD pixels]
   wavelengthInNm:    750                     # [nm] Pyramid wavelength
   inputs:
@@ -157,14 +157,14 @@ pyr0_slopes:
   class:                  'PyrSlopec'
   pupdata_object:         'pyr_pupdata_24x24'           
   slopes_from_intensity:  true
-  sn_object:            'pyr1.0_24x24_sn'
+  sn_object:            'pyr0.0_24x24_sn'
   inputs:
     in_pixels:        'cred2.out_pixels'
   outputs:           ['out_slopes']
 
 pyr0_modalrec:
   class:             'Modalrec'
-  recmat_object:     'pyr1.0_24x24_300modes_dm468_rec'        
+  recmat_object:     'pyr0.0_24x24_300modes_dm468_rec'        
   inputs:
     in_slopes:       'pyr0_slopes.out_slopes'
   outputs:           ['out_modes']
@@ -219,9 +219,9 @@ pyr0_modalrec:
 ############################ Control ################################
 bootstrap:
   class:              'ScheduleGenerator'
-  scheduled_values:   [[0.0],[0.0]] # Nrows x Ncols, times x gains
+  scheduled_values:   [[0.0],[0.6]] # Nrows x Ncols, times x gains
   modes_per_group:    [300] # Ncols
-  scheduled_times:    [0.01] # Nrows-1
+  scheduled_times:    [0.05] # Nrows-1
 
 filter2:
   # class:             'Integrator'

@@ -12,7 +12,7 @@ from specula.mmlib.compute_rec import compute_and_save_rec
 # from specula.mmlib.save_correction_vector import save_correction_vector
 
 
-rMods = np.array([2,3,4,5,6])
+rMods = np.array([0]) #np.array([2,3,4,5,6])
 n_subaps = np.array([10,20,40])
 n_modes = np.array([54,120,660])
 seeings = np.array([0.6,0.8,1.0,1.2,1.4])
@@ -96,6 +96,7 @@ root_dir='/raid1/mmenessini/calibration/SOUL'
 #         for N in n_modes[:i+1]:
 #             rec_tag = tag+f'_{N:1.0f}modes_rec'
 #             compute_and_save_rec(root_dir, im_tag=im_tag, rec_tag=rec_tag, Nmodes=N, overwrite=True)
+
 
 # # 3.5 Compute correction vectors for SIMPC
 # for i,n_subap in enumerate(n_subaps):
@@ -188,9 +189,18 @@ root_dir='/raid1/mmenessini/calibration/SOUL'
 #             except FileExistsError:
 #                 pass
 
+
+for i,n_subap in enumerate(n_subaps):
+    for rMod in rMods:
+        for seeing in seeings:
+            for N in n_modes[:i+1]:
+                tag = f'pyr{rMod:1.1f}_{n_subap:.0f}x{n_subap:.0f}_s{seeing:1.1f}'
+                im_tag = tag+'_simpc'
+                rec_tag = tag+f'_{N:1.0f}modes_rec'
+                compute_and_save_rec(root_dir, im_tag=im_tag, rec_tag=rec_tag, Nmodes=N, overwrite=True)
+
 # Add perfect correction vectors (seeing 0")
-atmo_modes = fits.getdata(os.path.join(root_dir,'scratch_corrvec',f's{seeing:1.1f}_{N:1.0f}modes_atmo.fits'))
-L = len(atmo_modes)
+L = 720
 for i,N in enumerate(n_modes):
     tag = f's0.0_{N:1.0f}modes_corrvec'
     try:
@@ -199,7 +209,7 @@ for i,N in enumerate(n_modes):
     except FileNotFoundError:
         corrvec = np.zeros(L)
         corrvec[:N] = 1.0 # perfect correction up to mode N
-        fits.writeto(os.path.join(root_dir,'data',tag+'.fits'),corrvec)
+        fits.writeto(os.path.join(root_dir,'data',tag+'.fits'),corrvec,overwrite=True)
         print('Saved correction vector as: '+tag)
 
 
@@ -250,7 +260,7 @@ for i,n_subap in enumerate(n_subaps):
                 print('Saved optical gains as: '+tag+'_og_pl')
                 fits.writeto(os.path.join(ogpath,tag+'_compl_og_pl.fits'),cog)
                 print('Saved complementary (perpedicular) optical gains as: '+tag+'_compl_og_pl')
-            except FileExistsError:
+            except OSError:
                 pass
 
 

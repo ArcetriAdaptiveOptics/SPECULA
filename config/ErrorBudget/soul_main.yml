@@ -13,7 +13,7 @@ main:
 # Atmospheric conditions
 seeing:
   class:             'WaveGenerator'
-  constant:          0.88                  # [arcsec]
+  constant:          1.2                  # [arcsec]
 
 wind_speed:
   class:             'WaveGenerator'
@@ -75,7 +75,7 @@ pyr:
   pup_diam:          40.                     # Pupil diameter in subaps.
   pup_dist:          48.                     # Separation between pupil centers in subaps.
   fov:               2.0                     # Requested field-of-view [arcsec]
-  mod_amp:           3.0                     # Modulation radius (in lambda/D units)
+  mod_amp:           0.0                     # Modulation radius (in lambda/D units)
   output_resolution: 120                      # Output sampling [usually corresponding to CCD pixels]
   wavelengthInNm:    750                     # [nm] Pyramid wavelength
   inputs:
@@ -99,16 +99,15 @@ ocam:
 
 pyr_slopes:
   class:                  'PyrSlopec'
-  pupdata_object:         'pyr_pupdata_40x40'           
-  # slopes_from_intensity:  true
-  # sn_object:            'pyr3.0_slope_null'
+  pupdata_object:         'pyr_pupdata_40x40'        
+  # sn_object:            'pyr0.0_40x40_sn'
   inputs:
     in_pixels:        'ocam.out_pixels'
   outputs:           ['out_slopes']
 
 pyr_modalrec:
   class:             'Modalrec'
-  recmat_object:     'pyr3.0_40x40_660modes_rec'        
+  recmat_object:     'pyr0.0_40x40_660modes_rec' #s1.2_660modes_rec' #'pyr3.0_40x40_660modes_rec'        
   inputs:
     in_slopes:       'pyr_slopes.out_slopes'
   outputs:           ['out_modes']
@@ -117,9 +116,9 @@ filter:
   class:             'Integrator'
   simul_params_ref:  'main'
   delay:             2                      # Total temporal delay in time steps
-  int_gain:          [0.55,   0.45,     0.40,     0.35]
-  ff:                [1.0,    0.999996, 0.999365, 0.977895]
-  n_modes:           [30,     70,       100,      300]
+  int_gain:          [0.55,   0.45,     0.40,     0.35,     0.3]
+  ff:                [1.0,    0.999996, 0.999365, 0.977895, 0.95]
+  n_modes:           [30,     70,       100,      300,      160]
   inputs:
       delta_comm: 'pyr_modalrec.out_modes'
 
@@ -129,7 +128,7 @@ dm:
   ifunc_object:      'asm_ifunc'      # Our computed influence functions
   m2c_object:        'asm_m2c'        # Modal-to-command matrix
   height:            0                # Ground-conjugated DM
-  nmodes:            500
+  nmodes:            660
   inputs:
     in_command:      'filter.out_comm'
   outputs:           ['out_layer']
@@ -144,7 +143,7 @@ psf:
   wavelengthInNm:    750                 # [nm] visible
   nd:                4                    # 4x padding for PSF
   start_time:        0.5                  # Start PSF integration after 500ms
-  verbose: false
+  # verbose: false
   inputs:
     in_ef:           'ef_prop.out_ef'
   outputs:           ['out_psf', 'out_std_psf', 'out_sr']

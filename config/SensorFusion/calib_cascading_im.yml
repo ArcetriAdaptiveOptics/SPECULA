@@ -43,6 +43,8 @@ prop_override:
 # Override DM to use calibration commands
 dm_override:
   sign: 1                                 # Use positive sign for calibration (default is -1)
+  ifunc_object:      'dm468_vlt_ifunc' 
+  m2c_object:        'dm468_vlt_m2c' 
   nmodes: 463                            # Use all modes for calibration
   inputs:
     in_command: 'pushpull.output'         # Connect to push-pull generator
