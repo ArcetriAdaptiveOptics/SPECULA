@@ -16,8 +16,8 @@ from specula import cpuArray
 from astropy.io import fits
 
 def compute_and_save_influence_functions(root_dir:str, tag:str, pupil_pixels:int, n_acts:int, geom:str='circular',
-                                         r0:float=10e-2, L0:float=25, zern_modes:int=2, D:float=8.2,
-                                         obsratio:float=0.14, diaratio:float=1.0, doMechCoupling:bool=False,
+                                         r0:float=10e-2, L0:float=25, zern_modes:int=2, D:float=8.0,
+                                         obsratio:float=0.0, diaratio:float=1.0, doMechCoupling:bool=False,
                                          couplingCoeffs=[0.31,0.05], pupil_mask_tag=None, shrink_coords:float=1.0):
     """
     Compute zonal influence functions and modal basis for the SCAO tutorial
@@ -80,6 +80,8 @@ def compute_and_save_influence_functions(root_dir:str, tag:str, pupil_pixels:int
         pupil_mask = hdu[1].data
     else:
         pupil_mask = make_mask(np_size=pupil_pixels, diaratio=1.0, obsratio=obsratio)
+        
+    unobs_pupil_mask = make_mask(np_size=pupil_pixels, diaratio=1.0)
 
     # Step 1: Generate zonal influence functions
     influence_functions,mask,coords,slaveMat = compute_zonal_ifunc(
@@ -93,7 +95,7 @@ def compute_and_save_influence_functions(root_dir:str, tag:str, pupil_pixels:int
         slaving_thr=slavingThr,
         obsratio=obsratio,
         diaratio=diaratio*shrink_coords,
-        mask=cpuArray(pupil_mask),
+        mask=cpuArray(unobs_pupil_mask),
         xp=specula.xp,
         dtype=dtype,
         # return_coordinates=False,
@@ -288,5 +290,5 @@ if __name__ == "__main__":
 
     root_dir = '/raid1/mmenessini/calibration/EKARUS'
     Npix = 120
-    compute_and_save_influence_functions(root_dir,tag='dm468', pupil_pixels=Npix, n_acts=24, shrink_coords=0.98,
-                                          geom='alpao', r0=5e-2, obsratio=0.3, pupil_mask_tag='copernico_pupil', D=1.82)
+    compute_and_save_influence_functions(root_dir,tag='dm468', pupil_pixels=Npix, n_acts=24, #shrink_coords=0.95,
+                                          geom='alpao', r0=5e-2, pupil_mask_tag='copernico_pupil', D=1.82)

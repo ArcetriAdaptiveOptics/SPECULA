@@ -3,7 +3,7 @@ from specula import cpuArray
 import numpy as np
 import os
 
-from .utils import von_karman_power, radial_order
+from specula.mmlib.utils import von_karman_power, radial_order
 from specula.lib.mmse_reconstructor import compute_mmse_reconstructor
 
 
@@ -41,7 +41,7 @@ def save_rec(root_dir:str, rec, rec_tag:str, overwrite:bool=False):
     path = os.path.join(root_dir,'rec')
     if not os.path.exists(path):
         os.mkdir(path)
-    filename = os.path.join(path,rec_tag+'.fits')
+    filename = os.path.join(path,rec_tag+'_rec.fits')
     hdr = fits.Header()
     hdr['VERSION'] = 1
     hdr['PUP_TAG'] = ''
@@ -75,7 +75,14 @@ def save_rec(root_dir:str, rec, rec_tag:str, overwrite:bool=False):
 #     return rec, rec_tag
 
 
-# if __name__ == "__main__":
+if __name__ == "__main__":
+
+    Nmodes = 440
+    root_dir = '/raid1/mmenessini/calibration/EKARUS'
+    im_tag = 'pyr3.0_40x40_im'
+    rec_tag = 'pyr3.0_40x40_440modes'
+    compute_and_save_rec(root_dir=root_dir, im_tag=im_tag, rec_tag=rec_tag, Nmodes=Nmodes, overwrite=True)
+
 
 #     Nmodes = 1300
 #     rMods = np.array([0,0.5,1,2,3])

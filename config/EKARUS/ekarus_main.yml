@@ -74,7 +74,7 @@ pyr:
   pup_diam:          40.                     # Pupil diameter in subaps.
   pup_dist:          60.                     # Separation between pupil centers in subaps.
   fov:               4.0                     # Requested field-of-view [arcsec]
-  mod_amp:           5.0                     # Modulation radius (in lambda/D units)
+  mod_amp:           3.0                     # Modulation radius (in lambda/D units)
   output_resolution: 120                      # Output sampling [usually corresponding to CCD pixels]
   wavelengthInNm:    750                     # [nm] Pyramid wavelength
   inputs:
@@ -106,7 +106,7 @@ pyr_slopes:
 
 pyr_modalrec:
   class:             'Modalrec'
-  recmat_object:     'pyr5.0_40x40_440modes_rec'        
+  recmat_object:     'pyr3.0_40x40_440modes_rec'        
   inputs:
     in_slopes:       'pyr_slopes.out_slopes'
   outputs:           ['out_modes']

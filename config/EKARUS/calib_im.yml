@@ -12,7 +12,7 @@ pushpull:
 pyr_im_calibrator:
   class:     'ImCalibrator'
   nmodes:    443                         # Number of modes to calibrate
-  im_tag:    'pyr3.0_im'            # Output IM filename
+  im_tag:    'pyr3.0_40x40_im'            # Output IM filename
   overwrite: false                         # Overwrite existing files
   inputs:
     in_slopes:   'pyr_slopes.out_slopes'      # WFS slopes input
