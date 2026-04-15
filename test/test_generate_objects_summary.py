@@ -146,4 +146,4 @@ class TestGenerateObjectsSummary(unittest.TestCase):
             self.assertIn('in_sig', rst)
             self.assertIn('gain_mod *(opt)*', rst)
             self.assertIn('out_modes_[sensor_idx]', rst)
-            self.assertNotIn('     - -\n     - -', rst)
+            self.assertIn('     - -\n     - -', rst)

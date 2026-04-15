@@ -201,11 +201,6 @@ def generate_rst_table(category_name, modules, description='', include_io=False)
     valid_classes = []
     for module_name, filepath in modules:
         module_classes = _iter_module_class_infos(module_name, filepath)
-        if include_io:
-            module_classes = [
-                item for item in module_classes
-                if item[2].get('named_inputs') or item[2].get('named_outputs')
-            ]
         valid_classes.extend(module_classes)
 
     title = f"{category_name} Summary"
