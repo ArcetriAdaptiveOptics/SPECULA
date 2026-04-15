@@ -104,7 +104,12 @@ class ModalrecMultirate(BaseProcessingObj):
 
     @classmethod
     def output_names(cls):
-        return {}
+        return {
+            'out_modes_{sensor_idx}': OutputDesc(
+                BaseValue,
+                'Output modal vector for sensor index [sensor_idx]',
+            ),
+        }
 
     def setup(self):
         super().setup()
@@ -174,8 +179,3 @@ class ModalrecMultirate(BaseProcessingObj):
                 self.out_modes_list[i].value[:] = 0
 
             self.out_modes_list[i].generation_time = self.current_time
-
-    def check_output_names(self):
-        # ModalrecMultirate outputs are created dynamically from stored data files;
-        # skip the static output_names validation.
-        pass

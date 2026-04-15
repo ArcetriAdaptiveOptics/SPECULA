@@ -144,13 +144,16 @@ class AtmoRandomPhase(BaseProcessingObj):
 
     @classmethod
     def output_names(cls):
-        return {'out_layer': OutputDesc(Layer, 'Output phase screen layer (default, when no source_dict is provided)'),
-                'out_ef': OutputDesc(ElectricField, 'Output electric field (default, when no source_dict is provided)')}
-
-    def check_output_names(self):
-        # AtmoRandomPhase outputs are created dynamically from inputs;
-        # skip the static output_names validation.
-        pass
+        return {
+            'out*_layer': OutputDesc(
+                Layer,
+                'Output phase-screen layer for default or named source channels',
+            ),
+            'out*_ef': OutputDesc(
+                ElectricField,
+                'Output electric field for default or named source channels',
+            ),
+        }
 
     def initScreens(self):
         # Seed

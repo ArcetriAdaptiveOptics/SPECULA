@@ -42,6 +42,23 @@ class TestModalrecMultirate(unittest.TestCase):
         np.testing.assert_allclose(cpuArray(rec.out_modes_list[0].value), 0.0)
         np.testing.assert_allclose(cpuArray(rec.out_modes_list[1].value), 0.0)
 
+    @cpu_and_gpu
+    def test_sanity_check_with_dynamic_output_pattern(self, target_device_idx, xp):
+        n_modes = 4
+        recmat_list = [
+            Recmat(xp.ones((n_modes, 4), dtype=xp.float32), target_device_idx=target_device_idx),
+        ]
+        validity_masks = [[True, True]]
+
+        rec = ModalrecMultirate(
+            recmat_list=recmat_list,
+            validity_masks=validity_masks,
+            n_modes_total=n_modes,
+            target_device_idx=target_device_idx,
+        )
+
+        rec.sanity_check()  # Should validate out_modes_{sensor_idx} against out_modes_0/1
+
     def _setup_reconstructor(self, target_device_idx, xp):
         self.n_modes = 5
         self.n_slopes_per_wfs = 2
