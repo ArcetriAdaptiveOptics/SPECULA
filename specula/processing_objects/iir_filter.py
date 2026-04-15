@@ -1,6 +1,4 @@
 from specula.processing_objects.base_filter import BaseFilter
-from specula.base_processing_obj import InputDesc, OutputDesc
-from specula.base_value import BaseValue
 from specula.data_objects.iir_filter_data import IirFilterData
 from specula.data_objects.simul_params import SimulParams
 
@@ -62,13 +60,11 @@ class IirFilter(BaseFilter):
 
     @classmethod
     def input_names(cls):
-        return {'delta_comm': InputDesc(BaseValue, 'Input delta command vector'),
-                'gain_mod': InputDesc(BaseValue, 'Optional gain modulation vector (optional)')}
+        return super().input_names()
 
     @classmethod
     def output_names(cls):
-        return {'out_comm': OutputDesc(BaseValue, 'Output command vector with delay applied'),
-                'out_comm_no_delay': OutputDesc(BaseValue, 'Output command vector without delay (for POLC)')}
+        return super().output_names()
 
     def trigger_code(self):
         """IIR filter computation."""

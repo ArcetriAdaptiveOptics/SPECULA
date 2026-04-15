@@ -70,112 +70,143 @@ def format_port_name(name):
     return str(name).replace('{', '[').replace('}', ']')
 
 
-def parse_optional_flag(value_node):
-    """Extract optional=True/False from InputValue/InputList constructor calls."""
+def is_super_method_call(node, method_name):
+    """Return True when node is super().<method_name>() call."""
+    if not isinstance(node, ast.Call):
+        return False
+    if not isinstance(node.func, ast.Attribute):
+        return False
+    if node.func.attr != method_name:
+        return False
+    base = node.func.value
+    return isinstance(base, ast.Call) and isinstance(base.func, ast.Name) and base.func.id == 'super'
+
+
+def parse_optional_from_input_desc(value_node):
+    """Extract optional flag from InputDesc(..., '...optional...')."""
     if not isinstance(value_node, ast.Call):
         return False
 
-    for kw in value_node.keywords:
-        if kw.arg == 'optional':
-            if isinstance(kw.value, ast.Constant):
-                return bool(kw.value.value)
-            return False
+    if not isinstance(value_node.func, ast.Name) or value_node.func.id != 'InputDesc':
+        return False
 
-    return False
+    desc_node = None
+    if len(value_node.args) >= 2:
+        desc_node = value_node.args[1]
+    else:
+        for kw in value_node.keywords:
+            if kw.arg == 'desc':
+                desc_node = kw.value
+                break
 
+    if desc_node is None:
+        return False
 
-def record_add(mutations, attr_name, key_name, optional=False):
-    """Record an add/update operation for inputs or outputs."""
-    if attr_name == 'inputs':
-        mutations.append(('set_input', key_name, optional))
-    elif attr_name == 'outputs':
-        mutations.append(('set_output', key_name, False))
-
-
-def record_delete(mutations, attr_name, key_name):
-    """Record a delete operation for inputs or outputs."""
-    if attr_name == 'inputs':
-        mutations.append(('del_input', key_name, False))
-    elif attr_name == 'outputs':
-        mutations.append(('del_output', key_name, False))
+    desc_str = expr_to_string(desc_node)
+    return '(optional)' in str(desc_str).lower()
 
 
-def collect_io_mutations(stmts, mutations):
-    """Collect I/O mutations in source order from a list of statements."""
-    for stmt in stmts:
-        if isinstance(stmt, ast.Assign):
-            optional = parse_optional_flag(stmt.value)
-            for target in stmt.targets:
-                if isinstance(target, ast.Subscript) and isinstance(target.value, ast.Attribute):
-                    if isinstance(target.value.value, ast.Name) and target.value.value.id == 'self':
-                        attr_name = target.value.attr
-                        key_name = get_subscript_key(target.slice)
-                        if key_name:
-                            record_add(mutations, attr_name, key_name, optional)
+def parse_port_dict(dict_node, is_input):
+    """Parse static port dict AST node and return parsed entries."""
+    if not isinstance(dict_node, ast.Dict):
+        return None
 
-        elif isinstance(stmt, ast.AnnAssign):
-            target = stmt.target
-            optional = parse_optional_flag(stmt.value)
-            if isinstance(target, ast.Subscript) and isinstance(target.value, ast.Attribute):
-                if isinstance(target.value.value, ast.Name) and target.value.value.id == 'self':
-                    attr_name = target.value.attr
-                    key_name = get_subscript_key(target.slice)
-                    if key_name:
-                        record_add(mutations, attr_name, key_name, optional)
+    if is_input:
+        parsed = {}
+        for key_node, value_node in zip(dict_node.keys, dict_node.values):
+            if key_node is None:
+                continue
+            key_name = get_subscript_key(key_node)
+            if key_name:
+                parsed[key_name] = parse_optional_from_input_desc(value_node)
+        return parsed
 
-        elif isinstance(stmt, ast.Delete):
-            for target in stmt.targets:
-                if isinstance(target, ast.Subscript) and isinstance(target.value, ast.Attribute):
-                    if isinstance(target.value.value, ast.Name) and target.value.value.id == 'self':
-                        attr_name = target.value.attr
-                        key_name = get_subscript_key(target.slice)
-                        if key_name:
-                            record_delete(mutations, attr_name, key_name)
+    parsed = []
+    for key_node in dict_node.keys:
+        if key_node is None:
+            continue
+        key_name = get_subscript_key(key_node)
+        if key_name and key_name not in parsed:
+            parsed.append(key_name)
+    return parsed
 
-        elif isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call):
+
+def merge_ports(current_ports, new_ports, is_input):
+    """Merge parsed ports preserving order for outputs."""
+    if is_input:
+        merged = dict(current_ports)
+        merged.update(new_ports)
+        return merged
+
+    merged = list(current_ports)
+    for name in new_ports:
+        if name not in merged:
+            merged.append(name)
+    return merged
+
+
+def extract_named_ports(class_node, method_name, is_input):
+    """Extract static ports from input_names/output_names methods.
+
+    Returns
+    -------
+    tuple
+        (mode, ports) where mode is one of:
+        - None: method not found or not statically parseable
+        - 'replace': method returns full local dictionary
+        - 'extend': method starts from super().<method_name>() and extends it
+    """
+    method_node = None
+    for item in class_node.body:
+        if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)) and item.name == method_name:
+            method_node = item
+            break
+
+    if method_node is None:
+        return None, None
+
+    var_values = {}
+    super_seeded_vars = set()
+
+    empty_ports = {} if is_input else []
+
+    for stmt in method_node.body:
+        if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name):
+            target_name = stmt.targets[0].id
+
+            if is_super_method_call(stmt.value, method_name):
+                var_values[target_name] = dict(empty_ports) if is_input else list(empty_ports)
+                super_seeded_vars.add(target_name)
+                continue
+
+            parsed = parse_port_dict(stmt.value, is_input=is_input)
+            if parsed is not None:
+                var_values[target_name] = parsed
+                continue
+
+        if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call):
             call = stmt.value
-            if isinstance(call.func, ast.Attribute) and isinstance(call.func.value, ast.Attribute):
-                parent = call.func.value
-                if isinstance(parent.value, ast.Name) and parent.value.id == 'self':
-                    attr_name = parent.attr
-                    method = call.func.attr
+            if isinstance(call.func, ast.Attribute) and call.func.attr == 'update':
+                if isinstance(call.func.value, ast.Name) and call.args:
+                    target_name = call.func.value.id
+                    parsed = parse_port_dict(call.args[0], is_input=is_input)
+                    if target_name in var_values and parsed is not None:
+                        var_values[target_name] = merge_ports(var_values[target_name], parsed, is_input=is_input)
+                        continue
 
-                    if method == 'pop' and call.args:
-                        key_name = expr_to_string(call.args[0])
-                        if key_name:
-                            record_delete(mutations, attr_name, key_name)
+        if isinstance(stmt, ast.Return):
+            parsed = parse_port_dict(stmt.value, is_input=is_input)
+            if parsed is not None:
+                return 'replace', parsed
 
-                    elif method == 'setdefault' and call.args:
-                        key_name = expr_to_string(call.args[0])
-                        optional = parse_optional_flag(call.args[1]) if len(call.args) > 1 else False
-                        if key_name:
-                            record_add(mutations, attr_name, key_name, optional)
+            if isinstance(stmt.value, ast.Name) and stmt.value.id in var_values:
+                mode = 'extend' if stmt.value.id in super_seeded_vars else 'replace'
+                return mode, var_values[stmt.value.id]
 
-                    elif method == 'update' and call.args:
-                        first = call.args[0]
-                        if isinstance(first, ast.Dict):
-                            for key_node, value_node in zip(first.keys, first.values):
-                                if key_node is None:
-                                    continue
-                                key_name = expr_to_string(key_node)
-                                optional = parse_optional_flag(value_node)
-                                if key_name:
-                                    record_add(mutations, attr_name, key_name, optional)
+            if is_super_method_call(stmt.value, method_name):
+                return 'extend', dict(empty_ports) if is_input else list(empty_ports)
 
-        if isinstance(stmt, ast.If):
-            collect_io_mutations(stmt.body, mutations)
-            collect_io_mutations(stmt.orelse, mutations)
-        elif isinstance(stmt, (ast.For, ast.AsyncFor, ast.While)):
-            collect_io_mutations(stmt.body, mutations)
-            collect_io_mutations(stmt.orelse, mutations)
-        elif isinstance(stmt, (ast.With, ast.AsyncWith)):
-            collect_io_mutations(stmt.body, mutations)
-        elif isinstance(stmt, ast.Try):
-            collect_io_mutations(stmt.body, mutations)
-            for handler in stmt.handlers:
-                collect_io_mutations(handler.body, mutations)
-            collect_io_mutations(stmt.orelse, mutations)
-            collect_io_mutations(stmt.finalbody, mutations)
+    return None, None
 
 
 def extract_classes_from_file(filepath):
@@ -216,16 +247,16 @@ def extract_classes_from_file(filepath):
             elif isinstance(b, ast.Attribute):
                 bases.append(b.attr)
                 
-        # 3. Extract Inputs & Outputs
-        mutations = []
-        for item in node.body:
-            if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                collect_io_mutations(item.body, mutations)
+        input_names_mode, named_inputs = extract_named_ports(node, 'input_names', is_input=True)
+        output_names_mode, named_outputs = extract_named_ports(node, 'output_names', is_input=False)
 
         results[node.name] = {
             'doc': short,
             'bases': bases,
-            'mutations': mutations,
+            'input_names_mode': input_names_mode,
+            'output_names_mode': output_names_mode,
+            'named_inputs': named_inputs,
+            'named_outputs': named_outputs,
             'module': str(filepath),
         }
     return results
@@ -262,17 +293,18 @@ def get_inherited_io(classname, registry, resolved=None):
             if o not in all_outputs:
                 all_outputs.append(o)
 
-    for op, key_name, opt in info['mutations']:
-        if op == 'set_input':
-            all_inputs[key_name] = bool(opt)
-        elif op == 'set_output':
-            if key_name not in all_outputs:
-                all_outputs.append(key_name)
-        elif op == 'del_input':
-            all_inputs.pop(key_name, None)
-        elif op == 'del_output':
-            if key_name in all_outputs:
-                all_outputs.remove(key_name)
+    # Resolve only from explicit input_names/output_names declarations.
+    if info.get('input_names_mode') == 'replace':
+        all_inputs = dict(info.get('named_inputs') or {})
+    elif info.get('input_names_mode') == 'extend':
+        all_inputs.update(info.get('named_inputs') or {})
+
+    if info.get('output_names_mode') == 'replace':
+        all_outputs = list(info.get('named_outputs') or [])
+    elif info.get('output_names_mode') == 'extend':
+        for out_name in info.get('named_outputs') or []:
+            if out_name not in all_outputs:
+                all_outputs.append(out_name)
   
     return all_inputs, all_outputs
 

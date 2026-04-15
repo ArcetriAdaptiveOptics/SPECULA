@@ -7,7 +7,7 @@ from specula.lib.make_mask import make_mask
 from specula.connections import InputValue
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.intensity import Intensity
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.data_objects.lenslet import Lenslet
 from specula.base_value import BaseValue
 from specula.data_objects.laser_launch_telescope import LaserLaunchTelescope
@@ -172,6 +172,20 @@ class SH(BaseProcessingObj):
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
         self.outputs['out_i'] = self._out_i
+
+    @classmethod
+    def input_names(cls):
+        return {
+            'in_ef': InputDesc(ElectricField, 'Input electric field from the telescope pupil'),
+            'sodium_altitude': InputDesc(BaseValue, 'Sodium layer altitude profile (optional)'),
+            'sodium_intensity': InputDesc(BaseValue, 'Sodium layer intensity profile (optional)'),
+        }
+
+    @classmethod
+    def output_names(cls):
+        return {
+            'out_i': OutputDesc(Intensity, 'Output Shack-Hartmann focal-plane intensity image'),
+        }
 
     def _set_in_ef(self, in_ef):
 

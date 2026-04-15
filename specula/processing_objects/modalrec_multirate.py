@@ -1,6 +1,6 @@
 from typing import List
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.connections import InputList
 from specula.data_objects.recmat import Recmat
@@ -96,6 +96,16 @@ class ModalrecMultirate(BaseProcessingObj):
             self.outputs[output_name] = out_val
             self.out_modes_list.append(out_val)
 
+    @classmethod
+    def input_names(cls):
+        return {
+            'in_slopes_list': InputDesc(Slopes, 'Input list of sensor slopes vectors'),
+        }
+
+    @classmethod
+    def output_names(cls):
+        return {}
+
     def setup(self):
         super().setup()
 
@@ -164,3 +174,8 @@ class ModalrecMultirate(BaseProcessingObj):
                 self.out_modes_list[i].value[:] = 0
 
             self.out_modes_list[i].generation_time = self.current_time
+
+    def check_output_names(self):
+        # AtmoPropagation outputs are created dynamically from stored data files;
+        # skip the static output_names validation.
+        pass

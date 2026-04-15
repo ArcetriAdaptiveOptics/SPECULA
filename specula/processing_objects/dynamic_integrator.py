@@ -1,6 +1,6 @@
 
 from specula.processing_objects.integrator import Integrator
-from specula.base_processing_obj import InputDesc, OutputDesc
+from specula.base_processing_obj import InputDesc
 from specula.data_objects.simul_params import SimulParams
 from specula.connections import InputValue
 from specula.base_value import BaseValue
@@ -73,8 +73,7 @@ class DynamicIntegrator(Integrator):
 
     @classmethod
     def output_names(cls):
-        return {'out_comm': OutputDesc(BaseValue, 'Output command vector with delay applied'),
-                'out_comm_no_delay': OutputDesc(BaseValue, 'Output command vector without delay (for POLC)')}
+        return super().output_names()
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
