@@ -176,6 +176,6 @@ class ModalrecMultirate(BaseProcessingObj):
             self.out_modes_list[i].generation_time = self.current_time
 
     def check_output_names(self):
-        # AtmoPropagation outputs are created dynamically from stored data files;
+        # ModalrecMultirate outputs are created dynamically from stored data files;
         # skip the static output_names validation.
         pass
