@@ -294,8 +294,14 @@ class BaseProcessingObj(BaseTimeObj):
     def _normalize_declared_pattern(pattern):
         """Normalize declared I/O names to a fnmatch-compatible pattern.
 
-        Supports both glob patterns (e.g. out_modes_*) and placeholder-style
-        declarations (e.g. out_modes_{sensor_idx}).
+        Declaration grammar accepted by sanity checks:
+        - Exact names: ``out_comm``
+        - Glob-like names: ``out_modes_*``
+        - Placeholder-like names: ``out_modes_{sensor_idx}``
+
+        Placeholder segments delimited by ``{...}`` are treated as wildcards and
+        internally converted to ``*``. Matching is delegated to
+        :func:`fnmatch.fnmatchcase`.
         """
         normalized = _PLACEHOLDER_PATTERN.sub('*', str(pattern))
         return normalized
@@ -320,7 +326,19 @@ class BaseProcessingObj(BaseTimeObj):
     def check_input_names(self):
         '''
         Check that all input names declared in self.input_names are present in self.inputs
-        with the correct type (InputValue or list of InputValue).
+                with the correct type (InputValue or InputList).
+
+                Supported declaration grammar for input names:
+                - Exact names, e.g. ``in_ef``
+                - Glob patterns, e.g. ``in_sensor_*``
+                - Placeholder patterns, e.g. ``in_sensor_{idx}``
+
+                Notes
+                -----
+                - Placeholder segments ``{...}`` are treated as wildcards.
+                - Optional declarations are identified by descriptions ending with
+                    ``(optional)``.
+                - Exact-key matches take precedence over pattern matches.
         '''
         if not hasattr(self, 'input_names'):
             return
@@ -354,6 +372,16 @@ class BaseProcessingObj(BaseTimeObj):
     def check_output_names(self):
         '''
         Check that all output names declared in self.output_names are present in self.outputs
+
+        Supported declaration grammar for output names:
+        - Exact names, e.g. ``out_ef``
+        - Glob patterns, e.g. ``out_modes_*``
+        - Placeholder patterns, e.g. ``out_modes_{sensor_idx}``
+
+        Notes
+        -----
+        - Placeholder segments ``{...}`` are treated as wildcards.
+        - Exact-key matches take precedence over pattern matches.
         '''
         if not hasattr(self, 'output_names'):
             return
