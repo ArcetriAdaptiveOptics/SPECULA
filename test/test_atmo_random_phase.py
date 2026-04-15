@@ -67,7 +67,6 @@ class TestAtmoRandomPhase(unittest.TestCase):
 
     @cpu_and_gpu
     def test_sanity_check_with_named_sources(self, target_device_idx, xp):
-        _ = xp
         data_dir = os.path.join(os.path.dirname(__file__), 'data')
         on_axis_source = Source(polar_coordinates=[0.0, 0.0], magnitude=8, wavelengthInNm=750)
         lgs1_source = Source(polar_coordinates=[45.0, 0.0], height=90000, magnitude=5, wavelengthInNm=589)
@@ -86,7 +85,6 @@ class TestAtmoRandomPhase(unittest.TestCase):
 
     @cpu_and_gpu
     def test_sanity_check_without_source_dict(self, target_device_idx, xp):
-        _ = xp
         data_dir = os.path.join(os.path.dirname(__file__), 'data')
         simul_params = SimulParams(pixel_pupil=16, pixel_pitch=0.05)
         atmo = AtmoRandomPhase(

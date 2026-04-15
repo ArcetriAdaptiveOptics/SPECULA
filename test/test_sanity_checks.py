@@ -114,7 +114,6 @@ class TestAtmoPropagationSanityCheck(unittest.TestCase):
 
     @cpu_and_gpu
     def test_sanity_check_with_dynamic_outputs(self, target_device_idx, xp):
-        _ = xp
         from specula.data_objects.simul_params import SimulParams
         from specula.data_objects.source import Source
         from specula.processing_objects.atmo_propagation import AtmoPropagation
