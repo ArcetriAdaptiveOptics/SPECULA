@@ -25,7 +25,7 @@ def scan_base_classes(specula_path):
 
     return sorted(base_files)
 
-def generate_simple_api_doc(category_name, modules, description=""):
+def generate_simple_api_doc(category_name, modules, description="", include_members=True):
     """Generate simple RST content for all modules in a category"""
     title = f"{category_name} API"
     content = f"""{title}
@@ -37,14 +37,19 @@ def generate_simple_api_doc(category_name, modules, description=""):
     
     for module in modules:
         module_title = module.split('.')[-1].replace('_', ' ').title()
+        members_block = ""
+        if include_members:
+            members_block = (
+                "   :members:\n"
+                "   :undoc-members:\n"
+                "   :show-inheritance:\n"
+            )
         content += f"""
 {module_title}
 {'-' * len(module_title)}
 
 .. automodule:: {module}
-   :members:
-   :undoc-members:
-   :show-inheritance:
+{members_block}
 
 """
     return content
@@ -75,7 +80,8 @@ def main():
             "path": specula_path / "lib",
             "package": "specula.lib",
             "description": "Utility functions and libraries.",
-            "filename": "lib"
+            "filename": "lib",
+            "include_members": False,
         }
     }
 
@@ -93,7 +99,8 @@ def main():
             content = generate_simple_api_doc(
                 category_name,
                 all_modules,
-                config["description"]
+                config["description"],
+                include_members=config.get("include_members", True),
             )
 
             # Write the file
