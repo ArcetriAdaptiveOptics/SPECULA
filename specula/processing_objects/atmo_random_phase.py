@@ -145,13 +145,13 @@ class AtmoRandomPhase(BaseProcessingObj):
     @classmethod
     def output_names(cls):
         return {
-            'out*_layer': OutputDesc(
+            'out_{source_name_}layer': OutputDesc(
                 Layer,
-                'Output phase-screen layer for default or named source channels',
+                'Output phase-screen layer for default or named source channel [source_name]',
             ),
-            'out*_ef': OutputDesc(
+            'out_{source_name_}ef': OutputDesc(
                 ElectricField,
-                'Output electric field for default or named source channels',
+                'Output electric field for default or named source channel [source_name]',
             ),
         }
 

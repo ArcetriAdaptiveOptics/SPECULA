@@ -131,7 +131,3 @@ class TestAtmoPropagationSanityCheck(unittest.TestCase):
         # validation is intentionally skipped for this class.
         obj.outputs['out_extra_ef'] = BaseValue(target_device_idx=target_device_idx)
         obj.sanity_check()
-
-
-if __name__ == '__main__':
-    unittest.main()

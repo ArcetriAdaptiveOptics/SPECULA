@@ -328,10 +328,10 @@ class TestBaseProcessingObj(unittest.TestCase):
         obj.check_input_names.assert_called_once()
         obj.check_output_names.assert_called_once()
 
-    def test_check_output_names_supports_glob_pattern(self):
+    def test_check_output_names_supports_placeholder_pattern_multiple_outputs(self):
         obj = BaseProcessingObj(target_device_idx=-1)
         obj.output_names = MagicMock(return_value={
-            "out_modes_*": (BaseValue, "Dynamic outputs"),
+            "out_modes_{sensor_idx}": (BaseValue, "Dynamic outputs"),
         })
         obj.outputs = {
             "out_modes_0": BaseValue(),
@@ -367,7 +367,7 @@ class TestBaseProcessingObj(unittest.TestCase):
     def test_check_output_names_pattern_missing_raises(self):
         obj = BaseProcessingObj(target_device_idx=-1)
         obj.output_names = MagicMock(return_value={
-            "out_modes_*": (BaseValue, "Dynamic outputs"),
+            "out_modes_{sensor_idx}": (BaseValue, "Dynamic outputs"),
         })
         obj.outputs = {
             "out_other": BaseValue(),

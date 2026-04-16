@@ -296,11 +296,13 @@ class BaseProcessingObj(BaseTimeObj):
 
         Declaration grammar accepted by sanity checks:
         - Exact names: ``out_comm``
-        - Glob-like names: ``out_modes_*``
-        - Placeholder-like names: ``out_modes_{sensor_idx}``
+                - Placeholder-like names: ``out_modes_{sensor_idx}``
+                    (used in ``ModalrecMultirate.output_names``)
+                - Placeholder-like names: ``out_{source_name_}ef``
+                    (used in ``AtmoRandomPhase.output_names``)
 
-        Placeholder segments delimited by ``{...}`` are treated as wildcards and
-        internally converted to ``*``. Matching is delegated to
+                Placeholder segments delimited by ``{...}`` are treated as wildcards and
+                internally converted to ``*``. Matching is delegated to
         :func:`fnmatch.fnmatchcase`.
         """
         normalized = _PLACEHOLDER_PATTERN.sub('*', str(pattern))
@@ -330,12 +332,13 @@ class BaseProcessingObj(BaseTimeObj):
 
                 Supported declaration grammar for input names:
                 - Exact names, e.g. ``in_ef``
-                - Glob patterns, e.g. ``in_sensor_*``
                 - Placeholder patterns, e.g. ``in_sensor_{idx}``
 
                 Notes
                 -----
                 - Placeholder segments ``{...}`` are treated as wildcards.
+                                - In project classes, placeholder-style declarations are mandatory;
+                                    do not use raw ``*`` declarations in ``input_names()``.
                 - Optional declarations are identified by descriptions ending with
                     ``(optional)``.
                 - Exact-key matches take precedence over pattern matches.
@@ -375,12 +378,16 @@ class BaseProcessingObj(BaseTimeObj):
 
         Supported declaration grammar for output names:
         - Exact names, e.g. ``out_ef``
-        - Glob patterns, e.g. ``out_modes_*``
-        - Placeholder patterns, e.g. ``out_modes_{sensor_idx}``
+                - Placeholder patterns, e.g. ``out_modes_{sensor_idx}``
+                    (``ModalrecMultirate``)
+                - Placeholder patterns, e.g. ``out_{source_name_}layer``
+                    (``AtmoRandomPhase``)
 
         Notes
         -----
         - Placeholder segments ``{...}`` are treated as wildcards.
+                                - In project classes, placeholder-style declarations are mandatory;
+                                    do not use raw ``*`` declarations in ``output_names()``.
         - Exact-key matches take precedence over pattern matches.
         '''
         if not hasattr(self, 'output_names'):

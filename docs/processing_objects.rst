@@ -107,11 +107,16 @@ against runtime ``self.inputs`` and ``self.outputs`` (via ``sanity_check()``).
 Declared names can use the following grammar:
 
 * exact names, for example ``out_ef``
-* glob-style names, for example ``out_modes_*``
-* placeholder-style names, for example ``out_modes_{sensor_idx}``
+* placeholder-style names, for example:
+    * ``out_modes_{sensor_idx}`` in ``ModalrecMultirate.output_names()``
+    * ``out_{source_name_}layer`` and ``out_{source_name_}ef`` in ``AtmoRandomPhase.output_names()``
 
 Placeholder segments delimited by ``{...}`` are treated as wildcards
 and matched with glob semantics.
+
+Raw ``*`` patterns are still supported by the matcher for backward compatibility,
+but in class-level ``input_names()`` and ``output_names()`` declarations
+placeholder-based ``{...}`` patterns are mandatory.
 
 Matching notes:
 
