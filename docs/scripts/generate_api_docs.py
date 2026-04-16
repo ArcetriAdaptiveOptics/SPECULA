@@ -39,11 +39,11 @@ def generate_simple_api_doc(category_name, modules, description="", include_memb
         module_title = module.split('.')[-1].replace('_', ' ').title()
         members_block = ""
         if include_members:
-            members_block = """
-   :members:
-   :undoc-members:
-   :show-inheritance:
-"""
+            members_block = (
+                "   :members:\n"
+                "   :undoc-members:\n"
+                "   :show-inheritance:\n"
+            )
         content += f"""
 {module_title}
 {'-' * len(module_title)}

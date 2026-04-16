@@ -55,6 +55,9 @@ extensions = ['sphinx.ext.autodoc',
 autosummary_generate = True
 autosummary_generate_overwrite = True
 
+# Include both class docstring and __init__ docstring in class API pages.
+autoclass_content = 'both'
+
 # Avoid strict-build failures from numpydoc-generated per-method toctrees
 # when explicit stub pages are not provided.
 numpydoc_class_members_toctree = False
