@@ -133,5 +133,16 @@ default_role = 'py:obj'
 import subprocess
 
 _scripts_dir = os.path.join(os.path.dirname(__file__), 'scripts')
+_repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+_subproc_env = os.environ.copy()
+_subproc_env['PYTHONPATH'] = (
+    _repo_root
+    if not _subproc_env.get('PYTHONPATH')
+    else _repo_root + os.pathsep + _subproc_env['PYTHONPATH']
+)
 for script in ('generate_api_docs.py', 'generate_objects_summary.py'):
-    subprocess.run([sys.executable, os.path.join(_scripts_dir, script)], check=True)
+    subprocess.run(
+        [sys.executable, os.path.join(_scripts_dir, script)],
+        check=True,
+        env=_subproc_env,
+    )
