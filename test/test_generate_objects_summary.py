@@ -146,4 +146,36 @@ class TestGenerateObjectsSummary(unittest.TestCase):
             self.assertIn('in_sig', rst)
             self.assertIn('gain_mod *(opt)*', rst)
             self.assertIn('out_modes_[sensor_idx]', rst)
-            self.assertNotIn('     - -\n     - -', rst)
+            self.assertIn('     - -\n     - -', rst)
+
+    def test_generate_rst_table_raises_on_empty_processing_summary(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            pkg = root / 'pkg_broken'
+            file_path = pkg / 'broken_obj.py'
+
+            self._write_file(pkg / '__init__.py', '')
+            self._write_file(
+                file_path,
+                """
+                import definitely_missing_dependency
+
+                class BrokenObj:
+                    pass
+                """,
+            )
+
+            modules = [('pkg_broken.broken_obj', file_path)]
+
+            sys.path.insert(0, str(root))
+            self.addCleanup(lambda: sys.path.remove(str(root)) if str(root) in sys.path else None)
+
+            with self.assertRaises(RuntimeError) as cm:
+                generate_objects_summary.generate_rst_table(
+                    'Processing Objects',
+                    modules,
+                    description='Synthetic failing table.',
+                    include_io=True,
+                )
+
+            self.assertIn('No classes extracted', str(cm.exception))

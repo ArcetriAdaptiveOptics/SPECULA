@@ -199,14 +199,22 @@ def _iter_module_class_infos(module_name, filepath):
 def generate_rst_table(category_name, modules, description='', include_io=False):
     """Generate RST content with a table listing class names, descriptions, and I/O."""
     valid_classes = []
+    skipped_modules = []
     for module_name, filepath in modules:
         module_classes = _iter_module_class_infos(module_name, filepath)
-        if include_io:
-            module_classes = [
-                item for item in module_classes
-                if item[2].get('named_inputs') or item[2].get('named_outputs')
-            ]
+        if not module_classes:
+            skipped_modules.append(module_name)
         valid_classes.extend(module_classes)
+
+    # For processing objects we require at least one importable class with I/O.
+    # An empty summary is usually caused by hidden import errors and should fail docs build.
+    if include_io and modules and not valid_classes:
+        raise RuntimeError(
+            'No classes extracted while generating processing-objects summary. '
+            f'Modules scanned: {len(modules)}; modules without extracted classes: '
+            f'{len(skipped_modules)}. '
+            'This is commonly caused by import errors in processing object modules.'
+        )
 
     title = f"{category_name} Summary"
     lines = [
