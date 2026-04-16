@@ -97,6 +97,14 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
     na_thickness_in_ma = na_thickness_in_m * airmass
 
     # Convert flattened sub-aperture indices to 2D coordinates
+    if sub_aps_index.size:
+        max_idx = n_sub_aps * n_sub_aps
+        if sub_aps_index.min() < 0 or sub_aps_index.max() >= max_idx:
+            raise ValueError(
+                f"sub_aps_index contains out-of-range values for grid "
+                f"{n_sub_aps}x{n_sub_aps}"
+            )
+
     y_idx = sub_aps_index // n_sub_aps
     x_idx = sub_aps_index % n_sub_aps
 
