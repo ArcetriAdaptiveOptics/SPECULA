@@ -1,4 +1,6 @@
 from collections import defaultdict, namedtuple
+import fnmatch
+import re
 
 from specula import cpuArray, default_target_device, cp, MPI_DBG, MPI_SEND_DBG
 from specula import show_in_profiler
@@ -10,6 +12,8 @@ from specula.data_objects.layer import Layer
 
 InputDesc = namedtuple('InputDesc', 'type desc')
 OutputDesc = namedtuple('OutputDesc', 'type desc')
+
+_PLACEHOLDER_PATTERN = re.compile(r'\{[^{}]+\}')
 
 
 class BaseProcessingObj(BaseTimeObj):
@@ -286,41 +290,130 @@ class BaseProcessingObj(BaseTimeObj):
         self.check_input_names()
         self.check_output_names()
 
+    @staticmethod
+    def _normalize_declared_pattern(pattern):
+        """Normalize declared I/O names to a fnmatch-compatible pattern.
+
+        Declaration grammar accepted by sanity checks:
+        - Exact names: ``out_comm``
+                - Placeholder-like names: ``out_modes_{sensor_idx}``
+                    (used in ``ModalrecMultirate.output_names``)
+                - Placeholder-like names: ``out_{source_name_}ef``
+                    (used in ``AtmoRandomPhase.output_names``)
+
+                Placeholder segments delimited by ``{...}`` are treated as wildcards and
+                internally converted to ``*``. Matching is delegated to
+        :func:`fnmatch.fnmatchcase`.
+        """
+        normalized = _PLACEHOLDER_PATTERN.sub('*', str(pattern))
+        return normalized
+
+    @classmethod
+    def _match_declared_name(cls, actual_name, declared_name):
+        normalized = cls._normalize_declared_pattern(declared_name)
+        return fnmatch.fnmatchcase(actual_name, normalized)
+
+    @classmethod
+    def _best_declared_match(cls, actual_name, declared_map):
+        # Prefer exact match when available, then fallback to first pattern match.
+        if actual_name in declared_map:
+            return actual_name, declared_map[actual_name]
+
+        for declared_name, declared_desc in declared_map.items():
+            if cls._match_declared_name(actual_name, declared_name):
+                return declared_name, declared_desc
+
+        return None, None
+
     def check_input_names(self):
         '''
         Check that all input names declared in self.input_names are present in self.inputs
-        with the correct type (InputValue or list of InputValue).
+                with the correct type (InputValue or InputList).
+
+                Supported declaration grammar for input names:
+                - Exact names, e.g. ``in_ef``
+                - Placeholder patterns, e.g. ``in_sensor_{idx}``
+
+                Notes
+                -----
+                - Placeholder segments ``{...}`` are treated as wildcards.
+                                - In project classes, placeholder-style declarations are mandatory;
+                                    do not use raw ``*`` declarations in ``input_names()``.
+                - Optional declarations are identified by descriptions ending with
+                    ``(optional)``.
+                - Exact-key matches take precedence over pattern matches.
         '''
         if not hasattr(self, 'input_names'):
             return
         input_dict = self.input_names()
-        for k, v in input_dict.items():
-            if v[1].endswith("(optional)"):
-                continue
-            if not k in self.inputs:
-                raise ValueError(f"Input {k} declared in input_names but not present in inputs")
-            if not isinstance(self.inputs[k], (InputValue, InputList)):
-                raise TypeError(f"Input {k} must be an InputValue or an InputList")
-            if self.inputs[k].output_ref_type is not v[0]:
-                raise TypeError(f"Input {k} must be of type {v[0]}, but got {self.inputs[k].type}")
+        for declared_name, declared_desc in input_dict.items():
+            optional_decl = declared_desc[1].endswith("(optional)")
+            declared_matches = [
+                name for name in self.inputs
+                if self._match_declared_name(name, declared_name)
+            ]
+            if not optional_decl and not declared_matches:
+                raise ValueError(
+                    f"Input {declared_name} declared in input_names but not present in inputs"
+                )
 
-        for k in self.inputs:
-            if not k in input_dict:
-                raise ValueError(f"Input {k} present in inputs but not declared in input_names")
+        for input_name, input_obj in self.inputs.items():
+            declared_name, declared_desc = self._best_declared_match(input_name, input_dict)
+            if declared_name is None:
+                raise ValueError(f"Input {input_name} present in inputs but not declared in input_names")
+
+            if not isinstance(input_obj, (InputValue, InputList)):
+                raise TypeError(f"Input {input_name} must be an InputValue or an InputList")
+
+            expected_type = declared_desc[0]
+            if input_obj.output_ref_type is not expected_type:
+                raise TypeError(
+                    f"Input {input_name} must be of type {expected_type}, "
+                    f"but got {input_obj.type}"
+                )
 
     def check_output_names(self):
         '''
         Check that all output names declared in self.output_names are present in self.outputs
+
+        Supported declaration grammar for output names:
+        - Exact names, e.g. ``out_ef``
+                - Placeholder patterns, e.g. ``out_modes_{sensor_idx}``
+                    (``ModalrecMultirate``)
+                - Placeholder patterns, e.g. ``out_{source_name_}layer``
+                    (``AtmoRandomPhase``)
+
+        Notes
+        -----
+        - Placeholder segments ``{...}`` are treated as wildcards.
+                                - In project classes, placeholder-style declarations are mandatory;
+                                    do not use raw ``*`` declarations in ``output_names()``.
+        - Exact-key matches take precedence over pattern matches.
         '''
         if not hasattr(self, 'output_names'):
             return
         output_list = self.output_names()
-        for k, v in output_list.items():
-            if not k in self.outputs:
-                raise ValueError(f"Output {k} declared in output_names but not present in outputs")
-            if not isinstance(self.outputs[k], v[0]):
-                raise TypeError(f"Output {k} must be of type {v[0]}, but got {type(self.outputs[k])}")
+        for declared_name, declared_desc in output_list.items():
+            declared_matches = [
+                name for name in self.outputs
+                if self._match_declared_name(name, declared_name)
+            ]
+            if not declared_matches:
+                raise ValueError(
+                    f"Output {declared_name} declared in output_names but not present in outputs"
+                )
 
-        for k in self.outputs:
-            if not k in output_list:
-                raise ValueError(f"Output {k} present in outputs but not declared in output_names")
+            expected_type = declared_desc[0]
+            for output_name in declared_matches:
+                if not isinstance(self.outputs[output_name], expected_type):
+                    raise TypeError(
+                        f"Output {output_name} must be of type {expected_type}, "
+                        f"but got {type(self.outputs[output_name])}"
+                    )
+
+        for output_name in self.outputs:
+            declared_name, _ = self._best_declared_match(output_name, output_list)
+            if declared_name is None:
+                raise ValueError(
+                    f"Output {output_name} present in outputs but not declared in output_names"
+                )
