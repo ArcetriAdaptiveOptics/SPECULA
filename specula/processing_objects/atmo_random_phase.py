@@ -147,11 +147,11 @@ class AtmoRandomPhase(BaseProcessingObj):
         return {
             'out_{source_name_}layer': OutputDesc(
                 Layer,
-                'Output phase-screen layer for default or named source channel [source_name]',
+                'Output phase-screen layer for named source [source_name]; if source name is None, key is out_layer',
             ),
             'out_{source_name_}ef': OutputDesc(
                 ElectricField,
-                'Output electric field for default or named source channel [source_name]',
+                'Output electric field for named source [source_name]; if source name is None, key is out_ef',
             ),
         }
 
