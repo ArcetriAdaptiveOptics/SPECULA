@@ -66,6 +66,8 @@ Configuration System
 Simulations are defined through hierarchical YAML configuration files.
 See `tutorials/scao_tutorial` for a SCAO system example and the files in the ``config/scao`` directory.
 
+.. _special-yaml-options-data-and-object:
+
 Special YAML Options: ``_data``, ``_object``, and ``_ref``
 ----------------------------------------------------------
 

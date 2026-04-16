@@ -121,17 +121,16 @@ class BaseProcessingObj(BaseTimeObj):
 
     def trigger_code(self):
         '''
-        Any code implemented by derived classes must:
-        1) only perform GPU operations using the xp module
-           on arrays allocated with self.xp
-        2) avoid any explicity numpy or normal python operation.
-        3) NOT use any value in variables that are reallocated by prepare_trigger() or post_trigger(),
-           and in general avoid any value defined outside this class (like object inputs)
-        
-        because if stream capture is used, a CUDA graph will be generated that will skip
-        over any non-GPU operation and re-use GPU memory addresses of its first run.
-        
-        Defining local variables inside this function is OK, they will persist in GPU memory.
+                Implementations in derived classes should run GPU operations using
+                the xp module on arrays allocated with self.xp.
+
+                Avoid explicit numpy or pure-Python operations and avoid using values
+                from variables that are reallocated by prepare_trigger() or
+                post_trigger().
+
+                When stream capture is enabled, a CUDA graph is generated, non-GPU
+                operations are skipped, and GPU memory addresses from the first run
+                are reused.
         '''
         pass
 
@@ -176,12 +175,13 @@ class BaseProcessingObj(BaseTimeObj):
     def send_outputs(self, skip_delayed=False, delayed_only=False, first_mpi_send=True):
         '''
         Send all remote outputs via MPI.
-        If *skip_delayed* is True, skip sending all delayed outputs.
-            Used during the last iteration when the simulation is ending and
-            no one would receive the delayed inputs.
-        If *delayed_only* is True, only send the delayed outputs.
-            Used while setting up the simulation, to initialize outputs
-            that are delayed and thus would not be received otherwise.
+        If *skip_delayed* is True, skip sending delayed outputs.
+        This is used during the last iteration when the simulation is ending
+        and no one would receive delayed inputs.
+
+        If *delayed_only* is True, only send delayed outputs.
+        This is used while setting up the simulation to initialize outputs
+        that are delayed and would not be received otherwise.
         '''
         if MPI_DBG:
             print(process_rank, self.name, 'My outputs are:')

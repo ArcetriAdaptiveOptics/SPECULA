@@ -51,6 +51,14 @@ extensions = ['sphinx.ext.autodoc',
               'numpydoc',
               ]
 
+# Make autosummary behavior deterministic across Sphinx versions.
+autosummary_generate = True
+autosummary_generate_overwrite = True
+
+# Avoid strict-build failures from numpydoc-generated per-method toctrees
+# when explicit stub pages are not provided.
+numpydoc_class_members_toctree = False
+
 source_suffix = {
     '.rst': 'restructuredtext',
     '.md': 'markdown',

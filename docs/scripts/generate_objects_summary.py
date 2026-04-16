@@ -29,7 +29,9 @@ def _first_doc_paragraph(docstring):
 
 def _get_short_doc(klass):
     docstring = inspect.getdoc(klass) or inspect.getdoc(getattr(klass, '__init__', None))
-    return _first_doc_paragraph(docstring)
+    short_doc = _first_doc_paragraph(docstring)
+    # Keep inline literals from being interpreted as unresolved roles.
+    return short_doc.replace('`', '``')
 
 
 def _is_optional_input(desc_obj):
@@ -252,7 +254,12 @@ def generate_rst_table(category_name, modules, description='', include_io=False)
         lines.append(f'   * - :class:`~{full_name}`')
 
         desc = info['doc'] if info['doc'] else '*No description available.*'
-        wrapped_lines = textwrap.wrap(desc, width=50)
+        wrapped_lines = textwrap.wrap(
+            desc,
+            width=50,
+            break_long_words=False,
+            break_on_hyphens=False,
+        )
         cell_content = '\n       | '.join(wrapped_lines)
         if len(wrapped_lines) > 1:
             cell_content = '| ' + cell_content
@@ -270,12 +277,22 @@ def generate_rst_table(category_name, modules, description='', include_io=False)
             in_str = ', '.join(in_list) if in_list else '-'
             out_str = ', '.join(out_list) if out_list else '-'
 
-            in_lines = textwrap.wrap(in_str, width=30)
+            in_lines = textwrap.wrap(
+                in_str,
+                width=30,
+                break_long_words=False,
+                break_on_hyphens=False,
+            )
             in_wrapped = '\n       | '.join(in_lines)
             if len(in_lines) > 1:
                 in_wrapped = '| ' + in_wrapped
 
-            out_lines = textwrap.wrap(out_str, width=30)
+            out_lines = textwrap.wrap(
+                out_str,
+                width=30,
+                break_long_words=False,
+                break_on_hyphens=False,
+            )
             out_wrapped = '\n       | '.join(out_lines)
             if len(out_lines) > 1:
                 out_wrapped = '| ' + out_wrapped
