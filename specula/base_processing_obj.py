@@ -46,7 +46,8 @@ class BaseProcessingObj(BaseTimeObj):
         if self.target_device_idx >= 0:
             self._target_device.use()
 
-        # Default name is none is given externally
+        # Default name is the class name, a more specific one
+        # can be given externally by the Simul class
         self.name = self.__class__.__name__
 
     # Use the correct CUDA device for allocations in derived classes' prepare_trigger()

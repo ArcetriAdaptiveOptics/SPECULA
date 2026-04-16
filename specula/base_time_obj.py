@@ -74,7 +74,8 @@ class BaseTimeObj:
         self._lu_solve = lu_solve
         self._scipy_ifft2 = scipy_ifft2
 
-    def init_logging(self, name, level=None):
+    def init_logging(self, level=None):
+        name = getattr(self, 'name', None)
         self.logger.set_instance_name(name)
         if level is not None:
             self.logger.setLevel(level)

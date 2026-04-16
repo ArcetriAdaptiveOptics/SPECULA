@@ -145,7 +145,6 @@ psf:
   wavelengthInNm:    1650                 # [nm] Imaging wavelength
   nd:                8                    # padding coefficient for PSF computation
   start_time:        0.05                # PSF integration start time
-  verbose:           false
   inputs:
       in_ef:  'prop.out_on_axis_source_ef'
   outputs: ['out_sr']

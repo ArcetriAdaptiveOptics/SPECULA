@@ -102,7 +102,7 @@ class Simul():
                  diagram_filename=None,
                  diagram_colors_on=False,
                  speed_report=True,
-                 log_level=logging.INFO,
+                 log_level: str='info',
                  ):
         if len(param_files) < 1:
             raise ValueError('At least one Yaml parameter file must be present')
@@ -129,7 +129,7 @@ class Simul():
         self.diagram_colors_on = diagram_colors_on
         self.speed_report = speed_report
         self.logger = get_specula_logger(__name__)
-        self.logger.setLevel(log_level)
+        self.logger.setLevel(log_level.upper())
 
     def split_output(self, output_name, get_ref=False, use_inputs=False):
         '''
@@ -401,7 +401,7 @@ class Simul():
                 self.logger.info(f'Restoring: {filename}')
                 self.objs[key] = klass.restore(filename, target_device_idx=target_device_idx)
                 self.objs[key].name = key
-                self.obj_init_logging(self.objs[key], pars)
+                self.objs[key].init_logging(self.logger.getEffectiveLevel())
                 self.objs[key].printMemUsage()
                 self.objs[key].tag = pars['tag']
                 continue
@@ -570,7 +570,7 @@ class Simul():
                         filename = cm.filename(parname, value)  # TODO use partype instead of parname?
                         self.logger.info(f'Restoring: {filename}')
                         parobj = partype.restore(filename, target_device_idx=target_device_idx)
-                        self.obj_init_logging(parobj)
+                        parobj.init_logging(self.logger.getEffectiveLevel())
                         parobj.printMemUsage()
 
                         # Set data_tag
@@ -608,42 +608,16 @@ class Simul():
             try:
                 self.objs[key] = klass(**my_params)
                 self.objs[key].name = key
-                self.obj_init_logging(self.objs[key], pars)
+                self.objs[key].init_logging(self.logger.getEffectiveLevel())
             except Exception:
                 self.logger.error('Exception building {key}')
                 raise
             if classname != 'SimulParams':
                 self.objs[key].stopMemUsageCount()
 
-
             # TODO this could be more general like the getters above
             if type(self.objs[key]) is DataStore:
                 self.objs[key].setParams(params)
-
-    def obj_init_logging(self, obj, pars={}):
-        '''
-        Set the log level of the object according to the "verbose" parameter in the pars dictionary, which
-        can be either a boolean or an integer. If the parameter is not present, the log level of the Simul object is used.
-        '''
-        levels = get_level_names_mapping()
-        if 'verbose' in pars:
-            if pars['verbose'] is True:
-                level = logging.DEBUG
-            elif pars['verbose'] is False:
-                level = logging.INFO
-            elif type(pars['verbose']) is int:
-                level = int(pars['verbose'])
-            elif type(pars['verbose']) is str and pars['verbose'].upper() in levels.keys():
-                level = levels[pars['verbose'].upper()]
-            else:
-                raise ValueError(f'Invalid value for "verbose" parameter: {pars["verbose"]} (should be an integer number or True/False or a level string)')
-            del pars['verbose']
-        else:
-            level = self.logger.getEffectiveLevel()
-        if hasattr(obj, 'name'):
-            obj.init_logging(obj.name, level)
-        else:
-            obj.init_logging(None, level)
 
     def connect(self, output_name, input_name, dest_object):
         '''

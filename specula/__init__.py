@@ -236,7 +236,7 @@ def main_simul(yml_files: list,
                ):
 
     # Set logging level for the "parent" specula logger
-    logging.getLogger('specula').setLevel(log_level)
+    logging.getLogger('specula').setLevel(log_level.upper())
 
     if mpi:
         try:
