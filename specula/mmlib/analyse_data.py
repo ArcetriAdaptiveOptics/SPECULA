@@ -63,7 +63,7 @@ def plot_output_data(root_dir:str,calib_dir:str):
         except:
             pass
 
-    init = int(1.0*fs)
+    init = int(0.2*fs)
 
     #################### SR ######################
     try:

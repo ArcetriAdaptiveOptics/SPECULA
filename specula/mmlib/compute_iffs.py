@@ -13,6 +13,8 @@ from specula.data_objects.m2c import M2C
 from specula.calib_manager import CalibManager
 from specula import cpuArray
 
+from specula.mmlib.utils import remap_on_new_mask
+
 from astropy.io import fits
 
 def compute_and_save_influence_functions(root_dir:str, tag:str, pupil_pixels:int, n_acts:int, geom:str='circular',
@@ -81,7 +83,7 @@ def compute_and_save_influence_functions(root_dir:str, tag:str, pupil_pixels:int
     else:
         pupil_mask = make_mask(np_size=pupil_pixels, diaratio=1.0, obsratio=obsratio)
         
-    # unobs_pupil_mask = make_mask(np_size=pupil_pixels, diaratio=1.0)
+    unobs_pupil_mask = make_mask(np_size=pupil_pixels, diaratio=1.0)
 
     # Step 1: Generate zonal influence functions
     influence_functions,mask,coords,slaveMat = compute_zonal_ifunc(
@@ -95,7 +97,7 @@ def compute_and_save_influence_functions(root_dir:str, tag:str, pupil_pixels:int
         slaving_thr=slavingThr,
         obsratio=obsratio,
         diaratio=diaratio*shrink_coords,
-        mask=cpuArray(pupil_mask),
+        mask=specula.xp.array(pupil_mask),
         xp=specula.xp,
         dtype=dtype,
         # return_coordinates=False,
@@ -114,7 +116,7 @@ def compute_and_save_influence_functions(root_dir:str, tag:str, pupil_pixels:int
     print(f"\nGenerating KL modal basis...")
 
     kl_basis, m2c, singular_values = make_modal_base_from_ifs_fft(
-        pupil_mask=pupil_mask,
+        pupil_mask=specula.xp.array(pupil_mask), #specula.xp.array(unobs_pupil_mask),#
         diameter=telescope_diameter,
         influence_functions=influence_functions,
         r0=r0,
@@ -125,6 +127,8 @@ def compute_and_save_influence_functions(root_dir:str, tag:str, pupil_pixels:int
         xp=specula.xp,
         dtype=dtype
     )
+
+    # kl_basis = remap_on_new_mask(kl_basis,(1-unobs_pupil_mask).astype(bool),(1-pupil_mask).astype(bool),specula.xp)
 
     print(f"KL basis shape: {kl_basis.shape}")
     print(f"Number of KL modes: {kl_basis.shape[0]}")
@@ -289,6 +293,6 @@ if __name__ == "__main__":
     #                                       geom='circular', r0=10e-2, obsratio=0.11, D=8.4)
 
     root_dir = '/raid1/mmenessini/calibration/EKARUS'
-    Npix = 140
-    compute_and_save_influence_functions(root_dir,tag='dm468', pupil_pixels=Npix, n_acts=24, shrink_coords=1.05,
+    Npix = 96#140
+    compute_and_save_influence_functions(root_dir,tag='dm468', pupil_pixels=Npix, n_acts=24, #shrink_coords=1.05,
                                           geom='circular', r0=5e-2, pupil_mask_tag='copernico_pupil', D=1.82)

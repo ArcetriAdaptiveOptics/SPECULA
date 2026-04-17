@@ -1,6 +1,6 @@
 pyr_sn:
   class: 'SnCalibrator'
-  output_tag: 'pyr3.0_slope_null_ri'           # Output filename
+  output_tag: 'pyr5.0_40x40_sn'           # Output filename
   overwrite: false
   inputs:
     in_slopes: 'pyr_slopes.out_slopes'

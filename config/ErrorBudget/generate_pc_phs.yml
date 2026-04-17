@@ -1,0 +1,25 @@
+psf_override:
+  verbose: true
+
+res_modes:
+  class:            'ModalAnalysis'
+  ifunc_inv_object: 'true_asm_kl_inv'
+  inputs:
+    in_ef: ['ef_prop.out_ef']
+  outputs: ['out_modes']
+
+fit_cmd:
+  class: 'MVM'
+  recmat: 'true_asm_m2c'
+  inputs:
+    in_vector: 'res_modes.out_modes'
+  outputs: ['out_vector']
+
+
+data_store_override:
+  class:             'DataStore'
+  store_dir:         '/raid1/mmenessini/results/SOUL'             # Data result directory: 'store_dir'/TN/
+  inputs:
+    input_list: [ 'phs-ef_prop.out_ef.phase', 'asm_commands-fit_cmd.out_vector' ]
+
+remove: ['dm_mode_res','atmo_modes']

@@ -3,9 +3,9 @@
 main:
   class:             'SimulParams'
   root_dir:          '/raid1/mmenessini/calibration/EKARUS/'       # CalibManager root directory (all the data are in subdirectories)
-  pixel_pupil:       140                   # Must match influence function computation
-  pixel_pitch:       0.013                 # [m] Pitch of the pupil phase array (1.82m/140pix)
-  total_time:        2.0                   # [s] Total simulation running time
+  pixel_pupil:       96 #140                   # Must match influence function computation
+  pixel_pitch:       0.018958 #0.013                 # [m] Pitch of the pupil phase array (1.82m/140pix)
+  total_time:        1.0                   # [s] Total simulation running time
   time_step:         0.001                 # [s] Simulation time step
   zenithAngleInDeg:  0.0                   # [deg] Zenith observation (0 means no airmass)
   display_server:    false                 # Disable for batch runs
@@ -34,7 +34,7 @@ source_ngs:
 # Telescope pupil geometry
 pupilstop:
   class:             'Pupilstop'
-  tag:               'copernico_pupil_140pixels'
+  tag:               'copernico_pupil_96pixels' #140pixels'
 
 # Multi-layer atmospheric model
 atmo:
@@ -74,7 +74,7 @@ pyr:
   pup_diam:          40.                     # Pupil diameter in subaps.
   pup_dist:          60.                     # Separation between pupil centers in subaps.
   fov:               4.0                     # Requested field-of-view [arcsec]
-  mod_amp:           3.0                     # Modulation radius (in lambda/D units)
+  mod_amp:           5.0                     # Modulation radius (in lambda/D units)
   output_resolution: 120                      # Output sampling [usually corresponding to CCD pixels]
   wavelengthInNm:    750                     # [nm] Pyramid wavelength
   inputs:
@@ -99,6 +99,7 @@ ocam:
 pyr_slopes:
   class:                  'PyrSlopec'
   pupdata_object:         'pyr_pupdata_40x40'           
+  # sn_object:              'pyr5.0_40x40_sn'
   slopes_from_intensity:  true
   inputs:
     in_pixels:        'ocam.out_pixels'
@@ -106,7 +107,7 @@ pyr_slopes:
 
 pyr_modalrec:
   class:             'Modalrec'
-  recmat_object:     'pyr3.0_40x40_440modes_rec'        
+  recmat_object:     'pyr5.0_40x40_440modes_rec'        
   inputs:
     in_slopes:       'pyr_slopes.out_slopes'
   outputs:           ['out_modes']
@@ -114,8 +115,8 @@ pyr_modalrec:
 filter:
   class:             'Integrator'
   simul_params_ref:  'main'
-  delay:             1                      # Total temporal delay in time steps
-  int_gain:          [0.99,0.8,0.4]
+  delay:             1                      # Temporal delay in time steps
+  int_gain:          [0.7,0.6,0.4]
   ff:                [0.99,0.95,0.9]
   n_modes:           [2,200,238]
   inputs:
