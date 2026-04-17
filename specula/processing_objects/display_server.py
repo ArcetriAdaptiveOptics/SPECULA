@@ -9,7 +9,7 @@ import numpy as np
 from contextlib import contextmanager
 
 from specula.base_value import BaseValue
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 
 from specula.lib.display_server_api import start_server
 
@@ -91,6 +91,14 @@ class DisplayServer(BaseProcessingObj):
         self.info_getter = info_getter
 
         self.logger.info(f"Initialized in {self.mode} mode")
+
+    @classmethod
+    def input_names(cls):
+        return {}
+
+    @classmethod
+    def output_names(cls):
+        return {}
 
     def _trigger_image_mode(self):
 

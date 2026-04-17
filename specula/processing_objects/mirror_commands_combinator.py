@@ -1,5 +1,5 @@
 from specula import np
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.connections import InputValue
 from specula.data_objects.recmat import Recmat
@@ -63,6 +63,19 @@ class MirrorCommandsCombinator(BaseProcessingObj):
 
         self.z1 = self.xp.zeros( self.dims_LO[0], dtype=self.dtype)
         self.z2 = self.xp.zeros( self.out_dims[0]-self.dims_LO[0]-self.dims_LO[2], dtype=self.dtype)
+
+    @classmethod
+    def input_names(cls):
+        return {'in_commandsHO': InputDesc(BaseValue, 'High-order command vector input'),
+                'in_commandsLO': InputDesc(BaseValue, 'Low-order command vector input'),
+                'in_commandsF': InputDesc(BaseValue, 'Focus command scalar input'),
+                'in_commandsP': InputDesc(BaseValue, 'Pointing command vector input')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_result_commands1': OutputDesc(BaseValue, 'First chunk of combined output commands'),
+                'out_result_commands2': OutputDesc(BaseValue, 'Second chunk of combined output commands'),
+                'out_result_commands3': OutputDesc(BaseValue, 'Third chunk of combined output commands')}
 
     def trigger_code(self):
         x_HO = self.local_inputs['in_commandsHO'].value

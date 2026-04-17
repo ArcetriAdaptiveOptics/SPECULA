@@ -1,6 +1,6 @@
 
 from specula.data_objects.simul_params import SimulParams
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.connections import InputValue
 from specula.base_value import BaseValue
 
@@ -39,6 +39,14 @@ class WindowedIntegration(BaseProcessingObj):
                                 precision=precision)
         self.outputs['output'] = self.output
         self.integrated_value = self.xp.zeros(n_elem, dtype=self.dtype)
+
+    @classmethod
+    def input_names(cls):
+        return {'input': InputDesc(BaseValue, 'Input signal to integrate')}
+
+    @classmethod
+    def output_names(cls):
+        return {'output': OutputDesc(BaseValue, 'Windowed time-integrated output signal')}
 
     def trigger_code(self):
         if self.start_time <= 0 or self.current_time >= self.start_time:

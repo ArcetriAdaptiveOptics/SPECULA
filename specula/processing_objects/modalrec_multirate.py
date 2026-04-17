@@ -1,6 +1,6 @@
 from typing import List
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.connections import InputList
 from specula.data_objects.recmat import Recmat
@@ -95,6 +95,21 @@ class ModalrecMultirate(BaseProcessingObj):
             output_name = f'out_modes_{i}'
             self.outputs[output_name] = out_val
             self.out_modes_list.append(out_val)
+
+    @classmethod
+    def input_names(cls):
+        return {
+            'in_slopes_list': InputDesc(Slopes, 'Input list of sensor slopes vectors'),
+        }
+
+    @classmethod
+    def output_names(cls):
+        return {
+            'out_modes_{sensor_idx}': OutputDesc(
+                BaseValue,
+                'Output modal vector for sensor index [sensor_idx]',
+            ),
+        }
 
     def setup(self):
         super().setup()

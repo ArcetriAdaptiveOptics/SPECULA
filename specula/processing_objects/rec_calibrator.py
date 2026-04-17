@@ -1,7 +1,7 @@
 import os
 from typing import Union
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.data_objects.intmat import Intmat
 from specula.data_objects.ifunc import IFunc
 from specula.data_objects.m2c import M2C
@@ -68,6 +68,14 @@ class RecCalibrator(BaseProcessingObj):
         self.rec_path = rec_path
 
         self.inputs['in_intmat'] = InputValue(type=Intmat)
+
+    @classmethod
+    def input_names(cls):
+        return {'in_intmat': InputDesc(Intmat, 'Input interaction matrix to invert')}
+
+    @classmethod
+    def output_names(cls):
+        return {}
 
     def finalize(self):
         im = self.local_inputs['in_intmat']

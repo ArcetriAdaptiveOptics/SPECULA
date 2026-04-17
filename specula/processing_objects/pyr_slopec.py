@@ -1,5 +1,8 @@
 from specula import fuse
 from specula.processing_objects.slopec import Slopec
+from specula.base_processing_obj import InputDesc, OutputDesc
+from specula.base_value import BaseValue
+from specula.data_objects.pixels import Pixels
 from specula.data_objects.pupdata import PupData
 from specula.data_objects.slopes import Slopes
 
@@ -66,6 +69,14 @@ class PyrSlopec(Slopec):
         else:
             self.slopes.single_mask = self.pupdata.single_mask()
         self.slopes.display_map = self.pupdata.display_map
+
+    @classmethod
+    def output_names(cls):
+        result = super().output_names()
+        result.update({
+            'out_pupdata': OutputDesc(PupData, 'Pupil data with subaperture geometry'),
+        })
+        return result
 
     def nsubaps(self):
         return self.pupdata.n_subap

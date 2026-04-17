@@ -1,4 +1,3 @@
-
 from astropy.io import fits
 from specula import cp, np
 import importlib
@@ -6,6 +5,7 @@ import inspect
 import pkgutil
 
 import specula.data_objects
+import specula.processing_objects
 
 def cpu_and_gpu(f):
     '''

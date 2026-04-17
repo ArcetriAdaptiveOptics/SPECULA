@@ -1,6 +1,6 @@
 import os
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.data_objects.slopes import Slopes
 from specula.connections import InputValue
 
@@ -39,6 +39,14 @@ class SnCalibrator(BaseProcessingObj):
             self.sn_path += '.fits'
         if os.path.exists(self.sn_path) and not self.overwrite:
             raise FileExistsError(f'Slope null file {self.sn_path} already exists, please remove it')
+
+    @classmethod
+    def input_names(cls):
+        return {'in_slopes': InputDesc(Slopes, 'Input slopes to average into a slope null')}
+
+    @classmethod
+    def output_names(cls):
+        return {}
 
     def trigger_code(self):
         if self.slopes is None:

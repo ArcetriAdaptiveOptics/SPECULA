@@ -1,4 +1,4 @@
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.connections import InputList, InputValue
 from specula.data_objects.intmat import Intmat
@@ -115,6 +115,18 @@ class Modalrec(BaseProcessingObj):
             self.inputs['in_commands'] = InputValue(type=BaseValue, optional=True)
             self.inputs['in_commands_list'] = InputList(type=BaseValue, optional=True)
             # TODO complete static allocation above
+
+    @classmethod
+    def input_names(cls):
+        return {'in_slopes': InputDesc(Slopes, 'Input wavefront slope vector (optional, use with in_slopes_list)'),
+                'in_slopes_list': InputDesc(Slopes, 'List of input slope vectors for multi-sensor reconstruction (optional)'),
+                'in_commands': InputDesc(BaseValue, 'Current output command vector for POLC (optional)'),
+                'in_commands_list': InputDesc(BaseValue, 'List of current command vectors for POLC (optional)')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_modes': OutputDesc(BaseValue, 'Reconstructed modal command vector'),
+                'out_pseudo_ol_modes': OutputDesc(BaseValue, 'Pseudo open-loop modal estimate (only in POLC mode)')}
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)

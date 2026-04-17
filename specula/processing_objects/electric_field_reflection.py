@@ -1,7 +1,7 @@
 from specula.connections import InputValue
 
 from specula.data_objects.electric_field import ElectricField
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 
 class ElectricFieldReflection(BaseProcessingObj):
     """
@@ -16,6 +16,14 @@ class ElectricFieldReflection(BaseProcessingObj):
             precision=self.precision
         )
         self.outputs['out_ef'] = self._out_ef
+
+    @classmethod
+    def input_names(cls):
+        return {'in_ef': InputDesc(ElectricField, 'Input electric field to reflect (phase sign is inverted)')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_ef': OutputDesc(ElectricField, 'Output electric field with reflected (sign-inverted) phase')}
 
     def setup(self):
         super().setup()

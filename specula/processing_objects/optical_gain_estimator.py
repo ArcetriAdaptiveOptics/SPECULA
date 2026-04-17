@@ -1,5 +1,5 @@
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.connections import InputValue
 from specula.base_value import BaseValue
 
@@ -54,6 +54,16 @@ class OpticalGainEstimator(BaseProcessingObj):
         # Outputs
         self.outputs['optical_gain'] = self.optical_gain
         self.outputs['output'] = self.output
+
+    @classmethod
+    def input_names(cls):
+        return {'in_demod_delta_command': InputDesc(BaseValue, 'Demodulated delta command vector for optical gain estimation'),
+                'in_demod_command': InputDesc(BaseValue, 'Demodulated absolute command vector for optical gain estimation')}
+
+    @classmethod
+    def output_names(cls):
+        return {'optical_gain': OutputDesc(BaseValue, 'Estimated optical gain scalar or vector'),
+                'output': OutputDesc(BaseValue, 'Output command vector corrected by optical gain')}
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)

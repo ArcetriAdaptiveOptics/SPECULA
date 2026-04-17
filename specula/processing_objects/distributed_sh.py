@@ -1,6 +1,8 @@
 import copy
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
+from specula.data_objects.electric_field import ElectricField
+from specula.data_objects.intensity import Intensity
 from specula.data_objects.laser_launch_telescope import LaserLaunchTelescope
 from specula.processing_objects.sh import SH
 from specula import cp
@@ -58,6 +60,14 @@ class DistributedSH(SH):
                 args['target_device_idx'] = (target_device_idx + i) % num_devices
             args['subap_rows_slice'] = self.slices[i]
             self.sub_sh.append( SH(**args))
+
+    @classmethod
+    def input_names(cls):
+        return {'in_ef': InputDesc(ElectricField, 'Input electric field from the telescope pupil')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_i': OutputDesc(Intensity, 'Output intensity on the detector (Shack-Hartmann spot pattern)')}
 
     def setup(self):
         '''

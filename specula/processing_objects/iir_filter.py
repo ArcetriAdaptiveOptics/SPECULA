@@ -58,6 +58,14 @@ class IirFilter(BaseFilter):
         if not integration:
             self._den_mask[:, :-1] = 0
 
+    @classmethod
+    def input_names(cls):
+        return super().input_names()
+
+    @classmethod
+    def output_names(cls):
+        return super().output_names()
+
     def trigger_code(self):
         """IIR filter computation."""
         sden = self.iir_filter_data.den.shape

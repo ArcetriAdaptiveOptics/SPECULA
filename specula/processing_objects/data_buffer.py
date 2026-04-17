@@ -1,7 +1,7 @@
 
 from collections import OrderedDict, defaultdict
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 
 
@@ -17,6 +17,14 @@ class DataBuffer(BaseProcessingObj):
         self.storage = defaultdict(OrderedDict)
         self.step_counter = 0
         self.buffered_outputs = {}
+
+    @classmethod
+    def input_names(cls):
+        return {}
+
+    @classmethod
+    def output_names(cls):
+        return {}
 
     def setOutputs(self):
         # Create output objects for each input (like DataStore does)
@@ -73,3 +81,13 @@ class DataBuffer(BaseProcessingObj):
             self.reset_buffers()
         
         super().finalize()
+
+    def check_input_names(self):
+        # DataBuffer inputs are added dynamically via input_list;
+        # skip the static input_names validation.
+        pass
+
+    def check_output_names(self):
+        # DataBuffer outputs are created dynamically in setOutputs();
+        # skip the static output_names validation.
+        pass

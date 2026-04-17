@@ -1,6 +1,6 @@
 import os
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.data_objects.intmat import Intmat
 from specula.connections import InputValue
 from specula.connections import InputList
@@ -56,6 +56,15 @@ class MultiRecCalibrator(BaseProcessingObj):
             return os.path.join(self._data_dir, self._full_rec_filename + '.fits')
         else:
             return None
+
+    @classmethod
+    def input_names(cls):
+        return {'intmat_list': InputDesc(Intmat, 'List of per-sensor interaction matrices to invert'),
+                'full_intmat': InputDesc(Intmat, 'Full combined interaction matrix to invert')}
+
+    @classmethod
+    def output_names(cls):
+        return {}
 
     def trigger_code(self):
         # Do nothing, the computation is done in finalize

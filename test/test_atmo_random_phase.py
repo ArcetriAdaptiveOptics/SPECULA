@@ -66,6 +66,39 @@ class TestAtmoRandomPhase(unittest.TestCase):
         assert atmo.outputs['out_layer'].field is atmo.outputs['out_ef'].field
 
     @cpu_and_gpu
+    def test_sanity_check_with_named_sources(self, target_device_idx, xp):
+        data_dir = os.path.join(os.path.dirname(__file__), 'data')
+        on_axis_source = Source(polar_coordinates=[0.0, 0.0], magnitude=8, wavelengthInNm=750)
+        lgs1_source = Source(polar_coordinates=[45.0, 0.0], height=90000, magnitude=5, wavelengthInNm=589)
+
+        simul_params = SimulParams(pixel_pupil=16, pixel_pitch=0.05)
+        atmo = AtmoRandomPhase(
+            simul_params,
+            L0=23,
+            data_dir=data_dir,
+            source_dict={'on_axis_source': on_axis_source, 'lgs1_source': lgs1_source},
+            pixel_phasescreens=32,
+            target_device_idx=target_device_idx,
+        )
+
+        atmo.sanity_check()
+
+    @cpu_and_gpu
+    def test_sanity_check_without_source_dict(self, target_device_idx, xp):
+        data_dir = os.path.join(os.path.dirname(__file__), 'data')
+        simul_params = SimulParams(pixel_pupil=16, pixel_pitch=0.05)
+        atmo = AtmoRandomPhase(
+            simul_params,
+            L0=23,
+            data_dir=data_dir,
+            source_dict=None,
+            pixel_phasescreens=32,
+            target_device_idx=target_device_idx,
+        )
+
+        atmo.sanity_check()
+
+    @cpu_and_gpu
     def test_update_interval_default(self, target_device_idx, xp):
         """Test that by default (update_interval=1) the phase changes every step"""
         data_dir = os.path.join(os.path.dirname(__file__), 'data')
