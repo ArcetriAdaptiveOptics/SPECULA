@@ -22,7 +22,7 @@ atmo_random:
   source_dict_ref:      ['source_ngs']
   inputs:
     seeing: 'seeing_random.output'
-    pupilstop: 'vlt_aperture'
+    pupilstop: 'pupilstop''
   outputs: ['out_source_ngs_ef']
 
 # Modal decomposition of atmospheric phase

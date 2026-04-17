@@ -81,7 +81,7 @@ def compute_and_save_influence_functions(root_dir:str, tag:str, pupil_pixels:int
     else:
         pupil_mask = make_mask(np_size=pupil_pixels, diaratio=1.0, obsratio=obsratio)
         
-    unobs_pupil_mask = make_mask(np_size=pupil_pixels, diaratio=1.0)
+    # unobs_pupil_mask = make_mask(np_size=pupil_pixels, diaratio=1.0)
 
     # Step 1: Generate zonal influence functions
     influence_functions,mask,coords,slaveMat = compute_zonal_ifunc(
@@ -95,7 +95,7 @@ def compute_and_save_influence_functions(root_dir:str, tag:str, pupil_pixels:int
         slaving_thr=slavingThr,
         obsratio=obsratio,
         diaratio=diaratio*shrink_coords,
-        mask=cpuArray(unobs_pupil_mask),
+        mask=cpuArray(pupil_mask),
         xp=specula.xp,
         dtype=dtype,
         # return_coordinates=False,
@@ -289,6 +289,6 @@ if __name__ == "__main__":
     #                                       geom='circular', r0=10e-2, obsratio=0.11, D=8.4)
 
     root_dir = '/raid1/mmenessini/calibration/EKARUS'
-    Npix = 120
-    compute_and_save_influence_functions(root_dir,tag='dm468', pupil_pixels=Npix, n_acts=24, #shrink_coords=0.95,
-                                          geom='alpao', r0=5e-2, pupil_mask_tag='copernico_pupil', D=1.82)
+    Npix = 140
+    compute_and_save_influence_functions(root_dir,tag='dm468', pupil_pixels=Npix, n_acts=24, shrink_coords=1.05,
+                                          geom='circular', r0=5e-2, pupil_mask_tag='copernico_pupil', D=1.82)

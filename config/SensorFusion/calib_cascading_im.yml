@@ -37,7 +37,7 @@ main_override:
 prop_override:
   source_dict_ref:   ['source_ngs']
   inputs:
-    common_layer_list: ['vlt_aperture', 'dm.out_layer']  # Only pupil + DM
+    common_layer_list: ['pupilstop', 'dm.out_layer']  # Only pupil + DM
   outputs:           ['out_source_ngs_ef']
 
 # Override DM to use calibration commands

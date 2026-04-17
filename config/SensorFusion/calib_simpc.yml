@@ -51,7 +51,7 @@ atmo_random:
   update_interval:      3642                 # Update after IM calibration
   inputs:
     seeing:             'seeing_random.output'
-    pupilstop:          'vlt_aperture'
+    pupilstop:          'pupilstop'
   outputs:              ['out_source_ngs_ef']
 
 # Modal decomposition of atmospheric phase

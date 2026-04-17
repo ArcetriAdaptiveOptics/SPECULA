@@ -49,7 +49,7 @@ if __name__ == "__main__":
 
     destination_dir = '/raid1/mmenessini/calibration/EKARUS/pupilstop'
     tag = 'copernico_pupil'
-    Npix = 120
+    Npix = 140
     aperture=save_copernico_pupil_to_size(destination_dir, tag, Npix)
     plt.figure()
     plt.imshow(aperture,origin='lower',cmap='gray')

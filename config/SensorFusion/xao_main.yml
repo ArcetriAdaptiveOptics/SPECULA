@@ -35,7 +35,7 @@ source_ngs:
   wavelengthInNm:    750                   # [nm] R-band for WFS
 
 # Telescope pupil geometry
-vlt_aperture:
+pupilstop:
   class:             'Pupilstop'
   tag:               'vlt_pupil_160pixels'
   # simul_params_ref:  'main'
@@ -64,7 +64,7 @@ prop:
   source_dict_ref:   ['source_ngs'] 
   inputs:
     atmo_layer_list: ['atmo.layer_list']
-    common_layer_list: ['vlt_aperture']       # Pupil
+    common_layer_list: ['pupilstop']       # Pupil
   outputs:           ['out_source_ngs_ef'] 
 
 ef_prop:

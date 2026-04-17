@@ -45,6 +45,7 @@ def plot_output_data(root_dir:str,calib_dir:str):
     with open(params_path, 'r') as file:
         params = yaml.safe_load(file)
         fs = 1.0/float(params['main']['time_step'])
+        pupil_tag = params['pupilstop']['tag']
         try:
             filter_data_complex, delay_frames = get_control_data(calib_dir,'filter','gain_ramp',params=params)
         except:
@@ -152,13 +153,15 @@ def plot_output_data(root_dir:str,calib_dir:str):
     try:
         comm = data["dm_cmd"][init:, :]
         res = data["dm_res"][init:, :comm.shape[1]]
-        if fs1 > fs2:
-            print(fs1,fs2)
-            meas = data["pyr_modes"][init1:, :comm.shape[1]]
-            meas = np.repeat(meas, fs/fs1, axis=0)
-        else:
-            meas = data["zwfs_modes"][init2:, :comm.shape[1]]
-            meas = np.repeat(meas, fs/fs2, axis=0)
+        try:
+            if fs1 > fs2:
+                meas = data["pyr_modes"][init1:, :comm.shape[1]]
+                meas = np.repeat(meas, fs/fs1, axis=0)
+            else:
+                meas = data["zwfs_modes"][init2:, :comm.shape[1]]
+                meas = np.repeat(meas, fs/fs2, axis=0)
+        except:
+            meas = data["pyr_modes"][init:, :comm.shape[1]]
 
         pol_modes = comm + meas
         # zpol_modes = comm + zmeas
@@ -177,8 +180,11 @@ def plot_output_data(root_dir:str,calib_dir:str):
         plt.subplot(2,2,1)
         for k,mode in enumerate(lo_mode_ids):
             plt.loglog(f,pol_psd[mode,:]/np.min(pol_psd[mode,:][f<flims[-1]]),c=f'C{k}',label=f'Mode {mode:1.0f}')
-            rtf = filter_data_complex.RTF(mode=mode, fs=fs, freq=freq, dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
-            plt.loglog(freq,rtf**-2,'--',c=f'C{k}',label='')
+            try:
+                rtf = filter_data_complex.RTF(mode=mode, fs=fs, freq=freq, dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
+                plt.loglog(freq,rtf**-2,'--',c=f'C{k}',label='')            
+            except IndexError:
+                    pass
         plt.grid(which='both', alpha=0.3)
         # plt.xlabel('Frequency [Hz]')
         plt.legend()
@@ -195,12 +201,18 @@ def plot_output_data(root_dir:str,calib_dir:str):
         plt.ylabel(r'RMS [$nm^2$]')
         plt.title('Residuals PSD')
 
-        ho_mode_ids = [50,100,200,500,1000]
+        if np.shape(pol_modes)[1] >= 1000:
+            ho_mode_ids = [50,100,200,500,1000]
+        else:
+            ho_mode_ids = [50,100,200,300,400]
         plt.subplot(2,2,2)
         for k,mode in enumerate(ho_mode_ids):
             plt.loglog(f,pol_psd[mode,:]/np.min(pol_psd[mode,:][f<flims[-1]]),c=f'C{k}',label=f'Mode {mode:1.0f}')
-            rtf = filter_data_complex.RTF(mode=mode, fs=fs, freq=freq, dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
-            plt.loglog(freq,rtf**-2,'--',c=f'C{k}',label='')
+            try:
+                rtf = filter_data_complex.RTF(mode=mode, fs=fs, freq=freq, dm=1.0, nw=nw_delay, dw=dw_delay, plot=False)
+                plt.loglog(freq,rtf**-2,'--',c=f'C{k}',label='')
+            except IndexError:
+                    pass
         plt.grid(which='both', alpha=0.3)
         # plt.xlabel('Frequency [Hz]')
         plt.legend()
@@ -367,7 +379,7 @@ def plot_output_data(root_dir:str,calib_dir:str):
 
     ################# PSF profiles #######################
     oversampling = 4
-    psf_dl = get_reference_psf(root_dir=calib_dir,pupil_tag='vlt_pupil_160pixels',nd=oversampling)
+    psf_dl = get_reference_psf(root_dir=calib_dir,pupil_tag=pupil_tag,nd=oversampling)
     rad_psf_dl, dist = computeRadialProfile(psf_dl)
     try:
         psf = data["psf"]

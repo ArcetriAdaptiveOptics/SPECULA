@@ -3,17 +3,17 @@
 main:
   class:             'SimulParams'
   root_dir:          '/raid1/mmenessini/calibration/EKARUS/'       # CalibManager root directory (all the data are in subdirectories)
-  pixel_pupil:       120                   # Must match influence function computation
-  pixel_pitch:       0.015167            # [m] Pitch of the pupil phase array
-  total_time:        2.0                # [s] Total simulation running time
-  time_step:         0.001               # [s] Simulation time step
+  pixel_pupil:       140                   # Must match influence function computation
+  pixel_pitch:       0.013                 # [m] Pitch of the pupil phase array (1.82m/140pix)
+  total_time:        2.0                   # [s] Total simulation running time
+  time_step:         0.001                 # [s] Simulation time step
   zenithAngleInDeg:  0.0                   # [deg] Zenith observation (0 means no airmass)
   display_server:    false                 # Disable for batch runs
 
 # Atmospheric conditions
 seeing:
   class:             'WaveGenerator'
-  constant:          2.0                  # [arcsec]
+  constant:          1.8                  # [arcsec]
 
 wind_speed:
   class:             'WaveGenerator'
@@ -34,7 +34,7 @@ source_ngs:
 # Telescope pupil geometry
 pupilstop:
   class:             'Pupilstop'
-  tag:               'copernico_pupil_120pixels'
+  tag:               'copernico_pupil_140pixels'
 
 # Multi-layer atmospheric model
 atmo:
@@ -85,7 +85,7 @@ ocam:
   simul_params_ref:  'main'
   size:              [120,120]            # Total detector size
   dt:                0.001              # [s] Integration time (2000 fps)
-  bandw:             400                   # [nm]
+  bandw:             300                   # [nm]
   photon_noise:      true                  # Enable photon noise
   readout_noise:     true                  # Enable read noise
   excess_noise:      true                  # Enable excess noise
@@ -115,8 +115,8 @@ filter:
   class:             'Integrator'
   simul_params_ref:  'main'
   delay:             1                      # Total temporal delay in time steps
-  int_gain:          [0.9,0.8,0.0]
-  ff:                [0.99,0.95,0.7]
+  int_gain:          [0.99,0.8,0.4]
+  ff:                [0.99,0.95,0.9]
   n_modes:           [2,200,238]
   inputs:
       delta_comm: 'pyr_modalrec.out_modes'
