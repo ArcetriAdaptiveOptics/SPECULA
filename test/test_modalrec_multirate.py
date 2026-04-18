@@ -286,7 +286,7 @@ class TestModalrecMultirate(unittest.TestCase):
 
         with patch('specula.simul.import_class', side_effect=mock_import):
             with patch('specula.data_objects.recmat.Recmat.restore', side_effect=[rec_both, rec_s1, rec_s2]):
-                simul = Simul([])
+                simul = Simul('dummy.yaml')
                 simul.build_objects(params)
 
                 rec_obj = simul.objs['rec']
@@ -319,7 +319,7 @@ class TestModalrecMultirate(unittest.TestCase):
         with patch('specula.simul.import_class', side_effect=mock_import):
             with patch('specula.data_objects.recmat.Recmat.restore',
                        side_effect=[rec_both, rec_s1, rec_s2]):
-                simul = Simul([])
+                simul = Simul('dummy.yaml')
                 simul.build_objects(params)
 
                 rec_obj = simul.objs['rec']
