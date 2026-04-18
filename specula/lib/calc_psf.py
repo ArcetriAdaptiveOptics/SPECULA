@@ -110,7 +110,7 @@ def calc_psf_sampling(pixel_pupil: int,
                       pixel_pitch: float,
                       wavelength_nm: float,
                       psf_pixel_size_mas: float,
-                      logger=None):
+                      ):
     """
     Calculate PSF sampling parameters ensuring constraints are met
 
@@ -119,13 +119,11 @@ def calc_psf_sampling(pixel_pupil: int,
         pixel_pitch: Physical size of each pixel in meters
         wavelength_nm: Wavelength in nanometers
         psf_pixel_size_mas: Desired PSF pixel size in milliarcseconds
-        logger: Optional logger for warnings and errors
 
     Returns:
         psf_sampling: The calculated sampling factor
     """
-    if logger is None:
-        logger = get_specula_logger(__name__)
+    logger = get_specula_logger(__name__)
 
     # Calculate pupil diameter in meters
     dim_pup_in_m = pixel_pupil * pixel_pitch

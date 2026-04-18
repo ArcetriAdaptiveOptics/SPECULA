@@ -12,7 +12,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
                         do_mech_coupling=False, coupling_coeffs=[0.31, 0.05],
                         do_slaving=False, slaving_thr=0.1, linear_slaving=False,
                         edge_constraint_weight=0.0, search_radius_steps=2.5,
-                        obsratio=0.0, diaratio=1.0, mask=None, logger=None):
+                        obsratio=0.0, diaratio=1.0, mask=None):
     """
     Computes the ifs_cube matrix with Influence Functions using Thin Plate Splines
     
@@ -60,8 +60,6 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
         mask is None.
     mask : array or None
         Optional pre-computed pupil mask. If None, it will be generated using obsratio and diaratio.
-    logger : logging.Logger, optional
-        Logger for logging messages. If None, a default logger will be used.
     """
 
     if mask is None:
@@ -70,8 +68,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
         mask = mask.astype(float)
         idx = xp.where(mask)
 
-    if logger is None:
-        logger = get_specula_logger(__name__)
+    logger = get_specula_logger(__name__)
 
     # ----------------------------------------------------------
     # ----------------------------------------------------------
@@ -337,13 +334,12 @@ def _compute_weights_linear(coordinates, idx_master, idx_slave, step,
 
 def apply_slaving(ifs_cube, coordinates, idx, step, slaving_thr=0.1,
                   linear=False, edge_constraint_weight=0.0, search_radius_steps=2.5,
-                  xp=np, dtype=np.float32, logger=None):
+                  xp=np, dtype=np.float32):
     """
     Unified function to apply actuator slaving. 
     Routes to standard (proximity) or linear (PTT extrapolation) weighting logic.
     """
-    if logger is None:
-        logger = get_specula_logger(__name__)
+    logger = get_specula_logger(__name__)
 
     n_act_tot = ifs_cube.shape[0]
 

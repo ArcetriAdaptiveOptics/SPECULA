@@ -12,7 +12,7 @@ def calc_geometry(
     fov_errsup: float=0.5,
     fft_res: float=3.0,
     xp=np,
-    logger=None):
+    ):
     '''
     Calculate FFT geometry parameters for a given pupil size, pixel pitch,
     wavelength and field of view.
@@ -35,9 +35,6 @@ def calc_geometry(
         Initial FFT resolution in pixels per lambda/D (default: 3.0).
     xp : module, optional
         Array module to use (default: numpy).
-    logger : logger object, optional
-        logging.Logger instance to log output.
-        If None, a default logger will be used.
 
     Returns 
     -------
@@ -50,10 +47,7 @@ def calc_geometry(
         - 'fft_padding': FFT padding size in pixels.
         - 'fft_totsize': Total FFT size in pixels.
     '''
-    if logger is None:
-        # This logger will propagate to the root logger,
-        # so it will use the configuration of the root logger.
-        logger = get_specula_logger(__name__)
+    logger = get_specula_logger(__name__)
 
     fov_internal = wavelengthInNm * 1e-9 / pixel_pitch * RAD2ASEC
 

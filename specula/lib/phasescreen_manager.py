@@ -6,12 +6,11 @@ from astropy.io import fits
 
 from specula.lib.calc_phasescreen import calc_phasescreen
 
-def phasescreens_manager(L0, dimension, pixel_pitch, directory, xp, precision, seed=None, logger=None):
+def phasescreens_manager(L0, dimension, pixel_pitch, directory, xp, precision, seed=None):
     if seed is None:
         seed = [0]
 
-    if logger is None:
-        logger = get_specula_logger(__name__)
+    logger = get_specula_logger(__name__)
     
     precision_str = 'single' if precision==1 else 'double'
 

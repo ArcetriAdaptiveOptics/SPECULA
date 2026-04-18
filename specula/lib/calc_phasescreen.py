@@ -4,12 +4,9 @@ from specula import complex_dtype_list
 from specula.lib.calc_spatialfrequency import calc_spatialfrequency
 
 
-def calc_phasescreen(L0, dimension, pixel_pitch, xp, precision, seed=0, logger=None):
+def calc_phasescreen(L0, dimension, pixel_pitch, xp, precision, seed=0):
 
-    if logger is None:
-        # This logger will propagate to the root logger,
-        # so it will use the configuration of the root logger.
-        logger = get_specula_logger(__name__)
+    logger = get_specula_logger(__name__)
 
     logger.debug("Phase-screen computation")
 

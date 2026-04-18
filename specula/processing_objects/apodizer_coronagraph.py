@@ -159,7 +159,7 @@ class PAPLCoronagraph(APPCoronagraph):
 
 # Outside the class on purpose, move inside or to its own module if you prefer
 def generate_app_keller(pupil, target_contrast, max_iterations:int,
-                        xp, complex_dtype, beta:float=0, logger=None):
+                        xp, complex_dtype, beta:float=0):
     """
     Function taken from HCIpy (Por et al. 2018):
     https://github.com/ehpor/hcipy/blob/master/hcipy/coronagraphy/apodizing_phase_plate.py
@@ -191,8 +191,6 @@ def generate_app_keller(pupil, target_contrast, max_iterations:int,
         The acceleration parameter. The default is 0 (no acceleration).
         Good values for beta are typically between 0.3 and 0.9. Values larger
         than 1.0 will not work.
-    logger : logging.Logger, optional
-        Logger for logging messages. If None, a default logger will be used.
 
     Returns
     -------
@@ -208,8 +206,7 @@ def generate_app_keller(pupil, target_contrast, max_iterations:int,
     if beta < 0 or beta > 1:
         raise ValueError('Beta should be between 0 and 1.')
     
-    if logger is None:
-        logger = get_specula_logger(__name__)
+    logger = get_specula_logger(__name__)
 
     iu = complex_dtype(1j)
 

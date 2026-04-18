@@ -157,12 +157,8 @@ class FlaskServer:
                  request_queue: mp.Queue,
                  host: str = '0.0.0.0',
                  port: int = 5000,
-                 logger: logging.Logger = None
                  ):
-        if logger is None:
-            self.logger = get_specula_logger(__name__)
-        else:
-            self.logger = logger
+        self.logger = get_specula_logger(__name__)
 
         self.params_dict = params_dict
         self.t0 = {}

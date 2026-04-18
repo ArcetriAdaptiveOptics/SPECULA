@@ -6,7 +6,7 @@ from specula.log import get_specula_logger
 import numpy as np
 
 def demodulate_signal(signal_data, carrier_freq, sampling_freq,
-                     cumulated=True, xp=np, dtype=np.float32, logger=None):
+                     cumulated=True, xp=np, dtype=np.float32):
     """
     Demodulate signal(s) using a carrier frequency.
     
@@ -28,8 +28,6 @@ def demodulate_signal(signal_data, carrier_freq, sampling_freq,
         Array module (numpy or cupy). Default: numpy (np)
     dtype : data-type, optional
         Data type for computations. Default: np.float32
-    logger : logging.Logger, optional
-        Logger for debug output. If None, a default logger will be used.
     
     Returns
     -------
@@ -59,8 +57,7 @@ def demodulate_signal(signal_data, carrier_freq, sampling_freq,
     - PASSATA demodulate_passata.pro
     - LBT-SOUL calibration software (2020)
     """
-    if logger is None:
-        logger = get_specula_logger(__name__)
+    logger = get_specula_logger(__name__)
 
     # Convert to array
     data = xp.asarray(signal_data, dtype=dtype)
