@@ -33,7 +33,7 @@ class TestDisableGpu(unittest.TestCase):
                 del os.environ['SPECULA_DISABLE_GPU']
             if orig_cupy is not None:
                 sys.modules['cupy'] = orig_cupy
-            else:
+            elif 'cupy' in sys.modules:
                 del sys.modules['cupy']
             print(f'{orig_disable=}')
             importlib.reload(specula)
