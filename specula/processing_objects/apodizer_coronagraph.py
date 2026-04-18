@@ -71,7 +71,7 @@ class APPCoronagraph(Coronagraph):
                     pad_start:pad_start+self.fft_sampling] = self.xp.array(pupil)
         app = generate_app_keller(pad_pupil, self.xp.array(target_contrast),
                                   max_iterations=max_its, beta=beta, xp=self.xp,
-                                  complex_dtype=self.complex_dtype, logger=self.logger)
+                                  complex_dtype=self.complex_dtype)
         apodizer_phase = self.xp.zeros(pupil.shape,dtype=self.complex_dtype)
         apodizer_phase[pupil>0] = self.xp.angle(app)[pad_pupil>0.0]
         return apodizer_phase, target_contrast

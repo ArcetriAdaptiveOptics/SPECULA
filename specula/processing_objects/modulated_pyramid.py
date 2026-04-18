@@ -351,7 +351,6 @@ class ModulatedPyramid(BaseProcessingObj):
             fov_errinf=fov_errinf,
             fov_errsup=fov_errsup,
             fft_res=fft_res,
-            logger=self.logger
         )
 
         fft_res = result['fft_res']
