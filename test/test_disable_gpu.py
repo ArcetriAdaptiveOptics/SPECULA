@@ -28,6 +28,13 @@ class TestDisableGpu(unittest.TestCase):
                 assert specula.xp == np
         finally:
             if orig_disable is not None:
-                os.environ['SPECULA_DISABLE_GPU'] = previous
+                os.environ['SPECULA_DISABLE_GPU'] = orig_disable
+            else:
+                del os.environ['SPECULA_DISABLE_GPU']
             if orig_cupy is not None:
                 sys.modules['cupy'] = orig_cupy
+            else:
+                del sys.modules['cupy']
+            print(f'{orig_disable=}')
+            importlib.reload(specula)
+            specula.init(0)
