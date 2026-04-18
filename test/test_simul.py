@@ -586,3 +586,36 @@ class TestSimul(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             _ = Simul()
+
+    def test_exception_raised_when_extra_parameter_with_tag(self):
+        yml = '''
+        main:
+          class: 'SimulParams'
+          root_dir: dummy
+          
+        test:
+          class: 'Pupilstop'
+          tag: 'abcdef'
+          foo: 42
+        '''
+        simul = Simul('dummy.yaml')
+        params = yaml.safe_load(yml)
+
+        with self.assertRaises(ValueError):
+            simul.build_objects(params)
+
+    def test_exception_raised_when_restoring_with_no_type_hint(self):
+        yml = '''
+        main:
+          class: 'SimulParams'
+          root_dir: dummy
+          
+        test:
+          class: 'Slopes'
+          slopes_object: 'foo'
+        '''
+        simul = Simul('dummy.yaml')
+        params = yaml.safe_load(yml)
+
+        with self.assertRaises(ValueError):
+            simul.build_objects(params)
