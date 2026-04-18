@@ -36,18 +36,6 @@ def init_logging(log_format=None, log_level=logging.INFO, process_rank=None):
         handler.addFilter(SpeculaFilter(process_rank))
 
 
-def get_level_names_mapping():
-    '''
-    Get the mapping of log level names to their numeric values, including our custom MPI debugging levels,
-    compatible with both Python 3.11+ and older versions.
-    '''
-    if sys.version_info >= (3, 11):
-        return logging.getLevelNamesMapping()
-    else:
-        # Fallback for older Python versions
-        return dict(logging._nameToLevel)
-
-
 class SpeculaFilter(logging.Filter):
     '''
     The logger name is usually the class name. This filter replaces it
