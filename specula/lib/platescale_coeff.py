@@ -4,7 +4,7 @@ from specula.log import get_specula_logger
 from scipy.linalg import pinv
 from specula import cpuArray
 
-def platescale_coeff(dm_list, start_modes, pixel_pupil, logger=None):
+def platescale_coeff(dm_list, start_modes, pixel_pupil):
     """
     Calculate the coefficients required to properly scale the modal amplitude on different
     deformable mirrors to get an accurate platescale correction in an MCAO system
@@ -17,18 +17,13 @@ def platescale_coeff(dm_list, start_modes, pixel_pupil, logger=None):
         List of starting mode indices for each DM
     pixel_pupil : int
         Size of the pupil in pixels
-    verbose : bool
-        If True, print additional information
-    logger : logger object, optional
-        logging.Logger instance to log output.
     
     Returns
     -------
     plateScale : dict
         Dictionary containing plate scale parameters
     """
-    if logger is None:
-        logger = get_specula_logger(__name__)
+    logger = get_specula_logger(__name__)
 
     # plate scale modes are 3: focus and 2 astigmatism modes
     n_modes_ps = 3

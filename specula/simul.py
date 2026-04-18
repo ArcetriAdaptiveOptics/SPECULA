@@ -344,7 +344,7 @@ class Simul():
         self.setSimulParams(params)
 
         cm = CalibManager(self.mainParams['root_dir'])
-        skip_pars = 'class inputs outputs verbose'.split()
+        skip_pars = 'class inputs outputs'.split()
         if 'add_modules' in self.mainParams:
             additional_modules = self.mainParams['add_modules']
         else:

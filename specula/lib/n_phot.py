@@ -12,7 +12,7 @@ def n_phot(
         e0=None,
         back_mag=None,
         model='default',
-        logger=None):
+        ):
     '''
     This routine computes from a source magnitude the corresponding
     number of photons for a given band, a given surface and a given time
@@ -151,8 +151,7 @@ def n_phot(
                             - added logging and replaced print statements with logger calls
 
     '''
-    if  logger is None:
-        logger = get_specula_logger(__name__)
+    logger = get_specula_logger(__name__)
 
     mymodel = get_model(model)
 
