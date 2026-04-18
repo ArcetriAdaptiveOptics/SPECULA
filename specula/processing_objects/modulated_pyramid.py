@@ -405,21 +405,21 @@ class ModulatedPyramid(BaseProcessingObj):
         dx = self.xp.sqrt(xx ** 2)
         dy = self.xp.sqrt(yy ** 2)
         idx_edge = self.xp.where((dx <= self.pyr_edge_def_ld * self.fft_res / 2) | 
-                            (dy <= self.pyr_edge_def_ld * self.fft_res / 2))[0]
-        if len(idx_edge) > 0:
+                                 (dy <= self.pyr_edge_def_ld * self.fft_res / 2))
+        if len(idx_edge[0]) > 0:
             pyr_tlt[idx_edge] = self.xp.max(pyr_tlt) * self.xp.random.rand(len(idx_edge[0]))
             self.logger.info(f'get_pyr_tlt: {len(idx_edge[0])} pixels set to 0 to consider pyramid imperfect edges')
 
         # distance from tip
         d = self.xp.sqrt(xx ** 2 + yy ** 2)
-        idx_tip = self.xp.where(d <= self.pyr_tip_def_ld * self.fft_res / 2)[0]
-        if len(idx_tip) > 0:
+        idx_tip = self.xp.where(d <= self.pyr_tip_def_ld * self.fft_res / 2)
+        if len(idx_tip[0]) > 0:
             pyr_tlt[idx_tip] = self.xp.max(pyr_tlt) * self.xp.random.rand(len(idx_tip[0]))
             self.logger.info(f'get_pyr_tlt: {len(idx_tip[0])} pixels set to 0 to consider pyramid imperfect tip')
 
         # distance from tip
-        idx_tip_m = self.xp.where(d <= self.pyr_tip_maya_ld * self.fft_res / 2)[0]
-        if len(idx_tip_m) > 0:
+        idx_tip_m = self.xp.where(d <= self.pyr_tip_maya_ld * self.fft_res / 2)
+        if len(idx_tip_m[0]) > 0:
             pyr_tlt[idx_tip_m] = self.xp.min(pyr_tlt[idx_tip_m])
             self.logger.info(f'get_pyr_tlt: {len(idx_tip_m[0])} pixels set to 0 to consider pyramid imperfect tip')
 
