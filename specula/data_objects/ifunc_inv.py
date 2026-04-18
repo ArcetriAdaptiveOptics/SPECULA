@@ -4,7 +4,7 @@ from specula.base_data_obj import BaseDataObj
 from astropy.io import fits
 
 
-def cut_modes(matrix, start_mode=None, nmodes=None, idx_modes=None, modes_on_first_axis=True, logger=None):
+def cut_modes(matrix, start_mode=None, nmodes=None, idx_modes=None, modes_on_first_axis=True):
     """
     Cut the an influence function (or an inverse one) to a subset of modes.
     
@@ -21,12 +21,8 @@ def cut_modes(matrix, start_mode=None, nmodes=None, idx_modes=None, modes_on_fir
     modes_on_first_axis : bool, optional
         Whether the modes are on the first axis (rows) or second axis (columns) of the input array (default: True).
         For IFunc, modes are on the first axis. For IFuncInv, modes are on the second axis.
-    logger : logger object, optional
-        logging.Logger instance to log output.
-        If None, a default logger will be used.
     """
-    if logger is None:
-        logger = get_specula_logger(__name__)
+    logger = get_specula_logger(__name__)
 
     if idx_modes is not None:
         if start_mode is not None:
