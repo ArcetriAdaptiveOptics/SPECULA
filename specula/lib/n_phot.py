@@ -42,8 +42,6 @@ def n_phot(
      back_mag = sky background default magnitude [FLOAT].
      model    = use the specified model instead the the default one (Lena 96).
                      Available model are: 'MAORY-1'   (phase A of Maory MCAO-EELT)
-     logger   = logger object, optional
-                logging.Logger instance to log output.
 
     OUTPUTS:
 
