@@ -15,6 +15,7 @@ from specula.lib.utils import import_class, get_type_hints, remove_suffix
 from specula.calib_manager import CalibManager
 from specula.processing_objects.data_store import DataStore
 from specula.connections import InputList, InputValue
+from specula.simul_diagram import SimulDiagram
 
 import yaml
 import hashlib
@@ -104,8 +105,6 @@ class Simul():
         if len(param_files) < 1:
             raise ValueError('At least one Yaml parameter file must be present')
         self.is_dataobj = {}
-        self.connections = []
-        self.references = []
         self.all_objs_ranks = {}
         self.max_rank = 0
         self.max_target_device_idx = 0
@@ -120,7 +119,7 @@ class Simul():
         else:
             self.overrides = overrides
         self.stepping = stepping
-        self.diagram = diagram
+        self.diagram_flag = diagram
         self.diagram_title = diagram_title
         self.diagram_filename = diagram_filename
         self.diagram_colors_on = diagram_colors_on
@@ -427,10 +426,7 @@ class Simul():
                     if build_this_object:
                         pars2[parname] = [self.objs[x] for x in value]
                     for x in value:
-                        a_ref = {}
-                        a_ref['start'] = key
-                        a_ref['end'] = x
-                        self.references.append(a_ref)
+                        self.diagram.add_reference(start=key, end=x)
 
                 # dict_ref field contains a dictionary of names and associated data objects (defined in the same yml file)
                 elif name.endswith('_dict_ref') and parname != name:
@@ -438,10 +434,7 @@ class Simul():
                         data = {x : self.objs[x] for x in value}
                         pars2[parname] = data
                     for x in value:
-                        a_ref = {}
-                        a_ref['start'] = key
-                        a_ref['end'] = x
-                        self.references.append(a_ref)
+                        self.diagram.add_reference(start=key, end=x)
 
                 # list_object fields contain an ordered list of tags to be restored as data objects.
                 elif name.endswith('_list_object') and parname != name and build_this_object:
@@ -530,10 +523,7 @@ class Simul():
                     if build_this_object:
                         data = self.objs[value]
                         pars2[parname] = data
-                    a_ref = {}
-                    a_ref['start'] = key
-                    a_ref['end'] = value
-                    self.references.append(a_ref)
+                    self.diagram.add_reference(start=key, end=x)
 
                 # data fields are read from a fits file
                 elif name.endswith('_data') and parname != name and build_this_object:
@@ -692,13 +682,10 @@ class Simul():
 
                     output = self.split_output(single_output_name, get_ref=True)
 
-                    a_connection = {}
-                    a_connection['start'] = output.obj_name
-                    a_connection['end'] = dest_object
-                    a_connection['start_label'] = output.output_key
-#                    a_connection['middle_label'] = self.objs[dest_object].inputs[use_input_name]
-                    a_connection['end_label'] = input_name
-                    self.connections.append(a_connection)
+                    self.diagram.add_connection(start = output.obj_name,
+                                                end= dest_object,
+                                                start_label= output.output_key,
+                                                end_label = input_name)
 
                     # Remote-to-remote: nothing to do
                     if not local_dest_object and output.ref is None:
@@ -965,140 +952,6 @@ class Simul():
             rows.append(r)
         return rows
     
-    def buildDiagram(self, params):
-        from orthogram import Color, DiagramDef, write_png, Side,  FontWeight, FontStyle, TextOrientation
-
-        print('Building diagram...')        
-        title_fontsize = 48*2
-        block_fontsize = 42*2
-        arrow_fontsize = 24*2
-        arrow_base_value = 12.0
-        
-        d = DiagramDef(label=self.diagram_title, text_fill=Color(0, 0, 0), scale=1.0, collapse_connections=False, font_size=title_fontsize, connection_distance=28)
-        rows = self.arrangeInGrid(self.trigger_order, self.trigger_order_idx)
-        row_len = len(rows[0])        
-        # a row is a list of strings, which are labels for the cells        
-        for r in rows:
-            d.add_row(r)
-            for b in r:
-                target_device_idx = 0
-                target_rank = 0
-                if b in params and 'target_device_idx' in params[b]:
-                    target_device_idx = params[b]['target_device_idx']
-                if b in self.all_objs_ranks:
-                    target_rank = self.all_objs_ranks[b]
-                
-                if b in self.is_dataobj and not self.is_dataobj[b]:
-                    fs = FontStyle.ITALIC
-                    fb = FontWeight.BOLD
-                else:
-                    fs = FontStyle.NORMAL
-                    fb = FontWeight.NORMAL
-
-                if self.diagram_colors_on:
-                    cstroke = Color(*int_to_rgb(target_rank-1, self.max_rank+1))
-                    refcstroke = Color(0,0.5,0)
-                    cfill = Color(*int_to_rgb(target_device_idx, self.max_target_device_idx+1))
-                    swidth = 12
-                else:
-                    cstroke = Color(0,0,0)
-                    refcstroke = Color(0,0,0)
-                    cfill = Color(1,1,1)
-                    swidth = 2
-
-                d.add_block(b,
-                            scale=1,
-                            label_distance=40,
-                            stroke=cstroke,
-                            fill=cfill,
-                            stroke_width=swidth,
-                            min_height=block_fontsize*3,
-                            min_width=450,
-                            margin_top=16,
-                            margin_bottom=16,
-                            margin_right=16,
-                            margin_left=16,
-                            font_size=block_fontsize,
-                            font_weight=fb, 
-                            font_style=fs)
-        
-        if self.diagram_colors_on:
-            legend_row1 = []
-            for td in range(self.max_target_device_idx+1):
-                legend_row1.append("GPU Id=" + str(td))
-            d.add_row(legend_row1)
-            for td in range(self.max_target_device_idx+1):
-                d.add_block("GPU Id=" + str(td),
-                            label_distance=40,
-                            fill=Color(*int_to_rgb(td, self.max_target_device_idx+1)),
-                            stroke=Color(1.0,1.0,1.0),
-                            stroke_width=12,
-                            min_height=block_fontsize*3,
-                            min_width=450,
-                            margin_top=16,
-                            margin_bottom=16,
-                            margin_right=16,
-                            margin_left=16,
-                            font_size=block_fontsize)
-
-            legend_row2 = []
-            ri=0
-            base_rank=0
-            for rank in range(self.max_rank+1):
-                legend_row2.append("Rank=" + str(rank)) 
-                if int(rank+1) % row_len == 0 or rank==self.max_rank:
-                    d.add_row(legend_row2)
-                    for ii in range(len(legend_row2)):
-                        d.add_block("Rank=" + str(ii+base_rank),
-                                    label_distance=40,
-                                    stroke=Color(*int_to_rgb(ii+base_rank-1, self.max_rank+1)), 
-                                    stroke_width=12,
-                                    min_height=block_fontsize*3,
-                                    min_width=450,
-                                    margin_top=16,
-                                    margin_bottom=16,
-                                    margin_right=16,
-                                    margin_left=16,
-                                    font_size=block_fontsize)
-                    legend_row2 = []
-                    ri += 1
-                    base_rank += row_len            
-
-        for c in self.connections:
-            if c['start_label'] is None:
-                ostring = ""
-            else:
-                ostring = str(c['start_label'])
-            aconn = d.add_connection( c['start'],
-                                      c['end'],
-                                      buffer_fill=Color(1.0,1.0,1.0),
-                                      buffer_width=2,
-                                      stroke_width=2.0,
-                                      stroke=Color(0.0,0.0,0.0), 
-                                      arrow_base=arrow_base_value,
-                                      exits=[Side.RIGHT, Side.BOTTOM],
-                                      entrances=[Side.LEFT, Side.TOP],
-                                      font_size=arrow_fontsize,
-                                      text_orientation=TextOrientation.HORIZONTAL,
-                                      label = ostring + "→" + str(c['end_label']) )
-
-        for c in self.references:
-            if c['end'] != 'main':
-                aconn = d.add_connection( c['start'],
-                                          c['end'],
-                                          buffer_fill=Color(1.0,1.0,1.0),
-                                          buffer_width=2,
-                                          stroke_width=2.0,
-                                          stroke=refcstroke,
-                                          arrow_base=arrow_base_value,
-                                          exits=[Side.LEFT],
-                                          entrances=[Side.RIGHT, Side.BOTTOM, Side.TOP], 
-                                          stroke_dasharray=[6,6] )
-
-
-        write_png(d, self.diagram_filename)
-        print('Diagram saved.')
-
     def run(self):
         params = {}
         # Read YAML file(s)
@@ -1124,17 +977,28 @@ class Simul():
         else:
             replay_params = None
 
+        if self.diagram_filename is None:
+            self.diagram_filename = str(Path(self.param_files[0]).with_suffix('.png'))
+        if self.diagram_title is None:
+            self.diagram_title = str(Path(self.param_files[0]).with_suffix(''))
+
+        self.diagram = SimulDiagram(param_file=self.param_files[0],
+                                    title=self.diagram_title,
+                                    filename=self.diagram_filename,
+                                    colors_on=self.diagram_colors_on)
+
         self.build_objects(params)
         self.create_input_list_inputs(params)
         self.connect_objects(params)
         
         if (process_rank == 0 or process_rank is None) and \
-           (self.diagram or self.diagram_filename or self.diagram_title):
-            if self.diagram_filename is None:
-                self.diagram_filename = str(Path(self.param_files[0]).with_suffix('.png'))
-            if self.diagram_title is None:
-                self.diagram_title = str(Path(self.param_files[0]).with_suffix(''))
-            self.buildDiagram(params)
+           (self.diagram_flag or self.diagram_filename or self.diagram_title):
+            self.diagram.build(trigger_order = self.trigger_order,
+                               trigger_order_idx = self.trigger_order_idx,
+                               max_rank = self.max_rank,
+                               max_target_device_idx = self.max_target_device_idx,
+                               all_objs_ranks = self.all_objs_ranks,
+                               is_dataobj = self.is_dataobj)
 
         if replay_params is not None:
             for obj in self.objs.values():
