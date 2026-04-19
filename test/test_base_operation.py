@@ -406,11 +406,10 @@ class TestBaseOperation(unittest.TestCase):
                            target_device_idx=target_device_idx)
         value1.generation_time = value1.seconds_to_t(1)
 
-        # Test that constant_div (scalar) overrides constant_mul (vector)
-        # According to your code, the last one wins
+        # Test that constant_div (scalar) is combined with constant_mul (vector)
         op = BaseOperation(
-            constant_mul=[10.0, 20.0],  # This should be overridden
-            constant_div=2.0,           # This should win
+            constant_mul=[10.0, 20.0],
+            constant_div=2.0,
             target_device_idx=target_device_idx
         )
         op.inputs['in_value1'].set(value1)
@@ -419,8 +418,8 @@ class TestBaseOperation(unittest.TestCase):
         loop.add(op, idx=0)
         loop.run(run_time=2, dt=1, t0=1)
 
-        # Should be value1 / 2.0 = [0.5, 1.0]
-        expected = xp.array([0.5, 1.0])
+        # Should be value1 / 2 * [10.0, 20.0] = [5.0, 20.0]
+        expected = xp.array([5.0, 20.0])
         np.testing.assert_array_almost_equal(cpuArray(op.outputs['out_value'].value),
                                              cpuArray(expected))
 
