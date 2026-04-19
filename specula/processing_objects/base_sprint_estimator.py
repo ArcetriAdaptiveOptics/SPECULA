@@ -5,7 +5,7 @@ Specific WFS implementations should inherit from this class.
 
 from abc import abstractmethod
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.connections import InputValue
 from specula.data_objects.pupilstop import Pupilstop
 from specula.data_objects.slopes import Slopes
@@ -205,6 +205,16 @@ class BaseSprintEstimator(BaseProcessingObj):
         self.outputs['out_intmat'] = self.estimated_intmat
         self.outputs['out_misreg_params'] = self.misreg_output
         self.outputs['out_convergence_error'] = self.error_output
+
+    @classmethod
+    def input_names(cls):
+        return {'in_slopes': InputDesc(Slopes, 'Input slopes from wavefront sensor')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_intmat': OutputDesc(Intmat, 'Estimated interaction matrix'),
+                'out_misreg_params': OutputDesc(BaseValue, 'Misregistration parameters'),
+                'out_convergence_error': OutputDesc(BaseValue, 'Convergence error metric')}
 
     @abstractmethod
     def _validate_wfs(self):

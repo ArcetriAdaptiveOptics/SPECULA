@@ -42,6 +42,14 @@ class APPCoronagraph(Coronagraph):
                                                           symmetric_dark_hole=make_symmetric, max_its=max_its)
         self.apodizer = self.xp.exp(1j*apodizer_phase, dtype=self.complex_dtype)
 
+    @classmethod
+    def input_names(cls):
+        return super().input_names()
+
+    @classmethod
+    def output_names(cls):
+        return super().output_names()
+
     def define_apodizing_phase(self, pupil, contrast,
                                iwa:float, owa:float, beta:float,
                             symmetric_dark_hole:bool=False, 

@@ -1,5 +1,5 @@
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.connections import InputValue
 from specula.base_value import BaseValue
 
@@ -27,7 +27,6 @@ class OpticalGainEstimator(BaseProcessingObj):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.gain = gain
-        self.initial_optical_gain = initial_optical_gain
 
         # Optional advanced output mapping
         # Not supported yet
@@ -36,21 +35,17 @@ class OpticalGainEstimator(BaseProcessingObj):
 
         # Internal optical gain storage
         self.optical_gain = BaseValue(
-            value=self.dtype(initial_optical_gain),
+            value=self.xp.atleast_1d(initial_optical_gain),
             target_device_idx=target_device_idx,
             precision=precision
         )
 
         # Output value (can be different from internal optical_gain if using expressions)
         self.output = BaseValue(
-            value=self.dtype(initial_optical_gain),
+            value=self.xp.atleast_1d(initial_optical_gain),
             target_device_idx=target_device_idx,
             precision=precision
         )
-
-        # Initialize values
-        self.optical_gain.value = self.dtype(self.initial_optical_gain)
-        self.output.value = self.dtype(self.initial_optical_gain)
 
         # Inputs
         self.inputs['in_demod_delta_command'] = InputValue(type=BaseValue)
@@ -61,6 +56,16 @@ class OpticalGainEstimator(BaseProcessingObj):
         self.outputs['output'] = self.output
 
         self.verbose = False
+
+    @classmethod
+    def input_names(cls):
+        return {'in_demod_delta_command': InputDesc(BaseValue, 'Demodulated delta command vector for optical gain estimation'),
+                'in_demod_command': InputDesc(BaseValue, 'Demodulated absolute command vector for optical gain estimation')}
+
+    @classmethod
+    def output_names(cls):
+        return {'optical_gain': OutputDesc(BaseValue, 'Estimated optical gain scalar or vector'),
+                'output': OutputDesc(BaseValue, 'Output command vector corrected by optical gain')}
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
@@ -94,7 +99,7 @@ class OpticalGainEstimator(BaseProcessingObj):
             # Update formula from IDL code
             updated_gain = current_gain - (1.0 - ratio) * self.gain * current_gain
 
-            self.optical_gain.value = updated_gain
+            self.optical_gain.value[:] = updated_gain
             self.optical_gain.generation_time = self.current_time
 
             if self.verbose:
@@ -116,16 +121,7 @@ class OpticalGainEstimator(BaseProcessingObj):
             output = self.optical_gain.value
 
         # Ensure output doesn't exceed 1.0 (as in IDL code)
-        if hasattr(output, '__iter__'):
-            output = self.xp.minimum(output, 1.0)
-        else:
-            output = min(float(output), 1.0)
-
-        # Handle scalar case
-        if hasattr(output, '__len__') and len(output) == 1:
-            output = float(output[0])
-
-        self.output.value = output
+        _ = self.xp.minimum(output, 1.0, out=self.output.value)
         self.output.generation_time = t
 
         if self.verbose:

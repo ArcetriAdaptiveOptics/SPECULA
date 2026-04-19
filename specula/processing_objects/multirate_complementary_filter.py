@@ -1,5 +1,5 @@
 from specula import cp, np
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.processing_objects.base_filter import BaseFilter
 from specula.base_value import BaseValue
 from specula.connections import InputValue, InputList
@@ -21,8 +21,30 @@ class MultirateComplementaryFilter(BaseFilter):
                  delay: float = 0,
                  idx_yf=None,
                  idx_ys=None,
+                 validate_sync: bool = True,
                  target_device_idx=None,
                  precision=None):
+        """
+        Parameters
+        ----------
+        simul_params : SimulParams
+            Simulation timing parameters.
+        iir_filter_data : IirFilterData
+            IIR controller coefficients for the fused command.
+        g_track : float
+            Tracking gain applied to the barycentric slow-sensor contribution.
+        weights : list
+            DC fusion weights for `[fast_sensor, slow_sensor_1, ...]`.
+        N_list : list
+            Downsampling factors for the slow sensors, in the same order as `in_ys`.
+        delay : float, optional
+            Output delay in frames.
+        idx_yf, idx_ys : optional
+            Index selections used when routing inputs from a single `in_vec` vector.
+        validate_sync : bool, optional
+            If `True`, enforce explicit multirate timestamp consistency on separate inputs.
+            Set it to `False` when slow branches are already zero-stuffed upstream.
+        """
 
         self.n_slow_sensors = len(N_list)
 
@@ -44,6 +66,7 @@ class MultirateComplementaryFilter(BaseFilter):
         self.idx_yf = idx_yf
         self.idx_ys = idx_ys
         self.N_list = N_list
+        self.validate_sync = validate_sync
 
         # Remove the default delta_comm input from BaseFilter as we use custom topology
         if 'delta_comm' in self.inputs:
@@ -73,6 +96,18 @@ class MultirateComplementaryFilter(BaseFilter):
         self._use_vector_input = False
         self._cpu_frame_counter = 0
 
+
+    @classmethod
+    def input_names(cls):
+        return {'in_yf': InputDesc(BaseValue, 'Fast sensor measurement vector (optional, use with in_ys)'),
+                'in_ys': InputDesc(BaseValue, 'List of slow sensor measurement vectors (optional, use with in_yf)'),
+                'in_vec': InputDesc(BaseValue, 'Combined measurement vector (optional, alternative to in_yf+in_ys)'),
+                'gain_mod': InputDesc(BaseValue, 'Optional gain modulation vector (optional)')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_comm': OutputDesc(BaseValue, 'Output fused command vector with delay applied'),
+                'out_comm_no_delay': OutputDesc(BaseValue, 'Output fused command vector without delay (for POLC)')}
 
     def setup(self):
         super().setup()
@@ -126,8 +161,10 @@ class MultirateComplementaryFilter(BaseFilter):
         else:
             self._gain_mod = self.xp.ones(self._nfilter, dtype=self.dtype)
 
-        # 3. Synchronization Check (Only in separate input mode)
-        if not self._use_vector_input:
+        # 3. Synchronization Check (Only in separate input mode).
+        # Disable this when slow inputs are already zero-stuffed upstream and therefore
+        # legitimately carry the current generation_time at every fast frame.
+        if self.validate_sync and not self._use_vector_input:
             t_fast = self.local_inputs['in_yf'].generation_time
             expected_frame = self._cpu_frame_counter + 1
 

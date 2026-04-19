@@ -84,19 +84,19 @@ class Recmat(BaseDataObj):
 
     @staticmethod
     def restore(filename, target_device_idx=None):
-        hdr = fits.getheader(filename)
-        version = int(hdr['VERSION'])
-        if version != 1:
-            raise ValueError(f"Error: unknown version {version} in file {filename}")
-
-        norm_factor = float(hdr['NORMFACT'])
-        recmat = fits.getdata(filename, ext=1)
         with fits.open(filename) as hdul:
+            hdr = hdul[0].header
+            version = int(hdr['VERSION'])
+            if version != 1:
+                raise ValueError(f"Error: unknown version {version} in file {filename}")
+
+            norm_factor = float(hdr['NORMFACT'])
+            recmat = hdul[1].data
             num_ext = len(hdul)
-        if num_ext >= 3:
-            mode2reLayer = fits.getdata(filename, ext=2)
-        else:
-            mode2reLayer = None
+            if num_ext >= 3:
+                mode2reLayer = hdul[2].data
+            else:
+                mode2reLayer = None
         return Recmat(recmat, mode2reLayer, norm_factor, target_device_idx=target_device_idx)
 
 

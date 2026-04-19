@@ -1,4 +1,5 @@
 import re
+import types
 import typing
 import inspect
 import itertools
@@ -20,6 +21,49 @@ import hashlib
 
 
 Output = namedtuple('Output', 'obj_name output_key delay ref input_name')
+UNION_ORIGINS = (typing.Union,) + ((types.UnionType,) if hasattr(types, 'UnionType') else ())
+
+
+def _resolve_dataobj_type(type_arg, owner_class):
+    """Resolve a concrete data-object class from a container type argument."""
+    if isinstance(type_arg, type):
+        return type_arg
+
+    ref_name = None
+    if isinstance(type_arg, typing.ForwardRef):
+        ref_name = type_arg.__forward_arg__
+    elif isinstance(type_arg, str):
+        ref_name = type_arg
+
+    if not ref_name:
+        return None
+
+    ref_name = ref_name.strip("'\"")
+    candidate_names = [ref_name]
+    if '.' in ref_name:
+        candidate_names.append(ref_name.rsplit('.', 1)[-1])
+
+    namespaces = []
+    init_method = getattr(owner_class, '__init__', None)
+    if init_method is not None:
+        namespaces.append(getattr(init_method, '__globals__', {}))
+    namespaces.append(vars(owner_class))
+
+    for namespace in namespaces:
+        for candidate_name in candidate_names:
+            candidate = namespace.get(candidate_name)
+            if isinstance(candidate, type):
+                return candidate
+
+    for candidate_name in candidate_names:
+        try:
+            candidate = import_class(candidate_name)
+        except (ImportError, AttributeError, ModuleNotFoundError):
+            continue
+        if isinstance(candidate, type):
+            return candidate
+
+    return None
 
 
 def computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name):
@@ -375,6 +419,19 @@ class Simul():
                 if parname not in args:
                     raise ValueError(f'Parameter {parname} is not expected by class {classname}')
 
+                # list_ref field contains an ordered list of associated data objects
+                # (defined in the same yml file).
+                elif name.endswith('_list_ref') and parname != name:
+                    if not isinstance(value, (list, tuple)):
+                        raise ValueError(f'Parameter {name} must be a list of object names')
+                    if build_this_object:
+                        pars2[parname] = [self.objs[x] for x in value]
+                    for x in value:
+                        a_ref = {}
+                        a_ref['start'] = key
+                        a_ref['end'] = x
+                        self.references.append(a_ref)
+
                 # dict_ref field contains a dictionary of names and associated data objects (defined in the same yml file)
                 elif name.endswith('_dict_ref') and parname != name:
                     if build_this_object:
@@ -386,6 +443,89 @@ class Simul():
                         a_ref['end'] = x
                         self.references.append(a_ref)
 
+                # list_object fields contain an ordered list of tags to be restored as data objects.
+                elif name.endswith('_list_object') and parname != name and build_this_object:
+                    if value is None:
+                        pars2[parname] = None
+                    elif not isinstance(value, (list, tuple)):
+                        raise ValueError(f'Parameter {name} must be a list of tags')
+                    elif parname in hints:
+                        partype = hints[parname]
+                        type_candidates = []
+                        union_origin = typing.get_origin(partype)
+                        if union_origin in UNION_ORIGINS:
+                            type_candidates = [arg for arg in typing.get_args(partype)
+                                               if arg is not type(None)]
+                        else:
+                            type_candidates = [partype]
+
+                        value_type = None
+                        for candidate in type_candidates:
+                            origin = typing.get_origin(candidate)
+                            args_t = typing.get_args(candidate)
+                            if origin in (list, typing.List, tuple) and len(args_t) >= 1:
+                                resolved_type = _resolve_dataobj_type(args_t[0], klass)
+                                if resolved_type is not None:
+                                    value_type = resolved_type
+                                    break
+
+                        if value_type is None:
+                            raise ValueError(f'Parameter {parname} must be typed as list[DataObjType]')
+
+                        loaded = []
+                        for tag in value:
+                            filename = cm.filename(value_type.__name__, tag)
+                            print('Restoring:', filename)
+                            obj = value_type.restore(filename, target_device_idx=target_device_idx)
+                            obj.printMemUsage()
+                            obj.tag = tag
+                            loaded.append(obj)
+
+                        pars2[parname] = loaded
+                    else:
+                        raise ValueError(f'No type hint for parameter {parname} of class {classname}')
+
+                # dict_object fields contain a dictionary of tags to be restored as data objects.
+                elif name.endswith('_dict_object') and parname != name and build_this_object:
+                    if value is None:
+                        pars2[parname] = None
+                    elif not isinstance(value, dict):
+                        raise ValueError(f'Parameter {name} must be a dictionary of tags')
+                    elif parname in hints:
+                        partype = hints[parname]
+                        type_candidates = []
+                        union_origin = typing.get_origin(partype)
+                        if union_origin in UNION_ORIGINS:
+                            type_candidates = [arg for arg in typing.get_args(partype)
+                                               if arg is not type(None)]
+                        else:
+                            type_candidates = [partype]
+
+                        value_type = None
+                        for candidate in type_candidates:
+                            origin = typing.get_origin(candidate)
+                            args_t = typing.get_args(candidate)
+                            if origin in (dict, typing.Dict) and len(args_t) == 2:
+                                resolved_type = _resolve_dataobj_type(args_t[1], klass)
+                                if resolved_type is not None:
+                                    value_type = resolved_type
+                                    break
+
+                        if value_type is None:
+                            raise ValueError(f'Parameter {parname} must be typed as dict[str, DataObjType]')
+
+                        loaded = {}
+                        for dict_key, tag in value.items():
+                            filename = cm.filename(value_type.__name__, tag)
+                            print('Restoring:', filename)
+                            obj = value_type.restore(filename, target_device_idx=target_device_idx)
+                            obj.printMemUsage()
+                            obj.tag = tag
+                            loaded[dict_key] = obj
+
+                        pars2[parname] = loaded
+                    else:
+                        raise ValueError(f'No type hint for parameter {parname} of class {classname}')
                 elif name.endswith('_ref') and parname != name:
                     if build_this_object:
                         data = self.objs[value]
@@ -684,7 +824,10 @@ class Simul():
                     add_key(desc.obj_name)
             # Add all references to other objects
             for k, v in params[key].items():
-                if k.endswith('_dict_ref'):
+                if k.endswith('_list_ref'):
+                    for objname in v:
+                        add_key(objname)
+                elif k.endswith('_dict_ref'):
                     for objname in v:
                         add_key(objname)
                 elif k.endswith('_ref'):
@@ -692,7 +835,7 @@ class Simul():
 
         for key in target_object_names:
             add_key(key)
-        
+
         return replay_params
 
     def iterate_inputs(self, pars):

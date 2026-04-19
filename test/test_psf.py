@@ -135,6 +135,53 @@ class TestPSF(unittest.TestCase):
         self.assertAlmostEqual(float(psf.int_sr.value), 1.0, places=6)
 
     @cpu_and_gpu
+    def test_psf_profile_metrics_outputs(self, target_device_idx, xp):
+        """Test distinct frame and integrated PSF profile/FWHM/EE outputs."""
+        simul_params, ef, wavelengthInNm = self.get_basic_setup(target_device_idx, pixel_pupil=40)
+
+        psf = PSF(simul_params=simul_params, wavelengthInNm=wavelengthInNm,
+                  nd=2.0, start_time=0.0, compute_profile_metrics=True,
+                  compute_metrics_in_trigger=True, ee_radius_in_lambda_d=1.0,
+                  target_device_idx=target_device_idx)
+
+        psf.inputs['in_ef'].set(ef)
+        psf.setup()
+
+        y, x = xp.ogrid[:ef.size[0], :ef.size[1]]
+        phase_pattern = (x - ef.size[1] / 2) ** 2 + (y - ef.size[0] / 2) ** 2
+
+        for t in range(1, 4):
+            ef.phaseInNm[:] = 0.01 * t * phase_pattern
+            ef.A[:] = 1.0
+            ef.generation_time = t
+
+            psf.check_ready(t)
+            psf.trigger()
+            psf.post_trigger()
+
+        frame_profile_before_finalize = cpuArray(psf.psf_profile.value.copy())
+        frame_ee_before_finalize = cpuArray(psf.encircled_energy.value.copy())
+
+        psf.finalize()
+
+        profile_data = cpuArray(psf.psf_profile.value)
+        ee_data = cpuArray(psf.encircled_energy.value)
+        int_profile_data = cpuArray(psf.int_psf_profile.value)
+        int_ee_data = cpuArray(psf.int_encircled_energy.value)
+        int_ee_at_radius = np.atleast_1d(cpuArray(psf.int_encircled_energy_at_radius.value))
+
+        np.testing.assert_allclose(profile_data, frame_profile_before_finalize)
+        np.testing.assert_allclose(ee_data, frame_ee_before_finalize)
+        self.assertEqual(profile_data.shape[0], 2)
+        self.assertEqual(ee_data.shape[0], 2)
+        self.assertEqual(int_profile_data.shape[0], 2)
+        self.assertEqual(int_ee_data.shape[0], 2)
+        self.assertGreater(float(psf.psf_fwhm.value), 0.0)
+        self.assertGreater(float(psf.int_psf_fwhm.value), 0.0)
+        self.assertGreaterEqual(float(int_ee_at_radius[0]), 0.0)
+        self.assertLessEqual(float(int_ee_at_radius[0]), 1.0)
+
+    @cpu_and_gpu
     def test_coronagraph_with_zero_phase(self, target_device_idx, xp):
         """Test coronagraph PSF with zero phase - should give perfect suppression"""
         simul_params, ef, wavelengthInNm = self.get_basic_setup(target_device_idx)
@@ -165,6 +212,45 @@ class TestPSF(unittest.TestCase):
 
         # Should have very good suppression (< 1e-10)
         self.assertLess(suppression_ratio, 1e-10)
+
+    @cpu_and_gpu
+    def test_coronagraph_profile_metrics_outputs(self, target_device_idx, xp):
+        """Test coronagraph radial profiles for frame, integrated and std PSFs."""
+        simul_params, ef, wavelengthInNm = self.get_basic_setup(target_device_idx, pixel_pupil=40)
+
+        psf_coro = PsfCoronagraph(simul_params=simul_params, wavelengthInNm=wavelengthInNm,
+                                  nd=2.0, start_time=0.0, compute_profile_metrics=True,
+                                  compute_metrics_in_trigger=True, target_device_idx=target_device_idx)
+
+        psf_coro.inputs['in_ef'].set(ef)
+        psf_coro.setup()
+
+        y, x = xp.ogrid[:ef.size[0], :ef.size[1]]
+        phase_pattern = x + 0.5 * y
+
+        for t in range(1, 4):
+            ef.phaseInNm[:] = 5.0 * t * phase_pattern
+            ef.A[:] = 1.0
+            ef.generation_time = t
+
+            psf_coro.check_ready(t)
+            psf_coro.trigger()
+            psf_coro.post_trigger()
+
+        frame_profile_before_finalize = cpuArray(psf_coro.coronagraph_psf_profile.value.copy())
+
+        psf_coro.finalize()
+
+        profile_data = cpuArray(psf_coro.coronagraph_psf_profile.value)
+        int_profile_data = cpuArray(psf_coro.int_coronagraph_psf_profile.value)
+        std_profile_data = cpuArray(psf_coro.std_coronagraph_psf_profile.value)
+
+        np.testing.assert_allclose(profile_data, frame_profile_before_finalize)
+        self.assertEqual(profile_data.shape[0], 2)
+        self.assertEqual(int_profile_data.shape[0], 2)
+        self.assertEqual(std_profile_data.shape[0], 2)
+        self.assertFalse(hasattr(psf_coro, 'coronagraph_psf_fwhm'))
+        self.assertFalse(hasattr(psf_coro, 'coronagraph_encircled_energy'))
 
     @cpu_and_gpu
     def test_coronagraph_with_aber(self, target_device_idx, xp):
