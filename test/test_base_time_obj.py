@@ -1,3 +1,4 @@
+import sys
 import logging
 import unittest
 from unittest.mock import MagicMock, patch
@@ -77,6 +78,7 @@ class TestBaseValue(unittest.TestCase):
             self.assertEqual(obj.gpu_bytes_used, 1500)
 
     @cpu_and_gpu
+    @unittest.skipIf(sys.version_info < (3, 10), "Requires Python 3.10+")
     def test_print_mem_usage_calls_print_on_gpu(self, target_device_idx, xp):
         """Ensure printMemUsage prints only for GPU."""
         obj = BaseTimeObj(target_device_idx=target_device_idx)
