@@ -20,8 +20,6 @@ from skimage.restoration import unwrap_phase
 
 import numpy as np
 
-@unittest.skipIf(os.getenv('CI') == 'true',
-                     "Disable for CI issues with Ubuntu and Python >=3.11")
 class TestModalAnalysisUnwrapping(unittest.TestCase):
 
     @cpu_and_gpu
