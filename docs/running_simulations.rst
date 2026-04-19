@@ -46,7 +46,7 @@ Simulation output is written using the standard Python ``logging`` module. As a 
    2026-04-19 14:18:45,206 [INFO]: [psf]: SR at 1650nm : 0.0033
 
 Each processing object handles its output and defines what to print, and at which log level. The log level for the whole simulation
-is set with the ``--log-evel`` command line switch: this option sets the minimum severity level of log messages that will be emitted.
+is set with the ``--log-level`` command line switch: this option sets the minimum severity level of log messages that will be emitted.
 Messages below the selected level are filtered out.
 
 Usage
