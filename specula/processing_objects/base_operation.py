@@ -26,28 +26,115 @@ class BaseOperation(BaseProcessingObj):
                  concat: bool=False,
                  value2_remap: list=None,
                  target_device_idx: int=None,
-                 precision:int =None):
+                 precision: int=None,
+                ):
         """
-        Initialize the base operation object.
+        Base operation processing object.
 
-        Parameters:
-        constant_mul (float, optional): Constant for multiplication
-        constant_div (float, optional): Constant for division
-        constant_sum (float, optional): Constant for addition
-        constant_sub (float, optional): Constant for subtraction
-        constant_max (float, optional): Constant for maximum
-        constant_min (float, optional): Constant for minimum
-        mul (bool, optional): Flag for multiplication operation
-        div (bool, optional): Flag for division operation
-        sum (bool, optional): Flag for addition operation
-        sub (bool, optional): Flag for subtraction operation
-        concat (bool, optional): Flag for concatenation operation
-        value2_remap (list, optional): index list to remap value2's elements into value1
+        Applies a sequence of element-wise operations to an input value (`value1`),
+        optionally combining it with a second input (`value2`). The operation
+        supports constant-based transformations as well as a single binary operation
+        between two inputs.
+
+        Parameters
+        ----------
+        constant_mul : float or array-like, optional
+            Constant factor for element-wise multiplication.
+        constant_div : float or array-like, optional
+            Constant divisor for element-wise division.
+        constant_sum : float or array-like, optional
+            Constant added element-wise.
+        constant_sub : float or array-like, optional
+            Constant subtracted element-wise.
+        constant_max : float or array-like, optional
+            Element-wise lower bound (applies ``maximum(result, constant_max)``).
+        constant_min : float or array-like, optional
+            Element-wise upper bound (applies ``minimum(result, constant_min)``).
+        mul : bool, optional
+            If True, multiply the result with ``value2``.
+        div : bool, optional
+            If True, divide the result by ``value2``.
+        sum : bool, optional
+            If True, add ``value2`` to the result.
+        sub : bool, optional
+            If True, subtract ``value2`` from the result.
+        concat : bool, optional
+            If True, concatenate ``value1`` and ``value2`` before applying
+            constant operations.
+        value2_remap : list of int, optional
+            Optional index mapping applied to ``value2`` before the binary operation.
+            Cannot be used together with ``concat``.
         target_device_idx : int, optional
-            Target device index for computation (CPU/GPU). Default is None (uses global setting).
+            Target device index (CPU/GPU). If None, a global setting is used.
         precision : int, optional
-            Precision for computation (0 for double, 1 for single). Default is None
-            (uses global setting).
+            Precision for computation (0 = double, 1 = single). If None, a global
+            setting is used.
+
+        Raises
+        ------
+        ValueError
+            If more than one of ``sum``, ``sub``, ``mul``, ``div`` or ``concat`` is True.
+        ValueError
+            If ``concat`` is True and ``value2_remap`` is provided.
+        ValueError
+            If a binary operation is requested but ``value2`` is not set during setup.
+
+        Notes
+        -----
+        **Execution order**
+
+        Operations are applied in the following order:
+
+        1. Concatenation (if ``concat=True``)
+        2. Constant multiplication and division
+        3. Constant addition and subtraction
+        4. Constant min/max (clamping)
+        5. Binary operation with ``value2`` (if enabled)
+
+        In pseudo-code::
+
+            result = value1
+
+            if concat:
+                result = concat(result, value2)
+
+            result *= constant_mul
+            result /= constant_div
+
+            result += constant_sum
+            result -= constant_sub
+
+            result = maximum(result, constant_max)
+            result = minimum(result, constant_min)
+
+            result = result (op) value2
+
+        where ``(op)`` is one of ``+``, ``-``, ``*``, ``/``.
+
+        **Broadcasting semantics**
+
+        Constant operations are applied using in-place operators (e.g. ``*=``, ``+=``).
+        As a result:
+
+        - Broadcasting is supported only if it does not change the shape of the
+        left-hand side (`value1`).
+        - Shape-expanding broadcasts (e.g. from shape ``(1,)`` to ``(N,)``) are not
+        allowed and will raise an exception.
+
+        Examples::
+
+            value shape (3,), constant scalar        → OK
+            value shape (3,), constant shape (3,)    → OK
+            value shape (1,), constant shape (3,)    → ERROR
+
+        Binary operations with ``value2`` follow standard backend broadcasting rules
+        (NumPy/CuPy).
+
+        **Constraints**
+
+        - Only one binary operation flag can be active at a time.
+        - ``value2`` must be provided when a binary operation or concatenation is used.
+        - ``value2_remap`` cannot be used together with ``concat``.
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
