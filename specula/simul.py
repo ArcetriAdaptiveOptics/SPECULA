@@ -4,6 +4,7 @@ import typing
 import inspect
 import itertools
 from copy import deepcopy
+from typing import get_args
 from pathlib import Path
 from collections import Counter, namedtuple
 from specula import process_rank, MPI_DBG
@@ -21,49 +22,6 @@ import hashlib
 
 
 Output = namedtuple('Output', 'obj_name output_key delay ref input_name')
-UNION_ORIGINS = (typing.Union,) + ((types.UnionType,) if hasattr(types, 'UnionType') else ())
-
-
-def _resolve_dataobj_type(type_arg, owner_class):
-    """Resolve a concrete data-object class from a container type argument."""
-    if isinstance(type_arg, type):
-        return type_arg
-
-    ref_name = None
-    if isinstance(type_arg, typing.ForwardRef):
-        ref_name = type_arg.__forward_arg__
-    elif isinstance(type_arg, str):
-        ref_name = type_arg
-
-    if not ref_name:
-        return None
-
-    ref_name = ref_name.strip("'\"")
-    candidate_names = [ref_name]
-    if '.' in ref_name:
-        candidate_names.append(ref_name.rsplit('.', 1)[-1])
-
-    namespaces = []
-    init_method = getattr(owner_class, '__init__', None)
-    if init_method is not None:
-        namespaces.append(getattr(init_method, '__globals__', {}))
-    namespaces.append(vars(owner_class))
-
-    for namespace in namespaces:
-        for candidate_name in candidate_names:
-            candidate = namespace.get(candidate_name)
-            if isinstance(candidate, type):
-                return candidate
-
-    for candidate_name in candidate_names:
-        try:
-            candidate = import_class(candidate_name)
-        except (ImportError, AttributeError, ModuleNotFoundError):
-            continue
-        if isinstance(candidate, type):
-            return candidate
-
-    return None
 
 
 def computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name):
@@ -451,25 +409,9 @@ class Simul():
                         raise ValueError(f'Parameter {name} must be a list of tags')
                     elif parname in hints:
                         partype = hints[parname]
-                        type_candidates = []
-                        union_origin = typing.get_origin(partype)
-                        if union_origin in UNION_ORIGINS:
-                            type_candidates = [arg for arg in typing.get_args(partype)
-                                               if arg is not type(None)]
-                        else:
-                            type_candidates = [partype]
+                        value_type = get_args(partype)[0] # List[Recmat] -> (Recmat, )
 
-                        value_type = None
-                        for candidate in type_candidates:
-                            origin = typing.get_origin(candidate)
-                            args_t = typing.get_args(candidate)
-                            if origin in (list, typing.List, tuple) and len(args_t) >= 1:
-                                resolved_type = _resolve_dataobj_type(args_t[0], klass)
-                                if resolved_type is not None:
-                                    value_type = resolved_type
-                                    break
-
-                        if value_type is None:
+                        if not value_type:
                             raise ValueError(f'Parameter {parname} must be typed as list[DataObjType]')
 
                         loaded = []
@@ -493,25 +435,9 @@ class Simul():
                         raise ValueError(f'Parameter {name} must be a dictionary of tags')
                     elif parname in hints:
                         partype = hints[parname]
-                        type_candidates = []
-                        union_origin = typing.get_origin(partype)
-                        if union_origin in UNION_ORIGINS:
-                            type_candidates = [arg for arg in typing.get_args(partype)
-                                               if arg is not type(None)]
-                        else:
-                            type_candidates = [partype]
+                        value_type = get_args(partype)[1]    # Dict[str, Recmat] -> (str, Recmat)
 
-                        value_type = None
-                        for candidate in type_candidates:
-                            origin = typing.get_origin(candidate)
-                            args_t = typing.get_args(candidate)
-                            if origin in (dict, typing.Dict) and len(args_t) == 2:
-                                resolved_type = _resolve_dataobj_type(args_t[1], klass)
-                                if resolved_type is not None:
-                                    value_type = resolved_type
-                                    break
-
-                        if value_type is None:
+                        if not value_type:
                             raise ValueError(f'Parameter {parname} must be typed as dict[str, DataObjType]')
 
                         loaded = {}
