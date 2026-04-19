@@ -139,8 +139,8 @@ class ModalAnalysis(BaseProcessingObj):
         dct_rho = self.dct(self.dct(rho, axis=0, norm='ortho'), axis=1, norm='ortho')
 
         # Create the Eigenvalues of the Laplacian in DCT domain
-        v = np.cos(np.pi * self.xp.arange(rows) / rows)
-        u = np.cos(np.pi * self.xp.arange(cols) / cols)
+        v = self.xp.cos(np.pi * self.xp.arange(rows) / rows)
+        u = self.xp.cos(np.pi * self.xp.arange(cols) / cols)
 
         # Finite difference Laplacian
         denom = 2 * (v.reshape(-1, 1) + u - 2)
