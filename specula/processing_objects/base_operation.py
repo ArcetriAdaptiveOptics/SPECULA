@@ -208,7 +208,7 @@ class BaseOperation(BaseProcessingObj):
             self.out_value.value = self.xp.empty_like(value1.value)
 
         if value2 is not None:
-            self.v2 = self.xp.zeros_like(value2.value)
+            self.v2 = self.xp.zeros_like(value1.value)
             if self.mul or self.div:
                 self.v2[:] = 1.0
 

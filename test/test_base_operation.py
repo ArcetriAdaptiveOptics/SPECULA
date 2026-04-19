@@ -855,3 +855,36 @@ class TestBaseOperation(unittest.TestCase):
             cpuArray(op.outputs['out_value'].value),
             cpuArray(expected)
         )
+
+    @cpu_and_gpu
+    def test_value2_shorter_overlap_only(self, target_device_idx, xp):
+        """value2 shorter than value1: operate only on overlapping elements"""
+
+        value1 = BaseValue(value=xp.array([1.0, 2.0, 3.0, 4.0]),
+                        target_device_idx=target_device_idx)
+        value2 = BaseValue(value=xp.array([10.0, 20.0]),
+                        target_device_idx=target_device_idx)
+
+        value1.generation_time = value1.seconds_to_t(1)
+        value2.generation_time = value2.seconds_to_t(1)
+
+        op = BaseOperation(
+            sum=True,
+            target_device_idx=target_device_idx
+        )
+
+        op.inputs['in_value1'].set(value1)
+        op.inputs['in_value2'].set(value2)
+
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
+
+        # Only first 2 elements affected:
+        # [1,2,3,4] + [10,20] → [11,22,3,4]
+        expected = xp.array([11.0, 22.0, 3.0, 4.0])
+
+        np.testing.assert_array_almost_equal(
+            cpuArray(op.outputs['out_value'].value),
+            cpuArray(expected)
+        )
