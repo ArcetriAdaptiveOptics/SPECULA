@@ -409,9 +409,10 @@ class Simul():
                         raise ValueError(f'Parameter {name} must be a list of tags')
                     elif parname in hints:
                         partype = hints[parname]
-                        value_type = get_args(partype)[0] # List[Recmat] -> (Recmat, )
-
-                        if not value_type:
+                        parent = get_args(partype)
+                        if len(parent) > 0:
+                            value_type = parent[0]   # List[Recmat] -> (Recmat, )
+                        else:
                             raise ValueError(f'Parameter {parname} must be typed as list[DataObjType]')
 
                         loaded = []
@@ -435,9 +436,10 @@ class Simul():
                         raise ValueError(f'Parameter {name} must be a dictionary of tags')
                     elif parname in hints:
                         partype = hints[parname]
-                        value_type = get_args(partype)[1]    # Dict[str, Recmat] -> (str, Recmat)
-
-                        if not value_type:
+                        parent = get_args(partype)
+                        if len(parent) > 1:
+                            value_type = parent[1]   # List[Recmat] -> (Recmat, )
+                        else:
                             raise ValueError(f'Parameter {parname} must be typed as dict[str, DataObjType]')
 
                         loaded = {}
