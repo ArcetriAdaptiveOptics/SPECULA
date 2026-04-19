@@ -159,12 +159,12 @@ class BaseOperation(BaseProcessingObj):
                 self.v2 = value2  # Move reference
 
             if self.mul:
-                out[:] = value1 * self.v2
+                out *= self.v2
             elif self.div:
-                out[:] = value1 / self.v2
+                out /= self.v2
             elif self.sum:
-                out[:] = value1 + self.v2
+                out += self.v2
             elif self.sub:
-                out[:] = value1 - self.v2
+                out -= self.v2
 
         self.out_value.generation_time = self.current_time
