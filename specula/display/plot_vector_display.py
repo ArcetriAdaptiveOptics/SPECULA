@@ -111,12 +111,8 @@ class PlotVectorDisplay(BaseDisplay):
         # Handle different array-like types
         if hasattr(vec, 'ravel'):
             vec = vec.ravel()
-        elif isinstance(vec, (list, tuple)):
-            vec = np.array(vec)
-        elif np.isscalar(vec):
-            vec = np.array([vec])
         else:
-            vec = np.array(vec)
+            vec = np.atleast_1d(vec)
 
         return vec
 

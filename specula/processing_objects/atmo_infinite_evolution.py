@@ -128,7 +128,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
 
         self.L0 = L0
 
-        if np.isscalar(self.L0):
+        if np.ndim(self.L0) == 0:
             self.L0 = [self.L0] * len(heights)
         elif len(self.L0) != len(heights):
             raise ValueError(f"L0 must have the same length as heights"

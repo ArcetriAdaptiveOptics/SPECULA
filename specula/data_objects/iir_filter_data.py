@@ -157,7 +157,7 @@ class IirFilterData(BaseDataObj):
         self.den = self.to_xp(den_cpu, dtype=self.dtype)
 
     def set_gain(self, gain, verbose=False):
-        if np.isscalar(gain) or np.ndim(gain) == 0:
+        if np.ndim(gain) == 0:
             gain = np.repeat(gain, self.nfilter)
         gain = self.to_xp(gain, dtype=self.dtype)
         if verbose:

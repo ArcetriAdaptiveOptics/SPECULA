@@ -24,7 +24,7 @@ class WaveGenerator(BaseGenerator):
             raise ValueError(f"Unknown wave type: {wave_type}")
 
         # Determine output size from arrays
-        arrays = [np.atleast_1d(x) if not np.isscalar(x) else np.array([x])
+        arrays = [np.atleast_1d(x)
                  for x in [amp, freq, offset, slope, constant]]
         if output_size == 1:
             output_size = max(len(arr) for arr in arrays)
@@ -37,11 +37,11 @@ class WaveGenerator(BaseGenerator):
             precision=precision
         )
 
-        self.amp = self.to_xp(amp, dtype=self.dtype)
-        self.freq = self.to_xp(freq, dtype=self.dtype)
-        self.offset = self.to_xp(offset, dtype=self.dtype)
-        self.slope = self.to_xp(slope, dtype=self.dtype)
-        self.constant = self.to_xp(constant, dtype=self.dtype)
+        self.amp = self.to_xp(np.atleast_1d(amp), dtype=self.dtype)
+        self.freq = self.to_xp(np.atleast_1d(freq), dtype=self.dtype)
+        self.offset = self.to_xp(np.atleast_1d(offset), dtype=self.dtype)
+        self.slope = self.to_xp(np.atleast_1d(slope), dtype=self.dtype)
+        self.constant = self.to_xp(np.atleast_1d(constant), dtype=self.dtype)
         self.vsize_array = self.xp.ones(vsize, dtype=self.dtype)
 
         # Validate array sizes
