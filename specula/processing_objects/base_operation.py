@@ -130,6 +130,10 @@ class BaseOperation(BaseProcessingObj):
         Binary operations with ``value2`` follow standard backend broadcasting rules
         (NumPy/CuPy).
 
+        As an exception from standard broadcasting rule, if ``value2`` has a shorter first
+        dimension than ``value1``, then the binary operation will only be applied to the first
+        elements of ``value1``, while the rest will left untouched.
+
         **Constraints**
 
         - Only one binary operation flag can be active at a time.
