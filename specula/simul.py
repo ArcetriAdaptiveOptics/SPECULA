@@ -610,7 +610,7 @@ class Simul():
                 self.objs[key].name = key
                 self.objs[key].init_logging(self.logger.getEffectiveLevel())
             except Exception:
-                self.logger.error('Exception building {key}')
+                self.logger.error(f'Exception building {key}')
                 raise
             if classname != 'SimulParams':
                 self.objs[key].stopMemUsageCount()

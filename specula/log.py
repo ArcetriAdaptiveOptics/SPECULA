@@ -7,57 +7,61 @@ import logging
 
 INIT_PLACEHOLDER_NAME = 'initialising'
 
+MPI_DBG_LEVEL = 6
+MPI_SEND_DBG_LEVEL = 5
+
+logging.addLevelName(MPI_DBG_LEVEL, 'MPI_DBG')
+logging.addLevelName(MPI_SEND_DBG_LEVEL, 'MPI_SEND_DBG')
+
 
 def get_specula_logger(name):
     '''
-    Replacement of logging.getLogger() that returns a SpeculaAdapter instead of a standard logger,
+    Replacement of logging.getLogger() that returns a SpeculaLogAdapter instead of a standard logger,
     so that we can use our custom log levels and formatting.
     '''
     orig_logger = logging.getLogger(name)
-    return SpeculaAdapter(orig_logger)
+    return SpeculaLogAdapter(orig_logger)
 
 
-def init_logging(log_format=None, log_level=logging.INFO, process_rank=None):
+def init_logging(log_level=logging.INFO, process_rank=None):
     '''
     Initialize logging with a custom format that includes the process rank if provided,
-    and set up logging with our SpeculaFilter enabled.
+    and set up logging with our SpeculaLogFilter enabled.
     '''
-    if log_format is None:
-        if process_rank is None:
-            log_format="%(asctime)s [%(levelname)s]: [%(name)s]: %(message)s"
-        else:
-            log_format="%(asctime)s [%(levelname)s]: [rank %(process_rank)s] [%(name)s]: %(message)s"
 
-    logging.basicConfig(level=log_level, format=log_format)
+    formatter = SpeculaLogFormatter(
+        fmt_with_rank="%(asctime)s [%(levelname)s]: [rank %(process_rank)s] [%(display_name)s]: %(message)s",
+        fmt_without_rank="%(asctime)s [%(levelname)s]: [%(display_name)s]: %(message)s",
+    )
+
+    handler = logging.StreamHandler()
+    handler.setFormatter(formatter)
+
+    logger = logging.getLogger()
+    logger.setLevel(log_level)
+    logger.addHandler(handler)
 
     # Make sure all loggers use our filter
     root = logging.getLogger()
     for handler in root.handlers:
-        handler.addFilter(SpeculaFilter(process_rank))
+        handler.addFilter(SpeculaLogFilter(process_rank))
 
 
-class SpeculaFilter(logging.Filter):
+class SpeculaLogFilter(logging.Filter):
     '''
-    The logger name is usually the class name. This filter replaces it
-    with the instance name if available, while for DEBUG or below, 
-    both class and instance names are shown.
-    Also add the process rank to the log record.
+    Add the process rank to the log record, if defined.
     '''
     def __init__(self, process_rank):
         super().__init__()
         self.process_rank = process_rank
 
     def filter(self, record):
-        if hasattr(record, "instance_name") and record.instance_name:
-            if record.levelno <= logging.DEBUG or record.instance_name in [INIT_PLACEHOLDER_NAME]:
-                record.name = f'{record.name} - {record.instance_name}'
-            else:
-                record.name = record.instance_name
-        record.process_rank = self.process_rank
+        if self.process_rank is not None:
+            record.process_rank = self.process_rank
         return True
 
 
-class SpeculaAdapter(logging.LoggerAdapter):
+class SpeculaLogAdapter(logging.LoggerAdapter):
     '''
     Logger adapter that defines custom log levels for MPI debugging, below the standard DEBUG level (10):
     - MPI_DBG_LEVEL (6): General MPI debugging messages
@@ -67,13 +71,10 @@ class SpeculaAdapter(logging.LoggerAdapter):
     def __init__(self, logger):
         super().__init__(logger, {})
 
-    MPI_DBG_LEVEL = 6
-    MPI_SEND_DBG_LEVEL = 5
-
     def mpi_debug(self, msg, *args, **kwargs):
-        self.log(self.MPI_DBG_LEVEL, msg, *args, **kwargs)
+        self.log(MPI_DBG_LEVEL, msg, *args, **kwargs)
     def mpi_send_debug(self, msg, *args, **kwargs):
-        self.log(self.MPI_SEND_DBG_LEVEL, msg, *args, **kwargs)
+        self.log(MPI_SEND_DBG_LEVEL, msg, *args, **kwargs)
 
     @property
     def level(self):
@@ -84,4 +85,36 @@ class SpeculaAdapter(logging.LoggerAdapter):
         Set the instance name for this logger
         '''
         self.extra['instance_name'] = instance_name
+
+
+class SpeculaLogFormatter():
+    '''
+    Dispatcher class sending logs to one of two different formatters
+    depending on whether the process rank is present or not.
+    '''
+    def __init__(self, fmt_with_rank, fmt_without_rank, *args, **kwargs):
+        self.fmt_with_rank = logging.Formatter(fmt_with_rank, *args, **kwargs)
+        self.fmt_without_rank = logging.Formatter(fmt_without_rank, *args, **kwargs)
+
+    def format(self, record):
+        instance_name = getattr(record, "instance_name", None)
+
+        # Show both name and instance_name if level is DEBUG or less,
+        # otherwise the instance_name only if available,
+        # or the name (which will be the class name) as a last resort.
+        if instance_name:
+            if record.levelno <= logging.DEBUG:
+                record.display_name = f"{record.name} ({instance_name})"
+            else:
+                record.display_name = instance_name
+        else:
+            record.display_name = record.name
+
+        # Choose formatter based on process_rank
+        if hasattr(record, "process_rank"):
+            formatter = self.fmt_with_rank
+        else:
+            formatter = self.fmt_without_rank
+
+        return formatter.format(record)
 

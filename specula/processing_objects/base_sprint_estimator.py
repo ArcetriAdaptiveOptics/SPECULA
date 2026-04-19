@@ -276,7 +276,7 @@ class BaseSprintEstimator(BaseProcessingObj):
         self.logger.info(f"  initialized:")
         self.logger.info(f"  Number of modes: {self.nmodes}")
         self.logger.info(f"  Number of slopes: {self.estimated_intmat.nslopes}")
-        self.logger.info("  Size of pupil: {self.pupil_mask.shape}")
+        self.logger.info(f"  Size of pupil: {self.pupil_mask.shape}")
         self.logger.info(f"  Size of DM influence functions: {self.ifunc_3d.shape}")
         self.logger.info(f"  Estimation interval: {self.t_to_seconds(self.estimation_dt):.2f}s")
         self.logger.info(f"  Integration gain: {self.integration_gain}")

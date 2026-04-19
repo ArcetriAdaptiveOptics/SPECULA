@@ -100,7 +100,7 @@ class BaseProcessingObj(BaseTimeObj):
         '''
         for input_name, input_obj in self.inputs.items():
             self.logger.mpi_debug(f'- get_all_inputs(): '
-                                    'getting InputValue: {input_name}')
+                                  f'getting InputValue: {input_name}')
             # Set additional info for better error messages
             input_obj.requesting_obj_name = self.name
             input_obj.input_name = input_name

@@ -5,8 +5,8 @@ import unittest
 from specula.log import (
     get_specula_logger,
     init_logging,
-    SpeculaFilter,
-    SpeculaAdapter,
+    SpeculaLogAdapter,
+    SpeculaLogFormatter,
     INIT_PLACEHOLDER_NAME,
 )
 
@@ -24,23 +24,11 @@ class TestSpeculaLogging(unittest.TestCase):
 
     def test_get_specula_logger_returns_adapter(self):
         logger = get_specula_logger("test_logger")
-        self.assertIsInstance(logger, SpeculaAdapter)
+        self.assertIsInstance(logger, SpeculaLogAdapter)
 
     # ------------------------
     # init_logging
     # ------------------------
-
-    def test_init_logging_adds_filter(self):
-        init_logging(process_rank=1)
-        root = logging.getLogger()
-
-        self.assertTrue(root.handlers)
-
-        has_filter = any(
-            any(isinstance(f, SpeculaFilter) for f in h.filters)
-            for h in root.handlers
-        )
-        self.assertTrue(has_filter)
 
     def test_init_logging_sets_process_rank(self):
         init_logging(process_rank=42)
@@ -62,110 +50,14 @@ class TestSpeculaLogging(unittest.TestCase):
 
         self.assertEqual(record.process_rank, 42)
 
-    # ------------------------
-    # log_format tests
-    # ------------------------
-
-    def test_init_logging_default_format_without_rank(self):
-        init_logging(process_rank=None)
-        root = logging.getLogger()
-
-        formatter = root.handlers[0].formatter
-        fmt = formatter._fmt
-
-        self.assertIn("%(asctime)s", fmt)
-        self.assertIn("%(levelname)s", fmt)
-        self.assertIn("%(name)s", fmt)
-        self.assertIn("%(message)s", fmt)
-        self.assertNotIn("process_rank", fmt)
-
-    def test_init_logging_default_format_with_rank(self):
-        init_logging(process_rank=7)
-        root = logging.getLogger()
-
-        formatter = root.handlers[0].formatter
-        fmt = formatter._fmt
-
-        self.assertIn("%(asctime)s", fmt)
-        self.assertIn("%(levelname)s", fmt)
-        self.assertIn("%(name)s", fmt)
-        self.assertIn("%(message)s", fmt)
-        self.assertIn("%(process_rank)s", fmt)
-
-    def test_init_logging_custom_format(self):
-        custom_format = "%(levelname)s - %(message)s"
-        init_logging(log_format=custom_format)
-
-        root = logging.getLogger()
-        formatter = root.handlers[0].formatter
-
-        self.assertEqual(formatter._fmt, custom_format)
 
     # ------------------------
-    # SpeculaFilter
-    # ------------------------
-
-    def test_filter_replaces_name_with_instance_name(self):
-        filt = SpeculaFilter(process_rank=0)
-
-        record = logging.LogRecord(
-            name="MyClass",
-            level=logging.INFO,
-            pathname=__file__,
-            lineno=1,
-            msg="msg",
-            args=(),
-            exc_info=None,
-        )
-        record.instance_name = "instance1"
-
-        filt.filter(record)
-
-        self.assertEqual(record.name, "instance1")
-
-    def test_filter_keeps_class_name_for_debug(self):
-        filt = SpeculaFilter(process_rank=0)
-
-        record = logging.LogRecord(
-            name="MyClass",
-            level=logging.DEBUG,
-            pathname=__file__,
-            lineno=1,
-            msg="msg",
-            args=(),
-            exc_info=None,
-        )
-        record.instance_name = "instance1"
-
-        filt.filter(record)
-
-        self.assertEqual(record.name, "MyClass - instance1")
-
-    def test_filter_placeholder_name_behavior(self):
-        filt = SpeculaFilter(process_rank=0)
-
-        record = logging.LogRecord(
-            name="MyClass",
-            level=logging.INFO,
-            pathname=__file__,
-            lineno=1,
-            msg="msg",
-            args=(),
-            exc_info=None,
-        )
-        record.instance_name = INIT_PLACEHOLDER_NAME
-
-        filt.filter(record)
-
-        self.assertEqual(record.name, f"MyClass - {INIT_PLACEHOLDER_NAME}")
-
-    # ------------------------
-    # SpeculaAdapter
+    # SpeculaLogAdapter
     # ------------------------
 
     def test_set_instance_name_sets_extra(self):
         base_logger = logging.getLogger("test")
-        adapter = SpeculaAdapter(base_logger)
+        adapter = SpeculaLogAdapter(base_logger)
 
         adapter.set_instance_name("instance42")
 
@@ -173,7 +65,7 @@ class TestSpeculaLogging(unittest.TestCase):
 
     def test_mpi_debug_logs_at_correct_level(self):
         base_logger = logging.getLogger("test")
-        adapter = SpeculaAdapter(base_logger)
+        adapter = SpeculaLogAdapter(base_logger)
 
         with self.assertLogs(level=5) as cm:
             adapter.mpi_debug("mpi debug message")
@@ -184,7 +76,7 @@ class TestSpeculaLogging(unittest.TestCase):
 
     def test_mpi_send_debug_logs_at_correct_level(self):
         base_logger = logging.getLogger("test")
-        adapter = SpeculaAdapter(base_logger)
+        adapter = SpeculaLogAdapter(base_logger)
 
         with self.assertLogs(level=5) as cm:
             adapter.mpi_send_debug("send debug")
@@ -193,5 +85,88 @@ class TestSpeculaLogging(unittest.TestCase):
             "send debug" in msg for msg in cm.output
         ))
 
+
+
+class TestSpeculaLogFormatter(unittest.TestCase):
+    def setUp(self):
+        self.formatter = SpeculaLogFormatter(
+            fmt_with_rank="%(levelname)s [rank %(process_rank)s] [%(display_name)s]: %(message)s",
+            fmt_without_rank="%(levelname)s [%(display_name)s]: %(message)s",
+        )
+
+    def make_record(self, level=logging.INFO, msg="hello", **extra):
+        record = logging.LogRecord(
+            name="test.module",
+            level=level,
+            pathname=__file__,
+            lineno=1,
+            msg=msg,
+            args=(),
+            exc_info=None,
+        )
+        for k, v in extra.items():
+            setattr(record, k, v)
+        return record
+
+    # --- process_rank behavior ---
+
+    def test_without_process_rank_uses_simple_format(self):
+        record = self.make_record()
+        output = self.formatter.format(record)
+
+        self.assertIn("[test.module]", output)
+        self.assertNotIn("rank", output)
+
+    def test_with_process_rank_uses_rank_format(self):
+        record = self.make_record(process_rank=3)
+        output = self.formatter.format(record)
+
+        self.assertIn("[rank 3]", output)
+
+    # --- instance_name behavior ---
+
+    def test_instance_name_replaces_name_info_level(self):
+        record = self.make_record(instance_name="worker-1", level=logging.INFO)
+        output = self.formatter.format(record)
+
+        self.assertIn("[worker-1]", output)
+        self.assertNotIn("test.module (worker-1)", output)
+
+    def test_instance_name_and_name_shown_in_debug(self):
+        record = self.make_record(instance_name="worker-1", level=logging.DEBUG)
+        output = self.formatter.format(record)
+
+        self.assertIn("test.module (worker-1)", output)
+
+    def test_no_instance_name_falls_back_to_logger_name(self):
+        record = self.make_record(level=logging.INFO)
+        output = self.formatter.format(record)
+
+        self.assertIn("[test.module]", output)
+
+    # --- combined behavior ---
+
+    def test_rank_and_instance_name_info(self):
+        record = self.make_record(
+            level=logging.INFO,
+            process_rank=1,
+            instance_name="worker-1",
+        )
+        output = self.formatter.format(record)
+
+        self.assertIn("[rank 1]", output)
+        self.assertIn("[worker-1]", output)
+        self.assertNotIn("test.module (worker-1)", output)
+
+    def test_rank_and_instance_name_debug(self):
+        record = self.make_record(
+            level=logging.DEBUG,
+            process_rank=2,
+            instance_name="worker-2",
+        )
+        output = self.formatter.format(record)
+
+        self.assertIn("[rank 2]", output)
+        self.assertIn("test.module (worker-2)", output)
 
 

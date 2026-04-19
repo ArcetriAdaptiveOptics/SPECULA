@@ -46,7 +46,7 @@ def init(device_idx=-1,
          rank=None,
          comm=None,
          log_level=logging.INFO,
-         log_format=None):
+         ):
     global xp
     global cp
     global gpuEnabled
@@ -67,7 +67,7 @@ def init(device_idx=-1,
     process_comm = comm
     process_rank = rank
 
-    init_logging(log_format=log_format, log_level=log_level, process_rank=rank)
+    init_logging(log_level=log_level, process_rank=rank)
     main_logger = get_specula_logger(__name__)
 
     default_target_device_idx = device_idx
