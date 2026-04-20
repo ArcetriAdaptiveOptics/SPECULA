@@ -4,21 +4,22 @@ import typing
 import inspect
 import itertools
 from copy import deepcopy
-from typing import get_args
 from pathlib import Path
 from collections import Counter, namedtuple
 from specula import process_rank, MPI_DBG
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_data_obj import BaseDataObj
 
+
 from specula.loop_control import LoopControl
-from specula.lib.utils import import_class, get_type_hints, remove_suffix
+from specula.lib.utils import import_class, get_type_hints, remove_suffix, resolve_type
 from specula.calib_manager import CalibManager
 from specula.processing_objects.data_store import DataStore
 from specula.connections import InputList, InputValue
 
 import yaml
 import hashlib
+import matplotlib.pyplot as plt
 
 
 Output = namedtuple('Output', 'obj_name output_key delay ref input_name')
@@ -29,8 +30,6 @@ def computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name):
     rr = int(hashlib.sha256(s.encode('utf-8')).hexdigest(), 16) % 10**6
     return rr
 
-
-import matplotlib.pyplot as plt
 
 mplcolors = plt.get_cmap("tab10").colors
 
@@ -408,18 +407,16 @@ class Simul():
                     elif not isinstance(value, (list, tuple)):
                         raise ValueError(f'Parameter {name} must be a list of tags')
                     elif parname in hints:
-                        partype = hints[parname]
-                        parent = get_args(partype)
-                        if len(parent) > 0:
-                            value_type = parent[0]   # List[Recmat] -> (Recmat, )
-                        else:
-                            raise ValueError(f'Parameter {parname} must be typed as list[DataObjType]')
+                        try:
+                            partype = resolve_type(hints[parname], require_list=True)
+                        except TypeError:
+                            raise ValueError(f'Parameter {parname} must be typed as List[DataObjType]')
 
                         loaded = []
                         for tag in value:
-                            filename = cm.filename(value_type.__name__, tag)
+                            filename = cm.filename(partype.__name__, tag)
                             print('Restoring:', filename)
-                            obj = value_type.restore(filename, target_device_idx=target_device_idx)
+                            obj = partype.restore(filename, target_device_idx=target_device_idx)
                             obj.printMemUsage()
                             obj.tag = tag
                             loaded.append(obj)
@@ -435,18 +432,16 @@ class Simul():
                     elif not isinstance(value, dict):
                         raise ValueError(f'Parameter {name} must be a dictionary of tags')
                     elif parname in hints:
-                        partype = hints[parname]
-                        parent = get_args(partype)
-                        if len(parent) > 1:
-                            value_type = parent[1]   # List[Recmat] -> (Recmat, )
-                        else:
-                            raise ValueError(f'Parameter {parname} must be typed as dict[str, DataObjType]')
+                        try:
+                            partype = resolve_type(hints[parname], require_dict=True)
+                        except TypeError:
+                            raise ValueError(f'Parameter {parname} must be typed as Dict[str, DataObjType]')
 
                         loaded = {}
                         for dict_key, tag in value.items():
-                            filename = cm.filename(value_type.__name__, tag)
+                            filename = cm.filename(partype.__name__, tag)
                             print('Restoring:', filename)
-                            obj = value_type.restore(filename, target_device_idx=target_device_idx)
+                            obj = partype.restore(filename, target_device_idx=target_device_idx)
                             obj.printMemUsage()
                             obj.tag = tag
                             loaded[dict_key] = obj
@@ -478,16 +473,8 @@ class Simul():
                     if value is None:
                         pars2[parname] = None
                     elif parname in hints:
-                        partype = hints[parname]
+                        partype = resolve_type(hints[parname])
 
-                        # Handle Optional and Union types (for python <3.11)
-                        if hasattr(partype, "__origin__") and partype.__origin__ is typing.Union:
-                            # Extract actual class type from Optional/Union
-                            # (first non-None type argument)
-                            for arg in partype.__args__:
-                                if arg is not type(None):  # Skip NoneType
-                                    partype = arg
-                                    break
                         # data objects are restored into each process (multiple copies), target_rank is not checked
                         filename = cm.filename(parname, value)  # TODO use partype instead of parname?
                         print('Restoring:', filename)
