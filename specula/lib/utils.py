@@ -375,5 +375,10 @@ def resolve_type(tp, require_list=False, require_dict=False):
         typ = args[0]
     else:
         typ = tp
+
+    # Python 3.8 will return a ForwardRef that must be evaulated
+    if typ == typing.ForwardRef:
+        typ = typ._evaluate(globals(), locals())
+
     return typ
 
