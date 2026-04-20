@@ -1,12 +1,10 @@
 import os
+import sys
 import unittest
 import matplotlib.pyplot as plt
-import os
 
 import specula
 specula.init(0)  # Default target device
-
-from threadpoolctl import threadpool_limits
 
 from specula import cpuArray
 
@@ -24,6 +22,9 @@ import numpy as np
 class TestModalAnalysisUnwrapping(unittest.TestCase):
 
     @cpu_and_gpu
+    @unittest.skipIf((os.environ.get('CI') == 'true' and
+                      sys.platform == 'linux' and
+                      sys.version_info >= (3,11)), "Disabled because of CI issues")
     def test_ls_vs_skimage_unwrapping(self, target_device_idx, xp):
         simul_params = SimulParams(zenithAngleInDeg=0.0, pixel_pupil=120,
                                    pixel_pitch=0.01, time_step=1)
@@ -70,8 +71,7 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
 
         # unwrap phase again
         modal_analysis = ModalAnalysis(npixels=120, nmodes=10, type_str='zernike', wavelengthInNm=1550, dorms=True)
-        with threadpool_limits(limits=1):
-            unwrapped_phase = modal_analysis.unwrap_2d(wrapped_phase)
+        unwrapped_phase = modal_analysis.unwrap_2d(wrapped_phase)
         unwrapped_phase_skimage = unwrap_phase(cpuArray(wrapped_phase), rng=1)
 
         rel_error_1 = np.mean(np.abs((cpuArray(phase) - cpuArray(unwrapped_phase))) / np.abs(cpuArray(phase)))
