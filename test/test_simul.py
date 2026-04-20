@@ -467,15 +467,14 @@ class TestSimul(unittest.TestCase):
                          recmat_dict: Recmat=None,      # Wrong type, should be Dict[str, Recmat]
                          target_device_idx=None,
                          precision=None):
-                super().__init__(target_device_idx=target_device_idx, precision=precision)
-                self.recmat_dict = recmat_dict
+                # Will not be instantiated
+                pass
 
         def mock_import(classname, additional_modules=None):
             if classname == 'SimulParams':
                 return DummySimulParams
             if classname == 'ClassWithDictObjectArg':
                 return ClassWithDictObjectArg
-            return real_import_class(classname, additional_modules)
 
         rec_a = Recmat(np.ones((2, 2), dtype=np.float32), target_device_idx=-1, precision=0)
         rec_b = Recmat(np.full((2, 2), 2.0, dtype=np.float32), target_device_idx=-1, precision=0)
@@ -569,15 +568,14 @@ class TestSimul(unittest.TestCase):
                          recmat_list: Recmat=None,     # Wrong type, should be List[Recmat]
                          target_device_idx=None,
                          precision=None):
-                super().__init__(target_device_idx=target_device_idx, precision=precision)
-                self.recmat_list = recmat_list
+                # Will not be instantiated
+                pass
 
         def mock_import(classname, additional_modules=None):
             if classname == 'SimulParams':
                 return DummySimulParams
             if classname == 'ClassWithListObjectArg':
                 return ClassWithListObjectArg
-            return real_import_class(classname, additional_modules)
 
         rec_a = Recmat(np.ones((2, 2), dtype=np.float32), target_device_idx=-1, precision=0)
         rec_b = Recmat(np.full((2, 2), 2.0, dtype=np.float32), target_device_idx=-1, precision=0)
