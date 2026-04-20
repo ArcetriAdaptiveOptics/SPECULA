@@ -41,8 +41,6 @@ class Demodulator(BaseProcessingObj):
         # Outputs
         self.outputs['output'] = self.output
 
-        self.verbose = False
-
     @classmethod
     def input_names(cls):
         return {'in_data': InputDesc(BaseValue, 'Input data signal to demodulate')}
@@ -91,7 +89,6 @@ class Demodulator(BaseProcessingObj):
                 carrier_freq=float(self.carrier_frequencies[i]),
                 sampling_freq=sampling_freq,
                 cumulated=True,
-                verbose=self.verbose,
                 xp=self.xp,
                 dtype=self.dtype
             )
@@ -105,5 +102,4 @@ class Demodulator(BaseProcessingObj):
         self.output.value[:] = values
         self.output.generation_time = t
 
-        if self.verbose:
-            print(f"Demodulated value at t={self.t_to_seconds(t):.3f}s: {values}")
+        self.logger.info(f"Demodulated value at t={self.t_to_seconds(t):.3f}s: {values}")

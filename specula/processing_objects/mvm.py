@@ -54,7 +54,7 @@ class MVM(BaseProcessingObj):
 
     def trigger_code(self):
         if self.recmat.recmat is None:
-            print("WARNING: mvm skipping multiplication because recmat is NULL")
+            self.logger.warning("mvm skipping multiplication because recmat is NULL")
             return
 
         vector = self.local_inputs['in_vector']

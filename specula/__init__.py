@@ -1,7 +1,10 @@
-import numpy as np
 import os
+import numpy as np
+import logging
 import functools
 from functools import wraps
+
+from specula.log import get_specula_logger, init_logging
 
 cpu_float_dtype_list = [np.float64, np.float32]
 cpu_complex_dtype_list = [np.complex128, np.complex64]
@@ -21,11 +24,9 @@ default_target_device_idx = None
 default_target_device = None
 process_comm = None
 process_rank = None
+main_logger = None
 ASEC2RAD = np.pi / (3600 * 180)
 RAD2ASEC = 1.0 / ASEC2RAD
-MPI_DBG = False
-
-MPI_SEND_DBG = False
 
 # precision = 0 -> double precision
 # precision = 1 -> single precision
@@ -37,10 +38,15 @@ MPI_SEND_DBG = False
 # and still want to use the CPU (idx==-1) as default_target_device
 # in this case you might still want to allocate some objects on
 # a GPU device (idx>=0).
-# This can be checked later looking at the  value of gpuEnabled.
+# This can be checked later looking at the value of gpuEnabled.
 
 
-def init(device_idx=-1, precision=0, rank=None, comm=None, mpi_dbg=False):
+def init(device_idx=-1,
+         precision=0,
+         rank=None,
+         comm=None,
+         log_level=logging.INFO,
+         ):
     global xp
     global cp
     global gpuEnabled
@@ -56,27 +62,29 @@ def init(device_idx=-1, precision=0, rank=None, comm=None, mpi_dbg=False):
     global default_target_device
     global process_comm
     global process_rank
-    global MPI_DBG
+    global main_logger
 
-    MPI_DBG = mpi_dbg
     process_comm = comm
     process_rank = rank
+
+    init_logging(log_level=log_level, process_rank=rank)
+    main_logger = get_specula_logger(__name__)
 
     default_target_device_idx = device_idx
     systemDisable = os.environ.get('SPECULA_DISABLE_GPU', 'FALSE')
     if systemDisable == 'FALSE':
         try:
             import cupy as cp
-            print("Cupy import successfull. Installed version is:", cp.__version__)
+            main_logger.info("Cupy import successfull. Installed version is: "+ cp.__version__)
             gpuEnabled = True
             cp = cp
-        except Exception:
-            print("Cupy import failed. SPECULA will fall back to CPU use.")
+        except:
+            main_logger.warning("Cupy import failed. SPECULA will fall back to CPU use.")
             cp = None
             xp = np
             default_target_device_idx = -1
     else:
-        print("env variable SPECULA_DISABLE_GPU prevents using the GPU.")
+        main_logger.info("env variable SPECULA_DISABLE_GPU prevents using the GPU.")
         cp = None
         xp = np
         default_target_device_idx = -1
@@ -87,14 +95,14 @@ def init(device_idx=-1, precision=0, rank=None, comm=None, mpi_dbg=False):
         gpu_complex_dtype_list = [cp.complex128, cp.complex64]
         default_target_device = cp.cuda.Device(default_target_device_idx)
         default_target_device.use()
-        print('Default device is GPU number ', default_target_device_idx)
-        # print('Using device: ', cp.cuda.runtime.getDeviceProperties(default_target_device)['name'])
+        main_logger.info(f'Default device is GPU number {default_target_device_idx}')
+        # self.logger.debug('Using device: ', cp.cuda.runtime.getDeviceProperties(default_target_device)['name'])
         # attributes = default_target_device.attributes
         # properties = cp.cuda.runtime.getDeviceProperties(default_target_device)
-        # print('Number of multiprocessors:', attributes['MultiProcessorCount'])
-        # print('Global memory size (GB):', properties['totalGlobalMem'] / (1024**3))
+        # self.logger.debug('Number of multiprocessors:', attributes['MultiProcessorCount'])
+        # self.logger.debug('Global memory size (GB):', properties['totalGlobalMem'] / (1024**3))
     else:
-        print('Default device is CPU')
+        main_logger.info('Default device is CPU')
         xp = np
 
     if cp is not None:
@@ -218,22 +226,25 @@ def main_simul(yml_files: list,
                precision: int=1,
                profile: bool=False,
                mpi: bool=False,
-               mpidbg: bool=False,
                stepping: bool=False,
                diagram: bool=False,
                diagram_title: str=None,
                diagram_filename: str=None,
                diagram_colors_on: bool=False,
                no_speed_report: bool=False,
+               log_level: str='INFO',
                ):
+
+    # Set logging level for the "parent" specula logger
+    logging.getLogger('specula').setLevel(log_level.upper())
 
     if mpi:
         try:
             from mpi4py import MPI
             from mpi4py.util import pkl5
-            print("mpi4py import successfull. Installed version is:", MPI.Get_version())
+            main_logger.info(f"mpi4py import successfull. Installed version is: {MPI.Get_version()}")
         except ImportError:
-            print("mpi4py import failed.")
+            main_logger.error("mpi4py import failed.")
             raise
 
         comm = pkl5.Intracomm(MPI.COMM_WORLD)
@@ -242,7 +253,7 @@ def main_simul(yml_files: list,
         datatype = MPI.FLOAT
         num_bytes = N * (datatype.Pack_size(count=1, comm=comm) + MPI.BSEND_OVERHEAD)
 
-        print(f'MPI buffer size: {num_bytes/1024**2:.2f} MB')
+        main_logger.debug(f'MPI buffer size: {num_bytes/1024**2:.2f} MB')
         attached_buf = bytearray(num_bytes)
         MPI.Attach_buffer(attached_buf)
     else:
@@ -254,7 +265,7 @@ def main_simul(yml_files: list,
     else:
         target_device_idx = target
 
-    init(target_device_idx, precision=precision, rank=rank, comm=comm, mpi_dbg=mpidbg)
+    init(target_device_idx, precision=precision, rank=rank, comm=comm)
     from specula.simul import Simul
 
     if profile:
@@ -264,7 +275,7 @@ def main_simul(yml_files: list,
         pr.enable()
 
     for simul_idx in range(nsimul):
-        print(yml_files)
+        main_logger.debug(f'{yml_files=}')
         Simul(*yml_files,
             simul_idx=simul_idx,
             overrides=overrides,
@@ -274,6 +285,7 @@ def main_simul(yml_files: list,
             diagram_title=diagram_title,
             diagram_colors_on=diagram_colors_on,
             speed_report=not no_speed_report,
+            log_level=log_level,
         ).run()
 
     if profile:

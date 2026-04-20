@@ -55,8 +55,6 @@ class OpticalGainEstimator(BaseProcessingObj):
         self.outputs['optical_gain'] = self.optical_gain
         self.outputs['output'] = self.output
 
-        self.verbose = False
-
     @classmethod
     def input_names(cls):
         return {'in_demod_delta_command': InputDesc(BaseValue, 'Demodulated delta command vector for optical gain estimation'),
@@ -101,12 +99,10 @@ class OpticalGainEstimator(BaseProcessingObj):
 
             self.optical_gain.value[:] = updated_gain
             self.optical_gain.generation_time = self.current_time
-
-            if self.verbose:
-                print(f"Optical gain updated: {float(current_gain):.6f} -> {float(updated_gain):.6f}")
+            
+            self.logger.info(f"Optical gain updated: {float(current_gain.squeeze()):.6f} -> {float(updated_gain.squeeze()):.6f}")
         else:
-            if self.verbose:
-                print("Warning: demod_command too small, skipping optical gain update")
+            self.logger.info("Warning: demod_command too small, skipping optical gain update")
 
     def _calculate_output(self, t):
         """
@@ -124,5 +120,4 @@ class OpticalGainEstimator(BaseProcessingObj):
         _ = self.xp.minimum(output, 1.0, out=self.output.value)
         self.output.generation_time = t
 
-        if self.verbose:
-            print(f'Optical gain output: {output}')
+        self.logger.info(f'Optical gain output: {output}')

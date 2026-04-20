@@ -49,20 +49,19 @@ class BaseGenerator(BaseProcessingObj):
 
     def _validate_array_sizes(self, *arrays, names=None):
         """Utility to validate that arrays have consistent sizes"""
-        from specula.lib.utils import is_scalar
 
         if names is None:
             names = [f"param_{i}" for i in range(len(arrays))]
         if len(names) != len(arrays):
             raise ValueError(f'names list has length {len(names)} while array list has length {len(arrays)}')
 
-        vector_lengths = [arr.shape[0] for arr in arrays if not is_scalar(arr, self.xp)]
+        vector_lengths = [arr.shape[0] for arr in arrays if len(arr) > 1]
 
         if len(vector_lengths) > 0:
             unique_lengths = set(vector_lengths)
             if len(unique_lengths) > 1:
                 details = [f"{name}={arr.shape[0]}" for arr, name in zip(arrays, names)
-                          if not is_scalar(arr, self.xp)]
+                          if len(arr) > 1]
                 raise ValueError(
                     f"Shape mismatch: parameter lengths are {details} (must all be equal if not scalar)"
                 )

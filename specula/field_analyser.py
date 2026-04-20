@@ -172,7 +172,7 @@ class FieldAnalyser:
         Build replay params using the existing build_replay mechanism in Simul
         but with modified DataStore input_list containing only DM commands
         """
-        simul = Simul([])
+        simul = Simul('dummy.yaml')
         replay_params = simul.build_targeted_replay(self.params, 'prop', set_store_dir=str(self.tn_dir))
         self._validate_replay_inputs_are_not_downsampled(replay_params)
         replay_precision = self._get_saved_replay_precision()
@@ -259,7 +259,6 @@ class FieldAnalyser:
             precision=replay_precision,
             rank=specula.process_rank,
             comm=specula.process_comm,
-            mpi_dbg=specula.MPI_DBG,
         )
 
     def _build_replay_params_psf(self) -> dict:

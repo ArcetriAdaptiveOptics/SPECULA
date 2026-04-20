@@ -58,8 +58,7 @@ class DataBuffer(BaseProcessingObj):
             if output_name in self.buffered_outputs:
                 self.buffered_outputs[output_name].value = values
                 self.buffered_outputs[output_name].generation_time = self.current_time
-                if self.verbose:
-                    print(f"DataBuffer: emitted {len(values)} samples for {input_name}")
+                self.logger.debug(f"DataBuffer: emitted {len(values)} samples for {input_name}")
 
     def setup(self):
         # We check that all input items
@@ -73,8 +72,7 @@ class DataBuffer(BaseProcessingObj):
         self.storage.clear()
         self.step_counter = 0
 
-        if self.verbose:
-            print(f"DataBuffer: reset buffers at time {self.current_time}")
+        self.logger.debug(f"DataBuffer: reset buffers at time {self.current_time}")
 
     def finalize(self):
         """Emit any remaining data in buffers"""        

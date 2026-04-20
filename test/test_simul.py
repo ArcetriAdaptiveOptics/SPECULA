@@ -32,6 +32,12 @@ class DummyOutput:
 class DummyOutputDerived(DummyOutput):
     pass
 
+class DummySimulParams:
+    def __init__(self, root_dir='dummy', **_kwargs):
+        self.root_dir = root_dir
+    def init_logging(self, *args):
+        pass
+
 
 class TestSimul(unittest.TestCase):
 
@@ -58,7 +64,7 @@ class TestSimul(unittest.TestCase):
           magnitude: null
           wavelengthInNm: null
         '''
-        simul = Simul([])
+        simul = Simul('dummy.yaml')
         params = yaml.safe_load(yml)
         simul.build_objects(params)
 
@@ -67,7 +73,7 @@ class TestSimul(unittest.TestCase):
 
     def test_scalar_input_reference(self):
         '''Test that an input is correctly connected'''
-        simul = Simul([])
+        simul = Simul('dummy.yaml')
         simul.objs = {
             'a': DummyObj(),
             'b': DummyObj()
@@ -87,7 +93,7 @@ class TestSimul(unittest.TestCase):
         
     def test_list_input_reference(self):
         '''Test that a list of inputs is correctly connected'''
-        simul = Simul([])
+        simul = Simul('dummy.yaml')
         simul.objs = {
             'a': DummyObj(),
             'b': DummyObj()
@@ -109,7 +115,7 @@ class TestSimul(unittest.TestCase):
         assert all(isinstance(x, DummyOutputDerived) for x in val)
 
     def test_missing_output_raises(self):
-        simul = Simul([])
+        simul = Simul('dummy.yaml')
         simul.objs = {'a': DummyObj()}
         simul.objs['a'].outputs = {}
 
@@ -119,7 +125,7 @@ class TestSimul(unittest.TestCase):
             })
 
     def test_invalid_input_type(self):
-        simul = Simul([])
+        simul = Simul('dummy.yaml')
         simul.objs = {
             'a': DummyObj(),
             'b': DummyObj()
@@ -140,7 +146,7 @@ class TestSimul(unittest.TestCase):
         class WrongType:
             pass
 
-        simul = Simul([])
+        simul = Simul('dummy.yaml')
         simul.objs = {
             'a': DummyObj(),
             'b': DummyObj()
@@ -178,7 +184,7 @@ class TestSimul(unittest.TestCase):
             }
         }
 
-        simul = Simul([])
+        simul = Simul('dummy.yaml')
         assert simul.has_delayed_output('obj1', pars) == True
         assert simul.has_delayed_output('obj2', pars) == False
 
@@ -202,7 +208,7 @@ class TestSimul(unittest.TestCase):
                 }
             }      
         }
-        simul = Simul([])
+        simul = Simul('dummy.yaml')
 
         # Does not raise
         _ = simul.build_trigger_order(pars)
@@ -237,7 +243,7 @@ class TestSimul(unittest.TestCase):
         additional_params1 = {'dm_override_2': { 'foo': 'bar3' } }
         additional_params2 = {'remove_3': ['dm2'] }
 
-        simul = Simul([])
+        simul = Simul('dummy.yaml')
 
         # Nothing happens for simul_idx=1 (not referenced in additional_params)
         simul.simul_idx = 1
@@ -273,7 +279,7 @@ class TestSimul(unittest.TestCase):
           wavelengthInNm: 500.0
           nonexistent_param: value
         '''
-        simul = Simul([])
+        simul = Simul('dummy.yaml')
         params = yaml.safe_load(yml)
         with self.assertRaises(ValueError):
             simul.build_objects(params)
@@ -294,7 +300,7 @@ class TestSimul(unittest.TestCase):
           length: 10
           slopes_data: null
         '''
-        simul = Simul([])
+        simul = Simul('dummy.yaml')
         params = yaml.safe_load(yml)
         simul.build_objects(params)
         # slopes_data: null → strips _data suffix → slopes=None → Slopes initializes as zeros
@@ -315,7 +321,7 @@ class TestSimul(unittest.TestCase):
           inputs:
             in_pixels: 1.0
         '''
-        simul = Simul([])
+        simul = Simul('dummy.yaml')
         params = yaml.safe_load(yml)
         simul.build_objects(params)
 
@@ -327,8 +333,6 @@ class TestSimul(unittest.TestCase):
         simul.overrides = ("{test.inputs.in.pixels: 2.0}")
         with self.assertRaises(ValueError):
             simul.apply_overrides(params)
-        
-
 
     def test_ref_suffix_resolves_referenced_object(self):
         '''
@@ -358,7 +362,7 @@ class TestSimul(unittest.TestCase):
           iir_filter_data_ref: iir_data
           delay: 0
         '''
-        simul = Simul([])
+        simul = Simul('dummy.yaml')
         params = yaml.safe_load(yml)
         simul.build_objects(params)
 
@@ -393,7 +397,7 @@ class TestSimul(unittest.TestCase):
           foo_data: direct_value
         '''
         with patch('specula.simul.import_class', side_effect=mock_import):
-            simul = Simul([])
+            simul = Simul('dummy.yaml')
             params = yaml.safe_load(yml)
             simul.build_objects(params)
             # foo_data is a direct constructor arg; it should be passed directly,
@@ -406,10 +410,6 @@ class TestSimul(unittest.TestCase):
         - recmat_dict_object strips to constructor arg recmat_dict
         - each dict value is treated as a tag and restored as the hinted object type
         '''
-        class DummySimulParams:
-            def __init__(self, root_dir='dummy', **_kwargs):
-                self.root_dir = root_dir
-
         class ClassWithDictObjectArg(BaseDataObj):
             def __init__(self,
                          recmat_dict: Dict[str, 'Recmat'],
@@ -446,7 +446,7 @@ class TestSimul(unittest.TestCase):
 
         with patch('specula.simul.import_class', side_effect=mock_import):
             with patch('specula.data_objects.recmat.Recmat.restore', side_effect=[rec_a, rec_b]) as mock_restore:
-                simul = Simul([])
+                simul = Simul('dummy.yaml')
                 simul.build_objects(params)
 
                 obj = simul.objs['test']
@@ -461,10 +461,6 @@ class TestSimul(unittest.TestCase):
                 assert self._path_suffix_parts(second_path) == ('rec', 'tag_slow.fits')
 
     def test_dict_object_raises_with_no_type(self):
-
-        class DummySimulParams:
-            def __init__(self, root_dir='dummy', **_kwargs):
-                self.root_dir = root_dir
 
         class ClassWithDictObjectArg(BaseDataObj):
             def __init__(self,
@@ -512,10 +508,6 @@ class TestSimul(unittest.TestCase):
         - recmat_list_object strips to constructor arg recmat_list
         - each list value is treated as a tag and restored as the hinted object type
         '''
-        class DummySimulParams:
-            def __init__(self, root_dir='dummy', **_kwargs):
-                self.root_dir = root_dir
-
         class ClassWithListObjectArg(BaseDataObj):
             def __init__(self,
                          recmat_list: List['Recmat'],
@@ -549,7 +541,7 @@ class TestSimul(unittest.TestCase):
 
         with patch('specula.simul.import_class', side_effect=mock_import):
             with patch('specula.data_objects.recmat.Recmat.restore', side_effect=[rec_a, rec_b]) as mock_restore:
-                simul = Simul([])
+                simul = Simul('dummy.yaml')
                 simul.build_objects(params)
 
                 obj = simul.objs['test']
@@ -571,10 +563,6 @@ class TestSimul(unittest.TestCase):
         - recmat_list_object strips to constructor arg recmat_list
         - each list value is treated as a tag and restored as the hinted object type
         '''
-
-        class DummySimulParams:
-            def __init__(self, root_dir='dummy', **_kwargs):
-                self.root_dir = root_dir
 
         class ClassWithListObjectArg(BaseDataObj):
             def __init__(self,
@@ -624,7 +612,7 @@ class TestSimul(unittest.TestCase):
             }
         }
 
-        replay = Simul([]).build_targeted_replay(params, 'consumer')
+        replay = Simul('dummy.yaml').build_targeted_replay(params, 'consumer')
 
         assert 'consumer' in replay
         assert 'src_a' in replay
@@ -635,10 +623,6 @@ class TestSimul(unittest.TestCase):
         Integration-style test: Simul builds ModalrecMultirate and injects
         recmat_list via _list_object using mocked Recmat.restore.
         '''
-        class DummySimulParams:
-            def __init__(self, root_dir='dummy', **_kwargs):
-                self.root_dir = root_dir
-
         def mock_import(classname, additional_modules=None):
             if classname == 'SimulParams':
                 return DummySimulParams
@@ -665,7 +649,7 @@ class TestSimul(unittest.TestCase):
 
         with patch('specula.simul.import_class', side_effect=mock_import):
             with patch('specula.data_objects.recmat.Recmat.restore', side_effect=[rec_both, rec_s1, rec_s2]):
-                simul = Simul([])
+                simul = Simul('dummy.yaml')
                 simul.build_objects(params)
 
                 rec_obj = simul.objs['rec']
@@ -673,3 +657,40 @@ class TestSimul(unittest.TestCase):
                 assert set(rec_obj.recmat_by_mask.keys()) == {(True, True), (True, False), (False, True)}
 
 
+    def test_simul_with_no_yaml_files(self):
+
+        with self.assertRaises(ValueError):
+            _ = Simul()
+
+    def test_exception_raised_when_extra_parameter_with_tag(self):
+        yml = '''
+        main:
+          class: 'SimulParams'
+          root_dir: dummy
+          
+        test:
+          class: 'Pupilstop'
+          tag: 'abcdef'
+          foo: 42
+        '''
+        simul = Simul('dummy.yaml')
+        params = yaml.safe_load(yml)
+
+        with self.assertRaises(ValueError):
+            simul.build_objects(params)
+
+    def test_exception_raised_when_restoring_with_no_type_hint(self):
+        yml = '''
+        main:
+          class: 'SimulParams'
+          root_dir: dummy
+          
+        test:
+          class: 'Slopes'
+          slopes_object: 'foo'
+        '''
+        simul = Simul('dummy.yaml')
+        params = yaml.safe_load(yml)
+
+        with self.assertRaises(ValueError):
+            simul.build_objects(params)

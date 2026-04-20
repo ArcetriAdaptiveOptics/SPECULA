@@ -1,5 +1,8 @@
+from specula.log import get_specula_logger
+
 from scipy.interpolate import Rbf
 import numpy as np
+
 from specula.lib.make_mask import make_mask
 from specula import cpuArray
 
@@ -64,6 +67,8 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
     else:
         mask = mask.astype(float)
         idx = xp.where(mask)
+
+    logger = get_specula_logger(__name__)
 
     # ----------------------------------------------------------
     # ----------------------------------------------------------
@@ -177,12 +182,10 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
 
         ifs_cube[i, :, :] = z_interp
 
-        print(f"\rCompute IFs: {int((i / n_act_tot) * 100)}% done", end="")
-
-    print()
+        logger.debug(f"Compute IFs: {int((i / n_act_tot) * 100)}% done")
 
     if do_mech_coupling:
-        print("Applying mechanical coupling...")
+        logger.info("Applying mechanical coupling...")
         ifs_cube_orig = ifs_cube.copy()
 
         for j in range(n_act_tot):
@@ -205,7 +208,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
                 ifs_cube[j, :, :] += coupling_coeffs[1] * \
                     xp.sum(ifs_cube_orig[close2_indices], axis=0)
 
-        print("Mechanical coupling applied.")
+        logger.info("Mechanical coupling applied.")
 
     if do_slaving:
         ifs_cube, coordinates, n_act_tot, slave_mat = apply_slaving(
@@ -227,7 +230,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
 
     ifs_2d = xp.array([ifs_cube[i][idx] for i in range(n_act_tot)], dtype=dtype)
 
-    print("\nComputation completed.")
+    logger.info("Computation completed.")
 
     return ifs_2d, mask, coords, slave_mat
 
@@ -336,6 +339,8 @@ def apply_slaving(ifs_cube, coordinates, idx, step, slaving_thr=0.1,
     Unified function to apply actuator slaving. 
     Routes to standard (proximity) or linear (PTT extrapolation) weighting logic.
     """
+    logger = get_specula_logger(__name__)
+
     n_act_tot = ifs_cube.shape[0]
 
     # --- 1. PRE-PROCESSING (Identify Master/Slave actuators) ---
@@ -345,9 +350,9 @@ def apply_slaving(ifs_cube, coordinates, idx, step, slaving_thr=0.1,
     idx_master = xp.where(ifs_peaks >= slaving_thr * max_vals_all)[0]
     idx_slave = xp.where(ifs_peaks < slaving_thr * max_vals_all)[0]
 
-    print(f"Actuators: {n_act_tot}")
-    print(f"Master actuators: {len(idx_master)}")
-    print(f"Actuators to be slaved: {len(idx_slave)}")
+    logger.info(f"Actuators: {n_act_tot}")
+    logger.info(f"Master actuators: {len(idx_master)}")
+    logger.info(f"Actuators to be slaved: {len(idx_slave)}")
 
     slave_mat = xp.zeros((n_act_tot, n_act_tot), dtype=dtype)
 

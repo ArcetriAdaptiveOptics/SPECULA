@@ -136,12 +136,12 @@ class Slopes(BaseDataObj):
             if s2.slopes.size > 0:
                 self.slopes -= s2.slopes
             else:
-                print('WARNING (slopes object): s2 (slopes) is empty!')
+                self.logger.warning('s2 (slopes) is empty!')
         elif isinstance(s2, BaseValue):  # Assuming BaseValue is another class
             if s2.value.size > 0:
                 self.slopes -= s2.value
             else:
-                print('WARNING (slopes object): s2 (base_value) is empty!')
+                self.logger.warning('s2 (base_value) is empty!')
 
     def x_remap2d(self, frame, idx):
         """
