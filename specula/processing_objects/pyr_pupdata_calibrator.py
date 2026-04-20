@@ -485,7 +485,7 @@ class PyrPupdataCalibrator(BaseProcessingObj):
                 # Warn if any pixel is lost
                 lost_pixels = n_pixels - n_valid
                 if lost_pixels > 0:
-                    print(f"Warning: Pupil {i} lost {lost_pixels}/{n_pixels} pixels "
+                    self.logger.warning(f"Pupil {i} lost {lost_pixels}/{n_pixels} pixels "
                         f"({100*lost_pixels/n_pixels:.1f}%) due to image boundaries")
 
                 # If fewer valid pixels, pad with -1 (already done by xp.full)
@@ -564,7 +564,7 @@ class PyrPupdataCalibrator(BaseProcessingObj):
             plt.pause(0.1)
 
         except ImportError:
-            print("Matplotlib not available for debug plotting")
+            self.logger.error("Matplotlib not available for debug plotting")
 
     def _save(self, filename):
         """
@@ -594,9 +594,8 @@ class PyrPupdataCalibrator(BaseProcessingObj):
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         self.pupdata.save(file_path, overwrite=self.overwrite)
 
-        if self.verbose:
-            print(f'Saved pupil data: {file_path}')
-            print(f'Obstruction ratio: {self.central_obstruction_ratio:.3f}')
+        self.logger.info(f'Saved pupil data: {file_path}')
+        self.logger.info(f'Obstruction ratio: {self.central_obstruction_ratio:.3f}')
 
     def finalize(self):
         if self.save_on_exit:

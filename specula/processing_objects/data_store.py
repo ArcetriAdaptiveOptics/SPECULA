@@ -131,8 +131,7 @@ class DataStore(BaseProcessingObj):
         for k, v in times.items():
             try:
                 if k not in self.inputs or self.inputs[k] is None:
-                    if self.verbose:
-                        print(f"Warning: skipping key '{k}' - not in inputs or value is None")
+                    self.logger.warning(f"skipping key '{k}' - not in inputs or value is None")
                     continue
 
                 filename = os.path.join(self.tn_dir, k + '.pickle')
@@ -143,8 +142,7 @@ class DataStore(BaseProcessingObj):
                     pickle.dump(data_to_save, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
             except Exception as e:
-                if self.verbose:
-                    print(f"Error saving pickle file for key '{k}': {str(e)}")
+                self.logger.error(f"Error saving pickle file for key '{k}': {str(e)}")
                 continue
 
     def save_params(self):
@@ -161,8 +159,7 @@ class DataStore(BaseProcessingObj):
                 yaml.dump(self.replay_params, outfile, default_flow_style=False, sort_keys=False)
         else:
             # Skip saving replay_params if not available
-            if self.verbose:
-                print("Warning: replay_params not available, skipping replay_params.yml creation")
+            self.logger.warning("replay_params not available, skipping replay_params.yml creation")
 
     def save_fits(self):
         times = {k: np.array(list(v.keys()), dtype=np.uint64)
@@ -173,8 +170,7 @@ class DataStore(BaseProcessingObj):
         for k,v in times.items():
             try:
                 if k not in self.local_inputs or self.local_inputs[k] is None:
-                    if self.verbose:
-                        print(f"Warning: skipping key '{k}'"
+                    self.logger.warning(f"Warning: skipping key '{k}'"
                               f"- not in local_inputs or value is None")
                     continue
 
@@ -188,8 +184,7 @@ class DataStore(BaseProcessingObj):
                 hdul.close()  # Force close for Windows
 
             except Exception as e:
-                if self.verbose:
-                    print(f"Error saving FITS file for key '{k}': {str(e)}")
+                self.logger.error(f"Error saving FITS file for key '{k}': {str(e)}")
                 continue
 
     def create_TN_folder(self, suffix=''):

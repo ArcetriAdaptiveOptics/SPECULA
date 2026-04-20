@@ -16,6 +16,17 @@ from specula.lib.utils import import_class as real_import_class
 
 from test.specula_testlib import cpu_and_gpu
 
+class DummySimulParams:
+    def __init__(self, root_dir='dummy', **_kwargs):
+        self.root_dir = root_dir
+    def init_logging(self, *args):
+        pass
+
+def mock_import(classname, additional_modules=None):
+    if classname == 'SimulParams':
+        return DummySimulParams
+    return real_import_class(classname, additional_modules)
+
 class TestModalrecMultirate(unittest.TestCase):
 
     @cpu_and_gpu
@@ -253,14 +264,6 @@ class TestModalrecMultirate(unittest.TestCase):
 
     def test_integration_simul_with_list_object(self):
         """Integration test: Simul builds ModalrecMultirate from `recmat_list_object`."""
-        class DummySimulParams:
-            def __init__(self, root_dir='dummy', **_kwargs):
-                self.root_dir = root_dir
-
-        def mock_import(classname, additional_modules=None):
-            if classname == 'SimulParams':
-                return DummySimulParams
-            return real_import_class(classname, additional_modules)
 
         rec_both = Recmat(np.ones((5, 4), dtype=np.float32), target_device_idx=-1, precision=0)
         rec_s1 = Recmat(np.ones((5, 4), dtype=np.float32), target_device_idx=-1, precision=0)
@@ -283,7 +286,7 @@ class TestModalrecMultirate(unittest.TestCase):
 
         with patch('specula.simul.import_class', side_effect=mock_import):
             with patch('specula.data_objects.recmat.Recmat.restore', side_effect=[rec_both, rec_s1, rec_s2]):
-                simul = Simul([])
+                simul = Simul('dummy.yaml')
                 simul.build_objects(params)
 
                 rec_obj = simul.objs['rec']
@@ -293,14 +296,6 @@ class TestModalrecMultirate(unittest.TestCase):
 
     def test_integration_simul_with_list_object_and_validity_masks(self):
         """Integration test: Simul builds ModalrecMultirate from a list of recmat tags."""
-        class DummySimulParams:
-            def __init__(self, root_dir='dummy', **_kwargs):
-                self.root_dir = root_dir
-
-        def mock_import(classname, additional_modules=None):
-            if classname == 'SimulParams':
-                return DummySimulParams
-            return real_import_class(classname, additional_modules)
 
         rec_both = Recmat(np.ones((5, 4), dtype=np.float32), target_device_idx=-1, precision=0)
         rec_s1 = Recmat(np.ones((5, 4), dtype=np.float32), target_device_idx=-1, precision=0)
@@ -324,7 +319,7 @@ class TestModalrecMultirate(unittest.TestCase):
         with patch('specula.simul.import_class', side_effect=mock_import):
             with patch('specula.data_objects.recmat.Recmat.restore',
                        side_effect=[rec_both, rec_s1, rec_s2]):
-                simul = Simul([])
+                simul = Simul('dummy.yaml')
                 simul.build_objects(params)
 
                 rec_obj = simul.objs['rec']

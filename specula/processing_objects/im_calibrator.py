@@ -170,8 +170,7 @@ class ImCalibrator(BaseProcessingObj):
         # First iteration initialization
         if self.intmat.nslopes == 0:
             self.intmat.set_nslopes(len(slopes))
-            if self.verbose:
-                print(f"Initialized interaction matrix: {self.im.value.shape}")
+            self.logger.debug(f"Initialized interaction matrix: {self.intmat.get_value().shape}")
             for i in range(self.nmodes):
                 self.single_im[i].set_nslopes(len(slopes))
 

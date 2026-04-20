@@ -38,6 +38,71 @@ These arguments are similar to the ones used by ``specula`` itself, whose implem
 Examples of the diagram can be found in :doc:`simul_diagrams` page.
 A tutorial for running SCAO simulations is available in the :doc:`tutorials/scao_tutorial` page.
 
+Output logging
+==============
+
+Simulation output is written using the standard Python ``logging`` module. As a default, it will print on standard output a timestamped informational line like:
+
+   2026-04-19 14:18:45,206 [INFO]: [psf]: SR at 1650nm : 0.0033
+
+Each processing object handles its output and defines what to print, and at which log level. The log level for the whole simulation
+is set with the ``--log-level`` command line switch: this option sets the minimum severity level of log messages that will be emitted.
+Messages below the selected level are filtered out.
+
+Usage
+-----
+
+.. code-block:: bash
+
+    specula params.yaml --log-level LEVEL
+
+Accepted values
+----------------
+
+The following logging levels are supported. All message with levels equal or above the specified one will be printed.
+
+``MPI_SEND_DBG``
+    Detailed logging of MPI send/communication operations.
+
+``MPI_DBG``
+    Debug-level logging specific to MPI-related operations.
+
+``DEBUG``
+    Very detailed diagnostic information, typically used for development and debugging.
+
+``INFO`` (default)
+    General operational messages. This is the default logging level.
+
+``WARNING``
+    Indicates something unexpected happened, but the program can continue.
+
+``ERROR``
+    A serious problem occurred that prevents part of the program from functioning correctly.
+
+``CRITICAL``
+    A very severe error that may cause the program to terminate.
+
+
+Default behavior
+-----------------
+
+If ``--log-level`` is not provided, the application defaults to:
+
+.. code-block:: text
+
+    INFO
+
+This means:
+- Informational messages and higher severity logs (WARNING, ERROR, CRITICAL) are shown
+- DEBUG and MPI-specific debug logs are suppressed
+
+Notes
+-----
+
+- The value is case-sensitive.
+- ``MPI_DBG`` and ``MPI_SEND_DBG`` are application-specific logging levels and are not part of the standard Python logging levels.
+- Lower verbosity levels (e.g., DEBUG) may produce large volumes of output.
+
 Interactive Stepping Mode
 ==========================
 

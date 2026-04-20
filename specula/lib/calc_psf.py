@@ -1,3 +1,4 @@
+from specula.log import get_specula_logger
 import numpy as np
 from collections import namedtuple
 
@@ -105,7 +106,11 @@ def calc_psf_geometry(pixel_pupil: int,
     return PsfGeometry(pixel_size_mas=psf_pixel_size, nd=nd)
 
 
-def calc_psf_sampling(pixel_pupil: int, pixel_pitch: float, wavelength_nm: float, psf_pixel_size_mas: float):
+def calc_psf_sampling(pixel_pupil: int,
+                      pixel_pitch: float,
+                      wavelength_nm: float,
+                      psf_pixel_size_mas: float,
+                      ):
     """
     Calculate PSF sampling parameters ensuring constraints are met
 
@@ -118,7 +123,8 @@ def calc_psf_sampling(pixel_pupil: int, pixel_pitch: float, wavelength_nm: float
     Returns:
         psf_sampling: The calculated sampling factor
     """
-    
+    logger = get_specula_logger(__name__)
+
     # Calculate pupil diameter in meters
     dim_pup_in_m = pixel_pupil * pixel_pitch
 
@@ -156,7 +162,7 @@ def calc_psf_sampling(pixel_pupil: int, pixel_pitch: float, wavelength_nm: float
     # Warning if approximation is significant
     error_percent = abs(actual_pixel_size_mas - psf_pixel_size_mas) / psf_pixel_size_mas * 100
     if error_percent > 1.0:
-        print(f"Warning: Actual pixel size ({actual_pixel_size_mas:.2f} mas) differs from "
+        logger.warning(f"Actual pixel size ({actual_pixel_size_mas:.2f} mas) differs from "
             f"requested ({psf_pixel_size_mas:.2f} mas) by {error_percent:.1f}% due to "
             f"integer sampling constraint.")
 

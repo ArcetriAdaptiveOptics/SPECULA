@@ -2,6 +2,7 @@
 SPRINT Estimator for Shack-Hartmann WFS using SynIM for IM computation.
 """
 
+import logging
 from specula.lib.synim_utils import compute_im_synim
 from specula.data_objects.slopes import Slopes
 from specula.processing_objects.base_sprint_estimator import BaseSprintEstimator
@@ -53,7 +54,6 @@ class SprintShSynim(BaseSprintEstimator):
                  apply_absolute_slopes=False,
                  integration_gain=0.5,
                  forgetting_factor=1.0,
-                 verbose: bool = False,
                  target_device_idx=None,
                  precision=None):
         """
@@ -87,7 +87,6 @@ class SprintShSynim(BaseSprintEstimator):
             apply_absolute_slopes=apply_absolute_slopes,
             integration_gain=integration_gain,
             forgetting_factor=forgetting_factor,
-            verbose=verbose,
             target_device_idx=target_device_idx,
             precision=precision
         )
@@ -126,14 +125,13 @@ class SprintShSynim(BaseSprintEstimator):
         idx_j = display_map % nx
         self.idx_valid_sa = np.column_stack((idx_i, idx_j))
 
-        if self.verbose: # pragma: no cover
-            print(f"  WFS type: Shack-Hartmann")
-            print(f"  Subapertures: {self.wfs.subap_on_diameter}x{self.wfs.subap_on_diameter}")
-            print(f"  Valid subapertures: {len(self.idx_valid_sa)}")
-            print(f"  FOV: {self.wfs.subap_wanted_fov:.2f} arcsec")
-            print(f"  Number of misreg params: {self.n_params}")
-            if self.enable_wpup_magn_xy:
-                print(f"  Using separate X/Y magnification")
+        self.logger.info(f"  WFS type: Shack-Hartmann")
+        self.logger.info(f"  Subapertures: {self.wfs.subap_on_diameter}x{self.wfs.subap_on_diameter}")
+        self.logger.info(f"  Valid subapertures: {len(self.idx_valid_sa)}")
+        self.logger.info(f"  FOV: {self.wfs.subap_wanted_fov:.2f} arcsec")
+        self.logger.info(f"  Number of misreg params: {self.n_params}")
+        if self.enable_wpup_magn_xy:
+            self.logger.info(f"  Using separate X/Y magnification")
 
     def _compute_nominal_im(self):
         """Compute nominal IM using SynIM"""
@@ -149,7 +147,7 @@ class SprintShSynim(BaseSprintEstimator):
             wfs_fov_arcsec=self.wfs.subap_wanted_fov,
             idx_valid_sa=self.idx_valid_sa,
             apply_absolute_slopes=self.apply_absolute_slopes,
-            verbose=self.verbose
+            verbose=self.logger.level <= logging.DEBUG
         )
 
         return self.to_xp(im_nominal, dtype=self.dtype)
@@ -184,8 +182,8 @@ class SprintShSynim(BaseSprintEstimator):
                          im_diff, G_opt, iteration): # pragma: no cover
         """Plot debug information for SH WFS."""
 
-        print(f"G_opt: {cpuArray(G_opt)}")
-        print(f"Mis-reg parameters: {cpuArray(self.misreg_params)}")
+        self.logger.info(f"G_opt: {cpuArray(G_opt)}")
+        self.logger.info(f"Mis-reg parameters: {cpuArray(self.misreg_params)}")
 
         plt.figure(figsize=(12, 5))
         plt.plot(im_measured[:,0]/G_opt[0], label='Measured IM (demodulated)')

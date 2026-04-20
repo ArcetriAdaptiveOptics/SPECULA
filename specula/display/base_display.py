@@ -112,4 +112,4 @@ class BaseDisplay(BaseProcessingObj):
                 self.fig.canvas.draw_idle()
                 self.fig.canvas.flush_events()
         except Exception as e:
-            print(f"Drawing error: {e}")
+            self.logger.error(f"Drawing error: {e}")

@@ -125,8 +125,7 @@ class Lift(BaseProcessingObj):
 
         # self.outputs['phase_estimate'] = None
 
-        if self.verbose:
-            logging.info(f"[{self.name}] LIFT initialized with {self.nmodes} modes")
+        self.logger.info(f"LIFT initialized with {self.nmodes} modes")
 
         self.ifunc = ifunc
         mask = self.ifunc.mask_inf_func
@@ -257,8 +256,7 @@ class Lift(BaseProcessingObj):
         self._check_tip_tilt_coherence(mask2d)
         self.phase_ref = self.phaseFromCoeffs(self.airef)
 
-        if self.verbose:
-            logging.info(f"[{self.name}] Modal base set, gridSize={self.gridSize}, fftSize={self.fftSize}")
+        self.logger.info(f"Modal base set, gridSize={self.gridSize}, fftSize={self.fftSize}")
 
     def _check_tip_tilt_coherence(self, mask_cpu):
         """Verify that the modes at nPistons and nPistons+1 are linear x/y slopes (tip/tilt)."""
@@ -486,9 +484,7 @@ class Lift(BaseProcessingObj):
         self.outputs['out_zern'].generation_time = self.current_time
 
         # self.outputs["phase_estimate"] = currentPhaseEstimate
-        if self.verbose:
-            logging.info(f"[{self.name}] Trigger done, coeffs={coeffs[:5]}...")
+        self.logger.info(f"Trigger done, coeffs={coeffs[:5]}...")
 
     def finalize(self):
-        if self.verbose:
-            logging.info(f"[{self.name}] Finalized")
+        self.logger.info(f"Finalized")

@@ -3,11 +3,13 @@ specula.init(0)  # Default target device
 
 import types
 import unittest
+from unittest.mock import MagicMock, patch
 
-from specula.loop_control import LoopControl
+from specula.loop_control import LoopControl, process_rank
 from specula.base_processing_obj import BaseProcessingObj
 
 from test.specula_testlib import cpu_and_gpu
+
 
 
 class MockProcessingObjNotReady(BaseProcessingObj):
@@ -86,4 +88,104 @@ class TestLoopControl(unittest.TestCase):
             loop.run(run_time=-1, dt=0.1)
 
 
+class TestSteppingFeature(unittest.TestCase):
+
+    def setUp(self):
+        self.obj = LoopControl()
+
+        # minimal required state
+        self.obj.logger = MagicMock()
+        self.obj.iter = MagicMock()
+        self.obj.start = MagicMock()
+        self.obj.finish = MagicMock()
+
+        self.obj.run_time = 10
+        self.obj.t0 = 0
+        self.obj.t = 0
+        self.obj.stepping = True
+        self.obj.next_time_to_stop = 0
+
+    # -----------------------------
+    # Case 1: default stepping = 1 step
+    # -----------------------------
+    @patch("builtins.input", return_value="")
+    @patch("specula.process_rank", 0)
+    def test_stepping_default_one_step(self, mock_input):
+        """
+        If user presses Enter, should advance exactly 1 timestep.
+        """
+        def fake_iter():
+            self.obj.t += 1
+
+        self.obj.iter.side_effect = fake_iter
+
+        # force loop to stop after 1 iteration
+        self.obj.run_time = 1
+
+        self.obj.run(run_time=1, dt=1)
+
+        self.obj.start.assert_called_once()
+        self.obj.iter.assert_called()
+        self.obj.finish.assert_called_once()
+
+    # -----------------------------
+    # Case 2: stepping disabled skips input
+    # -----------------------------
+    @patch("specula.process_rank", 0)
+    @patch("builtins.input")
+    def test_no_input_when_not_stepping(self, mock_input):
+        """
+        If stepping is False, input() should never be called.
+        """
+        self.obj.stepping = False
+
+        def fake_iter():
+            self.obj.t += 1
+
+        self.obj.iter.side_effect = fake_iter
+        self.obj.run_time = 1
+
+        self.obj.run(run_time=1, dt=1)
+
+        mock_input.assert_not_called()
+
+    # -----------------------------
+    # Case 3: invalid input defaults to 1
+    # -----------------------------
+    @patch("builtins.input", return_value="invalid")
+    @patch("specula.process_rank", 0)
+    def test_invalid_input_defaults_to_one(self, mock_input):
+        """
+        Non-integer input should fallback to 1 timestep.
+        """
+        def fake_iter():
+            self.obj.t += 1
+
+        self.obj.iter.side_effect = fake_iter
+        self.obj.run_time = 1
+
+        self.obj.run(run_time=1, dt=1)
+
+        # should still run at least once safely
+        self.obj.iter.assert_called()
+
+    # -----------------------------
+    # Case 4: stepping only triggers after next_time_to_stop
+    # -----------------------------
+    @patch("builtins.input", return_value="5")
+    @patch("specula.process_rank", 0)
+    def test_next_time_to_stop_controls_prompt(self, mock_input):
+        """
+        Ensure next_time_to_stop logic is applied.
+        """
+        def fake_iter():
+            self.obj.t += 1
+
+        self.obj.iter.side_effect = fake_iter
+        self.obj.run_time = 5
+
+        self.obj.run(run_time=5, dt=1)
+
+        # should have updated threshold
+        self.assertNotEqual(self.obj.next_time_to_stop, 0)
 

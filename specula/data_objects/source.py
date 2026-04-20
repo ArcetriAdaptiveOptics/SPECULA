@@ -22,7 +22,6 @@ class Source(BaseDataObj):
                  band: str = '',
                  zero_point: float = 0,
                  error_coord: tuple = (0., 0.),
-                 verbose: bool = False,
                  target_device_idx: int = None,
                  precision: int = None):
         """
@@ -44,8 +43,6 @@ class Source(BaseDataObj):
             The photometric zero point (default: 0).
         error_coord : tuple, optional
             Error to add to the polar coordinates (default: (0., 0.)).
-        verbose : bool, optional
-            If True, print verbose output (default: False).
         target_device_idx : int, optional
             Device index for computation (default: None).
         precision : int, optional
@@ -58,8 +55,8 @@ class Source(BaseDataObj):
         polar_coordinates = np.array(polar_coordinates, dtype=self.dtype) \
                           + np.array(error_coord, dtype=self.dtype)
         if any(error_coord):
-            print(f'there is a desired error ({error_coord[0]},{error_coord[1]}) on source coordinates.')
-            print(f'final coordinates are: {polar_coordinates[0]},{polar_coordinates[1]}')
+            self.logger.info(f'there is a desired error ({error_coord[0]},{error_coord[1]}) on source coordinates.')
+            self.logger.info(f'final coordinates are: {polar_coordinates[0]},{polar_coordinates[1]}')
 
         self.polar_coordinates = polar_coordinates
         self.height = height
@@ -67,7 +64,6 @@ class Source(BaseDataObj):
         self.wavelengthInNm = wavelengthInNm
         self.zero_point = zero_point
         self.band = band
-        self.verbose = verbose
         self.error_coord = error_coord
         self.chromatic_shifts_m = {}
 
@@ -160,8 +156,7 @@ class Source(BaseDataObj):
             band = None
 
         res = n_phot(self.magnitude, band=band, lambda_=self.wavelengthInNm/1e9, width=1e-9, e0=e0)
-        if self.verbose:
-            print(f'source.phot_density: magnitude is {self.magnitude}, and flux (output of n_phot with width=1e-9, surf=1) is {res[0]}')
+        self.logger.info(f'source.phot_density: magnitude is {self.magnitude}, and flux (output of n_phot with width=1e-9, surf=1) is {res[0]}')
         return res[0]
 
     def save(self, filename, overwrite=False):

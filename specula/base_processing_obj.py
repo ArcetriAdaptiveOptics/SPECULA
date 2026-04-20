@@ -1,10 +1,11 @@
+import logging
 from collections import defaultdict, namedtuple
 import fnmatch
 import re
 
-from specula import cpuArray, default_target_device, cp, MPI_DBG, MPI_SEND_DBG
+from specula import cpuArray, default_target_device, cp
 from specula import show_in_profiler
-from specula import process_comm, process_rank
+from specula import process_comm
 from specula.base_time_obj import BaseTimeObj
 from specula.connections import InputList, InputValue
 from specula.data_objects.layer import Layer
@@ -33,8 +34,6 @@ class BaseProcessingObj(BaseTimeObj):
         self.current_time = 0
         self.current_time_seconds = 0
 
-        self.verbose = 0
-
         # Stream/input management
         self.stream = None
         self.inputs_changed = False
@@ -51,7 +50,8 @@ class BaseProcessingObj(BaseTimeObj):
         if self.target_device_idx >= 0:
             self._target_device.use()
 
-        # Default name is none is given externally
+        # Default name is the class name, a more specific one
+        # can be given externally by the Simul class
         self.name = self.__class__.__name__
 
     # Use the correct CUDA device for allocations in derived classes' prepare_trigger()
@@ -99,29 +99,27 @@ class BaseProcessingObj(BaseTimeObj):
         Data is transferred between devices if necessary.
         '''
         for input_name, input_obj in self.inputs.items():
-            if MPI_DBG: print(process_rank, 'get_all_inputs(): getting InputValue:',
-                              input_name, flush=True)
+            self.logger.mpi_debug(f'- get_all_inputs(): '
+                                  f'getting InputValue: {input_name}')
             # Set additional info for better error messages
             input_obj.requesting_obj_name = self.name
             input_obj.input_name = input_name
             self.local_inputs[input_name] = input_obj.get(self.target_device_idx)
 
-        if MPI_DBG:
-            print(process_rank, self.name, 'My inputs are:')
+        if self.logger.level <= logging.DEBUG:
+            self.logger.mpi_debug(f'My inputs are:')
             for in_name, in_value in self.local_inputs.items():
                 if type(in_value) is list:
                     if len(in_value) > 0 and type(in_value[0]) is Layer:
-                        print(process_rank, in_name,
-                              [(x.generation_time, x.phaseInNm) for x in in_value],
-                              flush=True)
+                        self.logger.mpi_debug(f'- {in_name}' + 
+                                    str([(x.generation_time, x.phaseInNm) for x in in_value]))
                     else:
-                        print(process_rank, in_name,
-                              [(x.generation_time, x) for x in in_value],
-                              flush=True)
+                        self.logger.mpi_debug(f'- {in_name}' + 
+                                    str([(x.generation_time, x) for x in in_value]))
                 else:
-                    print(process_rank, in_name,
-                          in_value.generation_time if in_value is not None else None,
-                          in_value, type(in_value), flush=True)
+                    self.logger.mpi_debug(f'- {in_name}' + 
+                            str(in_value.generation_time if in_value is not None else None) +
+                            f'{in_value} type: {type(in_value)}')
 
     def trigger_code(self):
         '''
@@ -156,18 +154,18 @@ class BaseProcessingObj(BaseTimeObj):
                 self.stream.synchronize()
 
     def send_remote_output(self, item, dest_rank, dest_tag, first_mpi_send=True, out_name=''):
-        if MPI_SEND_DBG: print(process_rank, f'SEND to rank {dest_rank} {dest_tag=} {(dest_tag in self.sent_valid)=} (from {self.name}.{out_name})', flush=True)
+        self.logger.mpi_send_debug(f'SEND to rank {dest_rank} {dest_tag=} {(dest_tag in self.sent_valid)=} (from {self.name}.{out_name})')
         if first_mpi_send or not dest_tag in self.sent_valid:
-            if MPI_SEND_DBG: print(process_rank, 'SEND with Pickle', dest_tag, flush=True)
+            self.logger.mpi_send_debug(f'SEND with Pickle', dest_tag)
             xp_orig = item.xp
             item.xp = 0            
             process_comm.ibsend(item, dest=dest_rank, tag=dest_tag)
             item.xp = xp_orig
         else:
             buffer = item.get_value()
-            if MPI_SEND_DBG:  print(process_rank, dest_tag, 'SEND .device', buffer.device)
-            if MPI_SEND_DBG: print(process_rank, 'SEND with Buffer', dest_tag, type(buffer), buffer, flush=True)
-            if MPI_SEND_DBG: print(process_rank, 'SEND with Buffer type', dest_tag, buffer.dtype, flush=True)
+            self.logger.mpi_send_debug(f'{dest_tag=}, SEND .device', buffer.device)
+            self.logger.mpi_send_debug(f'SEND with Buffer', dest_tag, type(buffer), buffer)
+            self.logger.mpi_send_debug(f'SEND with Buffer type', dest_tag, buffer.dtype)
 
             process_comm.Ibsend(cpuArray(buffer), dest=dest_rank, tag=dest_tag)
 
@@ -187,24 +185,23 @@ class BaseProcessingObj(BaseTimeObj):
         This is used while setting up the simulation to initialize outputs
         that are delayed and would not be received otherwise.
         '''
-        if MPI_DBG:
-            print(process_rank, self.name, 'My outputs are:')
-            for out_name, out_value in self.outputs.items():
-                print(process_rank, out_name, out_value, flush=True)
+        self.logger.mpi_debug(f'My outputs are:')
+        for out_name, out_value in self.outputs.items():
+            self.logger.mpi_debug(f'{out_name=}, {out_value=}')
 
-        if MPI_DBG: print(process_rank, 'send_outputs', flush=True)
+        self.logger.mpi_debug(f'send_outputs')
         for out_name, remote_specs in self.remote_outputs.items():
             for remote_spec in remote_specs:
                 dest_rank, dest_tag, delay = remote_spec
                 # avoid sending outputs that will not be received
                 # because the simulation is ending
                 if delay < 0 and skip_delayed:
-                    if MPI_SEND_DBG: print(process_rank, f'SKIPPED SEND to rank {dest_rank} {dest_tag=} due to delay={delay}', flush=True)
+                    self.logger.mpi_send_debug(f'SKIPPED SEND to rank {dest_rank} {dest_tag=} due to delay={delay}')
                     continue
                 if delay >= 0 and delayed_only:
-                    if MPI_SEND_DBG: print(process_rank, f'SKIPPED SEND to rank {dest_rank} {dest_tag=} due to delay={delay}', flush=True)
+                    self.logger.mpi_send_debug(f'SKIPPED SEND to rank {dest_rank} {dest_tag=} due to delay={delay}')
                     continue
-                if MPI_DBG: print(process_rank, 'Sending ', out_name, 'to ', dest_rank, 'with tag',  dest_tag, type(self.outputs[out_name]), flush=True)
+                self.logger.mpi_debug(f'Sending {out_name} to {dest_rank} with tag {dest_tag} {type(self.outputs[out_name])}')
                 # workaround because module objects cannot be pickled
                 for item in self.outputs[out_name] if isinstance(self.outputs[out_name], list) else [self.outputs[out_name]]:
                     self.send_remote_output(item, dest_rank, dest_tag, first_mpi_send, out_name)
@@ -243,8 +240,7 @@ class BaseProcessingObj(BaseTimeObj):
             self.prepare_trigger(t)
         else:
             self.inputs_changed = False
-            if self.verbose:
-                print('No inputs have been refreshed, skipping trigger for object', self.name, flush=True)
+            self.logger.info('No inputs have been refreshed, skipping trigger')
         return self.inputs_changed
 
     def trigger(self):
