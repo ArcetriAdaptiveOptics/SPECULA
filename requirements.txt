@@ -10,4 +10,4 @@ python-socketio
 requests
 pytest
 scikit-image
-threadpool
+threadpoolctl
