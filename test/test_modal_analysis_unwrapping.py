@@ -21,8 +21,8 @@ import numpy as np
 
 @unittest.skipIf((os.environ.get('CI') == 'true' and
                   sys.platform == 'linux' and
-                  sys.version_info >= (3, 11) and
-                  sys.version_info <= (3, 13)), "Disabled because of CI issues")
+                  sys.version_info[:2] >= (3, 11) and
+                  sys.version_info[:2] <= (3, 13)), "Disabled because of CI issues")
 class TestModalAnalysisUnwrapping(unittest.TestCase):
 
     @cpu_and_gpu
