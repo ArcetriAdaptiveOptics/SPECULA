@@ -1,4 +1,7 @@
 
+from collections import Counter
+
+
 class SimulDiagram:
     def __init__(self,
                  param_file: str,
@@ -37,7 +40,6 @@ class SimulDiagram:
         return (1.0 - r / 255.0, 1.0 - g / 255.0, 1.0 - b / 255.0)
 
     def arrange_in_grid(self, trigger_order, trigger_order_idx):
-        from collections import Counter
 
         rows = []
         center = False
@@ -71,6 +73,8 @@ class SimulDiagram:
               all_objs_ranks: dict,
               is_dataobj: dict,
             ):
+        # Imports are inside this method, so that they are not executed
+        # unless the diagram is actually built.
         from orthogram import Color, DiagramDef, write_png, Side, FontWeight, FontStyle, TextOrientation
         import matplotlib.pyplot as plt
 
