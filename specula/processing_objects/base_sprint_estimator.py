@@ -298,7 +298,7 @@ class BaseSprintEstimator(BaseProcessingObj):
         if (t - self.last_estimation_time) < self.estimation_dt:
             return
 
-        self.logger.info(f"\n{'='*60}")
+        self.logger.info(f"{'='*60}")
         self.logger.info(f"SPRINT Estimation at t={self.t_to_seconds(t):.2f}s")
         self.logger.info(f"{'='*60}")
 
@@ -396,7 +396,7 @@ class BaseSprintEstimator(BaseProcessingObj):
         im_measured : ndarray
             Measured IM from demodulation
         """
-        self.logger.info(f"\n  Starting iterative estimation...")
+        self.logger.info(f"  Starting iterative estimation...")
         self.logger.info(f"  Initial misreg: {cpuArray(self.misreg_params)}")
 
         params_before = self.misreg_params.copy()

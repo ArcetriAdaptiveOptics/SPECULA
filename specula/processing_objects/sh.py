@@ -315,7 +315,7 @@ class SH(BaseProcessingObj):
         self._ovs_np_sub = round(ef_size * self._fov_ovs * lens[2] * 0.5)
         self._fft_size = self._ovs_np_sub * scale_ovs
 
-        self.logger.info('\n-->     FoV resolution [asec], {}'.format(self._fov_resolution_arcsec))
+        self.logger.info('-->     FoV resolution [asec], {}'.format(self._fov_resolution_arcsec))
         self.logger.info('-->     turb. pix. sc.,        {}'.format(turbulence_pxscale))
         self.logger.info('-->     sc. over sampl.,       {}'.format(scale_ovs))
         self.logger.info('-->     FoV over sampl.,       {}'.format(self._fov_ovs))

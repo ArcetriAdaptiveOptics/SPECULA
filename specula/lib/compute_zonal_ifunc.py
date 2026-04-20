@@ -182,7 +182,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
 
         ifs_cube[i, :, :] = z_interp
 
-        logger.debug(f"\rCompute IFs: {int((i / n_act_tot) * 100)}% done")
+        logger.debug(f"Compute IFs: {int((i / n_act_tot) * 100)}% done")
 
     if do_mech_coupling:
         logger.info("Applying mechanical coupling...")
@@ -230,7 +230,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
 
     ifs_2d = xp.array([ifs_cube[i][idx] for i in range(n_act_tot)], dtype=dtype)
 
-    logger.info("\nComputation completed.")
+    logger.info("Computation completed.")
 
     return ifs_2d, mask, coords, slave_mat
 
