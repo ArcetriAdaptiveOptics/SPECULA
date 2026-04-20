@@ -1,4 +1,3 @@
-
 from specula.processing_objects.integrator import Integrator
 from specula.base_processing_obj import InputDesc
 from specula.data_objects.simul_params import SimulParams
@@ -90,4 +89,4 @@ class DynamicIntegrator(Integrator):
                 int_gain = float(gain_input.value)
                 self.iir_filter_data.set_gain(int_gain)
         except Exception as e:
-            print(f'Exception: {e.__name__}: {e}')
+            self.logger.error(f'Exception: {e.__name__}: {e}')

@@ -171,20 +171,6 @@ def make_orto_modes(array, xp, dtype):
     return Q
 
 
-def is_scalar(x, xp):
-    """
-    Check if x is a scalar or a 0D array.
-
-    Parameters:
-    ----------
-    x : object
-        The object to check.
-    xp : module
-        The array processing module (numpy or cupy) to use for checking the shape.
-    """
-    return xp.isscalar(x) or (hasattr(x, 'shape') and x.shape == ())
-
-
 def psd_to_signal(psd, fs, xp, dtype, complex_dtype, seed=1):
     """
     Generate a random signal with a given PSD and sampling frequency.

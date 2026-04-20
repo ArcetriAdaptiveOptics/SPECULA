@@ -205,7 +205,7 @@ class DynamicDarkCalibrator(BaseProcessingObj):
                 self.darkframe.restore(fullpath)
                 self.darkframe.generation_time = self.current_time
         except Exception as e:
-            print(f'Exception: {e.__name__}: {e}')
+            self.logger.error(f'Exception: {e.__name__}: {e}')
 
     def post_trigger(self):
         super().post_trigger()
@@ -227,7 +227,6 @@ class DynamicDarkCalibrator(BaseProcessingObj):
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         self.darkframe.save(file_path, overwrite=self.overwrite)
 
-        if self.verbose:
-            print(f'Saved dark frame data: {file_path}')
+        self.logger.info(f'Saved dark frame data: {file_path}')
 
 

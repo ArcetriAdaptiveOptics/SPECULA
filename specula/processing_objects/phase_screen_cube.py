@@ -22,7 +22,6 @@ class PhaseScreenCube(BaseProcessingObj):
                  source_dict: dict=None,
                  layer_height: float=0.0,
                  scale_factor: float=1.0,
-                 verbose=None,
                  target_device_idx=None):
         """
         Parameters
@@ -44,9 +43,6 @@ class PhaseScreenCube(BaseProcessingObj):
         scale_factor : float, optional
             Scaling factor applied to the phase screens, by default 1.0. This can be used 
             to adjust the amplitude of the phase screens if needed.
-        verbose : bool, optional
-            If True, enables verbose output during phase screen generation.
-            Default is None (no verbose output).
         target_device_idx : int, optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
         """
@@ -67,8 +63,6 @@ class PhaseScreenCube(BaseProcessingObj):
         self.ef_outputs = {}
 
         self.pupilstop = None
-
-        self.verbose = verbose if verbose is not None else False
 
         output_specs = list(self.source_dict.items()) if self.source_dict else [(None, None)]
 

@@ -55,7 +55,7 @@ class Modalrec(BaseProcessingObj):
                 if recmat is not None:
                     recmat.reduce_size(ncutmodes)
                 else:
-                    print('recmat cannot be reduced because it is null.')
+                    self.logger.warning('recmat cannot be reduced because it is null.')
 
 
         if recmat is not None:
@@ -70,7 +70,7 @@ class Modalrec(BaseProcessingObj):
 
         if filtmat is not None and recmat is not None:
             recmat.recmat = recmat.recmat @ filtmat
-            print('recmat updated with filmat!')
+            self.logger.info('recmat updated with filmat!')
 
         if polc:
             if not intmat:
@@ -161,7 +161,7 @@ class Modalrec(BaseProcessingObj):
 
     def trigger_code(self):
         if self.recmat.recmat is None:
-            print("WARNING: modalrec skipping reconstruction because recmat is NULL")
+            self.logger.warning("skipping reconstruction because recmat is NULL")
             return
 
         # In the polc case, commands may be *alwats* refreshed if they are set with -1

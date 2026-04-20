@@ -151,6 +151,6 @@ class Slopec(BaseProcessingObj):
         self.outputs['out_subap_counts'].generation_time = self.current_time
 
         #rms = self.xp.sqrt(self.xp.mean(self.slopes.slopes**2))
-        #print('Slopes have been filtered. '
+        #self.logger.info('Slopes have been filtered. '
         #      'New slopes min, max and rms: '
         #      f'{self.slopes.slopes.min()}, {self.slopes.slopes.max()}, {rms}')
