@@ -412,7 +412,7 @@ class TestSimul(unittest.TestCase):
         '''
         class ClassWithDictObjectArg(BaseDataObj):
             def __init__(self,
-                         recmat_dict: Dict[str, 'Recmat'],
+                         recmat_dict: Dict[str, Recmat],
                          target_device_idx=None,
                          precision=None):
                 super().__init__(target_device_idx=target_device_idx, precision=precision)
@@ -510,7 +510,7 @@ class TestSimul(unittest.TestCase):
         '''
         class ClassWithListObjectArg(BaseDataObj):
             def __init__(self,
-                         recmat_list: List['Recmat'],
+                         recmat_list: List[Recmat],
                          target_device_idx=None,
                          precision=None):
                 super().__init__(target_device_idx=target_device_idx, precision=precision)
