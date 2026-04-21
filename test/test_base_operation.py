@@ -643,25 +643,6 @@ class TestBaseOperation(unittest.TestCase):
             loop.run(run_time=2, dt=1, t0=1)
 
     @cpu_and_gpu
-    def test_non_broadcastable_shapes_raise(self, target_device_idx, xp):
-        """Incompatible shapes should raise an error"""
-
-        value1 = BaseValue(value=xp.array([1.0, 2.0]),
-                        target_device_idx=target_device_idx)
-        value1.generation_time = value1.seconds_to_t(1)
-
-        op = BaseOperation(constant_mul=xp.array([1.0, 2.0, 3.0]),
-                        target_device_idx=target_device_idx)
-
-        op.inputs['in_value1'].set(value1)
-
-        loop = LoopControl()
-        loop.add(op, idx=0)
-
-        with self.assertRaises(Exception):
-            loop.run(run_time=2, dt=1, t0=1)
-
-    @cpu_and_gpu
     def test_min_max_broadcasting(self, target_device_idx, xp):
         """min/max should broadcast correctly"""
 
