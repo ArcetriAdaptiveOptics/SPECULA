@@ -13,8 +13,6 @@ from specula.data_objects.m2c import M2C
 from specula.calib_manager import CalibManager
 from specula import cpuArray
 
-from specula.mmlib.utils import remap_on_new_mask
-
 from astropy.io import fits
 
 def compute_and_save_influence_functions(root_dir:str, tag:str, pupil_pixels:int, n_acts:int, geom:str='circular',
@@ -102,6 +100,11 @@ def compute_and_save_influence_functions(root_dir:str, tag:str, pupil_pixels:int
         dtype=dtype,
         # return_coordinates=False,
     )
+
+    S = np.linalg.svd(influence_functions,compute_uv=False)
+    fits.writeto(os.path.join(root_dir,'ifunc','eigenvalues.fits'),S)
+    fits.writeto(os.path.join(root_dir,'ifunc','mask.fits'),mask)
+    fits.writeto(os.path.join(root_dir,'ifunc','act_coords.fits'),coords)
 
     # Print statistics
     n_valid_actuators = influence_functions.shape[0]
@@ -278,8 +281,21 @@ def compute_and_save_dcao_matrix(root_dir,first_stage_tag:str, second_stage_tag:
     print("OK: m2m loading test passed")
 
 
+def save_m2c_as_recmat(root_dir:str, filename:str, m2c_tag):
+    calib_manager = CalibManager(root_dir)  
+    m2c_filename = calib_manager.filename('m2c', m2c_tag)
+    loaded_m2c = M2C.restore(m2c_filename)
+    rec_obj = Recmat(recmat=loaded_m2c.m2c)
+    savename = os.path.join(root_dir,'rec',filename)
+    rec_obj.save(savename, overwrite=True)
+    print("Saved " + savename)
+
+
 if __name__ == "__main__":
-    root_dir = '/raid1/mmenessini/calibration/XAO'
+    xao_dir = '/raid1/mmenessini/calibration/XAO'
+    soul_dir = '/raid1/mmenessini/calibration/SOUL'
+    ekarus_dir = '/raid1/mmenessini/calibration/EKARUS'
+    
     # Npix = 160
     # compute_and_save_influence_functions(root_dir,tag='bmc2k_vlt', pupil_pixels=Npix, n_acts=50,
     #                                       geom='alpao', r0=10e-2, obsratio=0.0, pupil_mask_tag='vlt_pupil')
@@ -287,12 +303,12 @@ if __name__ == "__main__":
     #                                       geom='alpao', r0=10e-2, obsratio=0.0, pupil_mask_tag='vlt_pupil')
     # compute_and_save_dcao_matrix(root_dir,first_stage_tag='bmc2k_vlt',second_stage_tag='dm468_vlt',N1_modes=1300,N2_modes=300)
 
-    # root_dir = '/raid1/mmenessini/calibration/SOUL'
     # Npix = 160
     # compute_and_save_influence_functions(root_dir,tag='asm', pupil_pixels=Npix, n_acts=30,
     #                                       geom='circular', r0=10e-2, obsratio=0.11, D=8.4)
 
-    root_dir = '/raid1/mmenessini/calibration/EKARUS'
-    Npix = 96#140
-    compute_and_save_influence_functions(root_dir,tag='dm468', pupil_pixels=Npix, n_acts=24, #shrink_coords=1.05,
-                                          geom='circular', r0=5e-2, pupil_mask_tag='copernico_pupil', D=1.82)
+    # save_m2c_as_recmat(root_dir=soul_dir, m2c_tag='asm_m2c', filename='dummy_asm_m2c')
+
+    Npix = 120
+    compute_and_save_influence_functions(ekarus_dir,tag='dm468', pupil_pixels=Npix, n_acts=24,
+                                          geom='alpao', r0=5e-2, pupil_mask_tag='copernico_pupil', D=1.82)

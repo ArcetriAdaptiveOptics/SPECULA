@@ -4,14 +4,14 @@
 # Push-pull command generator
 pushpull:
   class:        'PushPullGenerator'
-  nmodes:       443                        # Number of DM actuators
+  nmodes:       430                        # Number of DM actuators
   amp:          15
   outputs:   ['output']
 
 # Interaction matrix calibrator
 pyr_im_calibrator:
   class:     'ImCalibrator'
-  nmodes:    443                         # Number of modes to calibrate
+  nmodes:    430                         # Number of modes to calibrate
   im_tag:    'pyr5.0_40x40_im'            # Output IM filename
   overwrite: false                         # Overwrite existing files
   inputs:
@@ -21,7 +21,7 @@ pyr_im_calibrator:
 # Override main simulation parameters
 main_override:
   time_step: 0.001
-  total_time: 0.886                 # 443 modes × 2 (push+pull) × 0.001s
+  total_time: 0.86                 # 430 modes × 2 (push+pull) × 0.001s
 
 # Disable atmosphere for clean calibration
 prop_override:
@@ -33,7 +33,7 @@ prop_override:
 # Override DM to use calibration commands
 dm_override:
   sign: 1                                 # Use positive sign for calibration (default is -1)
-  nmodes: 443                            # Use all modes for calibration
+  nmodes: 430                            # Use all modes for calibration
   inputs:
     in_command: 'pushpull.output'         # Connect to push-pull generator
 

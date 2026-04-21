@@ -13,7 +13,7 @@ from specula.data_objects.simul_params import SimulParams
 from specula.lib.make_mask import make_mask
 
 def save_copernico_pupil_to_size(destination_dir:str, tag:str, Npix:int, D:float=1.82):
-    new_pupil = make_mask(np_size=Npix,obsratio=0.3,spider=True,n_petals=4,angle_offset=30,spider_width=0.01/D)
+    new_pupil = make_mask(np_size=Npix,obsratio=0.3,spider=True,n_petals=4,angle_offset=0,spider_width=0.004/D)
     os.makedirs(destination_dir,exist_ok=True)
     fname = os.path.join(destination_dir, tag+f'_{Npix:1.0f}pixels.fits')
     simul_params = SimulParams(pixel_pupil=Npix,pixel_pitch=D/Npix)
@@ -44,13 +44,13 @@ if __name__ == "__main__":
     # Npix = 160
     # aperture=save_pupil_to_size(data_dir, destination_dir, tag, Npix, thr=0.69)
     # plt.figure()
-    # plt.imshow(aperture,origin='lower',cmap='gray')
+    # plt.imshow(aperture,origin='lower',cap='gray')
     # plt.show()
 
     destination_dir = '/raid1/mmenessini/calibration/EKARUS/pupilstop'
     tag = 'copernico_pupil'
-    Npix = 96
-    aperture=save_copernico_pupil_to_size(destination_dir, tag, Npix)
+    Npix = 120
+    aperture=save_copernico_pupil_to_size(destination_dir, tag, Npix, D=1.82)
     plt.figure()
     plt.imshow(aperture,origin='lower',cmap='gray')
     plt.show()

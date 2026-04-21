@@ -2,7 +2,7 @@ import numpy as np
 from astropy.io import fits
 import os
 
-from .utils import radial_order
+from specula.mmlib.utils import radial_order
 
 # def save_correction_vector(dir_path:str,min_corr:float,max_corr:float,Nmodes:int=660,Ncorrmodes:int=None):
 #     if Ncorrmodes is None:
@@ -26,7 +26,7 @@ from .utils import radial_order
 #     return fname
 
 
-def save_correction_vector(dir_path:str, max_corr: float, min_corr: float,  Nmodes: int = 660, Ncorrmodes: int = None):
+def save_correction_vector(dir_path:str, max_corr: float, min_corr: float,  Nmodes: int = 720, Ncorrmodes: int = None):
     """
     Generates a correction vector with logarithmic scaling to maintain 
     constant power-law slopes in residual turbulence PSDs.
@@ -60,7 +60,7 @@ def save_correction_vector(dir_path:str, max_corr: float, min_corr: float,  Nmod
     
 if __name__ == "__main__":
     dir_path = '/raid1/mmenessini/calibration/SOUL'
-    Ncorrmodes = 500
+    Ncorrmodes = 600
     save_correction_vector(dir_path=dir_path, max_corr=0.99, min_corr=0.2, Ncorrmodes=Ncorrmodes)
     save_correction_vector(dir_path=dir_path, max_corr=0.9, min_corr=0.2, Ncorrmodes=Ncorrmodes)
     save_correction_vector(dir_path=dir_path, max_corr=0.85, min_corr=0.2, Ncorrmodes=Ncorrmodes)

@@ -1,18 +1,59 @@
+main_override:
+  total_time: 0.0588                # 100 screens × 0.000588s 
+
+seeing_random:
+  class:             'RandomGenerator'
+  amp:               0.0                 # Variation amplitude [arcsec]
+  constant:          1.0                 # Mean seeing [arcsec]
+  distribution:      'UNIFORM'           # 
+  outputs: ['output']
+
+atmo_random:
+  class:                'AtmoRandomPhase'
+  simul_params_ref:     'main'
+  L0:                   25               # [m] Outer scale
+  source_dict_ref:      ['source_ngs']
+  inputs:
+    seeing:             'seeing_random.output'
+    pupilstop:          'pupilstop'
+  outputs:              ['out_source_ngs_ef']
+
+scale_random:
+  class:  'BaseOperation'
+  constant_mul_data: 'correction_vector_600modes_c0.99-0.20' 
+  inputs:
+    in_value1: 'atmo_modes.out_modes'
+  outputs: ['out_value']
+
+dm_override:
+  inputs:
+    in_command: 'scale_random.out_value'
+
+atmo_pc:
+  class: 'ElectricFieldCombinator'
+  inputs:
+    in_ef1: 'atmo_random.out_source_ngs_ef'    # Turbulence
+    in_ef2: 'dm.out_layer'              # Partial correction
+  outputs: ['out_ef']
+
 psf_override:
+  inputs:
+    in_ef:           'atmo_pc.out_ef'
   verbose: true
 
-res_modes:
-  class:            'ModalAnalysis'
-  ifunc_inv_object: 'true_asm_kl_inv'
+dm_mode_res_override:
   inputs:
-    in_ef: ['ef_prop.out_ef']
-  outputs: ['out_modes']
+    in_ef:  ['atmo_pc.out_ef']
+
+atmo_modes_override:
+  inputs:
+    in_ef: 'atmo_random.out_source_ngs_ef'
 
 fit_cmd:
   class: 'MVM'
-  recmat: 'true_asm_m2c'
+  recmat_object: 'dummy_asm_m2c'
   inputs:
-    in_vector: 'res_modes.out_modes'
+    in_vector: 'dm_mode_res.out_modes'
   outputs: ['out_vector']
 
 
@@ -20,6 +61,7 @@ data_store_override:
   class:             'DataStore'
   store_dir:         '/raid1/mmenessini/results/SOUL'             # Data result directory: 'store_dir'/TN/
   inputs:
-    input_list: [ 'phs-ef_prop.out_ef.phase', 'asm_commands-fit_cmd.out_vector' ]
+    input_list: [ 'phs-atmo_pc.out_ef', 'asm_commands-fit_cmd.out_vector' ]
 
-remove: ['dm_mode_res','atmo_modes']
+
+remove: ['atmo','seeing','wind_speed','wind_direction','filter','ef_prop','prop','pyr_modalrec','pyr','ocam','pyr_slopes'] 
