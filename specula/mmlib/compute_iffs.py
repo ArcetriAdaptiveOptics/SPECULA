@@ -13,6 +13,8 @@ from specula.data_objects.m2c import M2C
 from specula.calib_manager import CalibManager
 from specula import cpuArray
 
+from specula.mmlib.utils import remap_on_new_mask
+
 from astropy.io import fits
 
 def compute_and_save_influence_functions(root_dir:str, tag:str, pupil_pixels:int, n_acts:int, geom:str='circular',
@@ -60,7 +62,7 @@ def compute_and_save_influence_functions(root_dir:str, tag:str, pupil_pixels:int
 
     # Actuator slaving (disable edge actuators outside pupil)
     doSlaving = True             # Enable slaving (very simple slaving)
-    slavingThr = 0.1             # Threshold for master actuators
+    slavingThr = 0.3             # Threshold for master actuators
     oversampling = 4           # Minimum oversampling for FFT computations
 
     # Computation parameters
@@ -93,18 +95,19 @@ def compute_and_save_influence_functions(root_dir:str, tag:str, pupil_pixels:int
         coupling_coeffs=couplingCoeffs,
         do_slaving=doSlaving,
         slaving_thr=slavingThr,
-        obsratio=obsratio,
+        obsratio=obsratio*shrink_coords,
         diaratio=diaratio*shrink_coords,
-        mask=specula.xp.array(pupil_mask),
+        mask=specula.xp.array(pupil_mask), #specula.xp.array(unobs_pupil_mask),
         xp=specula.xp,
         dtype=dtype,
-        # return_coordinates=False,
     )
 
-    S = np.linalg.svd(influence_functions,compute_uv=False)
-    fits.writeto(os.path.join(root_dir,'ifunc','eigenvalues.fits'),S)
-    fits.writeto(os.path.join(root_dir,'ifunc','mask.fits'),mask)
-    fits.writeto(os.path.join(root_dir,'ifunc','act_coords.fits'),coords)
+    # influence_functions = remap_on_new_mask(influence_functions,old_mask=(1-unobs_pupil_mask).astype(bool),new_mask=(1-pupil_mask).astype(bool),xp=specula.xp)
+
+    S = specula.xp.linalg.svd(influence_functions,compute_uv=False)
+    fits.writeto(os.path.join(root_dir,'ifunc','eigenvalues.fits'),cpuArray(S),overwrite=True)
+    fits.writeto(os.path.join(root_dir,'ifunc','mask.fits'),cpuArray(mask),overwrite=True)
+    fits.writeto(os.path.join(root_dir,'ifunc','act_coords.fits'),cpuArray(coords),overwrite=True)
 
     # Print statistics
     n_valid_actuators = influence_functions.shape[0]
@@ -310,5 +313,5 @@ if __name__ == "__main__":
     # save_m2c_as_recmat(root_dir=soul_dir, m2c_tag='asm_m2c', filename='dummy_asm_m2c')
 
     Npix = 120
-    compute_and_save_influence_functions(ekarus_dir,tag='dm468', pupil_pixels=Npix, n_acts=24,
+    compute_and_save_influence_functions(ekarus_dir,tag='dm468', pupil_pixels=Npix, n_acts=24, #shrink_coords=0.95,
                                           geom='alpao', r0=5e-2, pupil_mask_tag='copernico_pupil', D=1.82)
