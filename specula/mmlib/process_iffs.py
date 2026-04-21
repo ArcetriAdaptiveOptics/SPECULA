@@ -24,17 +24,19 @@ def postprocess_iffs(root_dir:str, data_path:str, tag:str, D:float):
     idx = data_dict['idx_mask']
 
     print('Reading data from: '+fname)
-    print(f'Scale: {dpix} across diameter')
+    print(f'Scale: {dpix} pixels across diameter')
 
     # Pupil mask
     pmask = np.ones([dpix,dpix],dtype=bool).flatten()
     pmask[idx] = False
-    pupil_mask = pmask.reshape([dpix,dpix])
+    pmask = pmask.reshape([dpix,dpix])
+    simul_params = SimulParams(pixel_pupil=dpix,pixel_pitch=D/dpix)
+    pupil_mask = Pupilstop(simul_params=simul_params, input_mask=pmask)
 
     # Influence functions
     influence_functions = kl_basis.T @ specula.xp.linalg.pinv(m2c)
 
-    mask_pixels = np.sum(1-pupil_mask)
+    mask_pixels = np.sum(1-pmask)
     pupil_pixels = influence_functions.shape[0]
     print(f"Valid mask pixels: {mask_pixels}")
     print(f"Pupil pixels: {pupil_pixels}")
@@ -72,7 +74,7 @@ def postprocess_iffs(root_dir:str, data_path:str, tag:str, D:float):
     # Create IFunc object and save
     ifunc_obj = IFunc(
         ifunc=influence_functions,
-        mask=pupil_mask
+        mask=(1-pmask).astype(np.uint8)
     )
     ifunc_obj.save(ifunc_filename, overwrite=True)
     print("OK: " + ifunc_filename + " (zonal influence functions)")
@@ -88,15 +90,13 @@ def postprocess_iffs(root_dir:str, data_path:str, tag:str, D:float):
     print(f"\nSaving inverse modal base...")
     ifunc_inv_obj = IFuncInv(
         ifunc_inv=kl_basis_inv,
-        mask=pupil_mask
+        mask=(1-pmask).astype(np.uint8)
     )
     ifunc_inv_obj.save(base_inv_filename, overwrite=True)
     print("OK: " + base_inv_filename + " (inverse modal base)")
 
     fname = os.path.join(root_dir, 'pupilstop', tag+f'_{dpix:1.0f}pixels.fits')
-    simul_params = SimulParams(pixel_pupil=dpix,pixel_pitch=D/dpix)
-    pupilstop = Pupilstop(simul_params=simul_params, input_mask=pupil_mask)
-    pupilstop.save(fname)
+    pupil_mask.save(fname)
 
 
 
