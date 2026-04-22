@@ -23,8 +23,6 @@ def main():
                         help='Enable python profiler and print stats at the end')
     parser.add_argument('--mpi', action='store_true',
                         help='Use MPI for parallel execution')
-    parser.add_argument('--mpidbg', action='store_true',
-                        help='Activate MPI debug output')
     parser.add_argument('--stepping', action='store_true',
                         help='Allow simulation stepping')
     parser.add_argument('--diagram', action='store_true',
@@ -37,6 +35,8 @@ def main():
                         help='Enable colors in block diagram')
     parser.add_argument('--no-speed-report', action='store_true',
                         help='Disable speed report on standard output')
+    parser.add_argument('--log-level', type=str, default='INFO',
+                        help='Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL, MPI_DBG, MPI_SEND_DBG')
     parser.add_argument('yml_files', nargs='+', type=str,
                         help='YAML parameter files')
 

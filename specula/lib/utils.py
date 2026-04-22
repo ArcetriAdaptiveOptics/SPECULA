@@ -1,8 +1,10 @@
 import re
 import time
+import types
 import typing
 import importlib
 import warnings
+
 from specula import to_xp
 from specula.lib.make_xy import make_xy
 
@@ -169,20 +171,6 @@ def make_orto_modes(array, xp, dtype):
     Q = xp.asarray(Q, dtype=dtype)
 
     return Q
-
-
-def is_scalar(x, xp):
-    """
-    Check if x is a scalar or a 0D array.
-
-    Parameters:
-    ----------
-    x : object
-        The object to check.
-    xp : module
-        The array processing module (numpy or cupy) to use for checking the shape.
-    """
-    return xp.isscalar(x) or (hasattr(x, 'shape') and x.shape == ())
 
 
 def psd_to_signal(psd, fs, xp, dtype, complex_dtype, seed=1):
@@ -357,3 +345,36 @@ def flatten(x):
             yield from flatten(item)
         except TypeError:
             yield item
+
+
+def resolve_type(tp, require_list=False, require_dict=False):
+    '''
+    Extract type information from compound type declaration:
+    List[Recmat] -> Recmat
+    Dict[str, Recmat] -> Recmat
+    Union[Recmat, None] -> Recmat
+    '''
+    # Python < 3.10 has no types.UnionType
+    try:
+        union_types = [typing.Union, types.UnionType]
+    except AttributeError:
+        union_types = [typing.Union]
+
+    origin = typing.get_origin(tp)
+    args = typing.get_args(tp)
+    if require_list and origin != list:
+        raise TypeError
+    if require_dict and origin != dict:
+        raise TypeError
+
+    if origin == dict:
+        typ = args[1]
+    elif origin == list:
+        typ = args[0]
+    elif origin in union_types:
+        typ = args[0]
+    else:
+        typ = tp
+
+    return typ
+

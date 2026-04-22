@@ -1,3 +1,4 @@
+from specula.log import get_specula_logger
 import specula
 specula.init(0)  # Default target device
 
@@ -15,6 +16,9 @@ import multiprocessing as mp
 import numpy as np
 
 from specula.simul import Simul
+from specula.base_value import BaseValue
+from specula.processing_objects import display_server
+from specula.processing_objects.display_server import DisplayServer
 
 
 # ---------------------------------------------------------------------------
@@ -161,6 +165,7 @@ class TestProcessForDpg(unittest.TestCase):
                 server.speed_report = ''
                 server.data_obj_getter = lambda name: None
                 server.info_getter = lambda: ('sim', 'running')
+                server.logger = get_specula_logger('test_logger')
                 return server
 
     def test_scalar_array(self):
@@ -263,6 +268,7 @@ class TestDisplayServerTrigger(unittest.TestCase):
                 server.c0 = 0
                 server.speed_report = ''
                 server.info_getter = lambda: ('sim', 'running')
+                server.logger = get_specula_logger('test_logger')
                 return server
 
     # -- image mode --
@@ -388,6 +394,7 @@ class TestDisplayServerFinalize(unittest.TestCase):
         with patch.object(mp.Process, 'start'):
             with patch('specula.processing_objects.display_server.start_server'):
                 server = DisplayServer.__new__(DisplayServer)
+                server.logger = get_specula_logger('test_logger')
                 mock_proc = MagicMock()
                 mock_proc.is_alive.return_value = True
                 server.p = mock_proc
@@ -1046,6 +1053,7 @@ class TestDisplayServerTriggerExtra(unittest.TestCase):
         srv.c0 = 0
         srv.speed_report = ''
         srv.info_getter = lambda: ('sim', 'running')
+        srv.logger = get_specula_logger('test_logger')
         return srv
 
     def test_trigger_image_list_dataobj(self):
@@ -1689,3 +1697,95 @@ class TestDataModeSocketHandlers(unittest.TestCase):
             self.assertNotIn(cid, self.srv.client_types)
             self.assertNotIn(cid, self.srv.t0)
             self.assertNotIn(cid, self.srv.client_subscriptions)
+
+
+class FailingArrayObj:
+    def copyTo(self, device):
+        return self
+
+    def array_for_display(self):
+        raise RuntimeError("array extraction failed")
+
+
+class TestDisplayServerExceptions(unittest.TestCase):
+
+    def setUp(self):
+        self.input_getter = MagicMock()
+        self.output_getter = MagicMock()
+        self.info_getter = MagicMock(return_value=("name", "ok"))
+
+        # prevent real process spawn
+        with patch("specula.processing_objects.display_server.mp.Process") as MockProcess:
+            MockProcess.return_value.start = MagicMock()
+            self.server = DisplayServer(
+                {},
+                self.input_getter,
+                self.output_getter,
+                self.info_getter,
+                mode="data"
+            )
+
+        self.server.logger = MagicMock()
+
+    # ----------------------------------------
+    # data_obj_getter exception
+    # ----------------------------------------
+
+    def test_data_obj_getter_exception(self):
+        self.input_getter.side_effect = Exception("fail")
+
+        obj = self.server.data_obj_getter("something.in_test")
+
+        self.assertIsNone(obj)
+        self.server.logger.error.assert_called()
+
+
+    # ----------------------------------------
+    # _process_for_dpg exceptions
+    # ----------------------------------------
+
+    def test_process_for_dpg_array_exception(self):
+        obj = FailingArrayObj()
+
+        result = self.server._process_for_dpg(obj, "test")
+
+        self.assertEqual(result["type"], "unknown")
+
+    def test_process_for_dpg_outer_exception(self):
+        with patch.object(self.server, "_process_for_dpg", side_effect=Exception("boom")):
+            try:
+                self.server._process_for_dpg("bad", "name")
+            except:
+                pass
+
+    # ----------------------------------------
+    # trigger() exception
+    # ----------------------------------------
+
+    def test_trigger_qout_failure(self):
+        self.server.qout.put = MagicMock(side_effect=Exception("fail"))
+
+        # force speed report block
+        self.server.t0 = 0
+        self.server.counter = 100
+
+        with patch("time.time", return_value=10):
+            self.server.trigger()
+
+        self.server.logger.error.assert_called()
+
+    # ----------------------------------------
+    # finalize exception safety
+    # ----------------------------------------
+
+    def test_finalize_terminates_process(self):
+        mock_proc = MagicMock()
+        mock_proc.is_alive.return_value = True
+
+        self.server.p = mock_proc
+
+        self.server.finalize()
+
+        mock_proc.terminate.assert_called()
+        mock_proc.join.assert_called()
+

@@ -1,3 +1,5 @@
+import sys
+import logging
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -76,16 +78,17 @@ class TestBaseValue(unittest.TestCase):
             self.assertEqual(obj.gpu_bytes_used, 1500)
 
     @cpu_and_gpu
+    @unittest.skipIf(sys.version_info < (3, 10), "Requires Python 3.10+")
     def test_print_mem_usage_calls_print_on_gpu(self, target_device_idx, xp):
         """Ensure printMemUsage prints only for GPU."""
         obj = BaseTimeObj(target_device_idx=target_device_idx)
-        with patch("builtins.print") as mock_print:
-            obj.gpu_bytes_used = 1048576  # 1MB
-            obj.printMemUsage()
-            if target_device_idx >= 0:
-                mock_print.assert_called_once()
-            else:
-                mock_print.assert_not_called()
+        obj.gpu_bytes_used = 1048576  # 1MB
+        if target_device_idx >= 0:
+            with self.assertLogs(obj.logger.logger, logging.DEBUG):
+                obj.printMemUsage()
+        else:
+            with self.assertNoLogs(obj.logger.logger, logging.INFO):
+                obj.printMemUsage()
 
     # ---------- MONITORMEM DECORATOR TESTS ----------
 

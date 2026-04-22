@@ -117,7 +117,7 @@ class TestDemodulateSignal(unittest.TestCase):
         # Demodulate
         amp_demod, phase_demod = demodulate_signal(
             signal, carrier_freq, sampling_freq,
-            cumulated=True, verbose=False, xp=xp
+            cumulated=True, xp=xp
         )
 
         # Apply phase correction to get signed amplitude
@@ -175,7 +175,7 @@ class TestDemodulateSignal(unittest.TestCase):
         # Demodulate
         amp_demod, phase_demod = demodulate_signal(
             signal_noisy, carrier_freq, sampling_freq,
-            cumulated=True, verbose=False, xp=xp
+            cumulated=True, xp=xp
         )
 
         amp_signed = cpuArray(amp_demod * xp.sign(xp.cos(phase_demod)))
@@ -235,7 +235,7 @@ class TestDemodulateSignal(unittest.TestCase):
         # Demodulate all signals at once (vectorized)
         amps_demod, phases_demod = demodulate_signal(
             signals_2d, carrier_freq, sampling_freq,
-            cumulated=True, verbose=False, xp=xp
+            cumulated=True, xp=xp
         )
 
         if self.verbose: # pragma: no cover
@@ -308,7 +308,7 @@ class TestDemodulateSignal(unittest.TestCase):
         # Demodulate
         amps_demod, phases_demod = demodulate_signal(
             signals_2d, carrier_freq, sampling_freq,
-            cumulated=True, verbose=False, xp=xp
+            cumulated=True, xp=xp
         )
 
         amps_demod = cpuArray(amps_demod)
@@ -374,7 +374,7 @@ class TestDemodulateSignal(unittest.TestCase):
         # Demodulate (vectorized)
         amps_demod, phases_demod = demodulate_signal(
             slopes_time, carrier_freq, sampling_freq,
-            cumulated=True, verbose=False, xp=xp
+            cumulated=True, xp=xp
         )
 
         # Apply phase correction

@@ -7,7 +7,7 @@ import specula
 specula.init(0)  # Default target device
 
 from specula import cpuArray
-from specula.data_objects.ifunc_inv import IFuncInv
+from specula.data_objects.ifunc_inv import IFuncInv, cut_modes
 from test.specula_testlib import cpu_and_gpu
 
 
@@ -129,4 +129,35 @@ class TestIFuncInv(unittest.TestCase):
 
         expected_shape = (self.shape[0], nmodes)
         self.assertEqual(obj.ifunc_inv.shape, expected_shape)
-       
+
+
+class TestCutModesExceptions(unittest.TestCase):
+
+    # ----------------------------------------
+    # start_mode + idx_modes should raise
+    # ----------------------------------------
+
+    def test_start_mode_with_idx_modes_raises(self):
+        with self.assertRaises(ValueError) as ctx:
+            cut_modes(
+                np.zeros((5, 5)),
+                start_mode=0,
+                idx_modes=[0, 1, 2]
+            )
+
+        self.assertIn("start_mode cannot be set together with idx_modes", str(ctx.exception))
+
+    # ----------------------------------------
+    # nmodes + idx_modes should raise
+    # ----------------------------------------
+
+    def test_nmodes_with_idx_modes_raises(self):
+        with self.assertRaises(ValueError) as ctx:
+            cut_modes(
+                np.zeros((5, 5)),
+                nmodes=3,
+                idx_modes=[0, 1, 2]
+            )
+
+        self.assertIn("nmodes cannot be set together with idx_modes", str(ctx.exception))
+

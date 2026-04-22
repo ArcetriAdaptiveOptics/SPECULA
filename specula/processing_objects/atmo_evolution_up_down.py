@@ -27,7 +27,6 @@ class AtmoEvolutionUpDown(AtmoEvolution):
                  fov: float = 0.0,
                  pixel_phasescreens: int = 8192,
                  seed: int = 1,
-                 verbose: bool = False,
                  fov_in_m: float = None,
                  pupil_position: list = [0, 0],
                  target_device_idx: int = None,
@@ -60,8 +59,6 @@ class AtmoEvolutionUpDown(AtmoEvolution):
             Size of the square phase screens in pixels. Default is 8192.
         seed : int, optional
             Seed for random number generation. Must be >0. Default is 1.
-        verbose : bool, optional
-            If True, enables verbose output during phase screen generation. Default is False.
         fov_in_m : float, optional
             Field of view in meters. If provided, overrides fov parameter. Default is None.
         pupil_position : list, optional
@@ -83,7 +80,6 @@ class AtmoEvolutionUpDown(AtmoEvolution):
             pixel_phasescreens=pixel_phasescreens,
             seed=seed,
             extra_delta_time=extra_delta_time_down,
-            verbose=verbose,
             fov_in_m=fov_in_m,
             pupil_position=pupil_position,
             target_device_idx=target_device_idx,

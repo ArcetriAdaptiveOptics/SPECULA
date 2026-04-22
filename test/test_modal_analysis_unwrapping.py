@@ -1,11 +1,10 @@
+import os
+import sys
+import unittest
 import matplotlib.pyplot as plt
 
 import specula
-
 specula.init(0)  # Default target device
-
-import unittest
-import os
 
 from specula import cpuArray
 
@@ -20,8 +19,10 @@ from skimage.restoration import unwrap_phase
 
 import numpy as np
 
-@unittest.skipIf(os.getenv('CI') == 'true',
-                     "Disable for CI issues with Ubuntu and Python >=3.11")
+@unittest.skipIf((os.environ.get('CI') == 'true' and
+                  sys.platform == 'linux' and
+                  sys.version_info[:2] >= (3, 11) and
+                  sys.version_info[:2] <= (3, 13)), "Disabled because of CI issues")
 class TestModalAnalysisUnwrapping(unittest.TestCase):
 
     @cpu_and_gpu

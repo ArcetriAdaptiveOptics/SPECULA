@@ -759,8 +759,7 @@ class TestReplayPrecisionHandling(unittest.TestCase):
              patch('specula.field_analyser.specula.global_precision', 0), \
              patch('specula.field_analyser.specula.default_target_device_idx', -1), \
              patch('specula.field_analyser.specula.process_rank', None), \
-             patch('specula.field_analyser.specula.process_comm', None), \
-             patch('specula.field_analyser.specula.MPI_DBG', False):
+             patch('specula.field_analyser.specula.process_comm', None):
             analyzer._ensure_replay_precision(1)
 
         mock_init.assert_called_once_with(
@@ -768,7 +767,6 @@ class TestReplayPrecisionHandling(unittest.TestCase):
             precision=1,
             rank=None,
             comm=None,
-            mpi_dbg=False,
         )
 
     def test_ensure_replay_precision_skips_if_already_matching(self):

@@ -111,12 +111,8 @@ class PlotVectorDisplay(BaseDisplay):
         # Handle different array-like types
         if hasattr(vec, 'ravel'):
             vec = vec.ravel()
-        elif isinstance(vec, (list, tuple)):
-            vec = np.array(vec)
-        elif np.isscalar(vec):
-            vec = np.array([vec])
         else:
-            vec = np.array(vec)
+            vec = np.atleast_1d(vec)
 
         return vec
 
@@ -144,7 +140,7 @@ class PlotVectorDisplay(BaseDisplay):
             valid_indices = [i for i in self._indices if 0 <= i < n_elements]
             if len(valid_indices) != len(self._indices):
                 invalid = [i for i in self._indices if i < 0 or i >= n_elements]
-                print(f"Warning: Indices {invalid} out of range for vector of size {n_elements}")
+                self.logger.warning(f"Indices {invalid} out of range for vector of size {n_elements}")
             indices = valid_indices
         else:
             # Plot all elements
@@ -152,7 +148,7 @@ class PlotVectorDisplay(BaseDisplay):
 
         # Apply max_elements limit
         if self._max_elements is not None and len(indices) > self._max_elements:
-            print(f"Warning: Plotting only first {self._max_elements} of {len(indices)}"
+            self.logger.warning(f"Plotting only first {self._max_elements} of {len(indices)}"
                   f" selected elements. Use max_elements=None to plot all or specify"
                   f" indices/slice_args to choose which ones.")
             indices = indices[:self._max_elements]

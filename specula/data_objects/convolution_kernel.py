@@ -360,14 +360,14 @@ class ConvolutionKernel(BaseDataObj):
                         else '.', exist_ok=True)
 
             if os.path.exists(full_path):
-                print(f"Loading kernel from {full_path}")
+                self.logger.info(f"Loading kernel from {full_path}")
                 self.restore(full_path, kernel_obj=self, target_device_idx=self.target_device_idx,
                              return_fft=True)
             else:
-                print('Calculating kernel...')
+                self.logger.info('Calculating kernel...')
                 self.calculate_lgs_map()
                 self.save(full_path)
-                print('Done')
+                self.logger.info('Done')
 
             # free memory
             self.real_kernels = None

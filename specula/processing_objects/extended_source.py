@@ -769,4 +769,4 @@ class ExtendedSource(BaseProcessingObj):
             plt.show()
 
         except ImportError:
-            print("Matplotlib not available for plotting")
+            self.logger.error("Matplotlib not available for plotting")

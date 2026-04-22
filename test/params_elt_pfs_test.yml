@@ -157,7 +157,6 @@ control_ngs:
 sum_operation:
   class:            'BaseOperation'
   sum:              True
-  value2_is_shorter: True
   inputs:
     in_value1:      'modal_analysis_pfs.out_modes'
     in_value2:      'control_ngs.out_comm'

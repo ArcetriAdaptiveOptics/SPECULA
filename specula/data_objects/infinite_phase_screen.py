@@ -170,23 +170,23 @@ class InfinitePhaseScreen(BaseDataObj):
         self.full_scrn = self.to_xp(tmp)
         self.full_scrn *= (2 * np.pi) ** (11/6) # this is to compensate SYMAO bug that uses PSD(k) instead of PSD(f)
         self.full_scrn -= self.xp.mean(self.full_scrn[:self.requested_mx_size, :self.requested_mx_size])
-        # print(self.full_scrn.shape)
+        # self.logger.debug(self.full_scrn.shape)
 
     def prepare_random_data_col(self):
         if self.random_data_col is None:
-#            print('generating new random data col')
+#            self.logger.debug('generating new random data col')
             self.random_data_col = self.rng.standard_normal(size=self.stencil_size)
         else:
             pass
-#            print('using old random data col')
+#            self.logger.debug('using old random data col')
 
     def prepare_random_data_row(self):
         if self.random_data_row is None:
-#            print('generating new random data row')
+#            self.logger.debug('generating new random data row')
             self.random_data_row = self.rng.standard_normal(size=self.stencil_size)
         else:
             pass
-#            print('using old random data row')
+#            self.logger.debug('using old random data row')
 
     def get_new_line(self, row, after):
         if row:

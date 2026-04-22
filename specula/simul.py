@@ -1,17 +1,17 @@
 import re
-import types
-import typing
 import inspect
 import itertools
 from copy import deepcopy
 from pathlib import Path
 from collections import Counter, namedtuple
-from specula import process_rank, MPI_DBG
+from specula import process_rank
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_data_obj import BaseDataObj
 
+
+from specula.log import get_specula_logger
 from specula.loop_control import LoopControl
-from specula.lib.utils import import_class, get_type_hints, remove_suffix
+from specula.lib.utils import import_class, get_type_hints, remove_suffix, resolve_type
 from specula.calib_manager import CalibManager
 from specula.processing_objects.data_store import DataStore
 from specula.connections import InputList, InputValue
@@ -19,52 +19,10 @@ from specula.simul_diagram import SimulDiagram
 
 import yaml
 import hashlib
+import matplotlib.pyplot as plt
 
 
 Output = namedtuple('Output', 'obj_name output_key delay ref input_name')
-UNION_ORIGINS = (typing.Union,) + ((types.UnionType,) if hasattr(types, 'UnionType') else ())
-
-
-def _resolve_dataobj_type(type_arg, owner_class):
-    """Resolve a concrete data-object class from a container type argument."""
-    if isinstance(type_arg, type):
-        return type_arg
-
-    ref_name = None
-    if isinstance(type_arg, typing.ForwardRef):
-        ref_name = type_arg.__forward_arg__
-    elif isinstance(type_arg, str):
-        ref_name = type_arg
-
-    if not ref_name:
-        return None
-
-    ref_name = ref_name.strip("'\"")
-    candidate_names = [ref_name]
-    if '.' in ref_name:
-        candidate_names.append(ref_name.rsplit('.', 1)[-1])
-
-    namespaces = []
-    init_method = getattr(owner_class, '__init__', None)
-    if init_method is not None:
-        namespaces.append(getattr(init_method, '__globals__', {}))
-    namespaces.append(vars(owner_class))
-
-    for namespace in namespaces:
-        for candidate_name in candidate_names:
-            candidate = namespace.get(candidate_name)
-            if isinstance(candidate, type):
-                return candidate
-
-    for candidate_name in candidate_names:
-        try:
-            candidate = import_class(candidate_name)
-        except (ImportError, AttributeError, ModuleNotFoundError):
-            continue
-        if isinstance(candidate, type):
-            return candidate
-
-    return None
 
 
 def computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name):
@@ -72,8 +30,6 @@ def computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name):
     rr = int(hashlib.sha256(s.encode('utf-8')).hexdigest(), 16) % 10**6
     return rr
 
-
-import matplotlib.pyplot as plt
 
 mplcolors = plt.get_cmap("tab10").colors
 
@@ -101,9 +57,11 @@ class Simul():
                  diagram_filename=None,
                  diagram_colors_on=False,
                  speed_report=True,
+                 log_level: str='info',
                  ):
         if len(param_files) < 1:
             raise ValueError('At least one Yaml parameter file must be present')
+
         self.is_dataobj = {}
         self.all_objs_ranks = {}
         self.max_rank = 0
@@ -112,7 +70,6 @@ class Simul():
         self.param_files = param_files
         self.objs = {}
         self.simul_idx = simul_idx
-        self.verbose = False  #TODO
         self.mainParams = None
         if overrides is None:
             self.overrides = []
@@ -124,6 +81,8 @@ class Simul():
         self.diagram_filename = diagram_filename
         self.diagram_colors_on = diagram_colors_on
         self.speed_report = speed_report
+        self.logger = get_specula_logger(__name__)
+        self.logger.setLevel(log_level.upper())
 
     def split_output(self, output_name, get_ref=False, use_inputs=False):
         '''
@@ -266,12 +225,12 @@ class Simul():
                 order.append(leaf)
                 order_index.append(index)
                 del params[leaf]
-                self.remove_inputs(params, leaf)
+                self.remove_inputs(params, leaf, log=False)
             end = len(params)
             if start == end:
                 raise ValueError('Cannot determine trigger order: circular loop detected in {leaves}')
         if len(params) > 0:
-            print('Warning: the following objects will not be triggered:', params.keys())
+            self.logger.warning(f'the following objects will not be triggered: {params.keys()}')
         return order, order_index
 
     def setSimulParams(self, params):
@@ -344,7 +303,7 @@ class Simul():
         else:
             additional_modules = []
 
-        if MPI_DBG: print(process_rank, 'building objects')
+        self.logger.mpi_debug(f'building objects')
 
         for key in self.build_order(params):
 
@@ -392,10 +351,11 @@ class Simul():
                     raise ValueError('Extra parameters with "tag" are not allowed')
                 filename = cm.filename(classname, pars['tag'])
                 # tags are restored into each process (multiple copies), target_rank is not checked
-                print('Restoring:', filename)
+                self.logger.info(f'Restoring: {filename}')
                 self.objs[key] = klass.restore(filename, target_device_idx=target_device_idx)
-                self.objs[key].printMemUsage()
                 self.objs[key].name = key
+                self.objs[key].init_logging(self.logger.getEffectiveLevel())
+                self.objs[key].printMemUsage()
                 self.objs[key].tag = pars['tag']
                 continue
 
@@ -443,33 +403,16 @@ class Simul():
                     elif not isinstance(value, (list, tuple)):
                         raise ValueError(f'Parameter {name} must be a list of tags')
                     elif parname in hints:
-                        partype = hints[parname]
-                        type_candidates = []
-                        union_origin = typing.get_origin(partype)
-                        if union_origin in UNION_ORIGINS:
-                            type_candidates = [arg for arg in typing.get_args(partype)
-                                               if arg is not type(None)]
-                        else:
-                            type_candidates = [partype]
-
-                        value_type = None
-                        for candidate in type_candidates:
-                            origin = typing.get_origin(candidate)
-                            args_t = typing.get_args(candidate)
-                            if origin in (list, typing.List, tuple) and len(args_t) >= 1:
-                                resolved_type = _resolve_dataobj_type(args_t[0], klass)
-                                if resolved_type is not None:
-                                    value_type = resolved_type
-                                    break
-
-                        if value_type is None:
-                            raise ValueError(f'Parameter {parname} must be typed as list[DataObjType]')
+                        try:
+                            partype = resolve_type(hints[parname], require_list=True)
+                        except TypeError:
+                            raise ValueError(f'Parameter {parname} must be typed as List[DataObjType]')
 
                         loaded = []
                         for tag in value:
-                            filename = cm.filename(value_type.__name__, tag)
+                            filename = cm.filename(partype.__name__, tag)
                             print('Restoring:', filename)
-                            obj = value_type.restore(filename, target_device_idx=target_device_idx)
+                            obj = partype.restore(filename, target_device_idx=target_device_idx)
                             obj.printMemUsage()
                             obj.tag = tag
                             loaded.append(obj)
@@ -485,33 +428,16 @@ class Simul():
                     elif not isinstance(value, dict):
                         raise ValueError(f'Parameter {name} must be a dictionary of tags')
                     elif parname in hints:
-                        partype = hints[parname]
-                        type_candidates = []
-                        union_origin = typing.get_origin(partype)
-                        if union_origin in UNION_ORIGINS:
-                            type_candidates = [arg for arg in typing.get_args(partype)
-                                               if arg is not type(None)]
-                        else:
-                            type_candidates = [partype]
-
-                        value_type = None
-                        for candidate in type_candidates:
-                            origin = typing.get_origin(candidate)
-                            args_t = typing.get_args(candidate)
-                            if origin in (dict, typing.Dict) and len(args_t) == 2:
-                                resolved_type = _resolve_dataobj_type(args_t[1], klass)
-                                if resolved_type is not None:
-                                    value_type = resolved_type
-                                    break
-
-                        if value_type is None:
-                            raise ValueError(f'Parameter {parname} must be typed as dict[str, DataObjType]')
+                        try:
+                            partype = resolve_type(hints[parname], require_dict=True)
+                        except TypeError:
+                            raise ValueError(f'Parameter {parname} must be typed as Dict[str, DataObjType]')
 
                         loaded = {}
                         for dict_key, tag in value.items():
-                            filename = cm.filename(value_type.__name__, tag)
+                            filename = cm.filename(partype.__name__, tag)
                             print('Restoring:', filename)
-                            obj = value_type.restore(filename, target_device_idx=target_device_idx)
+                            obj = partype.restore(filename, target_device_idx=target_device_idx)
                             obj.printMemUsage()
                             obj.tag = tag
                             loaded[dict_key] = obj
@@ -540,25 +466,17 @@ class Simul():
                     if value is None:
                         pars2[parname] = None
                     elif parname in hints:
-                        partype = hints[parname]
+                        partype = resolve_type(hints[parname])
 
-                        # Handle Optional and Union types (for python <3.11)
-                        if hasattr(partype, "__origin__") and partype.__origin__ is typing.Union:
-                            # Extract actual class type from Optional/Union
-                            # (first non-None type argument)
-                            for arg in partype.__args__:
-                                if arg is not type(None):  # Skip NoneType
-                                    partype = arg
-                                    break
                         # data objects are restored into each process (multiple copies), target_rank is not checked
                         filename = cm.filename(parname, value)  # TODO use partype instead of parname?
-                        print('Restoring:', filename)
+                        self.logger.info(f'Restoring: {filename}')
                         parobj = partype.restore(filename, target_device_idx=target_device_idx)
+                        parobj.init_logging(self.logger.getEffectiveLevel())
                         parobj.printMemUsage()
 
                         # Set data_tag
                         parobj.tag = value
-
                         pars2[parname] = parobj
                     else:
                         raise ValueError(f'No type hint for parameter {parname} of class {classname}')
@@ -591,13 +509,13 @@ class Simul():
             my_params.update(pars2)
             try:
                 self.objs[key] = klass(**my_params)
+                self.objs[key].name = key
+                self.objs[key].init_logging(self.logger.getEffectiveLevel())
             except Exception:
-                print('Exception building', key)
+                self.logger.error(f'Exception building {key}')
                 raise
             if classname != 'SimulParams':
                 self.objs[key].stopMemUsageCount()
-
-            self.objs[key].name = key
 
             # TODO this could be more general like the getters above
             if type(self.objs[key]) is DataStore:
@@ -623,15 +541,15 @@ class Simul():
         if send or recv:
             tag = computeTag(output.obj_name, dest_object, output.output_key, input_name)
 
-        if MPI_DBG: print(process_rank, f'{output.obj_name}.{output.output_key} -> {dest_object} : {send=} {recv=} {local=}', flush=True)
+        self.logger.mpi_debug(f'{output.obj_name}.{output.output_key} -> {dest_object} : {send=} {recv=} {local=}')
 
         if recv:
-            if MPI_DBG: print(process_rank, f'CONNECT Connecting remote output {output.obj_name}.{output.output_key} to local input {dest_object}.{input_name} with tag {tag}')
+            self.logger.mpi_debug(f'CONNECT Connecting remote output {output.obj_name}.{output.output_key} to local input {dest_object}.{input_name} with tag {tag}')
             self.objs[dest_object].inputs[input_name].append(None,
                                                             remote_rank = self.remote_objs_ranks[output.obj_name],
                                                             tag=tag)
         if local:
-            if MPI_DBG: print(process_rank, f'CONNECT Connecting local output {output.obj_name}.{output.output_key} to local input {dest_object}.{input_name}')
+            self.logger.mpi_debug(f'CONNECT Connecting local output {output.obj_name}.{output.output_key} to local input {dest_object}.{input_name}')
             self.objs[dest_object].inputs[input_name].append(output.ref)
 
         if send:
@@ -643,7 +561,7 @@ class Simul():
         
         for dest_object, pars in params.items():
 
-            if MPI_DBG: print(process_rank, 'connect_objects for', dest_object, flush=True)
+            self.logger.mpi_debug(f'connect_objects for {dest_object}')
 
             local_dest_object = dest_object in self.objs.keys()
 
@@ -667,8 +585,8 @@ class Simul():
 
             for input_name, output_name in pars['inputs'].items():
 
-                if MPI_DBG: print(process_rank, 'ASSIGNMENT of input_name:', input_name, flush=True)
-                if MPI_DBG: print(process_rank, 'output_name', output_name, flush=True)
+                self.logger.mpi_debug(f'ASSIGNMENT of input_name: {input_name}')
+                self.logger.mpi_debug(f'{output_name=}')
 
                 if local_dest_object and input_name != 'input_list':
                     if not input_name in self.objs[dest_object].inputs:
@@ -678,7 +596,7 @@ class Simul():
                     raise ValueError(f'Object {dest_object}: invalid input definition type {type(output_name)}')
 
                 for single_output_name in output_name if isinstance(output_name, list) else [output_name]:
-                    if MPI_DBG: print(process_rank, 'List input', flush=True)
+                    self.logger.mpi_debug(f'List input')
 
                     output = self.split_output(single_output_name, get_ref=True)
 
@@ -694,7 +612,7 @@ class Simul():
                     try:
                         self.connect(single_output_name, input_name, dest_object)
                     except ValueError:
-                        print(f'Exception while connecting {single_output_name} {dest_object}.{input_name}')
+                        self.logger.error(f'Exception while connecting {single_output_name} {dest_object}.{input_name}')
                         raise
 
 
@@ -754,9 +672,9 @@ class Simul():
                 if 'inputs' in pars.keys():
                     for input_name, output_name_full in pars['inputs'].items():
                         if type(output_name_full) is list:
-                            print('TODO: list of inputs is not handled in output replay')
+                            self.logger.warning('TODO: list of inputs is not handled in output replay')
                             continue
-                        print('output_name_full', output_name_full)
+                        self.logger.debug(f'{output_name_full=}')
                         if output_name_full in data_source_outputs.keys():
                             replay_params[key]['inputs'][input_name] = 'data_source.' + data_source_outputs[output_name_full]
 
@@ -845,7 +763,7 @@ class Simul():
                 else:
                     yield (k, v)
 
-    def remove_inputs(self, params, obj_to_remove):
+    def remove_inputs(self, params, obj_to_remove, log=True):
         '''
         Modify params removing all references to the specified object name
         '''
@@ -859,15 +777,14 @@ class Simul():
                         owner = self.output_owner(output_name)
                         if owner == obj_to_remove:
                             del obj_inputs_copy[input_name]
-                            if self.verbose:
-                                print(f'Deleted {input_name} from {obj[key]}')
+                            if log:
+                                self.logger.info(f'Deleted {input_name} from {obj[key]}')
                     elif isinstance(output_name, list):
                         newlist = [x for x in output_name if self.output_owner(x) != obj_to_remove]
                         diff = set(output_name).difference(set(newlist))
                         obj_inputs_copy[input_name] = newlist
-                        if len(diff) > 0:
-                            if self.verbose:
-                                print(f'Deleted {diff} from {obj[key]}')
+                        if len(diff) > 0 and log:
+                            self.logger.info(f'Deleted {diff} from {obj[key]}')
                 obj[key] = obj_inputs_copy
         return params
 
@@ -893,7 +810,7 @@ class Simul():
                     if objname not in params:
                         raise ValueError(f'Parameter file has no object named {objname}')
                     del params[objname]
-                    print(f'Removed {objname}')
+                    self.logger.info(f'Removed {objname}')
                     # Remove corresponding inputs
                     params = self.remove_inputs(params, objname)
             elif name.endswith('_override'):
@@ -907,18 +824,18 @@ class Simul():
                 params[name] = values
 
     def apply_overrides(self, params):
-        print('overrides:', self.overrides)
+        self.logger.info('overrides: ' + str(self.overrides))
         if len(self.overrides) > 0:
             for k, v in yaml.full_load(self.overrides).items():
                 parts = k.split('.')
                 if len(parts) == 2:
                     params[parts[0]][parts[1]] = v
-                    print(*parts, v)
+                    self.logger.debug(f'{parts} {v}')
                 elif len(parts) == 3:
                     params[parts[0]][parts[1]][parts[2]] = v
-                    print(*parts, v)
+                    self.logger.debug(f'{parts} {v}')
                 else:
-                    raise ValueError(f"Unknown number of parts detected in override: {parts}. Did you add/forget a '.'?")
+                    raise ValueError(f"Invalid number of parts detected in override: {parts}. Did you add/forget a '.'?")
 
     def arrangeInGrid(self, trigger_order, trigger_order_idx):
         rows = []
@@ -955,12 +872,12 @@ class Simul():
     def run(self):
         params = {}
         # Read YAML file(s)
-        print('Reading parameters from', self.param_files[0])
+        self.logger.info('Reading parameters from ' + self.param_files[0])
         with open(self.param_files[0], 'r') as stream:
             params = yaml.safe_load(stream)
 
         for filename in self.param_files[1:]:
-            print('Reading additional parameters from', filename)
+            self.logger.info('Reading additional parameters from ' + filename)
             with open(filename, 'r') as stream:
                 additional_params = yaml.safe_load(stream)                
                 self.combine_params(params, additional_params)
@@ -969,8 +886,8 @@ class Simul():
         self.apply_overrides(params)
 
         self.trigger_order, self.trigger_order_idx = self.build_trigger_order(params)
-        print(f'{self.trigger_order=}')
-        print(f'{self.trigger_order_idx=}')
+        self.logger.info(f'{self.trigger_order=}')
+        self.logger.info(f'{self.trigger_order_idx=}')
 
         if not self.isReplay(params):
             replay_params = self.build_replay(params)
@@ -1016,24 +933,24 @@ class Simul():
                     self.loop.add(obj, idx)
         
         self.loop.max_global_order = max(self.trigger_order_idx)
-        print('self.loop.max_global_order', self.loop.max_global_order, flush=True)
+        self.logger.debug(f'{self.loop.max_global_order=}')
 
         # Default display web server
         if 'display_server' in self.mainParams and self.mainParams['display_server'] and process_rank in [0, None]:
             from specula.processing_objects.display_server import DisplayServer
             disp = DisplayServer(params, self.input_ref, self.output_ref, self.get_info)
+            disp.name = 'display_server'
             self.objs['display_server'] = disp
             self.loop.add(disp, idx+1)
-            disp.name = 'display_server'
 
         # Run simulation loop
         self.loop.run(run_time=self.mainParams['total_time'],
                       dt=self.mainParams['time_step'],
                       speed_report=self.speed_report)
 
-        print(process_rank, 'Simulation finished', flush=True)
+        self.logger.debug(f'Simulation finished')
 #        if data_store.has_key('sr'):
-#            print(f"Mean Strehl Ratio (@{params['psf']['wavelengthInNm']}nm) : {store.mean('sr', init=min([50, 0.1 * self.mainParams['total_time'] / self.mainParams['time_step']])) * 100.}")
+#            self.logger.info(f"Mean Strehl Ratio (@{params['psf']['wavelengthInNm']}nm) : {store.mean('sr', init=min([50, 0.1 * self.mainParams['total_time'] / self.mainParams['time_step']])) * 100.}")
 
     def get_info(self):
         '''Quick info string intended for web interfaces'''

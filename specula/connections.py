@@ -1,4 +1,4 @@
-from specula import cpuArray, process_rank, process_comm, MPI_SEND_DBG
+from specula import cpuArray, process_comm
 from specula import np, cp
 from specula.lib.utils import flatten
 
@@ -29,24 +29,24 @@ class _InputItem():
         self.input_name = input_name
 
     def receive_new_value(self, first_mpi_receive=True):
-        if MPI_SEND_DBG: print(process_rank,
-                               f'RECV from rank {self.remote_rank} {self.tag=} type={self.output_ref_type})',
-                               flush=True)
+        self.logger.mpi_send_debug(
+                               f'RECV from rank {self.remote_rank} {self.tag=} type={self.output_ref_type})'
+                               )
         if first_mpi_receive or self.cloned_value.get_value() is None:
-            if MPI_SEND_DBG: print(process_rank, f'recv with Pickle', self.tag, flush=True)
+            self.logger.mpi_send_debug(f'recv with Pickle tag={self.tag}')
             new_value = process_comm.recv(source=self.remote_rank, tag=self.tag)
             if new_value.xp_str == 'cp':
                 new_value.xp = cp
             else:
                 new_value.xp = np
-        else:
-            if MPI_SEND_DBG: print(process_rank, f'Recv with Buffer', flush=True)
+        else:            
+            self.logger.mpi_send_debug(f'Recv with Buffer')
             new_value = self.cloned_value
             buffer = cpuArray(self.cloned_value.get_value())
-            if MPI_SEND_DBG:  print(process_rank, self.tag, 'RECV .buffer', type(buffer))
-            if MPI_SEND_DBG:  print(process_rank, self.tag, 'RECV .buffer dtype', buffer.dtype)
+            self.logger.mpi_send_debug(f'tag={self.tag} RECV .buffer ' + str(type(buffer)))
+            self.logger.mpi_send_debug(f'tag={self.tag} RECV .buffer dtype' + str(buffer.dtype))
             process_comm.Recv(buffer, source=self.remote_rank, tag=self.tag)
-            if MPI_SEND_DBG:  print(process_rank, self.tag+1, 'RECV .bufftimeer')
+            self.logger.mpi_send_debug(f'tag={self.tag+1} RECV .bufftimeer')
             gen_time = process_comm.recv(source=self.remote_rank, tag=self.tag+1)
             self.cloned_value.generation_time = gen_time
             self.cloned_value.set_value(buffer)
