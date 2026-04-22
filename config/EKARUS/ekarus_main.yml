@@ -4,7 +4,7 @@ main:
   class:             'SimulParams'
   root_dir:          '/raid1/mmenessini/calibration/EKARUS/'       # CalibManager root directory (all the data are in subdirectories)
   pixel_pupil:       120                   # Must match influence function computation
-  pixel_pitch:       0.015167                # [m] Pitch of the pupil phase array (1.82m/140pix)
+  pixel_pitch:       0.015167                # [m] Pitch of the pupil phase array (1.82m/120pix)
   total_time:        2.0                   # [s] Total simulation running time
   time_step:         0.001                 # [s] Simulation time step
   zenithAngleInDeg:  0.0                   # [deg] Zenith observation (0 means no airmass)
@@ -74,9 +74,8 @@ pyr:
   simul_params_ref:  'main'
   pup_diam:          40.                     # Pupil diameter in subaps.
   pup_dist:          60.                     # Separation between pupil centers in subaps.
-  fov:               2.0                     # Requested field-of-view [arcsec]
+  fov:               4.0                     # Requested field-of-view [arcsec]
   mod_amp:           5.0                     # Modulation radius (in lambda/D units)
-  fov_errsup:        6.0
   output_resolution: 120                      # Output sampling [usually corresponding to CCD pixels]
   wavelengthInNm:    750                     # [nm] Pyramid wavelength
   inputs:
@@ -118,9 +117,9 @@ filter:
   class:             'Integrator'
   simul_params_ref:  'main'
   delay:             1                      # Temporal delay in time steps
-  int_gain:          [0.7,0.6,0.4]
-  ff:                [0.55,0.5,0.4]
-  n_modes:           [2,200,198]
+  int_gain:          [0.4] #[0.55,0.5,0.4]
+  # ff:                [0.99,0.95,0.9]
+  n_modes:           [400] #[2,200,198]
   inputs:
       delta_comm: 'pyr_modalrec.out_modes'
 

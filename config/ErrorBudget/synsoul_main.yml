@@ -2,9 +2,9 @@
 # Main simulation parameters
 main:
   class:             'SimulParams'
-  root_dir:          '/raid1/mmenessini/calibration/SOUL/KLv30dx'       # CalibManager root directory (all the data are in subdirectories)
-  pixel_pupil:       197                   # Must match influence function computation
-  pixel_pitch:       0.042639            # [m] Pitch of the pupil phase array
+  root_dir:          '/raid1/mmenessini/calibration/SOUL/'       # CalibManager root directory (all the data are in subdirectories)
+  pixel_pupil:       160                   # Must match influence function computation
+  pixel_pitch:       0.0525            # [m] Pitch of the pupil phase array
   total_time:        10.9956                # [s] Total simulation running time
   time_step:         0.000588               # [s] Simulation time step
   zenithAngleInDeg:  0.0                   # [deg] Zenith observation (0 means no airmass)
@@ -75,7 +75,7 @@ pyr:
   pup_diam:          40.                     # Pupil diameter in subaps.
   pup_dist:          48.                     # Separation between pupil centers in subaps.
   fov:               2.0                     # Requested field-of-view [arcsec]
-  mod_amp:           3.0                     # Modulation radius (in lambda/D units)
+  mod_amp:           0.0                     # Modulation radius (in lambda/D units)
   output_resolution: 120                      # Output sampling [usually corresponding to CCD pixels]
   wavelengthInNm:    750                     # [nm] Pyramid wavelength
   inputs:
@@ -107,7 +107,7 @@ pyr_slopes:
 
 pyr_modalrec:
   class:             'Modalrec'
-  recmat_object:     'pyr3.0_40x40_500modes_rec' #s1.2_660modes_rec' #'pyr3.0_40x40_660modes_rec'        
+  recmat_object:     'pyr0.0_40x40_660modes_rec' #s1.2_660modes_rec' #'pyr3.0_40x40_660modes_rec'        
   inputs:
     in_slopes:       'pyr_slopes.out_slopes'
   outputs:           ['out_modes']
@@ -116,19 +116,19 @@ filter:
   class:             'Integrator'
   simul_params_ref:  'main'
   delay:             2                      # Total temporal delay in time steps
-  int_gain:          [0.55,   0.45,     0.40,     0.35] #,     0.3]
-  ff:                [1.0,    0.999996, 0.999365, 0.977895] #, 0.95]
-  n_modes:           [30,     70,       100,      300] #,      160]
+  int_gain:          [0.55,   0.45,     0.40,     0.35,     0.3]
+  ff:                [1.0,    0.999996, 0.999365, 0.977895, 0.95]
+  n_modes:           [30,     70,       100,      300,      160]
   inputs:
       delta_comm: 'pyr_modalrec.out_modes'
 
 dm:
   class:             'DM'
   simul_params_ref:  'main'
-  ifunc_object:      'asm_v30dx_ifunc'      # Our computed influence functions
-  m2c_object:        'asm_v30dx_m2c'        # Modal-to-command matrix
+  ifunc_object:      'asm_ifunc'      # Our computed influence functions
+  m2c_object:        'asm_m2c'        # Modal-to-command matrix
   height:            0                # Ground-conjugated DM
-  nmodes:            500
+  nmodes:            660
   inputs:
     in_command:      'filter.out_comm'
   outputs:           ['out_layer']
@@ -150,14 +150,14 @@ psf:
 
 dm_mode_res:
   class:            'ModalAnalysis'
-  ifunc_inv_object: 'asm_kl_v30dx_inv'
+  ifunc_inv_object: 'asm_kl_inv'
   inputs:
     in_ef: ['ef_prop.out_ef']
   outputs: ['out_modes']
 
 atmo_modes:
   class:            'ModalAnalysis'
-  ifunc_inv_object: 'asm_kl_v30dx_inv'
+  ifunc_inv_object: 'asm_kl_inv'
   inputs:
     in_ef: ['prop.out_source_ngs_ef']
   outputs: ['out_modes']
@@ -165,7 +165,7 @@ atmo_modes:
 # Data store for results
 data_store:
   class:             'DataStore'
-  store_dir:         '/raid1/mmenessini/results/SOUL/KLv30dx'             # Data result directory: 'store_dir'/TN/
+  store_dir:         '/raid1/mmenessini/results/SOUL'             # Data result directory: 'store_dir'/TN/
   inputs:
     input_list: [
                   'sr-psf.out_sr',

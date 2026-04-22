@@ -11,8 +11,8 @@ pushpull:
 # Interaction matrix calibrator
 pyr_im_calibrator:
   class:     'ImCalibrator'
-  nmodes:    660                         # Number of modes to calibrate
-  im_tag:    'pyr3.0_im'            # Output IM filename
+  nmodes:    649                         # Number of modes to calibrate
+  im_tag:    'pyr3.0_40x40_im'            # Output IM filename
   overwrite: false                         # Overwrite existing files
   inputs:
     in_slopes:   'pyr_slopes.out_slopes'      # WFS slopes input
@@ -21,7 +21,7 @@ pyr_im_calibrator:
 # Override main simulation parameters
 main_override:
   time_step: 0.000588
-  total_time: 0.77616                 # 660 modes × 2 (push+pull) × 0.000588s
+  total_time: 0.763224                 # 660 modes × 2 (push+pull) × 0.000588s
 
 # Disable atmosphere for clean calibration
 prop_override:
@@ -33,7 +33,7 @@ prop_override:
 # Override DM to use calibration commands
 dm_override:
   sign: 1                                 # Use positive sign for calibration (default is -1)
-  nmodes: 660                            # Use all modes for calibration
+  nmodes: 649                            # Use all modes for calibration
   inputs:
     in_command: 'pushpull.output'         # Connect to push-pull generator
 

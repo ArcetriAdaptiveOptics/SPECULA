@@ -73,7 +73,7 @@ def postprocess_iffs(root_dir:str, data_path:str, tag:str, D:float):
 
     # Create IFunc object and save
     ifunc_obj = IFunc(
-        ifunc=influence_functions,
+        ifunc=influence_functions.T,
         mask=(1-pmask).astype(np.uint8)
     )
     ifunc_obj.save(ifunc_filename, overwrite=True)
@@ -106,7 +106,7 @@ def postprocess_iffs(root_dir:str, data_path:str, tag:str, D:float):
 if __name__ == "__main__":
     D = 8.4
     data_path = '/raid1/mmenessini/LBTData/KLv30dx'
-    soul_dir = '/raid1/mmenessini/calibration/SOUL'
+    soul_dir = '/raid1/mmenessini/calibration/SOUL/KLv30dx'
 
     postprocess_iffs(root_dir=soul_dir, data_path=data_path, tag='asm_v30dx', D=D)
 

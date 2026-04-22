@@ -9,7 +9,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
                         do_mech_coupling=False, coupling_coeffs=[0.31, 0.05],
                         do_slaving=False, slaving_thr=0.1, linear_slaving=False,
                         edge_constraint_weight=0.0, search_radius_steps=2.5,
-                        obsratio=0.0, diaratio=1.0, mask=None):
+                        obsratio=0.0, diaratio=1.0, mask=None, shrink:float = 1.0):
     """
     Computes the ifs_cube matrix with Influence Functions using Thin Plate Splines
     
@@ -130,6 +130,11 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
     else:
         raise ValueError("Unrecognized geometry type! Avaliable types are: 'circular', 'alpao', 'square'")
 
+    x_c = (max(x)-min(x))/2
+    y_c = (max(y)-min(y))/2
+    print(x_c,y_c)
+    x = (x-x_c)*shrink + x_c
+    y = (y-y_c)*shrink + y_c
     coordinates = xp.vstack((x, y))
     grid_x, grid_y = xp.meshgrid(xp.arange(dim), xp.arange(dim))
 
