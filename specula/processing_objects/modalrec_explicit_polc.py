@@ -136,9 +136,10 @@ class ModalrecExplicitPolc(BaseModalrec):
             comm_slopes = self.intmat.intmat @ self.commands
             self.pseudo_ol_modes.value[:] = self.recmat.recmat @ (self.slopes + comm_slopes)
         else:
-            # Se non c'è intmat, usiamo solo gli slope misurati
+            # If no interaction matrix is provided, we assume the pseudo open-loop modes
+            # are just the reconstruction of the measured slopes
             self.pseudo_ol_modes.value[:] = self.recmat.recmat @ self.slopes
-        
+
         self.pseudo_ol_modes.generation_time = self.current_time
 
         # (2) Project to output modes

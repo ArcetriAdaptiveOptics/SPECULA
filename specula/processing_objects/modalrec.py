@@ -43,10 +43,5 @@ class Modalrec(BaseModalrec):
             self.modes.value = self.xp.zeros(nmodes, dtype=self.dtype)
 
     def trigger_code(self):
-        if self.recmat is None or self.recmat.recmat is None:
-            self.logger.warning("Skipping reconstruction because recmat is NULL")
-            return
-
-        # Memory pre-allocation optimization
         self.modes.value[:] = self.recmat.recmat @ self.slopes
         self.modes.generation_time = self.current_time
