@@ -11,7 +11,6 @@ class Modalrec(BaseModalrec):
     def __init__(self,
                  recmat: Recmat,
                  nmodes: int = None,
-                 filtmat = None,
                  ncutmodes: int = None,
                  target_device_idx: int = None,
                  precision: int = None):
@@ -19,10 +18,6 @@ class Modalrec(BaseModalrec):
 
         if ncutmodes:
             recmat.reduce_size(ncutmodes)
-
-        if filtmat is not None:
-            recmat.recmat = recmat.recmat @ filtmat
-            self.logger.info('recmat updated with filtmat!')
 
         self.recmat = recmat
         nmodes = self.recmat.nmodes

@@ -45,7 +45,7 @@ class ModalrecImplicitPolc(BaseModalrec):
         inputs = super().input_names()
         inputs.update({
             'in_commands': InputDesc(BaseValue,
-                           'Current output command vector for implicit POLC'),
+                           'Current output command vector for implicit POLC (optional)'),
             'in_commands_list': InputDesc(BaseValue,
                                 'List of current command vectors for implicit POLC (optional)')
         })

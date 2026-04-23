@@ -146,11 +146,9 @@ class TestModalrec(unittest.TestCase):
         slopes.generation_time = t
         commands.generation_time = t
 
-        rec.setup()
-
-        # We expect a ValueError during prepare_trigger due to size mismatch
+        # We expect a ValueError during setup due to size mismatch
         with self.assertRaises(ValueError) as cm:
-            rec.prepare_trigger(t)
+            rec.setup()
 
         # Verify that the error message is as expected
         self.assertIn("Dimension mismatch in POLC mode", str(cm.exception))

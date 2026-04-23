@@ -65,7 +65,7 @@ class ModalrecExplicitPolc(BaseModalrec):
         inputs = super().input_names()
         inputs.update({
             'in_commands': InputDesc(BaseValue,
-                           'Current output command vector for explicit POLC'),
+                           'Current output command vector for explicit POLC (optional)'),
             'in_commands_list': InputDesc(BaseValue,
                                 'List of current command vectors for explicit POLC (optional)')
         })
@@ -83,6 +83,14 @@ class ModalrecExplicitPolc(BaseModalrec):
     def setup(self):
         super().setup()
 
+        # Dimension validation
+        if self.intmat is not None and self.intmat.intmat is not None:
+            expected_slopes_size = self.intmat.nslopes
+            if expected_slopes_size != len(self.slopes):
+                raise ValueError(f"Dimension mismatch in POLC mode: "
+                                 f"intmat @ commands will produce {expected_slopes_size} slopes, "
+                                 f"but input slopes has size {len(self.slopes)}")
+
         commands = self.local_inputs['in_commands']
         commands_list = self.local_inputs['in_commands_list']
 
@@ -90,6 +98,7 @@ class ModalrecExplicitPolc(BaseModalrec):
             raise ValueError("Either 'in_commands' or 'in_commands_list' must be given as an input")
 
         self.commands = self.xp.zeros(self.in_commands_size, dtype=self.dtype)
+
 
     def prepare_trigger(self, t):
         # Handle slopes via base class
@@ -107,14 +116,6 @@ class ModalrecExplicitPolc(BaseModalrec):
                 self.commands[:] = 0.0
             else:
                 self.commands[:] = commands.value
-
-        # Dimension validation
-        if self.intmat is not None and self.intmat.intmat is not None:
-            expected_slopes_size = self.intmat.intmat.shape[0]
-            if expected_slopes_size != len(self.slopes):
-                raise ValueError(f"Dimension mismatch in POLC mode: "
-                                 f"intmat @ commands will produce {expected_slopes_size} slopes, "
-                                 f"but input slopes has size {len(self.slopes)}")
 
     def trigger_code(self):
         # Check refresh based on slopes (standard POLC logic)
