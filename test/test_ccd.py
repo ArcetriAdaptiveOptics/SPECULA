@@ -154,6 +154,3 @@ class TestCCD(unittest.TestCase):
             abs(actual - expected) / expected < rel_tol,
             f"Relative difference {abs(actual - expected) / expected:.2%} exceeds {rel_tol:.2%}"
         )
-
-if __name__ == '__main__':
-    unittest.main()

@@ -4,6 +4,7 @@ specula.init(0)  # Default target device
 import unittest
 
 from specula.processing_objects.modalrec import Modalrec
+from specula.processing_objects.modalrec_explicit_polc import ModalrecExplicitPolc
 from specula.processing_objects.modalrec_implicit_polc import ModalrecImplicitPolc
 from specula.data_objects.recmat import Recmat
 from specula.data_objects.intmat import Intmat
@@ -73,11 +74,10 @@ class TestModalrec(unittest.TestCase):
         commands_ip.generation_time = 0
 
         # Modalrec standard (POLC)
-        rec = Modalrec(
+        rec = ModalrecExplicitPolc(
             recmat=recmat,
             projmat=projmat,
             intmat=intmat,
-            polc=True,
             target_device_idx=target_device_idx
         )
         rec.inputs['in_slopes'].set(slopes)
@@ -127,12 +127,10 @@ class TestModalrec(unittest.TestCase):
         projmat = Recmat(projmat_arr, target_device_idx=target_device_idx)
 
         # Create a Modalrec which expects 6 slopes and 4 commands
-        rec = Modalrec(
-            nmodes=4,
+        rec = ModalrecExplicitPolc(
             recmat=recmat,
             intmat=intmat,
             projmat=projmat,
-            polc=True,
             target_device_idx=target_device_idx
         )
 
@@ -204,19 +202,19 @@ class TestModalrec(unittest.TestCase):
         del projmat
         del recmat
 
-        # Check that original matrices were deleted
-        self.assertIsNone(rec.recmat)
-        self.assertIsNone(rec.projmat)
-        self.assertIsNone(rec.intmat)
-
-        # Check that comm_mat and h_mat exist
-        self.assertIsNotNone(rec.comm_mat)
+        # Check that the merged matrices exist correctly
+        self.assertIsNotNone(rec.recmat) # recmat now hosts C
         self.assertIsNotNone(rec.h_mat)
 
+        # Check that original matrices were never saved as class attributes
+        self.assertFalse(hasattr(rec, 'projmat'))
+        self.assertFalse(hasattr(rec, 'intmat'))
+        self.assertFalse(hasattr(rec, 'comm_mat')) # comm_mat is replaced by recmat
+
         # Verify shapes
-        # comm_mat = projmat @ recmat = (n_modes, n_modes) @ (n_modes, n_slopes)
+        # recmat (which is comm_mat) = projmat @ recmat = (n_modes, n_modes) @ (n_modes, n_slopes)
         #          = (n_modes, n_slopes)
-        self.assertEqual(rec.comm_mat.recmat.shape, (n_modes, n_slopes))
+        self.assertEqual(rec.recmat.recmat.shape, (n_modes, n_slopes))
         # h_mat = I - comm_mat @ intmat = (n_modes, n_modes)
         self.assertEqual(rec.h_mat.recmat.shape, (n_modes, n_modes))
 
@@ -321,8 +319,8 @@ class TestModalrec(unittest.TestCase):
             target_device_idx=target_device_idx
         )
 
-        # comm_mat should be (n_modes, n_slopes)
-        self.assertEqual(rec.comm_mat.recmat.shape, (n_modes, n_slopes))
+        # recmat hosts C, so it should be (n_modes, n_slopes)
+        self.assertEqual(rec.recmat.recmat.shape, (n_modes, n_slopes))
 
         # h_mat should be (n_modes, n_modes)
         self.assertEqual(rec.h_mat.recmat.shape, (n_modes, n_modes))

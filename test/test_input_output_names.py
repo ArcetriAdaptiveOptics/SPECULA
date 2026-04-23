@@ -57,7 +57,3 @@ class TestInputOutputNames(unittest.TestCase):
                     v, OutputDesc,
                     f"{klass.__name__} output value must be OutputDesc"
                 )
-
-
-if __name__ == '__main__':
-    unittest.main()
