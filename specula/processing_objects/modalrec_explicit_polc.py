@@ -27,18 +27,19 @@ class ModalrecExplicitPolc(BaseModalrec):
 
         if recmat is None:
             raise ValueError("Explicit POLC requires a valid recmat.")
-        if intmat is None:
-            raise ValueError("Explicit POLC requires a valid intmat.")
-
-        if nSlopesToBeDiscarded:
-            intmat.reduce_slopes(nSlopesToBeDiscarded)
 
         self.recmat = recmat
         self.projmat = projmat
         self.intmat = intmat
+        if self.intmat is not None:
+            if nSlopesToBeDiscarded:
+                self.intmat.reduce_slopes(nSlopesToBeDiscarded)
+            if in_commands_size is None:
+                in_commands_size = self.intmat.intmat.shape[1]
 
         if in_commands_size is None:
-            in_commands_size = intmat.intmat.shape[1]
+            in_commands_size = self.recmat.nmodes
+
         self.in_commands_size = in_commands_size
 
         # Properly initialize nmodes based on projmat presence
@@ -130,9 +131,14 @@ class ModalrecExplicitPolc(BaseModalrec):
         if slopes_time != self.current_time:
             return
 
-        # (1) Compute pseudo open loop modes: R * (s + D * c)
-        comm_slopes = self.intmat.intmat @ self.commands
-        self.pseudo_ol_modes.value[:] = self.recmat.recmat @ (self.slopes + comm_slopes)
+        # (1) Compute pseudo open loop modes
+        if self.intmat is not None:
+            comm_slopes = self.intmat.intmat @ self.commands
+            self.pseudo_ol_modes.value[:] = self.recmat.recmat @ (self.slopes + comm_slopes)
+        else:
+            # Se non c'è intmat, usiamo solo gli slope misurati
+            self.pseudo_ol_modes.value[:] = self.recmat.recmat @ self.slopes
+        
         self.pseudo_ol_modes.generation_time = self.current_time
 
         # (2) Project to output modes

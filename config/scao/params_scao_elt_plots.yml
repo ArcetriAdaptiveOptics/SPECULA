@@ -107,7 +107,7 @@ rec:
   recmat_object:      'hiresA_ps512p0.076_pyr90x90_wl798_fv2.1_ft3.0_ma4_bn1_th0.30a0.30b_mn4094'         # reconstruction matrix tag
   inputs:
     in_slopes:        'slopec.out_slopes'
-  outputs:  ['out_modes', 'out_pseudo_ol_modes']
+  outputs:  ['out_modes']
 
 
 control:

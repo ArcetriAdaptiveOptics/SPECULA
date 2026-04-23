@@ -501,7 +501,7 @@ dm3:
 # ----------------
 
 tomo_ngs:
-  class:              'Modalrec'
+  class:              'ModalreExplicitPolc'
   recmat_object:      '20240614_073541.0/recmat'
   projmat_object:     'p20230222_104426.0/projmatAll'
   inputs:

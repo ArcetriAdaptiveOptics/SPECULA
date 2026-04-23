@@ -324,3 +324,45 @@ class TestModalrec(unittest.TestCase):
 
         # h_mat should be (n_modes, n_modes)
         self.assertEqual(rec.h_mat.recmat.shape, (n_modes, n_modes))
+
+    @cpu_and_gpu
+    def test_modalrec_explicit_no_intmat(self, target_device_idx, xp):
+        """Test explicit POLC without interaction matrix"""
+
+        # Recmat 4x6, Projmat 4x4 (identity * 2)
+        recmat_arr = xp.random.randn(4, 6)
+        projmat_arr = xp.eye(4) * 2
+
+        recmat = Recmat(recmat_arr, target_device_idx=target_device_idx)
+        projmat = Recmat(projmat_arr, target_device_idx=target_device_idx)
+
+        # Istance of ModalrecExplicitPolc without intmat
+        rec = ModalrecExplicitPolc(
+            recmat=recmat,
+            projmat=projmat,
+            intmat=None,
+            in_commands_size=4,
+            target_device_idx=target_device_idx
+        )
+
+        slopes_arr = xp.random.randn(6)
+        cmd_arr = xp.random.randn(4)
+
+        slopes = Slopes(slopes=slopes_arr, target_device_idx=target_device_idx)
+        commands = BaseValue('commands', value=cmd_arr, target_device_idx=target_device_idx)
+
+        rec.inputs['in_slopes'].set(slopes)
+        rec.inputs['in_commands'].set(commands)
+
+        t = 0
+        slopes.generation_time = t
+        commands.generation_time = t
+
+        rec.setup()
+        rec.prepare_trigger(t)
+        rec.trigger_code()
+
+        # Manual check of math: P @ (R @ s) - c
+        expected = (projmat_arr @ (recmat_arr @ slopes_arr)) - cmd_arr
+
+        xp.testing.assert_allclose(rec.modes.value, expected, rtol=1e-7)
