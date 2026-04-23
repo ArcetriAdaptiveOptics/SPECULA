@@ -497,7 +497,7 @@ class TestSimul(unittest.TestCase):
 
         with patch('specula.simul.import_class', side_effect=mock_import):
             with patch('specula.data_objects.recmat.Recmat.restore', side_effect=[rec_a, rec_b]) as mock_restore:
-                simul = Simul([])
+                simul = Simul('foo.yml')
                 with self.assertRaises(ValueError):
                     simul.build_objects(params)
 
@@ -595,7 +595,7 @@ class TestSimul(unittest.TestCase):
 
         with patch('specula.simul.import_class', side_effect=mock_import):
             with patch('specula.data_objects.recmat.Recmat.restore', side_effect=[rec_a, rec_b]) as mock_restore:
-                simul = Simul([])
+                simul = Simul('foo.yml')
                 with self.assertRaises(ValueError):
                     simul.build_objects(params)
 

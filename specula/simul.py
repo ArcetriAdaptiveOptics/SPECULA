@@ -71,6 +71,11 @@ class Simul():
         self.logger = get_specula_logger(__name__)
         self.logger.setLevel(log_level.upper())
 
+        if self.diagram_filename is None:
+            self.diagram_filename = str(Path(self.param_files[0]).with_suffix('.png'))
+        if self.diagram_title is None:
+            self.diagram_title = str(Path(self.param_files[0]).with_suffix(''))
+
         self.diagram = SimulDiagram(param_file=self.param_files[0],
                                     title=self.diagram_title,
                                     filename=self.diagram_filename,
@@ -878,11 +883,6 @@ class Simul():
             replay_params = self.build_replay(params)
         else:
             replay_params = None
-
-        if self.diagram_filename is None:
-            self.diagram_filename = str(Path(self.param_files[0]).with_suffix('.png'))
-        if self.diagram_title is None:
-            self.diagram_title = str(Path(self.param_files[0]).with_suffix(''))
 
         self.build_objects(params)
         self.create_input_list_inputs(params)
