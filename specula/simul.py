@@ -71,6 +71,11 @@ class Simul():
         self.logger = get_specula_logger(__name__)
         self.logger.setLevel(log_level.upper())
 
+        self.diagram = SimulDiagram(param_file=self.param_files[0],
+                                    title=self.diagram_title,
+                                    filename=self.diagram_filename,
+                                    colors_on=self.diagram_colors_on)
+
     def split_output(self, output_name, get_ref=False, use_inputs=False):
         '''
         Split the output name into object name and output key.
@@ -878,11 +883,6 @@ class Simul():
             self.diagram_filename = str(Path(self.param_files[0]).with_suffix('.png'))
         if self.diagram_title is None:
             self.diagram_title = str(Path(self.param_files[0]).with_suffix(''))
-
-        self.diagram = SimulDiagram(param_file=self.param_files[0],
-                                    title=self.diagram_title,
-                                    filename=self.diagram_filename,
-                                    colors_on=self.diagram_colors_on)
 
         self.build_objects(params)
         self.create_input_list_inputs(params)
