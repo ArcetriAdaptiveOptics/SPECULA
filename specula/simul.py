@@ -3,7 +3,7 @@ import inspect
 import itertools
 from copy import deepcopy
 from pathlib import Path
-from collections import Counter, namedtuple
+from collections import namedtuple
 from specula import process_rank
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_data_obj import BaseDataObj
@@ -19,7 +19,6 @@ from specula.simul_diagram import SimulDiagram
 
 import yaml
 import hashlib
-import matplotlib.pyplot as plt
 
 
 Output = namedtuple('Output', 'obj_name output_key delay ref input_name')
@@ -828,38 +827,6 @@ class Simul():
                     self.logger.debug(f'{parts} {v}')
                 else:
                     raise ValueError(f"Invalid number of parts detected in override: {parts}. Did you add/forget a '.'?")
-
-    def arrangeInGrid(self, trigger_order, trigger_order_idx):
-        rows = []
-        center = False
-        n_cols = max(trigger_order_idx) + 1
-        n_rows = max( list(dict(Counter(trigger_order_idx)).values()))        
-        # names_to_orders = dict(zip(trigger_order, trigger_order_idx))
-        orders_to_namelists = {}
-        for order in range(n_cols):
-            orders_to_namelists[order] = []
-        for name, order in zip(trigger_order, trigger_order_idx):
-            orders_to_namelists[order].append(name)
-
-        for ri in range(n_rows):
-            r = []
-            for ci in range(n_cols):
-                col_elements = len(orders_to_namelists[ci])
-                col_offset = int((n_rows-col_elements)/2)
-                ri_f = ri - col_offset
-                if center:
-                    if ri<col_elements+col_offset and ri>=col_offset:
-                        block_name = orders_to_namelists[ci][ri_f]
-                    else:
-                        block_name = ""
-                else:
-                    if ri<col_elements:
-                        block_name = orders_to_namelists[ci][ri]
-                    else:
-                        block_name = ""
-                r.append(block_name)
-            rows.append(r)
-        return rows
     
     def run(self):
         params = {}
