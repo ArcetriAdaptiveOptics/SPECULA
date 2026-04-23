@@ -303,17 +303,15 @@ class Simul():
             klass = import_class(classname, additional_modules)
             args = inspect.getfullargspec(getattr(klass, '__init__')).args
             hints = get_type_hints(klass)
-            target_device_idx = pars.get('target_device_idx', None)
+            target_device_idx = pars.pop('target_device_idx', None)
             self.all_target_device_idxs[key] = target_device_idx
  
-            par_target_rank = pars.get('target_rank', None)
+            par_target_rank = pars.pop('target_rank', None)
             if par_target_rank is None:
                 target_rank = 0
-                self.all_objs_ranks[key] = 0
             else:
                 target_rank = par_target_rank
-                self.all_objs_ranks[key] = par_target_rank
-                del pars['target_rank']
+            self.all_objs_ranks[key] = target_rank
 
             # create the simulations objects for this process. Data Objects are created
             # on all ranks (processes) by default, unless a specific rank has been specified.
@@ -329,8 +327,6 @@ class Simul():
                 self.remote_objs_ranks[key] = target_rank
 
             if 'tag' in pars and build_this_object:
-                if 'target_device_idx' in pars:
-                    del pars['target_device_idx']
                 if len(pars) > 2:
                     raise ValueError('Extra parameters with "tag" are not allowed')
                 filename = cm.filename(classname, pars['tag'])
@@ -558,7 +554,7 @@ class Simul():
                             raise ValueError(f'Object {dest_object} does not have an output called {output_name}')
                     else:
                         # remote object case
-                        # TODO these checks are almost all reduntant
+                        # TODO these checks are almost all redundant
                         if not ( self.all_objs_ranks[dest_object] != process_rank \
                              and 'outputs' in params[dest_object] \
                              and output_name in params[dest_object]['outputs'] ):
