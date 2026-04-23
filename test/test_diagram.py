@@ -58,9 +58,8 @@ class TestDiagrams(unittest.TestCase):
                                colors_on=colors)
         diagram.build(trigger_order = ["A", "B", "C"],
                     trigger_order_idx = [0, 1, 2],
-                    all_objs_ranks = {"A": 0, "B": 1, "C": 0},
-                    max_rank = 1,
-                    max_target_device_idx = 1,
+                    all_objs_ranks = {"A": 0, "B": 1, "C": 0},  
+                    all_target_device_idxs = {"A": 0, "B": 0, "C": 0},
                     is_dataobj = {"A": True, "B": False, "C": True},
         )
         return diagram

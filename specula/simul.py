@@ -31,18 +31,6 @@ def computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name):
     return rr
 
 
-mplcolors = plt.get_cmap("tab10").colors
-
-def int_to_rgb(val: int, maxval=16):
-    val += 1
-    if val>=0 and val<len(mplcolors):
-        return mplcolors[val]
-    scale = 255 / maxval
-    r = int((val * scale * 611) % 256)
-    g = int((val * scale * 551) % 256)
-    b = int((val * scale * 501) % 256)
-    return (1.0 - r/255.0, 1.0 - g/255.0, 1.0 - b/255.0)
-
 class Simul():
     '''
     Simulation organizer
@@ -64,8 +52,7 @@ class Simul():
 
         self.is_dataobj = {}
         self.all_objs_ranks = {}
-        self.max_rank = 0
-        self.max_target_device_idx = 0
+        self.all_target_device_idxs = {}
         self.remote_objs_ranks = {}
         self.param_files = param_files
         self.objs = {}
@@ -317,8 +304,7 @@ class Simul():
             args = inspect.getfullargspec(getattr(klass, '__init__')).args
             hints = get_type_hints(klass)
             target_device_idx = pars.get('target_device_idx', None)
-            if (not target_device_idx is None) and target_device_idx > self.max_target_device_idx:
-                self.max_target_device_idx = target_device_idx
+            self.all_target_device_idxs[key] = target_device_idx
  
             par_target_rank = pars.get('target_rank', None)
             if par_target_rank is None:
@@ -327,8 +313,6 @@ class Simul():
             else:
                 target_rank = par_target_rank
                 self.all_objs_ranks[key] = par_target_rank
-                if par_target_rank > self.max_rank:
-                    self.max_rank = par_target_rank
                 del pars['target_rank']
 
             # create the simulations objects for this process. Data Objects are created
@@ -912,8 +896,7 @@ class Simul():
            (self.diagram_flag or self.diagram_filename or self.diagram_title):
             self.diagram.build(trigger_order = self.trigger_order,
                                trigger_order_idx = self.trigger_order_idx,
-                               max_rank = self.max_rank,
-                               max_target_device_idx = self.max_target_device_idx,
+                               all_target_device_idxs=self.all_target_device_idxs,
                                all_objs_ranks = self.all_objs_ranks,
                                is_dataobj = self.is_dataobj)
 
