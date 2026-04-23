@@ -53,10 +53,6 @@ class MVM(BaseProcessingObj):
                              f", expected {expected_size}")
 
     def trigger_code(self):
-        if self.recmat.recmat is None:
-            self.logger.warning("mvm skipping multiplication because recmat is NULL")
-            return
-
         vector = self.local_inputs['in_vector']
 
         # Simple matrix multiplication
