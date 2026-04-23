@@ -141,7 +141,7 @@ class TestDiagrams(unittest.TestCase):
 
 
     def test_real_diagram_creation(self):
-        """Test diagram creation in a full simulation run"""
+        """Integration test: diagram creation in a full simulation run"""
         os.chdir(os.path.dirname(__file__))
 
         yml_files = ['params_elt_pfs_test.yml']
