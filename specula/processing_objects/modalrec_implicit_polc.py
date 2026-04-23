@@ -13,19 +13,12 @@ class ModalrecImplicitPolc(BaseModalrec):
     """
 
     def __init__(self,
-                 recmat: Recmat = None,
-                 projmat: Recmat = None,
-                 intmat: Intmat = None,
+                 recmat: Recmat,
+                 projmat: Recmat,
+                 intmat: Intmat,
                  target_device_idx: int = None,
                  precision: int = None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-
-        if recmat is None or recmat.recmat is None:
-            raise ValueError("Recmat object not valid")
-        if projmat is None or projmat.recmat is None:
-            raise ValueError("Projmat object not valid")
-        if intmat is None or intmat.intmat is None:
-            raise ValueError("Intmat object not valid")
 
         # The effective reconstruction matrix becomes C = P * R
         comm_mat_arr = projmat.recmat @ recmat.recmat

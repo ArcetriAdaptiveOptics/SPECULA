@@ -9,38 +9,24 @@ class Modalrec(BaseModalrec):
     """
 
     def __init__(self,
+                 recmat: Recmat,
                  nmodes: int = None,
-                 recmat: Recmat = None,
                  filtmat = None,
-                 identity: bool = False,
                  ncutmodes: int = None,
                  target_device_idx: int = None,
                  precision: int = None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        if recmat is None:
-            if identity:
-                if nmodes is None:
-                    raise ValueError('modalrec nmodes key must be set when using identity!')
-                recmat = Recmat(self.xp.identity(nmodes),
-                                target_device_idx=target_device_idx, precision=precision)
-
         if ncutmodes:
-            if recmat is not None:
-                recmat.reduce_size(ncutmodes)
-            else:
-                self.logger.warning('recmat cannot be reduced because it is null.')
+            recmat.reduce_size(ncutmodes)
 
-        if filtmat is not None and recmat is not None:
+        if filtmat is not None:
             recmat.recmat = recmat.recmat @ filtmat
             self.logger.info('recmat updated with filtmat!')
 
         self.recmat = recmat
-        if self.recmat is not None:
-            nmodes = self.recmat.nmodes
-
-        if nmodes is not None:
-            self.modes.value = self.xp.zeros(nmodes, dtype=self.dtype)
+        nmodes = self.recmat.nmodes
+        self.modes.value = self.xp.zeros(nmodes, dtype=self.dtype)
 
     def trigger_code(self):
         self.modes.value[:] = self.recmat.recmat @ self.slopes

@@ -16,16 +16,13 @@ class ModalrecExplicitPolc(BaseModalrec):
     """
 
     def __init__(self,
-                 recmat: Recmat = None,
+                 recmat: Recmat,
                  projmat: Recmat = None,
                  intmat: Intmat = None,
                  nSlopesToBeDiscarded: int = None,
                  target_device_idx: int = None,
                  precision: int = None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-
-        if recmat is None:
-            raise ValueError("Explicit POLC requires a valid recmat.")
 
         self.recmat = recmat
         self.projmat = projmat
