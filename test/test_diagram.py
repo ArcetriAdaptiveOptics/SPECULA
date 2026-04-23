@@ -1,9 +1,13 @@
+import glob
 import os
+import shutil
 import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
 from pathlib import Path
 import yaml
+
+from test.specula_testlib import cpu_and_gpu
 
 try:
     import orthogram  # Check if orthogram is installed
@@ -38,6 +42,15 @@ class TestDiagrams(unittest.TestCase):
             "C": { "class": "WaveGenerator", "target_device_idx": -1, "constant": 3 },
         }
 
+        self.calibdir = os.path.join(os.path.dirname(__file__), 'calib')
+        self.datadir = os.path.join(os.path.dirname(__file__), 'data')
+        self.outputdir = os.path.join(os.path.dirname(__file__), 'output')
+        os.makedirs(self.datadir, exist_ok=True)
+        os.makedirs(self.outputdir, exist_ok=True)
+        self.phasescreen_path = os.path.join(self.calibdir, 'phasescreens',
+                                   'ps_seed1_dim2048_pixpit0.301_L025.0000_single.fits')
+        self.cwd = os.getcwd()
+
     def tearDown(self):
         """Clean up the temp files."""
         try:
@@ -49,6 +62,17 @@ class TestDiagrams(unittest.TestCase):
             os.remove(self.yml_path)
         except FileNotFoundError:
             pass
+
+        # Clean up output directories created by the simulation
+        data_dirs = glob.glob(os.path.join(self.outputdir, '2*'))
+        for data_dir in data_dirs:
+            if os.path.isdir(data_dir):
+                shutil.rmtree(data_dir)
+        ps_dir = os.path.dirname(self.phasescreen_path)
+        ps_base = os.path.basename(self.phasescreen_path).replace('_single.fits', '_*.fits')
+        for fpath in glob.glob(os.path.join(ps_dir, ps_base)):
+            os.remove(fpath)
+        os.chdir(self.cwd)
 
     def _make_diagram(self, colors=False):
         """Helper to create a Simul instance configured for diagram tests."""
@@ -114,4 +138,14 @@ class TestDiagrams(unittest.TestCase):
 
         mock_write_png.assert_called()
         assert mock_write_png.call_args.args[1] == str(self.tmp_png_path2)
+
+
+    def test_real_diagram_creation(self):
+        """Test diagram creation in a full simulation run"""
+        os.chdir(os.path.dirname(__file__))
+
+        yml_files = ['params_elt_pfs_test.yml']
+        simul = Simul(*yml_files, diagram_filename=self.tmp_png_path)
+        simul.run()
+        assert os.path.exists(self.tmp_png_path)
 
