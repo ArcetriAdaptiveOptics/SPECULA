@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import specula
-from specula import simul
 specula.init(0)  # Default target device
 
 import unittest
@@ -13,7 +12,7 @@ from pathlib import PureWindowsPath
 from typing import Dict, List
 
 import numpy as np
-from specula.simul import Simul
+from specula.simul import Simul, computeTag
 from specula.connections import InputValue, InputList
 from specula.data_objects.recmat import Recmat
 from specula.base_data_obj import BaseDataObj
@@ -692,3 +691,45 @@ class TestSimul(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             simul.build_objects(params)
+
+    def test_compute_tag(self):
+        '''Test that even small changes in names result in a different tag'''
+
+        output_obj_name = 'foo'
+        dest_object = 'bar'
+        output_attr_name = 'test1'
+        input_attr_name = 'test2'
+
+        tag1 = computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name)
+
+        output_obj_name = 'foo2'
+        tag2 = computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name)
+
+        dest_object = 'bar2'
+        tag3 = computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name)
+
+        output_attr_name = 'atest1'
+        tag4 = computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name)
+
+        input_attr_name = 'atest2'
+        tag5 = computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name)
+
+        assert len(set((tag1, tag2, tag3, tag4, tag5))) == 5
+
+    def test_target_device_idx(self):
+
+        yml = '''
+        main:
+          class: 'SimulParams'
+          root_dir: dummy
+
+        test:
+          class: 'Slopes'
+          length: 10
+          slopes_data: null
+          target_device_idx: -1
+        '''
+        simul = Simul('dummy.yaml')
+        params = yaml.safe_load(yml)
+        simul.build_objects(params)
+        assert simul.objs['test'].target_device_idx == -1

@@ -310,7 +310,7 @@ class Simul():
             klass = import_class(classname, additional_modules)
             args = inspect.getfullargspec(getattr(klass, '__init__')).args
             hints = get_type_hints(klass)
-            target_device_idx = pars.pop('target_device_idx', None)
+            target_device_idx = pars.get('target_device_idx', None)
             self.all_target_device_idxs[key] = target_device_idx
  
             par_target_rank = pars.pop('target_rank', None)
@@ -334,6 +334,8 @@ class Simul():
                 self.remote_objs_ranks[key] = target_rank
 
             if 'tag' in pars and build_this_object:
+                if 'target_device_idx' in pars:
+                    del pars['target_device_idx']
                 if len(pars) > 2:
                     raise ValueError('Extra parameters with "tag" are not allowed')
                 filename = cm.filename(classname, pars['tag'])
