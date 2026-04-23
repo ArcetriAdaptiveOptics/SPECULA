@@ -63,23 +63,21 @@ class Simul():
         else:
             self.overrides = overrides
         self.stepping = stepping
-        self.diagram_flag = diagram
-        self.diagram_title = diagram_title
-        self.diagram_filename = diagram_filename
-        self.diagram_colors_on = diagram_colors_on
         self.speed_report = speed_report
         self.logger = get_specula_logger(__name__)
         self.logger.setLevel(log_level.upper())
+        if diagram or diagram_title or diagram_filename or diagram_colors_on:
+            if diagram_filename is None:
+                diagram_filename = str(Path(self.param_files[0]).with_suffix('.png'))
+            if diagram_title is None:
+                diagram_title = str(Path(self.param_files[0]).with_suffix(''))
 
-        if self.diagram_filename is None:
-            self.diagram_filename = str(Path(self.param_files[0]).with_suffix('.png'))
-        if self.diagram_title is None:
-            self.diagram_title = str(Path(self.param_files[0]).with_suffix(''))
-
-        self.diagram = SimulDiagram(param_file=self.param_files[0],
-                                    title=self.diagram_title,
-                                    filename=self.diagram_filename,
-                                    colors_on=self.diagram_colors_on)
+            self.diagram = SimulDiagram(param_file=self.param_files[0],
+                                        title=diagram_title,
+                                        filename=diagram_filename,
+                                        colors_on=diagram_colors_on)
+        else:
+            self.diagram = None
 
     def split_output(self, output_name, get_ref=False, use_inputs=False):
         '''
@@ -375,16 +373,18 @@ class Simul():
                         raise ValueError(f'Parameter {name} must be a list of object names')
                     if build_this_object:
                         pars2[parname] = [self.objs[x] for x in value]
-                    for x in value:
-                        self.diagram.add_reference(start=key, end=x)
+                    if self.diagram:
+                        for x in value:
+                            self.diagram.add_reference(start=key, end=x)
 
                 # dict_ref field contains a dictionary of names and associated data objects (defined in the same yml file)
                 elif name.endswith('_dict_ref') and parname != name:
                     if build_this_object:
                         data = {x : self.objs[x] for x in value}
                         pars2[parname] = data
-                    for x in value:
-                        self.diagram.add_reference(start=key, end=x)
+                    if self.diagram:
+                        for x in value:
+                            self.diagram.add_reference(start=key, end=x)
 
                 # list_object fields contain an ordered list of tags to be restored as data objects.
                 elif name.endswith('_list_object') and parname != name and build_this_object:
@@ -439,7 +439,8 @@ class Simul():
                     if build_this_object:
                         data = self.objs[value]
                         pars2[parname] = data
-                    self.diagram.add_reference(start=key, end=value)
+                    if self.diagram:
+                        self.diagram.add_reference(start=key, end=value)
 
                 # data fields are read from a fits file
                 elif name.endswith('_data') and parname != name and build_this_object:
@@ -590,10 +591,11 @@ class Simul():
 
                     output = self.split_output(single_output_name, get_ref=True)
 
-                    self.diagram.add_connection(start = output.obj_name,
-                                                end= dest_object,
-                                                start_label= output.output_key,
-                                                end_label = input_name)
+                    if self.diagram:
+                        self.diagram.add_connection(start = output.obj_name,
+                                                    end= dest_object,
+                                                    start_label= output.output_key,
+                                                    end_label = input_name)
 
                     # Remote-to-remote: nothing to do
                     if not local_dest_object and output.ref is None:
@@ -888,8 +890,7 @@ class Simul():
         self.create_input_list_inputs(params)
         self.connect_objects(params)
         
-        if (process_rank == 0 or process_rank is None) and \
-           (self.diagram_flag or self.diagram_filename or self.diagram_title):
+        if (process_rank == 0 or process_rank is None) and self.diagram:
             self.diagram.build(trigger_order = self.trigger_order,
                                trigger_order_idx = self.trigger_order_idx,
                                all_target_device_idxs=self.all_target_device_idxs,
