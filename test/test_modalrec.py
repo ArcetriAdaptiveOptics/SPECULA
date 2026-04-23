@@ -366,3 +366,66 @@ class TestModalrec(unittest.TestCase):
         expected = (projmat_arr @ (recmat_arr @ slopes_arr)) - cmd_arr
 
         xp.testing.assert_allclose(rec.modes.value, expected, rtol=1e-7)
+
+    @cpu_and_gpu
+    def test_modalrec_explicit_no_projmat_and_aliasing(self, target_device_idx, xp):
+        """
+        Test explicit POLC without a projection matrix, and verify the memory 
+        aliasing fix (preventing pseudo_ol_modes from being modified in-place).
+        """
+
+        # Dimensions: 4 modes, 6 slopes
+        recmat_arr = xp.random.randn(4, 6)
+        intmat_arr = xp.random.randn(6, 4)
+
+        recmat = Recmat(recmat_arr, target_device_idx=target_device_idx)
+        intmat = Intmat(intmat_arr, target_device_idx=target_device_idx)
+
+        # Initialize without projmat! This triggers the internal use of .copy()
+        rec = ModalrecExplicitPolc(
+            recmat=recmat,
+            projmat=None,
+            intmat=intmat,
+            target_device_idx=target_device_idx
+        )
+
+        # Controlled input arrays. We use non-zero numbers so the subtraction 
+        # actually changes the values, making the aliasing test effective.
+        slopes_arr = xp.ones(6, dtype=xp.float32) * 2.0
+        cmd_arr = xp.ones(4, dtype=xp.float32) * 0.5
+
+        slopes = Slopes(slopes=slopes_arr, target_device_idx=target_device_idx)
+        commands = BaseValue('commands', value=cmd_arr, target_device_idx=target_device_idx)
+
+        slopes.generation_time = 0
+        commands.generation_time = 0
+
+        rec.inputs['in_slopes'].set(slopes)
+        rec.inputs['in_commands'].set(commands)
+
+        loop = LoopControl()
+        loop.add(rec, idx=0)
+        loop.run(dt=1, run_time=1)
+
+        # -- MATH AND ALIASING VERIFICATION --
+
+        # 1. Expected calculation for pseudo open-loop: R @ (s + D @ c)
+        expected_pseudo = recmat_arr @ (slopes_arr + intmat_arr @ cmd_arr)
+
+        # 2. Expected calculation for output: pseudo_ol_modes - c
+        # (without P, it is a simple subtraction)
+        expected_out = expected_pseudo - cmd_arr
+
+        # Test 1: Are the pseudo open loop modes intact?
+        # If the .copy() fix were missing, this test would fail because expected_pseudo
+        # would undergo the commands subtraction due to the memory reference.
+        xp.testing.assert_allclose(rec.pseudo_ol_modes.value, expected_pseudo, rtol=1e-5)
+
+        # Test 2: Is the final output correct?
+        xp.testing.assert_allclose(rec.modes.value, expected_out, rtol=1e-5)
+
+        # Test 3: Absolute guarantee against aliasing
+        # Ensure that the two arrays in memory are actually different
+        # (since the commands are not zero)
+        with self.assertRaises(AssertionError):
+            xp.testing.assert_allclose(rec.pseudo_ol_modes.value, rec.modes.value)
