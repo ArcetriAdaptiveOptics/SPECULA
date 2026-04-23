@@ -433,7 +433,7 @@ class Simul():
                     if build_this_object:
                         data = self.objs[value]
                         pars2[parname] = data
-                    self.diagram.add_reference(start=key, end=x)
+                    self.diagram.add_reference(start=key, end=value)
 
                 # data fields are read from a fits file
                 elif name.endswith('_data') and parname != name and build_this_object:

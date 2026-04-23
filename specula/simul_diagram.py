@@ -212,4 +212,4 @@ class SimulDiagram:
 
 
         write_png(d, self.filename)
-        self.logger.info('Diagram saved.')
+        self.logger.info(f'Diagram saved in {self.filename}')
