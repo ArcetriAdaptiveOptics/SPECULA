@@ -347,7 +347,6 @@ rec:
   recmat_object: '/raid1/guido/PASSATA/MAORYC/rec/20241127_110943.0/recmat'
   intmat_object: '/raid1/guido/PASSATA/MAORYC/im/MORFEO_IM_LTAO_intmat'
   projmat_object: '/raid1/guido/PASSATA/MAORYC/rec/p20241127_110943.0/projmat1'
-  in_commands_size: 4519
   inputs:
     in_slopes_list:        ['slopec1.out_slopes','slopec2.out_slopes','slopec3.out_slopes','slopec4.out_slopes','slopec5.out_slopes','slopec6.out_slopes']
     in_commands: 'control.out_comm:-1'

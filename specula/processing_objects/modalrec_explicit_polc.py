@@ -19,7 +19,6 @@ class ModalrecExplicitPolc(BaseModalrec):
                  recmat: Recmat = None,
                  projmat: Recmat = None,
                  intmat: Intmat = None,
-                 in_commands_size: int = None,
                  nSlopesToBeDiscarded: int = None,
                  target_device_idx: int = None,
                  precision: int = None):
@@ -34,10 +33,8 @@ class ModalrecExplicitPolc(BaseModalrec):
         if self.intmat is not None:
             if nSlopesToBeDiscarded:
                 self.intmat.reduce_slopes(nSlopesToBeDiscarded)
-            if in_commands_size is None:
-                in_commands_size = self.intmat.intmat.shape[1]
-
-        if in_commands_size is None:
+            in_commands_size = self.intmat.nmodes
+        else:
             in_commands_size = self.recmat.nmodes
 
         self.in_commands_size = in_commands_size

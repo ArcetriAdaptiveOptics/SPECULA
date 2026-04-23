@@ -354,7 +354,6 @@ tomo_polc_lgs:
   recmat_object:      '20240606_200110.0/recmat' # 35015 modes, Tallon, focus filtered
   projmat_object:     'p20240607_025755.0/projmatAll' # 6564x35015 modes
   intmat_object:      '20250911_000002.0/intmat' # 6564 modes
-  in_commands_size:   6564
   inputs:
     in_slopes_list:        ['slopec_lgs1.out_slopes','slopec_lgs2.out_slopes','slopec_lgs3.out_slopes','slopec_lgs4.out_slopes','slopec_lgs5.out_slopes','slopec_lgs6.out_slopes']
     in_commands:            'iir_lgs.out_comm_no_delay:-1'

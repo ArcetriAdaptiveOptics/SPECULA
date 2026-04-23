@@ -341,7 +341,6 @@ class TestModalrec(unittest.TestCase):
             recmat=recmat,
             projmat=projmat,
             intmat=None,
-            in_commands_size=4,
             target_device_idx=target_device_idx
         )
 

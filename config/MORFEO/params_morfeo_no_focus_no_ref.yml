@@ -306,7 +306,6 @@ tomo_polc_lgs:
   recmat_object:      '20231207_111630.0/recmat' # Tallon
   projmat_object:     'p20231207_063630.0/projmatAll' # 6258 modes
   intmat_object:      '20250911_000001.0/intmat' # 6258 modes
-  in_commands_size:   6258
   inputs:
     in_slopes_list:        ['slopec_lgs1.out_slopes','slopec_lgs2.out_slopes','slopec_lgs3.out_slopes',
                             'slopec_lgs4.out_slopes','slopec_lgs5.out_slopes','slopec_lgs6.out_slopes']

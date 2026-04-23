@@ -16,7 +16,6 @@ class ModalrecImplicitPolc(BaseModalrec):
                  recmat: Recmat = None,
                  projmat: Recmat = None,
                  intmat: Intmat = None,
-                 in_commands_size: int = None,
                  target_device_idx: int = None,
                  precision: int = None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
@@ -37,9 +36,7 @@ class ModalrecImplicitPolc(BaseModalrec):
         h_mat_arr = self.xp.identity(h_mat_temp.shape[0], dtype=self.dtype) - h_mat_temp
         self.h_mat = Recmat(h_mat_arr, target_device_idx=target_device_idx, precision=precision)
 
-        if in_commands_size is None:
-            in_commands_size = intmat.intmat.shape[1]
-        self.in_commands_size = in_commands_size
+        self.in_commands_size = intmat.intmat.shape[1]
 
         nmodes = self.recmat.recmat.shape[0]
         self.modes.value = self.xp.zeros(nmodes, dtype=self.dtype)
