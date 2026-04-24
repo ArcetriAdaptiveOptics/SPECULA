@@ -332,7 +332,7 @@ tomo_ngs:
   recmat_object:      '20240613_200330.0/recmat' # NGS at 55asec
   inputs:
     in_slopes_list:        ['slopec_ngs1.out_slopes','slopec_ngs2.out_slopes','slopec_ngs3.out_slopes']
-  outputs:  ['out_modes', 'out_pseudo_ol_modes']
+  outputs:  ['out_modes']
 
 
 iir_ngs:

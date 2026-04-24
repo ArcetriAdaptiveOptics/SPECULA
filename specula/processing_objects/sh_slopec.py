@@ -244,7 +244,7 @@ class ShSlopec(Slopec):
             # Apply weights to pixels
             pixels *= self.int_pixels_weight
 
-            self.logger.info(f"Weights mask has been applied to {n_weight_applied} sub-apertures")
+            self.logger.debug(f"Weights mask has been applied to {n_weight_applied} sub-apertures")
 
         # Calculate flux and max flux per subaperture
         flux_per_subaperture_vector = self.xp.sum(pixels, axis=0)
@@ -300,7 +300,7 @@ class ShSlopec(Slopec):
         self.total_counts.value[0] = self.xp.sum(flux_per_subaperture_vector)
         self.subap_counts.value[0] = self.xp.mean(flux_per_subaperture_vector)
 
-        self.logger.info(f"Slopes min, max and rms : {self.xp.min(sx)}, {self.xp.max(sx)}, {self.xp.sqrt(self.xp.mean(sx ** 2))}")
+        self.logger.debug(f"Slopes min, max and rms : {self.xp.min(sx)}, {self.xp.max(sx)}, {self.xp.sqrt(self.xp.mean(sx ** 2))}")
 
     def psf_gaussian(self, np_sub, fwhm):
         """Generates a 2D Gaussian PSF.

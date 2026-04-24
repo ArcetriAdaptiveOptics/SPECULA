@@ -240,7 +240,7 @@ class BaseProcessingObj(BaseTimeObj):
             self.prepare_trigger(t)
         else:
             self.inputs_changed = False
-            self.logger.info('No inputs have been refreshed, skipping trigger')
+            self.logger.debug('No inputs have been refreshed, skipping trigger')
         return self.inputs_changed
 
     def trigger(self):
