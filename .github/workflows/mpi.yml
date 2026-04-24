@@ -54,6 +54,11 @@ jobs:
       with:
         mpi: ${{ matrix.mpi }}
 
+    - name: Install MPI for python
+      run: |
+        bash
+        pip install mpi4py
+
     - name: Test with pytest and generate coverage report
       run: |
         pytest -k mpi --cov=./ --cov-report=xml
