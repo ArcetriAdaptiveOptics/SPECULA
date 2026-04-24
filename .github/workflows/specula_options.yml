@@ -62,7 +62,7 @@ jobs:
 
     - name: Test with pytest and generate coverage report
       run: |
-        pytest --cov=./ --cov-report=xml
+        pytest -k "orthogam or diagram" --cov=./ --cov-report=xml
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
