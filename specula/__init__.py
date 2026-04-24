@@ -24,7 +24,6 @@ default_target_device_idx = None
 default_target_device = None
 process_comm = None
 process_rank = None
-main_logger = None
 ASEC2RAD = np.pi / (3600 * 180)
 RAD2ASEC = 1.0 / ASEC2RAD
 
@@ -62,29 +61,28 @@ def init(device_idx=-1,
     global default_target_device
     global process_comm
     global process_rank
-    global main_logger
 
     process_comm = comm
     process_rank = rank
 
     init_logging(log_level=log_level, process_rank=rank)
-    main_logger = get_specula_logger(__name__)
+    logger = get_specula_logger(__name__)
 
     default_target_device_idx = device_idx
     systemDisable = os.environ.get('SPECULA_DISABLE_GPU', 'FALSE')
     if systemDisable == 'FALSE':
         try:
             import cupy as cp
-            main_logger.info("Cupy import successfull. Installed version is: "+ cp.__version__)
+            logger.info("Cupy import successfull. Installed version is: "+ cp.__version__)
             gpuEnabled = True
             cp = cp
         except:
-            main_logger.warning("Cupy import failed. SPECULA will fall back to CPU use.")
+            logger.warning("Cupy import failed. SPECULA will fall back to CPU use.")
             cp = None
             xp = np
             default_target_device_idx = -1
     else:
-        main_logger.info("env variable SPECULA_DISABLE_GPU prevents using the GPU.")
+        logger.info("env variable SPECULA_DISABLE_GPU prevents using the GPU.")
         cp = None
         xp = np
         default_target_device_idx = -1
@@ -95,14 +93,14 @@ def init(device_idx=-1,
         gpu_complex_dtype_list = [cp.complex128, cp.complex64]
         default_target_device = cp.cuda.Device(default_target_device_idx)
         default_target_device.use()
-        main_logger.info(f'Default device is GPU number {default_target_device_idx}')
+        logger.info(f'Default device is GPU number {default_target_device_idx}')
         # self.logger.debug('Using device: ', cp.cuda.runtime.getDeviceProperties(default_target_device)['name'])
         # attributes = default_target_device.attributes
         # properties = cp.cuda.runtime.getDeviceProperties(default_target_device)
         # self.logger.debug('Number of multiprocessors:', attributes['MultiProcessorCount'])
         # self.logger.debug('Global memory size (GB):', properties['totalGlobalMem'] / (1024**3))
     else:
-        main_logger.info('Default device is CPU')
+        logger.info('Default device is CPU')
         xp = np
 
     if cp is not None:
@@ -236,15 +234,16 @@ def main_simul(yml_files: list,
                ):
 
     # Set logging level for the "parent" specula logger
-    logging.getLogger('specula').setLevel(log_level.upper())
+    logger = logging.getLogger('specula')
+    logger.setLevel(log_level.upper())
 
     if mpi:
         try:
             from mpi4py import MPI
             from mpi4py.util import pkl5
-            main_logger.info(f"mpi4py import successfull. Installed version is: {MPI.Get_version()}")
+            logger.info(f"mpi4py import successfull. Installed version is: {MPI.Get_version()}")
         except ImportError:
-            main_logger.error("mpi4py import failed.")
+            logger.error("mpi4py import failed.")
             raise
 
         comm = pkl5.Intracomm(MPI.COMM_WORLD)
@@ -253,7 +252,7 @@ def main_simul(yml_files: list,
         datatype = MPI.FLOAT
         num_bytes = N * (datatype.Pack_size(count=1, comm=comm) + MPI.BSEND_OVERHEAD)
 
-        main_logger.debug(f'MPI buffer size: {num_bytes/1024**2:.2f} MB')
+        logger.debug(f'MPI buffer size: {num_bytes/1024**2:.2f} MB')
         attached_buf = bytearray(num_bytes)
         MPI.Attach_buffer(attached_buf)
     else:
@@ -275,7 +274,7 @@ def main_simul(yml_files: list,
         pr.enable()
 
     for simul_idx in range(nsimul):
-        main_logger.debug(f'{yml_files=}')
+        logger.debug(f'{yml_files=}')
         Simul(*yml_files,
             simul_idx=simul_idx,
             overrides=overrides,

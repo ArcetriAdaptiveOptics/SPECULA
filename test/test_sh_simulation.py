@@ -12,6 +12,15 @@ from specula import np
 from specula.simul import Simul
 from astropy.io import fits
 
+# Try to import control library for testing
+try:
+    from mpi4py import MPI
+    from mpi4py.util import pkl5
+    MPI_AVAILABLE = True
+except ImportError:
+    MPI_AVAILABLE = False
+
+
 class TestShSimulation(unittest.TestCase):
     """Test SH SCAO simulation by running a full simulation and checking the results"""
 
@@ -93,7 +102,9 @@ class TestShSimulation(unittest.TestCase):
         yml_files = ['params_scao_sh_test.yml']
         simul = Simul(*yml_files)
         simul.run()
+        self._assert_results()
 
+    def _assert_results(self):
         # Find the most recent data directory (with timestamp)
         data_dirs = sorted(glob.glob(os.path.join(self.datadir, '2*')))
         print(f"Data directories found: {data_dirs}")
@@ -139,6 +150,25 @@ class TestShSimulation(unittest.TestCase):
                         f"Max SR differs from reference by more than 5% (max={max_sr}, ref={max_ref_sr}, rel_diff={rel_diff:.2%})"
                     )
                     print(f"Max SR: {max_sr}, Reference Max SR: {max_ref_sr}, Relative diff: {rel_diff:.2%}")
+
+    @unittest.skipIf(not MPI_AVAILABLE, "MPI not available")
+    def test_sh_simulation_mpi(self):
+
+        # We need to call specula directly, and cannot wrap with pytest,
+        # because MPI is handled in specula/__init__.py with a command-line option.
+        # As a bonus, that code is tested as well.
+        cmd = [
+            "mpirun",
+            "-n", "2",
+            "specula",
+            'params_scao_sh_test.yml', 'params_ov_scao_mpi.yml',
+            "--mpi"
+        ]
+        print('running ', cmd)
+        os.chdir(os.path.dirname(__file__))
+        print(f'{os.getcwd()=}')
+        result = subprocess.run(cmd)
+        self._assert_results()
 
     @unittest.skipIf(int(os.getenv('CREATE_REF', 0)) < 1, "This test is only used to create reference files")
     def test_create_reference_sr(self):
