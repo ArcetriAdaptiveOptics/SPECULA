@@ -1,0 +1,68 @@
+# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
+
+name: Python package
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+#  schedule:
+#    - cron: "1 1 * * *"
+
+jobs:
+  build:
+
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+        mpi: [ 'mpich', 'openmpi', 'intelmpi']
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - uses: mpi4py/setup-mpi@v1
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install cairo on linux
+      if: runner.os == 'Linux'
+      run: |
+        bash
+        sudo apt update
+        sudo apt install libcairo2-dev pkg-config python3-dev
+
+    - name: Install dependencies
+      run: |
+        bash
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov
+
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Setup MPI
+      uses: mpi4py/setup-mpi@v1
+      with:
+        mpi: ${{ matrix.mpi }}
+
+    - name: Test with pytest and generate coverage report
+      run: |
+        pytest -k mpi --cov=./ --cov-report=xml
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        file: ./coverage.xml
+        flags: unittests
+        fail_ci_if_error: false
+        verbose: true

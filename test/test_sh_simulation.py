@@ -6,13 +6,13 @@ import subprocess
 import glob
 import specula
 import time
-specula.init(0,precision=1)
+specula.init(0, precision=1)
 
 from specula import np
 from specula.simul import Simul
 from astropy.io import fits
 
-# Try to import control library for testing
+# Try to import the MPI library for testing
 try:
     from mpi4py import MPI
     from mpi4py.util import pkl5
@@ -153,10 +153,11 @@ class TestShSimulation(unittest.TestCase):
 
     @unittest.skipIf(not MPI_AVAILABLE, "MPI not available")
     def test_sh_simulation_mpi(self):
+        """Run a simple simulation using MPI"""
 
         # We need to call specula directly, and cannot wrap with pytest,
         # because MPI is handled in specula/__init__.py with a command-line option.
-        # As a bonus, that code is tested as well.
+        # As a bonus, that code is tested as well. Codecov might not detect this.
         cmd = [
             "mpirun",
             "-n", "2",
@@ -166,8 +167,7 @@ class TestShSimulation(unittest.TestCase):
         ]
         print('running ', cmd)
         os.chdir(os.path.dirname(__file__))
-        print(f'{os.getcwd()=}')
-        result = subprocess.run(cmd)
+        _ = subprocess.run(cmd)
         self._assert_results()
 
     @unittest.skipIf(int(os.getenv('CREATE_REF', 0)) < 1, "This test is only used to create reference files")
