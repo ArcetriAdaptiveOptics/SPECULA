@@ -22,6 +22,10 @@ jobs:
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
         mpi: [none, mpich, intelmpi]
 
+        # Exclude invalid combinations: we cannot test MPI on 3.8 and 3.9 because
+        # "pip install -e ." (necessary for the specula executable) does not work.
+        # MacOS does not have intelmpi.
+        # Windows does not seem to have any valid mpi distribution.
         exclude:
           - python-version: "3.8"
             mpi: mpich
@@ -30,6 +34,12 @@ jobs:
           - python-version: "3.9"
             mpi: mpich
           - python-version: "3.9"
+            mpi: intelmpi
+          - os: macos-latest
+            mpi: intelmpi
+          - os: windows-latest
+            mpi: mpich
+          - os: windows-latest
             mpi: intelmpi
     
     steps:
