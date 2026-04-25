@@ -118,7 +118,6 @@ jobs:
 
     - name: Generate combined coverage XML
       run: |
-        coverage combine
         coverage xml
 
     - name: Upload coverage to Codecov
