@@ -229,7 +229,7 @@ class TestShSimulation(unittest.TestCase):
         shutil.copy(res_sr_path, self.res_sr_ref_path)
         print(f"Reference SR file created at {self.res_sr_ref_path}")
 
-    def test_failed_mpi_import(self):
+    def test_failed_import(self):
         """Test that a missing MPI raises ImportError"""
         real_import = builtins.__import__
 
