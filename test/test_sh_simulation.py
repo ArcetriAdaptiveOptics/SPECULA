@@ -5,13 +5,17 @@ import sys
 import shutil
 import subprocess
 import glob
-import specula
 import time
+
+from astropy.io import fits
+from pathlib import Path
+
+import specula
 specula.init(0, precision=1)
 
 from specula import np, main_simul
 from specula.simul import Simul
-from astropy.io import fits
+
 
 # Try to import the MPI library for testing
 try:
@@ -159,7 +163,9 @@ class TestShSimulation(unittest.TestCase):
         # We need to call specula directly, and cannot wrap with pytest,
         # because MPI is handled in specula/__init__.py with a command-line option.
         # As a bonus, that code is tested as well. Codecov might not detect this.
-        specula_main_path = os.path.join(os.path.dirname(__file__), '..', 'scripts', 'specula_main.py')
+        root = Path(__file__).resolve().parents[1]
+        specula_main_path = root / 'specula' / 'scripts' / 'specula_main.py'
+
         cmd = [
             "mpirun",
             "-n", "2",
