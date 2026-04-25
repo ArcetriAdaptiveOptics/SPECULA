@@ -124,7 +124,20 @@ jobs:
       uses: codecov/codecov-action@v4
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        file: ./coverage.xml
-        flags: unittests
+        files: ./coverage.xml
+        flags: ${{ runner.os }}-py${{ matrix.python-version }}-${{ matrix.mpi }}
+        name: ${{ runner.os }}-py${{ matrix.python-version }}-${{ matrix.mpi }}
         fail_ci_if_error: false
         verbose: true
+
+  finalize-codecov:
+    needs: build
+    runs-on: ubuntu-latest
+  
+    steps:
+      - name: Finalize Codecov uploads
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          disable_search: true
+          verbose: true
