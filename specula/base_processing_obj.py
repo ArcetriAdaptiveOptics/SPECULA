@@ -156,16 +156,16 @@ class BaseProcessingObj(BaseTimeObj):
     def send_remote_output(self, item, dest_rank, dest_tag, first_mpi_send=True, out_name=''):
         self.logger.mpi_send_debug(f'SEND to rank {dest_rank} {dest_tag=} {(dest_tag in self.sent_valid)=} (from {self.name}.{out_name})')
         if first_mpi_send or not dest_tag in self.sent_valid:
-            self.logger.mpi_send_debug(f'SEND with Pickle', dest_tag)
+            self.logger.mpi_send_debug(f'SEND with Pickle: {dest_tag=}')
             xp_orig = item.xp
             item.xp = 0            
             process_comm.ibsend(item, dest=dest_rank, tag=dest_tag)
             item.xp = xp_orig
         else:
             buffer = item.get_value()
-            self.logger.mpi_send_debug(f'{dest_tag=}, SEND .device', buffer.device)
-            self.logger.mpi_send_debug(f'SEND with Buffer', dest_tag, type(buffer), buffer)
-            self.logger.mpi_send_debug(f'SEND with Buffer type', dest_tag, buffer.dtype)
+            self.logger.mpi_send_debug(f'{dest_tag=}, SEND .device {buffer.device}')
+            self.logger.mpi_send_debug(f'SEND with Buffe {dest_tag=}, {type(buffer)=}, {buffer=}')
+            self.logger.mpi_send_debug(f'SEND with Buffer type {dest_tag=} {buffer.dtype=}')
 
             process_comm.Ibsend(cpuArray(buffer), dest=dest_rank, tag=dest_tag)
 

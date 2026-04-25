@@ -163,7 +163,7 @@ class TestShSimulation(unittest.TestCase):
             "-n", "2",
             "specula",
             'params_scao_sh_test.yml', 'params_ov_scao_mpi.yml',
-            "--mpi"
+            "--mpi", "--log-level=mpi_send_dbg"
         ]
         print('running ', cmd)
         os.chdir(os.path.dirname(__file__))
