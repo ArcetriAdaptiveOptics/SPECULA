@@ -161,6 +161,8 @@ class TestShSimulation(unittest.TestCase):
         cmd = [
             "mpirun",
             "-n", "2",
+            "coverage", "run",
+            "--parallel-mode",
             "specula",
             'params_scao_sh_test.yml', 'params_ov_scao_mpi.yml',
             "--mpi", "--log-level=mpi_send_dbg"
