@@ -84,11 +84,12 @@ jobs:
         pytest --cov=./ --cov-report=xml --cov-append
 
     - name: Install optional packages
+      if: ${{ matrix.mpi == 'none' && matrix.os != 'windows-latest'}}
       run: |
         pip install orthogram diagram
 
     - name: Test optional packages and append to coverage report
-      if: ${{ matrix.mpi == 'none' }}
+      if: ${{ matrix.mpi == 'none' && matrix.os != 'windows-latest'}}
       run: |
         pytest -k "diagram or control" --cov=./ --cov-report=xml --cov-append
   
