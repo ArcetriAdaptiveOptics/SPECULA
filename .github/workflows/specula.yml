@@ -5,9 +5,9 @@ name: SPECULA basic
 
 on:
   push:
-    branches: [ test ]
-#   pull_request:
-#     branches: [ main ]
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 #  schedule:
 #    - cron: "1 1 * * *"
 
