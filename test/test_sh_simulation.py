@@ -1,6 +1,7 @@
 import gc
 import unittest
 import os
+import sys
 import shutil
 import subprocess
 import glob
@@ -158,12 +159,14 @@ class TestShSimulation(unittest.TestCase):
         # We need to call specula directly, and cannot wrap with pytest,
         # because MPI is handled in specula/__init__.py with a command-line option.
         # As a bonus, that code is tested as well. Codecov might not detect this.
+        specula_main_path = os.path.join(os.path.dirname(__file__), '..', 'scripts', 'specula_main.py')
         cmd = [
             "mpirun",
             "-n", "2",
             "coverage", "run",
             "--parallel-mode",
-            "specula",
+            sys.executable,
+            specula_main_path,
             'params_scao_sh_test.yml', 'params_ov_scao_mpi.yml',
             "--mpi", "--log-level=mpi_send_dbg"
         ]
