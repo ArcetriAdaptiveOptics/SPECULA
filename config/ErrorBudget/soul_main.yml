@@ -13,7 +13,7 @@ main:
 # Atmospheric conditions
 seeing:
   class:             'WaveGenerator'
-  constant:          1.2                  # [arcsec]
+  constant:          1.0                  # [arcsec]
 
 wind_speed:
   class:             'WaveGenerator'
@@ -150,14 +150,14 @@ psf:
 
 dm_mode_res:
   class:            'ModalAnalysis'
-  ifunc_inv_object: 'asm_kl_v30dx_inv'
+  ifunc_inv_object: 'asm_v30dx_kl_inv'
   inputs:
     in_ef: ['ef_prop.out_ef']
   outputs: ['out_modes']
 
 atmo_modes:
   class:            'ModalAnalysis'
-  ifunc_inv_object: 'asm_kl_v30dx_inv'
+  ifunc_inv_object: 'asm_v30dx_kl_inv'
   inputs:
     in_ef: ['prop.out_source_ngs_ef']
   outputs: ['out_modes']

@@ -77,6 +77,12 @@ def save_rec(root_dir:str, rec, rec_tag:str, overwrite:bool=False):
 
 if __name__ == "__main__":
 
+    Nmodes = 500
+    root_dir = '/raid1/mmenessini/calibration/SOUL/KLv30dx'
+    im_tag = 'pyr3.0_40x40_im'
+    rec_tag = f'pyr3.0_40x40_{Nmodes}modes'
+    compute_and_save_rec(root_dir=root_dir, im_tag=im_tag, rec_tag=rec_tag, Nmodes=Nmodes, overwrite=True)
+
     Nmodes = 400
     root_dir = '/raid1/mmenessini/calibration/EKARUS'
     im_tag = 'pyr5.0_40x40_im'

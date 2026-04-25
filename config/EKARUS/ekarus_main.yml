@@ -117,9 +117,9 @@ filter:
   class:             'Integrator'
   simul_params_ref:  'main'
   delay:             1                      # Temporal delay in time steps
-  int_gain:          [0.4] #[0.55,0.5,0.4]
-  # ff:                [0.99,0.95,0.9]
-  n_modes:           [400] #[2,200,198]
+  int_gain:          [0.7,0.65,0.6] #[0.4] #
+  ff:                [0.995,0.95,0.9]
+  n_modes:           [2,200,198] #[400] #
   inputs:
       delta_comm: 'pyr_modalrec.out_modes'
 
