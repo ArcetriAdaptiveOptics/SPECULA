@@ -8,7 +8,7 @@ import specula
 import time
 specula.init(0, precision=1)
 
-from specula import np
+from specula import np, main_simul
 from specula.simul import Simul
 from astropy.io import fits
 
@@ -168,6 +168,19 @@ class TestShSimulation(unittest.TestCase):
         print('running ', cmd)
         os.chdir(os.path.dirname(__file__))
         _ = subprocess.run(cmd)
+        self._assert_results()
+
+    @unittest.skipIf(not MPI_AVAILABLE, "MPI not available")
+    def test_sh_simulation_mpi_single(self):
+        """Run a simple simulation using MPI, but with a single process"""
+
+        # Change to test directory
+        os.chdir(os.path.dirname(__file__))
+
+        # Run the simulation
+        print("Running SH SCAO simulation...")
+        yml_files = ['params_scao_sh_test.yml']
+        main_simul(yml_files, mpi=True, log_level='MPI_SEND_DBG')
         self._assert_results()
 
     @unittest.skipIf(int(os.getenv('CREATE_REF', 0)) < 1, "This test is only used to create reference files")
