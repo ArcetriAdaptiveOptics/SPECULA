@@ -1,7 +1,7 @@
 # This workflow will install Python dependencies, run tests and lint with a variety of Python versions
 # For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
 
-name: SPECULA basic
+name: SPECULA
 
 on:
   push:
@@ -20,8 +20,18 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
-        mpi: [ 'mpich'] #, 'intelmpi']
+        mpi: [none, mpich, intelmpi]
 
+        exclude:
+          - python-version: "3.8"
+            mpi: mpich
+          - python-version: "3.8"
+            mpi: intelmpi
+          - python-version: "3.9"
+            mpi: mpich
+          - python-version: "3.9"
+            mpi: intelmpi
+    
     steps:
     - uses: actions/checkout@v4
       with:
@@ -33,25 +43,24 @@ jobs:
         python-version: ${{ matrix.python-version }}
 
     - name: Install cairo on linux
-      if: runner.os == 'Linux'
+      if: ${{ runner.os == 'Linux' }}
       run: |
-        bash
         sudo apt update
         sudo apt install libcairo2-dev pkg-config python3-dev
 
     - name: Install gtk on windows
-      if: runner.os == 'Windows'
+      if: ${{ runner.os == 'Windows' }}
       run: |
         choco install -y gtk-runtime libjpeg-turbo
 
     - name: Install dependencies
       run: |
-        bash
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install pytest pytest-cov
 
     - name: Lint with flake8
+      if: ${{ matrix.mpi == 'none' }}
       run: |
         pip install flake8
         # stop the build if there are Python syntax errors or undefined names
@@ -59,33 +68,37 @@ jobs:
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
-    - name: Test with pytest and append to coverage report
+    - name: Test basic configuration and append to coverage report
+      if: ${{ matrix.mpi == 'none' }}
       run: |
         pytest --cov=./ --cov-report=xml --cov-append
 
     - name: Install optional packages
       run: |
-        bash
         pip install orthogram diagram
 
     - name: Test optional packages and append to coverage report
+      if: ${{ matrix.mpi == 'none' }}
       run: |
         pytest -k "diagram or control" --cov=./ --cov-report=xml --cov-append
   
     - name: Setup MPI
+      if: ${{ matrix.mpi != 'none' }}
       uses: mpi4py/setup-mpi@v1
       with:
         mpi: ${{ matrix.mpi }}
-  
+
     - name: Install MPI for python
+      if: ${{ matrix.mpi != 'none' }}
       run: |
-        bash
         pip install mpi4py
-  
-    - name: Test MPI modules and generate coverage report
+        pip install -e .
+
+    - name: Test MPI and generate coverage report
+      if: ${{ matrix.mpi != 'none' }}
       run: |
-        pytest -k mpi --cov=./ --cov-report=xml
-                
+        pytest -k mpi --cov=./ --cov-report=xml --cov-append
+
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
       with:
