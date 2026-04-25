@@ -92,7 +92,7 @@ jobs:
     - name: Install optional packages
       if: ${{ matrix.mpi == 'none' && matrix.os != 'windows-latest'}}
       run: |
-        pip install orthogram diagram
+        pip install orthogram control
 
     - name: Test optional packages and append to coverage report
       if: ${{ matrix.mpi == 'none' && matrix.os != 'windows-latest'}}
