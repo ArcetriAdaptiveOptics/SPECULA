@@ -6,9 +6,11 @@ import shutil
 import subprocess
 import glob
 import time
+import builtins
 
 from astropy.io import fits
 from pathlib import Path
+from unittest.mock import patch
 
 import specula
 specula.init(0, precision=1)
@@ -226,3 +228,17 @@ class TestShSimulation(unittest.TestCase):
         # Copy to reference file
         shutil.copy(res_sr_path, self.res_sr_ref_path)
         print(f"Reference SR file created at {self.res_sr_ref_path}")
+
+    def test_failed_mpi_import(self):
+        """Test that a missing MPI raises ImportError"""
+        real_import = builtins.__import__
+
+        def mocked_import(name, *args, **kwargs):
+            if name == "mpi4py":
+                raise ImportError("Module not found")
+            return real_import(name, *args, **kwargs)
+
+        with patch("builtins.__import__", side_effect=mocked_import):
+            with self.assertRaises(ImportError):
+                result = specula.main_simul('dummy.yml', mpi=True)
+
