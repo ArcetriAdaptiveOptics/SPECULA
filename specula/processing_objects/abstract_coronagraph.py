@@ -95,6 +95,7 @@ class Coronagraph(BaseProcessingObj):
         self.out_ef = ElectricField(self.pixel_pupil,
                                     self.pixel_pupil,
                                     self.pixel_pitch,
+                                    wavelengthInNm=self.wavelength_in_nm,
                                     precision=self.precision,
                                     target_device_idx=self.target_device_idx)
 
@@ -178,6 +179,7 @@ class Coronagraph(BaseProcessingObj):
         # Phase in nm
         self.out_ef.phaseInNm[:] = (self.xp.angle(ef_out) / (2 * self.xp.pi)) \
                                    * self.wavelength_in_nm
+        self.out_ef.wavelengthInNm = self.wavelength_in_nm
 
         # Scale S0 by transmission
         in_ef = self.local_inputs['in_ef']
