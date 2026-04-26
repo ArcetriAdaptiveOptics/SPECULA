@@ -174,9 +174,10 @@ class TestShSimulation(unittest.TestCase):
             "coverage", "run",
             "--parallel-mode",
             specula_main_path,
-            'params_scao_sh_test.yml', 'params_ov_scao_mpi.yml',
+            'test/params_scao_sh_test.yml', 'test/params_ov_scao_mpi.yml',
             "--mpi", "--log-level=mpi_send_dbg"
         ]
+        os.chdir(root)
         print('running ', cmd)
         _ = subprocess.run(cmd)
         self._assert_results()
