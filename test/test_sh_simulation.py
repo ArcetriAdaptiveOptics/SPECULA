@@ -178,7 +178,6 @@ class TestShSimulation(unittest.TestCase):
             "--mpi", "--log-level=mpi_send_dbg"
         ]
         print('running ', cmd)
-        os.chdir(os.path.dirname(__file__))
         _ = subprocess.run(cmd)
         self._assert_results()
 
