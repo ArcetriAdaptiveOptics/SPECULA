@@ -50,22 +50,22 @@ class TestSpeculaDisableGPU(unittest.TestCase):
     def setUp(self):
         # Save original environment state
         self.original_value = os.environ.get("SPECULA_DISABLE_GPU")
-        if 'specula' in sys.modules:    # pragma: no cover
+        if 'specula' in sys.modules:
             self.orig_specula = sys.modules['specula']
-        else:                           # pragma: no cover
+        else:
             self.orig_specula = None
 
     def tearDown(self):
         # Restore environment exactly as it was
-        if self.original_value is None:     # pragma: no cover
+        if self.original_value is None:
             os.environ.pop("SPECULA_DISABLE_GPU", None)
-        else:                               # pragma: no cover
+        else:
             os.environ["SPECULA_DISABLE_GPU"] = self.original_value
 
         # Reset imported module state
-        if self.orig_specula:     # pragma: no cover
+        if self.orig_specula:
             sys.modules['specula'] = self.orig_specula
-        else:                     # pragma: no cover
+        else:
             if "specula" in sys.modules:
                 del sys.modules["specula"]
 
@@ -85,7 +85,7 @@ class TestSpeculaDisableGPU(unittest.TestCase):
         specula.init(device_idx=0)
 
         # If cupy is installed, GPU path is active
-        if specula.cp is not None:     # pragma: no cover
+        if specula.cp is not None:
             self.assertTrue(specula.gpuEnabled)
         else:
             # fallback if cupy is missing
