@@ -137,4 +137,4 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
         # Use global relative L2 error to reduce sensitivity to backend-specific
         # floating-point differences on single modal coefficients.
         rel_error = np.linalg.norm(modes_phys - modes_geom) / np.linalg.norm(modes_geom)
-        np.testing.assert_array_less(rel_error, 0.2)
+        np.testing.assert_array_less(rel_error, 0.16)
