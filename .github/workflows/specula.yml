@@ -22,10 +22,19 @@ jobs:
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
         mpi: [none, mpich, intelmpi]
 
-        # Exclude invalid combinations:
+        # Exclude invalid combinations: we cannot test MPI on 3.8 and 3.9 because
+        # "pip install -e ." (necessary for the specula executable) does not work.
         # MacOS does not have intelmpi.
         # Windows does not seem to have any valid mpi distribution.
         exclude:
+          - python-version: "3.8"
+            mpi: mpich
+          - python-version: "3.8"
+            mpi: intelmpi
+          - python-version: "3.9"
+            mpi: mpich
+          - python-version: "3.9"
+            mpi: intelmpi
           - os: macos-latest
             mpi: intelmpi
           - os: windows-latest
@@ -100,6 +109,7 @@ jobs:
       if: ${{ matrix.mpi != 'none' }}
       run: |
         pip install mpi4py
+        pip install -e .
 
     - name: Test MPI and generate coverage report
       if: ${{ matrix.mpi != 'none' }}
@@ -110,15 +120,15 @@ jobs:
       run: |
         coverage xml
 
-    # - name: Upload coverage to Codecov
-    #   uses: codecov/codecov-action@v4
-    #   with:
-    #     token: ${{ secrets.CODECOV_TOKEN }}
-    #     files: ./coverage.xml
-    #     flags: ${{ runner.os }}-py${{ matrix.python-version }}-${{ matrix.mpi }}
-    #     name: ${{ runner.os }}-py${{ matrix.python-version }}-${{ matrix.mpi }}
-    #     fail_ci_if_error: false
-    #     verbose: true
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./coverage.xml
+        flags: ${{ runner.os }}-py${{ matrix.python-version }}-${{ matrix.mpi }}
+        name: ${{ runner.os }}-py${{ matrix.python-version }}-${{ matrix.mpi }}
+        fail_ci_if_error: false
+        verbose: true
 
   finalize-codecov:
     needs: build

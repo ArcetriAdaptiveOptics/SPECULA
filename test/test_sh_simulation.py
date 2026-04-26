@@ -174,11 +174,11 @@ class TestShSimulation(unittest.TestCase):
             "coverage", "run",
             "--parallel-mode",
             specula_main_path,
-            'test/params_scao_sh_test.yml', 'test/params_ov_scao_mpi.yml',
+            'params_scao_sh_test.yml', 'params_ov_scao_mpi.yml',
             "--mpi", "--log-level=mpi_send_dbg"
         ]
-        os.chdir(root)
         print('running ', cmd)
+        os.chdir(os.path.dirname(__file__))
         _ = subprocess.run(cmd)
         self._assert_results()
 
@@ -196,7 +196,7 @@ class TestShSimulation(unittest.TestCase):
         self._assert_results()
 
     @unittest.skipIf(int(os.getenv('CREATE_REF', 0)) < 1, "This test is only used to create reference files")
-    def test_create_reference_sr(self):
+    def test_create_reference_sr(self):     # pragma: no cover
         """
         This test is used to create reference SR file for the first time.
         It should be run once, and then the generated file should be renamed
@@ -236,7 +236,7 @@ class TestShSimulation(unittest.TestCase):
         def mocked_import(name, *args, **kwargs):
             if name == "mpi4py":
                 raise ImportError("Module not found")
-            return real_import(name, *args, **kwargs)
+            return real_import(name, *args, **kwargs)       # pragma: no cover
 
         with patch("builtins.__import__", side_effect=mocked_import):
             with self.assertRaises(ImportError):

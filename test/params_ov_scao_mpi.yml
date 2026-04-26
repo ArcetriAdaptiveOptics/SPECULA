@@ -1,6 +1,5 @@
 main_override:
   total_time:      0.100
-  root_dir:          './test/calib/'
 
 # works
 #seeing_override:
