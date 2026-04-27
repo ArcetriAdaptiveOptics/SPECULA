@@ -751,10 +751,10 @@ class IirFilterData(BaseDataObj):
             version = hdr['VERSION']
             if version != 1:
                 raise ValueError(f"Error: unknown version {version} in file {filename}")
-            ordnum = hdul[1].data
-            ordden = hdul[2].data
-            num = hdul[3].data
-            den = hdul[4].data
+            ordnum = hdul[1].data.copy()
+            ordden = hdul[2].data.copy()
+            num = hdul[3].data.copy()
+            den = hdul[4].data.copy()
             return IirFilterData(ordnum, ordden, num, den, target_device_idx=target_device_idx)
 
     def get_fits_header(self):

@@ -79,5 +79,5 @@ class M2C(BaseDataObj):
             version = hdr.get('VERSION')
             if version != 1:
                 raise ValueError(f"Unknown version {version} in file {filename}")
-            m2c = hdul[1].data
+            m2c = hdul[1].data.copy()
         return M2C(m2c=m2c, target_device_idx=target_device_idx)

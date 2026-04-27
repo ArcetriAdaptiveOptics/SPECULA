@@ -97,7 +97,7 @@ class SubapData(BaseDataObj):
             energy_th = hdr.get('ENRGYTH')
             nx = hdr.get('NX')
             ny = hdr.get('NY')
-            idxs = hdul[1].data.T     # Transposed for IDL-saved compatibility
-            display_map = hdul[2].data
+            idxs = hdul[1].data.T.copy()     # Transposed for IDL-saved compatibility
+            display_map = hdul[2].data.copy()
         return SubapData(idxs=idxs, display_map=display_map, nx=nx, ny=ny, energy_th=energy_th,
                          target_device_idx=target_device_idx)

@@ -274,7 +274,7 @@ class Slopes(BaseDataObj):
             slopes.set_value(slopesdata)
         else:
             slopes.resize(len(slopesdata))  # version 2 header does not have length information
-            slopes.slopes = slopes.to_xp(slopesdata, dtype=slopes.dtype)
+            slopes.slopes[:] = slopes.to_xp(slopesdata, dtype=slopes.dtype)
         return slopes
 
     def array_for_display(self):
