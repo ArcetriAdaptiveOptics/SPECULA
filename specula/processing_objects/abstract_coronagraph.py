@@ -53,19 +53,17 @@ class Coronagraph(BaseProcessingObj):
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        self.simul_params = simul_params
-        self.pixel_pupil = self.simul_params.pixel_pupil
-        self.pixel_pitch = self.simul_params.pixel_pitch
-        self.fov = fov
+        pixel_pupil = simul_params.pixel_pupil
+        pixel_pitch = simul_params.pixel_pitch
         self.center_on_pixel = center_on_pixel
 
         # interpolation settings
         self.mask_threshold = 1e-3  # threshold to consider a pixel inside the mask
 
-        result = calc_geometry(self.pixel_pupil,
-                               self.pixel_pitch,
+        result = calc_geometry(pixel_pupil,
+                               pixel_pitch,
                                wavelengthInNm,
-                               self.fov,
+                               fov,
                                fov_errinf=fov_errinf,
                                fov_errsup=fov_errsup,
                                fft_res=fft_res)
@@ -92,9 +90,9 @@ class Coronagraph(BaseProcessingObj):
         self.ef_pad = self.xp.zeros((self.fft_totsize, self.fft_totsize),
                                     dtype=self.complex_dtype)
 
-        self.out_ef = ElectricField(self.pixel_pupil,
-                                    self.pixel_pupil,
-                                    self.pixel_pitch,
+        self.out_ef = ElectricField(pixel_pupil,
+                                    pixel_pupil,
+                                    pixel_pitch,
                                     wavelengthInNm=self.wavelength_in_nm,
                                     precision=self.precision,
                                     target_device_idx=self.target_device_idx)
