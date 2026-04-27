@@ -4,7 +4,6 @@ from specula.base_value import BaseValue
 from specula.connections import InputValue
 from specula.data_objects.layer import Layer
 from specula.data_objects.pupilstop import Pupilstop
-from specula.data_objects.electric_field import ElectricField
 from specula.lib.extrapolation_2d import EFInterpolator
 
 
@@ -57,7 +56,22 @@ class PupilstopController(BaseProcessingObj):
             )
 
         self._pupilstop = pupilstop
-        self.outputs['out_layer'] = self._pupilstop
+
+        self._out_layer = Layer(
+            dimx=pupilstop.size[1],
+            dimy=pupilstop.size[0],
+            pixel_pitch=pupilstop.pixel_pitch,
+            height=0,
+            shiftXYinPixel=cpuArray(pupilstop.shiftXYinPixel).astype(float),
+            rotInDeg=float(pupilstop.rotInDeg),
+            magnification=float(pupilstop.magnification),
+            target_device_idx=self.target_device_idx,
+            precision=self.precision,
+        )
+        self._out_layer.A[:] = pupilstop.A
+        self._out_layer.generation_time = 0
+
+        self.outputs['out_layer'] = self._out_layer
 
         self.inputs['in_rotation_deg'] = InputValue(type=BaseValue, optional=True)
         self.inputs['in_shift_xy_px'] = InputValue(type=BaseValue, optional=True)
@@ -69,9 +83,6 @@ class PupilstopController(BaseProcessingObj):
 
         # Normalise shiftXYinPixel to a float numpy array (may be a tuple at construction).
         self._pupilstop.shiftXYinPixel = cpuArray(self._pupilstop.shiftXYinPixel).astype(float)
-
-        # Keep an immutable reference mask to avoid cumulative interpolation artifacts.
-        self._base_mask = self.to_xp(self._pupilstop.A, dtype=self._pupilstop.dtype, force_copy=True)
 
     @classmethod
     def input_names(cls):
@@ -95,23 +106,13 @@ class PupilstopController(BaseProcessingObj):
             for k in ('in_rotation_deg', 'in_shift_xy_px', 'in_magnification')
         )
         if self.update_mask:
-            self._base_ef = ElectricField(
-                dimx=self._pupilstop.size[1],
-                dimy=self._pupilstop.size[0],
-                pixel_pitch=self._pupilstop.pixel_pitch,
-                target_device_idx=self.target_device_idx,
-                precision=self.precision,
-            )
-            self._base_ef.A[:] = self._base_mask
-            self._base_ef.phaseInNm[:] = 0
-
             self._ef_interpolator = EFInterpolator(
-                in_ef=self._base_ef,
-                out_shape=self._base_ef.size,
-                rotAnglePhInDeg=float(self._pupilstop.rotInDeg),
-                xShiftPhInPixel=float(self._pupilstop.shiftXYinPixel[0]),
-                yShiftPhInPixel=float(self._pupilstop.shiftXYinPixel[1]),
-                magnification=float(self._pupilstop.magnification),
+                in_ef=self._pupilstop,
+                out_shape=self._pupilstop.size,
+                rotAnglePhInDeg=float(self._out_layer.rotInDeg),
+                xShiftPhInPixel=float(self._out_layer.shiftXYinPixel[0]),
+                yShiftPhInPixel=float(self._out_layer.shiftXYinPixel[1]),
+                magnification=float(self._out_layer.magnification),
                 mask_threshold=self.mask_threshold,
                 force_extrapolation=True,
                 use_out_ef_cache=False,
@@ -126,7 +127,7 @@ class PupilstopController(BaseProcessingObj):
             arr = cpuArray(in_rot.value).ravel()
             if arr.size != 1:
                 raise ValueError(f"in_rotation_deg must be scalar, got size={arr.size}")
-            self._pupilstop.rotInDeg = float(arr[0])
+            self._out_layer.rotInDeg = float(arr[0])
 
         in_shift = self.local_inputs['in_shift_xy_px']
         if in_shift is not None and in_shift.value is not None:
@@ -134,7 +135,7 @@ class PupilstopController(BaseProcessingObj):
             if arr.size != 2:
                 raise ValueError(f"in_shift_xy_px must contain exactly 2 values [x, y],"
                                  f" got size={arr.size}")
-            self._pupilstop.shiftXYinPixel = arr.astype(float)
+            self._out_layer.shiftXYinPixel = arr.astype(float)
 
         in_mag = self.local_inputs['in_magnification']
         if in_mag is not None and in_mag.value is not None:
@@ -144,28 +145,28 @@ class PupilstopController(BaseProcessingObj):
             value = float(arr[0])
             if value <= 0:
                 raise ValueError(f"in_magnification must be > 0, got {value}")
-            self._pupilstop.magnification = value
+            self._out_layer.magnification = value
 
 
     def trigger_code(self):
 
         if self.update_mask:
             self._ef_interpolator.update_parameters(
-                xShiftPhInPixel=float(self._pupilstop.shiftXYinPixel[0]),
-                yShiftPhInPixel=float(self._pupilstop.shiftXYinPixel[1]),
-                rotAnglePhInDeg=float(self._pupilstop.rotInDeg),
-                magnification=float(self._pupilstop.magnification),
+                xShiftPhInPixel=float(self._out_layer.shiftXYinPixel[0]),
+                yShiftPhInPixel=float(self._out_layer.shiftXYinPixel[1]),
+                rotAnglePhInDeg=float(self._out_layer.rotInDeg),
+                magnification=float(self._out_layer.magnification),
             )
             self._ef_interpolator.interpolate()
             mask = self._ef_interpolator.interpolated_ef().A
 
-            mask = self.xp.asarray(mask, dtype=self._pupilstop.dtype)
+            mask = self.xp.asarray(mask, dtype=self._out_layer.dtype)
             if self.threshold_mask:
-                mask = (mask >= self.mask_threshold).astype(self._pupilstop.dtype)
+                mask = (mask >= self.mask_threshold).astype(self._out_layer.dtype)
 
-            self._pupilstop.A[:] = mask
+            self._out_layer.A[:] = mask
 
 
     def post_trigger(self):
         super().post_trigger()
-        self._pupilstop.generation_time = self.current_time
+        self._out_layer.generation_time = self.current_time

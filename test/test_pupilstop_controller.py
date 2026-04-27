@@ -17,7 +17,6 @@ class TestPupilstopController(unittest.TestCase):
 
     @cpu_and_gpu
     def test_generation_time_is_refreshed_each_iteration(self, target_device_idx, xp):
-        _ = xp
         simul_params = SimulParams(pixel_pupil=32, pixel_pitch=1.0)
         pupilstop = Pupilstop(simul_params=simul_params, target_device_idx=target_device_idx)
 
@@ -43,7 +42,6 @@ class TestPupilstopController(unittest.TestCase):
 
     @cpu_and_gpu
     def test_optional_inputs_update_geometry_and_mask(self, target_device_idx, xp):
-        _ = xp
         simul_params = SimulParams(pixel_pupil=40, pixel_pitch=1.0)
         pupilstop = Pupilstop(simul_params=simul_params, target_device_idx=target_device_idx)
 
