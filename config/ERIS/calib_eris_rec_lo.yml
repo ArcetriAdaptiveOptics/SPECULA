@@ -37,7 +37,6 @@ im_calibrator_lo:
   class: 'ImCalibrator'
   nmodes: 2
   im_tag:     'eris_im_lo'
-  #tag_template:    'subap_{main.tag}_n{modes}'
   overwrite: True
   inputs:
     in_slopes: 'slopec_lo.out_slopes'
@@ -49,7 +48,6 @@ rec_calibrator_lo:
   class: 'RecCalibrator'
   nmodes: 54
   rec_tag:     'eris_rec_lo'
-  #tag_template:    'subap_{main.tag}_n{modes}'
   overwrite: True
   inputs:
     in_intmat: 'im_calibrator_lo.out_intmat'
@@ -60,7 +58,6 @@ im_calibrator_truth:
   nmodes: 8
   first_mode: 2
   im_tag:     'eris_im_truth'
-  #tag_template:    'subap_{main.tag}_n{modes}'
   overwrite: True
   inputs:
     in_slopes: 'slopec_lo.out_slopes'
@@ -73,7 +70,6 @@ rec_calibrator_truth:
   nmodes: 8
   first_mode: 2
   rec_tag:     'eris_rec_truth'
-  #tag_template:    'subap_{main.tag}_n{modes}'
   overwrite: True
   inputs:
     in_intmat: 'im_calibrator_truth.out_intmat'

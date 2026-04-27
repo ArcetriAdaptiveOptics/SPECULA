@@ -43,23 +43,6 @@ class TestMultiRecCalibrator(unittest.TestCase):
         self.assertIn('intmat_list', calibrator.inputs)
         self.assertIn('full_intmat', calibrator.inputs)
 
-    def test_initialization_with_rec_tag_template(self):
-        """Test MultiRecCalibrator initialization with rec_tag_template"""
-        nmodes = 15
-        rec_tag_template = 'template_rec'
-        
-        calibrator = MultiRecCalibrator(
-            nmodes=nmodes,
-            data_dir=self.test_dir,
-            rec_tag='auto',
-            rec_tag_template=rec_tag_template
-        )
-        
-        self.assertEqual(calibrator._nmodes, nmodes)
-        self.assertEqual(calibrator._data_dir, self.test_dir)
-        self.assertEqual(calibrator._rec_filename, rec_tag_template)
-        self.assertIsNone(calibrator._full_rec_filename)
-
     def test_initialization_with_full_rec_tag(self):
         """Test MultiRecCalibrator initialization with full_rec_tag"""
         nmodes = 20
@@ -75,23 +58,6 @@ class TestMultiRecCalibrator(unittest.TestCase):
         self.assertEqual(calibrator._data_dir, self.test_dir)
         self.assertIsNone(calibrator._rec_filename)
         self.assertEqual(calibrator._full_rec_filename, full_rec_tag)
-
-    def test_initialization_with_full_rec_tag_template(self):
-        """Test MultiRecCalibrator initialization with full_rec_tag_template"""
-        nmodes = 25
-        full_rec_tag_template = 'full_template_rec'
-        
-        calibrator = MultiRecCalibrator(
-            nmodes=nmodes,
-            data_dir=self.test_dir,
-            full_rec_tag='auto',
-            full_rec_tag_template=full_rec_tag_template
-        )
-        
-        self.assertEqual(calibrator._nmodes, nmodes)
-        self.assertEqual(calibrator._data_dir, self.test_dir)
-        self.assertIsNone(calibrator._rec_filename)
-        self.assertEqual(calibrator._full_rec_filename, full_rec_tag_template)
 
     def test_initialization_with_custom_parameters(self):
         """Test MultiRecCalibrator initialization with custom parameters"""
@@ -119,48 +85,6 @@ class TestMultiRecCalibrator(unittest.TestCase):
         self.assertTrue(calibrator._overwrite)
         self.assertEqual(calibrator.target_device_idx, target_device_idx)
         self.assertEqual(calibrator.precision, precision)
-
-    def test_initialization_with_auto_rec_tag_missing_template(self):
-        """Test that MultiRecCalibrator raises ValueError when rec_tag is 'auto' and rec_tag_template is None"""
-        with self.assertRaises(ValueError) as context:
-            MultiRecCalibrator(
-                nmodes=10,
-                data_dir=self.test_dir,
-                rec_tag='auto'
-            )
-        
-        self.assertIn('rec_tag_template must be set if rec_tag is"auto"', str(context.exception))
-
-    def test_initialization_with_auto_full_rec_tag_missing_template(self):
-        """Test that MultiRecCalibrator raises ValueError when full_rec_tag is 'auto' and full_rec_tag_template is None"""
-        with self.assertRaises(ValueError) as context:
-            MultiRecCalibrator(
-                nmodes=10,
-                data_dir=self.test_dir,
-                full_rec_tag='auto'
-            )
-        
-        self.assertIn('full_rec_tag_template must be set if full_rec_tag is"auto"', str(context.exception))
-
-    def test_tag_filename_method(self):
-        """Test the tag_filename method"""
-        calibrator = MultiRecCalibrator(
-            nmodes=10,
-            data_dir=self.test_dir,
-            rec_tag='test'
-        )
-        
-        # Test with auto tag and template
-        result1 = calibrator.tag_filename('auto', 'template', 'prefix')
-        self.assertEqual(result1, 'template')
-        
-        # Test with regular tag
-        result2 = calibrator.tag_filename('regular_tag', None, 'prefix')
-        self.assertEqual(result2, 'regular_tag')
-        
-        # Test with None tag
-        result3 = calibrator.tag_filename(None, None, 'prefix')
-        self.assertIsNone(result3)
 
     def test_rec_path_method(self):
         """Test the rec_path method"""

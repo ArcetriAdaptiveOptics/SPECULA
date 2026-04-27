@@ -49,7 +49,6 @@ im_calibrator:
   nmodes: 4519
   n_inputs: 6
   im_tag:     'test_ltao_im'
-  #tag_template:    'ltao_im_{main.tag}_n{modes}'
   overwrite: True
   inputs:
     in_slopes_list: ['slopec1.out_slopes', 'slopec2.out_slopes', 'slopec3.out_slopes', 'slopec4.out_slopes', 'slopec5.out_slopes', 'slopec6.out_slopes']
@@ -62,7 +61,6 @@ rec_calibrator:
   nmodes: 4519
   rec_tag:     'test_ltao_rec'
   full_rec_tag: 'test_ltao_full_rec'
-  #tag_template:    'ltao_im_{main.tag}_n{modes}'
   overwrite: True
   inputs:
     intmat_list: ['im_calibrator.out_intmat_list']
