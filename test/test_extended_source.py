@@ -241,25 +241,25 @@ class TestExtendedSource(unittest.TestCase):
             ExtendedSource(simul_params, 500, 'FROM_PSF', initial_psf=psf, target_device_idx=target_device_idx)
 
     @cpu_and_gpu
-    def test_check_if_3d(self, target_device_idx, xp):
+    def test_is_3d(self, target_device_idx, xp):
         simul_params = make_simul_params()
         src = ExtendedSource(simul_params, 500, 'POINT_SOURCE', target_device_idx=target_device_idx)
 
         # No layers
-        self.assertFalse(src._check_if_3d())
+        self.assertFalse(src._is_3d())
 
         # One layer, focus height same
         src.layer_height = [10.]
         src.focus_height = 10.
-        self.assertFalse(src._check_if_3d())
+        self.assertFalse(src._is_3d())
 
         # One layer, different focus height
         src.focus_height = 20.
-        self.assertTrue(src._check_if_3d())
+        self.assertTrue(src._is_3d())
 
         # Multiple layers
         src.layer_height = [10., 20.]
-        self.assertTrue(src._check_if_3d())
+        self.assertTrue(src._is_3d())
 
     @cpu_and_gpu
     def test_compute_tophat_cartesian_and_polar_and_rings(self, target_device_idx, xp):
