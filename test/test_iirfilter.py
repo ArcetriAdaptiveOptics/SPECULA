@@ -1,6 +1,7 @@
 import specula
 specula.init(0)  # Default target device
 
+import os
 import unittest
 import numpy as np
 from specula import cpuArray
@@ -16,6 +17,20 @@ except ImportError:
     control = None
 
 class TestIirFilterData(unittest.TestCase):
+
+    def setUp(self):
+        datadir = os.path.join(os.path.dirname(__file__), 'data')
+        self.iir_filename = os.path.join(datadir, 'iir_filter_data.fits')
+        try:
+            os.unlink(self.iir_filename)
+        except FileNotFoundError:
+            pass
+
+    def tearDown(self):
+        try:
+            os.unlink(self.iir_filename)
+        except FileNotFoundError:
+            pass
 
     @cpu_and_gpu
     def test_init_with_n_modes_expansion(self, target_device_idx, xp):
@@ -36,6 +51,26 @@ class TestIirFilterData(unittest.TestCase):
         np.testing.assert_allclose(cpuArray(filt.num[3:]), [cpuArray(num[1])]*2)
         np.testing.assert_allclose(cpuArray(filt.den[:3]), [cpuArray(den[0])]*3)
         np.testing.assert_allclose(cpuArray(filt.den[3:]), [cpuArray(den[1])]*2)
+
+    @cpu_and_gpu
+    def test_save_restore_roundtrip(self, target_device_idx, xp):
+        """Test that n_modes expands filter blocks correctly in IirFilterData.__init__"""
+        ordnum = [2, 2]
+        ordden = [2, 2]
+        num = xp.array([[0.0, 0.5], [0.0, 0.3]])
+        den = xp.array([[-1.0, 1.0], [-0.9, 1.0]])
+        n_modes = [3, 2]
+
+        filt = IirFilterData(ordnum, ordden, num, den, n_modes=n_modes,
+                             target_device_idx=target_device_idx)
+
+        filt.save(self.iir_filename)
+        restored = IirFilterData.restore(self.iir_filename, target_device_idx=target_device_idx)
+
+        np.testing.assert_array_equal(cpuArray(filt.num), cpuArray(restored.num))
+        np.testing.assert_array_equal(cpuArray(filt.den), cpuArray(restored.den))
+        np.testing.assert_array_equal(cpuArray(filt.ordnum), cpuArray(restored.ordnum))
+        np.testing.assert_array_equal(cpuArray(filt.ordden), cpuArray(restored.ordden))
 
     @cpu_and_gpu
     def test_numerator_from_gain_and_ff(self, target_device_idx, xp):
