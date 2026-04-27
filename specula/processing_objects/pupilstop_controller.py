@@ -49,27 +49,37 @@ class PupilstopController(BaseProcessingObj):
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        if pupilstop.target_device_idx != self.target_device_idx:
-            raise ValueError(
-                f"PupilstopController and input pupilstop must use the same target_device_idx "
-                f"({self.target_device_idx} != {pupilstop.target_device_idx})"
-            )
-
+        in_shift_xy = cpuArray(pupilstop.shiftXYinPixel).astype(float)
         self._pupilstop = pupilstop
+
+        # Keep an internal source layer on this object's device and never mutate input pupilstop.
+        self._in_layer = Layer(
+            dimx=pupilstop.size[1],
+            dimy=pupilstop.size[0],
+            pixel_pitch=pupilstop.pixel_pitch,
+            height=0,
+            shiftXYinPixel=in_shift_xy,
+            rotInDeg=float(pupilstop.rotInDeg),
+            magnification=float(pupilstop.magnification),
+            target_device_idx=self.target_device_idx,
+            precision=self.precision,
+        )
+        self._in_layer.A[:] = self.to_xp(pupilstop.A, dtype=self._in_layer.dtype, force_copy=True)
+        # phase is zero for pupilstop
 
         self._out_layer = Layer(
             dimx=pupilstop.size[1],
             dimy=pupilstop.size[0],
             pixel_pitch=pupilstop.pixel_pitch,
             height=0,
-            shiftXYinPixel=cpuArray(pupilstop.shiftXYinPixel).astype(float),
+            shiftXYinPixel=in_shift_xy,
             rotInDeg=float(pupilstop.rotInDeg),
             magnification=float(pupilstop.magnification),
             target_device_idx=self.target_device_idx,
             precision=self.precision,
         )
-        self._out_layer.A[:] = pupilstop.A
-        self._out_layer.generation_time = 0
+        self._out_layer.A[:] = self.to_xp(pupilstop.A, dtype=self._out_layer.dtype, force_copy=True)
+        # phase is zero for pupilstop
 
         self.outputs['out_layer'] = self._out_layer
 
@@ -80,9 +90,6 @@ class PupilstopController(BaseProcessingObj):
         self.update_mask = False
         self.threshold_mask = threshold_mask
         self.mask_threshold = mask_threshold
-
-        # Normalise shiftXYinPixel to a float numpy array (may be a tuple at construction).
-        self._pupilstop.shiftXYinPixel = cpuArray(self._pupilstop.shiftXYinPixel).astype(float)
 
     @classmethod
     def input_names(cls):
@@ -107,8 +114,8 @@ class PupilstopController(BaseProcessingObj):
         )
         if self.update_mask:
             self._ef_interpolator = EFInterpolator(
-                in_ef=self._pupilstop,
-                out_shape=self._pupilstop.size,
+                in_ef=self._in_layer,
+                out_shape=self._in_layer.size,
                 rotAnglePhInDeg=float(self._out_layer.rotInDeg),
                 xShiftPhInPixel=float(self._out_layer.shiftXYinPixel[0]),
                 yShiftPhInPixel=float(self._out_layer.shiftXYinPixel[1]),
