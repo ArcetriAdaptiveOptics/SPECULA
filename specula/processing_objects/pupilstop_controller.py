@@ -64,7 +64,7 @@ class PupilstopController(BaseProcessingObj):
             target_device_idx=self.target_device_idx,
             precision=self.precision,
         )
-        self._in_layer.A[:] = self.to_xp(pupilstop.A, dtype=self._in_layer.dtype, force_copy=True)
+        self._in_layer.A[:] = self.to_xp(pupilstop.A)
         # phase is zero for pupilstop
 
         self._out_layer = Layer(
@@ -78,7 +78,7 @@ class PupilstopController(BaseProcessingObj):
             target_device_idx=self.target_device_idx,
             precision=self.precision,
         )
-        self._out_layer.A[:] = self.to_xp(pupilstop.A, dtype=self._out_layer.dtype, force_copy=True)
+        self._out_layer.A[:] = self.to_xp(pupilstop.A)
         # phase is zero for pupilstop
 
         self.outputs['out_layer'] = self._out_layer
@@ -167,9 +167,8 @@ class PupilstopController(BaseProcessingObj):
             self._ef_interpolator.interpolate()
             mask = self._ef_interpolator.interpolated_ef().A
 
-            mask = self.xp.asarray(mask, dtype=self._out_layer.dtype)
             if self.threshold_mask:
-                mask = (mask >= self.mask_threshold).astype(self._out_layer.dtype)
+                mask = mask >= self.mask_threshold
 
             self._out_layer.A[:] = mask
 
