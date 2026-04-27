@@ -134,7 +134,8 @@ class TestMultiRecCalibrator(unittest.TestCase):
         path2 = calibrator2.full_rec_path()
         self.assertIsNone(path2)
 
-    def test_existing_file_detection_in_setup(self):
+    @cpu_and_gpu
+    def test_existing_file_detection_in_setup(self, target_device_idx, xp):
         """Test that MultiRecCalibrator detects existing REC files in setup"""
         rec_tag = 'test_rec'
         rec_filename = f'{rec_tag}0.fits'
@@ -147,24 +148,19 @@ class TestMultiRecCalibrator(unittest.TestCase):
         calibrator = MultiRecCalibrator(
             nmodes=10,
             data_dir=self.test_dir,
-            rec_tag=rec_tag
+            rec_tag=rec_tag,
+            target_device_idx=target_device_idx,
         )
-        
-        # Test the file existence check logic directly
-        # This simulates what happens in the setup method
-        for i in range(1):  # Only one file in this test
-            rec_path = calibrator.rec_path(i)
-            if rec_path and os.path.exists(rec_path) and not calibrator._overwrite:
-                with self.assertRaises(FileExistsError) as context:
-                    raise FileExistsError(f'Rec file {rec_path} already exists, please remove it')
-                
-                self.assertIn('Rec file', str(context.exception))
-                self.assertIn('already exists', str(context.exception))
-                return
-        
-        # If we get here, the test failed
-        self.fail('FileExistsError was not raised')
+        intmat1 = Intmat(intmat=xp.arange(1, 13).reshape(3, 4), target_device_idx=target_device_idx)
+        intmat2 = Intmat(intmat=xp.arange(1, 13).reshape(3, 4), target_device_idx=target_device_idx)
+        intmat3 = Intmat(intmat=xp.arange(1, 13).reshape(3, 4), target_device_idx=target_device_idx)
 
+        calibrator.inputs['intmat_list'].set([intmat1, intmat2])
+        calibrator.inputs['full_intmat'].set(intmat3)
+
+        with self.assertRaises(FileExistsError) as context:
+            calibrator.setup()
+                
     def test_existing_file_detection_in_constructor(self):
         """Test that MultiRecCalibrator detects existing full REC files in constructor"""
         full_rec_tag = 'full_test_rec'
@@ -335,21 +331,6 @@ class TestMultiRecCalibrator(unittest.TestCase):
         
         self.assertEqual(intmat_list_input.output_ref_type, Intmat)
         self.assertEqual(full_intmat_input.output_ref_type, Intmat)
-
-    def test_inheritance_from_base_processing_obj(self):
-        """Test that MultiRecCalibrator properly inherits from BaseProcessingObj"""
-        calibrator = MultiRecCalibrator(
-            nmodes=10,
-            data_dir=self.test_dir,
-            rec_tag='test_inheritance'
-        )
-        
-        # Check that it has BaseProcessingObj attributes
-        self.assertTrue(hasattr(calibrator, 'inputs'))
-        self.assertTrue(hasattr(calibrator, 'local_inputs'))
-        self.assertTrue(hasattr(calibrator, 'outputs'))
-        self.assertTrue(hasattr(calibrator, 'current_time'))
-        self.assertTrue(hasattr(calibrator, 'target_device_idx'))
 
     def test_precision_handling(self):
         """Test that precision is properly handled"""

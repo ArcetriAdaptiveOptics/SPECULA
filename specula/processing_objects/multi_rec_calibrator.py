@@ -84,7 +84,4 @@ class MultiRecCalibrator(BaseProcessingObj):
             if rec_path and os.path.exists(rec_path) and not self._overwrite:
                 raise FileExistsError(f'Rec file {rec_path} already exists, please remove it')
 
-        full_rec_path = self.full_rec_path()
-        if full_rec_path and os.path.exists(full_rec_path) and not self._overwrite:
-            raise FileExistsError(f'Full rec file {full_rec_path} already exists, please remove it')
 
