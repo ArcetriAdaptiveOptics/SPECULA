@@ -10,8 +10,6 @@ from specula.data_objects.iir_filter_data import IirFilterData
 from specula.processing_objects.iir_filter import IirFilter
 from specula.processing_objects.integrator import Integrator
 from specula.processing_objects.schedule_generator import ScheduleGenerator
-from specula.data_objects.simul_params import SimulParams
-from specula.connections import InputValue
 from specula.base_value import BaseValue
 
 from test.specula_testlib import cpu_and_gpu
@@ -24,14 +22,11 @@ class TestIirFilter(unittest.TestCase):
         iir_filter = IirFilterData(ordnum=(1,1), ordden=(1,1),
                                    num=xp.ones((2,2)), den=xp.ones((2,2)),
                                    target_device_idx=target_device_idx)
-        simulParams = SimulParams(time_step=0.001)
-        iir_control = IirFilter(simulParams, iir_filter)
+        iir_control = IirFilter(iir_filter)
 
     @cpu_and_gpu
     def test_integrator_instantiation(self, target_device_idx, xp):
-        simulParams = SimulParams(time_step=0.001)
-        integrator = Integrator(simulParams,
-                                int_gain=[0.5,0.4,0.3],
+        integrator = Integrator(int_gain=[0.5,0.4,0.3],
                                 ff=[0.99,0.95,0.90],
                                 n_modes= [2,3,4],
                                    target_device_idx=target_device_idx)
@@ -52,10 +47,8 @@ class TestIirFilter(unittest.TestCase):
         """
         verbose = False
 
-        simulParams = SimulParams(time_step=0.001)
-
         # Create integrator: 2 modes with gains [0.5, 0.3]
-        integrator = Integrator(simulParams, int_gain=[0.5, 0.3], n_modes=[1, 1],
+        integrator = Integrator(int_gain=[0.5, 0.3], n_modes=[1, 1],
                             target_device_idx=target_device_idx)
 
         # Create VALUE_SCHEDULE gain_mod that changes after 0.001s
@@ -157,11 +150,10 @@ class TestIirFilter(unittest.TestCase):
         - Apply constant input
         - Verify output is constant (no accumulation)
         """
-        simulParams = SimulParams(time_step=0.001)
-        dt = simulParams.time_step
+        dt = 0.001
 
         # Create integrator with integration disabled
-        integrator = Integrator(simulParams, int_gain=[0.5, 0.3], n_modes=[1, 1],
+        integrator = Integrator(int_gain=[0.5, 0.3], n_modes=[1, 1],
                                integration=False,
                                target_device_idx=target_device_idx)
 
@@ -199,11 +191,10 @@ class TestIirFilter(unittest.TestCase):
     @cpu_and_gpu
     def test_integrator_no_delay_output(self, target_device_idx, xp):
         """Test that out_comm_no_delay provides synchronous output for POLC"""
-        simulParams = SimulParams(time_step=0.001)
-        dt = simulParams.time_step
+        dt = 0.001
         delay = 1.0  # 1 frame delay
 
-        integrator = Integrator(simulParams, int_gain=[0.5], n_modes=[1],
+        integrator = Integrator(int_gain=[0.5], n_modes=[1],
                                delay=delay,
                                target_device_idx=target_device_idx)
 
@@ -238,9 +229,8 @@ class TestIirFilter(unittest.TestCase):
     @cpu_and_gpu
     def test_integrator_no_delay_vs_delayed_zero_delay(self, target_device_idx, xp):
         """Test that both outputs are identical when delay=0"""
-        simulParams = SimulParams(time_step=0.001)
 
-        integrator = Integrator(simulParams, int_gain=[1.0], n_modes=[1],
+        integrator = Integrator(int_gain=[1.0], n_modes=[1],
                                delay=0.0,
                                target_device_idx=target_device_idx)
 
@@ -267,11 +257,10 @@ class TestIirFilter(unittest.TestCase):
     @cpu_and_gpu
     def test_integrator_fractional_delay_no_delay_independence(self, target_device_idx, xp):
         """Test that no_delay output is independent of fractional delay interpolation"""
-        simulParams = SimulParams(time_step=0.001)
-        dt = simulParams.time_step
+        dt = 0.001
         delay = 1.5  # Fractional delay
 
-        integrator = Integrator(simulParams, int_gain=[1.0], n_modes=[1],
+        integrator = Integrator(int_gain=[1.0], n_modes=[1],
                                delay=delay,
                                target_device_idx=target_device_idx)
 

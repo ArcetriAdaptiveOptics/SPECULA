@@ -56,14 +56,13 @@ class TestSsrFilter(unittest.TestCase):
     @cpu_and_gpu
     def test_integrator_response(self, target_device_idx, xp):
         """Test integrator with constant input"""
-        simul_params = SimulParams(time_step=0.001)
-        dt = simul_params.time_step
+        dt = 0.001
         gain = 0.5
 
         ssr_data = SsrFilterData.from_integrator([gain],
                                                 target_device_idx=target_device_idx)
 
-        ssr_filter = SsrFilter(simul_params, ssr_data, target_device_idx=target_device_idx)
+        ssr_filter = SsrFilter(ssr_data, target_device_idx=target_device_idx)
 
         # Create constant input
         input_value = BaseValue(value=xp.array([1.0], dtype=xp.float32),

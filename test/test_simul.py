@@ -349,7 +349,6 @@ class TestSimul(unittest.TestCase):
 
         control:
           class: 'IirFilter'
-          simul_params_ref: main
           iir_filter_data_ref: iir_data
           delay: 0
         '''

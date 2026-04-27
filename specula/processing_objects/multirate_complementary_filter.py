@@ -4,7 +4,6 @@ from specula.processing_objects.base_filter import BaseFilter
 from specula.base_value import BaseValue
 from specula.connections import InputValue, InputList
 from specula.data_objects.iir_filter_data import IirFilterData
-from specula.data_objects.simul_params import SimulParams
 
 class MultirateComplementaryFilter(BaseFilter):
     '''
@@ -13,7 +12,6 @@ class MultirateComplementaryFilter(BaseFilter):
     Inherits from BaseFilter to support delay, gain_mod, and POLC synchronous outputs.
     '''
     def __init__(self,
-                 simul_params: SimulParams,
                  iir_filter_data: IirFilterData,
                  g_track: float,
                  weights: list,
@@ -27,8 +25,6 @@ class MultirateComplementaryFilter(BaseFilter):
         """
         Parameters
         ----------
-        simul_params : SimulParams
-            Simulation timing parameters.
         iir_filter_data : IirFilterData
             IIR controller coefficients for the fused command.
         g_track : float [1]
@@ -56,8 +52,7 @@ class MultirateComplementaryFilter(BaseFilter):
             raise ValueError("iir_filter_data cannot be None.")
 
         # Call BaseFilter init. It creates 'out_comm', 'out_comm_no_delay' and 'output_buffer'
-        super().__init__(simul_params=simul_params,
-                         nfilter=iir_filter_data.nfilter,
+        super().__init__(nfilter=iir_filter_data.nfilter,
                          delay=delay,
                          target_device_idx=target_device_idx,
                          precision=precision)

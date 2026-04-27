@@ -1,6 +1,5 @@
 from specula.processing_objects.base_filter import BaseFilter
 from specula.data_objects.ssr_filter_data import SsrFilterData
-from specula.data_objects.simul_params import SimulParams
 
 
 class SsrFilter(BaseFilter):
@@ -18,8 +17,6 @@ class SsrFilter(BaseFilter):
     
     Parameters
     ----------
-    simul_params : SimulParams
-        Simulation parameters
     ssr_filter_data : SsrFilterData
         State-space matrices (A, B, C, D) in block-diagonal form
     delay : float [1], optional
@@ -34,7 +31,6 @@ class SsrFilter(BaseFilter):
         Numerical precision
     '''
     def __init__(self,
-                 simul_params: SimulParams,
                  ssr_filter_data: SsrFilterData,
                  delay: float = 0,
                  output_uses_new_state: bool = True,
@@ -45,7 +41,6 @@ class SsrFilter(BaseFilter):
         self.output_uses_new_state = output_uses_new_state
 
         super().__init__(
-            simul_params=simul_params,
             nfilter=ssr_filter_data.nfilter,
             delay=delay,
             target_device_idx=target_device_idx,

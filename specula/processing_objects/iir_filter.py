@@ -1,9 +1,5 @@
 from specula.processing_objects.base_filter import BaseFilter
 from specula.data_objects.iir_filter_data import IirFilterData
-from specula.data_objects.simul_params import SimulParams
-from specula.base_processing_obj import InputDesc
-from specula.connections import InputValue
-from specula.base_value import BaseValue
 
 
 class IirFilter(BaseFilter):
@@ -13,8 +9,6 @@ class IirFilter(BaseFilter):
     
     Parameters
     ----------
-    simul_params : SimulParams
-        Simulation parameters containing time step information
     iir_filter_data : IirFilterData
         Filter coefficients (numerator and denominator)
     delay : float [1], optional
@@ -36,7 +30,6 @@ class IirFilter(BaseFilter):
     """
 
     def __init__(self,
-                 simul_params: SimulParams,
                  iir_filter_data: IirFilterData,
                  delay: float = 0,
                  integration: bool = True,
@@ -46,7 +39,6 @@ class IirFilter(BaseFilter):
         self.iir_filter_data = iir_filter_data
 
         super().__init__(
-            simul_params=simul_params,
             nfilter=iir_filter_data.nfilter,
             delay=delay,
             target_device_idx=target_device_idx,
