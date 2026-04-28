@@ -28,7 +28,7 @@ def camelcase_to_snakecase(s):
             idx += 1
         else:
             break
-    if idx > 1:
+    if idx > 2:
         newstring = newstring[:idx-1] + '_' + newstring[idx-1:]
     return newstring
 
