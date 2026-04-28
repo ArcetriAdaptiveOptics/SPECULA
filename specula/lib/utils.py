@@ -23,7 +23,7 @@ def camelcase_to_snakecase(s):
         result.append(t)
     newstring = ''.join([x.lower() for x in result])
     idx = 0
-    for char in S:
+    for char in s:
         if char.isupper():
             idx += 1
         else:
