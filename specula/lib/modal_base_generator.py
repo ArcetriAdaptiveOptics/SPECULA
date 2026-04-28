@@ -307,9 +307,8 @@ def make_modal_base_from_ifs_fft(pupil_mask, diameter, influence_functions, r0, 
             if count_cond_number > 0:
                 number_of_modes_to_be_removed += count_cond_number
                 final_cond = S1[0] / S1[n_actuators-number_of_modes_to_be_removed-1]
-                if verbose: # pragma: no cover
-                    logger.debug(f"    final condition number is: {final_cond}")
-                    logger.debug(f"    no. of cut modes: {count_cond_number}")
+                logger.debug(f"    final condition number is: {final_cond}")
+                logger.debug(f"    no. of cut modes: {count_cond_number}")
 
     M = xp.zeros((n_actuators, n_actuators), dtype=dtype)
     for i in range(n_actuators):
