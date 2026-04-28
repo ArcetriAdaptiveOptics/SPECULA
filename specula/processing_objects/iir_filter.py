@@ -43,6 +43,7 @@ class IirFilter(BaseFilter):
         self.iir_filter_data = iir_filter_data
 
         super().__init__(
+            simul_params=simul_params,
             nfilter=iir_filter_data.nfilter,
             delay=delay,
             target_device_idx=target_device_idx,
