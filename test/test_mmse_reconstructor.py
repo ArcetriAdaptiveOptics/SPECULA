@@ -44,7 +44,6 @@ class TestMMSEReconstructor(unittest.TestCase):
         W = compute_mmse_reconstructor(
             A, c_atm, xp, xp.float32,
             noise_variance=self.noise_variance,
-            verbose=False
         )
 
         # Check output shape: (n_modes, n_slopes)
@@ -64,7 +63,6 @@ class TestMMSEReconstructor(unittest.TestCase):
         W = compute_mmse_reconstructor(
             A, c_atm, xp, xp.float32,
             c_noise=c_noise,
-            verbose=False
         )
 
         self.assertEqual(W.shape, (self.n_modes, self.n_slopes))
@@ -80,7 +78,6 @@ class TestMMSEReconstructor(unittest.TestCase):
         W = compute_mmse_reconstructor(
             A_square, c_atm, xp, xp.float32,
             noise_variance=[1e-6],  # Very low noise instead of 0.0
-            verbose=False
         )
 
         # In perfect case with low noise, should approximate pseudoinverse
@@ -96,7 +93,6 @@ class TestMMSEReconstructor(unittest.TestCase):
         W = compute_mmse_reconstructor(
             A, c_atm, xp, xp.float32,
             noise_variance=[0.01, 0.01],  # Low noise
-            verbose=False
         )
 
         # Test reconstruction with known input
@@ -119,7 +115,6 @@ class TestMMSEReconstructor(unittest.TestCase):
         W = compute_mmse_reconstructor(
             A, c_atm_diag, xp, xp.float32,
             noise_variance=[0.1, 0.1],
-            verbose=False
         )
 
         self.assertEqual(W.shape, (self.n_modes, self.n_slopes))
@@ -138,7 +133,6 @@ class TestMMSEReconstructor(unittest.TestCase):
             A, c_atm_inv, xp, xp.float32,
             c_noise=c_noise_inv,
             c_inverse=True,
-            verbose=False
         )
 
         self.assertEqual(W.shape, (self.n_modes, self.n_slopes))
@@ -166,7 +160,6 @@ class TestMMSEReconstructor(unittest.TestCase):
         W = compute_mmse_reconstructor(
             A, c_atm, xp, xp.float32,
             noise_variance=noise_variance_multi,
-            verbose=False
         )
 
         self.assertEqual(W.shape, (self.n_modes, self.n_slopes))
@@ -188,7 +181,6 @@ class TestMMSEReconstructor(unittest.TestCase):
         W = compute_mmse_reconstructor(
             A_singular, c_atm, xp, xp.float32,
             noise_variance=[0.1, 0.1],
-            verbose=False  # Rimuovi verbose per evitare output nei test
         )
 
         self.assertEqual(W.shape, (3, 4))
@@ -203,7 +195,6 @@ class TestMMSEReconstructor(unittest.TestCase):
         W1 = compute_mmse_reconstructor(
             A, c_atm, xp, xp.float32,
             noise_variance=[0.1, 0.1],
-            verbose=False
         )
 
         # Method 2: Use explicit noise covariance matrix
@@ -211,7 +202,6 @@ class TestMMSEReconstructor(unittest.TestCase):
         W2 = compute_mmse_reconstructor(
             A, c_atm, xp, xp.float32,
             c_noise=c_noise_explicit,
-            verbose=False
         )
 
         # Should give same result
@@ -219,26 +209,27 @@ class TestMMSEReconstructor(unittest.TestCase):
 
     def test_mmse_verbose_output(self):
         """Test that verbose mode doesn't crash and produces output"""
-        import io
-        import sys
 
-        # Capture stdout
-        captured_output = io.StringIO()
-        sys.stdout = captured_output
-
-        try:
+        with self.assertLogs(level='INFO') as cm:
             A = np.asarray(self.interaction_matrix)  # Usa np invece di xp
             c_atm = np.asarray(self.c_atm)
 
             W = compute_mmse_reconstructor(
                 A, c_atm, np, np.float32,
                 noise_variance=self.noise_variance,
-                verbose=True
+                log_level='INFO' 
             )
 
-            # Check that some output was produced
-            output = captured_output.getvalue()
-            self.assertGreater(len(output), 0)
+        self.assertIn("Starting", cm.output[0])
 
-        finally:
-            sys.stdout = sys.__stdout__
+        with self.assertLogs(level='DEBUG') as cm:
+            A = np.asarray(self.interaction_matrix)  # Usa np invece di xp
+            c_atm = np.asarray(self.c_atm)
+
+            W = compute_mmse_reconstructor(
+                A, c_atm, np, np.float32,
+                noise_variance=self.noise_variance,
+                log_level='DEBUG'  # Enable debug logging for verbose output
+            )
+
+        self.assertIn("Inverting", ''.join(cm.output))

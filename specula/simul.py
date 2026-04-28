@@ -402,7 +402,7 @@ class Simul():
                         loaded = []
                         for tag in value:
                             filename = cm.filename(partype.__name__, tag)
-                            print('Restoring:', filename)
+                            self.logger.info(f'Restoring: {filename}')
                             obj = partype.restore(filename, target_device_idx=target_device_idx)
                             obj.printMemUsage()
                             obj.tag = tag
@@ -427,7 +427,7 @@ class Simul():
                         loaded = {}
                         for dict_key, tag in value.items():
                             filename = cm.filename(partype.__name__, tag)
-                            print('Restoring:', filename)
+                            self.logger.info(f'Restoring: {filename}')
                             obj = partype.restore(filename, target_device_idx=target_device_idx)
                             obj.printMemUsage()
                             obj.tag = tag

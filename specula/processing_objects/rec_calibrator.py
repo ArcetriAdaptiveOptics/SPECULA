@@ -1,7 +1,7 @@
 import os
 from typing import Union
 
-from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
+from specula.base_processing_obj import BaseProcessingObj, InputDesc
 from specula.data_objects.intmat import Intmat
 from specula.data_objects.ifunc import IFunc
 from specula.data_objects.m2c import M2C

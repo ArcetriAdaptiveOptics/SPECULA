@@ -240,7 +240,7 @@ class Intmat(BaseDataObj):
         recmat = compute_mmse_reconstructor(self.to_xp(intmat), c_atm, self.xp,
                                             self.dtype, noise_variance=noise_variance,
                                             c_noise=c_noise_mat,
-                                            c_inverse=False, verbose=False)
+                                            c_inverse=False)
         rec = Recmat(recmat, target_device_idx=self.target_device_idx)
         return rec
 

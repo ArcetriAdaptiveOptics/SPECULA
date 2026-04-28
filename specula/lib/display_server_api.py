@@ -1,5 +1,4 @@
 import io
-import logging
 import os
 import socket
 from specula.log import get_specula_logger
