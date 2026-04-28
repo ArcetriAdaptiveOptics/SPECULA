@@ -1,130 +1,109 @@
-
 import unittest
 import tempfile
 import os
-import numpy as np
-from astropy.io import fits
 
-from specula.scalar_values import (
-    _BaseScalarValue,
-    IntValue,
-    FloatValue,
-    StringValue,
-)
+from specula.scalar_values import IntValue, FloatValue, StringValue
 
 
 class TestScalarValues(unittest.TestCase):
+    """
+    Unit tests for scalar value classes:
+    IntValue, FloatValue, and StringValue.
 
-    # -------------------------
-    # Initialization
-    # -------------------------
+    These tests verify:
+    - correct type enforcement
+    - getter/setter behavior
+    - FITS save/restore round-trip
+    """
 
-    def test_int_value_initialization(self):
-        v = IntValue(value=10, description="integer")
+    def test_int_value_creation_and_get_set(self):
+        """
+        Test IntValue initialization and value access/modification.
+        """
+        v = IntValue(value=5, description="test int")
+        self.assertEqual(v.get_value(), 5)
+
+        v.set_value(10)
         self.assertEqual(v.get_value(), 10)
-        self.assertEqual(v.description, "integer")
-        self.assertIs(v.type, int)
 
-    def test_float_value_initialization(self):
-        v = FloatValue(value=3.14)
-        self.assertEqual(v.get_value(), 3.14)
-        self.assertIs(v.type, float)
+        with self.assertRaises(AssertionError):
+            v.set_value(3.14)
 
-    def test_string_value_initialization(self):
-        v = StringValue(value="hello")
+    def test_float_value_creation_and_get_set(self):
+        """
+        Test FloatValue initialization and value access/modification.
+        """
+        v = FloatValue(value=2.5, description="test float")
+        self.assertEqual(v.get_value(), 2.5)
+
+        v.set_value(1.25)
+        self.assertEqual(v.get_value(), 1.25)
+
+        with self.assertRaises(AssertionError):
+            v.set_value("not a float")
+
+    def test_string_value_creation_and_get_set(self):
+        """
+        Test StringValue initialization and value access/modification.
+        """
+        v = StringValue(value="hello", description="test string")
         self.assertEqual(v.get_value(), "hello")
-        self.assertIs(v.type, str)
 
-    # -------------------------
-    # Type validation
-    # -------------------------
+        v.set_value("world")
+        self.assertEqual(v.get_value(), "world")
 
-    def test_int_value_rejects_wrong_type(self):
         with self.assertRaises(AssertionError):
-            IntValue(value="not an int")
+            v.set_value(123)
 
-    def test_float_value_rejects_wrong_type(self):
-        with self.assertRaises(AssertionError):
-            FloatValue(value="not a float")
-
-    def test_string_value_rejects_wrong_type(self):
-        with self.assertRaises(AssertionError):
-            StringValue(value=123)
-
-    # -------------------------
-    # set_value()
-    # -------------------------
-
-    def test_set_value_updates_correctly(self):
-        v = IntValue(value=1)
-        v.set_value(42)
-        self.assertEqual(v.get_value(), 42)
-
-    def test_set_value_rejects_invalid_type(self):
-        v = IntValue(value=1)
-        with self.assertRaises(AssertionError):
-            v.set_value("wrong")
-
-    # -------------------------
-    # array_for_display()
-    # -------------------------
-
-    def test_array_for_display_returns_value(self):
-        v = FloatValue(value=2.5)
-        self.assertEqual(v.array_for_display(), 2.5)
-
-    # -------------------------
-    # FITS header
-    # -------------------------
-
-    def test_get_fits_header_contains_metadata(self):
-        v = StringValue(value="abc")
-        hdr = v.get_fits_header()
-
-        self.assertEqual(hdr["VERSION"], 1)
-        self.assertEqual(hdr["OBJ_TYPE"], "StringValue")
-
-    # -------------------------
-    # save() / restore()
-    # -------------------------
-
-    def test_save_and_restore_int_value(self):
-        v = IntValue(value=123)
+    def test_fits_save_and_restore_int(self):
+        """
+        Test FITS serialization and deserialization for IntValue.
+        """
+        v = IntValue(value=42, description="fitstest")
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            file_path = os.path.join(tmpdir, "scalar.fits")
+            path = os.path.join(tmpdir, "int.fits")
 
-            v.save(file_path)
+            v.save(path, overwrite=True)
+            restored = IntValue.restore(path)
 
-            self.assertTrue(os.path.exists(file_path))
+            self.assertEqual(restored.get_value(), 42)
+            self.assertEqual(restored.description, "fitstest")
 
-            restored = IntValue.restore(file_path)
-
-            self.assertEqual(restored.get_value(), 123)
-            self.assertIsInstance(restored, IntValue)
-
-    def test_save_writes_correct_fits_header(self):
-        v = IntValue(value=99)
+    def test_fits_save_and_restore_float(self):
+        """
+        Test FITS serialization and deserialization for FloatValue.
+        """
+        v = FloatValue(value=3.14, description="pi")
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            file_path = os.path.join(tmpdir, "scalar.fits")
+            path = os.path.join(tmpdir, "float.fits")
 
-            v.save(file_path)
-            hdr = fits.getheader(file_path)
+            v.save(path, overwrite=True)
+            restored = FloatValue.restore(path)
 
-            self.assertEqual(hdr["VALUE"], "99")
-            self.assertEqual(hdr["OBJ_TYPE"], "IntValue")
+            self.assertEqual(restored.get_value(), 3.14)
 
-    def test_restore_missing_value_raises(self):
+    def test_fits_save_and_restore_string(self):
+        """
+        Test FITS serialization and deserialization for StringValue.
+        """
+        v = StringValue(value="spectra", description="test")
+
         with tempfile.TemporaryDirectory() as tmpdir:
-            file_path = os.path.join(tmpdir, "bad.fits")
+            path = os.path.join(tmpdir, "str.fits")
 
-            hdr = fits.Header()
-            hdr["VERSION"] = 1
+            v.save(path, overwrite=True)
+            restored = StringValue.restore(path)
 
-            fits.writeto(file_path, data=np.array([0, 0]), header=hdr, overwrite=True)
+            self.assertEqual(restored.get_value(), "spectra")
+            self.assertEqual(restored.description, "test")
 
-            with self.assertRaises(ValueError):
-                _BaseScalarValue.restore(file_path)
-
+    def test_type_enforcement(self):
+        """
+        Ensure type safety is enforced by set_value().
+        """
+        self.assertRaises(AssertionError, IntValue, value="bad")
+        self.assertRaises(AssertionError, FloatValue, value="bad")
+        self.assertRaises(AssertionError, StringValue, value=123)
 

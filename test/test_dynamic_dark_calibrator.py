@@ -72,7 +72,7 @@ class TestDynamicDarkCalibrator(unittest.TestCase):
         in_pixels.pixels = data
 
         # Trigger with no frames integrated should do nothing
-        trigger = IntValue(value=1, target_device_idx=target_device_idx)
+        trigger = IntValue(value=1)
         trigger.generation_time = trigger.seconds_to_t(0)
 
         calib.inputs['in_pixels'].set(in_pixels)
