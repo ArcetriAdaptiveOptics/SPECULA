@@ -36,14 +36,14 @@ class TestCovTRunc(unittest.TestCase):
         cov = calc_noise_cov_elong(
                 diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, launcher_coord_in_m,
                 sub_aps_index_1D, n_sub_aps, sub_aps_fov, sh_spot_fwhm, sigma_noise2,
-                t_g_parameter, h_in_m=h_in_m, only_diag=False, verbose=False, display=False
+                t_g_parameter, h_in_m=h_in_m, only_diag=False, display=False
         )
 
         # Compute covariance matrix with Python function (only diagonal)
         cov_only_diag = calc_noise_cov_elong(
                 diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, launcher_coord_in_m,
                 sub_aps_index_1D, n_sub_aps, sub_aps_fov, sh_spot_fwhm, sigma_noise2,
-                t_g_parameter, h_in_m=h_in_m, only_diag=True, verbose=False, display=False
+                t_g_parameter, h_in_m=h_in_m, only_diag=True, display=False
         )
 
         # Load reference FITS (IDL result)
@@ -130,7 +130,7 @@ class TestCovTRunc(unittest.TestCase):
             diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, launcher_coord_in_m,
             sub_aps_index_1D, n_sub_aps, sub_aps_fov, sh_spot_fwhm, sigma_noise2,
             t_g_parameter, h_in_m=h_in_m, eta_is_not_one=True,
-            only_diag=False, verbose=False, display=False
+            only_diag=False, display=False
         )
 
         # Check that output is valid
@@ -174,7 +174,7 @@ class TestCovTRunc(unittest.TestCase):
             diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, launcher_coord_in_m,
             sub_aps_index_1D, n_sub_aps, sub_aps_fov, sh_spot_fwhm, sigma_noise2,
             t_g_parameter, h_in_m=h_in_m, theta=theta_list, eta_is_not_one=True,
-            only_diag=False, verbose=False, display=False
+            only_diag=False, display=False
         )
 
         self.assertEqual(cov.shape[0], 2 * len(cpuArray(sub_aps_index_1D)))
@@ -201,14 +201,14 @@ class TestCovTRunc(unittest.TestCase):
         cov_full = calc_noise_cov_elong(
             diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, launcher_coord_in_m,
             sub_aps_index_1D, n_sub_aps, sub_aps_fov, sh_spot_fwhm, sigma_noise2,
-            t_g_parameter, h_in_m=h_in_m, only_diag=False, verbose=False
+            t_g_parameter, h_in_m=h_in_m, only_diag=False
         )
 
         # Test with diagonal only
         cov_diag = calc_noise_cov_elong(
             diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, launcher_coord_in_m,
             sub_aps_index_1D, n_sub_aps, sub_aps_fov, sh_spot_fwhm, sigma_noise2,
-            t_g_parameter, h_in_m=h_in_m, only_diag=True, verbose=False
+            t_g_parameter, h_in_m=h_in_m, only_diag=True
         )
 
         self.assertEqual(cov_full.shape[0], 2 * len(cpuArray(sub_aps_index_1D)))
@@ -249,7 +249,7 @@ class TestCovTRunc(unittest.TestCase):
                     launcher_coord_in_m, sub_aps_index_1D, n_sub_aps,
                     sub_aps_fov, sh_spot_fwhm, sigma_noise2, t_g_parameter,
                     h_in_m=h_in_m, eta_is_not_one=eta_flag,
-                    only_diag=diag_flag, verbose=False
+                    only_diag=diag_flag
                 )
                 # Should not crash and return valid matrix
                 self.assertIsNotNone(cov)
@@ -277,7 +277,7 @@ class TestCovTRunc(unittest.TestCase):
                 diameter_in_m, zenith_angle_in_deg, na_thickness_in_m,
                 launcher_coord_in_m, sub_aps_index_1D, n_sub_aps,
                 sub_aps_fov, sh_spot_fwhm, sigma_noise2, t_g_parameter,
-                h_in_m=h_in_m, only_diag=False, verbose=False
+                h_in_m=h_in_m, only_diag=False
             )
 
             expected_size = 2 * len(cpuArray(sub_aps_index_1D))
@@ -308,7 +308,6 @@ class TestCovTRunc(unittest.TestCase):
                 t_g_parameter=0.0,
                 h_in_m=90e3,
                 only_diag=False,
-                verbose=False,
             )
 
     @cpu_and_gpu
@@ -326,7 +325,7 @@ class TestCovTRunc(unittest.TestCase):
         cov_full = calc_noise_cov_elong(
             diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, launcher_coord_in_m,
             sub_aps_index_1D, n_sub_aps, sub_aps_fov=5.0, sh_spot_fwhm=1.0, 
-            sigma_noise2=1.0, t_g_parameter=0.0, h_in_m=90e3, only_diag=False, verbose=False
+            sigma_noise2=1.0, t_g_parameter=0.0, h_in_m=90e3, only_diag=False
         )
 
         n_valid = len(cpuArray(sub_aps_index_1D))

@@ -194,7 +194,7 @@ class Intmat(BaseDataObj):
             influence_function = modal_base.influence_function
         c_atm = compute_ifs_covmat(
             modal_base.mask_inf_func, diameter, influence_function, r0, L0,
-            oversampling=2, verbose=False, xp=self.xp, dtype=self.dtype
+            oversampling=2, xp=self.xp, dtype=self.dtype
         )
         if c_atm.shape[0] > intmat.shape[1]:
             c_atm = c_atm[:intmat.shape[1], :intmat.shape[1]]
