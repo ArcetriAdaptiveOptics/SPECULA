@@ -1,10 +1,6 @@
 from specula import fuse
 
 from specula.processing_objects.modulated_pyramid import ModulatedPyramid
-from specula.base_processing_obj import InputDesc, OutputDesc
-from specula.data_objects.electric_field import ElectricField
-from specula.data_objects.intensity import Intensity
-from specula.base_value import BaseValue
 from specula.lib.make_xy import make_xy
 from specula.data_objects.simul_params import SimulParams
 
@@ -95,7 +91,6 @@ class ModulatedDoubleRoof(ModulatedPyramid):
         # Pre-allocate arrays to avoid memory allocation in trigger_code
         self.roof1_image = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.dtype)
         self.roof2_image = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.dtype)
-        self.roof2_factor = self.xp.ones((self.fft_totsize, self.fft_totsize), dtype=self.dtype)
 
         # Pre-calculate mid points
         self.mid_h = self.fft_totsize // 2

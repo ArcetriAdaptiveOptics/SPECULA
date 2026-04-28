@@ -131,7 +131,6 @@ class ImShSynimGenerator(BaseProcessingObj):
             raise ValueError(f"ImShSynimGenerator requires ShSlopec, got {type(slopec).__name__}")
 
         # Store references
-        self.simul_params = simul_params
         self.dm = dm
         self.slopec = slopec
         self.source = source

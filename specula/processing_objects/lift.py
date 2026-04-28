@@ -10,7 +10,6 @@ from specula.data_objects.simul_params import SimulParams
 from specula.data_objects.ifunc import IFunc
 from specula.data_objects.pixels import Pixels
 from specula.lib.interp2d import Interp2D
-import matplotlib.pyplot as plt
 
 
 WFS_Settings = namedtuple('WFS_Settings',

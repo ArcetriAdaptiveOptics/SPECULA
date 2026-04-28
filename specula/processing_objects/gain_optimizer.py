@@ -37,7 +37,6 @@ class GainOptimizer(BaseProcessingObj):
 
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        self.simul_params = simul_params
         self.iir_filter_data = iir_filter_data
         self.time_step = simul_params.time_step
 

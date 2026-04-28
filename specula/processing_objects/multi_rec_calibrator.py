@@ -1,6 +1,6 @@
 import os
 
-from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
+from specula.base_processing_obj import BaseProcessingObj, InputDesc
 from specula.data_objects.intmat import Intmat
 from specula.connections import InputValue
 from specula.connections import InputList

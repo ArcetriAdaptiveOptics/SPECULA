@@ -1,15 +1,15 @@
 
 from specula import fuse
 from specula.processing_objects.psf import PSF
-from specula.base_processing_obj import InputDesc, OutputDesc
+from specula.base_processing_obj import OutputDesc
 from specula.base_value import BaseValue
-from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.simul_params import SimulParams
 
 
 @fuse(kernel_name='psf_abs2')
 def psf_abs2(v, xp):
     return xp.real(v * xp.conj(v))
+
 
 class PsfCoronagraph(PSF):
     """
