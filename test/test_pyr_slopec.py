@@ -150,3 +150,46 @@ class TestSlopec(unittest.TestCase):
         self.assertEqual(slopec.outputs['out_flux_per_subaperture'].generation_time, 1)
         self.assertEqual(slopec.outputs['out_total_counts'].generation_time, 1)
         self.assertEqual(slopec.outputs['out_subap_counts'].generation_time, 1)
+
+    @cpu_and_gpu
+    def test_pyrslopec_shlike_vectorial_normalization(self, target_device_idx, xp):
+        """
+        Test that verifies sh_like normalization is vectorial (per subaperture)
+        and not global.
+        
+        Each subaperture should be normalized by its own flux, not the total flux.
+        """
+        pixels = Pixels(5, 5, target_device_idx=target_device_idx)
+        pixels.pixels = xp.arange(25, dtype=xp.uint16).reshape((5, 5))
+        pixels.generation_time = 1
+
+        pupdata = PupData(target_device_idx=target_device_idx)
+        pupdata.ind_pup = xp.array([[1, 3, 6, 8], [15, 16, 21, 24]], dtype=int)
+        pupdata.framesize = (4, 4)
+
+        slopec = PyrSlopec(pupdata, shlike=True, norm_factor=None, target_device_idx=target_device_idx)
+        slopec.inputs['in_pixels'].set(pixels)
+        slopec.check_ready(1)
+        slopec.trigger()
+        slopec.post_trigger()
+
+        slopes = slopec.outputs['out_slopes']
+        s1 = cpuArray(slopes.slopes)
+
+        # Expected calculation:
+        # Pixels: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24]
+        # A = pixels[[1, 15]] = [1, 15]
+        # B = pixels[[3, 16]] = [3, 16]
+        # C = pixels[[6, 21]] = [6, 21]
+        # D = pixels[[8, 24]] = [8, 24]
+        # flux_per_subap = A + B + C + D = [18, 76]
+        # sx = (A + B - C - D) / flux_per_subap = [(1+3-6-8)/18, (15+16-21-24)/76]
+        #    = [-10/18, -14/76]
+        # sy = (B + C - A - D) / flux_per_subap = [(3+6-1-8)/18, (16+21-15-24)/76]
+        #    = [0/18, -2/76]
+
+        expected_sx = xp.array([-10.0/18, -14.0/76])
+        expected_sy = xp.array([0.0/18, -2.0/76])
+        expected_slopes = xp.concatenate([expected_sx, expected_sy])
+
+        np.testing.assert_array_almost_equal(s1, cpuArray(expected_slopes), decimal=5)
