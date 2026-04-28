@@ -61,6 +61,7 @@ class SprintPyr(BaseSprintEstimator):
         """
         Initialize Pyramid SPRINT estimator.
         """
+        self.simul_params = simul_params
 
         # Number of parameters for this WFS type
         n_params = 4
