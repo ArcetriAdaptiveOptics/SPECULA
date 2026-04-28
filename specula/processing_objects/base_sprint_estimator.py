@@ -119,7 +119,7 @@ class BaseSprintEstimator(BaseProcessingObj):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         # Store references
-        self.simul_params = simul_params
+        self.dt = simul_params.time_step
         self.dm = dm
         self.slopec = slopec
         self.source = source
@@ -173,9 +173,10 @@ class BaseSprintEstimator(BaseProcessingObj):
         # Pupil parameters (extracted from DM)
         self.pup_diam_m = simul_params.pixel_pupil * simul_params.pixel_pitch
         self.ifunc_3d = None  # Loaded in setup
-        self.pupil_mask = None # Loaded in setup
         if pupil_mask is not None:
             self.pupil_mask = self.to_xp(pupil_mask.A, dtype=self.dtype)
+        else:
+            self.pupil_mask = None # Loaded in setup
 
         # Create outputs
         self.estimated_intmat = Intmat(
@@ -336,8 +337,7 @@ class BaseSprintEstimator(BaseProcessingObj):
         nslopes = slopes_array.shape[1]
         im_measured = self.xp.zeros((nslopes, self.nmodes), dtype=self.dtype)
 
-        dt = self.simul_params.time_step
-        sampling_freq = 1.0 / dt
+        sampling_freq = 1.0 / self.dt
 
         self.logger.info(f"  Demodulating {len(self.slopes_history)} time samples")
         self.logger.info(f"  Number of slopes: {nslopes}")

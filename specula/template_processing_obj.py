@@ -1,7 +1,6 @@
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_value import BaseValue
 from specula.connections import InputList, InputValue
-from specula.data_objects.intmat import Intmat
 from specula.data_objects.recmat import Recmat
 from specula.data_objects.slopes import Slopes
 
