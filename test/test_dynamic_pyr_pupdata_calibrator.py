@@ -6,8 +6,10 @@ import numpy as np
 from specula.base_value import BaseValue
 from specula.data_objects.intensity import Intensity
 from specula.processing_objects.dynamic_pyr_pupdata_calibrator import DynamicPyrPupdataCalibrator
+from specula.scalar_values import FloatValue
 from test.specula_testlib import cpu_and_gpu
 from test.test_pyr_pupdata_calibrator import TestPyrPupdataCalibrator
+
 
 class TestDynamicPyrPupdataCalibrator(unittest.TestCase):
 
@@ -47,33 +49,18 @@ class TestDynamicPyrPupdataCalibrator(unittest.TestCase):
         )
 
         # Float input
-        thr1 = BaseValue(value=3.1415)
+        thr1 = FloatValue(value=3.1415)
         thr1.generation_time = 42
         calibrator.inputs['in_thr1'].set(thr1)
         calibrator.check_ready(42)
         assert calibrator.thr1 == 3.1415
 
-        # String input converted to float
-        thr1 = BaseValue(value='0.123')
-        thr1.generation_time = 42
-        calibrator.inputs['in_thr1'].set(thr1)
-        calibrator.check_ready(42)
-
-        assert calibrator.thr1 == 0.123
-
         # Float input
-        thr2 = BaseValue(value=3.1415)
+        thr2 = FloatValue(value=3.1416)
         thr2.generation_time = 42
         calibrator.inputs['in_thr2'].set(thr2)
         calibrator.check_ready(42)
-        assert calibrator.thr2 == 3.1415
+        assert calibrator.thr2 == 3.1416
 
-        # String input converted to float
-        thr2 = BaseValue(value='0.123')
-        thr2.generation_time = 42
-        calibrator.inputs['in_thr2'].set(thr2)
-        calibrator.check_ready(42)
-
-        assert calibrator.thr2 == 0.123
 
         

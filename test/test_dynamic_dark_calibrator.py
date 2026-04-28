@@ -8,6 +8,7 @@ from specula.base_value import BaseValue
 from specula.loop_control import LoopControl
 from specula.data_objects.pixels import Pixels
 from specula.processing_objects.dynamic_dark_calibrator import DynamicDarkCalibrator
+from specula.scalar_values import IntValue
 from test.specula_testlib import cpu_and_gpu
 
 
@@ -71,7 +72,7 @@ class TestDynamicDarkCalibrator(unittest.TestCase):
         in_pixels.pixels = data
 
         # Trigger with no frames integrated should do nothing
-        trigger = BaseValue(value=1, target_device_idx=target_device_idx)
+        trigger = IntValue(value=1, target_device_idx=target_device_idx)
         trigger.generation_time = trigger.seconds_to_t(0)
 
         calib.inputs['in_pixels'].set(in_pixels)
@@ -100,19 +101,13 @@ class TestDynamicDarkCalibrator(unittest.TestCase):
         dummy_pixels = Pixels(10,10)
         calibrator.inputs['in_pixels'].set(dummy_pixels)
 
-        # Float input
-        nframes = BaseValue(value=10.0)
+        # Integer input
+        nframes = IntValue(value=10)
         nframes.generation_time = 42
         calibrator.inputs['in_nframes'].set(nframes)
         calibrator.check_ready(42)
         assert calibrator.nframes == 10
 
-        # String input converted to int
-        nframes = BaseValue(value='10')
-        nframes.generation_time = 42
-        calibrator.inputs['in_nframes'].set(nframes)
-        calibrator.check_ready(42)
-        assert calibrator.nframes == 10
 
     @cpu_and_gpu
     def test_darkframe_size(self, target_device_idx, xp):
@@ -163,7 +158,7 @@ class TestDynamicDarkCalibrator(unittest.TestCase):
         calibrator.darkframe = Pixels(10, 10)
         calibrator.darkframe.pixels += 1
 
-        reset = BaseValue(value=10.0)
+        reset = IntValue(value=10)
         reset.generation_time = 42
         calibrator.inputs['in_reset'].set(reset)
         calibrator.check_ready(42)
