@@ -1,3 +1,5 @@
+from specula.log import get_specula_logger
+
 from specula.processing_objects.abstract_coronagraph import Coronagraph
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.make_mask import make_mask
@@ -41,6 +43,14 @@ class APPCoronagraph(Coronagraph):
                                                           iwaInLambdaOverD, owaInLambdaOverD, beta,
                                                           symmetric_dark_hole=make_symmetric, max_its=max_its)
         self.apodizer = self.xp.exp(1j*apodizer_phase, dtype=self.complex_dtype)
+
+    @classmethod
+    def input_names(cls):
+        return super().input_names()
+
+    @classmethod
+    def output_names(cls):
+        return super().output_names()
 
     def define_apodizing_phase(self, pupil, contrast,
                                iwa:float, owa:float, beta:float,
@@ -196,6 +206,8 @@ def generate_app_keller(pupil, target_contrast, max_iterations:int,
     if beta < 0 or beta > 1:
         raise ValueError('Beta should be between 0 and 1.')
     
+    logger = get_specula_logger(__name__)
+
     iu = complex_dtype(1j)
 
     # initialize APP with pupil
@@ -232,8 +244,8 @@ def generate_app_keller(pupil, target_contrast, max_iterations:int,
                       f' reached, worst contrast in dark hole is:'
                       f' {xp.log10(xp.max(contrast[dark_zone])):1.1f}')
 
-    print(f'Apodizer computed: average contrast in dark hole is'
-          f' {xp.mean(xp.log10(contrast[dark_zone])):1.1f}, Strehl'
-          f' is {xp.max(psf)/xp.max(ref_psf)*1e+2:1.2f}%')
+    logger.info(f'Apodizer computed: average contrast in dark hole is'
+                f' {xp.mean(xp.log10(contrast[dark_zone])):1.1f}, Strehl'
+                f' is {xp.max(psf)/xp.max(ref_psf)*1e+2:1.2f}%')
 
     return xp.array(app)

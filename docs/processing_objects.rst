@@ -98,6 +98,44 @@ Outputs are instances of SPECULA data objects that must be allocated exactly onc
 The output type is inferred automatically.
 
 
+Input/Output declaration patterns
+*********************************
+
+The framework validates declared names from ``input_names()`` and ``output_names()``
+against runtime ``self.inputs`` and ``self.outputs`` (via ``sanity_check()``).
+
+Declared names can use the following grammar:
+
+* exact names, for example ``out_ef``
+* placeholder-style names, for example:
+    * ``out_modes_{sensor_idx}`` in ``ModalrecMultirate.output_names()``
+    * ``out_{source_name_}layer`` and ``out_{source_name_}ef`` in ``AtmoRandomPhase.output_names()``
+
+Placeholder segments delimited by ``{...}`` are treated as wildcards
+and matched with glob semantics.
+
+Raw ``*`` patterns are still supported by the matcher for backward compatibility,
+but in class-level ``input_names()`` and ``output_names()`` declarations
+placeholder-based ``{...}`` patterns are mandatory.
+
+Matching notes:
+
+* exact matches have precedence over pattern matches
+* for inputs, optional declarations are identified by descriptions ending with
+    ``(optional)``
+
+Typical use case for dynamic outputs::
+
+        @classmethod
+        def output_names(cls):
+                return {
+                        'out_modes_{sensor_idx}': OutputDesc(BaseValue, 'Per-sensor modal output'),
+                }
+
+When outputs are truly dynamic and cannot be represented by a stable
+pattern/type contract, a class can still override ``check_output_names()``.
+
+
 Input/Output connections
 ------------------------
 

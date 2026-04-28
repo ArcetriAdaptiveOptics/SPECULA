@@ -1,7 +1,7 @@
 .. _generators_tutorial:
 
 Using Generators for Vibrations and Time Histories
-=================================================
+==================================================
 
 SPECULA provides several generator classes to inject time-dependent signals into your simulation. Here we show two common approaches for adding vibrations, but the same logic applies to other types of signals.
 

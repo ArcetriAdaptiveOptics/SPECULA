@@ -360,14 +360,14 @@ class ConvolutionKernel(BaseDataObj):
                         else '.', exist_ok=True)
 
             if os.path.exists(full_path):
-                print(f"Loading kernel from {full_path}")
+                self.logger.info(f"Loading kernel from {full_path}")
                 self.restore(full_path, kernel_obj=self, target_device_idx=self.target_device_idx,
                              return_fft=True)
             else:
-                print('Calculating kernel...')
+                self.logger.info('Calculating kernel...')
                 self.calculate_lgs_map()
                 self.save(full_path)
-                print('Done')
+                self.logger.info('Done')
 
             # free memory
             self.real_kernels = None
@@ -415,9 +415,7 @@ class ConvolutionKernel(BaseDataObj):
                 dtype=kernel_obj.dtype
             )
 
-        # This code uses an intermediate array to make sure that endianess is correct (FITS is big-endian)
-        data = kernel_obj.xp.array(fits.getdata(filename, ext=1), dtype=kernel_obj.dtype)
-        kernel_obj.real_kernels[:] = data
+        kernel_obj.real_kernels[:] = kernel_obj.to_xp(fits.getdata(filename, ext=1))
         kernel_obj.process_kernels(return_fft=return_fft)
         return kernel_obj
 

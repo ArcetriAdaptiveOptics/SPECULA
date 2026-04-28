@@ -1,4 +1,4 @@
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.connections import InputValue
 from specula.base_value import BaseValue
 from specula import cpuArray, np
@@ -36,6 +36,14 @@ class DataPrint(BaseProcessingObj):
         self.last_print_time = -self.print_dt  # Print on first trigger
 
         self.inputs['in_value'] = InputValue(type=BaseValue)
+
+    @classmethod
+    def input_names(cls):
+        return {'in_value': InputDesc(BaseValue, 'Input value to print')}
+
+    @classmethod
+    def output_names(cls):
+        return {}
 
     def trigger(self):
         # Check if it's time to print

@@ -829,6 +829,3 @@ class TestMultiImCalibrator(unittest.TestCase):
         self.assertEqual(calibrator.count_commands[1][0], 3)  # Mode 0, input 1 (from cmd1)
         self.assertEqual(calibrator.count_commands[1][1], 0)  # Mode 1, input 1 (no comand)
         self.assertEqual(calibrator.count_commands[1][2], 3)  # Mode 2, input 1 (from cmd2)
-
-if __name__ == '__main__':
-    unittest.main()

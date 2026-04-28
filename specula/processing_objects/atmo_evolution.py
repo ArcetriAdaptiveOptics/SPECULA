@@ -1,5 +1,5 @@
 from specula import cpuArray, ASEC2RAD, np
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.data_objects.layer import Layer
 from specula.lib.phasescreen_manager import phasescreens_manager
@@ -27,7 +27,6 @@ class AtmoEvolution(BaseProcessingObj):
                  pixel_phasescreens: int=8192,
                  seed: int=1,
                  extra_delta_time: float=0,
-                 verbose: bool=False,
                  fov_in_m: float=None,
                  pupil_position:list =[0,0],
                  target_device_idx: int=None,
@@ -57,8 +56,6 @@ class AtmoEvolution(BaseProcessingObj):
             Seed for random number generation. Must be >0. Default is 1.
         extra_delta_time : float or list, optional
             Extra time offset for phase screen evolution in seconds. Default is 0.
-        verbose : bool, optional
-            If True, enables verbose output during phase screen generation. Default is False.
         fov_in_m : float, optional
             Field of view in meters. If provided, overrides fov parameter. Default is None.
         pupil_position : list, optional
@@ -95,8 +92,8 @@ class AtmoEvolution(BaseProcessingObj):
 
         if self.zenithAngleInDeg is not None:
             self.airmass = 1.0 / np.cos(np.radians(self.zenithAngleInDeg), dtype=self.dtype)
-            print(f'AtmoEvolution: zenith angle is defined as: {self.zenithAngleInDeg} deg')
-            print(f'AtmoEvolution: airmass is: {self.airmass}')
+            self.logger.info(f'zenith angle is defined as: {self.zenithAngleInDeg} deg')
+            self.logger.info(f'airmass is: {self.airmass}')
         else:
             self.airmass = 1.0
 
@@ -129,8 +126,6 @@ class AtmoEvolution(BaseProcessingObj):
             raise ValueError('Error: phase-screens dimension must be'
                              'greater than layer dimension!')
 
-        self.verbose = verbose
-
         # Initialize layer list with correct heights
         self.layer_list = []
         for i in range(self.n_phasescreens):
@@ -152,6 +147,16 @@ class AtmoEvolution(BaseProcessingObj):
             raise ValueError(f' Cn2 total must be 1. Instead is: {np.sum(self.Cn2)}.')
 
         self.compute()
+
+    @classmethod
+    def input_names(cls):
+        return {'seeing': InputDesc(BaseValue, 'Atmospheric seeing value'),
+                'wind_speed': InputDesc(BaseValue, 'Wind speed for each atmospheric layer'),
+                'wind_direction': InputDesc(BaseValue, 'Wind direction for each atmospheric layer')}
+
+    @classmethod
+    def output_names(cls):
+        return {'layer_list': OutputDesc(list, 'List of atmospheric phase screen layers')}
 
     def compute(self):
         # Phase screens list
@@ -181,7 +186,7 @@ class AtmoEvolution(BaseProcessingObj):
             square_phasescreens = phasescreens_manager(L0, self.pixel_square_phasescreens,
                                                         self.pixel_pitch, self.data_dir,
                                                         seed=seed, precision=self.precision,
-                                                        verbose=self.verbose, xp=self.xp)
+                                                        xp=self.xp)
 
             square_ps_index = -1
             ps_index = 0
@@ -212,7 +217,6 @@ class AtmoEvolution(BaseProcessingObj):
                                                        self.data_dir,
                                                        seed=seed,
                                                        precision=self.precision,
-                                                       verbose=self.verbose,
                                                        xp=self.xp)
 
             for i in range(self.n_phasescreens):

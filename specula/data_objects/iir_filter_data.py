@@ -156,12 +156,11 @@ class IirFilterData(BaseDataObj):
         self.poles = self.to_xp(poles_cpu, dtype=self.dtype)
         self.den = self.to_xp(den_cpu, dtype=self.dtype)
 
-    def set_gain(self, gain, verbose=False):
-        if np.isscalar(gain) or np.ndim(gain) == 0:
+    def set_gain(self, gain):
+        if np.ndim(gain) == 0:
             gain = np.repeat(gain, self.nfilter)
         gain = self.to_xp(gain, dtype=self.dtype)
-        if verbose:
-            print('original gain:', self.gain)
+        self.logger.info(f'Setting gain: {gain}')
 
         if self._num_normalized is None:
             self._num_normalized = self.to_xp(self.num, dtype=self.dtype)
@@ -187,11 +186,10 @@ class IirFilterData(BaseDataObj):
         self.gain = self.to_xp(current_gain, dtype=self.dtype)
         self.num = self.to_xp(self._num_normalized * self.gain[:, None], dtype=self.dtype)
 
-        if verbose:
-            print('new gain:', self.gain)
+        self.logger.info(f'new gain: {self.gain}')
 
     def RTF(self, mode, fs, freq=None, dm=None, nw=None, dw=None,
-            verbose=False,title=None, plot=True, overplot=False,
+            title=None, plot=True, overplot=False,
             **extra):
         """
         Plot Rejection Transfer Function: RTF = 1 / (1 + CP)
@@ -202,7 +200,6 @@ class IirFilterData(BaseDataObj):
             freq: Frequency vector for evaluation (if None, auto-generated)
             dm, nw, dw: Optional plant parameters to construct P
                         The plant is represented as P = nw / (dm * dw)
-            verbose: If True, print intermediate values
             title: Title for the plot
             plot: If True, generate the plot
             overplot: If True, plot on existing figure instead of creating new one
@@ -249,9 +246,8 @@ class IirFilterData(BaseDataObj):
         rtf_num = Cp_den
         rtf_den = Cp_den + Cp_num
 
-        if verbose:
-            print(f"RTF numerator: {rtf_num}")
-            print(f"RTF denominator: {rtf_den}")
+        self.logger.debug(f"RTF numerator: {rtf_num}")
+        self.logger.debug(f"RTF denominator: {rtf_den}")
 
         # Calculate frequency response
         rtf_complex = self.frequency_response(rtf_num, rtf_den, fs, freq=freq)
@@ -275,7 +271,7 @@ class IirFilterData(BaseDataObj):
         return rtf_mag
 
     def NTF(self, mode, fs, freq=None, dm=None, nw=None, dw=None,
-            verbose=False, title=None, plot=True, overplot=False,
+            title=None, plot=True, overplot=False,
             **extra):
         """
         Plot Noise Transfer Function: NTF = CP / (1 + CP)
@@ -286,7 +282,6 @@ class IirFilterData(BaseDataObj):
             freq: Frequency vector for evaluation (if None, auto-generated)
             dm, nw, dw: Optional plant parameters to construct P
                         The plant is represented as P = nw / (dm * dw)
-            verbose: If True, print intermediate values
             title: Title for the plot
             plot: If True, generate the plot
             overplot: If True, plot on existing figure instead of creating new one
@@ -333,9 +328,8 @@ class IirFilterData(BaseDataObj):
         ntf_num = Cp_num
         ntf_den = Cp_den + Cp_num
 
-        if verbose:
-            print(f"NTF numerator: {ntf_num}")
-            print(f"NTF denominator: {ntf_den}")
+        self.logger.debug(f"NTF numerator: {ntf_num}")
+        self.logger.debug(f"NTF denominator: {ntf_den}")
 
         # Calculate frequency response
         ntf_complex = self.frequency_response(ntf_num, ntf_den, fs, freq=freq)
@@ -423,13 +417,12 @@ class IirFilterData(BaseDataObj):
 
         return closed_loop_den
 
-    def is_stable(self, mode, dm=None, nw=None, dw=None, verbose=False):
+    def is_stable(self, mode, dm=None, nw=None, dw=None):
         """Check stability by analyzing poles of the closed-loop system.
         
         Args:
             mode: Filter mode index
             dm, nw, dw: Plant coefficients (optional)
-            verbose: Print debug information
             
         Returns:
             bool: True if stable, False otherwise
@@ -449,8 +442,7 @@ class IirFilterData(BaseDataObj):
 
         closed_loop_den = self.closed_loop_denominator(c_num, c_den, p_num, p_den)
 
-        if verbose:
-            print(f"Closed-loop denominator: {closed_loop_den}")
+        self.logger.debug(f"Closed-loop denominator: {closed_loop_den}")
 
         # Find poles (roots of denominator)
         try:
@@ -460,22 +452,19 @@ class IirFilterData(BaseDataObj):
                 # Constant denominator - system might be unstable
                 return False
 
-            if verbose:
-                print(f"Poles: {poles}")
+            self.logger.debug(f"Poles: {poles}")
 
             # Check stability: for discrete-time systems, all poles must be inside unit circle: |pole| < 1
             stable = np.all(np.abs(poles) < 1.0)
             max_pole_mag = np.max(np.abs(poles)) if len(poles) > 0 else 0
 
-            if verbose:
-                print(f"Maximum pole magnitude: {max_pole_mag}")
-                print(f"Stable (discrete): {stable}")
+            self.logger.debug(f"Maximum pole magnitude: {max_pole_mag}")
+            self.logger.debug(f"Stable (discrete): {stable}")
 
             return stable
 
         except Exception as e:
-            if verbose:
-                print(f"Error computing poles: {e}")
+            self.logger.error(f"Error computing poles: {e}")
             return False
 
     @lru_cache(maxsize=16384)
@@ -762,10 +751,10 @@ class IirFilterData(BaseDataObj):
             version = hdr['VERSION']
             if version != 1:
                 raise ValueError(f"Error: unknown version {version} in file {filename}")
-            ordnum = hdul[1].data
-            ordden = hdul[2].data
-            num = hdul[3].data
-            den = hdul[4].data
+            ordnum = hdul[1].data.copy()
+            ordden = hdul[2].data.copy()
+            num = hdul[3].data.copy()
+            den = hdul[4].data.copy()
             return IirFilterData(ordnum, ordden, num, den, target_device_idx=target_device_idx)
 
     def get_fits_header(self):

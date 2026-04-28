@@ -19,14 +19,23 @@ author = 'Fabio Rossi, Alfio Puglisi, Guido Agapito'
 try:
     from specula._version import version as __version__
 except ImportError:
-    # fallback: read from pyproject.toml if _version.py is missing (e.g. on RTD)
+    # Fallback order:
+    # 1) installed package metadata
+    # 2) pyproject static version (if present)
+    # 3) safe placeholder
     try:
-        import tomllib
-    except ImportError:
-        import toml as tomllib
-    with open(os.path.join(os.path.dirname(__file__), '..', 'pyproject.toml'), 'rb') as f:
-        pyproject = tomllib.load(f)
-    __version__ = pyproject['project']['version']
+        from importlib.metadata import version as pkg_version
+        __version__ = pkg_version('specula')
+    except (ImportError, LookupError):
+        try:
+            import tomllib
+        except ImportError:
+            import toml as tomllib
+
+        with open(os.path.join(os.path.dirname(__file__), '..', 'pyproject.toml'), 'rb') as f:
+            pyproject = tomllib.load(f)
+
+        __version__ = pyproject.get('project', {}).get('version', '0+unknown')
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -42,9 +51,20 @@ extensions = ['sphinx.ext.autodoc',
               'numpydoc',
               ]
 
+# Make autosummary behavior deterministic across Sphinx versions.
+autosummary_generate = True
+autosummary_generate_overwrite = True
+
+# Include both class docstring and __init__ docstring in class API pages.
+autoclass_content = 'both'
+
+# Avoid strict-build failures from numpydoc-generated per-method toctrees
+# when explicit stub pages are not provided.
+numpydoc_class_members_toctree = False
+
 source_suffix = {
-    '.rst': None,
-    '.md': None,
+    '.rst': 'restructuredtext',
+    '.md': 'markdown',
 }
 
 intersphinx_mapping = {
@@ -111,8 +131,18 @@ default_role = 'py:obj'
 
 # Auto-generate API docs before building
 import subprocess
-import sys
 
 _scripts_dir = os.path.join(os.path.dirname(__file__), 'scripts')
+_repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+_subproc_env = os.environ.copy()
+_subproc_env['PYTHONPATH'] = (
+    _repo_root
+    if not _subproc_env.get('PYTHONPATH')
+    else _repo_root + os.pathsep + _subproc_env['PYTHONPATH']
+)
 for script in ('generate_api_docs.py', 'generate_objects_summary.py'):
-    subprocess.run([sys.executable, os.path.join(_scripts_dir, script)], check=True)
+    subprocess.run(
+        [sys.executable, os.path.join(_scripts_dir, script)],
+        check=True,
+        env=_subproc_env,
+    )

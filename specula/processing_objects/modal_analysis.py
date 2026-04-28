@@ -1,5 +1,5 @@
 from specula import cpuArray
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.connections import InputValue, InputList
 from specula.data_objects.electric_field import ElectricField
@@ -8,7 +8,6 @@ from specula.data_objects.ifunc import IFunc
 from specula.data_objects.ifunc_inv import IFuncInv
 from specula.lib.compute_zern_ifunc import compute_zern_ifunc
 
-from scipy.fftpack import idct, dct
 import numpy as np
 
 class ModalAnalysis(BaseProcessingObj):
@@ -76,7 +75,6 @@ class ModalAnalysis(BaseProcessingObj):
         self.rms.value = self.xp.zeros(1, dtype=self.dtype)
         self.dorms = dorms
         self.wavelengthInNm = wavelengthInNm
-        self.verbose = False  # Verbose flag for debugging output
 
         if nmodes is None:
             self._n_modes = self.phase2modes.size[1]
@@ -97,6 +95,17 @@ class ModalAnalysis(BaseProcessingObj):
             self.outputs['out_modes_list'].append(BaseValue('modes', target_device_idx=self.target_device_idx))
         self.out_modes_list = self.outputs['out_modes_list']
 
+    @classmethod
+    def input_names(cls):
+        return {'in_ef': InputDesc(ElectricField, 'Input electric field for modal analysis (optional, use with in_ef_list)'),
+                'in_ef_list': InputDesc(ElectricField, 'List of input electric fields for multi-source modal analysis (optional)')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_modes': OutputDesc(BaseValue, 'Modal coefficients from the combined/single input electric field'),
+                'rms': OutputDesc(BaseValue, 'RMS of the wavefront'),
+                'out_modes_list': OutputDesc(list, 'Per-input modal coefficient vectors (list, one per connected input)')}
+
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
         self.in_ef = self.local_inputs['in_ef']
@@ -107,17 +116,17 @@ class ModalAnalysis(BaseProcessingObj):
     def unwrap_ls(self, phase_wrap):
 
         # Wrapped phase differences (Gradients)
-        dx = np.diff(phase_wrap, axis=1)
-        dx = np.mod(dx + np.pi, 2 * np.pi) - np.pi
+        dx = self.xp.diff(phase_wrap, axis=1)
+        dx = self.xp.mod(dx + np.pi, 2 * np.pi) - np.pi
 
-        dy = np.diff(phase_wrap, axis=0)
-        dy = np.mod(dy + np.pi, 2 * np.pi) - np.pi
+        dy = self.xp.diff(phase_wrap, axis=0)
+        dy = self.xp.mod(dy + np.pi, 2 * np.pi) - np.pi
 
         # Calculate the Divergence (right-hand side of Poisson equation)
         rows, cols = phase_wrap.shape
-        rho = np.zeros((rows, cols))
-        rho[:, 1:-1] = np.diff(dx, axis=1)
-        rho[1:-1, :] += np.diff(dy, axis=0)
+        rho = self.xp.zeros((rows, cols))
+        rho[:, 1:-1] = self.xp.diff(dx, axis=1)
+        rho[1:-1, :] += self.xp.diff(dy, axis=0)
 
         # Boundary conditions
         rho[:, 0] = dx[:, 0]
@@ -126,12 +135,11 @@ class ModalAnalysis(BaseProcessingObj):
         rho[-1, :] += -dy[-1, :]
 
         # 2D discrete cosine transform
-        dct_rho = dct(dct(rho, axis=0, norm='ortho'), axis=1, norm='ortho')
+        dct_rho = self.dct(self.dct(rho, axis=0, norm='ortho'), axis=1, norm='ortho')
 
         # Create the Eigenvalues of the Laplacian in DCT domain
-        N, M = rho.shape
-        v = np.cos(np.pi * np.arange(N) / N)
-        u = np.cos(np.pi * np.arange(M) / M)
+        v = self.xp.cos(np.pi * self.xp.arange(rows) / rows)
+        u = self.xp.cos(np.pi * self.xp.arange(cols) / cols)
 
         # Finite difference Laplacian
         denom = 2 * (v.reshape(-1, 1) + u - 2)
@@ -142,12 +150,10 @@ class ModalAnalysis(BaseProcessingObj):
         dct_phi[0, 0] = 0.0 # avoid division by zero
 
         # Inverse 2D DCT
-        return idct(idct(dct_phi, axis=0, norm='ortho'), axis=1, norm='ortho')
-
+        return self.idct(self.idct(dct_phi, axis=0, norm='ortho'), axis=1, norm='ortho')
 
     def unwrap_2d(self, p):
-        unwrapped_p = self.unwrap_ls(cpuArray(p))
-        return self.to_xp(unwrapped_p)
+        return self.unwrap_ls(p)
 
     def setup(self):
         super().setup()
@@ -204,7 +210,6 @@ class ModalAnalysis(BaseProcessingObj):
             self.rms.value[:] = self.xp.std(ph)
             self.rms.generation_time = self.current_time
 
-        if self.verbose:
-            print(f"First residual values: {m[:min(6, len(m))]}")
-            if self.dorms:
-                print(f"Phase RMS: {self.rms.value}")
+        self.logger.debug(f"First residual values: {m[:min(6, len(m))]}")
+        if self.dorms:
+            self.logger.debug(f"Phase RMS: {self.rms.value}")

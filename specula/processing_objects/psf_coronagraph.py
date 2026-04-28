@@ -1,7 +1,9 @@
 
 from specula import fuse
 from specula.processing_objects.psf import PSF
+from specula.base_processing_obj import InputDesc, OutputDesc
 from specula.base_value import BaseValue
+from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.simul_params import SimulParams
 
 
@@ -56,7 +58,6 @@ class PsfCoronagraph(PSF):
                  ee_radius_in_lambda_d=None,
                  target_device_idx: int = None,
                  precision: int = None,
-                 verbose:bool = True,
                 ):
         super().__init__(
             simul_params=simul_params,
@@ -69,7 +70,6 @@ class PsfCoronagraph(PSF):
             ee_radius_in_lambda_d=ee_radius_in_lambda_d,
             target_device_idx=target_device_idx,
             precision=precision,
-            verbose=verbose,
         )
         self.use_average_field = use_average_field
 
@@ -97,6 +97,19 @@ class PsfCoronagraph(PSF):
         # Reference complex amplitude for perfect coronagraph
         self.ref_complex_amplitude = None
         self._sum_coronagraph_psf_squared = None # For std dev calculation
+
+    @classmethod
+    def output_names(cls):
+        result = super().output_names()
+        result.update({
+            'out_coronagraph_psf': OutputDesc(BaseValue, 'Instantaneous coronagraph PSF'),
+            'out_int_coronagraph_psf': OutputDesc(BaseValue, 'Time-integrated coronagraph PSF'),
+            'out_std_coronagraph_psf': OutputDesc(BaseValue, 'Standard deviation of coronagraph PSF over time'),
+            'out_coronagraph_psf_profile': OutputDesc(BaseValue, 'Radial profile of the instantaneous coronagraph PSF'),
+            'out_int_coronagraph_psf_profile': OutputDesc(BaseValue, 'Radial profile of the integrated coronagraph PSF'),
+            'out_std_coronagraph_psf_profile': OutputDesc(BaseValue, 'Radial profile of the std dev coronagraph PSF'),
+        })
+        return result
 
     def setup(self):
         super().setup()
@@ -186,10 +199,8 @@ class PsfCoronagraph(PSF):
             normalize=True
         )
 
-        if self.verbose:
-            print(f'Coronagraph peak suppression: '
-                f'{self.coronagraph_psf.value.max()/self.psf.value.max():.2e}',
-                flush=True)
+        self.logger.info(f'Coronagraph peak suppression: '
+            f'{self.coronagraph_psf.value.max()/self.psf.value.max():.2e}')
 
     def post_trigger(self):
         super().post_trigger()

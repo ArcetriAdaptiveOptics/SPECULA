@@ -1,10 +1,8 @@
-
 from specula.processing_objects.integrator import Integrator
-from specula.data_objects.iir_filter_data import IirFilterData
+from specula.base_processing_obj import InputDesc
 from specula.data_objects.simul_params import SimulParams
 from specula.connections import InputValue
 from specula.base_value import BaseValue
-from specula import cpuArray
 
 
 class DynamicIntegrator(Integrator):
@@ -65,6 +63,17 @@ class DynamicIntegrator(Integrator):
         self.inputs['reset'] = InputValue(type=BaseValue, optional=True)
         self.inputs['int_gain'] = InputValue(type=BaseValue, optional=True)
 
+    @classmethod
+    def input_names(cls):
+        return {'delta_comm': InputDesc(BaseValue, 'Input delta command vector'),
+                'gain_mod': InputDesc(BaseValue, 'Optional gain modulation vector (optional)'),
+                'reset': InputDesc(BaseValue, 'Trigger to reset internal integrator state (optional)'),
+                'int_gain': InputDesc(BaseValue, 'Dynamic integrator gain update (optional)')}
+
+    @classmethod
+    def output_names(cls):
+        return super().output_names()
+
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
 
@@ -80,4 +89,4 @@ class DynamicIntegrator(Integrator):
                 int_gain = float(gain_input.value)
                 self.iir_filter_data.set_gain(int_gain)
         except Exception as e:
-            print(f'Exception: {e.__name__}: {e}')
+            self.logger.error(f'Exception: {e.__name__}: {e}')

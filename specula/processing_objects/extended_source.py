@@ -3,7 +3,7 @@ from typing import Optional, Union, List
 from scipy.interpolate import RectBivariateSpline
 
 from specula import cpuArray, ASEC2RAD, np
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.data_objects.simul_params import SimulParams
 from specula.base_value import BaseValue
 from specula.connections import InputValue
@@ -698,6 +698,14 @@ class ExtendedSource(BaseProcessingObj):
 
         self.npoints = len(self.coeff_flux)
 
+    @classmethod
+    def input_names(cls):
+        return {'psf': InputDesc(BaseValue, 'PSF data for extended source modeling from PSF (optional)')}
+
+    @classmethod
+    def output_names(cls):
+        return {'coeff': OutputDesc(BaseValue, 'Extended source coefficients as a column-stacked array')}
+
     def trigger(self):
         """Update PSF if new data is available and recompute if needed"""
         if self.source_type == 'FROM_PSF':
@@ -761,4 +769,4 @@ class ExtendedSource(BaseProcessingObj):
             plt.show()
 
         except ImportError:
-            print("Matplotlib not available for plotting")
+            self.logger.error("Matplotlib not available for plotting")

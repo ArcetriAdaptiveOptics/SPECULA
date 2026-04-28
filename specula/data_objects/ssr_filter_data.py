@@ -334,10 +334,10 @@ class SsrFilterData(BaseDataObj):
                 raise ValueError(f"Unsupported SSR filter data version: {version}")
 
             # New block-diagonal format
-            A = hdul['A'].data
-            B = hdul['B'].data
-            C = hdul['C'].data
-            D = hdul['D'].data
+            A = hdul['A'].data.copy()
+            B = hdul['B'].data.copy()
+            C = hdul['C'].data.copy()
+            D = hdul['D'].data.copy()
 
             return SsrFilterData(A, B, C, D,
                                     target_device_idx=target_device_idx)

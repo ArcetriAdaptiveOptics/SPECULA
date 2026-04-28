@@ -2,10 +2,11 @@
 from functools import wraps
 from inspect import signature
 
-from specula import np, cp, to_xp, process_rank
+from specula import np, cp, to_xp
 from specula import global_precision, default_target_device, default_target_device_idx
 from specula import cpu_float_dtype_list, gpu_float_dtype_list
 from specula import cpu_complex_dtype_list, gpu_complex_dtype_list
+from specula.log import get_specula_logger, INIT_PLACEHOLDER_NAME
 
 
 class BaseTimeObj:
@@ -15,8 +16,12 @@ class BaseTimeObj:
 
         Parameters:
         precision (int, optional): if None will use the global_precision, otherwise pass 0 for double, 1 for single
-        target_device_idx (int, optional): if None will use the default_target_device_idx, otherwise pass -1 for cpu, i for GPU of index i
+        target_device_idx (int, optional): if None will use the default_target_device_idx,
+        otherwise pass -1 for cpu, i for GPU of index i
         """
+        self.logger = get_specula_logger('specula.'+self.__class__.__name__)
+        self.logger.set_instance_name(INIT_PLACEHOLDER_NAME)
+
         self._time_resolution = int(1e9)
         self.gpu_bytes_used = 0
 
@@ -48,6 +53,7 @@ class BaseTimeObj:
             from cupyx.scipy.ndimage import shift as ndimage_shift
             from cupyx.scipy.ndimage import center_of_mass as ndimage_center_of_mass
             from cupyx.scipy.fft import ifft2 as scipy_ifft2
+            from cupyx.scipy.fft import idct, dct
             from cupyx.scipy.linalg import lu_factor, lu_solve
 
             self._target_device.use()
@@ -59,6 +65,7 @@ class BaseTimeObj:
             from scipy.ndimage import shift as ndimage_shift
             from scipy.ndimage import center_of_mass as ndimage_center_of_mass
             from scipy.fft import ifft2 as scipy_ifft2
+            from scipy.fftpack import idct, dct
             from scipy.linalg import lu_factor, lu_solve
             self.PerformanceWarning = None
 
@@ -68,6 +75,14 @@ class BaseTimeObj:
         self._lu_factor = lu_factor
         self._lu_solve = lu_solve
         self._scipy_ifft2 = scipy_ifft2
+        self.dct = dct
+        self.idct = idct
+
+    def init_logging(self, level=None):
+        name = getattr(self, 'name', None)
+        self.logger.set_instance_name(name)
+        if level is not None:
+            self.logger.setLevel(level)
 
     def t_to_seconds(self, t):
         return float(t) / float(self._time_resolution)
@@ -87,7 +102,7 @@ class BaseTimeObj:
 
     def printMemUsage(self):
         if hasattr(self, 'target_device_idx') and self.target_device_idx >= 0:
-            print(process_rank, f'\tcupy memory used by {self.__class__.__name__}: {self.gpu_bytes_used / (1024*1024)} MB')
+            self.logger.info(f'cupy memory used by {self.__class__.__name__}: {self.gpu_bytes_used / (1024*1024)} MB')
 
     def monitorMem(f):
 

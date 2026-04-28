@@ -1,7 +1,7 @@
 from abc import abstractmethod
 
 from specula import np
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.connections import InputValue
 from specula.base_value import BaseValue
 from specula.data_objects.simul_params import SimulParams
@@ -101,6 +101,16 @@ class BaseFilter(BaseProcessingObj):
                                    f"nfilter {self._nfilter}")
         else:
             self._gain_mod = self.xp.ones(self._nfilter, dtype=self.dtype)
+
+    @classmethod
+    def input_names(cls):
+        return {'delta_comm': InputDesc(BaseValue, 'Input delta command vector'),
+                'gain_mod': InputDesc(BaseValue, 'Optional gain modulation vector (optional)')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_comm': OutputDesc(BaseValue, 'Output command vector with delay applied'),
+                'out_comm_no_delay': OutputDesc(BaseValue, 'Output command vector without delay (for POLC)')}
 
     @abstractmethod
     def trigger_code(self):

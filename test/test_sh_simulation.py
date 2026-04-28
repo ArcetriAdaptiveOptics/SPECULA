@@ -1,14 +1,32 @@
+import gc
 import unittest
 import os
+import sys
 import shutil
 import subprocess
 import glob
-import specula
-specula.init(0,precision=1)
+import time
+import builtins
 
-from specula import np
-from specula.simul import Simul
 from astropy.io import fits
+from pathlib import Path
+from unittest.mock import patch
+
+import specula
+specula.init(0, precision=1)
+
+from specula import np, main_simul
+from specula.simul import Simul
+
+
+# Try to import the MPI library for testing
+try:
+    from mpi4py import MPI
+    from mpi4py.util import pkl5
+    MPI_AVAILABLE = True
+except ImportError:
+    MPI_AVAILABLE = False
+
 
 class TestShSimulation(unittest.TestCase):
     """Test SH SCAO simulation by running a full simulation and checking the results"""
@@ -36,12 +54,12 @@ class TestShSimulation(unittest.TestCase):
 
         # Copy reference calibration files
         if os.path.exists(self.subap_ref_path):
-            shutil.copy(self.subap_ref_path, self.subap_path)
+            shutil.copyfile(self.subap_ref_path, self.subap_path)
         else:
             self.fail(f"Reference file {self.subap_ref_path} not found")
 
         if os.path.exists(self.rec_ref_path):
-            shutil.copy(self.rec_ref_path, self.rec_path)
+            shutil.copyfile(self.rec_ref_path, self.rec_path)
         else:
             self.fail("Reference file {self.rec_path} not found")
 
@@ -50,17 +68,28 @@ class TestShSimulation(unittest.TestCase):
 
     def tearDown(self):
         """Clean up after test by removing generated files"""
+        gc.collect()  # Force garbage collection to make sure FITS files are closed before deleting
+        
         # Remove test/data directory with timestamp
         data_dirs = glob.glob(os.path.join(self.datadir, '2*'))
         for data_dir in data_dirs:
             if os.path.isdir(data_dir) and os.path.exists(f"{data_dir}/res_sr.fits"):
                 shutil.rmtree(data_dir)
 
-        # Clean up copied calibration files
-        if os.path.exists(self.subap_path):
-            os.remove(self.subap_path)
-        if os.path.exists(self.rec_path):
-            os.remove(self.rec_path)
+        # Clean up copied calibration files with retry for Windows
+        for fpath in [self.subap_path, self.rec_path]:
+            if os.path.exists(fpath):
+                max_retries = 5
+                for attempt in range(max_retries):
+                    try:
+                        os.remove(fpath)
+                        break
+                    except PermissionError:
+                        if attempt < max_retries - 1:
+                            time.sleep(0.5)  # Wait before retrying
+                        else:
+                            raise
+        
         ps_dir = os.path.dirname(self.phasescreen_path)
         ps_base = os.path.basename(self.phasescreen_path).replace('_single.fits', '_*.fits')
         for fpath in glob.glob(os.path.join(ps_dir, ps_base)):
@@ -80,7 +109,9 @@ class TestShSimulation(unittest.TestCase):
         yml_files = ['params_scao_sh_test.yml']
         simul = Simul(*yml_files)
         simul.run()
+        self._assert_results()
 
+    def _assert_results(self):
         # Find the most recent data directory (with timestamp)
         data_dirs = sorted(glob.glob(os.path.join(self.datadir, '2*')))
         print(f"Data directories found: {data_dirs}")
@@ -127,8 +158,45 @@ class TestShSimulation(unittest.TestCase):
                     )
                     print(f"Max SR: {max_sr}, Reference Max SR: {max_ref_sr}, Relative diff: {rel_diff:.2%}")
 
+    @unittest.skipIf(not MPI_AVAILABLE, "MPI not available")
+    def test_sh_simulation_mpi(self):
+        """Run a simple simulation using MPI"""
+
+        # We need to call specula directly, and cannot wrap with pytest,
+        # because MPI is handled in specula/__init__.py with a command-line option.
+        # As a bonus, that code is tested as well. Codecov might not detect this.
+        root = Path(__file__).resolve().parents[1]
+        specula_main_path = root / 'specula' / 'scripts' / 'specula_main.py'
+
+        cmd = [
+            "mpirun",
+            "-n", "2",
+            "coverage", "run",
+            "--parallel-mode",
+            specula_main_path,
+            'params_scao_sh_test.yml', 'params_ov_scao_mpi.yml',
+            "--mpi", "--log-level=mpi_send_dbg"
+        ]
+        print('running ', cmd)
+        os.chdir(os.path.dirname(__file__))
+        _ = subprocess.run(cmd)
+        self._assert_results()
+
+    @unittest.skipIf(not MPI_AVAILABLE, "MPI not available")
+    def test_sh_simulation_mpi_single(self):
+        """Run a simple simulation using MPI, but with a single process"""
+
+        # Change to test directory
+        os.chdir(os.path.dirname(__file__))
+
+        # Run the simulation
+        print("Running SH SCAO simulation...")
+        yml_files = ['params_scao_sh_test.yml']
+        main_simul(yml_files, mpi=True, log_level='MPI_SEND_DBG')
+        self._assert_results()
+
     @unittest.skipIf(int(os.getenv('CREATE_REF', 0)) < 1, "This test is only used to create reference files")
-    def test_create_reference_sr(self):
+    def test_create_reference_sr(self):     # pragma: no cover
         """
         This test is used to create reference SR file for the first time.
         It should be run once, and then the generated file should be renamed
@@ -160,3 +228,17 @@ class TestShSimulation(unittest.TestCase):
         # Copy to reference file
         shutil.copy(res_sr_path, self.res_sr_ref_path)
         print(f"Reference SR file created at {self.res_sr_ref_path}")
+
+    def test_failed_import(self):
+        """Test that a missing MPI raises ImportError"""
+        real_import = builtins.__import__
+
+        def mocked_import(name, *args, **kwargs):
+            if name == "mpi4py":
+                raise ImportError("Module not found")
+            return real_import(name, *args, **kwargs)       # pragma: no cover
+
+        with patch("builtins.__import__", side_effect=mocked_import):
+            with self.assertRaises(ImportError):
+                result = specula.main_simul('dummy.yml', mpi=True)
+

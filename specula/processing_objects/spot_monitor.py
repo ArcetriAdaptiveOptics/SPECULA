@@ -1,7 +1,7 @@
 import numpy as _np
 from astropy.modeling import models as _models, fitting as _fitting
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.connections import InputValue
 from specula.data_objects.pixels import Pixels
@@ -99,6 +99,17 @@ class SpotMonitor(BaseProcessingObj):
         self.outputs['out_model_pixels'] = self.model_pixels
         self.outputs['out_residual_pixels'] = self.residual_pixels
         self.outputs['out_params'] = self.params
+
+    @classmethod
+    def input_names(cls):
+        return {'in_pixels': InputDesc(Pixels, 'Input pixel image from WFS detector')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_sum_pixels': OutputDesc(Pixels, 'Summed subaperture image'),
+                'out_model_pixels': OutputDesc(Pixels, 'Fitted Moffat model image'),
+                'out_residual_pixels': OutputDesc(Pixels, 'Residuals between data and model'),
+                'out_params': OutputDesc(BaseValue, 'Moffat fit parameters [amplitude, x0, y0, gamma, alpha, sky, fwhm, chi2, success]')}
 
     def _estimate_initials(self, img):
         """Estimate initial parameters from image.

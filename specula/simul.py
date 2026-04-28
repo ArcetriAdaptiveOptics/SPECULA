@@ -1,19 +1,21 @@
 import re
-import typing
 import inspect
 import itertools
 from copy import deepcopy
 from pathlib import Path
-from collections import Counter, namedtuple
-from specula import process_rank, MPI_DBG
+from collections import namedtuple
+from specula import process_rank
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_data_obj import BaseDataObj
 
+
+from specula.log import get_specula_logger
 from specula.loop_control import LoopControl
-from specula.lib.utils import import_class, get_type_hints, remove_suffix
+from specula.lib.utils import import_class, get_type_hints, remove_suffix, resolve_type
 from specula.calib_manager import CalibManager
 from specula.processing_objects.data_store import DataStore
 from specula.connections import InputList, InputValue
+from specula.simul_diagram import SimulDiagram
 
 import yaml
 import hashlib
@@ -27,20 +29,6 @@ def computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name):
     rr = int(hashlib.sha256(s.encode('utf-8')).hexdigest(), 16) % 10**6
     return rr
 
-
-import matplotlib.pyplot as plt
-
-mplcolors = plt.get_cmap("tab10").colors
-
-def int_to_rgb(val: int, maxval=16):
-    val += 1
-    if val>=0 and val<len(mplcolors):
-        return mplcolors[val]
-    scale = 255 / maxval
-    r = int((val * scale * 611) % 256)
-    g = int((val * scale * 551) % 256)
-    b = int((val * scale * 501) % 256)
-    return (1.0 - r/255.0, 1.0 - g/255.0, 1.0 - b/255.0)
 
 class Simul():
     '''
@@ -56,31 +44,39 @@ class Simul():
                  diagram_filename=None,
                  diagram_colors_on=False,
                  speed_report=True,
+                 log_level: str='info',
                  ):
         if len(param_files) < 1:
             raise ValueError('At least one Yaml parameter file must be present')
+
         self.is_dataobj = {}
-        self.connections = []
-        self.references = []
         self.all_objs_ranks = {}
-        self.max_rank = 0
-        self.max_target_device_idx = 0
+        self.all_target_device_idxs = {}
         self.remote_objs_ranks = {}
         self.param_files = param_files
         self.objs = {}
         self.simul_idx = simul_idx
-        self.verbose = False  #TODO
         self.mainParams = None
         if overrides is None:
             self.overrides = []
         else:
             self.overrides = overrides
         self.stepping = stepping
-        self.diagram = diagram
-        self.diagram_title = diagram_title
-        self.diagram_filename = diagram_filename
-        self.diagram_colors_on = diagram_colors_on
         self.speed_report = speed_report
+        self.logger = get_specula_logger(__name__)
+        self.logger.setLevel(log_level.upper())
+        if diagram or diagram_title or diagram_filename or diagram_colors_on:
+            if diagram_filename is None:
+                diagram_filename = str(Path(self.param_files[0]).with_suffix('.png'))
+            if diagram_title is None:
+                diagram_title = str(Path(self.param_files[0]).with_suffix(''))
+
+            self.diagram = SimulDiagram(param_file=self.param_files[0],
+                                        title=diagram_title,
+                                        filename=diagram_filename,
+                                        colors_on=diagram_colors_on)
+        else:
+            self.diagram = None
 
     def split_output(self, output_name, get_ref=False, use_inputs=False):
         '''
@@ -223,12 +219,12 @@ class Simul():
                 order.append(leaf)
                 order_index.append(index)
                 del params[leaf]
-                self.remove_inputs(params, leaf)
+                self.remove_inputs(params, leaf, log=False)
             end = len(params)
             if start == end:
                 raise ValueError('Cannot determine trigger order: circular loop detected in {leaves}')
         if len(params) > 0:
-            print('Warning: the following objects will not be triggered:', params.keys())
+            self.logger.warning(f'the following objects will not be triggered: {params.keys()}')
         return order, order_index
 
     def setSimulParams(self, params):
@@ -301,7 +297,7 @@ class Simul():
         else:
             additional_modules = []
 
-        if MPI_DBG: print(process_rank, 'building objects')
+        self.logger.mpi_debug(f'building objects')
 
         for key in self.build_order(params):
 
@@ -315,19 +311,14 @@ class Simul():
             args = inspect.getfullargspec(getattr(klass, '__init__')).args
             hints = get_type_hints(klass)
             target_device_idx = pars.get('target_device_idx', None)
-            if (not target_device_idx is None) and target_device_idx > self.max_target_device_idx:
-                self.max_target_device_idx = target_device_idx
+            self.all_target_device_idxs[key] = target_device_idx
  
-            par_target_rank = pars.get('target_rank', None)
+            par_target_rank = pars.pop('target_rank', None)
             if par_target_rank is None:
                 target_rank = 0
-                self.all_objs_ranks[key] = 0
             else:
                 target_rank = par_target_rank
-                self.all_objs_ranks[key] = par_target_rank
-                if par_target_rank > self.max_rank:
-                    self.max_rank = par_target_rank
-                del pars['target_rank']
+            self.all_objs_ranks[key] = target_rank
 
             # create the simulations objects for this process. Data Objects are created
             # on all ranks (processes) by default, unless a specific rank has been specified.
@@ -349,10 +340,11 @@ class Simul():
                     raise ValueError('Extra parameters with "tag" are not allowed')
                 filename = cm.filename(classname, pars['tag'])
                 # tags are restored into each process (multiple copies), target_rank is not checked
-                print('Restoring:', filename)
+                self.logger.info(f'Restoring: {filename}')
                 self.objs[key] = klass.restore(filename, target_device_idx=target_device_idx)
-                self.objs[key].printMemUsage()
                 self.objs[key].name = key
+                self.objs[key].init_logging(self.logger.getEffectiveLevel())
+                self.objs[key].printMemUsage()
                 self.objs[key].tag = pars['tag']
                 continue
 
@@ -375,25 +367,81 @@ class Simul():
                 if parname not in args:
                     raise ValueError(f'Parameter {parname} is not expected by class {classname}')
 
+                # list_ref field contains an ordered list of associated data objects
+                # (defined in the same yml file).
+                elif name.endswith('_list_ref') and parname != name:
+                    if not isinstance(value, (list, tuple)):
+                        raise ValueError(f'Parameter {name} must be a list of object names')
+                    if build_this_object:
+                        pars2[parname] = [self.objs[x] for x in value]
+                    if self.diagram:
+                        for x in value:
+                            self.diagram.add_reference(start=key, end=x)
+
                 # dict_ref field contains a dictionary of names and associated data objects (defined in the same yml file)
                 elif name.endswith('_dict_ref') and parname != name:
                     if build_this_object:
                         data = {x : self.objs[x] for x in value}
                         pars2[parname] = data
-                    for x in value:
-                        a_ref = {}
-                        a_ref['start'] = key
-                        a_ref['end'] = x
-                        self.references.append(a_ref)
+                    if self.diagram:
+                        for x in value:
+                            self.diagram.add_reference(start=key, end=x)
 
+                # list_object fields contain an ordered list of tags to be restored as data objects.
+                elif name.endswith('_list_object') and parname != name and build_this_object:
+                    if value is None:
+                        pars2[parname] = None
+                    elif not isinstance(value, (list, tuple)):
+                        raise ValueError(f'Parameter {name} must be a list of tags')
+                    elif parname in hints:
+                        try:
+                            partype = resolve_type(hints[parname], require_list=True)
+                        except TypeError:
+                            raise ValueError(f'Parameter {parname} must be typed as List[DataObjType]')
+
+                        loaded = []
+                        for tag in value:
+                            filename = cm.filename(partype.__name__, tag)
+                            print('Restoring:', filename)
+                            obj = partype.restore(filename, target_device_idx=target_device_idx)
+                            obj.printMemUsage()
+                            obj.tag = tag
+                            loaded.append(obj)
+
+                        pars2[parname] = loaded
+                    else:
+                        raise ValueError(f'No type hint for parameter {parname} of class {classname}')
+
+                # dict_object fields contain a dictionary of tags to be restored as data objects.
+                elif name.endswith('_dict_object') and parname != name and build_this_object:
+                    if value is None:
+                        pars2[parname] = None
+                    elif not isinstance(value, dict):
+                        raise ValueError(f'Parameter {name} must be a dictionary of tags')
+                    elif parname in hints:
+                        try:
+                            partype = resolve_type(hints[parname], require_dict=True)
+                        except TypeError:
+                            raise ValueError(f'Parameter {parname} must be typed as Dict[str, DataObjType]')
+
+                        loaded = {}
+                        for dict_key, tag in value.items():
+                            filename = cm.filename(partype.__name__, tag)
+                            print('Restoring:', filename)
+                            obj = partype.restore(filename, target_device_idx=target_device_idx)
+                            obj.printMemUsage()
+                            obj.tag = tag
+                            loaded[dict_key] = obj
+
+                        pars2[parname] = loaded
+                    else:
+                        raise ValueError(f'No type hint for parameter {parname} of class {classname}')
                 elif name.endswith('_ref') and parname != name:
                     if build_this_object:
                         data = self.objs[value]
                         pars2[parname] = data
-                    a_ref = {}
-                    a_ref['start'] = key
-                    a_ref['end'] = value
-                    self.references.append(a_ref)
+                    if self.diagram:
+                        self.diagram.add_reference(start=key, end=value)
 
                 # data fields are read from a fits file
                 elif name.endswith('_data') and parname != name and build_this_object:
@@ -410,25 +458,17 @@ class Simul():
                     if value is None:
                         pars2[parname] = None
                     elif parname in hints:
-                        partype = hints[parname]
+                        partype = resolve_type(hints[parname])
 
-                        # Handle Optional and Union types (for python <3.11)
-                        if hasattr(partype, "__origin__") and partype.__origin__ is typing.Union:
-                            # Extract actual class type from Optional/Union
-                            # (first non-None type argument)
-                            for arg in partype.__args__:
-                                if arg is not type(None):  # Skip NoneType
-                                    partype = arg
-                                    break
                         # data objects are restored into each process (multiple copies), target_rank is not checked
                         filename = cm.filename(parname, value)  # TODO use partype instead of parname?
-                        print('Restoring:', filename)
+                        self.logger.info(f'Restoring: {filename}')
                         parobj = partype.restore(filename, target_device_idx=target_device_idx)
+                        parobj.init_logging(self.logger.getEffectiveLevel())
                         parobj.printMemUsage()
 
                         # Set data_tag
                         parobj.tag = value
-
                         pars2[parname] = parobj
                     else:
                         raise ValueError(f'No type hint for parameter {parname} of class {classname}')
@@ -461,13 +501,13 @@ class Simul():
             my_params.update(pars2)
             try:
                 self.objs[key] = klass(**my_params)
+                self.objs[key].name = key
+                self.objs[key].init_logging(self.logger.getEffectiveLevel())
             except Exception:
-                print('Exception building', key)
+                self.logger.error(f'Exception building {key}')
                 raise
             if classname != 'SimulParams':
                 self.objs[key].stopMemUsageCount()
-
-            self.objs[key].name = key
 
             # TODO this could be more general like the getters above
             if type(self.objs[key]) is DataStore:
@@ -493,15 +533,15 @@ class Simul():
         if send or recv:
             tag = computeTag(output.obj_name, dest_object, output.output_key, input_name)
 
-        if MPI_DBG: print(process_rank, f'{output.obj_name}.{output.output_key} -> {dest_object} : {send=} {recv=} {local=}', flush=True)
+        self.logger.mpi_debug(f'{output.obj_name}.{output.output_key} -> {dest_object} : {send=} {recv=} {local=}')
 
         if recv:
-            if MPI_DBG: print(process_rank, f'CONNECT Connecting remote output {output.obj_name}.{output.output_key} to local input {dest_object}.{input_name} with tag {tag}')
+            self.logger.mpi_debug(f'CONNECT Connecting remote output {output.obj_name}.{output.output_key} to local input {dest_object}.{input_name} with tag {tag}')
             self.objs[dest_object].inputs[input_name].append(None,
                                                             remote_rank = self.remote_objs_ranks[output.obj_name],
                                                             tag=tag)
         if local:
-            if MPI_DBG: print(process_rank, f'CONNECT Connecting local output {output.obj_name}.{output.output_key} to local input {dest_object}.{input_name}')
+            self.logger.mpi_debug(f'CONNECT Connecting local output {output.obj_name}.{output.output_key} to local input {dest_object}.{input_name}')
             self.objs[dest_object].inputs[input_name].append(output.ref)
 
         if send:
@@ -513,7 +553,7 @@ class Simul():
         
         for dest_object, pars in params.items():
 
-            if MPI_DBG: print(process_rank, 'connect_objects for', dest_object, flush=True)
+            self.logger.mpi_debug(f'connect_objects for {dest_object}')
 
             local_dest_object = dest_object in self.objs.keys()
 
@@ -526,7 +566,7 @@ class Simul():
                             raise ValueError(f'Object {dest_object} does not have an output called {output_name}')
                     else:
                         # remote object case
-                        # TODO these checks are almost all reduntant
+                        # TODO these checks are almost all redundant
                         if not ( self.all_objs_ranks[dest_object] != process_rank \
                              and 'outputs' in params[dest_object] \
                              and output_name in params[dest_object]['outputs'] ):
@@ -537,8 +577,8 @@ class Simul():
 
             for input_name, output_name in pars['inputs'].items():
 
-                if MPI_DBG: print(process_rank, 'ASSIGNMENT of input_name:', input_name, flush=True)
-                if MPI_DBG: print(process_rank, 'output_name', output_name, flush=True)
+                self.logger.mpi_debug(f'ASSIGNMENT of input_name: {input_name}')
+                self.logger.mpi_debug(f'{output_name=}')
 
                 if local_dest_object and input_name != 'input_list':
                     if not input_name in self.objs[dest_object].inputs:
@@ -548,17 +588,15 @@ class Simul():
                     raise ValueError(f'Object {dest_object}: invalid input definition type {type(output_name)}')
 
                 for single_output_name in output_name if isinstance(output_name, list) else [output_name]:
-                    if MPI_DBG: print(process_rank, 'List input', flush=True)
+                    self.logger.mpi_debug(f'List input')
 
                     output = self.split_output(single_output_name, get_ref=True)
 
-                    a_connection = {}
-                    a_connection['start'] = output.obj_name
-                    a_connection['end'] = dest_object
-                    a_connection['start_label'] = output.output_key
-#                    a_connection['middle_label'] = self.objs[dest_object].inputs[use_input_name]
-                    a_connection['end_label'] = input_name
-                    self.connections.append(a_connection)
+                    if self.diagram:
+                        self.diagram.add_connection(start = output.obj_name,
+                                                    end= dest_object,
+                                                    start_label= output.output_key,
+                                                    end_label = input_name)
 
                     # Remote-to-remote: nothing to do
                     if not local_dest_object and output.ref is None:
@@ -567,7 +605,7 @@ class Simul():
                     try:
                         self.connect(single_output_name, input_name, dest_object)
                     except ValueError:
-                        print(f'Exception while connecting {single_output_name} {dest_object}.{input_name}')
+                        self.logger.error(f'Exception while connecting {single_output_name} {dest_object}.{input_name}')
                         raise
 
 
@@ -627,9 +665,9 @@ class Simul():
                 if 'inputs' in pars.keys():
                     for input_name, output_name_full in pars['inputs'].items():
                         if type(output_name_full) is list:
-                            print('TODO: list of inputs is not handled in output replay')
+                            self.logger.warning('TODO: list of inputs is not handled in output replay')
                             continue
-                        print('output_name_full', output_name_full)
+                        self.logger.debug(f'{output_name_full=}')
                         if output_name_full in data_source_outputs.keys():
                             replay_params[key]['inputs'][input_name] = 'data_source.' + data_source_outputs[output_name_full]
 
@@ -684,7 +722,10 @@ class Simul():
                     add_key(desc.obj_name)
             # Add all references to other objects
             for k, v in params[key].items():
-                if k.endswith('_dict_ref'):
+                if k.endswith('_list_ref'):
+                    for objname in v:
+                        add_key(objname)
+                elif k.endswith('_dict_ref'):
                     for objname in v:
                         add_key(objname)
                 elif k.endswith('_ref'):
@@ -692,7 +733,7 @@ class Simul():
 
         for key in target_object_names:
             add_key(key)
-        
+
         return replay_params
 
     def iterate_inputs(self, pars):
@@ -715,7 +756,7 @@ class Simul():
                 else:
                     yield (k, v)
 
-    def remove_inputs(self, params, obj_to_remove):
+    def remove_inputs(self, params, obj_to_remove, log=True):
         '''
         Modify params removing all references to the specified object name
         '''
@@ -729,15 +770,14 @@ class Simul():
                         owner = self.output_owner(output_name)
                         if owner == obj_to_remove:
                             del obj_inputs_copy[input_name]
-                            if self.verbose:
-                                print(f'Deleted {input_name} from {obj[key]}')
+                            if log:
+                                self.logger.info(f'Deleted {input_name} from {obj[key]}')
                     elif isinstance(output_name, list):
                         newlist = [x for x in output_name if self.output_owner(x) != obj_to_remove]
                         diff = set(output_name).difference(set(newlist))
                         obj_inputs_copy[input_name] = newlist
-                        if len(diff) > 0:
-                            if self.verbose:
-                                print(f'Deleted {diff} from {obj[key]}')
+                        if len(diff) > 0 and log:
+                            self.logger.info(f'Deleted {diff} from {obj[key]}')
                 obj[key] = obj_inputs_copy
         return params
 
@@ -763,7 +803,7 @@ class Simul():
                     if objname not in params:
                         raise ValueError(f'Parameter file has no object named {objname}')
                     del params[objname]
-                    print(f'Removed {objname}')
+                    self.logger.info(f'Removed {objname}')
                     # Remove corresponding inputs
                     params = self.remove_inputs(params, objname)
             elif name.endswith('_override'):
@@ -777,194 +817,28 @@ class Simul():
                 params[name] = values
 
     def apply_overrides(self, params):
-        print('overrides:', self.overrides)
+        self.logger.info('overrides: ' + str(self.overrides))
         if len(self.overrides) > 0:
             for k, v in yaml.full_load(self.overrides).items():
                 parts = k.split('.')
                 if len(parts) == 2:
                     params[parts[0]][parts[1]] = v
-                    print(*parts, v)
+                    self.logger.debug(f'{parts} {v}')
                 elif len(parts) == 3:
                     params[parts[0]][parts[1]][parts[2]] = v
-                    print(*parts, v)
+                    self.logger.debug(f'{parts} {v}')
                 else:
-                    raise ValueError(f"Unknown number of parts detected in override: {parts}. Did you add/forget a '.'?")
-
-    def arrangeInGrid(self, trigger_order, trigger_order_idx):
-        rows = []
-        center = False
-        n_cols = max(trigger_order_idx) + 1
-        n_rows = max( list(dict(Counter(trigger_order_idx)).values()))        
-        # names_to_orders = dict(zip(trigger_order, trigger_order_idx))
-        orders_to_namelists = {}
-        for order in range(n_cols):
-            orders_to_namelists[order] = []
-        for name, order in zip(trigger_order, trigger_order_idx):
-            orders_to_namelists[order].append(name)
-
-        for ri in range(n_rows):
-            r = []
-            for ci in range(n_cols):
-                col_elements = len(orders_to_namelists[ci])
-                col_offset = int((n_rows-col_elements)/2)
-                ri_f = ri - col_offset
-                if center:
-                    if ri<col_elements+col_offset and ri>=col_offset:
-                        block_name = orders_to_namelists[ci][ri_f]
-                    else:
-                        block_name = ""
-                else:
-                    if ri<col_elements:
-                        block_name = orders_to_namelists[ci][ri]
-                    else:
-                        block_name = ""
-                r.append(block_name)
-            rows.append(r)
-        return rows
+                    raise ValueError(f"Invalid number of parts detected in override: {parts}. Did you add/forget a '.'?")
     
-    def buildDiagram(self, params):
-        from orthogram import Color, DiagramDef, write_png, Side,  FontWeight, FontStyle, TextOrientation
-
-        print('Building diagram...')        
-        title_fontsize = 48*2
-        block_fontsize = 42*2
-        arrow_fontsize = 24*2
-        arrow_base_value = 12.0
-        
-        d = DiagramDef(label=self.diagram_title, text_fill=Color(0, 0, 0), scale=1.0, collapse_connections=False, font_size=title_fontsize, connection_distance=28)
-        rows = self.arrangeInGrid(self.trigger_order, self.trigger_order_idx)
-        row_len = len(rows[0])        
-        # a row is a list of strings, which are labels for the cells        
-        for r in rows:
-            d.add_row(r)
-            for b in r:
-                target_device_idx = 0
-                target_rank = 0
-                if b in params and 'target_device_idx' in params[b]:
-                    target_device_idx = params[b]['target_device_idx']
-                if b in self.all_objs_ranks:
-                    target_rank = self.all_objs_ranks[b]
-                
-                if b in self.is_dataobj and not self.is_dataobj[b]:
-                    fs = FontStyle.ITALIC
-                    fb = FontWeight.BOLD
-                else:
-                    fs = FontStyle.NORMAL
-                    fb = FontWeight.NORMAL
-
-                if self.diagram_colors_on:
-                    cstroke = Color(*int_to_rgb(target_rank-1, self.max_rank+1))
-                    refcstroke = Color(0,0.5,0)
-                    cfill = Color(*int_to_rgb(target_device_idx, self.max_target_device_idx+1))
-                    swidth = 12
-                else:
-                    cstroke = Color(0,0,0)
-                    refcstroke = Color(0,0,0)
-                    cfill = Color(1,1,1)
-                    swidth = 2
-
-                d.add_block(b,
-                            scale=1,
-                            label_distance=40,
-                            stroke=cstroke,
-                            fill=cfill,
-                            stroke_width=swidth,
-                            min_height=block_fontsize*3,
-                            min_width=450,
-                            margin_top=16,
-                            margin_bottom=16,
-                            margin_right=16,
-                            margin_left=16,
-                            font_size=block_fontsize,
-                            font_weight=fb, 
-                            font_style=fs)
-        
-        if self.diagram_colors_on:
-            legend_row1 = []
-            for td in range(self.max_target_device_idx+1):
-                legend_row1.append("GPU Id=" + str(td))
-            d.add_row(legend_row1)
-            for td in range(self.max_target_device_idx+1):
-                d.add_block("GPU Id=" + str(td),
-                            label_distance=40,
-                            fill=Color(*int_to_rgb(td, self.max_target_device_idx+1)),
-                            stroke=Color(1.0,1.0,1.0),
-                            stroke_width=12,
-                            min_height=block_fontsize*3,
-                            min_width=450,
-                            margin_top=16,
-                            margin_bottom=16,
-                            margin_right=16,
-                            margin_left=16,
-                            font_size=block_fontsize)
-
-            legend_row2 = []
-            ri=0
-            base_rank=0
-            for rank in range(self.max_rank+1):
-                legend_row2.append("Rank=" + str(rank)) 
-                if int(rank+1) % row_len == 0 or rank==self.max_rank:
-                    d.add_row(legend_row2)
-                    for ii in range(len(legend_row2)):
-                        d.add_block("Rank=" + str(ii+base_rank),
-                                    label_distance=40,
-                                    stroke=Color(*int_to_rgb(ii+base_rank-1, self.max_rank+1)), 
-                                    stroke_width=12,
-                                    min_height=block_fontsize*3,
-                                    min_width=450,
-                                    margin_top=16,
-                                    margin_bottom=16,
-                                    margin_right=16,
-                                    margin_left=16,
-                                    font_size=block_fontsize)
-                    legend_row2 = []
-                    ri += 1
-                    base_rank += row_len            
-
-        for c in self.connections:
-            if c['start_label'] is None:
-                ostring = ""
-            else:
-                ostring = str(c['start_label'])
-            aconn = d.add_connection( c['start'],
-                                      c['end'],
-                                      buffer_fill=Color(1.0,1.0,1.0),
-                                      buffer_width=2,
-                                      stroke_width=2.0,
-                                      stroke=Color(0.0,0.0,0.0), 
-                                      arrow_base=arrow_base_value,
-                                      exits=[Side.RIGHT, Side.BOTTOM],
-                                      entrances=[Side.LEFT, Side.TOP],
-                                      font_size=arrow_fontsize,
-                                      text_orientation=TextOrientation.HORIZONTAL,
-                                      label = ostring + "→" + str(c['end_label']) )
-
-        for c in self.references:
-            if c['end'] != 'main':
-                aconn = d.add_connection( c['start'],
-                                          c['end'],
-                                          buffer_fill=Color(1.0,1.0,1.0),
-                                          buffer_width=2,
-                                          stroke_width=2.0,
-                                          stroke=refcstroke,
-                                          arrow_base=arrow_base_value,
-                                          exits=[Side.LEFT],
-                                          entrances=[Side.RIGHT, Side.BOTTOM, Side.TOP], 
-                                          stroke_dasharray=[6,6] )
-
-
-        write_png(d, self.diagram_filename)
-        print('Diagram saved.')
-
     def run(self):
         params = {}
         # Read YAML file(s)
-        print('Reading parameters from', self.param_files[0])
+        self.logger.info('Reading parameters from ' + self.param_files[0])
         with open(self.param_files[0], 'r') as stream:
             params = yaml.safe_load(stream)
 
         for filename in self.param_files[1:]:
-            print('Reading additional parameters from', filename)
+            self.logger.info('Reading additional parameters from ' + filename)
             with open(filename, 'r') as stream:
                 additional_params = yaml.safe_load(stream)                
                 self.combine_params(params, additional_params)
@@ -973,8 +847,8 @@ class Simul():
         self.apply_overrides(params)
 
         self.trigger_order, self.trigger_order_idx = self.build_trigger_order(params)
-        print(f'{self.trigger_order=}')
-        print(f'{self.trigger_order_idx=}')
+        self.logger.info(f'{self.trigger_order=}')
+        self.logger.info(f'{self.trigger_order_idx=}')
 
         if not self.isReplay(params):
             replay_params = self.build_replay(params)
@@ -985,13 +859,12 @@ class Simul():
         self.create_input_list_inputs(params)
         self.connect_objects(params)
         
-        if (process_rank == 0 or process_rank is None) and \
-           (self.diagram or self.diagram_filename or self.diagram_title):
-            if self.diagram_filename is None:
-                self.diagram_filename = str(Path(self.param_files[0]).with_suffix('.png'))
-            if self.diagram_title is None:
-                self.diagram_title = str(Path(self.param_files[0]).with_suffix(''))
-            self.buildDiagram(params)
+        if (process_rank == 0 or process_rank is None) and self.diagram:
+            self.diagram.build(trigger_order = self.trigger_order,
+                               trigger_order_idx = self.trigger_order_idx,
+                               all_target_device_idxs=self.all_target_device_idxs,
+                               all_objs_ranks = self.all_objs_ranks,
+                               is_dataobj = self.is_dataobj)
 
         if replay_params is not None:
             for obj in self.objs.values():
@@ -1009,24 +882,24 @@ class Simul():
                     self.loop.add(obj, idx)
         
         self.loop.max_global_order = max(self.trigger_order_idx)
-        print('self.loop.max_global_order', self.loop.max_global_order, flush=True)
+        self.logger.debug(f'{self.loop.max_global_order=}')
 
         # Default display web server
         if 'display_server' in self.mainParams and self.mainParams['display_server'] and process_rank in [0, None]:
             from specula.processing_objects.display_server import DisplayServer
             disp = DisplayServer(params, self.input_ref, self.output_ref, self.get_info)
+            disp.name = 'display_server'
             self.objs['display_server'] = disp
             self.loop.add(disp, idx+1)
-            disp.name = 'display_server'
 
         # Run simulation loop
         self.loop.run(run_time=self.mainParams['total_time'],
                       dt=self.mainParams['time_step'],
                       speed_report=self.speed_report)
 
-        print(process_rank, 'Simulation finished', flush=True)
+        self.logger.debug(f'Simulation finished')
 #        if data_store.has_key('sr'):
-#            print(f"Mean Strehl Ratio (@{params['psf']['wavelengthInNm']}nm) : {store.mean('sr', init=min([50, 0.1 * self.mainParams['total_time'] / self.mainParams['time_step']])) * 100.}")
+#            self.logger.info(f"Mean Strehl Ratio (@{params['psf']['wavelengthInNm']}nm) : {store.mean('sr', init=min([50, 0.1 * self.mainParams['total_time'] / self.mainParams['time_step']])) * 100.}")
 
     def get_info(self):
         '''Quick info string intended for web interfaces'''

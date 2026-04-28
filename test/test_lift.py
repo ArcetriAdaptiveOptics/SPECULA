@@ -68,7 +68,7 @@ class TestLift(unittest.TestCase):
             npix_side=16,
             fft_res=3,
         )
-        expected = np.pi / (4.0 * settings.fft_res)
+        expected = np.pi / (2.0 * settings.fft_res)
         self.assertAlmostEqual(lift.radians_per_pixel, expected)
 
     @cpu_and_gpu
@@ -363,3 +363,67 @@ class TestLift(unittest.TestCase):
                     f"expected {unknown_nm:.1f} nm",
         )
         np.testing.assert_allclose(coeffs_out[defocus_idx], 0.0, atol=5.0)
+
+    @cpu_and_gpu
+    def test_set_modalbase_mask_dtype_invariance(self, target_device_idx, xp):
+        """
+        Test that set_modalbase produces the identical modesCube whether 
+        mask2d is provided as an integer or float array.
+        """
+        # 1. Initialize Lift with a simple Zernike IFunc and a ref_zern_amp of length nZern
+        npixels = 16
+        pixel_pitch = 1.
+        diameter = npixels*pixel_pitch
+        ref_zern_amp = np.array([0.1, -0.2, 0.3], dtype=np.float32)
+
+        simul_params = SimulParams(pixel_pupil=npixels, pixel_pitch=pixel_pitch)
+        ifunc = IFunc(
+            type_str='zernike', nmodes=3, npixels=npixels,
+            precision=1, target_device_idx=target_device_idx,
+        )
+        lift = Lift(
+            simul_params=simul_params,
+            nPistons=0,
+            nZern=3,
+            wavelengthInNm=1750,
+            pix_scale=0.007,
+            npix_side=240,
+            cropped_size=8,
+            ifunc=ifunc,
+            ref_zern_amp=ref_zern_amp,
+            n_iter=30,
+            fft_res=1,
+            target_device_idx=target_device_idx,
+            precision=1,
+        )
+    
+        # Create an integer mask (e.g., a simple cross/circle shape)
+        mask2d_int = np.zeros((npixels,npixels), dtype=np.int32)
+        mask2d_int[4:12, 7:9] = 1
+    
+        # Create the exact same mask, but as a float
+        mask2d_float = mask2d_int.astype(np.float64)
+    
+        # Create a mock modalbase. Its second dimension must match the number 
+        # of non-zero elements in the mask (5 in this case).
+        valid_pixels = np.count_nonzero(mask2d_int)
+        modalbase = np.random.rand(lift.nmodes, valid_pixels)
+
+        # 2. Run the method with the INT mask and store the result
+        lift.set_modalbase(modalbase, mask2d_int, diameter)
+    
+        # Note: If self.xp is cupy, we use .get() to bring it to the CPU for testing. 
+        # The lambda acts as a fallback if it's already a numpy array.
+        modesCube_int = getattr(lift.modesCube, 'get', lambda: lift.modesCube)()
+
+        # 3. Run the method with the FLOAT mask and store the result
+        lift.set_modalbase(modalbase, mask2d_float, diameter)
+        modesCube_float = getattr(lift.modesCube, 'get', lambda: lift.modesCube)()
+
+        # 4. Assert the outputs are exactly identical
+        # assert_array_equal checks that shapes and elements match perfectly
+        np.testing.assert_array_equal(
+            modesCube_int, 
+            modesCube_float, 
+            err_msg="modesCube differs between int and float mask2d inputs."
+        )

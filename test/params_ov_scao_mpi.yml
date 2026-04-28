@@ -1,0 +1,62 @@
+main_override:
+  total_time:      0.100
+
+# works
+#seeing_override:
+#  target_rank: 1
+
+# works
+#wind_speed_override:
+#  target_rank: 1
+
+# works
+#wind_direction_override:
+#  target_rank: 1
+
+# works
+atmo_override:
+  target_rank: 0
+
+# works
+pupilstop_override:
+  target_rank: 0
+
+# works
+pupilstop_override:
+  target_rank: 1
+
+# works
+prop_override:
+  target_rank: 1
+
+# works
+sh_override:
+  target_rank: 1
+
+# works
+#detector_override:
+#  target_rank: 1
+
+# works
+#slopec_override:
+#  target_rank: 1
+
+# works
+#rec_override:
+#  target_rank: 1
+
+# works
+#control_override:
+#  target_rank: 1
+
+# works
+#dm_override:
+#  target_rank: 1
+
+# works
+#psf_override:
+#  target_rank: 1
+
+# not sure it works
+#data_store_override:
+#  target_rank: 1

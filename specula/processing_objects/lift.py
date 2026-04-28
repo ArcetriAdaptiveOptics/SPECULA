@@ -2,7 +2,7 @@ import logging
 import math
 from collections import namedtuple
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.connections import InputValue
 from specula.base_value import BaseValue
 from specula import cpuArray, np
@@ -10,6 +10,7 @@ from specula.data_objects.simul_params import SimulParams
 from specula.data_objects.ifunc import IFunc
 from specula.data_objects.pixels import Pixels
 from specula.lib.interp2d import Interp2D
+import matplotlib.pyplot as plt
 
 
 WFS_Settings = namedtuple('WFS_Settings',
@@ -124,8 +125,7 @@ class Lift(BaseProcessingObj):
 
         # self.outputs['phase_estimate'] = None
 
-        if self.verbose:
-            logging.info(f"[{self.name}] LIFT initialized with {self.nmodes} modes")
+        self.logger.info(f"LIFT initialized with {self.nmodes} modes")
 
         self.ifunc = ifunc
         mask = self.ifunc.mask_inf_func
@@ -133,6 +133,15 @@ class Lift(BaseProcessingObj):
         self.set_modalbase(self.ifunc.influence_function,
                            mask,
                            diameter=self.simul_params.pixel_pupil * self.simul_params.pixel_pitch)
+
+    @classmethod
+    def input_names(cls):
+        return {'in_pixels': InputDesc(Pixels, 'Input pixel data from the WFS detector')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_pistons': OutputDesc(BaseValue, 'Estimated piston coefficients per subaperture'),
+                'out_zern': OutputDesc(BaseValue, 'Estimated Zernike modal coefficients')}
 
     def _build_reference_coeffs(self, ref_zern_amp):
         airef = self.xp.zeros(self.nmodes, dtype=self.dtype)
@@ -157,7 +166,7 @@ class Lift(BaseProcessingObj):
 
     def computeCoG(self, frame, thFactor = 0.05):
         thValue = thFactor * self.xp.max(frame)
-        thImage = self.xp.where( frame < thValue, 0., frame)
+        thImage = self.xp.where( frame < thValue, 0., frame-thValue)
         return self.ndimage_center_of_mass(thImage)
 
     def computeReconstructor(self, H, Rdiag):
@@ -167,8 +176,8 @@ class Lift(BaseProcessingObj):
 
     def setRefTT(self, center_x, center_y, image_size):
         image_center = 0.5 * image_size
-        self.ref_tip = (center_y - image_center) * self.radians_per_pixel
-        self.ref_tilt = (center_x - image_center) * self.radians_per_pixel
+        self.ref_tip = (center_y - image_center) * self.radians_per_pixel - self.airef[0 + self.nPistons]
+        self.ref_tilt = (center_x - image_center) * self.radians_per_pixel - self.airef[1 + self.nPistons]
 
     def calcCenter(self, frame):
         if self.fix:
@@ -190,14 +199,13 @@ class Lift(BaseProcessingObj):
 
     @staticmethod
     def calc_geometry(phase_sampling, pixel_pitch, wavelengthInNm,
-                      pix_scale, npix_side, fft_res=2.0):
+                      pix_scale, npix_side, fft_res):
         """Calculate WFS geometry"""
         rad2arcsec = 206264.806247
-        wanted_fov = pix_scale * npix_side
         D = phase_sampling * pixel_pitch
         lmbda = wavelengthInNm * 1e-9
-        fov_internal = (lmbda / D) * (D / pixel_pitch) * rad2arcsec
-        sampling_ratio = wanted_fov / fov_internal
+        sampling_ratio = pix_scale / ((lmbda / D) * rad2arcsec)
+        fft_res = 1./sampling_ratio
 
         fft_sampling = round(phase_sampling * sampling_ratio)
         fft_size = round(fft_sampling * fft_res) // 2 * 2
@@ -220,7 +228,7 @@ class Lift(BaseProcessingObj):
 
         self.fftSize = settings.fft_sampling + settings.fft_padding
         self.gridSize = settings.fft_sampling
-        self.radians_per_pixel = float(np.pi / (4.0 * settings.fft_res))
+        self.radians_per_pixel = float(np.pi / (2.0 * settings.fft_res))
 
         mask2d = cpuArray(mask2d)
         modalbase = cpuArray(modalbase)
@@ -233,7 +241,7 @@ class Lift(BaseProcessingObj):
         )
 
         valid_idx = np.nonzero(mask2d)
-        f = np.zeros_like(mask2d)
+        f = np.zeros_like(mask2d.astype(cpu_dtype))
 
         self.modes = []
         for i in range(self.nmodes):
@@ -248,8 +256,7 @@ class Lift(BaseProcessingObj):
         self._check_tip_tilt_coherence(mask2d)
         self.phase_ref = self.phaseFromCoeffs(self.airef)
 
-        if self.verbose:
-            logging.info(f"[{self.name}] Modal base set, gridSize={self.gridSize}, fftSize={self.fftSize}")
+        self.logger.info(f"Modal base set, gridSize={self.gridSize}, fftSize={self.fftSize}")
 
     def _check_tip_tilt_coherence(self, mask_cpu):
         """Verify that the modes at nPistons and nPistons+1 are linear x/y slopes (tip/tilt)."""
@@ -339,11 +346,9 @@ class Lift(BaseProcessingObj):
 
     def setPsf(self, psf):
         psf = self.xp.array(psf)
-        tMax = self.xp.max(psf)
-        tmpFrame = self.xp.where(psf < 0.05*tMax, 0., psf)
-        center = self.computeCoG(tmpFrame)
+        center = self.computeCoG(psf)
         frame = self.crop_or_enlarge_around_peak(psf, int(self.gridSize),
-                                                 peak_index=(int(center[0]), int(center[1])))
+                                                 peak_index=(self.xp.round(center[0]).astype(int), self.xp.round(center[1]).astype(int)))
         return self.xp.array(frame)
 
     def phaseEstimation(self, psf_orig, relTol=1e-3, absTol=1e-3):
@@ -412,8 +417,8 @@ class Lift(BaseProcessingObj):
                 break
 
         lastAML = self.to_xp(total_A_MLs[-1], dtype=self.dtype, force_copy=True)
-        lastAML[0 + self.nPistons] += self.ref_tip - 0.5 * self.radians_per_pixel
-        lastAML[1 + self.nPistons] += self.ref_tilt - 0.5 * self.radians_per_pixel
+        lastAML[0 + self.nPistons] += self.ref_tip
+        lastAML[1 + self.nPistons] += self.ref_tilt
         return currentPhaseEstimates[-1], lastAML * self.wavelengthInNm/(2*np.pi), len(total_A_MLs)
 
     def focalPlaneImageLIFT(self, phase, set_flux=None):
@@ -441,8 +446,8 @@ class Lift(BaseProcessingObj):
         start_row = max(0, peak_index[0] - half_width)
         start_col = max(0, peak_index[1] - half_width)
         # Calculate the bottom-right corner of the crop box
-        end_row = min(in_array.shape[0], peak_index[0] + half_width + 1)
-        end_col = min(in_array.shape[1], peak_index[1] + half_width + 1)
+        end_row = min(in_array.shape[0], peak_index[0] + half_width)
+        end_col = min(in_array.shape[1], peak_index[1] + half_width)
         # Crop the in_array
         cropped = in_array[start_row:end_row, start_col:end_col]
         # Check if the cropped area is smaller than desired and needs to be enlarged
@@ -479,9 +484,7 @@ class Lift(BaseProcessingObj):
         self.outputs['out_zern'].generation_time = self.current_time
 
         # self.outputs["phase_estimate"] = currentPhaseEstimate
-        if self.verbose:
-            logging.info(f"[{self.name}] Trigger done, coeffs={coeffs[:5]}...")
+        self.logger.info(f"Trigger done, coeffs={coeffs[:5]}...")
 
     def finalize(self):
-        if self.verbose:
-            logging.info(f"[{self.name}] Finalized")
+        self.logger.info(f"Finalized")

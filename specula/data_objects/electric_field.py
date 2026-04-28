@@ -17,7 +17,9 @@ class ElectricField(BaseDataObj):
                  pixel_pitch: float,
                  S0: float=0.0,
                  target_device_idx: int=None,
-                 precision: int=None):
+                 precision: int=None,
+                 wavelengthInNm: float=None,
+                 wavelengthToleranceInNm: float=0.1):
         """
         ElectricField data object.
 
@@ -39,6 +41,12 @@ class ElectricField(BaseDataObj):
             Device index for computation (default: None).
         precision : int, optional
             Precision for computation (default: None).
+        wavelengthInNm : float, optional
+            Monochromatic wavelength tag in nanometers. If set, this electric
+            field is considered valid only at that wavelength.
+        wavelengthToleranceInNm : float, optional
+            Absolute tolerance in nanometers used when checking wavelength
+            compatibility for wavelength-tagged fields (default: 0.1 nm).
 
         Attributes
         ----------
@@ -48,15 +56,39 @@ class ElectricField(BaseDataObj):
             Optional parameter for the field.
         field : xp.ndarray
             The electric field array of shape (2, dimx, dimy), with amplitude and phase.
+        wavelengthInNm : float or None
+            Monochromatic wavelength tag in nanometers.
+        wavelengthToleranceInNm : float
+            Absolute tolerance in nanometers for wavelength compatibility checks.
         """
         super().__init__(precision=precision, target_device_idx=target_device_idx)
         dimx = int(dimx)
         dimy = int(dimy)
         self.pixel_pitch = pixel_pitch
         self.S0 = S0
+        if wavelengthInNm is not None and wavelengthInNm <= 0:
+            raise ValueError('ElectricField wavelengthInNm must be >0 when provided')
+        if wavelengthToleranceInNm < 0:
+            raise ValueError('ElectricField wavelengthToleranceInNm must be >=0')
+        self.wavelength_in_nm = wavelengthInNm
+        self.wavelength_tolerance_in_nm = wavelengthToleranceInNm
         A = self.xp.ones((dimy, dimx), dtype=self.dtype)
         phaseInNm = self.xp.zeros((dimy, dimx), dtype=self.dtype)
         self.field = self.xp.stack((A, phaseInNm))
+
+    def _check_wavelength_compatibility(self, requested_wavelength_in_nm):
+        if self.wavelength_in_nm is None:
+            return
+        if not np.isclose(float(requested_wavelength_in_nm),
+                          float(self.wavelength_in_nm),
+                          rtol=0.0,
+                          atol=float(self.wavelength_tolerance_in_nm)):
+            raise ValueError(
+                f'This ElectricField is wavelength-tagged at {self.wavelength_in_nm} nm '
+                f'(e.g. produced by a coronagraph) and can be evaluated only at that wavelength. '
+                f'Requested {requested_wavelength_in_nm} nm instead. '
+                f'Configured tolerance is +/-{self.wavelength_tolerance_in_nm} nm.'
+            )
 
     @property
     def A(self):
@@ -152,6 +184,7 @@ class ElectricField(BaseDataObj):
         xp.ndarray
             The phase of the electric field at the given wavelength.
         """
+        self._check_wavelength_compatibility(wavelengthInNm)
         if slicey is None:
             slicey = np.s_[:]
         if slicex is None:
@@ -258,7 +291,10 @@ class ElectricField(BaseDataObj):
             idx = self.xp.unravel_index(idx, self.field[0].shape)
             xfrom, xto = self.xp.min(idx[0]), self.xp.max(idx[0])
             yfrom, yto = self.xp.min(idx[1]), self.xp.max(idx[1])
-        sub_ef = ElectricField(xto - xfrom, yto - yfrom, self.pixel_pitch, target_device_idx=self.target_device_idx)
+        sub_ef = ElectricField(xto - xfrom, yto - yfrom, self.pixel_pitch,
+                       target_device_idx=self.target_device_idx,
+                       wavelengthInNm=self.wavelength_in_nm,
+                       wavelengthToleranceInNm=self.wavelength_tolerance_in_nm)
         sub_ef.field[0, :] = self.field[0, xfrom:xto, yfrom:yto]
         sub_ef.field[1, :] = self.field[1, xfrom:xto, yfrom:yto]
         sub_ef.S0 = self.S0
@@ -288,6 +324,9 @@ class ElectricField(BaseDataObj):
         hdr['DIMY'] = self.field[0].shape[0]
         hdr['PIXPITCH'] = self.pixel_pitch
         hdr['S0'] = self.S0
+        if self.wavelength_in_nm is not None:
+            hdr['WVLNM'] = self.wavelength_in_nm
+        hdr['WVLTOL'] = self.wavelength_tolerance_in_nm
         return hdr
 
     def save(self, filename, overwrite=True):
@@ -308,7 +347,12 @@ class ElectricField(BaseDataObj):
         dimy = hdr['DIMY']
         pitch = hdr['PIXPITCH']
         S0 = hdr['S0']
-        ef = ElectricField(dimx, dimy, pitch, S0, target_device_idx=target_device_idx)
+        wavelengthInNm = hdr.get('WVLNM', None)
+        wavelengthToleranceInNm = hdr.get('WVLTOL', 0.1)
+        ef = ElectricField(dimx, dimy, pitch, S0,
+                   target_device_idx=target_device_idx,
+               wavelengthInNm=wavelengthInNm,
+               wavelengthToleranceInNm=wavelengthToleranceInNm)
         return ef
 
     @staticmethod

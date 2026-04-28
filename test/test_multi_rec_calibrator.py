@@ -495,7 +495,3 @@ class TestMultiRecCalibrator(unittest.TestCase):
                 # Should not raise any errors
                 calibrator.setup()
                 # No assertion needed - just checking it doesn't raise an error
-
-
-if __name__ == '__main__':
-    unittest.main()

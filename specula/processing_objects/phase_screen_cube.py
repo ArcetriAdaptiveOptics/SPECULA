@@ -1,8 +1,7 @@
 import numpy as np
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.data_objects.electric_field import ElectricField
-from specula.base_value import BaseValue
 from specula.data_objects.layer import Layer
 from specula.data_objects.pupilstop import Pupilstop
 from specula.data_objects.spatio_temp_array import SpatioTempArray
@@ -23,7 +22,6 @@ class PhaseScreenCube(BaseProcessingObj):
                  source_dict: dict=None,
                  layer_height: float=0.0,
                  scale_factor: float=1.0,
-                 verbose=None,
                  target_device_idx=None):
         """
         Parameters
@@ -45,9 +43,6 @@ class PhaseScreenCube(BaseProcessingObj):
         scale_factor : float, optional
             Scaling factor applied to the phase screens, by default 1.0. This can be used 
             to adjust the amplitude of the phase screens if needed.
-        verbose : bool, optional
-            If True, enables verbose output during phase screen generation.
-            Default is None (no verbose output).
         target_device_idx : int, optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
         """
@@ -68,8 +63,6 @@ class PhaseScreenCube(BaseProcessingObj):
         self.ef_outputs = {}
 
         self.pupilstop = None
-
-        self.verbose = verbose if verbose is not None else False
 
         output_specs = list(self.source_dict.items()) if self.source_dict else [(None, None)]
 
@@ -140,6 +133,15 @@ class PhaseScreenCube(BaseProcessingObj):
 
         self.ef_interpolator.interpolate()
 
+
+    @classmethod
+    def input_names(cls):
+        return {'pupilstop': InputDesc(Pupilstop, 'Pupil stop defining the valid telescope aperture')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_layer': OutputDesc(Layer, 'Output atmospheric phase layer (default single-source name)'),
+                'out_ef': OutputDesc(ElectricField, 'Output electric field for the line of sight (default single-source name)')}
 
     def trigger_code(self):
         current_phase = self.ef_interpolator.interpolated_ef().phaseInNm

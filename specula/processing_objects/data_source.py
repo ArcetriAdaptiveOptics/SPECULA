@@ -3,7 +3,7 @@ import os
 import pickle
 from astropy.io import fits
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.lib.utils import import_class
 
@@ -37,6 +37,14 @@ class DataSource(BaseProcessingObj):
             else:
                 self.outputs[k] = BaseValue(target_device_idx=self.target_device_idx)
 
+    @classmethod
+    def input_names(cls):
+        return {}
+
+    @classmethod
+    def output_names(cls):
+        return {}
+
     def loadFromFile(self, name):
         if name in self.items:
             raise ValueError(f'Storing already has an object with name {name}')
@@ -69,7 +77,7 @@ class DataSource(BaseProcessingObj):
 
     def size(self, name, dimensions=False):
         if name not in self.storage:
-            print(f'The key: {name} is not stored in the object!')
+            self.logger.error(f'The key: {name} is not stored in the object!')
             return -1
         h = self.storage[name]
         return h.shape if not dimensions else h.shape[dimensions]
@@ -81,5 +89,9 @@ class DataSource(BaseProcessingObj):
                 self.outputs[k].set_value(self.outputs[k].xp.array(storage_dict[self.current_time]))
                 self.outputs[k].generation_time = self.current_time
             else:
-                if self.verbose:
-                    print(f'Warning: No data for key {k} at time {self.current_time}')
+                self.logger.info(f'Warning: no data for key {k} at time {self.current_time}')
+
+    def check_output_names(self):
+        # DataSource outputs are created dynamically from stored data files;
+        # skip the static output_names validation.
+        pass

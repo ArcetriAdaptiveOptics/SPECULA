@@ -135,7 +135,7 @@ rec:
   recmat_object:      '/tmp/test_morfeo_scao_rec_2000modes'         # reconstruction matrix tag
   inputs:
     in_slopes_list:        ['slopec1.out_slopes']
-  outputs:  ['out_modes', 'out_pseudo_ol_modes']
+  outputs:  ['out_modes']
 
 control:
   class:             'Integrator'

@@ -1,7 +1,10 @@
 from specula import cpuArray
 from specula.lib.interp2d import Interp2D
+from specula.data_objects.pixels import Pixels
 from specula.data_objects.pupilstop import Pupilstop
 from specula.processing_objects.slopec import Slopec
+from specula.base_processing_obj import InputDesc, OutputDesc
+from specula.base_value import BaseValue
 from specula.data_objects.slopes import Slopes
 from skimage.restoration import unwrap_phase
 
@@ -61,6 +64,8 @@ class CiaoCiaoSlopec(Slopec):
         self.diffRotAngleInDeg = float(diffRotAngleInDeg)
         self._nslopes = 1
         self._window = None
+        self._input_pupil_mask = pupil_mask
+        self._pupil_mask_xp = None
 
         super().__init__(sn=sn,
                          target_device_idx=target_device_idx,
@@ -79,6 +84,17 @@ class CiaoCiaoSlopec(Slopec):
         else:
             self._pupil_mask_xp = None
 
+    @classmethod
+    def input_names(cls):
+        return {'in_pixels': InputDesc(Pixels, 'Input interferogram pixel data from detector')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_slopes': OutputDesc(Slopes, 'Computed OPD map as a flattened slope vector'),
+                'out_flux_per_subaperture': OutputDesc(BaseValue, 'Mean flux per pixel within the pupil mask'),
+                'out_total_counts': OutputDesc(BaseValue, 'Total photon counts'),
+                'out_subap_counts': OutputDesc(BaseValue, 'Counts per subaperture')}
+
     def nsubaps(self):
         return 1
 
@@ -89,19 +105,45 @@ class CiaoCiaoSlopec(Slopec):
         super().setup()
 
         in_pixels = self.local_inputs['in_pixels']
-        nslopes = int(in_pixels.pixels.shape[0] * in_pixels.pixels.shape[1])
+        shape = in_pixels.pixels.shape
+        nslopes = int(shape[0] * shape[1])
         if self.slopes.size != nslopes:
             self.slopes.resize(nslopes)
         self._nslopes = nslopes
 
-        x = self.xp.arange(0, in_pixels.pixels.shape[1])
-        y = self.xp.arange(0, in_pixels.pixels.shape[0])
+        # CiaoCiao exports a flattened 2D OPD map rather than X/Y subap slopes.
+        # Populate the Slopes remapping metadata so the standard display can
+        # reconstruct the original 2D image.
+        self.slopes.single_mask = self.xp.ones(shape, dtype=self.dtype)
+        self.slopes.display_map = self.xp.arange(nslopes)
+
+        if self._input_pupil_mask is not None:
+            mask = self.to_xp(self._input_pupil_mask.A, dtype=self.dtype)
+            if mask.shape != shape:
+                resize_interp = Interp2D(mask.shape, shape, dtype=self.dtype, xp=self.xp)
+                mask = resize_interp.interpolate(mask)
+            mask = mask > 0.5
+            if self.diffRotAngleInDeg != 0.0:
+                rotate_interp = Interp2D(
+                    shape,
+                    shape,
+                    rotInDeg=self.diffRotAngleInDeg,
+                    dtype=self.dtype,
+                    xp=self.xp,
+                )
+                rotated = rotate_interp.interpolate(mask.astype(self.dtype)) > 0.5
+                mask = mask & rotated
+            self._pupil_mask_xp = mask
+        else:
+            self._pupil_mask_xp = None
+
+        x = self.xp.arange(0, shape[1])
+        y = self.xp.arange(0, shape[0])
         xx, yy = self.xp.meshgrid(x, y)
 
         # Top Flat Gaussian: exp( - ( dx^2/2s^2 + dy^2/2s^2 )^2 )
         window = self.xp.exp(
             -((xx - self.window_x)**2 / (2 * self.window_sigma**2) +
-              
               (yy - self.window_y)**2 / (2 * self.window_sigma**2))**2
         )
 
@@ -139,6 +181,12 @@ class CiaoCiaoSlopec(Slopec):
 
         # 7. Convert to OPD (wrapped or unwrapped)
         opd = phase * self.wavelength / (2 * self.xp.pi)
+
+        # set 0 outside the pupil mask to avoid noise propagation in the displays
+        if self._pupil_mask_xp is not None:
+            # define valid mask where value > 0.5 (in case of interpolation artifacts)
+            valid_mask = self._pupil_mask_xp > 0.5
+            opd = opd * valid_mask
 
         # 8. Export OPD map as a flattened vector
         self.slopes.slopes[:] = opd.ravel()

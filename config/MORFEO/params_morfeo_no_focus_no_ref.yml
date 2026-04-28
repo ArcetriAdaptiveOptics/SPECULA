@@ -302,12 +302,10 @@ slopec_ngs3: { <<: *NGS_SLOPEC, inputs: {in_pixels: 'detector_ngs3.out_pixels' }
 # -----------------------------
 
 tomo_polc_lgs:
-  class:              'Modalrec'
+  class:              'ModalrecExplicitPolc'
   recmat_object:      '20231207_111630.0/recmat' # Tallon
   projmat_object:     'p20231207_063630.0/projmatAll' # 6258 modes
   intmat_object:      '20250911_000001.0/intmat' # 6258 modes
-  polc:   true
-  in_commands_size:   6258
   inputs:
     in_slopes_list:        ['slopec_lgs1.out_slopes','slopec_lgs2.out_slopes','slopec_lgs3.out_slopes',
                             'slopec_lgs4.out_slopes','slopec_lgs5.out_slopes','slopec_lgs6.out_slopes']
@@ -334,7 +332,7 @@ tomo_ngs:
   recmat_object:      '20240613_200330.0/recmat' # NGS at 55asec
   inputs:
     in_slopes_list:        ['slopec_ngs1.out_slopes','slopec_ngs2.out_slopes','slopec_ngs3.out_slopes']
-  outputs:  ['out_modes', 'out_pseudo_ol_modes']
+  outputs:  ['out_modes']
 
 
 iir_ngs:

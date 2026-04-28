@@ -406,11 +406,10 @@ class TestBaseOperation(unittest.TestCase):
                            target_device_idx=target_device_idx)
         value1.generation_time = value1.seconds_to_t(1)
 
-        # Test that constant_div (scalar) overrides constant_mul (vector)
-        # According to your code, the last one wins
+        # Test that constant_div (scalar) is combined with constant_mul (vector)
         op = BaseOperation(
-            constant_mul=[10.0, 20.0],  # This should be overridden
-            constant_div=2.0,           # This should win
+            constant_mul=[10.0, 20.0],
+            constant_div=2.0,
             target_device_idx=target_device_idx
         )
         op.inputs['in_value1'].set(value1)
@@ -419,8 +418,8 @@ class TestBaseOperation(unittest.TestCase):
         loop.add(op, idx=0)
         loop.run(run_time=2, dt=1, t0=1)
 
-        # Should be value1 / 2.0 = [0.5, 1.0]
-        expected = xp.array([0.5, 1.0])
+        # Should be value1 / 2 * [10.0, 20.0] = [5.0, 20.0]
+        expected = xp.array([5.0, 20.0])
         np.testing.assert_array_almost_equal(cpuArray(op.outputs['out_value'].value),
                                              cpuArray(expected))
 
@@ -441,3 +440,432 @@ class TestBaseOperation(unittest.TestCase):
         # Should produce empty array
         self.assertEqual(len(op.outputs['out_value'].value), 0)
         self.assertEqual(op.outputs['out_value'].generation_time, value1.seconds_to_t(1))
+
+    @cpu_and_gpu
+    def test_multiple_operation_flags_raise(self, target_device_idx, xp):
+        """Only one of sum/sub/mul/div/concat can be True"""
+
+        with self.assertRaises(ValueError):
+            BaseOperation(sum=True, mul=True, target_device_idx=target_device_idx)
+
+        with self.assertRaises(ValueError):
+            BaseOperation(div=True, concat=True, target_device_idx=target_device_idx)
+
+
+    @cpu_and_gpu
+    def test_concat_with_value2_remap_raises(self, target_device_idx, xp):
+        """concat and value2_remap cannot be used together"""
+
+        with self.assertRaises(ValueError):
+            BaseOperation(concat=True,
+                        value2_remap=[0, 1],
+                        target_device_idx=target_device_idx)
+
+    @cpu_and_gpu
+    def test_constants_applied_after_concat(self, target_device_idx, xp):
+        """Verify constants are applied after concatenation"""
+
+        value1 = BaseValue(value=xp.array([1.0, 2.0]),
+                        target_device_idx=target_device_idx)
+        value2 = BaseValue(value=xp.array([3.0, 4.0]),
+                        target_device_idx=target_device_idx)
+
+        value1.generation_time = value1.seconds_to_t(1)
+        value2.generation_time = value2.seconds_to_t(1)
+
+        op = BaseOperation(
+            concat=True,
+            constant_mul=2.0,
+            target_device_idx=target_device_idx
+        )
+
+        op.inputs['in_value1'].set(value1)
+        op.inputs['in_value2'].set(value2)
+
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
+
+        # Expect concat first → [1,2,3,4], then *2 → [2,4,6,8]
+        expected = xp.array([2.0, 4.0, 6.0, 8.0])
+
+        np.testing.assert_array_almost_equal(
+            cpuArray(op.outputs['out_value'].value),
+            cpuArray(expected)
+    )
+
+    @cpu_and_gpu
+    def test_mul_div_before_sum_sub(self, target_device_idx, xp):
+        """Verify order: mul/div happens before sum/sub"""
+
+        value1 = BaseValue(value=xp.array([2.0]),
+                        target_device_idx=target_device_idx)
+        value1.generation_time = value1.seconds_to_t(1)
+
+        op = BaseOperation(
+            constant_mul=3.0,
+            constant_div=2.0,
+            constant_sum=4.0,
+            constant_sub=1.0,
+            target_device_idx=target_device_idx
+        )
+
+        op.inputs['in_value1'].set(value1)
+
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
+
+        # Expected order:
+        # ((2 * 3) / 2) + 4 - 1 = (6 / 2) + 4 - 1 = 3 + 4 - 1 = 6
+        expected = xp.array([6.0])
+
+        np.testing.assert_array_almost_equal(
+            cpuArray(op.outputs['out_value'].value),
+            cpuArray(expected)
+        )
+
+    @cpu_and_gpu
+    def test_min_max_applied_last(self, target_device_idx, xp):
+        """Verify min/max are applied after other constants"""
+
+        value1 = BaseValue(value=xp.array([5.0]),
+                        target_device_idx=target_device_idx)
+        value1.generation_time = value1.seconds_to_t(1)
+
+        op = BaseOperation(
+            constant_mul=2.0,   # → 10
+            constant_sum=5.0,   # → 15
+            constant_max=12.0,  # → max(15,12)=15
+            constant_min=14.0,  # → min(15,14)=14
+            target_device_idx=target_device_idx
+        )
+
+        op.inputs['in_value1'].set(value1)
+
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
+
+        expected = xp.array([14.0])
+
+        np.testing.assert_array_almost_equal(
+            cpuArray(op.outputs['out_value'].value),
+            cpuArray(expected)
+        )
+
+    @cpu_and_gpu
+    def test_scalar_constant_broadcast(self, target_device_idx, xp):
+        """Scalar constants should broadcast over vectors"""
+
+        value1 = BaseValue(value=xp.array([1.0, 2.0, 3.0]),
+                        target_device_idx=target_device_idx)
+        value1.generation_time = value1.seconds_to_t(1)
+
+        op = BaseOperation(constant_mul=2.0,
+                        constant_sum=1.0,
+                        target_device_idx=target_device_idx)
+
+        op.inputs['in_value1'].set(value1)
+
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
+
+        # (value * 2) + 1
+        expected = xp.array([3.0, 5.0, 7.0])
+
+        np.testing.assert_array_almost_equal(
+            cpuArray(op.outputs['out_value'].value),
+            cpuArray(expected)
+        )
+
+    @cpu_and_gpu
+    def test_inplace_broadcast_shape_expansion_fails(self, target_device_idx, xp):
+        """In-place ops should fail if broadcasting would change shape"""
+
+        value1 = BaseValue(value=xp.array([2.0]),  # shape (1,)
+                        target_device_idx=target_device_idx)
+        value1.generation_time = value1.seconds_to_t(1)
+
+        op = BaseOperation(constant_mul=xp.array([1.0, 2.0, 3.0]),  # shape (3,)
+                        target_device_idx=target_device_idx)
+
+        op.inputs['in_value1'].set(value1)
+
+        loop = LoopControl()
+        loop.add(op, idx=0)
+
+        with self.assertRaises(Exception):
+            loop.run(run_time=2, dt=1, t0=1)
+
+    @cpu_and_gpu
+    def test_inplace_broadcast_same_shape_via_scalar_axis(self, target_device_idx, xp):
+        """Broadcast that keeps same shape should work"""
+
+        value1 = BaseValue(value=xp.array([[1.0, 2.0, 3.0]]),  # shape (1,3)
+                        target_device_idx=target_device_idx)
+        value1.generation_time = value1.seconds_to_t(1)
+
+        op = BaseOperation(constant_mul=xp.array([10.0, 20.0, 30.0]),  # shape (3,)
+                        target_device_idx=target_device_idx)
+
+        op.inputs['in_value1'].set(value1)
+
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
+
+        expected = xp.array([[10.0, 40.0, 90.0]])
+
+        np.testing.assert_array_almost_equal(
+            cpuArray(op.outputs['out_value'].value),
+            cpuArray(expected)
+        )
+
+    @cpu_and_gpu
+    def test_non_broadcastable_shapes_raise(self, target_device_idx, xp):
+        """Incompatible shapes should raise an error"""
+
+        value1 = BaseValue(value=xp.array([1.0, 2.0]),
+                        target_device_idx=target_device_idx)
+        value1.generation_time = value1.seconds_to_t(1)
+
+        op = BaseOperation(constant_mul=xp.array([1.0, 2.0, 3.0]),
+                        target_device_idx=target_device_idx)
+
+        op.inputs['in_value1'].set(value1)
+
+        loop = LoopControl()
+        loop.add(op, idx=0)
+
+        with self.assertRaises(Exception):
+            loop.run(run_time=2, dt=1, t0=1)
+
+    @cpu_and_gpu
+    def test_min_max_broadcasting(self, target_device_idx, xp):
+        """min/max should broadcast correctly"""
+
+        value1 = BaseValue(value=xp.array([1.0, 5.0, 10.0]),
+                        target_device_idx=target_device_idx)
+        value1.generation_time = value1.seconds_to_t(1)
+
+        op = BaseOperation(
+            constant_max=4.0,  # → [4,5,10]
+            constant_min=xp.array([3.0, 6.0, 8.0]),  # → [3,5,8]
+            target_device_idx=target_device_idx
+        )
+
+        op.inputs['in_value1'].set(value1)
+
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
+
+        expected = xp.array([3.0, 5.0, 8.0])
+
+        np.testing.assert_array_almost_equal(
+            cpuArray(op.outputs['out_value'].value),
+            cpuArray(expected)
+        )
+
+    @cpu_and_gpu
+    def test_value2_sum_applied_last(self, target_device_idx, xp):
+        """value2 (sum) should be applied after all constant operations"""
+
+        value1 = BaseValue(value=xp.array([2.0]),
+                        target_device_idx=target_device_idx)
+        value2 = BaseValue(value=xp.array([3.0]),
+                        target_device_idx=target_device_idx)
+
+        value1.generation_time = value1.seconds_to_t(1)
+        value2.generation_time = value2.seconds_to_t(1)
+
+        op = BaseOperation(
+            constant_mul=5.0,   # → 2 * 5 = 10
+            constant_sum=1.0,   # → 10 + 1 = 11
+            sum=True,           # → 11 + 3 = 14
+            target_device_idx=target_device_idx
+        )
+
+        op.inputs['in_value1'].set(value1)
+        op.inputs['in_value2'].set(value2)
+
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
+
+        expected = xp.array([14.0])
+
+        np.testing.assert_array_almost_equal(
+            cpuArray(op.outputs['out_value'].value),
+            cpuArray(expected)
+        )
+
+    @cpu_and_gpu
+    def test_value2_sub_applied_last(self, target_device_idx, xp):
+        """value2 (sub) should be applied after constants"""
+
+        value1 = BaseValue(value=xp.array([10.0]),
+                        target_device_idx=target_device_idx)
+        value2 = BaseValue(value=xp.array([4.0]),
+                        target_device_idx=target_device_idx)
+
+        value1.generation_time = value1.seconds_to_t(1)
+        value2.generation_time = value2.seconds_to_t(1)
+
+        op = BaseOperation(
+            constant_div=2.0,   # → 10 / 2 = 5
+            constant_sum=3.0,   # → 5 + 3 = 8
+            sub=True,           # → 8 - 4 = 4
+            target_device_idx=target_device_idx
+        )
+
+        op.inputs['in_value1'].set(value1)
+        op.inputs['in_value2'].set(value2)
+
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
+
+        expected = xp.array([4.0])
+
+        np.testing.assert_array_almost_equal(
+            cpuArray(op.outputs['out_value'].value),
+            cpuArray(expected)
+        )
+
+    @cpu_and_gpu
+    def test_value2_mul_applied_last(self, target_device_idx, xp):
+        """value2 (mul) should be applied after constants"""
+
+        value1 = BaseValue(value=xp.array([2.0]),
+                        target_device_idx=target_device_idx)
+        value2 = BaseValue(value=xp.array([3.0]),
+                        target_device_idx=target_device_idx)
+
+        value1.generation_time = value1.seconds_to_t(1)
+        value2.generation_time = value2.seconds_to_t(1)
+
+        op = BaseOperation(
+            constant_mul=2.0,   # → 2 * 2 = 4
+            constant_sum=1.0,   # → 4 + 1 = 5
+            mul=True,           # → 5 * 3 = 15
+            target_device_idx=target_device_idx
+        )
+
+        op.inputs['in_value1'].set(value1)
+        op.inputs['in_value2'].set(value2)
+
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
+
+        expected = xp.array([15.0])
+
+        np.testing.assert_array_almost_equal(
+            cpuArray(op.outputs['out_value'].value),
+            cpuArray(expected)
+        )
+
+    @cpu_and_gpu
+    def test_value2_div_applied_last(self, target_device_idx, xp):
+        """value2 (div) should be applied after constants"""
+
+        value1 = BaseValue(value=xp.array([20.0]),
+                        target_device_idx=target_device_idx)
+        value2 = BaseValue(value=xp.array([5.0]),
+                        target_device_idx=target_device_idx)
+
+        value1.generation_time = value1.seconds_to_t(1)
+        value2.generation_time = value2.seconds_to_t(1)
+
+        op = BaseOperation(
+            constant_div=2.0,   # → 20 / 2 = 10
+            constant_sub=5.0,  # → 10 - 5 = 5
+            div=True,           # → 5 / 5 = 1
+            target_device_idx=target_device_idx
+        )
+
+        op.inputs['in_value1'].set(value1)
+        op.inputs['in_value2'].set(value2)
+
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
+
+        expected = xp.array([1.0])
+
+        np.testing.assert_array_almost_equal(
+            cpuArray(op.outputs['out_value'].value),
+            cpuArray(expected)
+        )
+
+    @cpu_and_gpu
+    def test_full_order_constants_then_minmax_then_value2(self, target_device_idx, xp):
+        """Verify execution order:
+        constants → min/max → value2 operation
+        """
+
+        value1 = BaseValue(value=xp.array([2.0]),
+                        target_device_idx=target_device_idx)
+        value2 = BaseValue(value=xp.array([10.0]),
+                        target_device_idx=target_device_idx)
+
+        value1.generation_time = value1.seconds_to_t(1)
+        value2.generation_time = value2.seconds_to_t(1)
+
+        op = BaseOperation(
+            constant_mul=3.0,   # step 1 → 2 * 3 = 6
+            constant_sum=4.0,   # step 1 → 6 + 4 = 10
+            constant_min=8.0,   # step 2 → min(10, 8) = 8
+            sum=True,           # step 3 → 8 + 10 = 18
+            target_device_idx=target_device_idx
+        )
+
+        op.inputs['in_value1'].set(value1)
+        op.inputs['in_value2'].set(value2)
+
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
+
+        expected = xp.array([18.0])
+
+        np.testing.assert_array_almost_equal(
+            cpuArray(op.outputs['out_value'].value),
+            cpuArray(expected)
+        )
+
+    @cpu_and_gpu
+    def test_value2_shorter_overlap_only(self, target_device_idx, xp):
+        """value2 shorter than value1: operate only on overlapping elements"""
+
+        value1 = BaseValue(value=xp.array([1.0, 2.0, 3.0, 4.0]),
+                        target_device_idx=target_device_idx)
+        value2 = BaseValue(value=xp.array([10.0, 20.0]),
+                        target_device_idx=target_device_idx)
+
+        value1.generation_time = value1.seconds_to_t(1)
+        value2.generation_time = value2.seconds_to_t(1)
+
+        op = BaseOperation(
+            sum=True,
+            target_device_idx=target_device_idx
+        )
+
+        op.inputs['in_value1'].set(value1)
+        op.inputs['in_value2'].set(value2)
+
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
+
+        # Only first 2 elements affected:
+        # [1,2,3,4] + [10,20] → [11,22,3,4]
+        expected = xp.array([11.0, 22.0, 3.0, 4.0])
+
+        np.testing.assert_array_almost_equal(
+            cpuArray(op.outputs['out_value'].value),
+            cpuArray(expected)
+        )

@@ -1,5 +1,7 @@
 from specula import cpuArray, np
 from specula.processing_objects.atmo_infinite_evolution import AtmoInfiniteEvolution
+from specula.base_processing_obj import InputDesc, OutputDesc
+from specula.base_value import BaseValue
 from specula.data_objects.layer import Layer
 from specula.data_objects.simul_params import SimulParams
 
@@ -20,7 +22,6 @@ class AtmoInfiniteEvolutionUpDown(AtmoInfiniteEvolution):
                  extra_delta_time_up: float = 0,
                  fov: float = 0.0,
                  seed: int = 1,
-                 verbose: bool = False,
                  fov_in_m: float = None,
                  pupil_position: list = [0, 0],
                  target_device_idx: int = None,
@@ -44,8 +45,6 @@ class AtmoInfiniteEvolutionUpDown(AtmoInfiniteEvolution):
             Field of view in arcseconds. Default is 0.0.
         seed : int, optional
             Seed for random number generation. Must be >0. Default is 1.
-        verbose : bool, optional
-            If True, enables verbose output. Default is False.
         fov_in_m : float, optional
             Field of view in meters. If provided, overrides fov parameter. Default is None.
         pupil_position : list, optional
@@ -65,7 +64,6 @@ class AtmoInfiniteEvolutionUpDown(AtmoInfiniteEvolution):
             fov=fov,
             seed=seed,
             extra_delta_time=extra_delta_time_down,
-            verbose=verbose,
             fov_in_m=fov_in_m,
             pupil_position=pupil_position,
             target_device_idx=target_device_idx,
@@ -116,6 +114,13 @@ class AtmoInfiniteEvolutionUpDown(AtmoInfiniteEvolution):
         )
         self.acc_rows_up = np.zeros(self.n_infinite_phasescreens)
         self.acc_cols_up = np.zeros(self.n_infinite_phasescreens)
+
+    @classmethod
+    def output_names(cls):
+        result = super().output_names()
+        result.update({'layer_list_down': OutputDesc(list, 'List of atmospheric phase screen layers for downward propagation'),
+                'layer_list_up': OutputDesc(list, 'List of atmospheric phase screen layers for upward propagation')})
+        return result
 
     def trigger_code(self):
         """Update both lists by saving/restoring phase screen state."""

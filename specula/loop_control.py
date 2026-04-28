@@ -3,14 +3,14 @@ import time
 from collections import defaultdict
 
 from specula.base_time_obj import BaseTimeObj
-from specula import process_comm, process_rank, MPI_DBG
+from specula import process_comm, process_rank
 
 
 class LoopControl(BaseTimeObj):
-    def __init__(self, stepping=False, verbose=False):
+    def __init__(self, stepping=False):
         super().__init__(target_device_idx=-1, precision=1)
+        self.logger.set_instance_name(None)
         self.trigger_lists = defaultdict(list)
-        self.verbose = verbose
         self.run_time = None
         self.dt = None
         self.t0 = None
@@ -61,9 +61,9 @@ class LoopControl(BaseTimeObj):
                 except:
                     nn = 1
                 self.next_time_to_stop = self.t + nn * dt * 1e9
-            if MPI_DBG: print(process_rank, 'before barrier iter', flush=True)
-            if MPI_DBG: print(process_rank, 'after barrier iter', flush=True)
-            if MPI_DBG: print(process_rank, 'NEW ITERATION', self.t,flush=True)
+            self.logger.mpi_debug(f'before barrier iter')
+            self.logger.mpi_debug(f'after barrier iter')
+            self.logger.mpi_debug(f'NEW ITERATION t={self.t}')
             self.iter()
         self.finish()
 
@@ -74,7 +74,7 @@ class LoopControl(BaseTimeObj):
         self.run_time = self.seconds_to_t(run_time)
         self.dt = self.seconds_to_t(dt)
         self.t0 = self.seconds_to_t(t0)
-        if MPI_DBG: print(process_rank, 'Sending data pre-setup', flush=True)
+        self.logger.mpi_debug(f'Sending data pre-setup')
 
         for i in sorted(self.trigger_lists.keys()):        
             # all the objects having this trigger order could be remote            
@@ -83,33 +83,33 @@ class LoopControl(BaseTimeObj):
 
         if process_comm is not None:
             process_comm.barrier()
-        if MPI_DBG: print(process_rank, 'Starting setups', flush=True)
+        self.logger.mpi_debug(f'Starting setups')
 
-        if MPI_DBG: print(process_rank, 'self.trigger_lists', self.trigger_lists, flush=True)
+        self.logger.mpi_debug(f'{self.trigger_lists=}')
 
         for i in sorted(self.trigger_lists.keys()):
             # all the objects having this trigger order could be remote            
             for element in self.trigger_lists[i]:
                 try:
-                    if MPI_DBG: print(process_rank, element, 'startMemUsageCount', flush=True)
+                    self.logger.mpi_debug(f'' + str(element) + ' startMemUsageCount')
                     element.startMemUsageCount()
-                    if MPI_DBG: print(process_rank, element, 'setup', flush=True)
+                    self.logger.mpi_debug(f'' + str(element) + ' setup')
                     element.setup()
                     element.sanity_check()
-                    if MPI_DBG: print(process_rank, element, 'stopMemUsageCount', flush=True)
+                    self.logger.mpi_debug(f'' + str(element) + ' stopMemUsageCount')
                     element.stopMemUsageCount()
-                    if MPI_DBG: print(process_rank, element, 'printMemUsage', flush=True)
+                    self.logger.mpi_debug(f'' + str(element) + ' printMemUsage')
                     element.printMemUsage()
-                    if MPI_DBG: print(process_rank, 'setup', element)
+                    self.logger.mpi_debug(f'setup '+str(element))
                     #  workaround for objects that need to send outputs
                     # before the first iter() call
                     # because their outputs are used with ":-1"
                     element.send_outputs(delayed_only=True, first_mpi_send=False)
                 except:
-                    print('Exception in', element.name, flush=True)
+                    self.logger.error('Exception in ' + element.name)
                     raise
         
-        if MPI_DBG: print(process_rank, 'Setups DONE', flush=True)
+        self.logger.debug(f'Setups DONE')
         if process_comm is not None:
             process_comm.barrier()
         
@@ -125,24 +125,24 @@ class LoopControl(BaseTimeObj):
 
         for i in sorted(self.trigger_lists.keys()):
             # all the objects having this trigger order could be remote
-            if MPI_DBG: print(process_rank, 'before check_ready', flush=True)
+            self.logger.mpi_debug(f'before check_ready')
             for element in self.trigger_lists[i]:
                 try:
                     element.check_ready(self.t)
                 except:
-                    print('Exception in', element.name, flush=True)
+                    self.logger.error(f'Exception in {element.name}')
                     raise
 
-            if MPI_DBG: print(process_rank, 'before trigger', flush=True)
+            self.logger.mpi_debug(f'before trigger')
             for element in self.trigger_lists[i]:
                 try:
                     if element.inputs_changed:
                         element.trigger()
                 except:
-                    print('Exception in', element.name, flush=True)
+                    self.logger.error(f'Exception in {element.name}')
                     raise
 
-            if MPI_DBG: print(process_rank, 'before post_trigger', flush=True)
+            self.logger.mpi_debug(f'before post_trigger')
             for element in self.trigger_lists[i]:
                 try:
                     if element.inputs_changed:
@@ -151,7 +151,7 @@ class LoopControl(BaseTimeObj):
                     # an object was triggered or not
                     element.send_outputs(skip_delayed=last_iter, first_mpi_send=False)
                 except:
-                    print('Exception in', element.name, flush=True)
+                    self.logger.error(f'Exception in {element.name}')
                     raise
 
         if self.speed_report:
@@ -159,7 +159,7 @@ class LoopControl(BaseTimeObj):
                 cur_time = time.time()
                 elapsed_time = cur_time - self.last_reported_time
                 msg = f"{self.report_interval / elapsed_time:.2f} Hz,  {1000 * elapsed_time / self.report_interval :.3f} ms"
-                print(f't={self.t_to_seconds(self.t):.6f} {msg}')
+                self.logger.info(f't={self.t_to_seconds(self.t):.6f} {msg}')
                 self.last_reported_time = cur_time
                 self.last_reported_counter = self.iter_counter
 
@@ -173,7 +173,7 @@ class LoopControl(BaseTimeObj):
                 try:
                     element.finalize()
                 except:
-                    print('Exception in', element.name)
+                    self.logger.error(f'Exception in {element.name}')
                     raise
 
 

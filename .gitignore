@@ -127,7 +127,7 @@ venv.bak/
 .dmypy.json
 dmypy.json
 
-# Pyre type checker
+# Pyre type checker, VScode and other IDEs
 .pyre/
 /.project
 /.pydevproject
@@ -140,12 +140,11 @@ dmypy.json
 *.nsys-rep
 *.sqlite
 
-# SPECULA calibs
-main/scao/calib/*
-main/scao/output/*
+# SPECULA calibrations, outputs and diagrams
+**/calib/
+**/output/
+**/*.png
+ConvolutionKernel*
 
 # EKARUS config data output
 config/EKARUS/*
-
-# Nsys profiler repots
-*.nsys-rep

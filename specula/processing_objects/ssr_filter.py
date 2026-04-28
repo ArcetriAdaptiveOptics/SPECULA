@@ -54,6 +54,14 @@ class SsrFilter(BaseFilter):
         # SSR-specific state
         self._x = self.xp.zeros(ssr_filter_data.total_states, dtype=self.dtype)
 
+    @classmethod
+    def input_names(cls):
+        return super().input_names()
+
+    @classmethod
+    def output_names(cls):
+        return super().output_names()
+
     def trigger_code(self):
         """State-space filter computation."""
         A = self.ssr_filter_data.A

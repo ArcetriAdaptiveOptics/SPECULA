@@ -1,7 +1,7 @@
 import numpy as np
 from specula import show_in_profiler
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.data_objects.layer import Layer
 from specula.connections import InputValue
@@ -24,7 +24,6 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
                  fov: float=0.0,
                  seed: int=1,
                  extra_delta_time: float=0,
-                 verbose: bool=False,
                  fov_in_m: float=None,
                  pupil_position:list =[0,0],
                  target_device_idx: int=None,
@@ -54,8 +53,6 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
             Seed for random number generation. Must be >0. Default is 1.
         extra_delta_time : float or list, optional
             Extra time offset for phase screen evolution in seconds. Default is 0.
-        verbose : bool, optional
-            If True, enables verbose output during phase screen generation. Default is False.
         fov_in_m : float, optional
             Field of view in meters. If provided, overrides fov parameter. Default is None.
         pupil_position : list, optional
@@ -98,9 +95,9 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
 
         if self.zenithAngleInDeg is not None:
             self.airmass = 1.0 / np.cos(np.radians(self.zenithAngleInDeg), dtype=self.dtype)
-            print(f'AtmoInfiniteEvolution: zenith angle is defined as:'
+            self.logger.info(f'AtmoInfiniteEvolution: zenith angle is defined as:'
                   f' {self.zenithAngleInDeg} deg')
-            print(f'AtmoInfiniteEvolution: airmass is: {self.airmass}')
+            self.logger.info(f'AtmoInfiniteEvolution: airmass is: {self.airmass}')
         else:
             self.airmass = 1.0
 
@@ -128,14 +125,13 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
 
         self.L0 = L0
 
-        if np.isscalar(self.L0):
+        if np.ndim(self.L0) == 0:
             self.L0 = [self.L0] * len(heights)
         elif len(self.L0) != len(heights):
             raise ValueError(f"L0 must have the same length as heights"
                              f" ({len(heights)}), got {len(self.L0)}")
 
         self.Cn2 = np.array(Cn2, dtype=self.dtype)
-        self.verbose = verbose if verbose is not None else False
 
         # Initialize layer list with correct heights
         self.layer_list = []
@@ -155,6 +151,16 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         if not np.isclose(np.sum(self.Cn2), 1.0, atol=1e-6):
             raise ValueError(f' Cn2 total must be 1. Instead is: {np.sum(self.Cn2)}.')
 
+    @classmethod
+    def input_names(cls):
+        return {'seeing': InputDesc(BaseValue, 'Atmospheric seeing value'),
+                'wind_speed': InputDesc(BaseValue, 'Wind speed for each atmospheric layer'),
+                'wind_direction': InputDesc(BaseValue, 'Wind direction for each atmospheric layer')}
+
+    @classmethod
+    def output_names(cls):
+        return {'layer_list': OutputDesc(list, 'List of atmospheric infinite phase screen layers')}
+
     def initScreens(self, seed):
         self.seed = seed
         if self.seed <= 0:
@@ -169,15 +175,14 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         self.acc_cols = np.zeros((self.n_infinite_phasescreens))
 
         # Square infinite_phasescreens
-        print('Creating phase screens..')
+        self.logger.info('Creating phase screens..')
         for i in range(self.n_infinite_phasescreens):
             self.ref_r0 = 0.9759 * 0.5 / (self.seeing * 4.848) \
                 * self.airmass**(-3./5.) # if seeing > 0 else 0.0
             self.ref_r0 *= (self.ref_wavelengthInNm / 500.0 )**(6./5.)
-            if self.verbose: # pragma: no cover
-                print(f'Creating {i}-th phase screen')
-                print(f'    r0: {self.ref_r0}, L0: {self.L0[i]},'
-                      f' size: {self.pixel_layer_size[i]}')
+            self.logger.info(f'Creating {i}-th phase screen')
+            self.logger.info(f'    r0: {self.ref_r0}, L0: {self.L0[i]},'
+                    f' size: {self.pixel_layer_size[i]}')
             temp_infinite_screen = InfinitePhaseScreen(self.pixel_layer_size[i],
                                                        self.pixel_pitch,
                                                        self.ref_r0,

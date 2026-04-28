@@ -136,12 +136,12 @@ class Slopes(BaseDataObj):
             if s2.slopes.size > 0:
                 self.slopes -= s2.slopes
             else:
-                print('WARNING (slopes object): s2 (slopes) is empty!')
+                self.logger.warning('s2 (slopes) is empty!')
         elif isinstance(s2, BaseValue):  # Assuming BaseValue is another class
             if s2.value.size > 0:
                 self.slopes -= s2.value
             else:
-                print('WARNING (slopes object): s2 (base_value) is empty!')
+                self.logger.warning('s2 (base_value) is empty!')
 
     def x_remap2d(self, frame, idx):
         """
@@ -274,7 +274,7 @@ class Slopes(BaseDataObj):
             slopes.set_value(slopesdata)
         else:
             slopes.resize(len(slopesdata))  # version 2 header does not have length information
-            slopes.slopes = slopes.to_xp(slopesdata, dtype=slopes.dtype)
+            slopes.slopes[:] = slopes.to_xp(slopesdata, dtype=slopes.dtype)
         return slopes
 
     def array_for_display(self):
