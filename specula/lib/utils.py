@@ -16,13 +16,11 @@ def camelcase_to_snakecase(s):
     or when the uppercase letter is preceded by a number like M2C.
     '''
     tokens = re.findall(r'[A-Z]+(?=[A-Z][a-z])|[A-Z]+[0-9a-z]*', s)
-
     result = [tokens[0]]
     for t in tokens[1:]:
         if not result[-1][-1].isdigit():
             result.append('_')
         result.append(t)
-
     return ''.join(x.lower() for x in result)
 
 

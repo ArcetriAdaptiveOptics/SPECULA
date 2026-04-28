@@ -31,8 +31,12 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
         If True, use circular geometry with actuator counts per ring defined by
         na = [1, 6, 12, 18, ...].
     geom : str or None
-        Geometry type: 'circular', 'alpao', or 'square'. If None, defaults to 'square' unless
-        circ_geom is True.
+        Geometry type: 'circular', 'alpao', 'hexagonal' or 'square'. 
+        If None, defaults to 'square' unless circ_geom is True.
+            - 'circular': radial-grid actuator disposition
+            - 'square': cartesian-grid actuator disposition
+            - 'hexagonal': hexagonal-grid actuator disposition
+            - 'alpao': cartesian-grid actuator disposition, cut on a circular pupil
     angle_offset : float
         Angular offset in degrees for the circular geometry actuator placement.
     do_mech_coupling : bool
@@ -171,7 +175,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
         step = float(dim - 1) / float(n_act - 1)
 
     else:
-        raise ValueError("Unrecognized geometry type! Avaliable types are: 'circular', 'alpao', 'square'")
+        raise ValueError("Unrecognized geometry type! Avaliable types are: 'circular', 'alpao', 'hexagonal', 'square'")
 
     coordinates = xp.vstack((x, y))
     grid_x, grid_y = xp.meshgrid(xp.arange(dim), xp.arange(dim))
