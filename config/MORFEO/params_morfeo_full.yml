@@ -542,7 +542,6 @@ slicer_focus:
 
 iir_focus:
   class:             'Integrator'
-  simul_params_ref:  'main'
   int_gain:          [0.3]
   n_modes:           [1]
   delay: 1.0
@@ -576,7 +575,6 @@ tomo_polc_ref:
 
 control_ref: 
   class:             'Integrator'
-  simul_params_ref:  'main'
   delay:             2
   int_gain:          [0, 0.1, 0,  0.1, 0,  0, 0.1,  0]
   n_modes:           [3, 30,  67, 30,  65, 3, 30,  65]  # 30 modes/DM, and skip the 3 modes for plate scale
@@ -591,7 +589,6 @@ control_ref:
 
 iir_lift:
   class:             'IirFilter'
-  simul_params_ref:  'main'
   iir_filter_data_object: 'int0.0_5modes'   # TODO should be 6 modes
   delay: 1.75
   inputs:

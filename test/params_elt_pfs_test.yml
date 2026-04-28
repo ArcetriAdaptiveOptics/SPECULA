@@ -146,7 +146,6 @@ sum_operation_ngs_nosie:
 
 control_ngs:
   class:             'Integrator'
-  simul_params_ref:  'main'
   delay:             2                      # Total temporal delay in time steps
   int_gain:          [0.1,0.1]
   inputs:

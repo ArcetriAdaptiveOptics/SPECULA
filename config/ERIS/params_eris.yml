@@ -198,7 +198,6 @@ modalrec_lo:
 
 integrator_truth:
   class:        'Integrator'
-  simul_params_ref:  'main'
   delay:             2                      # Total temporal delay in time steps
   int_gain:          [0.0, 0.004]
   n_modes:           [2,8]
@@ -220,7 +219,6 @@ subtract_truth:
 
 integrator_lgs:
   class:             'Integrator'
-  simul_params_ref:  'main'
   delay:             2                      # Total temporal delay in time steps
   int_gain:          [0.0, 0.3]
   n_modes:           [2,   698]
@@ -239,7 +237,6 @@ slicer_lgs:
 
 integrator_lo:
   class:        'Integrator'
-  simul_params_ref:  'main'
   delay:             2                      # Total temporal delay in time steps
   int_gain:          [0.4]
   n_modes:           [2]
