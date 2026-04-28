@@ -17,11 +17,20 @@ def camelcase_to_snakecase(s):
     '''
     tokens = re.findall('[A-Z]+[0-9a-z]*', s)
     result = [tokens[0]]
-    for i, t in enumerate(tokens[1:]):
+    for t in tokens[1:]:
         if not result[-1][-1].isdigit():
             result.append('_')
         result.append(t)
-    return ''.join([x.lower() for x in result])
+    newstring = ''.join([x.lower() for x in result])
+    idx = 0
+    for char in S:
+        if char.isupper():
+            idx += 1
+        else:
+            break
+    if idx > 1:
+        newstring = newstring[:idx-1] + '_' + newstring[idx-1:]
+    return newstring
 
 
 def import_class(classname, additional_modules=None):
