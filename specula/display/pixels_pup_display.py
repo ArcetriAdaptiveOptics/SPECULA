@@ -42,7 +42,7 @@ class PixelsPupDisplay(BaseDisplay):
         self.input_key = 'in_pixels' # Used by base class to identify which input to trigger on
         self.inputs["in_pixels"] = InputValue(type=Pixels)
         self.inputs["in_pupdata"] = InputValue(type=PupData)
-        self.inputs["in_params"] = StringValue(type=BaseValue, optional=True)
+        self.inputs["in_params"] = InputValue(type=StringValue, optional=True)
 
         # display objects
         self.circles = []
