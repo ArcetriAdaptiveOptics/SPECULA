@@ -164,3 +164,11 @@ class TestImportClass(unittest.TestCase):
 
         result = import_class("Dummy")
         self.assertIs(result, Dummy)
+
+    def test_real_import_app_and_papl_coronagraph(self):
+        """Real import should resolve renamed coronagraph classes with current naming rules."""
+        app = import_class("AppCoronagraph")
+        papl = import_class("PaplCoronagraph")
+
+        self.assertEqual(app.__name__, "AppCoronagraph")
+        self.assertEqual(papl.__name__, "PaplCoronagraph")

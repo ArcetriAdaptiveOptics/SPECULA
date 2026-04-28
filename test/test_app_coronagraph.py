@@ -8,11 +8,12 @@ from specula.lib.calc_psf import calc_psf
 from specula.lib.make_mask import make_mask
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.simul_params import SimulParams
-from specula.processing_objects.apodizer_coronagraph import APPCoronagraph
+from specula.processing_objects.app_coronagraph import AppCoronagraph
+from specula.processing_objects.papl_coronagraph import PaplCoronagraph
 
 from test.specula_testlib import cpu_and_gpu
 
-class TestAPPCoronagraph(unittest.TestCase):
+class TestAppCoronagraph(unittest.TestCase):
 
     def setUp(self):
         # Basic simulation parameters
@@ -39,7 +40,7 @@ class TestAPPCoronagraph(unittest.TestCase):
     @cpu_and_gpu
     def test_mask_shape(self, target_device_idx, xp):
         """Test that coronagraph masks have the expected shape"""
-        coro = APPCoronagraph(
+        coro = AppCoronagraph(
             simul_params=self.simul_params,
             wavelengthInNm=self.wavelength_nm,
             pupil=self.mask.copy(),
@@ -69,7 +70,7 @@ class TestAPPCoronagraph(unittest.TestCase):
     @cpu_and_gpu
     def test_output_shape(self, target_device_idx, xp):
         """Test that output ElectricField has expected shape"""
-        coro = APPCoronagraph(
+        coro = AppCoronagraph(
             simul_params=self.simul_params,
             wavelengthInNm=self.wavelength_nm,
             pupil=self.mask,
@@ -103,7 +104,7 @@ class TestAPPCoronagraph(unittest.TestCase):
         ef.generation_time = 1
 
         # Coronagraph
-        coro = APPCoronagraph(
+        coro = AppCoronagraph(
             simul_params=self.simul_params,
             wavelengthInNm=self.wavelength_nm,
             pupil=self.mask,
@@ -147,11 +148,29 @@ class TestAPPCoronagraph(unittest.TestCase):
             plt.show()
 
 
+    def test_papl_invalid_pupil_stop_raises(self):
+        """PaplCoronagraph should validate inner/outer pupil stop ordering."""
+        with self.assertRaises(ValueError):
+            PaplCoronagraph(
+                simul_params=self.simul_params,
+                wavelengthInNm=self.wavelength_nm,
+                pupil=self.mask,
+                contrastInDarkHole=1e-4,
+                iwaInLambdaOverD=4.0,
+                owaInLambdaOverD=12.0,
+                fpmIWAInLambdaOverD=3.0,
+                fpmOWAInLambdaOverD=6.0,
+                knife_edge=False,
+                innerStopAsRatioOfPupil=0.6,
+                outerStopAsRatioOfPupil=0.5,
+            )
+
+
     # @cpu_and_gpu
     # def test_s0_scaling_with_coronagraph(self, target_device_idx, xp):
     #     """Test that S0 is scaled correctly when using the coronagraph"""
     #     # Test with coronagraph - S0 should decrease
-    #     coro = APPCoronagraph(
+    #     coro = AppCoronagraph(
     #         simul_params=self.simul_params,
     #         wavelengthInNm=self.wavelength_nm,
     #         pupil=self.mask,
