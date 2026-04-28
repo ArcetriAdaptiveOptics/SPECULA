@@ -1,6 +1,7 @@
 import specula
 specula.init(0)  # Default target device
 
+import logging
 import unittest
 
 from specula.lib.compute_zonal_ifunc import compute_zonal_ifunc
@@ -148,6 +149,7 @@ class TestGenerateModalBasis(unittest.TestCase):
             zern_modes=zern_modes,
             oversampling=oversampling,
             if_max_condition_number=1e-18,  # Small enough that all modes are removed
+            log_level=logging.INFO,
             xp=xp,
             dtype=dtype
         )

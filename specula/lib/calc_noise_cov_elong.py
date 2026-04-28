@@ -10,7 +10,7 @@ from specula.log import get_specula_logger
 def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, launcher_coord_in_m,
                          sub_aps_index, n_sub_aps, sub_aps_fov, sh_spot_fwhm, sigma_noise2,
                          t_g_parameter, h_in_m=None, user_pofile_xy=None, theta=None,
-                         only_diag=False, eta_is_not_one=False, display=False):
+                         only_diag=False, eta_is_not_one=False, display=False, log_level=None):
     """
     Compute the inverse noise covariance matrix for elongated LGS spots.
 
@@ -53,8 +53,6 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
         If ``True``, compute ``eta`` including flux-loss effects.
     display : bool, optional
         If ``True``, show debug plots.
-    verbose : bool, optional
-        If ``True``, print additional diagnostic information.
 
     Returns
     -------
@@ -68,6 +66,8 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
     adaptive optics with elongated spots", JOSA A, Vol. 27, No. 11 (2010).
     """
     logger = get_specula_logger(__name__)
+    if log_level is not None:
+        logger.setLevel(log_level)
     
     # Convert inputs to CPU arrays for GPU processing
     diameter_in_m = float(cpuArray(diameter_in_m))
