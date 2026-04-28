@@ -15,22 +15,15 @@ def camelcase_to_snakecase(s):
     Underscores are not inserted in case of acronyms (like CCD)
     or when the uppercase letter is preceded by a number like M2C.
     '''
-    tokens = re.findall('[A-Z]+[0-9a-z]*', s)
+    tokens = re.findall(r'[A-Z]+(?=[A-Z][a-z])|[A-Z]+[0-9a-z]*', s)
+
     result = [tokens[0]]
     for t in tokens[1:]:
         if not result[-1][-1].isdigit():
             result.append('_')
         result.append(t)
-    newstring = ''.join([x.lower() for x in result])
-    idx = 0
-    for char in s:
-        if char.isupper():
-            idx += 1
-        else:
-            break
-    if idx > 2:
-        newstring = newstring[:idx-1] + '_' + newstring[idx-1:]
-    return newstring
+
+    return ''.join(x.lower() for x in result)
 
 
 def import_class(classname, additional_modules=None):
