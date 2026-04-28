@@ -34,11 +34,8 @@ class IdealDerivativeSensor(BaseProcessingObj):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.subapdata = subapdata
-        self.simul_params = simul_params
-        self.pixel_pitch = self.simul_params.pixel_pitch
         if fov <= 0:
             raise ValueError("Field of view must be positive.")
-        self.fov = fov
 
         # Conversion factor from derivative to slopes
         # slope_value = derivative [nm] * 1e-9 / pixel_pitch [m] * rad2asec / FoV [asec] (radius)
@@ -48,7 +45,7 @@ class IdealDerivativeSensor(BaseProcessingObj):
         np_sub = self.subapdata.np_sub
         spacing_correction = (np_sub - 1) / np_sub
 
-        self.slope_factor = 1e-9 * RAD2ASEC / (self.pixel_pitch * self.fov / 2.0) * spacing_correction
+        self.slope_factor = 1e-9 * RAD2ASEC / (simul_params.pixel_pitch * fov / 2.0) * spacing_correction
 
         # Initialize slopes output
         self.slopes = Slopes(length=self.subapdata.n_subaps * 2,

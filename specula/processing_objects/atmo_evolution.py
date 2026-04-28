@@ -68,11 +68,9 @@ class AtmoEvolution(BaseProcessingObj):
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        self.simul_params = simul_params
-
-        self.pixel_pupil = self.simul_params.pixel_pupil
-        self.pixel_pitch = self.simul_params.pixel_pitch
-        self.zenithAngleInDeg = self.simul_params.zenithAngleInDeg
+        self.pixel_pupil = simul_params.pixel_pupil
+        self.pixel_pitch = simul_params.pixel_pitch
+        zenithAngleInDeg = simul_params.zenithAngleInDeg
 
         self.n_phasescreens = len(heights)
         self.last_position = np.zeros(self.n_phasescreens, dtype=self.dtype)
@@ -90,9 +88,9 @@ class AtmoEvolution(BaseProcessingObj):
         self.inputs['wind_speed'] = InputValue(type=BaseValue)
         self.inputs['wind_direction'] = InputValue(type=BaseValue)
 
-        if self.zenithAngleInDeg is not None:
-            self.airmass = 1.0 / np.cos(np.radians(self.zenithAngleInDeg), dtype=self.dtype)
-            self.logger.info(f'zenith angle is defined as: {self.zenithAngleInDeg} deg')
+        if zenithAngleInDeg is not None:
+            self.airmass = 1.0 / np.cos(np.radians(zenithAngleInDeg), dtype=self.dtype)
+            self.logger.info(f'zenith angle is defined as: {zenithAngleInDeg} deg')
             self.logger.info(f'airmass is: {self.airmass}')
         else:
             self.airmass = 1.0
@@ -116,7 +114,6 @@ class AtmoEvolution(BaseProcessingObj):
 
         self.L0 = L0
         self.Cn2 = np.array(Cn2, dtype=self.dtype)
-        self.pixel_pupil = self.pixel_pupil
         self.data_dir = data_dir
 
         self.pixel_square_phasescreens = pixel_phasescreens

@@ -65,11 +65,9 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        self.simul_params = simul_params
-
-        self.pixel_pupil = self.simul_params.pixel_pupil
-        self.pixel_pitch = self.simul_params.pixel_pitch
-        self.zenithAngleInDeg = self.simul_params.zenithAngleInDeg
+        self.pixel_pupil = simul_params.pixel_pupil
+        self.pixel_pitch = simul_params.pixel_pitch
+        zenithAngleInDeg = simul_params.zenithAngleInDeg
 
         self.n_infinite_phasescreens = len(heights)
         self.last_position = np.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
@@ -78,7 +76,6 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         self.delta_time = None
         # fixed at generation time, then is a input -> rescales the screen?
         self.seeing = 1.0
-        self.airmass = 1
         self.ref_wavelengthInNm = 500
 
         if not hasattr(extra_delta_time,"__len__"):
@@ -93,10 +90,10 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         if pupil_position is None:
             pupil_position = [0, 0]
 
-        if self.zenithAngleInDeg is not None:
-            self.airmass = 1.0 / np.cos(np.radians(self.zenithAngleInDeg), dtype=self.dtype)
+        if zenithAngleInDeg is not None:
+            self.airmass = 1.0 / np.cos(np.radians(zenithAngleInDeg), dtype=self.dtype)
             self.logger.info(f'AtmoInfiniteEvolution: zenith angle is defined as:'
-                  f' {self.zenithAngleInDeg} deg')
+                  f' {zenithAngleInDeg} deg')
             self.logger.info(f'AtmoInfiniteEvolution: airmass is: {self.airmass}')
         else:
             self.airmass = 1.0
@@ -171,8 +168,8 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         if len(seed) != len(self.L0):
             raise ValueError('Number of elements in seed and L0 must be the same!')
 
-        self.acc_rows = np.zeros((self.n_infinite_phasescreens))
-        self.acc_cols = np.zeros((self.n_infinite_phasescreens))
+        self.acc_rows = np.zeros(self.n_infinite_phasescreens)
+        self.acc_cols = np.zeros(self.n_infinite_phasescreens)
 
         # Square infinite_phasescreens
         self.logger.info('Creating phase screens..')

@@ -31,8 +31,12 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
         If True, use circular geometry with actuator counts per ring defined by
         na = [1, 6, 12, 18, ...].
     geom : str or None
-        Geometry type: 'circular', 'alpao', or 'square'. If None, defaults to 'square' unless
-        circ_geom is True.
+        Geometry type: 'circular', 'alpao', 'hexagonal' or 'square'. 
+        If None, defaults to 'square' unless circ_geom is True.
+            - 'circular': radial-grid actuator disposition
+            - 'square': cartesian-grid actuator disposition
+            - 'hexagonal': hexagonal-grid actuator disposition
+            - 'alpao': cartesian-grid actuator disposition, cut on a circular pupil
     angle_offset : float
         Angular offset in degrees for the circular geometry actuator placement.
     do_mech_coupling : bool
@@ -125,6 +129,44 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
         # Calculate step based on linspace spacing
         step = float(dim - 1) / float(n_act - 1)
 
+    elif geom == 'hexagonal':
+        # Determine the number of rings
+        if n_act % 2 == 0:
+            n_act_radius = int(xp.ceil((n_act + 1) / 2))
+        else:
+            n_act_radius = int(xp.ceil(n_act / 2))
+        
+        N_rings = max(0, n_act_radius - 1)
+
+        # Generate axial coordinates (q, r) for the hexagon
+        q_coords = []
+        r_coords = []
+        for q in range(-N_rings, N_rings + 1):
+            r1 = max(-N_rings, -q - N_rings)
+            r2 = min(N_rings, -q + N_rings)
+            for r in range(r1, r2 + 1):
+                q_coords.append(q)
+                r_coords.append(r)
+
+        q_arr = xp.array(q_coords, dtype=float)
+        r_arr = xp.array(r_coords, dtype=float)
+
+        # Convert axial coordinates to Cartesian
+        x_hex = q_arr + r_arr / 2.0
+        y_hex = r_arr * xp.sqrt(3.0) / 2.0
+
+        n_act_tot = int(xp.size(x_hex))
+
+        # Calculate step based on max diameter (2 * N_rings) to span (dim - 1)
+        n_act_diameter = 2 * N_rings + 1
+        step = float(dim - 1) / float(n_act_diameter - 1) if n_act_diameter > 1 else 0.0
+
+        x_c, y_c = (dim - 1) / 2.0, (dim - 1) / 2.0
+
+        # Scale by step
+        x = x_hex * step + x_c
+        y = y_hex * step + y_c
+
     elif geom == 'square': # default
         x, y = xp.meshgrid(xp.linspace(0, dim - 1, n_act), xp.linspace(0, dim - 1, n_act))
         x, y = x.ravel(), y.ravel()
@@ -133,7 +175,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
         step = float(dim - 1) / float(n_act - 1)
 
     else:
-        raise ValueError("Unrecognized geometry type! Avaliable types are: 'circular', 'alpao', 'square'")
+        raise ValueError("Unrecognized geometry type! Avaliable types are: 'circular', 'alpao', 'hexagonal', 'square'")
 
     coordinates = xp.vstack((x, y))
     grid_x, grid_y = xp.meshgrid(xp.arange(dim), xp.arange(dim))

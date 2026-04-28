@@ -8,11 +8,11 @@ from specula.lib.calc_psf import calc_psf
 from specula.lib.make_mask import make_mask
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.simul_params import SimulParams
-from specula.processing_objects.app_coronagraph import APPCoronagraph
+from specula.processing_objects.papl_coronagraph import PAPLCoronagraph
 
 from test.specula_testlib import cpu_and_gpu
 
-class TestAPPCoronagraph(unittest.TestCase):
+class TestPAPLCoronagraph(unittest.TestCase):
 
     def setUp(self):
         # Basic simulation parameters
@@ -37,21 +37,23 @@ class TestAPPCoronagraph(unittest.TestCase):
         return coro.outputs['out_ef']
 
     @cpu_and_gpu
-    def test_mask_shape(self, target_device_idx, xp):
-        """Test that coronagraph masks have the expected shape"""
-        coro = APPCoronagraph(
+    def test_mask_shape_knife_edge(self, target_device_idx, xp):
+        """Test that PAPL coronagraph masks have the expected shape with knife-edge FPM"""
+        coro = PAPLCoronagraph(
             simul_params=self.simul_params,
             wavelengthInNm=self.wavelength_nm,
             pupil=self.mask.copy(),
             contrastInDarkHole=1e-4,
             iwaInLambdaOverD=4.0,
             owaInLambdaOverD=12.0,
+            fpmIWAInLambdaOverD=2.0,
+            knife_edge=True,
             target_device_idx=target_device_idx
         )
 
         self.assertEqual(coro.pupil_mask.shape, (self.pixel_pupil, self.pixel_pupil))
-        self.assertEqual(coro.fp_mask.shape, (coro.fft_totsize,coro.fft_totsize)) 
-        self.assertEqual(coro.apodizer.shape, (self.pixel_pupil, self.pixel_pupil)) # apodizer
+        self.assertEqual(coro.fp_mask.shape, (coro.fft_totsize, coro.fft_totsize)) 
+        self.assertEqual(coro.apodizer.shape, (self.pixel_pupil, self.pixel_pupil))
 
         debug_plot = False
         if debug_plot: # pragma: no cover
@@ -67,15 +69,37 @@ class TestAPPCoronagraph(unittest.TestCase):
             plt.title('Pupil plane mask')
 
     @cpu_and_gpu
+    def test_mask_shape_annular_fpm(self, target_device_idx, xp):
+        """Test that PAPL coronagraph masks have the expected shape with annular FPM"""
+        coro = PAPLCoronagraph(
+            simul_params=self.simul_params,
+            wavelengthInNm=self.wavelength_nm,
+            pupil=self.mask.copy(),
+            contrastInDarkHole=1e-4,
+            iwaInLambdaOverD=4.0,
+            owaInLambdaOverD=12.0,
+            fpmIWAInLambdaOverD=2.0,
+            fpmOWAInLambdaOverD=14.0,
+            knife_edge=False,
+            target_device_idx=target_device_idx
+        )
+
+        self.assertEqual(coro.pupil_mask.shape, (self.pixel_pupil, self.pixel_pupil))
+        self.assertEqual(coro.fp_mask.shape, (coro.fft_totsize, coro.fft_totsize)) 
+        self.assertEqual(coro.apodizer.shape, (self.pixel_pupil, self.pixel_pupil))
+
+    @cpu_and_gpu
     def test_output_shape(self, target_device_idx, xp):
         """Test that output ElectricField has expected shape"""
-        coro = APPCoronagraph(
+        coro = PAPLCoronagraph(
             simul_params=self.simul_params,
             wavelengthInNm=self.wavelength_nm,
             pupil=self.mask,
             contrastInDarkHole=1e-4,
             iwaInLambdaOverD=4.0,
             owaInLambdaOverD=12.0,
+            fpmIWAInLambdaOverD=2.0,
+            knife_edge=True,
             target_device_idx=target_device_idx
         )
 
@@ -90,7 +114,6 @@ class TestAPPCoronagraph(unittest.TestCase):
         self.assertEqual(out_ef.A.shape, (self.pixel_pupil, self.pixel_pupil))
         self.assertEqual(out_ef.phaseInNm.shape, (self.pixel_pupil, self.pixel_pupil))
 
-
     @cpu_and_gpu
     def test_psf_with_and_without_coronagraph(self, target_device_idx, xp):
         """Test PSF with and without a coronagraph using calc_psf"""
@@ -102,14 +125,16 @@ class TestAPPCoronagraph(unittest.TestCase):
         ef.phaseInNm[:] = 0.0
         ef.generation_time = 1
 
-        # Coronagraph
-        coro = APPCoronagraph(
+        # PAPL Coronagraph with knife-edge
+        coro = PAPLCoronagraph(
             simul_params=self.simul_params,
             wavelengthInNm=self.wavelength_nm,
             pupil=self.mask,
             contrastInDarkHole=1e-4,
             iwaInLambdaOverD=4.0,
             owaInLambdaOverD=12.0,
+            fpmIWAInLambdaOverD=2.0,
+            knife_edge=True,
             target_device_idx=target_device_idx
         )
         ef_coro = self.get_coro_field(coro, ef)
@@ -124,9 +149,9 @@ class TestAPPCoronagraph(unittest.TestCase):
         # Check shapes
         self.assertEqual(psf_nocoro.shape, psf_coro.shape)
 
-        # Check that the coronagraph has an effect (PSFs should be smaller)
+        # Check that the coronagraph has an effect (PSFs should be different)
         diff = np.abs(psf_nocoro - psf_coro).sum()
-        self.assertGreater(cpuArray(diff), 0.0, "Coronagraph does not affect the PSF!")
+        self.assertGreater(cpuArray(diff), 0.0, "PAPL coronagraph does not affect the PSF!")
 
         debug_plot = False
         if debug_plot: # pragma: no cover
@@ -141,37 +166,63 @@ class TestAPPCoronagraph(unittest.TestCase):
             plt.subplot(1,2,2)
             plt.imshow(cpuArray(xp.log(psf_coro)), cmap='twilight', vmax=0, vmin=-24)
             plt.colorbar()
-            plt.title('Output PSF')
+            plt.title('Output PSF with PAPL Coronagraph')
             plt.xlim([coro.fft_totsize//2-50,coro.fft_totsize//2+50])
             plt.ylim([coro.fft_totsize//2-50,coro.fft_totsize//2+50])
             plt.show()
 
+    @cpu_and_gpu
+    def test_pupil_stop_ratios(self, target_device_idx, xp):
+        """Test PAPL coronagraph with custom pupil stop ratios"""
+        coro = PAPLCoronagraph(
+            simul_params=self.simul_params,
+            wavelengthInNm=self.wavelength_nm,
+            pupil=self.mask,
+            contrastInDarkHole=1e-4,
+            iwaInLambdaOverD=4.0,
+            owaInLambdaOverD=12.0,
+            fpmIWAInLambdaOverD=2.0,
+            knife_edge=True,
+            innerStopAsRatioOfPupil=0.1,
+            outerStopAsRatioOfPupil=0.95,
+            target_device_idx=target_device_idx
+        )
 
-    # @cpu_and_gpu
-    # def test_s0_scaling_with_coronagraph(self, target_device_idx, xp):
-    #     """Test that S0 is scaled correctly when using the coronagraph"""
-    #     # Test with coronagraph - S0 should decrease
-    #     coro = APPCoronagraph(
-    #         simul_params=self.simul_params,
-    #         wavelengthInNm=self.wavelength_nm,
-    #         pupil=self.mask,
-    #         contrastInDarkHole=1e-5,
-    #         iwaInLambdaOverD=4.0,
-    #         owaInLambdaOverD=12.0,
-    #         target_device_idx=target_device_idx
-    #     )
+        self.assertEqual(coro.pupil_mask.shape, (self.pixel_pupil, self.pixel_pupil))
+        self.assertIsNotNone(coro.pupil_mask)
 
-    #     # Create input electric field
-    #     ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
-    #                        S0=100.0, target_device_idx=target_device_idx)
-    #     ef.A[:] = xp.array(self.mask)
-    #     ef.phaseInNm[:] = 0.0
-    #     ef.S0 = 100.0
-    #     ef.generation_time = 1
+    @cpu_and_gpu
+    def test_invalid_pupil_stop_ratios(self, target_device_idx, xp):
+        """Test that invalid pupil stop ratios raise ValueError"""
+        with self.assertRaises(ValueError):
+            coro = PAPLCoronagraph(
+                simul_params=self.simul_params,
+                wavelengthInNm=self.wavelength_nm,
+                pupil=self.mask,
+                contrastInDarkHole=1e-4,
+                iwaInLambdaOverD=4.0,
+                owaInLambdaOverD=12.0,
+                fpmIWAInLambdaOverD=2.0,
+                knife_edge=True,
+                innerStopAsRatioOfPupil=0.5,
+                outerStopAsRatioOfPupil=0.3,  # Invalid: outer < inner
+                target_device_idx=target_device_idx
+            )
 
-    #     # Test with obstruction
-    #     ef_coro = self.get_coro_field(coro, ef)
-    #     s0_with_coro = ef_coro.S0
+    @cpu_and_gpu
+    def test_knife_edge_without_owa_incompatibility(self, target_device_idx, xp):
+        """Test that knife-edge mode with OWA parameter raises ValueError"""
+        with self.assertRaises(ValueError):
+            coro = PAPLCoronagraph(
+                simul_params=self.simul_params,
+                wavelengthInNm=self.wavelength_nm,
+                pupil=self.mask,
+                contrastInDarkHole=1e-4,
+                iwaInLambdaOverD=4.0,
+                owaInLambdaOverD=12.0, 
+                fpmIWAInLambdaOverD=2.0,
+                fpmOWAInLambdaOverD=12.0,  # This should not be used with knife_edge=True
+                knife_edge=True,
+                target_device_idx=target_device_idx
+            )
 
-    #     # S0 with coronagraph should be less than SO without coronagraph
-    #     self.assertLess(s0_with_coro, ef.S0, "S0 should decrease with coronagraph!")
