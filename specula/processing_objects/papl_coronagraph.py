@@ -38,7 +38,7 @@ class PAPLCoronagraph(APPCoronagraph):
                              f' {innerStopAsRatioOfPupil*1e+2:1.0f}% of pupil,'
                              f' outer size is {outerStopAsRatioOfPupil*1e+2:1.0f}% of pupil')
 
-        if knife_edge is True and owaInLambdaOverD is not None:
+        if knife_edge is True and fpmOWAInLambdaOverD is not None:
             raise ValueError('OWA cannot be defined for the knife-edge focal plane mask')
 
         self._knife_edge = knife_edge

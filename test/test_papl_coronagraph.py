@@ -189,7 +189,7 @@ class TestPAPLCoronagraph(unittest.TestCase):
         )
 
         self.assertEqual(coro.pupil_mask.shape, (self.pixel_pupil, self.pixel_pupil))
-        self.assertIsNotNone(coro.pupil_stop)
+        self.assertIsNotNone(coro.pupil_mask)
 
     @cpu_and_gpu
     def test_invalid_pupil_stop_ratios(self, target_device_idx, xp):
@@ -219,8 +219,9 @@ class TestPAPLCoronagraph(unittest.TestCase):
                 pupil=self.mask,
                 contrastInDarkHole=1e-4,
                 iwaInLambdaOverD=4.0,
-                owaInLambdaOverD=12.0,  # This should not be used with knife_edge=True
+                owaInLambdaOverD=12.0, 
                 fpmIWAInLambdaOverD=2.0,
+                fpmOWAInLambdaOverD=12.0,  # This should not be used with knife_edge=True
                 knife_edge=True,
                 target_device_idx=target_device_idx
             )
