@@ -143,7 +143,7 @@ class DynamicPyrPupdataCalibrator(PyrPupdataCalibrator):
             if input_thr2 is not None and input_thr2.generation_time == self.current_time:
                 self.thr2 = float(input_thr2.value)
         except Exception as e:
-            print(f'Exception: {e.__name__}: {e}')
+            self.logger.error(f'Exception: {e.__name__}: {e}')
 
     def trigger_code(self):
 

@@ -56,7 +56,7 @@ class BaseDataObj(BaseTimeObj):
             dest_type = type(dest_attr)
 
             if dest_type not in array_types:
-                print(f'Warning: destination attribute is not a cupy/numpy array, forcing reallocation ({destobj}.{attr})')
+                self.logger.warning(f'destination attribute is not a cupy/numpy array, forcing reallocation ({destobj}.{attr})')
                 force_reallocation = True
 
             # Destination array had the correct type: perform in-place data copy
@@ -87,7 +87,7 @@ class BaseDataObj(BaseTimeObj):
                 elif HtH:
                     dest_attr[:] = self_attr
                 else:
-                    print(f'Warning: mismatch between target_device_idx and array allocation, forcing reallocation ({destobj}.{attr})')
+                    self.logger.warning(f'mismatch between target_device_idx and array allocation, forcing reallocation ({destobj}.{attr})')
                     force_reallocation = True
 
             # Otherwise, reallocate

@@ -1,6 +1,7 @@
 import specula
 specula.init(0)  # Default target device
 
+import os
 import unittest
 import numpy as np
 from specula import cpuArray
@@ -16,6 +17,20 @@ except ImportError:
     control = None
 
 class TestIirFilterData(unittest.TestCase):
+
+    def setUp(self):
+        datadir = os.path.join(os.path.dirname(__file__), 'data')
+        self.iir_filename = os.path.join(datadir, 'iir_filter_data.fits')
+        try:
+            os.unlink(self.iir_filename)
+        except FileNotFoundError:
+            pass
+
+    def tearDown(self):
+        try:
+            os.unlink(self.iir_filename)
+        except FileNotFoundError:
+            pass
 
     @cpu_and_gpu
     def test_init_with_n_modes_expansion(self, target_device_idx, xp):
@@ -36,6 +51,26 @@ class TestIirFilterData(unittest.TestCase):
         np.testing.assert_allclose(cpuArray(filt.num[3:]), [cpuArray(num[1])]*2)
         np.testing.assert_allclose(cpuArray(filt.den[:3]), [cpuArray(den[0])]*3)
         np.testing.assert_allclose(cpuArray(filt.den[3:]), [cpuArray(den[1])]*2)
+
+    @cpu_and_gpu
+    def test_save_restore_roundtrip(self, target_device_idx, xp):
+        """Test that n_modes expands filter blocks correctly in IirFilterData.__init__"""
+        ordnum = [2, 2]
+        ordden = [2, 2]
+        num = xp.array([[0.0, 0.5], [0.0, 0.3]])
+        den = xp.array([[-1.0, 1.0], [-0.9, 1.0]])
+        n_modes = [3, 2]
+
+        filt = IirFilterData(ordnum, ordden, num, den, n_modes=n_modes,
+                             target_device_idx=target_device_idx)
+
+        filt.save(self.iir_filename)
+        restored = IirFilterData.restore(self.iir_filename, target_device_idx=target_device_idx)
+
+        np.testing.assert_array_equal(cpuArray(filt.num), cpuArray(restored.num))
+        np.testing.assert_array_equal(cpuArray(filt.den), cpuArray(restored.den))
+        np.testing.assert_array_equal(cpuArray(filt.ordnum), cpuArray(restored.ordnum))
+        np.testing.assert_array_equal(cpuArray(filt.ordden), cpuArray(restored.ordden))
 
     @cpu_and_gpu
     def test_numerator_from_gain_and_ff(self, target_device_idx, xp):
@@ -341,6 +376,45 @@ class TestIirFilterData(unittest.TestCase):
         for i in range(3):
             expected_num[i, 0] = 0
             expected_num[i, 1] = new_gains[i]
+
+        actual_num = cpuArray(filter_data.num)
+        np.testing.assert_allclose(actual_num, expected_num, rtol=1e-7)
+
+        # Denominators should remain unchanged
+        expected_den = np.zeros((3, 2))
+        for i in range(3):
+            expected_den[i, 0] = -ff[i]
+            expected_den[i, 1] = 1.0
+
+        actual_den = cpuArray(filter_data.den)
+        np.testing.assert_allclose(actual_den, expected_den, rtol=1e-7)
+
+    @cpu_and_gpu
+    def test_set_gain_scalar(self, target_device_idx, xp):
+        """Test set_gain method with a scalar_gain"""
+
+        # Test 1: Set gain on gain+ff filters (simple case)
+        gains = [0.1, 0.5, 1.0]
+        ff = [0.9, 0.95, 0.99]
+        filter_data = IirFilterData.from_gain_and_ff(gains, ff, target_device_idx=target_device_idx)
+
+        # Original gains should match input
+        original_gains = cpuArray(filter_data.gain)
+        np.testing.assert_allclose(original_gains, gains, rtol=1e-12)
+
+        # Set new gain
+        new_gain = 0.2
+        filter_data.set_gain(new_gain)
+
+        # Check that gains were updated
+        updated_gains = cpuArray(filter_data.gain)
+        np.testing.assert_allclose(updated_gains, [new_gain]*3, rtol=1e-12)
+
+        # Check that numerator coefficients were scaled correctly
+        expected_num = np.zeros((3, 2))
+        for i in range(3):
+            expected_num[i, 0] = 0
+            expected_num[i, 1] = new_gain
 
         actual_num = cpuArray(filter_data.num)
         np.testing.assert_allclose(actual_num, expected_num, rtol=1e-7)

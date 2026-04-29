@@ -7,7 +7,7 @@ from specula.lib.make_mask import make_mask
 from specula.connections import InputValue
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.intensity import Intensity
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.data_objects.lenslet import Lenslet
 from specula.base_value import BaseValue
 from specula.data_objects.laser_launch_telescope import LaserLaunchTelescope
@@ -126,7 +126,6 @@ class SH(BaseProcessingObj):
         self._squaremask = squaremask
         self._fov_resolution_arcsec = 0
         self._debugOutput = False
-        self._noprints = False
         self._rotAnglePhInDeg = rotAnglePhInDeg
         self._xShiftPhInPixel = xShiftPhInPixel
         self._yShiftPhInPixel = yShiftPhInPixel
@@ -173,6 +172,20 @@ class SH(BaseProcessingObj):
         self.inputs['in_ef'] = InputValue(type=ElectricField)
         self.outputs['out_i'] = self._out_i
 
+    @classmethod
+    def input_names(cls):
+        return {
+            'in_ef': InputDesc(ElectricField, 'Input electric field from the telescope pupil'),
+            'sodium_altitude': InputDesc(BaseValue, 'Sodium layer altitude profile (optional)'),
+            'sodium_intensity': InputDesc(BaseValue, 'Sodium layer intensity profile (optional)'),
+        }
+
+    @classmethod
+    def output_names(cls):
+        return {
+            'out_i': OutputDesc(Intensity, 'Output Shack-Hartmann focal-plane intensity image'),
+        }
+
     def _set_in_ef(self, in_ef):
 
         lens = self._lenslet.get(0, 0)
@@ -193,16 +206,14 @@ class SH(BaseProcessingObj):
         subap_real_fov_arcsec = self._sensor_pxscale * self._subap_npx * RAD2ASEC
 
         if self._fov_resolution_arcsec == 0:
-            if not self._noprints: # pragma: no cover
-                print('FoV internal resolution parameter not set.')
+            self.logger.info('FoV internal resolution parameter not set.')
             if self._set_fov_res_to_turbpxsc:
                 if turbulence_pxscale >= sensor_pxscale_arcsec:
                     raise ValueError('set_fov_res_to_turbpxsc property should be set'
                                      ' to one only if turb. pix. sc. is < sensor pix. sc.')
                 self._fov_resolution_arcsec = turbulence_pxscale
-                if not self._noprints: # pragma: no cover
-                    print('WARNING: set_fov_res_to_turbpxsc property is set.')
-                    print('FoV internal resolution parameter will be set to turb. pix. sc.')
+                self.logger.warning('set_fov_res_to_turbpxsc property is set.')
+                self.logger.warning('FoV internal resolution parameter will be set to turb. pix. sc.')
             elif turbulence_pxscale < sensor_pxscale_arcsec and sensor_pxscale_arcsec / 2.0 > 0.5:
                 self._fov_resolution_arcsec = turbulence_pxscale * 0.5
             else:
@@ -247,9 +258,8 @@ class SH(BaseProcessingObj):
                 else:
                     self._fov_resolution_arcsec = resTry[idx_good[0]]
 
-        if not self._noprints: # pragma: no cover
-            print(f'FoV internal resolution parameter set as [arcsec]:'
-                  f' {self._fov_resolution_arcsec}')
+        self.logger.info(f'FoV internal resolution parameter set as [arcsec]:'
+                f' {self._fov_resolution_arcsec}')
 
         # Compute FFT FoV resolution element in arcsec
         scale_ovs = round(turbulence_pxscale / self._fov_resolution_arcsec)
@@ -305,16 +315,15 @@ class SH(BaseProcessingObj):
         self._ovs_np_sub = round(ef_size * self._fov_ovs * lens[2] * 0.5)
         self._fft_size = self._ovs_np_sub * scale_ovs
 
-        if self.verbose: # pragma: no cover
-            print('\n-->     FoV resolution [asec], {}'.format(self._fov_resolution_arcsec))
-            print('-->     turb. pix. sc.,        {}'.format(turbulence_pxscale))
-            print('-->     sc. over sampl.,       {}'.format(scale_ovs))
-            print('-->     FoV over sampl.,       {}'.format(self._fov_ovs))
-            print('-->     FFT pix. sc. [asec],   {}'.format(fft_pxscale_arcsec))
-            print('-->     no. elements FoV,      {}'.format(subap_real_fov_pix))
-            print('-->     FFT size (turb. FoV),  {}'.format(self._fft_size))
-            print('-->     L.C.M. for toccd,      {}'.format(mcmx))
-            print('-->     oversampled np_sub,    {}'.format(self._ovs_np_sub))
+        self.logger.info('-->     FoV resolution [asec], {}'.format(self._fov_resolution_arcsec))
+        self.logger.info('-->     turb. pix. sc.,        {}'.format(turbulence_pxscale))
+        self.logger.info('-->     sc. over sampl.,       {}'.format(scale_ovs))
+        self.logger.info('-->     FoV over sampl.,       {}'.format(self._fov_ovs))
+        self.logger.info('-->     FFT pix. sc. [asec],   {}'.format(fft_pxscale_arcsec))
+        self.logger.info('-->     no. elements FoV,      {}'.format(subap_real_fov_pix))
+        self.logger.info('-->     FFT size (turb. FoV),  {}'.format(self._fft_size))
+        self.logger.info('-->     L.C.M. for toccd,      {}'.format(mcmx))
+        self.logger.info('-->     oversampled np_sub,    {}'.format(self._ovs_np_sub))
 
         # Validation Check (Updated to use precise float math)
         # We check if the calculated subaperture size is effectively an even integer
@@ -328,9 +337,8 @@ class SH(BaseProcessingObj):
                 f'ERROR: Interpolated phase size {actual_phase_size} is not divisible '
                 f'by {2 * self._lenslet.n_lenses} (2 * n_lenses).'
             )
-        elif not self._noprints:
-            print(f'GOOD: Interpolated phase size {int(actual_phase_size)} is divisible'
-                  f' by {self._lenslet.n_lenses} subapertures.')
+        self.logger.info(f'GOOD: Interpolated phase size {int(actual_phase_size)} is divisible'
+                f' by {self._lenslet.n_lenses} subapertures.')
 
     def _calc_geometry(self, in_ef):
         '''
@@ -521,7 +529,7 @@ class SH(BaseProcessingObj):
 
         in_ef = self.local_inputs['in_ef']
         phot = in_ef.S0 * in_ef.masked_area()
-       # print(self.name, f'{in_ef.S0=} {self._out_i.i.sum()=}')
+       # self.logger.debug(self.name, f'{in_ef.S0=} {self._out_i.i.sum()=}')
         self._out_i.i *= phot / self._out_i.i.sum()
         # self._out_i.i = self.xp.nan_to_num(self._out_i.i, copy=False)
         self._out_i.generation_time = self.current_time

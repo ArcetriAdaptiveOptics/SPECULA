@@ -146,5 +146,3 @@ dmypy.json
 **/*.png
 ConvolutionKernel*
 
-# EKARUS config data output
-config/EKARUS/*

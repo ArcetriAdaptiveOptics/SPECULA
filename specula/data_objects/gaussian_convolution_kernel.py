@@ -103,8 +103,6 @@ class GaussianConvolutionKernel(ConvolutionKernel):
             kernel_obj.oversampling = hdr['OVERSAMP']
             kernel_obj.positive_shift_tt = hdr['POSTT']
 
-        # This code uses an intermediate array to make sure that endianess is correct (FITS is big-endian)
-        data = kernel_obj.xp.array(fits.getdata(filename, ext=1), dtype=kernel_obj.dtype)
-        kernel_obj.real_kernels[:] = data
+        kernel_obj.real_kernels[:] = kernel_obj.to_xp(fits.getdata(filename, ext=1))
         kernel_obj.process_kernels(return_fft=return_fft)
         return kernel_obj

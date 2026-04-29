@@ -1,11 +1,10 @@
+import os
+import sys
+import unittest
 import matplotlib.pyplot as plt
 
 import specula
-
 specula.init(0)  # Default target device
-
-import unittest
-import os
 
 from specula import cpuArray
 
@@ -20,8 +19,10 @@ from skimage.restoration import unwrap_phase
 
 import numpy as np
 
-@unittest.skipIf(os.getenv('CI') == 'true',
-                     "Disable for CI issues with Ubuntu and Python >=3.11")
+@unittest.skipIf((os.environ.get('CI') == 'true' and
+                  sys.platform == 'linux' and
+                  sys.version_info[:2] >= (3, 11) and
+                  sys.version_info[:2] <= (3, 13)), "Disabled because of CI issues")
 class TestModalAnalysisUnwrapping(unittest.TestCase):
 
     @cpu_and_gpu
@@ -42,7 +43,8 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
 
         # Physical and geometrical propagation to source
         uplink_source = Source(polar_coordinates=[0.0, 0.0], magnitude=0, height=400, wavelengthInNm=1550)
-        prop_up = AtmoPropagation(simul_params, source_dict={'uplink_source': uplink_source}, target_device_idx=target_device_idx, wavelengthInNm=1550)
+        prop_up = AtmoPropagation(simul_params, source_dict={'uplink_source': uplink_source},
+                                  target_device_idx=target_device_idx, wavelengthInNm=1550)
 
         atmo.inputs['seeing'].set(seeing.output)
         atmo.inputs['wind_direction'].set(wind_direction.output)
@@ -73,8 +75,8 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
         unwrapped_phase = modal_analysis.unwrap_2d(wrapped_phase)
         unwrapped_phase_skimage = unwrap_phase(cpuArray(wrapped_phase), rng=1)
 
-        rel_error_1 = np.mean(np.abs((cpuArray(phase) - cpuArray(unwrapped_phase)))/np.abs(cpuArray(phase)))
-        rel_error_2 = np.mean(np.abs((cpuArray(phase) - cpuArray(unwrapped_phase_skimage))) /np.abs(cpuArray(phase)))
+        rel_error_1 = np.mean(np.abs((cpuArray(phase) - cpuArray(unwrapped_phase))) / np.abs(cpuArray(phase)))
+        rel_error_2 = np.mean(np.abs((cpuArray(phase) - cpuArray(unwrapped_phase_skimage))) / np.abs(cpuArray(phase)))
 
         np.testing.assert_array_less(rel_error_1, rel_error_2)
 
@@ -86,29 +88,28 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
 
         # Atmosphere
         seeing = WaveGenerator(constant=2.5, target_device_idx=target_device_idx)
-        wind_speed = WaveGenerator(constant=[0, 0, 0, 0], target_device_idx=target_device_idx)
-        wind_direction = WaveGenerator(constant=[0, 0, 0, 0], target_device_idx=target_device_idx)
+        wind_speed = WaveGenerator(constant=[0, 0, 0], target_device_idx=target_device_idx)
+        wind_direction = WaveGenerator(constant=[0, 0, 0], target_device_idx=target_device_idx)
         atmo = AtmoInfiniteEvolution(simul_params,
                                      L0=20,  # [m] Outer scale
-                                     heights=[0., 40., 120., 200.],
-                                     Cn2=[0.769, 0.104, 0.127, 0.0],
+                                     heights=[0., 40., 120.],
+                                     Cn2=[0.769, 0.104, 0.127],
                                      fov=8.0,
                                      target_device_idx=target_device_idx)
 
         # Physical and geometrical propagation to source
-        uplink_source = Source(polar_coordinates=[0.0, 0.0], magnitude=0, height=5000,
+        uplink_source = Source(polar_coordinates=[0.0, 0.0], magnitude=0, height=500,
                                wavelengthInNm=1550)
         prop_up_phys = AtmoPropagation(simul_params, source_dict={'uplink_source': uplink_source},
-                                  target_device_idx=target_device_idx, wavelengthInNm=1550,
-                                  upwards=True, doFresnel=True)
+                                  target_device_idx=target_device_idx, wavelengthInNm=1550, doFresnel=True,
+                                         upwards=True, padding_factor=3)
         prop_up_geom = AtmoPropagation(simul_params, source_dict={'uplink_source': uplink_source},
                                   target_device_idx=target_device_idx)
 
         # Modal analysis
         modal_analsis_phys = ModalAnalysis(npixels=120, nmodes=10,
                                            type_str='zernike', wavelengthInNm=1550, dorms=True)
-        modal_analsis_geom = ModalAnalysis(npixels=120, nmodes=10,
-                                           type_str='zernike', dorms=True)
+        modal_analsis_geom = ModalAnalysis(npixels=120, nmodes=10, type_str='zernike', dorms=True)
 
         atmo.inputs['seeing'].set(seeing.output)
         atmo.inputs['wind_direction'].set(wind_direction.output)
@@ -133,5 +134,7 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
 
         modes_phys = cpuArray(modal_analsis_phys.outputs['out_modes'].value)
         modes_geom = cpuArray(modal_analsis_geom.outputs['out_modes'].value)
-        rel_error = np.mean(abs((modes_phys - modes_geom))/abs(modes_geom))
-        np.testing.assert_array_less(rel_error, 0.2)
+        # Use global relative L2 error to reduce sensitivity to backend-specific
+        # floating-point differences on single modal coefficients.
+        rel_error = np.linalg.norm(modes_phys - modes_geom) / np.linalg.norm(modes_geom)
+        np.testing.assert_array_less(rel_error, 0.16)

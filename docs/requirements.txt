@@ -1,3 +1,4 @@
+-r ../requirements.txt
 numpy
 sphinx>=1.7.5
 nbsphinx

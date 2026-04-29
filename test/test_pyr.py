@@ -2,6 +2,7 @@ import specula
 specula.init(0)  # Default target device
 
 import unittest
+from unittest.mock import MagicMock
 
 from specula import np
 from specula import cpuArray, RAD2ASEC
@@ -806,3 +807,54 @@ class TestModulatedPyramid(unittest.TestCase):
             print(f"  High request (130%) = {requested_fov_high:.3f} arcsec"
                 f" → fov_res={pyramid_high.fov_res},"
                 f" fp_masking={pyramid_high.fp_masking:.3f}")
+
+
+    @cpu_and_gpu
+    def test_imperfect_edges(self, target_device_idx, xp):
+        
+        pixel_pupil = 100
+        pixel_pitch = 0.06
+        wavelength_nm = 500
+        pup_diam = 30
+        output_resolution = 80
+
+        # Calculate natural FOV
+        natural_fov = wavelength_nm * 1e-9 / pixel_pitch * RAD2ASEC
+
+        simul_params = SimulParams(
+            pixel_pupil=pixel_pupil,
+            pixel_pitch=pixel_pitch
+        )
+
+
+        pyramid = ModulatedPyramid(
+            simul_params=simul_params,
+            wavelengthInNm=wavelength_nm,
+            fov=natural_fov,
+            pup_diam=pup_diam,
+            output_resolution=output_resolution,
+            mod_amp=0.0,
+            mod_type='circular',
+            fov_errinf=0.1,  # Accept 10% reduction
+            fov_errsup=0.5,
+            target_device_idx=target_device_idx
+        )
+        pyramid.logger = MagicMock()
+
+        # Set large values to force triggering of "imperfect edge" cases
+        pyramid.pyr_edge_def_ld = 100
+        pyramid.pyr_tip_def_ld = 100
+        pyramid.pyr_tip_maya_ld = 100
+        pyramid.fft_res = 1
+        pyramid.tilt_scale = 1
+        pyramid.get_pyr_tlt(4, 4)
+
+        # Check logger was called
+        self.assertTrue(pyramid.logger.info.called)
+
+        # Get all log messages
+        calls = [call.args[0] for call in pyramid.logger.info.call_args_list]
+
+        # Assertions (flexible matching)
+        self.assertTrue(any("imperfect edges" in msg for msg in calls))
+        self.assertTrue(any("imperfect tip" in msg for msg in calls))

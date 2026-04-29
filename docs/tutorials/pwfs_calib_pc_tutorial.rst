@@ -149,7 +149,7 @@ Create ``params_scao_pyr_calib_sn.yml``:
    - Typical values range from 0.85 to 0.95 depending on system performance.
 
 Step 2: Run Slope Null Calibration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
@@ -163,7 +163,7 @@ Part 2: Interaction Matrix Calibration
 The interaction matrix is now computed by applying push-pull commands on top of the atmospheric background, similar to operational conditions.
 
 Step 1: Create IM Calibration File
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Create ``params_scao_pyr_calib_rec_pc.yml``:
 
@@ -295,7 +295,7 @@ This generates:
 - ``scao_pyr_rec_pc_s1.0_c09.fits``: Corresponding reconstruction matrix
 
 Part 3: Using Partial Correction Calibration
--------------------------------------------
+---------------------------------------------
 
 Update your main YAML to use the new calibration:
 

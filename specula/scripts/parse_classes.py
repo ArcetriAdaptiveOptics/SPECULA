@@ -1,6 +1,5 @@
 import os
 import ast
-import yaml
 import sys
 
 # All the classes are:

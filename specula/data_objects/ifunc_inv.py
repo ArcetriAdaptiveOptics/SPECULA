@@ -23,11 +23,9 @@ def cut_modes(matrix, start_mode=None, nmodes=None, idx_modes=None, modes_on_fir
     """
     if idx_modes is not None:
         if start_mode is not None:
-            start_mode = None
-            print('cut_modes: start_mode cannot be set together with idx_modes. Setting to None start_mode.')
+            raise ValueError('cut_modes: start_mode cannot be set together with idx_modes.')
         if nmodes is not None:
-            nmodes = None
-            print('cut_modes: nmodes cannot be set together with idx_modes. Setting to None nmodes.')
+            raise ValueError('cut_modes: nmodes cannot be set together with idx_modes.')
 
     orig_nmodes = matrix.shape[0 if modes_on_first_axis else 1]
 

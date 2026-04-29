@@ -1,5 +1,5 @@
 from specula import RAD2ASEC
-from specula.base_processing_obj import InputDesc, OutputDesc
+from specula.base_processing_obj import OutputDesc
 from specula.data_objects.electric_field import ElectricField
 from specula.lib.make_mask import make_mask
 from specula.data_objects.simul_params import SimulParams
@@ -35,7 +35,7 @@ class FocalPlaneFilter(Coronagraph):
 
     @classmethod
     def input_names(cls):
-        return {'in_ef': InputDesc(ElectricField, 'Input electric field from the telescope pupil')}
+        return super().input_names()
 
     @classmethod
     def output_names(cls):

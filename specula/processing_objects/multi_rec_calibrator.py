@@ -1,6 +1,6 @@
 import os
 
-from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
+from specula.base_processing_obj import BaseProcessingObj, InputDesc
 from specula.data_objects.intmat import Intmat
 from specula.connections import InputValue
 from specula.connections import InputList
@@ -15,9 +15,7 @@ class MultiRecCalibrator(BaseProcessingObj):
                  nmodes: int,
                  data_dir: str,         # Set by main simul object
                  rec_tag: str = None,
-                 rec_tag_template: str = None,
                  full_rec_tag: str = None,
-                 full_rec_tag_template: str = None,
                  overwrite: bool = False,
                  target_device_idx: int = None,
                  precision: int = None
@@ -25,8 +23,8 @@ class MultiRecCalibrator(BaseProcessingObj):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         self._nmodes = nmodes
         self._data_dir = data_dir
-        self._rec_filename = self.tag_filename(rec_tag, rec_tag_template, prefix='rec')
-        self._full_rec_filename = self.tag_filename(full_rec_tag, full_rec_tag_template, prefix='full_rec')
+        self._rec_filename = rec_tag
+        self._full_rec_filename = full_rec_tag
         self._overwrite = overwrite
 
         full_rec_path = self.full_rec_path()
@@ -35,15 +33,6 @@ class MultiRecCalibrator(BaseProcessingObj):
 
         self.inputs['intmat_list'] = InputList(type=Intmat)
         self.inputs['full_intmat'] = InputValue(type=Intmat)
-
-    def tag_filename(self, tag, tag_template, prefix):
-        if tag == 'auto' and tag_template is None:
-            raise ValueError(f'{prefix}_tag_template must be set if {prefix}_tag is"auto"')
-
-        if tag == 'auto':
-            return tag_template
-        else:
-            return tag
 
     def rec_path(self, i):
         if self._rec_filename:
@@ -94,3 +83,5 @@ class MultiRecCalibrator(BaseProcessingObj):
             rec_path = self.rec_path(i)
             if rec_path and os.path.exists(rec_path) and not self._overwrite:
                 raise FileExistsError(f'Rec file {rec_path} already exists, please remove it')
+
+

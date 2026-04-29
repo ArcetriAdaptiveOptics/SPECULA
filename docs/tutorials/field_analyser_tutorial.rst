@@ -487,4 +487,4 @@ This provides significant computational savings while maintaining full accuracy 
    - :ref:`scao_tutorial` for a complete SCAO workflow with calibration
    - `DataStore <../specula/processing_objects/data_store.py>`_ for data saving configuration
    - `build_targeted_replay <../specula/simul.py>`_ for understanding the replay mechanism
-    - SPECULA API documentation for details on ``FieldAnalyser`` and controller classes
+   - SPECULA API documentation for details on ``FieldAnalyser`` and controller classes

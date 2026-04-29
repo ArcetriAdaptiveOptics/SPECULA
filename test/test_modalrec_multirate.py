@@ -16,6 +16,17 @@ from specula.lib.utils import import_class as real_import_class
 
 from test.specula_testlib import cpu_and_gpu
 
+class DummySimulParams:
+    def __init__(self, root_dir='dummy', **_kwargs):
+        self.root_dir = root_dir
+    def init_logging(self, *args):
+        pass
+
+def mock_import(classname, additional_modules=None):
+    if classname == 'SimulParams':
+        return DummySimulParams
+    return real_import_class(classname, additional_modules)
+
 class TestModalrecMultirate(unittest.TestCase):
 
     @cpu_and_gpu
@@ -41,6 +52,23 @@ class TestModalrecMultirate(unittest.TestCase):
         self.assertIn('out_modes_1', rec.outputs)
         np.testing.assert_allclose(cpuArray(rec.out_modes_list[0].value), 0.0)
         np.testing.assert_allclose(cpuArray(rec.out_modes_list[1].value), 0.0)
+
+    @cpu_and_gpu
+    def test_sanity_check_with_dynamic_output_pattern(self, target_device_idx, xp):
+        n_modes = 4
+        recmat_list = [
+            Recmat(xp.ones((n_modes, 4), dtype=xp.float32), target_device_idx=target_device_idx),
+        ]
+        validity_masks = [[True, True]]
+
+        rec = ModalrecMultirate(
+            recmat_list=recmat_list,
+            validity_masks=validity_masks,
+            n_modes_total=n_modes,
+            target_device_idx=target_device_idx,
+        )
+
+        rec.sanity_check()  # Should validate out_modes_{sensor_idx} against out_modes_0/1
 
     def _setup_reconstructor(self, target_device_idx, xp):
         self.n_modes = 5
@@ -236,14 +264,6 @@ class TestModalrecMultirate(unittest.TestCase):
 
     def test_integration_simul_with_list_object(self):
         """Integration test: Simul builds ModalrecMultirate from `recmat_list_object`."""
-        class DummySimulParams:
-            def __init__(self, root_dir='dummy', **_kwargs):
-                self.root_dir = root_dir
-
-        def mock_import(classname, additional_modules=None):
-            if classname == 'SimulParams':
-                return DummySimulParams
-            return real_import_class(classname, additional_modules)
 
         rec_both = Recmat(np.ones((5, 4), dtype=np.float32), target_device_idx=-1, precision=0)
         rec_s1 = Recmat(np.ones((5, 4), dtype=np.float32), target_device_idx=-1, precision=0)
@@ -266,7 +286,7 @@ class TestModalrecMultirate(unittest.TestCase):
 
         with patch('specula.simul.import_class', side_effect=mock_import):
             with patch('specula.data_objects.recmat.Recmat.restore', side_effect=[rec_both, rec_s1, rec_s2]):
-                simul = Simul([])
+                simul = Simul('dummy.yaml')
                 simul.build_objects(params)
 
                 rec_obj = simul.objs['rec']
@@ -276,14 +296,6 @@ class TestModalrecMultirate(unittest.TestCase):
 
     def test_integration_simul_with_list_object_and_validity_masks(self):
         """Integration test: Simul builds ModalrecMultirate from a list of recmat tags."""
-        class DummySimulParams:
-            def __init__(self, root_dir='dummy', **_kwargs):
-                self.root_dir = root_dir
-
-        def mock_import(classname, additional_modules=None):
-            if classname == 'SimulParams':
-                return DummySimulParams
-            return real_import_class(classname, additional_modules)
 
         rec_both = Recmat(np.ones((5, 4), dtype=np.float32), target_device_idx=-1, precision=0)
         rec_s1 = Recmat(np.ones((5, 4), dtype=np.float32), target_device_idx=-1, precision=0)
@@ -307,7 +319,7 @@ class TestModalrecMultirate(unittest.TestCase):
         with patch('specula.simul.import_class', side_effect=mock_import):
             with patch('specula.data_objects.recmat.Recmat.restore',
                        side_effect=[rec_both, rec_s1, rec_s2]):
-                simul = Simul([])
+                simul = Simul('dummy.yaml')
                 simul.build_objects(params)
 
                 rec_obj = simul.objs['rec']

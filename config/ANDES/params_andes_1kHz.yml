@@ -146,7 +146,7 @@ modalrec:
   nmodes:             4000                   # number of modes
   inputs:
     in_slopes: 'slopec.out_slopes'
-  outputs: ['out_modes', 'out_pseudo_ol_modes']
+  outputs: ['out_modes']
 
 
 gain_ramp:

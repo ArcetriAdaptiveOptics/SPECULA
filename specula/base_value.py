@@ -56,7 +56,7 @@ class BaseValue(BaseDataObj):
         v = BaseValue(target_device_idx=target_device_idx)
 
         if hdr['NDARRAY']:
-            v.value = data
+            v.value = data.copy()
         else:
             value_str = hdr.get('VALUE', None)
             if value_str is not None:

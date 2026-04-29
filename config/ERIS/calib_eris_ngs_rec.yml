@@ -34,7 +34,6 @@ im_calibrator_lo:
   class: 'ImCalibrator'
   nmodes: 700
   im_tag:     'eris_im'
-  #tag_template:    'subap_{main.tag}_n{modes}'
   overwrite: True
   inputs:
     in_slopes: 'slopec.out_slopes'
@@ -46,7 +45,6 @@ rec_calibrator_lo:
   class: 'RecCalibrator'
   nmodes: 700
   rec_tag:     'eris_rec'
-  #tag_template:    'subap_{main.tag}_n{modes}'
   overwrite: True
   inputs:
     in_intmat: 'im_calibrator_lo.out_intmat'

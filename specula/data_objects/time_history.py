@@ -40,7 +40,7 @@ class TimeHistory(BaseDataObj):
         version = hdr.get('VERSION')
         if version != 1:
             raise ValueError(f"Unknown version {version} in file {filename}")
-        data = fits.getdata(filename)
+        data = fits.getdata(filename).copy()
         return TimeHistory(data, target_device_idx=target_device_idx)
 
     def array_for_display(self):

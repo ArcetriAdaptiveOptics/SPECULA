@@ -22,7 +22,6 @@ class PhaseScreenCube(BaseProcessingObj):
                  source_dict: dict=None,
                  layer_height: float=0.0,
                  scale_factor: float=1.0,
-                 verbose=None,
                  target_device_idx=None):
         """
         Parameters
@@ -44,39 +43,30 @@ class PhaseScreenCube(BaseProcessingObj):
         scale_factor : float, optional
             Scaling factor applied to the phase screens, by default 1.0. This can be used 
             to adjust the amplitude of the phase screens if needed.
-        verbose : bool, optional
-            If True, enables verbose output during phase screen generation.
-            Default is None (no verbose output).
         target_device_idx : int, optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
         """
         super().__init__(target_device_idx=target_device_idx)
 
-        self.simul_params = simul_params
         self.cube = cube
 
-        self.pixel_pupil = self.simul_params.pixel_pupil
-        self.pixel_pitch = self.simul_params.pixel_pitch
+        self.pixel_pupil = simul_params.pixel_pupil
+        self.pixel_pitch = simul_params.pixel_pitch
         self.pixel_scale = pixel_scale
         self.scale_factor = scale_factor
-
-        self.source_dict = source_dict or {}
-        self.step_counter = 0
-        self.layer_height = layer_height
         self.layer_outputs = {}
-        self.ef_outputs = {}
+
+        source_dict = source_dict or {}
 
         self.pupilstop = None
 
-        self.verbose = verbose if verbose is not None else False
-
-        output_specs = list(self.source_dict.items()) if self.source_dict else [(None, None)]
+        output_specs = list(source_dict.items()) if source_dict else [(None, None)]
 
         for name, source in output_specs:
             layer_output_name = 'out_layer' if name is None else 'out_'+name+'_layer'
             ef_output_name = 'out_ef' if name is None else 'out_'+name+'_ef'
 
-            layer = Layer(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, self.layer_height,
+            layer = Layer(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, layer_height,
                           target_device_idx=self.target_device_idx)
             ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
                                target_device_idx=self.target_device_idx)
@@ -86,7 +76,6 @@ class PhaseScreenCube(BaseProcessingObj):
                 ef.S0 = source.phot_density()
 
             self.layer_outputs[layer_output_name] = layer
-            self.ef_outputs[ef_output_name] = ef
             self.outputs[layer_output_name] = layer
             self.outputs[ef_output_name] = ef
 
@@ -160,7 +149,7 @@ class PhaseScreenCube(BaseProcessingObj):
             # Note: the electric field output shares the same array (ef.field)
             #       as the layer output (layer.field)
             ef_output_name = output_name.replace('_layer', '_ef')
-            self.ef_outputs[ef_output_name].generation_time = self.current_time
+            self.outputs[ef_output_name].generation_time = self.current_time
 
     def post_trigger(self):
         super().post_trigger()

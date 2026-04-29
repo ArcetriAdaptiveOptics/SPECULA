@@ -24,7 +24,6 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
                  fov: float=0.0,
                  seed: int=1,
                  extra_delta_time: float=0,
-                 verbose: bool=False,
                  fov_in_m: float=None,
                  pupil_position:list =[0,0],
                  target_device_idx: int=None,
@@ -54,8 +53,6 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
             Seed for random number generation. Must be >0. Default is 1.
         extra_delta_time : float or list, optional
             Extra time offset for phase screen evolution in seconds. Default is 0.
-        verbose : bool, optional
-            If True, enables verbose output during phase screen generation. Default is False.
         fov_in_m : float, optional
             Field of view in meters. If provided, overrides fov parameter. Default is None.
         pupil_position : list, optional
@@ -68,11 +65,9 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        self.simul_params = simul_params
-
-        self.pixel_pupil = self.simul_params.pixel_pupil
-        self.pixel_pitch = self.simul_params.pixel_pitch
-        self.zenithAngleInDeg = self.simul_params.zenithAngleInDeg
+        self.pixel_pupil = simul_params.pixel_pupil
+        self.pixel_pitch = simul_params.pixel_pitch
+        zenithAngleInDeg = simul_params.zenithAngleInDeg
 
         self.n_infinite_phasescreens = len(heights)
         self.last_position = np.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
@@ -81,7 +76,6 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         self.delta_time = None
         # fixed at generation time, then is a input -> rescales the screen?
         self.seeing = 1.0
-        self.airmass = 1
         self.ref_wavelengthInNm = 500
 
         if not hasattr(extra_delta_time,"__len__"):
@@ -96,11 +90,11 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         if pupil_position is None:
             pupil_position = [0, 0]
 
-        if self.zenithAngleInDeg is not None:
-            self.airmass = 1.0 / np.cos(np.radians(self.zenithAngleInDeg), dtype=self.dtype)
-            print(f'AtmoInfiniteEvolution: zenith angle is defined as:'
-                  f' {self.zenithAngleInDeg} deg')
-            print(f'AtmoInfiniteEvolution: airmass is: {self.airmass}')
+        if zenithAngleInDeg is not None:
+            self.airmass = 1.0 / np.cos(np.radians(zenithAngleInDeg), dtype=self.dtype)
+            self.logger.info(f'AtmoInfiniteEvolution: zenith angle is defined as:'
+                  f' {zenithAngleInDeg} deg')
+            self.logger.info(f'AtmoInfiniteEvolution: airmass is: {self.airmass}')
         else:
             self.airmass = 1.0
 
@@ -128,14 +122,13 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
 
         self.L0 = L0
 
-        if np.isscalar(self.L0):
+        if np.ndim(self.L0) == 0:
             self.L0 = [self.L0] * len(heights)
         elif len(self.L0) != len(heights):
             raise ValueError(f"L0 must have the same length as heights"
                              f" ({len(heights)}), got {len(self.L0)}")
 
         self.Cn2 = np.array(Cn2, dtype=self.dtype)
-        self.verbose = verbose if verbose is not None else False
 
         # Initialize layer list with correct heights
         self.layer_list = []
@@ -175,19 +168,18 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         if len(seed) != len(self.L0):
             raise ValueError('Number of elements in seed and L0 must be the same!')
 
-        self.acc_rows = np.zeros((self.n_infinite_phasescreens))
-        self.acc_cols = np.zeros((self.n_infinite_phasescreens))
+        self.acc_rows = np.zeros(self.n_infinite_phasescreens)
+        self.acc_cols = np.zeros(self.n_infinite_phasescreens)
 
         # Square infinite_phasescreens
-        print('Creating phase screens..')
+        self.logger.info('Creating phase screens..')
         for i in range(self.n_infinite_phasescreens):
             self.ref_r0 = 0.9759 * 0.5 / (self.seeing * 4.848) \
                 * self.airmass**(-3./5.) # if seeing > 0 else 0.0
             self.ref_r0 *= (self.ref_wavelengthInNm / 500.0 )**(6./5.)
-            if self.verbose: # pragma: no cover
-                print(f'Creating {i}-th phase screen')
-                print(f'    r0: {self.ref_r0}, L0: {self.L0[i]},'
-                      f' size: {self.pixel_layer_size[i]}')
+            self.logger.info(f'Creating {i}-th phase screen')
+            self.logger.info(f'    r0: {self.ref_r0}, L0: {self.L0[i]},'
+                    f' size: {self.pixel_layer_size[i]}')
             temp_infinite_screen = InfinitePhaseScreen(self.pixel_layer_size[i],
                                                        self.pixel_pitch,
                                                        self.ref_r0,

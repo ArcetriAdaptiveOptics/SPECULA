@@ -211,7 +211,6 @@ integrator_truth:
 subtract_truth:
   class:             'BaseOperation'
   sum:               true
-  value2_is_shorter: true
   inputs:
     in_value1: 'modalrec_lgs.out_modes'
     in_value2: 'integrator_truth.out_comm'

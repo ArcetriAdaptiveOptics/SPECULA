@@ -229,7 +229,7 @@ Create a YAML configuration file, for example ``params_scao_pyr_basic.yml``:
      recmat_object:      'scao_pyr_rec'         # reconstruction matrix tag
      inputs:
        in_slopes:        'slopec.out_slopes'
-     outputs:  ['out_modes', 'out_pseudo_ol_modes'] 
+     outputs:  ['out_modes'] 
 
    # The control block computes the control commands based on the differential modal coefficients.
    # The modal coefficients are differential because it operates in closed loop.

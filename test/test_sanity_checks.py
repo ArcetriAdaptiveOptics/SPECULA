@@ -98,5 +98,36 @@ class TestDataBufferSanityCheck(unittest.TestCase):
         obj.check_output_names()  # Should pass silently
 
 
-if __name__ == '__main__':
-    unittest.main()
+class TestDataSourceSanityCheck(unittest.TestCase):
+
+    def test_sanity_check_with_dynamic_outputs(self):
+        from specula.processing_objects.data_source import DataSource
+
+        obj = DataSource(outputs=[], store_dir='/tmp')
+        obj.outputs['dynamic_out'] = BaseValue()
+
+        # check_output_names is intentionally custom/no-op for dynamic file-driven outputs.
+        obj.sanity_check()
+
+
+class TestAtmoPropagationSanityCheck(unittest.TestCase):
+
+    @cpu_and_gpu
+    def test_sanity_check_with_dynamic_outputs(self, target_device_idx, xp):
+        from specula.data_objects.simul_params import SimulParams
+        from specula.data_objects.source import Source
+        from specula.processing_objects.atmo_propagation import AtmoPropagation
+
+        simul_params = SimulParams(pixel_pupil=16, pixel_pitch=0.1)
+        source = Source(polar_coordinates=[0.0, 0.0], magnitude=8, wavelengthInNm=750)
+
+        obj = AtmoPropagation(
+            simul_params,
+            source_dict={'src': source},
+            target_device_idx=target_device_idx,
+        )
+
+        # Add an extra dynamic output to document that static output_names
+        # validation is intentionally skipped for this class.
+        obj.outputs['out_extra_ef'] = BaseValue(target_device_idx=target_device_idx)
+        obj.sanity_check()

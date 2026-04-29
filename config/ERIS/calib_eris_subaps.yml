@@ -5,7 +5,6 @@ sh_subaps_lgs:
   subap_on_diameter:  40
   output_tag:        'eris_subaps_lgs'
   energy_th:         0.5
-  #tag_template:      'subap_{main.tag}_n{subap_on_diameter}_th{energy_th:f.1}'
   inputs:
     in_i: 'sh_lgs.out_i'
 
@@ -14,7 +13,6 @@ sh_subaps_lo:
   subap_on_diameter:  4
   output_tag:        'eris_subaps_lo'
   energy_th:         0.5
-  #tag_template:      'subap_{main.tag}_n{subap_on_diameter}_th{energy_th:f.1}'
   inputs:
     in_i: 'sh_lo.out_i'
 

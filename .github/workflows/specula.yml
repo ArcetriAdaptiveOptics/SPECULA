@@ -1,0 +1,133 @@
+# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
+
+name: SPECULA
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+#  schedule:
+#    - cron: "1 1 * * *"
+
+jobs:
+  build:
+
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        mpi: [none, mpich, intelmpi]
+
+        # Exclude invalid combinations: we cannot test MPI on 3.8 and 3.9 because
+        # "pip install -e ." (necessary for the specula executable) does not work.
+        # MacOS does not have intelmpi.
+        # Windows does not seem to have any valid mpi distribution.
+        exclude:
+          - python-version: "3.8"
+            mpi: mpich
+          - python-version: "3.8"
+            mpi: intelmpi
+          - python-version: "3.9"
+            mpi: mpich
+          - python-version: "3.9"
+            mpi: intelmpi
+          - os: macos-latest
+            mpi: intelmpi
+          - os: windows-latest
+            mpi: mpich
+          - os: windows-latest
+            mpi: intelmpi
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install cairo on linux
+      if: ${{ runner.os == 'Linux' }}
+      run: |
+        sudo apt update
+        sudo apt install libcairo2-dev pkg-config python3-dev
+
+    - name: Install gtk on windows
+      if: ${{ runner.os == 'Windows' }}
+      run: |
+        choco install -y gtk-runtime libjpeg-turbo
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install coverage pytest pytest-cov
+
+    - name: Lint with flake8
+      if: ${{ matrix.mpi == 'none' }}
+      run: |
+        pip install flake8
+        # stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+
+    - name: Remove old coverage files
+      shell: bash
+      run: |
+        rm -f .coverage coverage.xml
+
+    - name: Test basic configuration and append to coverage report
+      if: ${{ matrix.mpi == 'none' }}
+      run: |
+        pytest --cov=./ --cov-append
+
+    - name: Install optional packages
+      if: ${{ matrix.mpi == 'none' && matrix.os != 'windows-latest'}}
+      run: |
+        pip install orthogram control
+
+    - name: Test optional packages and append to coverage report
+      if: ${{ matrix.mpi == 'none' && matrix.os != 'windows-latest'}}
+      run: |
+        pytest -k "diagram or control or iirfilter" --cov=./ --cov-append
+  
+    - name: Setup MPI
+      if: ${{ matrix.mpi != 'none' }}
+      uses: mpi4py/setup-mpi@v1
+      with:
+        mpi: ${{ matrix.mpi }}
+
+    - name: Install MPI for python
+      if: ${{ matrix.mpi != 'none' }}
+      run: |
+        pip install mpi4py
+        pip install -e .
+
+    - name: Test MPI and generate coverage report
+      if: ${{ matrix.mpi != 'none' }}
+      run: |
+        pytest -k mpi --cov=./ --cov-append
+
+    - name: Generate combined coverage XML
+      run: |
+        coverage xml
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./coverage.xml
+        flags: ${{ runner.os }}-py${{ matrix.python-version }}-${{ matrix.mpi }}
+        name: ${{ runner.os }}-py${{ matrix.python-version }}-${{ matrix.mpi }}
+        fail_ci_if_error: false
+        verbose: true
+
+ 

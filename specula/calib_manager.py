@@ -2,6 +2,8 @@
 import os
 from astropy.io import fits
 
+from specula.log import get_specula_logger
+
 
 class CalibManager():
     def __init__(self, root_dir):
@@ -80,6 +82,7 @@ class CalibManager():
             'projection': 'popt/'
         }
         self.root_dir = root_dir
+        self.logger = get_specula_logger('specula.calib_manager')
 
     def root_subdir(self, type):
         """
@@ -133,7 +136,7 @@ class CalibManager():
             array-like: The data read from the file.
         """
         filename = self.filename(subdir, name)
-        print('Reading:', filename)
+        self.logger.info(f'Reading: {filename}')
         if not os.path.exists(filename):
             raise FileNotFoundError(filename)
         return fits.getdata(filename)

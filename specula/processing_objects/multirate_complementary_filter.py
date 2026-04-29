@@ -1,4 +1,4 @@
-from specula import cp, np
+from specula import np
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.processing_objects.base_filter import BaseFilter
 from specula.base_value import BaseValue

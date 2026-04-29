@@ -10,8 +10,10 @@ from specula import np
 from specula import cpuArray
 
 from specula.data_objects.electric_field import ElectricField
+from specula.data_objects.simul_params import SimulParams
 from specula.processing_objects.electric_field_combinator import ElectricFieldCombinator
 from specula.processing_objects.electric_field_reflection import ElectricFieldReflection
+from specula.processing_objects.lyot_coronagraph import LyotCoronagraph
 
 from test.specula_testlib import cpu_and_gpu
 
@@ -259,6 +261,8 @@ class TestElectricField(unittest.TestCase):
         S0 = 1.23
 
         ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=S0, target_device_idx=target_device_idx)
+        ef.wavelength_in_nm = 890.0
+        ef.wavelength_tolerance_in_nm = 0.07
         ef.A = xp.arange(pixel_pupil * pixel_pupil, dtype=ef.dtype).reshape(pixel_pupil, pixel_pupil)
         ef.phaseInNm = xp.arange(pixel_pupil * pixel_pupil, dtype=ef.dtype).reshape(pixel_pupil, pixel_pupil) * 0.5
 
@@ -275,11 +279,13 @@ class TestElectricField(unittest.TestCase):
             assert np.allclose(cpuArray(ef.phaseInNm), cpuArray(ef2.phaseInNm))
             assert ef.pixel_pitch == ef2.pixel_pitch
             assert ef.S0 == ef2.S0
+            assert ef.wavelength_in_nm == ef2.wavelength_in_nm
+            assert ef.wavelength_tolerance_in_nm == ef2.wavelength_tolerance_in_nm
 
             # Force cleanup for Windows
             del ef2
             gc.collect()
-            
+
     @cpu_and_gpu
     def test_set_value(self, target_device_idx, xp):
         pixel_pupil = 10
@@ -332,7 +338,80 @@ class TestElectricField(unittest.TestCase):
         assert hdr['DIMY'] == dimy
         assert hdr['PIXPITCH'] == pixel_pitch
         assert hdr['S0'] == S0        
-        
+
+    @cpu_and_gpu
+    def test_phi_at_lambda_fails_on_wavelength_mismatch(self, target_device_idx, xp):
+        ef = ElectricField(8, 8, 0.1, target_device_idx=target_device_idx,
+                           wavelengthInNm=650.0)
+        with self.assertRaisesRegex(ValueError, 'wavelength-tagged'):
+            ef.phi_at_lambda(500.0)
+
+    @cpu_and_gpu
+    def test_phi_at_lambda_uses_default_tolerance(self, target_device_idx, xp):
+        ef = ElectricField(8, 8, 0.1, target_device_idx=target_device_idx,
+                           wavelengthInNm=650.0)
+        ef.phi_at_lambda(650.05)
+        with self.assertRaisesRegex(ValueError, 'Configured tolerance'):
+            ef.phi_at_lambda(650.11)
+
+    @cpu_and_gpu
+    def test_phi_at_lambda_uses_configurable_tolerance(self, target_device_idx, xp):
+        ef = ElectricField(8, 8, 0.1, target_device_idx=target_device_idx,
+                           wavelengthInNm=650.0, wavelengthToleranceInNm=0.25)
+        ef.phi_at_lambda(650.2)
+        with self.assertRaisesRegex(ValueError, 'Configured tolerance'):
+            ef.phi_at_lambda(650.26)
+
+    @cpu_and_gpu
+    def test_init_fails_with_non_positive_wavelength_tag(self, target_device_idx, xp):
+        with self.assertRaisesRegex(ValueError, 'must be >0'):
+            ElectricField(8, 8, 0.1, target_device_idx=target_device_idx,
+                          wavelengthInNm=0.0)
+
+    @cpu_and_gpu
+    def test_init_fails_with_negative_wavelength_tolerance(self, target_device_idx, xp):
+        with self.assertRaisesRegex(ValueError, 'must be >=0'):
+            ElectricField(8, 8, 0.1, target_device_idx=target_device_idx,
+                          wavelengthToleranceInNm=-1e-3)
+
+    @cpu_and_gpu
+    def test_phi_at_lambda_skips_check_when_wavelength_is_none(self, target_device_idx, xp):
+        ef = ElectricField(8, 8, 0.1, target_device_idx=target_device_idx)
+        phi_500 = ef.phi_at_lambda(500.0)
+        phi_700 = ef.phi_at_lambda(700.0)
+        self.assertEqual(phi_500.shape, ef.phaseInNm.shape)
+        self.assertEqual(phi_700.shape, ef.phaseInNm.shape)
+
+    @cpu_and_gpu
+    def test_coronagraph_output_is_wavelength_tagged(self, target_device_idx, xp):
+        pixel_pupil = 32
+        pixel_pitch = 0.05
+        wavelength_in_nm = 750.0
+        simul_params = SimulParams(pixel_pupil=pixel_pupil, pixel_pitch=pixel_pitch)
+
+        lyot = LyotCoronagraph(
+            simul_params=simul_params,
+            wavelengthInNm=wavelength_in_nm,
+            iwaInLambdaOverD=0.0,
+            target_device_idx=target_device_idx,
+        )
+
+        ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch,
+                           target_device_idx=target_device_idx)
+        ef.A[:] = 1.0
+        ef.phaseInNm[:] = 0.0
+        ef.generation_time = 1
+
+        lyot.inputs['in_ef'].set(ef)
+        lyot.setup()
+        lyot.check_ready(1)
+        lyot.prepare_trigger(1)
+        lyot.trigger_code()
+        lyot.post_trigger()
+
+        out_ef = lyot.outputs['out_ef']
+        self.assertEqual(out_ef.wavelength_in_nm, wavelength_in_nm)
+
     @cpu_and_gpu
     def test_with_invalid_shape(self, target_device_idx, xp):
         pixel_pupil = 10

@@ -107,6 +107,43 @@ class TestPSF(unittest.TestCase):
         self.assertGreater(float(psf.sr.value), 0.0)
 
     @cpu_and_gpu
+    def test_psf_raises_for_wavelength_tag_mismatch(self, target_device_idx, xp):
+        simul_params, ef, wavelengthInNm = self.get_basic_setup(target_device_idx)
+
+        psf = PSF(simul_params=simul_params, wavelengthInNm=wavelengthInNm,
+                  nd=1.0, target_device_idx=target_device_idx)
+        psf.inputs['in_ef'].set(ef)
+        psf.setup()
+
+        ef.wavelength_in_nm = wavelengthInNm + 100.0
+        ef.phaseInNm[:] = 0.0
+        ef.A[:] = 1.0
+        ef.generation_time = 1
+
+        psf.check_ready(1)
+        with self.assertRaisesRegex(ValueError, 'wavelength-tagged'):
+            psf.trigger()
+
+    @cpu_and_gpu
+    def test_psf_accepts_matching_wavelength_tag(self, target_device_idx, xp):
+        simul_params, ef, wavelengthInNm = self.get_basic_setup(target_device_idx)
+
+        psf = PSF(simul_params=simul_params, wavelengthInNm=wavelengthInNm,
+                  nd=1.0, target_device_idx=target_device_idx)
+        psf.inputs['in_ef'].set(ef)
+        psf.setup()
+
+        ef.wavelength_in_nm = wavelengthInNm
+        ef.phaseInNm[:] = 0.0
+        ef.A[:] = 1.0
+        ef.generation_time = 1
+
+        psf.check_ready(1)
+        psf.trigger()
+        psf.post_trigger()
+        self.assertAlmostEqual(float(psf.sr.value), 1.0, places=6)
+
+    @cpu_and_gpu
     def test_psf_integration(self, target_device_idx, xp):
         """Test PSF integration over multiple frames"""
         simul_params, ef, wavelengthInNm = self.get_basic_setup(target_device_idx)

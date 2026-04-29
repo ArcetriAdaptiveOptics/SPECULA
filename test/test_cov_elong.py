@@ -285,6 +285,33 @@ class TestCovTRunc(unittest.TestCase):
             self.assertTrue(np.all(cpuArray(np.diag(cov)) > 0))
 
     @cpu_and_gpu
+    def test_sub_aps_index_out_of_range_raises(self, target_device_idx, xp):
+        """Out-of-range sub-aperture indices must fail explicitly."""
+        diameter_in_m = 8
+        zenith_angle_in_deg = 30.
+        na_thickness_in_m = 10e3
+        launcher_coord_in_m = [3.0, 3.0, 0.]
+        n_sub_aps = 4
+        sub_aps_index_1D = xp.array([0, n_sub_aps * n_sub_aps], dtype=xp.int64)
+
+        with self.assertRaisesRegex(ValueError, 'out-of-range values'):
+            calc_noise_cov_elong(
+                diameter_in_m,
+                zenith_angle_in_deg,
+                na_thickness_in_m,
+                launcher_coord_in_m,
+                sub_aps_index_1D,
+                n_sub_aps,
+                sub_aps_fov=5.0,
+                sh_spot_fwhm=1.0,
+                sigma_noise2=1.0,
+                t_g_parameter=0.0,
+                h_in_m=90e3,
+                only_diag=False,
+                verbose=False,
+            )
+
+    @cpu_and_gpu
     def test_xy_symmetry_physics(self, target_device_idx, xp):
         """Check that a launcher on the X-axis does not produce elongation in Y on the X-axis"""
         diameter_in_m = 8.0

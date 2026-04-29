@@ -404,23 +404,23 @@ class ModulatedPyramid(BaseProcessingObj):
         dx = self.xp.sqrt(xx ** 2)
         dy = self.xp.sqrt(yy ** 2)
         idx_edge = self.xp.where((dx <= self.pyr_edge_def_ld * self.fft_res / 2) | 
-                            (dy <= self.pyr_edge_def_ld * self.fft_res / 2))[0]
-        if len(idx_edge) > 0:
+                                 (dy <= self.pyr_edge_def_ld * self.fft_res / 2))
+        if len(idx_edge[0]) > 0:
             pyr_tlt[idx_edge] = self.xp.max(pyr_tlt) * self.xp.random.rand(len(idx_edge[0]))
-            print(f'get_pyr_tlt: {len(idx_edge[0])} pixels set to 0 to consider pyramid imperfect edges')
+            self.logger.info(f'get_pyr_tlt: {len(idx_edge[0])} pixels set to 0 to consider pyramid imperfect edges')
 
         # distance from tip
         d = self.xp.sqrt(xx ** 2 + yy ** 2)
-        idx_tip = self.xp.where(d <= self.pyr_tip_def_ld * self.fft_res / 2)[0]
-        if len(idx_tip) > 0:
+        idx_tip = self.xp.where(d <= self.pyr_tip_def_ld * self.fft_res / 2)
+        if len(idx_tip[0]) > 0:
             pyr_tlt[idx_tip] = self.xp.max(pyr_tlt) * self.xp.random.rand(len(idx_tip[0]))
-            print(f'get_pyr_tlt: {len(idx_tip[0])} pixels set to 0 to consider pyramid imperfect tip')
+            self.logger.info(f'get_pyr_tlt: {len(idx_tip[0])} pixels set to 0 to consider pyramid imperfect tip')
 
         # distance from tip
-        idx_tip_m = self.xp.where(d <= self.pyr_tip_maya_ld * self.fft_res / 2)[0]
-        if len(idx_tip_m) > 0:
+        idx_tip_m = self.xp.where(d <= self.pyr_tip_maya_ld * self.fft_res / 2)
+        if len(idx_tip_m[0]) > 0:
             pyr_tlt[idx_tip_m] = self.xp.min(pyr_tlt[idx_tip_m])
-            print(f'get_pyr_tlt: {len(idx_tip_m[0])} pixels set to 0 to consider pyramid imperfect tip')
+            self.logger.info(f'get_pyr_tlt: {len(idx_tip_m[0])} pixels set to 0 to consider pyramid imperfect tip')
 
         return pyr_tlt / self.tilt_scale
 
@@ -529,10 +529,10 @@ class ModulatedPyramid(BaseProcessingObj):
                     self.flux_factor_vector[tt] = 1.0 / self.xp.cos(normalized_angle)
 
         if self.mod_amp > 0.0:
-            print(f'Cached circular modulation with {self.mod_steps} steps, '
+            self.logger.info(f'Cached circular modulation with {self.mod_steps} steps, '
                 f'amplitude: {self.mod_amp:.2f}')
         else:
-            print('Running unmodulated pyramid')
+            self.logger.info('Running unmodulated pyramid')
 
         # Common setup for both modes
         self.ffv = self.flux_factor_vector[:, self.xp.newaxis, self.xp.newaxis]
@@ -599,7 +599,7 @@ class ModulatedPyramid(BaseProcessingObj):
 
         self.pup_pyr_tot *= (phot / self.xp.sum(self.pup_pyr_tot)) * self.transmission.value
 #        if phot == 0: slows down?
-#            print('WARNING: total intensity at PYR entrance is zero')
+#            self.logger.warning('total intensity at PYR entrance is zero')
 
         # Apply pupil shifts using the dedicated interpolator
         # Note: this is a static shift, not a time-varying one as in PASSATA

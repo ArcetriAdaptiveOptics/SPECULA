@@ -20,11 +20,10 @@ class AtmoRandomPhase(BaseProcessingObj):
                  data_dir: str="",
                  source_dict: dict=None,
                  wavelengthInNm: float=500.0,
-                 pixel_phasescreens=None,
+                 pixel_phasescreens: int=8192,
                  seed: int=1,
                  update_interval: int=1,
                  layer_height: float=0.0,
-                 verbose=None,
                  target_device_idx=None,
                  precision=None):
         """
@@ -43,16 +42,13 @@ class AtmoRandomPhase(BaseProcessingObj):
         wavelengthInNm : float, optional
             Wavelength in nanometers for scaling the phase screens, by default 500.0 nm
         pixel_phasescreens : int, optional
-            Size of the square phase screens in pixels. If None, defaults to 8192.
+            Size of the square phase screens in pixels. Defaults to 8192.
         seed : int, optional
             Seed for random number generation, by default 1.
         update_interval : int, optional
             Number of triggers between phase screen updates, by default 1.
         layer_height : float, optional
             Height in meters assigned to the output layers, by default 0.0.
-        verbose : bool, optional
-            If True, enables verbose output during phase screen generation.
-            Default is None (no verbose output).
         target_device_idx : int, optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
         precision : int, optional
@@ -61,62 +57,46 @@ class AtmoRandomPhase(BaseProcessingObj):
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        self.simul_params = simul_params
+        self.pixel_pupil = simul_params.pixel_pupil
+        self.pixel_pitch = simul_params.pixel_pitch
+        zenithAngleInDeg = simul_params.zenithAngleInDeg
 
-        self.pixel_pupil = self.simul_params.pixel_pupil
-        self.pixel_pitch = self.simul_params.pixel_pitch
-        self.zenithAngleInDeg = self.simul_params.zenithAngleInDeg
-
-        self.source_dict = source_dict or {}
+        source_dict = source_dict or {}
         self.new_position = 0
         self.last_position = 0
         self.update_interval = update_interval
         self.step_counter = 0
-        self.seeing = 1
-        self.airmass = 1
         self.wavelengthInNm = wavelengthInNm
         self.scale_coeff = 1.0
         self.seed = seed
-        self.layer_height = layer_height
         self.layer_outputs = {}
-        self.ef_outputs = {}
 
         self.pupilstop = None
 
         self.inputs['seeing'] = InputValue(type=BaseValue)
 
-        if self.zenithAngleInDeg is not None:
-            self.airmass = 1.0 / np.cos(np.radians(self.zenithAngleInDeg))
-            print(f'AtmoRandomPhase: zenith angle is defined as: {self.zenithAngleInDeg} deg')
-            print(f'AtmoRandomPhase: airmass is: {self.airmass}')
+        if zenithAngleInDeg is not None:
+            self.airmass = 1.0 / np.cos(np.radians(zenithAngleInDeg))
+            self.logger.info(f'AtmoRandomPhase: zenith angle is defined as: {zenithAngleInDeg} deg')
+            self.logger.info(f'AtmoRandomPhase: airmass is: {self.airmass}')
         else:
             self.airmass = 1.0
 
-        # Compute layers dimension in pixels
-        self.pixel_layer_size = self.pixel_pupil
-
         self.L0 = L0
         self.data_dir = data_dir
-        self.seeing = None
-
-        if pixel_phasescreens is None:
-            self.pixel_square_phasescreens = 8192
-        else:
-            self.pixel_square_phasescreens = pixel_phasescreens
+        self.pixel_square_phasescreens = pixel_phasescreens
 
         # Error if phase-screens dimension is smaller than maximum layer dimension
-        if self.pixel_square_phasescreens < self.pixel_layer_size:
+        if self.pixel_square_phasescreens < self.pixel_pupil:
             raise ValueError('Error: phase-screens dimension must be greater than layer dimension!')
 
-        self.verbose = verbose if verbose is not None else False
-
-        output_specs = list(self.source_dict.items()) if self.source_dict else [(None, None)]
+        output_specs = list(source_dict.items()) if source_dict else [(None, None)]
 
         for name, source in output_specs:
             layer_output_name = 'out_layer' if name is None else 'out_'+name+'_layer'
             ef_output_name = 'out_ef' if name is None else 'out_'+name+'_ef'
 
-            layer = Layer(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, self.layer_height,
+            layer = Layer(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, layer_height,
                           precision=self.precision, target_device_idx=self.target_device_idx)
             ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
                                target_device_idx=self.target_device_idx)
@@ -126,7 +106,6 @@ class AtmoRandomPhase(BaseProcessingObj):
                 ef.S0 = source.phot_density()
 
             self.layer_outputs[layer_output_name] = layer
-            self.ef_outputs[ef_output_name] = ef
             self.outputs[layer_output_name] = layer
             self.outputs[ef_output_name] = ef
 
@@ -144,13 +123,16 @@ class AtmoRandomPhase(BaseProcessingObj):
 
     @classmethod
     def output_names(cls):
-        return {'out_layer': OutputDesc(Layer, 'Output phase screen layer (default, when no source_dict is provided)'),
-                'out_ef': OutputDesc(ElectricField, 'Output electric field (default, when no source_dict is provided)')}
-
-    def check_output_names(self):
-        # AtmoRandomPhase outputs are created dynamically from inputs;
-        # skip the static output_names validation.
-        pass
+        return {
+            'out_{source_name_}layer': OutputDesc(
+                Layer,
+                'Output phase-screen layer for named source [source_name]; if source name is None, key is out_layer',
+            ),
+            'out_{source_name_}ef': OutputDesc(
+                ElectricField,
+                'Output electric field for named source [source_name]; if source name is None, key is out_ef',
+            ),
+        }
 
     def initScreens(self):
         # Seed
@@ -161,7 +143,7 @@ class AtmoRandomPhase(BaseProcessingObj):
                                                    self.pixel_square_phasescreens,
                                                    self.pixel_pitch, self.data_dir,
                                                    seed=self.seed, precision=self.precision,
-                                                   verbose=self.verbose, xp=self.xp)
+                                                   xp=self.xp)
         # number of slices to be cut from the 2D array
         num_slices = self.pixel_square_phasescreens // self.pixel_pupil
 
@@ -209,7 +191,7 @@ class AtmoRandomPhase(BaseProcessingObj):
             # Note: the electric field output shares the same array (ef.field)
             #       as the layer output (layer.field)
             ef_output_name = output_name.replace('_layer', '_ef')
-            self.ef_outputs[ef_output_name].generation_time = self.current_time
+            self.outputs[ef_output_name].generation_time = self.current_time
 
     def post_trigger(self):
         super().post_trigger()

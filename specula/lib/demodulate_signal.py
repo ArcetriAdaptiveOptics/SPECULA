@@ -2,11 +2,11 @@
 Signal demodulation utilities.
 Based on demodulate_passata.pro from PASSATA/LBT-SOUL.
 """
-from specula import np
-
+from specula.log import get_specula_logger
+import numpy as np
 
 def demodulate_signal(signal_data, carrier_freq, sampling_freq,
-                     cumulated=True, verbose=False, xp=np, dtype=np.float32):
+                     cumulated=True, xp=np, dtype=np.float32):
     """
     Demodulate signal(s) using a carrier frequency.
     
@@ -24,8 +24,6 @@ def demodulate_signal(signal_data, carrier_freq, sampling_freq,
         Sampling frequency in Hz
     cumulated : bool, optional
         If True, use cumulative demodulation averaging. Default: True
-    verbose : bool, optional
-        Print debug information. Default: False
     xp : module, optional
         Array module (numpy or cupy). Default: numpy (np)
     dtype : data-type, optional
@@ -59,6 +57,8 @@ def demodulate_signal(signal_data, carrier_freq, sampling_freq,
     - PASSATA demodulate_passata.pro
     - LBT-SOUL calibration software (2020)
     """
+    logger = get_specula_logger(__name__)
+
     # Convert to array
     data = xp.asarray(signal_data, dtype=dtype)
 
@@ -151,17 +151,16 @@ def demodulate_signal(signal_data, carrier_freq, sampling_freq,
     # Add reference phase
     pphi = pphi + pphi0
 
-    if verbose:
-        print(f"Demodulation results:")
-        print(f"  Number of signals: {nsignals}")
-        print(f"  Amplitude range: [{float(xp.min(value)):.6e},"
-              f" {float(xp.max(value)):.6e}]")
-        print(f"  Phase range: [{float(xp.min(pphi)):.6f},"
-              f" {float(xp.max(pphi)):.6f}] rad")
-        print(f"  Carrier freq: {carrier_freq} Hz")
-        print(f"  Sampling freq: {sampling_freq} Hz")
-        print(f"  n4mean: {n4mean}")
-        print(f"  Data points: {nt}")
+    logger.info(f"Demodulation results:")
+    logger.info(f"  Number of signals: {nsignals}")
+    logger.info(f"  Amplitude range: [{float(xp.min(value)):.6e},"
+                f" {float(xp.max(value)):.6e}]")
+    logger.info(f"  Phase range: [{float(xp.min(pphi)):.6f},"
+                f" {float(xp.max(pphi)):.6f}] rad")
+    logger.info(f"  Carrier freq: {carrier_freq} Hz")
+    logger.info(f"  Sampling freq: {sampling_freq} Hz")
+    logger.info(f"  n4mean: {n4mean}")
+    logger.info(f"  Data points: {nt}")
 
     # Convert to CPU arrays and return scalar if input was 1D
     if is_1d:

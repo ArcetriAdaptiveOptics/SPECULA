@@ -1,3 +1,4 @@
+from specula.log import get_specula_logger
 import numpy as np
 from specula import RAD2ASEC
 
@@ -10,7 +11,8 @@ def calc_geometry(
     fov_errinf: float=0.1,
     fov_errsup: float=0.5,
     fft_res: float=3.0,
-    xp=np):
+    xp=np,
+    ):
     '''
     Calculate FFT geometry parameters for a given pupil size, pixel pitch,
     wavelength and field of view.
@@ -45,6 +47,7 @@ def calc_geometry(
         - 'fft_padding': FFT padding size in pixels.
         - 'fft_totsize': Total FFT size in pixels.
     '''
+    logger = get_specula_logger(__name__)
 
     fov_internal = wavelengthInNm * 1e-9 / pixel_pitch * RAD2ASEC
 
@@ -59,10 +62,10 @@ def calc_geometry(
     if fov_internal < minfov:
         fov_res = int(xp.ceil(minfov / fov_internal))
         fov_internal_interpolated = fov_internal * fov_res
-        print(f"Interpolated FoV (arcsec): {fov_internal_interpolated:.2f}")
-        print(f"Warning: reaching the requested FoV requires {fov_res}x interpolation"
+        logger.info(f"Interpolated FoV (arcsec): {fov_internal_interpolated:.2f}")
+        logger.warning(f"reaching the requested FoV requires {fov_res}x interpolation"
                 f" of input phase array.")
-        print("Consider revising the input phase dimension and/or pitch to improve"
+        logger.warning("Consider revising the input phase dimension and/or pitch to improve"
                 " performance.")
     else:
         fov_res = 1
@@ -77,8 +80,8 @@ def calc_geometry(
             fp_masking = 1.0
 
     if fov_internal_interpolated != FoV:
-        print(f"FoV reduction from {fov_internal_interpolated:.2f} to {FoV:.2f}"
-                f" will be performed with a focal plane mask")
+        logger.info(f"FoV reduction from {fov_internal_interpolated:.2f} to {FoV:.2f}"
+                    f" will be performed with a focal plane mask")
 
     DpupPixFov = DpupPix * fov_res
     totsize = xp.around(DpupPixFov * fft_res / 2) * 2

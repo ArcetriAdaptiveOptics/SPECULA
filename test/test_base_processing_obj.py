@@ -327,3 +327,51 @@ class TestBaseProcessingObj(unittest.TestCase):
 
         obj.check_input_names.assert_called_once()
         obj.check_output_names.assert_called_once()
+
+    def test_check_output_names_supports_placeholder_pattern_multiple_outputs(self):
+        obj = BaseProcessingObj(target_device_idx=-1)
+        obj.output_names = MagicMock(return_value={
+            "out_modes_{sensor_idx}": (BaseValue, "Dynamic outputs"),
+        })
+        obj.outputs = {
+            "out_modes_0": BaseValue(),
+            "out_modes_1": BaseValue(),
+        }
+
+        obj.check_output_names()  # Should not raise
+
+    def test_check_output_names_supports_placeholder_pattern(self):
+        obj = BaseProcessingObj(target_device_idx=-1)
+        obj.output_names = MagicMock(return_value={
+            "out_modes_{sensor_idx}": (BaseValue, "Dynamic outputs"),
+        })
+        obj.outputs = {
+            "out_modes_0": BaseValue(),
+            "out_modes_3": BaseValue(),
+        }
+
+        obj.check_output_names()  # Should not raise
+
+    def test_check_input_names_supports_placeholder_pattern(self):
+        obj = BaseProcessingObj(target_device_idx=-1)
+        obj.input_names = MagicMock(return_value={
+            "in_sensor_{idx}": (BaseValue, "Per-sensor input (optional)"),
+        })
+        obj.inputs = {
+            "in_sensor_0": InputValue(type=BaseValue),
+            "in_sensor_1": InputValue(type=BaseValue),
+        }
+
+        obj.check_input_names()  # Should not raise
+
+    def test_check_output_names_pattern_missing_raises(self):
+        obj = BaseProcessingObj(target_device_idx=-1)
+        obj.output_names = MagicMock(return_value={
+            "out_modes_{sensor_idx}": (BaseValue, "Dynamic outputs"),
+        })
+        obj.outputs = {
+            "out_other": BaseValue(),
+        }
+
+        with self.assertRaises(ValueError):
+            obj.check_output_names()

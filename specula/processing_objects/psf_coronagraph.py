@@ -1,15 +1,15 @@
 
 from specula import fuse
 from specula.processing_objects.psf import PSF
-from specula.base_processing_obj import InputDesc, OutputDesc
+from specula.base_processing_obj import OutputDesc
 from specula.base_value import BaseValue
-from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.simul_params import SimulParams
 
 
 @fuse(kernel_name='psf_abs2')
 def psf_abs2(v, xp):
     return xp.real(v * xp.conj(v))
+
 
 class PsfCoronagraph(PSF):
     """
@@ -58,7 +58,6 @@ class PsfCoronagraph(PSF):
                  ee_radius_in_lambda_d=None,
                  target_device_idx: int = None,
                  precision: int = None,
-                 verbose:bool = True,
                 ):
         super().__init__(
             simul_params=simul_params,
@@ -71,7 +70,6 @@ class PsfCoronagraph(PSF):
             ee_radius_in_lambda_d=ee_radius_in_lambda_d,
             target_device_idx=target_device_idx,
             precision=precision,
-            verbose=verbose,
         )
         self.use_average_field = use_average_field
 
@@ -201,10 +199,8 @@ class PsfCoronagraph(PSF):
             normalize=True
         )
 
-        if self.verbose:
-            print(f'Coronagraph peak suppression: '
-                f'{self.coronagraph_psf.value.max()/self.psf.value.max():.2e}',
-                flush=True)
+        self.logger.info(f'Coronagraph peak suppression: '
+            f'{self.coronagraph_psf.value.max()/self.psf.value.max():.2e}')
 
     def post_trigger(self):
         super().post_trigger()
