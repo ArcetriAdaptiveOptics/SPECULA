@@ -35,7 +35,6 @@ source_ngs:
 pupilstop:
   class:             'Pupilstop'
   tag:               'copernico_pupil_120pixels' 
-  # simul_params_ref:  'main'
 
 # Multi-layer atmospheric model
 atmo:
