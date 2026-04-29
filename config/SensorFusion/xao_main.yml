@@ -5,7 +5,7 @@ main:
   root_dir:          '/raid1/mmenessini/calibration/XAO'       # CalibManager root directory (all the data are in subdirectories)
   pixel_pupil:       160                   # Must match influence function computation
   pixel_pitch:       0.0513                # [m] 8.2m / 160 pixels = 0.0513 m/pixel (Nyquist sampling of 10cm r0)
-  total_time:        4.000                 # [s] 1 second simulation
+  total_time:        6.000                 # [s] 1 second simulation
   time_step:         0.00025                # [s] 0.5ms time steps (2 kHz)
   zenithAngleInDeg:  0.0                   # [deg] Zenith observation (0 means no airmass)
   display_server:    false                 # Disable for batch runs
@@ -119,68 +119,23 @@ pyr_modalrec:
     in_slopes:       'pyr_slopes.out_slopes'
   outputs:           ['out_modes']
 
-# ######################### Unmod Pyr ##############################
-# pyr0:
-#   class:             'ModulatedPyramid'
-#   simul_params_ref:  'main'
-#   pup_diam:          48.                     # Pupil diameter in subaps.
-#   pup_dist:          60.                     # Separation between pupil centers in subaps.
-#   fov:               2.0                     # Requested field-of-view [arcsec]
-#   mod_amp:           0.0                     # Modulation radius (in lambda/D units)
-#   output_resolution: 120                      # Output sampling [usually corresponding to CCD pixels]
-#   wavelengthInNm:    750                     # [nm] Pyramid wavelength
-#   inputs:
-#     in_ef: 'ef_prop.out_ef' #'prop.out_source_ngs_ef'
-
-# cred10:
-#   class:             'CCD'
-#   simul_params_ref:  'main'
-#   size:              [120,120]            # Total detector size
-#   dt:                0.00025                # [s] Integration time (2000 fps)
-#   bandw:             400                   # [nm]
-#   photon_noise:      true                  # Enable photon noise
-#   readout_noise:     true                  # Enable read noise
-#   excess_noise:      true                  # Enable excess noise
-#   readout_level:     0.5                   # [e-/pix/frame] Read noise level
-#   emccd_gain:        400                   # EMCCD gain factor
-#   quantum_eff:       0.2                   # QE x transmission
-#   inputs:
-#     in_i:            'pyr0.out_i' 
-#   outputs:           ['out_pixels']
-
-# pyr0_slopes:
-#   class:                  'PyrSlopec'
-#   pupdata_object:         'pyr_pupdata'           
-#   slopes_from_intensity:  true
-#   # sn_object:            'pyr0.0_slope_null' #'pyr0.0_sn_pc_s0.9_c095'  #'pyr0.0_slope_null_4kHz'
-#   inputs:
-#     in_pixels:        'cred10.out_pixels'
-#   outputs:           ['out_slopes']
-
-# pyr0_modalrec:
-#   class:             'Modalrec'
-#   recmat_object:     'pyr0.0_1300modes_rec'        
-#   inputs:
-#     in_slopes:       'pyr0_slopes.out_slopes'
-#   outputs:           ['out_modes']
-
-########################### ZWFS ####################################
-zwfs:
-  class:              'ZernikeSensor' 
-  simul_params_ref:   'main'
-  pup_diam:           48.                     # Pupil diameter in subaps.
-  fov:                2.0                     # Requested field-of-view [arcsec]
-  spot_radius_lambda: 0.75                     # Spot radius in λ/D units
-  fft_res:            8.0
-  output_resolution:  120                     # Output sampling [usually corresponding to CCD pixels]
-  wavelengthInNm:     750                     # [nm] zWFS wavelength
+######################### Unmod Pyr ##############################
+pyr0:
+  class:             'ModulatedPyramid'
+  simul_params_ref:  'main'
+  pup_diam:          48.                     # Pupil diameter in subaps.
+  pup_dist:          60.                     # Separation between pupil centers in subaps.
+  fov:               2.0                     # Requested field-of-view [arcsec]
+  mod_amp:           0.0                     # Modulation radius (in lambda/D units)
+  output_resolution: 120                      # Output sampling [usually corresponding to CCD pixels]
+  wavelengthInNm:    750                     # [nm] Pyramid wavelength
   inputs:
-    in_ef: 'ef_prop.out_ef' 
+    in_ef: 'ef_prop.out_ef' #'prop.out_source_ngs_ef'
 
-ocam2:
+cred10:
   class:             'CCD'
   simul_params_ref:  'main'
-  size:              [120,120]             # Total detector size
+  size:              [120,120]            # Total detector size
   dt:                0.00025                # [s] Integration time (2000 fps)
   bandw:             400                   # [nm]
   photon_noise:      true                  # Enable photon noise
@@ -190,25 +145,70 @@ ocam2:
   emccd_gain:        400                   # EMCCD gain factor
   quantum_eff:       0.2                   # QE x transmission
   inputs:
-    in_i:            'zwfs.out_i' 
+    in_i:            'pyr0.out_i' 
   outputs:           ['out_pixels']
 
-zwfs_slopes:
-  class:             'ZwfsSlopec'
-  # sn_object:         'z1.5wfs_48x48_sn'
-  pup_diam:          48.0
-  ccd_size:          120
-  obsratio:          0.0 #14
+pyr0_slopes:
+  class:                  'PyrSlopec'
+  pupdata_object:         'pyr_pupdata'           
+  slopes_from_intensity:  true
+  # sn_object:            'pyr0.0_slope_null' #'pyr0.0_sn_pc_s0.9_c095'  #'pyr0.0_slope_null_4kHz'
   inputs:
-    in_pixels:        'ocam2.out_pixels'
+    in_pixels:        'cred10.out_pixels'
   outputs:           ['out_slopes']
 
-zwfs_modalrec:
+pyr0_modalrec:
   class:             'Modalrec'
-  recmat_object:     'z1.5wfs_48x48_1300modes_rec'        
+  recmat_object:     'pyr0.0_1300modes_rec'        
   inputs:
-    in_slopes:       'zwfs_slopes.out_slopes'
+    in_slopes:       'pyr0_slopes.out_slopes'
   outputs:           ['out_modes']
+
+# ########################### ZWFS ####################################
+# zwfs:
+#   class:              'ZernikeSensor' 
+#   simul_params_ref:   'main'
+#   pup_diam:           48.                     # Pupil diameter in subaps.
+#   fov:                2.0                     # Requested field-of-view [arcsec]
+#   spot_radius_lambda: 0.75                     # Spot radius in λ/D units
+#   fft_res:            8.0
+#   output_resolution:  120                     # Output sampling [usually corresponding to CCD pixels]
+#   wavelengthInNm:     750                     # [nm] zWFS wavelength
+#   inputs:
+#     in_ef: 'ef_prop.out_ef' 
+
+# ocam2:
+#   class:             'CCD'
+#   simul_params_ref:  'main'
+#   size:              [120,120]             # Total detector size
+#   dt:                0.00025                # [s] Integration time (2000 fps)
+#   bandw:             400                   # [nm]
+#   photon_noise:      true                  # Enable photon noise
+#   readout_noise:     true                  # Enable read noise
+#   excess_noise:      true                  # Enable excess noise
+#   readout_level:     0.5                   # [e-/pix/frame] Read noise level
+#   emccd_gain:        400                   # EMCCD gain factor
+#   quantum_eff:       0.2                   # QE x transmission
+#   inputs:
+#     in_i:            'zwfs.out_i' 
+#   outputs:           ['out_pixels']
+
+# zwfs_slopes:
+#   class:             'ZwfsSlopec'
+#   # sn_object:         'z1.5wfs_48x48_sn'
+#   pup_diam:          48.0
+#   ccd_size:          120
+#   obsratio:          0.0 #14
+#   inputs:
+#     in_pixels:        'ocam2.out_pixels'
+#   outputs:           ['out_slopes']
+
+# zwfs_modalrec:
+#   class:             'Modalrec'
+#   recmat_object:     'z1.5wfs_48x48_1300modes_rec'        
+#   inputs:
+#     in_slopes:       'zwfs_slopes.out_slopes'
+#   outputs:           ['out_modes']
 
 ############################ Control ################################
 # bootstrap:

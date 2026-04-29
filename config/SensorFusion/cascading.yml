@@ -131,7 +131,7 @@ pyr0:
   pup_diam:          24.                     # Pupil diameter in subaps.
   pup_dist:          30.                     # Separation between pupil centers in subaps.
   fov:               2.0                     # Requested field-of-view [arcsec]
-  mod_amp:           0.0                     # Modulation radius (in lambda/D units)
+  mod_amp:           1.0                     # Modulation radius (in lambda/D units)
   output_resolution: 120                      # Output sampling [usually corresponding to CCD pixels]
   wavelengthInNm:    750                     # [nm] Pyramid wavelength
   inputs:
@@ -157,14 +157,14 @@ pyr0_slopes:
   class:                  'PyrSlopec'
   pupdata_object:         'pyr_pupdata_24x24'           
   slopes_from_intensity:  true
-  sn_object:            'pyr0.0_24x24_sn'
+  sn_object:            'pyr1.0_24x24_sn'
   inputs:
     in_pixels:        'cred2.out_pixels'
   outputs:           ['out_slopes']
 
 pyr0_modalrec:
   class:             'Modalrec'
-  recmat_object:     'pyr0.0_24x24_300modes_dm468_rec'        
+  recmat_object:     'pyr1.0_24x24_300modes_dm468_rec'        
   inputs:
     in_slopes:       'pyr0_slopes.out_slopes'
   outputs:           ['out_modes']
@@ -224,22 +224,22 @@ bootstrap:
   scheduled_times:    [0.05] # Nrows-1
 
 filter2:
-  # class:             'Integrator'
-  # simul_params_ref:  'main'
-  # delay:             1                     # 1 frame delay (realistic)
-  # int_gain:          [0.7]
-  # n_modes:           [300]                 # Number of modes to control
-  # inputs:
-  #   delta_comm:      'pyr0_modalrec.out_modes' #
-  # outputs:           ['out_comm']
-  class:                'IirFilter'
-  simul_params_ref:     'main'
-  delay:                1 # Total temporal delay in time steps is this value +1
-  iir_filter_data_object:  'iirfilter_300modes'
+  class:             'Integrator'
+  simul_params_ref:  'main'
+  delay:             1                     # 1 frame delay (realistic)
+  int_gain:          [0.4]
+  n_modes:           [300]                 # Number of modes to control
   inputs:
-    delta_comm: 'pyr0_modalrec.out_modes'
-    gain_mod: 'bootstrap.output'
-  outputs:  ['out_comm']
+    delta_comm:      'pyr0_modalrec.out_modes' #
+  outputs:           ['out_comm']
+  # class:                'IirFilter'
+  # simul_params_ref:     'main'
+  # delay:                1 # Total temporal delay in time steps is this value +1
+  # iir_filter_data_object:  'iirfilter_300modes'
+  # inputs:
+  #   delta_comm: 'pyr0_modalrec.out_modes'
+  #   gain_mod: 'bootstrap.output'
+  # outputs:  ['out_comm']
 
 dm2:
   class:             'DM'
@@ -249,14 +249,14 @@ dm2:
   nmodes:            300             # Number of controlled modes
   height:            0                # Ground-conjugated DM
   inputs:
-    in_command:      'filter2.out_comm' #''dcao_cmd2.out_value' #
+    in_command:      'dcao_cmd2.out_value' #'filter2.out_comm' #
   outputs:           ['out_layer']
 
 filter1:
   class:             'Integrator'
   simul_params_ref:  'main'
   delay:             1                     # 1 frame delay (realistic)
-  int_gain:          [0.6]
+  int_gain:          [0.7]
   n_modes:           [1300]                 # Number of modes to control
   inputs:
     delta_comm:      'pyr_modalrec.out_modes' #
@@ -312,17 +312,17 @@ psf1:
     in_ef:           'first_stage_prop.out_ef'
   outputs:           ['out_psf', 'out_std_psf', 'out_sr']
 
-coro_psf1:
-  class:             'PsfCoronagraph'
-  simul_params_ref:  'main'
-  wavelengthInNm:    750                 # [nm] visible
-  nd:                4                   # 4x padding for PSF
-  start_time:        1.0                 # Start PSF integration after 500ms
-  verbose: false
-  use_average_field: false
-  inputs:
-    in_ef:           'first_stage_prop.out_ef' 
-  outputs:           ['out_coronagraph_psf','out_std_coronagraph_psf']
+# coro_psf1:
+#   class:             'PsfCoronagraph'
+#   simul_params_ref:  'main'
+#   wavelengthInNm:    750                 # [nm] visible
+#   nd:                4                   # 4x padding for PSF
+#   start_time:        1.0                 # Start PSF integration after 500ms
+#   verbose: false
+#   use_average_field: false
+#   inputs:
+#     in_ef:           'first_stage_prop.out_ef' 
+#   outputs:           ['out_coronagraph_psf','out_std_coronagraph_psf']
 
 psf2:
   class:             'PSF'
@@ -335,17 +335,17 @@ psf2:
     in_ef:           'second_stage_prop.out_ef'
   outputs:           ['out_psf', 'out_std_psf', 'out_sr']
 
-coro_psf2:
-  class:             'PsfCoronagraph'
-  simul_params_ref:  'main'
-  wavelengthInNm:    750                 # [nm] visible
-  nd:                4                   # 4x padding for PSF
-  start_time:        1.0                 # Start PSF integration after 500ms
-  verbose: false
-  use_average_field: false
-  inputs:
-    in_ef:           'second_stage_prop.out_ef' 
-  outputs:           ['out_coronagraph_psf','out_std_coronagraph_psf']
+# coro_psf2:
+#   class:             'PsfCoronagraph'
+#   simul_params_ref:  'main'
+#   wavelengthInNm:    750                 # [nm] visible
+#   nd:                4                   # 4x padding for PSF
+#   start_time:        1.0                 # Start PSF integration after 500ms
+#   verbose: false
+#   use_average_field: false
+#   inputs:
+#     in_ef:           'second_stage_prop.out_ef' 
+#   outputs:           ['out_coronagraph_psf','out_std_coronagraph_psf']
 
 dm2_mode_res:
   class:            'ModalAnalysis'
@@ -381,10 +381,10 @@ data_store:
                   'sr2-psf2.out_sr',
                   'psf2-psf2.out_psf',
                   # 'psf2_std-psf2.out_std_psf',
-                  'coro_psf1-coro_psf1.out_coronagraph_psf',
-                  # 'coro_psf1_std-coro_psf1.out_std_coronagraph_psf',
-                  'coro_psf2-coro_psf2.out_coronagraph_psf',
-                  # 'coro_psf2_std-coro_psf2.out_std_coronagraph_psf',
+                  # 'coro_psf1-coro_psf1.out_coronagraph_psf',
+                  # # 'coro_psf1_std-coro_psf1.out_std_coronagraph_psf',
+                  # 'coro_psf2-coro_psf2.out_coronagraph_psf',
+                  # # 'coro_psf2_std-coro_psf2.out_std_coronagraph_psf',
                   'atmo_res-atmo_modes.out_modes',
                   'dm1_res-dm1_mode_res.out_modes',
                   'dm2_res-dm2_mode_res.out_modes',

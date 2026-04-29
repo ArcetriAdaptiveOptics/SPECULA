@@ -17,18 +17,18 @@ import matplotlib.pyplot as plt
 from specula.base_value import BaseValue
 
 
-def plot_output_data(root_dir:str,calib_dir:str):
+def plot_output_data(root_dir:str,calib_dir:str,tn:str=None):
 
-    # Find all directories in ./output starting with '20'
-    dirs = [d for d in glob.glob(os.path.join(root_dir,"20*")) if os.path.isdir(d)]
-    if not dirs:
-        raise RuntimeError("No output directories found.")
-
-    # Select the most recent one (by name, assuming timestamp format)
-    data_dir = sorted(dirs)[-1]
+    if tn is None:
+        # Find all directories in ./output starting with '20'
+        dirs = [d for d in glob.glob(os.path.join(root_dir,"20*")) if os.path.isdir(d)]
+        if not dirs:
+            raise RuntimeError("No output directories found.")
+        data_dir = sorted(dirs)[-1]
+        tn = data_dir.split('/')[-1]
+    else:
+        data_dir = os.path.join(root_dir,tn)
     print(f"Using data directory: {data_dir}")
-
-    tn = data_dir.split('/')[-1]
     data = {}
 
     # Load all .fits files in the directory
