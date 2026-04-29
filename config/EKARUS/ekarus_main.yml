@@ -4,7 +4,7 @@ main:
   class:             'SimulParams'
   root_dir:          '/raid1/mmenessini/calibration/EKARUS/'       # CalibManager root directory (all the data are in subdirectories)
   pixel_pupil:       120                   # Must match influence function computation
-  pixel_pitch:       0.015167                # [m] Pitch of the pupil phase array (1.82m/120pix)
+  pixel_pitch:       0.015167              # [m] Pitch of the pupil phase array (1.82m/120pix)
   total_time:        2.0                   # [s] Total simulation running time
   time_step:         0.001                 # [s] Simulation time step
   zenithAngleInDeg:  0.0                   # [deg] Zenith observation (0 means no airmass)
@@ -34,7 +34,7 @@ source_ngs:
 # Telescope pupil geometry
 pupilstop:
   class:             'Pupilstop'
-  tag:               'copernico_pupil_120pixels' #'copernico_pupil_96pixels'
+  tag:               'copernico_pupil_120pixels' 
   # simul_params_ref:  'main'
 
 # Multi-layer atmospheric model
@@ -72,7 +72,7 @@ ef_prop:
 pyr:
   class:             'ModulatedPyramid'
   simul_params_ref:  'main'
-  pup_diam:          40.                     # Pupil diameter in subaps.
+  pup_diam:          42.                     # Pupil diameter in subaps.
   pup_dist:          60.                     # Separation between pupil centers in subaps.
   fov:               4.0                     # Requested field-of-view [arcsec]
   mod_amp:           5.0                     # Modulation radius (in lambda/D units)
@@ -100,7 +100,7 @@ ocam:
 pyr_slopes:
   class:                  'PyrSlopec'
   pupdata_object:         'pyr_pupdata_40x40'           
-  # sn_object:              'pyr5.0_40x40_sn'
+  # sn_object:              'pyr5.0_40x40_sn' # Commented during calibration
   slopes_from_intensity:  true
   inputs:
     in_pixels:        'ocam.out_pixels'
@@ -113,7 +113,7 @@ pyr_modalrec:
     in_slopes:       'pyr_slopes.out_slopes'
   outputs:           ['out_modes']
 
-filter:
+filter: # Use your favourite filter
   class:             'Integrator'
   simul_params_ref:  'main'
   delay:             1                      # Temporal delay in time steps
@@ -126,7 +126,7 @@ filter:
 dm:
   class:             'DM'
   simul_params_ref:  'main'
-  ifunc_object:      'dm468_ifunc'      # Our computed influence functions
+  ifunc_object:      'dm468_ifunc'      # Influence functions
   m2c_object:        'dm468_m2c'        # Modal-to-command matrix
   height:            0                # Ground-conjugated DM
   nmodes:            400
