@@ -1,11 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from specula import cpuArray
+from specula.data_objects.ifunc import IFunc
 
-# Assuming IFunc is available in your namespace, you can import it for type hinting
-# from specula.data_objects.ifunc import IFunc
-
-def display_ifunc_2d(ifunc_obj, m2c_array=None, modal_vector=None,
+def display_ifunc_2d(ifunc_obj: IFunc, m2c_array=None, modal_vector=None,
                      id_mode_starting: int = 0, n_raw_col: int = 10,
                      do_not_show_ticks: bool = False, show_plot: bool = True):
     """
@@ -34,7 +32,6 @@ def display_ifunc_2d(ifunc_obj, m2c_array=None, modal_vector=None,
     # Apply Modal to Command matrix if provided
     if m2c_array is not None:
         m2c = np.array(cpuArray(m2c_array), dtype=float)
-        # Matrix multiplication (@) replaces IDL's matmat_multiply
         modal_base = m2c @ modal_base
 
     # Create a boolean mask for faster array indexing in Python

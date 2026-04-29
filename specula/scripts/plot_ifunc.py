@@ -3,7 +3,6 @@ import argparse
 import sys
 import os
 
-# Adjust these imports based on your actual project structure
 import specula
 specula.init(-1)  # Ensure Specula is initialized before importing data objects
                   # -1 means CPU (we do not need GPU for plotting)
@@ -50,8 +49,7 @@ def main():
 
     # 2. Check if file exists
     if not os.path.isfile(args.filename):
-        print(f"Error: The file '{args.filename}' does not exist.")
-        sys.exit(1)
+        raise FileNotFoundError(f"The file '{args.filename}' does not exist.")
 
     try:
         # 3. Load the IFunc object from disk
