@@ -598,8 +598,9 @@ class Simul():
                     # Uses input_names() to derive the type of inputs, even for remote objects
                     # Not supported for DataStore and DataSource, which have a special handling of their inputs and outputs
                     output = self.split_output(single_output_name)
-                    if hasattr(self.objs[output.obj_name], 'connection_callback') and \
-                        not self.all_objs_classes[dest_object] in (DataStore, DataSource, DataBuffer):
+                    if output.obj_name in self.objs and \
+                       hasattr(self.objs[output.obj_name], 'connection_callback') and \
+                       not self.all_objs_classes[dest_object] in (DataStore, DataSource, DataBuffer):
 
                         output_type = self.all_objs_classes[dest_object].input_names()[input_name].type
                         self.objs[output.obj_name].connection_callback(output.output_key, output_type)
