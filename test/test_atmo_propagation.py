@@ -416,7 +416,7 @@ class TestAtmoPropagation(unittest.TestCase):
         prop_disabled.inputs['atmo_layer_list'].set([atmo_layer])
         prop_disabled.inputs['common_layer_list'].set([])
         prop_disabled.setup()
-        assert src_disabled.chromatic_shifts_m == {}, \
+        assert prop_disabled.chromatic_shifts_m[src_disabled] == {}, \
                "Chromatic shifts must be empty when effect is disabled"
 
         with self.assertRaises(ValueError):
@@ -444,7 +444,7 @@ class TestAtmoPropagation(unittest.TestCase):
         prop_equal.inputs['atmo_layer_list'].set([atmo_layer])
         prop_equal.inputs['common_layer_list'].set([])
         prop_equal.setup()
-        assert src_equal_wl.chromatic_shifts_m == {}, \
+        assert prop_equal.chromatic_shifts_m[src_equal_wl] == {}, \
             "Chromatic shifts must be empty for equal wavelengths"
 
     @cpu_and_gpu
@@ -490,12 +490,14 @@ class TestAtmoPropagation(unittest.TestCase):
         prop.inputs['atmo_layer_list'].set([atmo_layer])
         prop.inputs['common_layer_list'].set([common_layer])
         prop.setup()
+        
+        print(f"\nLayers trovati nel dict: {list(prop.chromatic_shifts_m[sci_source].keys())}")
 
-        assert atmo_layer in sci_source.chromatic_shifts_m, \
+        assert atmo_layer in prop.chromatic_shifts_m[sci_source], \
             "Atmospheric layer must have a chromatic shift"
-        assert common_layer not in sci_source.chromatic_shifts_m, \
+        assert common_layer not in prop.chromatic_shifts_m[sci_source], \
             "Common layer must not have a chromatic shift"
-        assert abs(sci_source.chromatic_shifts_m[atmo_layer]) > 0.0, \
+        assert abs(prop.chromatic_shifts_m[sci_source][atmo_layer]) > 0.0, \
             "Atmo chromatic shift should be non-zero"
 
     @cpu_and_gpu
