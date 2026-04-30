@@ -1,4 +1,3 @@
-import sys
 import time
 import queue
 import multiprocessing as mp
@@ -6,6 +5,7 @@ from unittest.mock import MagicMock
 
 
 from specula.processing_objects.specula_input import SpeculaInput
+from specula.scalar_values import IntValue
 
 
 def _dummy_task(q):
@@ -15,14 +15,20 @@ def _dummy_task(q):
 class TestSpeculaInput:
 
     def test_outputs_created(self):
-        obj = SpeculaInput(output_list=["a", "b"])
+        output_list = ["a", "b"]
+        obj = SpeculaInput(output_list=output_list)
+        for output_name in output_list:
+            obj.connection_callback(output_name, IntValue)
 
         assert "a" in obj.outputs
         assert "b" in obj.outputs
         assert len(obj.outputs) == 2
 
     def test_trigger_updates_output_value(self):
-        obj = SpeculaInput(output_list=["x"])
+        output_list = ["x"]
+        obj = SpeculaInput(output_list=output_list)
+        for output_name in output_list:
+            obj.connection_callback(output_name, IntValue)
         obj.q = mp.Queue()
 
         obj.current_time = 42
@@ -35,7 +41,10 @@ class TestSpeculaInput:
         assert obj.outputs["x"].generation_time == 42
 
     def test_trigger_handles_multiple_values(self):
-        obj = SpeculaInput(output_list=["x", "y"])
+        output_list = ["x", "y"]
+        obj = SpeculaInput(output_list=output_list)
+        for output_name in output_list:
+            obj.connection_callback(output_name, IntValue)
         obj.q = mp.Queue()
 
         obj.current_time = 10
