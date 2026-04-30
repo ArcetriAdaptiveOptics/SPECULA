@@ -590,7 +590,12 @@ class Simul():
                 for single_output_name in output_name if isinstance(output_name, list) else [output_name]:
                     self.logger.mpi_debug(f'List input')
 
-                    output = self.split_output(single_output_name, get_ref=True)
+                    input_ref = self.objs[dest_object].inputs[input_name]
+                    output = self.split_output(single_output_name)
+                    if hasattr(self.objs[output.obj_name], 'connection_callback'):
+                        self.objs[output.obj_name].connection_callback(output.output_key, input_ref.output_ref_type)
+
+                    output_ref = self.output_ref(single_output_name)
 
                     if self.diagram:
                         self.diagram.add_connection(start = output.obj_name,
@@ -599,7 +604,7 @@ class Simul():
                                                     end_label = input_name)
 
                     # Remote-to-remote: nothing to do
-                    if not local_dest_object and output.ref is None:
+                    if not local_dest_object and output_ref is None:
                         continue
                     
                     try:
