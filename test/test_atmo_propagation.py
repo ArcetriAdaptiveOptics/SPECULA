@@ -563,3 +563,68 @@ class TestAtmoPropagation(unittest.TestCase):
             "Amplitude should be unchanged for common-layer-only propagation"
         assert np.max(np.abs(ph_diff)) < 1e-10, \
             "Phase should be unchanged for common-layer-only propagation"
+
+    @cpu_and_gpu
+    def test_chromatic_shift_applied_for_on_axis_source(self, target_device_idx, xp):
+        """Test that chromatic shift triggers interpolation even for on-axis sources."""
+        pixel_pupil = 60
+        pixel_pitch = 0.1
+        # Use a non-zero zenith angle to generate a chromatic shift
+        simul_params = SimulParams(pixel_pupil, pixel_pitch, zenithAngleInDeg=45.0)
+
+        # Create an elevated atmospheric layer
+        layer = Layer(
+            dimx=100, dimy=100,
+            pixel_pitch=pixel_pitch,
+            height=10000.0,
+            target_device_idx=target_device_idx
+        )
+        layer.A = xp.ones((100, 100))
+
+        # Create a phase ramp along the Y-axis (elevation axis) to easily measure the shift
+        y_ramp = xp.arange(100, dtype=float)
+        layer.phaseInNm = xp.tile(y_ramp, (100, 1)).T
+        layer.generation_time = 1
+
+        # On-axis source at a different wavelength than the reference
+        on_axis_source = Source(
+            polar_coordinates=[0.0, 0.0],
+            magnitude=8,
+            wavelengthInNm=2200.0,  # Far from 500nm reference
+            target_device_idx=target_device_idx
+        )
+
+        prop = AtmoPropagation(
+            simul_params,
+            source_dict={'on_axis': on_axis_source},
+            enable_chromatic_effect=True,
+            chromatic_reference_wavelengthInNm=500.0,
+            telescope_altitude_m=3000.0,
+            target_device_idx=target_device_idx
+        )
+
+        prop.inputs['atmo_layer_list'].set([layer])
+        prop.inputs['common_layer_list'].set([])
+
+        # Run setup to initialize interpolators
+        prop.setup()
+
+        # 1. ASSERT INTERPOLATOR IS CREATED
+        # Without the bug fix, this would be None because source.r == 0
+        assert prop.interpolators[on_axis_source][layer] is not None, \
+            "Interpolator must be created for on-axis source if chromatic shift is present."
+
+        # Run propagation
+        loop = LoopControl()
+        loop.add(prop, idx=0)
+        loop.run(run_time=1, dt=1, t0=0)
+
+        output_ef = prop.outputs['out_on_axis_ef']
+        output_phase = cpuArray(output_ef.phaseInNm)
+
+        # 2. ASSERT THE SHIFT IS ACTUALLY APPLIED IN OUTPUT
+        # Expected center value of the phase without shift is the center of the layer (y=50)
+        # Because we have a chromatic shift, the mean phase should deviate from 50.0
+        mean_phase = np.mean(output_phase)
+        assert not np.isclose(mean_phase, 50.0, atol=1e-3), \
+            f"Phase output should be shifted chromatically, but got mean phase {mean_phase}"

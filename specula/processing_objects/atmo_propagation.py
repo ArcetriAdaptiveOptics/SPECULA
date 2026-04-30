@@ -412,7 +412,9 @@ class AtmoPropagation(BaseProcessingObj):
 
             for layer in layer_list:
                 diff_height = (source.height - layer.height) * self.airmass
+                chromatic_shift_m = source.chromatic_shifts_m.get(layer, 0.0)
                 if (layer.height == 0 or (np.isinf(source.height) and source.r == 0)) and \
+                                chromatic_shift_m == 0.0 and \
                                 not self.shiftXY_cond[layer] and \
                                 self.pupil_position is None and \
                                 layer.rotInDeg == 0 and \
