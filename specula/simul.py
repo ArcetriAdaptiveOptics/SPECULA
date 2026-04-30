@@ -7,21 +7,16 @@ from specula import process_rank
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_data_obj import BaseDataObj
 
-
 from specula.log import get_specula_logger
 from specula.loop_control import LoopControl
 from specula.lib.utils import import_class, get_type_hints, remove_suffix, resolve_type
 from specula.calib_manager import CalibManager
-from specula.processing_objects.data_source import DataSource
 from specula.processing_objects.data_store import DataStore
-from specula.processing_objects.data_buffer import DataBuffer
 from specula.connections import InputList, InputValue, split_output
 from specula.simul_diagram import SimulDiagram
 
 import yaml
 import hashlib
-
-
 
 
 def computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name):
@@ -555,9 +550,6 @@ class Simul():
                 for single_output_name in output_name if isinstance(output_name, list) else [output_name]:
                     self.logger.mpi_debug(f'List input')
 
-                    # Connection callback for dynamically-created outputs (e.g. interactive inputs)
-                    # Uses input_names() to derive the type of inputs, even for remote objects
-                    # Not supported for DataStore and DataSource, which have a special handling of their inputs and outputs
                     output = split_output(single_output_name)
                     output_ref = self.output_ref(single_output_name)
 

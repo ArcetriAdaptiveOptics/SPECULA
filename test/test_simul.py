@@ -26,9 +26,6 @@ class DummyObj:
     def __init__(self):
         self.inputs = {}
         self.outputs = {}
-    @classmethod
-    def input_names(cls):
-        return {'in': InputDesc(IntValue, '')}
 
 class DummyOutput:
     target_device_idx = -1
