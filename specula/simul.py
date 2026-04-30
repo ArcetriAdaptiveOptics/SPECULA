@@ -13,6 +13,7 @@ from specula.log import get_specula_logger
 from specula.loop_control import LoopControl
 from specula.lib.utils import import_class, get_type_hints, remove_suffix, resolve_type
 from specula.calib_manager import CalibManager
+from specula.processing_objects.data_source import DataSource
 from specula.processing_objects.data_store import DataStore
 from specula.connections import InputList, InputValue
 from specula.simul_diagram import SimulDiagram
@@ -52,6 +53,7 @@ class Simul():
         self.is_dataobj = {}
         self.all_objs_ranks = {}
         self.all_target_device_idxs = {}
+        self.all_objs_classes = {}
         self.remote_objs_ranks = {}
         self.param_files = param_files
         self.objs = {}
@@ -312,6 +314,7 @@ class Simul():
             hints = get_type_hints(klass)
             target_device_idx = pars.get('target_device_idx', None)
             self.all_target_device_idxs[key] = target_device_idx
+            self.all_objs_classes[key] = klass
  
             par_target_rank = pars.pop('target_rank', None)
             if par_target_rank is None:
@@ -590,10 +593,15 @@ class Simul():
                 for single_output_name in output_name if isinstance(output_name, list) else [output_name]:
                     self.logger.mpi_debug(f'List input')
 
-                    input_ref = self.objs[dest_object].inputs[input_name]
+                    # Connection callback for dynamically-created outputs (e.g. interactive inputs)
+                    # Uses input_names() to derive the type of inputs, even for remote objects
+                    # Not supported for DataStore and DataSource, which have a special handling of their inputs and outputs
                     output = self.split_output(single_output_name)
-                    if hasattr(self.objs[output.obj_name], 'connection_callback'):
-                        self.objs[output.obj_name].connection_callback(output.output_key, input_ref.output_ref_type)
+                    if hasattr(self.objs[output.obj_name], 'connection_callback') and \
+                        not self.all_objs_classes[dest_object] in (DataStore, DataSource):
+
+                        output_type = self.all_objs_classes[dest_object].input_names()[input_name].type
+                        self.objs[output.obj_name].connection_callback(output.output_key, output_type)
 
                     output_ref = self.output_ref(single_output_name)
 
