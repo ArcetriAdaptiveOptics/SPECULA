@@ -15,11 +15,8 @@ def _dummy_task(q):
 class TestSpeculaInput:
 
     def test_outputs_created(self):
-        output_list = ["a", "b", "c"]
+        output_list = ["a:int", "b:float", "c:str"]
         obj = SpeculaInput(output_list=output_list)
-        obj.connection_callback("a", IntValue)
-        obj.connection_callback("b", FloatValue)
-        obj.connection_callback("c", StringValue)
 
         assert "a" in obj.outputs
         assert "b" in obj.outputs
@@ -27,10 +24,8 @@ class TestSpeculaInput:
         assert len(obj.outputs) == 3
 
     def test_trigger_updates_output_value(self):
-        output_list = ["x"]
+        output_list = ["x:int"]
         obj = SpeculaInput(output_list=output_list)
-        for output_name in output_list:
-            obj.connection_callback(output_name, IntValue)
         obj.q = mp.Queue()
 
         obj.current_time = 42
@@ -43,10 +38,8 @@ class TestSpeculaInput:
         assert obj.outputs["x"].generation_time == 42
 
     def test_trigger_handles_multiple_values(self):
-        output_list = ["x", "y"]
+        output_list = ["x:int", "y:int"]
         obj = SpeculaInput(output_list=output_list)
-        for output_name in output_list:
-            obj.connection_callback(output_name, IntValue)
         obj.q = mp.Queue()
 
         obj.current_time = 10
@@ -63,7 +56,7 @@ class TestSpeculaInput:
     # when running tests
 
     def test_trigger_ignores_unknown_output(self):
-        obj = SpeculaInput(output_list=["x"])
+        obj = SpeculaInput(output_list=["x:int"])
         obj.q = mp.Queue()
 
         obj.q.put(("dummy", 5))
@@ -76,7 +69,7 @@ class TestSpeculaInput:
         assert "Unknown output" in obj.logger.log.call_args[0][1]  # Check that error was logged
 
     def test_set_input_task_process(self):
-        obj = SpeculaInput(output_list=["x"])
+        obj = SpeculaInput(output_list=["x:int"])
 
         obj.set_input_task(_dummy_task)
 

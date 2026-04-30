@@ -43,7 +43,7 @@ class SpeculaInput(BaseProcessingObj):
                 self.outputs[real_name] = FloatValue(0.0)
             elif typ == 'int':
                 self.outputs[real_name] = IntValue(0)
-            elif typ == 'string':
+            elif typ == 'str':
                 self.outputs[real_name] = StringValue('')
             else:
                 raise ValueError(f'Unsupported type {typ} for output {real_name}')
