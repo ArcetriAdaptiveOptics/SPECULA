@@ -3,7 +3,6 @@ import inspect
 import itertools
 from copy import deepcopy
 from pathlib import Path
-from collections import namedtuple
 from specula import process_rank
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_data_obj import BaseDataObj
@@ -16,14 +15,13 @@ from specula.calib_manager import CalibManager
 from specula.processing_objects.data_source import DataSource
 from specula.processing_objects.data_store import DataStore
 from specula.processing_objects.data_buffer import DataBuffer
-from specula.connections import InputList, InputValue
+from specula.connections import InputList, InputValue, split_output
 from specula.simul_diagram import SimulDiagram
 
 import yaml
 import hashlib
 
 
-Output = namedtuple('Output', 'obj_name output_key delay ref input_name')
 
 
 def computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name):
@@ -81,78 +79,39 @@ class Simul():
         else:
             self.diagram = None
 
-    def split_output(self, output_name, get_ref=False, use_inputs=False):
-        '''
-        Split the output name into object name and output key.
-        '''
-        if ':' in output_name:
-            output_name, delay = output_name.split(':')
-            delay = int(delay)
-        else:
-            delay = 0
-        if '-' in output_name:
-            input_name, output_name = output_name.split('-')
-        else:
-            input_name = None
-
-        if '.' in output_name:
-            obj_name, output_key = output_name.split('.')
-        else:
-            obj_name = output_name
-            output_key = None
-
-        # Get a reference to the output if possible
-        if get_ref:
-
-            if not obj_name in self.objs:
-                if obj_name in self.remote_objs_ranks:
-                    ref = None
-                else:
-                    raise ValueError(f'Object {obj_name} does not exist anywhere')
-            elif output_key is None:
-                ref = self.objs[obj_name]
-            else:
-                if use_inputs:
-                    array_to_check, display_str = self.objs[obj_name].local_inputs, 'input'
-                else:
-                    array_to_check, display_str = self.objs[obj_name].outputs, 'output'
-                if not output_key in array_to_check:
-                    raise ValueError(f'Object {obj_name} does not define an {display_str} with name {output_key}')
-                else:
-                    ref = array_to_check[output_key]
-        else:
-            ref = None
-
-        return Output(obj_name, output_key, delay, ref, input_name)
-
     def output_owner(self, output_name):
-        output = self.split_output(output_name)
-        return output.obj_name
+        return split_output(output_name).obj_name
 
     def output_key(self, output_name):
-        output = self.split_output(output_name)
-        return output.output_key
+        return split_output(output_name).output_key
 
-    def output_ref(self, output_name):
-        '''
-        return a tuple with:
-           - reference to the output, or None if the object is remote.
-           - name of the object that defines the output
-        '''
-        output = self.split_output(output_name, get_ref=True)
-        return output.ref
+    def output_ref(self, output_name, use_inputs=False):
+
+        obj_name, output_key, *_ = split_output(output_name)
+
+        if not obj_name in self.objs:
+            if obj_name in self.remote_objs_ranks:
+                ref = None
+            else:
+                raise ValueError(f'Object {obj_name} does not exist anywhere')
+        elif output_key is None:
+            ref = self.objs[obj_name]
+        else:
+            if use_inputs:
+                array_to_check, display_str = self.objs[obj_name].local_inputs, 'input'
+            else:
+                array_to_check, display_str = self.objs[obj_name].outputs, 'output'
+            if not output_key in array_to_check:
+                raise ValueError(f'Object {obj_name} does not define an {display_str} with name {output_key}')
+            else:
+                ref = array_to_check[output_key]
+        return ref
 
     def input_ref(self, input_name):
-        '''
-        return a tuple with:
-           - reference to the input, or None if the object is remote.
-           - name of the object that defines the input
-        '''
-        output = self.split_output(input_name, get_ref=True, use_inputs=True)
-        return output.ref
+        return self.output_ref(input_name, use_inputs=True)
 
     def output_delay(self, output_name):
-        return self.split_output(output_name).delay
+        return split_output(output_name).delay
 
     def is_leaf(self, p):
         '''
@@ -277,12 +236,13 @@ class Simul():
                 'input_list' in pars['inputs']):
 
                 for single_output_name in pars['inputs']['input_list']:
-                    output = self.split_output(single_output_name, get_ref=True)
+                    output = split_output(single_output_name)
+                    output_ref = self.output_ref(single_output_name)
                     if key in self.objs:
-                        if type(output.ref) is list:
-                            self.objs[key].inputs[output.input_name] = InputList(type=type(output.ref[0]))
+                        if type(output_ref) is list:
+                            self.objs[key].inputs[output.input_name] = InputList(type=type(output_ref[0]))
                         else:
-                            self.objs[key].inputs[output.input_name] = InputValue(type=type(output.ref))
+                            self.objs[key].inputs[output.input_name] = InputValue(type=type(output_ref))
                     params[key]['inputs'][output.input_name] = single_output_name
                 del params[key]['inputs']['input_list']
 
@@ -528,12 +488,13 @@ class Simul():
         2. local output to remote input - use addRemoteOutput() to send the output to the remote object
         3. remote output to local input - use set_remote_rank() to set the remote rank of the input
         '''
-        output = self.split_output(output_name, get_ref=True)
+        output = split_output(output_name)
+        output_ref = self.output_ref(output_name)
         local_dest_object = dest_object in self.objs.keys()
 
-        send = output.ref is not None and local_dest_object is False
-        recv = output.ref is None and local_dest_object is True
-        local = output.ref is not None and local_dest_object is True
+        send = output_ref is not None and local_dest_object is False
+        recv = output_ref is None and local_dest_object is True
+        local = output_ref is not None and local_dest_object is True
         if send or recv:
             tag = computeTag(output.obj_name, dest_object, output.output_key, input_name)
 
@@ -546,7 +507,7 @@ class Simul():
                                                             tag=tag)
         if local:
             self.logger.mpi_debug(f'CONNECT Connecting local output {output.obj_name}.{output.output_key} to local input {dest_object}.{input_name}')
-            self.objs[dest_object].inputs[input_name].append(output.ref)
+            self.objs[dest_object].inputs[input_name].append(output_ref)
 
         if send:
             self.objs[output.obj_name].addRemoteOutput(output.output_key, (self.remote_objs_ranks[dest_object], 
@@ -597,14 +558,7 @@ class Simul():
                     # Connection callback for dynamically-created outputs (e.g. interactive inputs)
                     # Uses input_names() to derive the type of inputs, even for remote objects
                     # Not supported for DataStore and DataSource, which have a special handling of their inputs and outputs
-                    output = self.split_output(single_output_name)
-                    if output.obj_name in self.objs and \
-                       hasattr(self.objs[output.obj_name], 'connection_callback') and \
-                       not self.all_objs_classes[dest_object] in (DataStore, DataSource, DataBuffer):
-
-                        output_type = self.all_objs_classes[dest_object].input_names()[input_name].type
-                        self.objs[output.obj_name].connection_callback(output.output_key, output_type)
-
+                    output = split_output(single_output_name)
                     output_ref = self.output_ref(single_output_name)
 
                     if self.diagram:
@@ -648,7 +602,7 @@ class Simul():
 
         objnames = []
         for _, fullname in self.iterate_inputs(datastore_pars):
-            output = self.split_output(fullname)
+            output = split_output(fullname)
             data_source_pars['outputs'].append(output.input_name)
             data_source_outputs[output.obj_name+'.'+output.output_key] = output.input_name
             objnames.append(output.obj_name)
@@ -727,7 +681,7 @@ class Simul():
 
             # Add all inputs
             for k, _input in self.iterate_inputs(params[key]):
-                desc = self.split_output(_input)
+                desc = split_output(_input)
                 # Use the complete key for lookup
                 complete_key = f"{desc.obj_name}.{desc.output_key}"
                 if complete_key in datastore_outputs:

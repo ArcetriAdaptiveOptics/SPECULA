@@ -1,7 +1,42 @@
+from collections import namedtuple
+
 from specula import cpuArray, process_comm
 from specula import np, cp
 from specula.lib.utils import flatten
 from specula.log import get_specula_logger
+
+
+Output = namedtuple('Output', 'obj_name output_key delay ref input_name type')
+
+
+def split_output(output_name, use_inputs=False):
+    '''
+    Split the output name into object name and output key.
+    '''
+    if ':' in output_name:
+        output_name, delay_or_type = output_name.split(':')
+        if delay_or_type in ['float', 'int', 'str']:
+            delay = 0
+            typ_ = delay_or_type
+        else:
+            delay = int(delay_or_type)
+            typ_ = None
+    else:
+        delay = 0
+        typ_ = None
+
+    if '-' in output_name:
+        input_name, output_name = output_name.split('-')
+    else:
+        input_name = None
+
+    if '.' in output_name:
+        obj_name, output_key = output_name.split('.')
+    else:
+        obj_name = output_name
+        output_key = None
+
+    return Output(obj_name, output_key, delay, None, input_name, typ_)
 
 
 class _InputItem():

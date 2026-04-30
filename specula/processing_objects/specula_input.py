@@ -2,6 +2,7 @@
 import queue
 import multiprocessing as mp
 
+from specula.connections import split_output
 from specula.base_processing_obj import BaseProcessingObj
 from specula.scalar_values import IntValue, FloatValue, StringValue
 
@@ -34,21 +35,18 @@ class SpeculaInput(BaseProcessingObj):
         super().__init__(target_device_idx=target_device_idx,
                          precision=precision)
 
-        self.output_list = output_list
-
-    def connection_callback(self, name, type):
-        
-        if name in self.output_list:
-            if type == FloatValue:
-                self.outputs[name] = FloatValue(0.0)
-            elif type == IntValue:
-                self.outputs[name] = IntValue(0)
-            elif type == StringValue:
-                self.outputs[name] = StringValue('')
+        for name in output_list:
+            desc = split_output(name)
+            typ = desc.type
+            real_name = desc.obj_name
+            if typ == 'float':
+                self.outputs[real_name] = FloatValue(0.0)
+            elif typ == 'int':
+                self.outputs[real_name] = IntValue(0)
+            elif typ == 'string':
+                self.outputs[real_name] = StringValue('')
             else:
-                raise ValueError(f'Unsupported type {type} for output {name}')
-        else:
-            raise ValueError(f'Output {name} not in output_list')
+                raise ValueError(f'Unsupported type {typ} for output {real_name}')
 
     def set_input_task(self, task):
         """

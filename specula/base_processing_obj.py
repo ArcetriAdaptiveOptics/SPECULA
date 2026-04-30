@@ -60,13 +60,6 @@ class BaseProcessingObj(BaseTimeObj):
         if self.target_device_idx >= 0:
             self._target_device.use()
 
-    def connection_callback(self, name, type):
-        '''
-        This method is called by the main Simul object when a new connection is going made to this processing object.
-        It can be used to perform any necessary setup for the new connection, such as allocating memory for remote inputs or outputs.
-        '''
-        pass
-
     def addRemoteOutput(self, name, remote_output):
         self.remote_outputs[name].append(remote_output)
 
