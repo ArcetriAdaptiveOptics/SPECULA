@@ -455,7 +455,7 @@ class AtmoPropagation(BaseProcessingObj):
         # Apply pre-computed chromatic lateral displacement.
         # Dispersion always occurs along the elevation axis (typically the Y-axis).
         # We assume the zenith-pointing direction maps to [0, 1] in pixel coordinates.
-        chromatic_shift_px = self.chromatic_shifts_m.get(layer, 0.0) / layer.pixel_pitch
+        chromatic_shift_px = self.chromatic_shifts_m[source].get(layer, 0.0) / layer.pixel_pitch
         if chromatic_shift_px != 0.0:
             elevation_vector = np.array([0.0, 1.0])
             pixel_position = pixel_position + chromatic_shift_px * elevation_vector
