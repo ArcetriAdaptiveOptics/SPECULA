@@ -72,18 +72,6 @@ class CiaoCiaoSlopec(Slopec):
                          precision=precision,
                          **kwargs)
 
-        if pupil_mask is not None:
-            mask = self.to_xp(pupil_mask.A, dtype=self.dtype) > 0.5
-            if self.diffRotAngleInDeg != 0.0:
-                interp = Interp2D(mask.shape, mask.shape,
-                                  rotInDeg=self.diffRotAngleInDeg,
-                                  dtype=self.dtype, xp=self.xp)
-                rotated = interp.interpolate(mask.astype(self.dtype)) > 0.5
-                mask = mask & rotated
-            self._pupil_mask_xp = mask
-        else:
-            self._pupil_mask_xp = None
-
     @classmethod
     def input_names(cls):
         return {'in_pixels': InputDesc(Pixels, 'Input interferogram pixel data from detector')}
@@ -127,7 +115,7 @@ class CiaoCiaoSlopec(Slopec):
                 rotate_interp = Interp2D(
                     shape,
                     shape,
-                    rotInDeg=self.diffRotAngleInDeg,
+                    rotInDeg=-self.diffRotAngleInDeg, # Negative angle for PASSATA compatibility
                     dtype=self.dtype,
                     xp=self.xp,
                 )
