@@ -15,6 +15,7 @@ from specula.lib.utils import import_class, get_type_hints, remove_suffix, resol
 from specula.calib_manager import CalibManager
 from specula.processing_objects.data_source import DataSource
 from specula.processing_objects.data_store import DataStore
+from specula.processing_objects.data_buffer import DataBuffer
 from specula.connections import InputList, InputValue
 from specula.simul_diagram import SimulDiagram
 
@@ -598,7 +599,7 @@ class Simul():
                     # Not supported for DataStore and DataSource, which have a special handling of their inputs and outputs
                     output = self.split_output(single_output_name)
                     if hasattr(self.objs[output.obj_name], 'connection_callback') and \
-                        not self.all_objs_classes[dest_object] in (DataStore, DataSource):
+                        not self.all_objs_classes[dest_object] in (DataStore, DataSource, DataBuffer):
 
                         output_type = self.all_objs_classes[dest_object].input_names()[input_name].type
                         self.objs[output.obj_name].connection_callback(output.output_key, output_type)
