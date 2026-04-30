@@ -344,8 +344,8 @@ class AtmoPropagation(BaseProcessingObj):
         atmospheric pressure profile to compute the exact lateral shift using the 
         Devaney 2024 plane-parallel equations (Eq. 1 and Eq. 6).
 
-        The result is stored in :attr:`chromatic_shifts_m` as a **dict keyed by
-        Layer object**, containing the signed lateral displacement in metres.
+        The result is stored in self.chromatic_shifts_m as a **dict keyed by
+        Source and Layer objects**, containing the signed lateral displacement in metres.
         Common layers (pupil stop, DM, etc.) are not included and will
         implicitly receive a zero shift in the propagation code.
 

@@ -65,7 +65,6 @@ class Source(BaseDataObj):
         self.zero_point = zero_point
         self.band = band
         self.error_coord = error_coord
-        self.chromatic_shifts_m = {}
 
     def get_fits_header(self):
         hdr = fits.Header()
