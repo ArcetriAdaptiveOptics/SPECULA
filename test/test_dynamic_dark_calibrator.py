@@ -164,3 +164,26 @@ class TestDynamicDarkCalibrator(unittest.TestCase):
         calibrator.check_ready(42)
 
         assert calibrator.darkframe.pixels.sum() == 0
+
+
+    @cpu_and_gpu
+    def test_negative_number_of_frames(self, target_device_idx, xp):
+        """Test that negative number of frames log an error and do not change the current nframes value"""
+
+        calibrator = DynamicDarkCalibrator(
+            data_dir="/tmp",
+            nframes=10,
+            target_device_idx=target_device_idx
+        )
+
+        dummy_pixels = Pixels(10,10)
+        calibrator.inputs['in_pixels'].set(dummy_pixels)
+
+        # Negative integer input
+        nframes = IntValue(value=-5)
+        calibrator.inputs['in_nframes'].set(nframes)
+        with self.assertLogs(calibrator.logger.logger, level='ERROR') as log:
+            nframes.generation_time = 42
+            calibrator.inputs['in_nframes'].set(nframes)
+            calibrator.check_ready(42)
+    

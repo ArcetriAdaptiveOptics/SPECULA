@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 
 from specula.processing_objects.specula_input import SpeculaInput
-from specula.scalar_values import IntValue
+from specula.scalar_values import FloatValue, IntValue, StringValue
 
 
 def _dummy_task(q):
@@ -15,14 +15,16 @@ def _dummy_task(q):
 class TestSpeculaInput:
 
     def test_outputs_created(self):
-        output_list = ["a", "b"]
+        output_list = ["a", "b", "c"]
         obj = SpeculaInput(output_list=output_list)
-        for output_name in output_list:
-            obj.connection_callback(output_name, IntValue)
+        obj.connection_callback("a", IntValue)
+        obj.connection_callback("b", FloatValue)
+        obj.connection_callback("c", StringValue)
 
         assert "a" in obj.outputs
         assert "b" in obj.outputs
-        assert len(obj.outputs) == 2
+        assert "c" in obj.outputs
+        assert len(obj.outputs) == 3
 
     def test_trigger_updates_output_value(self):
         output_list = ["x"]
