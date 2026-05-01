@@ -77,33 +77,35 @@ class Simul():
     def output_owner(self, output_name):
         return split_output(output_name).obj_name
 
-    def output_key(self, output_name):
-        return split_output(output_name).output_key
+    def split_output(self, output_name, get_ref=False, use_inputs=False):
+        output = split_output(output_name)
+        if get_ref:
+            obj_name, output_key, *_ = output
 
-    def output_ref(self, output_name, use_inputs=False):
+            if not obj_name in self.objs:
+                if obj_name in self.remote_objs_ranks:
+                    ref = None
+                else:
+                    raise ValueError(f'Object {obj_name} does not exist anywhere')
+            elif output_key is None:
+                ref = self.objs[obj_name]
+            else:
+                if use_inputs:
+                    array_to_check, display_str = self.objs[obj_name].local_inputs, 'input'
+                else:
+                    array_to_check, display_str = self.objs[obj_name].outputs, 'output'
+                if not output_key in array_to_check:
+                    raise ValueError(f'Object {obj_name} does not define an {display_str} with name {output_key}')
+                else:
+                    ref = array_to_check[output_key]
+            output = output._replace(ref = ref)
+        return output
 
-        obj_name, output_key, *_ = split_output(output_name)
-
-        if not obj_name in self.objs:
-            if obj_name in self.remote_objs_ranks:
-                ref = None
-            else:
-                raise ValueError(f'Object {obj_name} does not exist anywhere')
-        elif output_key is None:
-            ref = self.objs[obj_name]
-        else:
-            if use_inputs:
-                array_to_check, display_str = self.objs[obj_name].local_inputs, 'input'
-            else:
-                array_to_check, display_str = self.objs[obj_name].outputs, 'output'
-            if not output_key in array_to_check:
-                raise ValueError(f'Object {obj_name} does not define an {display_str} with name {output_key}')
-            else:
-                ref = array_to_check[output_key]
-        return ref
+    def output_ref(self, output_name):
+        return self.split_output(output_name, get_ref=True).ref
 
     def input_ref(self, input_name):
-        return self.output_ref(input_name, use_inputs=True)
+        return self.split_output(input_name, get_ref=True, use_inputs=True).ref
 
     def output_delay(self, output_name):
         return split_output(output_name).delay
@@ -231,13 +233,12 @@ class Simul():
                 'input_list' in pars['inputs']):
 
                 for single_output_name in pars['inputs']['input_list']:
-                    output = split_output(single_output_name)
-                    output_ref = self.output_ref(single_output_name)
+                    output = self.split_output(single_output_name, get_ref=True)
                     if key in self.objs:
-                        if type(output_ref) is list:
-                            self.objs[key].inputs[output.input_name] = InputList(type=type(output_ref[0]))
+                        if type(output.ref) is list:
+                            self.objs[key].inputs[output.input_name] = InputList(type=type(output.ref[0]))
                         else:
-                            self.objs[key].inputs[output.input_name] = InputValue(type=type(output_ref))
+                            self.objs[key].inputs[output.input_name] = InputValue(type=type(output.ref))
                     params[key]['inputs'][output.input_name] = single_output_name
                 del params[key]['inputs']['input_list']
 
@@ -483,13 +484,12 @@ class Simul():
         2. local output to remote input - use addRemoteOutput() to send the output to the remote object
         3. remote output to local input - use set_remote_rank() to set the remote rank of the input
         '''
-        output = split_output(output_name)
-        output_ref = self.output_ref(output_name)
+        output = self.split_output(output_name, get_ref=True)
         local_dest_object = dest_object in self.objs.keys()
 
-        send = output_ref is not None and local_dest_object is False
-        recv = output_ref is None and local_dest_object is True
-        local = output_ref is not None and local_dest_object is True
+        send = output.ref is not None and local_dest_object is False
+        recv = output.ref is None and local_dest_object is True
+        local = output.ref is not None and local_dest_object is True
         if send or recv:
             tag = computeTag(output.obj_name, dest_object, output.output_key, input_name)
 
@@ -502,7 +502,7 @@ class Simul():
                                                             tag=tag)
         if local:
             self.logger.mpi_debug(f'CONNECT Connecting local output {output.obj_name}.{output.output_key} to local input {dest_object}.{input_name}')
-            self.objs[dest_object].inputs[input_name].append(output_ref)
+            self.objs[dest_object].inputs[input_name].append(output.ref)
 
         if send:
             self.objs[output.obj_name].addRemoteOutput(output.output_key, (self.remote_objs_ranks[dest_object], 
@@ -550,8 +550,7 @@ class Simul():
                 for single_output_name in output_name if isinstance(output_name, list) else [output_name]:
                     self.logger.mpi_debug(f'List input')
 
-                    output = split_output(single_output_name)
-                    output_ref = self.output_ref(single_output_name)
+                    output = self.split_output(single_output_name, get_ref=True)
 
                     if self.diagram:
                         self.diagram.add_connection(start = output.obj_name,
@@ -560,7 +559,7 @@ class Simul():
                                                     end_label = input_name)
 
                     # Remote-to-remote: nothing to do
-                    if not local_dest_object and output_ref is None:
+                    if not local_dest_object and output.ref is None:
                         continue
                     
                     try:
@@ -594,7 +593,7 @@ class Simul():
 
         objnames = []
         for _, fullname in self.iterate_inputs(datastore_pars):
-            output = split_output(fullname)
+            output = self.split_output(fullname)
             data_source_pars['outputs'].append(output.input_name)
             data_source_outputs[output.obj_name+'.'+output.output_key] = output.input_name
             objnames.append(output.obj_name)
@@ -673,7 +672,7 @@ class Simul():
 
             # Add all inputs
             for k, _input in self.iterate_inputs(params[key]):
-                desc = split_output(_input)
+                desc = self.split_output(_input)
                 # Use the complete key for lookup
                 complete_key = f"{desc.obj_name}.{desc.output_key}"
                 if complete_key in datastore_outputs:
