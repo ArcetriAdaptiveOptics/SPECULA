@@ -7,6 +7,7 @@ import specula
 specula.init(-1)  # Ensure Specula is initialized before importing data objects
                   # -1 means CPU (we do not need GPU for plotting)
 from specula.data_objects.ifunc import IFunc
+from specula.data_objects.m2c import M2C
 from specula.lib.plot_utils import display_ifunc_2d
 
 def main():
@@ -43,6 +44,12 @@ def main():
         action="store_true",
         help="Flag to hide axes ticks in the plot."
     )
+    parser.add_argument(
+        "--m2c-file",
+        type=str,
+        default=None,
+        help="Optional path to an M2C FITS file. If provided, M2C is applied before plotting."
+    )
 
     # Parse the arguments from the command line
     args = parser.parse_args()
@@ -56,11 +63,19 @@ def main():
         print(f"Loading IFunc from: {args.filename}...")
         my_ifunc = IFunc.restore(args.filename)
 
+        my_m2c = None
+        if args.m2c_file is not None:
+            if not os.path.isfile(args.m2c_file):
+                raise FileNotFoundError(f"The M2C file '{args.m2c_file}' does not exist.")
+            print(f"Loading M2C from: {args.m2c_file}...")
+            my_m2c = M2C.restore(args.m2c_file)
+
         # 4. Display the IFunc
         print(f"Plotting grid of {args.cols}x{args.cols} modes starting"
               f" from mode {args.start_mode}...")
         display_ifunc_2d(
             ifunc_obj=my_ifunc,
+            m2c_obj=my_m2c,
             id_mode_starting=args.start_mode,
             n_raw_col=args.cols,
             do_not_show_ticks=args.no_ticks
