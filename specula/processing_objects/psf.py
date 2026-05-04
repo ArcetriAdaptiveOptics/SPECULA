@@ -63,7 +63,6 @@ class PSF(BaseProcessingObj):
                  ee_radius_in_lambda_d=None,
                  target_device_idx: int = None,
                  precision: int = None,
-                 verbose:bool = True,
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
@@ -82,7 +81,6 @@ class PSF(BaseProcessingObj):
         self.compute_profile_metrics = compute_profile_metrics
         self.compute_metrics_in_trigger = compute_metrics_in_trigger
         self.ee_radius_in_lambda_d = ee_radius_in_lambda_d
-        self.verbose = verbose
 
         self.sr = BaseValue(target_device_idx=self.target_device_idx,
                             precision=precision)
@@ -189,8 +187,7 @@ class PSF(BaseProcessingObj):
         self.sr.value = self.psf.value[self.out_size[0] // 2, \
                                        self.out_size[1] // 2] / self.ref.i[self.out_size[0] // 2, \
                                        self.out_size[1] // 2]
-        if self.verbose:
-            self.logger.info(f'SR at {int(self.wavelengthInNm)}nm : {self.sr.value}')
+        self.logger.info(f'SR at {int(self.wavelengthInNm)}nm : {self.sr.value}')
 
     def _compute_radial_profile_data(self, psf, peak:float=None):
         if psf is None:
