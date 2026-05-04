@@ -217,7 +217,7 @@ def display_mcao_geom(diam, no_gs, gs_height, dm_height, gs_fov_diam_asec,
         subaps_size = gs_patch_diam / no_subaps
         sa_shift = gs_patch_shift / subaps_size
 
-    if verbose:
+    if verbose: # pragma: no cover
         print(f'LGS angle:                   {beta_angle:.4f}asec')
         print(f'meta diameter:               {meta_diam:.4f}m')
         print(f'gs patch diameter:           {gs_patch_diam:.4f}m')
@@ -371,12 +371,6 @@ def display_mcao_geom(diam, no_gs, gs_height, dm_height, gs_fov_diam_asec,
         'sci_diam': sci_diam,
         'sci_patch_shift': sci_patch_shift,
         'sci_meta_diam': sci_meta_diam,
-        # Backward-compatible aliases.
-        'lgs_patch_diam': gs_patch_diam,
-        'lgs_patch_shift': gs_patch_shift,
-        'lgs_meta_diam': gs_meta_diam,
-        'lgs_fov_dm': gs_fov_dm,
-        'lgs_angle': beta_angle,
         'subaps_size': subaps_size,
         'sa_shift': sa_shift,
         'gs_centers': gs_centers,
