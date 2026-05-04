@@ -191,7 +191,7 @@ class AtmoPropagation(BaseProcessingObj):
 
         return [H_in, H_ASM, H_out]
 
-    def _build_proj_heights(self):
+    def _build_layer_heights(self):
         """Build a dict mapping each layer to its projected height.
 
         Atmospheric layers are scaled by airmass (their turbulence screens are
@@ -205,22 +205,24 @@ class AtmoPropagation(BaseProcessingObj):
         for layer in self.common_layer_list:
             self.proj_height[layer] = float(layer.height)
 
-    def _source_proj_height(self, source):
-        """Return the projected (airmass-scaled) height of a source.
+    def _build_source_heights(self):
+        """Build a dict mapping each source to its projected height.
 
-        For a finite-height source (e.g. LGS) the slant distance is
-        height * airmass.  For an infinite source (NGS star) the height
-        remains infinite.
+        For finite-height sources (e.g. LGS), slant path length is
+        height * airmass. For infinite sources (NGS), height remains infinite.
         """
-        if np.isinf(source.height):
-            return source.height
-        return float(source.height) * self.airmass
+        self.source_height = {}
+        for source in self.source_dict.values():
+            if np.isinf(source.height):
+                self.source_height[source] = source.height
+            else:
+                self.source_height[source] = float(source.height) * self.airmass
 
     def doFresnel_setup(self):
         layer_list = self.common_layer_list + self.atmo_layer_list
         height_layers = np.array([self.proj_height[layer] for layer in layer_list], dtype=self.dtype)
 
-        source_height = self._source_proj_height(self.source_dict[list(self.source_dict)[0]])
+        source_height = self.source_height[self.source_dict[list(self.source_dict)[0]]]
         if np.isinf(source_height):
             raise ValueError('Fresnel propagation to infinity not supported.')
 
@@ -249,8 +251,8 @@ class AtmoPropagation(BaseProcessingObj):
 
     @classmethod
     def input_names(cls):
-        return {'atmo_layer_list': InputDesc(Layer, 'List of atmospheric turbulence layers (optional)'),
-                'common_layer_list': InputDesc(Layer, 'List of common turbulence layers shared across sources')}
+        return {'atmo_layer_list': InputDesc(Layer, 'List of atmospheric turbulence layers (optional). Altitudes scaled by airmass.'),
+                'common_layer_list': InputDesc(Layer, 'List of common layers shared across sources. Altitudes not scaled.')}
 
     @classmethod
     def output_names(cls):
@@ -437,7 +439,7 @@ class AtmoPropagation(BaseProcessingObj):
             self.compute_chromatic_shifts(source, self.atmo_layer_list)
 
             for layer in layer_list:
-                diff_height = self._source_proj_height(source) - self.proj_height[layer]
+                diff_height = self.source_height[source] - self.proj_height[layer]
                 chromatic_shift_m = self.chromatic_shifts_m[source].get(layer, 0.0)
                 if (self.proj_height[layer] == 0 or (np.isinf(source.height) and source.r == 0)) and \
                                 chromatic_shift_m == 0.0 and \
@@ -466,7 +468,7 @@ class AtmoPropagation(BaseProcessingObj):
         half_pixel_layer -= cpuArray(layer.shiftXYinPixel)
 
         lh = self.proj_height[layer]            # projected layer height
-        sh = self._source_proj_height(source)   # projected source height
+        sh = self.source_height[source]         # projected source height
 
         if self.pupil_position is not None and pixel_layer > self.pixel_pupil_size and np.isinf(source.height):
             pixel_position_s = source.r * lh / layer.pixel_pitch
@@ -543,7 +545,8 @@ class AtmoPropagation(BaseProcessingObj):
 
         self.shiftXY_cond = {layer: np.any(layer.shiftXYinPixel) for layer in self.atmo_layer_list + self.common_layer_list}
         self.magnification_list = {layer: max(layer.magnification, 1.0) for layer in self.atmo_layer_list + self.common_layer_list}
-        self._build_proj_heights()
+        self._build_layer_heights()
+        self._build_source_heights()
 
         self._block_size = {}
         for layer in self.atmo_layer_list + self.common_layer_list:
