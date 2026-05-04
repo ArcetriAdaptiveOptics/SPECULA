@@ -58,6 +58,7 @@ class PsfCoronagraph(PSF):
                  ee_radius_in_lambda_d=None,
                  target_device_idx: int = None,
                  precision: int = None,
+                 verbose: bool = False,
                 ):
         super().__init__(
             simul_params=simul_params,
@@ -70,6 +71,7 @@ class PsfCoronagraph(PSF):
             ee_radius_in_lambda_d=ee_radius_in_lambda_d,
             target_device_idx=target_device_idx,
             precision=precision,
+            verbose=verbose,
         )
         self.use_average_field = use_average_field
 
@@ -199,8 +201,9 @@ class PsfCoronagraph(PSF):
             normalize=True
         )
 
-        self.logger.info(f'Coronagraph peak suppression: '
-            f'{self.coronagraph_psf.value.max()/self.psf.value.max():.2e}')
+        if self.verbose:
+            self.logger.info(f'Coronagraph peak suppression: '
+                f'{self.coronagraph_psf.value.max()/self.psf.value.max():.2e}')
 
     def post_trigger(self):
         super().post_trigger()
@@ -215,6 +218,7 @@ class PsfCoronagraph(PSF):
             self._set_radial_profile_output(
                 self.coronagraph_psf.value,
                 self.coronagraph_psf_profile,
+                norm_peak=self.psf.value.max()
             )
 
     def finalize(self):
@@ -228,10 +232,12 @@ class PsfCoronagraph(PSF):
                 self._set_radial_profile_output(
                     self.int_coronagraph_psf.value,
                     self.int_coronagraph_psf_profile,
+                    norm_peak=1.0, # do NOT normalize to 1
                 )
                 self._set_radial_profile_output(
                     self.std_coronagraph_psf.value,
                     self.std_coronagraph_psf_profile,
+                    norm_peak=1.0, # do NOT normalize to 1
                 )
 
         self.int_coronagraph_psf.generation_time = self.current_time

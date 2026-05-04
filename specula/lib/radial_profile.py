@@ -79,11 +79,11 @@ def compute_fwhm_from_profile(profile, radial_distance=None, xp=np, dtype=np.flo
     if radial_distance.ndim != 1 or radial_distance.size != profile.size:
         raise ValueError('radial_distance must be a 1D array with the same size as profile')
     if profile.size == 0:
-        return dtype(np.nan)
+        return np.nan
 
     peak_value = xp.max(profile)
     if float(peak_value) <= 0.0:
-        return dtype(0.0)
+        return 0.0
 
     # Find the first bin where the profile drops below half the peak value
     half_maximum = peak_value / dtype(2.0)
@@ -104,7 +104,7 @@ def compute_fwhm_from_profile(profile, radial_distance=None, xp=np, dtype=np.flo
     else:
         # Linear interpolation to find the radius at half maximum
         half_radius = r1 + (half_maximum - p1) * (r2 - r1) / (p2 - p1)
-    return dtype(2.0) * dtype(half_radius)
+    return 2.0 * half_radius
 
 
 def compute_encircled_energy(profile, n_px_in_radial_bin=None, radial_distance=None,
