@@ -12,14 +12,14 @@ from specula import cpuArray, np
 
 class TestPsfCoronagraph(unittest.TestCase):
 
-    def get_basic_setup(self, target_device_idx, pixel_pupil=None):
+    def get_basic_setup(self, target_device_idx, pixel_pupil=16):
         """Create basic setup for coronagraph tests"""
         pixel_pitch = 0.05
         wavelengthInNm = 500.0
 
         simul_params = SimulParams(pixel_pupil=pixel_pupil, pixel_pitch=pixel_pitch)
 
-        ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1,
+        ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1.0,
                            target_device_idx=target_device_idx)
 
         return simul_params, ef, wavelengthInNm
@@ -59,7 +59,7 @@ class TestPsfCoronagraph(unittest.TestCase):
 
         coro_psf = psf_coro.calc_coronagraph_psf(ef.phaseInNm,
                                                  ef.A,
-                                                 normalize=True)
+                                                 normalize=False)
 
         self.assertEqual(coro_psf.shape, ef.A.shape)
         self.assertAlmostEqual(float(xp.max(coro_psf)), 0.0, places=8)
@@ -87,8 +87,8 @@ class TestPsfCoronagraph(unittest.TestCase):
         psf_noavg.inputs['in_ef'].set(ef)
         psf_noavg.setup()
 
-        coro_avg = psf_avg.calc_coronagraph_psf(ef.phaseInNm, ef.A, normalize=True)
-        coro_noavg = psf_noavg.calc_coronagraph_psf(ef.phaseInNm, ef.A, normalize=True)
+        coro_avg = psf_avg.calc_coronagraph_psf(ef.phaseInNm, ef.A, normalize=False)
+        coro_noavg = psf_noavg.calc_coronagraph_psf(ef.phaseInNm, ef.A, normalize=False)
 
         self.assertEqual(coro_avg.shape, coro_noavg.shape)
         self.assertAlmostEqual(float(xp.max(coro_avg)), 0.0, places=8)
