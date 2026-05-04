@@ -1,7 +1,7 @@
+
 from specula.processing_objects.app_coronagraph import APPCoronagraph
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.make_mask import make_mask
-
 
 
 class PAPLCoronagraph(APPCoronagraph):
