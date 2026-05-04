@@ -1,7 +1,10 @@
+from specula.log import get_specula_logger
 
 from specula.processing_objects.app_coronagraph import APPCoronagraph
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.make_mask import make_mask
+from specula import RAD2ASEC
+
 
 
 class PAPLCoronagraph(APPCoronagraph):
@@ -30,7 +33,7 @@ class PAPLCoronagraph(APPCoronagraph):
                  precision: int = None
                 ):
 
-        if min(innerStopAsRatioOfPupil, outerStopAsRatioOfPupil) < 0.0 or outerStopAsRatioOfPupil < innerStopAsRatioOfPupil:
+        if min(innerStopAsRatioOfPupil,outerStopAsRatioOfPupil) < 0.0 or outerStopAsRatioOfPupil < innerStopAsRatioOfPupil:
             raise ValueError(f'Invalid pupil stop sizes: inner size is'
                              f' {innerStopAsRatioOfPupil*1e+2:1.0f}% of pupil,'
                              f' outer size is {outerStopAsRatioOfPupil*1e+2:1.0f}% of pupil')
