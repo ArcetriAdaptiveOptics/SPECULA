@@ -630,3 +630,76 @@ class TestAtmoPropagation(unittest.TestCase):
         mean_phase = np.mean(output_phase)
         assert not np.isclose(mean_phase, 50.0, atol=1e-3), \
             f"Phase output should be shifted chromatically, but got mean phase {mean_phase}"
+
+    @cpu_and_gpu
+    def test_airmass_not_applied_to_common_layers(self, target_device_idx, xp):
+        """Test that airmass does NOT affect the interpolation of common layers.
+
+        A common layer (e.g. a DM conjugated at altitude) must produce the same
+        output regardless of the zenith angle, because its conjugation height is
+        a physical property of the instrument, not a projected atmospheric height.
+        Conversely, an atmospheric layer must produce a different output when the
+        zenith angle changes (pixel_position scales with airmass).
+        """
+        pixel_pupil = 100
+        pixel_pitch = 0.1
+        layer_height = 10000.0  # metres
+        dim_layer = 160  # large enough to avoid out-of-FoV for the tested offsets
+
+        # Off-axis source: small offset so the interpolation shifts noticeably
+        source_r_arcsec = 5.0
+        source_phi_deg = 0.0
+
+        # Build a phase ramp along x so any lateral shift is numerically measurable
+        x_ramp = xp.tile(xp.arange(dim_layer, dtype=float), (dim_layer, 1))
+
+        def _run(zenith_deg, is_atmo):
+            simul_params = SimulParams(pixel_pupil, pixel_pitch, zenithAngleInDeg=zenith_deg)
+            layer = Layer(
+                dimx=dim_layer, dimy=dim_layer,
+                pixel_pitch=pixel_pitch,
+                height=layer_height,
+                target_device_idx=target_device_idx
+            )
+            layer.A = xp.ones((dim_layer, dim_layer))
+            layer.phaseInNm = x_ramp.copy()
+            layer.generation_time = 1
+
+            source = Source(
+                polar_coordinates=[source_r_arcsec, source_phi_deg],
+                magnitude=8, wavelengthInNm=750,
+                target_device_idx=target_device_idx
+            )
+            prop = AtmoPropagation(
+                simul_params,
+                source_dict={'src': source},
+                target_device_idx=target_device_idx
+            )
+            if is_atmo:
+                prop.inputs['atmo_layer_list'].set([layer])
+                prop.inputs['common_layer_list'].set([])
+            else:
+                prop.inputs['atmo_layer_list'].set([])
+                prop.inputs['common_layer_list'].set([layer])
+
+            loop = LoopControl()
+            loop.add(prop, idx=0)
+            loop.run(run_time=1, dt=1, t0=0)
+            return cpuArray(prop.outputs['out_src_ef'].phaseInNm)
+
+        phase_common_z0  = _run(zenith_deg=0.0,  is_atmo=False)
+        phase_common_z45 = _run(zenith_deg=45.0, is_atmo=False)
+        phase_atmo_z0    = _run(zenith_deg=0.0,  is_atmo=True)
+        phase_atmo_z45   = _run(zenith_deg=45.0, is_atmo=True)
+
+        diff_common = np.max(np.abs(phase_common_z45 - phase_common_z0))
+        diff_atmo   = np.max(np.abs(phase_atmo_z45   - phase_atmo_z0))
+
+        assert diff_common < 1e-6, (
+            f"Common layer output must be invariant to zenith angle, "
+            f"but max diff = {diff_common:.3e}"
+        )
+        assert diff_atmo > 1e-3, (
+            f"Atmo layer output must change with zenith angle (airmass effect), "
+            f"but max diff = {diff_atmo:.3e}"
+        )
