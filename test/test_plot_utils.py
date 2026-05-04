@@ -236,7 +236,7 @@ class TestPlotUtils(unittest.TestCase):
         self.assertIsNotNone(out['ngs_meta_diam'])
         self.assertIsNotNone(out['sci_meta_diam'])
         self.assertTrue(out['sci_square'])
-        self.assertTrue(np.isfinite(out['lgs_fov_dm']))
+        self.assertTrue(np.isfinite(out['gs_fov_dm']))
 
         matplotlib.pyplot.close('all')
 
