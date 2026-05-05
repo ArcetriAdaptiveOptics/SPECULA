@@ -59,7 +59,7 @@ class CiaoCiaoSensor(BaseProcessingObj):
         Relative flux of the input branch in [0, 1].
         The rotated branch uses (1 - channel_flux).
         Default is 0.5 (balanced channels).
-    normalize_flux : bool [1], optional
+    normalize_flux : bool
         If True, normalize output intensity to input photons
         ``S0 * masked_area``. Default is True.
     target_device_idx : int [1], optional

@@ -33,9 +33,9 @@ class PupilstopController(BaseProcessingObj):
         Parameters
         ----------
         
-        pupilstop: Pupilstop [1]
+        pupilstop: Pupilstop
             The Pupilstop object to be controlled and updated.
-        threshold_mask: bool [1], optional
+        threshold_mask: bool, optional
             If True, the updated mask will be thresholded to binary values based on mask_threshold 
             (default: True).
         mask_threshold: float [1], optional

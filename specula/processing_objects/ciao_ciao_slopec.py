@@ -42,7 +42,7 @@ class CiaoCiaoSlopec(Slopec):
             Coordinates of the sideband center in the FFT.
         window_sigma_in_pix : float [pixels]
             Width of the filtering window (Top Flat Gaussian).
-        pupil_mask : Pupilstop [1]
+        pupil_mask : Pupilstop
             Pupil mask defining the valid area. Its ``.A`` amplitude array is
             used. The effective mask is the intersection
             of this mask with a copy rotated by ``diffRotAngleInDeg``, mirroring

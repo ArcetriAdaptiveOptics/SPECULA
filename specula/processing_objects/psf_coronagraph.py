@@ -18,14 +18,14 @@ class PsfCoronagraph(PSF):
 
     Parameters
     ----------
-    simul_params : SimulParams [1]
+    simul_params : SimulParams
         Simulation parameters object.
     wavelengthInNm : float [nm]
         Wavelength at which to compute the PSF [nm].
     nd : float [1], optional
         Numerical density of the PSF (pixels per lambda/D). If None, it is calculated
         based on the input ElectricField and pixel size.
-    use_average_field : bool [1], optional
+    use_average_field : bool
         If True, the average electric field over the pupil is subtracted to compute the coronagraph PSF.
         If False, the perfect coronagraph formula is applied for the computation. Default is True (average field removal).
         The perfect coronagraph formula is Equation (1) in Cavarroc et al. 2006
@@ -34,10 +34,10 @@ class PsfCoronagraph(PSF):
         based on the input ElectricField and numerical density.
     start_time : float [s], optional
         Time (in seconds) after which to start integrating PSF and SR. Default is 0.0.
-    compute_profile_metrics : bool [1], optional
+    compute_profile_metrics : bool
         If True, compute coronagraph radial-profile outputs for the instantaneous,
         integrated and standard-deviation coronagraph PSFs.
-    compute_metrics_in_trigger : bool [1], optional
+    compute_metrics_in_trigger : bool
         If True, update those metrics after each trigger as well.
     ee_radius_in_lambda_d : float or array-like [lambda/D], optional
         Radius or radii in units of lambda/D at which to return the encircled energy.

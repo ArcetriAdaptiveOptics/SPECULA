@@ -10,13 +10,13 @@ class IirFilter(BaseFilter):
     
     Parameters
     ----------
-    simul_params : SimulParams [1]
+    simul_params : SimulParams
         Simulation parameters containing time step information
-    iir_filter_data : IirFilterData [1]
+    iir_filter_data : IirFilterData
         Filter coefficients (numerator and denominator)
     delay : float [1], optional
         Delay in frames to apply to the output (default: 0)
-    integration : bool [1], optional
+    integration : bool
         If False, disables feedback terms (converts IIR to FIR).
         This is done by masking the denominator coefficients while
         preserving the normalizing factor. (default: True)

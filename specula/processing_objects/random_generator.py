@@ -8,7 +8,7 @@ class RandomGenerator(BaseGenerator):
     Generates random signals (normal or uniform distribution).
     
     Parameters:
-    - distribution (str) [1]: 'NORMAL' or 'UNIFORM' (default: 'NORMAL')
+    - distribution (str): 'NORMAL' or 'UNIFORM' (default: 'NORMAL')
     - amp (float) [1]: Amplitude of the random signal. For 'NORMAL', this is the standard deviation;
            for 'UNIFORM', this is the width of the distribution. (default: None)
     - constant (float) [1]: A constant offset added to the random signal (default: 0.0)
@@ -18,7 +18,7 @@ class RandomGenerator(BaseGenerator):
     - modal_rms (float) [1]: Desired RMS value for the modes (mutually exclusive with 'amp') (default: None)
     - forced_zero_modes (int) [1]: Number of initial modes to force to 0.0
                          (default: 0, must be <= output_size)
-    - scaling_law (str) [1]: The relationship between amplitude and radial order 'n' (options: 'CONSTANT',
+    - scaling_law (str): The relationship between amplitude and radial order 'n' (options: 'CONSTANT',
                    'INVERSE', 'LINEAR') (default: 'INVERSE')
     - target_device_idx (int) [1]: Index of the target device for computation (e.g., GPU) (default: None)
     - precision (int) [1]: Numerical precision for the output (e.g., 32 or 64) (default: None)

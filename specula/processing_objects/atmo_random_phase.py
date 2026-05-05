@@ -29,11 +29,11 @@ class AtmoRandomPhase(BaseProcessingObj):
         """
         Parameters
         ----------
-        simul_params : SimulParams [1]
+        simul_params : SimulParams
             Simulation parameters object containing pupil size, pixel pitch, zenith angle, etc.
         L0 : float [m], optional
             Outer scale of turbulence in meters, by default 1.0
-        data_dir : str [1]
+        data_dir : str
             Directory path for storing/loading phase screen data (automatically set by simul.py).
         source_dict : dict [1], optional
             Dictionary of sources for the atmospheric phase screens.

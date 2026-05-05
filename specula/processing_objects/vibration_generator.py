@@ -102,7 +102,7 @@ class VibrationGenerator(BaseGenerator):
 
         Parameters
         ----------
-        simul_params: SimulParams object [1]
+        simul_params: SimulParams object
             main simulation parameters. Only the *total_time* and *time_step* members are accessed
         nmodes: int [1]
             number of modes to generate
@@ -114,7 +114,7 @@ class VibrationGenerator(BaseGenerator):
             will be replicated for all modes. If 2d, modes must be on the second index: [freq, mode]
         seed: int [1], optional
             generation seed for first mode, will be increment by 1 for each additonal mode
-        start_from_zero: bool [1], optional
+        start_from_zero: bool, optional
             if True, first data point for each mode is zero. Defaults to False
         '''
         super().__init__(

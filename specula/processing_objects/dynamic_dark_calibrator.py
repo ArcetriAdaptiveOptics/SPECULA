@@ -75,13 +75,13 @@ class DynamicDarkCalibrator(BaseProcessingObj):
         """
         Parameters
         ----------
-        data_dir : str [1]
+        data_dir : str
             Directory where dark frames are saved to and loaded from.
             Usually set automatically by CalibManager.
         nframes : int [1]
             Number of frames to integrate when computing the dark frame.
             Must be greater than zero.
-        overwrite : bool [1], optional
+        overwrite : bool
             If True, overwrite existing files when saving dark frames.
             Default is False.
         target_device_idx : int [1], optional

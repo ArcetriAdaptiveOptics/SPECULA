@@ -30,7 +30,7 @@ class DataStore(BaseProcessingObj):
         """
         Parameters
         ----------
-        store_dir : str [1]
+        store_dir : str
             Base directory where data will be stored. A subdirectory with a timestamp
             will be created inside this directory to hold the data files.
         split_size : int [1], optional
@@ -39,13 +39,13 @@ class DataStore(BaseProcessingObj):
             Default is 0 (no splitting, all data in one folder).
         first_suffix : int [1], optional
             Starting suffix for split folders. Default is 0.
-        data_format : str [1], optional
+        data_format : str
             Format for saved data files. Supported values are 'fits' and 'pickle'.
             Default is 'fits'.
         start_time : float [s], optional
             Time in seconds to wait before starting to store data.
             Default is 0 (store from the beginning).
-        create_tn : bool [1], optional
+        create_tn : bool
             If True, creates a timestamped subdirectory for storing data.
             Default is True.
         downsample_factor : int [1], optional

@@ -50,18 +50,18 @@ class BaseOperation(BaseProcessingObj):
             Element-wise lower bound (applies ``maximum(result, constant_max)``).
         constant_min : float or array-like [1], optional
             Element-wise upper bound (applies ``minimum(result, constant_min)``).
-        mul : bool [1], optional
+        mul : bool
             If True, multiply the result with ``value2``.
-        div : bool [1], optional
+        div : bool
             If True, divide the result by ``value2``.
-        sum : bool [1], optional
+        sum : bool
             If True, add ``value2`` to the result.
-        sub : bool [1], optional
+        sub : bool
             If True, subtract ``value2`` from the result.
-        concat : bool [1], optional
+        concat : bool
             If True, concatenate ``value1`` and ``value2`` before applying
             constant operations.
-        value2_remap : list of int [1], optional
+        value2_remap : list of int, optional
             Optional index mapping applied to ``value2`` before the binary operation.
             Cannot be used together with ``concat``.
         target_device_idx : int [1], optional

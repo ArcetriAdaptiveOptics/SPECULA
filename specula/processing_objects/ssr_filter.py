@@ -18,13 +18,13 @@ class SsrFilter(BaseFilter):
     
     Parameters
     ----------
-    simul_params : SimulParams [1]
+    simul_params : SimulParams
         Simulation parameters
-    ssr_filter_data : SsrFilterData [1]
+    ssr_filter_data : SsrFilterData
         State-space matrices (A, B, C, D) in block-diagonal form
     delay : float [1], optional
         Output delay in frames (default: 0)
-    output_uses_new_state : bool [1], optional
+    output_uses_new_state : bool
         If True, output equation uses updated state: y[k] = C*x[k+1] + D*u[k]
         If False, output equation uses current state: y[k] = C*x[k] + D*u[k]
         (default: True, which is standard for discrete integrators)

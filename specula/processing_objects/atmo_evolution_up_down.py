@@ -39,7 +39,7 @@ class AtmoEvolutionUpDown(AtmoEvolution):
         
         Parameters
         ----------
-        simul_params : SimulParams [1]
+        simul_params : SimulParams
             Simulation parameters object containing global simulation settings.
         L0 : list [m]
             Outer scale(s) of turbulence for each layer in meters.
@@ -47,7 +47,7 @@ class AtmoEvolutionUpDown(AtmoEvolution):
             Heights of the atmospheric layers in meters (at zenith).
         Cn2 : list [1]
             Fractional Cn2 values for each layer (must sum to 1.0).
-        data_dir : str [1]
+        data_dir : str
             Directory path for storing/loading phase screen data.
         extra_delta_time_down : float or list [s], optional
             Extra time offset for downward propagation in seconds. Default is 0.

@@ -41,7 +41,7 @@ class SH(BaseProcessingObj):
         Subaperture diameter in meters
     subap_npx : int [pixels]
         Number of pixels across the subaperture on the sensor
-    squaremask : bool [1], optional
+    squaremask : bool
         If True, use a square mask in the focal plane. Default is True.
     fov_ovs_coeff : float [1], optional
         Coefficient to determine the oversampling of the FoV.
@@ -53,15 +53,15 @@ class SH(BaseProcessingObj):
         Shift of the phase in the y direction in pixels. Default is 0.
     rotAnglePhInDeg : float [deg], optional
         Rotation angle of the phase in degrees. Default is 0.
-    set_fov_res_to_turbpxsc : bool [1], optional
+    set_fov_res_to_turbpxsc : bool
         If True, set the FoV resolution to the turbulence pixel scale. Default is False.
-    laser_launch_tel : LaserLaunchTelescope [1], optional
+    laser_launch_tel : LaserLaunchTelescope
         If provided, use the laser launch telescope parameters for kernel generation.
         Default is None.
     subap_rows_slice : slice [1], optional
         Slice object to specify which rows of subapertures to process.
         Default is None (process all rows).
-    data_dir : str [1], optional
+    data_dir : str
         Directory for data files needed by the kernel object. Default is "".
         Set by simul object if not provided.
     target_device_idx : int [1], optional

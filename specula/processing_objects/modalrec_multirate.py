@@ -27,10 +27,10 @@ class ModalrecMultirate(BaseProcessingObj):
         """
         Parameters
         ----------
-        recmat_list : list of Recmat [1]
+        recmat_list : list of Recmat
             Ordered list of reconstruction matrices, one for each validity state.
             Matrices are expected to use the full sensor-vector geometry.
-        validity_masks : list of list of bool [1]
+        validity_masks : list of list of bool
             Boolean masks associated with each matrix in `recmat_list`, using the
             same ordering.
         n_modes_total : int [1]

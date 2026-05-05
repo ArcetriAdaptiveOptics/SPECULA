@@ -38,7 +38,7 @@ class ModulatedPyramid(BaseProcessingObj):
     
     Parameters
     ----------
-    simul_params : SimulParams [1]
+    simul_params : SimulParams
         Simulation parameters object containing pixel_pupil and pixel_pitch
     wavelengthInNm : float [nm]
         Working wavelength in nanometers
@@ -53,7 +53,7 @@ class ModulatedPyramid(BaseProcessingObj):
     mod_step : int [1], optional
         Number of modulation steps. If None, automatically calculated based on
         mod_amp and mod_type (default: None)
-    mod_type : str [1], optional
+    mod_type : str
         Modulation type: 'circular', 'vertical', 'horizontal', or 'alternating'
         (default: 'circular')
     fov_errinf : float [1], optional
@@ -89,7 +89,7 @@ class ModulatedPyramid(BaseProcessingObj):
         Y shift of input phase in pixels (default: 0.0)
     magnification : float [1], optional
         Magnification factor applied to input phase (default: 1.0)
-    force_extrapolation : bool [1]
+    force_extrapolation : bool
         Force extrapolation of input electric field (required by SprintPyr)
     target_device_idx : int [1], optional
         GPU device index (default: None, uses default device, -1 for CPU)

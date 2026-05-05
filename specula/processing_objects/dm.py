@@ -41,15 +41,15 @@ class DM(BaseProcessingObj):
 
         Parameters
         ----------
-        simul_params : SimulParams [1]
+        simul_params : SimulParams
             Simulation parameters object containing pupil size, pixel pitch, etc.
         height : float [m]
             Height of the DM layer in meters (this is distance from the pupil).
-        ifunc : IFunc [1], optional
+        ifunc : IFunc
             Influence function object defining the DM actuator influence functions.
-        m2c : M2C [1], optional
+        m2c : M2C
             Mode-to-command matrix object for converting mode commands to actuator commands.
-        type_str : str [1], optional
+        type_str : str
             Type of influence function to use if `ifunc` is not provided.
         nmodes : int [1], optional
             Number of modes to consider if `ifunc` is not provided.
@@ -66,7 +66,7 @@ class DM(BaseProcessingObj):
             Obscuration ratio for the influence function if `ifunc` is not provided.
         diaratio : float [1], optional
             Diagonal ratio for the influence function if `ifunc` is not provided.
-        pupilstop : Pupilstop [1], optional
+        pupilstop : Pupilstop
             Pupilstop object defining the DM aperture.
         sign : int [1], optional
             Sign for the DM surface deformation, by default -1 (to account for reflection).

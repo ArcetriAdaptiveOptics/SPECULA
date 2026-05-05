@@ -35,21 +35,21 @@ class ImShSynimGenerator(BaseProcessingObj):
     
     Parameters
     ----------
-    simul_params : SimulParams [1]
+    simul_params : SimulParams
         Simulation parameters
-    dm : DM [1]
+    dm : DM
         Deformable mirror object
-    slopec : ShSlopec [1]
+    slopec : ShSlopec
         Shack-Hartmann slope computer
-    source : Source [1]
+    source : Source
         Guide star source
-    wfs : SH [1]
+    wfs : SH
         Shack-Hartmann WFS object
-    compute_rec : bool [1]
+    compute_rec : bool
         Compute reconstruction matrix (default: True)
     rec_nmodes : int or None [1]
         Number of modes for reconstruction (None = same as IM)
-    mmse : bool [1]
+    mmse : bool
         Use MMSE reconstruction instead of pseudo-inverse (default: False)
     r0 : float [m]
         Fried parameter for MMSE [m] (default: 0.15)

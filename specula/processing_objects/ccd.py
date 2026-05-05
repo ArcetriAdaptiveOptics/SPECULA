@@ -54,7 +54,7 @@ class CCD(BaseProcessingObj):
         """
         Parameters
         ----------
-        simul_params : SimulParams [1]
+        simul_params : SimulParams
             Simulation parameters object reference.
         size : int list [pixels]
             Size of the CCD in pixels [nx, ny].
@@ -64,19 +64,19 @@ class CCD(BaseProcessingObj):
             Optical bandwidth in nm.
         binning : int [1], optional
             Pixel binning factor (default is 1, no binning).
-        photon_noise : bool [1], optional
+        photon_noise : bool
             Whether to apply photon noise (Poisson noise) (default is False).
-        readout_noise : bool [1], optional
+        readout_noise : bool
             Whether to apply readout noise (default is False).
-        excess_noise : bool [1], optional
+        excess_noise : bool
             Whether to apply excess noise (default is False).
-        darkcurrent_noise : bool [1], optional
+        darkcurrent_noise : bool
             Whether to apply dark current noise (default is False).
-        background_noise : bool [1], optional
+        background_noise : bool
             Whether to apply background noise (default is False).
-        cic_noise : bool [1], optional
+        cic_noise : bool
             Whether to apply clock-induced charge noise (default is False).
-        cte_noise : bool [1], optional
+        cte_noise : bool
             Whether to apply charge transfer efficiency noise (default is False).
         readout_level : float [1], optional
             Readout noise level in electrons (default is 0.0).

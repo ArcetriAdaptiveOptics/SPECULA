@@ -66,15 +66,15 @@ class BaseSprintEstimator(BaseProcessingObj):
         
         Parameters
         ----------
-        simul_params : SimulParams [1]
+        simul_params : SimulParams
             Simulation parameters
-        dm : DM [1]
+        dm : DM
             Deformable mirror object
-        slopec : Slopec [1]
+        slopec : Slopec
             Slope computer object
-        source : Source [1]
+        source : Source
             Guide star source object
-        wfs : BaseProcessingObj [1]
+        wfs : BaseProcessingObj
             WFS object (specific type depends on subclass)
         modes_index : list [1]
             List of mode indices to estimate
@@ -88,9 +88,9 @@ class BaseSprintEstimator(BaseProcessingObj):
             Relative error threshold for convergence
         initial_misreg : list or None [1]
             Initial mis-registration [shift_x, shift_y, rot, magn(, magn_x, magn_y)]
-        apply_absolute_slopes : bool [1]
+        apply_absolute_slopes : bool
             Use absolute value of slopes
-        enable_wpup_magn_xy : bool [1]
+        enable_wpup_magn_xy : bool
             Enable separate X/Y magnification parameters
         integration_gain : float [1]
             Gain for parameter updates (0 < gain <= 1)

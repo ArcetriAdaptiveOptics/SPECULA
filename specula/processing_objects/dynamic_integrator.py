@@ -33,7 +33,7 @@ class DynamicIntegrator(Integrator):
         """
         Parameters
         ----------
-        simul_params : SimulParams [1]
+        simul_params : SimulParams
             Simulation parameters object.
         int_gain : float [1]
             Initial integrator gain.
@@ -44,7 +44,7 @@ class DynamicIntegrator(Integrator):
         delay : float [1], optional
             Delay applied to the integrator (in simulation time units).
             Default is 0.
-        integration : bool [1], optional
+        integration : bool
             If True, enable integration behavior. Default is True.
         target_device_idx : int [1], optional
             Target device index for computation (e.g., CPU/GPU).

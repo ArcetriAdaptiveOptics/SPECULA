@@ -59,7 +59,7 @@ class PyrPupdataCalibrator(BaseProcessingObj):
         """
         Parameters
         ----------
-        data_dir : str [1]
+        data_dir : str
             Directory where calibration outputs are saved.
         dt : float [s], optional
             Integration time in seconds. If provided, frames are accumulated and
@@ -70,20 +70,20 @@ class PyrPupdataCalibrator(BaseProcessingObj):
             Second threshold for refined segmentation. Default is 0.25.
         obs_thr : float [1], optional
             Scaling factor for obstruction detection. Default is 0.8.
-        slopes_from_intensity : bool [1], optional
+        slopes_from_intensity : bool
             If True, generate pupil indices directly from intensity masks.
             Otherwise, use geometric translation. Default is False.
-        output_tag : str [1], optional
+        output_tag : str
             Filename used when saving calibration results.
-        auto_detect_obstruction : bool [1], optional
+        auto_detect_obstruction : bool
             Enable automatic detection of central obstruction. Default is True.
         min_obstruction_ratio : float [1], optional
             Minimum allowed obstruction ratio. Default is 0.05.
-        display_debug : bool [1], optional
+        display_debug : bool
             If True, display debug plots during calibration. Default is False.
-        overwrite : bool [1], optional
+        overwrite : bool
             If True, overwrite existing files when saving. Default is False.
-        save_on_exit : bool [1], optional
+        save_on_exit : bool
             If True, automatically save calibration data on finalize. Default is True.
         target_device_idx : int [1], optional
             Target device index for computation.

@@ -37,7 +37,7 @@ class Source(BaseDataObj):
             The wavelength of the source.
         height : float [m], optional
             The height of the source (default: infinity, i.e., astronomical source).
-        band : str [1], optional
+        band : str
             The photometric band of the source (default: '').
         zero_point : float [1], optional
             The photometric zero point (default: 0).

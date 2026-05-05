@@ -29,7 +29,7 @@ class AtmoInfiniteEvolutionUpDown(AtmoInfiniteEvolution):
         """
         Parameters
         ----------
-        simul_params : SimulParams [1]
+        simul_params : SimulParams
             Simulation parameters object containing global simulation settings.
         L0 : list [m]
             Outer scale(s) of turbulence for each layer in meters.

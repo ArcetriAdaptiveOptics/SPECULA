@@ -29,9 +29,9 @@ class CurWfsSlopec(Slopec):
             Diameter of the pupil in pixels (used to define valid pupil indices).
         ccd_size: tuple [pixels]
             Size of the CCD in pixels (height, width).
-        sn: Slopes [1], optional
+        sn: Slopes, optional
             Slopes object for reference subtraction (if needed).
-        interleave: bool [1], optional
+        interleave: bool, optional
             Whether to interleave slopes (not used in this implementation).
         target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).

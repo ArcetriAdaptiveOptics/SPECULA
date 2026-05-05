@@ -62,7 +62,7 @@ class SprintShSynim(BaseSprintEstimator):
         
         Parameters
         ----------
-        enable_wpup_magn_xy : bool [1]
+        enable_wpup_magn_xy : bool
             Enable separate X/Y magnification (future feature)
         """
         # Store before calling super().__init__

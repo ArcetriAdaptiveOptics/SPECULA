@@ -25,7 +25,7 @@ class PSF(BaseProcessingObj):
 
     Parameters
     ----------
-    simul_params : SimulParams [1]
+    simul_params : SimulParams
         Simulation parameters object.
     wavelengthInNm : float [nm]
         Wavelength at which to compute the PSF [nm].
@@ -37,10 +37,10 @@ class PSF(BaseProcessingObj):
         based on the input ElectricField and numerical density.
     start_time : float [s], optional
         Time (in seconds) after which to start integrating PSF and SR. Default is 0.0.
-    compute_profile_metrics : bool [1], optional
+    compute_profile_metrics : bool
         If True, also compute radial profile, FWHM and encircled-energy outputs.
         By default these summary metrics are evaluated in `finalize()` only.
-    compute_metrics_in_trigger : bool [1], optional
+    compute_metrics_in_trigger : bool
         If True and `compute_profile_metrics` is enabled, also update the same
         metrics after each trigger.
     ee_radius_in_lambda_d : float or array-like [lambda/D], optional

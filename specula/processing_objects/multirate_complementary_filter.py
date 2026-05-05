@@ -27,9 +27,9 @@ class MultirateComplementaryFilter(BaseFilter):
         """
         Parameters
         ----------
-        simul_params : SimulParams [1]
+        simul_params : SimulParams
             Simulation timing parameters.
-        iir_filter_data : IirFilterData [1]
+        iir_filter_data : IirFilterData
             IIR controller coefficients for the fused command.
         g_track : float [1]
             Tracking gain applied to the barycentric slow-sensor contribution.
@@ -41,7 +41,7 @@ class MultirateComplementaryFilter(BaseFilter):
             Output delay in frames.
         idx_yf, idx_ys : optional [1]
             Index selections used when routing inputs from a single `in_vec` vector.
-        validate_sync : bool [1], optional
+        validate_sync : bool
             If `True`, enforce explicit multirate timestamp consistency on separate inputs.
             Set it to `False` when slow branches are already zero-stuffed upstream.
         """

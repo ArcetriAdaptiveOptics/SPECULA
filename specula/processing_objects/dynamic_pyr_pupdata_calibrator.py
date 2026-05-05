@@ -60,7 +60,7 @@ class DynamicPyrPupdataCalibrator(PyrPupdataCalibrator):
         """
         Parameters
         ----------
-        data_dir : str [1]
+        data_dir : str
             Directory where calibration data is stored.
         dt : float [s], optional
             Time step for processing (in seconds).
@@ -70,19 +70,19 @@ class DynamicPyrPupdataCalibrator(PyrPupdataCalibrator):
             Second threshold used in pupil processing. Default is 0.25.
         obs_thr : float [1], optional
             Threshold for obstruction detection. Default is 0.8.
-        slopes_from_intensity : bool [1], optional
+        slopes_from_intensity : bool
             If True, compute indices suitable for calculation of slopes from intensity. Default is False.
-        output_tag : str [1], optional
+        output_tag : str
             Tag used to label output files.
-        auto_detect_obstruction : bool [1], optional
+        auto_detect_obstruction : bool
             Enable automatic obstruction detection. Default is True.
         min_obstruction_ratio : float [1], optional
             Minimum obstruction ratio to consider. Default is 0.05.
-        display_debug : bool [1], optional
+        display_debug : bool
             If True, enable debug visualization. Default is False.
-        overwrite : bool [1], optional
+        overwrite : bool
             If True, overwrite existing files. Default is False.
-        save_on_exit : bool [1], optional
+        save_on_exit : bool
             If True, automatically save data on exit. Default is True.
         target_device_idx : int [1], optional
             Target device index for computation.

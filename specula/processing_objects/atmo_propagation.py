@@ -43,11 +43,11 @@ class AtmoPropagation(BaseProcessingObj):
 
         Parameters
         ----------
-        simul_params : SimulParams [1]
+        simul_params : SimulParams
             Simulation parameters object containing global settings.
         source_dict : dict [1]
             Dictionary of source objects (e.g., stars, LGS) to be propagated.
-        doFresnel : bool [1], optional
+        doFresnel : bool
             If True, physical Fresnel propagation is performed. Default is False
             (geometric propagation).
         wavelengthInNm : float [nm], optional
@@ -56,7 +56,7 @@ class AtmoPropagation(BaseProcessingObj):
         telescope_altitude_m : float [m], optional
             Telescope altitude above sea level in meters used by chromatic
             anisoplanatism calculations (default: None).
-        enable_chromatic_effect : bool [1], optional
+        enable_chromatic_effect : bool
             If True, compute and apply chromatic anisoplanatism shifts for atmospheric layers
             (default: False).
             From Devaney et al. "Chromatic Anisoplanatism in Adaptive Optics" SPIE, 2024 
@@ -66,10 +66,10 @@ class AtmoPropagation(BaseProcessingObj):
             Required when ``enable_chromatic_effect`` is True.
         pupil_position : array-like [m], optional
             Position of the pupil in pixels. Default is None (centered).
-        mergeLayersContrib : bool [1], optional
+        mergeLayersContrib : bool
             If True, contributions from all layers are merged into a single output per source.
             Default is True.
-        upwards : bool [1], optional
+        upwards : bool
             If True, propagation is performed upwards (from ground to source). Default is False
             (downwards).
         padding_factor : int [1], optional
@@ -380,7 +380,7 @@ class AtmoPropagation(BaseProcessingObj):
 
         Parameters
         ----------
-        atmo_layer_list : list of Layer [1]
+        atmo_layer_list : list of Layer
             Atmospheric turbulence layers only (not common layers such as
             pupil stops or DMs).
         zenith_angle_deg : float [deg]

@@ -26,9 +26,9 @@ class PhaseScreenCube(BaseProcessingObj):
         """
         Parameters
         ----------
-        simul_params : SimulParams [1]
+        simul_params : SimulParams
             Simulation parameters object containing pupil size, pixel pitch, zenith angle, etc.
-        cube : SpatioTempArray [1]
+        cube : SpatioTempArray
             Spatio-temporal array containing the phase screen cube.
             Internally data are accessed as time-first: shape (time, x, y).
             The phase screens should be in nm. The time_vector must be provided in seconds.

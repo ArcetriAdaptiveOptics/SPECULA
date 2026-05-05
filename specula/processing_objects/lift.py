@@ -48,7 +48,7 @@ class Lift(BaseProcessingObj):
 
         Parameters
         ----------
-        simul_params : SimulParams [1]
+        simul_params : SimulParams
             Simulation parameters object reference.
         nPistons : int [1]
             Number of piston modes in the modal base (see ifunc argument).
@@ -62,7 +62,7 @@ class Lift(BaseProcessingObj):
             Number of pixels per side.
         cropped_size : int [pixels]
             Cropped size.
-        ifunc : IFunc, optional [1]
+        ifunc : IFunc, optional
             Influence function data object.
             It must be coherent with nPistons and nZern modes, the first two zernike modes
             (if nZern>0) must be tip and tilt.
@@ -74,7 +74,7 @@ class Lift(BaseProcessingObj):
             Number of iterations. Defaults to 20.
         fft_res : int [1], optional
             FFT resolution. Defaults to 2.
-        fix : bool [1], optional
+        fix : bool
             Fix flag. Defaults to False.
         target_device_idx : int [1], optional
             Target device index. Defaults to None.

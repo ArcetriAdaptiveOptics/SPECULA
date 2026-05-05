@@ -22,7 +22,7 @@ class SimulParams(BaseDataObj):
         """
         Parameters
         ----------
-        root_dir : str [1]
+        root_dir : str
             The root dir for the simulation
         pixel_pupil : int [1]
             The diameter in pixels of the simulation pupil
@@ -34,7 +34,7 @@ class SimulParams(BaseDataObj):
             The duration of a single timestep in seconds (number of timesteps = int(total_time/time_step) )
         zenithAngleInDeg : float [deg]
             The zenith angle of the telescope
-        display_server : bool [1]
+        display_server : bool
             Activate web server for simulation display
         """
         super().__init__()

@@ -24,7 +24,7 @@ class LaserLaunchTelescope(BaseDataObj):
         Parameters
         ----------
 
-        simul_params : SimulParams [1]
+        simul_params : SimulParams
             The simulation parameters object, required to get the zenith angle.
         spot_size : float [arcsec]
             The size of the laser spot.

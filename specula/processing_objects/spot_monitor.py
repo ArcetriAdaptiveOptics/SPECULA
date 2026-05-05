@@ -23,7 +23,7 @@ class SpotMonitor(BaseProcessingObj):
     
     Parameters
     ----------
-    subapdata : SubapData [1]
+    subapdata : SubapData
         Subaperture geometry and indexing information
     initial_alpha : float [1], optional
         Initial guess for Moffat alpha parameter (default: 2.0)

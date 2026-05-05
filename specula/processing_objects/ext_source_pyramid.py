@@ -47,7 +47,7 @@ class ExtSourcePyramid(ModulatedPyramid):
         but their flux is redistributed to four points in the middle of the pyramid faces.
         Only used when cuda_stream_enable=False. When enabled, reduces computation
         but may affect accuracy for sources with very faint extended components.
-    cuda_stream_enable : bool [1], optional
+    cuda_stream_enable : bool
         Enable CUDA stream for graph capture and optimized GPU execution (default: True).
         When True, all source points are processed (flux thresholding disabled) to
         maintain constant computational load required for CUDA graph compatibility.
