@@ -41,38 +41,38 @@ class DM(BaseProcessingObj):
 
         Parameters
         ----------
-        simul_params : SimulParams
+        simul_params : SimulParams [1]
             Simulation parameters object containing pupil size, pixel pitch, etc.
-        height : float
+        height : float [m]
             Height of the DM layer in meters (this is distance from the pupil).
-        ifunc : IFunc, optional
+        ifunc : IFunc [1], optional
             Influence function object defining the DM actuator influence functions.
-        m2c : M2C, optional
+        m2c : M2C [1], optional
             Mode-to-command matrix object for converting mode commands to actuator commands.
-        type_str : str, optional
+        type_str : str [1], optional
             Type of influence function to use if `ifunc` is not provided.
-        nmodes : int, optional
+        nmodes : int [1], optional
             Number of modes to consider if `ifunc` is not provided.
-        nzern : int, optional
+        nzern : int [1], optional
             Maximum Zernike radial order if `ifunc` is not provided.
             This is used from mixed Zernike KL bases (not implemented yet).
-        start_mode : int, optional
+        start_mode : int [1], optional
             Starting mode index for the DM modes.
-        idx_modes : list or array, optional
+        idx_modes : list or array [1], optional
             Specific mode indices to use for the DM. If provided, `start_mode` and `nmodes` are ignored.
-        npixels : int, optional
+        npixels : int [pixels], optional
             Number of pixels for the DM layer. If None, defaults to pupil size.
-        obsratio : float, optional
+        obsratio : float [1], optional
             Obscuration ratio for the influence function if `ifunc` is not provided.
-        diaratio : float, optional
+        diaratio : float [1], optional
             Diagonal ratio for the influence function if `ifunc` is not provided.
-        pupilstop : Pupilstop, optional
+        pupilstop : Pupilstop [1], optional
             Pupilstop object defining the DM aperture.
-        sign : int, optional
+        sign : int [1], optional
             Sign for the DM surface deformation, by default -1 (to account for reflection).
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
-        precision : int, optional
+        precision : int [1], optional
             Precision for computation (0 for double, 1 for single). Default is None
             (uses global setting).
         """

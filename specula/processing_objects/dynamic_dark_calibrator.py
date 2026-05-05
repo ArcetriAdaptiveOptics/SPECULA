@@ -75,18 +75,18 @@ class DynamicDarkCalibrator(BaseProcessingObj):
         """
         Parameters
         ----------
-        data_dir : str
+        data_dir : str [1]
             Directory where dark frames are saved to and loaded from.
             Usually set automatically by CalibManager.
-        nframes : int
+        nframes : int [1]
             Number of frames to integrate when computing the dark frame.
             Must be greater than zero.
-        overwrite : bool, optional
+        overwrite : bool [1], optional
             If True, overwrite existing files when saving dark frames.
             Default is False.
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index for computation (e.g., CPU/GPU selection).
-        precision : int, optional
+        precision : int [1], optional
             Numerical precision for internal data.
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)

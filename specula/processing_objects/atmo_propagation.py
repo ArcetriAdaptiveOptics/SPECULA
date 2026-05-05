@@ -43,40 +43,40 @@ class AtmoPropagation(BaseProcessingObj):
 
         Parameters
         ----------
-        simul_params : SimulParams
+        simul_params : SimulParams [1]
             Simulation parameters object containing global settings.
-        source_dict : dict
+        source_dict : dict [1]
             Dictionary of source objects (e.g., stars, LGS) to be propagated.
-        doFresnel : bool, optional
+        doFresnel : bool [1], optional
             If True, physical Fresnel propagation is performed. Default is False
             (geometric propagation).
-        wavelengthInNm : float, optional
+        wavelengthInNm : float [nm], optional
             Wavelength in nanometers for Fresnel propagation. Required if doFresnel is True.
             Default is 500.0 nm.
-        telescope_altitude_m : float, optional
+        telescope_altitude_m : float [m], optional
             Telescope altitude above sea level in meters used by chromatic
             anisoplanatism calculations (default: None).
-        enable_chromatic_effect : bool, optional
+        enable_chromatic_effect : bool [1], optional
             If True, compute and apply chromatic anisoplanatism shifts for atmospheric layers
             (default: False).
             From Devaney et al. "Chromatic Anisoplanatism in Adaptive Optics" SPIE, 2024 
-        chromatic_reference_wavelengthInNm : float, optional
+        chromatic_reference_wavelengthInNm : float [nm], optional
             Reference wavelength in nanometers used for chromatic
             anisoplanatism calculations, typically the WFS wavelength.
             Required when ``enable_chromatic_effect`` is True.
-        pupil_position : array-like, optional
+        pupil_position : array-like [m], optional
             Position of the pupil in pixels. Default is None (centered).
-        mergeLayersContrib : bool, optional
+        mergeLayersContrib : bool [1], optional
             If True, contributions from all layers are merged into a single output per source.
             Default is True.
-        upwards : bool, optional
+        upwards : bool [1], optional
             If True, propagation is performed upwards (from ground to source). Default is False
             (downwards).
-        padding_factor : int, optional
+        padding_factor : int [1], optional
             Factor for zero padding in Fresnel propagation to avoid numerical issues with FFTs.
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
-        precision : int, optional
+        precision : int [1], optional
             Precision for computation (0 for double, 1 for single). Default is None
             (uses global setting).
         """
@@ -165,11 +165,11 @@ class AtmoPropagation(BaseProcessingObj):
 
         Parameters
         ----------
-        distanceInM : float
+        distanceInM : float [m]
             Propagation distance in meter.
-        d_in : float
+        d_in : float [m]
             Grid spacing in the source plane
-        d_out : float
+        d_out : float [m]
             Grid spacing in the destination plane
         """
         k = 2 * np.pi / (self.wavelengthInNm * 1e-9)
@@ -380,10 +380,10 @@ class AtmoPropagation(BaseProcessingObj):
 
         Parameters
         ----------
-        atmo_layer_list : list of Layer
+        atmo_layer_list : list of Layer [1]
             Atmospheric turbulence layers only (not common layers such as
             pupil stops or DMs).
-        zenith_angle_deg : float
+        zenith_angle_deg : float [deg]
             Observation zenith angle in degrees.
 
         Notes
