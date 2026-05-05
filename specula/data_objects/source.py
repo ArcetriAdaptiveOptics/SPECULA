@@ -30,7 +30,7 @@ class Source(BaseDataObj):
         Parameters
         ----------
         polar_coordinates : list [arcsec, deg]
-            The polar coordinates [radius, angle] of the source.
+            The polar coordinates [radius in arcsec, angle in deg] of the source.
         magnitude : float [1]
             The magnitude of the source.
         wavelengthInNm : float [nm]
@@ -42,7 +42,7 @@ class Source(BaseDataObj):
         zero_point : float [1], optional
             The photometric zero point (default: 0).
         error_coord : tuple [arcsec, deg], optional
-            Error to add to the polar coordinates (default: (0., 0.)).
+            Error to add to the polar coordinates [radius error in arcsec, angle error in deg] (default: (0., 0.)).
         target_device_idx : int [1], optional
             Device index for computation (default: None).
         precision : int [1], optional

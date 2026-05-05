@@ -37,7 +37,7 @@ class CurvatureSensor(BaseProcessingObj):
             Wavelength of the light in nanometers.
         wanted_fov: float [arcsec]
             Desired field of view in arcseconds.
-        pxscale: float [arcsec]
+        pxscale: float [arcsec/pixel]
             Desired pixel scale in arcseconds per pixel at the output.
         number_px: int [pixels]
             Desired output resolution (number of pixels on one side of the square output image).

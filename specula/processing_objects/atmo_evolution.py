@@ -48,7 +48,7 @@ class AtmoEvolution(BaseProcessingObj):
             Fractional Cn2 values for each layer (must sum to 1.0).
         data_dir : str [1]
             Directory path for storing/loading phase screen data (automatically set by simul.py).
-        fov : float [deg], optional
+        fov : float [arcsec], optional
             Field of view in arcseconds. Default is 0.0.
         pixel_phasescreens : int [1], optional
             Size of the square phase screens in pixels. Default is 8192.

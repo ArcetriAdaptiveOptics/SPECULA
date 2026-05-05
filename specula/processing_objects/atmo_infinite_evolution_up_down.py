@@ -41,7 +41,7 @@ class AtmoInfiniteEvolutionUpDown(AtmoInfiniteEvolution):
             Extra time offset for downward propagation in seconds. Default is 0.
         extra_delta_time_up : float or list [s], optional
             Extra time offset for upward propagation in seconds. Default is 0.
-        fov : float [deg], optional
+        fov : float [arcsec], optional
             Field of view in arcseconds. Default is 0.0.
         seed : int [1], optional
             Seed for random number generation. Must be >0. Default is 1.
