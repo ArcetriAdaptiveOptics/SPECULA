@@ -344,8 +344,8 @@ class AtmoPropagation(BaseProcessingObj):
         atmospheric pressure profile to compute the exact lateral shift using the 
         Devaney 2024 plane-parallel equations (Eq. 1 and Eq. 6).
 
-        The result is stored in :attr:`chromatic_shifts_m` as a **dict keyed by
-        Layer object**, containing the signed lateral displacement in metres.
+        The result is stored in self.chromatic_shifts_m as a **dict keyed by
+        Source and Layer objects**, containing the signed lateral displacement in metres.
         Common layers (pupil stop, DM, etc.) are not included and will
         implicitly receive a zero shift in the propagation code.
 
@@ -364,7 +364,6 @@ class AtmoPropagation(BaseProcessingObj):
         If enable_chromatic_effect is False or the two wavelengths are identical,
         all shifts are zero.
         """
-        source.chromatic_shifts_m = {}
 
         if not self.enable_chromatic_effect:
             return
@@ -399,20 +398,24 @@ class AtmoPropagation(BaseProcessingObj):
             P_h_mbar = self._pressure_nasa(h_asl)
 
             # Lateral separation at altitude h (Devaney Eq 6)
-            source.chromatic_shifts_m[layer] = delta_b0 * (1.0 - (P_h_mbar / P_0_mbar))
+            self.chromatic_shifts_m[source][layer] = delta_b0 * (1.0 - (P_h_mbar / P_0_mbar))
 
     def setup_interpolators(self):
 
         self.interpolators = {}
+        self.chromatic_shifts_m = {}
         layer_list = self.common_layer_list + self.atmo_layer_list
         for source in self.source_dict.values():
             self.interpolators[source] = {}
+            self.chromatic_shifts_m[source] = {}
 
             self.compute_chromatic_shifts(source, self.atmo_layer_list)
 
             for layer in layer_list:
                 diff_height = (source.height - layer.height) * self.airmass
+                chromatic_shift_m = self.chromatic_shifts_m[source].get(layer, 0.0)
                 if (layer.height == 0 or (np.isinf(source.height) and source.r == 0)) and \
+                                chromatic_shift_m == 0.0 and \
                                 not self.shiftXY_cond[layer] and \
                                 self.pupil_position is None and \
                                 layer.rotInDeg == 0 and \
@@ -452,7 +455,7 @@ class AtmoPropagation(BaseProcessingObj):
         # Apply pre-computed chromatic lateral displacement.
         # Dispersion always occurs along the elevation axis (typically the Y-axis).
         # We assume the zenith-pointing direction maps to [0, 1] in pixel coordinates.
-        chromatic_shift_px = source.chromatic_shifts_m.get(layer, 0.0) / layer.pixel_pitch
+        chromatic_shift_px = self.chromatic_shifts_m[source].get(layer, 0.0) / layer.pixel_pitch
         if chromatic_shift_px != 0.0:
             elevation_vector = np.array([0.0, 1.0])
             pixel_position = pixel_position + chromatic_shift_px * elevation_vector

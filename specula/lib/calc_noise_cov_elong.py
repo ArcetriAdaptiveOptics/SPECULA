@@ -4,11 +4,13 @@ import matplotlib.pyplot as plt
 from astropy.modeling import models, fitting
 from specula import cpuArray
 from specula.data_objects.convolution_kernel import lgs_map_sh
+from specula.log import get_specula_logger
+
 
 def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, launcher_coord_in_m,
                          sub_aps_index, n_sub_aps, sub_aps_fov, sh_spot_fwhm, sigma_noise2,
                          t_g_parameter, h_in_m=None, user_pofile_xy=None, theta=None,
-                         only_diag=False, eta_is_not_one=False, display=False, verbose=False):
+                         only_diag=False, eta_is_not_one=False, display=False, log_level=None):
     """
     Compute the inverse noise covariance matrix for elongated LGS spots.
 
@@ -51,8 +53,6 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
         If ``True``, compute ``eta`` including flux-loss effects.
     display : bool, optional
         If ``True``, show debug plots.
-    verbose : bool, optional
-        If ``True``, print additional diagnostic information.
 
     Returns
     -------
@@ -65,7 +65,10 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
     Bechet et al., "Optimal reconstruction for closed-loop ground-layer
     adaptive optics with elongated spots", JOSA A, Vol. 27, No. 11 (2010).
     """
-
+    logger = get_specula_logger(__name__)
+    if log_level is not None:
+        logger.setLevel(log_level)
+    
     # Convert inputs to CPU arrays for GPU processing
     diameter_in_m = float(cpuArray(diameter_in_m))
     zenith_angle_in_deg = float(cpuArray(zenith_angle_in_deg))
@@ -83,10 +86,10 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
         theta = list(cpuArray(theta)) if hasattr(theta, '__len__') \
             else [float(theta), float(theta)]
 
-    if only_diag and verbose:
-        print('onlyDiag is set')
-    if eta_is_not_one and verbose:
-        print('etaIsNotOne is set')
+    if only_diag:
+        logger.debug('onlyDiag is set')
+    if eta_is_not_one:
+        logger.debug('etaIsNotOne is set')
 
     if h_in_m is None:
         h_in_m = 90e3  # sodium average altitude
@@ -182,7 +185,7 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
             except (TypeError, ValueError, RuntimeError) as e:
                 beta1[i] = 0
                 beta2[i] = 0
-                print(f"Warning: 1D Gaussian fit failed for sub-aperture {i}: {e}")
+                logger.waring(f"1D Gaussian fit failed for sub-aperture {i}: {e}")
 
             # Compute eta (flux normalization)
             if eta_is_not_one:
@@ -208,16 +211,15 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
 
     sigma2 = sh_spot_fwhm**2
 
-    if verbose:
-        print('launcher coordinates [m]:', launcher_coord_in_m)
-        print('altitude [m]', h_in_ma)
-        print('thickness [m]', na_thickness_in_ma)
-        print('min max coordinate X', np.min(coord_sub_aps[:, 0]), np.max(coord_sub_aps[:, 0]))
-        print('min max coordinate Y', np.min(coord_sub_aps[:, 1]), np.max(coord_sub_aps[:, 1]))
-        print('min max beta 1', np.min(beta1), np.max(beta1))
-        print('min max beta 2', np.min(beta2), np.max(beta2))
-        print('min max eta', np.min(eta), np.max(eta))
-        print('sigma_noise2', sigma2)
+    logger.debug(f'launcher coordinates [m]: {launcher_coord_in_m}')
+    logger.debug(f'altitude [m]: {h_in_ma}')
+    logger.debug(f'thickness [m]: {na_thickness_in_ma}')
+    logger.debug(f'min max coordinate X: {np.min(coord_sub_aps[:, 0])} {np.max(coord_sub_aps[:, 0])}')
+    logger.debug(f'min max coordinate Y: {np.min(coord_sub_aps[:, 1])} {np.max(coord_sub_aps[:, 1])}')
+    logger.debug(f'min max beta 1: {np.min(beta1)} {np.max(beta1)}')
+    logger.debug(f'min max beta 2: {np.min(beta2)} {np.max(beta2)}')
+    logger.debug(f'min max eta: {np.min(eta)} {np.max(eta)}')
+    logger.debug(f'sigma_noise2: {sigma2}')
 
     if only_diag:
         # For diagonal-only covariance matrix
@@ -238,8 +240,7 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
             idx_truncated = np.array([])
             idx_not_truncated = np.arange(2*len(sub_aps_index))
 
-        if verbose:
-            print('no. of truncated sub-apertures', n_truncated)
+        logger.debug(f'no. of truncated sub-apertures: {n_truncated}')
 
         if display:
             plt.figure(0)
@@ -283,8 +284,7 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
             n_truncated = 0
             idx_not_truncated = np.arange(len(sub_aps_index))
 
-        if verbose:
-            print('no. of truncated sub-apertures', n_truncated)
+        logger.debug(f'no. of truncated sub-apertures: {n_truncated}')
 
         n_not_truncated = len(sub_aps_index) - n_truncated
 

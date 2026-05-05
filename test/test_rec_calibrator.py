@@ -6,10 +6,8 @@ import tempfile
 import unittest
 import shutil
 import numpy as np
-from unittest.mock import MagicMock, patch
-from typing import Union
+from unittest.mock import MagicMock
 
-from specula.base_value import BaseValue
 from specula.data_objects.intmat import Intmat
 from specula.data_objects.ifunc import IFunc
 from specula.data_objects.m2c import M2C
