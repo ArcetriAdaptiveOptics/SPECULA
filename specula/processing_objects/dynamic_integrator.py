@@ -33,22 +33,22 @@ class DynamicIntegrator(Integrator):
         """
         Parameters
         ----------
-        simul_params : SimulParams
+        simul_params : SimulParams [1]
             Simulation parameters object.
-        int_gain : float
+        int_gain : float [1]
             Initial integrator gain.
-        ff : list, optional
+        ff : list [1], optional
             Feedforward coefficients for the IIR filter.
-        n_modes : int, optional
+        n_modes : int [1], optional
             Number of modes for modal integration.
-        delay : float, optional
+        delay : float [1], optional
             Delay applied to the integrator (in simulation time units).
             Default is 0.
-        integration : bool, optional
+        integration : bool [1], optional
             If True, enable integration behavior. Default is True.
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index for computation (e.g., CPU/GPU).
-        precision : int, optional
+        precision : int [1], optional
             Numerical precision for internal data  (0 for double, 1 for single).
         """
         super().__init__(simul_params=simul_params,

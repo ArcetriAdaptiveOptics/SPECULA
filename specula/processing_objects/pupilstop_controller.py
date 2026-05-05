@@ -33,17 +33,17 @@ class PupilstopController(BaseProcessingObj):
         Parameters
         ----------
         
-        pupilstop: Pupilstop
+        pupilstop: Pupilstop [1]
             The Pupilstop object to be controlled and updated.
-        threshold_mask: bool, optional
+        threshold_mask: bool [1], optional
             If True, the updated mask will be thresholded to binary values based on mask_threshold 
             (default: True).
-        mask_threshold: float, optional
+        mask_threshold: float [1], optional
             Threshold value for binarizing the mask if threshold_mask is True (default: 0.5).
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None
             (uses global setting).
-        precision : int, optional
+        precision : int [1], optional
             Precision for computation (0 for double, 1 for single). Default is None
             (uses global setting).  
         """

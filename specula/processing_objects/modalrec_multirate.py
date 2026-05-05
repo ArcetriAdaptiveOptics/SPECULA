@@ -27,13 +27,13 @@ class ModalrecMultirate(BaseProcessingObj):
         """
         Parameters
         ----------
-        recmat_list : list of Recmat
+        recmat_list : list of Recmat [1]
             Ordered list of reconstruction matrices, one for each validity state.
             Matrices are expected to use the full sensor-vector geometry.
-        validity_masks : list of list of bool
+        validity_masks : list of list of bool [1]
             Boolean masks associated with each matrix in `recmat_list`, using the
             same ordering.
-        n_modes_total : int
+        n_modes_total : int [1]
             Total size of each output modal vector.
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)

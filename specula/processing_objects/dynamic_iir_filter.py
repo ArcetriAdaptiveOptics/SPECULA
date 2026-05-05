@@ -14,19 +14,19 @@ class DynamicIirFilter(IirFilter):
     
     Parameters
     ----------
-    simul_params : SimulParams
+    simul_params : SimulParams [1]
         Simulation parameters containing time step information
-    iir_filter_data : IirFilterData
+    iir_filter_data : IirFilterData [1]
         Filter coefficients (numerator and denominator)
-    delay : float, optional
+    delay : float [1], optional
         Delay in frames to apply to the output (default: 0)
-    integration : bool, optional
+    integration : bool [1], optional
         If False, disables feedback terms (converts IIR to FIR).
         This is done by masking the denominator coefficients while
         preserving the normalizing factor. (default: True)
-    target_device_idx : int, optional
+    target_device_idx : int [1], optional
         Target device for computation (-1 for CPU, >=0 for GPU)
-    precision : int, optional
+    precision : int [1], optional
         Numerical precision (0 for double, 1 for single)
     
     Notes
