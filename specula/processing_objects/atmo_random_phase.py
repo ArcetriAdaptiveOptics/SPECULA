@@ -45,7 +45,7 @@ class AtmoRandomPhase(BaseProcessingObj):
             Size of the square phase screens in pixels. Defaults to 8192.
         seed : int [1], optional
             Seed for random number generation, by default 1.
-        update_interval : int [s], optional
+        update_interval : int [1], optional
             Number of triggers between phase screen updates, by default 1.
         layer_height : float [m], optional
             Height in meters assigned to the output layers, by default 0.0.

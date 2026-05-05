@@ -303,7 +303,7 @@ class AtmoEvolution(BaseProcessingObj):
         ----------
         wind_speed : array [m/s]
             Wind speed for each layer [m/s]
-        delta_position : array [m]
+        delta_position : array [pixels]
             Position change since last frame [pixels]
         extra_delta_time : array [s]
             Extra time offset for each layer [s]
