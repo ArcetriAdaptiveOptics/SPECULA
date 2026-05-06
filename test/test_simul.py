@@ -52,10 +52,6 @@ class TestSimul(unittest.TestCase):
             'a': DummyObj(),
             'b': DummyObj()
         }
-        self.dummySimul.all_objs_classes = {
-            'a': DummyObj,
-            'b': DummyObj,
-        }
 
     def test_none_object_in_parameter_dict_is_none(self):
         '''

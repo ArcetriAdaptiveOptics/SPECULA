@@ -47,7 +47,6 @@ class Simul():
         self.is_dataobj = {}
         self.all_objs_ranks = {}
         self.all_target_device_idxs = {}
-        self.all_objs_classes = {}
         self.remote_objs_ranks = {}
         self.param_files = param_files
         self.objs = {}
@@ -271,7 +270,6 @@ class Simul():
             hints = get_type_hints(klass)
             target_device_idx = pars.get('target_device_idx', None)
             self.all_target_device_idxs[key] = target_device_idx
-            self.all_objs_classes[key] = klass
  
             par_target_rank = pars.pop('target_rank', None)
             if par_target_rank is None:
