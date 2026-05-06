@@ -191,11 +191,38 @@ class AtmoPropagation(BaseProcessingObj):
 
         return [H_in, H_ASM, H_out]
 
+    def _build_layer_heights(self):
+        """Build a dict mapping each layer to its projected height.
+
+        Atmospheric layers are scaled by airmass (their turbulence screens are
+        in the atmosphere and are observed at a slant path). Common layers
+        (pupil stops, DMs, ...) are physical optics whose conjugation altitude
+        is set by the instrument and does not depend on the zenith angle.
+        """
+        self.layer_height = {}
+        for layer in self.atmo_layer_list:
+            self.layer_height[layer] = float(layer.height) * self.airmass
+        for layer in self.common_layer_list:
+            self.layer_height[layer] = float(layer.height)
+
+    def _build_source_heights(self):
+        """Build a dict mapping each source to its projected height.
+
+        For finite-height sources (e.g. LGS), slant path length is
+        height * airmass. For infinite sources (NGS), height remains infinite.
+        """
+        self.source_height = {}
+        for source in self.source_dict.values():
+            if np.isinf(source.height):
+                self.source_height[source] = source.height
+            else:
+                self.source_height[source] = float(source.height) * self.airmass
+
     def doFresnel_setup(self):
         layer_list = self.common_layer_list + self.atmo_layer_list
-        height_layers = np.array([layer.height * self.airmass for layer in layer_list], dtype=self.dtype)
+        height_layers = np.array([self.layer_height[layer] for layer in layer_list], dtype=self.dtype)
 
-        source_height = self.source_dict[list(self.source_dict)[0]].height * self.airmass
+        source_height = self.source_height[self.source_dict[list(self.source_dict)[0]]]
         if np.isinf(source_height):
             raise ValueError('Fresnel propagation to infinity not supported.')
 
@@ -224,8 +251,8 @@ class AtmoPropagation(BaseProcessingObj):
 
     @classmethod
     def input_names(cls):
-        return {'atmo_layer_list': InputDesc(Layer, 'List of atmospheric turbulence layers (optional)'),
-                'common_layer_list': InputDesc(Layer, 'List of common turbulence layers shared across sources')}
+        return {'atmo_layer_list': InputDesc(Layer, 'List of atmospheric turbulence layers (optional). Altitudes scaled by airmass.'),
+                'common_layer_list': InputDesc(Layer, 'List of common layers shared across sources. Altitudes not scaled.')}
 
     @classmethod
     def output_names(cls):
@@ -412,9 +439,9 @@ class AtmoPropagation(BaseProcessingObj):
             self.compute_chromatic_shifts(source, self.atmo_layer_list)
 
             for layer in layer_list:
-                diff_height = (source.height - layer.height) * self.airmass
+                diff_height = self.source_height[source] - self.layer_height[layer]
                 chromatic_shift_m = self.chromatic_shifts_m[source].get(layer, 0.0)
-                if (layer.height == 0 or (np.isinf(source.height) and source.r == 0)) and \
+                if (self.layer_height[layer] == 0 or (np.isinf(source.height) and source.r == 0)) and \
                                 chromatic_shift_m == 0.0 and \
                                 not self.shiftXY_cond[layer] and \
                                 self.pupil_position is None and \
@@ -436,20 +463,39 @@ class AtmoPropagation(BaseProcessingObj):
 
     def layer_interpolator(self, source, layer):
         pixel_layer = layer.size[0]
-        half_pixel_layer = np.array([(pixel_layer - 1) / 2., (pixel_layer - 1) / 2.])
-        cos_sin_phi =  np.array( [np.cos(source.phi), np.sin(source.phi)])
+        half_pixel_layer = np.array([(layer.size[0] - 1) / 2., (layer.size[1] - 1) / 2.])
+        cos_sin_phi = np.array([np.cos(source.phi), np.sin(source.phi)])
         half_pixel_layer -= cpuArray(layer.shiftXYinPixel)
 
+        lh = self.layer_height[layer]            # projected layer height
+        sh = self.source_height[source]         # projected source height
+
         if self.pupil_position is not None and pixel_layer > self.pixel_pupil_size and np.isinf(source.height):
-            pixel_position_s = source.r * layer.height * self.airmass / layer.pixel_pitch
+            # Off-axis NGS (infinite height): rays from infinity are parallel.
+            # The lateral offset at layer height lh is simply θ * lh (plane-wave geometry).
+            # pupil_position shifts the reference point on the layer for off-pupil-centre pointings
+            # (e.g. field-conjugated DMs or off-axis sub-apertures).
+            pixel_position_s = source.r * lh / layer.pixel_pitch
             pixel_position = pixel_position_s * cos_sin_phi + self.pupil_position / layer.pixel_pitch
         elif self.pupil_position is not None and pixel_layer > self.pixel_pupil_size and not np.isinf(source.height):
-            pixel_position_s = source.r * source.height * self.airmass / layer.pixel_pitch
+            # Finite-height source (LGS) with a non-centred pupil.
+            # The ray goes from the source at projected height sh (sky_pixel_position)
+            # to the pupil centre at pupil_pixel_position (on the ground plane).
+            # At height lh, linear interpolation along the ray gives:
+            #   position(lh) = sky_pos + (pupil_pos - sky_pos) * (1 - lh/sh)
+            #                = (sky_pos - pupil_pos) * lh/sh + pupil_pos
+            # This correctly handles the cone effect: for lh -> 0 the position
+            # approaches the pupil centre; for lh -> sh it approaches the source.
+            pixel_position_s = source.r * sh / layer.pixel_pitch
             sky_pixel_position = pixel_position_s * cos_sin_phi
             pupil_pixel_position = self.pupil_position / layer.pixel_pitch
-            pixel_position = (sky_pixel_position - pupil_pixel_position) * layer.height / source.height + pupil_pixel_position
+            pixel_position = (sky_pixel_position - pupil_pixel_position) * lh / sh + pupil_pixel_position
         else:
-            pixel_position_s = source.r * layer.height * self.airmass / layer.pixel_pitch
+            # Centred-pupil case (pupil_position is None) or layer not larger than pupil.
+            # For an NGS the offset at height lh is θ * lh (plane-wave geometry).
+            # For an LGS the same formula is a valid approximation when the pupil is
+            # centred: the ray from (θ*sh, sh) to (0, 0) crosses height lh at θ * lh.
+            pixel_position_s = source.r * lh / layer.pixel_pitch
             pixel_position = pixel_position_s * cos_sin_phi
 
         # Apply pre-computed chromatic lateral displacement.
@@ -463,7 +509,7 @@ class AtmoPropagation(BaseProcessingObj):
         if np.isinf(source.height):
             pixel_pupmeta = self.pixel_pupil_size
         else:
-            cone_coeff = abs(source.height - abs(layer.height)) / source.height
+            cone_coeff = abs(sh - abs(lh)) / sh
             pixel_pupmeta = self.pixel_pupil_size * cone_coeff
 
         if self.magnification_list[layer] != 1.0:
@@ -474,11 +520,17 @@ class AtmoPropagation(BaseProcessingObj):
         xx1 = xx + half_pixel_layer[0] + pixel_position[0]
         yy1 = yy + half_pixel_layer[1] + pixel_position[1]
 
-        # TODO old code?
-        limit0 = (layer.size[0] - self.pixel_pupil_size) /2
-        limit1 = (layer.size[1] - self.pixel_pupil_size) /2
+        # Check that the source falls within the usable FoV of the layer.
+        # Use pixel_pupmeta (effective footprint after cone/magnification) rather than
+        # pixel_pupil_size so the check is correct for LGS (cone effect) and magnified layers.
+        limit0 = (layer.size[0] - pixel_pupmeta) / 2
+        limit1 = (layer.size[1] - pixel_pupmeta) / 2
         isInside = abs(pixel_position[0]) <= limit0 and abs(pixel_position[1]) <= limit1
         if not isInside:
+            print(f'WARNING: Source at [r={source.r}, phi={source.phi}] is outside the FoV of the layer'
+                  f' (layer size: {layer.size}, pixel position: {pixel_position}).'
+                  f' limits: [{-limit0}, {limit0}] x [{-limit1}, {limit1}].'
+                  f' No interpolation will be applied to this layer, which may lead to artifacts if the layer has significant shift or rotation.')  
             return None
 
         return Interp2D(layer.size, (self.pixel_pupil_size, self.pixel_pupil_size), xx=xx1, yy=yy1,
@@ -511,6 +563,8 @@ class AtmoPropagation(BaseProcessingObj):
 
         self.shiftXY_cond = {layer: np.any(layer.shiftXYinPixel) for layer in self.atmo_layer_list + self.common_layer_list}
         self.magnification_list = {layer: max(layer.magnification, 1.0) for layer in self.atmo_layer_list + self.common_layer_list}
+        self._build_layer_heights()
+        self._build_source_heights()
 
         self._block_size = {}
         for layer in self.atmo_layer_list + self.common_layer_list:
