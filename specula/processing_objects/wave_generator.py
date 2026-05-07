@@ -9,13 +9,12 @@ class WaveGenerator(BaseGenerator):
     """
     def __init__(self,
                  wave_type='SIN',  # 'SIN', 'SQUARE', 'TRIANGLE'
-                 amp: list[float] = 0.0,
-                 freq: list[float] = 0.0,
-                 offset: list[float] = 0.0,
-                 constant: list[float] = 0.0,
-                 slope: list[float] = 0.0,
-                 vsize: list[int] = 1,
-                 output_size: int = 1,
+                 amp: list[float] = [0.0],
+                 freq: list[float] = [0.0],
+                 offset: list[float] = [0.0],
+                 constant: list[float] = [0.0],
+                 slope: list[float] = [0.0],
+                 output_size: int = None,
                  target_device_idx: int = None,
                  precision: int = None):
 
@@ -26,10 +25,11 @@ class WaveGenerator(BaseGenerator):
         # Determine output size from arrays
         arrays = [np.atleast_1d(x)
                  for x in [amp, freq, offset, slope, constant]]
-        if output_size == 1:
+        
+        # code to check if the input arrays have consistent sizes, and if output_size is <1, set it to the max size of the input arrays
+        if output_size is None or output_size < 1:
             output_size = max(len(arr) for arr in arrays)
-        if output_size == 1 and vsize > 1:
-            output_size = vsize
+
 
         super().__init__(
             output_size=output_size,
@@ -42,7 +42,7 @@ class WaveGenerator(BaseGenerator):
         self.offset = self.to_xp(np.atleast_1d(offset), dtype=self.dtype)
         self.slope = self.to_xp(np.atleast_1d(slope), dtype=self.dtype)
         self.constant = self.to_xp(np.atleast_1d(constant), dtype=self.dtype)
-        self.vsize_array = self.xp.ones(vsize, dtype=self.dtype)
+        self.output_size_array = self.xp.ones(output_size, dtype=self.dtype)
 
         # Validate array sizes
         self._validate_array_sizes(
@@ -57,14 +57,14 @@ class WaveGenerator(BaseGenerator):
             wave = self.xp.sin(phase, dtype=self.dtype)
             self.output.set_value(
                 (self.slope * self.current_time_gpu + self.amp * wave + self.constant) \
-                    * self.vsize_array
+                    * self.output_size_array
             )
 
         elif self.wave_type == 'SQUARE':
             wave = self.xp.sign(self.xp.sin(phase, dtype=self.dtype))
             self.output.set_value(
                 (self.slope * self.current_time_gpu + self.amp * wave + self.constant) \
-                    * self.vsize_array
+                    * self.output_size_array
             )
 
         elif self.wave_type == 'TRIANGLE':
@@ -72,5 +72,5 @@ class WaveGenerator(BaseGenerator):
             wave = 2 * self.xp.arcsin(self.xp.sin(phase, dtype=self.dtype)) / self.xp.pi
             self.output.set_value(
                 (self.slope * self.current_time_gpu + self.amp * wave + self.constant) \
-                    * self.vsize_array
+                    * self.output_size_array
             )
