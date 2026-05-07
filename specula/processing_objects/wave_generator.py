@@ -9,11 +9,11 @@ class WaveGenerator(BaseGenerator):
     """
     def __init__(self,
                  wave_type='SIN',  # 'SIN', 'SQUARE', 'TRIANGLE'
-                 amp: list[float] = [0.0],
-                 freq: list[float] = [0.0],
-                 offset: list[float] = [0.0],
-                 constant: list[float] = [0.0],
-                 slope: list[float] = [0.0],
+                 amp: List[float] = [0.0],
+                 freq: List[float] = [0.0],
+                 offset: List[float] = [0.0],
+                 constant: List[float] = [0.0],
+                 slope: List[float] = [0.0],
                  output_size: int = None,
                  target_device_idx: int = None,
                  precision: int = None):

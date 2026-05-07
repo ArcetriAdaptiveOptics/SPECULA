@@ -24,8 +24,8 @@ class RandomGenerator(BaseGenerator):
     """
     def __init__(self,
                  distribution='NORMAL',  # 'NORMAL' or 'UNIFORM'
-                 amp: list [float] = None,
-                 constant: list[float] = None,
+                 amp: List [float] = None,
+                 constant: List[float] = None,
                  seed: int = None,
                  output_size: int = 0,
                  modal_rms: float = None, # Modal amplitude scaling arguments
