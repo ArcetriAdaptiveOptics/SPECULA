@@ -251,7 +251,7 @@ class AtmoPropagation(BaseProcessingObj):
 
     @classmethod
     def input_names(cls):
-        return {'atmo_layer_list': InputDesc(Layer, 'List of atmospheric turbulence layers (optional). Altitudes scaled by airmass.'),
+        return {'atmo_layer_list': InputDesc(Layer, 'List of atmospheric turbulence layers (optional). Altitudes will be scaled by airmass.'),
                 'common_layer_list': InputDesc(Layer, 'List of common layers shared across sources. Altitudes not scaled.')}
 
     @classmethod
@@ -527,10 +527,11 @@ class AtmoPropagation(BaseProcessingObj):
         limit1 = (layer.size[1] - pixel_pupmeta) / 2
         isInside = abs(pixel_position[0]) <= limit0 and abs(pixel_position[1]) <= limit1
         if not isInside:
-            print(f'WARNING: Source at [r={source.r}, phi={source.phi}] is outside the FoV of the layer'
-                  f' (layer size: {layer.size}, pixel position: {pixel_position}).'
-                  f' limits: [{-limit0}, {limit0}] x [{-limit1}, {limit1}].'
-                  f' No interpolation will be applied to this layer, which may lead to artifacts if the layer has significant shift or rotation.')  
+            self.logger.warning(f'Warning: Source at [r={source.r}, phi={source.phi}]'
+                  f' is outside the FoV of the layer (layer size: {layer.size},'
+                  f' pixel position: {pixel_position}). limits: [{-limit0}, {limit0}] x'
+                  f'[{-limit1}, {limit1}]. No interpolation will be applied to this layer,'
+                  f' which may lead to artifacts if the layer has significant shift or rotation.')  
             return None
 
         return Interp2D(layer.size, (self.pixel_pupil_size, self.pixel_pupil_size), xx=xx1, yy=yy1,
