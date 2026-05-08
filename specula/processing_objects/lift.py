@@ -462,18 +462,9 @@ class Lift(BaseProcessingObj):
                             'constant', constant_values=0)
         return cropped
 
-    # -------------------------------------------------
-    # Helpers
-    # -------------------------------------------------
-    def prepare_trigger(self, t):
-        super().prepare_trigger(t)
-        self.in_pixels = self.local_inputs['in_pixels']
-
     def trigger(self):
-        if self.in_pixels is None:
-            return
 
-        psf = self.in_pixels.get_value()
+        psf = self.local_inputs['in_pixels'].get_value()
         currentPhaseEstimate, coeffs, niters = self.phaseEstimation(psf) 
 
         coeffs_xp = self.to_xp(coeffs)

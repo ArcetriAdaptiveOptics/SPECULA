@@ -163,13 +163,11 @@ class CurvatureSensor(BaseProcessingObj):
                                        diaratio=fov_pixels / self.internal_res,
                                        xp=self.xp)
 
-
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
         self.ef_interpolator.interpolate()
         self.ef_interpolator.interpolated_ef().ef_at_lambda(
             self.wavelength_in_nm, out=self.ef_resampled)
-
 
     def trigger_code(self):
         # Intrafocal propagation
@@ -201,7 +199,6 @@ class CurvatureSensor(BaseProcessingObj):
         self._out_i2.i[:] = toccd(i2_fov,
                                   (self.number_px, self.number_px),
                                   xp=self.xp)
-
 
     def post_trigger(self):
         super().post_trigger()
