@@ -45,7 +45,7 @@ class AtmoPropagation(BaseProcessingObj):
         ----------
         simul_params : SimulParams
             Simulation parameters object containing global settings.
-        source_dict : dict [1]
+        source_dict : dict
             Dictionary of source objects (e.g., stars, LGS) to be propagated.
         doFresnel : bool
             If True, physical Fresnel propagation is performed. Default is False

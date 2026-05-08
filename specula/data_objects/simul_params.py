@@ -24,7 +24,7 @@ class SimulParams(BaseDataObj):
         ----------
         root_dir : str
             The root dir for the simulation
-        pixel_pupil : int [1]
+        pixel_pupil : int [pixel]
             The diameter in pixels of the simulation pupil
         pixel_pitch : float [m]
             The dimension in meters of a pixel (telescope diameter = pixel_pupil * pixel_pitch)

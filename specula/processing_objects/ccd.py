@@ -78,7 +78,7 @@ class CCD(BaseProcessingObj):
             Whether to apply clock-induced charge noise (default is False).
         cte_noise : bool
             Whether to apply charge transfer efficiency noise (default is False).
-        readout_level : float [1], optional
+        readout_level : float [e-/pixel], optional
             Readout noise level in electrons (default is 0.0).
         darkcurrent_level : float [1], optional
             Dark current level in electrons per pixel (default is 0.0).

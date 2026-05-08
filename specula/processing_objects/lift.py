@@ -56,7 +56,7 @@ class Lift(BaseProcessingObj):
             Number of Zernike modes in the modal base (see ifunc argument).
         wavelengthInNm : float [nm]
             Wavelength in nanometers.
-        pix_scale : float [1]
+        pix_scale : float [arcsec/px]
             Pixel scale.
         npix_side : int [pixels]
             Number of pixels per side.
