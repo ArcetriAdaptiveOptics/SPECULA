@@ -100,12 +100,6 @@ class Pixels(BaseDataObj):
         """
         self.pixels *= factor
 
-    def set_size(self, size):
-        """
-        Set a new shape of the pixels array, discarding the old values.
-        """
-        self.pixels = self.xp.zeros(size, dtype=self.dtype)
-
     def get_fits_header(self):
         hdr = fits.Header()
         hdr['VERSION'] = 1

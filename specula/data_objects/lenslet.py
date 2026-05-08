@@ -1,8 +1,6 @@
 
-
 import numpy as np
 from astropy.io import fits
-
 
 from specula.lib.make_xy import make_xy
 from specula.base_data_obj import BaseDataObj
