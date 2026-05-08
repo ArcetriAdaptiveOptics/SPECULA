@@ -1,4 +1,4 @@
-from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
+from specula.base_processing_obj import BaseProcessingObj, InputDesc
 from specula.connections import InputValue
 from specula.base_value import BaseValue
 from specula import cpuArray, np

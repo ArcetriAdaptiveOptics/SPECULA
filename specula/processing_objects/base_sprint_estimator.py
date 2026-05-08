@@ -118,7 +118,7 @@ class BaseSprintEstimator(BaseProcessingObj):
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        # Store references
+        # Store references, accessed by derived classes
         self.dt = simul_params.time_step
         self.dm = dm
         self.slopec = slopec

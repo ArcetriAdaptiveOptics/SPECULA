@@ -8,7 +8,7 @@ import pickle
 import yaml
 
 from specula import cpuArray
-from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
+from specula.base_processing_obj import BaseProcessingObj
 from specula.lib import utils
 
 
