@@ -1,6 +1,6 @@
 import numpy as np
 from specula.processing_objects.base_generator import BaseGenerator
-
+from typing import List
 
 class RandomGenerator(BaseGenerator):
     """
@@ -12,8 +12,7 @@ class RandomGenerator(BaseGenerator):
     - amp (float) [1]: Amplitude of the random signal. For 'NORMAL', this is the standard deviation;
            for 'UNIFORM', this is the width of the distribution. (default: None)
     - constant (float) [1]: A constant offset added to the random signal (default: 0.0)
-    - seed (int) [1]: Seed for the random number generator (default: None, which means random seed)
-    - vsize (int) [1]: Size of the vector to be generated (default: 1)
+    - seed (int) [1]: Seed for the random number generator (default: None, which means random seed)    
     - output_size (int) [1]: Number of random values to generate (default: 1)
     - modal_rms (float) [1]: Desired RMS value for the modes (mutually exclusive with 'amp') (default: None)
     - forced_zero_modes (int) [1]: Number of initial modes to force to 0.0
@@ -25,11 +24,10 @@ class RandomGenerator(BaseGenerator):
     """
     def __init__(self,
                  distribution='NORMAL',  # 'NORMAL' or 'UNIFORM'
-                 amp=None,
-                 constant: float = 0.0,
+                 amp: List [float] = None,
+                 constant: List[float] = None,
                  seed: int = None,
-                 vsize: int = 1,
-                 output_size: int = 1,
+                 output_size: int = 0,
                  modal_rms: float = None, # Modal amplitude scaling arguments
                  forced_zero_modes: int = 0,
                  scaling_law: str = 'INVERSE', # Options: 'CONSTANT', 'INVERSE', 'LINEAR'
@@ -52,16 +50,17 @@ class RandomGenerator(BaseGenerator):
 
         elif amp is None:
             # Fallback to the original default behavior if no amplitude parameter is passed
-            amp = 1.0
+            amp = [1.0]
 
+        if constant is None:
+            constant = [0.0]
+            
         # Validate arrays and determine output size
         temp_amp = np.atleast_1d(amp)
         temp_const = np.atleast_1d(constant)
 
-        if output_size == 1:
+        if output_size is None or output_size < 1:
             output_size = max(len(temp_amp), len(temp_const), output_size)
-        if output_size == 1:
-            output_size = vsize
 
         super().__init__(
             output_size=output_size,
@@ -87,7 +86,7 @@ class RandomGenerator(BaseGenerator):
             seed = int(self.xp.around(self.xp.random.random() * 1e4))
 
         self.rng = self.xp.random.default_rng(seed)
-        self.vsize_array = self.xp.ones(vsize, dtype=self.dtype)
+        self.output_size_array = self.xp.ones(output_size, dtype=self.dtype)
         self.output_size = output_size
 
     @staticmethod
@@ -142,11 +141,11 @@ class RandomGenerator(BaseGenerator):
         if self.distribution == 'NORMAL':
             self.output.value[:] = (
                 (self.rng.standard_normal(size=self.output_size) \
-                    * self.amp + self.constant) * self.vsize_array
+                    * self.amp + self.constant) * self.output_size_array
             )
         elif self.distribution == 'UNIFORM':
             lowv = self.constant - self.amp / 2
             highv = self.constant + self.amp / 2
             self.output.value[:] = (
-                self.rng.uniform(low=lowv, high=highv, size=self.output_size) * self.vsize_array
+                self.rng.uniform(low=lowv, high=highv, size=self.output_size) * self.output_size_array
             )

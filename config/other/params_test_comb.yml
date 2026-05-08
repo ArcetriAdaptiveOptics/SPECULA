@@ -10,25 +10,25 @@ main:
 
 vector1:
   class:             'WaveGenerator'
-  vsize:              5994
+  output_size:              5994
   constant:          [100]
   outputs: ['output']
 
 vector2:
   class:             'WaveGenerator'
-  vsize:              5
+  output_size:              5
   constant:          [400]
   outputs: ['output']
 
 vector3:
   class:             'WaveGenerator'
-  vsize:              1
+  output_size:              1
   constant:          [1000]
   outputs: ['output']
 
 vector4:
   class:             'WaveGenerator'
-  vsize:              6
+  output_size:              6
   constant:          [8000]
   outputs: ['output']
 
