@@ -52,6 +52,9 @@ class RandomGenerator(BaseGenerator):
             # Fallback to the original default behavior if no amplitude parameter is passed
             amp = [1.0]
 
+        if constant is None:
+            constant = [0.0]
+            
         # Validate arrays and determine output size
         temp_amp = np.atleast_1d(amp)
         temp_const = np.atleast_1d(constant)
