@@ -150,6 +150,3 @@ class PhaseScreenCube(BaseProcessingObj):
             #       as the layer output (layer.field)
             ef_output_name = output_name.replace('_layer', '_ef')
             self.outputs[ef_output_name].generation_time = self.current_time
-
-    def post_trigger(self):
-        super().post_trigger()
