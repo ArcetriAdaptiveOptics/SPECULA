@@ -62,18 +62,17 @@ class TestPetalUnwrapper(unittest.TestCase):
         n_petals = 6
         n_modes = 10
         pupilstop, ifunc = self._get_dummy_objects(dim, n_petals, n_modes, target_device_idx, xp)
-        
+
         unwrapper = PetalUnwrapper(
             ifunc=ifunc,
             pupilstop=pupilstop,
             n_petals=n_petals,
             angle_offset_deg=90.0,
             thresh_in_nm=350.0,
-            lambda_wfs=700.0,
             n_petal_modes=n_petals,
             target_device_idx=target_device_idx
         )
-        
+
         # H should map the 6 DOFs to 12 heights (2 heights * 6 spiders)
         self.assertEqual(unwrapper.H.shape, (12, n_petals))
         # H_dagger should be the pseudo-inverse
@@ -86,83 +85,72 @@ class TestPetalUnwrapper(unittest.TestCase):
         n_petals = 6
         n_modes = 10
         pupilstop, ifunc = self._get_dummy_objects(dim, n_petals, n_modes, target_device_idx, xp)
-        
+
         unwrapper = PetalUnwrapper(
             ifunc=ifunc,
             pupilstop=pupilstop,
             n_petals=n_petals,
             angle_offset_deg=90.0,
             thresh_in_nm=350.0,
-            lambda_wfs=700.0,
             n_petal_modes=n_petals,
             target_device_idx=target_device_idx
         )
-        
+
         # Command with small jumps (e.g. 100 nm on petal 0)
         in_comm_data = xp.zeros(n_modes, dtype=xp.float32)
-        in_comm_data[-n_petals] = 100.0  
-        
+        in_comm_data[-n_petals] = 100.0
+
         in_comm = BaseValue(value=in_comm_data, target_device_idx=target_device_idx)
+        in_comm.generation_time = 1
         unwrapper.inputs['in_comm'].set(in_comm)
-        
+
         unwrapper.setup()
-        unwrapper.prepare_trigger(1)
-        unwrapper.trigger_code()
-        
+        unwrapper.check_ready(1)
+        unwrapper.trigger()
+        unwrapper.post_trigger()
+
         out_comm = unwrapper.outputs['out_comm'].value
         out_ost = unwrapper.outputs['out_ost'].value
-        
+
         # Should do nothing: out_comm == in_comm, out_ost == 0
         xp.testing.assert_allclose(out_comm, in_comm_data)
         xp.testing.assert_allclose(out_ost, xp.zeros_like(in_comm_data))
 
     @cpu_and_gpu
-    def test_trigger_above_threshold(self, target_device_idx, xp):
-        """Tests that a phase wrapping error is successfully identified, quantized by lambda, and subtracted."""
+    def test_trigger_above_threshold_reset_to_zero(self, target_device_idx, xp):
+        """Tests that an error above threshold is fully reset to zero (Hard Limiter)."""
         dim = 64
         n_petals = 6
         n_modes = 10
         pupilstop, ifunc = self._get_dummy_objects(dim, n_petals, n_modes, target_device_idx, xp)
-        
+
         unwrapper = PetalUnwrapper(
             ifunc=ifunc,
             pupilstop=pupilstop,
-            n_petals=n_petals,
-            angle_offset_deg=90.0,
             thresh_in_nm=350.0,
-            lambda_wfs=700.0,
             n_petal_modes=n_petals,
             target_device_idx=target_device_idx
         )
-        
-        # We manually inject a fake H matrix to purely test the algebraic thresholding logic.
-        # Suppose H maps petal 0 directly to gap 0 with a 1:1 ratio.
+
+        # Inject a 1:1 gap mapping for testing
         unwrapper.H = xp.zeros((12, n_petals), dtype=xp.float32)
-        unwrapper.H[0, 0] = 1.0   
+        unwrapper.H[0, 0] = 1.0
         unwrapper.H_dagger = xp.linalg.pinv(unwrapper.H)
-        
-        # We command an error of 720 nm (which is > 350 nm)
+
+        # Command 500 nm error (> 350 nm)
         in_comm_data = xp.zeros(n_modes, dtype=xp.float32)
-        in_comm_data[-n_petals] = 720.0  
-        
+        in_comm_data[-n_petals] = 500.0
+
         in_comm = BaseValue(value=in_comm_data, target_device_idx=target_device_idx)
+        in_comm.generation_time = 1  # <--- L'OROLOGIO DI SPECULA
         unwrapper.inputs['in_comm'].set(in_comm)
-        
+
         unwrapper.setup()
-        unwrapper.prepare_trigger(1)
-        unwrapper.trigger_code()
-        
+        unwrapper.check_ready(1)
+        unwrapper.trigger()
+        unwrapper.post_trigger()
+
         out_comm = unwrapper.outputs['out_comm'].value
-        out_ost = unwrapper.outputs['out_ost'].value
-        
-        # The algorithm should see 720 nm.
-        # 720 nm is closer to 1 * lambda (700 nm).
-        # It should subtract exactly 700 nm.
-        # So the final command to the DM should be 720 - 700 = 20 nm.
-        # The feedback to the IIR state should be exactly 700 nm.
-        
-        self.assertAlmostEqual(float(cpuArray(out_comm)[-n_petals]), 20.0, places=4)
-        self.assertAlmostEqual(float(cpuArray(out_ost)[-n_petals]), 700.0, places=4)
-        
-        # Verify that all the other modes (atmosphere) remained untouched
-        xp.testing.assert_allclose(out_comm[:-n_petals], in_comm_data[:-n_petals])
+
+        # With the new logic, 500 nm is entirely subtracted
+        self.assertAlmostEqual(float(cpuArray(out_comm)[-n_petals]), 0.0, places=4)

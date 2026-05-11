@@ -51,8 +51,7 @@ class IirFilter(BaseFilter):
             delay=delay,
             target_device_idx=target_device_idx,
             precision=precision)
-        
-        
+
         self.inputs['in_ost'] = InputValue(type=BaseValue, optional=True)
 
         # IIR-specific state
@@ -67,7 +66,7 @@ class IirFilter(BaseFilter):
     @classmethod
     def input_names(cls):
         names = super().input_names()
-        names['in_ost'] = InputDesc(BaseValue, 'Optional state update to subtract from integrators', optional=True)
+        names['in_ost'] = InputDesc(BaseValue, 'State update to subtract from integrators (optional)')
         return names
 
     @classmethod

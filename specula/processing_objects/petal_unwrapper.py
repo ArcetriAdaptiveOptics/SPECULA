@@ -18,7 +18,6 @@ class PetalUnwrapper(BaseProcessingObj):
                  angle_offset_deg: float = 90.0,
                  spider_widths: list = None,
                  thresh_in_nm: float = 350.0,
-                 lambda_wfs: float = 700.0,
                  n_petal_modes: int = 10,
                  target_device_idx=None,
                  precision=None):
@@ -27,7 +26,6 @@ class PetalUnwrapper(BaseProcessingObj):
         self.n_petals = n_petals
         self.angle_offset_deg = angle_offset_deg
         self.thresh_in_nm = thresh_in_nm
-        self.lambda_wfs = lambda_wfs
         self.n_petal_modes = n_petal_modes
 
         if spider_widths is None:
@@ -162,9 +160,11 @@ class PetalUnwrapper(BaseProcessingObj):
         # 2. Virtual Topological Measurement (12 points)
         h_gaps = self.H @ m_pet
 
-        # 3. Non-Linear Thresholding (Identify wrapping errors)
+        # 3. Hard Limiter Logic: if it exceeds threshold, we calculate
+        # the correction to bring the gap to ZERO.
+        # This keeps the error within the high-sensitivity range[cite: 14, 114].
         h_err = self.xp.where(self.xp.abs(h_gaps) > self.thresh_in_nm,
-                              self.xp.round(h_gaps / self.lambda_wfs) * self.lambda_wfs,
+                              h_gaps,
                               0.0)
 
         # Output buffers
@@ -184,3 +184,8 @@ class PetalUnwrapper(BaseProcessingObj):
 
         self.outputs['out_comm'].set_value(out_comm_val)
         self.outputs['out_ost'].set_value(out_ost_val)
+
+    def post_trigger(self):
+        super().post_trigger()
+        self.outputs['out_comm'].generation_time = self.current_time
+        self.outputs['out_ost'].generation_time = self.current_time
