@@ -113,7 +113,7 @@ class PetalUnwrapper(BaseProcessingObj):
             nx, ny = -np.sin(theta_rad), np.cos(theta_rad)
             D = X * nx + Y * ny
 
-            margin = self.spider_widths[i] * 1.5 
+            margin = self.spider_widths[i] * 1.5
 
             left_mask = (D < 0) & (D > -margin) & mask_amp
             right_mask = (D >= 0) & (D < margin) & mask_amp
@@ -159,6 +159,14 @@ class PetalUnwrapper(BaseProcessingObj):
 
                 H_full_cpu[2*i, m] = h_in
                 H_full_cpu[2*i + 1, m] = h_out
+
+        if np.sum(np.abs(H_full_cpu)) == 0.0:
+             self.logger.error("CRITICAL ERROR: H_full is completely ZERO! The virtual spiders"
+                               " are either falling outside the pupil, reading masked pixels, "
+                               " or hitting continuous flat glass. Check your angle_offset_deg"
+                               " and n_petals in the YAML!")
+        else:
+             self.logger.info("H_full matrix generated successfully with non-zero values.")
 
         self.H_full = self.to_xp(H_full_cpu, dtype=self.dtype)
 
