@@ -18,6 +18,7 @@ class PetalUnwrapper(BaseProcessingObj):
                  angle_offset_deg: float = 30.0,
                  spider_widths: list = None,
                  thresh_in_nm: float = 350.0,
+                 nmodes: int = None,
                  target_device_idx=None,
                  precision=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
@@ -25,6 +26,7 @@ class PetalUnwrapper(BaseProcessingObj):
         self.n_petals = n_petals
         self.angle_offset_deg = angle_offset_deg
         self.thresh_in_nm = thresh_in_nm
+        self.nmodes = nmodes
 
         if spider_widths is None:
             self.spider_widths = [0.5] * self.n_petals
@@ -33,8 +35,10 @@ class PetalUnwrapper(BaseProcessingObj):
 
         self.inputs['in_comm'] = InputValue(type=BaseValue)
 
-        self.outputs['out_comm'] = BaseValue(target_device_idx=self.target_device_idx, precision=self.precision)
-        self.outputs['out_ost'] = BaseValue(target_device_idx=self.target_device_idx, precision=self.precision)
+        self.outputs['out_comm'] = BaseValue(target_device_idx=self.target_device_idx,
+                                             precision=self.precision)
+        self.outputs['out_ost'] = BaseValue(target_device_idx=self.target_device_idx,
+                                            precision=self.precision)
 
         self._initialize_geometry(ifunc, pupilstop)
 
@@ -87,7 +91,13 @@ class PetalUnwrapper(BaseProcessingObj):
             P_ideal[3*i + 2, :] = sector_1d * (Y[mask_amp] / pupil_radius)
 
         # 2. PROJECT IDEAL PETALS ONTO THE PROVIDED BASIS
-        B = cpuArray(ifunc.influence_function) # Shape: (n_modes, n_valid)
+        B_full = cpuArray(ifunc.influence_function) # Shape: (n_modes, n_valid)
+
+        if self.nmodes is not None:
+            B = B_full[:self.nmodes, :]
+        else:
+            B = B_full
+
         n_modes = B.shape[0]
 
         BBT = B @ B.T
