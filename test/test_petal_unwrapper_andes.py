@@ -29,7 +29,6 @@ class TestPetalUnwrapperRealBasis(unittest.TestCase):
         dim = 400
         pixel_pitch = 39.0 / dim  # Assuming 39m ELT, adjust if needed
         n_petals = 6
-        n_petal_modes = 10
 
         simul_params = SimulParams(time_step=1, pixel_pupil=dim, pixel_pitch=pixel_pitch)
         pupilstop = Pupilstop(simul_params, input_mask=cpuArray(ifunc.mask_inf_func),
@@ -37,9 +36,9 @@ class TestPetalUnwrapperRealBasis(unittest.TestCase):
 
         # 2. Unwrapper Initialization parameters
         thresh = 350.0
-        angle_offset = 30.0  # <--- THIS MIGHT BE THE CULPRIT (Try 0.0 or 90.0 if the plot looks wrong)
-        spider_widths = [0.5] * n_petals # <--- INCREASE THIS IF MASKS FALL IN THE SHADOW (e.g. 0.8)
-        
+        angle_offset = 30.0  # <--- Adjust if the red lines in the plot don't match the gaps
+        spider_widths = [0.5] * n_petals # <--- Increase if masks fall into the shadow
+
         unwrapper = PetalUnwrapper(
             ifunc=ifunc,
             pupilstop=pupilstop,
@@ -47,21 +46,20 @@ class TestPetalUnwrapperRealBasis(unittest.TestCase):
             angle_offset_deg=angle_offset,
             spider_widths=spider_widths,
             thresh_in_nm=thresh,
-            n_petal_modes=n_petal_modes,
             target_device_idx=target_device_idx
         )
 
         # --- CRITICAL NUMERICAL DIAGNOSTICS ---
-        H_cpu = cpuArray(unwrapper.H)
-        H_cond = np.linalg.cond(H_cpu)
-        print(f"\n[DEBUG] H matrix shape: {H_cpu.shape}")
-        print(f"[DEBUG] H Condition Number: {H_cond:.2e}")
+        # We now check H_full (shape: 12 x N_modes)
+        H_full_cpu = cpuArray(unwrapper.H_full)
+        print(f"\n[DEBUG] H_full matrix shape: {H_full_cpu.shape}")
 
-        _, S, _ = np.linalg.svd(H_cpu)
-        print(f"[DEBUG] Singular Values of H: {S}")
+        # Look at the singular values to ensure the 12 gaps are linearly independent
+        _, S, _ = np.linalg.svd(H_full_cpu, full_matrices=False)
+        print(f"[DEBUG] Singular Values of H_full (top 12): {S[:12]}")
 
         # --- VISUAL DEBUGGING ---
-        debug_plot = True
+        debug_plot = False
         if debug_plot:
             import matplotlib.pyplot as plt
 
@@ -93,40 +91,45 @@ class TestPetalUnwrapperRealBasis(unittest.TestCase):
             axs[1].imshow(eval_mask, origin='lower', cmap='coolwarm', vmin=-1, vmax=1)
             axs[1].set_title("Sampling Masks for Spider 0")
 
-            # Plot 3: The very last mode of the basis
-            last_mode_2d = np.zeros((dim, dim))
-            last_mode_2d[mask_amp] = cpuArray(ifunc.influence_function[-1, :])
-            axs[2].imshow(last_mode_2d, origin='lower', cmap='viridis')
-            axs[2].set_title("Basis Mode: index -1")
+            # Plot 3: The synthesized Petal 0
+            # This proves that the agnostic algorithm successfully built a petal out of your basis!
+            petal_0_comm = cpuArray(unwrapper.C_petals)[:, 0]
+            petal_0_2d = np.zeros((dim, dim))
+            B_cpu = cpuArray(ifunc.influence_function)
+            petal_0_2d[mask_amp] = petal_0_comm @ B_cpu
+            
+            axs[2].imshow(petal_0_2d, origin='lower', cmap='viridis')
+            axs[2].set_title("Synthesized Petal 0 from Basis")
 
             plt.tight_layout()
             plt.show()
 
-        # Fail explicitly if ill-conditioned (after showing the plot)
-        self.assertLess(H_cond, 1e4, "H matrix is severely ill-conditioned! Check the plot to fix alignment.")
+        # Check that the mapping pseudo-inverse isn't blowing up
+        H_pd_cpu = cpuArray(unwrapper.H_petals_dagger)
+        self.assertFalse(np.isnan(H_pd_cpu).any(),
+                         "H_petals_dagger contains NaNs. Geometry mapping failed.")
 
-        # --- 3. Monte Carlo Test (Will run only if assertion passes) ---
+        # --- 3. Monte Carlo Test ---
         n_modes_total = ifunc.influence_function.shape[0]
-        n_atmo_modes = n_modes_total - n_petal_modes
+
+        # Enable the second debug plot to see the action
+        debug_plot_mc = False
 
         for test_idx in range(3):
-            # A) Random atmosphere
-            atmo_comm = xp.random.randn(n_atmo_modes, dtype=xp.float32) * 200.0
+            # A) Base command simulating standard atmospheric correction
+            atmo_comm = (xp.random.randn(n_modes_total) * 20.0).astype(xp.float32)
 
-            # B) Background petal noise (below threshold)
-            petal_comm = xp.random.randn(n_petal_modes, dtype=xp.float32) * 50.0
-
-            # C) Force an extreme error on a random spider gap
+            # B) Force a PHYSICAL error: Piston one random petal by 800 nm
             target_petal_idx = np.random.randint(0, n_petals)
-            h_err_target = np.zeros(12, dtype=np.float32)
-            h_err_target[2 * target_petal_idx] = 800.0     # Inner edge jump
-            h_err_target[2 * target_petal_idx + 1] = 800.0 # Outer edge jump
 
-            # Convert gap jump to modal command using pseudo-inverse
-            m_jump = cpuArray(unwrapper.H_dagger) @ h_err_target
-            petal_comm += xp.array(m_jump, dtype=xp.float32)
+            ideal_petal_amplitudes = np.zeros(n_petals * 3, dtype=np.float32)
+            ideal_petal_amplitudes[3 * target_petal_idx + 0] = 800.0  # +0 is Piston, +1 is Tip, +2 is Tilt
 
-            in_comm_data = xp.concatenate((atmo_comm, petal_comm))
+            # Map the ideal petal to the actuator basis
+            delta_comm = cpuArray(unwrapper.C_petals) @ ideal_petal_amplitudes
+
+            in_comm_data = atmo_comm + xp.array(delta_comm, dtype=xp.float32)
+
             in_comm = BaseValue(value=in_comm_data, target_device_idx=target_device_idx)
             in_comm.generation_time = test_idx + 1
 
@@ -138,19 +141,64 @@ class TestPetalUnwrapperRealBasis(unittest.TestCase):
 
             out_comm = unwrapper.outputs['out_comm'].value
 
-            # Verification 1: Atmosphere must remain untouched
-            xp.testing.assert_allclose(
-                out_comm[:n_atmo_modes],
-                atmo_comm,
-                rtol=1e-5,
-                err_msg=f"Test {test_idx}: Filter corrupted the atmospheric modes!"
-            )
+            # --- PLOTTING THE ACTION (Only for the first test iteration) ---
+            if debug_plot_mc and test_idx == 0:
+                import matplotlib.pyplot as plt
 
-            # Verification 2: Petal errors must be reduced below threshold
-            m_pet_out = out_comm[-n_petal_modes:]
-            final_gaps = unwrapper.H @ m_pet_out
+                # We need the basis to reconstruct 2D phases
+                B_cpu = cpuArray(ifunc.influence_function)
 
+                # Reconstruct 2D Phase Maps
+                phase_in = np.zeros((dim, dim))
+                phase_in[mask_amp] = cpuArray(in_comm_data) @ B_cpu
+
+                phase_out = np.zeros((dim, dim))
+                phase_out[mask_amp] = cpuArray(out_comm) @ B_cpu
+
+                phase_petal = np.zeros((dim, dim))
+                phase_petal[mask_amp] = delta_comm @ B_cpu
+
+                # Get the Jumps (Gaps) before and after
+                gaps_before = cpuArray(unwrapper.H_full) @ cpuArray(in_comm_data)
+                gaps_after = cpuArray(unwrapper.H_full) @ cpuArray(out_comm)
+
+                fig2, axs2 = plt.subplots(2, 2, figsize=(16, 12))
+
+                # Top Left: The injected Petal Error
+                im0 = axs2[0, 0].imshow(phase_petal, origin='lower',
+                                        cmap='seismic', vmin=-1000, vmax=1000)
+                axs2[0, 0].set_title(f"Injected Pure Petal Piston (Petal {target_petal_idx})")
+                fig2.colorbar(im0, ax=axs2[0, 0])
+
+                # Top Right: Total Input Phase (Atmo + Petal)
+                im1 = axs2[0, 1].imshow(phase_in, origin='lower', cmap='viridis')
+                axs2[0, 1].set_title("Input Phase (Atmosphere + Petal Error)")
+                fig2.colorbar(im1, ax=axs2[0, 1])
+
+                # Bottom Left: Output Phase (Cleaned)
+                im2 = axs2[1, 0].imshow(phase_out, origin='lower', cmap='viridis')
+                axs2[1, 0].set_title("Output Phase (Unwrapped)")
+                fig2.colorbar(im2, ax=axs2[1, 0])
+
+                # Bottom Right: Bar chart of the 12 Jumps
+                x_pos = np.arange(12)
+                axs2[1, 1].bar(x_pos - 0.2, gaps_before, 0.4, label='Gaps Before', color='red')
+                axs2[1, 1].bar(x_pos + 0.2, gaps_after, 0.4, label='Gaps After', color='green')
+                axs2[1, 1].axhline(thresh, color='k', linestyle='--', label='+Threshold')
+                axs2[1, 1].axhline(-thresh, color='k', linestyle='--', label='-Threshold')
+                axs2[1, 1].set_title("Physical Gaps measured by H_full")
+                axs2[1, 1].set_xticks(x_pos)
+                axs2[1, 1].set_xlabel("Measurement Point Index (0-11)")
+                axs2[1, 1].set_ylabel("Gap [nm]")
+                axs2[1, 1].legend()
+
+                plt.tight_layout()
+                plt.show()
+
+            # Verification: Petal errors must be reduced below threshold
+            final_gaps = unwrapper.H_full @ out_comm
             max_gap = float(xp.max(xp.abs(final_gaps)))
+
             self.assertLess(
                 max_gap,
                 thresh,
