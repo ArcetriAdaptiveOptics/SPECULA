@@ -75,7 +75,7 @@ class TestCalcPhasescreen(unittest.TestCase):
 
         phasescreen = calc_phasescreen(L0, dimension, pixel_pitch, xp, precision, seed=seed)
 
-        assert xp.isfinite(phasescreen.phasescreen).all()
+        assert xp.isfinite(phasescreen).all()
         
 
 

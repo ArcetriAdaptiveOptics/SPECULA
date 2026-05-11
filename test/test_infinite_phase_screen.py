@@ -102,7 +102,7 @@ class TestInfinitePhaseScreen(unittest.TestCase):
                                                 seed=random_seed2 + i,
                                                 precision=1,
                                                 xp=xp)
-                    fft_screen = fft_screen.phasescreen
+                    fft_screen = fft_screen
                     fft_screen = cpuArray(fft_screen) * 500 / (2 * np.pi)  # in nm
                     r0_scaling = (pixel_scale / r0)**(5./6.)
                     fft_screen *= r0_scaling
