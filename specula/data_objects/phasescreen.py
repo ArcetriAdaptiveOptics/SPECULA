@@ -6,7 +6,7 @@ from specula.base_data_obj import BaseDataObj
 
 class Phasescreen(BaseDataObj):
     """
-    Intensity field data object.
+    Phasescreen field data object.
     """
     def __init__(self, 
                  dimx: int, 
@@ -64,14 +64,14 @@ class Phasescreen(BaseDataObj):
         dimy = hdr['DIMY']
         L0 = hdr['L0']
         seed = hdr['SEED']
-        intensity = Phasescreen(dimx, dimy, L0=L0, seed=seed, target_device_idx=target_device_idx)
-        return intensity
+        phasescreen = Phasescreen(dimx, dimy, L0=L0, seed=seed, target_device_idx=target_device_idx)
+        return phasescreen
     
     @staticmethod
     def restore(filename, target_device_idx=None):
         hdr = fits.getheader(filename)
-        if 'OBJ_TYPE' not in hdr or hdr['OBJ_TYPE'] != 'Intensity':
-            raise ValueError(f"Error: file {filename} does not contain an Intensity object")
+        if 'OBJ_TYPE' not in hdr or hdr['OBJ_TYPE'] != 'Phasescreen':
+            raise ValueError(f"Error: file {filename} does not contain a Phasescreen object")
         phasescreen = Phasescreen.from_header(hdr, target_device_idx=target_device_idx)
         with fits.open(filename) as hdul:
             phasescreen.i[:] = phasescreen.to_xp(hdul[0].data)  # pylint: disable=no-member
