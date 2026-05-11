@@ -11,6 +11,7 @@ from specula.processing_objects.iir_filter import IirFilter
 from specula.processing_objects.integrator import Integrator
 from specula.processing_objects.schedule_generator import ScheduleGenerator
 from specula.data_objects.simul_params import SimulParams
+from specula.connections import InputValue
 from specula.base_value import BaseValue
 
 from test.specula_testlib import cpu_and_gpu
@@ -304,3 +305,69 @@ class TestIirFilter(unittest.TestCase):
         # buffer[2] = 10 (step 0), buffer[1] = 30 (step 1)
         # output = 0.5 * 10 + 0.5 * 30 = 20
         np.testing.assert_almost_equal(delayed, 20.0, decimal=5)
+
+    @cpu_and_gpu
+    def test_in_ost_state_update(self, target_device_idx, xp):
+        """
+        Test that the optional input 'in_ost' correctly updates the integrator's internal state.
+        """
+        # Create a pure integrator (gain=1.0, forgetting_factor=1.0)
+        filter_data = IirFilterData.from_gain_and_ff([1.0], [1.0],
+                                                     target_device_idx=target_device_idx)
+        simul_params = SimulParams(time_step=1)
+        
+        iir = IirFilter(simul_params=simul_params, iir_filter_data=filter_data,
+                        target_device_idx=target_device_idx)
+        
+        # Defensive check in case the IirFilter __init__ hasn't been fully updated yet in the test environment
+        if 'in_ost' not in iir.inputs:
+            iir.inputs['in_ost'] = InputValue(type=BaseValue, optional=True)
+            
+        # 1. Set a constant input command equal to 10.0
+        delta_comm = BaseValue(value=xp.array([10.0], dtype=xp.float32),
+                               target_device_idx=target_device_idx)
+        iir.inputs['delta_comm'].set(delta_comm)
+        
+        iir.setup()
+        
+        # --- Frame 1: Normal Integration ---
+        # Previous memory = 0. Input = 10 -> Expected output = 10
+        iir.prepare_trigger(1)
+        iir.trigger_code()
+        iir.post_trigger()
+        
+        out1 = float(cpuArray(iir.outputs['out_comm'].value)[0])
+        self.assertAlmostEqual(out1, 10.0)
+        
+        # --- Frame 2: State reset injection (in_ost) ---
+        # We want to subtract 4.0 from the integrator's memory.
+        # Since the logic is now inside prepare_trigger, it will be applied before trigger_code.
+        in_ost = BaseValue(value=xp.array([4.0], dtype=xp.float32),
+                           target_device_idx=target_device_idx)
+        iir.inputs['in_ost'].set(in_ost)
+        
+        # What should happen:
+        # Memory currently holds 10. We subtract 4 -> memory becomes 6.
+        # The new input is still 10. 
+        # Expected output = 6 + 10 = 16.
+        iir.prepare_trigger(2)
+        iir.trigger_code()
+        iir.post_trigger()
+        
+        out2 = float(cpuArray(iir.outputs['out_comm'].value)[0])
+        self.assertAlmostEqual(out2, 16.0,
+                               msg="Output should reflect the state reduced by in_ost (10 - 4 + 10 = 16)")
+        
+        # --- Frame 3: Removal of the reset ---
+        # Reset in_ost to 0 to ensure it doesn't keep subtracting indefinitely
+        in_ost_zero = BaseValue(value=xp.array([0.0], dtype=xp.float32), target_device_idx=target_device_idx)
+        iir.inputs['in_ost'].set(in_ost_zero)
+        
+        iir.prepare_trigger(3)
+        iir.trigger_code()
+        iir.post_trigger()
+        
+        # Previous memory = 16. Input = 10 -> Expected output = 26
+        out3 = float(cpuArray(iir.outputs['out_comm'].value)[0])
+        self.assertAlmostEqual(out3, 26.0,
+                               msg="Once the correction is removed, the integrator should resume normally")
