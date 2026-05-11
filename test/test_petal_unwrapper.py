@@ -27,32 +27,32 @@ class TestPetalUnwrapper(unittest.TestCase):
         r = np.sqrt(x**2 + y**2)
         mask_cpu = (r <= dim/2 - 2).astype(np.float32)
         mask = xp.array(mask_cpu)
-        
+
         # Create pupilstop
         simul_params = SimulParams(time_step=1, pixel_pupil=dim, pixel_pitch=1.0)
         pupilstop = Pupilstop(simul_params, input_mask=mask, target_device_idx=target_device_idx)
-        
+
         # Create fake IFunc where each petal mode is a pure piston on a sector
         theta = np.degrees(np.arctan2(y, x))
         angle_offset = 90.0
-        
+
         idx = np.where(mask_cpu > 0)
         n_valid = len(idx[0])
-        
+
         ifunc_data = np.zeros((n_modes, n_valid), dtype=np.float32)
-        
+
         for i in range(n_petals):
             # Normalize angles to [0, 360)
             th = (theta - angle_offset) % 360
             sector_mask = (th >= i * 360.0 / n_petals) & (th < (i+1) * 360.0 / n_petals)
             sector_mask = sector_mask & (mask_cpu > 0)
-            
+
             # Put the petals at the end of the mode matrix
             mode_idx = n_modes - n_petals + i
             ifunc_data[mode_idx, :] = sector_mask[idx].astype(np.float32)
-            
+
         ifunc = IFunc(ifunc=xp.array(ifunc_data), mask=mask, target_device_idx=target_device_idx)
-        
+
         return pupilstop, ifunc
 
     @cpu_and_gpu

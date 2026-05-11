@@ -76,10 +76,11 @@ class IirFilter(BaseFilter):
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
-        if self.local_inputs['in_ost'] is not None:
-            ost_update = self.local_inputs['in_ost'].value
+        in_ost_input = self.local_inputs.get('in_ost')
+        if in_ost_input is not None and in_ost_input.value is not None:
+            ost_update = in_ost_input.value
             self._ost[:, -1] -= self.xp.asarray(ost_update, dtype=self.dtype).ravel()
-        
+
     def trigger_code(self):
         """IIR filter computation."""
         sden = self.iir_filter_data.den.shape
