@@ -165,8 +165,12 @@ class IFunc(BaseDataObj):
 
         return ifunc_3d
 
-    def inverse(self):
-        inv = self.xp.linalg.pinv(self._influence_function)
+    def inverse(self, nmodes=None):
+        ifunc = self._influence_function
+        if nmodes is not None and nmodes != ifunc.shape[0]:
+            ifunc = cut_modes(ifunc, nmodes=nmodes)
+
+        inv = self.xp.linalg.pinv(ifunc)
         return IFuncInv(inv, mask=self._mask_inf_func, precision=self.precision, target_device_idx=self.target_device_idx)
 
     @staticmethod
