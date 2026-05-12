@@ -245,7 +245,7 @@ class CCD(BaseProcessingObj):
                 'integrated_i': OutputDesc(Intensity, 'Integrated intensity over the exposure')}
 
     def trigger_code(self):
-        if self.start_time > 0 and self.current_time < self.start_time:
+        if self.current_time < self.start_time:
             return
 
         self._integrated_i.sum(self.local_inputs['in_i'],
