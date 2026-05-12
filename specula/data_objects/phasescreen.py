@@ -35,7 +35,7 @@ class Phasescreen(BaseDataObj):
         Arrays are not reallocated
         '''
         assert v.shape == self.phasescreen.shape, \
-            f"Error: input array shape {v.shape} does not match phasescreen field shape {self.i.shape}"
+            f"Error: input array shape {v.shape} does not match phasescreen field shape {self.phasescreen.shape}"
         self.phasescreen[:]= self.to_xp(v)
 
     def get_fits_header(self):
@@ -74,7 +74,7 @@ class Phasescreen(BaseDataObj):
             raise ValueError(f"Error: file {filename} does not contain a Phasescreen object")
         phasescreen = Phasescreen.from_header(hdr, target_device_idx=target_device_idx)
         with fits.open(filename) as hdul:
-            phasescreen.i[:] = phasescreen.to_xp(hdul[0].data)  # pylint: disable=no-member
+            phasescreen.phasescreen[:] = phasescreen.to_xp(hdul[0].data)  # pylint: disable=no-member
         return phasescreen
 
     def array_for_display(self):
