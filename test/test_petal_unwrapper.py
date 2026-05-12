@@ -69,7 +69,6 @@ class TestPetalUnwrapper(unittest.TestCase):
             n_petals=n_petals,
             angle_offset_deg=90.0,
             thresh_in_nm=350.0,
-            n_petal_modes=n_petals,
             target_device_idx=target_device_idx
         )
 
@@ -92,7 +91,6 @@ class TestPetalUnwrapper(unittest.TestCase):
             n_petals=n_petals,
             angle_offset_deg=90.0,
             thresh_in_nm=350.0,
-            n_petal_modes=n_petals,
             target_device_idx=target_device_idx
         )
 
@@ -128,7 +126,6 @@ class TestPetalUnwrapper(unittest.TestCase):
             ifunc=ifunc,
             pupilstop=pupilstop,
             thresh_in_nm=350.0,
-            n_petal_modes=n_petals,
             target_device_idx=target_device_idx
         )
 

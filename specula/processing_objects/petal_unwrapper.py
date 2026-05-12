@@ -19,6 +19,9 @@ class PetalUnwrapper(BaseProcessingObj):
                  spider_widths: list = None,
                  thresh_in_nm: float = 350.0,
                  nmodes: int = None,
+                 start_time: float = 0.0,
+                 interval_time: float = 0.0,
+                 rcond: float = 1e-2,
                  target_device_idx=None,
                  precision=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
@@ -27,6 +30,13 @@ class PetalUnwrapper(BaseProcessingObj):
         self.angle_offset_deg = angle_offset_deg
         self.thresh_in_nm = thresh_in_nm
         self.nmodes = nmodes
+        self.rcond = rcond
+
+        # SPECULA discrete time management
+        self.start_time_t = self.seconds_to_t(start_time)
+        self.interval_time_t = self.seconds_to_t(interval_time)
+        # Initialized to -1 to trigger immediately on the first valid check
+        self.last_correction_time = -1
 
         if spider_widths is None:
             self.spider_widths = [0.5] * self.n_petals
@@ -172,32 +182,51 @@ class PetalUnwrapper(BaseProcessingObj):
 
         # 4. MAP GAPS BACK TO IDEAL PETALS (Now mapping 12 gaps to 18 DOFs)
         H_petals_cpu = H_full_cpu @ C_petals_cpu # Shape: (12, 18)
-        self.H_petals_dagger = self.to_xp(np.linalg.pinv(H_petals_cpu, rcond=1e-3), dtype=self.dtype)
 
-        self.logger.info("Agnostic Unwrapper matrices ready (Piston/Tip/Tilt modes included).")
+        # Using the self.rcond parameter provided via YAML or default
+        self.H_petals_dagger = self.to_xp(np.linalg.pinv(H_petals_cpu, rcond=self.rcond),
+                                          dtype=self.dtype)
+
+        self.logger.info(f"Agnostic Unwrapper matrices ready (Piston/Tip/Tilt included,"
+                         f" rcond={self.rcond}).")
 
     def trigger_code(self):
+
         in_comm = self.local_inputs['in_comm'].value
-
-        # 1. Measure the exact physical gaps created by the entire command vector
-        h_gaps = self.H_full @ in_comm
-
-        # 2. Hard Limiter Logic
-        h_err = self.xp.where(self.xp.abs(h_gaps) > self.thresh_in_nm, h_gaps, 0.0)
 
         out_comm_val = in_comm.copy()
         out_ost_val = self.xp.zeros_like(in_comm)
 
-        if self.xp.any(h_err):
-            # 3. Find the ideal petal amplitudes to close the gaps
-            delta_p = self.H_petals_dagger @ h_err
+        # Check both the start_time and the interval_time
+        # (Using a 1e-6 tolerance to avoid floating-point slip-ups)
+        do_check = False
+        if self.current_time >= self.start_time_t:
+            if self.interval_time_t <= 0:
+                do_check = True
+            elif (self.current_time - self.last_correction_time) >= self.interval_time_t - 1e-6:
+                do_check = True
 
-            # 4. Map the ideal petals back into the command basis
-            delta_comm = self.C_petals @ delta_p
+        if do_check:
+            # 1. Measure the exact physical gaps created by the entire command vector
+            h_gaps = self.H_full @ in_comm
 
-            # Apply corrections
-            out_comm_val -= delta_comm
-            out_ost_val = delta_comm
+            # 2. Hard Limiter Logic
+            h_err = self.xp.where(self.xp.abs(h_gaps) > self.thresh_in_nm, h_gaps, 0.0)
+
+            if self.xp.any(h_err):
+                # 3. Find the ideal petal amplitudes to close the gaps
+                delta_p = self.H_petals_dagger @ h_err
+
+                # 4. Map the ideal petals back into the command basis
+                delta_comm = self.C_petals @ delta_p
+
+                # Apply corrections
+                out_comm_val -= delta_comm
+                out_ost_val = delta_comm
+
+            # Update the timer (regardless of whether a threshold was crossed, 
+            # otherwise it would retry the scan at every subsequent frame)
+            self.last_correction_time = self.current_time
 
         self.outputs['out_comm'].set_value(out_comm_val)
         self.outputs['out_ost'].set_value(out_ost_val)
