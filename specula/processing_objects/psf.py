@@ -190,8 +190,6 @@ class PSF(BaseProcessingObj):
         self.logger.info(f'SR at {int(self.wavelengthInNm)}nm : {self.sr.value}')
 
     def _compute_radial_profile_data(self, psf):
-        if psf is None:
-            return None
 
         peak = self.xp.max(psf)
         if float(peak) <= 0.0:
@@ -210,8 +208,6 @@ class PSF(BaseProcessingObj):
 
     def _compute_profile_metrics(self, psf):
         radial_profile_data = self._compute_radial_profile_data(psf)
-        if radial_profile_data is None:
-            return None
 
         profile, radial_dist, n_px_in_bin = radial_profile_data
         fwhm = compute_fwhm_from_profile(profile, radial_dist, xp=self.xp, dtype=self.dtype)
@@ -230,8 +226,6 @@ class PSF(BaseProcessingObj):
 
     def _set_radial_profile_output(self, psf, profile_output):
         radial_profile_data = self._compute_radial_profile_data(psf)
-        if radial_profile_data is None:
-            return
 
         profile, radial_dist, _ = radial_profile_data
         profile_output.value = self.xp.vstack([radial_dist, profile])
@@ -240,8 +234,6 @@ class PSF(BaseProcessingObj):
     def _set_profile_outputs(self, psf, profile_output, fwhm_output,
                              ee_output, ee_at_radius_output):
         metrics = self._compute_profile_metrics(psf)
-        if metrics is None:
-            return
 
         profile, radial_dist, fwhm, ee, ee_at_radius = metrics
         profile_output.value = self.xp.vstack([radial_dist, profile])
