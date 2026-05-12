@@ -20,8 +20,8 @@ class ImCalibrator(BaseProcessingObj):
     Interaction matrix calibrator processing object.
     """
     def __init__(self,
-                 nmodes: int,         # TODO =0,
-                 data_dir: str,       # TODO = "",         # Set by main simul object
+                 nmodes: int,
+                 data_dir: str,    # Set by main simul object
                  im_tag: str='',
                  first_mode: int = 0,
                  overwrite: bool = False,

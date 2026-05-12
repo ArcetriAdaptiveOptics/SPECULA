@@ -54,7 +54,7 @@ class PSF(BaseProcessingObj):
     """
     def __init__(self,
                  simul_params: SimulParams,
-                 wavelengthInNm: float,    # TODO =500.0,
+                 wavelengthInNm: float,
                  nd: float=None,
                  pixel_size_mas: float=None,
                  start_time: float=0.0,
