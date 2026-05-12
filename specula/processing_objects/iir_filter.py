@@ -65,9 +65,11 @@ class IirFilter(BaseFilter):
 
     @classmethod
     def input_names(cls):
-        names = super().input_names()
-        names['in_ost'] = InputDesc(BaseValue, 'State update to subtract from integrators (optional)')
-        return names
+        result = super().input_names()
+        result.update({
+            'in_ost': InputDesc(BaseValue, 'State update to subtract from integrators (optional)')
+        })
+        return result
 
     @classmethod
     def output_names(cls):
