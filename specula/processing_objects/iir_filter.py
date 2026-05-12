@@ -82,15 +82,13 @@ class IirFilter(BaseFilter):
             ost_update = in_ost_input.value
             ost_update_array = self.xp.asarray(ost_update, dtype=self.dtype).ravel()
 
-            # 1. Update the pure integrator mathematical state
-            self._ost[:, -1] -= ost_update_array
-
-            # 2. PURGE THE DELAY PIPELINE
-            # We must subtract the correction from the entire delay pipeline to
-            # prevent "ghost" gaps from re-triggering the topological unwrapper
-            # in the subsequent frames.
+            # 1. Update the filter state
             for i in range(self.output_buffer.shape[1]):
                 self.output_buffer[:, i] -= ost_update_array
+
+            # 2. PURGE THE DELAY PIPELINE
+            for j in range(self._ost.shape[1]):
+                self._ost[:, j] -= ost_update_array
 
     def trigger_code(self):
         """IIR filter computation."""
