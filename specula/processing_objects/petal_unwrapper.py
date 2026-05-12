@@ -22,6 +22,7 @@ class PetalUnwrapper(BaseProcessingObj):
                  start_time: float = 0.0,
                  interval_time: float = 0.0,
                  rcond: float = 1e-2,
+                 piston_only: bool = False,
                  target_device_idx=None,
                  precision=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
@@ -31,6 +32,7 @@ class PetalUnwrapper(BaseProcessingObj):
         self.thresh_in_nm = thresh_in_nm
         self.nmodes = nmodes
         self.rcond = rcond
+        self.piston_only = piston_only
 
         # SPECULA discrete time management
         self.start_time_t = self.seconds_to_t(start_time)
@@ -64,8 +66,6 @@ class PetalUnwrapper(BaseProcessingObj):
         }
 
     def _initialize_geometry(self, ifunc, pupilstop):
-        self.logger.info("Generating internal Petal modes (Piston/Tip/Tilt) and mapping to basis...")
-
         mask_amp = cpuArray(pupilstop.A) > 0
         dim = mask_amp.shape[0]
         pitch = pupilstop.pixel_pitch
@@ -75,9 +75,16 @@ class PetalUnwrapper(BaseProcessingObj):
         R = np.sqrt(X**2 + Y**2)
         Theta = np.degrees(np.arctan2(Y, X)) % 360.0
 
-        # 1. GENERATE IDEAL PETALS (Piston, Tip, Tilt)
+        # 1. GENERATE IDEAL PETALS
         n_valid = np.sum(mask_amp)
-        self.n_ideal_modes = self.n_petals * 3  # 3 DOFs per petal
+        
+        if self.piston_only:
+            self.n_ideal_modes = self.n_petals
+            self.logger.info("Generating internal Petal modes (PISTON ONLY) and mapping to basis...")
+        else:
+            self.n_ideal_modes = self.n_petals * 3  # 3 DOFs per petal
+            self.logger.info("Generating internal Petal modes (Piston/Tip/Tilt) and mapping to basis...")
+            
         P_ideal = np.zeros((self.n_ideal_modes, n_valid), dtype=np.float32)
 
         pupil_radius = (dim / 2.0) * pitch # For normalization
@@ -93,12 +100,16 @@ class PetalUnwrapper(BaseProcessingObj):
 
             sector_1d = sector_mask[mask_amp].astype(np.float32)
 
-            # Mode 0: Piston
-            P_ideal[3*i + 0, :] = sector_1d
-            # Mode 1: Tip (X-Tilt), normalized by radius for numerical stability
-            P_ideal[3*i + 1, :] = sector_1d * (X[mask_amp] / pupil_radius)
-            # Mode 2: Tilt (Y-Tilt), normalized
-            P_ideal[3*i + 2, :] = sector_1d * (Y[mask_amp] / pupil_radius)
+            if self.piston_only:
+                # Mode 0: Solo Pistone
+                P_ideal[i, :] = sector_1d
+            else:
+                # Mode 0: Piston
+                P_ideal[3*i + 0, :] = sector_1d
+                # Mode 1: Tip (X-Tilt)
+                P_ideal[3*i + 1, :] = sector_1d * (X[mask_amp] / pupil_radius)
+                # Mode 2: Tilt (Y-Tilt)
+                P_ideal[3*i + 2, :] = sector_1d * (Y[mask_amp] / pupil_radius)
 
         # 2. PROJECT IDEAL PETALS ONTO THE PROVIDED BASIS
         B_full = cpuArray(ifunc.influence_function) # Shape: (n_modes, n_valid)
