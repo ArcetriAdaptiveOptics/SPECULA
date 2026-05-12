@@ -9,7 +9,7 @@ from specula.base_value import BaseValue
 from specula.data_objects.ifunc import IFunc
 from specula.data_objects.pupilstop import Pupilstop
 from specula.data_objects.simul_params import SimulParams
-from specula.processing_objects.petal_unwrapper import PetalUnwrapper 
+from specula.processing_objects.petal_unwrapper import PetalUnwrapper
 
 from test.specula_testlib import cpu_and_gpu
 
@@ -69,13 +69,16 @@ class TestPetalUnwrapper(unittest.TestCase):
             n_petals=n_petals,
             angle_offset_deg=90.0,
             thresh_in_nm=350.0,
+            nmodes=n_modes,
             target_device_idx=target_device_idx
         )
 
-        # H should map the 6 DOFs to 12 heights (2 heights * 6 spiders)
-        self.assertEqual(unwrapper.H.shape, (12, n_petals))
-        # H_dagger should be the pseudo-inverse
-        self.assertEqual(unwrapper.H_dagger.shape, (n_petals, 12))
+        # H_full maps n_modes to 12 physical gaps
+        self.assertEqual(unwrapper.H_full.shape, (12, n_modes))
+        # H_petals_dagger maps 12 physical gaps to 18 DOFs (Piston, Tip, Tilt per petal)
+        self.assertEqual(unwrapper.H_petals_dagger.shape, (18, 12))
+        # C_petals maps the 18 ideal DOFs back to the command basis
+        self.assertEqual(unwrapper.C_petals.shape, (n_modes, 18))
 
     @cpu_and_gpu
     def test_no_trigger_below_threshold(self, target_device_idx, xp):
@@ -91,12 +94,13 @@ class TestPetalUnwrapper(unittest.TestCase):
             n_petals=n_petals,
             angle_offset_deg=90.0,
             thresh_in_nm=350.0,
+            nmodes=n_modes,
             target_device_idx=target_device_idx
         )
 
-        # Command with small jumps (e.g. 100 nm on petal 0)
+        # Command with small jumps (e.g. 100 nm on the last mode)
         in_comm_data = xp.zeros(n_modes, dtype=xp.float32)
-        in_comm_data[-n_petals] = 100.0
+        in_comm_data[-1] = 100.0
 
         in_comm = BaseValue(value=in_comm_data, target_device_idx=target_device_idx)
         in_comm.generation_time = 1
@@ -116,7 +120,7 @@ class TestPetalUnwrapper(unittest.TestCase):
 
     @cpu_and_gpu
     def test_trigger_above_threshold_reset_to_zero(self, target_device_idx, xp):
-        """Tests that an error above threshold is fully reset to zero (Hard Limiter)."""
+        """Tests that an error above threshold is fully reset to zero using mocked geometry."""
         dim = 64
         n_petals = 6
         n_modes = 10
@@ -126,20 +130,26 @@ class TestPetalUnwrapper(unittest.TestCase):
             ifunc=ifunc,
             pupilstop=pupilstop,
             thresh_in_nm=350.0,
+            nmodes=n_modes,
             target_device_idx=target_device_idx
         )
 
-        # Inject a 1:1 gap mapping for testing
-        unwrapper.H = xp.zeros((12, n_petals), dtype=xp.float32)
-        unwrapper.H[0, 0] = 1.0
-        unwrapper.H_dagger = xp.linalg.pinv(unwrapper.H)
+        # Mock the geometry mappings to isolate and test the Hard Limiter logic natively
+        unwrapper.H_full = xp.zeros((12, n_modes), dtype=xp.float32)
+        unwrapper.H_full[0, -1] = 1.0  # The last mode directly creates a 1:1 gap on physical gap 0
 
-        # Command 500 nm error (> 350 nm)
+        unwrapper.C_petals = xp.zeros((n_modes, 18), dtype=xp.float32)
+        unwrapper.C_petals[-1, 0] = 1.0  # Ideal Petal 0 Piston maps 1:1 to the last command mode
+
+        unwrapper.H_petals_dagger = xp.zeros((18, 12), dtype=xp.float32)
+        unwrapper.H_petals_dagger[0, 0] = 1.0  # Gap 0 requires Petal 0 Piston correction
+
+        # Command 500 nm error (> 350 nm) on the last mode
         in_comm_data = xp.zeros(n_modes, dtype=xp.float32)
-        in_comm_data[-n_petals] = 500.0
+        in_comm_data[-1] = 500.0
 
         in_comm = BaseValue(value=in_comm_data, target_device_idx=target_device_idx)
-        in_comm.generation_time = 1  # <--- L'OROLOGIO DI SPECULA
+        in_comm.generation_time = 1
         unwrapper.inputs['in_comm'].set(in_comm)
 
         unwrapper.setup()
@@ -149,5 +159,5 @@ class TestPetalUnwrapper(unittest.TestCase):
 
         out_comm = unwrapper.outputs['out_comm'].value
 
-        # With the new logic, 500 nm is entirely subtracted
-        self.assertAlmostEqual(float(cpuArray(out_comm)[-n_petals]), 0.0, places=4)
+        # The algorithm should have completely subtracted the 500 nm command
+        self.assertAlmostEqual(float(cpuArray(out_comm)[-1]), 0.0, places=4)
