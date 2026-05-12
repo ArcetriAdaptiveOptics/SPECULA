@@ -89,6 +89,13 @@ class TestIFunv(unittest.TestCase):
         self.assertEqual(inv.size, (self.data.shape[1], 1))
 
     @cpu_and_gpu
+    def test_nmodes_and_npoints(self, target_device_idx, xp):
+        ifunc = IFunc(self.data, mask=self.mask, target_device_idx=target_device_idx)
+
+        self.assertEqual(ifunc.nmodes(), self.data.shape[0])
+        self.assertEqual(ifunc.npoints(), self.data.shape[1])
+
+    @cpu_and_gpu
     def test_ifunc_2d_to_3d(self, target_device_idx, xp):
         '''Test for ifunc_2d_to_3d method'''
         mask = make_mask(64)

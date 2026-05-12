@@ -56,7 +56,7 @@ class ModalAnalysis(BaseProcessingObj):
             self.phase2modes = ifunc.inverse()
         elif ifunc is None and ifunc_inv is not None:
             # Use ifunc_inv directly, don't attempt to call inverse() on None
-            if nmodes is not None and nmodes != ifunc_inv.size[0]:
+            if nmodes != ifunc_inv.nmodes():
                 ifunc_inv = IFuncInv(ifunc_inv.ifunc_inv[:, :nmodes],
                                      mask=ifunc_inv.mask_inf_func,
                                      target_device_idx=ifunc_inv.target_device_idx,
@@ -77,7 +77,7 @@ class ModalAnalysis(BaseProcessingObj):
         self.wavelengthInNm = wavelengthInNm
 
         if nmodes is None:
-            self._n_modes = self.phase2modes.size[1]
+            self._n_modes = self.phase2modes.nmodes()
         else:
             self._n_modes = nmodes
         self._n_inputs = n_inputs

@@ -153,3 +153,19 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
 
         self.assertEqual(ifunc_inv.size, original_shape)
         self.assertEqual(modal_analysis.phase2modes.size, (4, 2))
+
+    @cpu_and_gpu
+    def test_modal_analysis_ifunc_inv_nmodes_none_shares_ifunc_inv_data(self, target_device_idx, xp):
+        ifunc_inv_data = xp.random.rand(4, 3).astype(xp.float32)
+        mask = xp.ones((2, 2), dtype=xp.uint8)
+        ifunc_inv = IFuncInv(ifunc_inv_data, mask,
+                             target_device_idx=target_device_idx)
+
+        modal_analysis = ModalAnalysis(ifunc_inv=ifunc_inv, nmodes=None,
+                                       target_device_idx=target_device_idx)
+
+        phase2modes_data = modal_analysis.phase2modes.ifunc_inv
+        if hasattr(xp, 'may_share_memory'):
+            self.assertTrue(xp.may_share_memory(phase2modes_data, ifunc_inv_data))
+        else:
+            self.assertEqual(phase2modes_data.data.ptr, ifunc_inv_data.data.ptr)
