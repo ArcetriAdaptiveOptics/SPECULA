@@ -36,8 +36,8 @@ class TestPetalUnwrapperRealBasis(unittest.TestCase):
 
         # 2. Unwrapper Initialization parameters
         thresh = 350.0
-        angle_offset = 30.0  # <--- Adjust if the red lines in the plot don't match the gaps
-        spider_widths = [0.5] * n_petals # <--- Increase if masks fall into the shadow
+        angle_offset = 30.0
+        spider_widths = [0.5] * n_petals
 
         unwrapper = PetalUnwrapper(
             ifunc=ifunc,
@@ -59,7 +59,8 @@ class TestPetalUnwrapperRealBasis(unittest.TestCase):
         print(f"[DEBUG] Singular Values of H_full (top 12): {S[:12]}")
 
         # --- VISUAL DEBUGGING ---
-        debug_plot = False
+        debug_plot = False  # Enable the first debug plot to visualize the geometry and the synthesized petals
+        debug_plot_mc = False # Enable the second debug plot to see the action
         if debug_plot:
             import matplotlib.pyplot as plt
 
@@ -112,12 +113,14 @@ class TestPetalUnwrapperRealBasis(unittest.TestCase):
         # --- 3. Monte Carlo Test ---
         n_modes_total = ifunc.influence_function.shape[0]
 
-        # Enable the second debug plot to see the action
-        debug_plot_mc = False
-
         for test_idx in range(3):
             # A) Base command simulating standard atmospheric correction
-            atmo_comm = (xp.random.randn(n_modes_total) * 20.0).astype(xp.float32)
+
+            # Create a realistic 1/f mode scaling (Kolmogorov-like decay)
+            mode_scales = 1.0 / (xp.arange(n_modes_total) + 1.0)
+
+            # 2000.0 nm amplitude for the first modes (like global tilt), decaying rapidly
+            atmo_comm = (xp.random.randn(n_modes_total) * 2000.0 * mode_scales).astype(xp.float32)
 
             # B) Force a PHYSICAL error: Piston one random petal by 800 nm
             target_petal_idx = np.random.randint(0, n_petals)

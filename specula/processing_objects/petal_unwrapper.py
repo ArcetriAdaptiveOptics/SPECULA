@@ -8,8 +8,8 @@ from specula.data_objects.pupilstop import Pupilstop
 class PetalUnwrapper(BaseProcessingObj):
     """
     Topological Unwrapper for Segmented Mirrors.
-    Agnostic version: computes petal modes internally and projects them 
-    onto the provided modal basis (actuators, Zernike, etc.).
+    Agnostic version: Always computes 3*N_petals DOFs internally to absorb atmospheric tilt 
+    robustly, but can filter the output to actuate Pistons only.
     """
     def __init__(self,
                  ifunc: IFunc,
@@ -37,7 +37,6 @@ class PetalUnwrapper(BaseProcessingObj):
         # SPECULA discrete time management
         self.start_time_t = self.seconds_to_t(start_time)
         self.interval_time_t = self.seconds_to_t(interval_time)
-        # Initialized to -1 to trigger immediately on the first valid check
         self.last_correction_time = -1
 
         if spider_widths is None:
@@ -66,6 +65,8 @@ class PetalUnwrapper(BaseProcessingObj):
         }
 
     def _initialize_geometry(self, ifunc, pupilstop):
+        self.logger.info(f"Generating internal Petal modes ({self.n_petals * 3} DOFs) and mapping to basis...")
+
         mask_amp = cpuArray(pupilstop.A) > 0
         dim = mask_amp.shape[0]
         pitch = pupilstop.pixel_pitch
@@ -75,16 +76,10 @@ class PetalUnwrapper(BaseProcessingObj):
         R = np.sqrt(X**2 + Y**2)
         Theta = np.degrees(np.arctan2(Y, X)) % 360.0
 
-        # 1. GENERATE IDEAL PETALS
+        # 1. ALWAYS GENERATE 3*N_petals IDEAL PETALS (Piston, Tip, Tilt)
+        # This is strictly required to let the math absorb continuous atmospheric tilts
         n_valid = np.sum(mask_amp)
-        
-        if self.piston_only:
-            self.n_ideal_modes = self.n_petals
-            self.logger.info("Generating internal Petal modes (PISTON ONLY) and mapping to basis...")
-        else:
-            self.n_ideal_modes = self.n_petals * 3  # 3 DOFs per petal
-            self.logger.info("Generating internal Petal modes (Piston/Tip/Tilt) and mapping to basis...")
-            
+        self.n_ideal_modes = self.n_petals * 3
         P_ideal = np.zeros((self.n_ideal_modes, n_valid), dtype=np.float32)
 
         pupil_radius = (dim / 2.0) * pitch # For normalization
@@ -100,16 +95,17 @@ class PetalUnwrapper(BaseProcessingObj):
 
             sector_1d = sector_mask[mask_amp].astype(np.float32)
 
-            if self.piston_only:
-                # Mode 0: Solo Pistone
-                P_ideal[i, :] = sector_1d
-            else:
-                # Mode 0: Piston
-                P_ideal[3*i + 0, :] = sector_1d
-                # Mode 1: Tip (X-Tilt)
-                P_ideal[3*i + 1, :] = sector_1d * (X[mask_amp] / pupil_radius)
-                # Mode 2: Tilt (Y-Tilt)
-                P_ideal[3*i + 2, :] = sector_1d * (Y[mask_amp] / pupil_radius)
+            # Mode 0: Piston
+            P_ideal[3*i + 0, :] = sector_1d
+            # Mode 1: Tip (X-Tilt)
+            P_ideal[3*i + 1, :] = sector_1d * (X[mask_amp] / pupil_radius)
+            # Mode 2: Tilt (Y-Tilt)
+            P_ideal[3*i + 2, :] = sector_1d * (Y[mask_amp] / pupil_radius)
+
+        # 1b. Prepare the surgical mask for "piston_only" mode
+        piston_mask_cpu = np.zeros(self.n_ideal_modes, dtype=np.float32)
+        piston_mask_cpu[0::3] = 1.0  # Keep indices 0, 3, 6... (Pistons), kill Tips and Tilts
+        self.piston_mask = self.to_xp(piston_mask_cpu, dtype=self.dtype)
 
         # 2. PROJECT IDEAL PETALS ONTO THE PROVIDED BASIS
         B_full = cpuArray(ifunc.influence_function) # Shape: (n_modes, n_valid)
@@ -127,6 +123,7 @@ class PetalUnwrapper(BaseProcessingObj):
         self.C_petals = self.to_xp(C_petals_cpu, dtype=self.dtype)
 
         # 3. BUILD FULL OBSERVATION MATRIX (H_full)
+        # Using the robust 1D radial regression.
         H_full_cpu = np.zeros((self.n_petals * 2, n_modes), dtype=np.float32)
 
         for i in range(self.n_petals):
@@ -157,7 +154,7 @@ class PetalUnwrapper(BaseProcessingObj):
                 mode_L = B[m, left_1d]
                 mode_R = B[m, right_1d]
 
-                # Regression LEFT
+                # Robust 1D Radial Regression LEFT
                 if len(R_L) > 0:
                     mean_R_L = np.mean(R_L)
                     m0_L = np.mean(mode_L)
@@ -166,7 +163,7 @@ class PetalUnwrapper(BaseProcessingObj):
                 else:
                     mean_R_L, m0_L, mT_L = 0.0, 0.0, 0.0
 
-                # Regression RIGHT
+                # Robust 1D Radial Regression RIGHT
                 if len(R_R) > 0:
                     mean_R_R = np.mean(R_R)
                     m0_R = np.mean(mode_R)
@@ -182,24 +179,17 @@ class PetalUnwrapper(BaseProcessingObj):
                 H_full_cpu[2*i + 1, m] = h_out
 
         if np.sum(np.abs(H_full_cpu)) == 0.0:
-             self.logger.error("CRITICAL ERROR: H_full is completely ZERO! The virtual spiders"
-                               " are either falling outside the pupil, reading masked pixels, "
-                               " or hitting continuous flat glass. Check your angle_offset_deg"
-                               " and n_petals in the YAML!")
+             self.logger.error("CRITICAL ERROR: H_full is completely ZERO! Check your angle_offset_deg and n_petals!")
         else:
-             self.logger.info("H_full matrix generated successfully with non-zero values.")
+             self.logger.info("H_full matrix generated successfully.")
 
         self.H_full = self.to_xp(H_full_cpu, dtype=self.dtype)
 
-        # 4. MAP GAPS BACK TO IDEAL PETALS (Now mapping 12 gaps to 18 DOFs)
+        # 4. MAP GAPS BACK TO IDEAL PETALS
         H_petals_cpu = H_full_cpu @ C_petals_cpu # Shape: (12, 18)
+        self.H_petals_dagger = self.to_xp(np.linalg.pinv(H_petals_cpu, rcond=self.rcond), dtype=self.dtype)
 
-        # Using the self.rcond parameter provided via YAML or default
-        self.H_petals_dagger = self.to_xp(np.linalg.pinv(H_petals_cpu, rcond=self.rcond),
-                                          dtype=self.dtype)
-
-        self.logger.info(f"Agnostic Unwrapper matrices ready (Piston/Tip/Tilt included,"
-                         f" rcond={self.rcond}).")
+        self.logger.info(f"Unwrapper matrices ready. Piston Only Actuation: {self.piston_only}")
 
     def trigger_code(self):
 
@@ -208,8 +198,6 @@ class PetalUnwrapper(BaseProcessingObj):
         out_comm_val = in_comm.copy()
         out_ost_val = self.xp.zeros_like(in_comm)
 
-        # Check both the start_time and the interval_time
-        # (Using a 1e-6 tolerance to avoid floating-point slip-ups)
         do_check = False
         if self.current_time >= self.start_time_t:
             if self.interval_time_t <= 0:
@@ -218,25 +206,27 @@ class PetalUnwrapper(BaseProcessingObj):
                 do_check = True
 
         if do_check:
-            # 1. Measure the exact physical gaps created by the entire command vector
+            # 1. Measure the exact physical gaps
             h_gaps = self.H_full @ in_comm
 
             # 2. Hard Limiter Logic
             h_err = self.xp.where(self.xp.abs(h_gaps) > self.thresh_in_nm, h_gaps, 0.0)
 
             if self.xp.any(h_err):
-                # 3. Find the ideal petal amplitudes to close the gaps
+                # 3. Find the ideal petal amplitudes (18 DOFs) that explain the error
                 delta_p = self.H_petals_dagger @ h_err
 
-                # 4. Map the ideal petals back into the command basis
+                # 4. SURGICAL FILTERING: Kill Tip/Tilt if requested
+                if self.piston_only:
+                    delta_p *= self.piston_mask
+
+                # 5. Map the filtered petals back into the command basis
                 delta_comm = self.C_petals @ delta_p
 
                 # Apply corrections
                 out_comm_val -= delta_comm
                 out_ost_val = delta_comm
 
-            # Update the timer (regardless of whether a threshold was crossed, 
-            # otherwise it would retry the scan at every subsequent frame)
             self.last_correction_time = self.current_time
 
         self.outputs['out_comm'].set_value(out_comm_val)
