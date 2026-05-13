@@ -23,7 +23,7 @@ class MmsePistonUnwrapper(BaseProcessingObj):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         if len(recmat_list) < 2:
-            raise ValueError("MmseUnwrapper requires 'recmat_list' to contain at least two objects:"
+            raise ValueError("MmsePistonUnwrapper requires 'recmat_list' to contain at least two objects:"
                              " [MMSE_recmat, Intmat].")
 
         self.gain = gain
@@ -40,16 +40,41 @@ class MmsePistonUnwrapper(BaseProcessingObj):
         self.outputs['out_ost'] = BaseValue(target_device_idx=self.target_device_idx,
                                             precision=self.precision)
 
-        # Expect recmat_list[0] to be the MMSE reconstructor (5xN_modes) and
-        #        recmat_list[1] to be the Interaction matrix (N_modes x 5)
+        # Expect recmat_list[0] to be the MMSE reconstructor (N_pistons x N_modes) and
+        #        recmat_list[1] to be the Interaction matrix (N_modes x N_pistons)
         self.logger.info("Loading MMSE reconstructor and Interaction matrices from recmat_list...")
         recmat_obj = recmat_list[0]
         intmat_obj = recmat_list[1]
 
-        self.recmat = self.to_xp(recmat_obj.recmat, dtype=self.dtype) # Shape: (5, N_modes)
-        self.intmat = self.to_xp(intmat_obj.recmat, dtype=self.dtype) # Shape: (N_modes, 5)
+        self.recmat = self.to_xp(recmat_obj.recmat, dtype=self.dtype) # Shape: (N_pistons_rel, N_modes)
+        self.intmat = self.to_xp(intmat_obj.recmat, dtype=self.dtype) # Shape: (N_modes, N_pistons)
 
-        self.logger.info(f"MmseUnwrapper initialized successfully. Gain: {self.gain}")
+        if self.recmat.ndim != 2 or self.intmat.ndim != 2:
+            raise ValueError("MmsePistonUnwrapper expects 2D matrices for both recmat and intmat.")
+
+        self.n_pistons, self.n_modes = self.recmat.shape
+        intmat_n_modes, intmat_n_pistons = self.intmat.shape
+        if (intmat_n_modes, intmat_n_pistons) != (self.n_modes, self.n_pistons):
+            raise ValueError(
+                "Incompatible matrix shapes for MmsePistonUnwrapper: "
+                f"recmat shape {tuple(self.recmat.shape)} and intmat shape {tuple(self.intmat.shape)}. "
+                f"Expected intmat shape ({self.n_modes}, {self.n_pistons})."
+            )
+
+        self.logger.info(f"MmsePistonUnwrapper initialized successfully. Gain: {self.gain}")
+
+    def setup(self):
+        super().setup()
+
+        in_comm = self.local_inputs['in_comm'].value
+        in_comm_size = int(self.xp.asarray(in_comm).size)
+        if in_comm_size != self.n_modes:
+            raise ValueError(
+                f"Input command size ({in_comm_size}) does not match matrix mode size ({self.n_modes})."
+            )
+
+        self.outputs['out_comm'].set_value(self.xp.asarray(in_comm, dtype=self.dtype).copy())
+        self.outputs['out_ost'].set_value(self.xp.zeros_like(in_comm, dtype=self.dtype))
 
     @classmethod
     def input_names(cls):
@@ -66,13 +91,13 @@ class MmsePistonUnwrapper(BaseProcessingObj):
         in_comm = self.local_inputs['in_comm'].value
 
         out_comm_val = in_comm.copy()
-        out_ost_val = self.xp.zeros_like(in_comm)
+        out_ost_val = None
 
         do_check = False
         if self.current_time >= self.start_time_t:
             if self.interval_time_t <= 0:
                 do_check = True
-            elif (self.current_time - self.last_correction_time) >= self.interval_time_t - 1e-6:
+            elif (self.current_time - self.last_correction_time) >= self.interval_time_t:
                 do_check = True
 
         if do_check:
@@ -90,6 +115,8 @@ class MmsePistonUnwrapper(BaseProcessingObj):
             out_ost_val = delta_comm
 
             self.last_correction_time = self.current_time
+        else:
+            out_ost_val = self.xp.zeros_like(in_comm)
 
         self.outputs['out_comm'].set_value(out_comm_val)
         self.outputs['out_ost'].set_value(out_ost_val)
