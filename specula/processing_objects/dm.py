@@ -117,7 +117,7 @@ class DM(BaseProcessingObj):
         if start_mode is None:
             start_mode = 0
         if nmodes is None:
-            nmodes = self._ifunc.size[0]
+            nmodes = self._ifunc.nmodes()
 
         if idx_modes is not None:
             self._valid_modes = idx_modes
@@ -135,7 +135,7 @@ class DM(BaseProcessingObj):
             self.m2c_commands = None
         
         s = self._ifunc.mask_inf_func.shape
-        nmodes_if = self._ifunc.size[0]
+        nmodes_if = self._ifunc.nmodes()
         self.if_commands = self.xp.zeros(nmodes_if, dtype=self.dtype)
 
         self.if_commands_selector = slice(0, self.n_valid_modes)

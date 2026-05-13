@@ -131,6 +131,12 @@ class IFunc(BaseDataObj):
     def size(self):
         return self._influence_function.shape
 
+    def nmodes(self):
+        return self._influence_function.shape[0]
+
+    def npoints(self):
+        return self._influence_function.shape[1]
+
     @property
     def type(self):
         return self._influence_function.dtype
@@ -165,8 +171,12 @@ class IFunc(BaseDataObj):
 
         return ifunc_3d
 
-    def inverse(self):
-        inv = self.xp.linalg.pinv(self._influence_function)
+    def inverse(self, nmodes=None):
+        ifunc = self._influence_function
+        if nmodes is not None and nmodes != self.nmodes():
+            ifunc = cut_modes(ifunc, nmodes=nmodes)
+
+        inv = self.xp.linalg.pinv(ifunc)
         return IFuncInv(inv, mask=self._mask_inf_func, precision=self.precision, target_device_idx=self.target_device_idx)
 
     @staticmethod
