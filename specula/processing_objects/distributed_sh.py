@@ -63,11 +63,11 @@ class DistributedSH(SH):
 
     @classmethod
     def input_names(cls):
-        return {'in_ef': InputDesc(ElectricField, 'Input electric field from the telescope pupil')}
+        return super().input_names()
 
     @classmethod
     def output_names(cls):
-        return {'out_i': OutputDesc(Intensity, 'Output intensity on the detector (Shack-Hartmann spot pattern)')}
+        return super().output_names()
 
     def setup(self):
         '''

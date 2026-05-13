@@ -39,7 +39,7 @@ class FocalPlaneFilter(Coronagraph):
 
     @classmethod
     def output_names(cls):
-        return {'out_ef': OutputDesc(ElectricField, 'Output electric field after focal plane filter mask application')}
+        return super().output_names()
 
     def make_pupil_plane_mask(self):
         return 1.0

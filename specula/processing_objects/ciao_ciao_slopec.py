@@ -74,14 +74,11 @@ class CiaoCiaoSlopec(Slopec):
 
     @classmethod
     def input_names(cls):
-        return {'in_pixels': InputDesc(Pixels, 'Input interferogram pixel data from detector')}
+        return super().input_names()
 
     @classmethod
     def output_names(cls):
-        return {'out_slopes': OutputDesc(Slopes, 'Computed OPD map as a flattened slope vector'),
-                'out_flux_per_subaperture': OutputDesc(BaseValue, 'Mean flux per pixel within the pupil mask'),
-                'out_total_counts': OutputDesc(BaseValue, 'Total photon counts'),
-                'out_subap_counts': OutputDesc(BaseValue, 'Counts per subaperture')}
+        return super().output_names()
 
     def nsubaps(self):
         return 1

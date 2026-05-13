@@ -45,7 +45,7 @@ class FourQuadrantCoronagraph(Coronagraph):
 
     @classmethod
     def output_names(cls):
-        return {'out_ef': OutputDesc(ElectricField, 'Output electric field after four-quadrant coronagraph mask application')}
+        return super().output_names()
 
     def make_focal_plane_mask(self):
         """ Make a quadrant mask, where 2 opposite quadrants apply a pi phase delay """
