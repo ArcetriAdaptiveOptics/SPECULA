@@ -1,6 +1,4 @@
 from specula.processing_objects.abstract_coronagraph import Coronagraph
-from specula.base_processing_obj import OutputDesc
-from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.make_mask import make_mask
 from specula import RAD2ASEC

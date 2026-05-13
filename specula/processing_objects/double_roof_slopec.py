@@ -1,7 +1,4 @@
 from specula.processing_objects.pyr_slopec import PyrSlopec
-from specula.base_processing_obj import InputDesc, OutputDesc
-from specula.base_value import BaseValue
-from specula.data_objects.pixels import Pixels
 from specula.data_objects.pupdata import PupData
 from specula.data_objects.slopes import Slopes
 

@@ -1,10 +1,7 @@
 from specula import cpuArray
 from specula.lib.interp2d import Interp2D
-from specula.data_objects.pixels import Pixels
 from specula.data_objects.pupilstop import Pupilstop
 from specula.processing_objects.slopec import Slopec
-from specula.base_processing_obj import InputDesc, OutputDesc
-from specula.base_value import BaseValue
 from specula.data_objects.slopes import Slopes
 from skimage.restoration import unwrap_phase
 
