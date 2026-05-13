@@ -1,12 +1,14 @@
 from typing import List
-from specula import np, cpuArray
+
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.connections import InputValue
 from specula.base_value import BaseValue
 from specula.data_objects.recmat import Recmat
 
-class MmseUnwrapper(BaseProcessingObj):
+class MmsePistonUnwrapper(BaseProcessingObj):
     """
+    MMSE piston unwrapper processing object.
+    
     Continuous Topological Unwrapper based on Minimum Mean Square Error (MMSE).
     Acts as a "Soft Limiter" projecting out unphysical differential pistons
     from the accumulated command using Kolmogorov prior statistics.
@@ -21,7 +23,8 @@ class MmseUnwrapper(BaseProcessingObj):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         if len(recmat_list) < 2:
-            raise ValueError("MmseUnwrapper requires 'recmat_list' to contain at least two objects: [MMSE_recmat, Intmat].")
+            raise ValueError("MmseUnwrapper requires 'recmat_list' to contain at least two objects:"
+                             " [MMSE_recmat, Intmat].")
 
         self.gain = gain
 
@@ -37,7 +40,8 @@ class MmseUnwrapper(BaseProcessingObj):
         self.outputs['out_ost'] = BaseValue(target_device_idx=self.target_device_idx,
                                             precision=self.precision)
 
-        # Estrai gli oggetti dalla lista e caricali sul target device
+        # Expect recmat_list[0] to be the MMSE reconstructor (5xN_modes) and
+        #        recmat_list[1] to be the Interaction matrix (N_modes x 5)
         self.logger.info("Loading MMSE reconstructor and Interaction matrices from recmat_list...")
         recmat_obj = recmat_list[0]
         intmat_obj = recmat_list[1]
