@@ -36,18 +36,18 @@ class CiaoCiaoSlopec(Slopec):
         """
         Parameters
         ----------
-        wavelength_in_nm : float
+        wavelength_in_nm : float [nm]
             Working wavelength (e.g., 2200 for K band).
-        window_x_in_pix, window_y_in_pix : float
+        window_x_in_pix, window_y_in_pix : float [pixels]
             Coordinates of the sideband center in the FFT.
-        window_sigma_in_pix : float
+        window_sigma_in_pix : float [pixels]
             Width of the filtering window (Top Flat Gaussian).
         pupil_mask : Pupilstop
             Pupil mask defining the valid area. Its ``.A`` amplitude array is
             used. The effective mask is the intersection
             of this mask with a copy rotated by ``diffRotAngleInDeg``, mirroring
             the overlap region seen by the CiaoCiao interferometer.
-        diffRotAngleInDeg : float, optional
+        diffRotAngleInDeg : float [deg], optional
             Rotation angle in degrees applied to one branch of the interferometer
             (same value as ``diffRotAngleInDeg`` in CiaoCiaoSensor). The effective
             pupil mask is ``mask & rotate(mask, diffRotAngleInDeg)``.

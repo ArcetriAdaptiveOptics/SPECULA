@@ -20,8 +20,8 @@ class DataPrint(BaseProcessingObj):
         Initialize the data print object.
 
         Parameters:
-        print_dt (float): Time interval between prints in seconds
-        range_slice (tuple, optional): Tuple to create slice object to select which values to print.
+        print_dt (float) [s]: Time interval between prints in seconds
+        range_slice (tuple [1], optional): Tuple to create slice object to select which values to print.
                                        If None, prints all values.
                                        Examples: (0, 5), (None, None, 2)
         prefix (str): Text to print before the values

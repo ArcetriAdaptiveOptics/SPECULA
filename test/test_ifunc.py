@@ -79,6 +79,23 @@ class TestIFunv(unittest.TestCase):
         np.testing.assert_array_equal(idx1[1], idx2[1])
 
     @cpu_and_gpu
+    def test_inverse_with_nmodes_does_not_mutate_original(self, target_device_idx, xp):
+        ifunc = IFunc(self.data, mask=self.mask, target_device_idx=target_device_idx)
+        original_shape = ifunc.size
+
+        inv = ifunc.inverse(nmodes=1)
+
+        self.assertEqual(ifunc.size, original_shape)
+        self.assertEqual(inv.size, (self.data.shape[1], 1))
+
+    @cpu_and_gpu
+    def test_nmodes_and_npoints(self, target_device_idx, xp):
+        ifunc = IFunc(self.data, mask=self.mask, target_device_idx=target_device_idx)
+
+        self.assertEqual(ifunc.nmodes(), self.data.shape[0])
+        self.assertEqual(ifunc.npoints(), self.data.shape[1])
+
+    @cpu_and_gpu
     def test_ifunc_2d_to_3d(self, target_device_idx, xp):
         '''Test for ifunc_2d_to_3d method'''
         mask = make_mask(64)

@@ -18,7 +18,7 @@ class BaseInserter(BaseProcessingObj):
         """
         Parameters
         ----------
-        output_size : int
+        output_size : int [1]
             Size of the large output vector.
         indices : list of [src_indices, dest_indices] pairs, optional
             Each pair defines explicit indices in the input and output vectors.
@@ -27,9 +27,9 @@ class BaseInserter(BaseProcessingObj):
             Each pair defines a slice in the input and output vectors.
             Example: slice_args=[[0,3], [2,5]] inserts src[0:3] into dest[2:5].
             Multiple pairs: slice_args=[[[0,2],[0,2]], [[2,4],[5,7]]]
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
-        precision : int, optional
+        precision : int [1], optional
             Precision for computation (0 for double, 1 for single). Default is None
             (uses global setting).
         """

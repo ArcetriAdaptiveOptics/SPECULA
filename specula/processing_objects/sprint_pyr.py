@@ -33,7 +33,7 @@ class SprintPyr(BaseSprintEstimator):
     
     Parameters
     ----------  
-    push_amp : float
+    push_amp : float [nm]
         Amplitude of the push-pull perturbation for sensitivity matrix estimation (default: 10 nm)
     
     All parameters inherited from BaseSprintEstimator.

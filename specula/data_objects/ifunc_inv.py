@@ -76,6 +76,12 @@ class IFuncInv(BaseDataObj):
     def size(self):
         return self.ifunc_inv.shape
 
+    def nmodes(self):
+        return self.ifunc_inv.shape[1]
+
+    def npoints(self):
+        return self.ifunc_inv.shape[0]
+
     def get_fits_header(self):
         hdr = fits.Header()
         hdr['VERSION'] = 1
