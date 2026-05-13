@@ -65,10 +65,12 @@ class DynamicIntegrator(Integrator):
 
     @classmethod
     def input_names(cls):
-        return {'delta_comm': InputDesc(BaseValue, 'Input delta command vector'),
-                'gain_mod': InputDesc(BaseValue, 'Optional gain modulation vector (optional)'),
-                'reset': InputDesc(BaseValue, 'Trigger to reset internal integrator state (optional)'),
-                'int_gain': InputDesc(BaseValue, 'Dynamic integrator gain update (optional)')}
+        result = super().input_names()
+        result.update({
+            'reset': InputDesc(BaseValue, 'Trigger to reset internal integrator state (optional)'),
+            'int_gain': InputDesc(BaseValue, 'Dynamic integrator gain update (optional)')
+        })
+        return result
 
     @classmethod
     def output_names(cls):
