@@ -58,6 +58,7 @@ remove: ['atmo',
   'subtract_truth',
   'integrator_lgs',
   'integrator_lo',
+  'slicer_lgs',
   'modal_combination',
   'psf',
   ]
