@@ -8,7 +8,7 @@ pushpull:
   outputs: ['output']
 
 main_override:
-  total_time:  1.4
+  total_time:  1.4 # 2 (push-pull) * 700 (modes) * 1e-3 (time per mode) = 1.4s
 
 prop_override:
   inputs:
@@ -26,8 +26,10 @@ dm_override:
 
 
 detector_override:
+  dt:                0.001
   photon_noise:      False
   readout_noise:     False
+  excess_noise:      False
 
 
 im_calibrator_lo:
@@ -51,7 +53,7 @@ rec_calibrator_lo:
 
 
 remove: ['atmo',
-'modalrec',
-'integrator',
-'psf',
+  'modalrec',
+  'integrator',
+  'psf',
   ]
