@@ -57,10 +57,8 @@ class Integrator(IirFilter):
 
     @classmethod
     def input_names(cls):
-        return {'delta_comm': InputDesc(BaseValue, 'Input delta command vector'),
-                'gain_mod': InputDesc(BaseValue, 'Optional gain modulation vector (optional)')}
+        return super().input_names()
 
     @classmethod
     def output_names(cls):
-        return {'out_comm': OutputDesc(BaseValue, 'Output command vector with delay applied'),
-                'out_comm_no_delay': OutputDesc(BaseValue, 'Output command vector without delay (for POLC)')}
+        return super().output_names()

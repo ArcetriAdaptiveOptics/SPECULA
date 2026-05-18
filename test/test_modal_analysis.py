@@ -13,12 +13,14 @@ from specula.processing_objects.wave_generator import WaveGenerator
 from specula.processing_objects.atmo_infinite_evolution import AtmoInfiniteEvolution
 from specula.processing_objects.atmo_propagation import AtmoPropagation
 from specula.processing_objects.modal_analysis import ModalAnalysis
+from specula.data_objects.ifunc import IFunc
 from specula.data_objects.ifunc_inv import IFuncInv
 from specula.data_objects.simul_params import SimulParams
 from test.specula_testlib import cpu_and_gpu
 from skimage.restoration import unwrap_phase
 
 import numpy as np
+from unittest.mock import patch
 
 @unittest.skipIf((os.environ.get('CI') == 'true' and
                   sys.platform == 'linux' and
@@ -169,3 +171,16 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
             self.assertTrue(xp.may_share_memory(phase2modes_data, ifunc_inv_data))
         else:
             self.assertEqual(phase2modes_data.data.ptr, ifunc_inv_data.data.ptr)
+
+    @cpu_and_gpu
+    def test_modal_analysis_forwards_remove_piston_default(self, target_device_idx, xp):
+        ifunc_data = xp.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=xp.float32)
+        mask = xp.array([[0, 1, 0], [0, 1, 0]], dtype=xp.uint8)
+        ifunc = IFunc(ifunc_data, mask=mask, target_device_idx=target_device_idx)
+        expected_inv = IFuncInv(xp.zeros((3, 2), dtype=xp.float32), mask=mask,
+                                target_device_idx=target_device_idx)
+
+        with patch.object(ifunc, 'inverse', return_value=expected_inv) as inverse_mock:
+            ModalAnalysis(ifunc=ifunc, target_device_idx=target_device_idx)
+
+        inverse_mock.assert_called_once_with(nmodes=None, remove_piston=True)

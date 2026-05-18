@@ -8,34 +8,50 @@ pushpull:
   outputs: ['output']
 
 main_override:
-  total_time:  0.040
+  time_step: 0.001
+  total_time:  0.040 # 2 (push-pull) * 10 (modes) * 1e-3 (time per mode) = 0.040s
+
 
 prop_override:
   inputs:
     common_layer_list: ['pupilstop',
                   'dm.out_layer']
 
+
 source_on_axis_override:
   polar_coordinates:  [0.0, 0.0]         # [arcsec, degrees] source polar coordinates
   magnitude:         7.0  
+
 
 dm_override:
   sign: 1
   inputs:
       in_command: 'pushpull.output'
 
+
 detector_lgs_override:
+  dt:                0.001
   photon_noise:      False
   readout_noise:     False
+  excess_noise:      False
+
 
 detector_lo_override:
+  dt:                0.001
   photon_noise:      False
   readout_noise:     False
+  excess_noise:      False
+
+
+slopec_lo_override:
+  weightedPixRad:    12
+  windowing:         True
+  thr_value:         0
 
 
 im_calibrator_lo:
   class: 'ImCalibrator'
-  nmodes: 2
+  nmodes: 5
   im_tag:     'eris_im_lo'
   overwrite: True
   inputs:
@@ -46,7 +62,7 @@ im_calibrator_lo:
 
 rec_calibrator_lo:
   class: 'RecCalibrator'
-  nmodes: 54
+  nmodes: 2
   rec_tag:     'eris_rec_lo'
   overwrite: True
   inputs:
@@ -55,8 +71,7 @@ rec_calibrator_lo:
 
 im_calibrator_truth:
   class: 'ImCalibrator'
-  nmodes: 8
-  first_mode: 2
+  nmodes: 10
   im_tag:     'eris_im_truth'
   overwrite: True
   inputs:
@@ -67,8 +82,7 @@ im_calibrator_truth:
 
 rec_calibrator_truth:
   class: 'RecCalibrator'
-  nmodes: 8
-  first_mode: 2
+  nmodes: 10
   rec_tag:     'eris_rec_truth'
   overwrite: True
   inputs:
@@ -76,16 +90,17 @@ rec_calibrator_truth:
 
 
 remove: ['atmo',
-'sh_lgs',
-'detector_lgs',
-'slopec_lgs',
-'modalrec_lgs',
-'modalrec_lo',
-'modalrec_truth',
-'integrator_truth',
-'subtract_truth',
-'integrator_lgs',
-'integrator_lo',
-'modal_combination',
-'psf',
+  'sh_lgs',
+  'detector_lgs',
+  'slopec_lgs',
+  'modalrec_lgs',
+  'modalrec_lo',
+  'modalrec_truth',
+  'integrator_truth',
+  'subtract_truth',
+  'integrator_lgs',
+  'integrator_lo',
+  'slicer_lgs',
+  'modal_combination',
+  'psf',
   ]

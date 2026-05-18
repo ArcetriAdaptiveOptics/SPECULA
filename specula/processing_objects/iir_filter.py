@@ -1,6 +1,9 @@
 from specula.processing_objects.base_filter import BaseFilter
 from specula.data_objects.iir_filter_data import IirFilterData
 from specula.data_objects.simul_params import SimulParams
+from specula.base_processing_obj import InputDesc
+from specula.connections import InputValue
+from specula.base_value import BaseValue
 
 
 class IirFilter(BaseFilter):
@@ -49,6 +52,8 @@ class IirFilter(BaseFilter):
             target_device_idx=target_device_idx,
             precision=precision)
 
+        self.inputs['in_ost'] = InputValue(type=BaseValue, optional=True)
+
         # IIR-specific state
         self._ist = self.xp.zeros_like(iir_filter_data.num)
         self._ost = self.xp.zeros_like(iir_filter_data.den)
@@ -60,11 +65,30 @@ class IirFilter(BaseFilter):
 
     @classmethod
     def input_names(cls):
-        return super().input_names()
+        result = super().input_names()
+        result.update({
+            'in_ost': InputDesc(BaseValue, 'State update to subtract from integrators (optional)')
+        })
+        return result
 
     @classmethod
     def output_names(cls):
         return super().output_names()
+
+    def prepare_trigger(self, t):
+        super().prepare_trigger(t)
+        in_ost_input = self.local_inputs.get('in_ost')
+        if in_ost_input is not None and in_ost_input.value is not None:
+            ost_update = in_ost_input.value
+            ost_update_array = self.xp.asarray(ost_update, dtype=self.dtype).ravel()
+
+            # 1. Update the filter state
+            for i in range(self.output_buffer.shape[1]):
+                self.output_buffer[:, i] -= ost_update_array
+
+            # 2. PURGE THE DELAY PIPELINE
+            for j in range(self._ost.shape[1]):
+                self._ost[:, j] -= ost_update_array
 
     def trigger_code(self):
         """IIR filter computation."""
