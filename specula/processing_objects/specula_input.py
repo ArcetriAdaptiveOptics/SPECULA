@@ -36,7 +36,7 @@ class SpeculaInput(BaseProcessingObj):
                          precision=precision)
 
         for name in output_list:
-            desc = split_output(name)
+            desc = split_output(name, detect_types=True)
             typ = desc.type
             real_name = desc.obj_name
             if typ == 'float':

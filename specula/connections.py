@@ -9,17 +9,20 @@ from specula.log import get_specula_logger
 Output = namedtuple('Output', 'obj_name output_key delay ref input_name type')
 
 
-def split_output(output_name, use_inputs=False):
+def split_output(output_name, use_inputs=False, detect_types=False):
     '''
     Split the output name into object name and output key.
     '''
     if ':' in output_name:
-        output_name, delay_or_type = output_name.split(':')
-        if delay_or_type in ['float', 'int', 'str']:
-            delay = 0
-            typ_ = delay_or_type
+        output_name, suffix = output_name.split(':')
+        if detect_types:
+            if suffix in ['float', 'int', 'str']:
+                delay = 0
+                typ_ = suffix
+            else:
+                raise ValueError(f'Unknown type {suffix}')
         else:
-            delay = int(delay_or_type)
+            delay = int(suffix)
             typ_ = None
     else:
         delay = 0
