@@ -20,7 +20,6 @@ class ModalAnalysis(BaseProcessingObj):
                 ifunc_inv: IFuncInv=None,
                 type_str: str=None,
                 npixels: int=None,
-                nzern: int=None,            # TODO not used
                 obsratio: float=None,
                 diaratio: float=None,
                 pupilstop: Pupilstop=None,
@@ -28,8 +27,47 @@ class ModalAnalysis(BaseProcessingObj):
                 wavelengthInNm: float=0.0,
                 dorms: bool=False,
                 n_inputs: int=1,
+                remove_piston: bool=True,
                 target_device_idx: int=None,
                 precision: int=None):
+        """
+        Parameters
+        ----------
+        ifunc : IFunc, optional
+            Influence function object defining the modes (default: None)
+        ifunc_inv : IFuncInv, optional
+            Inverse influence function object (default: None).
+            If both ifunc and ifunc_inv are provided, ifunc_inv will be used.
+        type_str : str, optional
+            Type of influence function to compute if ifunc is not provided (e.g. 'zernike')
+            (default: None)
+        npixels : int, optional
+            Number of pixels across the pupil (required if ifunc is not provided)
+        obsratio : float, optional
+            Obscuration ratio for influence function computation (required if ifunc is not provided)
+        diaratio : float, optional
+            Diameter ratio for influence function computation (required if ifunc is not provided)
+        pupilstop : Pupilstop, optional
+            Pupil stop object defining the mask to apply to the influence functions
+            (default: None)
+        nmodes : int, optional
+            Number of modes to compute (default: None, meaning all modes)
+        wavelengthInNm : float, optional
+            Wavelength in nanometers for phase to mode conversion
+            (default: 0.0, meaning no conversion)
+        dorms : bool, optional
+            Whether to compute and output the RMS of the wavefront (default: False)
+        n_inputs : int, optional
+            Number of input electric fields to process (default: 1).
+            If greater than 1, the in_ef_list input will be used instead of in_ef.
+        remove_piston : bool, optional
+            Whether to remove the global piston term from the modes when inverting
+            the influence function (default: True)
+        target_device_idx : int [1], optional
+            Target device for computation (-1 for CPU, >=0 for GPU)
+        precision : int [1], optional
+            Numerical precision (0 for double, 1 for single)
+        """
 
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
@@ -47,13 +85,14 @@ class ModalAnalysis(BaseProcessingObj):
 
             type_lower = type_str.lower()
             if type_lower in ['zern', 'zernike']:
-                ifunc, mask = compute_zern_ifunc(npixels, nzern=nmodes, obsratio=obsratio, diaratio=diaratio, mask=mask,
+                ifunc, mask = compute_zern_ifunc(npixels, nzern=nmodes, obsratio=obsratio,
+                                                 diaratio=diaratio, mask=mask,
                                                  xp=self.xp, dtype=self.dtype)
             else:
                 raise ValueError(f'Invalid ifunc type {type_str}')
 
             ifunc = IFunc(ifunc, mask=mask, nmodes=nmodes, target_device_idx=self.target_device_idx)
-            self.phase2modes = ifunc.inverse()
+            self.phase2modes = ifunc.inverse(remove_piston=remove_piston)
         elif ifunc is None and ifunc_inv is not None:
             # Use ifunc_inv directly, don't attempt to call inverse() on None
             if nmodes != ifunc_inv.nmodes():
@@ -64,7 +103,7 @@ class ModalAnalysis(BaseProcessingObj):
             self.phase2modes = ifunc_inv
         elif ifunc is not None and ifunc_inv is None:
             # This is the case where only ifunc is provided
-            self.phase2modes = ifunc.inverse(nmodes=nmodes)
+            self.phase2modes = ifunc.inverse(nmodes=nmodes, remove_piston=remove_piston)
         else:  # Both are provided
             # Prioritize ifunc_inv
             self.phase2modes = ifunc_inv

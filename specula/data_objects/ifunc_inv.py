@@ -105,7 +105,7 @@ class IFuncInv(BaseDataObj):
 
     def get_value(self):
         return self.ifunc_inv
-    
+
     def set_value(self, v):
         '''Set a new influence function.
         Arrays are not reallocated.'''

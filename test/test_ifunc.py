@@ -39,10 +39,21 @@ class TestIFunv(unittest.TestCase):
     def test_ifunc_inv_data(self, target_device_idx, xp):
         '''Test that the inversion in IFunc is correct'''
         ifunc = IFunc(self.data, mask=self.mask, target_device_idx=target_device_idx)
-        inv = ifunc.inverse()
+        inv = ifunc.inverse(remove_piston=False)
         assert isinstance(inv, IFuncInv)
 
         np.testing.assert_array_almost_equal(cpuArray(self.inv_data), cpuArray(inv.ifunc_inv))
+
+    @cpu_and_gpu
+    def test_ifunc_inv_removes_global_piston_by_default(self, target_device_idx, xp):
+        '''Test that IFunc.inverse removes the per-mode mean by default'''
+        ifunc = IFunc(self.data, mask=self.mask, target_device_idx=target_device_idx)
+        centered = self.data - np.mean(self.data, axis=1, keepdims=True)
+        expected = np.linalg.pinv(centered)
+
+        inv = ifunc.inverse()
+
+        np.testing.assert_array_almost_equal(cpuArray(expected), cpuArray(inv.ifunc_inv))
 
     @cpu_and_gpu
     def test_ifunc_inv_idx(self, target_device_idx, xp):
@@ -69,7 +80,7 @@ class TestIFunv(unittest.TestCase):
         inv.save(self.inv_filename)
 
         ifunc = IFunc(self.data, mask=self.mask, target_device_idx=target_device_idx)
-        inv1 = ifunc.inverse()
+        inv1 = ifunc.inverse(remove_piston=False)
         inv2 = IFuncInv.restore(self.inv_filename)
 
         np.testing.assert_array_almost_equal(cpuArray(inv1.ifunc_inv), cpuArray(inv2.ifunc_inv))
