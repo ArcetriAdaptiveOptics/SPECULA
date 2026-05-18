@@ -245,6 +245,8 @@ class TestDynamicDarkCalibrator(unittest.TestCase):
         calibrator.inputs['in_save'].set(darkname)
         dark_nframes = IntValue(1)
         calibrator.inputs['in_nframes'].set(dark_nframes)
+        dark_trigger = IntValue(1)
+        calibrator.inputs['in_trigger'].set(dark_trigger)
 
         loop = LoopControl()
         loop.add(calibrator, idx=0)
@@ -252,6 +254,7 @@ class TestDynamicDarkCalibrator(unittest.TestCase):
         in_pixels.generation_time = in_pixels.seconds_to_t(0)
         darkname.generation_time = darkname.seconds_to_t(0)
         dark_nframes.generation_time = dark_nframes.seconds_to_t(0)
+        dark_trigger.generation_time = dark_trigger.seconds_to_t(0)
         loop.iter()
 
         test_dark = Pixels.restore(os.path.join(self.tmp_dir, darkname.value))

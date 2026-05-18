@@ -177,10 +177,6 @@ class DynamicDarkCalibrator(BaseProcessingObj):
         super().prepare_trigger(t)
 
         # Check if new trigger or nframes value is received at this time step
-        input_trigger = self.local_inputs['in_trigger']
-        if input_trigger is not None and input_trigger.generation_time == self.current_time:
-            self.counter = self.nframes
-
         input_reset = self.local_inputs['in_reset']
         if input_reset is not None and input_reset.generation_time == self.current_time:
             self.darkframe.pixels *= 0
@@ -193,6 +189,10 @@ class DynamicDarkCalibrator(BaseProcessingObj):
             else:
                 self.nframes = nframes
 
+        input_trigger = self.local_inputs['in_trigger']
+        if input_trigger is not None and input_trigger.generation_time == self.current_time:
+            self.counter = self.nframes
+
         input_load = self.local_inputs['in_load']
         if input_load is not None and input_load.generation_time == self.current_time:
             filename = input_load.value
@@ -202,6 +202,7 @@ class DynamicDarkCalibrator(BaseProcessingObj):
             try:
                 self.darkframe = Pixels.restore(fullpath, target_device_idx=self.target_device_idx)
                 self.darkframe.generation_time = self.current_time
+                self.counter = 0  # Disable integration
             except Exception as e:
                 self.logger.error(f'Exception: {e.__name__}: {e}')
 
