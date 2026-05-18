@@ -200,7 +200,7 @@ class DynamicDarkCalibrator(BaseProcessingObj):
                 filename += '.fits'
             fullpath = os.path.join(self.data_dir, filename)
             try:
-                self.darkframe.restore(fullpath)
+                self.darkframe = Pixels.restore(fullpath, target_device_idx=self.target_device_idx)
                 self.darkframe.generation_time = self.current_time
             except Exception as e:
                 self.logger.error(f'Exception: {e.__name__}: {e}')

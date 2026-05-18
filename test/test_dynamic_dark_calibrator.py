@@ -1,18 +1,28 @@
 import specula
 specula.init(0)
 
+import os
+import shutil
 import unittest
 import numpy as np
 
-from specula.base_value import BaseValue
 from specula.loop_control import LoopControl
 from specula.data_objects.pixels import Pixels
 from specula.processing_objects.dynamic_dark_calibrator import DynamicDarkCalibrator
-from specula.scalar_values import IntValue
+from specula.scalar_values import IntValue, StringValue
 from test.specula_testlib import cpu_and_gpu
+from specula import cpuArray
 
 
 class TestDynamicDarkCalibrator(unittest.TestCase):
+
+    def setUp(self):
+        self.tmp_dir = os.path.join(os.path.dirname(__file__), 'tmp_dark_calibrator')
+        if not os.path.exists(self.tmp_dir):
+            os.mkdir(self.tmp_dir)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
 
     @cpu_and_gpu
     def test_invalid_nframes_raises(self, target_device_idx, xp):
@@ -187,3 +197,67 @@ class TestDynamicDarkCalibrator(unittest.TestCase):
             calibrator.inputs['in_nframes'].set(nframes)
             calibrator.check_ready(42)
     
+    @cpu_and_gpu
+    def test_load(self, target_device_idx, xp):
+        """Test the in_load dynamic input"""
+
+        calibrator = DynamicDarkCalibrator(
+            data_dir=self.tmp_dir,
+            nframes=10,
+            target_device_idx=target_device_idx
+        )
+
+        in_pixels = Pixels(10,10, target_device_idx=target_device_idx)
+        dark = Pixels(10,10, target_device_idx=target_device_idx)
+        dark.pixels = xp.arange(100, dtype=xp.int16).reshape((10,10))
+        dark.save(os.path.join(self.tmp_dir, 'dark.fits'))
+        darkname = StringValue('dark.fits')
+        calibrator.inputs['in_pixels'].set(in_pixels)
+        calibrator.inputs['in_load'].set(darkname)
+
+        loop = LoopControl()
+        loop.add(calibrator, idx=0)
+        loop.start(run_time=1, dt=1)
+        in_pixels.generation_time = in_pixels.seconds_to_t(0)
+        darkname.generation_time = darkname.seconds_to_t(0)
+        loop.iter()
+
+        print(f'{dark.pixels=}')
+        print(f'{calibrator.darkframe.pixels=}')
+        np.testing.assert_array_equal(cpuArray(dark.pixels),
+                                      cpuArray(calibrator.darkframe.pixels))
+
+    @cpu_and_gpu
+    def test_save(self, target_device_idx, xp):
+        """Test the in_save dynamic input"""
+
+        calibrator = DynamicDarkCalibrator(
+            data_dir=self.tmp_dir,
+            nframes=10,
+            overwrite=True,
+            target_device_idx=target_device_idx
+        )
+
+        in_pixels = Pixels(10,10, target_device_idx=target_device_idx)
+        in_pixels.pixels = xp.arange(100, dtype=xp.int16).reshape((10,10))
+        calibrator.inputs['in_pixels'].set(in_pixels)
+        darkname = StringValue('dark.fits')
+        calibrator.inputs['in_save'].set(darkname)
+        dark_nframes = IntValue(1)
+        calibrator.inputs['in_nframes'].set(dark_nframes)
+
+        loop = LoopControl()
+        loop.add(calibrator, idx=0)
+        loop.start(run_time=1, dt=1)
+        in_pixels.generation_time = in_pixels.seconds_to_t(0)
+        darkname.generation_time = darkname.seconds_to_t(0)
+        dark_nframes.generation_time = dark_nframes.seconds_to_t(0)
+        loop.iter()
+
+        test_dark = Pixels.restore(os.path.join(self.tmp_dir, darkname.value))
+
+        print(f'{test_dark.pixels=}')
+        print(f'{in_pixels.pixels=}')
+        np.testing.assert_array_equal(cpuArray(test_dark.pixels),
+                                      cpuArray(in_pixels.pixels))
+
