@@ -249,7 +249,7 @@ class Simul():
         self.setSimulParams(params)
 
         cm = CalibManager(self.mainParams['root_dir'])
-        skip_pars = 'class inputs outputs'.split()
+        skip_pars = 'class inputs outputs gui_pos'.split()
         if 'add_modules' in self.mainParams:
             additional_modules = self.mainParams['add_modules']
         else:
@@ -360,7 +360,7 @@ class Simul():
                         loaded = []
                         for tag in value:
                             filename = cm.filename(partype.__name__, tag)
-                            print('Restoring:', filename)
+                            self.logger.info(f'Restoring: {filename}')
                             obj = partype.restore(filename, target_device_idx=target_device_idx)
                             obj.printMemUsage()
                             obj.tag = tag
@@ -385,7 +385,7 @@ class Simul():
                         loaded = {}
                         for dict_key, tag in value.items():
                             filename = cm.filename(partype.__name__, tag)
-                            print('Restoring:', filename)
+                            self.logger.info(f'Restoring: {filename}')
                             obj = partype.restore(filename, target_device_idx=target_device_idx)
                             obj.printMemUsage()
                             obj.tag = tag

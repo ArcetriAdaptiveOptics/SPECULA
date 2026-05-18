@@ -37,6 +37,15 @@ class TestIFuncInv(unittest.TestCase):
         self.assertEqual(obj.size, self.shape)
 
     @cpu_and_gpu
+    def test_nmodes_and_npoints(self, target_device_idx, xp):
+        ifunc_inv = xp.random.rand(*self.shape).astype(xp.float32)
+        mask = xp.random.choice([0, 1], size=self.shape).astype(xp.uint8)
+        obj = IFuncInv(ifunc_inv, mask, target_device_idx=target_device_idx)
+
+        self.assertEqual(obj.npoints(), self.shape[0])
+        self.assertEqual(obj.nmodes(), self.shape[1])
+
+    @cpu_and_gpu
     def test_get_value(self, target_device_idx, xp):
         ifunc_inv = xp.random.rand(*self.shape).astype(xp.float32)
         mask = xp.random.choice([0, 1], size=self.shape).astype(xp.uint8)

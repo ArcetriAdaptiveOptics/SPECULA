@@ -1,4 +1,3 @@
-import sys
 import logging
 
 # String to show in the logs in place

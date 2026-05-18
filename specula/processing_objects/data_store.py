@@ -33,27 +33,27 @@ class DataStore(BaseProcessingObj):
         store_dir : str
             Base directory where data will be stored. A subdirectory with a timestamp
             will be created inside this directory to hold the data files.
-        split_size : int, optional
+        split_size : int [1], optional
             If > 0, creates a new subdirectory and saves one chunk every
             ``split_size`` trigger iterations after ``start_time``.
             Default is 0 (no splitting, all data in one folder).
-        first_suffix : int, optional
+        first_suffix : int [1], optional
             Starting suffix for split folders. Default is 0.
-        data_format : str, optional
+        data_format : str
             Format for saved data files. Supported values are 'fits' and 'pickle'.
             Default is 'fits'.
-        start_time : float, optional
+        start_time : float [s], optional
             Time in seconds to wait before starting to store data.
             Default is 0 (store from the beginning).
-        create_tn : bool, optional
+        create_tn : bool
             If True, creates a timestamped subdirectory for storing data.
             Default is True.
-        downsample_factor : int, optional
+        downsample_factor : int [1], optional
             Store one sample every ``N`` received samples for all inputs.
             The downsampling is sample-based and tracked independently for each
             input, so an input that updates less frequently is counted only when
             it produces a new sample. Default is 1 (store every sample).
-        downsample_factor_by_input : dict, optional
+        downsample_factor_by_input : dict [1], optional
             Per-input downsampling factors. Keys are the DataStore input names,
             values are integers >= 1. When using ``input_list``, the key is the
             alias before the dash, e.g. ``'comm'`` for ``'comm-control.out_comm'``.

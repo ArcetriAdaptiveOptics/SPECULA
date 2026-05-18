@@ -57,7 +57,8 @@ class TestComputeIfsCovmat(unittest.TestCase):
             self.L0,
             oversampling=2,
             xp=xp,
-            dtype=xp.float32
+            dtype=xp.float32,
+            log_level='INFO'
         )
 
         self.assertEqual(result.shape, (self.n_actuators, self.n_actuators))
@@ -731,3 +732,5 @@ class TestComputeIfsCovmat(unittest.TestCase):
             )
 
         self.assertIn("Oversampling factor must be at least 2", str(context.exception))
+
+

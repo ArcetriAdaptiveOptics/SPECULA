@@ -17,8 +17,8 @@ from test.specula_testlib import cpu_and_gpu
 class TestShSubapCalibrator(unittest.TestCase):
 
     @cpu_and_gpu
-    def test_init_requires_tag_or_template(self, target_device_idx, xp):
-        with self.assertRaises(ValueError):
+    def test_init_requires_tag(self, target_device_idx, xp):
+        with self.assertRaises(TypeError):
             ShSubapCalibrator(
                 subap_on_diameter=4,
                 data_dir=".",

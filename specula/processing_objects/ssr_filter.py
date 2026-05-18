@@ -22,15 +22,15 @@ class SsrFilter(BaseFilter):
         Simulation parameters
     ssr_filter_data : SsrFilterData
         State-space matrices (A, B, C, D) in block-diagonal form
-    delay : float, optional
+    delay : float [1], optional
         Output delay in frames (default: 0)
-    output_uses_new_state : bool, optional
+    output_uses_new_state : bool
         If True, output equation uses updated state: y[k] = C*x[k+1] + D*u[k]
         If False, output equation uses current state: y[k] = C*x[k] + D*u[k]
         (default: True, which is standard for discrete integrators)
-    target_device_idx : int, optional
+    target_device_idx : int [1], optional
         Target device index
-    precision : int, optional
+    precision : int [1], optional
         Numerical precision
     '''
     def __init__(self,

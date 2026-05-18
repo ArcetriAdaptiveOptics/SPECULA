@@ -36,20 +36,20 @@ class DynamicIntegrator(Integrator):
         ----------
         simul_params : SimulParams
             Simulation parameters object.
-        int_gain : float
+        int_gain : float [1]
             Initial integrator gain.
-        ff : list, optional
+        ff : list [1], optional
             Feedforward coefficients for the IIR filter.
-        n_modes : int, optional
+        n_modes : int [1], optional
             Number of modes for modal integration.
-        delay : float, optional
+        delay : float [1], optional
             Delay applied to the integrator (in simulation time units).
             Default is 0.
-        integration : bool, optional
+        integration : bool
             If True, enable integration behavior. Default is True.
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index for computation (e.g., CPU/GPU).
-        precision : int, optional
+        precision : int [1], optional
             Numerical precision for internal data  (0 for double, 1 for single).
         """
         super().__init__(simul_params=simul_params,
@@ -66,10 +66,12 @@ class DynamicIntegrator(Integrator):
 
     @classmethod
     def input_names(cls):
-        return {'delta_comm': InputDesc(BaseValue, 'Input delta command vector'),
-                'gain_mod': InputDesc(BaseValue, 'Optional gain modulation vector (optional)'),
-                'reset': InputDesc(IntValue, 'Trigger to reset internal integrator state (optional)'),
-                'int_gain': InputDesc(FloatValue, 'Dynamic integrator gain update (optional)')}
+        result = super().input_names()
+        result.update({
+            'reset': InputDesc(BaseValue, 'Trigger to reset internal integrator state (optional)'),
+            'int_gain': InputDesc(BaseValue, 'Dynamic integrator gain update (optional)')
+        })
+        return result
 
     @classmethod
     def output_names(cls):

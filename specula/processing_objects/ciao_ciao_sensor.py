@@ -22,49 +22,49 @@ class CiaoCiaoSensor(BaseProcessingObj):
 
     Parameters
     ----------
-    wavelengthInNm : float
+    wavelengthInNm : float [nm]
         Working wavelength in nanometers.
-    number_px : int, optional
+    number_px : int [pixels], optional
         Output side in pixels. If None, output has the same side as input EF.
         Default is None.
-    diffRotAngleInDeg : float, optional
+    diffRotAngleInDeg : float [deg], optional
         Differential rotation angle in degrees applied to the second branch.
         Default is 180.0.
-    tiltInArcsec : tuple[float, float] | float, optional
+    tiltInArcsec : tuple[float, float] | float [arcsec], optional
         User-defined tilt (x, y) in arcseconds applied to the rotated branch.
         If a scalar is provided, it is interpreted as x tilt and y=0.
         Default is (0.0, 0.0).
-    rotAnglePhInDeg : float, optional
+    rotAnglePhInDeg : float [deg], optional
         Rotation angle in degrees applied to the input branch.
         Default is 0.0.
-    xShiftPhInPixel : float, optional
+    xShiftPhInPixel : float [pixels], optional
         X shift in pixels applied to the input branch.
         Default is 0.0.
-    yShiftPhInPixel : float, optional
+    yShiftPhInPixel : float [pixels], optional
         Y shift in pixels applied to the input branch.
         Default is 0.0.
-    magnification : float, optional
+    magnification : float [1], optional
         Magnification applied to the input branch.
         Default is 1.0.
-    xShiftDiffPhInPixel : float, optional
+    xShiftDiffPhInPixel : float [pixels], optional
         Additional differential X shift in pixels applied only to the second branch.
         Default is 0.0.
-    yShiftDiffPhInPixel : float, optional
+    yShiftDiffPhInPixel : float [pixels], optional
         Additional differential Y shift in pixels applied only to the second branch.
         Default is 0.0.
-    magnificationDiff : float, optional
+    magnificationDiff : float [1], optional
         Additional differential magnification applied only to the second branch.
         Default is 1.0.
-    channel_flux : float, optional
+    channel_flux : float [1], optional
         Relative flux of the input branch in [0, 1].
         The rotated branch uses (1 - channel_flux).
         Default is 0.5 (balanced channels).
-    normalize_flux : bool, optional
+    normalize_flux : bool
         If True, normalize output intensity to input photons
         ``S0 * masked_area``. Default is True.
-    target_device_idx : int, optional
+    target_device_idx : int [1], optional
         Target device index for GPU processing. Default is None.
-    precision : int, optional
+    precision : int [1], optional
         Numerical precision (e.g., 32 or 64). Default is None.
     """
 

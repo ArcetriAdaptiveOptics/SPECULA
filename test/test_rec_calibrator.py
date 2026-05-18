@@ -6,10 +6,8 @@ import tempfile
 import unittest
 import shutil
 import numpy as np
-from unittest.mock import MagicMock, patch
-from typing import Union
+from unittest.mock import MagicMock
 
-from specula.base_value import BaseValue
 from specula.data_objects.intmat import Intmat
 from specula.data_objects.ifunc import IFunc
 from specula.data_objects.m2c import M2C
@@ -51,22 +49,6 @@ class TestRecCalibrator(unittest.TestCase):
         self.assertEqual(calibrator.rec_path, os.path.join(self.test_dir, f'{rec_tag}.fits'))
         self.assertIn('in_intmat', calibrator.inputs)
 
-    def test_initialization_with_tag_template(self):
-        """Test RecCalibrator initialization with tag_template"""
-        nmodes = 15
-        tag_template = 'template_rec'
-
-        calibrator = RecCalibrator(
-            nmodes=nmodes,
-            data_dir=self.test_dir,
-            rec_tag=None,  # Explicitly pass None
-            tag_template=tag_template
-        )
-
-        self.assertEqual(calibrator.nmodes, nmodes)
-        self.assertEqual(calibrator.data_dir, self.test_dir)
-        self.assertEqual(calibrator.rec_path, os.path.join(self.test_dir, f'{tag_template}.fits'))
-
     def test_initialization_with_custom_parameters(self):
         """Test RecCalibrator initialization with custom parameters"""
         nmodes = 20
@@ -94,33 +76,12 @@ class TestRecCalibrator(unittest.TestCase):
         self.assertEqual(calibrator.target_device_idx, target_device_idx)
         self.assertEqual(calibrator.precision, precision)
 
-    def test_initialization_with_auto_rec_tag(self):
-        """Test RecCalibrator initialization with rec_tag='auto' and tag_template"""
-        nmodes = 12
-        tag_template = 'auto_template'
-
-        calibrator = RecCalibrator(
-            nmodes=nmodes,
-            data_dir=self.test_dir,
-            rec_tag='auto',
-            tag_template=tag_template
-        )
-
-        self.assertEqual(calibrator.rec_path, os.path.join(self.test_dir, f'{tag_template}.fits'))
-
     def test_initialization_missing_both_tags(self):
         """Test that RecCalibrator raises TypeError when rec_tag is not provided"""
         with self.assertRaises(TypeError) as context:
             RecCalibrator(nmodes=10, data_dir=self.test_dir)
 
         self.assertIn('missing 1 required positional argument: \'rec_tag\'', str(context.exception))
-
-    def test_initialization_missing_both_tags_with_auto(self):
-        """Test that RecCalibrator raises ValueError when rec_tag is 'auto' and tag_template is None"""
-        with self.assertRaises(ValueError) as context:
-            RecCalibrator(nmodes=10, data_dir=self.test_dir, rec_tag='auto')
-
-        self.assertIn('At least one of tag_template and rec_tag must be set', str(context.exception))
 
     def test_initialization_with_empty_rec_tag(self):
         """Test that RecCalibrator accepts empty string rec_tag"""

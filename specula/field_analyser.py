@@ -8,6 +8,7 @@ import specula
 
 from specula.simul import Simul
 from specula.lib.calc_psf import calc_psf_geometry
+from specula.log import get_specula_logger
 
 class FieldAnalyser:
     """
@@ -23,7 +24,7 @@ class FieldAnalyser:
         wavelength_nm (float): Wavelength in nanometers.
         start_time (float): Start time for the analysis.
         end_time (Optional[float]): End time for the analysis, if applicable.
-        verbose (bool): Whether to print verbose output during processing.
+        log_level (str): Logging level if different from default specula one
     """
 
     def __init__(self,
@@ -33,8 +34,8 @@ class FieldAnalyser:
                  wavelength_nm: float = 750.0,
                  start_time: float = 0.1,
                  end_time: Optional[float] = None,
-                 verbose: bool = False,
-                 display: bool = False):
+                 display: bool = False,
+                 log_level: Optional[str] = None,):
 
         self.data_dir = Path(data_dir)
         self.tracking_number = tracking_number
@@ -42,8 +43,10 @@ class FieldAnalyser:
         self.wavelength_nm = wavelength_nm
         self.start_time = start_time
         self.end_time = end_time
-        self.verbose = verbose
         self.display = display
+        self.logger = get_specula_logger(__name__)
+        if log_level is not None:
+            self.logger.setLevel(log_level)
 
         # Loaded parameters
         self.params = None
@@ -177,11 +180,10 @@ class FieldAnalyser:
         self._validate_replay_inputs_are_not_downsampled(replay_params)
         replay_precision = self._get_saved_replay_precision()
         self.replay_precision = replay_precision
-        if self.verbose:
-            if replay_precision is None:
-                print('FieldAnalyser did not find saved replay precision; using current SPECULA precision state')
-            else:
-                print(f'FieldAnalyser loaded replay precision={replay_precision} from replay_params.yml')
+        if replay_precision is None:
+            self.logger.debug('FieldAnalyser did not find saved replay precision; using current SPECULA precision state')
+        else:
+            self.logger.debug(f'FieldAnalyser loaded replay precision={replay_precision} from replay_params.yml')
         self._ensure_replay_precision(replay_precision)
         return replay_params
 
@@ -203,8 +205,7 @@ class FieldAnalyser:
 
         precision = int(precision)
         if precision not in (0, 1):
-            if self.verbose:
-                print(f'Warning: invalid global_precision={precision} in replay_params.yml; ignoring it')
+            self.logger.warning(f'invalid global_precision={precision} in replay_params.yml; ignoring it')
             return None
 
         return precision
@@ -239,8 +240,8 @@ class FieldAnalyser:
                     f'{file_path.name} was saved with DOWNSAMP={downsampling}'
                 )
 
-            if 'DOWNSAMP' not in header and self.verbose:
-                print(f'Warning: replay input {file_path.name} has no DOWNSAMP metadata; assuming DOWNSAMP=1')
+            if 'DOWNSAMP' not in header:
+                self.logger.warning(f'replay input {file_path.name} has no DOWNSAMP metadata; assuming DOWNSAMP=1')
 
     def _ensure_replay_precision(self, replay_precision: Optional[int]):
         if replay_precision not in (0, 1):
@@ -250,8 +251,7 @@ class FieldAnalyser:
             return
 
         if specula.default_target_device_idx is None:
-            if self.verbose:
-                print('Warning: SPECULA not initialized yet, cannot enforce replay precision automatically')
+            self.logger.warning('SPECULA not initialized yet, cannot enforce replay precision automatically')
             return
 
         specula.init(
@@ -268,8 +268,7 @@ class FieldAnalyser:
         # Get base replay params from DataStore mechanism
         replay_params = self._build_replay_params_from_datastore()
 
-        if self.verbose:
-            print(f"Base replay_params keys: {list(replay_params.keys())}")
+        self.logger.debug(f"Base replay_params keys: {list(replay_params.keys())}")
 
         # Add field sources to existing parameters
         self._add_field_sources_to_params(replay_params)
@@ -312,9 +311,8 @@ class FieldAnalyser:
             }
         }
 
-        if self.verbose:
-            print(f"Final replay_params keys: {list(replay_params.keys())}")
-            print(f"PSF files to be saved: {psf_input_list}")
+        self.logger.debug(f"Final replay_params keys: {list(replay_params.keys())}")
+        self.logger.debug(f"PSF files to be saved: {psf_input_list}")
 
         return replay_params
 
@@ -358,8 +356,7 @@ class FieldAnalyser:
             }
         }
 
-        if self.verbose:
-            print(f"Modal files to be saved: {modal_input_list}")
+        self.logger.debug(f"Modal files to be saved: {modal_input_list}")
 
         return replay_params
 
@@ -390,8 +387,7 @@ class FieldAnalyser:
             }
         }
 
-        if self.verbose:
-            print(f"Cube files to be saved: {cube_input_list}")
+        self.logger.debug(f"Cube files to be saved: {cube_input_list}")
 
         return replay_params
 
@@ -412,8 +408,7 @@ class FieldAnalyser:
             raise KeyError(f"AtmoPropagation object not found in replay_params. "
                         f"Available objects: {available_objects}")
 
-        if self.verbose:
-            print(f"Found propagation object: '{prop_key}'")
+        self.logger.debug(f"Found propagation object: '{prop_key}'")
 
         # Add field sources
         for i, source_dict in enumerate(self.sources):
@@ -436,10 +431,9 @@ class FieldAnalyser:
         output_list = [f'out_field_source_{i}_ef' for i in range(len(self.sources))]
         prop_config['outputs'] = output_list
 
-        if self.verbose:
-            print(f"Updated propagation object '{prop_key}':")
-            print(f"  Sources: {source_refs}")
-            print(f"  Outputs: {output_list}")
+        self.logger.debug(f"Updated propagation object '{prop_key}':")
+        self.logger.debug(f"  Sources: {source_refs}")
+        self.logger.debug(f"  Outputs: {output_list}")
 
     def _add_displays_to_params(self, replay_params: dict): # <--- NEW METHOD
         """
@@ -449,8 +443,7 @@ class FieldAnalyser:
         if not self.display:
             return
 
-        if self.verbose:
-            print("Injecting display objects into simulation parameters...")
+        self.logger.debug("Injecting display objects into simulation parameters...")
 
         # 1. Phase display for the first field source
         if len(self.sources) > 0:
@@ -482,8 +475,7 @@ class FieldAnalyser:
 
         self._add_displays_to_params(params_dict)
 
-        if self.verbose:
-            print(f"Computing simulation with parameters to be saved by DataStore in: {output_dir}")
+        self.logger.debug(f"Computing simulation with parameters to be saved by DataStore in: {output_dir}")
 
         # Create minimal temporary YAML file
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as temp_file:
@@ -496,9 +488,9 @@ class FieldAnalyser:
             simul.run()
             return simul
         except Exception as e:
-            print(f"Simulation failed: {e}")
-            print(f"Check DataStore output in: {output_dir}")
-            print(f"Temp params file for debugging: {temp_params_file}")
+            self.logger.error(f"Simulation failed: {e}")
+            self.logger.error(f"Check DataStore output in: {output_dir}")
+            self.logger.error(f"Temp params file for debugging: {temp_params_file}")
             raise
         finally:
             # Clean up temporary file
@@ -561,19 +553,16 @@ class FieldAnalyser:
                     break
 
             if all_exist:
-                if self.verbose:
-                    print(f"Loading existing PSF results from: {self.psf_output_dir}")
+                self.logger.debug(f"Loading existing PSF results from: {self.psf_output_dir}")
                 return self._load_psf_results()
 
-        if self.verbose:
-            print(f"Computing field PSF for {len(self.sources)} sources...")
+        self.logger.debug(f"Computing field PSF for {len(self.sources)} sources...")
 
         # Setup replay parameters and run simulation
         replay_params = self._build_replay_params_psf()
         _ = self._run_simulation_with_params(replay_params, self.psf_output_dir)
 
-        if self.verbose:
-            print(f"Actual PSF pixel size: {self.psf_pixel_size_mas:.2f} mas")
+        self.logger.debug(f"Actual PSF pixel size: {self.psf_pixel_size_mas:.2f} mas")
 
         # Extract results from DataStore (files are automatically saved)
         results = self._load_psf_results()
@@ -608,13 +597,11 @@ class FieldAnalyser:
                     break
 
             if all_exist:
-                if self.verbose:
-                    print(f"Loading existing modal analysis from: {self.modal_output_dir}")
+                self.logger.debug(f"Loading existing modal analysis from: {self.modal_output_dir}")
                 return self._load_modal_results(modal_params)
 
-        if self.verbose:
-            print(f"Computing field modal analysis for {len(self.sources)} sources...")
-            print(f"Modal parameters: {modal_params}")
+        self.logger.debug(f"Computing field modal analysis for {len(self.sources)} sources...")
+        self.logger.debug(f"Modal parameters: {modal_params}")
 
         # Setup replay parameters and run simulation
         replay_params = self._build_replay_params_modal(modal_params)
@@ -640,12 +627,10 @@ class FieldAnalyser:
                     break
 
             if all_exist:
-                if self.verbose:
-                    print(f"Loading existing phase cubes from: {self.cube_output_dir}")
+                self.logger.debug(f"Loading existing phase cubes from: {self.cube_output_dir}")
                 return self._load_cube_results()
 
-        if self.verbose:
-            print(f"Computing field phase cubes for {len(self.sources)} sources...")
+        self.logger.debug(f"Computing field phase cubes for {len(self.sources)} sources...")
 
         # Setup replay parameters and run simulation
         replay_params = self._build_replay_params_cube()
@@ -784,14 +769,12 @@ class FieldAnalyser:
                         if 'npixels' not in modal_params and 'pixel_pupil' in main_cfg:
                             modal_params['npixels'] = main_cfg['pixel_pupil']
 
-                    if self.verbose:
-                        print(f"Extracted modal parameters from DM '{obj_name}': {modal_params}")
+                    self.logger.debug(f"Extracted modal parameters from DM '{obj_name}': {modal_params}")
 
                     return modal_params
 
         # Fallback to defaults
-        if self.verbose:
-            print("No suitable DM found, using default modal parameters")
+        self.logger.debug("No suitable DM found, using default modal parameters")
 
         modal_params = {'type_str': 'zernike', 'nmodes': 100}
         if 'pixel_pupil' in main_cfg:

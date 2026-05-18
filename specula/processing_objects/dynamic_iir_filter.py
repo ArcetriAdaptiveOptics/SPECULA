@@ -1,5 +1,5 @@
 from specula.processing_objects.iir_filter import IirFilter
-from specula.base_processing_obj import InputDesc, OutputDesc
+from specula.base_processing_obj import InputDesc
 from specula.data_objects.iir_filter_data import IirFilterData
 from specula.data_objects.simul_params import SimulParams
 from specula.connections import InputValue
@@ -19,15 +19,15 @@ class DynamicIirFilter(IirFilter):
         Simulation parameters containing time step information
     iir_filter_data : IirFilterData
         Filter coefficients (numerator and denominator)
-    delay : float, optional
+    delay : float [1], optional
         Delay in frames to apply to the output (default: 0)
-    integration : bool, optional
+    integration : bool
         If False, disables feedback terms (converts IIR to FIR).
         This is done by masking the denominator coefficients while
         preserving the normalizing factor. (default: True)
-    target_device_idx : int, optional
+    target_device_idx : int [1], optional
         Target device for computation (-1 for CPU, >=0 for GPU)
-    precision : int, optional
+    precision : int [1], optional
         Numerical precision (0 for double, 1 for single)
     
     Notes
@@ -58,15 +58,16 @@ class DynamicIirFilter(IirFilter):
 
     @classmethod
     def input_names(cls):
-        return {'delta_comm': InputDesc(BaseValue, 'Input delta command vector'),
-                'gain_mod': InputDesc(BaseValue, 'Optional gain modulation vector (optional)'),
-                'reset': InputDesc(IntValue, 'Trigger to reset internal filter state (optional)'),
-                'int_gain': InputDesc(FloatValue, 'Dynamic integrator gain update (optional)')}
+        result = super().input_names()
+        result.update({
+            'reset': InputDesc(BaseValue, 'Trigger to reset internal filter state (optional)'),
+            'int_gain': InputDesc(BaseValue, 'Dynamic integrator gain update (optional)')
+        })
+        return result
 
     @classmethod
     def output_names(cls):
-        return {'out_comm': OutputDesc(BaseValue, 'Output command vector with delay applied'),
-                'out_comm_no_delay': OutputDesc(BaseValue, 'Output command vector without delay (for POLC)')}
+        return super().output_names()
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)

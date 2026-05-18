@@ -4,7 +4,6 @@
 #  avg_frames: 1
 #  inputs: { sn: 'slopec.out_slopes' }
 #  output_tag: 'auto'
-#  tag_template: 'sn_{main.tag}_mod{pyramid.mod_amp}_{TN}'
 #  # TN is ignored when looking for existing tags
 
 main_override:

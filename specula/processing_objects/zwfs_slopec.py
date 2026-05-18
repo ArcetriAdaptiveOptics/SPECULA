@@ -1,8 +1,6 @@
 from specula import fuse
 from specula.processing_objects.slopec import Slopec
-from specula.base_processing_obj import InputDesc, OutputDesc
-from specula.base_value import BaseValue
-from specula.data_objects.pixels import Pixels
+from specula.base_processing_obj import OutputDesc
 from specula.data_objects.slopes import Slopes
 from specula.data_objects.pupdata import PupData
 
@@ -12,11 +10,6 @@ from specula.lib.make_mask import make_mask
 @fuse(kernel_name='clamp_generic_less')
 def clamp_generic_less(x, c, y, xp):
     y[:] = xp.where(y < x, c, y)
-
-
-# @fuse(kernel_name='clamp_generic_more')
-# def clamp_generic_more(x, c, y, xp):
-#     y[:] = xp.where(y > x, c, y)
 
 
 class ZwfsSlopec(Slopec):

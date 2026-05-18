@@ -1,7 +1,7 @@
 import os
 from typing import Union
 
-from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
+from specula.base_processing_obj import BaseProcessingObj, InputDesc
 from specula.data_objects.intmat import Intmat
 from specula.data_objects.ifunc import IFunc
 from specula.data_objects.m2c import M2C
@@ -22,7 +22,6 @@ class RecCalibrator(BaseProcessingObj):
                  rec_tag: str,        # TODO = "",
                  first_mode: int = 0,
                  pupdata_tag: str = None,
-                 tag_template: str = None,
                  overwrite: bool = False,
                  mmse: bool = False,
                  r0: float = 0.15,
@@ -36,8 +35,6 @@ class RecCalibrator(BaseProcessingObj):
         self.nmodes = nmodes
         self.first_mode = first_mode
         self.data_dir = data_dir
-        if tag_template is None and (rec_tag is None or rec_tag == 'auto'):
-            raise ValueError('At least one of tag_template and rec_tag must be set')
         self.pupdata_tag = pupdata_tag
         self.overwrite = overwrite
 
@@ -55,12 +52,7 @@ class RecCalibrator(BaseProcessingObj):
         else:
             self.noise_cov = self.to_xp(noise_cov)
 
-        if rec_tag is None or rec_tag == 'auto':
-            rec_filename = tag_template
-        else:
-            rec_filename = rec_tag
-
-        rec_path = os.path.join(self.data_dir, rec_filename)
+        rec_path = os.path.join(self.data_dir, rec_tag)
         if not rec_path.endswith('.fits'):
             rec_path += '.fits'
         if os.path.exists(rec_path) and not self.overwrite:

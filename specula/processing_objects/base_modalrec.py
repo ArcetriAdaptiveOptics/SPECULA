@@ -3,6 +3,7 @@ from specula.base_value import BaseValue
 from specula.connections import InputList, InputValue
 from specula.data_objects.slopes import Slopes
 
+
 class BaseModalrec(BaseProcessingObj):
     """
     Base Modal Reconstructor processing object.
