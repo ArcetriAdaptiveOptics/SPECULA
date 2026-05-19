@@ -1,5 +1,5 @@
 from specula import cpuArray, ASEC2RAD, np
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.data_objects.layer import Layer
 from specula.lib.phasescreen_manager import phasescreens_manager
@@ -27,7 +27,6 @@ class AtmoEvolution(BaseProcessingObj):
                  pixel_phasescreens: int=8192,
                  seed: int=1,
                  extra_delta_time: float=0,
-                 verbose: bool=False,
                  fov_in_m: float=None,
                  pupil_position:list =[0,0],
                  target_device_idx: int=None,
@@ -41,41 +40,37 @@ class AtmoEvolution(BaseProcessingObj):
         ----------
         simul_params : SimulParams
             Simulation parameters object containing global simulation settings.
-        L0 : list
+        L0 : list [m]
             Outer scale(s) of turbulence for each layer in meters.
-        heights : list
+        heights : list [m]
             Heights of the atmospheric layers in meters (at zenith).
-        Cn2 : list
+        Cn2 : list [1]
             Fractional Cn2 values for each layer (must sum to 1.0).
         data_dir : str
             Directory path for storing/loading phase screen data (automatically set by simul.py).
-        fov : float, optional
+        fov : float [arcsec], optional
             Field of view in arcseconds. Default is 0.0.
-        pixel_phasescreens : int, optional
+        pixel_phasescreens : int [1], optional
             Size of the square phase screens in pixels. Default is 8192.
-        seed : int, optional
+        seed : int [1], optional
             Seed for random number generation. Must be >0. Default is 1.
-        extra_delta_time : float or list, optional
+        extra_delta_time : float or list [s], optional
             Extra time offset for phase screen evolution in seconds. Default is 0.
-        verbose : bool, optional
-            If True, enables verbose output during phase screen generation. Default is False.
-        fov_in_m : float, optional
+        fov_in_m : float [m], optional
             Field of view in meters. If provided, overrides fov parameter. Default is None.
-        pupil_position : list, optional
+        pupil_position : list [m], optional
             [x, y] position of the pupil in meters. Default is [0, 0].
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
-        precision : int, optional
+        precision : int [1], optional
             Precision for computation (0 for double, 1 for single). Default is None
             (uses global setting).
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        self.simul_params = simul_params
-
-        self.pixel_pupil = self.simul_params.pixel_pupil
-        self.pixel_pitch = self.simul_params.pixel_pitch
-        self.zenithAngleInDeg = self.simul_params.zenithAngleInDeg
+        self.pixel_pupil = simul_params.pixel_pupil
+        self.pixel_pitch = simul_params.pixel_pitch
+        zenithAngleInDeg = simul_params.zenithAngleInDeg
 
         self.n_phasescreens = len(heights)
         self.last_position = np.zeros(self.n_phasescreens, dtype=self.dtype)
@@ -93,10 +88,10 @@ class AtmoEvolution(BaseProcessingObj):
         self.inputs['wind_speed'] = InputValue(type=BaseValue)
         self.inputs['wind_direction'] = InputValue(type=BaseValue)
 
-        if self.zenithAngleInDeg is not None:
-            self.airmass = 1.0 / np.cos(np.radians(self.zenithAngleInDeg), dtype=self.dtype)
-            print(f'AtmoEvolution: zenith angle is defined as: {self.zenithAngleInDeg} deg')
-            print(f'AtmoEvolution: airmass is: {self.airmass}')
+        if zenithAngleInDeg is not None:
+            self.airmass = 1.0 / np.cos(np.radians(zenithAngleInDeg), dtype=self.dtype)
+            self.logger.info(f'zenith angle is defined as: {zenithAngleInDeg} deg')
+            self.logger.info(f'airmass is: {self.airmass}')
         else:
             self.airmass = 1.0
 
@@ -119,7 +114,6 @@ class AtmoEvolution(BaseProcessingObj):
 
         self.L0 = L0
         self.Cn2 = np.array(Cn2, dtype=self.dtype)
-        self.pixel_pupil = self.pixel_pupil
         self.data_dir = data_dir
 
         self.pixel_square_phasescreens = pixel_phasescreens
@@ -128,8 +122,6 @@ class AtmoEvolution(BaseProcessingObj):
         if self.pixel_square_phasescreens < max(self.pixel_layer):
             raise ValueError('Error: phase-screens dimension must be'
                              'greater than layer dimension!')
-
-        self.verbose = verbose
 
         # Initialize layer list with correct heights
         self.layer_list = []
@@ -152,6 +144,16 @@ class AtmoEvolution(BaseProcessingObj):
             raise ValueError(f' Cn2 total must be 1. Instead is: {np.sum(self.Cn2)}.')
 
         self.compute()
+
+    @classmethod
+    def input_names(cls):
+        return {'seeing': InputDesc(BaseValue, 'Atmospheric seeing value'),
+                'wind_speed': InputDesc(BaseValue, 'Wind speed for each atmospheric layer'),
+                'wind_direction': InputDesc(BaseValue, 'Wind direction for each atmospheric layer')}
+
+    @classmethod
+    def output_names(cls):
+        return {'layer_list': OutputDesc(list, 'List of atmospheric phase screen layers')}
 
     def compute(self):
         # Phase screens list
@@ -181,7 +183,7 @@ class AtmoEvolution(BaseProcessingObj):
             square_phasescreens = phasescreens_manager(L0, self.pixel_square_phasescreens,
                                                         self.pixel_pitch, self.data_dir,
                                                         seed=seed, precision=self.precision,
-                                                        verbose=self.verbose, xp=self.xp)
+                                                        xp=self.xp)
 
             square_ps_index = -1
             ps_index = 0
@@ -212,7 +214,6 @@ class AtmoEvolution(BaseProcessingObj):
                                                        self.data_dir,
                                                        seed=seed,
                                                        precision=self.precision,
-                                                       verbose=self.verbose,
                                                        xp=self.xp)
 
             for i in range(self.n_phasescreens):
@@ -300,19 +301,19 @@ class AtmoEvolution(BaseProcessingObj):
         
         Parameters
         ----------
-        wind_speed : array
+        wind_speed : array [m/s]
             Wind speed for each layer [m/s]
-        delta_position : array
+        delta_position : array [pixels]
             Position change since last frame [pixels]
-        extra_delta_time : array
+        extra_delta_time : array [s]
             Extra time offset for each layer [s]
-        last_position : array
+        last_position : array [pixels]
             Last accumulated position (will be updated in place)
-        layer_list : list
+        layer_list : list [1]
             List of Layer objects to update
-        wdi : array
+        wdi : array [deg]
             Integer part of wind direction / 90
-        wdf_full : array
+        wdf_full : array [1]
             Fractional part of wind direction in degrees
         """
 

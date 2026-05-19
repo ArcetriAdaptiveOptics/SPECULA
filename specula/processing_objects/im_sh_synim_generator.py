@@ -7,7 +7,7 @@ Can be connected to SPRINT estimator output to generate corrected IM and RM.
 """
 
 from specula.lib.synim_utils import compute_im_synim
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.connections import InputValue
 from specula.data_objects.intmat import Intmat
 from specula.data_objects.recmat import Recmat
@@ -47,19 +47,19 @@ class ImShSynimGenerator(BaseProcessingObj):
         Shack-Hartmann WFS object
     compute_rec : bool
         Compute reconstruction matrix (default: True)
-    rec_nmodes : int or None
+    rec_nmodes : int or None [1]
         Number of modes for reconstruction (None = same as IM)
     mmse : bool
         Use MMSE reconstruction instead of pseudo-inverse (default: False)
-    r0 : float
+    r0 : float [m]
         Fried parameter for MMSE [m] (default: 0.15)
-    L0 : float
+    L0 : float [m]
         Outer scale for MMSE [m] (default: 25.0)
-    noise_cov : float, ndarray, list, or None
+    noise_cov : float, ndarray, list, or None [1]
         Noise covariance for MMSE (required if mmse=True)
-    target_device_idx : int or None
+    target_device_idx : int or None [1]
         GPU device index
-    precision : int or None
+    precision : int or None [1]
         Numerical precision
     
     Inputs
@@ -119,7 +119,6 @@ class ImShSynimGenerator(BaseProcessingObj):
                  r0: float = 0.15,
                  L0: float = 25.0,
                  noise_cov: Union[float, np.ndarray, list] = None,
-                 verbose: bool = False,
                  target_device_idx: int = None,
                  precision: int = None):
 
@@ -132,7 +131,6 @@ class ImShSynimGenerator(BaseProcessingObj):
             raise ValueError(f"ImShSynimGenerator requires ShSlopec, got {type(slopec).__name__}")
 
         # Store references
-        self.simul_params = simul_params
         self.dm = dm
         self.slopec = slopec
         self.source = source
@@ -155,8 +153,6 @@ class ImShSynimGenerator(BaseProcessingObj):
             self.noise_cov = [self.to_xp(nc) for nc in noise_cov]
         else:
             self.noise_cov = self.to_xp(noise_cov)
-
-        self.verbose = verbose
 
         # Pupil parameters
         self.pup_diam_m = simul_params.pixel_pupil * simul_params.pixel_pitch
@@ -186,6 +182,15 @@ class ImShSynimGenerator(BaseProcessingObj):
         self.outputs['out_intmat'] = self.output_intmat
         if compute_rec:
             self.outputs['out_recmat'] = self.output_recmat
+
+    @classmethod
+    def input_names(cls):
+        return {'in_misreg_params': InputDesc(BaseValue, 'Mis-registration parameters (optional, from SPRINT estimator)')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_intmat': OutputDesc(Intmat, 'Computed interaction matrix from SynIM geometric model'),
+                'out_recmat': OutputDesc(Recmat, 'Computed reconstruction matrix (optional, if compute_rec=True)')}
 
     def setup(self):
         """Initialize and extract parameters"""
@@ -220,18 +225,17 @@ class ImShSynimGenerator(BaseProcessingObj):
             recmat_shape = (self.rec_nmodes, nslopes)
             self.output_recmat.recmat = self.xp.zeros(recmat_shape, dtype=self.dtype)
 
-        if self.verbose: # pragma: no cover
-            print(f"\n{self.__class__.__name__} initialized:")
-            print(f"  WFS type: Shack-Hartmann (SynIM backend)")
-            print(f"  Subapertures: {self.wfs.subap_on_diameter}x{self.wfs.subap_on_diameter}")
-            print(f"  Valid subapertures: {len(self.idx_valid_sa)}")
-            print(f"  Number of IM modes: {nmodes}")
-            print(f"  Number of slopes: {nslopes}")
-            print(f"  FOV: {self.wfs.subap_wanted_fov:.2f} arcsec")
-            if self.compute_rec:
-                print(f"  Compute reconstruction: Yes")
-                print(f"  Number of REC modes: {self.rec_nmodes}")
-                print(f"  Reconstruction method: {'MMSE' if self.mmse else 'Pseudo-inverse'}")
+        self.logger.info(f"  initialized:")
+        self.logger.info(f"  WFS type: Shack-Hartmann (SynIM backend)")
+        self.logger.info(f"  Subapertures: {self.wfs.subap_on_diameter}x{self.wfs.subap_on_diameter}")
+        self.logger.info(f"  Valid subapertures: {len(self.idx_valid_sa)}")
+        self.logger.info(f"  Number of IM modes: {nmodes}")
+        self.logger.info(f"  Number of slopes: {nslopes}")
+        self.logger.info(f"  FOV: {self.wfs.subap_wanted_fov:.2f} arcsec")
+        if self.compute_rec:
+            self.logger.info(f"  Compute reconstruction: Yes")
+            self.logger.info(f"  Number of REC modes: {self.rec_nmodes}")
+            self.logger.info(f"  Reconstruction method: {'MMSE' if self.mmse else 'Pseudo-inverse'}")
 
     def trigger_code(self):
         """Generate IM and optionally REC when input changes or on demand"""
@@ -246,12 +250,11 @@ class ImShSynimGenerator(BaseProcessingObj):
             # Default: perfect registration
             misreg_params = np.zeros(4)
 
-        if self.verbose: # pragma: no cover
-            print(f"\nGenerating IM with mis-registration:")
-            print(f"  shift_x: {misreg_params[0]:.3f} px")
-            print(f"  shift_y: {misreg_params[1]:.3f} px")
-            print(f"  rotation: {misreg_params[2]:.3f} deg")
-            print(f"  magnification: {misreg_params[3]:.6f}")
+        self.logger.info(f"  Generating IM with mis-registration:")
+        self.logger.info(f"  shift_x: {misreg_params[0]:.3f} px")
+        self.logger.info(f"  shift_y: {misreg_params[1]:.3f} px")
+        self.logger.info(f"  rotation: {misreg_params[2]:.3f} deg")
+        self.logger.info(f"  magnification: {misreg_params[3]:.6f}")
 
         # Generate IM
         im = self.generate_im(misreg_params)
@@ -262,8 +265,7 @@ class ImShSynimGenerator(BaseProcessingObj):
 
         # Generate REC if requested
         if self.compute_rec:
-            if self.verbose: # pragma: no cover
-                print(f"  Computing reconstruction matrix...")
+            self.logger.info(f"  Computing reconstruction matrix...")
 
             rec = self.generate_rec()
 
@@ -271,8 +273,7 @@ class ImShSynimGenerator(BaseProcessingObj):
             self.output_recmat.set_value(rec.recmat)
             self.output_recmat.generation_time = t
 
-            if self.verbose: # pragma: no cover
-                print(f"  REC matrix shape: {rec.recmat.shape}")
+            self.logger.info(f"  REC matrix shape: {rec.recmat.shape}")
 
     def generate_im(self, misreg_params):
         """
@@ -303,7 +304,6 @@ class ImShSynimGenerator(BaseProcessingObj):
             wfs_fov_arcsec=self.wfs.subap_wanted_fov,
             idx_valid_sa=self.idx_valid_sa,
             apply_absolute_slopes=False,
-            verbose=self.verbose
         )
 
     def generate_rec(self):

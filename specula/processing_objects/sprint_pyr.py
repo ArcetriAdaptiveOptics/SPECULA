@@ -33,7 +33,7 @@ class SprintPyr(BaseSprintEstimator):
     
     Parameters
     ----------  
-    push_amp : float
+    push_amp : float [nm]
         Amplitude of the push-pull perturbation for sensitivity matrix estimation (default: 10 nm)
     
     All parameters inherited from BaseSprintEstimator.
@@ -56,12 +56,12 @@ class SprintPyr(BaseSprintEstimator):
                  apply_absolute_slopes=False,
                  integration_gain=0.5,
                  forgetting_factor=1.0,
-                 verbose: bool = False,
                  target_device_idx=None,
                  precision=None):
         """
         Initialize Pyramid SPRINT estimator.
         """
+        self.simul_params = simul_params
 
         # Number of parameters for this WFS type
         n_params = 4
@@ -84,7 +84,6 @@ class SprintPyr(BaseSprintEstimator):
             apply_absolute_slopes=apply_absolute_slopes,
             integration_gain=integration_gain,
             forgetting_factor=forgetting_factor,
-            verbose=verbose,
             target_device_idx=target_device_idx,
             precision=precision
         )
@@ -198,11 +197,10 @@ class SprintPyr(BaseSprintEstimator):
                                                  dtype=self.xp.int64)[pupil_idx(i) >= 0] \
                                                  for i in range(4)])
 
-        if self.verbose: # pragma: no cover
-            print(f"  WFS type: Pyramid")
-            print(f"  FOV: {self.wfs.fov:.2f} arcsec")
-            print(f"  Valid subapertures mapping size: {len(self.idx_valid_sa)}")
-            print(f"  Number of misreg params: {self.n_params}")
+        self.logger.info(f"  WFS type: Pyramid")
+        self.logger.info(f"  FOV: {self.wfs.fov:.2f} arcsec")
+        self.logger.info(f"  Valid subapertures mapping size: {len(self.idx_valid_sa)}")
+        self.logger.info(f"  Number of misreg params: {self.n_params}")
 
     def _build_pyr_params(self):
         """Set up parameters for the internal Pyramid simulator based on the WFS configuration."""
@@ -352,8 +350,8 @@ class SprintPyr(BaseSprintEstimator):
                          im_diff, G_opt, iteration): # pragma: no cover
         """Plot debug information for SH WFS."""
 
-        print(f"G_opt: {cpuArray(G_opt)}")
-        print(f"Mis-reg parameters: {cpuArray(self.misreg_params)}")
+        self.logger.info(f"G_opt: {cpuArray(G_opt)}")
+        self.logger.info(f"Mis-reg parameters: {cpuArray(self.misreg_params)}")
 
         plt.figure(figsize=(12, 5))
         plt.plot(im_measured[:,0]/G_opt[0], label='Measured IM (demodulated)')

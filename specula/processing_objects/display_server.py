@@ -8,10 +8,8 @@ import multiprocessing as mp
 import numpy as np
 from contextlib import contextmanager
 
-from flask_socketio import SocketIO
-
 from specula.base_value import BaseValue
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 
 from specula.lib.display_server_api import start_server
 
@@ -86,13 +84,21 @@ class DisplayServer(BaseProcessingObj):
                     except ValueError:
                         return input_ref_getter(name)
             except Exception as e:
-                print(f"[DisplayServer] Could not get object '{name}': {e}")
+                self.logger.error(f"Could not get object '{name}': {e}")
                 return None
 
         self.data_obj_getter = data_obj_getter
         self.info_getter = info_getter
 
-        print(f"[DisplayServer] Initialized in {self.mode} mode")
+        self.logger.info(f"Initialized in {self.mode} mode")
+
+    @classmethod
+    def input_names(cls):
+        return {}
+
+    @classmethod
+    def output_names(cls):
+        return {}
 
     def _trigger_image_mode(self):
 
@@ -122,7 +128,7 @@ class DisplayServer(BaseProcessingObj):
                             obj_bytes = pickle.dumps(cleaned_dataobj)
                             self.qout.put(('image_data', client_id, name, obj_bytes))
                     except Exception as e:
-                        print(f"[DisplayServer][ImageMode] Error processing {name}: {e}")
+                        self.logger.error(f"[ImageMode] Error processing {name}: {e}")
                         import traceback
                         traceback.print_exc()
                 
@@ -131,7 +137,7 @@ class DisplayServer(BaseProcessingObj):
             except queue.Empty:
                 return
             except Exception as e:
-                print(f"[DisplayServer][ImageMode] Error processing request: {e}")
+                self.logger.error(f"[ImageMode] Error processing request: {e}")
                 import traceback
                 traceback.print_exc()
 
@@ -148,7 +154,7 @@ class DisplayServer(BaseProcessingObj):
             try:
                 self.qout.put((name, status_report))
             except Exception as e:
-                print(f"[SIMULATION][{self.__class__.__name__}] Error putting status: {e}")
+                self.logger.error(f"[SIMULATION][{self.__class__.__name__}] Error putting status: {e}")
 
         if self.mode == 'image':
             self._trigger_image_mode()
@@ -191,7 +197,7 @@ class DisplayServer(BaseProcessingObj):
                         responses.append((name, processed_data))
                         
                     except Exception as e:
-                        print(f"[SIMULATION][DataMode] Error preparing data for {name}: {e}")
+                        self.logger.error(f"[SIMULATION][DataMode] Error preparing data for {name}: {e}")
                         import traceback
                         traceback.print_exc()
                         responses.append((name, {
@@ -204,17 +210,17 @@ class DisplayServer(BaseProcessingObj):
                     try:
                         self.qout.put(('data_response', client_id, name, data))
                     except Exception as e:
-                        print(f"[SIMULATION][DataMode] Error putting response: {e}")
+                        self.logger.error(f"[SIMULATION][DataMode] Error putting response: {e}")
                 
                 try:
                     self.qout.put(('terminator', client_id, None, self.speed_report))
                 except Exception as e:
-                    print(f"[SIMULATION][DataMode] Error putting terminator: {e}")
+                    self.logger.error(f"[SIMULATION][DataMode] Error putting terminator: {e}")
                 
             except queue.Empty:
                 break
             except Exception as e:
-                print(f"[SIMULATION][DataMode] Error processing request: {e}")
+                self.logger.error(f"[SIMULATION][DataMode] Error processing request: {e}")
                 import traceback
                 traceback.print_exc()
                 break
@@ -232,7 +238,7 @@ class DisplayServer(BaseProcessingObj):
                         return obj.array_for_display()
                         
                 except Exception as e:
-                    print(f"Error extracting array from {type(obj).__name__}: {e}")
+                    self.logger.error(f"Error extracting array from {type(obj).__name__}: {e}")
                     return None
                 return None
             
@@ -318,7 +324,7 @@ class DisplayServer(BaseProcessingObj):
             }
             
         except Exception as e:
-            print(f"Error processing data for DPG ({name}): {e}")
+            self.logger.error(f"Error processing data for DPG ({name}): {e}")
             import traceback
             traceback.print_exc()
             return {
@@ -332,7 +338,7 @@ class DisplayServer(BaseProcessingObj):
         if hasattr(self, 'p') and self.p.is_alive():
             self.p.terminate()
             self.p.join()
-            print(f"[DisplayServer] Server process terminated")
+            self.logger.info(f"Server process terminated")
 
 
 @contextmanager

@@ -194,7 +194,7 @@ class Intmat(BaseDataObj):
             influence_function = modal_base.influence_function
         c_atm = compute_ifs_covmat(
             modal_base.mask_inf_func, diameter, influence_function, r0, L0,
-            oversampling=2, verbose=False, xp=self.xp, dtype=self.dtype
+            oversampling=2, xp=self.xp, dtype=self.dtype
         )
         if c_atm.shape[0] > intmat.shape[1]:
             c_atm = c_atm[:intmat.shape[1], :intmat.shape[1]]
@@ -240,7 +240,7 @@ class Intmat(BaseDataObj):
         recmat = compute_mmse_reconstructor(self.to_xp(intmat), c_atm, self.xp,
                                             self.dtype, noise_variance=noise_variance,
                                             c_noise=c_noise_mat,
-                                            c_inverse=False, verbose=False)
+                                            c_inverse=False)
         rec = Recmat(recmat, target_device_idx=self.target_device_idx)
         return rec
 

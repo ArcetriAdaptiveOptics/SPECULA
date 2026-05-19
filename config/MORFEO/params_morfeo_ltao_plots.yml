@@ -335,7 +335,7 @@ rec:
   recmat_object:      '/tmp/ltao_rec0'         # reconstruction matrix tag
   inputs:
     in_slopes_list:        ['slopec1.out_slopes']#,'slopec2.out_slopes','slopec3.out_slopes','slopec4.out_slopes','slopec5.out_slopes','slopec6.out_slopes']
-  outputs:  ['out_modes', 'out_pseudo_ol_modes']
+  outputs:  ['out_modes']
 
 
 control:

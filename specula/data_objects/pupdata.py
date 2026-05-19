@@ -139,12 +139,12 @@ class PupData(BaseDataObj):
                 raise ValueError(f"Unknown version {version} in file {filename}")
 
             framesize = [int(hdr.get('FSIZEX')), int(hdr.get('FSIZEY'))]
-            ind_pup = hdul[1].data
-            radius = hdul[2].data
-            cx = hdul[3].data
+            ind_pup = hdul[1].data.copy()
+            radius = hdul[2].data.copy()
+            cx = hdul[3].data.copy()
             # Workaround for ANDES pupil files missing the last HDU
             if len(hdul) >= 5:
-                cy = hdul[4].data
+                cy = hdul[4].data.copy()
             else:
                 cy = None
 

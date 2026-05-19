@@ -26,14 +26,14 @@ class LaserLaunchTelescope(BaseDataObj):
 
         simul_params : SimulParams
             The simulation parameters object, required to get the zenith angle.
-        spot_size : float
-            The size of the laser spot in arcsec.
-        tel_position : list
-            The x, y and z position of the launch telescope w.r.t. the telescope in m.
-        beacon_focus : float
-            The distance from the telescope pupil to beacon focus in m.
-        beacon_tt : list
-            The tilt and tip of the beacon in arcsec.
+        spot_size : float [arcsec]
+            The size of the laser spot.
+        tel_position : list [m]
+            The x, y and z position of the launch telescope w.r.t. the telescope.
+        beacon_focus : float [m]
+            The distance from the telescope pupil to beacon focus.
+        beacon_tt : list [arcsec]
+            The tilt and tip of the beacon.
 
         TODO the empty tel_position array is actually significant, because
             it is checked in the SH code to manage the kernels,
@@ -54,8 +54,8 @@ class LaserLaunchTelescope(BaseDataObj):
 
         if self.zenithAngleInDeg is not None:
             self.airmass = 1.0 / np.cos(np.radians(self.zenithAngleInDeg), dtype=self.dtype)
-            print(f'AtmoEvolution: zenith angle is defined as: {self.zenithAngleInDeg} deg')
-            print(f'AtmoEvolution: airmass is: {self.airmass}')
+            self.logger.info(f'zenith angle is defined as: {self.zenithAngleInDeg} deg')
+            self.logger.info(f'airmass is: {self.airmass}')
         else:
             self.airmass = 1.0
 

@@ -1,5 +1,4 @@
-from specula import cpuArray
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.connections import InputValue, InputList
 from specula.data_objects.electric_field import ElectricField
@@ -8,7 +7,6 @@ from specula.data_objects.ifunc import IFunc
 from specula.data_objects.ifunc_inv import IFuncInv
 from specula.lib.compute_zern_ifunc import compute_zern_ifunc
 
-from scipy.fftpack import idct, dct
 import numpy as np
 
 class ModalAnalysis(BaseProcessingObj):
@@ -22,7 +20,6 @@ class ModalAnalysis(BaseProcessingObj):
                 ifunc_inv: IFuncInv=None,
                 type_str: str=None,
                 npixels: int=None,
-                nzern: int=None,            # TODO not used
                 obsratio: float=None,
                 diaratio: float=None,
                 pupilstop: Pupilstop=None,
@@ -30,8 +27,47 @@ class ModalAnalysis(BaseProcessingObj):
                 wavelengthInNm: float=0.0,
                 dorms: bool=False,
                 n_inputs: int=1,
+                remove_piston: bool=True,
                 target_device_idx: int=None,
                 precision: int=None):
+        """
+        Parameters
+        ----------
+        ifunc : IFunc, optional
+            Influence function object defining the modes (default: None)
+        ifunc_inv : IFuncInv, optional
+            Inverse influence function object (default: None).
+            If both ifunc and ifunc_inv are provided, ifunc_inv will be used.
+        type_str : str, optional
+            Type of influence function to compute if ifunc is not provided (e.g. 'zernike')
+            (default: None)
+        npixels : int, optional
+            Number of pixels across the pupil (required if ifunc is not provided)
+        obsratio : float, optional
+            Obscuration ratio for influence function computation (required if ifunc is not provided)
+        diaratio : float, optional
+            Diameter ratio for influence function computation (required if ifunc is not provided)
+        pupilstop : Pupilstop, optional
+            Pupil stop object defining the mask to apply to the influence functions
+            (default: None)
+        nmodes : int, optional
+            Number of modes to compute (default: None, meaning all modes)
+        wavelengthInNm : float, optional
+            Wavelength in nanometers for phase to mode conversion
+            (default: 0.0, meaning no conversion)
+        dorms : bool, optional
+            Whether to compute and output the RMS of the wavefront (default: False)
+        n_inputs : int, optional
+            Number of input electric fields to process (default: 1).
+            If greater than 1, the in_ef_list input will be used instead of in_ef.
+        remove_piston : bool, optional
+            Whether to remove the global piston term from the modes when inverting
+            the influence function (default: True)
+        target_device_idx : int [1], optional
+            Target device for computation (-1 for CPU, >=0 for GPU)
+        precision : int [1], optional
+            Numerical precision (0 for double, 1 for single)
+        """
 
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
@@ -49,23 +85,25 @@ class ModalAnalysis(BaseProcessingObj):
 
             type_lower = type_str.lower()
             if type_lower in ['zern', 'zernike']:
-                ifunc, mask = compute_zern_ifunc(npixels, nzern=nmodes, obsratio=obsratio, diaratio=diaratio, mask=mask,
+                ifunc, mask = compute_zern_ifunc(npixels, nzern=nmodes, obsratio=obsratio,
+                                                 diaratio=diaratio, mask=mask,
                                                  xp=self.xp, dtype=self.dtype)
             else:
                 raise ValueError(f'Invalid ifunc type {type_str}')
 
             ifunc = IFunc(ifunc, mask=mask, nmodes=nmodes, target_device_idx=self.target_device_idx)
-            self.phase2modes = ifunc.inverse()
+            self.phase2modes = ifunc.inverse(remove_piston=remove_piston)
         elif ifunc is None and ifunc_inv is not None:
             # Use ifunc_inv directly, don't attempt to call inverse() on None
-            if nmodes is not None and nmodes != ifunc_inv.size[0]:
-                ifunc_inv.cut(nmodes=nmodes)
+            if nmodes != ifunc_inv.nmodes():
+                ifunc_inv = IFuncInv(ifunc_inv.ifunc_inv[:, :nmodes],
+                                     mask=ifunc_inv.mask_inf_func,
+                                     target_device_idx=ifunc_inv.target_device_idx,
+                                     precision=ifunc_inv.precision)
             self.phase2modes = ifunc_inv
         elif ifunc is not None and ifunc_inv is None:
             # This is the case where only ifunc is provided
-            if nmodes is not None and nmodes != ifunc.size[0]:
-                ifunc.cut(nmodes=nmodes)
-            self.phase2modes = ifunc.inverse()
+            self.phase2modes = ifunc.inverse(nmodes=nmodes, remove_piston=remove_piston)
         else:  # Both are provided
             # Prioritize ifunc_inv
             self.phase2modes = ifunc_inv
@@ -76,10 +114,9 @@ class ModalAnalysis(BaseProcessingObj):
         self.rms.value = self.xp.zeros(1, dtype=self.dtype)
         self.dorms = dorms
         self.wavelengthInNm = wavelengthInNm
-        self.verbose = False  # Verbose flag for debugging output
 
         if nmodes is None:
-            self._n_modes = self.phase2modes.size[1]
+            self._n_modes = self.phase2modes.nmodes()
         else:
             self._n_modes = nmodes
         self._n_inputs = n_inputs
@@ -97,6 +134,17 @@ class ModalAnalysis(BaseProcessingObj):
             self.outputs['out_modes_list'].append(BaseValue('modes', target_device_idx=self.target_device_idx))
         self.out_modes_list = self.outputs['out_modes_list']
 
+    @classmethod
+    def input_names(cls):
+        return {'in_ef': InputDesc(ElectricField, 'Input electric field for modal analysis (optional, use with in_ef_list)'),
+                'in_ef_list': InputDesc(ElectricField, 'List of input electric fields for multi-source modal analysis (optional)')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_modes': OutputDesc(BaseValue, 'Modal coefficients from the combined/single input electric field'),
+                'rms': OutputDesc(BaseValue, 'RMS of the wavefront'),
+                'out_modes_list': OutputDesc(list, 'Per-input modal coefficient vectors (list, one per connected input)')}
+
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
         self.in_ef = self.local_inputs['in_ef']
@@ -107,17 +155,17 @@ class ModalAnalysis(BaseProcessingObj):
     def unwrap_ls(self, phase_wrap):
 
         # Wrapped phase differences (Gradients)
-        dx = np.diff(phase_wrap, axis=1)
-        dx = np.mod(dx + np.pi, 2 * np.pi) - np.pi
+        dx = self.xp.diff(phase_wrap, axis=1)
+        dx = self.xp.mod(dx + np.pi, 2 * np.pi) - np.pi
 
-        dy = np.diff(phase_wrap, axis=0)
-        dy = np.mod(dy + np.pi, 2 * np.pi) - np.pi
+        dy = self.xp.diff(phase_wrap, axis=0)
+        dy = self.xp.mod(dy + np.pi, 2 * np.pi) - np.pi
 
         # Calculate the Divergence (right-hand side of Poisson equation)
         rows, cols = phase_wrap.shape
-        rho = np.zeros((rows, cols))
-        rho[:, 1:-1] = np.diff(dx, axis=1)
-        rho[1:-1, :] += np.diff(dy, axis=0)
+        rho = self.xp.zeros((rows, cols))
+        rho[:, 1:-1] = self.xp.diff(dx, axis=1)
+        rho[1:-1, :] += self.xp.diff(dy, axis=0)
 
         # Boundary conditions
         rho[:, 0] = dx[:, 0]
@@ -126,12 +174,11 @@ class ModalAnalysis(BaseProcessingObj):
         rho[-1, :] += -dy[-1, :]
 
         # 2D discrete cosine transform
-        dct_rho = dct(dct(rho, axis=0, norm='ortho'), axis=1, norm='ortho')
+        dct_rho = self.dct(self.dct(rho, axis=0, norm='ortho'), axis=1, norm='ortho')
 
         # Create the Eigenvalues of the Laplacian in DCT domain
-        N, M = rho.shape
-        v = np.cos(np.pi * np.arange(N) / N)
-        u = np.cos(np.pi * np.arange(M) / M)
+        v = self.xp.cos(np.pi * self.xp.arange(rows) / rows)
+        u = self.xp.cos(np.pi * self.xp.arange(cols) / cols)
 
         # Finite difference Laplacian
         denom = 2 * (v.reshape(-1, 1) + u - 2)
@@ -142,12 +189,10 @@ class ModalAnalysis(BaseProcessingObj):
         dct_phi[0, 0] = 0.0 # avoid division by zero
 
         # Inverse 2D DCT
-        return idct(idct(dct_phi, axis=0, norm='ortho'), axis=1, norm='ortho')
-
+        return self.idct(self.idct(dct_phi, axis=0, norm='ortho'), axis=1, norm='ortho')
 
     def unwrap_2d(self, p):
-        unwrapped_p = self.unwrap_ls(cpuArray(p))
-        return self.to_xp(unwrapped_p)
+        return self.unwrap_ls(p)
 
     def setup(self):
         super().setup()
@@ -204,7 +249,6 @@ class ModalAnalysis(BaseProcessingObj):
             self.rms.value[:] = self.xp.std(ph)
             self.rms.generation_time = self.current_time
 
-        if self.verbose:
-            print(f"First residual values: {m[:min(6, len(m))]}")
-            if self.dorms:
-                print(f"Phase RMS: {self.rms.value}")
+        self.logger.debug(f"First residual values: {m[:min(6, len(m))]}")
+        if self.dorms:
+            self.logger.debug(f"Phase RMS: {self.rms.value}")

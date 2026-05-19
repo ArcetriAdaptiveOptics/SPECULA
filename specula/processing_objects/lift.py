@@ -2,7 +2,7 @@ import logging
 import math
 from collections import namedtuple
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.connections import InputValue
 from specula.base_value import BaseValue
 from specula import cpuArray, np
@@ -10,7 +10,6 @@ from specula.data_objects.simul_params import SimulParams
 from specula.data_objects.ifunc import IFunc
 from specula.data_objects.pixels import Pixels
 from specula.lib.interp2d import Interp2D
-import matplotlib.pyplot as plt
 
 
 WFS_Settings = namedtuple('WFS_Settings',
@@ -51,35 +50,35 @@ class Lift(BaseProcessingObj):
         ----------
         simul_params : SimulParams
             Simulation parameters object reference.
-        nPistons : int
+        nPistons : int [1]
             Number of piston modes in the modal base (see ifunc argument).
-        nZern : int
+        nZern : int [1]
             Number of Zernike modes in the modal base (see ifunc argument).
-        wavelengthInNm : float
+        wavelengthInNm : float [nm]
             Wavelength in nanometers.
-        pix_scale : float
+        pix_scale : float [arcsec/px]
             Pixel scale.
-        npix_side : int
+        npix_side : int [pixels]
             Number of pixels per side.
-        cropped_size : int
+        cropped_size : int [pixels]
             Cropped size.
         ifunc : IFunc, optional
             Influence function data object.
             It must be coherent with nPistons and nZern modes, the first two zernike modes
             (if nZern>0) must be tip and tilt.
-        ref_zern_amp : sequence
+        ref_zern_amp : sequence [rad]
             Reference amplitudes for the Zernike block of the modal base, ordered exactly
             as in ifunc, i.e. starting from tip, tilt, defocus, and so on. Units are phase
             radians. It must have length nZern.
-        n_iter : int, optional
+        n_iter : int [1], optional
             Number of iterations. Defaults to 20.
-        fft_res : int, optional
+        fft_res : int [1], optional
             FFT resolution. Defaults to 2.
-        fix : bool, optional
+        fix : bool
             Fix flag. Defaults to False.
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index. Defaults to None.
-        precision : int, optional
+        precision : int [1], optional
             Precision. Defaults to None.
         """
 
@@ -125,8 +124,7 @@ class Lift(BaseProcessingObj):
 
         # self.outputs['phase_estimate'] = None
 
-        if self.verbose:
-            logging.info(f"[{self.name}] LIFT initialized with {self.nmodes} modes")
+        self.logger.info(f"LIFT initialized with {self.nmodes} modes")
 
         self.ifunc = ifunc
         mask = self.ifunc.mask_inf_func
@@ -134,6 +132,15 @@ class Lift(BaseProcessingObj):
         self.set_modalbase(self.ifunc.influence_function,
                            mask,
                            diameter=self.simul_params.pixel_pupil * self.simul_params.pixel_pitch)
+
+    @classmethod
+    def input_names(cls):
+        return {'in_pixels': InputDesc(Pixels, 'Input pixel data from the WFS detector')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_pistons': OutputDesc(BaseValue, 'Estimated piston coefficients per subaperture'),
+                'out_zern': OutputDesc(BaseValue, 'Estimated Zernike modal coefficients')}
 
     def _build_reference_coeffs(self, ref_zern_amp):
         airef = self.xp.zeros(self.nmodes, dtype=self.dtype)
@@ -248,8 +255,7 @@ class Lift(BaseProcessingObj):
         self._check_tip_tilt_coherence(mask2d)
         self.phase_ref = self.phaseFromCoeffs(self.airef)
 
-        if self.verbose:
-            logging.info(f"[{self.name}] Modal base set, gridSize={self.gridSize}, fftSize={self.fftSize}")
+        self.logger.info(f"Modal base set, gridSize={self.gridSize}, fftSize={self.fftSize}")
 
     def _check_tip_tilt_coherence(self, mask_cpu):
         """Verify that the modes at nPistons and nPistons+1 are linear x/y slopes (tip/tilt)."""
@@ -477,9 +483,7 @@ class Lift(BaseProcessingObj):
         self.outputs['out_zern'].generation_time = self.current_time
 
         # self.outputs["phase_estimate"] = currentPhaseEstimate
-        if self.verbose:
-            logging.info(f"[{self.name}] Trigger done, coeffs={coeffs[:5]}...")
+        self.logger.info(f"Trigger done, coeffs={coeffs[:5]}...")
 
     def finalize(self):
-        if self.verbose:
-            logging.info(f"[{self.name}] Finalized")
+        self.logger.info(f"Finalized")

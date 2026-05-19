@@ -1,7 +1,7 @@
 import numpy as _np
 from astropy.modeling import models as _models, fitting as _fitting
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.connections import InputValue
 from specula.data_objects.pixels import Pixels
@@ -25,17 +25,17 @@ class SpotMonitor(BaseProcessingObj):
     ----------
     subapdata : SubapData
         Subaperture geometry and indexing information
-    initial_alpha : float, optional
+    initial_alpha : float [1], optional
         Initial guess for Moffat alpha parameter (default: 2.0)
-    initial_gamma : float, optional
+    initial_gamma : float [1], optional
         Initial guess for Moffat gamma parameter (default: 3.0)
-    bounds_alpha : tuple, optional
+    bounds_alpha : tuple [1], optional
         Bounds for alpha parameter (default: (0.5, 10.0))
-    bounds_gamma : tuple, optional
+    bounds_gamma : tuple [1], optional
         Bounds for gamma parameter (default: (0.1, None))
-    target_device_idx : int, optional
+    target_device_idx : int [1], optional
         Target device index
-    precision : int, optional
+    precision : int [1], optional
         Numerical precision
         
     Attributes
@@ -99,6 +99,17 @@ class SpotMonitor(BaseProcessingObj):
         self.outputs['out_model_pixels'] = self.model_pixels
         self.outputs['out_residual_pixels'] = self.residual_pixels
         self.outputs['out_params'] = self.params
+
+    @classmethod
+    def input_names(cls):
+        return {'in_pixels': InputDesc(Pixels, 'Input pixel image from WFS detector')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_sum_pixels': OutputDesc(Pixels, 'Summed subaperture image'),
+                'out_model_pixels': OutputDesc(Pixels, 'Fitted Moffat model image'),
+                'out_residual_pixels': OutputDesc(Pixels, 'Residuals between data and model'),
+                'out_params': OutputDesc(BaseValue, 'Moffat fit parameters [amplitude, x0, y0, gamma, alpha, sky, fwhm, chi2, success]')}
 
     def _estimate_initials(self, img):
         """Estimate initial parameters from image.

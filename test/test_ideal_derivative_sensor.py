@@ -31,6 +31,7 @@ class TestIdealDerivativeSensor(unittest.TestCase):
         subap_npx = 24
         pxscale_arcsec = 0.1
         fov_arcsec = subap_npx * pxscale_arcsec
+        self.fov_arcsec = fov_arcsec
 
         simul_params = SimulParams(pixel_pupil=pixel_pupil, pixel_pitch=pixel_pitch)
 
@@ -185,7 +186,7 @@ class TestIdealDerivativeSensor(unittest.TestCase):
         np_sub = subapdata.np_sub
         spacing_correction = (np_sub - 1) / np_sub
         expected_value = (ef.phaseInNm.max() - ef.phaseInNm.min()) * 1e-9 / \
-                         (ef.pixel_pitch*ef.A.shape[0]) * RAD2ASEC / (ideal_sensor.fov/2) \
+                         (ef.pixel_pitch*ef.A.shape[0]) * RAD2ASEC / (self.fov_arcsec/2) \
                          * spacing_correction
 
         np.testing.assert_allclose(ideal_avg_x, float(expected_value), rtol=1e-2)

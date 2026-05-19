@@ -344,6 +344,30 @@ class TestDisplays(unittest.TestCase):
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
     @cpu_and_gpu
+    def test_plot_with_nonvector(self, target_device_idx, xp):
+        """Test basic vector plotting with a list instead of a numpy array"""
+        display = PlotVectorDisplay(title='Test Vector', histlen=50)
+
+        # Create 3D vector
+        vec = BaseValue(value=[1, 2, 3], target_device_idx=target_device_idx)
+        vec.generation_time = vec.seconds_to_t(1)
+
+        display.inputs['vector'].set(vec)
+
+        loop = LoopControl()
+        loop.add(display, idx=0)
+        loop.run(run_time=1, dt=1)
+
+        self.assertTrue(display._opened)
+        self.assertIsNotNone(display.lines)
+        self.assertEqual(len(display.lines), 3)  # 3 elements
+        self.assertEqual(display._count, 1)
+
+        matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
     def test_vector_history_scrolling(self, target_device_idx, xp):
         """Test that history scrolls when buffer is full"""
         histlen = 5

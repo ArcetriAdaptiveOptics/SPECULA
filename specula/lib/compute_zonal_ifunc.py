@@ -1,5 +1,8 @@
+from specula.log import get_specula_logger
+
 from scipy.interpolate import Rbf
 import numpy as np
+
 from specula.lib.make_mask import make_mask
 from specula import cpuArray
 
@@ -28,8 +31,12 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
         If True, use circular geometry with actuator counts per ring defined by
         na = [1, 6, 12, 18, ...].
     geom : str or None
-        Geometry type: 'circular', 'alpao', or 'square'. If None, defaults to 'square' unless
-        circ_geom is True.
+        Geometry type: 'circular', 'alpao', 'hexagonal' or 'square'. 
+        If None, defaults to 'square' unless circ_geom is True.
+            - 'circular': radial-grid actuator disposition
+            - 'square': cartesian-grid actuator disposition
+            - 'hexagonal': hexagonal-grid actuator disposition
+            - 'alpao': cartesian-grid actuator disposition, cut on a circular pupil
     angle_offset : float
         Angular offset in degrees for the circular geometry actuator placement.
     do_mech_coupling : bool
@@ -64,6 +71,8 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
     else:
         mask = mask.astype(float)
         idx = xp.where(mask)
+
+    logger = get_specula_logger(__name__)
 
     # ----------------------------------------------------------
     # ----------------------------------------------------------
@@ -120,6 +129,44 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
         # Calculate step based on linspace spacing
         step = float(dim - 1) / float(n_act - 1)
 
+    elif geom == 'hexagonal':
+        # Determine the number of rings
+        if n_act % 2 == 0:
+            n_act_radius = int(xp.ceil((n_act + 1) / 2))
+        else:
+            n_act_radius = int(xp.ceil(n_act / 2))
+        
+        N_rings = max(0, n_act_radius - 1)
+
+        # Generate axial coordinates (q, r) for the hexagon
+        q_coords = []
+        r_coords = []
+        for q in range(-N_rings, N_rings + 1):
+            r1 = max(-N_rings, -q - N_rings)
+            r2 = min(N_rings, -q + N_rings)
+            for r in range(r1, r2 + 1):
+                q_coords.append(q)
+                r_coords.append(r)
+
+        q_arr = xp.array(q_coords, dtype=float)
+        r_arr = xp.array(r_coords, dtype=float)
+
+        # Convert axial coordinates to Cartesian
+        x_hex = q_arr + r_arr / 2.0
+        y_hex = r_arr * xp.sqrt(3.0) / 2.0
+
+        n_act_tot = int(xp.size(x_hex))
+
+        # Calculate step based on max diameter (2 * N_rings) to span (dim - 1)
+        n_act_diameter = 2 * N_rings + 1
+        step = float(dim - 1) / float(n_act_diameter - 1) if n_act_diameter > 1 else 0.0
+
+        x_c, y_c = (dim - 1) / 2.0, (dim - 1) / 2.0
+
+        # Scale by step
+        x = x_hex * step + x_c
+        y = y_hex * step + y_c
+
     elif geom == 'square': # default
         x, y = xp.meshgrid(xp.linspace(0, dim - 1, n_act), xp.linspace(0, dim - 1, n_act))
         x, y = x.ravel(), y.ravel()
@@ -128,7 +175,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
         step = float(dim - 1) / float(n_act - 1)
 
     else:
-        raise ValueError("Unrecognized geometry type! Avaliable types are: 'circular', 'alpao', 'square'")
+        raise ValueError("Unrecognized geometry type! Avaliable types are: 'circular', 'alpao', 'hexagonal', 'square'")
 
     coordinates = xp.vstack((x, y))
     grid_x, grid_y = xp.meshgrid(xp.arange(dim), xp.arange(dim))
@@ -177,12 +224,10 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
 
         ifs_cube[i, :, :] = z_interp
 
-        print(f"\rCompute IFs: {int((i / n_act_tot) * 100)}% done", end="")
-
-    print()
+        logger.debug(f"Compute IFs: {int((i / n_act_tot) * 100)}% done")
 
     if do_mech_coupling:
-        print("Applying mechanical coupling...")
+        logger.info("Applying mechanical coupling...")
         ifs_cube_orig = ifs_cube.copy()
 
         for j in range(n_act_tot):
@@ -205,7 +250,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
                 ifs_cube[j, :, :] += coupling_coeffs[1] * \
                     xp.sum(ifs_cube_orig[close2_indices], axis=0)
 
-        print("Mechanical coupling applied.")
+        logger.info("Mechanical coupling applied.")
 
     if do_slaving:
         ifs_cube, coordinates, n_act_tot, slave_mat = apply_slaving(
@@ -227,7 +272,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
 
     ifs_2d = xp.array([ifs_cube[i][idx] for i in range(n_act_tot)], dtype=dtype)
 
-    print("\nComputation completed.")
+    logger.info("Computation completed.")
 
     return ifs_2d, mask, coords, slave_mat
 
@@ -336,6 +381,8 @@ def apply_slaving(ifs_cube, coordinates, idx, step, slaving_thr=0.1,
     Unified function to apply actuator slaving. 
     Routes to standard (proximity) or linear (PTT extrapolation) weighting logic.
     """
+    logger = get_specula_logger(__name__)
+
     n_act_tot = ifs_cube.shape[0]
 
     # --- 1. PRE-PROCESSING (Identify Master/Slave actuators) ---
@@ -345,9 +392,9 @@ def apply_slaving(ifs_cube, coordinates, idx, step, slaving_thr=0.1,
     idx_master = xp.where(ifs_peaks >= slaving_thr * max_vals_all)[0]
     idx_slave = xp.where(ifs_peaks < slaving_thr * max_vals_all)[0]
 
-    print(f"Actuators: {n_act_tot}")
-    print(f"Master actuators: {len(idx_master)}")
-    print(f"Actuators to be slaved: {len(idx_slave)}")
+    logger.info(f"Actuators: {n_act_tot}")
+    logger.info(f"Master actuators: {len(idx_master)}")
+    logger.info(f"Actuators to be slaved: {len(idx_slave)}")
 
     slave_mat = xp.zeros((n_act_tot, n_act_tot), dtype=dtype)
 

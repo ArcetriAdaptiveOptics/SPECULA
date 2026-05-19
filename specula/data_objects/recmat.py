@@ -91,10 +91,10 @@ class Recmat(BaseDataObj):
                 raise ValueError(f"Error: unknown version {version} in file {filename}")
 
             norm_factor = float(hdr['NORMFACT'])
-            recmat = hdul[1].data
+            recmat = hdul[1].data.copy()
             num_ext = len(hdul)
             if num_ext >= 3:
-                mode2reLayer = hdul[2].data
+                mode2reLayer = hdul[2].data.copy()
             else:
                 mode2reLayer = None
         return Recmat(recmat, mode2reLayer, norm_factor, target_device_idx=target_device_idx)

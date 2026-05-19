@@ -1,13 +1,24 @@
+from __future__ import annotations
+
 import specula
-from specula import simul
 specula.init(0)  # Default target device
 
 import unittest
+from unittest.mock import patch
 
 import yaml
 import copy
-from specula.simul import Simul
+from pathlib import PureWindowsPath
+from typing import Dict, List
+
+import numpy as np
+from specula.simul import Simul, computeTag
 from specula.connections import InputValue, InputList
+from specula.data_objects.recmat import Recmat
+from specula.base_data_obj import BaseDataObj
+from specula.lib.utils import import_class as real_import_class
+from specula.processing_objects.modalrec_multirate import ModalrecMultirate
+from specula.data_objects.iir_filter_data import IirFilterData
 
 class DummyObj:
     def __init__(self):
@@ -19,9 +30,19 @@ class DummyOutput:
 
 class DummyOutputDerived(DummyOutput):
     pass
-  
+
+class DummySimulParams:
+    def __init__(self, root_dir='dummy', **_kwargs):
+        self.root_dir = root_dir
+    def init_logging(self, *args):
+        pass
+
 
 class TestSimul(unittest.TestCase):
+
+    @staticmethod
+    def _path_suffix_parts(path):
+        return PureWindowsPath(path).parts[-2:]
 
     def test_none_object_in_parameter_dict_is_none(self):
         '''
@@ -42,7 +63,7 @@ class TestSimul(unittest.TestCase):
           magnitude: null
           wavelengthInNm: null
         '''
-        simul = Simul([])
+        simul = Simul('dummy.yaml')
         params = yaml.safe_load(yml)
         simul.build_objects(params)
 
@@ -51,7 +72,7 @@ class TestSimul(unittest.TestCase):
 
     def test_scalar_input_reference(self):
         '''Test that an input is correctly connected'''
-        simul = Simul([])
+        simul = Simul('dummy.yaml')
         simul.objs = {
             'a': DummyObj(),
             'b': DummyObj()
@@ -71,7 +92,7 @@ class TestSimul(unittest.TestCase):
         
     def test_list_input_reference(self):
         '''Test that a list of inputs is correctly connected'''
-        simul = Simul([])
+        simul = Simul('dummy.yaml')
         simul.objs = {
             'a': DummyObj(),
             'b': DummyObj()
@@ -93,7 +114,7 @@ class TestSimul(unittest.TestCase):
         assert all(isinstance(x, DummyOutputDerived) for x in val)
 
     def test_missing_output_raises(self):
-        simul = Simul([])
+        simul = Simul('dummy.yaml')
         simul.objs = {'a': DummyObj()}
         simul.objs['a'].outputs = {}
 
@@ -103,7 +124,7 @@ class TestSimul(unittest.TestCase):
             })
 
     def test_invalid_input_type(self):
-        simul = Simul([])
+        simul = Simul('dummy.yaml')
         simul.objs = {
             'a': DummyObj(),
             'b': DummyObj()
@@ -124,7 +145,7 @@ class TestSimul(unittest.TestCase):
         class WrongType:
             pass
 
-        simul = Simul([])
+        simul = Simul('dummy.yaml')
         simul.objs = {
             'a': DummyObj(),
             'b': DummyObj()
@@ -162,7 +183,7 @@ class TestSimul(unittest.TestCase):
             }
         }
 
-        simul = Simul([])
+        simul = Simul('dummy.yaml')
         assert simul.has_delayed_output('obj1', pars) == True
         assert simul.has_delayed_output('obj2', pars) == False
 
@@ -186,7 +207,7 @@ class TestSimul(unittest.TestCase):
                 }
             }      
         }
-        simul = Simul([])
+        simul = Simul('dummy.yaml')
 
         # Does not raise
         _ = simul.build_trigger_order(pars)
@@ -221,7 +242,7 @@ class TestSimul(unittest.TestCase):
         additional_params1 = {'dm_override_2': { 'foo': 'bar3' } }
         additional_params2 = {'remove_3': ['dm2'] }
 
-        simul = Simul([])
+        simul = Simul('dummy.yaml')
 
         # Nothing happens for simul_idx=1 (not referenced in additional_params)
         simul.simul_idx = 1
@@ -257,7 +278,7 @@ class TestSimul(unittest.TestCase):
           wavelengthInNm: 500.0
           nonexistent_param: value
         '''
-        simul = Simul([])
+        simul = Simul('dummy.yaml')
         params = yaml.safe_load(yml)
         with self.assertRaises(ValueError):
             simul.build_objects(params)
@@ -278,7 +299,7 @@ class TestSimul(unittest.TestCase):
           length: 10
           slopes_data: null
         '''
-        simul = Simul([])
+        simul = Simul('dummy.yaml')
         params = yaml.safe_load(yml)
         simul.build_objects(params)
         # slopes_data: null → strips _data suffix → slopes=None → Slopes initializes as zeros
@@ -299,7 +320,7 @@ class TestSimul(unittest.TestCase):
           inputs:
             in_pixels: 1.0
         '''
-        simul = Simul([])
+        simul = Simul('dummy.yaml')
         params = yaml.safe_load(yml)
         simul.build_objects(params)
 
@@ -311,8 +332,6 @@ class TestSimul(unittest.TestCase):
         simul.overrides = ("{test.inputs.in.pixels: 2.0}")
         with self.assertRaises(ValueError):
             simul.apply_overrides(params)
-        
-
 
     def test_ref_suffix_resolves_referenced_object(self):
         '''
@@ -342,11 +361,10 @@ class TestSimul(unittest.TestCase):
           iir_filter_data_ref: iir_data
           delay: 0
         '''
-        simul = Simul([])
+        simul = Simul('dummy.yaml')
         params = yaml.safe_load(yml)
         simul.build_objects(params)
 
-        from specula.data_objects.iir_filter_data import IirFilterData
         assert isinstance(simul.objs['control'].iir_filter_data, IirFilterData)
         assert simul.objs['control'].iir_filter_data is simul.objs['iir_data']
 
@@ -357,9 +375,6 @@ class TestSimul(unittest.TestCase):
         The parname != name guard on the _data branch ensures this: when no suffix was
         stripped (parname == name), the value is assigned directly.
         '''
-        from unittest.mock import patch
-        from specula.base_data_obj import BaseDataObj
-        from specula.lib.utils import import_class as real_import_class
 
         class ClassWithDirectDataArg(BaseDataObj):
             def __init__(self, foo_data=None, target_device_idx=None, precision=None):
@@ -381,11 +396,340 @@ class TestSimul(unittest.TestCase):
           foo_data: direct_value
         '''
         with patch('specula.simul.import_class', side_effect=mock_import):
-            simul = Simul([])
+            simul = Simul('dummy.yaml')
             params = yaml.safe_load(yml)
             simul.build_objects(params)
             # foo_data is a direct constructor arg; it should be passed directly,
             # not routed to FITS-file reading (which would fail or mangled the value)
             assert simul.objs['test'].foo_data == 'direct_value'
 
+    def test_dict_object_suffix_stripped_and_loaded(self):
+        '''
+        Test generic _dict_object behavior:
+        - recmat_dict_object strips to constructor arg recmat_dict
+        - each dict value is treated as a tag and restored as the hinted object type
+        '''
+        class ClassWithDictObjectArg(BaseDataObj):
+            def __init__(self,
+                         recmat_dict: Dict[str, Recmat],
+                         target_device_idx=None,
+                         precision=None):
+                super().__init__(target_device_idx=target_device_idx, precision=precision)
+                self.recmat_dict = recmat_dict
 
+        def mock_import(classname, additional_modules=None):
+            if classname == 'SimulParams':
+                return DummySimulParams
+            if classname == 'ClassWithDictObjectArg':
+                return ClassWithDictObjectArg
+            return real_import_class(classname, additional_modules)
+
+        rec_a = Recmat(np.ones((2, 2), dtype=np.float32), target_device_idx=-1, precision=0)
+        rec_b = Recmat(np.full((2, 2), 2.0, dtype=np.float32), target_device_idx=-1, precision=0)
+
+        params = {
+            'main': {
+                'class': 'SimulParams',
+                'root_dir': 'dummy'
+            },
+            'test': {
+                'class': 'ClassWithDictObjectArg',
+                'target_device_idx': -1,
+                'precision': 0,
+                'recmat_dict_object': {
+                    'rec_v10': 'tag_fast',
+                    'rec_v01': 'tag_slow'
+                }
+            }
+        }
+
+        with patch('specula.simul.import_class', side_effect=mock_import):
+            with patch('specula.data_objects.recmat.Recmat.restore', side_effect=[rec_a, rec_b]) as mock_restore:
+                simul = Simul('dummy.yaml')
+                simul.build_objects(params)
+
+                obj = simul.objs['test']
+                assert set(obj.recmat_dict.keys()) == {'rec_v10', 'rec_v01'}
+                assert isinstance(obj.recmat_dict['rec_v10'], Recmat)
+                assert isinstance(obj.recmat_dict['rec_v01'], Recmat)
+
+                assert mock_restore.call_count == 2
+                first_path = mock_restore.call_args_list[0].args[0]
+                second_path = mock_restore.call_args_list[1].args[0]
+                assert self._path_suffix_parts(first_path) == ('rec', 'tag_fast.fits')
+                assert self._path_suffix_parts(second_path) == ('rec', 'tag_slow.fits')
+
+    def test_dict_object_raises_with_no_type(self):
+
+        class ClassWithDictObjectArg(BaseDataObj):
+            def __init__(self,
+                         recmat_dict: Recmat=None,      # Wrong type, should be Dict[str, Recmat]
+                         target_device_idx=None,
+                         precision=None):
+                # Will not be instantiated
+                pass
+
+        def mock_import(classname, additional_modules=None):
+            if classname == 'SimulParams':
+                return DummySimulParams
+            if classname == 'ClassWithDictObjectArg':
+                return ClassWithDictObjectArg
+
+        rec_a = Recmat(np.ones((2, 2), dtype=np.float32), target_device_idx=-1, precision=0)
+        rec_b = Recmat(np.full((2, 2), 2.0, dtype=np.float32), target_device_idx=-1, precision=0)
+
+        params = {
+            'main': {
+                'class': 'SimulParams',
+                'root_dir': 'dummy'
+            },
+            'test': {
+                'class': 'ClassWithDictObjectArg',
+                'target_device_idx': -1,
+                'precision': 0,
+                'recmat_dict_object': {
+                    'rec_v10': 'tag_fast',
+                    'rec_v01': 'tag_slow'
+                }
+            }
+        }
+
+        with patch('specula.simul.import_class', side_effect=mock_import):
+            with patch('specula.data_objects.recmat.Recmat.restore', side_effect=[rec_a, rec_b]) as mock_restore:
+                simul = Simul('foo.yml')
+                with self.assertRaises(ValueError):
+                    simul.build_objects(params)
+
+    def test_list_object_suffix_stripped_and_loaded(self):
+        '''
+        Test generic _list_object behavior:
+        - recmat_list_object strips to constructor arg recmat_list
+        - each list value is treated as a tag and restored as the hinted object type
+        '''
+        class ClassWithListObjectArg(BaseDataObj):
+            def __init__(self,
+                         recmat_list: List[Recmat],
+                         target_device_idx=None,
+                         precision=None):
+                super().__init__(target_device_idx=target_device_idx, precision=precision)
+                self.recmat_list = recmat_list
+
+        def mock_import(classname, additional_modules=None):
+            if classname == 'SimulParams':
+                return DummySimulParams
+            if classname == 'ClassWithListObjectArg':
+                return ClassWithListObjectArg
+            return real_import_class(classname, additional_modules)
+
+        rec_a = Recmat(np.ones((2, 2), dtype=np.float32), target_device_idx=-1, precision=0)
+        rec_b = Recmat(np.full((2, 2), 2.0, dtype=np.float32), target_device_idx=-1, precision=0)
+
+        params = {
+            'main': {
+                'class': 'SimulParams',
+                'root_dir': 'dummy'
+            },
+            'test': {
+                'class': 'ClassWithListObjectArg',
+                'target_device_idx': -1,
+                'precision': 0,
+                'recmat_list_object': ['tag_fast', 'tag_slow']
+            }
+        }
+
+        with patch('specula.simul.import_class', side_effect=mock_import):
+            with patch('specula.data_objects.recmat.Recmat.restore', side_effect=[rec_a, rec_b]) as mock_restore:
+                simul = Simul('dummy.yaml')
+                simul.build_objects(params)
+
+                obj = simul.objs['test']
+                assert len(obj.recmat_list) == 2
+                assert isinstance(obj.recmat_list[0], Recmat)
+                assert isinstance(obj.recmat_list[1], Recmat)
+                assert obj.recmat_list[0].tag == 'tag_fast'
+                assert obj.recmat_list[1].tag == 'tag_slow'
+
+                assert mock_restore.call_count == 2
+                first_path = mock_restore.call_args_list[0].args[0]
+                second_path = mock_restore.call_args_list[1].args[0]
+                assert self._path_suffix_parts(first_path) == ('rec', 'tag_fast.fits')
+                assert self._path_suffix_parts(second_path) == ('rec', 'tag_slow.fits')
+
+    def test_list_object_raises_with_no_type(self):
+        '''
+        Test generic _list_object behavior:
+        - recmat_list_object strips to constructor arg recmat_list
+        - each list value is treated as a tag and restored as the hinted object type
+        '''
+
+        class ClassWithListObjectArg(BaseDataObj):
+            def __init__(self,
+                         recmat_list: Recmat=None,     # Wrong type, should be List[Recmat]
+                         target_device_idx=None,
+                         precision=None):
+                # Will not be instantiated
+                pass
+
+        def mock_import(classname, additional_modules=None):
+            if classname == 'SimulParams':
+                return DummySimulParams
+            if classname == 'ClassWithListObjectArg':
+                return ClassWithListObjectArg
+
+        rec_a = Recmat(np.ones((2, 2), dtype=np.float32), target_device_idx=-1, precision=0)
+        rec_b = Recmat(np.full((2, 2), 2.0, dtype=np.float32), target_device_idx=-1, precision=0)
+
+        params = {
+            'main': {
+                'class': 'SimulParams',
+                'root_dir': 'dummy'
+            },
+            'test': {
+                'class': 'ClassWithListObjectArg',
+                'target_device_idx': -1,
+                'precision': 0,
+                'recmat_list_object': ['tag_fast', 'tag_slow']
+            }
+        }
+
+        with patch('specula.simul.import_class', side_effect=mock_import):
+            with patch('specula.data_objects.recmat.Recmat.restore', side_effect=[rec_a, rec_b]) as mock_restore:
+                simul = Simul('foo.yml')
+                with self.assertRaises(ValueError):
+                    simul.build_objects(params)
+
+    def test_build_targeted_replay_follows_list_ref_dependencies(self):
+        params = {
+            'main': {'class': 'SimulParams', 'root_dir': 'dummy'},
+            'src_a': {'class': 'Source'},
+            'src_b': {'class': 'Source'},
+            'consumer': {
+                'class': 'DummyClass',
+                'source_list_ref': ['src_a', 'src_b']
+            }
+        }
+
+        replay = Simul('dummy.yaml').build_targeted_replay(params, 'consumer')
+
+        assert 'consumer' in replay
+        assert 'src_a' in replay
+        assert 'src_b' in replay
+
+    def test_integration_simul_modalrec_with_list_object(self):
+        '''
+        Integration-style test: Simul builds ModalrecMultirate and injects
+        recmat_list via _list_object using mocked Recmat.restore.
+        '''
+        def mock_import(classname, additional_modules=None):
+            if classname == 'SimulParams':
+                return DummySimulParams
+            return real_import_class(classname, additional_modules)
+
+        rec_both = Recmat(np.ones((5, 4), dtype=np.float32), target_device_idx=-1, precision=0)
+        rec_s1 = Recmat(np.ones((5, 4), dtype=np.float32), target_device_idx=-1, precision=0)
+        rec_s2 = Recmat(np.ones((5, 4), dtype=np.float32), target_device_idx=-1, precision=0)
+
+        params = {
+            'main': {
+                'class': 'SimulParams',
+                'root_dir': 'dummy'
+            },
+            'rec': {
+                'class': 'ModalrecMultirate',
+                'target_device_idx': -1,
+                'precision': 0,
+                'recmat_list_object': ['tag_both', 'tag_s1', 'tag_s2'],
+                'validity_masks': [[True, True], [True, False], [False, True]],
+                'n_modes_total': 5
+            }
+        }
+
+        with patch('specula.simul.import_class', side_effect=mock_import):
+            with patch('specula.data_objects.recmat.Recmat.restore', side_effect=[rec_both, rec_s1, rec_s2]):
+                simul = Simul('dummy.yaml')
+                simul.build_objects(params)
+
+                rec_obj = simul.objs['rec']
+                assert isinstance(rec_obj, ModalrecMultirate)
+                assert set(rec_obj.recmat_by_mask.keys()) == {(True, True), (True, False), (False, True)}
+
+
+    def test_simul_with_no_yaml_files(self):
+
+        with self.assertRaises(ValueError):
+            _ = Simul()
+
+    def test_exception_raised_when_extra_parameter_with_tag(self):
+        yml = '''
+        main:
+          class: 'SimulParams'
+          root_dir: dummy
+          
+        test:
+          class: 'Pupilstop'
+          tag: 'abcdef'
+          foo: 42
+        '''
+        simul = Simul('dummy.yaml')
+        params = yaml.safe_load(yml)
+
+        with self.assertRaises(ValueError):
+            simul.build_objects(params)
+
+    def test_exception_raised_when_restoring_with_no_type_hint(self):
+        yml = '''
+        main:
+          class: 'SimulParams'
+          root_dir: dummy
+          
+        test:
+          class: 'Slopes'
+          slopes_object: 'foo'
+        '''
+        simul = Simul('dummy.yaml')
+        params = yaml.safe_load(yml)
+
+        with self.assertRaises(ValueError):
+            simul.build_objects(params)
+
+    def test_compute_tag(self):
+        '''Test that even small changes in names result in a different tag'''
+
+        output_obj_name = 'foo'
+        dest_object = 'bar'
+        output_attr_name = 'test1'
+        input_attr_name = 'test2'
+
+        tag1 = computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name)
+
+        output_obj_name = 'foo2'
+        tag2 = computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name)
+
+        dest_object = 'bar2'
+        tag3 = computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name)
+
+        output_attr_name = 'atest1'
+        tag4 = computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name)
+
+        input_attr_name = 'atest2'
+        tag5 = computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name)
+
+        assert len(set((tag1, tag2, tag3, tag4, tag5))) == 5
+
+    def test_target_device_idx(self):
+
+        yml = '''
+        main:
+          class: 'SimulParams'
+          root_dir: dummy
+
+        test:
+          class: 'Slopes'
+          length: 10
+          slopes_data: null
+          target_device_idx: -1
+        '''
+        simul = Simul('dummy.yaml')
+        params = yaml.safe_load(yml)
+        simul.build_objects(params)
+        assert simul.objs['test'].target_device_idx == -1

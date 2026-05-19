@@ -1,6 +1,6 @@
 import os
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.data_objects.intensity import Intensity
 from specula.data_objects.pixels import Pixels
 from specula.connections import InputValue
@@ -61,33 +61,33 @@ class PyrPupdataCalibrator(BaseProcessingObj):
         ----------
         data_dir : str
             Directory where calibration outputs are saved.
-        dt : float, optional
+        dt : float [s], optional
             Integration time in seconds. If provided, frames are accumulated and
             processed only at multiples of ``dt``.
-        thr1 : float, optional
+        thr1 : float [1], optional
             First threshold for pupil segmentation. Default is 0.1.
-        thr2 : float, optional
+        thr2 : float [1], optional
             Second threshold for refined segmentation. Default is 0.25.
-        obs_thr : float, optional
+        obs_thr : float [1], optional
             Scaling factor for obstruction detection. Default is 0.8.
-        slopes_from_intensity : bool, optional
+        slopes_from_intensity : bool
             If True, generate pupil indices directly from intensity masks.
             Otherwise, use geometric translation. Default is False.
-        output_tag : str, optional
+        output_tag : str
             Filename used when saving calibration results.
-        auto_detect_obstruction : bool, optional
+        auto_detect_obstruction : bool
             Enable automatic detection of central obstruction. Default is True.
-        min_obstruction_ratio : float, optional
+        min_obstruction_ratio : float [1], optional
             Minimum allowed obstruction ratio. Default is 0.05.
-        display_debug : bool, optional
+        display_debug : bool
             If True, display debug plots during calibration. Default is False.
-        overwrite : bool, optional
+        overwrite : bool
             If True, overwrite existing files when saving. Default is False.
-        save_on_exit : bool, optional
+        save_on_exit : bool
             If True, automatically save calibration data on finalize. Default is True.
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index for computation.
-        precision : int, optional
+        precision : int [1], optional
             Numerical precision for internal data.
 
         Raises
@@ -129,6 +129,15 @@ class PyrPupdataCalibrator(BaseProcessingObj):
         # Inputs
         self.inputs['in_i'] = InputValue(type=Intensity, optional=True)  
         self.inputs['in_pixels'] = InputValue(type=Pixels, optional=True)
+
+    @classmethod
+    def input_names(cls):
+        return {'in_i': InputDesc(Intensity, 'Input intensity image (optional)'),
+                'in_pixels': InputDesc(Pixels, 'Input pixel image (optional)')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_pupdata': OutputDesc(PupData, 'Calibrated pupil data with subaperture geometry')}
 
     def setup(self):
         super().setup()
@@ -476,7 +485,7 @@ class PyrPupdataCalibrator(BaseProcessingObj):
                 # Warn if any pixel is lost
                 lost_pixels = n_pixels - n_valid
                 if lost_pixels > 0:
-                    print(f"Warning: Pupil {i} lost {lost_pixels}/{n_pixels} pixels "
+                    self.logger.warning(f"Pupil {i} lost {lost_pixels}/{n_pixels} pixels "
                         f"({100*lost_pixels/n_pixels:.1f}%) due to image boundaries")
 
                 # If fewer valid pixels, pad with -1 (already done by xp.full)
@@ -555,7 +564,7 @@ class PyrPupdataCalibrator(BaseProcessingObj):
             plt.pause(0.1)
 
         except ImportError:
-            print("Matplotlib not available for debug plotting")
+            self.logger.error("Matplotlib not available for debug plotting")
 
     def _save(self, filename):
         """
@@ -585,9 +594,8 @@ class PyrPupdataCalibrator(BaseProcessingObj):
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         self.pupdata.save(file_path, overwrite=self.overwrite)
 
-        if self.verbose:
-            print(f'Saved pupil data: {file_path}')
-            print(f'Obstruction ratio: {self.central_obstruction_ratio:.3f}')
+        self.logger.info(f'Saved pupil data: {file_path}')
+        self.logger.info(f'Obstruction ratio: {self.central_obstruction_ratio:.3f}')
 
     def finalize(self):
         if self.save_on_exit:

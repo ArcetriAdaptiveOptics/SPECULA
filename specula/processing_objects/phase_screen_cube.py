@@ -1,6 +1,6 @@
 import numpy as np
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.layer import Layer
 from specula.data_objects.pupilstop import Pupilstop
@@ -22,7 +22,6 @@ class PhaseScreenCube(BaseProcessingObj):
                  source_dict: dict=None,
                  layer_height: float=0.0,
                  scale_factor: float=1.0,
-                 verbose=None,
                  target_device_idx=None):
         """
         Parameters
@@ -33,50 +32,41 @@ class PhaseScreenCube(BaseProcessingObj):
             Spatio-temporal array containing the phase screen cube.
             Internally data are accessed as time-first: shape (time, x, y).
             The phase screens should be in nm. The time_vector must be provided in seconds.
-        pixel_scale : float
+        pixel_scale : float [m]
             Phase screens' pixel size in m.
-        source_dict : dict, optional
+        source_dict : dict [1], optional
             Dictionary of the source corresponding to the line of sight of the phase screen.
             If omitted or empty, the object exposes a single pair of outputs named
             out_ef and out_layer.
-        layer_height : float, optional
+        layer_height : float [m], optional
             Height in meters assigned to the output layer, by default 0.0.
-        scale_factor : float, optional
+        scale_factor : float [1], optional
             Scaling factor applied to the phase screens, by default 1.0. This can be used 
             to adjust the amplitude of the phase screens if needed.
-        verbose : bool, optional
-            If True, enables verbose output during phase screen generation.
-            Default is None (no verbose output).
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
         """
         super().__init__(target_device_idx=target_device_idx)
 
-        self.simul_params = simul_params
         self.cube = cube
 
-        self.pixel_pupil = self.simul_params.pixel_pupil
-        self.pixel_pitch = self.simul_params.pixel_pitch
+        self.pixel_pupil = simul_params.pixel_pupil
+        self.pixel_pitch = simul_params.pixel_pitch
         self.pixel_scale = pixel_scale
         self.scale_factor = scale_factor
-
-        self.source_dict = source_dict or {}
-        self.step_counter = 0
-        self.layer_height = layer_height
         self.layer_outputs = {}
-        self.ef_outputs = {}
+
+        source_dict = source_dict or {}
 
         self.pupilstop = None
 
-        self.verbose = verbose if verbose is not None else False
-
-        output_specs = list(self.source_dict.items()) if self.source_dict else [(None, None)]
+        output_specs = list(source_dict.items()) if source_dict else [(None, None)]
 
         for name, source in output_specs:
             layer_output_name = 'out_layer' if name is None else 'out_'+name+'_layer'
             ef_output_name = 'out_ef' if name is None else 'out_'+name+'_ef'
 
-            layer = Layer(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, self.layer_height,
+            layer = Layer(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, layer_height,
                           target_device_idx=self.target_device_idx)
             ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
                                target_device_idx=self.target_device_idx)
@@ -86,7 +76,6 @@ class PhaseScreenCube(BaseProcessingObj):
                 ef.S0 = source.phot_density()
 
             self.layer_outputs[layer_output_name] = layer
-            self.ef_outputs[ef_output_name] = ef
             self.outputs[layer_output_name] = layer
             self.outputs[ef_output_name] = ef
 
@@ -140,6 +129,15 @@ class PhaseScreenCube(BaseProcessingObj):
         self.ef_interpolator.interpolate()
 
 
+    @classmethod
+    def input_names(cls):
+        return {'pupilstop': InputDesc(Pupilstop, 'Pupil stop defining the valid telescope aperture')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_layer': OutputDesc(Layer, 'Output atmospheric phase layer (default single-source name)'),
+                'out_ef': OutputDesc(ElectricField, 'Output electric field for the line of sight (default single-source name)')}
+
     def trigger_code(self):
         current_phase = self.ef_interpolator.interpolated_ef().phaseInNm
         for output_name, layer in self.layer_outputs.items():
@@ -151,7 +149,7 @@ class PhaseScreenCube(BaseProcessingObj):
             # Note: the electric field output shares the same array (ef.field)
             #       as the layer output (layer.field)
             ef_output_name = output_name.replace('_layer', '_ef')
-            self.ef_outputs[ef_output_name].generation_time = self.current_time
+            self.outputs[ef_output_name].generation_time = self.current_time
 
     def post_trigger(self):
         super().post_trigger()

@@ -266,12 +266,10 @@ slopec_ngs3: { <<: *NGS_SLOPEC, inputs: {in_pixels: 'detector_ngs3.out_pixels' }
 # -----------------------------
 
 tomo_polc_lgs:
-  class:              'Modalrec'
+  class:              'ModalrecExplicitPolc'
   recmat_object:      '20240606_200110.0/recmat'
   projmat_object:     'p20250519_195705.0/projmatAll.fits'
   intmat_object:      '20250911_000003.0/intmat.fits'
-  polc:   true
-  in_commands_size:   6258
   inputs:
     in_slopes_list:        ['slopec_lgs1.out_slopes','slopec_lgs2.out_slopes','slopec_lgs3.out_slopes',
                             'slopec_lgs4.out_slopes','slopec_lgs5.out_slopes','slopec_lgs6.out_slopes']
@@ -345,7 +343,7 @@ dm3:
 # ----------------
 
 tomo_ngs:
-  class:              'Modalrec'
+  class:              'ModalrecExplicitPolc'
   recmat_object:      '20240614_073541.0/recmat'
   projmat_object:     'p20230222_104426.0/projmatAll'
   inputs:

@@ -3,7 +3,7 @@ from specula import fuse, RAD2ASEC
 from specula.connections import InputValue
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.intensity import Intensity
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.lib.zernike_generator import ZernikeGenerator
 from specula.lib.extrapolation_2d import EFInterpolator
 from specula.lib.mask import CircularMask
@@ -33,23 +33,23 @@ class CurvatureSensor(BaseProcessingObj):
         Parameters:
         ----------
 
-        wavelengthInNm: float
+        wavelengthInNm: float [nm]
             Wavelength of the light in nanometers.
-        wanted_fov: float
+        wanted_fov: float [arcsec]
             Desired field of view in arcseconds.
-        pxscale: float
+        pxscale: float [arcsec/pixel]
             Desired pixel scale in arcseconds per pixel at the output.
-        number_px: int
+        number_px: int [pixels]
             Desired output resolution (number of pixels on one side of the square output image).
-        defocus_rms_nm: float
+        defocus_rms_nm: float [nm]
             RMS of the defocus aberration in nanometers (controls the strength of the curvature).
-        fov_ovs_coeff : float, optional
+        fov_ovs_coeff : float [1], optional
             Coefficient to determine the oversampling of the FoV.
             A value larger than 1 is recommended to avoid FFT wrapping effects.
             Default is 2.0.
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
-        precision : int, optional
+        precision : int [1], optional
             Precision for computation (0 for double, 1 for single). Default is None
             (uses global setting).
         """
@@ -84,6 +84,15 @@ class CurvatureSensor(BaseProcessingObj):
         self.actual_internal_pxscale = None
 
         self.internal_res = 0
+
+    @classmethod
+    def input_names(cls):
+        return {'in_ef': InputDesc(ElectricField, 'Input electric field')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_i1': OutputDesc(Intensity, 'Intra-focal intensity image'),
+                'out_i2': OutputDesc(Intensity, 'Extra-focal intensity image')}
 
     def setup(self):
         super().setup()

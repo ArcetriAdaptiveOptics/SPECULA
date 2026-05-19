@@ -3,7 +3,7 @@ from typing import Optional, Union, List
 from scipy.interpolate import RectBivariateSpline
 
 from specula import cpuArray, ASEC2RAD, np
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.data_objects.simul_params import SimulParams
 from specula.base_value import BaseValue
 from specula.connections import InputValue
@@ -68,31 +68,27 @@ class ExtendedSource(BaseProcessingObj):
 
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        # Store parameters
-        self.simul_params = simul_params
-        self.pixel_pupil = self.simul_params.pixel_pupil
-        self.pixel_pitch = self.simul_params.pixel_pitch
-        self.zenithAngleInDeg = self.simul_params.zenithAngleInDeg
-        self.airmass = 1. / np.cos(np.radians(self.simul_params.zenithAngleInDeg), dtype=self.dtype)
+        airmass = 1. / np.cos(np.radians(simul_params.zenithAngleInDeg), dtype=self.dtype)
 
         self.wavelengthInNm = wavelengthInNm
         self.sampling_lambda_over_d = sampling_lambda_over_d
-        self.d_tel = self.pixel_pupil * self.pixel_pitch
+        self.d_tel = simul_params.pixel_pupil * simul_params.pixel_pitch
         self.source_type = source_type
         self.size_obj = size_obj
         self.sampling_type = sampling_type
         if layer_height is not None:
-            layer_height = [h * self.airmass for h in layer_height]
+            layer_height = [h * airmass for h in layer_height]
         self.layer_height = layer_height or []
         self.intensity_profile = intensity_profile or []
         if focus_height is not None:
-            focus_height = focus_height * self.airmass
+            focus_height = focus_height * airmass
         else:
             focus_height = np.inf
         self.focus_height = focus_height
         self.tt_profile = tt_profile
         self.n_rings = n_rings or 0
         self.flux_threshold = flux_threshold
+
         self.psf = BaseValue(target_device_idx=self.target_device_idx, precision=precision)
         if initial_psf is not None:
             self.psf.value = self.to_xp(initial_psf, dtype=self.dtype)
@@ -104,9 +100,6 @@ class ExtendedSource(BaseProcessingObj):
 
         # Validate parameters
         self._validate_parameters()
-
-        # Determine if 3D
-        self.is_3d = self._check_if_3d()
 
         # Output arrays
         self.npoints = 0
@@ -138,31 +131,29 @@ class ExtendedSource(BaseProcessingObj):
             raise ValueError(f"{self.source_type} requires size_obj parameter")
 
         if self.source_type == 'FROM_PSF':
-            if self.psf.value is None:
-                raise ValueError("FROM_PSF requires psf parameter")
             if self.pixel_scale_psf is None:
                 raise ValueError("FROM_PSF requires pixel_scale_psf parameter")
 
-    def _check_if_3d(self) -> bool:
+    def _is_3d(self) -> bool:
         """Check if this is a 3D extended source"""
-        if len(self.layer_height) == 1 and self.focus_height is not None:
+        if len(self.layer_height) == 1:
             return self.layer_height[0] != self.focus_height
         return len(self.layer_height) > 1
 
     def compute(self):
         """Main computation method"""
-        if self.is_3d:
+        if self._is_3d():
             result = self._compute_3d()
         else:
             result = self._compute_2d()
 
         # Store results
-        self.xx_arcsec = result['xx_arcsec']
-        self.yy_arcsec = result['yy_arcsec']
-        self.coeff_tiltx = self.to_xp(result['coeff_tiltx'])
-        self.coeff_tilty = self.to_xp(result['coeff_tilty'])
-        self.coeff_focus = self.to_xp(result['coeff_focus'])
-        self.coeff_flux = self.to_xp(result['coeff_flux'])
+        self.xx_arcsec = result['xx_arcsec'].astype(self.dtype)
+        self.yy_arcsec = result['yy_arcsec'].astype(self.dtype)
+        self.coeff_tiltx = self.to_xp(result['coeff_tiltx'], dtype=self.dtype)
+        self.coeff_tilty = self.to_xp(result['coeff_tilty'], dtype=self.dtype)
+        self.coeff_focus = self.to_xp(result['coeff_focus'], dtype=self.dtype)
+        self.coeff_flux = self.to_xp(result['coeff_flux'], dtype=self.dtype)
         self.npoints = len(self.coeff_tiltx)
 
         # Apply flux threshold if needed
@@ -671,8 +662,6 @@ class ExtendedSource(BaseProcessingObj):
 
     def _compute_focus_coefficient(self, layer_height: float) -> float:
         """Compute focus coefficient for a layer at given height"""
-        if self.focus_height is None:
-            return 0.0
 
         delta_height = layer_height - self.focus_height
         focal_ratio = layer_height / self.d_tel
@@ -697,6 +686,14 @@ class ExtendedSource(BaseProcessingObj):
         self.coeff_flux = self.coeff_flux[valid_mask]
 
         self.npoints = len(self.coeff_flux)
+
+    @classmethod
+    def input_names(cls):
+        return {'psf': InputDesc(BaseValue, 'PSF data for extended source modeling from PSF (optional)')}
+
+    @classmethod
+    def output_names(cls):
+        return {'coeff': OutputDesc(BaseValue, 'Extended source coefficients as a column-stacked array')}
 
     def trigger(self):
         """Update PSF if new data is available and recompute if needed"""
@@ -761,4 +758,4 @@ class ExtendedSource(BaseProcessingObj):
             plt.show()
 
         except ImportError:
-            print("Matplotlib not available for plotting")
+            self.logger.error("Matplotlib not available for plotting")

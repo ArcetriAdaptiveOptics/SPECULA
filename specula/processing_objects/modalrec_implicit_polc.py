@@ -1,97 +1,89 @@
-from specula.processing_objects.modalrec import Modalrec
+from specula.processing_objects.base_modalrec import BaseModalrec
+from specula.base_value import BaseValue
+from specula.connections import InputList, InputValue
+from specula.base_processing_obj import InputDesc
 from specula.data_objects.intmat import Intmat
 from specula.data_objects.recmat import Recmat
 
 
-class ModalrecImplicitPolc(Modalrec):
+class ModalrecImplicitPolc(BaseModalrec):
     """
-    POLC modal reconstructor processing object. Modal reconstruction
-    with implicit Pseudo Open Loop Control (POLC).
-    
-    This class is used to reconstruct the slopes using the implicit POLC method.
-    It uses the command matrix (C = P * R, P projection matrix and R reconstruction
-    matrix) and the H matrix (H = I - C * D, I identity and D interaction matrix)
-    to compute the delta commands.
-    
-    It is typically used in the context of MCAO systems where the reconstruction
-    matrix is defined on virtual DMs on a large number of layers (no. layers > no. real DMs).
-    
-    The implicit POLC method is used to reduce the computational cost of the
-    reconstruction process by using smaller matrices, it also reduces the
-    memory footprint of the reconstruction process (particularly useful
-    for large systems and when using GPUs).
+    POLC modal reconstructor processing object.
+    Uses implicit Pseudo Open Loop Control (POLC) to reduce computational cost.
     """
 
     def __init__(self,
-                 nmodes: int=None,      # TODO =0,
-                 recmat: Recmat=None,
-                 projmat: Recmat=None,
-                 intmat: Intmat=None,
-                 ncutmodes: int=None,
-                 nSlopesToBeDiscarded: int=None,
-                 dmNumber: int=0,
-                 in_commands_size: int=None,
-                 target_device_idx: int=None,
-                 precision: int=None
-                ):
-        super().__init__(
-                 nmodes,
-                 recmat,
-                 projmat,
-                 intmat,
-                 polc=True,
-                 filtmat=None,
-                 identity=False,
-                 ncutmodes=ncutmodes,
-                 nSlopesToBeDiscarded=nSlopesToBeDiscarded,
-                 dmNumber=dmNumber,
-                 noProj=False,
-                 in_commands_size=in_commands_size,
-                 target_device_idx=target_device_idx,
-                 precision=precision)
+                 recmat: Recmat,
+                 projmat: Recmat,
+                 intmat: Intmat,
+                 target_device_idx: int = None,
+                 precision: int = None):
+        super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        if self.recmat is None or self.recmat.recmat is None:
-            raise ValueError("Recmat object not valid")
-        if self.projmat is None or self.projmat.recmat is None:
-            raise ValueError("Projmat object not valid")
-        if self.intmat is None or self.intmat.intmat is None:
-            raise ValueError("Intmat object not valid")
+        # The effective reconstruction matrix becomes C = P * R
+        comm_mat_arr = projmat.recmat @ recmat.recmat
+        self.recmat = Recmat(comm_mat_arr, target_device_idx=target_device_idx, precision=precision)
 
-        # set up the command matrix as the product of the projection matrix
-        # and the reconstruction matrix
-        comm_mat = self.projmat.recmat @ self.recmat.recmat
-        self.comm_mat = Recmat(comm_mat, target_device_idx=target_device_idx, precision=precision)
+        # Set up the H matrix: H = I - C * D
+        h_mat_temp = comm_mat_arr @ intmat.intmat
+        h_mat_arr = self.xp.identity(h_mat_temp.shape[0], dtype=self.dtype) - h_mat_temp
+        self.h_mat = Recmat(h_mat_arr, target_device_idx=target_device_idx, precision=precision)
 
-        # Now self.recmat and self.projmat can be removed to save memory
-        self.recmat = None
-        self.projmat = None
+        self.in_commands_size = intmat.nmodes
 
-        # set up the H matrix
-        h_mat_temp = self.comm_mat.recmat @ self.intmat.intmat
-        h_mat = self.xp.identity(h_mat_temp.shape[0], dtype=self.dtype) - h_mat_temp
-        self.h_mat = Recmat(h_mat, target_device_idx=target_device_idx, precision=precision)
+        nmodes = self.recmat.recmat.shape[0]
+        self.modes.value = self.xp.zeros(nmodes, dtype=self.dtype)
 
-        # Now self.intmat can be removed to save memor
-        self.intmat = None
+        self.commands = None  # to be allocated in setup()
 
-    def prepare_trigger(self, t):
-        # Call parent's prepare_trigger which handles slopes
-        super().prepare_trigger(t)
+        self.inputs['in_commands'] = InputValue(type=BaseValue, optional=True)
+        self.inputs['in_commands_list'] = InputList(type=BaseValue, optional=True)
 
-        # Handle commands preparation
-        commandsobj = self.local_inputs['in_commands']
+    @classmethod
+    def input_names(cls):
+        # Merge base inputs with the new command inputs
+        inputs = super().input_names()
+        inputs.update({
+            'in_commands': InputDesc(BaseValue,
+                           'Current output command vector for implicit POLC (optional)'),
+            'in_commands_list': InputDesc(BaseValue,
+                                'List of current command vectors for implicit POLC (optional)')
+        })
+        return inputs
+
+    def setup(self):
+        super().setup()
+
+        commands = self.local_inputs['in_commands']
         commands_list = self.local_inputs['in_commands_list']
 
-        # Only update if commands are available
-        if commandsobj is not None and commandsobj.value is not None \
-                                   and commandsobj.value.shape != ():
-            self.commands[:] = self.to_xp(commandsobj.value, dtype=self.dtype)
-        elif commands_list and all(commands_list):
+        if not commands and (not commands_list or not all(commands_list)):
+            raise ValueError("Either 'in_commands' or 'in_commands_list' must be given as an input")
+
+        self.commands = self.xp.zeros(self.in_commands_size, dtype=self.dtype)
+
+    def prepare_trigger(self, t):
+        super().prepare_trigger(t)
+
+        commands = self.local_inputs['in_commands']
+        commands_list = self.local_inputs['in_commands_list']
+
+        if commands is None:
             self.commands[:] = self.xp.hstack([x.value for x in commands_list])
-        # else: keep the zeros from setup() or previous iteration
+        else:
+            if commands.value is None:
+                self.commands[:] = 0.0
+            else:
+                self.commands[:] = commands.value
 
     def trigger_code(self):
+        slopes = self.local_inputs['in_slopes']
+        slopes_list = self.local_inputs['in_slopes_list']
+        slopes_time = slopes.generation_time if slopes is not None else slopes_list[0].generation_time
 
-        output_modes = self.comm_mat.recmat @ self.slopes - self.h_mat.recmat @ self.commands
-        self.modes.value = output_modes
+        if slopes_time != self.current_time:
+            return
+
+        # Memory pre-allocation optimization with self.recmat hosting C
+        self.modes.value[:] = self.recmat.recmat @ self.slopes - self.h_mat.recmat @ self.commands
         self.modes.generation_time = self.current_time

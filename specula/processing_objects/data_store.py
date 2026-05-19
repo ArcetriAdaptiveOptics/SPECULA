@@ -8,7 +8,7 @@ import pickle
 import yaml
 
 from specula import cpuArray
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.lib import utils
 
 
@@ -33,27 +33,27 @@ class DataStore(BaseProcessingObj):
         store_dir : str
             Base directory where data will be stored. A subdirectory with a timestamp
             will be created inside this directory to hold the data files.
-        split_size : int, optional
+        split_size : int [1], optional
             If > 0, creates a new subdirectory and saves one chunk every
             ``split_size`` trigger iterations after ``start_time``.
             Default is 0 (no splitting, all data in one folder).
-        first_suffix : int, optional
+        first_suffix : int [1], optional
             Starting suffix for split folders. Default is 0.
-        data_format : str, optional
+        data_format : str
             Format for saved data files. Supported values are 'fits' and 'pickle'.
             Default is 'fits'.
-        start_time : float, optional
+        start_time : float [s], optional
             Time in seconds to wait before starting to store data.
             Default is 0 (store from the beginning).
-        create_tn : bool, optional
+        create_tn : bool
             If True, creates a timestamped subdirectory for storing data.
             Default is True.
-        downsample_factor : int, optional
+        downsample_factor : int [1], optional
             Store one sample every ``N`` received samples for all inputs.
             The downsampling is sample-based and tracked independently for each
             input, so an input that updates less frequently is counted only when
             it produces a new sample. Default is 1 (store every sample).
-        downsample_factor_by_input : dict, optional
+        downsample_factor_by_input : dict [1], optional
             Per-input downsampling factors. Keys are the DataStore input names,
             values are integers >= 1. When using ``input_list``, the key is the
             alias before the dash, e.g. ``'comm'`` for ``'comm-control.out_comm'``.
@@ -83,6 +83,14 @@ class DataStore(BaseProcessingObj):
         }
         self.input_sample_counters = defaultdict(int)
         self.init_storage()
+
+    @classmethod
+    def input_names(cls):
+        return {}
+
+    @classmethod
+    def output_names(cls):
+        return {}
 
     @staticmethod
     def _validate_downsample_factor(value, name):
@@ -123,8 +131,7 @@ class DataStore(BaseProcessingObj):
         for k, v in times.items():
             try:
                 if k not in self.inputs or self.inputs[k] is None:
-                    if self.verbose:
-                        print(f"Warning: skipping key '{k}' - not in inputs or value is None")
+                    self.logger.warning(f"skipping key '{k}' - not in inputs or value is None")
                     continue
 
                 filename = os.path.join(self.tn_dir, k + '.pickle')
@@ -135,8 +142,7 @@ class DataStore(BaseProcessingObj):
                     pickle.dump(data_to_save, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
             except Exception as e:
-                if self.verbose:
-                    print(f"Error saving pickle file for key '{k}': {str(e)}")
+                self.logger.error(f"Error saving pickle file for key '{k}': {str(e)}")
                 continue
 
     def save_params(self):
@@ -153,8 +159,7 @@ class DataStore(BaseProcessingObj):
                 yaml.dump(self.replay_params, outfile, default_flow_style=False, sort_keys=False)
         else:
             # Skip saving replay_params if not available
-            if self.verbose:
-                print("Warning: replay_params not available, skipping replay_params.yml creation")
+            self.logger.warning("replay_params not available, skipping replay_params.yml creation")
 
     def save_fits(self):
         times = {k: np.array(list(v.keys()), dtype=np.uint64)
@@ -165,8 +170,7 @@ class DataStore(BaseProcessingObj):
         for k,v in times.items():
             try:
                 if k not in self.local_inputs or self.local_inputs[k] is None:
-                    if self.verbose:
-                        print(f"Warning: skipping key '{k}'"
+                    self.logger.warning(f"Warning: skipping key '{k}'"
                               f"- not in local_inputs or value is None")
                     continue
 
@@ -180,8 +184,7 @@ class DataStore(BaseProcessingObj):
                 hdul.close()  # Force close for Windows
 
             except Exception as e:
-                if self.verbose:
-                    print(f"Error saving FITS file for key '{k}': {str(e)}")
+                self.logger.error(f"Error saving FITS file for key '{k}': {str(e)}")
                 continue
 
     def create_TN_folder(self, suffix=''):
@@ -251,3 +254,8 @@ class DataStore(BaseProcessingObj):
             else:
                 os.makedirs(self.tn_dir_orig,exist_ok=True)
             self.save()
+
+    def check_input_names(self):
+        # DataStore inputs are added dynamically via input_list;
+        # skip the static input_names validation.
+        pass

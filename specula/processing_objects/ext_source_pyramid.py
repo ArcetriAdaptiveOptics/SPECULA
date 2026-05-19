@@ -37,25 +37,25 @@ class ExtSourcePyramid(ModulatedPyramid):
     
     Extended Source Specific Parameters
     ------------------------------------
-    max_batch_size : int, optional
+    max_batch_size : int [1], optional
         Maximum number of source points processed simultaneously (default: 1024).
         Larger values increase GPU memory usage but may improve performance.
         Reduce this value if you encounter out-of-memory errors.
-    max_flux_ratio_thr : float, optional
+    max_flux_ratio_thr : float [1], optional
         Flux threshold ratio for filtering low-flux source points (default: 1e-3).
         Points with flux below (max_flux * max_flux_ratio_thr) are ignored,
         but their flux is redistributed to four points in the middle of the pyramid faces.
         Only used when cuda_stream_enable=False. When enabled, reduces computation
         but may affect accuracy for sources with very faint extended components.
-    cuda_stream_enable : bool, optional
+    cuda_stream_enable : bool
         Enable CUDA stream for graph capture and optimized GPU execution (default: True).
         When True, all source points are processed (flux thresholding disabled) to
         maintain constant computational load required for CUDA graph compatibility.
         Set to False for debugging or when source point count varies significantly
         between frames and you want to use flux thresholding.
-    target_device_idx : int, optional
+    target_device_idx : int [1], optional
         GPU device index (default: None, uses default device)
-    precision : int, optional
+    precision : int [1], optional
         Numerical precision: 32 or 64 bits (default: None, uses system default)
 
     Extended Source Specific Inputs
@@ -197,7 +197,7 @@ class ExtSourcePyramid(ModulatedPyramid):
         self.max_flux_ratio_thr = max_flux_ratio_thr
 
         if self.stream_enable and hasattr(self.xp, '__name__') and self.xp.__name__ == 'cupy':
-            print('CUDA stream enabled for extended source pyramid processing'
+            self.logger.info('CUDA stream enabled for extended source pyramid processing'
                   ' Ignoring flux thresholding to maintain constant processing load.')
 
         # Pre-allocated buffers for CUDA graph compatibility (allocated in cache_ttexp)
@@ -264,7 +264,7 @@ class ExtSourcePyramid(ModulatedPyramid):
             self.ext_source_coeff = self.local_inputs['ext_source_coeff']
             # Update modulation steps to match source points
             self.mod_steps = int(self.ext_source_coeff.value.shape[0])
-            print(f'Setting up extended source with {self.mod_steps} points')
+            self.logger.info(f'Setting up extended source with {self.mod_steps} points')
 
             # Cache Zernike modes for tip, tilt, focus (static for all frames)
             zg = ZernikeGenerator(self.fft_sampling, xp=self.xp, dtype=self.dtype)
@@ -354,7 +354,7 @@ class ExtSourcePyramid(ModulatedPyramid):
 
             self.valid_idx = self.xp.where(self.flux_factor_vector > 0.0)[0]
 
-            print(f'Points with flux below {threshold:.3e} set to zero:'
+            self.logger.info(f'Points with flux below {threshold:.3e} set to zero:'
                   f' {n_filtered} out of {n_original}'
                   f', {lost_flux_ratio*100:.1f}% of flux')
 
@@ -364,7 +364,7 @@ class ExtSourcePyramid(ModulatedPyramid):
         else:
             # With stream enabled, process all points (no filtering)
             # to keep constant loop iterations for CUDA graph
-            print(f'Stream enabled: processing all {self.mod_steps} points')
+            self.logger.info(f'Stream enabled: processing all {self.mod_steps} points')
             self.valid_idx = self.xp.arange(self.mod_steps)
 
             # Allocate buffers once because with stream enabled valid_idx is constant

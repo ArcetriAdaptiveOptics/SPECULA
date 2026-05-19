@@ -4,43 +4,71 @@ import matplotlib.pyplot as plt
 from astropy.modeling import models, fitting
 from specula import cpuArray
 from specula.data_objects.convolution_kernel import lgs_map_sh
+from specula.log import get_specula_logger
+
 
 def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, launcher_coord_in_m,
                          sub_aps_index, n_sub_aps, sub_aps_fov, sh_spot_fwhm, sigma_noise2,
                          t_g_parameter, h_in_m=None, user_pofile_xy=None, theta=None,
-                         only_diag=False, eta_is_not_one=False, display=False, verbose=False):
+                         only_diag=False, eta_is_not_one=False, display=False, log_level=None):
     """
-    Computes noise covariance matrix considering WFS sub-aperture,
-    laser launcher and sodium layer geometry.
-    
-    Parameters:
-        diameter_in_m (float): Telescope diameter in meters
-        zenith_angle_in_deg (float): Zenith angle in degrees
-        na_thickness_in_m (float): Sodium layer FWHM in meters
-        launcher_coord_in_m (list): Laser launcher coordinates in meters [x,y,z]
-        sub_aps_index (array): Index of valid sub-apertures
-        n_sub_aps (int): Number of sub-apertures across diameter
-        sub_aps_fov (float): Sub-aperture FOV in arcsec
-        sh_spot_fwhm (float): FWHM of short axis
-        sigma_noise2 (float): Noise variance (round spot)
-        t_g_parameter (float): Used to set part of the sub-aperture to "truncated" condition
-        h_in_m (float, optional): Altitude of sodium layer in meters
-        user_pofile_xy (list, optional): Sodium profile altitude and intensity fits files
-        theta (list, optional): Additional TT angle of laser launcher
-        only_diag (bool, optional): If True, return a diagonal matrix
-        eta_is_not_one (bool, optional): If True, eta is computed considering flux loss
-        display (bool, optional): If True, display debug plots
-        verbose (bool, optional): If True, print additional information
-    
-    Returns:
-        ndarray: The inverse covariance matrix
-        
-    Reference:
-        Bechet et al., "Optimal reconstruction for closed-loop ground-layer
-                        adaptive optics with elongated spots" 
-        JOSA A, Vol. 27, No. 11 (2010)
-    """
+    Compute the inverse noise covariance matrix for elongated LGS spots.
 
+    This routine models measurement noise covariance by considering WFS
+    sub-aperture geometry, laser launcher coordinates, sodium layer profile,
+    and optional truncation effects.
+
+    Parameters
+    ----------
+    diameter_in_m : float
+        Telescope diameter in meters.
+    zenith_angle_in_deg : float
+        Zenith angle in degrees.
+    na_thickness_in_m : float
+        Sodium layer FWHM in meters.
+    launcher_coord_in_m : array-like
+        Laser launcher coordinates in meters ``[x, y, z]``.
+    sub_aps_index : array-like
+        Indices of valid sub-apertures.
+    n_sub_aps : int
+        Number of sub-apertures across the diameter.
+    sub_aps_fov : float
+        Sub-aperture field of view in arcsec.
+    sh_spot_fwhm : float
+        FWHM of the short axis of the SH spot.
+    sigma_noise2 : float
+        Noise variance for the round spot case.
+    t_g_parameter : float
+        Fraction used to set sub-apertures in "truncated" condition.
+    h_in_m : float, optional
+        Sodium layer altitude in meters. If ``None``, a default average value
+        is used.
+    user_pofile_xy : list, optional
+        Two FITS filenames for sodium profile altitude and intensity.
+    theta : list, optional
+        Additional tip-tilt angle of the laser launcher.
+    only_diag : bool, optional
+        If ``True``, return a diagonal inverse covariance matrix.
+    eta_is_not_one : bool, optional
+        If ``True``, compute ``eta`` including flux-loss effects.
+    display : bool, optional
+        If ``True``, show debug plots.
+
+    Returns
+    -------
+    ndarray
+        Inverse covariance matrix with shape
+        ``(2 * len(sub_aps_index), 2 * len(sub_aps_index))``.
+
+    References
+    ----------
+    Bechet et al., "Optimal reconstruction for closed-loop ground-layer
+    adaptive optics with elongated spots", JOSA A, Vol. 27, No. 11 (2010).
+    """
+    logger = get_specula_logger(__name__)
+    if log_level is not None:
+        logger.setLevel(log_level)
+    
     # Convert inputs to CPU arrays for GPU processing
     diameter_in_m = float(cpuArray(diameter_in_m))
     zenith_angle_in_deg = float(cpuArray(zenith_angle_in_deg))
@@ -58,10 +86,10 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
         theta = list(cpuArray(theta)) if hasattr(theta, '__len__') \
             else [float(theta), float(theta)]
 
-    if only_diag and verbose:
-        print('onlyDiag is set')
-    if eta_is_not_one and verbose:
-        print('etaIsNotOne is set')
+    if only_diag:
+        logger.debug('onlyDiag is set')
+    if eta_is_not_one:
+        logger.debug('etaIsNotOne is set')
 
     if h_in_m is None:
         h_in_m = 90e3  # sodium average altitude
@@ -71,8 +99,17 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
     h_in_ma = h_in_m * airmass
     na_thickness_in_ma = na_thickness_in_m * airmass
 
-    # Convert sub-aperture indices to 2D coordinates
-    y_idx, x_idx = np.unravel_index(sub_aps_index, (n_sub_aps, n_sub_aps))
+    # Convert flattened sub-aperture indices to 2D coordinates
+    if sub_aps_index.size:
+        max_idx = n_sub_aps * n_sub_aps
+        if sub_aps_index.min() < 0 or sub_aps_index.max() >= max_idx:
+            raise ValueError(
+                f"sub_aps_index contains out-of-range values for grid "
+                f"{n_sub_aps}x{n_sub_aps}"
+            )
+
+    y_idx = sub_aps_index // n_sub_aps
+    x_idx = sub_aps_index % n_sub_aps
 
     # Coordinates with respect to center (X in column 0 and Y in column 1)
     coord_sub_aps = np.zeros((len(sub_aps_index), 2), dtype=float)
@@ -145,10 +182,10 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
                 fwhm_y = 2.0 * np.sqrt(2.0 * np.log(2.0)) * np.abs(p_y.stddev.value)
                 beta2[i] = np.sqrt(max(0, fwhm_y**2 - sh_spot_fwhm**2))
 
-            except Exception as e:
+            except (TypeError, ValueError, RuntimeError) as e:
                 beta1[i] = 0
                 beta2[i] = 0
-                print(f"Warning: 1D Gaussian fit failed for sub-aperture {i}: {e}")
+                logger.waring(f"1D Gaussian fit failed for sub-aperture {i}: {e}")
 
             # Compute eta (flux normalization)
             if eta_is_not_one:
@@ -174,16 +211,15 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
 
     sigma2 = sh_spot_fwhm**2
 
-    if verbose:
-        print('launcher coordinates [m]:', launcher_coord_in_m)
-        print('altitude [m]', h_in_ma)
-        print('thickness [m]', na_thickness_in_ma)
-        print('min max coordinate X', np.min(coord_sub_aps[:, 0]), np.max(coord_sub_aps[:, 0]))
-        print('min max coordinate Y', np.min(coord_sub_aps[:, 1]), np.max(coord_sub_aps[:, 1]))
-        print('min max beta 1', np.min(beta1), np.max(beta1))
-        print('min max beta 2', np.min(beta2), np.max(beta2))
-        print('min max eta', np.min(eta), np.max(eta))
-        print('sigma_noise2', sigma2)
+    logger.debug(f'launcher coordinates [m]: {launcher_coord_in_m}')
+    logger.debug(f'altitude [m]: {h_in_ma}')
+    logger.debug(f'thickness [m]: {na_thickness_in_ma}')
+    logger.debug(f'min max coordinate X: {np.min(coord_sub_aps[:, 0])} {np.max(coord_sub_aps[:, 0])}')
+    logger.debug(f'min max coordinate Y: {np.min(coord_sub_aps[:, 1])} {np.max(coord_sub_aps[:, 1])}')
+    logger.debug(f'min max beta 1: {np.min(beta1)} {np.max(beta1)}')
+    logger.debug(f'min max beta 2: {np.min(beta2)} {np.max(beta2)}')
+    logger.debug(f'min max eta: {np.min(eta)} {np.max(eta)}')
+    logger.debug(f'sigma_noise2: {sigma2}')
 
     if only_diag:
         # For diagonal-only covariance matrix
@@ -204,8 +240,7 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
             idx_truncated = np.array([])
             idx_not_truncated = np.arange(2*len(sub_aps_index))
 
-        if verbose:
-            print('no. of truncated sub-apertures', n_truncated)
+        logger.debug(f'no. of truncated sub-apertures: {n_truncated}')
 
         if display:
             plt.figure(0)
@@ -249,8 +284,7 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
             n_truncated = 0
             idx_not_truncated = np.arange(len(sub_aps_index))
 
-        if verbose:
-            print('no. of truncated sub-apertures', n_truncated)
+        logger.debug(f'no. of truncated sub-apertures: {n_truncated}')
 
         n_not_truncated = len(sub_aps_index) - n_truncated
 

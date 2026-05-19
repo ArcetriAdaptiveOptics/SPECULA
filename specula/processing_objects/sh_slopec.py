@@ -2,12 +2,14 @@
 import numpy as np
 
 from specula import fuse
+from specula.base_processing_obj import InputDesc, OutputDesc
+from specula.base_value import BaseValue
+from specula.data_objects.pixels import Pixels
+from specula.data_objects.slopes import Slopes
+from specula.data_objects.subap_data import SubapData
 from specula.lib.make_mask import make_mask
 from specula.lib.make_xy import make_xy
 from specula.lib.utils import unravel_index_2d
-from specula.data_objects.slopes import Slopes
-from specula.data_objects.subap_data import SubapData
-from specula.base_value import BaseValue
 
 from specula.processing_objects.slopec import Slopec
 
@@ -83,6 +85,14 @@ class ShSlopec(Slopec):
 
         self.slopes.single_mask = self.subapdata.single_mask()
         self.slopes.display_map = self.subapdata.display_map
+
+    @classmethod
+    def output_names(cls):
+        result =super().output_names()
+        result.update({ 
+            'out_subapdata': OutputDesc(SubapData, 'Subaperture data with geometry information')         
+        })
+        return result
 
     def nsubaps(self):
         return self.subapdata.n_subaps
@@ -160,8 +170,7 @@ class ShSlopec(Slopec):
             idxW = self.xp.where(self.current_time_seconds > self.vec_wei_pix_rad_t[:, 1])[-1]
             if len(idxW) > 0:
                 self.weighted_pix_rad = self.vec_wei_pix_rad_t[idxW, 0]
-                if self.verbose:
-                    print(f'self.weighted_pix_rad: {self.weighted_pix_rad}')
+                self.logger.debug(f'self.weighted_pix_rad: {self.weighted_pix_rad}')
                 self.set_xy_weights()
 
         if self.weight_int_pixel_dt > 0:
@@ -173,8 +182,8 @@ class ShSlopec(Slopec):
         """
         Calculate slopes without a for-loop over subapertures.
         """
-        if self.verbose and self.subapdata is None:
-            print('subapdata is not valid.')
+        if self.subapdata is None:
+            self.logger.warning('subapdata is not valid.')
             return
 
         in_pixels = self.local_inputs['in_pixels'].pixels
@@ -235,8 +244,7 @@ class ShSlopec(Slopec):
             # Apply weights to pixels
             pixels *= self.int_pixels_weight
 
-            if self.verbose:  # pragma: no cover
-                print(f"Weights mask has been applied to {n_weight_applied} sub-apertures")
+            self.logger.debug(f"Weights mask has been applied to {n_weight_applied} sub-apertures")
 
         # Calculate flux and max flux per subaperture
         flux_per_subaperture_vector = self.xp.sum(pixels, axis=0)
@@ -278,7 +286,7 @@ class ShSlopec(Slopec):
         if self.mult_factor != 0:
             sx *= self.mult_factor
             sy *= self.mult_factor
-            print("WARNING: multiplication factor in the slope computer!")
+            self.logger.warning("multiplication factor in the slope computer!")
 
         if self.store_thr_mask_cube:
             self.thr_mask_cube.value = thr_mask_cube
@@ -292,8 +300,7 @@ class ShSlopec(Slopec):
         self.total_counts.value[0] = self.xp.sum(flux_per_subaperture_vector)
         self.subap_counts.value[0] = self.xp.mean(flux_per_subaperture_vector)
 
-        if self.verbose:  # pragma: no cover
-            print(f"Slopes min, max and rms : {self.xp.min(sx)}, {self.xp.max(sx)}, {self.xp.sqrt(self.xp.mean(sx ** 2))}")
+        self.logger.debug(f"Slopes min, max and rms : {self.xp.min(sx)}, {self.xp.max(sx)}, {self.xp.sqrt(self.xp.mean(sx ** 2))}")
 
     def psf_gaussian(self, np_sub, fwhm):
         """Generates a 2D Gaussian PSF.

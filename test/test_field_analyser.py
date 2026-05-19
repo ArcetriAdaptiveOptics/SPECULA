@@ -1,3 +1,4 @@
+import logging
 import unittest
 import os
 import shutil
@@ -161,7 +162,7 @@ class TestShSimulation(unittest.TestCase):
             wavelength_nm=1650,  # Same as PSF object in params
             start_time=0.0,      # Same as PSF object in params
             end_time=None,
-            verbose=True
+            log_level=logging.DEBUG if verbose else logging.INFO
         )
 
         # Compute PSF using FieldAnalyser with same sampling as original
@@ -326,7 +327,7 @@ class TestShSimulation(unittest.TestCase):
             data_dir=self.datadir,
             tracking_number=tracking_number,
             polar_coordinates=np.array([[0.0, 0.0]]),
-            verbose=False
+            log_level=logging.INFO
         )
 
         replay_params = {
@@ -365,7 +366,7 @@ class TestShSimulation(unittest.TestCase):
             data_dir=self.datadir,
             tracking_number=tracking_number,
             polar_coordinates=np.array([[0.0, 0.0]]),
-            verbose=False
+            log_level=logging.INFO
         )
 
         replay_params = {
@@ -404,7 +405,7 @@ class TestShSimulation(unittest.TestCase):
             data_dir=self.datadir,
             tracking_number=tracking_number,
             polar_coordinates=np.array([[0.0, 0.0]]),
-            verbose=False
+            log_level=logging.INFO
         )
 
         replay_params = {
@@ -441,7 +442,7 @@ class TestShSimulation(unittest.TestCase):
             data_dir=self.datadir,
             tracking_number=tracking_number,
             polar_coordinates=np.array([[0.0, 0.0]]),
-            verbose=False
+            log_level=logging.INFO
         )
 
         replay_params = {
@@ -482,7 +483,7 @@ class TestModalParamsHandling(unittest.TestCase):
             data_dir=self.datadir,
             tracking_number=f'modal_unit_{tn_name}',
             polar_coordinates=np.array([[0.0, 0.0]]),
-            verbose=False
+            log_level=logging.INFO
         )
 
     def _fake_replay_base(self):
@@ -731,7 +732,7 @@ class TestReplayPrecisionHandling(unittest.TestCase):
             data_dir=self.datadir,
             tracking_number=f'precision_unit_{tn_name}',
             polar_coordinates=np.array([[0.0, 0.0]]),
-            verbose=False,
+            log_level=logging.INFO
         )
         return analyzer, tn_dir
 
@@ -759,8 +760,7 @@ class TestReplayPrecisionHandling(unittest.TestCase):
              patch('specula.field_analyser.specula.global_precision', 0), \
              patch('specula.field_analyser.specula.default_target_device_idx', -1), \
              patch('specula.field_analyser.specula.process_rank', None), \
-             patch('specula.field_analyser.specula.process_comm', None), \
-             patch('specula.field_analyser.specula.MPI_DBG', False):
+             patch('specula.field_analyser.specula.process_comm', None):
             analyzer._ensure_replay_precision(1)
 
         mock_init.assert_called_once_with(
@@ -768,7 +768,6 @@ class TestReplayPrecisionHandling(unittest.TestCase):
             precision=1,
             rank=None,
             comm=None,
-            mpi_dbg=False,
         )
 
     def test_ensure_replay_precision_skips_if_already_matching(self):
@@ -812,7 +811,7 @@ class TestFieldAnalyserWeakSpots(unittest.TestCase):
             tracking_number=f'weak_unit_{tn_name}',
             polar_coordinates=polar_coordinates,
             display=display,
-            verbose=False,
+            log_level=logging.INFO
         )
 
     def test_setup_sources_accepts_2xN_coordinate_format(self):

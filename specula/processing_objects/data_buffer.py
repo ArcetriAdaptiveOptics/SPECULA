@@ -1,7 +1,7 @@
 
 from collections import OrderedDict, defaultdict
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 
 
@@ -17,6 +17,14 @@ class DataBuffer(BaseProcessingObj):
         self.storage = defaultdict(OrderedDict)
         self.step_counter = 0
         self.buffered_outputs = {}
+
+    @classmethod
+    def input_names(cls):
+        return {}
+
+    @classmethod
+    def output_names(cls):
+        return {}
 
     def setOutputs(self):
         # Create output objects for each input (like DataStore does)
@@ -50,8 +58,7 @@ class DataBuffer(BaseProcessingObj):
             if output_name in self.buffered_outputs:
                 self.buffered_outputs[output_name].value = values
                 self.buffered_outputs[output_name].generation_time = self.current_time
-                if self.verbose:
-                    print(f"DataBuffer: emitted {len(values)} samples for {input_name}")
+                self.logger.debug(f"DataBuffer: emitted {len(values)} samples for {input_name}")
 
     def setup(self):
         # We check that all input items
@@ -65,8 +72,7 @@ class DataBuffer(BaseProcessingObj):
         self.storage.clear()
         self.step_counter = 0
 
-        if self.verbose:
-            print(f"DataBuffer: reset buffers at time {self.current_time}")
+        self.logger.debug(f"DataBuffer: reset buffers at time {self.current_time}")
 
     def finalize(self):
         """Emit any remaining data in buffers"""        
@@ -75,3 +81,13 @@ class DataBuffer(BaseProcessingObj):
             self.reset_buffers()
         
         super().finalize()
+
+    def check_input_names(self):
+        # DataBuffer inputs are added dynamically via input_list;
+        # skip the static input_names validation.
+        pass
+
+    def check_output_names(self):
+        # DataBuffer outputs are created dynamically in setOutputs();
+        # skip the static output_names validation.
+        pass

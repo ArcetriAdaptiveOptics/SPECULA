@@ -1,5 +1,6 @@
 from specula import fuse
 from specula.processing_objects.slopec import Slopec
+from specula.base_processing_obj import OutputDesc
 from specula.data_objects.slopes import Slopes
 from specula.data_objects.pupdata import PupData
 
@@ -9,11 +10,6 @@ from specula.lib.make_mask import make_mask
 @fuse(kernel_name='clamp_generic_less')
 def clamp_generic_less(x, c, y, xp):
     y[:] = xp.where(y < x, c, y)
-
-
-# @fuse(kernel_name='clamp_generic_more')
-# def clamp_generic_more(x, c, y, xp):
-#     y[:] = xp.where(y > x, c, y)
 
 
 class ZwfsSlopec(Slopec):
@@ -56,6 +52,14 @@ class ZwfsSlopec(Slopec):
 
         all_idx = self.pupdata.pupil_idx(0).astype(self.xp.int64)
         self.pup_idx  = all_idx[all_idx >= 0]
+
+    @classmethod
+    def output_names(cls):
+        result = super().output_names()
+        result.update({
+            'out_pupdata': OutputDesc(PupData, 'Pupil data with subaperture geometry')
+        })
+        return result    
 
     def nsubaps(self):
         return self.pupdata.n_subap

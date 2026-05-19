@@ -1,7 +1,7 @@
 from specula.lib.extrapolation_2d import EFInterpolator
 from specula.lib.toccd import toccd
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.connections import InputValue
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.simul_params import SimulParams
@@ -45,27 +45,25 @@ class Coronagraph(BaseProcessingObj):
             Whether to center the focal plane mask on a single pixel (True) or
             at the intersection of 4 pixels (False). This affects the phase shift
             applied to the electric field (default: True)
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
-        precision : int, optional
+        precision : int [1], optional
             Precision for computation (0 for double, 1 for single). Default is None
             (uses global setting).
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        self.simul_params = simul_params
-        self.pixel_pupil = self.simul_params.pixel_pupil
-        self.pixel_pitch = self.simul_params.pixel_pitch
-        self.fov = fov
+        pixel_pupil = simul_params.pixel_pupil
+        pixel_pitch = simul_params.pixel_pitch
         self.center_on_pixel = center_on_pixel
 
         # interpolation settings
         self.mask_threshold = 1e-3  # threshold to consider a pixel inside the mask
 
-        result = calc_geometry(self.pixel_pupil,
-                               self.pixel_pitch,
+        result = calc_geometry(pixel_pupil,
+                               pixel_pitch,
                                wavelengthInNm,
-                               self.fov,
+                               fov,
                                fov_errinf=fov_errinf,
                                fov_errsup=fov_errsup,
                                fft_res=fft_res)
@@ -92,9 +90,10 @@ class Coronagraph(BaseProcessingObj):
         self.ef_pad = self.xp.zeros((self.fft_totsize, self.fft_totsize),
                                     dtype=self.complex_dtype)
 
-        self.out_ef = ElectricField(self.pixel_pupil,
-                                    self.pixel_pupil,
-                                    self.pixel_pitch,
+        self.out_ef = ElectricField(pixel_pupil,
+                                    pixel_pupil,
+                                    pixel_pitch,
+                                    wavelengthInNm=self.wavelength_in_nm,
                                     precision=self.precision,
                                     target_device_idx=self.target_device_idx)
 
@@ -178,11 +177,20 @@ class Coronagraph(BaseProcessingObj):
         # Phase in nm
         self.out_ef.phaseInNm[:] = (self.xp.angle(ef_out) / (2 * self.xp.pi)) \
                                    * self.wavelength_in_nm
+        self.out_ef.wavelengthInNm = self.wavelength_in_nm
 
         # Scale S0 by transmission
         in_ef = self.local_inputs['in_ef']
         self.out_ef.S0 = in_ef.S0 * transmission
         self.out_ef.generation_time = self.current_time
+
+    @classmethod
+    def input_names(cls):
+        return {'in_ef': InputDesc(ElectricField, 'Input electric field from the telescope pupil')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_ef': OutputDesc(ElectricField, 'Output electric field after coronagraph mask application')}
 
     def setup(self):
         super().setup()

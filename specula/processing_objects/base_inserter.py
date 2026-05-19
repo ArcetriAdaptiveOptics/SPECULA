@@ -1,4 +1,4 @@
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.connections import InputValue
 
@@ -18,7 +18,7 @@ class BaseInserter(BaseProcessingObj):
         """
         Parameters
         ----------
-        output_size : int
+        output_size : int [1]
             Size of the large output vector.
         indices : list of [src_indices, dest_indices] pairs, optional
             Each pair defines explicit indices in the input and output vectors.
@@ -27,9 +27,9 @@ class BaseInserter(BaseProcessingObj):
             Each pair defines a slice in the input and output vectors.
             Example: slice_args=[[0,3], [2,5]] inserts src[0:3] into dest[2:5].
             Multiple pairs: slice_args=[[[0,2],[0,2]], [[2,4],[5,7]]]
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
-        precision : int, optional
+        precision : int [1], optional
             Precision for computation (0 for double, 1 for single). Default is None
             (uses global setting).
         """
@@ -64,6 +64,14 @@ class BaseInserter(BaseProcessingObj):
                                    precision=precision)
         self.inputs['in_value'] = InputValue(type=BaseValue)
         self.outputs['out_value'] = self.out_value
+
+    @classmethod
+    def input_names(cls):
+        return {'in_value': InputDesc(BaseValue, 'Input vector to insert into the larger output vector')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_value': OutputDesc(BaseValue, 'Output vector with inserted values')}
 
     def trigger_code(self):
         small = self.local_inputs['in_value'].value

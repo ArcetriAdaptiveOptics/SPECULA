@@ -1,6 +1,6 @@
 import os
 
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.data_objects.intensity import Intensity
 from specula.data_objects.lenslet import Lenslet
 from specula.connections import InputValue
@@ -18,8 +18,7 @@ class ShSubapCalibrator(BaseProcessingObj):
                  subap_on_diameter: int,
                  data_dir: str,         # Set by main simul object
                  energy_th: float,
-                 output_tag: str = None,
-                 tag_template: str = None,
+                 output_tag: str,
                  overwrite: bool = False,
                  target_device_idx: int = None,
                  precision: int = None
@@ -28,17 +27,20 @@ class ShSubapCalibrator(BaseProcessingObj):
         self._lenslet = Lenslet(subap_on_diameter, target_device_idx=self.target_device_idx)
         self._energy_th = energy_th
         self._data_dir = data_dir
-        if tag_template is None and (output_tag is None or output_tag == 'auto'):
-            raise ValueError('At least one of tag_template and output_tag must be set')
-
-        if output_tag is None or output_tag == 'auto':
-            self._filename = tag_template
-        else:
-            self._filename = output_tag
+        self._filename = output_tag
         self._overwrite = overwrite
 
         self.inputs['in_i'] = InputValue(type=Intensity, optional=True)
         self.inputs['in_pixels'] = InputValue(type=Pixels, optional=True)
+
+    @classmethod
+    def input_names(cls):
+        return {'in_i': InputDesc(Intensity, 'Input intensity image (optional)'),
+                'in_pixels': InputDesc(Pixels, 'Input pixel image (optional)')}
+
+    @classmethod
+    def output_names(cls):
+        return {}
 
     def setup(self):
         super().setup()

@@ -32,3 +32,11 @@ class LowPassFilter(IirFilter):
         # Initialize IirFilter object
         super().__init__(simul_params, iir_filter_data, delay=delay,
                          target_device_idx=target_device_idx, precision=precision)
+
+    @classmethod
+    def input_names(cls):
+        return super().input_names()
+
+    @classmethod
+    def output_names(cls):
+        return super().output_names()

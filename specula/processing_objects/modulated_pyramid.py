@@ -40,60 +40,60 @@ class ModulatedPyramid(BaseProcessingObj):
     ----------
     simul_params : SimulParams
         Simulation parameters object containing pixel_pupil and pixel_pitch
-    wavelengthInNm : float
+    wavelengthInNm : float [nm]
         Working wavelength in nanometers
-    fov : float
+    fov : float [arcsec]
         Field of view in arcseconds (a field stop may be applied in the focal plane to limit FoV)
-    pup_diam : int
+    pup_diam : int [pixels]
         Pupil diameter in pixels
-    output_resolution : int
+    output_resolution : int [pixels]
         Output CCD side length in pixels
-    mod_amp : float, optional
+    mod_amp : float [lambda/D], optional
         Modulation amplitude in lambda/D units (default: 3.0)
-    mod_step : int, optional
+    mod_step : int [1], optional
         Number of modulation steps. If None, automatically calculated based on
         mod_amp and mod_type (default: None)
-    mod_type : str, optional
+    mod_type : str
         Modulation type: 'circular', 'vertical', 'horizontal', or 'alternating'
         (default: 'circular')
-    fov_errinf : float, optional
+    fov_errinf : float [1], optional
         Accepted error in reducing FoV (default: 0.1, i.e., -10%)
-    fov_errsup : float, optional
+    fov_errsup : float [1], optional
         Accepted error in enlarging FoV (default: 2.0, i.e., +100%)
-    pup_dist : int, optional
+    pup_dist : int [pixels], optional
         Pupil distance in pixels. If None, calculated from pup_diam and pup_margin
-    pup_margin : int, optional
+    pup_margin : int [pixels], optional
         Margin around pupils in pixels (default: 2)
-    fft_res : float, optional
+    fft_res : float [1], optional
         Minimum PSF sampling (default: 3.0, i.e., 3 pixels per PSF FWHM i.e. lambda/D)
-    fp_obs : float, optional
+    fp_obs : float [pixels], optional
         Focal plane central obstruction diameter in pixels (default: None)
-    pup_shifts : tuple, optional
+    pup_shifts : tuple [pixels], optional
         Static pupil shifts in pixels (x, y) (default: (0.0, 0.0))
-    pyr_tlt_coeff : float, optional
+    pyr_tlt_coeff : float [1], optional
         Pyramid tilt coefficients for custom face geometry (default: None)
         WARNING: not implemented/tested yet
-    pyr_edge_def_ld : float, optional
+    pyr_edge_def_ld : float [lambda/D], optional
         Edge defect size in lambda/D units (default: 0.0)
-    pyr_tip_def_ld : float, optional
+    pyr_tip_def_ld : float [lambda/D], optional
         Tip defect size in lambda/D units (default: 0.0)
-    pyr_tip_maya_ld : float, optional
+    pyr_tip_maya_ld : float [lambda/D], optional
         Maya Pyramid (i.e. flat tip) defect size in lambda/D units (default: 0.0)
-    min_pup_dist : float, optional
+    min_pup_dist : float [pixels], optional
         Minimum pupil distance constraint (default: None)
-    rotAnglePhInDeg : float, optional
+    rotAnglePhInDeg : float [deg], optional
         Rotation angle of input phase in degrees (default: 0.0)
-    xShiftPhInPixel : float, optional
+    xShiftPhInPixel : float [pixels], optional
         X shift of input phase in pixels (default: 0.0)
-    yShiftPhInPixel : float, optional
+    yShiftPhInPixel : float [pixels], optional
         Y shift of input phase in pixels (default: 0.0)
-    magnification : float, optional
+    magnification : float [1], optional
         Magnification factor applied to input phase (default: 1.0)
     force_extrapolation : bool
         Force extrapolation of input electric field (required by SprintPyr)
-    target_device_idx : int, optional
+    target_device_idx : int [1], optional
         GPU device index (default: None, uses default device, -1 for CPU)
-    precision : int, optional
+    precision : int [1], optional
         Numerical precision: 32 (1) or 64 (0) bits (default: None, uses system default)
     
     Notes
@@ -404,23 +404,23 @@ class ModulatedPyramid(BaseProcessingObj):
         dx = self.xp.sqrt(xx ** 2)
         dy = self.xp.sqrt(yy ** 2)
         idx_edge = self.xp.where((dx <= self.pyr_edge_def_ld * self.fft_res / 2) | 
-                            (dy <= self.pyr_edge_def_ld * self.fft_res / 2))[0]
-        if len(idx_edge) > 0:
+                                 (dy <= self.pyr_edge_def_ld * self.fft_res / 2))
+        if len(idx_edge[0]) > 0:
             pyr_tlt[idx_edge] = self.xp.max(pyr_tlt) * self.xp.random.rand(len(idx_edge[0]))
-            print(f'get_pyr_tlt: {len(idx_edge[0])} pixels set to 0 to consider pyramid imperfect edges')
+            self.logger.info(f'get_pyr_tlt: {len(idx_edge[0])} pixels set to 0 to consider pyramid imperfect edges')
 
         # distance from tip
         d = self.xp.sqrt(xx ** 2 + yy ** 2)
-        idx_tip = self.xp.where(d <= self.pyr_tip_def_ld * self.fft_res / 2)[0]
-        if len(idx_tip) > 0:
+        idx_tip = self.xp.where(d <= self.pyr_tip_def_ld * self.fft_res / 2)
+        if len(idx_tip[0]) > 0:
             pyr_tlt[idx_tip] = self.xp.max(pyr_tlt) * self.xp.random.rand(len(idx_tip[0]))
-            print(f'get_pyr_tlt: {len(idx_tip[0])} pixels set to 0 to consider pyramid imperfect tip')
+            self.logger.info(f'get_pyr_tlt: {len(idx_tip[0])} pixels set to 0 to consider pyramid imperfect tip')
 
         # distance from tip
-        idx_tip_m = self.xp.where(d <= self.pyr_tip_maya_ld * self.fft_res / 2)[0]
-        if len(idx_tip_m) > 0:
+        idx_tip_m = self.xp.where(d <= self.pyr_tip_maya_ld * self.fft_res / 2)
+        if len(idx_tip_m[0]) > 0:
             pyr_tlt[idx_tip_m] = self.xp.min(pyr_tlt[idx_tip_m])
-            print(f'get_pyr_tlt: {len(idx_tip_m[0])} pixels set to 0 to consider pyramid imperfect tip')
+            self.logger.info(f'get_pyr_tlt: {len(idx_tip_m[0])} pixels set to 0 to consider pyramid imperfect tip')
 
         return pyr_tlt / self.tilt_scale
 
@@ -529,10 +529,10 @@ class ModulatedPyramid(BaseProcessingObj):
                     self.flux_factor_vector[tt] = 1.0 / self.xp.cos(normalized_angle)
 
         if self.mod_amp > 0.0:
-            print(f'Cached circular modulation with {self.mod_steps} steps, '
+            self.logger.info(f'Cached circular modulation with {self.mod_steps} steps, '
                 f'amplitude: {self.mod_amp:.2f}')
         else:
-            print('Running unmodulated pyramid')
+            self.logger.info('Running unmodulated pyramid')
 
         # Common setup for both modes
         self.ffv = self.flux_factor_vector[:, self.xp.newaxis, self.xp.newaxis]
@@ -599,7 +599,7 @@ class ModulatedPyramid(BaseProcessingObj):
 
         self.pup_pyr_tot *= (phot / self.xp.sum(self.pup_pyr_tot)) * self.transmission.value
 #        if phot == 0: slows down?
-#            print('WARNING: total intensity at PYR entrance is zero')
+#            self.logger.warning('total intensity at PYR entrance is zero')
 
         # Apply pupil shifts using the dedicated interpolator
         # Note: this is a static shift, not a time-varying one as in PASSATA

@@ -1,3 +1,5 @@
+from specula.log import get_specula_logger
+
 from specula.processing_objects.abstract_coronagraph import Coronagraph
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.make_mask import make_mask
@@ -42,6 +44,14 @@ class APPCoronagraph(Coronagraph):
                                                           symmetric_dark_hole=make_symmetric, max_its=max_its)
         self.apodizer = self.xp.exp(1j*apodizer_phase, dtype=self.complex_dtype)
 
+    @classmethod
+    def input_names(cls):
+        return super().input_names()
+
+    @classmethod
+    def output_names(cls):
+        return super().output_names()
+
     def define_apodizing_phase(self, pupil, contrast,
                                iwa:float, owa:float, beta:float,
                             symmetric_dark_hole:bool=False, 
@@ -73,80 +83,6 @@ class APPCoronagraph(Coronagraph):
         return self.xp.ones([self.fft_sampling,self.fft_sampling],dtype=self.dtype)
 
 
-class PAPLCoronagraph(APPCoronagraph):
-    """
-    Phase-apodized-pupil Lyot (PAPL) coronagraph class.
-    This class implements a PAPL coronagraph, which uses a phase-only mask in the pupil plane
-    to create a dark hole in the focal plane.
-    """
-
-    def __init__(self,
-                 simul_params: SimulParams,
-                 wavelengthInNm: float,
-                 pupil,
-                 contrastInDarkHole:float,
-                 iwaInLambdaOverD:float,
-                 owaInLambdaOverD:float,
-                 fpmIWAInLambdaOverD:float,
-                 fpmOWAInLambdaOverD:float=None,
-                 knife_edge:bool=True,
-                 outerStopAsRatioOfPupil:float=1.0,
-                 innerStopAsRatioOfPupil:float=0.0,
-                 fft_res: float = 3.0,
-                 make_symmetric: bool = False,
-                 beta: float = 0.9,
-                 target_device_idx: int = None,
-                 precision: int = None
-                ):
-
-        if min(innerStopAsRatioOfPupil,outerStopAsRatioOfPupil) < 0.0 or outerStopAsRatioOfPupil < innerStopAsRatioOfPupil:
-            raise ValueError(f'Invalid pupil stop sizes: inner size is'
-                             f' {innerStopAsRatioOfPupil*1e+2:1.0f}% of pupil,'
-                             f' outer size is {outerStopAsRatioOfPupil*1e+2:1.0f}% of pupil')
-
-        if knife_edge is True and owaInLambdaOverD is not None:
-            raise ValueError('OWA cannot be defined for the knife-edge focal plane mask')
-
-        self._knife_edge = knife_edge
-        if knife_edge:
-            self._fedge = fpmIWAInLambdaOverD
-        else:
-            self._iwa = fpmIWAInLambdaOverD
-            self._owa = fpmOWAInLambdaOverD
-
-        self._inPupilStop = innerStopAsRatioOfPupil
-        self._outPupilStop = outerStopAsRatioOfPupil
-
-        super().__init__(simul_params=simul_params,
-                        wavelengthInNm=wavelengthInNm,
-                        pupil=pupil,
-                        contrastInDarkHole=contrastInDarkHole,
-                        iwaInLambdaOverD=iwaInLambdaOverD,
-                        owaInLambdaOverD=owaInLambdaOverD,
-                        fft_res=fft_res,
-                        make_symmetric=make_symmetric,
-                        beta=beta,
-                        target_device_idx=target_device_idx,
-                        precision=precision)
-
-    def make_focal_plane_mask(self):
-        if self._knife_edge:
-            xc = 2*(self._fedge * self.fft_res + self.fft_totsize//2)/ self.fft_totsize
-            fp_mask = make_mask(self.fft_totsize, diaratio=1.0, xc=xc, xp=self.xp, square=True)
-        else:
-            owa_oversampled = self._owa * self.fft_res if self._owa is not None else self.fft_totsize
-            fp_obsratio = self._iwa / owa_oversampled
-            fp_diaratio = owa_oversampled / self.fft_totsize
-            fp_mask = make_mask(self.fft_totsize, diaratio=fp_diaratio,
-                                obsratio=fp_obsratio, xp=self.xp)
-        return fp_mask
-
-    def make_pupil_stop(self):
-        pp_mask = make_mask(self.fft_sampling, diaratio=self._outPupilStop,
-                            obsratio=self._inPupilStop, xp=self.xp)
-        return pp_mask
-
-
 # Outside the class on purpose, move inside or to its own module if you prefer
 def generate_app_keller(pupil, target_contrast, max_iterations:int,
                         xp, complex_dtype, beta:float=0):
@@ -170,14 +106,14 @@ def generate_app_keller(pupil, target_contrast, max_iterations:int,
 
     Parameters
     ----------
-    pupil : ndarray(bool)
+    pupil : ndarray(bool) [1]
         Boolean of the pupil aperture mask.
-    target_contrast : ndarray(float)
+    target_contrast : ndarray(float) [1]
         The required contrast in the focal plane: float mask that is 1.0
         everywhere except for the dark zone where it is the contrast value (e.g. 1e-5).
-    max_iterations : int
+    max_iterations : int [1]
         The maximum number of iterations.
-    beta : float (optional)
+    beta : float [1] (optional)
         The acceleration parameter. The default is 0 (no acceleration).
         Good values for beta are typically between 0.3 and 0.9. Values larger
         than 1.0 will not work.
@@ -196,6 +132,8 @@ def generate_app_keller(pupil, target_contrast, max_iterations:int,
     if beta < 0 or beta > 1:
         raise ValueError('Beta should be between 0 and 1.')
     
+    logger = get_specula_logger(__name__)
+
     iu = complex_dtype(1j)
 
     # initialize APP with pupil
@@ -232,8 +170,8 @@ def generate_app_keller(pupil, target_contrast, max_iterations:int,
                       f' reached, worst contrast in dark hole is:'
                       f' {xp.log10(xp.max(contrast[dark_zone])):1.1f}')
 
-    print(f'Apodizer computed: average contrast in dark hole is'
-          f' {xp.mean(xp.log10(contrast[dark_zone])):1.1f}, Strehl'
-          f' is {xp.max(psf)/xp.max(ref_psf)*1e+2:1.2f}%')
+    logger.info(f'Apodizer computed: average contrast in dark hole is'
+                f' {xp.mean(xp.log10(contrast[dark_zone])):1.1f}, Strehl'
+                f' is {xp.max(psf)/xp.max(ref_psf)*1e+2:1.2f}%')
 
     return xp.array(app)

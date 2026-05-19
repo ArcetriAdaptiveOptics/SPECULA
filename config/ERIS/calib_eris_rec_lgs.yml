@@ -7,7 +7,8 @@ pushpull:
   outputs: ['output']
 
 main_override:
-  total_time:  2.254
+  time_step: 0.001
+  total_time:  2.254 # 2 (push-pull) * 1127 (modes) * 1e-3 (time per mode) = 2.254s
 
 prop_override:
   inputs:
@@ -20,16 +21,16 @@ dm_override:
       in_command: 'pushpull.output'
 
 detector_lgs_override:
+  dt:                0.001
   photon_noise:      False
   readout_noise:     False
+  excess_noise:      False
 
 
 im_calibrator:
   class: 'ImCalibrator'
   nmodes: 700
-  first_mode: 2
   im_tag:     'eris_im_lgs'
-  #tag_template:    'subap_{main.tag}_n{modes}'
   overwrite: True
   inputs:
     in_slopes: 'slopec_lgs.out_slopes'
@@ -40,25 +41,24 @@ im_calibrator:
 rec_calibrator:
   class: 'RecCalibrator'
   nmodes: 700
-  first_mode: 2
   rec_tag:     'eris_rec_lgs'
-  #tag_template:    'subap_{main.tag}_n{modes}'
   overwrite: True
   inputs:
     in_intmat: 'im_calibrator_lo.out_intmat'
 
 
 remove: ['atmo',
-'modalrec_lgs',
-'sh_lo',
-'detector_lo',
-'slopec_lo',
-'modalrec_lo',
-'modalrec_truth',
-'integrator_truth',
-'subtract_truth',
-'integrator_lgs',
-'integrator_lo',
-'modal_combination',
-'psf',
+  'modalrec_lgs',
+  'sh_lo',
+  'detector_lo',
+  'slopec_lo',
+  'modalrec_lo',
+  'modalrec_truth',
+  'integrator_truth',
+  'subtract_truth',
+  'integrator_lgs',
+  'integrator_lo',
+  'slicer_lgs',
+  'modal_combination',
+  'psf',
   ]

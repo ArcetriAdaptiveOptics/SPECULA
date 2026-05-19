@@ -67,6 +67,38 @@ class TestMultirateFilter(unittest.TestCase):
             filt.check_ready(0.003)
 
     @cpu_and_gpu
+    def test_zero_stuffed_inputs_can_skip_sync_validation(self, target_device_idx, xp):
+        """Slow inputs coming from an upstream zero-stuffing stage may update every frame."""
+        engine = build_double_integrator(0.1, target_device_idx)
+        sp = MockSimulParams()
+
+        filt = MultirateComplementaryFilter(
+            sp, engine, g_track=0.1, weights=[1/3, 1/3, 1/3], N_list=[2, 2],
+            validate_sync=False, target_device_idx=target_device_idx
+        )
+
+        v_yf = BaseValue(value=np.array([1.0]), target_device_idx=target_device_idx)
+        v_ys1 = BaseValue(value=np.array([0.0]), target_device_idx=target_device_idx)
+        v_ys2 = BaseValue(value=np.array([0.0]), target_device_idx=target_device_idx)
+
+        filt.inputs['in_yf'].set(v_yf)
+        filt.inputs['in_ys'].set([v_ys1, v_ys2])
+        filt.local_inputs['in_yf'] = filt.inputs['in_yf'].get(target_device_idx)
+        filt.local_inputs['in_ys'] = filt.inputs['in_ys'].get(target_device_idx)
+        filt.setup()
+
+        for k in range(4):
+            t_sim = (k + 1) * 0.001
+            v_yf.generation_time = t_sim
+            v_ys1.generation_time = t_sim
+            v_ys2.generation_time = t_sim
+            filt.check_ready(t_sim)
+            filt.trigger_code()
+            filt.post_trigger()
+
+        self.assertEqual(filt.out_comm.generation_time, 0.004)
+
+    @cpu_and_gpu
     def test_basic_1_fast_1_slow_with_lifecycle(self, target_device_idx, xp):
         """Test exact mathematical correctness respecting the SPECULA trigger lifecycle."""
         g_f = 0.1

@@ -1,4 +1,4 @@
-from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.connections import InputValue
 
@@ -42,6 +42,14 @@ class BaseSlicer(BaseProcessingObj):
                                    target_device_idx=target_device_idx, precision=precision)
         self.inputs['in_value'] = InputValue(type=BaseValue)
         self.outputs['out_value'] = self.out_value
+
+    @classmethod
+    def input_names(cls):
+        return {'in_value': InputDesc(BaseValue, 'Input vector to slice')}
+
+    @classmethod
+    def output_names(cls):
+        return {'out_value': OutputDesc(BaseValue, 'Output sliced vector')}
 
     def trigger_code(self):
         value = self.local_inputs['in_value'].value
