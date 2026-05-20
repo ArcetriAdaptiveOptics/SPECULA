@@ -32,18 +32,18 @@ class PhaseScreenCube(BaseProcessingObj):
             Spatio-temporal array containing the phase screen cube.
             Internally data are accessed as time-first: shape (time, x, y).
             The phase screens should be in nm. The time_vector must be provided in seconds.
-        pixel_scale : float
+        pixel_scale : float [m]
             Phase screens' pixel size in m.
-        source_dict : dict, optional
+        source_dict : dict [1], optional
             Dictionary of the source corresponding to the line of sight of the phase screen.
             If omitted or empty, the object exposes a single pair of outputs named
             out_ef and out_layer.
-        layer_height : float, optional
+        layer_height : float [m], optional
             Height in meters assigned to the output layer, by default 0.0.
-        scale_factor : float, optional
+        scale_factor : float [1], optional
             Scaling factor applied to the phase screens, by default 1.0. This can be used 
             to adjust the amplitude of the phase screens if needed.
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
         """
         super().__init__(target_device_idx=target_device_idx)

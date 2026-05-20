@@ -27,21 +27,21 @@ class SubapData(BaseDataObj):
         Parameters
         ----------
         
-        idxs:
+        idxs : [1]
             np.array[n_subaps, n_pixels] of pixel indices in a flattened pixel array for
             each subaperture
-        display_map:
+        display_map : [1]
             np.array[n_subaps] of subaperture indices on a flattened nx * ny array,
             used for display only
-        nx:
+        nx : int [1]
             number of subapertures in the X (horizontal) direction
-        ny:
+        ny : int [1]
             number of subapertures in the Y (vertical) direction
-        energy_th:
+        energy_th : float [1]
             energy threshold for subaperture validity (default: 0)
-        target_device_idx:
+        target_device_idx : int [1]
             device index for computation (default: None)
-        precision:
+        precision : int [1]
             precision for computation (default: None)
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)

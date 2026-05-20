@@ -131,6 +131,12 @@ class IFunc(BaseDataObj):
     def size(self):
         return self._influence_function.shape
 
+    def nmodes(self):
+        return self._influence_function.shape[0]
+
+    def npoints(self):
+        return self._influence_function.shape[1]
+
     @property
     def type(self):
         return self._influence_function.dtype
@@ -165,9 +171,22 @@ class IFunc(BaseDataObj):
 
         return ifunc_3d
 
-    def inverse(self):
-        inv = self.xp.linalg.pinv(self._influence_function)
-        return IFuncInv(inv, mask=self._mask_inf_func, precision=self.precision, target_device_idx=self.target_device_idx)
+    def inverse(self, nmodes=None, remove_piston=True):
+        """Return the pseudoinverse of the influence function.
+
+        When ``remove_piston`` is True, each mode is centered by subtracting
+        its mean value before computing the pseudoinverse.
+        """
+        ifunc = self._influence_function
+        if nmodes is not None and nmodes != self.nmodes():
+            ifunc = cut_modes(ifunc, nmodes=nmodes)
+
+        if remove_piston:
+            ifunc = ifunc - self.xp.mean(ifunc, axis=1, keepdims=True)
+
+        inv = self.xp.linalg.pinv(ifunc)
+        return IFuncInv(inv, mask=self._mask_inf_func, precision=self.precision,
+                        target_device_idx=self.target_device_idx)
 
     @staticmethod
     def from_header(hdr):

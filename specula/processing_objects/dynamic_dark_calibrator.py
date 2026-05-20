@@ -4,6 +4,7 @@ from specula.base_value import BaseValue
 from specula.data_objects.pixels import Pixels
 from specula.connections import InputValue
 from specula.lib import utils
+from specula.scalar_values import IntValue, StringValue
 
 
 class DynamicDarkCalibrator(BaseProcessingObj):
@@ -78,15 +79,15 @@ class DynamicDarkCalibrator(BaseProcessingObj):
         data_dir : str
             Directory where dark frames are saved to and loaded from.
             Usually set automatically by CalibManager.
-        nframes : int
+        nframes : int [1]
             Number of frames to integrate when computing the dark frame.
             Must be greater than zero.
-        overwrite : bool, optional
+        overwrite : bool
             If True, overwrite existing files when saving dark frames.
             Default is False.
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index for computation (e.g., CPU/GPU selection).
-        precision : int, optional
+        precision : int [1], optional
             Numerical precision for internal data.
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
@@ -102,11 +103,11 @@ class DynamicDarkCalibrator(BaseProcessingObj):
 
         # Inputs
         self.inputs['in_pixels'] = InputValue(type=Pixels)
-        self.inputs['in_trigger'] = InputValue(type=BaseValue, optional=True)
-        self.inputs['in_nframes'] = InputValue(type=BaseValue, optional=True)
-        self.inputs['in_load'] = InputValue(type=BaseValue, optional=True)
-        self.inputs['in_save'] = InputValue(type=BaseValue, optional=True)
-        self.inputs['in_reset'] = InputValue(type=BaseValue, optional=True)
+        self.inputs['in_trigger'] = InputValue(type=IntValue, optional=True)
+        self.inputs['in_nframes'] = InputValue(type=IntValue, optional=True)
+        self.inputs['in_load'] = InputValue(type=StringValue, optional=True)
+        self.inputs['in_save'] = InputValue(type=StringValue, optional=True)
+        self.inputs['in_reset'] = InputValue(type=IntValue, optional=True)
 
         # Outputs
         self.darkframe = Pixels(
@@ -125,11 +126,11 @@ class DynamicDarkCalibrator(BaseProcessingObj):
     @classmethod
     def input_names(cls):
         return {'in_pixels': InputDesc(Pixels, 'Input pixel frame to be dark-subtracted'),
-                'in_trigger': InputDesc(BaseValue, 'Trigger signal to start dark frame acquisition (optional)'),
-                'in_nframes': InputDesc(BaseValue, 'Dynamically updates the number of integration frames (optional)'),
-                'in_load': InputDesc(BaseValue, 'Filename of a dark frame to load from disk (optional)'),
-                'in_save': InputDesc(BaseValue, 'Filename to save the current dark frame to disk (optional)'),
-                'in_reset': InputDesc(BaseValue, 'Resets the current dark frame to zero (optional)')}
+                'in_trigger': InputDesc(IntValue, 'Trigger signal to start dark frame acquisition (optional)'),
+                'in_nframes': InputDesc(IntValue, 'Dynamically updates the number of integration frames (optional)'),
+                'in_load': InputDesc(StringValue, 'Filename of a dark frame to load from disk (optional)'),
+                'in_save': InputDesc(StringValue, 'Filename to save the current dark frame to disk (optional)'),
+                'in_reset': InputDesc(IntValue, 'Resets the current dark frame to zero (optional)')}
 
     @classmethod
     def output_names(cls):
@@ -176,43 +177,44 @@ class DynamicDarkCalibrator(BaseProcessingObj):
         super().prepare_trigger(t)
 
         # Check if new trigger or nframes value is received at this time step
-        input_trigger = self.local_inputs['in_trigger']
-        if input_trigger is not None and input_trigger.generation_time == self.current_time:
-            self.counter = self.nframes
-
         input_reset = self.local_inputs['in_reset']
         if input_reset is not None and input_reset.generation_time == self.current_time:
             self.darkframe.pixels *= 0
 
-        # Interactive inputs are protected frome exceptions
-        try:
-            input_nframes = self.local_inputs['in_nframes']
-            if input_nframes is not None and input_nframes.generation_time == self.current_time:
-                nframes = int(input_nframes.value)
-                if nframes <= 0:
-                    raise ValueError(f'Number of frames is {nframes} and must be greater than zero')
+        input_nframes = self.local_inputs['in_nframes']
+        if input_nframes is not None and input_nframes.generation_time == self.current_time:
+            nframes = input_nframes.value
+            if nframes <= 0:
+                self.logger.error(f'Rejected number of frames {nframes}: must be greater than zero')
+            else:
                 self.nframes = nframes
-        except Exception as e:
-            print(f'Exception: {e.__name__}: {e}')
 
-        try:
-            input_load = self.local_inputs['in_load']
-            if input_load is not None and input_load.generation_time == self.current_time:
-                filename = str(input_load.value)
-                if not filename.endswith('.fits'):
-                    filename += '.fits'
-                fullpath = os.path.join(self.data_dir, filename)
-                self.darkframe.restore(fullpath)
+        input_trigger = self.local_inputs['in_trigger']
+        if input_trigger is not None and input_trigger.generation_time == self.current_time:
+            self.counter = self.nframes
+
+        input_load = self.local_inputs['in_load']
+        if input_load is not None and input_load.generation_time == self.current_time:
+            filename = input_load.value
+            if not filename.endswith('.fits'):
+                filename += '.fits'
+            fullpath = os.path.join(self.data_dir, filename)
+            try:
+                self.darkframe = Pixels.restore(fullpath, target_device_idx=self.target_device_idx)
                 self.darkframe.generation_time = self.current_time
-        except Exception as e:
-            self.logger.error(f'Exception: {e.__name__}: {e}')
+                self.counter = 0  # Disable integration
+            except Exception as e:
+                self.logger.error(f'Exception: {e.__name__}: {e}')
 
     def post_trigger(self):
         super().post_trigger()
 
         input_save = self.local_inputs['in_save']
         if input_save is not None and input_save.generation_time == self.current_time:
-            self.save(input_save.value)
+            try:
+                self.save(input_save.value)
+            except Exception as e:
+                self.logger.error(f'Exception: {e.__name__}: {e}')
 
     def save(self, filename=None):
         """Save dark frame data to disk as a FITS file"""
