@@ -5,6 +5,7 @@ from specula.data_objects.simul_params import SimulParams
 from specula.connections import InputValue
 from specula.base_value import BaseValue
 from specula import cpuArray
+from specula.scalar_values import FloatValue, IntValue
 
 
 class DynamicIirFilter(IirFilter):
@@ -52,8 +53,8 @@ class DynamicIirFilter(IirFilter):
             target_device_idx=target_device_idx,
             precision=precision)
 
-        self.inputs['reset'] = InputValue(type=BaseValue, optional=True)
-        self.inputs['int_gain'] = InputValue(type=BaseValue, optional=True)
+        self.inputs['reset'] = InputValue(type=IntValue, optional=True)
+        self.inputs['int_gain'] = InputValue(type=FloatValue, optional=True)
 
     @classmethod
     def input_names(cls):
@@ -77,10 +78,7 @@ class DynamicIirFilter(IirFilter):
             self.reset_states()
 
         # Update internal IIR filter data if gain input changes
-        try:
-            gain_input = self.local_inputs['int_gain']
-            if gain_input is not None and gain_input.generation_time == self.current_time:
-                int_gain = cpuArray(gain_input.get_value())
-                self.iir_filter_data.set_gain(int_gain)
-        except Exception as e:
-            print(f'Exception: {e.__name__}: {e}')
+        gain_input = self.local_inputs['int_gain']
+        if gain_input is not None and gain_input.generation_time == self.current_time:
+            self.iir_filter_data.set_gain(gain_input.value)
+

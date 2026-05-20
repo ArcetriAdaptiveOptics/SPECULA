@@ -7,6 +7,7 @@ from specula.data_objects.intensity import Intensity
 from specula.data_objects.pixels import Pixels
 from specula.data_objects.pupdata import PupData
 from specula.processing_objects.pyr_pupdata_calibrator import PyrPupdataCalibrator
+from specula.scalar_values import IntValue, StringValue, FloatValue
 
 
 class DynamicPyrPupdataCalibrator(PyrPupdataCalibrator):
@@ -96,54 +97,47 @@ class DynamicPyrPupdataCalibrator(PyrPupdataCalibrator):
                          overwrite=overwrite, save_on_exit=save_on_exit,
                          target_device_idx=target_device_idx, precision=precision)
 
-        self.inputs['in_save'] = InputValue(type=BaseValue, optional=True)
-        self.inputs['in_dt'] = InputValue(type=BaseValue, optional=True)
-        self.inputs['in_thr1'] = InputValue(type=BaseValue, optional=True)
-        self.inputs['in_thr2'] = InputValue(type=BaseValue, optional=True)
-        self.inputs['in_output_tag'] = InputValue(type=BaseValue, optional=True)
+        self.inputs['in_save'] = InputValue(type=IntValue, optional=True)
+        self.inputs['in_dt'] = InputValue(type=FloatValue, optional=True)
+        self.inputs['in_thr1'] = InputValue(type=FloatValue, optional=True)
+        self.inputs['in_thr2'] = InputValue(type=FloatValue, optional=True)
+        self.inputs['in_output_tag'] = InputValue(type=StringValue, optional=True)
 
-        self.outputs['out_params'] = BaseValue()
+        self.outputs['out_params'] = StringValue("")
 
     @classmethod
     def input_names(cls):
         return {'in_i': InputDesc(Intensity, 'Input intensity from the pyramid WFS detector (optional)'),
                 'in_pixels': InputDesc(Pixels, 'Input pixel data from the detector (optional)'),
-                'in_save': InputDesc(BaseValue, 'Trigger to save the current calibration data (optional)'),
-                'in_dt': InputDesc(BaseValue, 'Dynamically update the time step in seconds (optional)'),
-                'in_thr1': InputDesc(BaseValue, 'Dynamically update the first threshold (optional)'),
-                'in_thr2': InputDesc(BaseValue, 'Dynamically update the second threshold (optional)'),
-                'in_output_tag': InputDesc(BaseValue, 'Dynamically update the output tag (optional)')}
+                'in_save': InputDesc(IntValue, 'Trigger to save the current calibration data (optional)'),
+                'in_dt': InputDesc(FloatValue, 'Dynamically update the time step in seconds (optional)'),
+                'in_thr1': InputDesc(FloatValue, 'Dynamically update the first threshold (optional)'),
+                'in_thr2': InputDesc(FloatValue, 'Dynamically update the second threshold (optional)'),
+                'in_output_tag': InputDesc(StringValue, 'Dynamically update the output tag (optional)')}
 
     @classmethod
     def output_names(cls):
         return {'out_pupdata': OutputDesc(PupData, 'Calibrated pupil data with subaperture geometry'),
-                'out_params': OutputDesc(BaseValue, 'Dictionary with current calibration parameters and status')}
+                'out_params': OutputDesc(StringValue, 'Multi-line string with current calibration parameters and status')}
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
 
-        # Interactive inputs are protected from exceptions
-        try:
-            # Use float() to accept string values as well
-            input_dt = self.local_inputs['in_dt']
-            if input_dt is not None and input_dt.generation_time == self.current_time:
-                self.dt = self.seconds_to_t(float(input_dt.value))
-        except Exception as e:
-            print(f'Exception: {e.__name__}: {e}')
+        input_dt = self.local_inputs['in_dt']
+        if input_dt is not None and input_dt.generation_time == self.current_time:
+            self.dt = self.seconds_to_t(input_dt.value)
 
-        try:
-            input_thr1 = self.local_inputs['in_thr1']
-            if input_thr1 is not None and input_thr1.generation_time == self.current_time:
-                self.thr1 = float(input_thr1.value)
-        except Exception as e:
-            print(f'Exception: {e.__name__}: {e}')
+        input_thr1 = self.local_inputs['in_thr1']
+        if input_thr1 is not None and input_thr1.generation_time == self.current_time:
+            self.thr1 = input_thr1.value
 
-        try:
-            input_thr2 = self.local_inputs['in_thr2']
-            if input_thr2 is not None and input_thr2.generation_time == self.current_time:
-                self.thr2 = float(input_thr2.value)
-        except Exception as e:
-            self.logger.error(f'Exception: {e.__name__}: {e}')
+        input_thr2 = self.local_inputs['in_thr2']
+        if input_thr2 is not None and input_thr2.generation_time == self.current_time:
+            self.thr2 = input_thr2.value
+
+        input_tag = self.local_inputs['in_output_tag']
+        if input_tag is not None and input_tag.generation_time == self.current_time:
+            self.filename = input_tag.value
 
     def trigger_code(self):
 
@@ -160,16 +154,21 @@ class DynamicPyrPupdataCalibrator(PyrPupdataCalibrator):
         # Save pupdata if requested
         input_save = self.local_inputs['in_save']
         if input_save is not None and input_save.generation_time == self.current_time:
-            self._save(input_save.value)
+            try:
+                self._save(self.filename)
+            except Exception as e:
+                print(f'Exception: {e.__name__}: {e}')
 
         # Update output params with current values
-        self.outputs['out_params'].value = {
+        params_str = '\n'.join(f'{k}: {v}' for k, v in
+        {
             'dt': self.t_to_seconds(self.dt),
             'thr1': self.thr1,
             'thr2': self.thr2,
             'status': self.status_string,
-        }
-
+            'output_tag': self.filename,
+        }.items())
+        self.outputs['out_params'].set_value(params_str)
         self.outputs['out_params'].generation_time = self.current_time
 
 

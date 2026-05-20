@@ -2,8 +2,9 @@
 import queue
 import multiprocessing as mp
 
-from specula.base_value import BaseValue
+from specula.connections import split_output
 from specula.base_processing_obj import BaseProcessingObj
+from specula.scalar_values import IntValue, FloatValue, StringValue
 
 
 class SpeculaInput(BaseProcessingObj):
@@ -35,7 +36,17 @@ class SpeculaInput(BaseProcessingObj):
                          precision=precision)
 
         for name in output_list:
-            self.outputs[name] = BaseValue(target_device_idx=target_device_idx, precision=precision)
+            desc = split_output(name, detect_types=True)
+            typ = desc.type
+            real_name = desc.obj_name
+            if typ == 'float':
+                self.outputs[real_name] = FloatValue(0.0)
+            elif typ == 'int':
+                self.outputs[real_name] = IntValue(0)
+            elif typ == 'str':
+                self.outputs[real_name] = StringValue('')
+            else:
+                raise ValueError(f'Unsupported type {typ} for output {real_name}')
 
     def set_input_task(self, task):
         """
@@ -60,10 +71,12 @@ class SpeculaInput(BaseProcessingObj):
             while True:
                 name, value = self.q.get(block=False)
                 try:
-                    # Replace value directly instead of using set_value
-                    # so that we can accept any valid type instead of just numeric ones
-                    self.outputs[name].value = value
-                    self.outputs[name].generation_time = self.current_time
+                    cast_func = self.outputs[name].type
+                    try:
+                        self.outputs[name].value = cast_func(value)
+                        self.outputs[name].generation_time = self.current_time
+                    except Exception as e:
+                        self.logger.error('Rejected input {value} for output {name}: cannot convert to type {cast_func}')
                 except KeyError:
                     self.logger.error(f'Unknown output: {name}')
         except queue.Empty:
