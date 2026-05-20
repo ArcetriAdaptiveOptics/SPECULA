@@ -45,9 +45,9 @@ class Coronagraph(BaseProcessingObj):
             Whether to center the focal plane mask on a single pixel (True) or
             at the intersection of 4 pixels (False). This affects the phase shift
             applied to the electric field (default: True)
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
-        precision : int, optional
+        precision : int [1], optional
             Precision for computation (0 for double, 1 for single). Default is None
             (uses global setting).
         """

@@ -36,18 +36,18 @@ class CiaoCiaoSlopec(Slopec):
         """
         Parameters
         ----------
-        wavelength_in_nm : float
+        wavelength_in_nm : float [nm]
             Working wavelength (e.g., 2200 for K band).
-        window_x_in_pix, window_y_in_pix : float
+        window_x_in_pix, window_y_in_pix : float [pixels]
             Coordinates of the sideband center in the FFT.
-        window_sigma_in_pix : float
+        window_sigma_in_pix : float [pixels]
             Width of the filtering window (Top Flat Gaussian).
         pupil_mask : Pupilstop
             Pupil mask defining the valid area. Its ``.A`` amplitude array is
             used. The effective mask is the intersection
             of this mask with a copy rotated by ``diffRotAngleInDeg``, mirroring
             the overlap region seen by the CiaoCiao interferometer.
-        diffRotAngleInDeg : float, optional
+        diffRotAngleInDeg : float [deg], optional
             Rotation angle in degrees applied to one branch of the interferometer
             (same value as ``diffRotAngleInDeg`` in CiaoCiaoSensor). The effective
             pupil mask is ``mask & rotate(mask, diffRotAngleInDeg)``.
@@ -71,18 +71,6 @@ class CiaoCiaoSlopec(Slopec):
                          target_device_idx=target_device_idx,
                          precision=precision,
                          **kwargs)
-
-        if pupil_mask is not None:
-            mask = self.to_xp(pupil_mask.A, dtype=self.dtype) > 0.5
-            if self.diffRotAngleInDeg != 0.0:
-                interp = Interp2D(mask.shape, mask.shape,
-                                  rotInDeg=self.diffRotAngleInDeg,
-                                  dtype=self.dtype, xp=self.xp)
-                rotated = interp.interpolate(mask.astype(self.dtype)) > 0.5
-                mask = mask & rotated
-            self._pupil_mask_xp = mask
-        else:
-            self._pupil_mask_xp = None
 
     @classmethod
     def input_names(cls):
@@ -127,7 +115,7 @@ class CiaoCiaoSlopec(Slopec):
                 rotate_interp = Interp2D(
                     shape,
                     shape,
-                    rotInDeg=self.diffRotAngleInDeg,
+                    rotInDeg=-self.diffRotAngleInDeg, # Negative angle for PASSATA compatibility
                     dtype=self.dtype,
                     xp=self.xp,
                 )

@@ -8,7 +8,7 @@ pushpull:
   outputs: ['output']
 
 main_override:
-  total_time:  1.4
+  total_time:  1.4 # 2 (push-pull) * 700 (modes) * 1e-3 (time per mode) = 1.4s
 
 prop_override:
   inputs:
@@ -26,15 +26,16 @@ dm_override:
 
 
 detector_override:
+  dt:                0.001
   photon_noise:      False
   readout_noise:     False
+  excess_noise:      False
 
 
 im_calibrator_lo:
   class: 'ImCalibrator'
   nmodes: 700
   im_tag:     'eris_im'
-  #tag_template:    'subap_{main.tag}_n{modes}'
   overwrite: True
   inputs:
     in_slopes: 'slopec.out_slopes'
@@ -46,14 +47,13 @@ rec_calibrator_lo:
   class: 'RecCalibrator'
   nmodes: 700
   rec_tag:     'eris_rec'
-  #tag_template:    'subap_{main.tag}_n{modes}'
   overwrite: True
   inputs:
     in_intmat: 'im_calibrator_lo.out_intmat'
 
 
 remove: ['atmo',
-'modalrec',
-'integrator',
-'psf',
+  'modalrec',
+  'integrator',
+  'psf',
   ]

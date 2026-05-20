@@ -61,33 +61,33 @@ class PyrPupdataCalibrator(BaseProcessingObj):
         ----------
         data_dir : str
             Directory where calibration outputs are saved.
-        dt : float, optional
+        dt : float [s], optional
             Integration time in seconds. If provided, frames are accumulated and
             processed only at multiples of ``dt``.
-        thr1 : float, optional
+        thr1 : float [1], optional
             First threshold for pupil segmentation. Default is 0.1.
-        thr2 : float, optional
+        thr2 : float [1], optional
             Second threshold for refined segmentation. Default is 0.25.
-        obs_thr : float, optional
+        obs_thr : float [1], optional
             Scaling factor for obstruction detection. Default is 0.8.
-        slopes_from_intensity : bool, optional
+        slopes_from_intensity : bool
             If True, generate pupil indices directly from intensity masks.
             Otherwise, use geometric translation. Default is False.
-        output_tag : str, optional
+        output_tag : str
             Filename used when saving calibration results.
-        auto_detect_obstruction : bool, optional
+        auto_detect_obstruction : bool
             Enable automatic detection of central obstruction. Default is True.
-        min_obstruction_ratio : float, optional
+        min_obstruction_ratio : float [1], optional
             Minimum allowed obstruction ratio. Default is 0.05.
-        display_debug : bool, optional
+        display_debug : bool
             If True, display debug plots during calibration. Default is False.
-        overwrite : bool, optional
+        overwrite : bool
             If True, overwrite existing files when saving. Default is False.
-        save_on_exit : bool, optional
+        save_on_exit : bool
             If True, automatically save calibration data on finalize. Default is True.
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index for computation.
-        precision : int, optional
+        precision : int [1], optional
             Numerical precision for internal data.
 
         Raises

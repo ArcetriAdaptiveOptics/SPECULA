@@ -354,7 +354,6 @@ class TestImRecCalibrator(unittest.TestCase):
         """Test that rec_tag is always a string after setup"""
         intmat = Intmat(intmat=xp.ones((2, 2)))
         calibrator = RecCalibrator(nmodes=2, data_dir=self.test_dir, rec_tag='auto',
-                                   tag_template='template_rec',
                                    overwrite=True, target_device_idx=target_device_idx)
         calibrator.inputs['in_intmat'].set(intmat)
         calibrator.setup()

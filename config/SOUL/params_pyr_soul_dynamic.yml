@@ -12,7 +12,7 @@ main:
 
 input:
   class:             'TerminalInput'
-  output_list:       ['gain', 'reset']
+  output_list:       ['gain:float', 'reset:int']
 
 seeing:
   class:             'WaveGenerator'

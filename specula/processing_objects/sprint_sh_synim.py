@@ -12,6 +12,7 @@ from specula import cpuArray, np
 
 import matplotlib.pyplot as plt
 
+
 class SprintShSynim(BaseSprintEstimator):
     """
     SPRINT (Shack-Hartmann WFS case) processing object.    

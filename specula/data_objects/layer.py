@@ -25,23 +25,23 @@ class Layer(ElectricField):
 
         Parameters
         ----------
-        dimx : int
+        dimx : int [pixels]
             Number of pixels along the x-axis (width).
-        dimy : int
+        dimy : int [pixels]
             Number of pixels along the y-axis (height).
-        pixel_pitch : float
+        pixel_pitch : float [m]
             The dimension in meters of a pixel.
-        height : float
-            The height of the layer in meters.
-        shiftXYinPixel : tuple, optional
+        height : float [m]
+            The height of the layer.
+        shiftXYinPixel : tuple [pixels], optional
             The (x, y) shift of the layer in pixel units (default: (0.0, 0.0)).
-        rotInDeg : float, optional
+        rotInDeg : float [deg], optional
             The rotation of the layer in degrees (default: 0.0).
-        magnification : float, optional
+        magnification : float [1], optional
             The magnification factor of the layer (default: 1.0).
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Device index for computation (default: None).
-        precision : int, optional
+        precision : int [1], optional
             Precision for computation (default: None).
         """
         super().__init__(dimx, dimy, pixel_pitch, target_device_idx=target_device_idx, precision=precision)

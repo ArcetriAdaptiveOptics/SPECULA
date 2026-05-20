@@ -33,7 +33,7 @@ class SprintPyr(BaseSprintEstimator):
     
     Parameters
     ----------  
-    push_amp : float
+    push_amp : float [nm]
         Amplitude of the push-pull perturbation for sensitivity matrix estimation (default: 10 nm)
     
     All parameters inherited from BaseSprintEstimator.
@@ -61,6 +61,7 @@ class SprintPyr(BaseSprintEstimator):
         """
         Initialize Pyramid SPRINT estimator.
         """
+        self.simul_params = simul_params
 
         # Number of parameters for this WFS type
         n_params = 4

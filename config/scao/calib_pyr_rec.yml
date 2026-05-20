@@ -33,7 +33,6 @@ im_calibrator:
   class: 'ImCalibrator'
   nmodes: 54
   im_tag:     'scao_pyr_im'
-  #tag_template:    'subap_{main.tag}_n{modes}'
   overwrite: True
   inputs:
     in_slopes: 'slopec.out_slopes'
@@ -45,7 +44,6 @@ rec_calibrator:
   class: 'RecCalibrator'
   nmodes: 54
   rec_tag:     'scao_pyr_rec'
-  #tag_template:    'subap_{main.tag}_n{modes}'
   overwrite: True
   inputs:
     in_intmat: 'im_calibrator.out_intmat'

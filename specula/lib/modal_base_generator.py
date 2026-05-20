@@ -1,6 +1,8 @@
 import numpy as np
+from specula import cp
 from specula.lib.utils import make_orto_modes
 from specula.lib.zernike_generator import ZernikeGenerator
+from specula.log import get_specula_logger
 
 def generate_phase_spectrum(f, r0, L0, xp=np, dtype=np.float32):
     """
@@ -25,8 +27,7 @@ def generate_phase_spectrum(f, r0, L0, xp=np, dtype=np.float32):
         Phase spectrum
     """
 
-    """Performs operations with NumPy or CuPy depending on the backend passed as an argument."""
-    if xp.__name__ == "cupy":
+    if xp == cp:
         from cupyx.scipy.special import gamma
     else:
         from scipy.special import gamma
@@ -69,7 +70,7 @@ def generate_distance_grid(N, M=None, xp=np, dtype=np.float32):
     return R
 
 def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0,
-                       oversampling=2, verbose=False, xp=np, dtype=np.float32):
+                       oversampling=2, xp=np, dtype=np.float32, log_level=None):
     """
     Compute the covariance matrix of the influence functions
 
@@ -87,8 +88,8 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0,
         Outer scale in meters
     oversampling : int
         Oversampling factor
-    verbose : bool
-        Verbose mode
+    log_level : int, optional
+        Logging level (e.g., logging.DEBUG, logging.INFO)
     xp : module, optional
         Array processing module (numpy or cupy)
     dtype : data type, optional
@@ -99,9 +100,11 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0,
     ifft_covariance : 2D array
         Covariance matrix (n_actuators, n_actuators)
     """
-
-    if verbose:
-        print("Computing turbulence covariance matrix...")
+    logger = get_specula_logger(__name__)
+    if log_level is not None:
+        logger.setLevel(log_level)
+        
+    logger.debug("Computing turbulence covariance matrix...")
 
     if oversampling < 2:
         raise ValueError("Oversampling factor must be at least 2"
@@ -121,8 +124,7 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0,
 
     mask_size = max(mask_shape)
 
-    if verbose:
-        print("Step 1: Computing Fourier transforms of influence functions...")
+    logger.debug("Step 1: Computing Fourier transforms of influence functions...")
 
     # Fourier transform of the influence functions 3D array
     ft_shape = (oversampling * mask_size, oversampling * mask_size)
@@ -143,8 +145,7 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0,
         ft_support = xp.fft.fft2(support)
         ft_influence_functions[:, :, act_idx] = ft_support
 
-    if verbose:
-        print("Step 2: Generating phase spectrum and computing covariance matrix...")
+    logger.debug("Step 2: Generating phase spectrum and computing covariance matrix...")
 
     # Generation of Phase Spectrum
     sp_freq        = generate_distance_grid(
@@ -155,15 +156,13 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0,
 
     prod_ft_shape = ft_shape[0] * ft_shape[1]
 
-    if verbose:
-        print("Step 3: Computing covariance matrix in Fourier domain...")
+    logger.debug("Step 3: Computing covariance matrix in Fourier domain...")
 
     # Fourier transform of the influence functions
     ft_weighted = ft_influence_functions * phase_spectrum[:, :, xp.newaxis]
     if_ft = ft_weighted.reshape(prod_ft_shape, n_actuators).astype(cdtype, copy=False)
 
-    if verbose:
-        print("Step 4: Computing covariance matrix in spatial domain...")
+    logger.debug("Step 4: Computing covariance matrix in spatial domain...")
 
     # # Fourier transform of the influence functions conjugate
     b_2d = ft_influence_functions.reshape(prod_ft_shape, n_actuators)  # (P, M), complex
@@ -175,7 +174,7 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0,
 
 def make_modal_base_from_ifs_fft(pupil_mask, diameter, influence_functions, r0, L0,
                             zern_modes=0, oversampling=2, filt_modes=None,
-                            if_max_condition_number=None, verbose=False,
+                            if_max_condition_number=None, log_level=None,
                             xp=np, dtype=np.float32):
     """
     Generate a modal basis from the influence functions
@@ -200,8 +199,8 @@ def make_modal_base_from_ifs_fft(pupil_mask, diameter, influence_functions, r0, 
         Modes to be removed from the influence functions
     if_max_condition_number : float
         Maximum condition number for the influence functions
-    verbose : bool
-        Verbose mode
+    log_level : int, optional
+        Logging level (e.g., logging.DEBUG, logging.INFO)
     xp : module, optional
         Array processing module (numpy or cupy)
     dtype : data type, optional
@@ -217,16 +216,18 @@ def make_modal_base_from_ifs_fft(pupil_mask, diameter, influence_functions, r0, 
         Singular values of the covariance matrices
     """
 
-    """Performs operations with NumPy or CuPy depending on the backend passed as an argument."""
-    if xp.__name__ == "cupy":
+    if xp == cp:
         from cupy.linalg import svd, pinv
     else:
         from scipy.linalg import svd, pinv
 
-    if verbose: # pragma: no cover
-        print("Starting modal basis generation...")
-        print(f"Input shapes: pupil_mask={pupil_mask.shape},"
-              f" influence_functions={influence_functions.shape}")
+    logger = get_specula_logger(__name__)
+    if log_level is not None:
+        logger.setLevel(log_level)
+
+    logger.debug("Starting modal basis generation...")
+    logger.debug(f"Input shapes: pupil_mask={pupil_mask.shape},"
+                    f" influence_functions={influence_functions.shape}")
 
     idx_mask = xp.where(pupil_mask.ravel())[0]
     npupil_mask = int(xp.sum(pupil_mask))
@@ -237,8 +238,7 @@ def make_modal_base_from_ifs_fft(pupil_mask, diameter, influence_functions, r0, 
 
     n_actuators = influence_functions.shape[0]
 
-    if verbose: # pragma: no cover
-        print("Step 1: Removing modes from influence functions...")
+    logger.debug("Step 1: Removing modes from influence functions...")
 
     number_of_modes_to_be_removed = 1 + zern_modes
     if filt_modes is not None:
@@ -251,8 +251,7 @@ def make_modal_base_from_ifs_fft(pupil_mask, diameter, influence_functions, r0, 
         zg = ZernikeGenerator(mask_shape[0], xp=xp, dtype=dtype)
         zern_modes_cube = xp.stack([zg.getZernike(z) for z in range(2, zern_modes + 2)])
 
-        if verbose:
-            print(f"Generated Zernike modes shape: {zern_modes_cube.shape}")
+        logger.debug(f"Generated Zernike modes shape: {zern_modes_cube.shape}")
 
         for i in range(zern_modes):
             modes_to_be_removed[i+1, :] = zern_modes_cube[i].ravel()[idx_mask]
@@ -280,13 +279,11 @@ def make_modal_base_from_ifs_fft(pupil_mask, diameter, influence_functions, r0, 
                 coef[mode_idx, act_idx] = xp.sum(filtered_ifs[act_idx, :] * mode) / mode_norm
                 filtered_ifs[act_idx, :] -= mode * coef[mode_idx, act_idx]
 
-    if verbose:
-        print("Step 2: Calculating geometric covariance matrix...")
+    logger.debug("Step 2: Calculating geometric covariance matrix...")
 
     if_covariance = xp.matmul(filtered_ifs, filtered_ifs.T) / npupil_mask
 
-    if verbose:
-        print("Step 3: SVD decomposition of covariance matrix...")
+    logger.debug("Step 3: SVD decomposition of covariance matrix...")
 
     U1, S1, Vt1 = svd(if_covariance, full_matrices=True)
     V1 = Vt1.T
@@ -297,9 +294,8 @@ def make_modal_base_from_ifs_fft(pupil_mask, diameter, influence_functions, r0, 
 
     cond_number = S1[0] / S1[n_actuators-number_of_modes_to_be_removed-1]
 
-    if verbose: # pragma: no cover
-        print("-- IF covariance matrix SVD ---")
-        print(f"    initial condition number is: {cond_number}")
+    logger.debug("-- IF covariance matrix SVD ---")
+    logger.debug(f"    initial condition number is: {cond_number}")
 
     if if_max_condition_number is not None:
         if cond_number > if_max_condition_number:
@@ -311,23 +307,20 @@ def make_modal_base_from_ifs_fft(pupil_mask, diameter, influence_functions, r0, 
             if count_cond_number > 0:
                 number_of_modes_to_be_removed += count_cond_number
                 final_cond = S1[0] / S1[n_actuators-number_of_modes_to_be_removed-1]
-                if verbose: # pragma: no cover
-                    print(f"    final condition number is: {final_cond}")
-                    print(f"    no. of cut modes: {count_cond_number}")
+                logger.debug(f"    final condition number is: {final_cond}")
+                logger.debug(f"    no. of cut modes: {count_cond_number}")
 
     M = xp.zeros((n_actuators, n_actuators), dtype=dtype)
     for i in range(n_actuators):
         if i < n_actuators - number_of_modes_to_be_removed:
             M[:, i] = U1[:, i] / xp.sqrt(S1[i])
 
-    if verbose: # pragma: no cover
-        print("Step 4: Calculating turbulence covariance matrix...")
+    logger.debug("Step 4: Calculating turbulence covariance matrix...")
 
     ifft_covariance = compute_ifs_covmat(pupil_mask, diameter, filtered_ifs, r0, L0,
-                                         oversampling, verbose, xp=xp, dtype=dtype)
+                                         oversampling, log_level=log_level, xp=xp, dtype=dtype)
 
-    if verbose: # pragma: no cover
-        print("Step 5: Calculating modal basis...")
+    logger.debug("Step 5: Calculating modal basis...")
 
     hp = xp.matmul(xp.matmul(M.T, ifft_covariance), M)
 
@@ -343,8 +336,7 @@ def make_modal_base_from_ifs_fft(pupil_mask, diameter, influence_functions, r0, 
     kl_modes = xp.matmul(filtered_ifs.T, Bp[:, :n_actuators-number_of_modes_to_be_removed])
 
     if zern_modes > 0:
-        if verbose: # pragma: no cover
-            print("Step 6: Adding Zernike modes to basis...")
+        logger.debug("Step 6: Adding Zernike modes to basis...")
 
         zern_basis = modes_to_be_removed[1:zern_modes+1, :]
         kl_basis = xp.vstack((zern_basis, kl_modes.T))
@@ -367,7 +359,6 @@ def make_modal_base_from_ifs_fft(pupil_mask, diameter, influence_functions, r0, 
 
     singular_values = {"S1": S1, "S2": S2}
 
-    if verbose: # pragma: no cover
-        print(f"Final shapes: kl_basis={kl_basis.shape}, m2c={m2c.shape}")
+    logger.debug(f"Final shapes: kl_basis={kl_basis.shape}, m2c={m2c.shape}")
 
     return kl_basis, m2c, singular_values

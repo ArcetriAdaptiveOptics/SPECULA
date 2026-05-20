@@ -31,42 +31,42 @@ class SH(BaseProcessingObj):
     
     Parameters
     ----------
-    wavelengthInNm : float
+    wavelengthInNm : float [nm]
         Wavelength in nanometers
-    subap_wanted_fov : float
+    subap_wanted_fov : float [arcsec]
         Desired subaperture Field of View in arcseconds
-    sensor_pxscale : float
+    sensor_pxscale : float [arcsec/pixel]
         Sensor pixel scale in arcseconds/pixel
-    subap_on_diameter : int
+    subap_on_diameter : int [1]
         Subaperture diameter in meters
-    subap_npx : int
+    subap_npx : int [pixels]
         Number of pixels across the subaperture on the sensor
-    squaremask : bool, optional
+    squaremask : bool
         If True, use a square mask in the focal plane. Default is True.
-    fov_ovs_coeff : float, optional
+    fov_ovs_coeff : float [1], optional
         Coefficient to determine the oversampling of the FoV.
         A value larger than 1 is recommended to avoid FFT wrapping effects.
         Default is 2.0.
-    xShiftPhInPixel : float, optional
+    xShiftPhInPixel : float [pixels], optional
         Shift of the phase in the x direction in pixels. Default is 0.
-    yShiftPhInPixel : float, optional
+    yShiftPhInPixel : float [pixels], optional
         Shift of the phase in the y direction in pixels. Default is 0.
-    rotAnglePhInDeg : float, optional
+    rotAnglePhInDeg : float [deg], optional
         Rotation angle of the phase in degrees. Default is 0.
-    set_fov_res_to_turbpxsc : bool, optional
+    set_fov_res_to_turbpxsc : bool
         If True, set the FoV resolution to the turbulence pixel scale. Default is False.
-    laser_launch_tel : LaserLaunchTelescope, optional
+    laser_launch_tel : LaserLaunchTelescope
         If provided, use the laser launch telescope parameters for kernel generation.
         Default is None.
-    subap_rows_slice : slice, optional
+    subap_rows_slice : slice [1], optional
         Slice object to specify which rows of subapertures to process.
         Default is None (process all rows).
-    data_dir : str, optional
+    data_dir : str
         Directory for data files needed by the kernel object. Default is "".
         Set by simul object if not provided.
-    target_device_idx : int, optional
+    target_device_idx : int [1], optional
         Target device index for GPU processing. Default is None (CPU).
-    precision : int, optional
+    precision : int [1], optional
         Numerical precision (e.g., 32 or 64). Default is None (use default precision).
     """
 
