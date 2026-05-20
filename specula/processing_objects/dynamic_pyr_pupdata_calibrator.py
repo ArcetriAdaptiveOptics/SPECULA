@@ -103,7 +103,7 @@ class DynamicPyrPupdataCalibrator(PyrPupdataCalibrator):
         self.inputs['in_thr2'] = InputValue(type=FloatValue, optional=True)
         self.inputs['in_output_tag'] = InputValue(type=StringValue, optional=True)
 
-        self.outputs['out_params'] = BaseValue()
+        self.outputs['out_params'] = StringValue("")
 
     @classmethod
     def input_names(cls):
@@ -135,6 +135,10 @@ class DynamicPyrPupdataCalibrator(PyrPupdataCalibrator):
         if input_thr2 is not None and input_thr2.generation_time == self.current_time:
             self.thr2 = input_thr2.value
 
+        input_tag = self.local_inputs['in_output_tag']
+        if input_tag is not None and input_tag.generation_time == self.current_time:
+            self.filename = input_tag.value
+
     def trigger_code(self):
 
         try:
@@ -151,7 +155,7 @@ class DynamicPyrPupdataCalibrator(PyrPupdataCalibrator):
         input_save = self.local_inputs['in_save']
         if input_save is not None and input_save.generation_time == self.current_time:
             try:
-                self._save(input_save.value)
+                self._save(self.filename)
             except Exception as e:
                 print(f'Exception: {e.__name__}: {e}')
 
@@ -162,7 +166,8 @@ class DynamicPyrPupdataCalibrator(PyrPupdataCalibrator):
             'thr1': self.thr1,
             'thr2': self.thr2,
             'status': self.status_string,
-        })
+            'output_tag': self.filename,
+        }.items())
         self.outputs['out_params'].set_value(params_str)
         self.outputs['out_params'].generation_time = self.current_time
 
