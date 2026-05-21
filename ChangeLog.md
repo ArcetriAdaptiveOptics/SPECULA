@@ -9,7 +9,7 @@
 
 ### Interface changes
 
-- ...
+- Removed simul\_params argument from IirFilter, Integrator and other related processing objects
 
 ### Other
 
