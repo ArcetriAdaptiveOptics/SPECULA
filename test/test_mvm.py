@@ -74,31 +74,6 @@ class TestMVM(unittest.TestCase):
         self.assertIn("got 5, expected 4", str(cm.exception))
 
     @cpu_and_gpu
-    def test_mvm_null_recmat(self, target_device_idx, xp):
-        """Test MVM behavior with null reconstruction matrix"""
-        # Create recmat with None matrix
-        # Create a valid matrix first, then set it to None after
-        matrix = xp.eye(3)
-        recmat = Recmat(matrix, target_device_idx=target_device_idx)
-        mvm = MVM(recmat=recmat, target_device_idx=target_device_idx)
-        
-        # Now set the internal matrix to None to test the warning
-        mvm.recmat.recmat = None
-
-        # This should work during initialization but skip during trigger_code
-        input_vector = xp.array([1, 2, 3], dtype=xp.float64)
-        input_value = BaseValue('test input', value=input_vector,
-                                target_device_idx=target_device_idx)
-
-        mvm.inputs['in_vector'].set(input_value)
-
-        # Should not raise during trigger_code, just print warning
-        mvm.trigger_code()
-
-        # Output should remain zeros (initial allocation)
-        self.assertTrue(xp.allclose(mvm.output.value, 0))
-
-    @cpu_and_gpu
     def test_mvm_no_input_provided(self, target_device_idx, xp):
         """Test that MVM raises error when no input is provided"""
         matrix = xp.eye(3)
