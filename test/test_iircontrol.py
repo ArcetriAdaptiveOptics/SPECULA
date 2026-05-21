@@ -1,4 +1,6 @@
 import specula
+from specula.connections import InputValue
+from specula.data_objects.simul_params import SimulParams
 specula.init(0)  # Default target device
 
 import unittest
@@ -303,9 +305,7 @@ class TestIirFilter(unittest.TestCase):
         # Create a pure integrator (gain=1.0, forgetting_factor=1.0)
         filter_data = IirFilterData.from_gain_and_ff([1.0], [1.0],
                                                      target_device_idx=target_device_idx)
-        simul_params = SimulParams(time_step=1)
-
-        iir = IirFilter(simul_params=simul_params, iir_filter_data=filter_data,
+        iir = IirFilter(iir_filter_data=filter_data,
                         target_device_idx=target_device_idx)
 
         if 'in_ost' not in iir.inputs:

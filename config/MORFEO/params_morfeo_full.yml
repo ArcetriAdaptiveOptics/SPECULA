@@ -395,7 +395,6 @@ subtract_ref:
 
 iir_lgs:
   class:             'IirFilter'
-  simul_params_ref:  'main'
   iir_filter_data_object: 'int0.25_6258'
   delay: 1.75
   inputs:
@@ -509,7 +508,6 @@ tomo_ngs:
 
 iir_ngs:
   class:             'IirFilter'
-  simul_params_ref:  'main'
   iir_filter_data_object: 'int0.1_5modes'
   delay: 1.75
   inputs:
@@ -567,7 +565,6 @@ tomo_polc_ref:
 # Commenting since this is not used.
 # iir_ref:
 #   class:             'IirFilter'
-#   simul_params_ref:  'main'
 #   iir_filter_data_object: 'int0.0_293modes'
 #   inputs:
 #       delta_comm: 'tomo_polc_ref.out_modes'
