@@ -11,7 +11,6 @@ from specula.data_objects.ifunc import IFunc
 from specula.data_objects.pixels import Pixels
 from specula.lib.interp2d import Interp2D
 from specula.lib.toccd import toccd
-import matplotlib.pyplot as plt
 
 
 WFS_Settings = namedtuple('WFS_Settings',
@@ -387,7 +386,6 @@ class Lift(BaseProcessingObj):
         total_A_MLs.append(total_A_ML)
         # Estimate initial ROI and flux
         center = self.calcCenter(psf)
-        print(f"Initial center: {center}")
         flux = self.calcCroppedFlux(psf, center)
         # Set reference TT based on initial ROI
         self.setRefTT(float(center[0]), float(center[1]), float(psf.shape[0]))
@@ -440,10 +438,6 @@ class Lift(BaseProcessingObj):
         lastAML = self.to_xp(total_A_MLs[-1], dtype=self.dtype, force_copy=True)
         lastAML[0 + self.nPistons] += self.ref_tip
         lastAML[1 + self.nPistons] += self.ref_tilt
-
-        plt.figure()
-        plt.imshow(cpuArray(self.xp.concatenate([psfRoi, I0roi, DeltaI], axis=1)), origin='lower')
-        plt.show()
 
         return currentPhaseEstimates[-1], lastAML * self.wavelengthInNm/(2*np.pi), len(total_A_MLs)
 
