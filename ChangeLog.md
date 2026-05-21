@@ -5,11 +5,11 @@
 
 ### New processing and data objects
 
-- ...
+- Added IntValue, FloatValue and StringValue as specialized containers for scalars and strings, to be used in place of BaseValue where needed.
 
 ### Interface changes
 
-- ...
+- Outputs for SpeculaInput and derived objects like TerminalInput must be typed with :int, :float or :str
 
 ### Other
 
