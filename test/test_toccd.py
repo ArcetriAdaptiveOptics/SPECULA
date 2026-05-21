@@ -56,6 +56,14 @@ class TestToccd(unittest.TestCase):
         out = toccd(arr, newshape=(2, 2), set_total=set_total, xp=xp)
         assert xp.isclose(out.sum(), set_total, rtol=1e-6)
 
+    @cpu_and_gpu
+    def test_toccd_does_not_renormalize(self, target_device_idx, xp):
+        """Test that the array is not renormalized when set_total <= 0."""
+        arr = xp.arange(16, dtype=float).reshape((4, 4))
+        total = arr.sum()
+        out = toccd(arr, newshape=(2, 2), set_total = 0, xp=xp)
+        assert xp.isclose(out.sum(), total/4, rtol=1e-6)
+
 
     @cpu_and_gpu
     def test_toccd_invalid_input_shape(self, target_device_idx, xp):
