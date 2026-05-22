@@ -16,7 +16,7 @@ class Phasescreen(BaseDataObj):
                  target_device_idx: int=None, 
                  precision: int=None):
         """
-        Initialize an :class:`~specula.data_objects.phasescreen.Phasescreen` object.
+        Initialize a :class:`~specula.data_objects.phasescreen.Phasescreen` object.
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         self.L0 = L0

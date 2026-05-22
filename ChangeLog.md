@@ -6,6 +6,7 @@
 ### New processing and data objects
 
 - Added IntValue, FloatValue and StringValue as specialized containers for scalars and strings, to be used in place of BaseValue where needed.
+- Added Phasescreen data object
 
 ### Interface changes
 
