@@ -89,6 +89,13 @@ class TestToccd(unittest.TestCase):
         assert out.dtype == xp.float32
 
     @cpu_and_gpu
+    def test_toccd_dtype_float64(self, target_device_idx, xp):
+        """Check that float64 input produces float64 output."""
+        arr = xp.ones((4, 4), dtype=xp.float64)
+        out = toccd(arr, newshape=(2, 2), xp=xp)
+        assert out.dtype == xp.float64
+
+    @cpu_and_gpu
     def test_toccd_fp64_truncation_bug(self, target_device_idx, xp):
         """
         Verify that rebinning avoids float truncation errors 
