@@ -24,21 +24,21 @@ class SpatioTempArray(BaseDataObj):
 
         Parameters
         ----------
-        array : array-like
+        array : array-like [1]
             N-dimensional array with temporal evolution on first or last axis.
             Can be 1D (time only), 2D (spatial + time), 3D (spatial + spatial + time), etc.
             Typically in nm for phase screens.
-        time_vector : array-like
+        time_vector : array-like [s]
             1D array of time values corresponding to the selected temporal axis of array.
             Must have length equal to array.shape[time_axis].
-        time_axis : int, optional
+        time_axis : int [1], optional
             Temporal axis of input array. Supported values are 0 (time-first) and -1 (time-last).
             Internal storage is always time-first. Default is -1.
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Device to be targeted for data storage. Set to -1 for CPU,
             to 0 for the first GPU device, 1 for the second GPU device, etc.
             Default is None (uses global setting).
-        precision : int, optional
+        precision : int [1], optional
             Precision setting. If None will use the global_precision,
             otherwise set to 0 for double, 1 for single.
         """

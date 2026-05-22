@@ -21,7 +21,7 @@ class TestAtmoInfiniteEvolutionUpDown(unittest.TestCase):
     @cpu_and_gpu
     def test_two_layer_lists_exist(self, target_device_idx, xp):
         """Test that both layer_list_down and layer_list_up are created"""
-        simulParams = SimulParams(pixel_pupil=80, pixel_pitch=0.1, time_step=1)
+        simulParams = SimulParams(pixel_pupil=10, pixel_pitch=0.1, time_step=1)
 
         atmo = AtmoInfiniteEvolutionUpDown(
             simulParams,
@@ -57,7 +57,7 @@ class TestAtmoInfiniteEvolutionUpDown(unittest.TestCase):
     @cpu_and_gpu
     def test_layer_lists_are_independent(self, target_device_idx, xp):
         """Test that up and down layer lists are independent objects"""
-        simulParams = SimulParams(pixel_pupil=80, pixel_pitch=0.1, time_step=1)
+        simulParams = SimulParams(pixel_pupil=10, pixel_pitch=0.1, time_step=1)
 
         atmo = AtmoInfiniteEvolutionUpDown(
             simulParams,
@@ -342,7 +342,7 @@ class TestAtmoInfiniteEvolutionUpDown(unittest.TestCase):
     @cpu_and_gpu
     def test_vector_extra_delta_time(self, target_device_idx, xp):
         """Test that vector extra_delta_time works correctly"""
-        simulParams = SimulParams(pixel_pupil=80, pixel_pitch=0.1, time_step=1)
+        simulParams = SimulParams(pixel_pupil=10, pixel_pitch=0.1, time_step=1)
 
         seeing = WaveGenerator(constant=0.65, target_device_idx=target_device_idx)
         wind_speed = WaveGenerator(constant=[5.5, 2.3, 1.0], target_device_idx=target_device_idx)
@@ -388,7 +388,7 @@ class TestAtmoInfiniteEvolutionUpDown(unittest.TestCase):
     @cpu_and_gpu
     def test_layers_not_reallocated(self, target_device_idx, xp):
         """Test that layer objects are not reallocated between triggers"""
-        simulParams = SimulParams(pixel_pupil=80, pixel_pitch=0.1, time_step=1)
+        simulParams = SimulParams(pixel_pupil=10, pixel_pitch=0.1, time_step=1)
 
         seeing = WaveGenerator(constant=0.65, target_device_idx=target_device_idx)
         wind_speed = WaveGenerator(constant=[5.5, 2.3], target_device_idx=target_device_idx)

@@ -157,7 +157,7 @@ class TestLift(unittest.TestCase):
         lift = build_lift(target_device_idx=target_device_idx)
         fake_psf = np.ones((lift.gridSize, lift.gridSize), dtype=np.float32)
         coeffs = np.arange(lift.nmodes, dtype=np.float32)
-        lift.in_pixels = type('_', (), {'get_value': lambda self: fake_psf})()
+        lift.local_inputs['in_pixels'] = type('_', (), {'get_value': lambda self: fake_psf})()
         lift.phaseEstimation = lambda psf: (lift.xp.zeros_like(lift.mask), coeffs, 1)
         lift.current_time = 123
 

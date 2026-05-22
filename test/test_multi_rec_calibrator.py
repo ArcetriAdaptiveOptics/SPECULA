@@ -329,8 +329,8 @@ class TestMultiRecCalibrator(unittest.TestCase):
         intmat_list_input = calibrator.inputs['intmat_list']
         full_intmat_input = calibrator.inputs['full_intmat']
         
-        self.assertEqual(intmat_list_input.output_ref_type, Intmat)
-        self.assertEqual(full_intmat_input.output_ref_type, Intmat)
+        self.assertEqual(intmat_list_input.type, Intmat)
+        self.assertEqual(full_intmat_input.type, Intmat)
 
     def test_precision_handling(self):
         """Test that precision is properly handled"""

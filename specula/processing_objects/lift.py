@@ -50,35 +50,35 @@ class Lift(BaseProcessingObj):
         ----------
         simul_params : SimulParams
             Simulation parameters object reference.
-        nPistons : int
+        nPistons : int [1]
             Number of piston modes in the modal base (see ifunc argument).
-        nZern : int
+        nZern : int [1]
             Number of Zernike modes in the modal base (see ifunc argument).
-        wavelengthInNm : float
+        wavelengthInNm : float [nm]
             Wavelength in nanometers.
-        pix_scale : float
+        pix_scale : float [arcsec/px]
             Pixel scale.
-        npix_side : int
+        npix_side : int [pixels]
             Number of pixels per side.
-        cropped_size : int
+        cropped_size : int [pixels]
             Cropped size.
         ifunc : IFunc, optional
             Influence function data object.
             It must be coherent with nPistons and nZern modes, the first two zernike modes
             (if nZern>0) must be tip and tilt.
-        ref_zern_amp : sequence
+        ref_zern_amp : sequence [rad]
             Reference amplitudes for the Zernike block of the modal base, ordered exactly
             as in ifunc, i.e. starting from tip, tilt, defocus, and so on. Units are phase
             radians. It must have length nZern.
-        n_iter : int, optional
+        n_iter : int [1], optional
             Number of iterations. Defaults to 20.
-        fft_res : int, optional
+        fft_res : int [1], optional
             FFT resolution. Defaults to 2.
-        fix : bool, optional
+        fix : bool
             Fix flag. Defaults to False.
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index. Defaults to None.
-        precision : int, optional
+        precision : int [1], optional
             Precision. Defaults to None.
         """
 
@@ -462,18 +462,9 @@ class Lift(BaseProcessingObj):
                             'constant', constant_values=0)
         return cropped
 
-    # -------------------------------------------------
-    # Helpers
-    # -------------------------------------------------
-    def prepare_trigger(self, t):
-        super().prepare_trigger(t)
-        self.in_pixels = self.local_inputs['in_pixels']
-
     def trigger(self):
-        if self.in_pixels is None:
-            return
 
-        psf = self.in_pixels.get_value()
+        psf = self.local_inputs['in_pixels'].get_value()
         currentPhaseEstimate, coeffs, niters = self.phaseEstimation(psf) 
 
         coeffs_xp = self.to_xp(coeffs)

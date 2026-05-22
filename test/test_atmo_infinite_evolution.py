@@ -26,17 +26,9 @@ class TestAtmoInfiniteEvolution(unittest.TestCase):
         pixel_pupil = 160
         simul_params = SimulParams(pixel_pupil=pixel_pupil, pixel_pitch=0.05, time_step=1)
 
-        data_dir = os.path.join(os.path.dirname(__file__), 'data')
         seeing = WaveGenerator(constant=0.65, target_device_idx=target_device_idx)
         wind_speed = WaveGenerator(constant=[5.5, 2.5], target_device_idx=target_device_idx)
         wind_direction = WaveGenerator(constant=[0, 90], target_device_idx=target_device_idx)
-
-        on_axis_source = Source(
-            polar_coordinates=[0.0, 0.0], magnitude=8, wavelengthInNm=750
-        )
-        lgs1_source = Source(
-            polar_coordinates=[45.0, 0.0], height=90000, magnitude=5, wavelengthInNm=589
-        )
 
         atmo = AtmoInfiniteEvolution(simul_params,
                              L0=23,  # [m] Outer scale
@@ -69,7 +61,7 @@ class TestAtmoInfiniteEvolution(unittest.TestCase):
     @cpu_and_gpu
     def test_wrong_seeing_length_is_checked(self, target_device_idx, xp):
 
-        simul_params = SimulParams(pixel_pupil=160, pixel_pitch=0.05, time_step=1)
+        simul_params = SimulParams(pixel_pupil=10, pixel_pitch=0.05, time_step=1)
 
         seeing = WaveGenerator(constant=[0.65, 0.1], target_device_idx=target_device_idx)
         wind_speed = WaveGenerator(constant=[5.5, 2.3], target_device_idx=target_device_idx)
@@ -95,7 +87,7 @@ class TestAtmoInfiniteEvolution(unittest.TestCase):
     @cpu_and_gpu
     def test_wrong_wind_speed_length_is_checked(self, target_device_idx, xp):
 
-        simul_params = SimulParams(pixel_pupil=160, pixel_pitch=0.05, time_step=1)
+        simul_params = SimulParams(pixel_pupil=10, pixel_pitch=0.05, time_step=1)
 
         seeing = WaveGenerator(constant=0.2, target_device_idx=target_device_idx)
         wind_speed = WaveGenerator(constant=[8.5, 5.5, 2.3], target_device_idx=target_device_idx)
@@ -121,7 +113,7 @@ class TestAtmoInfiniteEvolution(unittest.TestCase):
     @cpu_and_gpu
     def test_wrong_wind_speed_direction_is_checked(self, target_device_idx, xp):
 
-        simul_params = SimulParams(pixel_pupil=160, pixel_pitch=0.05, time_step=1)
+        simul_params = SimulParams(pixel_pupil=10, pixel_pitch=0.05, time_step=1)
 
         seeing = WaveGenerator(constant=0.2, target_device_idx=target_device_idx)
         wind_speed = WaveGenerator(constant=[5.5, 2.3], target_device_idx=target_device_idx)
@@ -488,7 +480,7 @@ class TestAtmoInfiniteEvolution(unittest.TestCase):
         """
         Test that Cn2 values must sum to 1.0
         """
-        pixel_pupil = 160
+        pixel_pupil = 10
         simul_params = SimulParams(pixel_pupil=pixel_pupil, pixel_pitch=0.05, time_step=1)
 
         # Test with Cn2 values that don't sum to 1

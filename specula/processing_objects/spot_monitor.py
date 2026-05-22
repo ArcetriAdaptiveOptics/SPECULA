@@ -25,17 +25,17 @@ class SpotMonitor(BaseProcessingObj):
     ----------
     subapdata : SubapData
         Subaperture geometry and indexing information
-    initial_alpha : float, optional
+    initial_alpha : float [1], optional
         Initial guess for Moffat alpha parameter (default: 2.0)
-    initial_gamma : float, optional
+    initial_gamma : float [1], optional
         Initial guess for Moffat gamma parameter (default: 3.0)
-    bounds_alpha : tuple, optional
+    bounds_alpha : tuple [1], optional
         Bounds for alpha parameter (default: (0.5, 10.0))
-    bounds_gamma : tuple, optional
+    bounds_gamma : tuple [1], optional
         Bounds for gamma parameter (default: (0.1, None))
-    target_device_idx : int, optional
+    target_device_idx : int [1], optional
         Target device index
-    precision : int, optional
+    precision : int [1], optional
         Numerical precision
         
     Attributes

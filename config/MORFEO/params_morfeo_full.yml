@@ -457,7 +457,7 @@ slicer3: { <<: *SLICER, slice_args: [5234,6258]} # 4519 + 720 - 5 + 1026 - 2
 #zerocmd:
 #  class:             'WaveGenerator'
 #  constant:          0.0
-#  vsize:             6263
+#  output_size:             6263
 #  outputs: ['output']
 
 dm1:
