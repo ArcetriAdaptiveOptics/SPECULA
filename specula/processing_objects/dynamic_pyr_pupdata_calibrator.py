@@ -3,9 +3,6 @@
 from specula.base_value import BaseValue
 from specula.base_processing_obj import InputDesc, OutputDesc
 from specula.connections import InputValue
-from specula.data_objects.intensity import Intensity
-from specula.data_objects.pixels import Pixels
-from specula.data_objects.pupdata import PupData
 from specula.processing_objects.pyr_pupdata_calibrator import PyrPupdataCalibrator
 from specula.scalar_values import IntValue, StringValue, FloatValue
 
@@ -107,18 +104,23 @@ class DynamicPyrPupdataCalibrator(PyrPupdataCalibrator):
 
     @classmethod
     def input_names(cls):
-        return {'in_i': InputDesc(Intensity, 'Input intensity from the pyramid WFS detector (optional)'),
-                'in_pixels': InputDesc(Pixels, 'Input pixel data from the detector (optional)'),
+        result = super().input_names()
+        result.update({
                 'in_save': InputDesc(IntValue, 'Trigger to save the current calibration data (optional)'),
                 'in_dt': InputDesc(FloatValue, 'Dynamically update the time step in seconds (optional)'),
                 'in_thr1': InputDesc(FloatValue, 'Dynamically update the first threshold (optional)'),
                 'in_thr2': InputDesc(FloatValue, 'Dynamically update the second threshold (optional)'),
-                'in_output_tag': InputDesc(StringValue, 'Dynamically update the output tag (optional)')}
+                'in_output_tag': InputDesc(StringValue, 'Dynamically update the output tag (optional)')
+                })
+        return result
 
     @classmethod
     def output_names(cls):
-        return {'out_pupdata': OutputDesc(PupData, 'Calibrated pupil data with subaperture geometry'),
-                'out_params': OutputDesc(StringValue, 'Multi-line string with current calibration parameters and status')}
+        result = super().output_names()
+        result.update({
+                'out_params': OutputDesc(StringValue, 'Dictionary with current calibration parameters and status')
+                })
+        return result
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)

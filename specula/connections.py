@@ -59,7 +59,7 @@ class _InputItem():
             if not isinstance(value, type_):
                 raise ValueError(f'Value must be of type {type_} instead of {type(value)}')
 
-        self.output_ref_type = type_
+        self.type = type_
         self.cloned_value = None
         self.optional = optional
         self.remote_rank = remote_rank
@@ -70,7 +70,7 @@ class _InputItem():
 
     def receive_new_value(self, first_mpi_receive=True):
         self.logger.mpi_send_debug(
-                               f'RECV from rank {self.remote_rank} {self.tag=} type={self.output_ref_type})'
+                               f'RECV from rank {self.remote_rank} {self.tag=} type={self.type})'
                                )
         if first_mpi_receive or self.cloned_value.get_value() is None:
             self.logger.mpi_send_debug(f'recv with Pickle tag={self.tag}')
@@ -126,7 +126,7 @@ class InputList():
         perform its own MPI receive if needed. This allows to mix in the same list
         inputs with different sources (useful e.g. in propagation)
         """
-        self.output_ref_type = type
+        self.type = type
         self.input_values = []
         self.optional = optional
         self.requesting_obj_name = None
@@ -152,10 +152,10 @@ class InputList():
                 self.append(v, remote_rank, tag)
             return
 
-        if not isinstance(item, self.output_ref_type) and remote_rank is None:
-            raise ValueError(f'Item must be of type {self.output_ref_type} instead of {type(item)}')
+        if not isinstance(item, self.type) and remote_rank is None:
+            raise ValueError(f'Item must be of type {self.type} instead of {type(item)}')
 
-        self.input_values.append(_InputItem(self.output_ref_type,
+        self.input_values.append(_InputItem(self.type,
                                             item,
                                             remote_rank=remote_rank,
                                             tag=tag,
@@ -186,5 +186,5 @@ class InputValue(InputList):
                 obj_info = f" (from {self.requesting_obj_name}.{self.input_name})" \
                            if self.requesting_obj_name else ""
                 raise ValueError(f'Input {self.input_name} of object {self.requesting_obj_name} is empty and not optional. '
-                                 f'Input type: {self.output_ref_type}{obj_info}')
+                                 f'Input type: {self.type}{obj_info}')
         return values_list[0]

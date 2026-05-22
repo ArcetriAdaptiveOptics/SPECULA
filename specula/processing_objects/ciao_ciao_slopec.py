@@ -1,10 +1,7 @@
 from specula import cpuArray
 from specula.lib.interp2d import Interp2D
-from specula.data_objects.pixels import Pixels
 from specula.data_objects.pupilstop import Pupilstop
 from specula.processing_objects.slopec import Slopec
-from specula.base_processing_obj import InputDesc, OutputDesc
-from specula.base_value import BaseValue
 from specula.data_objects.slopes import Slopes
 from skimage.restoration import unwrap_phase
 
@@ -74,14 +71,11 @@ class CiaoCiaoSlopec(Slopec):
 
     @classmethod
     def input_names(cls):
-        return {'in_pixels': InputDesc(Pixels, 'Input interferogram pixel data from detector')}
+        return super().input_names()
 
     @classmethod
     def output_names(cls):
-        return {'out_slopes': OutputDesc(Slopes, 'Computed OPD map as a flattened slope vector'),
-                'out_flux_per_subaperture': OutputDesc(BaseValue, 'Mean flux per pixel within the pupil mask'),
-                'out_total_counts': OutputDesc(BaseValue, 'Total photon counts'),
-                'out_subap_counts': OutputDesc(BaseValue, 'Counts per subaperture')}
+        return super().output_names()
 
     def nsubaps(self):
         return 1
