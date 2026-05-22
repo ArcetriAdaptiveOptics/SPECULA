@@ -44,7 +44,8 @@ def toccd(a, newshape, set_total=None, xp=None):
     newshape : tuple, list or array
         shape of resized array
     set total : float, optional
-        if set, normalize the resized array to this total count.
+        if set and strictly positive, normalize the resized array to this total count.
+        if set and zero or negative, the resized array is not renormalized.
         if not set, the same total count as the input array is used.
     xp : module
         numpy or cupy module

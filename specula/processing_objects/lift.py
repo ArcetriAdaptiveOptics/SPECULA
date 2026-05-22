@@ -1,6 +1,7 @@
 import logging
 import math
 from collections import namedtuple
+from functools import lru_cache
 
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.connections import InputValue
@@ -109,7 +110,6 @@ class Lift(BaseProcessingObj):
         self.ref_tilt = 0.0
         self.padded = None
         self.radians_per_pixel = None
-        self.settings = None
 
         self.inputs['in_pixels'] = InputValue(type=Pixels)
 
@@ -483,11 +483,12 @@ class Lift(BaseProcessingObj):
                             'constant', constant_values=0)
         return cropped
     
+    @lru_cache
     def _get_tlt_f(self, pupil_size, fft_size):
         '''
         Half-pixel tilt
         '''
-        iu = complex(0, 1)
+
         xx, yy = self.xp.meshgrid(self.xp.arange(-pupil_size // 2, pupil_size // 2), self.xp.arange(-pupil_size // 2, pupil_size // 2))
         tlt_g = xx + yy
         tlt_f = -2 * self.xp.pi * tlt_g / (2*fft_size)
