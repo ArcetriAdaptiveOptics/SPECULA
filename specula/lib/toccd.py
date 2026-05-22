@@ -146,7 +146,7 @@ if cp:
     kernel_step1 = r'''
 extern "C" __global__
 void rebin2D_step1_TYPE(TYPE *g_in, TYPE *g_tmp, int inx, int iny, int outx, int outy,
-                   int dx_out, TYPE oneOverDxIn) {
+                   int dx_out, int dx_in) {
 
    int y = blockIdx.y * blockDim.y + threadIdx.y;
    int x = blockIdx.x * blockDim.x + threadIdx.x;
