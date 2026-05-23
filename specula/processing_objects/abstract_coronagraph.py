@@ -164,7 +164,8 @@ class Coronagraph(BaseProcessingObj):
         super().post_trigger()
 
         # Then rebin if needed
-        ef_out = toccd(self.ef_out, self.out_ef.size, xp=self.xp)
+        ef_out_amp = toccd(self.xp.abs(self.ef_out), self.out_ef.size, xp=self.xp)
+        ef_out_phase = toccd(self.xp.angle(self.ef_out), self.out_ef.size, xp=self.xp)
 
         # Calculate transmission
         # PSF before masking vs PSF after masking
@@ -173,9 +174,9 @@ class Coronagraph(BaseProcessingObj):
         transmission = self.xp.sum(psf_after) / self.xp.sum(psf_before)
 
         # Amplitude
-        self.out_ef.A[:] = self.xp.abs(ef_out)
+        self.out_ef.A[:] = ef_out_amp
         # Phase in nm
-        self.out_ef.phaseInNm[:] = (self.xp.angle(ef_out) / (2 * self.xp.pi)) \
+        self.out_ef.phaseInNm[:] = ef_out_angle / (2 * self.xp.pi)) \
                                    * self.wavelength_in_nm
         self.out_ef.wavelengthInNm = self.wavelength_in_nm
 
