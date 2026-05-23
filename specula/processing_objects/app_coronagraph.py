@@ -1,6 +1,6 @@
 from specula.log import get_specula_logger
 
-from specula.processing_objects.base_coronagraph import Coronagraph
+from specula.processing_objects.abstract_coronagraph import Coronagraph
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.make_mask import make_mask
 from specula import RAD2ASEC
