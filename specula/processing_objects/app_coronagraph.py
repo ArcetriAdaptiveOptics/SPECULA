@@ -1,6 +1,6 @@
 from specula.log import get_specula_logger
 
-from specula.processing_objects.abstract_coronagraph import Coronagraph
+from specula.processing_objects.base_coronagraph import Coronagraph
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.make_mask import make_mask
 from specula import RAD2ASEC
@@ -26,7 +26,7 @@ class APPCoronagraph(Coronagraph):
                  max_its:int = 1000,
                  target_device_idx: int = None,
                  precision: int = None
-                ):
+                 ):
 
         fov = wavelengthInNm * 1e-9 / simul_params.pixel_pitch * RAD2ASEC
         if iwaInLambdaOverD is None:
