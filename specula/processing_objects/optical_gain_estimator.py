@@ -65,14 +65,11 @@ class OpticalGainEstimator(BaseProcessingObj):
         return {'optical_gain': OutputDesc(BaseValue, 'Estimated optical gain scalar or vector'),
                 'output': OutputDesc(BaseValue, 'Output command vector corrected by optical gain')}
 
-    def prepare_trigger(self, t):
-        super().prepare_trigger(t)
+    def trigger_code(self):
+        t = self.current_time
 
         self.current_demod_delta_cmd = self.local_inputs['in_demod_delta_command']
         self.current_demod_cmd = self.local_inputs['in_demod_command']
-
-    def trigger_code(self):
-        t = self.current_time
 
         # Update optical gain if both inputs are ready
         if (self.current_demod_delta_cmd.generation_time == t and

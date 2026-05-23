@@ -248,25 +248,3 @@ class Intmat(BaseDataObj):
         # TODO handle n_modes_to_drop, and w_vec
         return self.xp.linalg.pinv(matrix)
 
-    @staticmethod
-    def build_from_slopes(slopes, disturbance, target_device_idx=None):
-        times = list(slopes.keys())
-        nslopes = len(slopes[times[0]])
-        nmodes = len(disturbance[times[0]])
-        intmat = np.zeros((nslopes, nmodes))
-        im = Intmat(intmat, target_device_idx=target_device_idx)
-        iter_per_mode = im.xp.zeros(nmodes)
-
-        for t in times:
-            amp = disturbance[t]
-            mode = np.where(amp)[0][0]
-            im.modes[mode] += im.to_xp(slopes[t] / amp[mode])
-            iter_per_mode[mode] += 1
-
-        for mode in range(nmodes):
-            if iter_per_mode[mode] > 0:
-                im.modes[mode] /= iter_per_mode[mode]
-
-        im.slope_mm = im.xp.zeros((nmodes, 2))
-        im.slope_rms = im.xp.zeros(nmodes)
-        return im

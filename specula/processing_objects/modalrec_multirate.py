@@ -33,7 +33,7 @@ class ModalrecMultirate(BaseProcessingObj):
         validity_masks : list of list of bool
             Boolean masks associated with each matrix in `recmat_list`, using the
             same ordering.
-        n_modes_total : int
+        n_modes_total : int [1]
             Total size of each output modal vector.
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)

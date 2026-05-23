@@ -234,7 +234,7 @@ class TestRecCalibrator(unittest.TestCase):
         # Check that in_intmat input is properly configured
         self.assertIn('in_intmat', calibrator.inputs)
         input_value = calibrator.inputs['in_intmat']
-        self.assertEqual(input_value.output_ref_type, Intmat)
+        self.assertEqual(input_value.type, Intmat)
 
     def test_inheritance_from_base_processing_obj(self):
         """Test that RecCalibrator properly inherits from BaseProcessingObj"""

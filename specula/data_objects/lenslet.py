@@ -1,8 +1,6 @@
 
-
 import numpy as np
 from astropy.io import fits
-
 
 from specula.lib.make_xy import make_xy
 from specula.base_data_obj import BaseDataObj
@@ -23,11 +21,11 @@ class Lenslet(BaseDataObj):
         
         Parameters
         ----------
-        n_lenses : int
+        n_lenses : int [1]
             The number of lenses in the lenslet array (default: 1).
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Device index for computation (default: None).
-        precision : int, optional
+        precision : int [1], optional
             Precision for computation (default: None).
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)

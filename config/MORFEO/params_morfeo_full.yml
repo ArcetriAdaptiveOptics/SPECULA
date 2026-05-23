@@ -395,7 +395,6 @@ subtract_ref:
 
 iir_lgs:
   class:             'IirFilter'
-  simul_params_ref:  'main'
   iir_filter_data_object: 'int0.25_6258'
   delay: 1.75
   inputs:
@@ -457,7 +456,7 @@ slicer3: { <<: *SLICER, slice_args: [5234,6258]} # 4519 + 720 - 5 + 1026 - 2
 #zerocmd:
 #  class:             'WaveGenerator'
 #  constant:          0.0
-#  vsize:             6263
+#  output_size:             6263
 #  outputs: ['output']
 
 dm1:
@@ -509,7 +508,6 @@ tomo_ngs:
 
 iir_ngs:
   class:             'IirFilter'
-  simul_params_ref:  'main'
   iir_filter_data_object: 'int0.1_5modes'
   delay: 1.75
   inputs:
@@ -542,7 +540,6 @@ slicer_focus:
 
 iir_focus:
   class:             'Integrator'
-  simul_params_ref:  'main'
   int_gain:          [0.3]
   n_modes:           [1]
   delay: 1.0
@@ -568,7 +565,6 @@ tomo_polc_ref:
 # Commenting since this is not used.
 # iir_ref:
 #   class:             'IirFilter'
-#   simul_params_ref:  'main'
 #   iir_filter_data_object: 'int0.0_293modes'
 #   inputs:
 #       delta_comm: 'tomo_polc_ref.out_modes'
@@ -576,7 +572,6 @@ tomo_polc_ref:
 
 control_ref: 
   class:             'Integrator'
-  simul_params_ref:  'main'
   delay:             2
   int_gain:          [0, 0.1, 0,  0.1, 0,  0, 0.1,  0]
   n_modes:           [3, 30,  67, 30,  65, 3, 30,  65]  # 30 modes/DM, and skip the 3 modes for plate scale
@@ -591,7 +586,6 @@ control_ref:
 
 iir_lift:
   class:             'IirFilter'
-  simul_params_ref:  'main'
   iir_filter_data_object: 'int0.0_5modes'   # TODO should be 6 modes
   delay: 1.75
   inputs:

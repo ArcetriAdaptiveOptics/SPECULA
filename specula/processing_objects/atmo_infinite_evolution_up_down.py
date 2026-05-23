@@ -31,27 +31,27 @@ class AtmoInfiniteEvolutionUpDown(AtmoInfiniteEvolution):
         ----------
         simul_params : SimulParams
             Simulation parameters object containing global simulation settings.
-        L0 : list
+        L0 : list [m]
             Outer scale(s) of turbulence for each layer in meters.
-        heights : list
+        heights : list [m]
             Heights of the atmospheric layers in meters (at zenith).
-        Cn2 : list
+        Cn2 : list [1]
             Fractional Cn2 values for each layer (must sum to 1.0).
-        extra_delta_time_down : float or list, optional
+        extra_delta_time_down : float or list [s], optional
             Extra time offset for downward propagation in seconds. Default is 0.
-        extra_delta_time_up : float or list, optional
+        extra_delta_time_up : float or list [s], optional
             Extra time offset for upward propagation in seconds. Default is 0.
-        fov : float, optional
+        fov : float [arcsec], optional
             Field of view in arcseconds. Default is 0.0.
-        seed : int, optional
+        seed : int [1], optional
             Seed for random number generation. Must be >0. Default is 1.
-        fov_in_m : float, optional
+        fov_in_m : float [m], optional
             Field of view in meters. If provided, overrides fov parameter. Default is None.
-        pupil_position : list, optional
+        pupil_position : list [m], optional
             [x, y] position of the pupil in meters. Default is [0, 0].
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
-        precision : int, optional
+        precision : int [1], optional
             Precision for computation (0 for double, 1 for single). Default is None
             (uses global setting).
         """

@@ -22,17 +22,17 @@ class Pixels(BaseDataObj):
 
         Parameters
         ----------
-        dimx : int
+        dimx : int [pixels]
             Number of pixels along the x-axis (width)
-        dimy : int
+        dimy : int [pixels]
             Number of pixels along the y-axis (height)
-        bits : int, optional
+        bits : int [1], optional
             Number of bits per pixel (default: 16).
-        signed : int, optional
+        signed : int [1], optional
             0 for unsigned, 1 for signed pixel values (default: 0).
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Device index for computation (default: None).
-        precision : int, optional
+        precision : int [1], optional
             Precision for computation (default: None).
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
@@ -99,12 +99,6 @@ class Pixels(BaseDataObj):
         Multiply the pixels by a factor.
         """
         self.pixels *= factor
-
-    def set_size(self, size):
-        """
-        Set a new shape of the pixels array, discarding the old values.
-        """
-        self.pixels = self.xp.zeros(size, dtype=self.dtype)
 
     def get_fits_header(self):
         hdr = fits.Header()

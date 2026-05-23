@@ -44,7 +44,8 @@ def toccd(a, newshape, set_total=None, xp=None):
     newshape : tuple, list or array
         shape of resized array
     set total : float, optional
-        if set, normalize the resized array to this total count.
+        if set and strictly positive, normalize the resized array to this total count.
+        if set and zero or negative, the resized array is not renormalized.
         if not set, the same total count as the input array is used.
     xp : module
         numpy or cupy module
@@ -68,9 +69,6 @@ def toccd(a, newshape, set_total=None, xp=None):
     if len(newshape) != 2:
         raise ValueError('Output shape is %s, cannot continue' % str(newshape))
 
-    if set_total is None:
-        set_total = a.sum()
-
     mcmx = lcm(a.shape[0], newshape[0])
     mcmy = lcm(a.shape[1], newshape[1])
 
@@ -81,6 +79,12 @@ def toccd(a, newshape, set_total=None, xp=None):
 
     eps = xp.finfo(rebinned.dtype).eps
     rebinned_sum = xp.maximum(rebinned.sum(), eps)
+
+    if set_total is None:
+        set_total = a.sum()
+    elif set_total <= 0:
+        set_total = 1
+        rebinned_sum = 1
 
     return rebinned / rebinned_sum * set_total
 
@@ -129,11 +133,12 @@ def toccd_gpu(a, newshape, set_total=None):
     else:
         raise TypeError(f'toccd_gpu(): unsupported dtype {a.dtype}. Valid dtypes are float32 and float64')
 
-    out /= out.sum()
-    if set_total is not None:
-        out *= set_total
-    else:
+    if set_total is None:
+        out /= out.sum()
         out *= a.sum()
+    elif set_total > 0:
+        out /= out.sum()
+        out *= set_total
     return out
 
 
