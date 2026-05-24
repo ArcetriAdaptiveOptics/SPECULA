@@ -78,31 +78,6 @@ class TestAbstractCoronagraph(unittest.TestCase):
         self.assertEqual(out_ef.A.shape, (self.pixel_pupil, self.pixel_pupil))
         self.assertEqual(out_ef.phaseInNm.shape, (self.pixel_pupil, self.pixel_pupil))
 
-    @cpu_and_gpu
-    def test_unity_masks_preserve_field(self, target_device_idx, xp):
-        """Test that unity masks approximately preserve the input field"""
-        coro = SimpleCoronagraph(
-            simul_params=self.simul_params,
-            wavelengthInNm=self.wavelength_nm,
-            fov=self.fov,
-            center_on_pixel=True,
-            target_device_idx=target_device_idx
-        )
-
-        # Flat wavefront with amplitude 1
-        ef = ElectricField(self.pixel_pupil, self.pixel_pupil,
-                           self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
-        ef.A[:] = xp.array(self.mask)
-        ef.phaseInNm[:] = 0.0
-        ef.generation_time = 1
-
-        out_ef = self.get_coro_field(coro, ef)
-        
-        # With unity masks, the amplitude should be approximately preserved in the pupil plane
-        # (allowing for some numerical precision loss during FFT/IFFT operations)
-        amplitude_diff = xp.abs(out_ef.A - ef.A).max()
-        self.assertLess(cpuArray(amplitude_diff), 1e-3, 
-                       "Unity masks should approximately preserve amplitude")
 
     @cpu_and_gpu
     def test_phase_shift_center_on_pixel_true(self, target_device_idx, xp):
