@@ -78,6 +78,29 @@ class TestAbstractCoronagraph(unittest.TestCase):
         self.assertEqual(out_ef.A.shape, (self.pixel_pupil, self.pixel_pupil))
         self.assertEqual(out_ef.phaseInNm.shape, (self.pixel_pupil, self.pixel_pupil))
 
+    @cpu_and_gpu
+    def test_output_field_size_with_smaller_fov(self, target_device_idx, xp):
+        """Test that output ElectricField has expected size"""
+        coro = SimpleCoronagraph(
+            simul_params=self.simul_params,
+            wavelengthInNm=self.wavelength_nm,
+            fov=self.fov*0.8,
+            target_device_idx=target_device_idx
+        )
+
+        # Flat wavefront
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil,
+                           self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        ef.A[:] = xp.array(self.mask)
+        ef.phaseInNm[:] = 0.0
+        ef.generation_time = 1
+
+        out_ef = self.get_coro_field(coro, ef)
+        
+        # Check that output field has the same size as input pupil
+        self.assertEqual(out_ef.A.shape, (self.pixel_pupil, self.pixel_pupil))
+        self.assertEqual(out_ef.phaseInNm.shape, (self.pixel_pupil, self.pixel_pupil))
+
 
     @cpu_and_gpu
     def test_phase_shift_center_on_pixel_true(self, target_device_idx, xp):
@@ -125,9 +148,6 @@ class TestAbstractCoronagraph(unittest.TestCase):
         coro.inputs['in_ef'].set(in_ef)
         coro.setup()
 
-        # When center_on_pixel is False, phase_shift should be an array, not 1.0
-        self.assertNotEqual(coro.phase_shift, 1.0,
-                           "phase_shift should not be 1.0 when center_on_pixel is False")
         # Check that it is an array with the appropriate shape
         self.assertEqual(coro.phase_shift.shape, (2 * coro.fft_totsize, 2 * coro.fft_totsize),
                         "phase_shift should have shape (2*fft_totsize, 2*fft_totsize)")
