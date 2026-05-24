@@ -7,7 +7,7 @@ from specula import np, cpuArray
 from specula.lib.make_mask import make_mask
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.simul_params import SimulParams
-from specula.processing_objects.coronagraph import Coronagraph
+from specula.processing_objects.abstract_coronagraph import Coronagraph
 
 from test.specula_testlib import cpu_and_gpu
 
