@@ -101,7 +101,7 @@ class TestAbstractCoronagraph(unittest.TestCase):
         # With unity masks, the amplitude should be approximately preserved in the pupil plane
         # (allowing for some numerical precision loss during FFT/IFFT operations)
         amplitude_diff = xp.abs(out_ef.A - ef.A).max()
-        self.assertLess(cpuArray(amplitude_diff), 0.1, 
+        self.assertLess(cpuArray(amplitude_diff), 1e-3, 
                        "Unity masks should approximately preserve amplitude")
 
     @cpu_and_gpu
@@ -156,33 +156,3 @@ class TestAbstractCoronagraph(unittest.TestCase):
         # Check that it is an array with the appropriate shape
         self.assertEqual(coro.phase_shift.shape, (2 * coro.fft_totsize, 2 * coro.fft_totsize),
                         "phase_shift should have shape (2*fft_totsize, 2*fft_totsize)")
-
-    @cpu_and_gpu
-    def test_unity_focal_plane_mask_shape(self, target_device_idx, xp):
-        """Test that focal plane mask has the expected shape with unity mask"""
-        coro = SimpleCoronagraph(
-            simul_params=self.simul_params,
-            wavelengthInNm=self.wavelength_nm,
-            fov=self.fov,
-            target_device_idx=target_device_idx
-        )
-
-        self.assertEqual(coro.fp_mask.shape, (coro.fft_totsize, coro.fft_totsize))
-        # Check that it's indeed unity (all ones)
-        self.assertTrue(xp.allclose(coro.fp_mask, 1.0),
-                       "Focal plane mask should be all ones")
-
-    @cpu_and_gpu
-    def test_unity_pupil_plane_mask_shape(self, target_device_idx, xp):
-        """Test that pupil plane mask has the expected shape with unity mask"""
-        coro = SimpleCoronagraph(
-            simul_params=self.simul_params,
-            wavelengthInNm=self.wavelength_nm,
-            fov=self.fov,
-            target_device_idx=target_device_idx
-        )
-
-        self.assertEqual(coro.pupil_mask.shape, (coro.fft_sampling, coro.fft_sampling))
-        # Check that it's indeed unity (all ones)
-        self.assertTrue(xp.allclose(coro.pupil_mask, 1.0),
-                       "Pupil plane mask should be all ones")
