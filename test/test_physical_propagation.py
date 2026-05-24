@@ -270,3 +270,60 @@ class Test(unittest.TestCase):
         self.assertTrue(xp.mean(abs(phase_asm) - abs(phase_an)) < 0.03)
 
 
+    @cpu_and_gpu
+    def test_physicalProp_infinite_source(self, target_device_idx, xp):
+        # Setup simulation parameters
+        pixel_pupil = 120
+        pixel_pitch = 0.00833
+        wavelengthInNm = 750
+        simul_params = SimulParams(pixel_pupil, pixel_pitch)
+
+        seeing = WaveGenerator(constant=0.4, target_device_idx=target_device_idx)
+        wind_speed = WaveGenerator(constant=[0, 0, 0], target_device_idx=target_device_idx)
+        wind_direction = WaveGenerator(constant=[0, 0, 0], target_device_idx=target_device_idx)
+
+        atmo = AtmoInfiniteEvolution(simul_params,
+                                     L0=20,  # [m] Outer scale
+                                     heights=[0., 40., 120.],
+                                     Cn2=[0.5, 0.4, 0.1],
+                                     fov=8.0,
+                                     target_device_idx=target_device_idx)
+        atmo.inputs['seeing'].set(seeing.output)
+        atmo.inputs['wind_direction'].set(wind_direction.output)
+        atmo.inputs['wind_speed'].set(wind_speed.output)
+
+        source = Source(polar_coordinates=[0.0, 0.0], magnitude=0,  wavelengthInNm=wavelengthInNm)
+        prop_phys = AtmoPropagation(
+            simul_params,
+            source_dict={'source': source},
+            wavelengthInNm=wavelengthInNm,
+            doFresnel=True,
+            target_device_idx=target_device_idx
+        )
+        prop_phys.inputs['atmo_layer_list'].set(atmo.outputs['layer_list'])
+
+        prop_geom = AtmoPropagation(
+            simul_params,
+            source_dict={'source': source},
+            target_device_idx=target_device_idx
+        )
+        prop_geom.inputs['atmo_layer_list'].set(atmo.outputs['layer_list'])
+
+        for objlist in [[seeing, wind_speed, wind_direction], [atmo], [prop_phys, prop_geom]]:
+            for obj in objlist:
+                obj.setup()
+
+            for obj in objlist:
+                obj.check_ready(1)
+
+            for obj in objlist:
+                obj.trigger()
+
+            for obj in objlist:
+                obj.post_trigger()
+
+        phase_phys = prop_phys.outputs['out_source_ef'].phaseInNm
+        phase_geom = prop_geom.outputs['out_source_ef'].phaseInNm
+
+        rms = xp.sqrt(xp.mean((phase_phys / np.sum(phase_phys) - phase_geom / np.sum(phase_phys)) ** 2))
+        self.assertTrue(rms < 1e-3)

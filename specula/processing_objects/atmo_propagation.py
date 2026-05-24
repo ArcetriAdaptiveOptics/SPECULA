@@ -225,8 +225,8 @@ class AtmoPropagation(BaseProcessingObj):
         height_layers = np.array([self.layer_height[layer] for layer in layer_list], dtype=self.dtype)
 
         source_height = self.source_height[self.source_dict[list(self.source_dict)[0]]]
-        if np.isinf(source_height):
-            raise ValueError('Fresnel propagation to infinity not supported.')
+        if np.isinf(source_height) and self.prop_sign == -1:
+            raise ValueError('Fresnel upwards propagation to infinity not supported.')
 
         sorted_heights = np.sort(height_layers)
         if not np.allclose(height_layers, sorted_heights):
@@ -234,7 +234,7 @@ class AtmoPropagation(BaseProcessingObj):
 
         # set up fresnel propagator if height difference is not 0
         height_diffs = np.diff(height_layers, append=source_height)
-        self.propagators = [self.asm_propagator(diff, self.pixel_pitch, self.pixel_pitch) if diff != 0 else None for
+        self.propagators = [self.asm_propagator(diff, self.pixel_pitch, self.pixel_pitch) if (diff != 0 and diff != self.xp.inf) else None for
                             diff in height_diffs]
 
         # adapt for downwards propagation
