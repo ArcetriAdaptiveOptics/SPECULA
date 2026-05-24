@@ -149,5 +149,5 @@ class TestAbstractCoronagraph(unittest.TestCase):
         coro.setup()
 
         # Check that it is an array with the appropriate shape
-        self.assertEqual(coro.phase_shift.shape, (2 * coro.fft_totsize, 2 * coro.fft_totsize),
-                        "phase_shift should have shape (2*fft_totsize, 2*fft_totsize)")
+        self.assertEqual(coro.phase_shift.shape, (coro.fft_totsize, coro.fft_totsize),
+                        "phase_shift should have shape (fft_totsize, fft_totsize)")
