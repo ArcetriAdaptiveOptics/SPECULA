@@ -176,7 +176,7 @@ class Coronagraph(BaseProcessingObj):
         # Amplitude
         self.out_ef.A[:] = ef_out_amp
         # Phase in nm
-        self.out_ef.phaseInNm[:] = ef_out_angle / (2 * self.xp.pi) \
+        self.out_ef.phaseInNm[:] = ef_out_phase / (2 * self.xp.pi) \
                                    * self.wavelength_in_nm
         self.out_ef.wavelengthInNm = self.wavelength_in_nm
 
