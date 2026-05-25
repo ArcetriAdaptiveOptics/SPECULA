@@ -44,6 +44,7 @@ class OpticalGainEstimator(BaseProcessingObj):
             value=self.xp.atleast_1d(initial_optical_gain),
             target_device_idx=target_device_idx,
             precision=precision
+        )
         
         self.open_loop = open_loop_estimate # boolean for open loop estimate 
 
