@@ -12,8 +12,13 @@ class OpticalGainEstimator(BaseProcessingObj):
     Uses two demodulated values (from delta-command and command) to estimate
     the optical gain of the system.
     
-    The optical gain is updated using:
+    By default, the optical gain is updated using:
     opticalGain = opticalGain - (1 - demod_delta_cmd/demod_cmd) * gain * opticalGain
+
+    When the optical gain is NOT compensated in closed loop
+    (open_loop_estimate = True), the estimator is a simple integrator:
+    opticalGain = opticalGain - (opticalGain - demod_delta_cmd/demod_cmd) * gain
+
     """
 
     def __init__(self,
@@ -21,6 +26,7 @@ class OpticalGainEstimator(BaseProcessingObj):
                  initial_optical_gain: float = 1.0,
                  #idx_array: list = None, # not supported yet
                  #expression: list = None, # not supported yet
+                 open_loop_estimate: bool = False,
                  target_device_idx: int = None,
                  precision: int = None):
 
@@ -38,7 +44,8 @@ class OpticalGainEstimator(BaseProcessingObj):
             value=self.xp.atleast_1d(initial_optical_gain),
             target_device_idx=target_device_idx,
             precision=precision
-        )
+        
+        self.open_loop = open_loop_estimate # boolean for open loop estimate 
 
         # Output value (can be different from internal optical_gain if using expressions)
         self.output = BaseValue(
@@ -91,8 +98,12 @@ class OpticalGainEstimator(BaseProcessingObj):
         # Avoid division by zero
         if self.xp.abs(demod_cmd) > 1e-12:
             ratio = demod_delta / demod_cmd
-            # Update formula from IDL code
-            updated_gain = current_gain - (1.0 - ratio) * self.gain * current_gain
+
+            if self.open_loop:
+                updated_gain = current_gain - (current_gain - ratio) * self.gain
+            else:
+                # Update formula from IDL code
+                updated_gain = current_gain - (1.0 - ratio) * self.gain * current_gain
 
             self.optical_gain.value[:] = updated_gain
             self.optical_gain.generation_time = self.current_time
