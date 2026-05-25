@@ -104,15 +104,15 @@ class VibrationGenerator(BaseGenerator):
         ----------
         simul_params: SimulParams object
             main simulation parameters. Only the *total_time* and *time_step* members are accessed
-        nmodes: int
+        nmodes: int [1]
             number of modes to generate
-        psd: 2d array-like
+        psd: 2d array-like [nm^2/Hz]
             psd for each mode, modes on first index: [mode, psd]
             Note: PSD units are [nm^2/Hz] since phase units are [nm]
-        freq: 1d or 2d array-like
+        freq: 1d or 2d array-like [Hz]
             frequency vector for each mode. If 1d, the same frequency vector
             will be replicated for all modes. If 2d, modes must be on the second index: [freq, mode]
-        seed: int, optional
+        seed: int [1], optional
             generation seed for first mode, will be increment by 1 for each additonal mode
         start_from_zero: bool, optional
             if True, first data point for each mode is zero. Defaults to False

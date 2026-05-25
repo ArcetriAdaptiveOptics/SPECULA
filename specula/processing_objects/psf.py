@@ -27,28 +27,28 @@ class PSF(BaseProcessingObj):
     ----------
     simul_params : SimulParams
         Simulation parameters object.
-    wavelengthInNm : float
+    wavelengthInNm : float [nm]
         Wavelength at which to compute the PSF [nm].
-    nd : float, optional
+    nd : float [1], optional
         Numerical density of the PSF (pixels per lambda/D). If None, it is calculated
         based on the input ElectricField and pixel size.
-    pixel_size_mas : float, optional
+    pixel_size_mas : float [mas], optional
         Desired pixel size of the PSF in milliarcseconds. If None, it is calculated
         based on the input ElectricField and numerical density.
-    start_time : float, optional
+    start_time : float [s], optional
         Time (in seconds) after which to start integrating PSF and SR. Default is 0.0.
-    compute_profile_metrics : bool, optional
+    compute_profile_metrics : bool
         If True, also compute radial profile, FWHM and encircled-energy outputs.
         By default these summary metrics are evaluated in `finalize()` only.
-    compute_metrics_in_trigger : bool, optional
+    compute_metrics_in_trigger : bool
         If True and `compute_profile_metrics` is enabled, also update the same
         metrics after each trigger.
-    ee_radius_in_lambda_d : float or array-like, optional
+    ee_radius_in_lambda_d : float or array-like [lambda/D], optional
         Radius or radii in units of lambda/D at which to return the encircled energy.
-    target_device_idx : int, optional
+    target_device_idx : int [1], optional
         Target device index for computation (CPU/GPU). Default is None
         (uses global setting).
-    precision : int, optional
+    precision : int [1], optional
         Precision for computation (0 for double, 1 for single). Default is None
         (uses global setting).
     """

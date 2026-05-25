@@ -19,6 +19,8 @@ from specula.base_data_obj import BaseDataObj
 from specula.lib.utils import import_class as real_import_class
 from specula.processing_objects.modalrec_multirate import ModalrecMultirate
 from specula.data_objects.iir_filter_data import IirFilterData
+from specula.scalar_values import IntValue
+from specula.base_processing_obj import InputDesc
 
 class DummyObj:
     def __init__(self):
@@ -43,6 +45,13 @@ class TestSimul(unittest.TestCase):
     @staticmethod
     def _path_suffix_parts(path):
         return PureWindowsPath(path).parts[-2:]
+
+    def setUp(self):
+        self.dummySimul = Simul('dummy.yml')
+        self.dummySimul.objs = {
+            'a': DummyObj(),
+            'b': DummyObj()
+        }
 
     def test_none_object_in_parameter_dict_is_none(self):
         '''
@@ -72,11 +81,7 @@ class TestSimul(unittest.TestCase):
 
     def test_scalar_input_reference(self):
         '''Test that an input is correctly connected'''
-        simul = Simul('dummy.yaml')
-        simul.objs = {
-            'a': DummyObj(),
-            'b': DummyObj()
-        }
+        simul = self.dummySimul
         simul.objs['a'].outputs['out'] = DummyOutputDerived()
         simul.objs['b'].inputs['in'] = InputValue(type=DummyOutput)
 
@@ -92,11 +97,7 @@ class TestSimul(unittest.TestCase):
         
     def test_list_input_reference(self):
         '''Test that a list of inputs is correctly connected'''
-        simul = Simul('dummy.yaml')
-        simul.objs = {
-            'a': DummyObj(),
-            'b': DummyObj()
-        }
+        simul = self.dummySimul
         simul.objs['a'].outputs['out1'] = DummyOutputDerived()
         simul.objs['a'].outputs['out2'] = DummyOutputDerived()
         simul.objs['b'].inputs['in'] = InputList(type=DummyOutput)
@@ -114,8 +115,7 @@ class TestSimul(unittest.TestCase):
         assert all(isinstance(x, DummyOutputDerived) for x in val)
 
     def test_missing_output_raises(self):
-        simul = Simul('dummy.yaml')
-        simul.objs = {'a': DummyObj()}
+        simul = self.dummySimul
         simul.objs['a'].outputs = {}
 
         with self.assertRaises(ValueError):
@@ -124,11 +124,7 @@ class TestSimul(unittest.TestCase):
             })
 
     def test_invalid_input_type(self):
-        simul = Simul('dummy.yaml')
-        simul.objs = {
-            'a': DummyObj(),
-            'b': DummyObj()
-        }
+        simul = self.dummySimul
         simul.objs['a'].outputs['out'] = DummyOutputDerived()
         simul.objs['b'].inputs['in'] = InputValue(type=DummyOutput)
 
@@ -145,11 +141,7 @@ class TestSimul(unittest.TestCase):
         class WrongType:
             pass
 
-        simul = Simul('dummy.yaml')
-        simul.objs = {
-            'a': DummyObj(),
-            'b': DummyObj()
-        }
+        simul = self.dummySimul
         simul.objs['a'].outputs['out'] = WrongType()
         simul.objs['b'].inputs['in'] = InputValue(type=DummyOutput)
 
@@ -357,7 +349,6 @@ class TestSimul(unittest.TestCase):
 
         control:
           class: 'IirFilter'
-          simul_params_ref: main
           iir_filter_data_ref: iir_data
           delay: 0
         '''

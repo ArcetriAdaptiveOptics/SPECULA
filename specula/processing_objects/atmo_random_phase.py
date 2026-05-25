@@ -31,27 +31,27 @@ class AtmoRandomPhase(BaseProcessingObj):
         ----------
         simul_params : SimulParams
             Simulation parameters object containing pupil size, pixel pitch, zenith angle, etc.
-        L0 : float, optional
+        L0 : float [m], optional
             Outer scale of turbulence in meters, by default 1.0
         data_dir : str
             Directory path for storing/loading phase screen data (automatically set by simul.py).
-        source_dict : dict, optional
+        source_dict : dict [1], optional
             Dictionary of sources for the atmospheric phase screens.
             If omitted or empty, the object exposes a single pair of outputs named
             out_ef and out_layer.
-        wavelengthInNm : float, optional
+        wavelengthInNm : float [nm], optional
             Wavelength in nanometers for scaling the phase screens, by default 500.0 nm
-        pixel_phasescreens : int, optional
+        pixel_phasescreens : int [1], optional
             Size of the square phase screens in pixels. Defaults to 8192.
-        seed : int, optional
+        seed : int [1], optional
             Seed for random number generation, by default 1.
-        update_interval : int, optional
+        update_interval : int [1], optional
             Number of triggers between phase screen updates, by default 1.
-        layer_height : float, optional
+        layer_height : float [m], optional
             Height in meters assigned to the output layers, by default 0.0.
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
-        precision : int, optional
+        precision : int [1], optional
             Precision for computation (0 for double, 1 for single). Default is None
             (uses global setting).
         """

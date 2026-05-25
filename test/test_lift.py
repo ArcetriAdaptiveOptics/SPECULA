@@ -11,15 +11,22 @@ from specula.lib.compute_petal_ifunc import compute_petal_ifunc
 from specula.data_objects.ifunc import IFunc
 from specula.processing_objects.lift import Lift
 from specula.data_objects.simul_params import SimulParams
+from specula.loop_control import LoopControl
+from specula.data_objects.source import Source
+from specula.processing_objects.atmo_propagation import AtmoPropagation
+from specula.processing_objects.sh import SH
+from specula.processing_objects.ccd import CCD
+from specula.processing_objects.dm import DM
+from specula.processing_objects.wave_generator import WaveGenerator
 from test.specula_testlib import cpu_and_gpu
 
 
-def build_lift(n_pistons=0, n_zern=3, fft_res=2, target_device_idx=-1):
+def build_lift(n_pistons=0, n_zern=3, fft_res=2, target_device_idx=-1, precision = 0):
     """Build a Lift instance with [n_pistons piston(s) + Zernike modes] IFunc."""
     # Generate Zernike modes: tip, tilt, defocus, ...  (no piston from compute_zern_ifunc)
     zern_ifunc = IFunc(
         type_str='zernike', nmodes=n_zern, npixels=16,
-        precision=1, target_device_idx=target_device_idx,
+        precision=precision, target_device_idx=target_device_idx,
     )
     if n_pistons == 0:
         ifunc = zern_ifunc
@@ -29,7 +36,7 @@ def build_lift(n_pistons=0, n_zern=3, fft_res=2, target_device_idx=-1):
         n_valid = zern_modes.shape[1]
         piston = np.ones((n_pistons, n_valid), dtype=np.float32) / np.sqrt(n_valid)
         combined = np.vstack([piston, zern_modes]).astype(np.float32)
-        ifunc = IFunc(combined, mask=mask_2d, precision=1, target_device_idx=target_device_idx)
+        ifunc = IFunc(combined, mask=mask_2d, precision=0, target_device_idx=target_device_idx)
     simul_params = SimulParams(pixel_pupil=16, pixel_pitch=1.0)
 
     return Lift(
@@ -44,7 +51,7 @@ def build_lift(n_pistons=0, n_zern=3, fft_res=2, target_device_idx=-1):
         ref_zern_amp=np.zeros(n_zern, dtype=np.float32),
         fft_res=fft_res,
         target_device_idx=target_device_idx,
-        precision=1,
+        precision=precision,
     )
 
 
@@ -65,7 +72,6 @@ class TestLift(unittest.TestCase):
             pixel_pitch=1.0,
             wavelengthInNm=750.0,
             pix_scale=0.01,
-            npix_side=16,
             fft_res=3,
         )
         expected = np.pi / (2.0 * settings.fft_res)
@@ -85,7 +91,7 @@ class TestLift(unittest.TestCase):
         ref_zern_amp = np.array([0.1, -0.2, 0.3, 0.4], dtype=np.float32)
         zern_ifunc = IFunc(
             type_str='zernike', nmodes=4, npixels=16,
-            precision=1, target_device_idx=target_device_idx,
+            precision=0, target_device_idx=target_device_idx,
         )
         mask_2d = cpuArray(zern_ifunc.mask_inf_func)
         zern_modes = cpuArray(zern_ifunc.influence_function)
@@ -94,7 +100,7 @@ class TestLift(unittest.TestCase):
         ifunc = IFunc(
             np.vstack([piston, zern_modes]).astype(np.float32),
             mask=mask_2d,
-            precision=1,
+            precision=0,
             target_device_idx=target_device_idx,
         )
         simul_params = SimulParams(pixel_pupil=16, pixel_pitch=1.0)
@@ -111,7 +117,7 @@ class TestLift(unittest.TestCase):
             ref_zern_amp=ref_zern_amp,
             fft_res=2,
             target_device_idx=target_device_idx,
-            precision=1,
+            precision=0,
         )
 
         airef = cpuArray(lift.airef)
@@ -124,7 +130,7 @@ class TestLift(unittest.TestCase):
     def test_ref_zern_amp_longer_than_nzern_length(self, target_device_idx, xp):
         ifunc = IFunc(
             type_str='zernike', nmodes=3, npixels=16,
-            precision=1, target_device_idx=target_device_idx,
+            precision=0, target_device_idx=target_device_idx,
         )
         simul_params = SimulParams(pixel_pupil=16, pixel_pitch=1.0)
 
@@ -141,7 +147,7 @@ class TestLift(unittest.TestCase):
                 ref_zern_amp=[0.0, 0.2, 0.0, 0.1],  # length 4, but nZern=3
                 fft_res=2,
                 target_device_idx=target_device_idx,
-                precision=1,
+                precision=0,
             )
 
     @cpu_and_gpu
@@ -149,15 +155,15 @@ class TestLift(unittest.TestCase):
         lift = build_lift(target_device_idx=target_device_idx)
         lift.radians_per_pixel = 0.2
         lift.setRefTT(center_x=7.0, center_y=5.0, image_size=10.0)
-        self.assertAlmostEqual(lift.ref_tip, 0.0)
-        self.assertAlmostEqual(lift.ref_tilt, 0.4)
+        self.assertAlmostEqual(lift.ref_tip, 0.1)
+        self.assertAlmostEqual(lift.ref_tilt, 0.5)
 
     @cpu_and_gpu
     def test_trigger_updates_separate_outputs(self, target_device_idx, xp):
         lift = build_lift(target_device_idx=target_device_idx)
         fake_psf = np.ones((lift.gridSize, lift.gridSize), dtype=np.float32)
         coeffs = np.arange(lift.nmodes, dtype=np.float32)
-        lift.in_pixels = type('_', (), {'get_value': lambda self: fake_psf})()
+        lift.local_inputs['in_pixels'] = type('_', (), {'get_value': lambda self: fake_psf})()
         lift.phaseEstimation = lambda psf: (lift.xp.zeros_like(lift.mask), coeffs, 1)
         lift.current_time = 123
 
@@ -191,7 +197,7 @@ class TestLift(unittest.TestCase):
         """
         ifunc = IFunc(
             type_str='zernike', nmodes=4, npixels=16,
-            precision=1, target_device_idx=target_device_idx,
+            precision=0, target_device_idx=target_device_idx,
         )
         simul_params = SimulParams(pixel_pupil=16, pixel_pitch=1.0)
         with self.assertRaises(ValueError):
@@ -207,21 +213,19 @@ class TestLift(unittest.TestCase):
                 ref_zern_amp=[0.0, 0.0, 0.1],
                 fft_res=2,
                 target_device_idx=target_device_idx,
-                precision=1,
+                precision=0,
             )
 
     @cpu_and_gpu
     def test_phase_estimation_recovers_defocus(self, target_device_idx, xp):
         """
-        Build a noiseless PSF with calc_psf from a known phase (reference
+        Build a noiseless PSF with a SH 1x1 from a known phase (reference
         defocus + a small unknown defocus), feed it to LIFT, and check that
         the estimated defocus coefficient is close to the known value.
 
-        Geometry: with fft_res=1 LIFT's ft_ft2 is just fftshift(fft2(x))/N,
-        identical to calc_psf, so pixel scales match with no imwidth padding.
         """
-        npixels = 32
-        pixel_pitch = 0.5       # m  →  D = 16 m
+        npixels = 64
+        pixel_pitch = 0.5       # m  →  D = 32 m
         wavelengthInNm = 750.0
         n_pistons = 0
         n_zern = 3              # tip, tilt, defocus
@@ -231,34 +235,59 @@ class TestLift(unittest.TestCase):
         unknown_nm = unknown_rad * wavelengthInNm / (2.0 * np.pi)
         defocus_idx = n_pistons + 2   # = 2: defocus position in modal vector
 
+        total_time = 3.
+        time_step = 1.
+        simul_params = SimulParams(pixel_pupil=npixels, pixel_pitch=pixel_pitch, total_time=total_time, time_step=time_step)
+
         # Zernike IFunc: rows = [tip, tilt, defocus]
         ifunc_obj = IFunc(
             type_str='zernike', nmodes=n_zern, npixels=npixels,
-            precision=1, target_device_idx=target_device_idx,
+            precision=0, target_device_idx=target_device_idx,
         )
-        influence = cpuArray(ifunc_obj.influence_function)  # (4, n_valid)
+        # influence = cpuArray(ifunc_obj.influence_function)  # (4, n_valid)
         mask_2d   = cpuArray(ifunc_obj.mask_inf_func)       # (32, 32)
-        idx = np.where(mask_2d > 0)
+        # idx = np.where(mask_2d > 0)
 
         # Total phase = LIFT reference defocus + unknown defocus (in radians)
         coeffs_in = np.zeros(nmodes, dtype=np.float32)
         coeffs_in[n_pistons:] = ref_zern_amp
         coeffs_in[defocus_idx] += unknown_rad
-        phase_rad = np.zeros((npixels, npixels), dtype=np.float32)
-        phase_rad[idx] = coeffs_in @ influence
-        amp = mask_2d.astype(np.float32)
-
-        # PSF via calc_psf  (no imwidth → 32×32, same pixel scale as LIFT
-        # with fft_res=1)
-        psf = calc_psf(phase_rad, amp, xp=np, complex_dtype=np.complex64)
-        psf = psf.astype(np.float32)
 
         # pix_scale chosen so sampling_ratio = 1.0  →  gridSize = npixels
         rad2arcsec = 206264.806247
         fov_internal = (wavelengthInNm * 1e-9 / pixel_pitch) * rad2arcsec
         pix_scale = fov_internal / npixels
 
-        simul_params = SimulParams(pixel_pupil=npixels, pixel_pitch=pixel_pitch)
+        #Make a PSF using DM for defocus and producing the image with SH and CCD
+        src = Source(polar_coordinates = [0,0], wavelengthInNm=wavelengthInNm, magnitude = 10,
+                    target_device_idx=target_device_idx, precision=0)
+        prop = AtmoPropagation(simul_params=simul_params, source_dict = {'src': src}, target_device_idx=target_device_idx, precision=0)
+
+        coeffs_dm = coeffs_in*wavelengthInNm/(2*np.pi)
+        coeffs = WaveGenerator(constant=coeffs_dm, target_device_idx=target_device_idx, precision=0)
+        dm = DM(simul_params=simul_params, ifunc = ifunc_obj, idx_modes = list(range(n_zern)), 
+                height = 0., sign = 1, target_device_idx=target_device_idx, precision=0)
+        sh = SH(wavelengthInNm = wavelengthInNm, subap_wanted_fov = npixels*pix_scale, subap_on_diameter = 1, sensor_pxscale = pix_scale,
+                subap_npx = npixels, target_device_idx=target_device_idx, precision=0)
+        ccd = CCD(simul_params=simul_params, size = [npixels,npixels], dt = time_step, bandw = 33., target_device_idx=target_device_idx, precision=0)
+
+        dm.inputs['in_command'].set(coeffs.outputs['output'])
+        prop.inputs['common_layer_list'].set([dm.outputs['out_layer']])
+        sh.inputs['in_ef'].set(prop.outputs['out_src_ef'])
+        ccd.inputs['in_i'].set(sh.outputs['out_i'])
+
+        coeffs.generation_time = coeffs.seconds_to_t(0)
+
+        loop = LoopControl()
+        loop.add(coeffs, idx=0)
+        loop.add(dm, idx=1)
+        loop.add(prop, idx=2)
+        loop.add(sh, idx=3)
+        loop.add(ccd, idx=4)
+        loop.run(run_time=total_time, dt=time_step, t0=0)
+
+        psf = cpuArray(ccd.outputs['out_pixels'].pixels)
+
         lift = Lift(
             simul_params=simul_params,
             nPistons=n_pistons,
@@ -266,13 +295,13 @@ class TestLift(unittest.TestCase):
             wavelengthInNm=wavelengthInNm,
             pix_scale=pix_scale,
             npix_side=npixels,
-            cropped_size=8,
+            cropped_size=16,
             ifunc=ifunc_obj,
             ref_zern_amp=ref_zern_amp,
             n_iter=30,
             fft_res=1,
             target_device_idx=target_device_idx,
-            precision=1,
+            precision=0,
         )
 
         _, coeffs_out, _ = lift.phaseEstimation(psf)
@@ -280,7 +309,7 @@ class TestLift(unittest.TestCase):
 
         np.testing.assert_allclose(
             coeffs_out[defocus_idx], unknown_nm,
-            atol=20.0,
+            atol=5.0,
             err_msg=f"LIFT defocus estimate {coeffs_out[defocus_idx]:.1f} nm, "
                     f"expected {unknown_nm:.1f} nm",
         )
@@ -293,7 +322,7 @@ class TestLift(unittest.TestCase):
         that petal plus a reference Zernike vector, then verify that the piston
         estimate is recovered correctly.
         """
-        npixels = 32
+        npixels = 64
         pixel_pitch = 0.5
         wavelengthInNm = 750.0
         n_pistons = 1
@@ -305,38 +334,65 @@ class TestLift(unittest.TestCase):
         unknown_rad = 0.35
         unknown_nm = unknown_rad * wavelengthInNm / (2.0 * np.pi)
 
+        total_time = 3.
+        time_step = 1.
+        simul_params = SimulParams(pixel_pupil=npixels, pixel_pitch=pixel_pitch, total_time=total_time, time_step=time_step)
+
         petal_modes, mask_2d, _ = compute_petal_ifunc(
             npixels, 6, xp=np, dtype=np.float32
         )
         single_piston = petal_modes[:1]
         zern_ifunc = IFunc(
             type_str='zernike', nmodes=n_zern, npixels=npixels,
-            precision=1, target_device_idx=target_device_idx,
+            precision=0, target_device_idx=target_device_idx,
         )
         zern_modes = cpuArray(zern_ifunc.influence_function)
         combined = np.vstack([single_piston, zern_modes]).astype(np.float32)
         ifunc_obj = IFunc(
             combined,
             mask=mask_2d.astype(np.float32),
-            precision=1,
+            precision=0,
             target_device_idx=target_device_idx,
         )
 
         coeffs_in = np.zeros(nmodes, dtype=np.float32)
         coeffs_in[piston_idx] = unknown_rad
         coeffs_in[n_pistons:] = ref_zern_amp
-        idx = np.where(mask_2d > 0)
-        phase_rad = np.zeros((npixels, npixels), dtype=np.float32)
-        phase_rad[idx] = coeffs_in @ combined
-        amp = mask_2d.astype(np.float32)
-        psf = calc_psf(phase_rad, amp, xp=np, complex_dtype=np.complex64)
-        psf = psf.astype(np.float32)
 
         rad2arcsec = 206264.806247
         fov_internal = (wavelengthInNm * 1e-9 / pixel_pitch) * rad2arcsec
         pix_scale = fov_internal / npixels
 
-        simul_params = SimulParams(pixel_pupil=npixels, pixel_pitch=pixel_pitch)
+        #Make a PSF using DM for defocus and producing the image with SH and CCD
+        src = Source(polar_coordinates = [0,0], wavelengthInNm=wavelengthInNm, magnitude = 10,
+                    target_device_idx=target_device_idx, precision=0)
+        prop = AtmoPropagation(simul_params=simul_params, source_dict = {'src': src}, target_device_idx=target_device_idx, precision=0)
+
+        coeffs_dm = coeffs_in*wavelengthInNm/(2*np.pi)
+        coeffs = WaveGenerator(constant=coeffs_dm, target_device_idx=target_device_idx, precision=0)
+        dm = DM(simul_params=simul_params, ifunc = ifunc_obj, idx_modes = list(range(n_zern+n_pistons)), 
+                height = 0., sign = 1, target_device_idx=target_device_idx, precision=0)
+        sh = SH(wavelengthInNm = wavelengthInNm, subap_wanted_fov = npixels*pix_scale, subap_on_diameter = 1, sensor_pxscale = pix_scale,
+                subap_npx = npixels, target_device_idx=target_device_idx, precision=0)
+        ccd = CCD(simul_params=simul_params, size = [npixels,npixels], dt = time_step, bandw = 33., target_device_idx=target_device_idx, precision=0)
+
+        dm.inputs['in_command'].set(coeffs.outputs['output'])
+        prop.inputs['common_layer_list'].set([dm.outputs['out_layer']])
+        sh.inputs['in_ef'].set(prop.outputs['out_src_ef'])
+        ccd.inputs['in_i'].set(sh.outputs['out_i'])
+
+        coeffs.generation_time = coeffs.seconds_to_t(0)
+
+        loop = LoopControl()
+        loop.add(coeffs, idx=0)
+        loop.add(dm, idx=1)
+        loop.add(prop, idx=2)
+        loop.add(sh, idx=3)
+        loop.add(ccd, idx=4)
+        loop.run(run_time=total_time, dt=time_step, t0=0)
+
+        psf = cpuArray(ccd.outputs['out_pixels'].pixels)
+
         lift = Lift(
             simul_params=simul_params,
             nPistons=n_pistons,
@@ -344,13 +400,13 @@ class TestLift(unittest.TestCase):
             wavelengthInNm=wavelengthInNm,
             pix_scale=pix_scale,
             npix_side=npixels,
-            cropped_size=8,
+            cropped_size=16,
             ifunc=ifunc_obj,
             ref_zern_amp=ref_zern_amp,
             n_iter=30,
             fft_res=1,
             target_device_idx=target_device_idx,
-            precision=1,
+            precision=0,
         )
 
         _, coeffs_out, _ = lift.phaseEstimation(psf)
@@ -379,7 +435,7 @@ class TestLift(unittest.TestCase):
         simul_params = SimulParams(pixel_pupil=npixels, pixel_pitch=pixel_pitch)
         ifunc = IFunc(
             type_str='zernike', nmodes=3, npixels=npixels,
-            precision=1, target_device_idx=target_device_idx,
+            precision=0, target_device_idx=target_device_idx,
         )
         lift = Lift(
             simul_params=simul_params,
@@ -394,7 +450,7 @@ class TestLift(unittest.TestCase):
             n_iter=30,
             fft_res=1,
             target_device_idx=target_device_idx,
-            precision=1,
+            precision=0,
         )
     
         # Create an integer mask (e.g., a simple cross/circle shape)
@@ -410,14 +466,14 @@ class TestLift(unittest.TestCase):
         modalbase = np.random.rand(lift.nmodes, valid_pixels)
 
         # 2. Run the method with the INT mask and store the result
-        lift.set_modalbase(modalbase, mask2d_int, diameter)
+        lift.set_modalbase(modalbase, mask2d_int)
     
         # Note: If self.xp is cupy, we use .get() to bring it to the CPU for testing. 
         # The lambda acts as a fallback if it's already a numpy array.
         modesCube_int = getattr(lift.modesCube, 'get', lambda: lift.modesCube)()
 
         # 3. Run the method with the FLOAT mask and store the result
-        lift.set_modalbase(modalbase, mask2d_float, diameter)
+        lift.set_modalbase(modalbase, mask2d_float)
         modesCube_float = getattr(lift.modesCube, 'get', lambda: lift.modesCube)()
 
         # 4. Assert the outputs are exactly identical

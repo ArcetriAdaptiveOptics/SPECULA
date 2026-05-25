@@ -44,7 +44,8 @@ def toccd(a, newshape, set_total=None, xp=None):
     newshape : tuple, list or array
         shape of resized array
     set total : float, optional
-        if set, normalize the resized array to this total count.
+        if set and strictly positive, normalize the resized array to this total count.
+        if set and zero or negative, the resized array is not renormalized.
         if not set, the same total count as the input array is used.
     xp : module
         numpy or cupy module
@@ -68,9 +69,6 @@ def toccd(a, newshape, set_total=None, xp=None):
     if len(newshape) != 2:
         raise ValueError('Output shape is %s, cannot continue' % str(newshape))
 
-    if set_total is None:
-        set_total = a.sum()
-
     mcmx = lcm(a.shape[0], newshape[0])
     mcmy = lcm(a.shape[1], newshape[1])
 
@@ -81,6 +79,12 @@ def toccd(a, newshape, set_total=None, xp=None):
 
     eps = xp.finfo(rebinned.dtype).eps
     rebinned_sum = xp.maximum(rebinned.sum(), eps)
+
+    if set_total is None:
+        set_total = a.sum()
+    elif set_total <= 0:
+        set_total = 1
+        rebinned_sum = 1
 
     return rebinned / rebinned_sum * set_total
 
@@ -104,7 +108,6 @@ def toccd_gpu(a, newshape, set_total=None):
     dx_out = int(mcmx / outx)
     dy_out = int(mcmy / outy)
     f = 1.0 / (dx_out * dy_out)
-    oneOverDxIn = 1.0 / dx_in
 
     block = (16, 16)
     numBlocks2d = int(outx // block[1])
@@ -121,19 +124,20 @@ def toccd_gpu(a, newshape, set_total=None):
     out = cp.empty_like(a, shape=(outy, outx))
 
     if a.dtype == cp.float32:
-        _rebin2D_step1_float(grid_tmp, block, (a, tmp, inx, iny, outx, outy, dx_out, cp.float32(oneOverDxIn)))
+        _rebin2D_step1_float(grid_tmp, block, (a, tmp, inx, iny, outx, outy, dx_out, dx_in))
         _rebin2D_step2_float(grid, block, (tmp, out, outx, outy, dy_in, dy_out, cp.float32(f)))
     elif a.dtype == cp.float64:
-        _rebin2D_step1_double(grid_tmp, block, (a, tmp, inx, iny, outx, outy, dx_out, cp.float64(oneOverDxIn)))
+        _rebin2D_step1_double(grid_tmp, block, (a, tmp, inx, iny, outx, outy, dx_out, dx_in))
         _rebin2D_step2_double(grid, block, (tmp, out, outx, outy, dy_in, dy_out, cp.float64(f)))
     else:
         raise TypeError(f'toccd_gpu(): unsupported dtype {a.dtype}. Valid dtypes are float32 and float64')
 
-    out /= out.sum()
-    if set_total is not None:
-        out *= set_total
-    else:
+    if set_total is None:
+        out /= out.sum()
         out *= a.sum()
+    elif set_total > 0:
+        out /= out.sum()
+        out *= set_total
     return out
 
 
@@ -142,7 +146,7 @@ if cp:
     kernel_step1 = r'''
 extern "C" __global__
 void rebin2D_step1_TYPE(TYPE *g_in, TYPE *g_tmp, int inx, int iny, int outx, int outy,
-                   int dx_out, TYPE oneOverDxIn) {
+                   int dx_out, int dx_in) {
 
    int y = blockIdx.y * blockDim.y + threadIdx.y;
    int x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -152,11 +156,11 @@ void rebin2D_step1_TYPE(TYPE *g_in, TYPE *g_tmp, int inx, int iny, int outx, int
 
    if ((y<iny) && (x<outx)) {
        i = x*dx_out;
-       prev_pos = i * oneOverDxIn;
+       prev_pos = i / dx_in;
        value = g_in[y*inx + prev_pos];
 
        for ( ; i<(x+1)*dx_out; i++) {
-          pos = i * oneOverDxIn;
+          pos = i / dx_in;
           if (pos != prev_pos) {
              value = g_in[y*inx + pos];
              prev_pos = pos;

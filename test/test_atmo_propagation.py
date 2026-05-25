@@ -8,6 +8,7 @@ from specula import np
 from specula import cpuArray
 
 from specula.loop_control import LoopControl
+from specula.base_data_obj import BaseDataObj
 from specula.data_objects.source import Source
 from specula.data_objects.pupilstop import Pupilstop
 from specula.data_objects.layer import Layer
@@ -15,6 +16,7 @@ from specula.processing_objects.atmo_propagation import AtmoPropagation
 from specula.data_objects.simul_params import SimulParams
 
 from test.specula_testlib import cpu_and_gpu
+from test.specula_testlib import find_instances
 
 
 class TestAtmoPropagation(unittest.TestCase):
@@ -25,6 +27,62 @@ class TestAtmoPropagation(unittest.TestCase):
         cls.test_data_dir = os.path.join(os.path.dirname(__file__), 'calib', 'pupilstop')
         cls.pupil_fits_file = os.path.join(cls.test_data_dir,
                                            'EELT480pp0.0803m_obs0.283_spider2023.fits')
+
+    @cpu_and_gpu
+    def test_allocation_precision(self, target_device_idx, xp):
+        '''
+        Test that all internal arrays are allocated in single-precision
+        even if the global precision is set to double
+        '''
+
+        precision = 1  # Different from the global one, that defaults to zero
+
+        # Setup simulation parameters
+        pixel_pupil = 240
+        pixel_pitch = 0.0803
+        simul_params = SimulParams(pixel_pupil, pixel_pitch)
+
+        # Load pupil stop from FITS
+        pupilstop = Pupilstop.restore(self.pupil_fits_file, target_device_idx=target_device_idx)
+
+        # Resize pupil to be larger than simulation pupil (480 -> keep original size)
+        # This will test the center extraction
+
+        # Create atmospheric layer at ground level (no magnification)
+        layer = Layer(
+            dimx=pupilstop.A.shape[0],  # 480
+            dimy=pupilstop.A.shape[1],  # 480
+            pixel_pitch=pixel_pitch,
+            height=0.0,  # Ground layer
+            magnification=1.0,  # No magnification
+            precision=precision,
+            target_device_idx=target_device_idx
+        )
+
+        # Set layer amplitude to pupil pattern
+        layer.A = pupilstop.A.copy()
+        layer.phaseInNm = xp.zeros_like(layer.A)
+        layer.generation_time = 1
+
+        # Create source
+        on_axis_source = Source(polar_coordinates=[0.0, 0.0], magnitude=8, wavelengthInNm=750, precision=precision)
+
+        # Create propagation object
+        prop = AtmoPropagation(
+            simul_params,
+            source_dict={'on_axis': on_axis_source},
+            precision=precision,
+            target_device_idx=target_device_idx,
+        )
+
+        # Connect inputs
+        prop.inputs['atmo_layer_list'].set([])  # No atmo layers
+        prop.inputs['common_layer_list'].set([layer])  # Only ground layer
+
+        prop.setup()
+
+        for path, obj in find_instances(prop, BaseDataObj):
+            assert obj.precision == prop.precision
 
     @cpu_and_gpu
     def test_propagation_without_magnification(self, target_device_idx, xp):

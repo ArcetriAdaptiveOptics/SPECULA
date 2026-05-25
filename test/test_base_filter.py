@@ -24,9 +24,8 @@ class TestBaseFilter:
     def test_reset_states_resets_output_buffer(self, target_device_idx, xp):
         nfilter = 4
         delay = 2.5
-        simul_params = SimulParams(time_step=1)
 
-        filt = DummyFilter(simul_params=simul_params, nfilter=nfilter, delay=delay,
+        filt = DummyFilter(nfilter=nfilter, delay=delay,
                            target_device_idx=target_device_idx)
 
         # Fill buffer with non-zero values

@@ -16,10 +16,10 @@ prop_override:
     common_layer_list: ['pupilstop']
 
 remove: ['atmo',  
-'slopec',
-'modalrec',
-'integrator',
-'dm',
-'psf',
+  'slopec',
+  'modalrec',
+  'integrator',
+  'dm',
+  'psf',
   ]
   

@@ -8,19 +8,19 @@ class RandomGenerator(BaseGenerator):
     Generates random signals (normal or uniform distribution).
     
     Parameters:
-    - distribution: 'NORMAL' or 'UNIFORM' (default: 'NORMAL')
-    - amp: Amplitude of the random signal. For 'NORMAL', this is the standard deviation;
-           for 'UNIFORM', this is the width of the distribution. (default: None) 
-    - constant: A constant offset added to the random signal (default: 0.0)
-    - seed: Seed for the random number generator (default: None, which means random seed)
-    - output_size: Number of random values to generate (default: None, inherited from input arrays or set to 1 if all inputs are scalars)
-    - modal_rms: Desired RMS value for the modes (mutually exclusive with 'amp') (default: None)
-    - forced_zero_modes: Number of initial modes to force to 0.0
+    - distribution (str): 'NORMAL' or 'UNIFORM' (default: 'NORMAL')
+    - amp (float) [1]: Amplitude of the random signal. For 'NORMAL', this is the standard deviation;
+           for 'UNIFORM', this is the width of the distribution. (default: None)
+    - constant (float) [1]: A constant offset added to the random signal (default: 0.0)
+    - seed (int) [1]: Seed for the random number generator (default: None, which means random seed)    
+    - output_size (int) [1]: Number of random values to generate (default: 1)
+    - modal_rms (float) [1]: Desired RMS value for the modes (mutually exclusive with 'amp') (default: None)
+    - forced_zero_modes (int) [1]: Number of initial modes to force to 0.0
                          (default: 0, must be <= output_size)
-    - scaling_law: The relationship between amplitude and radial order 'n' (options: 'CONSTANT',
+    - scaling_law (str): The relationship between amplitude and radial order 'n' (options: 'CONSTANT',
                    'INVERSE', 'LINEAR') (default: 'INVERSE')
-    - target_device_idx: Index of the target device for computation (e.g., GPU) (default: None)
-    - precision: Numerical precision for the output (e.g., 32 or 64) (default: None)
+    - target_device_idx (int) [1]: Index of the target device for computation (e.g., GPU) (default: None)
+    - precision (int) [1]: Numerical precision for the output (e.g., 32 or 64) (default: None)
     """
     def __init__(self,
                  distribution='NORMAL',  # 'NORMAL' or 'UNIFORM'

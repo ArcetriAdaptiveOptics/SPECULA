@@ -20,30 +20,30 @@ class PsfCoronagraph(PSF):
     ----------
     simul_params : SimulParams
         Simulation parameters object.
-    wavelengthInNm : float
+    wavelengthInNm : float [nm]
         Wavelength at which to compute the PSF [nm].
-    nd : float, optional
+    nd : float [1], optional
         Numerical density of the PSF (pixels per lambda/D). If None, it is calculated
         based on the input ElectricField and pixel size.
-    use_average_field : bool, optional
+    use_average_field : bool
         If True, the average electric field over the pupil is subtracted to compute the coronagraph PSF.
         If False, the perfect coronagraph formula is applied for the computation. Default is True (average field removal).
         The perfect coronagraph formula is Equation (1) in Cavarroc et al. 2006
-    pixel_size_mas : float, optional
+    pixel_size_mas : float [mas], optional
         Desired pixel size of the PSF in milliarcseconds. If None, it is calculated
         based on the input ElectricField and numerical density.
-    start_time : float, optional
+    start_time : float [s], optional
         Time (in seconds) after which to start integrating PSF and SR. Default is 0.0.
-    compute_profile_metrics : bool, optional
+    compute_profile_metrics : bool
         If True, compute coronagraph radial-profile outputs for the instantaneous,
         integrated and standard-deviation coronagraph PSFs.
-    compute_metrics_in_trigger : bool, optional
+    compute_metrics_in_trigger : bool
         If True, update those metrics after each trigger as well.
-    ee_radius_in_lambda_d : float or array-like, optional
+    ee_radius_in_lambda_d : float or array-like [lambda/D], optional
         Radius or radii in units of lambda/D at which to return the encircled energy.
-    target_device_idx : int, optional
+    target_device_idx : int [1], optional
         Target device index for computation (CPU/GPU). Default is None (uses global setting).
-    precision : int, optional
+    precision : int [1], optional
         Precision for computation (0 for double, 1 for single). Default is None (uses global setting).
     """
     def __init__(self,
