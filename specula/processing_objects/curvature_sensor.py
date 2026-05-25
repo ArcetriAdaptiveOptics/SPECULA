@@ -33,23 +33,23 @@ class CurvatureSensor(BaseProcessingObj):
         Parameters:
         ----------
 
-        wavelengthInNm: float
+        wavelengthInNm: float [nm]
             Wavelength of the light in nanometers.
-        wanted_fov: float
+        wanted_fov: float [arcsec]
             Desired field of view in arcseconds.
-        pxscale: float
+        pxscale: float [arcsec/pixel]
             Desired pixel scale in arcseconds per pixel at the output.
-        number_px: int
+        number_px: int [pixels]
             Desired output resolution (number of pixels on one side of the square output image).
-        defocus_rms_nm: float
+        defocus_rms_nm: float [nm]
             RMS of the defocus aberration in nanometers (controls the strength of the curvature).
-        fov_ovs_coeff : float, optional
+        fov_ovs_coeff : float [1], optional
             Coefficient to determine the oversampling of the FoV.
             A value larger than 1 is recommended to avoid FFT wrapping effects.
             Default is 2.0.
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
-        precision : int, optional
+        precision : int [1], optional
             Precision for computation (0 for double, 1 for single). Default is None
             (uses global setting).
         """
@@ -163,13 +163,11 @@ class CurvatureSensor(BaseProcessingObj):
                                        diaratio=fov_pixels / self.internal_res,
                                        xp=self.xp)
 
-
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
         self.ef_interpolator.interpolate()
         self.ef_interpolator.interpolated_ef().ef_at_lambda(
             self.wavelength_in_nm, out=self.ef_resampled)
-
 
     def trigger_code(self):
         # Intrafocal propagation
@@ -201,7 +199,6 @@ class CurvatureSensor(BaseProcessingObj):
         self._out_i2.i[:] = toccd(i2_fov,
                                   (self.number_px, self.number_px),
                                   xp=self.xp)
-
 
     def post_trigger(self):
         super().post_trigger()

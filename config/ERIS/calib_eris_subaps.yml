@@ -17,7 +17,7 @@ sh_subaps_lo:
     in_i: 'sh_lo.out_i'
 
 main_override:
-  total_time:  0.002
+  total_time:  0.001
 
 prop_override:
   inputs:
@@ -25,17 +25,18 @@ prop_override:
 
 remove: ['atmo',
   'slopec_lgs',
-'modalrec_lgs',
-'slopec_lo',
-'modalrec_lo',
-'modalrec_truth',
-'integrator_truth',
-'subtract_truth',
-'integrator_lgs',
-'integrator_lo',
-'modal_combination',
-'dm',
-'psf',
+  'modalrec_lgs',
+  'slopec_lo',
+  'modalrec_lo',
+  'modalrec_truth',
+  'integrator_truth',
+  'subtract_truth',
+  'integrator_lgs',
+  'integrator_lo',
+  'slicer_lgs',
+  'modal_combination',
+  'dm',
+  'psf',
   ]
   
  

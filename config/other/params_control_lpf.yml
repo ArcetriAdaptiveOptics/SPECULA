@@ -34,7 +34,6 @@ sampHold:
 
 control:
   class:             'Integrator'
-  simul_params_ref:  'main'
   delay:             1                      # Total temporal delay in time steps
   int_gain:          [0.3]
   inputs:

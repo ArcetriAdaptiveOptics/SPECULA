@@ -1,6 +1,7 @@
 import logging
 import math
 from collections import namedtuple
+from functools import lru_cache
 
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.connections import InputValue
@@ -10,10 +11,11 @@ from specula.data_objects.simul_params import SimulParams
 from specula.data_objects.ifunc import IFunc
 from specula.data_objects.pixels import Pixels
 from specula.lib.interp2d import Interp2D
+from specula.lib.toccd import toccd
 
 
 WFS_Settings = namedtuple('WFS_Settings',
-                         'sampling_ratio fft_sampling fft_padding fft_size actual_fov fft_res')
+                         'sampling_ratio fft_sampling fft_padding fft_size actual_fov fft_res bin_fact')
 WFS_Settings.__doc__ = '''
 WFS settings
 
@@ -35,10 +37,11 @@ class Lift(BaseProcessingObj):
                  nZern: int,
                  wavelengthInNm: float,
                  pix_scale: float,
-                 npix_side: int,
                  cropped_size: int,
                  ifunc: IFunc,
                  ref_zern_amp,
+                 npix_side: int = None,
+                 ron: float = 0.0,
                  n_iter: int=20,
                  fft_res: int=2,
                  fix: bool=False,
@@ -50,35 +53,35 @@ class Lift(BaseProcessingObj):
         ----------
         simul_params : SimulParams
             Simulation parameters object reference.
-        nPistons : int
+        nPistons : int [1]
             Number of piston modes in the modal base (see ifunc argument).
-        nZern : int
+        nZern : int [1]
             Number of Zernike modes in the modal base (see ifunc argument).
-        wavelengthInNm : float
+        wavelengthInNm : float [nm]
             Wavelength in nanometers.
-        pix_scale : float
+        pix_scale : float [arcsec/px]
             Pixel scale.
-        npix_side : int
+        npix_side : int [pixels]
             Number of pixels per side.
-        cropped_size : int
+        cropped_size : int [pixels]
             Cropped size.
         ifunc : IFunc, optional
             Influence function data object.
             It must be coherent with nPistons and nZern modes, the first two zernike modes
             (if nZern>0) must be tip and tilt.
-        ref_zern_amp : sequence
+        ref_zern_amp : sequence [rad]
             Reference amplitudes for the Zernike block of the modal base, ordered exactly
             as in ifunc, i.e. starting from tip, tilt, defocus, and so on. Units are phase
             radians. It must have length nZern.
-        n_iter : int, optional
+        n_iter : int [1], optional
             Number of iterations. Defaults to 20.
-        fft_res : int, optional
+        fft_res : int [1], optional
             FFT resolution. Defaults to 2.
-        fix : bool, optional
+        fix : bool
             Fix flag. Defaults to False.
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index. Defaults to None.
-        precision : int, optional
+        precision : int [1], optional
             Precision. Defaults to None.
         """
 
@@ -96,6 +99,7 @@ class Lift(BaseProcessingObj):
         self.npix_side = npix_side
         self.cropped_size = cropped_size
         self.fft_res = fft_res
+        self.ron = ron
         self.fix = bool(fix)
 
         # Derived parameters
@@ -129,9 +133,19 @@ class Lift(BaseProcessingObj):
         self.ifunc = ifunc
         mask = self.ifunc.mask_inf_func
 
+        self.settings = self.calc_geometry(
+            mask.shape[0],
+            self.simul_params.pixel_pitch,
+            self.wavelengthInNm,
+            pix_scale=self.pix_scale,
+            fft_res=self.fft_res
+        )
+
+        if self.npix_side is None:
+            self.npix_side = self.settings.fft_size
+
         self.set_modalbase(self.ifunc.influence_function,
-                           mask,
-                           diameter=self.simul_params.pixel_pupil * self.simul_params.pixel_pitch)
+                           mask)
 
     @classmethod
     def input_names(cls):
@@ -161,7 +175,7 @@ class Lift(BaseProcessingObj):
             self.padded = self.xp.zeros((self.fftSize, self.fftSize), dtype=x.dtype)
         self.padded[pad:pad+self.gridSize, pad:pad+self.gridSize] = x
         result = self.xp.fft.fftshift(self.xp.fft.fft2(self.padded)) * (1.0 / self.fftSize)
-        return result[pad:pad+self.gridSize, pad:pad+self.gridSize]
+        return result
 
     def computeCoG(self, frame, thFactor = 0.05):
         thValue = thFactor * self.xp.max(frame)
@@ -174,7 +188,7 @@ class Lift(BaseProcessingObj):
         return Rinv, self.xp.linalg.inv(htrinv @ H) @ htrinv
 
     def setRefTT(self, center_x, center_y, image_size):
-        image_center = 0.5 * image_size
+        image_center = 0.5 * (image_size-1)
         self.ref_tip = (center_y - image_center) * self.radians_per_pixel - self.airef[0 + self.nPistons]
         self.ref_tilt = (center_x - image_center) * self.radians_per_pixel - self.airef[1 + self.nPistons]
 
@@ -187,10 +201,10 @@ class Lift(BaseProcessingObj):
     def crop(self, frame, center, side=None):
         if side is None:
             side = self.cropped_size
-        row_start = int(math.ceil(float(center[1]) - side))
-        row_end = int(math.ceil(float(center[1]) + side))
-        col_start = int(math.ceil(float(center[0]) - side))
-        col_end = int(math.ceil(float(center[0]) + side))
+        row_start = int(math.ceil(float(center[1]) - side//2))
+        row_end = int(math.ceil(float(center[1]) + side//2))
+        col_start = int(math.ceil(float(center[0]) - side//2))
+        col_end = int(math.ceil(float(center[0]) + side//2))
         return frame[row_start:row_end, col_start:col_end]
 
     def calcCroppedFlux(self, frame, center):
@@ -198,36 +212,34 @@ class Lift(BaseProcessingObj):
 
     @staticmethod
     def calc_geometry(phase_sampling, pixel_pitch, wavelengthInNm,
-                      pix_scale, npix_side, fft_res):
+                      pix_scale, fft_res):
         """Calculate WFS geometry"""
         rad2arcsec = 206264.806247
         D = phase_sampling * pixel_pitch
         lmbda = wavelengthInNm * 1e-9
-        sampling_ratio = pix_scale / ((lmbda / D) * rad2arcsec)
-        fft_res = 1./sampling_ratio
+        sampling_ratio = ((lmbda / D) * rad2arcsec) / pix_scale 
+        ref_samp = np.max([2,np.ceil(sampling_ratio+1e-6)])
+        if fft_res is not None:
+            if fft_res > ref_samp: ref_samp = fft_res
+        if sampling_ratio < ref_samp:
+            bin_fact = ref_samp/sampling_ratio
+            sampling_ratio *= bin_fact
+        else: bin_fact = 1
+        fft_res = sampling_ratio
 
-        fft_sampling = round(phase_sampling * sampling_ratio)
-        fft_size = round(fft_sampling * fft_res) // 2 * 2
+        fft_sampling = round(phase_sampling/fft_res)
+        fft_size = round(fft_sampling * fft_res)
         fft_res = fft_size / float(fft_sampling)
         fft_padding = fft_size - fft_sampling
         actual_fov = (lmbda / D) * (D / (D / fft_sampling)) * rad2arcsec
 
-        return WFS_Settings(sampling_ratio, fft_sampling, fft_padding, fft_size, actual_fov, fft_res)
+        return WFS_Settings(sampling_ratio, fft_sampling, fft_padding, fft_size, actual_fov, fft_res, bin_fact)
 
-    def set_modalbase(self, modalbase, mask2d, diameter):
-        """Preload modal base and resize to FFT grid"""
-        settings = self.calc_geometry(
-            mask2d.shape[0],
-            diameter / mask2d.shape[0],
-            self.wavelengthInNm,
-            pix_scale=self.pix_scale,
-            npix_side=self.npix_side,
-            fft_res=self.fft_res
-        )
+    def set_modalbase(self, modalbase, mask2d):
 
-        self.fftSize = settings.fft_sampling + settings.fft_padding
-        self.gridSize = settings.fft_sampling
-        self.radians_per_pixel = float(np.pi / (2.0 * settings.fft_res))
+        self.fftSize = self.settings.fft_sampling + self.settings.fft_padding
+        self.gridSize = self.settings.fft_sampling
+        self.radians_per_pixel = float(np.pi / (2.0 * self.settings.fft_res))
 
         mask2d = cpuArray(mask2d)
         modalbase = cpuArray(modalbase)
@@ -299,11 +311,16 @@ class Lift(BaseProcessingObj):
     def IK_prime(self, index, Pd, conjPdTilde, center):
         resultFull = 2.0 * (conjPdTilde *
                                self.ft_ft2(Pd * self.modes[index])).real
+        new_shape = (round(resultFull.shape[0]/self.settings.bin_fact), 
+                    round(resultFull.shape[1]/self.settings.bin_fact))
+        binned_result = toccd(resultFull, new_shape,xp = self.xp, set_total = 0)*self.settings.bin_fact**2
+        resultFull = self.crop_or_enlarge_around_peak(binned_result, self.npix_side, peak_index=(new_shape[0]//2, new_shape[1]//2))
         return self.crop(resultFull, center)
 
     def complexField(self, phase):
         phase_lift = self.phaseLIFT(phase)
-        complexField = self.mask * self.xp.exp(self.complex_dtype(1j) * phase_lift)
+        tt_hpx = self._get_tlt_f(phase.shape[0],self.settings.fft_size)
+        complexField = self.mask * self.xp.exp(self.complex_dtype(1j) * (phase_lift+tt_hpx))
         complexFieldFFT = self.ft_ft2(complexField)
         return complexField, complexFieldFFT
 
@@ -316,6 +333,9 @@ class Lift(BaseProcessingObj):
             img *= set_flux / img.sum()
         else:
             img = self.abs2(complexFieldFFT * self._img_norm)
+        new_shape = (round(img.shape[0]/self.settings.bin_fact), round(img.shape[1]/self.settings.bin_fact))
+        binned_img = toccd(img,new_shape,xp = self.xp)
+        img = self.crop_or_enlarge_around_peak(binned_img, self.npix_side, peak_index=(new_shape[0]//2, new_shape[1]//2))
         return img
 
     def calcDerivatives(self, complexField, complexFieldFFT, roi):
@@ -332,7 +352,7 @@ class Lift(BaseProcessingObj):
         Compute noise covariance matrix.
         Only return the diagonal to avoid allocating a big matrix.
         '''
-        nCov = image.ravel()
+        nCov = image.ravel()+self.ron**2
         cMinTh = nCov.max() * 1e-6
         nCovDiag = self.xp.where(nCov < cMinTh, cMinTh, nCov)
         return nCovDiag
@@ -346,7 +366,7 @@ class Lift(BaseProcessingObj):
     def setPsf(self, psf):
         psf = self.xp.array(psf)
         center = self.computeCoG(psf)
-        frame = self.crop_or_enlarge_around_peak(psf, int(self.gridSize),
+        frame = self.crop_or_enlarge_around_peak(psf, int(self.npix_side),
                                                  peak_index=(self.xp.round(center[0]).astype(int), self.xp.round(center[1]).astype(int)))
         return self.xp.array(frame)
 
@@ -418,6 +438,7 @@ class Lift(BaseProcessingObj):
         lastAML = self.to_xp(total_A_MLs[-1], dtype=self.dtype, force_copy=True)
         lastAML[0 + self.nPistons] += self.ref_tip
         lastAML[1 + self.nPistons] += self.ref_tilt
+
         return currentPhaseEstimates[-1], lastAML * self.wavelengthInNm/(2*np.pi), len(total_A_MLs)
 
     def focalPlaneImageLIFT(self, phase, set_flux=None):
@@ -461,19 +482,21 @@ class Lift(BaseProcessingObj):
                                     (padding_col, padding_col + extra_col)),
                             'constant', constant_values=0)
         return cropped
+    
+    @lru_cache
+    def _get_tlt_f(self, pupil_size, fft_size):
+        '''
+        Half-pixel tilt
+        '''
 
-    # -------------------------------------------------
-    # Helpers
-    # -------------------------------------------------
-    def prepare_trigger(self, t):
-        super().prepare_trigger(t)
-        self.in_pixels = self.local_inputs['in_pixels']
+        xx, yy = self.xp.meshgrid(self.xp.arange(-pupil_size // 2, pupil_size // 2), self.xp.arange(-pupil_size // 2, pupil_size // 2))
+        tlt_g = xx + yy
+        tlt_f = -2 * self.xp.pi * tlt_g / (2*fft_size)
+        return tlt_f
 
     def trigger(self):
-        if self.in_pixels is None:
-            return
 
-        psf = self.in_pixels.get_value()
+        psf = self.local_inputs['in_pixels'].get_value()
         currentPhaseEstimate, coeffs, niters = self.phaseEstimation(psf) 
 
         coeffs_xp = self.to_xp(coeffs)

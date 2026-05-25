@@ -8,7 +8,6 @@ from specula.processing_objects.pyr_slopec import PyrSlopec
 from specula.processing_objects.dm import DM
 from specula.base_value import BaseValue
 from specula.data_objects.pupilstop import Pupilstop
-from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.pixels import Pixels
 from specula.data_objects.slopes import Slopes
 from specula.data_objects.ifunc import IFunc
@@ -33,7 +32,7 @@ class SprintPyr(BaseSprintEstimator):
     
     Parameters
     ----------  
-    push_amp : float
+    push_amp : float [nm]
         Amplitude of the push-pull perturbation for sensitivity matrix estimation (default: 10 nm)
     
     All parameters inherited from BaseSprintEstimator.
@@ -91,7 +90,6 @@ class SprintPyr(BaseSprintEstimator):
         if self.source.polar_coordinates[0] != 0.0:
             raise ValueError("SprintPyr currently only supports on-axis sources")
 
-        self.pyr_params = {}
         self.internal_wfs = None
         self.internal_command = None
         self.internal_dm = None
@@ -99,6 +97,7 @@ class SprintPyr(BaseSprintEstimator):
         self.internal_slopec = None
         self.internal_ef = None
         self.push_amp = push_amp
+        self.pupilstop = pupil_mask
 
         self.idx_valid_sa = None
 
@@ -145,6 +144,7 @@ class SprintPyr(BaseSprintEstimator):
             height=getattr(self.dm, 'height', 0.0),
             ifunc=ifunc_obj,
             m2c=m2c_obj,
+            pupilstop=self.pupilstop,
             target_device_idx=self.target_device_idx,
             precision=self.precision
         )
@@ -152,24 +152,15 @@ class SprintPyr(BaseSprintEstimator):
                                           target_device_idx=self.target_device_idx)
         self.internal_dm.inputs['in_command'].set(self.internal_command)
         self.internal_dm.setup()
+        self.internal_dm.outputs['out_layer'].S0 = 1e10  # High flux for accurate IM estimation
 
         # 2. Build Internal Pyramid WFS
-        self._build_pyr_params()
-        self.internal_wfs = ModulatedPyramid(**self.pyr_params,
+        pyr_params = self._build_pyr_params()
+        self.internal_wfs = ModulatedPyramid(**pyr_params,
                                              target_device_idx=self.target_device_idx,
                                              precision=self.precision)
 
-        # Create an ElectricField object to link DM and WFS
-        self.internal_ef = ElectricField(
-            self.simul_params.pixel_pupil,
-            self.simul_params.pixel_pupil,
-            pixel_pitch=self.simul_params.pixel_pitch,
-            S0=1e10,  # High flux for accurate IM estimation
-            target_device_idx=self.target_device_idx,
-            precision=self.precision
-        )
-        self.internal_ef.A = self.pupil_mask
-        self.internal_wfs.inputs['in_ef'].set(self.internal_ef)
+        self.internal_wfs.inputs['in_ef'].set(self.internal_dm.outputs['out_layer'])
         self.internal_wfs.setup()
 
         # Bulid Pixels object to interface WFS and Slopec
@@ -205,27 +196,28 @@ class SprintPyr(BaseSprintEstimator):
     def _build_pyr_params(self):
         """Set up parameters for the internal Pyramid simulator based on the WFS configuration."""
         wfs = self.wfs
-        self.pyr_params.clear()
+        pyr_params = {}
 
         # Use existing properties from the original WFS
-        self.pyr_params['simul_params'] = self.simul_params
-        self.pyr_params['wavelengthInNm'] = wfs.wavelength_in_nm
-        self.pyr_params['fov'] = wfs.fov
-        self.pyr_params['pup_diam'] = wfs.pup_diam
-        self.pyr_params['output_resolution'] = wfs.final_ccd_side
-        self.pyr_params['mod_amp'] = getattr(wfs, 'mod_amp', 3.0)
-        self.pyr_params['mod_step'] = getattr(wfs, 'mod_steps', None)
-        self.pyr_params['mod_type'] = getattr(wfs, 'mod_type', 'circular')
+        pyr_params['simul_params'] = self.simul_params
+        pyr_params['wavelengthInNm'] = wfs.wavelength_in_nm
+        pyr_params['fov'] = wfs.fov
+        pyr_params['pup_diam'] = wfs.pup_diam
+        pyr_params['output_resolution'] = wfs.final_ccd_side
+        pyr_params['mod_amp'] = getattr(wfs, 'mod_amp', 3.0)
+        pyr_params['mod_step'] = getattr(wfs, 'mod_steps', None)
+        pyr_params['mod_type'] = getattr(wfs, 'mod_type', 'circular')
 
         # We need to force extrapolation for the internal WFS to initialize the interpolator,
         # even if the starting mis-registration parameters would not require it.
-        self.pyr_params['force_extrapolation'] = True
+        pyr_params['force_extrapolation'] = True
 
         # Current mis-registration parameters (initially from input or zeros)
-        self.pyr_params['xShiftPhInPixel'] = float(self.misreg_params[0])
-        self.pyr_params['yShiftPhInPixel'] = float(self.misreg_params[1])
-        self.pyr_params['rotAnglePhInDeg'] = float(self.misreg_params[2])
-        self.pyr_params['magnification'] = 1.0 + float(self.misreg_params[3])
+        pyr_params['xShiftPhInPixel'] = float(self.misreg_params[0])
+        pyr_params['yShiftPhInPixel'] = float(self.misreg_params[1])
+        pyr_params['rotAnglePhInDeg'] = float(self.misreg_params[2])
+        pyr_params['magnification'] = 1.0 + float(self.misreg_params[3])
+        return pyr_params
 
     def _compute_nominal_im(self):
         """Compute nominal IM using a push-pull sequence on the internal pipeline."""
@@ -240,14 +232,11 @@ class SprintPyr(BaseSprintEstimator):
 
         im_nominal = self.xp.zeros((int(self.internal_slopec.nslopes()), self.nmodes),
                                    dtype=self.dtype)
-        step = 1
-        time_step = 0.001
+        current_time = 1
 
         # Push-pull for each mode in modes_index
         for i, mode_idx in enumerate(self.modes_index):
             for sign in [1, -1]:
-                # time
-                current_time = self.internal_wfs.seconds_to_t(step * time_step)
 
                 # A. Apply push or pull command to the internal DM
                 cmd = self.xp.zeros(self.dm.nmodes, dtype=self.dtype)
@@ -256,10 +245,6 @@ class SprintPyr(BaseSprintEstimator):
                 self.internal_command.generation_time = current_time
                 self.internal_dm.check_ready(current_time)
                 self.internal_dm.trigger_code()
-
-                # B. Convert DM shape to electric field and feed to the internal WFS
-                self.internal_ef.phaseInNm = self.internal_dm.outputs['out_layer'].phaseInNm
-                self.internal_ef.generation_time = current_time
 
                 # C. Propagate through the internal WFS to get the intensity pattern
                 self.internal_wfs.check_ready(current_time)
@@ -284,8 +269,6 @@ class SprintPyr(BaseSprintEstimator):
                     slopes_push = self.internal_slopec.outputs['out_slopes'].slopes.copy()
                 else:
                     slopes_pull = self.internal_slopec.outputs['out_slopes'].slopes.copy()
-
-                step += 1
 
             # Interaction matrix: discrete derivative using self.push_amp
             im_nominal[:, i] = (slopes_push - slopes_pull) / (2.0 * self.push_amp)

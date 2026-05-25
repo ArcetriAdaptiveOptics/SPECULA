@@ -362,7 +362,7 @@ class BaseProcessingObj(BaseTimeObj):
                 raise TypeError(f"Input {input_name} must be an InputValue or an InputList")
 
             expected_type = declared_desc[0]
-            if input_obj.output_ref_type is not expected_type:
+            if input_obj.type is not expected_type:
                 raise TypeError(
                     f"Input {input_name} must be of type {expected_type}, "
                     f"but got {input_obj.type}"

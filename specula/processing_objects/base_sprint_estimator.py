@@ -76,29 +76,29 @@ class BaseSprintEstimator(BaseProcessingObj):
             Guide star source object
         wfs : BaseProcessingObj
             WFS object (specific type depends on subclass)
-        modes_index : list
+        modes_index : list [1]
             List of mode indices to estimate
-        carrier_frequencies : list
+        carrier_frequencies : list [Hz]
             Carrier frequencies for each mode [Hz]
-        estimation_dt : float
+        estimation_dt : float [s]
             Time interval between estimations [seconds]
-        max_iterations : int
+        max_iterations : int [1]
             Maximum iterations per estimation cycle
-        convergence_threshold : float
+        convergence_threshold : float [1]
             Relative error threshold for convergence
-        initial_misreg : list or None
+        initial_misreg : list or None [1]
             Initial mis-registration [shift_x, shift_y, rot, magn(, magn_x, magn_y)]
         apply_absolute_slopes : bool
             Use absolute value of slopes
         enable_wpup_magn_xy : bool
             Enable separate X/Y magnification parameters
-        integration_gain : float
+        integration_gain : float [1]
             Gain for parameter updates (0 < gain <= 1)
-        forgetting_factor : float or None
+        forgetting_factor : float or None [1]
             Forgetting factor for integration (0 < factor <= 1, 1 = no forgetting)
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
-        precision : int, optional
+        precision : int [1], optional
             Precision for computation (0 for double, 1 for single). Default is None
             (uses global setting).
         
@@ -118,7 +118,7 @@ class BaseSprintEstimator(BaseProcessingObj):
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        # Store references
+        # Store references, accessed by derived classes
         self.dt = simul_params.time_step
         self.dm = dm
         self.slopec = slopec
