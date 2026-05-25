@@ -8,6 +8,7 @@ from specula.log import (
     SpeculaLogAdapter,
     SpeculaLogFormatter,
     INIT_PLACEHOLDER_NAME,
+    reset_logging,
 )
 
 
@@ -17,6 +18,7 @@ class TestSpeculaLogging(unittest.TestCase):
         """Reset logging before each test to avoid global state issues."""
         logging.shutdown()
         importlib.reload(logging)
+        reset_logging()
 
     # ------------------------
     # get_specula_logger

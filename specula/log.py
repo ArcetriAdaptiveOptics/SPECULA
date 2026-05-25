@@ -52,6 +52,12 @@ def init_logging(log_level=logging.INFO, process_rank=None):
 
     logging_initialized = True
 
+
+def reset_logging():
+    global logging_initialized
+    logging_initialized = False
+
+
 class SpeculaLogFilter(logging.Filter):
     '''
     Add the process rank to the log record, if defined.
