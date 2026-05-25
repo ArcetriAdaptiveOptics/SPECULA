@@ -101,3 +101,30 @@ class TestOpticalGainEstimator(unittest.TestCase):
                     places=3,
                     msg=f"Optical gain value {val:.6f} at index {i} does not match expected {expected:.6f}"
                 )
+
+        # Check if optical gain estimator output file exists
+        optg_file = os.path.join(latest_data_dir, 'optg_ol.fits')
+        self.assertTrue(os.path.exists(optg_file), f"Optical gain open-loop estimate output file not found: {optg_file}")
+
+        # Read optical gain estimator output
+        with fits.open(optg_file) as hdul:
+            self.assertTrue(len(hdul) >= 2, "Expected at least 2 HDUs in optical gain output file")
+            times = hdul[1].data.copy()
+            optg_values = hdul[0].data.copy()
+            self.assertEqual(len(times), len(optg_values), "Times and optical gain data length mismatch")
+            self.assertGreater(len(optg_values), 0, "No optical gain data points found")
+
+            # In open loop, there is no compensation, so the expected value is simply the steady state OG
+            for i in range(len(optg_values)):
+                val = optg_values[i]
+                expected = self.optg
+                # If val and expected are numpy arrays, extract the scalar
+                if isinstance(val, np.ndarray):
+                    val = val.item()
+                if isinstance(expected, np.ndarray):
+                    expected = expected.item()
+                self.assertAlmostEqual(
+                    val, expected,
+                    places=3,
+                    msg=f"Optical gain value {val:.6f} at index {i} does not match expected {expected:.6f}"
+                )
