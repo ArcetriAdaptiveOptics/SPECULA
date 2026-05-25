@@ -128,6 +128,43 @@ class TestAbstractCoronagraph(unittest.TestCase):
                         "phase_shift should be 1.0 when center_on_pixel is True")
 
     @cpu_and_gpu
+    def test_rebinning_preserves_complex_amplitude_and_phase(self, target_device_idx, xp):
+        """Test that toccd rebinning handles complex fields properly by splitting amp and phase"""
+        coro = SimpleCoronagraph(
+            simul_params=self.simul_params,
+            wavelengthInNm=self.wavelength_nm,
+            fov=self.fov * 0.5,  # Force rebinning by changing the field of view
+            target_device_idx=target_device_idx
+        )
+
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil,
+                           self.pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        
+        # Set a constant amplitude
+        ef.A[:] = 1.0
+        
+        # Create a spatial phase gradient (e.g., a ramp). 
+        # This is crucial: if toccd rebins complex numbers directly, 
+        # linear interpolation of different phases will cause the amplitude to collapse.
+        x = xp.linspace(-xp.pi, xp.pi, self.pixel_pupil)
+        X, Y = xp.meshgrid(x, x)
+        ef.phaseInNm[:] = (X / (2 * xp.pi)) * self.wavelength_nm 
+        ef.generation_time = 1
+
+        # Perform the propagation through the coronagraph
+        # (In the old code without the PR, this would fail on GPU with a TypeError
+        # and return incorrect amplitudes on CPU)
+        out_ef = self.get_coro_field(coro, ef)
+        
+        # Verify that the mean amplitude has not collapsed due to 
+        # incorrect summations over complex numbers
+        mean_amplitude = xp.mean(out_ef.A)
+        self.assertTrue(
+            mean_amplitude > 0.9, 
+            f"Mean amplitude dropped to {mean_amplitude}. Probable rebinning error on complex arrays."
+        )
+    
+    @cpu_and_gpu
     def test_phase_shift_center_on_pixel_false(self, target_device_idx, xp):
         """Test that phase_shift is not 1.0 when center_on_pixel is False"""
         coro = SimpleCoronagraph(
