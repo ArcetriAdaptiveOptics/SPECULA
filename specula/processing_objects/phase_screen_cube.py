@@ -135,8 +135,16 @@ class PhaseScreenCube(BaseProcessingObj):
 
     @classmethod
     def output_names(cls):
-        return {'out_layer': OutputDesc(Layer, 'Output atmospheric phase layer (default single-source name)'),
-                'out_ef': OutputDesc(ElectricField, 'Output electric field for the line of sight (default single-source name)')}
+        return {
+            'out_{source_name_}layer': OutputDesc(
+                Layer,
+                'Output phase-screen layer for named source [source_name]; if source name is None, key is out_layer',
+            ),
+            'out_{source_name_}ef': OutputDesc(
+                ElectricField,
+                'Output electric field for named source [source_name]; if source name is None, key is out_ef',
+            ),
+        }
 
     def trigger_code(self):
         current_phase = self.ef_interpolator.interpolated_ef().phaseInNm
