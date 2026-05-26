@@ -17,7 +17,7 @@ class OpticalGainEstimator(BaseProcessingObj):
 
     When the optical gain is NOT compensated in closed loop
     (open_loop_estimate = True), the estimator is a simple integrator:
-    opticalGain = opticalGain - (opticalGain - demod_delta_cmd/demod_cmd) * gain
+    opticalGain = opticalGain * (1-gain) + (demod_delta_cmd/demod_cmd) * gain
 
     """
 
@@ -32,6 +32,9 @@ class OpticalGainEstimator(BaseProcessingObj):
 
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
+        # Check that integrator gain has sensible values:
+        if gain < 0 or gain > 1:
+            raise ValueError(f'Integrator gain {gain:1.2f} is not supported, please choose a value between 0 and 1')
         self.gain = gain
 
         # Optional advanced output mapping
@@ -101,7 +104,7 @@ class OpticalGainEstimator(BaseProcessingObj):
             ratio = demod_delta / demod_cmd
 
             if self.open_loop:
-                updated_gain = current_gain - (current_gain - ratio) * self.gain
+                updated_gain = current_gain * (1-self.gain) + self.gain * ratio
             else:
                 # Update formula from IDL code
                 updated_gain = current_gain - (1.0 - ratio) * self.gain * current_gain
