@@ -3,7 +3,6 @@ import numpy as np
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.layer import Layer
-from specula.data_objects.pupilstop import Pupilstop
 from specula.data_objects.spatio_temp_array import SpatioTempArray
 from specula.connections import InputValue
 from specula.data_objects.simul_params import SimulParams
@@ -58,8 +57,6 @@ class PhaseScreenCube(BaseProcessingObj):
 
         source_dict = source_dict or {}
 
-        self.pupilstop = None
-
         output_specs = list(source_dict.items()) if source_dict else [(None, None)]
 
         for name, source in output_specs:
@@ -81,8 +78,6 @@ class PhaseScreenCube(BaseProcessingObj):
 
         self.initScreens()
 
-        self.inputs['pupilstop'] = InputValue(type=Pupilstop)
-
     def initScreens(self):
         """
         Initialize phase screens from the cube data object.
@@ -96,7 +91,6 @@ class PhaseScreenCube(BaseProcessingObj):
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
-        self.pupilstop = self.local_inputs['pupilstop']
 
         if self.t_to_seconds(t) > np.max(self.time_vector):
             raise ValueError('Error: the simulation is too long with respect to the input phase screen cube!')
@@ -128,11 +122,6 @@ class PhaseScreenCube(BaseProcessingObj):
 
         self.ef_interpolator.interpolate()
 
-
-    @classmethod
-    def input_names(cls):
-        return {'pupilstop': InputDesc(Pupilstop, 'Pupil stop defining the valid telescope aperture')}
-
     @classmethod
     def output_names(cls):
         return {'out_layer': OutputDesc(Layer, 'Output atmospheric phase layer (default single-source name)'),
@@ -142,7 +131,6 @@ class PhaseScreenCube(BaseProcessingObj):
         current_phase = self.ef_interpolator.interpolated_ef().phaseInNm
         for output_name, layer in self.layer_outputs.items():
             layer.phaseInNm[:] = current_phase
-            layer.A[:] = self.pupilstop.A
             layer.generation_time = self.current_time
 
             # Update the corresponding electric field output generation time
