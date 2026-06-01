@@ -15,6 +15,7 @@
 
 ### Other
 
+- Fixed output\_names in PhaseScreenCube
 - ...
 
 ## [1.0.3] - 2026-05-18
