@@ -15,6 +15,7 @@
 
 ### Other
 
+- Fixed vecWeiPixRadT extraction in ShSlopec
 - ...
 
 ## [1.0.3] - 2026-05-18
