@@ -75,13 +75,6 @@ class TestPhaseScreenCube(unittest.TestCase):
                                     source_dict=source_dict,
                                     target_device_idx=target_device_idx)
 
-        pupilstop = Pupilstop(self.simul_params,
-                              target_device_idx=target_device_idx)
-        self.cube.inputs['pupilstop'].set(pupilstop)
-        self.cube_scaled.inputs['pupilstop'].set(pupilstop)
-
-        pupilstop.generation_time = 4e9
-
     @cpu_and_gpu
     def test_screen_cube(self, target_device_idx, xp):
         '''Test that the phase screen is correctly read and interpolated for the current step'''

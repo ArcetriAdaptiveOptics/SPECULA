@@ -51,8 +51,18 @@ optical_gain_estimator:
     in_demod_command: 'demodulator2.output'
   outputs: ['output','optical_gain']
 
+open_loop_optical_gain_estimator:
+  class:             'OpticalGainEstimator'
+  gain:                 1.0
+  initial_optical_gain: 1.0
+  open_loop_estimate: true
+  inputs:
+    in_demod_delta_command: 'demodulator1.output'
+    in_demod_command: 'demodulator2.output'
+  outputs: ['output','optical_gain']
+
 data_store:
   class:             'DataStore'
   store_dir:         './data'             # Data result directory: 'store_dir'/TN/
   inputs:    
-    input_list: ['dem1-demodulator1.output','dem2-demodulator2.output','optg-optical_gain_estimator.optical_gain']
+    input_list: ['dem1-demodulator1.output','dem2-demodulator2.output','optg-optical_gain_estimator.optical_gain','optg_ol-open_loop_optical_gain_estimator.optical_gain']
