@@ -155,7 +155,7 @@ class PixelsDisplay(BaseDisplay):
 
         if self.img is None:
             self.img = self.ax.imshow(image, norm=norm)
-            self._add_colorbar_if_needed(self.img)
+            self._add_colorbar_if_needed(self.img, unit='counts')
         else:
             self.img.set_data(image)
             if norm is not None:

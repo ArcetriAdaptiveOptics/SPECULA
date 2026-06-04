@@ -59,8 +59,8 @@ class ModesDisplay(BaseDisplay):
                           dashes=(4, 8), linewidth=0.5, alpha=0.7)
 
             # Set labels
-            self.ax.set_xlabel('Mode Index')
-            self.ax.set_ylabel('Mode Value')
+            self.ax.set_xlabel('Mode index')
+            self.ax.set_ylabel('Mode value (nm)')
         else:
             # Update existing line
             self.line.set_xdata(x)

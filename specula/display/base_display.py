@@ -107,13 +107,15 @@ class BaseDisplay(BaseProcessingObj):
 
     # ============ UTILITY METHODS ============
 
-    def _add_colorbar_if_needed(self, image_obj, **kwargs):
+    def _add_colorbar_if_needed(self, image_obj, unit=None, **kwargs):
         """Add colorbar if not already present"""
         if not hasattr(self, 'colorbar_added'):
             self.colorbar_added = False
 
         if not self.colorbar_added and image_obj is not None:
-            plt.colorbar(image_obj, ax=self.ax, **kwargs)
+            cbar = plt.colorbar(image_obj, ax=self.ax, **kwargs)
+            if unit:
+                cbar.ax.set_title(unit)
             self.colorbar_added = True
 
     def _update_image_data(self, image_obj, data):

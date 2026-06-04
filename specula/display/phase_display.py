@@ -44,7 +44,7 @@ class PhaseDisplay(BaseDisplay):
 
         if self.img is None:
             self.img = self.ax.imshow(frame)
-            self._add_colorbar_if_needed(self.img)
+            self._add_colorbar_if_needed(self.img, unit='nm')
         else:
             self._update_image_data(self.img, frame)
 
