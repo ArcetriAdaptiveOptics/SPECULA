@@ -56,65 +56,65 @@ class CCD(BaseProcessingObj):
         ----------
         simul_params : SimulParams
             Simulation parameters object reference.
-        size : int list
+        size : int list [pixels]
             Size of the CCD in pixels [nx, ny].
-        dt : float
+        dt : float [s]
             Integration time in seconds.
-        bandw : float
+        bandw : float [1]
             Optical bandwidth in nm.
-        binning : int, optional
+        binning : int [1], optional
             Pixel binning factor (default is 1, no binning).
-        photon_noise : bool, optional
+        photon_noise : bool
             Whether to apply photon noise (Poisson noise) (default is False).
-        readout_noise : bool, optional
+        readout_noise : bool
             Whether to apply readout noise (default is False).
-        excess_noise : bool, optional
+        excess_noise : bool
             Whether to apply excess noise (default is False).
-        darkcurrent_noise : bool, optional
+        darkcurrent_noise : bool
             Whether to apply dark current noise (default is False).
-        background_noise : bool, optional
+        background_noise : bool
             Whether to apply background noise (default is False).
-        cic_noise : bool, optional
+        cic_noise : bool
             Whether to apply clock-induced charge noise (default is False).
-        cte_noise : bool, optional
+        cte_noise : bool
             Whether to apply charge transfer efficiency noise (default is False).
-        readout_level : float, optional
+        readout_level : float [e-/pixel], optional
             Readout noise level in electrons (default is 0.0).
-        darkcurrent_level : float, optional
+        darkcurrent_level : float [1], optional
             Dark current level in electrons per pixel (default is 0.0).
-        background_level : float, optional
+        background_level : float [1], optional
             Background light level in electrons per pixel (default is 0.0).
-        cic_level : float, optional
+        cic_level : float [1], optional
             Clock-induced charge level in electrons per pixel (default is 0).
-        cte_mat : array, optional
+        cte_mat : array [1], optional
             Charge transfer efficiency matrix (default is None).
-        quantum_eff : float, optional
+        quantum_eff : float [1], optional
             Quantum efficiency (default is 1.0).
             This is typically use to account for overall throughput.
-        pixelGains : array, optional
+        pixelGains : array [1], optional
             Pixel gain variations (default is None).
-        photon_seed : int, optional
+        photon_seed : int [1], optional
             Random seed for photon noise (default is 1).
-        readout_seed : int, optional
+        readout_seed : int [1], optional
             Random seed for readout noise (default is 2).
-        excess_seed : int, optional
+        excess_seed : int [1], optional
             Random seed for excess noise (default is 3).
-        excess_delta : float, optional
+        excess_delta : float [1], optional
             Excess noise factor (default is 1.0).
             The excess noise factor is ENF = sqrt(2 - 1/excess_delta)
-        start_time : int, optional
+        start_time : int [s], optional
             Time to start the CCD integration (default is 0).
-        ADU_gain : float, optional
+        ADU_gain : float [1], optional
             Analog-to-digital unit gain (default is None, which sets a default value based
             on excess noise).
-        ADU_bias : int, optional
+        ADU_bias : int [1], optional
             Analog-to-digital unit bias level (default is 400).
-        emccd_gain : int, optional
+        emccd_gain : int [1], optional
             Electron-multiplying CCD gain (default is None, which sets a default value based
             on excess noise).
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
-        precision : int, optional
+        precision : int [1], optional
             Precision for computation (0 for double, 1 for single). Default is None
             (uses global setting).
         """

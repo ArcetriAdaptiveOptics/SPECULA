@@ -1,7 +1,4 @@
 from specula.processing_objects.pyr_slopec import PyrSlopec
-from specula.base_processing_obj import InputDesc, OutputDesc
-from specula.base_value import BaseValue
-from specula.data_objects.pixels import Pixels
 from specula.data_objects.pupdata import PupData
 from specula.data_objects.slopes import Slopes
 
@@ -35,15 +32,11 @@ class DoubleRoofSlopec(PyrSlopec):
 
     @classmethod
     def input_names(cls):
-        return {'in_pixels': InputDesc(Pixels, 'Input pixel data from the double-roof wavefront sensor detector')}
+        return super().input_names()
 
     @classmethod
     def output_names(cls):
-        return {'out_slopes': OutputDesc(Slopes, 'Computed wavefront slopes'),
-                'out_flux_per_subaperture': OutputDesc(BaseValue, 'Flux per subaperture'),
-                'out_total_counts': OutputDesc(BaseValue, 'Total photon counts'),
-                'out_subap_counts': OutputDesc(BaseValue, 'Counts per subaperture'),
-                'out_pupdata': OutputDesc(PupData, 'Pupil data with subaperture geometry')}
+        return super().output_names()
 
     def _compute_pyr_slopes(self, A, B, C, D, factor):
 

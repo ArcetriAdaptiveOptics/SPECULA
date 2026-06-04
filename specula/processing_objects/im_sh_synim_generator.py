@@ -47,19 +47,19 @@ class ImShSynimGenerator(BaseProcessingObj):
         Shack-Hartmann WFS object
     compute_rec : bool
         Compute reconstruction matrix (default: True)
-    rec_nmodes : int or None
+    rec_nmodes : int or None [1]
         Number of modes for reconstruction (None = same as IM)
     mmse : bool
         Use MMSE reconstruction instead of pseudo-inverse (default: False)
-    r0 : float
+    r0 : float [m]
         Fried parameter for MMSE [m] (default: 0.15)
-    L0 : float
+    L0 : float [m]
         Outer scale for MMSE [m] (default: 25.0)
-    noise_cov : float, ndarray, list, or None
+    noise_cov : float, ndarray, list, or None [1]
         Noise covariance for MMSE (required if mmse=True)
-    target_device_idx : int or None
+    target_device_idx : int or None [1]
         GPU device index
-    precision : int or None
+    precision : int or None [1]
         Numerical precision
     
     Inputs

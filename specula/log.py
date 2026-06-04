@@ -12,6 +12,8 @@ MPI_SEND_DBG_LEVEL = 5
 logging.addLevelName(MPI_DBG_LEVEL, 'MPI_DBG')
 logging.addLevelName(MPI_SEND_DBG_LEVEL, 'MPI_SEND_DBG')
 
+logging_initialized = False
+
 
 def get_specula_logger(name):
     '''
@@ -27,6 +29,9 @@ def init_logging(log_level=logging.INFO, process_rank=None):
     Initialize logging with a custom format that includes the process rank if provided,
     and set up logging with our SpeculaLogFilter enabled.
     '''
+    global logging_initialized
+    if logging_initialized:
+        return
 
     formatter = SpeculaLogFormatter(
         fmt_with_rank="%(asctime)s [%(levelname)s]: [rank %(process_rank)s] [%(display_name)s]: %(message)s",
@@ -44,6 +49,13 @@ def init_logging(log_level=logging.INFO, process_rank=None):
     root = logging.getLogger()
     for handler in root.handlers:
         handler.addFilter(SpeculaLogFilter(process_rank))
+
+    logging_initialized = True
+
+
+def reset_logging():
+    global logging_initialized
+    logging_initialized = False
 
 
 class SpeculaLogFilter(logging.Filter):

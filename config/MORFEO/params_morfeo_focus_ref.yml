@@ -361,7 +361,6 @@ tomo_polc_lgs:
 
 iir_lgs:
   class:             'Integrator'
-  simul_params_ref:  'main'
   int_gain: [0.0,0.25,0.0,0.25]
   n_modes:  [3,5537,3,1021]
   delay: 1.75
@@ -382,7 +381,6 @@ tomo_ngs:
 
 iir_ngs:
   class:             'Integrator'
-  simul_params_ref:  'main'
   int_gain: [0.1,0.1]
   n_modes:  [2,3]
   delay: 1.75
@@ -410,7 +408,6 @@ slicer_focus:
 
 iir_focus:
   class:             'Integrator'
-  simul_params_ref:  'main'
   int_gain:          [0.5]
   n_modes:           [1]
   delay: 1.0

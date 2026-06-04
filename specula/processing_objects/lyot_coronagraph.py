@@ -1,6 +1,4 @@
 from specula.processing_objects.abstract_coronagraph import Coronagraph
-from specula.base_processing_obj import OutputDesc
-from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.make_mask import make_mask
 from specula import RAD2ASEC
@@ -58,7 +56,7 @@ class LyotCoronagraph(Coronagraph):
 
     @classmethod
     def output_names(cls):
-        return {'out_ef': OutputDesc(ElectricField, 'Output electric field after Lyot coronagraph mask application')}
+        return super().output_names()
 
     def make_focal_plane_mask(self):
         # Mask centered on the crosshair between 4 pixels

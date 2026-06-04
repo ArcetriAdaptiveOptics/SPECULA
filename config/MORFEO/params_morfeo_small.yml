@@ -279,7 +279,6 @@ tomo_polc_lgs:
 
 iir_lgs:
   class:             'IirFilter'
-  simul_params_ref:  'main'
   iir_filter_data_object: 'int0.25_6258'
   inputs:
       delta_comm: 'tomo_polc_lgs.out_modes'     
@@ -352,7 +351,6 @@ tomo_ngs:
 
 iir_ngs:
   class:             'IirFilter'
-  simul_params_ref:  'main'
   iir_filter_data_object: 'int0.1_5modes'
   inputs:
       delta_comm: 'tomo_ngs.out_modes'     
@@ -374,7 +372,6 @@ slicer_focus:
 
 iir_focus:
   class:             'Integrator'
-  simul_params_ref:  'main'
   int_gain:          [0.3]
   n_modes:           [1]
   inputs:

@@ -29,7 +29,7 @@ class InfinitePhaseScreen(BaseDataObj):
     This class generates and holds an infinite phase screen generated using a stochastic
     process that simulates atmospheric turbulence.
     """
-    def __init__(self, mx_size, pixel_scale, r0, L0, random_seed=None, stencil_size_factor=1,
+    def __init__(self, mx_size, pixel_scale, r0, L0, random_seed, stencil_size_factor=1,
                  xp=None, target_device_idx=None, precision=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
@@ -62,10 +62,7 @@ class InfinitePhaseScreen(BaseDataObj):
         self.A_mat = None
         self.B_mat = None
 
-        if random_seed is None:
-            raise ValueError("random_seed must be provided")
-        else:
-            self.random_seed = int(random_seed)
+        self.random_seed = int(random_seed)
         self.rng = self.xp.random.default_rng(self.random_seed)
 
         #self.set_stencil_coords_basic()

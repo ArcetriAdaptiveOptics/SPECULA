@@ -1,7 +1,7 @@
 
 from collections import OrderedDict, defaultdict
 
-from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
+from specula.base_processing_obj import BaseProcessingObj
 from specula.base_value import BaseValue
 
 

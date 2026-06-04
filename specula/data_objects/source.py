@@ -29,23 +29,23 @@ class Source(BaseDataObj):
 
         Parameters
         ----------
-        polar_coordinates : list
-            The polar coordinates [radius, angle] of the source (in arcseconds and degrees).
-        magnitude : float
+        polar_coordinates : list [arcsec, deg]
+            The polar coordinates [radius in arcsec, angle in deg] of the source.
+        magnitude : float [1]
             The magnitude of the source.
-        wavelengthInNm : float
-            The wavelength of the source in nanometers.
-        height : float, optional
+        wavelengthInNm : float [nm]
+            The wavelength of the source.
+        height : float [m], optional
             The height of the source (default: infinity, i.e., astronomical source).
-        band : str, optional
+        band : str
             The photometric band of the source (default: '').
-        zero_point : float, optional
+        zero_point : float [1], optional
             The photometric zero point (default: 0).
-        error_coord : tuple, optional
-            Error to add to the polar coordinates (default: (0., 0.)).
-        target_device_idx : int, optional
+        error_coord : tuple [arcsec, deg], optional
+            Error to add to the polar coordinates [radius error in arcsec, angle error in deg] (default: (0., 0.)).
+        target_device_idx : int [1], optional
             Device index for computation (default: None).
-        precision : int, optional
+        precision : int [1], optional
             Precision for computation (default: None).
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)

@@ -56,6 +56,14 @@ class TestToccd(unittest.TestCase):
         out = toccd(arr, newshape=(2, 2), set_total=set_total, xp=xp)
         assert xp.isclose(out.sum(), set_total, rtol=1e-6)
 
+    @cpu_and_gpu
+    def test_toccd_does_not_renormalize(self, target_device_idx, xp):
+        """Test that the array is not renormalized when set_total <= 0."""
+        arr = xp.arange(16, dtype=float).reshape((4, 4))
+        total = arr.sum()
+        out = toccd(arr, newshape=(2, 2), set_total = 0, xp=xp)
+        assert xp.isclose(out.sum(), total/4, rtol=1e-6)
+
 
     @cpu_and_gpu
     def test_toccd_invalid_input_shape(self, target_device_idx, xp):
@@ -80,13 +88,35 @@ class TestToccd(unittest.TestCase):
         out = toccd(arr, newshape=(2, 2), xp=xp)
         assert out.dtype == xp.float32
 
-
     @cpu_and_gpu
     def test_toccd_dtype_float64(self, target_device_idx, xp):
         """Check that float64 input produces float64 output."""
         arr = xp.ones((4, 4), dtype=xp.float64)
         out = toccd(arr, newshape=(2, 2), xp=xp)
         assert out.dtype == xp.float64
+
+    @cpu_and_gpu
+    def test_toccd_fp64_truncation_bug(self, target_device_idx, xp):
+        """
+        Verify that rebinning avoids float truncation errors 
+        when dx_in creates inexact floats (like 1/5 = 0.2) in FP64.
+        """
+        # Let's use 5x5 and 3x3. LCM = 15. dx_in = 3. 1/3 = 0.3333...
+        # We use progressive numbers to ensure that spatial order matters!
+        arr_cpu = np.arange(25, dtype=np.float64).reshape((5, 5))
+
+        # We calculate the "truth" using the CPU (numpy) since we know
+        # it should be correct and not affected by GPU-specific issues.
+        expected = toccd(arr_cpu, newshape=(3, 3), xp=np)
+        
+        # If we are testing the GPU, perform the calculation there and compare
+        if xp == cp:
+            arr_gpu = cp.array(arr_cpu)
+            out_gpu = toccd(arr_gpu, newshape=(3, 3), xp=cp)
+    
+            # This is important to catch truncation errors that might not affect
+            # the total sum but do affect the distribution of values.
+            cp.testing.assert_allclose(out_gpu, cp.array(expected))
 
     @cpu_and_gpu
     def test_toccd_gpu_delegation(self, target_device_idx, xp):
