@@ -9,7 +9,7 @@ import numpy as np
 from contextlib import contextmanager
 
 from specula.base_value import BaseValue
-from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
+from specula.base_processing_obj import BaseProcessingObj
 
 from specula.lib.display_server_api import start_server
 
