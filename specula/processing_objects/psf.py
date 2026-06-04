@@ -27,28 +27,28 @@ class PSF(BaseProcessingObj):
     ----------
     simul_params : SimulParams
         Simulation parameters object.
-    wavelengthInNm : float
+    wavelengthInNm : float [nm]
         Wavelength at which to compute the PSF [nm].
-    nd : float, optional
+    nd : float [1], optional
         Numerical density of the PSF (pixels per lambda/D). If None, it is calculated
         based on the input ElectricField and pixel size.
-    pixel_size_mas : float, optional
+    pixel_size_mas : float [mas], optional
         Desired pixel size of the PSF in milliarcseconds. If None, it is calculated
         based on the input ElectricField and numerical density.
-    start_time : float, optional
+    start_time : float [s], optional
         Time (in seconds) after which to start integrating PSF and SR. Default is 0.0.
-    compute_profile_metrics : bool, optional
+    compute_profile_metrics : bool
         If True, also compute radial profile, FWHM and encircled-energy outputs.
         By default these summary metrics are evaluated in `finalize()` only.
-    compute_metrics_in_trigger : bool, optional
+    compute_metrics_in_trigger : bool
         If True and `compute_profile_metrics` is enabled, also update the same
         metrics after each trigger.
-    ee_radius_in_lambda_d : float or array-like, optional
+    ee_radius_in_lambda_d : float or array-like [lambda/D], optional
         Radius or radii in units of lambda/D at which to return the encircled energy.
-    target_device_idx : int, optional
+    target_device_idx : int [1], optional
         Target device index for computation (CPU/GPU). Default is None
         (uses global setting).
-    precision : int, optional
+    precision : int [1], optional
         Precision for computation (0 for double, 1 for single). Default is None
         (uses global setting).
     """
@@ -189,11 +189,12 @@ class PSF(BaseProcessingObj):
                                        self.out_size[1] // 2]
         self.logger.info(f'SR at {int(self.wavelengthInNm)}nm : {self.sr.value}')
 
-    def _compute_radial_profile_data(self, psf):
+    def _compute_radial_profile_data(self, psf, peak:float=None):
         if psf is None:
             return None
 
-        peak = self.xp.max(psf)
+        if peak is None:
+            peak = self.xp.max(psf)
         if float(peak) <= 0.0:
             norm_psf = self.xp.zeros_like(psf)
         else:
@@ -228,8 +229,8 @@ class PSF(BaseProcessingObj):
             )
         return profile, radial_dist, fwhm, ee, ee_at_radius
 
-    def _set_radial_profile_output(self, psf, profile_output):
-        radial_profile_data = self._compute_radial_profile_data(psf)
+    def _set_radial_profile_output(self, psf, profile_output, norm_peak=None):
+        radial_profile_data = self._compute_radial_profile_data(psf, peak=norm_peak)
         if radial_profile_data is None:
             return
 
@@ -245,7 +246,7 @@ class PSF(BaseProcessingObj):
 
         profile, radial_dist, fwhm, ee, ee_at_radius = metrics
         profile_output.value = self.xp.vstack([radial_dist, profile])
-        fwhm_output.value = self.dtype(fwhm)
+        fwhm_output.value = fwhm
         ee_output.value = self.xp.vstack([radial_dist, ee])
         ee_at_radius_output.value = ee_at_radius
 

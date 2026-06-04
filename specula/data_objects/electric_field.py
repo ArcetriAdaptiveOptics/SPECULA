@@ -29,22 +29,22 @@ class ElectricField(BaseDataObj):
 
         Parameters
         ----------
-        dimx : int
+        dimx : int [pixels]
             Number of pixels along the x-axis (width).
-        dimy : int
+        dimy : int [pixels]
             Number of pixels along the y-axis (height).
-        pixel_pitch : float
+        pixel_pitch : float [m]
             The dimension in meters of a pixel.
-        S0 : float, optional
+        S0 : float [ph/s/m^2/nm], optional
             Flux density in photons/s/m^2/nm (default: 0.0).
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Device index for computation (default: None).
-        precision : int, optional
+        precision : int [1], optional
             Precision for computation (default: None).
-        wavelengthInNm : float, optional
+        wavelengthInNm : float [nm], optional
             Monochromatic wavelength tag in nanometers. If set, this electric
             field is considered valid only at that wavelength.
-        wavelengthToleranceInNm : float, optional
+        wavelengthToleranceInNm : float [nm], optional
             Absolute tolerance in nanometers used when checking wavelength
             compatibility for wavelength-tagged fields (default: 0.1 nm).
 

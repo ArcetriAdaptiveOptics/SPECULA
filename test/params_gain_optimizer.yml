@@ -48,7 +48,6 @@ temporal_filter:
 
 control:
   class:                'IirFilter'
-  simul_params_ref:     'main'
   delay:                2                      # Total temporal delay in time steps
   iir_filter_data_ref:  'temporal_filter'
   inputs:

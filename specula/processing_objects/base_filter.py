@@ -4,7 +4,6 @@ from specula import np
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.connections import InputValue
 from specula.base_value import BaseValue
-from specula.data_objects.simul_params import SimulParams
 
 
 class BaseFilter(BaseProcessingObj):
@@ -13,7 +12,6 @@ class BaseFilter(BaseProcessingObj):
     Base class for time-domain filters with delay support.
     """
     def __init__(self,
-                 simul_params: SimulParams,
                  nfilter: int,
                  delay: float = 0,
                  target_device_idx=None,
@@ -30,7 +28,6 @@ class BaseFilter(BaseProcessingObj):
 
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        self.time_step = simul_params.time_step
         self.delay = delay if delay is not None else 0
         self._nfilter = nfilter
 

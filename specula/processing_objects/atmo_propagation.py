@@ -47,36 +47,36 @@ class AtmoPropagation(BaseProcessingObj):
             Simulation parameters object containing global settings.
         source_dict : dict
             Dictionary of source objects (e.g., stars, LGS) to be propagated.
-        doFresnel : bool, optional
+        doFresnel : bool
             If True, physical Fresnel propagation is performed. Default is False
             (geometric propagation).
-        wavelengthInNm : float, optional
+        wavelengthInNm : float [nm], optional
             Wavelength in nanometers for Fresnel propagation. Required if doFresnel is True.
             Default is 500.0 nm.
-        telescope_altitude_m : float, optional
+        telescope_altitude_m : float [m], optional
             Telescope altitude above sea level in meters used by chromatic
             anisoplanatism calculations (default: None).
-        enable_chromatic_effect : bool, optional
+        enable_chromatic_effect : bool
             If True, compute and apply chromatic anisoplanatism shifts for atmospheric layers
             (default: False).
             From Devaney et al. "Chromatic Anisoplanatism in Adaptive Optics" SPIE, 2024 
-        chromatic_reference_wavelengthInNm : float, optional
+        chromatic_reference_wavelengthInNm : float [nm], optional
             Reference wavelength in nanometers used for chromatic
             anisoplanatism calculations, typically the WFS wavelength.
             Required when ``enable_chromatic_effect`` is True.
-        pupil_position : array-like, optional
+        pupil_position : array-like [m], optional
             Position of the pupil in pixels. Default is None (centered).
-        mergeLayersContrib : bool, optional
+        mergeLayersContrib : bool
             If True, contributions from all layers are merged into a single output per source.
             Default is True.
-        upwards : bool, optional
+        upwards : bool
             If True, propagation is performed upwards (from ground to source). Default is False
             (downwards).
-        padding_factor : int, optional
+        padding_factor : int [1], optional
             Factor for zero padding in Fresnel propagation to avoid numerical issues with FFTs.
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
-        precision : int, optional
+        precision : int [1], optional
             Precision for computation (0 for double, 1 for single). Default is None
             (uses global setting).
         """
@@ -120,7 +120,8 @@ class AtmoPropagation(BaseProcessingObj):
                     self.pixel_pupil_size,
                     self.pixel_pupil_size,
                     self.pixel_pitch,
-                    target_device_idx=self.target_device_idx
+                    target_device_idx=self.target_device_idx,
+                    precision=self.precision,
                 )
 
         self.doFresnel = doFresnel
@@ -144,7 +145,8 @@ class AtmoPropagation(BaseProcessingObj):
                     self.pixel_pupil_size,
                     self.pixel_pupil_size,
                     self.pixel_pitch,
-                    target_device_idx=self.target_device_idx
+                    target_device_idx=self.target_device_idx,
+                    precision=self.precision,
                 )
                 ef.S0 = source.phot_density()
                 self.outputs['out_'+name+'_ef'] = ef
@@ -165,11 +167,11 @@ class AtmoPropagation(BaseProcessingObj):
 
         Parameters
         ----------
-        distanceInM : float
+        distanceInM : float [m]
             Propagation distance in meter.
-        d_in : float
+        d_in : float [m]
             Grid spacing in the source plane
-        d_out : float
+        d_out : float [m]
             Grid spacing in the destination plane
         """
         k = 2 * np.pi / (self.wavelengthInNm * 1e-9)
@@ -223,8 +225,8 @@ class AtmoPropagation(BaseProcessingObj):
         height_layers = np.array([self.layer_height[layer] for layer in layer_list], dtype=self.dtype)
 
         source_height = self.source_height[self.source_dict[list(self.source_dict)[0]]]
-        if np.isinf(source_height):
-            raise ValueError('Fresnel propagation to infinity not supported.')
+        if np.isinf(source_height) and self.prop_sign == -1:
+            raise ValueError('Fresnel upwards propagation to infinity not supported.')
 
         sorted_heights = np.sort(height_layers)
         if not np.allclose(height_layers, sorted_heights):
@@ -232,7 +234,7 @@ class AtmoPropagation(BaseProcessingObj):
 
         # set up fresnel propagator if height difference is not 0
         height_diffs = np.diff(height_layers, append=source_height)
-        self.propagators = [self.asm_propagator(diff, self.pixel_pitch, self.pixel_pitch) if diff != 0 else None for
+        self.propagators = [self.asm_propagator(diff, self.pixel_pitch, self.pixel_pitch) if (diff != 0 and diff != self.xp.inf) else None for
                             diff in height_diffs]
 
         # adapt for downwards propagation
@@ -251,7 +253,7 @@ class AtmoPropagation(BaseProcessingObj):
 
     @classmethod
     def input_names(cls):
-        return {'atmo_layer_list': InputDesc(Layer, 'List of atmospheric turbulence layers (optional). Altitudes scaled by airmass.'),
+        return {'atmo_layer_list': InputDesc(Layer, 'List of atmospheric turbulence layers (optional). Altitudes will be scaled by airmass.'),
                 'common_layer_list': InputDesc(Layer, 'List of common layers shared across sources. Altitudes not scaled.')}
 
     @classmethod
@@ -383,7 +385,7 @@ class AtmoPropagation(BaseProcessingObj):
         atmo_layer_list : list of Layer
             Atmospheric turbulence layers only (not common layers such as
             pupil stops or DMs).
-        zenith_angle_deg : float
+        zenith_angle_deg : float [deg]
             Observation zenith angle in degrees.
 
         Notes
@@ -527,10 +529,11 @@ class AtmoPropagation(BaseProcessingObj):
         limit1 = (layer.size[1] - pixel_pupmeta) / 2
         isInside = abs(pixel_position[0]) <= limit0 and abs(pixel_position[1]) <= limit1
         if not isInside:
-            print(f'WARNING: Source at [r={source.r}, phi={source.phi}] is outside the FoV of the layer'
-                  f' (layer size: {layer.size}, pixel position: {pixel_position}).'
-                  f' limits: [{-limit0}, {limit0}] x [{-limit1}, {limit1}].'
-                  f' No interpolation will be applied to this layer, which may lead to artifacts if the layer has significant shift or rotation.')  
+            self.logger.warning(f'Warning: Source at [r={source.r}, phi={source.phi}]'
+                  f' is outside the FoV of the layer (layer size: {layer.size},'
+                  f' pixel position: {pixel_position}). limits: [{-limit0}, {limit0}] x'
+                  f'[{-limit1}, {limit1}]. No interpolation will be applied to this layer,'
+                  f' which may lead to artifacts if the layer has significant shift or rotation.')  
             return None
 
         return Interp2D(layer.size, (self.pixel_pupil_size, self.pixel_pupil_size), xx=xx1, yy=yy1,
@@ -557,7 +560,11 @@ class AtmoPropagation(BaseProcessingObj):
             for name, source in self.source_dict.items():
                 self.outputs['out_'+name+'_ef'] = []
                 for _ in range(self.nAtmoLayers):
-                    ef = ElectricField(self.pixel_pupil_size, self.pixel_pupil_size, self.pixel_pitch, target_device_idx=self.target_device_idx)
+                    ef = ElectricField(self.pixel_pupil_size,
+                                       self.pixel_pupil_size,
+                                       self.pixel_pitch,
+                                       target_device_idx=self.target_device_idx,
+                                       precision=self.precision)
                     ef.S0 = source.phot_density()
                     self.outputs['out_'+name+'_ef'].append(ef)
 

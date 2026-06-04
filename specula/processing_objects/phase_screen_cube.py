@@ -3,7 +3,6 @@ import numpy as np
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.layer import Layer
-from specula.data_objects.pupilstop import Pupilstop
 from specula.data_objects.spatio_temp_array import SpatioTempArray
 from specula.connections import InputValue
 from specula.data_objects.simul_params import SimulParams
@@ -32,18 +31,18 @@ class PhaseScreenCube(BaseProcessingObj):
             Spatio-temporal array containing the phase screen cube.
             Internally data are accessed as time-first: shape (time, x, y).
             The phase screens should be in nm. The time_vector must be provided in seconds.
-        pixel_scale : float
+        pixel_scale : float [m]
             Phase screens' pixel size in m.
-        source_dict : dict, optional
+        source_dict : dict [1], optional
             Dictionary of the source corresponding to the line of sight of the phase screen.
             If omitted or empty, the object exposes a single pair of outputs named
             out_ef and out_layer.
-        layer_height : float, optional
+        layer_height : float [m], optional
             Height in meters assigned to the output layer, by default 0.0.
-        scale_factor : float, optional
+        scale_factor : float [1], optional
             Scaling factor applied to the phase screens, by default 1.0. This can be used 
             to adjust the amplitude of the phase screens if needed.
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
         """
         super().__init__(target_device_idx=target_device_idx)
@@ -57,8 +56,6 @@ class PhaseScreenCube(BaseProcessingObj):
         self.layer_outputs = {}
 
         source_dict = source_dict or {}
-
-        self.pupilstop = None
 
         output_specs = list(source_dict.items()) if source_dict else [(None, None)]
 
@@ -81,8 +78,6 @@ class PhaseScreenCube(BaseProcessingObj):
 
         self.initScreens()
 
-        self.inputs['pupilstop'] = InputValue(type=Pupilstop)
-
     def initScreens(self):
         """
         Initialize phase screens from the cube data object.
@@ -96,7 +91,6 @@ class PhaseScreenCube(BaseProcessingObj):
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
-        self.pupilstop = self.local_inputs['pupilstop']
 
         if self.t_to_seconds(t) > np.max(self.time_vector):
             raise ValueError('Error: the simulation is too long with respect to the input phase screen cube!')
@@ -128,21 +122,23 @@ class PhaseScreenCube(BaseProcessingObj):
 
         self.ef_interpolator.interpolate()
 
-
-    @classmethod
-    def input_names(cls):
-        return {'pupilstop': InputDesc(Pupilstop, 'Pupil stop defining the valid telescope aperture')}
-
     @classmethod
     def output_names(cls):
-        return {'out_layer': OutputDesc(Layer, 'Output atmospheric phase layer (default single-source name)'),
-                'out_ef': OutputDesc(ElectricField, 'Output electric field for the line of sight (default single-source name)')}
+        return {
+            'out_{source_name_}layer': OutputDesc(
+                Layer,
+                'Output phase-screen layer for named source [source_name]; if source name is None, key is out_layer',
+            ),
+            'out_{source_name_}ef': OutputDesc(
+                ElectricField,
+                'Output electric field for named source [source_name]; if source name is None, key is out_ef',
+            ),
+        }
 
     def trigger_code(self):
         current_phase = self.ef_interpolator.interpolated_ef().phaseInNm
         for output_name, layer in self.layer_outputs.items():
             layer.phaseInNm[:] = current_phase
-            layer.A[:] = self.pupilstop.A
             layer.generation_time = self.current_time
 
             # Update the corresponding electric field output generation time
@@ -150,6 +146,3 @@ class PhaseScreenCube(BaseProcessingObj):
             #       as the layer output (layer.field)
             ef_output_name = output_name.replace('_layer', '_ef')
             self.outputs[ef_output_name].generation_time = self.current_time
-
-    def post_trigger(self):
-        super().post_trigger()

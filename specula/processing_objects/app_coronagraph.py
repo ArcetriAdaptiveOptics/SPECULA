@@ -26,7 +26,7 @@ class APPCoronagraph(Coronagraph):
                  max_its:int = 1000,
                  target_device_idx: int = None,
                  precision: int = None
-                ):
+                 ):
 
         fov = wavelengthInNm * 1e-9 / simul_params.pixel_pitch * RAD2ASEC
         if iwaInLambdaOverD is None:
@@ -106,14 +106,14 @@ def generate_app_keller(pupil, target_contrast, max_iterations:int,
 
     Parameters
     ----------
-    pupil : ndarray(bool)
+    pupil : ndarray(bool) [1]
         Boolean of the pupil aperture mask.
-    target_contrast : ndarray(float)
+    target_contrast : ndarray(float) [1]
         The required contrast in the focal plane: float mask that is 1.0
         everywhere except for the dark zone where it is the contrast value (e.g. 1e-5).
-    max_iterations : int
+    max_iterations : int [1]
         The maximum number of iterations.
-    beta : float (optional)
+    beta : float [1] (optional)
         The acceleration parameter. The default is 0 (no acceleration).
         Good values for beta are typically between 0.3 and 0.9. Values larger
         than 1.0 will not work.

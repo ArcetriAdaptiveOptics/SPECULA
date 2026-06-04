@@ -259,6 +259,48 @@ class TestShSlopec(unittest.TestCase):
 
         np.testing.assert_equal(cpuArray(last_weights_2d), cpuArray(expected_weights), err_msg="Weight map does not match expected values.")
 
+    @cpu_and_gpu
+    def test_vec_wei_pix_rad_t_uses_last_valid_time(self, target_device_idx, xp):
+        """
+        Test that vecWeiPixRadT selects the last valid row based on time.
+        """
+        t_sh = int(1e9)
+        t_slopec = int(2e9)
+
+        sh, v, m, flat_ef, subapdata = self.get_sh(target_device_idx, xp, with_laser_launch=False)
+
+        sh.inputs['in_ef'].set(flat_ef)
+        sh.setup()
+        sh.check_ready(t_sh)
+        sh.trigger()
+        sh.post_trigger()
+
+        intensity = sh.outputs['out_i'].i.copy()
+
+        pixels = Pixels(*intensity.shape, target_device_idx=target_device_idx)
+        pixels.pixels = intensity
+        pixels.generation_time = t_slopec
+
+        vec_wei_pix_rad_t = xp.asarray([
+            [0.5, 0.2],
+            [1.5, 1.0],
+            [3.0, 3.0],
+        ])
+
+        slopec = ShSlopec(subapdata, vecWeiPixRadT=vec_wei_pix_rad_t,
+                          target_device_idx=target_device_idx)
+        slopec.inputs['in_pixels'].set(pixels)
+        slopec.check_ready(t_slopec)
+        slopec.trigger()
+        slopec.post_trigger()
+
+        # At t=2.0 s, rows at 0.2 s and 1.0 s are valid, so selected radius must be 1.5.
+        self.assertAlmostEqual(float(slopec.weighted_pix_rad), 1.5)
+
+        expected = ShSlopec(subapdata, weightedPixRad=1.5, target_device_idx=target_device_idx)
+        np.testing.assert_allclose(cpuArray(slopec.mask_weighted),
+                                   cpuArray(expected.mask_weighted), atol=1e-6)
+
 
     @cpu_and_gpu
     def test_shslopec_slopesnull(self, target_device_idx, xp):

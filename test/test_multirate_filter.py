@@ -5,14 +5,10 @@ import unittest
 import numpy as np
 from specula import cpuArray
 from specula.base_value import BaseValue
-from specula.data_objects.simul_params import SimulParams
 from specula.data_objects.iir_filter_data import IirFilterData
 from specula.processing_objects.multirate_complementary_filter import MultirateComplementaryFilter
 from test.specula_testlib import cpu_and_gpu
 
-class MockSimulParams(SimulParams):
-    def __init__(self, time_step=0.001):
-        self.time_step = time_step
 
 def build_double_integrator(g_f, target_device_idx, n_modes=1):
     num = np.array([[0.0, 0.0, g_f]])
@@ -25,9 +21,8 @@ class TestMultirateFilter(unittest.TestCase):
     def test_sync_validation_errors(self, target_device_idx, xp):
         """Test that the synchronization check properly raises RuntimeErrors."""
         engine = build_double_integrator(0.1, target_device_idx)
-        sp = MockSimulParams()
 
-        filt = MultirateComplementaryFilter(sp, engine, g_track=0.1, weights=[0.5, 0.5], N_list=[3],
+        filt = MultirateComplementaryFilter( engine, g_track=0.1, weights=[0.5, 0.5], N_list=[3],
                                             target_device_idx=target_device_idx)
 
         v_yf = BaseValue(value=np.array([1.0]), target_device_idx=target_device_idx)
@@ -70,10 +65,9 @@ class TestMultirateFilter(unittest.TestCase):
     def test_zero_stuffed_inputs_can_skip_sync_validation(self, target_device_idx, xp):
         """Slow inputs coming from an upstream zero-stuffing stage may update every frame."""
         engine = build_double_integrator(0.1, target_device_idx)
-        sp = MockSimulParams()
 
         filt = MultirateComplementaryFilter(
-            sp, engine, g_track=0.1, weights=[1/3, 1/3, 1/3], N_list=[2, 2],
+             engine, g_track=0.1, weights=[1/3, 1/3, 1/3], N_list=[2, 2],
             validate_sync=False, target_device_idx=target_device_idx
         )
 
@@ -107,8 +101,7 @@ class TestMultirateFilter(unittest.TestCase):
         N_list = [3]
 
         engine = build_double_integrator(g_f, target_device_idx)
-        sp = MockSimulParams()
-        filt = MultirateComplementaryFilter(sp, engine, g_track, weights, N_list,
+        filt = MultirateComplementaryFilter(engine, g_track, weights, N_list,
                                             target_device_idx=target_device_idx)
 
         v_yf = BaseValue(value=np.array([1.0]), target_device_idx=target_device_idx)
@@ -142,16 +135,14 @@ class TestMultirateFilter(unittest.TestCase):
     def test_setup_validation(self, target_device_idx, xp):
         """Test validation of inputs and parameter lengths."""
 
-        sp = MockSimulParams()
-
         # 1. Test mismatched parameter lists (weights deve essere N_list + 1)
         with self.assertRaises(ValueError):
-            MultirateComplementaryFilter(sp, None, g_track=0.1, weights=[0.5, 0.5], N_list=[5, 10],
+            MultirateComplementaryFilter(None, g_track=0.1, weights=[0.5, 0.5], N_list=[5, 10],
                                          target_device_idx=target_device_idx)
 
         # 2. Test mismatched connected inputs
         engine = build_double_integrator(0.1, target_device_idx)
-        filt = MultirateComplementaryFilter(sp,engine, g_track=0.1, weights=[0.5, 0.5], N_list=[5],
+        filt = MultirateComplementaryFilter(engine, g_track=0.1, weights=[0.5, 0.5], N_list=[5],
                                             target_device_idx=target_device_idx)
 
         # Connect yf but leave ys empty
@@ -175,8 +166,7 @@ class TestMultirateFilter(unittest.TestCase):
         N_list = [3]
 
         engine = build_double_integrator(g_f, target_device_idx)
-        sp = MockSimulParams()
-        filt = MultirateComplementaryFilter(sp, engine, g_track, weights, N_list,
+        filt = MultirateComplementaryFilter(engine, g_track, weights, N_list,
                                             target_device_idx=target_device_idx)
 
         # Initialize inputs
@@ -242,12 +232,11 @@ class TestMultirateFilter(unittest.TestCase):
         g_track = 0.1
         weights = [1/3, 1/3, 1/3]
         N_list = [4, 10]
-        sp = MockSimulParams()
 
         # 1. Setup Filter A (Separate Inputs)
         # Pass n_modes=2 to ensure the filter can handle vector inputs of size 2 for both yf and ys.
         engine_a = build_double_integrator(g_f, target_device_idx, n_modes=2)
-        filt_a = MultirateComplementaryFilter(sp, engine_a, g_track, weights, N_list,
+        filt_a = MultirateComplementaryFilter(engine_a, g_track, weights, N_list,
                                               target_device_idx=target_device_idx)
 
         v_yf = BaseValue(value=np.array([1.5, 2.5]), target_device_idx=target_device_idx)
@@ -270,7 +259,7 @@ class TestMultirateFilter(unittest.TestCase):
         # PASSAGGIAMO n_modes=2 ANCHE QUI!
         engine_b = build_double_integrator(g_f, target_device_idx, n_modes=2)
         filt_b = MultirateComplementaryFilter(
-            sp, engine_b, g_track, weights, N_list,
+            engine_b, g_track, weights, N_list,
             idx_yf=[0, 1],               # Indices for yf
             idx_ys=[[2, 3], [4, 5]],     # Indices for ys1 and ys2
             target_device_idx=target_device_idx
@@ -313,8 +302,7 @@ class TestMultirateFilter(unittest.TestCase):
         N_list = [4, 10]
 
         engine = build_double_integrator(g_f, target_device_idx)
-        sp = MockSimulParams()
-        filt = MultirateComplementaryFilter(sp, engine, g_track, weights, N_list,
+        filt = MultirateComplementaryFilter(engine, g_track, weights, N_list,
                                             target_device_idx=target_device_idx)
 
         # Connect Inputs

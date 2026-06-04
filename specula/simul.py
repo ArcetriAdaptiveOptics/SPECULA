@@ -3,25 +3,20 @@ import inspect
 import itertools
 from copy import deepcopy
 from pathlib import Path
-from collections import namedtuple
 from specula import process_rank
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_data_obj import BaseDataObj
-
 
 from specula.log import get_specula_logger
 from specula.loop_control import LoopControl
 from specula.lib.utils import import_class, get_type_hints, remove_suffix, resolve_type
 from specula.calib_manager import CalibManager
 from specula.processing_objects.data_store import DataStore
-from specula.connections import InputList, InputValue
+from specula.connections import InputList, InputValue, split_output
 from specula.simul_diagram import SimulDiagram
 
 import yaml
 import hashlib
-
-
-Output = namedtuple('Output', 'obj_name output_key delay ref input_name')
 
 
 def computeTag(output_obj_name, dest_object, output_attr_name, input_attr_name):
@@ -78,28 +73,13 @@ class Simul():
         else:
             self.diagram = None
 
+    def output_owner(self, output_name):
+        return split_output(output_name).obj_name
+
     def split_output(self, output_name, get_ref=False, use_inputs=False):
-        '''
-        Split the output name into object name and output key.
-        '''
-        if ':' in output_name:
-            output_name, delay = output_name.split(':')
-            delay = int(delay)
-        else:
-            delay = 0
-        if '-' in output_name:
-            input_name, output_name = output_name.split('-')
-        else:
-            input_name = None
-
-        if '.' in output_name:
-            obj_name, output_key = output_name.split('.')
-        else:
-            obj_name = output_name
-            output_key = None
-
-        # Get a reference to the output if possible
+        output = split_output(output_name)
         if get_ref:
+            obj_name, output_key, *_ = output
 
             if not obj_name in self.objs:
                 if obj_name in self.remote_objs_ranks:
@@ -117,39 +97,17 @@ class Simul():
                     raise ValueError(f'Object {obj_name} does not define an {display_str} with name {output_key}')
                 else:
                     ref = array_to_check[output_key]
-        else:
-            ref = None
-
-        return Output(obj_name, output_key, delay, ref, input_name)
-
-    def output_owner(self, output_name):
-        output = self.split_output(output_name)
-        return output.obj_name
-
-    def output_key(self, output_name):
-        output = self.split_output(output_name)
-        return output.output_key
+            output = output._replace(ref = ref)
+        return output
 
     def output_ref(self, output_name):
-        '''
-        return a tuple with:
-           - reference to the output, or None if the object is remote.
-           - name of the object that defines the output
-        '''
-        output = self.split_output(output_name, get_ref=True)
-        return output.ref
+        return self.split_output(output_name, get_ref=True).ref
 
     def input_ref(self, input_name):
-        '''
-        return a tuple with:
-           - reference to the input, or None if the object is remote.
-           - name of the object that defines the input
-        '''
-        output = self.split_output(input_name, get_ref=True, use_inputs=True)
-        return output.ref
+        return self.split_output(input_name, get_ref=True, use_inputs=True).ref
 
     def output_delay(self, output_name):
-        return self.split_output(output_name).delay
+        return split_output(output_name).delay
 
     def is_leaf(self, p):
         '''
@@ -291,7 +249,7 @@ class Simul():
         self.setSimulParams(params)
 
         cm = CalibManager(self.mainParams['root_dir'])
-        skip_pars = 'class inputs outputs'.split()
+        skip_pars = 'class inputs outputs gui_pos'.split()
         if 'add_modules' in self.mainParams:
             additional_modules = self.mainParams['add_modules']
         else:

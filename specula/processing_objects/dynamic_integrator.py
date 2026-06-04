@@ -3,6 +3,7 @@ from specula.base_processing_obj import InputDesc
 from specula.data_objects.simul_params import SimulParams
 from specula.connections import InputValue
 from specula.base_value import BaseValue
+from specula.scalar_values import FloatValue, IntValue
 
 
 class DynamicIntegrator(Integrator):
@@ -35,20 +36,20 @@ class DynamicIntegrator(Integrator):
         ----------
         simul_params : SimulParams
             Simulation parameters object.
-        int_gain : float
+        int_gain : float [1]
             Initial integrator gain.
-        ff : list, optional
+        ff : list [1], optional
             Feedforward coefficients for the IIR filter.
-        n_modes : int, optional
+        n_modes : int [1], optional
             Number of modes for modal integration.
-        delay : float, optional
+        delay : float [1], optional
             Delay applied to the integrator (in simulation time units).
             Default is 0.
-        integration : bool, optional
+        integration : bool
             If True, enable integration behavior. Default is True.
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index for computation (e.g., CPU/GPU).
-        precision : int, optional
+        precision : int [1], optional
             Numerical precision for internal data  (0 for double, 1 for single).
         """
         super().__init__(simul_params=simul_params,
@@ -60,15 +61,17 @@ class DynamicIntegrator(Integrator):
                          target_device_idx=target_device_idx,
                          precision=precision)
 
-        self.inputs['reset'] = InputValue(type=BaseValue, optional=True)
-        self.inputs['int_gain'] = InputValue(type=BaseValue, optional=True)
+        self.inputs['reset'] = InputValue(type=IntValue, optional=True)
+        self.inputs['int_gain'] = InputValue(type=FloatValue, optional=True)
 
     @classmethod
     def input_names(cls):
-        return {'delta_comm': InputDesc(BaseValue, 'Input delta command vector'),
-                'gain_mod': InputDesc(BaseValue, 'Optional gain modulation vector (optional)'),
-                'reset': InputDesc(BaseValue, 'Trigger to reset internal integrator state (optional)'),
-                'int_gain': InputDesc(BaseValue, 'Dynamic integrator gain update (optional)')}
+        result = super().input_names()
+        result.update({
+            'reset': InputDesc(BaseValue, 'Trigger to reset internal integrator state (optional)'),
+            'int_gain': InputDesc(BaseValue, 'Dynamic integrator gain update (optional)')
+        })
+        return result
 
     @classmethod
     def output_names(cls):
@@ -82,11 +85,6 @@ class DynamicIntegrator(Integrator):
         if reset_input is not None and reset_input.generation_time == self.current_time:
             self.reset_states()
 
-        # Update internal IIR filter data if gain input changes
-        try:
-            gain_input = self.local_inputs['int_gain']
-            if gain_input is not None and gain_input.generation_time == self.current_time:
-                int_gain = float(gain_input.value)
-                self.iir_filter_data.set_gain(int_gain)
-        except Exception as e:
-            self.logger.error(f'Exception: {e.__name__}: {e}')
+        gain_input = self.local_inputs['int_gain']
+        if gain_input is not None and gain_input.generation_time == self.current_time:
+            self.iir_filter_data.set_gain(gain_input.value)
