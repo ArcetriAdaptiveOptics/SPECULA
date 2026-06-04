@@ -17,6 +17,7 @@
 
 - Fixed vecWeiPixRadT extraction in ShSlopec
 - Fixed output\_names in PhaseScreenCube
+- Fixed start\_time bug in WindowedIntegration
 - ...
 
 ## [1.0.3] - 2026-05-18
