@@ -139,7 +139,6 @@ rec:
 
 control:
   class:             'Integrator'
-  simul_params_ref:  'main'
   delay:             2                      # Total temporal delay in time steps
   int_gain_data:     'g0.40_4519'  
   inputs:

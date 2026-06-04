@@ -62,7 +62,6 @@ Create a configuration file, for example ``params_control_lpf.yml``:
 
    control:
      class:             'Integrator'
-     simul_params_ref:  'main'
      delay:             1
      int_gain:          [0.3]
      inputs:

@@ -45,9 +45,9 @@ class Coronagraph(BaseProcessingObj):
             Whether to center the focal plane mask on a single pixel (True) or
             at the intersection of 4 pixels (False). This affects the phase shift
             applied to the electric field (default: True)
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
-        precision : int, optional
+        precision : int [1], optional
             Precision for computation (0 for double, 1 for single). Default is None
             (uses global setting).
         """
@@ -164,7 +164,8 @@ class Coronagraph(BaseProcessingObj):
         super().post_trigger()
 
         # Then rebin if needed
-        ef_out = toccd(self.ef_out, self.out_ef.size, xp=self.xp)
+        ef_out_amp = toccd(self.xp.abs(self.ef_out), self.out_ef.size, xp=self.xp)
+        ef_out_phase = toccd(self.xp.angle(self.ef_out), self.out_ef.size, xp=self.xp)
 
         # Calculate transmission
         # PSF before masking vs PSF after masking
@@ -173,9 +174,9 @@ class Coronagraph(BaseProcessingObj):
         transmission = self.xp.sum(psf_after) / self.xp.sum(psf_before)
 
         # Amplitude
-        self.out_ef.A[:] = self.xp.abs(ef_out)
+        self.out_ef.A[:] = ef_out_amp
         # Phase in nm
-        self.out_ef.phaseInNm[:] = (self.xp.angle(ef_out) / (2 * self.xp.pi)) \
+        self.out_ef.phaseInNm[:] = ef_out_phase / (2 * self.xp.pi) \
                                    * self.wavelength_in_nm
         self.out_ef.wavelengthInNm = self.wavelength_in_nm
 

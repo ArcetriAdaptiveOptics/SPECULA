@@ -252,7 +252,3 @@ class IdealDerivativeSensor(BaseProcessingObj):
         # Update generation time
         self.slopes.generation_time = self.current_time
 
-    def prepare_trigger(self, t):
-        """Prepare for trigger execution."""
-        super().prepare_trigger(t)
-

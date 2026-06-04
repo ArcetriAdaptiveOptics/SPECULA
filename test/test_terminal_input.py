@@ -8,7 +8,7 @@ from specula.processing_objects.terminal_input import TerminalInput
 class TestTerminalInput(unittest.TestCase):
 
     def test_singleton(self):
-        a = TerminalInput(output_list=["a", "b"])
+        a = TerminalInput(output_list=["a:int", "b:float"])
 
         with self.assertRaises(RuntimeError):
-            b = TerminalInput(output_list=["a", "b"])
+            b = TerminalInput(output_list=["a:int", "b:float"])

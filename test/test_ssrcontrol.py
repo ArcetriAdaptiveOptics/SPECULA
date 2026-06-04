@@ -17,10 +17,9 @@ class TestSsrFilter(unittest.TestCase):
     @cpu_and_gpu
     def test_instantiation(self, target_device_idx, xp):
         """Test basic instantiation"""
-        simul_params = SimulParams(time_step=0.001)
         ssr_data = SsrFilterData.from_gain([1.0], target_device_idx=target_device_idx)
 
-        ssr_filter = SsrFilter(simul_params, ssr_data, target_device_idx=target_device_idx)
+        ssr_filter = SsrFilter(ssr_data, target_device_idx=target_device_idx)
 
         self.assertEqual(ssr_filter._nfilter, 1)
         self.assertIsNotNone(ssr_filter.outputs['out_comm'])
@@ -28,11 +27,10 @@ class TestSsrFilter(unittest.TestCase):
     @cpu_and_gpu
     def test_pure_gain_response(self, target_device_idx, xp):
         """Test pure gain (no dynamics)"""
-        simul_params = SimulParams(time_step=0.001)
         gains = [0.5, 2.0]
         ssr_data = SsrFilterData.from_gain(gains, target_device_idx=target_device_idx)
 
-        ssr_filter = SsrFilter(simul_params, ssr_data, target_device_idx=target_device_idx)
+        ssr_filter = SsrFilter(ssr_data, target_device_idx=target_device_idx)
 
         # Create input
         input_value = BaseValue(value=xp.array([1.0, 1.0], dtype=xp.float32),
@@ -56,14 +54,13 @@ class TestSsrFilter(unittest.TestCase):
     @cpu_and_gpu
     def test_integrator_response(self, target_device_idx, xp):
         """Test integrator with constant input"""
-        simul_params = SimulParams(time_step=0.001)
-        dt = simul_params.time_step
+        dt = 0.001
         gain = 0.5
 
         ssr_data = SsrFilterData.from_integrator([gain],
                                                 target_device_idx=target_device_idx)
 
-        ssr_filter = SsrFilter(simul_params, ssr_data, target_device_idx=target_device_idx)
+        ssr_filter = SsrFilter(ssr_data, target_device_idx=target_device_idx)
 
         # Create constant input
         input_value = BaseValue(value=xp.array([1.0], dtype=xp.float32),
@@ -88,11 +85,10 @@ class TestSsrFilter(unittest.TestCase):
     @cpu_and_gpu
     def test_with_gain_modulation(self, target_device_idx, xp):
         """Test filter with gain_mod input"""
-        simul_params = SimulParams(time_step=0.001)
         gains = [1.0, 1.0]
         ssr_data = SsrFilterData.from_gain(gains, target_device_idx=target_device_idx)
 
-        ssr_filter = SsrFilter(simul_params, ssr_data, target_device_idx=target_device_idx)
+        ssr_filter = SsrFilter(ssr_data, target_device_idx=target_device_idx)
 
         # Create inputs
         input_value = BaseValue(value=xp.array([1.0, 1.0], dtype=xp.float32),
@@ -120,13 +116,12 @@ class TestSsrFilter(unittest.TestCase):
     @cpu_and_gpu
     def test_with_schedule_generator_gain_mod(self, target_device_idx, xp):
         """Test integrator with VALUE_SCHEDULE gain_mod"""
-        simul_params = SimulParams(time_step=0.001)
 
         # Create integrator
         gains = [0.5, 0.3]
         ssr_data = SsrFilterData.from_integrator(gains,
                                                 target_device_idx=target_device_idx)
-        ssr_filter = SsrFilter(simul_params, ssr_data, target_device_idx=target_device_idx)
+        ssr_filter = SsrFilter(ssr_data, target_device_idx=target_device_idx)
 
         # Create VALUE_SCHEDULE gain_mod
         gain_mod_generator = ScheduleGenerator(
@@ -200,12 +195,11 @@ class TestSsrFilter(unittest.TestCase):
     @cpu_and_gpu
     def test_delay_implementation(self, target_device_idx, xp):
         """Test delay buffer implementation"""
-        simul_params = SimulParams(time_step=0.001)
-        dt = simul_params.time_step
+        dt = 0.001
         delay = 2.0  # 2 frames delay
 
         ssr_data = SsrFilterData.from_gain([1.0], target_device_idx=target_device_idx)
-        ssr_filter = SsrFilter(simul_params, ssr_data, delay=delay,
+        ssr_filter = SsrFilter(ssr_data, delay=delay,
                               target_device_idx=target_device_idx)
 
         input_value = BaseValue(value=xp.array([1.0], dtype=xp.float32),
@@ -238,12 +232,11 @@ class TestSsrFilter(unittest.TestCase):
     @cpu_and_gpu
     def test_reset_states(self, target_device_idx, xp):
         """Test reset_states functionality"""
-        simul_params = SimulParams(time_step=0.001)
-        dt = simul_params.time_step
+        dt = 0.001
 
         ssr_data = SsrFilterData.from_integrator([1.0],
                                                 target_device_idx=target_device_idx)
-        ssr_filter = SsrFilter(simul_params, ssr_data, target_device_idx=target_device_idx)
+        ssr_filter = SsrFilter(ssr_data, target_device_idx=target_device_idx)
 
         input_value = BaseValue(value=xp.array([1.0], dtype=xp.float32),
                                target_device_idx=target_device_idx)
@@ -279,7 +272,6 @@ class TestSsrFilter(unittest.TestCase):
     @cpu_and_gpu
     def test_multi_mode_different_dynamics(self, target_device_idx, xp):
         """Test multiple modes with different state-space dimensions"""
-        simul_params = SimulParams(time_step=0.001)
 
         # First filter: simple gain (no state)
         A1 = xp.array([[0.0]])
@@ -296,7 +288,7 @@ class TestSsrFilter(unittest.TestCase):
         ssr_data = SsrFilterData([A1, A2], [B1, B2], [C1, C2], [D1, D2],
                                 target_device_idx=target_device_idx)
 
-        ssr_filter = SsrFilter(simul_params, ssr_data, target_device_idx=target_device_idx)
+        ssr_filter = SsrFilter(ssr_data, target_device_idx=target_device_idx)
 
         input_value = BaseValue(value=xp.array([1.0, 1.0], dtype=xp.float32),
                                target_device_idx=target_device_idx)
@@ -318,13 +310,12 @@ class TestSsrFilter(unittest.TestCase):
     @cpu_and_gpu
     def test_no_delay_output(self, target_device_idx, xp):
         """Test that out_comm_no_delay provides undelayed output"""
-        simul_params = SimulParams(time_step=0.001)
-        dt = simul_params.time_step
+        dt = 0.001
         delay = 2.0  # 2 frames delay
 
         ssr_data = SsrFilterData.from_integrator([0.5],
                                                 target_device_idx=target_device_idx)
-        ssr_filter = SsrFilter(simul_params, ssr_data, delay=delay,
+        ssr_filter = SsrFilter(ssr_data, delay=delay,
                               target_device_idx=target_device_idx)
 
         input_value = BaseValue(value=xp.array([1.0], dtype=xp.float32),
@@ -358,10 +349,9 @@ class TestSsrFilter(unittest.TestCase):
     @cpu_and_gpu
     def test_no_delay_vs_delayed_with_zero_delay(self, target_device_idx, xp):
         """Test that both outputs are identical when delay=0"""
-        simul_params = SimulParams(time_step=0.001)
 
         ssr_data = SsrFilterData.from_gain([2.0], target_device_idx=target_device_idx)
-        ssr_filter = SsrFilter(simul_params, ssr_data, delay=0.0,
+        ssr_filter = SsrFilter(ssr_data, delay=0.0,
                               target_device_idx=target_device_idx)
 
         input_value = BaseValue(value=xp.array([1.5], dtype=xp.float32),
@@ -387,12 +377,11 @@ class TestSsrFilter(unittest.TestCase):
     @cpu_and_gpu
     def test_no_delay_output_for_polc(self, target_device_idx, xp):
         """Test no_delay output in POLC-like scenario with fractional delay"""
-        simul_params = SimulParams(time_step=0.001)
-        dt = simul_params.time_step
+        dt = 0.001
         delay = 1.5  # Fractional delay
 
         ssr_data = SsrFilterData.from_gain([1.0], target_device_idx=target_device_idx)
-        ssr_filter = SsrFilter(simul_params, ssr_data, delay=delay,
+        ssr_filter = SsrFilter(ssr_data, delay=delay,
                               target_device_idx=target_device_idx)
 
         input_value = BaseValue(value=xp.array([0.0], dtype=xp.float32),

@@ -1,6 +1,4 @@
 from specula import RAD2ASEC
-from specula.base_processing_obj import OutputDesc
-from specula.data_objects.electric_field import ElectricField
 from specula.lib.make_mask import make_mask
 from specula.data_objects.simul_params import SimulParams
 from specula.processing_objects.abstract_coronagraph import Coronagraph
@@ -39,7 +37,7 @@ class FocalPlaneFilter(Coronagraph):
 
     @classmethod
     def output_names(cls):
-        return {'out_ef': OutputDesc(ElectricField, 'Output electric field after focal plane filter mask application')}
+        return super().output_names()
 
     def make_pupil_plane_mask(self):
         return 1.0

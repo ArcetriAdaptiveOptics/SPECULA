@@ -9,7 +9,6 @@ from specula.loop_control import LoopControl
 from specula.data_objects.ssr_filter_data import SsrFilterData
 from specula.processing_objects.ssr_filter import SsrFilter
 from specula.processing_objects.integrator import Integrator
-from specula.data_objects.simul_params import SimulParams
 from specula.base_value import BaseValue
 from test.specula_testlib import cpu_and_gpu
 
@@ -20,8 +19,7 @@ class TestSsrIirEquivalence(unittest.TestCase):
     @cpu_and_gpu
     def test_integrator_equivalence_constant_input(self, target_device_idx, xp):
         """Test that SSR and IIR integrators produce same results with constant input"""
-        simul_params = SimulParams(time_step=0.001)
-        dt = simul_params.time_step
+        dt = 0.001
 
         # Parameters
         gains = [0.5, 0.3, 0.7]
@@ -31,10 +29,10 @@ class TestSsrIirEquivalence(unittest.TestCase):
         # Create SSR integrator
         ssr_data = SsrFilterData.from_integrator(gains,
                                                 target_device_idx=target_device_idx)
-        ssr_filter = SsrFilter(simul_params, ssr_data, target_device_idx=target_device_idx)
+        ssr_filter = SsrFilter(ssr_data, target_device_idx=target_device_idx)
 
         # Create IIR integrator (ff=1.0 for pure integration, no forgetting)
-        iir_integrator = Integrator(simul_params, int_gain=gains, ff=None,
+        iir_integrator = Integrator(int_gain=gains, ff=None,
                                    target_device_idx=target_device_idx)
 
         # Create constant input
@@ -73,8 +71,7 @@ class TestSsrIirEquivalence(unittest.TestCase):
     @cpu_and_gpu
     def test_integrator_equivalence_varying_input(self, target_device_idx, xp):
         """Test equivalence with time-varying input"""
-        simul_params = SimulParams(time_step=0.001)
-        dt = simul_params.time_step
+        dt = 0.001
 
         # Parameters
         gains = [0.5, 1.0]
@@ -84,10 +81,10 @@ class TestSsrIirEquivalence(unittest.TestCase):
         # Create SSR integrator
         ssr_data = SsrFilterData.from_integrator(gains,
                                                 target_device_idx=target_device_idx)
-        ssr_filter = SsrFilter(simul_params, ssr_data, target_device_idx=target_device_idx)
+        ssr_filter = SsrFilter(ssr_data, target_device_idx=target_device_idx)
 
         # Create IIR integrator
-        iir_integrator = Integrator(simul_params, int_gain=gains, ff=None,
+        iir_integrator = Integrator(int_gain=gains, ff=None,
                                    target_device_idx=target_device_idx)
 
         # Create input (will vary over time)
@@ -131,8 +128,7 @@ class TestSsrIirEquivalence(unittest.TestCase):
     @cpu_and_gpu
     def test_integrator_with_forgetting_factor(self, target_device_idx, xp):
         """Test integrator with forgetting factor (leaky integrator)"""
-        simul_params = SimulParams(time_step=0.001)
-        dt = simul_params.time_step
+        dt = 0.001
 
         # Parameters
         gains = [0.5]
@@ -142,10 +138,10 @@ class TestSsrIirEquivalence(unittest.TestCase):
         # Create SSR leaky integrator using from_integrator with ff
         ssr_data = SsrFilterData.from_integrator(gains, ff=ff,
                                                 target_device_idx=target_device_idx)
-        ssr_filter = SsrFilter(simul_params, ssr_data, target_device_idx=target_device_idx)
+        ssr_filter = SsrFilter(ssr_data, target_device_idx=target_device_idx)
 
         # Create IIR leaky integrator
-        iir_integrator = Integrator(simul_params, int_gain=gains, ff=ff,
+        iir_integrator = Integrator(int_gain=gains, ff=ff,
                                    target_device_idx=target_device_idx)
 
         # Create constant input
@@ -178,8 +174,7 @@ class TestSsrIirEquivalence(unittest.TestCase):
     @cpu_and_gpu
     def test_multi_mode_integrator_equivalence(self, target_device_idx, xp):
         """Test equivalence with multiple modes (like SOUL params)"""
-        simul_params = SimulParams(time_step=0.000588)  # SOUL time step
-        dt = simul_params.time_step
+        dt = 0.000588
 
         # SOUL-like parameters (simplified)
         int_gains = [0.55, 0.45, 0.40, 0.35]
@@ -202,11 +197,10 @@ class TestSsrIirEquivalence(unittest.TestCase):
             ff=ff_expanded,
             target_device_idx=target_device_idx
         )
-        ssr_filter = SsrFilter(simul_params, ssr_data, target_device_idx=target_device_idx)
+        ssr_filter = SsrFilter(ssr_data, target_device_idx=target_device_idx)
 
         # Create IIR integrator
-        iir_integrator = Integrator(simul_params,
-                                   int_gain=int_gains,
+        iir_integrator = Integrator(int_gain=int_gains,
                                    ff=ffs,
                                    n_modes=n_modes_list,
                                    target_device_idx=target_device_idx)
@@ -248,17 +242,15 @@ class TestSsrIirEquivalence(unittest.TestCase):
     @cpu_and_gpu
     def test_reset_equivalence(self, target_device_idx, xp):
         """Test that reset works identically for both implementations"""
-        simul_params = SimulParams(time_step=0.001)
-        dt = simul_params.time_step
-
+        dt = 0.001
         gains = [1.0]
 
         # Create filters
         ssr_data = SsrFilterData.from_integrator(gains,
                                                 target_device_idx=target_device_idx)
-        ssr_filter = SsrFilter(simul_params, ssr_data, target_device_idx=target_device_idx)
+        ssr_filter = SsrFilter(ssr_data, target_device_idx=target_device_idx)
 
-        iir_integrator = Integrator(simul_params, int_gain=gains, ff=None,
+        iir_integrator = Integrator(int_gain=gains, ff=None,
                                    target_device_idx=target_device_idx)
 
         # Create input

@@ -499,7 +499,6 @@ Create ``config/scao_tutorial.yml``:
    # Integrator controller
    integrator:
      class:             'Integrator'
-     simul_params_ref:  'main'
      delay:             1                     # 1 frame delay (realistic)
      int_gain:          [0.30]
      n_modes:           [800]                 # Number of modes to control

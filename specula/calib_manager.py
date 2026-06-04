@@ -69,6 +69,7 @@ class CalibManager():
             'Intensity': 'intensity/',
             'LaserLaunchTelescope': 'data/',
             'Lenslet': 'lenslet/',
+            'Phasescreen': 'phasescreens/',
             'Pixels': 'pixels/',
             'Slopes': 'slopes/',
             'TimeHistory': 'data/',

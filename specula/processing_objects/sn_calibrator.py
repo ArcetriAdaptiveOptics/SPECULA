@@ -1,6 +1,6 @@
 import os
 
-from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
+from specula.base_processing_obj import BaseProcessingObj, InputDesc
 from specula.data_objects.slopes import Slopes
 from specula.connections import InputValue
 
@@ -43,9 +43,10 @@ class SnCalibrator(BaseProcessingObj):
 
     def trigger_code(self):
         if self.slopes is None:
-            self.slopes = Slopes(slopes=self.local_inputs['in_slopes'].slopes.copy(), target_device_idx=self.target_device_idx)
+            self.slopes = Slopes(slopes=self.local_inputs['in_slopes'].slopes.copy(),
+                                 target_device_idx=self.target_device_idx)
         else:
-            self.slopes.slopes += self.local_inputs['in_slopes'].slopes.copy()
+            self.slopes.slopes += self.local_inputs['in_slopes'].slopes
         self._n_iter += 1
 
     def finalize(self):

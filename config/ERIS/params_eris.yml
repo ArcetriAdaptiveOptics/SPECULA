@@ -11,48 +11,44 @@ main:
 
 seeing:
   class:             'WaveGenerator'
-  constant:          0.87                  # ["] seeing value
+  constant:          0.8                  # ["] seeing value
   outputs: ['output']
 
 
 wind_speed:
   class:             'WaveGenerator'
-  constant:          [5.5, 5.5, 5.1, 5.5, 5.6, 5.7, 5.8, 6.0, 6.5, 7.0,
-                      7.5, 8.5, 9.5, 11.5, 17.5, 23.0, 26.0, 29.0, 32.0, 27.0,
-                      22.0, 14.5, 9.5, 6.3, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0,
-                      8.5, 9.0, 9.5, 10.0, 10.0]      # [m/s] Wind speed value
+  constant:          [6.6, 5.9, 5.1, 4.5, 5.1,
+                      8.3, 16.3, 30.2, 34.3, 17.5]      # [m/s] Wind speed value
   outputs: ['output']
 
 
 wind_direction:
   class:             'WaveGenerator'
-  constant:          [0, -180, 0, 0, 90, 180, 0, 0, 0, -180,
-                      0, 0, -90, 0, 90, -180, 90, 0, -90, -90,
-                      0, -90, 0, 0, 180, 180, 0, -180, 90, 0,
-                      0, 180, -90, 90, -90]   # [degrees] Wind direction value
+  constant:          [0,0,0,0,0,
+                      90,-90,-90,90,0]   # [degrees] Wind direction value
   outputs: ['output']
 
 
 source_on_axis:
   class:             'Source'
   polar_coordinates:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
-  magnitude:         8                    # source magnitude
-  wavelengthInNm:    750                  # [nm] wavelength
+  magnitude:         8                     # source magnitude
+  wavelengthInNm:    2200                  # [nm] wavelength
 
 
 source_lgs:
   class:             'Source'
-  polar_coordinates:  [0.0, 0.0]            # [arcsec, degrees] source polar coordinates
+  polar_coordinates:  [0.0, 0.0]           # [arcsec, degrees] source polar coordinates
   height:            90000                 # Source height [m]
   magnitude:         5.0                   # source magnitude
   wavelengthInNm:    589                   # [nm] wavelength
 
 source_ngs:
   class:             'Source'
-  polar_coordinates:  [5.0, 0.0]         # [arcsec, degrees] source polar coordinates
-  height:            .inf                # Source height [m]
-  magnitude:         14.0                # source magnitude
-  wavelengthInNm:    700                # [nm] wavelength
+  polar_coordinates:  [5.0, 0.0]           # [arcsec, degrees] source polar coordinates
+  height:            .inf                  # Source height [m]
+  magnitude:         12.0                  # source magnitude
+  wavelengthInNm:    700                   # [nm] wavelength
 
 
 pupilstop:                                 # Default parameters (circular pupil)
@@ -66,14 +62,10 @@ atmo:
   class:                'AtmoEvolution'
   simul_params_ref:  'main'
   L0:                   25                   # [m] Outer scale
-  heights:              [30.0000, 90.0000, 150.000, 200.000, 245.000, 300.000, 390.000, 600.000, 1130.00, 1880.00,
-                         2630.00, 3500.00, 4500.00, 5500.00, 6500.00, 7500.00, 8500.00, 9500.00, 10500.0, 11500.0,
-                         12500.0, 13500.0, 14500.0, 15500.0, 16500.0, 17500.0, 18500.0, 19500.0, 20500.0, 21500.0,
-                         22500.0, 23500.0, 24500.0, 25500.0, 26500.0] # [m] layer heights at 0 zenith angle
-  Cn2:                  [0.241954, 0.119977, 0.0968817, 0.0589889, 0.0472911, 0.0472911, 0.0472911, 0.0472911, 0.0398925, 0.0323939,
-                         0.0161969, 0.0260951, 0.0155971, 0.0103980, 0.00999811, 0.0119977, 0.00400924, 0.0139974, 0.0129975, 0.00700868,
-                         0.0159970, 0.0258951, 0.0190964, 0.00986813, 0.00616883, 0.00400924, 0.00246953, 0.00215959, 0.00184965, 0.00135974,
-                         0.00110979, 0.000616883, 0.000925825, 0.000493907, 0.000431918] # Cn2 weights (total must be eq 1)
+  heights:              [30, 140, 281, 562, 1125,
+                         2250, 4500, 7750, 11000, 14000]
+  Cn2    :              [0.59, 0.02, 0.04, 0.06, 0.01,
+                         0.05, 0.09, 0.04, 0.05, 0.05]
   fov:                  120.0
   inputs:
     seeing: 'seeing.output'
@@ -88,7 +80,6 @@ prop:
   inputs:
     atmo_layer_list: ['atmo.layer_list']
     common_layer_list: ['pupilstop', 'dm.out_layer:-1']
-
   outputs: ['out_source_on_axis_ef','out_source_lgs_ef', 'out_source_ngs_ef']
 
 # -------
@@ -98,6 +89,7 @@ prop:
 launcher:
   class:             'LaserLaunchTelescope'
   spot_size:          1.8
+
 
 sh_lgs:
   class:             'SH'
@@ -110,6 +102,7 @@ sh_lgs:
   inputs:
     in_ef: 'prop.out_source_lgs_ef'
   outputs:  ['out_i']
+
 
 detector_lgs:
   class:             'CCD'
@@ -126,14 +119,15 @@ detector_lgs:
     in_i: 'sh_lgs.out_i'
   outputs:  ['out_pixels']
 
+
 slopec_lgs:
   class:             'ShSlopec'
-  thr_value:         10
+  thr_value:         0
   subapdata_object:  'eris_subaps_lgs'  # tag of the pyramid WFS pupils
-  sn_object:         null  # tag of the slope reference vector
   inputs:
     in_pixels:        'detector_lgs.out_pixels'
   outputs:  ['out_slopes']
+
 
 modalrec_lgs:
   class:              'Modalrec'
@@ -157,6 +151,7 @@ sh_lo:
     in_ef: 'prop.out_source_ngs_ef'
   outputs:  ['out_i']
 
+
 detector_lo:
   class:             'CCD'
   simul_params_ref:  'main'
@@ -172,11 +167,12 @@ detector_lo:
     in_i: 'sh_lo.out_i'
   outputs:  ['out_pixels']
 
+
 slopec_lo:
   class:             'ShSlopec'
-  thr_value:         10
+  weightedPixRad:    2
+  thr_value:         0
   subapdata_object:  'eris_subaps_lo'       # subaperture data tag
-  sn_object:         null  # 'auto'         #  slope reference vector
   inputs:
     in_pixels:        'detector_lo.out_pixels'
   outputs:  ['out_slopes']
@@ -191,6 +187,7 @@ modalrec_truth:
     in_slopes:        'slopec_lo.out_slopes'
   outputs:  ['out_modes']
 
+
 modalrec_lo:
   class:              'Modalrec'
   recmat_object:      'eris_rec_lo'              # reconstruction matrix tag
@@ -201,12 +198,13 @@ modalrec_lo:
 
 integrator_truth:
   class:        'Integrator'
-  simul_params_ref:  'main'
   delay:             2                      # Total temporal delay in time steps
-  int_gain_data:     'g0.004_8'            # TODO  
+  int_gain:          [0.0, 0.004]
+  n_modes:           [2,8]
   inputs:
-      delta_comm: 'modalrec_truth.out_modes'     
+    delta_comm: 'modalrec_truth.out_modes'     
   outputs:  ['out_comm']
+
 
 subtract_truth:
   class:             'BaseOperation'
@@ -221,39 +219,59 @@ subtract_truth:
 
 integrator_lgs:
   class:             'Integrator'
-  simul_params_ref:  'main'
   delay:             2                      # Total temporal delay in time steps
-  int_gain_data:     'g0.40_700'            # TODO  
+  int_gain:          [0.0, 0.3]
+  n_modes:           [2,   698]
   inputs:
-      delta_comm: 'subtract_truth.out_value'     
+    delta_comm: 'subtract_truth.out_value'     
   outputs:  ['out_comm']
+
+
+slicer_lgs:
+  class:          'BaseSlicer'
+  slice_args:     [2,700]
+  inputs:
+    in_value: 'integrator_lgs.out_comm'
+  outputs:  ['out_value']
+
 
 integrator_lo:
   class:        'Integrator'
-  simul_params_ref:  'main'
   delay:             2                      # Total temporal delay in time steps
-  int_gain_data:     'g0.40_2'              # TODO  
+  int_gain:          [0.4]
+  n_modes:           [2]
   inputs:
-      delta_comm: 'modalrec_lo.out_modes'     
+    delta_comm: 'modalrec_lo.out_modes'     
   outputs:  ['out_comm']
+
 
 modal_combination:
   class:        'BaseOperation'
   concat:       true
   inputs:
     in_value1: 'integrator_lo.out_comm'
-    in_value2: 'integrator_lgs.out_comm'
+    in_value2: 'slicer_lgs.out_value'
   outputs:     ['out_value']
+
 
 dm:
   class:             'DM'
   simul_params_ref:  'main'
   ifunc_object:      'VLT_ifunc'
-  nmodes:            702
+  nmodes:            700
   height:            0                        # DM height [m]
   inputs:
-      in_command: 'modal_combination.out_value'
+    in_command: 'modal_combination.out_value'
   outputs:  ['out_layer']
+
+
+modal_analysis:
+  class:                'ModalAnalysis'
+  ifunc_object:         'VLT_ifunc'
+  inputs:
+    in_ef: 'prop.out_source_on_axis_ef'
+  outputs: ['out_modes']
+
 
 psf:
   class:             'PSF'
@@ -264,3 +282,13 @@ psf:
   inputs:
       in_ef:  'prop.out_source_on_axis_ef'
   outputs:  ['out_psf', 'out_sr']
+
+
+data_store:
+  class:             'DataStore'
+  store_dir:         './output'             # Data result directory: 'store_dir'/TN/
+  data_format:       'fits'
+  inputs:
+    input_list: ['resMod-modal_analysis.out_modes',
+                 'comm-modal_combination.out_value',
+                 'srRes-psf.out_sr']

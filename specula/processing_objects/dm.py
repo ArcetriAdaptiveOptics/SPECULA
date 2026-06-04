@@ -43,36 +43,36 @@ class DM(BaseProcessingObj):
         ----------
         simul_params : SimulParams
             Simulation parameters object containing pupil size, pixel pitch, etc.
-        height : float
+        height : float [m]
             Height of the DM layer in meters (this is distance from the pupil).
-        ifunc : IFunc, optional
+        ifunc : IFunc
             Influence function object defining the DM actuator influence functions.
-        m2c : M2C, optional
+        m2c : M2C
             Mode-to-command matrix object for converting mode commands to actuator commands.
-        type_str : str, optional
+        type_str : str
             Type of influence function to use if `ifunc` is not provided.
-        nmodes : int, optional
+        nmodes : int [1], optional
             Number of modes to consider if `ifunc` is not provided.
-        nzern : int, optional
+        nzern : int [1], optional
             Maximum Zernike radial order if `ifunc` is not provided.
             This is used from mixed Zernike KL bases (not implemented yet).
-        start_mode : int, optional
+        start_mode : int [1], optional
             Starting mode index for the DM modes.
-        idx_modes : list or array, optional
+        idx_modes : list or array [1], optional
             Specific mode indices to use for the DM. If provided, `start_mode` and `nmodes` are ignored.
-        npixels : int, optional
+        npixels : int [pixels], optional
             Number of pixels for the DM layer. If None, defaults to pupil size.
-        obsratio : float, optional
+        obsratio : float [1], optional
             Obscuration ratio for the influence function if `ifunc` is not provided.
-        diaratio : float, optional
+        diaratio : float [1], optional
             Diagonal ratio for the influence function if `ifunc` is not provided.
-        pupilstop : Pupilstop, optional
+        pupilstop : Pupilstop
             Pupilstop object defining the DM aperture.
-        sign : int, optional
+        sign : int [1], optional
             Sign for the DM surface deformation, by default -1 (to account for reflection).
-        target_device_idx : int, optional
+        target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
-        precision : int, optional
+        precision : int [1], optional
             Precision for computation (0 for double, 1 for single). Default is None
             (uses global setting).
         """
@@ -117,7 +117,7 @@ class DM(BaseProcessingObj):
         if start_mode is None:
             start_mode = 0
         if nmodes is None:
-            nmodes = self._ifunc.size[0]
+            nmodes = self._ifunc.nmodes()
 
         if idx_modes is not None:
             self._valid_modes = idx_modes
@@ -135,7 +135,7 @@ class DM(BaseProcessingObj):
             self.m2c_commands = None
         
         s = self._ifunc.mask_inf_func.shape
-        nmodes_if = self._ifunc.size[0]
+        nmodes_if = self._ifunc.nmodes()
         self.if_commands = self.xp.zeros(nmodes_if, dtype=self.dtype)
 
         self.if_commands_selector = slice(0, self.n_valid_modes)

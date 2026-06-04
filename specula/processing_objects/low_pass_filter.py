@@ -1,10 +1,9 @@
 
 from specula.processing_objects.iir_filter import IirFilter
-from specula.base_processing_obj import InputDesc, OutputDesc
-from specula.base_value import BaseValue
 from specula.data_objects.iir_filter_data import IirFilterData
 from specula.data_objects.simul_params import SimulParams
-    
+
+
 class LowPassFilter(IirFilter):
     """
     Low pass filter processing object.
@@ -32,15 +31,13 @@ class LowPassFilter(IirFilter):
                                                         target_device_idx=target_device_idx)
 
         # Initialize IirFilter object
-        super().__init__(simul_params, iir_filter_data, delay=delay,
+        super().__init__(iir_filter_data, delay=delay,
                          target_device_idx=target_device_idx, precision=precision)
 
     @classmethod
     def input_names(cls):
-        return {'delta_comm': InputDesc(BaseValue, 'Input delta command vector'),
-                'gain_mod': InputDesc(BaseValue, 'Optional gain modulation vector (optional)')}
+        return super().input_names()
 
     @classmethod
     def output_names(cls):
-        return {'out_comm': OutputDesc(BaseValue, 'Output command vector with delay applied'),
-                'out_comm_no_delay': OutputDesc(BaseValue, 'Output command vector without delay (for POLC)')}
+        return super().output_names()
