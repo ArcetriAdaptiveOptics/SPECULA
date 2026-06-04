@@ -1,5 +1,8 @@
-from specula.base_processing_obj import BaseProcessingObj
+import numpy as np
+from collections import defaultdict
 import matplotlib.pyplot as plt
+
+from specula.base_processing_obj import BaseProcessingObj
 
 def runningOnNotebook():
     try:
@@ -9,39 +12,59 @@ def runningOnNotebook():
         return False
 
 class BaseDisplay(BaseProcessingObj):
+
+    __windows = {}
+    __plot_completed = {}
+    __video_writers = defaultdict(list)
+
     def __init__(self,
                  title='',
+                 window=None,
+                 subplot=111,
                  figsize=(8, 6)):
-
         super().__init__()
-        self._title = title
-        self._figsize = figsize
-        self._opened = False
-        self._colorbar_added = False
+
+        if window is None:
+            window = id(self)
+
+        self.title = title
+        self.figsize = figsize
+        self.colorbar_added = False
         self.input_key = ''
+        self.window = window
+        self.subplot = subplot
         self.fig = None
         self.ax = None
-        self.img = None
-        self.line = None
         self.onNotebook  = runningOnNotebook()
+
+        self._create_figure()
+
+    def get_plots_dict(self):
+        return self.__plot_completed
+
+    def register_writer(self, writer, window_id):
+        self.__video_writers[window_id].append(writer)
 
     def _create_figure(self):
         """Create the matplotlib figure and axes"""
-        if self._opened:
-            return
 
-        self.fig = plt.figure(figsize=self._figsize)
-        self.ax = self.fig.add_subplot(111)
-        if self._title:
-            self.fig.suptitle(self._title)
+        if self.window not in self.__windows:
+            fig = plt.figure(figsize=self.figsize)
+            self.__windows[self.window] = fig
+            self.__plot_completed[self.window] = {}
+
+        self.fig = self.__windows[self.window]
+        self.ax = self.fig.add_subplot(self.subplot)
+        self.__plot_completed[self.window][self.subplot] = False
+
+        if self.title:
+            self.ax.set_title(self.title)
 
         if not self.onNotebook:
             self.fig.show()
         else:
             from IPython.display import display
             self.handle = display(self.fig, display_id=True)
-
-        self._opened = True
 
     def _update_display(self, data):
         """Update the display with new data"""
@@ -58,38 +81,40 @@ class BaseDisplay(BaseProcessingObj):
 
     def trigger_code(self):
         try:
-            if not self._opened:
-                self._create_figure()
             data = self._get_data()
             self._update_display(data)
             if self.onNotebook:
                 self.handle.update(self.fig)
         except Exception as e:
             self._show_error(f"Display error: {str(e)}")
+        self.__plot_completed[self.window][self.subplot] = True
+
+    def post_trigger(self):
+        super().post_trigger()
+
+        # If all subplots in this window have completed drawing,
+        # call safe_draw(), reset the plot flags and eventually record video
+
+        if all(self.__plot_completed[self.window].values()):
+            self._safe_draw()
+            for k in self.__plot_completed[self.window].keys():
+                self.__plot_completed[self.window][k] = False
+
+            for writer in self.__video_writers[self.window]:
+                frame = np.asarray(self.fig.canvas.buffer_rgba())
+                writer.append_data(frame[:, :, :3])
+
 
     # ============ UTILITY METHODS ============
 
-    def set_y_range(self, ymin, ymax):
-        """Set fixed Y axis range"""
-        if hasattr(self, '_yrange'):
-            self._yrange = (ymin, ymax)
-            if self._opened and self.ax:
-                self.ax.set_ylim(ymin, ymax)
-                self._safe_draw()
-
-    def auto_y_range(self):
-        """Enable automatic Y axis scaling - override in subclasses for specific logic"""
-        if hasattr(self, '_yrange'):
-            self._yrange = (0, 0)
-
-    def _add_colorbar_if_needed(self, image_obj):
+    def _add_colorbar_if_needed(self, image_obj, **kwargs):
         """Add colorbar if not already present"""
-        if not hasattr(self, '_colorbar_added'):
-            self._colorbar_added = False
+        if not hasattr(self, 'colorbar_added'):
+            self.colorbar_added = False
 
-        if not self._colorbar_added and image_obj is not None:
-            plt.colorbar(image_obj, ax=self.ax)
-            self._colorbar_added = True
+        if not self.colorbar_added and image_obj is not None:
+            plt.colorbar(image_obj, ax=self.ax, **kwargs)
+            self.colorbar_added = True
 
     def _update_image_data(self, image_obj, data):
         """Standard image update logic"""
@@ -98,8 +123,6 @@ class BaseDisplay(BaseProcessingObj):
             image_obj.set_clim(data.min(), data.max())
 
     def _show_error(self, message):
-        if not self._opened:
-            self._create_figure()
         self.ax.clear()
         self.ax.text(0.5, 0.5, message, ha='center', va='center', 
                     transform=self.ax.transAxes, color='red', fontsize=12)

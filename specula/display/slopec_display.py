@@ -9,11 +9,16 @@ from specula.data_objects.slopes import Slopes
 class SlopecDisplay(BaseDisplay):
     def __init__(self,
                  title='Slopes Display',
-                 figsize=(6, 6)):
+                 figsize=(6, 6),
+                 window=None,
+                 subplot=111,
+                 ):
 
         super().__init__(
             title=title,
-            figsize=figsize
+            figsize=figsize,
+            window=window,
+            subplot=subplot,
         )
 
         self.img = None
@@ -43,5 +48,4 @@ class SlopecDisplay(BaseDisplay):
         else:
             # Update existing image
             self._update_image_data(self.img, frame2d)
-
-        self._safe_draw()
+            

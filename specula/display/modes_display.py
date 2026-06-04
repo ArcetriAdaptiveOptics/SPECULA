@@ -11,11 +11,16 @@ class ModesDisplay(BaseDisplay):
                  title='Modes Display',
                  figsize=(6, 3),
                  xrange=None,
-                 yrange=(-500, 500)):
+                 yrange=(-500, 500),
+                 window=None,
+                 subplot=111,
+                 ):
 
         super().__init__(
             title=title,
-            figsize=figsize
+            figsize=figsize,
+            window=window,
+            subplot=subplot,
         )
 
         self._xrange = xrange
@@ -71,19 +76,3 @@ class ModesDisplay(BaseDisplay):
             if np.sum(np.abs(self._yrange)) == 0:
                 self.ax.set_ylim(y.min() * 1.1, y.max() * 1.1)
 
-        # Draw efficiently
-        self._safe_draw()
-
-    def set_x_range(self, xmin, xmax):
-        """Set fixed X axis range"""
-        self._xrange = (xmin, xmax)
-        if self.line is not None:
-            self.ax.set_xlim(xmin, xmax)
-            self._safe_draw()
-
-    def set_y_range(self, ymin, ymax):
-        """Set fixed Y axis range"""
-        self._yrange = (ymin, ymax)
-        if self.line is not None:
-            self.ax.set_ylim(ymin, ymax)
-            self._safe_draw()
