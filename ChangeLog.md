@@ -18,6 +18,7 @@
 
 - Fixed vecWeiPixRadT extraction in ShSlopec
 - Fixed output\_names in PhaseScreenCube
+- Optimization of the compute\_ifs\_covmat function
 - ...
 
 ## [1.0.3] - 2026-05-18
