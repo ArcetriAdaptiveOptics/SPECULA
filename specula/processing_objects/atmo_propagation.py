@@ -22,7 +22,7 @@ class AtmoPropagation(BaseProcessingObj):
     """
     def __init__(self,
                  simul_params: SimulParams,
-                 source_dict: dict,     # TODO ={},
+                 source_dict: dict,
                  doFresnel: bool=False,
                  wavelengthInNm: float=500.0,
                  telescope_altitude_m: float=None,

@@ -18,6 +18,7 @@
 
 - Fixed vecWeiPixRadT extraction in ShSlopec
 - Fixed output\_names in PhaseScreenCube
+- Fixed start\_time bug in WindowedIntegration
 - Optimization of the compute\_ifs\_covmat function
 - ...
 
