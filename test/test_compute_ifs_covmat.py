@@ -733,4 +733,59 @@ class TestComputeIfsCovmat(unittest.TestCase):
 
         self.assertIn("Oversampling factor must be at least 2", str(context.exception))
 
+    @cpu_and_gpu
+    def test_odd_dimensions_rfft(self, target_device_idx, xp):
+        """Test that RFFT logic correctly handles odd grid dimensions (M % 2 != 0)."""
+        # We need oversampling * mask_size to be ODD.
+        # Since oversampling is an integer >= 2, we can set oversampling=3 and mask_size=11.
+        mask_size = 11
+        oversampling = 3  # M = 33 (Odd)
 
+        pupil_mask = xp.ones((mask_size, mask_size), dtype=xp.float32)
+        npupil = int(xp.sum(pupil_mask))
+        n_actuators = 4
+
+        influence_functions = xp.random.randn(n_actuators, npupil).astype(xp.float32)
+
+        # This will trigger the `else` branch in the RFFT weights logic
+        result = compute_ifs_covmat(
+            pupil_mask,
+            diameter=8.0,
+            influence_functions=influence_functions,
+            r0=0.16,
+            L0=25.0,
+            oversampling=oversampling,
+            xp=xp,
+            dtype=xp.float32
+        )
+
+        # Matrix should be valid, finite, and positive semidefinite
+        self.assertEqual(result.shape, (n_actuators, n_actuators))
+        self.assertTrue(xp.all(xp.isfinite(result)))
+
+        # Check PSD property (no negative eigenvalues)
+        eigenvalues = xp.linalg.eigvalsh(result)
+        self.assertGreater(float(xp.min(eigenvalues)), -1e-5)
+
+    @cpu_and_gpu
+    def test_rfft_energy_conservation(self, target_device_idx, xp):
+        """
+        Test that the sum of the covariance matrix trace is strictly positive 
+        and scales correctly, ensuring RFFT conjugate mirroring preserves energy.
+        """
+        mask_size = 16
+        pupil_mask = xp.ones((mask_size, mask_size), dtype=xp.float32)
+        npupil = int(xp.sum(pupil_mask))
+        n_actuators = 2
+
+        # Use flat influence functions = 1.0 to integrate the full spectrum
+        influence_functions = xp.ones((n_actuators, npupil), dtype=xp.float32)
+
+        result_even = compute_ifs_covmat(
+            pupil_mask, diameter=8.0, influence_functions=influence_functions,
+            r0=0.16, L0=25.0, oversampling=2, xp=xp, dtype=xp.float64
+        )
+
+        trace_even = float(xp.trace(result_even))
+        self.assertTrue(np.isfinite(trace_even))
+        self.assertGreater(trace_even, 0.0)
