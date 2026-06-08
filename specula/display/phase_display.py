@@ -1,5 +1,7 @@
 
 import numpy as np
+from typing import Union
+from collections.abc import Hashable
 
 from specula import cpuArray
 
@@ -10,9 +12,10 @@ from specula.data_objects.electric_field import ElectricField
 class PhaseDisplay(BaseDisplay):
     def __init__(self,
                  title='Phase Display',
-                 window=None,
-                 subplot=111,
-                 figsize=(8, 6)):  # Default size in inches
+                 figsize=(8, 6),
+                 window: Union[Hashable, None]=None,
+                 subplot: int=111,
+                 ):
         super().__init__(
             title=title,
             figsize=figsize,

@@ -1,4 +1,6 @@
 import numpy as np
+from typing import Union
+from collections.abc import Hashable
 
 from specula import cpuArray
 from specula.display.base_display import BaseDisplay
@@ -10,11 +12,10 @@ class SlopecDisplay(BaseDisplay):
     def __init__(self,
                  title='Slopes Display',
                  figsize=(6, 6),
-                 window=None,
-                 subplot=111,
                  unit='slopes',
+                 window: Union[Hashable, None]=None,
+                 subplot: int=111,
                  ):
-
         super().__init__(
             title=title,
             figsize=figsize,

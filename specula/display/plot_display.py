@@ -1,4 +1,7 @@
 import numpy as np
+from typing import Union
+from collections.abc import Hashable
+
 import matplotlib.pyplot as plt
 
 from specula.display.base_display import BaseDisplay
@@ -14,9 +17,9 @@ class PlotDisplay(BaseDisplay):
                  yrange=(0, 0),
                  x_axis='time',  # can be time or iteration
                  labels=None,
-                 window=None,
-                 subplot=111):
-
+                 window: Union[Hashable, None]=None,
+                 subplot: int=111,
+                 ):
         super().__init__(
             title=title,
             figsize=figsize,

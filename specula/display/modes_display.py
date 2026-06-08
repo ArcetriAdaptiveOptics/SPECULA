@@ -1,4 +1,6 @@
 import numpy as np
+from typing import Union
+from collections.abc import Hashable
 
 from specula.display.base_display import BaseDisplay
 from specula.connections import InputValue
@@ -12,8 +14,8 @@ class ModesDisplay(BaseDisplay):
                  figsize=(6, 3),
                  xrange=None,
                  yrange=(-500, 500),
-                 window=None,
-                 subplot=111,
+                 window: Union[Hashable, None]=None,
+                 subplot: int=111,
                  ):
 
         super().__init__(

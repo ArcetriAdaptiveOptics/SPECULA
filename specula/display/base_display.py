@@ -1,5 +1,7 @@
 import numpy as np
+from typing import Union
 from collections import defaultdict
+from collections.abc import Hashable
 import matplotlib.pyplot as plt
 
 from specula.base_processing_obj import BaseProcessingObj
@@ -19,8 +21,8 @@ class BaseDisplay(BaseProcessingObj):
 
     def __init__(self,
                  title='',
-                 window=None,
-                 subplot=111,
+                 window: Union[Hashable, None]=None,
+                 subplot: int=111,
                  figsize=(8, 6)):
         super().__init__()
 
