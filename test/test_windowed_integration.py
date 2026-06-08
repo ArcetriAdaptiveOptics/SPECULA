@@ -158,6 +158,10 @@ class TestWindowedIntegration(unittest.TestCase):
             integrator.check_ready(current_time)
             integrator.trigger()
             integrator.post_trigger()
+            if step < 3:
+                assert integrator.output.generation_time == -1
+            else:
+                assert integrator.output.generation_time == current_time
 
         # Integration should start at step 3, so only steps 3,4 contribute
         # (1*0.1 + 1*0.1) / 0.2 = 1

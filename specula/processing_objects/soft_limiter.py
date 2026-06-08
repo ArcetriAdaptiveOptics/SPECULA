@@ -5,13 +5,21 @@ from specula.connections import InputValue
 from specula.base_value import BaseValue
 from specula.data_objects.recmat import Recmat
 
-class MmsePistonUnwrapper(BaseProcessingObj):
+class SoftLimiter(BaseProcessingObj):
     """
-    MMSE piston unwrapper processing object.
-    
-    Continuous Topological Unwrapper based on Minimum Mean Square Error (MMSE).
-    Acts as a "Soft Limiter" projecting out unphysical differential pistons
-    from the accumulated command using Kolmogorov prior statistics.
+    Soft Limiter processing object.
+
+    A generalized temporal regularizer for unobservable or poorly sensed 
+    modes, based on a Minimum Mean Square Error (MMSE) subspace estimation. 
+    It acts as a localized leaky integrator to selectively prevent the 
+    control-induced divergence of specific modal subspaces without affecting 
+    the rest of the control loop.
+
+    Primary application:
+    Specifically configured to mitigate the 'Island Effect' in segmented 
+    SCAO systems. It continuously drains unobservable differential pistons 
+    (petal modes) from the accumulated command state using von Kármán 
+    prior statistics, leaving the continuous atmospheric correction intact.
     """
     def __init__(self,
                  recmat_list: List[Recmat],
@@ -23,7 +31,7 @@ class MmsePistonUnwrapper(BaseProcessingObj):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         if len(recmat_list) < 2:
-            raise ValueError("MmsePistonUnwrapper requires 'recmat_list' to contain at least two objects:"
+            raise ValueError("SoftLimiter requires 'recmat_list' to contain at least two objects:"
                              " [MMSE_recmat, Intmat].")
 
         self.gain = gain
@@ -50,18 +58,18 @@ class MmsePistonUnwrapper(BaseProcessingObj):
         self.intmat = self.to_xp(intmat_obj.recmat, dtype=self.dtype) # Shape: (N_modes, N_pistons)
 
         if self.recmat.ndim != 2 or self.intmat.ndim != 2:
-            raise ValueError("MmsePistonUnwrapper expects 2D matrices for both recmat and intmat.")
+            raise ValueError("SoftLimiter expects 2D matrices for both recmat and intmat.")
 
         self.n_pistons, self.n_modes = self.recmat.shape
         intmat_n_modes, intmat_n_pistons = self.intmat.shape
         if (intmat_n_modes, intmat_n_pistons) != (self.n_modes, self.n_pistons):
             raise ValueError(
-                "Incompatible matrix shapes for MmsePistonUnwrapper: "
+                "Incompatible matrix shapes for SoftLimiter: "
                 f"recmat shape {tuple(self.recmat.shape)} and intmat shape {tuple(self.intmat.shape)}. "
                 f"Expected intmat shape ({self.n_modes}, {self.n_pistons})."
             )
 
-        self.logger.info(f"MmsePistonUnwrapper initialized successfully. Gain: {self.gain}")
+        self.logger.info(f"SoftLimiter initialized successfully. Gain: {self.gain}")
 
     def setup(self):
         super().setup()

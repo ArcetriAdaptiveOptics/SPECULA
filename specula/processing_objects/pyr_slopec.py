@@ -25,7 +25,7 @@ class PyrSlopec(Slopec):
                  pupdata: PupData,
                  sn: Slopes=None,
                  shlike: bool=False,
-                 norm_factor: float=None,   # TODO =1.0,
+                 norm_factor: float=None,
                  thr_value: float=0,
                  slopes_from_intensity: bool=False,
                  target_device_idx: int=None,

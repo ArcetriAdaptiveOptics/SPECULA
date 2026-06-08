@@ -19,7 +19,7 @@ class DataStore(BaseProcessingObj):
     basis, and saves them to disk at the end of the run.
     """
     def __init__(self,
-                store_dir: str,         # TODO ="",
+                store_dir: str,
                 split_size: int=0,
                 first_suffix: int=0,
                 data_format: str='fits',

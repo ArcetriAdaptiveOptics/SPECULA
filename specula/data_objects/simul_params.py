@@ -36,6 +36,10 @@ class SimulParams(BaseDataObj):
             The zenith angle of the telescope
         display_server : bool
             Activate web server for simulation display
+        stepping: bool
+            Activate interactive single-stepping mode
+        add_modules: list of str
+            Optional additional modules to add to the search path when importing processing objects
         """
         super().__init__()
 
