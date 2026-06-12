@@ -54,7 +54,7 @@ class PSF(BaseProcessingObj):
     """
     def __init__(self,
                  simul_params: SimulParams,
-                 wavelengthInNm: float,    # TODO =500.0,
+                 wavelengthInNm: float,
                  nd: float=None,
                  pixel_size_mas: float=None,
                  start_time: float=0.0,
@@ -190,8 +190,6 @@ class PSF(BaseProcessingObj):
         self.logger.info(f'SR at {int(self.wavelengthInNm)}nm : {self.sr.value}')
 
     def _compute_radial_profile_data(self, psf, peak:float=None):
-        if psf is None:
-            return None
 
         if peak is None:
             peak = self.xp.max(psf)
@@ -211,8 +209,6 @@ class PSF(BaseProcessingObj):
 
     def _compute_profile_metrics(self, psf):
         radial_profile_data = self._compute_radial_profile_data(psf)
-        if radial_profile_data is None:
-            return None
 
         profile, radial_dist, n_px_in_bin = radial_profile_data
         fwhm = compute_fwhm_from_profile(profile, radial_dist, xp=self.xp, dtype=self.dtype)
@@ -231,8 +227,6 @@ class PSF(BaseProcessingObj):
 
     def _set_radial_profile_output(self, psf, profile_output, norm_peak=None):
         radial_profile_data = self._compute_radial_profile_data(psf, peak=norm_peak)
-        if radial_profile_data is None:
-            return
 
         profile, radial_dist, _ = radial_profile_data
         profile_output.value = self.xp.vstack([radial_dist, profile])
@@ -241,8 +235,6 @@ class PSF(BaseProcessingObj):
     def _set_profile_outputs(self, psf, profile_output, fwhm_output,
                              ee_output, ee_at_radius_output):
         metrics = self._compute_profile_metrics(psf)
-        if metrics is None:
-            return
 
         profile, radial_dist, fwhm, ee, ee_at_radius = metrics
         profile_output.value = self.xp.vstack([radial_dist, profile])

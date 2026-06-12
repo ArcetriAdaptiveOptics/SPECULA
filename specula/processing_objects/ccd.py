@@ -23,9 +23,9 @@ class CCD(BaseProcessingObj):
     """
     def __init__(self,
                  simul_params: SimulParams,
-                 size: list,          # TODO list=[80,80],
-                 dt: float,           # TODO =0.001,
-                 bandw: float,        # TODO =300.0,
+                 size: list,
+                 dt: float,
+                 bandw: float,
                  binning: int=1,
                  photon_noise: bool=False,
                  readout_noise: bool=False,
@@ -245,7 +245,7 @@ class CCD(BaseProcessingObj):
                 'integrated_i': OutputDesc(Intensity, 'Integrated intensity over the exposure')}
 
     def trigger_code(self):
-        if self.start_time > 0 and self.current_time < self.start_time:
+        if self.current_time < self.start_time:
             return
 
         self._integrated_i.sum(self.local_inputs['in_i'],

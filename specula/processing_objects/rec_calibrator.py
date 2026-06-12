@@ -17,9 +17,9 @@ class RecCalibrator(BaseProcessingObj):
     """
     
     def __init__(self,
-                 nmodes: int,         # TODO =0,
-                 data_dir: str,       # TODO = "",         # Set by main simul object
-                 rec_tag: str,        # TODO = "",
+                 nmodes: int,
+                 data_dir: str,     # Set by main simul object
+                 rec_tag: str,
                  first_mode: int = 0,
                  pupdata_tag: str = None,
                  overwrite: bool = False,

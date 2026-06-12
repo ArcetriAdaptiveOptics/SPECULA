@@ -7,10 +7,10 @@ specula.init(0)  # Default target device
 from specula import cpuArray
 from specula.base_value import BaseValue
 from specula.data_objects.recmat import Recmat
-from specula.processing_objects.mmse_piston_unwrapper import MmsePistonUnwrapper
+from specula.processing_objects.soft_limiter import SoftLimiter
 from test.specula_testlib import cpu_and_gpu
 
-class TestMmsePistonUnwrapper(unittest.TestCase):
+class TestSoftLimiter(unittest.TestCase):
 
     def _get_dummy_recmats(self, n_modes, n_petals_rel, target_device_idx, xp):
         """
@@ -39,7 +39,7 @@ class TestMmsePistonUnwrapper(unittest.TestCase):
         recmat_list = self._get_dummy_recmats(n_modes, n_petals_rel, target_device_idx, xp)
 
         # Should initialize without errors
-        unwrapper = MmsePistonUnwrapper(
+        unwrapper = SoftLimiter(
             recmat_list=recmat_list,
             target_device_idx=target_device_idx
         )
@@ -48,7 +48,7 @@ class TestMmsePistonUnwrapper(unittest.TestCase):
 
         # Should raise an exception if the required matrices are missing
         with self.assertRaises(ValueError):
-            MmsePistonUnwrapper(recmat_list=[recmat_list[0]], target_device_idx=target_device_idx)
+            SoftLimiter(recmat_list=[recmat_list[0]], target_device_idx=target_device_idx)
 
     @cpu_and_gpu
     def test_trigger_math_correctness(self, target_device_idx, xp):
@@ -56,7 +56,7 @@ class TestMmsePistonUnwrapper(unittest.TestCase):
         n_modes, n_petals_rel = 10, 5
         recmat_list = self._get_dummy_recmats(n_modes, n_petals_rel, target_device_idx, xp)
 
-        unwrapper = MmsePistonUnwrapper(
+        unwrapper = SoftLimiter(
             recmat_list=recmat_list,
             gain=1.0,
             target_device_idx=target_device_idx
@@ -92,7 +92,7 @@ class TestMmsePistonUnwrapper(unittest.TestCase):
         recmat_list = self._get_dummy_recmats(n_modes, n_petals_rel, target_device_idx, xp)
 
         # Set gain to 0.1 (removes only 10% of the estimated piston error per frame)
-        unwrapper = MmsePistonUnwrapper(
+        unwrapper = SoftLimiter(
             recmat_list=recmat_list,
             gain=0.1,
             target_device_idx=target_device_idx
@@ -125,7 +125,7 @@ class TestMmsePistonUnwrapper(unittest.TestCase):
         n_modes, n_petals_rel = 10, 5
         recmat_list = self._get_dummy_recmats(n_modes, n_petals_rel, target_device_idx, xp)
 
-        unwrapper = MmsePistonUnwrapper(
+        unwrapper = SoftLimiter(
             recmat_list=recmat_list,
             start_time=2.0,
             interval_time=2.0,

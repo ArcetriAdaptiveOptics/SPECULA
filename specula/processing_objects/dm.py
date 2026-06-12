@@ -16,7 +16,7 @@ class DM(BaseProcessingObj):
     """
     def __init__(self,
                  simul_params: SimulParams,
-                 height: float,          # TODO =0.0,
+                 height: float,
                  ifunc: IFunc=None,
                  m2c: M2C=None,
                  type_str: str=None,
