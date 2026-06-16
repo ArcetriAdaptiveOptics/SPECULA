@@ -1,5 +1,3 @@
-import matplotlib.pyplot as plt
-
 import specula
 
 specula.init(0)  # Default target device
@@ -15,6 +13,8 @@ from test.specula_testlib import cpu_and_gpu
 from specula import cpuArray
 from scipy.special import fresnel
 from specula.data_objects.layer import Layer
+
+from scipy.special import j1
 
 
 class Test(unittest.TestCase):
@@ -249,7 +249,9 @@ class Test(unittest.TestCase):
 
         # Numerical propagation
         propagator = prop.asm_propagator(distanceInM, d_in, d_out)
-        prop.angular_spectrum_propagation(layer.A * xp.exp(1j * layer.phaseInNm), propagator)
+        ef_in = xp.zeros([N*2, N*2], dtype=complex)
+        ef_in[N // 2:N // 2 + N, N // 2:N // 2 + N] = layer.A * xp.exp(1j * layer.phaseInNm)
+        prop.angular_spectrum_propagation(ef_in, propagator)
 
         # Analytical propagation
         coord = xp.arange(-N/2, N/2)
@@ -262,10 +264,11 @@ class Test(unittest.TestCase):
         sb2, cb2 = fresnel(cpuArray(np.sqrt(2) * (np.sqrt(N_f))))
         U = 1 / 2j * ((ca2 - ca1) + 1j * (sa2 - sa1)) * ((cb2 - cb1) + 1j * (sb2 - sb1))
 
-        amp_asm = np.abs(cpuArray(prop.ef_fresnel[N // 2, :]))**2
+        ef_fresnel = prop.ef_fresnel[N // 2:N // 2 + N, N // 2:N // 2 + N]
+        amp_asm = np.abs(cpuArray(ef_fresnel[N // 2, :]))**2
         amp_an = np.abs(U)**2
         self.assertTrue(xp.mean(abs(amp_asm) - abs(amp_an)) < 0.01)
-        phase_asm = np.angle(cpuArray(prop.ef_fresnel[N // 2, :]))
+        phase_asm = np.angle(cpuArray(ef_fresnel[N // 2, :]))
         phase_an = np.angle(U)
         self.assertTrue(xp.mean(abs(phase_asm) - abs(phase_an)) < 0.03)
 
@@ -327,3 +330,60 @@ class Test(unittest.TestCase):
 
         rms = xp.sqrt(xp.mean((phase_phys / np.sum(phase_phys) - phase_geom / np.sum(phase_phys)) ** 2))
         self.assertTrue(rms < 1e-3)
+
+    @cpu_and_gpu
+    def test_fraunhoferProp_circular(self, target_device_idx, xp):
+        # Setup simulation parameters
+        pixel_pupil = 512
+        L = 7.5e-3 # total size of grid [m]
+        D = 1e-3 # aperture diameter [m]
+        pixel_pitch = L / pixel_pupil
+        wavelength = 1e-6
+        source_height = 20.0
+        k = 2 * np.pi / wavelength
+
+        simul_params = SimulParams(pixel_pupil, pixel_pitch)
+        source = Source(polar_coordinates=[0.0, 0.0], magnitude=0, wavelengthInNm=wavelength*1e9, height=source_height)
+        layer = Layer(
+            dimx=pixel_pupil,
+            dimy=pixel_pupil,
+            pixel_pitch=pixel_pitch,
+            height=0,
+            target_device_idx=target_device_idx
+        )
+        prop = AtmoPropagation(
+            simul_params,
+            source_dict={'source': source},
+            wavelengthInNm=wavelength*1e9,
+            doFresnel=True,
+            upwards=True,
+            target_device_idx=target_device_idx
+        )
+
+        # circular aperture
+        vec = xp.arange(-pixel_pupil / 2, pixel_pupil / 2) * pixel_pitch
+        x1, y1 = xp.meshgrid(vec, vec)
+        r = xp.sqrt(x1 ** 2 + y1 ** 2)
+        aperture = (r < D / 2).astype(float)
+        aperture[r == D/2] = 0.5
+        layer.A = aperture
+        prop.inputs['atmo_layer_list'].set([])
+        prop.inputs['common_layer_list'].set([layer])
+        prop.setup()
+
+        # Numerical propagation
+        propagator, x_out, y_out = prop.fraunhofer_propagator(source_height, pixel_pitch)
+        prop.fraunhofer_far_field_propagation(layer.A * xp.exp(1j * layer.phaseInNm), propagator)
+
+        # jinc function
+        x = D * xp.sqrt(x_out ** 2 + y_out ** 2) / (wavelength * source_height)
+        y = xp.ones_like(x, dtype = float)
+        mask = x != 0
+        y[mask] = 2.0 * j1(np.pi * x[mask]) / (np.pi * x[mask])
+
+        # Analytical propagation
+        ef_analytic = (xp.exp(1j * k / (2 * source_height) * (x_out ** 2 + y_out ** 2))
+                   / (1j * wavelength * source_height) * (D ** 2 * np.pi / 4) * y)
+
+        rms = xp.sqrt(xp.mean((abs(prop.ef_fresnel) - abs(ef_analytic)) ** 2))
+        self.assertTrue(rms < 1e-4)

@@ -173,17 +173,16 @@ class AtmoPropagation(BaseProcessingObj):
        d_in : float [m]
            Grid spacing in the source plane
        """
-
         k = 2 * np.pi / (self.wavelengthInNm * 1e-9)
         self.d_out = (self.wavelengthInNm * 1e-9 * distanceInM) / (self.ef_size_padded * d_in)
 
-        x_out = (self.xp.arange(self.ef_size_padded) - self.ef_size_padded // 2) * self.d_out
-        X_out, Y_out = self.xp.meshgrid(x_out, x_out)
+        v_out = self.xp.arange(-self.ef_size_padded / 2, self.ef_size_padded / 2) * self.d_out
+        x_out, y_out = self.xp.meshgrid(v_out, v_out)
 
         H_FR = (1j / (self.wavelengthInNm * 1e-9 * distanceInM)) * self.xp.exp(
-            -1j * (k / (2 * distanceInM)) * (X_out ** 2 + Y_out ** 2))
+            -1j * (k / (2 * distanceInM)) * (x_out ** 2 + y_out ** 2))
 
-        return H_FR
+        return H_FR, x_out, y_out
 
     def asm_propagator(self, distanceInM, d_in, d_out):
         """
@@ -246,6 +245,21 @@ class AtmoPropagation(BaseProcessingObj):
             else:
                 self.source_height[source] = float(source.height) * self.airmass
 
+    def calc_propagators(self, diff):
+        """Calculate propagators based on distance.
+
+        For far-field propagation Fraunhofer is used, otherwise angular spectrum propagation (ASM) method.
+        """
+        if diff in (0, self.xp.inf):
+            return None
+
+        z_max = 10 * ((self.pixel_pitch * self.pixel_pupil) ** 2) / (self.wavelengthInNm * 1e-9)
+        if diff < z_max:
+           propagator = self.asm_propagator(diff, self.pixel_pitch, self.pixel_pitch)
+        else:
+            propagator, _, _ = self.fraunhofer_propagator(diff, self.pixel_pitch)
+        return propagator
+
     def doFresnel_setup(self):
         layer_list = self.common_layer_list + self.atmo_layer_list
         height_layers = np.array([self.layer_height[layer] for layer in layer_list], dtype=self.dtype)
@@ -258,17 +272,8 @@ class AtmoPropagation(BaseProcessingObj):
         if not np.allclose(height_layers, sorted_heights):
             raise ValueError('Layers must be sorted from lowest to highest')
 
-        z_max = 10 * ((self.pixel_pitch * self.pixel_pupil) ** 2) / (self.wavelengthInNm * 1e-9)
         height_diffs = np.diff(height_layers, append = source_height)
-        self.propagators = []
-        for diff in height_diffs:
-            if diff != 0 and diff != self.xp.inf:
-                if diff < z_max:
-                    self.propagators.append(self.asm_propagator(diff, self.pixel_pitch, self.pixel_pitch))
-                else:
-                    self.propagators.append(self.fraunhofer_propagator(diff, self.pixel_pitch))
-            else:
-                self.propagators.append(None)
+        self.propagators = [self.calc_propagators(diff) for diff in height_diffs]
 
         # adapt for downwards propagation
         if self.prop_sign == 1:
@@ -313,8 +318,7 @@ class AtmoPropagation(BaseProcessingObj):
                 layer.phaseInNm[~mask_valid] = local_mean[~mask_valid]
 
     def fraunhofer_far_field_propagation(self, ef_in, propagator):
-        self.ft_ef1[:] = self.xp.fft.fft2(self.xp.fft.fftshift(ef_in, axes=(-2, -1)), axes=(-2, -1),
-                                          norm="ortho") * (self.pixel_pitch ** 2 * self.ef_size_padded)
+        self.ft_ef1[:] = self.xp.fft.fft2(self.xp.fft.fftshift(ef_in, axes=(-2, -1)), axes=(-2, -1),) * self.pixel_pitch ** 2
         self.ef_fresnel[:] = propagator * self.xp.fft.fftshift(self.ft_ef1, axes=(-2, -1))
 
     def angular_spectrum_propagation(self, ef_in, propagator):
