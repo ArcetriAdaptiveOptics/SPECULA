@@ -8,6 +8,9 @@ import yaml
 import specula
 specula.init(0)  # Default target device
 
+from pathlib import Path
+from unittest.mock import patch
+
 from specula import np
 from specula.simul import Simul
 from specula.field_analyser import FieldAnalyser
@@ -910,3 +913,92 @@ class TestFieldAnalyserWeakSpots(unittest.TestCase):
         self.assertEqual(modal_params['nmodes'], 42)
         self.assertEqual(modal_params['type_str'], 'zernike')
         self.assertEqual(modal_params['obsratio'], 0.2)
+
+    def test_psf_config_has_no_start_time(self):
+        """start_time must not appear in the PSF object config: the loop handles timing now"""
+        analyzer = self._make_analyzer('psf_no_start_time')
+        analyzer.psf_pixel_size_mas = 5.0
+        fake_replay = {
+            'main': {'pixel_pupil': 8},
+            'prop': {'class': 'AtmoPropagation'},
+        }
+        with patch.object(analyzer, '_build_replay_params_from_datastore',
+                          return_value=fake_replay), \
+             patch.object(analyzer, '_add_field_sources_to_params'):
+            result = analyzer._build_replay_params_psf()
+        self.assertNotIn('start_time', result['psf_field_0'])
+
+    def test_build_replay_psf_contains_expected_psf_keys(self):
+        """psf_config must still carry class, wavelengthInNm, pixel_size_mas, inputs"""
+        analyzer = self._make_analyzer('psf_keys')
+        analyzer.psf_pixel_size_mas = 5.0
+        fake_replay = {
+            'main': {'pixel_pupil': 8},
+            'prop': {'class': 'AtmoPropagation'},
+        }
+        with patch.object(analyzer, '_build_replay_params_from_datastore',
+                          return_value=fake_replay), \
+             patch.object(analyzer, '_add_field_sources_to_params'):
+            result = analyzer._build_replay_params_psf()
+        psf_cfg = result['psf_field_0']
+        self.assertEqual(psf_cfg['class'], 'PSF')
+        self.assertIn('wavelengthInNm', psf_cfg)
+        self.assertIn('pixel_size_mas', psf_cfg)
+        self.assertIn('inputs', psf_cfg)
+
+
+class TestFieldAnalyserRunTiming(unittest.TestCase):
+    """Tests that _run_simulation_with_params passes start_time/end_time to Simul.run"""
+
+    def setUp(self):
+        self.datadir = os.path.join(os.path.dirname(__file__), 'data')
+        self._created_dirs = []
+
+    def tearDown(self):
+        for d in self._created_dirs:
+            if os.path.isdir(d):
+                shutil.rmtree(d, ignore_errors=True)
+
+    def _make_analyzer(self, tn_name, start_time=0.1, end_time=None):
+        tn_dir = os.path.join(self.datadir, f'timing_unit_{tn_name}')
+        os.makedirs(tn_dir, exist_ok=True)
+        self._created_dirs.append(tn_dir)
+        params = {
+            'main': {'class': 'SimulParams', 'pixel_pupil': 8, 'pixel_pitch': 1.0},
+            'prop': {'class': 'AtmoPropagation'},
+        }
+        with open(os.path.join(tn_dir, 'params.yml'), 'w', encoding='utf-8') as f:
+            yaml.dump(params, f)
+        return FieldAnalyser(
+            data_dir=self.datadir,
+            tracking_number=f'timing_unit_{tn_name}',
+            polar_coordinates=np.array([[0.0, 0.0]]),
+            start_time=start_time,
+            end_time=end_time,
+            log_level=logging.INFO,
+        )
+
+    def test_run_simulation_passes_start_and_end_time(self):
+        """_run_simulation_with_params must call simul.run with the analyzer's timing"""
+        import tempfile
+        analyzer = self._make_analyzer('pass_timing', start_time=0.3, end_time=1.2)
+        output_dir = Path(self.datadir) / 'timing_output_pass'
+        self._created_dirs.append(str(output_dir))
+
+        with patch('specula.field_analyser.Simul') as MockSimul:
+            mock_instance = MockSimul.return_value
+            analyzer._run_simulation_with_params({'dummy': 'params'}, output_dir)
+
+        mock_instance.run.assert_called_once_with(start_time=0.3, end_time=1.2)
+
+    def test_run_simulation_passes_none_end_time(self):
+        """end_time=None must be forwarded as-is so Simul uses total_time"""
+        analyzer = self._make_analyzer('no_end_time', start_time=0.1, end_time=None)
+        output_dir = Path(self.datadir) / 'timing_output_none'
+        self._created_dirs.append(str(output_dir))
+
+        with patch('specula.field_analyser.Simul') as MockSimul:
+            mock_instance = MockSimul.return_value
+            analyzer._run_simulation_with_params({'dummy': 'params'}, output_dir)
+
+        mock_instance.run.assert_called_once_with(start_time=0.1, end_time=None)

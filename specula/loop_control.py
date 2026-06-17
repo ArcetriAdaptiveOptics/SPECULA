@@ -39,7 +39,7 @@ class LoopControl(BaseTimeObj):
         Returns:
             int: The number of iterations.
         """
-        return int((self.run_time + self.t0) / self.dt) if self.dt != 0 else 0
+        return int(self.run_time / self.dt) if self.dt != 0 else 0
 
     def run(self, run_time, dt, t0=0, speed_report=False):
         """
