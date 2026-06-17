@@ -45,16 +45,20 @@ class BaseDisplay(BaseProcessingObj):
     def register_writer(self, writer, window_id):
         self.__video_writers[window_id].append(writer)
 
-    def _init_window(self):
-        if self.window not in self.__windows:
-            fig = plt.figure(figsize=self.figsize)
-            self.__windows[self.window] = fig
+    def _init_window(self, force=False):
+        if self.window not in self.__windows or force:
+            self.__windows[self.window] = plt.figure(figsize=self.figsize)
             self.__plot_completed[self.window] = {}
 
     def _create_figure(self):
         """Create the matplotlib figure and axes"""
 
         self.fig = self.__windows[self.window]
+
+        # Re-create figure if it has been closed before
+        if self.fig.canvas.manager is None:
+            self._init_window(force=True)
+
         self.ax = self.fig.add_subplot(self.subplot)
         self.__plot_completed[self.window][self.subplot] = False
 
