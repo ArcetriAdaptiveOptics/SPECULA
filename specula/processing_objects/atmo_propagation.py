@@ -249,13 +249,21 @@ class AtmoPropagation(BaseProcessingObj):
         """Calculate propagators based on distance.
 
         For far-field propagation Fraunhofer is used, otherwise angular spectrum propagation (ASM) method.
+        Propagation distance is automatically reduced to avoid numerical issues with FFT.
         """
         if diff in (0, self.xp.inf):
             return None
 
-        z_max = 10 * ((self.pixel_pitch * self.pixel_pupil) ** 2) / (self.wavelengthInNm * 1e-9)
-        if diff < z_max:
-           propagator = self.asm_propagator(diff, self.pixel_pitch, self.pixel_pitch)
+        z_max_FFT = 0.9 * self.ef_size_padded * self.pixel_pitch ** 2 / (self.wavelengthInNm * 1e-9)
+        if diff > z_max_FFT:
+            self.logger.warning(
+                "Propagation distance larger than limit for FFT and thus reduced from " + str(diff) + "m to " + str(
+                    z_max_FFT) + "m. Consider increasing zero padding.")
+            diff = z_max_FFT
+
+        z_max_ASM = 5 * ((self.pixel_pitch * self.pixel_pupil) ** 2) / (self.wavelengthInNm * 1e-9)
+        if diff < z_max_ASM:
+            propagator = self.asm_propagator(diff, self.pixel_pitch, self.pixel_pitch)
         else:
             propagator, _, _ = self.fraunhofer_propagator(diff, self.pixel_pitch)
         return propagator
@@ -271,6 +279,7 @@ class AtmoPropagation(BaseProcessingObj):
         sorted_heights = np.sort(height_layers)
         if not np.allclose(height_layers, sorted_heights):
             raise ValueError('Layers must be sorted from lowest to highest')
+
 
         height_diffs = np.diff(height_layers, append = source_height)
         self.propagators = [self.calc_propagators(diff) for diff in height_diffs]

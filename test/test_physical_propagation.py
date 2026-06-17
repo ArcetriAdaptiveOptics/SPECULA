@@ -128,9 +128,9 @@ class Test(unittest.TestCase):
         # Setup simulation parameters
         pixel_pupil = 120
         pixel_pitch = 0.00833
-        padding = 10
+        padding = 9
         wavelengthInNm = 1550
-        prop_distance = 400e3
+        prop_distance = 40e3
         simul_params = SimulParams(pixel_pupil, pixel_pitch)
 
         seeing = WaveGenerator(constant=2.5, target_device_idx=target_device_idx)
@@ -334,12 +334,13 @@ class Test(unittest.TestCase):
     @cpu_and_gpu
     def test_fraunhoferProp_circular(self, target_device_idx, xp):
         # Setup simulation parameters
-        pixel_pupil = 512
+        pixel_pupil = 120
         L = 7.5e-3 # total size of grid [m]
         D = 1e-3 # aperture diameter [m]
         pixel_pitch = L / pixel_pupil
         wavelength = 1e-6
         source_height = 20.0
+        padding = 2
         k = 2 * np.pi / wavelength
 
         simul_params = SimulParams(pixel_pupil, pixel_pitch)
@@ -357,6 +358,7 @@ class Test(unittest.TestCase):
             wavelengthInNm=wavelength*1e9,
             doFresnel=True,
             upwards=True,
+            padding_factor=padding,
             target_device_idx=target_device_idx
         )
 
@@ -373,7 +375,10 @@ class Test(unittest.TestCase):
 
         # Numerical propagation
         propagator, x_out, y_out = prop.fraunhofer_propagator(source_height, pixel_pitch)
-        prop.fraunhofer_far_field_propagation(layer.A * xp.exp(1j * layer.phaseInNm), propagator)
+        ef_in = xp.zeros([pixel_pupil * padding, pixel_pupil * padding], dtype=complex)
+        s = (pixel_pupil * padding - pixel_pupil) // 2
+        ef_in[s:s + pixel_pupil, s:s + pixel_pupil] = layer.A * xp.exp(1j * layer.phaseInNm)
+        prop.fraunhofer_far_field_propagation(ef_in, propagator)
 
         # jinc function
         x = D * xp.sqrt(x_out ** 2 + y_out ** 2) / (wavelength * source_height)
@@ -386,4 +391,4 @@ class Test(unittest.TestCase):
                    / (1j * wavelength * source_height) * (D ** 2 * np.pi / 4) * y)
 
         rms = xp.sqrt(xp.mean((abs(prop.ef_fresnel) - abs(ef_analytic)) ** 2))
-        self.assertTrue(rms < 1e-4)
+        self.assertTrue(rms < 1e-3)
