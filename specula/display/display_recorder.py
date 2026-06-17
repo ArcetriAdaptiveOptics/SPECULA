@@ -17,6 +17,8 @@ class DisplayRecorder(BaseDisplay):
                 fps=fps,
                 codec=codec,
                 )
+        # Video recording is handled in the base class, because
+        # we cannot guarantee that this object is triggered last
         self.register_writer(writer, window_id=window)
         self.writer = writer
 
@@ -25,6 +27,7 @@ class DisplayRecorder(BaseDisplay):
         pass
 
     def trigger(self):
+        # Do nothing. The video writer will be c
         pass
 
     def finalize(self):
