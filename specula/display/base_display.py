@@ -58,6 +58,7 @@ class BaseDisplay(BaseProcessingObj):
         # Re-create figure if it has been closed before
         if self.fig.canvas.manager is None:
             self._init_window(force=True)
+            self.fig = self.__windows[self.window]
 
         self.ax = self.fig.add_subplot(self.subplot)
         self.__plot_completed[self.window][self.subplot] = False
