@@ -1,4 +1,7 @@
 import numpy as np
+from typing import Union
+from collections.abc import Hashable
+
 import matplotlib.colors as mcolors
 
 from specula import cpuArray
@@ -14,10 +17,9 @@ class PsfDisplay(BaseDisplay):
                  figsize=(6, 6),
                  log_scale=False,
                  image_p2v=0.0,
-                 window=None,
-                 subplot=111
+                 window: Union[Hashable, None]=None,
+                 subplot :int=111,
                  ):
-
         super().__init__(
             title=title,
             figsize=figsize,

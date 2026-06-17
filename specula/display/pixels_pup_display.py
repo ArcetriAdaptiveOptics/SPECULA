@@ -1,4 +1,7 @@
 import numpy as np
+from typing import Union
+from collections.abc import Hashable
+
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from matplotlib.patches import Circle
@@ -31,8 +34,8 @@ class PixelsPupDisplay(BaseDisplay):
                  log_scale=False,
                  crop=None,
                  crop_mode="slice",
-                 window=None,
-                 subplot=111,
+                 window: Union[Hashable, None]=None,
+                 subplot: int=111,
                  ):
 
         super().__init__(title=title,
