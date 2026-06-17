@@ -39,21 +39,20 @@ class BaseDisplay(BaseProcessingObj):
         self.ax = None
         self.onNotebook  = runningOnNotebook()
 
+        self._init_window()
         self._create_figure()
-
-    def get_plots_dict(self):
-        return self.__plot_completed
 
     def register_writer(self, writer, window_id):
         self.__video_writers[window_id].append(writer)
 
-    def _create_figure(self):
-        """Create the matplotlib figure and axes"""
-
+    def _init_window(self):
         if self.window not in self.__windows:
             fig = plt.figure(figsize=self.figsize)
             self.__windows[self.window] = fig
             self.__plot_completed[self.window] = {}
+
+    def _create_figure(self):
+        """Create the matplotlib figure and axes"""
 
         self.fig = self.__windows[self.window]
         self.ax = self.fig.add_subplot(self.subplot)

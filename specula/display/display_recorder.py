@@ -22,7 +22,7 @@ class DisplayRecorder(BaseDisplay):
 
     def _create_figure(self):
         # Override _create_figure to disable window opening
-        self.get_plots_dict()[self.window] = {}
+        pass
 
     def trigger(self):
         pass
