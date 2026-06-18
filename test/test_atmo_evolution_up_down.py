@@ -1,8 +1,8 @@
 import os
 import glob
 import specula
-from specula.loop_control import LoopControl
 specula.init(0)  # Default target device
+from specula.loop_control import LoopControl
 
 import unittest
 
