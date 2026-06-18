@@ -13,6 +13,7 @@
 - Removed simul\_params argument from IirFilter, Integrator and other related processing objects
 - Outputs for SpeculaInput and derived objects like TerminalInput must be typed with :int, :float or :str
 - Renamed MmsePistonUnwrapper to SoftLimiter and moved the module to specula.processing_objects.soft_limiter
+- Added stroke thresholding for dm class
 
 ### Other
 
@@ -20,7 +21,6 @@
 - Fixed output\_names in PhaseScreenCube
 - Fixed start\_time bug in WindowedIntegration
 - Optimization of the compute\_ifs\_covmat function
-- Added stroke thresholding for dm class
 - ...
 
 ## [1.0.3] - 2026-05-18
