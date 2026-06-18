@@ -9,7 +9,7 @@ class PhaseExtractor(BaseProcessingObj):
     """
     Phase extractor processing object.
     Extracts the phase (phaseInNm) from an ElectricField or Layer and stores it
-    as a flat BaseValue array.
+    as a BaseValue, preserving the original 2-D shape.
     """
     def __init__(self,
                  target_device_idx: int=None,
@@ -18,7 +18,7 @@ class PhaseExtractor(BaseProcessingObj):
         Phase extractor processing object.
 
         Reads an ElectricField (or Layer, which is a subclass) and copies its
-        ``phaseInNm`` 2-D array into a flat ``BaseValue`` output vector.
+        ``phaseInNm`` 2-D array into a ``BaseValue`` output, preserving the original shape.
 
         Parameters
         ----------
@@ -45,9 +45,9 @@ class PhaseExtractor(BaseProcessingObj):
     def setup(self):
         super().setup()
         ef = self.local_inputs['in_ef']
-        self.out_phase.value = self.xp.empty(ef.phaseInNm.size, dtype=self.dtype)
+        self.out_phase.value = self.xp.empty(ef.phaseInNm.shape, dtype=self.dtype)
 
     def trigger_code(self):
         ef = self.local_inputs['in_ef']
-        self.out_phase.value[:] = ef.phaseInNm.ravel()
+        self.out_phase.value[:] = ef.phaseInNm
         self.out_phase.generation_time = self.current_time

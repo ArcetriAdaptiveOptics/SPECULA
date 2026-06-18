@@ -28,7 +28,7 @@ class TestPhaseExtractor(unittest.TestCase):
         loop.run(run_time=2, dt=1, t0=1)
 
         result = cpuArray(extractor.outputs['out_phase'].value)
-        expected = np.arange(16, dtype=float)
+        expected = np.arange(16, dtype=float).reshape(4, 4)
         np.testing.assert_array_almost_equal(result, expected)
 
     @cpu_and_gpu
@@ -45,8 +45,8 @@ class TestPhaseExtractor(unittest.TestCase):
         loop.run(run_time=2, dt=1, t0=1)
 
         result = cpuArray(extractor.outputs['out_phase'].value)
-        assert result.shape == (16,)
-        np.testing.assert_array_almost_equal(result, np.full(16, 42.0))
+        assert result.shape == (4, 4)
+        np.testing.assert_array_almost_equal(result, np.full((4, 4), 42.0))
 
     @cpu_and_gpu
     def test_output_shape(self, target_device_idx, xp):
@@ -60,4 +60,4 @@ class TestPhaseExtractor(unittest.TestCase):
         loop.add(extractor, idx=0)
         loop.run(run_time=2, dt=1, t0=1)
 
-        assert extractor.outputs['out_phase'].value.shape == (48,)
+        assert extractor.outputs['out_phase'].value.shape == (6, 8)
