@@ -204,7 +204,7 @@ class DM(BaseProcessingObj):
             self.layer.phaseInNm[self._ifunc.idx_inf_func] = \
                 self.if_commands[self.if_commands_selector] @ self._ifunc.influence_function[self._valid_modes, :]
         self.layer.generation_time = self.current_time
-        self.clip_command.value = cmd
+        self.clip_command.value[:] = cmd
         self.clip_command.generation_time = self.current_time
 
     # Getters and Setters for the attributes
