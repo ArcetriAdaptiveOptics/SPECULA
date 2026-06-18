@@ -284,7 +284,6 @@ class FieldAnalyser:
                 'simul_params_ref': 'main',
                 'wavelengthInNm': self.wavelength_nm,
                 'pixel_size_mas': self.psf_pixel_size_mas,
-                'start_time': self.start_time,
                 'inputs': {
                     'in_ef': f'prop.out_field_source_{i}_ef'
                 },
@@ -485,7 +484,7 @@ class FieldAnalyser:
         try:
             # Create Simul instance normally (this initializes all required attributes)
             simul = Simul(temp_params_file)
-            simul.run()
+            simul.run(start_time=self.start_time, end_time=self.end_time)
             return simul
         except Exception as e:
             self.logger.error(f"Simulation failed: {e}")

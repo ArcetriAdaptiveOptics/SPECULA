@@ -206,7 +206,7 @@ class Coronagraph(BaseProcessingObj):
             xShiftPhInPixel=0,
             yShiftPhInPixel=0,
             mask_threshold=self.mask_threshold,
-            use_out_ef_cache=True,
+            use_out_ef_cache=False,   # Turning this on results in crashes during GPU tests
             target_device_idx=self.target_device_idx,
             precision=self.precision
         )

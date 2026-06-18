@@ -88,6 +88,35 @@ class TestLoopControl(unittest.TestCase):
             loop.run(run_time=-1, dt=0.1)
 
 
+class TestLoopControlTiming(unittest.TestCase):
+
+    @cpu_and_gpu
+    def test_niters_with_nonzero_t0(self, target_device_idx, xp):
+        """niters() counts actual iterations from t0, not total steps from t=0"""
+        loop = LoopControl()
+        loop.run_time = loop.seconds_to_t(1.0)
+        loop.dt = loop.seconds_to_t(0.1)
+        loop.t0 = loop.seconds_to_t(0.5)
+        assert loop.niters() == 10  # run_time/dt only, t0 not added
+
+    @cpu_and_gpu
+    def test_run_with_t0_starts_at_correct_time_and_iteration_count(self, target_device_idx, xp):
+        """With t0 > 0, first check_ready receives t0 and total iterations equals run_time/dt"""
+        times_seen = []
+
+        class TimeRecorder(MockProcessingObjReady):
+            def check_ready(self, t):
+                super().check_ready(t)
+                times_seen.append(t)
+
+        loop = LoopControl()
+        loop.add(TimeRecorder(), idx=0)
+        loop.run(run_time=0.2, dt=0.1, t0=0.5)
+
+        assert times_seen[0] == loop.seconds_to_t(0.5)
+        assert len(times_seen) == 2  # run_time/dt = 0.2/0.1
+
+
 class TestSteppingFeature(unittest.TestCase):
 
     def setUp(self):

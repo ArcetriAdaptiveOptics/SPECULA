@@ -788,7 +788,7 @@ class Simul():
                 else:
                     raise ValueError(f"Invalid number of parts detected in override: {parts}. Did you add/forget a '.'?")
     
-    def run(self):
+    def run(self, start_time=0, end_time=None):
         params = {}
         # Read YAML file(s)
         self.logger.info('Reading parameters from ' + self.param_files[0])
@@ -851,8 +851,11 @@ class Simul():
             self.loop.add(disp, idx+1)
 
         # Run simulation loop
-        self.loop.run(run_time=self.mainParams['total_time'],
+        total_time = self.mainParams['total_time']
+        run_time = (end_time if end_time is not None else total_time) - start_time
+        self.loop.run(run_time=run_time,
                       dt=self.mainParams['time_step'],
+                      t0=start_time,
                       speed_report=self.speed_report)
 
         self.logger.debug(f'Simulation finished')
