@@ -135,9 +135,11 @@ class DM(BaseProcessingObj):
             self.m2c = m2c.m2c
             nmodes_m2c = m2c.m2c[:, self._valid_modes].shape[1]
             self.m2c_commands = self.xp.zeros(nmodes_m2c, dtype=self.dtype)
+            out_comm_len = self.m2c.shape[0]
         else:
             self.m2c = None
             self.m2c_commands = None
+            out_comm_len = self.n_valid_modes
         
         s = self._ifunc.mask_inf_func.shape
         nmodes_if = self._ifunc.nmodes()
@@ -156,16 +158,16 @@ class DM(BaseProcessingObj):
         self.stroke = None
         if stroke is not None:
             if isinstance(stroke,list):
-                if self.nmodes != len(stroke):
-                    raise ValueError(f'Stroke is a list of {len(stroke)} elements, but {self.nmodes} coefficients are expected')
+                if out_comm_len != len(stroke):
+                    raise ValueError(f'Stroke is a list of {len(stroke)} elements, but {out_comm_len} coefficients are expected')
                 self.stroke = self.xp.array(stroke)
             else:
-                self.stroke = self.xp.ones(self.nmodes)*stroke
+                self.stroke = self.xp.ones(out_comm_len)*stroke
         
         self.clip_command = BaseValue(
             target_device_idx=target_device_idx,
             precision=precision,
-            value=self.xp.zeros(self.nmodes, dtype=self.dtype)
+            value=self.xp.zeros(out_comm_len, dtype=self.dtype)
         )
         self.outputs['out_clipped_command'] = self.clip_command
         self.inputs['in_command'] = InputValue(type=BaseValue)
