@@ -139,7 +139,7 @@ class DM(BaseProcessingObj):
         else:
             self.m2c = None
             self.m2c_commands = None
-            out_comm_len = self.n_valid_modes
+            out_comm_len = nmodes-start_mode
         
         s = self._ifunc.mask_inf_func.shape
         nmodes_if = self._ifunc.nmodes()
