@@ -20,6 +20,7 @@
 - Fixed output\_names in PhaseScreenCube
 - Fixed start\_time bug in WindowedIntegration
 - Optimization of the compute\_ifs\_covmat function
+- Added stroke thresholding for dm class
 - ...
 
 ## [1.0.3] - 2026-05-18
