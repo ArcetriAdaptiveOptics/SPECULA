@@ -135,11 +135,9 @@ class DM(BaseProcessingObj):
             self.m2c = m2c.m2c
             nmodes_m2c = m2c.m2c[:, self._valid_modes].shape[1]
             self.m2c_commands = self.xp.zeros(nmodes_m2c, dtype=self.dtype)
-            out_comm_len = self.m2c.shape[0]
         else:
             self.m2c = None
             self.m2c_commands = None
-            out_comm_len = nmodes-start_mode
         
         s = self._ifunc.mask_inf_func.shape
         nmodes_if = self._ifunc.nmodes()
@@ -167,7 +165,7 @@ class DM(BaseProcessingObj):
         self.clip_command = BaseValue(
             target_device_idx=target_device_idx,
             precision=precision,
-            value=self.xp.zeros(out_comm_len, dtype=self.dtype)
+            value=self.xp.zeros(self.nmodes, dtype=self.dtype)
         )
         self.outputs['out_clipped_command'] = self.clip_command
         self.inputs['in_command'] = InputValue(type=BaseValue)
