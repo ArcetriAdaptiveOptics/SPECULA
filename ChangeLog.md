@@ -6,13 +6,16 @@
 ### New processing and data objects
 
 - Added IntValue, FloatValue and StringValue as specialized containers for scalars and strings, to be used in place of BaseValue where needed.
-- Added Phasescreen data object
+- Added Phasescreen data object.
+- Added Phase Extractor processing object.
 
 ### Interface changes
 
 - Removed simul\_params argument from IirFilter, Integrator and other related processing objects
 - Outputs for SpeculaInput and derived objects like TerminalInput must be typed with :int, :float or :str
 - Renamed MmsePistonUnwrapper to SoftLimiter and moved the module to specula.processing_objects.soft_limiter
+- Added open\_loop\_estimate parameter to OpticalGainEstimator.
+- Enabled start and end time (start\_time and end\_time parameters) in FieldAnalyser.
 
 ### Other
 
@@ -35,7 +38,7 @@
 - Multi-rate complementary filter
 - Separated modal reconstructor with explicit Pseudo-Open Loop algorithm into its own processing object
 - PupilstopController: processing object for generation of pupilstop-like layers
-- MMSE piston unwrapper processgin object
+- MMSE piston unwrapper processing object
 - Added script to plot influence functions
 - New parameters and interface changes:
 
