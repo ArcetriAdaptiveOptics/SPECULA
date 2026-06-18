@@ -1,6 +1,5 @@
 from specula.processing_objects.integrator import Integrator
 from specula.base_processing_obj import InputDesc
-from specula.data_objects.simul_params import SimulParams
 from specula.connections import InputValue
 from specula.base_value import BaseValue
 from specula.scalar_values import FloatValue, IntValue
@@ -22,7 +21,6 @@ class DynamicIntegrator(Integrator):
         Trigger to reset the internal integrator state.
     """
     def __init__(self,
-                 simul_params: SimulParams,
                  int_gain: float,
                  ff: list=None,
                  n_modes: int=None,
@@ -34,8 +32,6 @@ class DynamicIntegrator(Integrator):
         """
         Parameters
         ----------
-        simul_params : SimulParams
-            Simulation parameters object.
         int_gain : float [1]
             Initial integrator gain.
         ff : list [1], optional
@@ -52,8 +48,7 @@ class DynamicIntegrator(Integrator):
         precision : int [1], optional
             Numerical precision for internal data  (0 for double, 1 for single).
         """
-        super().__init__(simul_params=simul_params,
-                         int_gain=int_gain,
+        super().__init__(int_gain=int_gain,
                          ff=ff,
                          n_modes=n_modes,
                          delay=delay,
@@ -68,8 +63,8 @@ class DynamicIntegrator(Integrator):
     def input_names(cls):
         result = super().input_names()
         result.update({
-            'reset': InputDesc(BaseValue, 'Trigger to reset internal integrator state (optional)'),
-            'int_gain': InputDesc(BaseValue, 'Dynamic integrator gain update (optional)')
+            'reset': InputDesc(IntValue, 'Trigger to reset internal integrator state (optional)'),
+            'int_gain': InputDesc(FloatValue, 'Dynamic integrator gain update (optional)')
         })
         return result
 
