@@ -71,7 +71,7 @@ class DM(BaseProcessingObj):
             Pupilstop object defining the DM aperture.
         sign : int [1], optional
             Sign for the DM surface deformation, by default -1.
-        stroke : float or list, optional
+        stroke : [nm] float or list, optional 
             The maximum amplitude (in NANOMETERS) to which commands are clipped at. 
             If a list is given, this is the maximum amplitude that can be applied per mode.
             Default is None (no clipping applied).
