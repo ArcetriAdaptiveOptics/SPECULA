@@ -1,6 +1,6 @@
 
 from specula.base_value import BaseValue
-from specula.connections import InputValue, Output
+from specula.connections import InputValue
 
 from specula.data_objects.m2c import M2C
 from specula.data_objects.ifunc import IFunc
@@ -180,7 +180,7 @@ class DM(BaseProcessingObj):
     @classmethod
     def output_names(cls):
         return {'out_layer': OutputDesc(Layer, 'Output wavefront layer produced by the DM'),
-                'out_clipped_command': OutputDesc(Layer, 'DM applied command, after (optional) clipping')}
+                'out_clipped_command': OutputDesc(BaseValue, 'DM applied command, after (optional) clipping')}
 
     def trigger_code(self):
         input_commands = self.local_inputs['in_command'].value
