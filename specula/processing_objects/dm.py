@@ -156,11 +156,11 @@ class DM(BaseProcessingObj):
         self.stroke = None
         if stroke is not None:
             if isinstance(stroke,list):
-                if out_comm_len != len(stroke):
+                if self.nmodes != len(stroke):
                     raise ValueError(f'Stroke is a list of {len(stroke)} elements, but {out_comm_len} coefficients are expected')
                 self.stroke = self.xp.array(stroke)
             else:
-                self.stroke = self.xp.ones(out_comm_len)*stroke
+                self.stroke = self.xp.ones(self.nmodes)*stroke
         
         self.clip_command = BaseValue(
             target_device_idx=target_device_idx,
