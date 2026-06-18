@@ -195,7 +195,7 @@ class DM(BaseProcessingObj):
             cmd = input_commands
         # Perform clipping
         if self.stroke is not None: 
-            cmd = self.xp.minimum(self.xp.maximum(-self.stroke,cmd),self.stroke)
+            cmd = self.xp.minimum(self.xp.maximum(-self.stroke[:len(cmd)],cmd),self.stroke[:len(cmd)])
         self.if_commands[:len(cmd)] = self.sign * cmd
 
         if self.m2c is not None:
