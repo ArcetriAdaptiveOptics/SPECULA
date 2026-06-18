@@ -157,7 +157,7 @@ class DM(BaseProcessingObj):
         if stroke is not None:
             if isinstance(stroke,list):
                 if self.nmodes != len(stroke):
-                    raise ValueError(f'Stroke is a list of {len(stroke)} elements, but {out_comm_len} coefficients are expected')
+                    raise ValueError(f'Stroke is a list of {len(stroke)} elements, but {self.nmodes} coefficients are expected')
                 self.stroke = self.xp.array(stroke)
             else:
                 self.stroke = self.xp.ones(self.nmodes)*stroke
