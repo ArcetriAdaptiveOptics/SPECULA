@@ -8,6 +8,7 @@
 - Added IntValue, FloatValue and StringValue as specialized containers for scalars and strings, to be used in place of BaseValue where needed.
 - Added Phasescreen data object.
 - Added Phase Extractor processing object.
+- Added CLOSE gain optimizer processing object.
 
 ### Interface changes
 
