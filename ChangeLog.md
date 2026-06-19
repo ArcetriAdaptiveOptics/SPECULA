@@ -20,6 +20,7 @@
 - Added stroke thresholding for dm class
 - Added open\_loop\_estimate parameter to OpticalGainEstimator.
 - Enabled start and end time (start\_time and end\_time parameters) in FieldAnalyser.
+- Added "out_window_id" output to all displays to support video recording
 
 ### Other
 
