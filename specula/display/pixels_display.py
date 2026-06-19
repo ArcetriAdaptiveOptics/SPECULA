@@ -1,6 +1,4 @@
 import numpy as np
-from typing import Union
-from collections.abc import Hashable
 
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
@@ -47,7 +45,7 @@ class PixelsDisplay(BaseDisplay):
                  log_scale=False,
                  crop=None,
                  crop_mode='slice',
-                 window: Union[Hashable, None]=None,
+                 window: int=None,
                  subplot: int=111,
                  ):
 

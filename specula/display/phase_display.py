@@ -1,7 +1,5 @@
 
 import numpy as np
-from typing import Union
-from collections.abc import Hashable
 
 from specula import cpuArray
 
@@ -13,7 +11,7 @@ class PhaseDisplay(BaseDisplay):
     def __init__(self,
                  title='Phase Display',
                  figsize=(8, 6),
-                 window: Union[Hashable, None]=None,
+                 window: int=None,
                  subplot: int=111,
                  ):
         super().__init__(

@@ -1,6 +1,4 @@
 import numpy as np
-from typing import Union
-from collections.abc import Hashable
 
 import matplotlib.pyplot as plt
 
@@ -17,7 +15,7 @@ class PlotDisplay(BaseDisplay):
                  yrange=(0, 0),
                  x_axis='time',  # can be time or iteration
                  labels=None,
-                 window: Union[Hashable, None]=None,
+                 window: int=None,
                  subplot: int=111,
                  ):
         super().__init__(

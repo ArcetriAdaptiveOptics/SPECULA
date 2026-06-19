@@ -1,10 +1,8 @@
-import numpy as np
-from typing import Union
-from collections import defaultdict
-from collections.abc import Hashable
 import matplotlib.pyplot as plt
 
+from specula.scalar_values import IntValue
 from specula.base_processing_obj import BaseProcessingObj
+from specula.base_processing_obj import OutputDesc
 
 def runningOnNotebook():
     try:
@@ -15,13 +13,11 @@ def runningOnNotebook():
 
 class BaseDisplay(BaseProcessingObj):
 
-    __windows = {}
     __plot_completed = {}
-    __video_writers = defaultdict(list)
 
     def __init__(self,
                  title='',
-                 window: Union[Hashable, None]=None,
+                 window: int=None,
                  subplot: int=111,
                  figsize=(8, 6)):
         super().__init__()
@@ -29,48 +25,37 @@ class BaseDisplay(BaseProcessingObj):
         if window is None:
             window = id(self)
 
-        self.title = title
+        self.window = window
         self.figsize = figsize
         self.colorbar_added = False
         self.input_key = ''
-        self.window = window
         self.subplot = subplot
         self.fig = None
         self.ax = None
-        self.onNotebook  = runningOnNotebook()
+        self.onNotebook = runningOnNotebook()
 
-        self._init_window()
-        self._create_figure()
+        if window not in self.__plot_completed:
+            self.__plot_completed[window] = {}
 
-    def register_writer(self, writer, window_id):
-        self.__video_writers[window_id].append(writer)
-
-    def _init_window(self, force=False):
-        if self.window not in self.__windows or force:
-            self.__windows[self.window] = plt.figure(figsize=self.figsize)
-            self.__plot_completed[self.window] = {}
-
-    def _create_figure(self):
-        """Create the matplotlib figure and axes"""
-
-        self.fig = self.__windows[self.window]
-
-        # Re-create figure if it has been closed before
-        if self.fig.canvas.manager is None:
-            self._init_window(force=True)
-            self.fig = self.__windows[self.window]
-
+        self.fig = plt.figure(num=self.window, figsize=self.figsize)
         self.ax = self.fig.add_subplot(self.subplot)
         self.__plot_completed[self.window][self.subplot] = False
 
-        if self.title:
-            self.ax.set_title(self.title)
+        if title:
+            self.ax.set_title(title)
 
         if not self.onNotebook:
             self.fig.show()
         else:
             from IPython.display import display
             self.handle = display(self.fig, display_id=True)
+
+        self.output_id = IntValue(value=-1)
+        self.outputs['out_window_id'] = self.output_id
+
+    @classmethod
+    def output_names(cls):
+        return {'out_window_id': OutputDesc(IntValue, 'Window ID where the plot has been drawn')}
 
     def _update_display(self, data):
         """Update the display with new data"""
@@ -93,23 +78,21 @@ class BaseDisplay(BaseProcessingObj):
                 self.handle.update(self.fig)
         except Exception as e:
             self._show_error(f"Display error: {str(e)}")
-        self.__plot_completed[self.window][self.subplot] = True
 
     def post_trigger(self):
         super().post_trigger()
 
+        self.__plot_completed[self.window][self.subplot] = True
+        self.output_id.value = self.window
+        self.output_id.generation_time = self.current_time
+
         # If all subplots in this window have completed drawing,
-        # call safe_draw(), reset the plot flags and eventually record video
+        # call safe_draw() and reset the plot flags
 
         if all(self.__plot_completed[self.window].values()):
             self._safe_draw()
             for k in self.__plot_completed[self.window].keys():
                 self.__plot_completed[self.window][k] = False
-
-            for writer in self.__video_writers[self.window]:
-                frame = np.asarray(self.fig.canvas.buffer_rgba())
-                writer.append_data(frame[:, :, :3])
-
 
     # ============ UTILITY METHODS ============
 
