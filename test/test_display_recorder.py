@@ -20,7 +20,7 @@ class TestDisplayRecorder(unittest.TestCase):
 
     def test_recorded_frame_is_not_empty(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            filename = f"{tmpdir}/test.mp4"
+            filename = os.path.join(tmpdir, "test.mp4")
 
             rec = DisplayRecorder(filename, fps=5)
 
@@ -33,10 +33,17 @@ class TestDisplayRecorder(unittest.TestCase):
             rec.finalize()
 
             reader = imageio.get_reader(filename)
-            frame = reader.get_data(0)
 
-            self.assertIsNotNone(frame)
-            self.assertGreater(frame.mean(), 0)
+            try:
+                frame = reader.get_data(0)
+
+                self.assertIsNotNone(frame)
+                self.assertGreater(frame.mean(), 0)
+
+            finally:
+                reader.close()
+
+            plt.close(fig)
 
     def test_multiple_frames_written(self):
         import tempfile
@@ -65,7 +72,13 @@ class TestDisplayRecorder(unittest.TestCase):
 
             reader = imageio.get_reader(filename)
 
-            count = reader.count_frames()
+            try:
+                count = sum(1 for _ in reader)
+            finally:
+                reader.close()
+
+            plt.close(fig)
+
             self.assertEqual(count, n_frames)
 
     def test_headless_recording(self):
