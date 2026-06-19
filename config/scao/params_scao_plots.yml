@@ -154,6 +154,7 @@ pixel_disp:
   figsize:       [8, 6]  # Default size in inches
   window: 2
   subplot: 241
+  outputs: ['out_window_id']
 
 modes_disp:
   class:            'ModesDisplay'
@@ -163,6 +164,7 @@ modes_disp:
   figsize:       [8, 6]  # Default size in inches
   window: 2
   subplot: 242
+  outputs: ['out_window_id']
 
 sc_disp:
   class:            'SlopecDisplay'
@@ -171,6 +173,7 @@ sc_disp:
   figsize:       [8, 6]  # Default size in inches
   window: 2
   subplot: 243
+  outputs: ['out_window_id']
 
 sr_disp:
   class:            'PlotDisplay'
@@ -179,6 +182,7 @@ sr_disp:
   title:            'SR'
   window: 2
   subplot: 244
+  outputs: ['out_window_id']
 
 ph_disp:
   class:            'PhaseDisplay'
@@ -188,6 +192,7 @@ ph_disp:
   figsize:       [8, 6]  # Default size in inches
   window: 2
   subplot: 245
+  outputs: ['out_window_id']
 
 dm_disp:
   class:            'PhaseDisplay'
@@ -197,6 +202,7 @@ dm_disp:
   figsize:       [8, 6]  # Default size in inches
   window: 2
   subplot: 246
+  outputs: ['out_window_id']
 
 psf_disp:
   class:            'PsfDisplay'
@@ -206,12 +212,21 @@ psf_disp:
   figsize:       [8, 6]  # Default size in inches
   window: 2
   subplot: 247
+  outputs: ['out_window_id']
 
 display_recorder:
   class:   'DisplayRecorder'
-  window: 2
   filename: "output.mp4"
   fps: 30
+  inputs:
+    in_windows: ['pixel_disp.out_window_id',
+                 'modes_disp.out_window_id',
+                 'sc_disp.out_window_id',
+                 'sr_disp.out_window_id',
+                 'ph_disp.out_window_id',
+                 'dm_disp.out_window_id',
+                 'psf_disp.out_window_id',
+    ]
 
 data_store:
   class:             'DataStore'
