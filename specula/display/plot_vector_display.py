@@ -47,7 +47,7 @@ class PlotVectorDisplay(BaseDisplay):
                  slice_args=None,
                  legend_labels=None,
                  max_elements=20,
-                 wnidow: int=None,
+                 window: int=None,
                  subplot: int=111):
 
         super().__init__(
