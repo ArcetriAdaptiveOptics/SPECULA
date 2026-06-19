@@ -30,8 +30,6 @@ class BaseDisplay(BaseProcessingObj):
         self.colorbar_added = False
         self.input_key = ''
         self.subplot = subplot
-        self.fig = None
-        self.ax = None
         self.onNotebook = runningOnNotebook()
 
         if window not in self.__plot_completed:
