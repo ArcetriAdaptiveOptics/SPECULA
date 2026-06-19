@@ -254,12 +254,15 @@ class AtmoPropagation(BaseProcessingObj):
         if diff in (0, self.xp.inf):
             return None
 
-        z_max_FFT = 0.9 * self.ef_size_padded * self.pixel_pitch ** 2 / (self.wavelengthInNm * 1e-9)
-        if diff > z_max_FFT:
+        # Propagation distance limit
+        # see Jason D. Schmidt, Numerical Simulation of Optical Wave Propagation with Examples in MATLAB, Section 7.3.2
+        z_max = self.ef_size_padded * self.pixel_pitch ** 2 / (self.wavelengthInNm * 1e-9)
+
+        if diff > z_max:
             self.logger.warning(
-                "Propagation distance larger than limit for FFT and thus reduced from " + str(diff) + "m to " + str(
-                    z_max_FFT) + "m. Consider increasing zero padding.")
-            diff = z_max_FFT
+                "Propagation distance larger than limit. Autmoatically reduced from " + str(diff) + "m to " + str(
+                    z_max) + "m. Consider increasing zero padding.")
+            diff = z_max
 
         z_max_ASM = 5 * ((self.pixel_pitch * self.pixel_pupil) ** 2) / (self.wavelengthInNm * 1e-9)
         if diff < z_max_ASM:
