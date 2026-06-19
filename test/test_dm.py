@@ -11,6 +11,9 @@ from specula.data_objects.simul_params import SimulParams
 
 from test.specula_testlib import cpu_and_gpu
 
+from specula import cpuArray
+from numpy.testing import assert_array_almost_equal
+
 
 class TestDM(unittest.TestCase):
 
@@ -116,3 +119,46 @@ class TestDM(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             dm4 = DM(simul_params, height=0, type_str='zernike', start_mode=3, idx_modes=idx_modes, target_device_idx=target_device_idx)
+
+    
+    @cpu_and_gpu
+    def test_dm_stroke_clipping(self, target_device_idx, xp):
+        """ Test command clipping """
+        simul_params = SimulParams(time_step = 1, pixel_pupil=5, pixel_pitch=1)
+        in_dm = BaseValue(xp.ones(6), target_device_idx=target_device_idx)
+        t = 1
+        in_dm.value = xp.ones(6)*(-1)**xp.arange(1,7)
+        in_dm.generation_time = t
+
+        # Single value clipping
+        max_amp = 0.5
+        dm1 = DM(simul_params, height=0, type_str='zernike', nmodes=6, target_device_idx=target_device_idx, stroke=max_amp)
+        dm1.inputs['in_command'].set(in_dm)
+        dm1.setup()
+        dm1.check_ready(t)
+        dm1.trigger()
+        dm1.post_trigger()
+
+        got = dm1.outputs['out_clipped_command'].value
+        want = (-1)**xp.arange(1,7)*max_amp
+        assert_array_almost_equal(cpuArray(got),cpuArray(want))
+
+        # Passing a list of values
+        max_amps = [0.6,0.5,0.4,0.3,0.2,0.1]
+        dm2 = DM(simul_params, height=0, type_str='zernike', nmodes=6, target_device_idx=target_device_idx, stroke=max_amps)
+        dm2.inputs['in_command'].set(in_dm)
+        dm2.setup()
+        dm2.check_ready(t)
+        dm2.trigger()
+        dm2.post_trigger()
+
+        got = dm2.outputs['out_clipped_command'].value
+        want = xp.array(max_amps)*(-1)**xp.arange(1,7)
+        assert_array_almost_equal(cpuArray(got),cpuArray(want))
+
+        # test passing a list of incorrect length
+        with self.assertRaises(ValueError):
+            _ = DM(simul_params, height=0, type_str='zernike', nmodes=6, target_device_idx=target_device_idx, stroke=[0.3,0.2,0.1])
+
+
+

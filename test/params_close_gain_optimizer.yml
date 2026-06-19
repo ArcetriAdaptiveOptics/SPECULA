@@ -1,0 +1,75 @@
+main:
+  class:             'SimulParams'
+  # ---------------------
+  # not used in this example
+  root_dir:          './calib'         # Root directory for calibration manager
+  # ---------------------
+  # not used in this example
+  pixel_pupil:       160                    # Linear dimension of pupil phase array
+  pixel_pitch:       0.05                   # [m] Pitch of the pupil phase array
+  # ---------------------
+  total_time:        1.000                  # [s] Total simulation running time
+  time_step:         0.001                 # [s] Simulation time step
+
+disturbance:
+  class:             'WaveGenerator'
+  wave_type:         'SIN'
+  amp:               [5.0]
+  freq:              [5.0] 
+
+diff:
+  class:             'BaseOperation'
+  sub:               True
+  inputs:
+      in_value1: 'disturbance.output'
+      in_value2: 'control.out_comm:-1'
+  outputs: ['out_value']
+
+noise:
+  class:            'RandomGenerator'
+  amp:              [0.2]
+  seed:             42
+  outputs: ['output']
+
+sum_operation_noise:
+  class:            'BaseOperation'
+  sum:              True
+  inputs:
+    in_value1:      'diff.out_value'
+    in_value2:      'noise.output'
+  outputs:  ['out_value']
+
+control:
+  class:             'Integrator'
+  delay:             1.0 
+  int_gain:          [1.0] 
+  n_modes:           [1] 
+  inputs:
+      delta_comm:  'scaled_cmd.out_value'
+
+omgi:
+   class: 'CloseGainOptimizer'
+   nmodes: 1
+   p: 0.2
+   r: -0.1
+   dt: 3                # Time-shift in frames: 2xdelay + 1
+   q_plus: 0.01        # Tracking gain increase factor
+   q_minus_ratio: 5.0  # Ratio of q- to q+ (for overshoots)
+   initial_gain: 0.4
+   inputs:
+     in_modes:  'sum_operation_noise.out_value'
+   outputs: ['out_gains']
+
+scaled_cmd:
+  class: 'BaseOperation'
+  mul: true
+  inputs:
+    in_value1: 'sum_operation_noise.out_value'
+    in_value2: 'omgi.out_gains'
+  outputs: ['out_value']
+
+data_store:
+  class:             'DataStore'
+  store_dir:         './data'             # Data result directory: 'store_dir'/TN/
+  inputs:
+    input_list: ['res_close-diff.out_value','close_optimized_gain-omgi.out_gains']
