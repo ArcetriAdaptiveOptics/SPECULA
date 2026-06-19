@@ -29,6 +29,7 @@ class DM(BaseProcessingObj):
                  diaratio: float=None,
                  pupilstop: Pupilstop=None,
                  sign: int=-1,
+                 stroke=None,
                  target_device_idx: int=None,
                  precision: int=None
                  ):
@@ -69,7 +70,11 @@ class DM(BaseProcessingObj):
         pupilstop : Pupilstop
             Pupilstop object defining the DM aperture.
         sign : int [1], optional
-            Sign for the DM surface deformation, by default -1 (to account for reflection).
+            Sign for the DM surface deformation, by default -1.
+        stroke : float or list [nm], optional 
+            The maximum amplitude (in NANOMETERS) to which commands are clipped at. 
+            If a list is given, this is the maximum amplitude that can be applied per mode.
+            Default is None (no clipping applied).
         target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
         precision : int [1], optional
@@ -130,9 +135,11 @@ class DM(BaseProcessingObj):
             self.m2c = m2c.m2c
             nmodes_m2c = m2c.m2c[:, self._valid_modes].shape[1]
             self.m2c_commands = self.xp.zeros(nmodes_m2c, dtype=self.dtype)
+            out_comm_len = self.m2c.shape[0]
         else:
             self.m2c = None
             self.m2c_commands = None
+            out_comm_len = self.n_valid_modes
         
         s = self._ifunc.mask_inf_func.shape
         nmodes_if = self._ifunc.nmodes()
@@ -147,6 +154,22 @@ class DM(BaseProcessingObj):
 
         # Default sign is -1 to take into account the reflection in the propagation
         self.sign = sign
+
+        self.stroke = None
+        if stroke is not None:
+            if isinstance(stroke,list):
+                if out_comm_len != len(stroke):
+                    raise ValueError(f'Stroke is a list of {len(stroke)} elements, but {out_comm_len} coefficients are expected')
+                self.stroke = self.xp.array(stroke)
+            else:
+                self.stroke = self.xp.ones(out_comm_len)*stroke
+        
+        self.clip_command = BaseValue(
+            target_device_idx=target_device_idx,
+            precision=precision,
+            value=self.xp.zeros(out_comm_len, dtype=self.dtype)
+        )
+        self.outputs['out_clipped_command'] = self.clip_command
         self.inputs['in_command'] = InputValue(type=BaseValue)
         self.outputs['out_layer'] = self.layer
 
@@ -156,7 +179,8 @@ class DM(BaseProcessingObj):
 
     @classmethod
     def output_names(cls):
-        return {'out_layer': OutputDesc(Layer, 'Output wavefront layer produced by the DM')}
+        return {'out_layer': OutputDesc(Layer, 'Output wavefront layer produced by the DM'),
+                'out_clipped_command': OutputDesc(BaseValue, 'DM applied command, after (optional) clipping')}
 
     def trigger_code(self):
         input_commands = self.local_inputs['in_command'].value
@@ -169,6 +193,9 @@ class DM(BaseProcessingObj):
             cmd = self.m2c[:, self._valid_modes] @ self.m2c_commands
         else:
             cmd = input_commands
+        # Perform clipping
+        if self.stroke is not None: 
+            cmd = self.xp.minimum(self.xp.maximum(-self.stroke[:len(cmd)],cmd),self.stroke[:len(cmd)])
         self.if_commands[:len(cmd)] = self.sign * cmd
 
         if self.m2c is not None:
@@ -177,6 +204,8 @@ class DM(BaseProcessingObj):
             self.layer.phaseInNm[self._ifunc.idx_inf_func] = \
                 self.if_commands[self.if_commands_selector] @ self._ifunc.influence_function[self._valid_modes, :]
         self.layer.generation_time = self.current_time
+        self.clip_command.value[:len(cmd)] = cmd
+        self.clip_command.generation_time = self.current_time
 
     # Getters and Setters for the attributes
     @property

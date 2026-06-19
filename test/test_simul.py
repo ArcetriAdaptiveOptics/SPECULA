@@ -3,6 +3,8 @@ from __future__ import annotations
 import specula
 specula.init(0)  # Default target device
 
+import os
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -13,6 +15,7 @@ from typing import Dict, List
 
 import numpy as np
 from specula.simul import Simul, computeTag
+from specula.loop_control import LoopControl
 from specula.connections import InputValue, InputList
 from specula.data_objects.recmat import Recmat
 from specula.base_data_obj import BaseDataObj
@@ -724,3 +727,67 @@ class TestSimul(unittest.TestCase):
         params = yaml.safe_load(yml)
         simul.build_objects(params)
         assert simul.objs['test'].target_device_idx == -1
+
+
+class TestSimulRunTiming(unittest.TestCase):
+    """Tests that Simul.run() translates start_time/end_time correctly to loop.run()"""
+
+    _MINIMAL_YML = '''\
+main:
+  class: SimulParams
+  root_dir: dummy
+  total_time: 1.0
+  time_step: 0.001
+'''
+
+    def _make_simul(self):
+        fd, path = tempfile.mkstemp(suffix='.yml')
+        try:
+            with os.fdopen(fd, 'w') as f:
+                f.write(self._MINIMAL_YML)
+            return Simul(path, speed_report=False), path
+        except Exception:
+            os.unlink(path)
+            raise
+
+    def _run_and_capture(self, simul, **run_kwargs):
+        captured = {}
+        original_run = LoopControl.run
+
+        def fake_run(self_loop, run_time, dt, t0=0, speed_report=False):
+            captured['run_time'] = run_time
+            captured['t0'] = t0
+
+        with patch.object(LoopControl, 'run', fake_run):
+            simul.run(**run_kwargs)
+        return captured
+
+    def test_default_call_passes_total_time_and_zero_t0(self):
+        """Default run() → run_time=total_time, t0=0"""
+        simul, path = self._make_simul()
+        try:
+            captured = self._run_and_capture(simul)
+        finally:
+            os.unlink(path)
+        self.assertAlmostEqual(captured['run_time'], 1.0)
+        self.assertAlmostEqual(captured['t0'], 0.0)
+
+    def test_start_time_reduces_run_time_and_sets_t0(self):
+        """start_time=0.1, no end_time → run_time=0.9, t0=0.1"""
+        simul, path = self._make_simul()
+        try:
+            captured = self._run_and_capture(simul, start_time=0.1)
+        finally:
+            os.unlink(path)
+        self.assertAlmostEqual(captured['run_time'], 0.9)
+        self.assertAlmostEqual(captured['t0'], 0.1)
+
+    def test_end_time_limits_run_time(self):
+        """start_time=0.1, end_time=0.8 → run_time=0.7, t0=0.1"""
+        simul, path = self._make_simul()
+        try:
+            captured = self._run_and_capture(simul, start_time=0.1, end_time=0.8)
+        finally:
+            os.unlink(path)
+        self.assertAlmostEqual(captured['run_time'], 0.7)
+        self.assertAlmostEqual(captured['t0'], 0.1)

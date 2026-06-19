@@ -120,7 +120,6 @@ rec:
 
 control:
   class:             'DynamicIntegrator'
-  simul_params_ref:  'main'
   delay:             2                      # Total temporal delay in time steps
   int_gain:          [0.3]
   ff:                [0.977895]
