@@ -40,12 +40,13 @@ class Test(unittest.TestCase):
                                     target_device_idx=target_device_idx, wavelengthInNm=1550, doFresnel=True, padding_factor=3)
         prop_up = AtmoPropagation(simul_params, source_dict={'uplink_source': source},
                                   target_device_idx=target_device_idx, wavelengthInNm=1550, upwards=True,
-                                  doFresnel=True, seeing=0.7, padding_factor=3)
+                                  doFresnel=True, padding_factor=3)
         atmo.inputs['seeing'].set(seeing.output)
         atmo.inputs['wind_direction'].set(wind_direction.output)
         atmo.inputs['wind_speed'].set(wind_speed.output)
         prop_down.inputs['atmo_layer_list'].set(atmo.outputs['layer_list'])
         prop_up.inputs['atmo_layer_list'].set(atmo.outputs['layer_list'])
+        prop_up.inputs['seeing'].set(seeing.output)
 
         for objlist in [[seeing, wind_speed, wind_direction], [atmo], [prop_down, prop_up]]:
             for obj in objlist:
@@ -153,11 +154,11 @@ class Test(unittest.TestCase):
             wavelengthInNm=wavelengthInNm,
             doFresnel=True,
             upwards=True,
-            seeing=2.5,
             padding_factor=padding,
             target_device_idx=target_device_idx
         )
         prop1.inputs['atmo_layer_list'].set(atmo.outputs['layer_list'])
+        prop1.inputs['seeing'].set(seeing.output)
 
         prop2 = AtmoPropagation(
             simul_params,
@@ -165,11 +166,11 @@ class Test(unittest.TestCase):
             wavelengthInNm=wavelengthInNm,
             doFresnel=True,
             upwards=True,
-            seeing=2.5,
             padding_factor=padding,
             target_device_idx=target_device_idx
         )
         prop2.inputs['atmo_layer_list'].set(atmo.outputs['layer_list'])
+        prop2.inputs['seeing'].set(seeing.output)
 
         for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
             for obj in objlist:
@@ -360,7 +361,6 @@ class Test(unittest.TestCase):
             wavelengthInNm=wavelength*1e9,
             doFresnel=True,
             upwards=True,
-            seeing=0.01,
             padding_factor=padding,
             target_device_idx=target_device_idx
         )

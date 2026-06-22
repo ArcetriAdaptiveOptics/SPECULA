@@ -105,7 +105,7 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
                                wavelengthInNm=1550)
         prop_up_phys = AtmoPropagation(simul_params, source_dict={'uplink_source': uplink_source},
                                   target_device_idx=target_device_idx, wavelengthInNm=1550, doFresnel=True,
-                                         upwards=True, seeing=2.5, padding_factor=3)
+                                         upwards=True, padding_factor=3)
         prop_up_geom = AtmoPropagation(simul_params, source_dict={'uplink_source': uplink_source},
                                   target_device_idx=target_device_idx)
 
@@ -118,6 +118,7 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
         atmo.inputs['wind_direction'].set(wind_direction.output)
         atmo.inputs['wind_speed'].set(wind_speed.output)
         prop_up_phys.inputs['atmo_layer_list'].set(atmo.outputs['layer_list'])
+        prop_up_phys.inputs['seeing'].set(seeing.output)
         prop_up_geom.inputs['atmo_layer_list'].set(atmo.outputs['layer_list'])
         modal_analsis_phys.inputs['in_ef'].set(prop_up_phys.outputs['out_uplink_source_ef'])
         modal_analsis_geom.inputs['in_ef'].set(prop_up_geom.outputs['out_uplink_source_ef'])
