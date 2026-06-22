@@ -105,7 +105,7 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
                                wavelengthInNm=1550)
         prop_up_phys = AtmoPropagation(simul_params, source_dict={'uplink_source': uplink_source},
                                   target_device_idx=target_device_idx, wavelengthInNm=1550, doFresnel=True,
-                                         upwards=True, padding_factor=3)
+                                         upwards=True, seeing=2.5, padding_factor=3)
         prop_up_geom = AtmoPropagation(simul_params, source_dict={'uplink_source': uplink_source},
                                   target_device_idx=target_device_idx)
 
