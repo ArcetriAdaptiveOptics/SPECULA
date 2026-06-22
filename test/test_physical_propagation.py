@@ -40,7 +40,7 @@ class Test(unittest.TestCase):
                                     target_device_idx=target_device_idx, wavelengthInNm=1550, doFresnel=True, padding_factor=3)
         prop_up = AtmoPropagation(simul_params, source_dict={'uplink_source': source},
                                   target_device_idx=target_device_idx, wavelengthInNm=1550, upwards=True,
-                                  doFresnel=True, padding_factor=3)
+                                  doFresnel=True, seeing=0.7, padding_factor=3)
         atmo.inputs['seeing'].set(seeing.output)
         atmo.inputs['wind_direction'].set(wind_direction.output)
         atmo.inputs['wind_speed'].set(wind_speed.output)
@@ -153,6 +153,7 @@ class Test(unittest.TestCase):
             wavelengthInNm=wavelengthInNm,
             doFresnel=True,
             upwards=True,
+            seeing=2.5,
             padding_factor=padding,
             target_device_idx=target_device_idx
         )
@@ -164,6 +165,7 @@ class Test(unittest.TestCase):
             wavelengthInNm=wavelengthInNm,
             doFresnel=True,
             upwards=True,
+            seeing=2.5,
             padding_factor=padding,
             target_device_idx=target_device_idx
         )
@@ -358,6 +360,7 @@ class Test(unittest.TestCase):
             wavelengthInNm=wavelength*1e9,
             doFresnel=True,
             upwards=True,
+            seeing=0.01,
             padding_factor=padding,
             target_device_idx=target_device_idx
         )

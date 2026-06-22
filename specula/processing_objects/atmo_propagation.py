@@ -32,6 +32,9 @@ class AtmoPropagation(BaseProcessingObj):
                  mergeLayersContrib: bool=True,
                  upwards: bool=False,
                  padding_factor: int=1,
+                 seeing: float = -1.0,
+                 beam_waist: float = 0.0,
+                 beam_center: float = 0.0,
                  target_device_idx=None,
                  precision=None):
         """
@@ -74,6 +77,12 @@ class AtmoPropagation(BaseProcessingObj):
             (downwards).
         padding_factor : int [1], optional
             Factor for zero padding in Fresnel propagation to avoid numerical issues with FFTs.
+        seeing : float [arcsec], optional
+            Atmospheric seeing value. Used for evaluating FFT window limit in Fraunhofer propagation.
+        beam_waist : float [m], optional
+            Waist of Gaussian uplink beam. Used for evaluating FFT window limit in Fraunhofer propagation.
+        beam_center : float [m], optional
+            Center of Gaussian uplink beam. Used for evaluating FFT window limit in Fraunhofer propagation.
         target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
         precision : int [1], optional
@@ -129,7 +138,14 @@ class AtmoPropagation(BaseProcessingObj):
         if self.doFresnel:
             self.wavelengthInNm = wavelengthInNm
             self.propagators = None
+            self.z_total = 0
             self.d_out = self.pixel_pitch
+            self.beam_radius = 0.5 * beam_waist if beam_waist > 0 else 0.5 * self.pixel_pitch * self.pixel_pupil
+            self.beam_center = beam_center
+            if upwards and seeing <= 0:
+                raise ValueError('seeing must be given for Fresnel propagation and greater 0.')
+            else:
+                self.r0 = 0.98 * (self.wavelengthInNm * 1e-9) / (seeing * np.pi / (180. * 3600.))
             self.ef_fresnel = self.xp.zeros([self.ef_size_padded, self.ef_size_padded], dtype=self.complex_dtype)
 
         if self.enable_chromatic_effect:
@@ -245,30 +261,44 @@ class AtmoPropagation(BaseProcessingObj):
             else:
                 self.source_height[source] = float(source.height) * self.airmass
 
-    def calc_propagators(self, diff):
+    def calc_propagators(self, z):
         """Calculate propagators based on distance.
 
         For far-field propagation Fraunhofer is used, otherwise angular spectrum propagation (ASM) method.
-        Propagation distance is automatically reduced to avoid numerical issues with FFT.
+        Propagation distance is automatically reduced to avoid numerical issues with FFTs.
         """
-        if diff in (0, self.xp.inf):
+        if z in (0, self.xp.inf):
             return None
+        z_in = z
 
-        # Propagation distance limit
-        # see Jason D. Schmidt, Numerical Simulation of Optical Wave Propagation with Examples in MATLAB, Section 7.3.2
-        z_max = self.ef_size_padded * self.pixel_pitch ** 2 / (self.wavelengthInNm * 1e-9)
+        # Check if beam spread for upwards propagation exceeds FFT window size
+        if self.prop_sign == -1:
+            w_diff = (self.wavelengthInNm * 1e-9) / (np.pi * self.beam_radius)
+            w_turb = (self.wavelengthInNm * 1e-9) / (np.pi * self.r0)
+            beam_spread_width = 2 * np.sqrt(w_diff ** 2 + 2 * w_turb ** 2) * (z + self.z_total)
 
-        if diff > z_max:
-            self.logger.warning(
-                "Propagation distance larger than limit. Autmoatically reduced from " + str(diff) + "m to " + str(
-                    z_max) + "m. Consider increasing zero padding.")
-            diff = z_max
+            window_size = self.ef_size_padded * self.pixel_pitch - self.beam_center
+            if 3 * beam_spread_width > window_size:
+                z_max = window_size / (6 * np.sqrt(w_diff ** 2 + 2 * w_turb ** 2)) - self.z_total
+                z = z_max
 
-        z_max_ASM = 5 * ((self.pixel_pitch * self.pixel_pupil) ** 2) / (self.wavelengthInNm * 1e-9)
-        if diff < z_max_ASM:
-            propagator = self.asm_propagator(diff, self.pixel_pitch, self.pixel_pitch)
+        z_far_field = 2 * ((self.pixel_pitch * self.pixel_pupil) ** 2) / (self.wavelengthInNm * 1e-9)
+        if z < z_far_field:
+            # Check if propagation distance exceed ASM limit
+            z_max_ASM = self.ef_size_padded * self.pixel_pitch ** 2 / (self.wavelengthInNm * 1e-9)
+            z = min(z, z_max_ASM)
+            propagator = self.asm_propagator(z, self.pixel_pitch, self.pixel_pitch)
         else:
-            propagator, _, _ = self.fraunhofer_propagator(diff, self.pixel_pitch)
+            propagator, _, _ = self.fraunhofer_propagator(z, self.pixel_pitch)
+
+        if z != z_in:
+            self.logger.warning(
+                "For the current configuration the propagation distance is too large."
+                "Thus it is reduced from " + str(z_in) + "m to " + str(z) +
+                "m. Consider increasing zero padding.")
+
+        self.z_total += z
+
         return propagator
 
     def doFresnel_setup(self):
@@ -283,8 +313,7 @@ class AtmoPropagation(BaseProcessingObj):
         if not np.allclose(height_layers, sorted_heights):
             raise ValueError('Layers must be sorted from lowest to highest')
 
-
-        height_diffs = np.diff(height_layers, append = source_height)
+        height_diffs = np.diff(height_layers, append=source_height)
         self.propagators = [self.calc_propagators(diff) for diff in height_diffs]
 
         # adapt for downwards propagation
