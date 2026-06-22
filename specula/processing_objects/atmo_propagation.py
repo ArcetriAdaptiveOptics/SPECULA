@@ -1,9 +1,10 @@
+from specula.base_value import BaseValue
 from specula.lib.make_xy import make_xy
 from specula.lib.utils import local_mean_rebin
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.lib.interp2d import Interp2D
 from specula.data_objects.electric_field import ElectricField
-from specula.connections import InputList
+from specula.connections import InputList, InputValue
 from specula.data_objects.layer import Layer
 from specula.lib.air_refraction import MatharAirRefraction
 from specula import cpuArray, show_in_profiler
@@ -32,7 +33,6 @@ class AtmoPropagation(BaseProcessingObj):
                  mergeLayersContrib: bool=True,
                  upwards: bool=False,
                  padding_factor: int=1,
-                 seeing: float = -1.0,
                  beam_waist: float = 0.0,
                  beam_center: float = 0.0,
                  target_device_idx=None,
@@ -77,8 +77,6 @@ class AtmoPropagation(BaseProcessingObj):
             (downwards).
         padding_factor : int [1], optional
             Factor for zero padding in Fresnel propagation to avoid numerical issues with FFTs.
-        seeing : float [arcsec], optional
-            Atmospheric seeing value. Used for evaluating FFT window limit in Fraunhofer propagation.
         beam_waist : float [m], optional
             Waist of Gaussian uplink beam. Used for evaluating FFT window limit in Fraunhofer propagation.
         beam_center : float [m], optional
@@ -139,13 +137,10 @@ class AtmoPropagation(BaseProcessingObj):
             self.wavelengthInNm = wavelengthInNm
             self.propagators = None
             self.z_total = 0
+            self.r0 = -1
             self.d_out = self.pixel_pitch
             self.beam_radius = 0.5 * beam_waist if beam_waist > 0 else 0.5 * self.pixel_pitch * self.pixel_pupil
             self.beam_center = beam_center
-            if upwards and seeing <= 0:
-                raise ValueError('seeing must be given for Fresnel propagation and greater 0.')
-            else:
-                self.r0 = 0.98 * (self.wavelengthInNm * 1e-9) / (seeing * np.pi / (180. * 3600.))
             self.ef_fresnel = self.xp.zeros([self.ef_size_padded, self.ef_size_padded], dtype=self.complex_dtype)
 
         if self.enable_chromatic_effect:
@@ -174,6 +169,7 @@ class AtmoPropagation(BaseProcessingObj):
         # pupilstop is needed
         self.inputs['atmo_layer_list'] = InputList(type=Layer,optional=True)
         self.inputs['common_layer_list'] = InputList(type=Layer)
+        self.inputs['seeing'] = InputValue(type=BaseValue, optional=True)
 
         self.airmass = 1. / np.cos(np.radians(self.simul_params.zenithAngleInDeg), dtype=self.dtype)
 
@@ -272,7 +268,7 @@ class AtmoPropagation(BaseProcessingObj):
         z_in = z
 
         # Check if beam spread for upwards propagation exceeds FFT window size
-        if self.prop_sign == -1:
+        if self.r0 > 0:
             w_diff = (self.wavelengthInNm * 1e-9) / (np.pi * self.beam_radius)
             w_turb = (self.wavelengthInNm * 1e-9) / (np.pi * self.r0)
             beam_spread_width = 2 * np.sqrt(w_diff ** 2 + 2 * w_turb ** 2) * (z + self.z_total)
@@ -302,6 +298,10 @@ class AtmoPropagation(BaseProcessingObj):
         return propagator
 
     def doFresnel_setup(self):
+        if self.local_inputs['seeing'] is not None:
+            seeing = self.local_inputs['seeing'].value[0]
+            self.r0 = 0.98 * (self.wavelengthInNm * 1e-9) / (seeing * np.pi / (180. * 3600.))
+
         layer_list = self.common_layer_list + self.atmo_layer_list
         height_layers = np.array([self.layer_height[layer] for layer in layer_list], dtype=self.dtype)
 
@@ -330,7 +330,8 @@ class AtmoPropagation(BaseProcessingObj):
     @classmethod
     def input_names(cls):
         return {'atmo_layer_list': InputDesc(Layer, 'List of atmospheric turbulence layers (optional). Altitudes will be scaled by airmass.'),
-                'common_layer_list': InputDesc(Layer, 'List of common layers shared across sources. Altitudes not scaled.')}
+                'common_layer_list': InputDesc(Layer, 'List of common layers shared across sources. Altitudes not scaled.'),
+                'seeing': InputDesc(BaseValue, 'Atmospheric seeing value')}
 
     @classmethod
     def output_names(cls):
