@@ -96,7 +96,7 @@ class PhaseScreenCube(BaseProcessingObj):
             raise ValueError('Error: the simulation is too long with respect to the input phase screen cube!')
 
         dt = self.time_vector-self.t_to_seconds(t)
-        idx_first_positive = np.searchsorted(dt, 0, side='right')
+        idx_first_positive = int(self.xp.searchsorted(dt, 0, side='right'))
         if idx_first_positive >= len(dt):
             idx_first_positive = len(dt)-1
         idx_last_non_positive = idx_first_positive - 1
