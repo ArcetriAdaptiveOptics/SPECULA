@@ -442,6 +442,70 @@ class TestBaseOperation(unittest.TestCase):
         self.assertEqual(op.outputs['out_value'].generation_time, value1.seconds_to_t(1))
 
     @cpu_and_gpu
+    def test_never_generated_input_is_not_used(self, target_device_idx, xp):
+        '''
+        An input that is connected but has never been generated
+        (generation_time still at its default -1) must be treated as
+        absent (zero) instead of using its raw (potentially garbage) value.
+        '''
+
+        value1 = BaseValue(value=xp.array([5.0]), target_device_idx=target_device_idx)
+        value2 = BaseValue(value=xp.array([999.0]), target_device_idx=target_device_idx)
+        value1.generation_time = value1.seconds_to_t(1)
+        # value2 is connected but never generated: generation_time stays at -1
+
+        op = BaseOperation(sum=True, target_device_idx=target_device_idx)
+        op.inputs['in_value1'].set(value1)
+        op.inputs['in_value2'].set(value2)
+
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
+
+        # value2 must be ignored (treated as 0), not 999
+        assert cpuArray(op.outputs['out_value'].value) == 5.0
+
+    @cpu_and_gpu
+    def test_stale_input_keeps_last_value(self, target_device_idx, xp):
+        '''
+        Once an input has been generated at least once, a later trigger
+        where that input is not refreshed should keep using its last
+        known value instead of treating it as zero.
+        '''
+
+        value1 = BaseValue(value=xp.array([1.0]), target_device_idx=target_device_idx)
+        value2 = BaseValue(value=xp.array([10.0]), target_device_idx=target_device_idx)
+        value1.generation_time = value1.seconds_to_t(1)
+        value2.generation_time = value2.seconds_to_t(1)
+
+        op = BaseOperation(sum=True, target_device_idx=target_device_idx)
+        op.inputs['in_value1'].set(value1)
+        op.inputs['in_value2'].set(value2)
+        op.setup()
+
+        # Step 1: both inputs generated at t=1
+        t1 = value1.seconds_to_t(1)
+        op.check_ready(t1)
+        op.prepare_trigger(t1)
+        op.trigger()
+        op.post_trigger()
+        assert cpuArray(op.outputs['out_value'].value) == 11.0
+
+        # Step 2: only value1 is refreshed, value2 keeps its old generation_time
+        value1.value[:] = 2.0
+        t2 = value1.seconds_to_t(2)
+        value1.generation_time = t2
+
+        op.check_ready(t2)
+        op.prepare_trigger(t2)
+        op.trigger()
+        op.post_trigger()
+
+        # value2 was not refreshed this step, but its last known value (10.0)
+        # must still be used, not zero
+        assert cpuArray(op.outputs['out_value'].value) == 12.0
+
+    @cpu_and_gpu
     def test_multiple_operation_flags_raise(self, target_device_idx, xp):
         """Only one of sum/sub/mul/div/concat can be True"""
 
