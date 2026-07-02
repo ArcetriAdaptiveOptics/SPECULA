@@ -218,14 +218,14 @@ class BaseOperation(BaseProcessingObj):
 
     def trigger_code(self):
 
-        if self.local_inputs['in_value1'].generation_time >= 0:
-            value1 = self.local_inputs['in_value1'].value
-        else:
-            value1 = self.out_value.value*0.
-        if self.local_inputs['in_value2'] is not None and self.local_inputs['in_value2'].generation_time >= 0:
+        value1 = self.local_inputs['in_value1'].value
+        if self.local_inputs['in_value1'].generation_time < 0:
+            value1 = value1*0.
+        value2 = None
+        if self.local_inputs['in_value2'] is not None:
             value2 = self.local_inputs['in_value2'].value
-        else:
-            value2 = self.out_value.value*0.
+            if self.local_inputs['in_value2'].generation_time < 0:
+                value2 = value2*0.
         out = self.out_value.value
 
         if self.concat:

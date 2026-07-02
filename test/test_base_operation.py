@@ -506,6 +506,62 @@ class TestBaseOperation(unittest.TestCase):
         assert cpuArray(op.outputs['out_value'].value) == 12.0
 
     @cpu_and_gpu
+    def test_never_generated_input_with_concat(self, target_device_idx, xp):
+        '''
+        A never-generated input used with concat=True must be zeroed using
+        its own shape, not out_value's (concatenated) shape, otherwise the
+        slice assignment in trigger_code raises a shape-mismatch error.
+        '''
+
+        value1 = BaseValue(value=xp.array([1.0, 2.0]), target_device_idx=target_device_idx)
+        value2 = BaseValue(value=xp.array([3.0, 4.0, 5.0]), target_device_idx=target_device_idx)
+        value1.generation_time = value1.seconds_to_t(1)
+        # value2 is connected but never generated
+
+        op = BaseOperation(concat=True, target_device_idx=target_device_idx)
+        op.inputs['in_value1'].set(value1)
+        op.inputs['in_value2'].set(value2)
+
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
+
+        expected = xp.array([1.0, 2.0, 0.0, 0.0, 0.0])
+        np.testing.assert_array_almost_equal(
+            cpuArray(op.outputs['out_value'].value),
+            cpuArray(expected)
+        )
+
+    @cpu_and_gpu
+    def test_never_generated_input_with_value2_remap(self, target_device_idx, xp):
+        '''
+        A never-generated input used together with value2_remap must be
+        zeroed using its own (remapped) shape, not out_value's shape,
+        otherwise the remap indexing in trigger_code raises a
+        shape-mismatch error.
+        '''
+
+        value1 = BaseValue(value=xp.array([1.0, 2.0, 3.0]), target_device_idx=target_device_idx)
+        value2 = BaseValue(value=xp.array([10.0]), target_device_idx=target_device_idx)
+        value1.generation_time = value1.seconds_to_t(1)
+        # value2 is connected but never generated
+
+        op = BaseOperation(sum=True, value2_remap=[1], target_device_idx=target_device_idx)
+        op.inputs['in_value1'].set(value1)
+        op.inputs['in_value2'].set(value2)
+
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
+
+        # value2 ignored (treated as 0): out = value1 unchanged
+        expected = xp.array([1.0, 2.0, 3.0])
+        np.testing.assert_array_almost_equal(
+            cpuArray(op.outputs['out_value'].value),
+            cpuArray(expected)
+        )
+
+    @cpu_and_gpu
     def test_multiple_operation_flags_raise(self, target_device_idx, xp):
         """Only one of sum/sub/mul/div/concat can be True"""
 
