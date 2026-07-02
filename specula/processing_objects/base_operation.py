@@ -220,12 +220,11 @@ class BaseOperation(BaseProcessingObj):
 
         value1 = self.local_inputs['in_value1'].value
         if self.local_inputs['in_value1'].generation_time < 0:
-            value1 = value1*0.
-        value2 = None
+            value1 = self.xp.zeros_like(value1)
         if self.local_inputs['in_value2'] is not None:
             value2 = self.local_inputs['in_value2'].value
             if self.local_inputs['in_value2'].generation_time < 0:
-                value2 = value2*0.
+                value2 = self.xp.zeros_like(value2)
         out = self.out_value.value
 
         if self.concat:

@@ -466,6 +466,30 @@ class TestBaseOperation(unittest.TestCase):
         assert cpuArray(op.outputs['out_value'].value) == 5.0
 
     @cpu_and_gpu
+    def test_never_generated_input_with_nan_is_not_used(self, target_device_idx, xp):
+        '''
+        A never-generated input may contain NaN (e.g. leftover from an
+        uninitialized allocation). Multiplying by zero would keep it NaN,
+        so it must be replaced with an actual zero array instead.
+        '''
+
+        value1 = BaseValue(value=xp.array([5.0]), target_device_idx=target_device_idx)
+        value2 = BaseValue(value=xp.array([xp.nan]), target_device_idx=target_device_idx)
+        value1.generation_time = value1.seconds_to_t(1)
+        # value2 is connected but never generated: generation_time stays at -1
+
+        op = BaseOperation(sum=True, target_device_idx=target_device_idx)
+        op.inputs['in_value1'].set(value1)
+        op.inputs['in_value2'].set(value2)
+
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
+
+        # value2 must be treated as 0, not NaN
+        assert cpuArray(op.outputs['out_value'].value) == 5.0
+
+    @cpu_and_gpu
     def test_stale_input_keeps_last_value(self, target_device_idx, xp):
         '''
         Once an input has been generated at least once, a later trigger
