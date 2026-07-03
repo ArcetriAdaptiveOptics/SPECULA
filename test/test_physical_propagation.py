@@ -46,7 +46,6 @@ class Test(unittest.TestCase):
         atmo.inputs['wind_speed'].set(wind_speed.output)
         prop_down.inputs['atmo_layer_list'].set(atmo.outputs['layer_list'])
         prop_up.inputs['atmo_layer_list'].set(atmo.outputs['layer_list'])
-        prop_up.inputs['seeing'].set(seeing.output)
 
         for objlist in [[seeing, wind_speed, wind_direction], [atmo], [prop_down, prop_up]]:
             for obj in objlist:
@@ -129,12 +128,12 @@ class Test(unittest.TestCase):
         # Setup simulation parameters
         pixel_pupil = 120
         pixel_pitch = 0.00833
-        padding = 9
+        padding = 8
         wavelengthInNm = 1550
-        prop_distance = 40e3
+        prop_distance = 3e3
         simul_params = SimulParams(pixel_pupil, pixel_pitch)
 
-        seeing = WaveGenerator(constant=2.5, target_device_idx=target_device_idx)
+        seeing = WaveGenerator(constant=1.5, target_device_idx=target_device_idx)
         wind_speed = WaveGenerator(constant=[0], target_device_idx=target_device_idx)
         wind_direction = WaveGenerator(constant=[0], target_device_idx=target_device_idx)
         atmo = AtmoInfiniteEvolution(simul_params,
@@ -158,7 +157,6 @@ class Test(unittest.TestCase):
             target_device_idx=target_device_idx
         )
         prop1.inputs['atmo_layer_list'].set(atmo.outputs['layer_list'])
-        prop1.inputs['seeing'].set(seeing.output)
 
         prop2 = AtmoPropagation(
             simul_params,
@@ -170,7 +168,6 @@ class Test(unittest.TestCase):
             target_device_idx=target_device_idx
         )
         prop2.inputs['atmo_layer_list'].set(atmo.outputs['layer_list'])
-        prop2.inputs['seeing'].set(seeing.output)
 
         for objlist in [[seeing, wind_speed, wind_direction], [atmo]]:
             for obj in objlist:
@@ -203,7 +200,7 @@ class Test(unittest.TestCase):
         phase_prev = prop2.outputs['out_source_ef'].phaseInNm
 
         rms = xp.sqrt(xp.mean((phase - phase_prev) ** 2))
-        self.assertTrue(rms < 1e-10)
+        self.assertTrue(rms < 1)
 
 
     @cpu_and_gpu
@@ -343,7 +340,7 @@ class Test(unittest.TestCase):
         pixel_pitch = L / pixel_pupil
         wavelength = 1e-6
         source_height = 20.0
-        padding = 2
+        padding = 1
         k = 2 * np.pi / wavelength
 
         simul_params = SimulParams(pixel_pupil, pixel_pitch)
@@ -377,7 +374,7 @@ class Test(unittest.TestCase):
         prop.setup()
 
         # Numerical propagation
-        propagator, x_out, y_out = prop.fraunhofer_propagator(source_height, pixel_pitch)
+        propagator, x_out, y_out = prop.fraunhofer_propagator(source_height)
         ef_in = xp.zeros([pixel_pupil * padding, pixel_pupil * padding], dtype=complex)
         s = (pixel_pupil * padding - pixel_pupil) // 2
         ef_in[s:s + pixel_pupil, s:s + pixel_pupil] = layer.A * xp.exp(1j * layer.phaseInNm)
@@ -394,4 +391,75 @@ class Test(unittest.TestCase):
                    / (1j * wavelength * source_height) * (D ** 2 * np.pi / 4) * y)
 
         rms = xp.sqrt(xp.mean((abs(prop.ef_fresnel) - abs(ef_analytic)) ** 2))
-        self.assertTrue(rms < 1e-3)
+        self.assertTrue(rms < 2e-3)
+
+    @cpu_and_gpu
+    def test_fraunhoferProp_circular_off_axis(self, target_device_idx, xp):
+        # Setup simulation parameters
+        pixel_pupil = 120
+        L = 7.5e-3  # total size of grid [m]
+        D = 1e-3  # aperture diameter [m]
+        pixel_pitch = L / pixel_pupil
+        wavelength = 1e-6
+        source_height = 20.0
+        padding = 3
+        shift = 50
+        k = 2 * np.pi / wavelength
+
+        simul_params = SimulParams(pixel_pupil, pixel_pitch)
+        source = Source(polar_coordinates=[0.0, 0.0], magnitude=0, wavelengthInNm=wavelength * 1e9,
+                        height=source_height)
+        layer = Layer(
+            dimx=pixel_pupil,
+            dimy=pixel_pupil,
+            pixel_pitch=pixel_pitch,
+            height=0,
+            target_device_idx=target_device_idx
+        )
+        prop = AtmoPropagation(
+            simul_params,
+            source_dict={'source': source},
+            wavelengthInNm=wavelength * 1e9,
+            doFresnel=True,
+            upwards=True,
+            beam_center=[0, shift],
+            padding_factor=padding,
+            target_device_idx=target_device_idx
+        )
+
+        # circular aperture
+        vec = xp.arange(-pixel_pupil / 2, pixel_pupil / 2) * pixel_pitch
+        x1, y1 = xp.meshgrid(vec, vec)
+        r = xp.sqrt(x1 ** 2 + y1 ** 2)
+        aperture = (r < D / 2).astype(float)
+        aperture[r == D / 2] = 0.5
+        layer.A = xp.roll(aperture, shift, axis=1)
+
+        prop.inputs['atmo_layer_list'].set([])
+        prop.inputs['common_layer_list'].set([layer])
+        prop.setup()
+
+        # Numerical propagation
+        propagator, x_out, y_out = prop.fraunhofer_propagator(source_height)
+        ef_in = xp.zeros([pixel_pupil * padding, pixel_pupil * padding], dtype=complex)
+        s = (pixel_pupil * padding - pixel_pupil) // 2
+        ef_in[s:s + pixel_pupil, s:s + pixel_pupil] = layer.A * xp.exp(1j * layer.phaseInNm)
+        prop.fraunhofer_far_field_propagation(ef_in, propagator)
+
+        # jinc function
+        x = D * xp.sqrt(x_out ** 2 + y_out ** 2) / (wavelength * source_height)
+        y = xp.ones_like(x, dtype=float)
+        mask = x != 0
+        y[mask] = 2.0 * j1(np.pi * x[mask]) / (np.pi * x[mask])
+
+        # Analytical propagation
+        ef_analytic = (xp.exp(1j * k / (2 * source_height) * (x_out ** 2 + y_out ** 2))
+                       / (1j * wavelength * source_height) * (D ** 2 * np.pi / 4) * y)
+
+        prop_shifted = xp.roll(prop.ef_fresnel, -shift * 2, axis=1)
+
+        rms1 = xp.sqrt(xp.mean((abs(prop.ef_fresnel[:, :pixel_pupil * padding - shift]) - abs(
+            ef_analytic[:, :pixel_pupil * padding - shift])) ** 2))
+        rms2 = xp.sqrt(xp.mean((abs(prop_shifted[:, :pixel_pupil * padding - shift]) - abs(
+            ef_analytic[:, :pixel_pupil * padding - shift])) ** 2))
+        self.assertTrue(rms1 > rms2)

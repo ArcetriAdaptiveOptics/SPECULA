@@ -118,7 +118,6 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
         atmo.inputs['wind_direction'].set(wind_direction.output)
         atmo.inputs['wind_speed'].set(wind_speed.output)
         prop_up_phys.inputs['atmo_layer_list'].set(atmo.outputs['layer_list'])
-        prop_up_phys.inputs['seeing'].set(seeing.output)
         prop_up_geom.inputs['atmo_layer_list'].set(atmo.outputs['layer_list'])
         modal_analsis_phys.inputs['in_ef'].set(prop_up_phys.outputs['out_uplink_source_ef'])
         modal_analsis_geom.inputs['in_ef'].set(prop_up_geom.outputs['out_uplink_source_ef'])
