@@ -6,6 +6,7 @@
 ### New processing and data objects
 
 - Added IntValue, FloatValue and StringValue as specialized containers for scalars and strings, to be used in place of BaseValue where needed.
+- Added DisplayRecorder processing object
 - Added Phasescreen data object.
 - Added Phase Extractor processing object.
 - Added CLOSE gain optimizer processing object.
@@ -14,15 +15,19 @@
 
 - Removed simul\_params argument from IirFilter, Integrator and other related processing objects
 - Outputs for SpeculaInput and derived objects like TerminalInput must be typed with :int, :float or :str
+- Added "window" and "subplot" arguments to all displays to enable multi-plot windows
 - Renamed MmsePistonUnwrapper to SoftLimiter and moved the module to specula.processing_objects.soft_limiter
 - Added stroke thresholding for dm class
 - Added open\_loop\_estimate parameter to OpticalGainEstimator.
 - Enabled start and end time (start\_time and end\_time parameters) in FieldAnalyser.
+- Added "out_window_id" output to all displays to support video recording
 
 ### Other
 
+- Fixed BaseOperation using stale/uninitialized input values when in\_value1 or in\_value2 had never been generated
 - Fixed vecWeiPixRadT extraction in ShSlopec
 - Fixed output\_names in PhaseScreenCube
+- Fixed PhaseScreenCube crash on GPU due to np.searchsorted called on a cupy array
 - Fixed start\_time bug in WindowedIntegration
 - Optimization of the compute\_ifs\_covmat function
 - ...

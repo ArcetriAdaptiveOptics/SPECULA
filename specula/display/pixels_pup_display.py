@@ -1,4 +1,5 @@
 import numpy as np
+
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from matplotlib.patches import Circle
@@ -30,9 +31,16 @@ class PixelsPupDisplay(BaseDisplay):
                  figsize=(8,6),
                  log_scale=False,
                  crop=None,
-                 crop_mode="slice"):
+                 crop_mode="slice",
+                 window: int=None,
+                 subplot: int=111,
+                 ):
 
-        super().__init__(title=title, figsize=figsize)
+        super().__init__(title=title,
+                         figsize=figsize,
+                         window=window,
+                         subplot=subplot,
+                         )
 
         self._log_scale = log_scale
         self._crop = crop
@@ -175,22 +183,14 @@ class PixelsPupDisplay(BaseDisplay):
 
 
         if self.img is None:
-
             self.img = self.ax.imshow(image, norm=norm)
-
-            if not self._colorbar_added:
-                plt.colorbar(self.img, ax=self.ax, location='left')
-                self._colorbar_added = True
-
+            self._add_colorbar_if_needed(self.img, location='left')
         else:
-
             self.img.set_data(image)
             self.img.set_clim(img_min, img_max)
 
             if norm is not None:
                 self.img.set_norm(norm)
 
-
         # draw pupil overlay
         self._draw_pupils(pupdata)
-        self._safe_draw()
