@@ -33,7 +33,7 @@ class AtmoPropagation(BaseProcessingObj):
                  mergeLayersContrib: bool=True,
                  upwards: bool=False,
                  padding_factor: int=1,
-                 beam_center=[0,0],
+                 beam_center=None,
                  target_device_idx=None,
                  precision=None):
         """
@@ -76,8 +76,6 @@ class AtmoPropagation(BaseProcessingObj):
             (downwards).
         padding_factor : int [1], optional
             Factor for zero padding in Fresnel propagation to avoid numerical issues with FFTs.
-        beam_waist : float [m], optional
-            Waist of Gaussian uplink beam. Used for evaluating FFT window limit in Fraunhofer propagation.
         beam_center : float [m], optional
             Center of Gaussian uplink beam. Used for evaluating FFT window limit in Fraunhofer propagation.
         target_device_idx : int [1], optional
@@ -108,7 +106,7 @@ class AtmoPropagation(BaseProcessingObj):
         self.mergeLayersContrib = mergeLayersContrib
         self.prop_sign = -1 if upwards else 1
         self.pixel_pupil_size = self.pixel_pupil
-        self.beam_center = self.xp.array(beam_center)
+        self.beam_center = self.xp.array(beam_center if beam_center is not None else [0,0])
         self.wavelengthInNm = wavelengthInNm
         self.source_dict = source_dict
         if pupil_position is not None:
@@ -192,7 +190,7 @@ class AtmoPropagation(BaseProcessingObj):
         col_idx = self.xp.arange(self.ef_size_padded) - (self.ef_size_padded // 2) + 0.5
         H_FR_kernel = self.xp.exp(
             -1j * k / distanceInM * self.xp.outer(row_idx * self.pixel_pitch, col_idx * self.pixel_pitch))
-        H_FR_in = self.xp.exp(1j * k / (2 * distanceInM) * (x_in_out ** 2 + x_in_out ** 2))
+        H_FR_in = self.xp.exp(1j * k / (2 * distanceInM) * (x_in_out ** 2 + y_in_out ** 2))
 
         return [H_FR, H_FR_in, H_FR_kernel], x_in_out, y_in_out
 

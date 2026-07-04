@@ -456,10 +456,11 @@ class Test(unittest.TestCase):
         ef_analytic = (xp.exp(1j * k / (2 * source_height) * (x_out ** 2 + y_out ** 2))
                        / (1j * wavelength * source_height) * (D ** 2 * np.pi / 4) * y)
 
-        prop_shifted = xp.roll(prop.ef_fresnel, -shift * 2, axis=1)
+        prop_shifted = xp.roll(prop.ef_fresnel, -shift, axis=1)
 
         rms1 = xp.sqrt(xp.mean((abs(prop.ef_fresnel[:, :pixel_pupil * padding - shift]) - abs(
             ef_analytic[:, :pixel_pupil * padding - shift])) ** 2))
         rms2 = xp.sqrt(xp.mean((abs(prop_shifted[:, :pixel_pupil * padding - shift]) - abs(
             ef_analytic[:, :pixel_pupil * padding - shift])) ** 2))
+
         self.assertTrue(rms1 > rms2)
