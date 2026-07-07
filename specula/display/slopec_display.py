@@ -9,14 +9,20 @@ from specula.data_objects.slopes import Slopes
 class SlopecDisplay(BaseDisplay):
     def __init__(self,
                  title='Slopes Display',
-                 figsize=(6, 6)):
-
+                 figsize=(6, 6),
+                 unit='slopes',
+                 window: int=None,
+                 subplot: int=111,
+                 ):
         super().__init__(
             title=title,
-            figsize=figsize
+            figsize=figsize,
+            window=window,
+            subplot=subplot,
         )
 
         self.img = None
+        self.unit = unit
 
         # Setup input
         self.input_key = 'slopes'  # Used by base class
@@ -35,13 +41,12 @@ class SlopecDisplay(BaseDisplay):
         if self.img is None:
             # First time: create image
             self.img = self.ax.imshow(frame2d)
-            self._add_colorbar_if_needed(self.img)
+            self._add_colorbar_if_needed(self.img, unit=self.unit)
 
             # Set axis labels for clarity
-            self.ax.set_xlabel('Slope Components')
+            self.ax.set_xlabel('Subapertures')
             self.ax.set_ylabel('Subapertures')
         else:
             # Update existing image
             self._update_image_data(self.img, frame2d)
-
-        self._safe_draw()
+            

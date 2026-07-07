@@ -46,11 +46,15 @@ class PlotVectorDisplay(BaseDisplay):
                  indices=None,
                  slice_args=None,
                  legend_labels=None,
-                 max_elements=20):
+                 max_elements=20,
+                 window: int=None,
+                 subplot: int=111):
 
         super().__init__(
             title=title,
-            figsize=figsize
+            figsize=figsize,
+            window=window,
+            subplot=subplot,
         )
 
         # Validate that indices and slice_args are not both set
@@ -262,5 +266,4 @@ class PlotVectorDisplay(BaseDisplay):
             self.ax.set_xlabel('Iteration')
         self.ax.set_ylabel('Value')
 
-        self._safe_draw()
         self._count += 1

@@ -1,4 +1,5 @@
 import numpy as np
+
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
@@ -43,12 +44,18 @@ class PixelsDisplay(BaseDisplay):
                  subapdata: SubapData = None,
                  log_scale=False,
                  crop=None,
-                 crop_mode='slice'):
+                 crop_mode='slice',
+                 window: int=None,
+                 subplot: int=111,
+                 ):
 
         super().__init__(
             title=title,
-            figsize=figsize
+            figsize=figsize,
+            window=window,
+            subplot=subplot,
         )
+        self.img = None
 
         self._sh_as_pyr = sh_as_pyr
         self._subapdata = subapdata
@@ -149,15 +156,11 @@ class PixelsDisplay(BaseDisplay):
 
         if self.img is None:
             self.img = self.ax.imshow(image, norm=norm)
-            if not self._colorbar_added:
-                plt.colorbar(self.img, ax=self.ax)
-                self._colorbar_added = True
+            self._add_colorbar_if_needed(self.img, unit='counts')
         else:
             self.img.set_data(image)
             if norm is not None:
                 self.img.set_norm(norm)
-
-        self._safe_draw()
 
     def _reformat_as_pyramid(self, pixels, subapdata):    
         pupil = subapdata.copyTo(-1).single_mask()

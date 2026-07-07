@@ -1,4 +1,5 @@
 import numpy as np
+
 import matplotlib.colors as mcolors
 
 from specula import cpuArray
@@ -13,12 +14,17 @@ class PsfDisplay(BaseDisplay):
                  title='PSF Display',
                  figsize=(6, 6),
                  log_scale=False,
-                 image_p2v=0.0):
-
+                 image_p2v=0.0,
+                 window: int=None,
+                 subplot :int=111,
+                 ):
         super().__init__(
             title=title,
-            figsize=figsize
+            figsize=figsize,
+            window=window,
+            subplot=subplot,
         )
+        self.img = None
 
         self._log_scale = log_scale
         self._image_p2v = image_p2v
@@ -69,4 +75,3 @@ class PsfDisplay(BaseDisplay):
             self._update_image_data(self.img, image)
             if norm is not None:
                 self.img.set_norm(norm)
-        self._safe_draw()

@@ -5,7 +5,7 @@ main:
   root_dir:          './calib/SCAO'         # Root directory for calibration manager
   pixel_pupil:       160                    # Linear dimension of pupil phase array
   pixel_pitch:       0.05                   # [m] Pitch of the pupil phase array
-  total_time:        1.000                  # [s] Total simulation running time
+  total_time:        0.030                  # [s] Total simulation running time
   time_step:         0.001                  # [s] Simulation time step
 
 
@@ -99,7 +99,7 @@ slopec:
   #sn_object:         'scao_sn'             # tag of the slope reference vector
   inputs:
     in_pixels:        'detector.out_pixels'
-  outputs:  ['out_slopes', 'out_pupdata', 'total_counts', 'subap_counts']
+  outputs:  ['out_slopes', 'out_pupdata']
 
 
 rec:
@@ -152,40 +152,81 @@ pixel_disp:
     pixels:       'detector.out_pixels'
   title:            'PIXELS'
   figsize:       [8, 6]  # Default size in inches
+  window: 2
+  subplot: 241
+  outputs: ['out_window_id']
+
 modes_disp:
   class:            'ModesDisplay'
   inputs:
     modes:       'rec.out_modes'
   title:            'MODES'
   figsize:       [8, 6]  # Default size in inches
+  window: 2
+  subplot: 242
+  outputs: ['out_window_id']
+
 sc_disp:
   class:            'SlopecDisplay'
   inputs:
     slopes:       'slopec.out_slopes'
   figsize:       [8, 6]  # Default size in inches
+  window: 2
+  subplot: 243
+  outputs: ['out_window_id']
+
 sr_disp:
   class:            'PlotDisplay'
   inputs:
     value:       'psf.out_sr'
   title:            'SR'
+  window: 2
+  subplot: 244
+  outputs: ['out_window_id']
+
 ph_disp:
   class:            'PhaseDisplay'
   inputs:
-    phase:       "prop.out_on_axis_source_ef"
+   phase:       "prop.out_on_axis_source_ef"
   title:            'PUPIL PHASE'
   figsize:       [8, 6]  # Default size in inches
+  window: 2
+  subplot: 245
+  outputs: ['out_window_id']
+
 dm_disp:
   class:            'PhaseDisplay'
   inputs:
     phase:       "dm.out_layer"
   title:            'DM'
   figsize:       [8, 6]  # Default size in inches
+  window: 2
+  subplot: 246
+  outputs: ['out_window_id']
+
 psf_disp:
   class:            'PsfDisplay'
   inputs:
     psf:       "psf.out_psf"
   title:            'PSF'
   figsize:       [8, 6]  # Default size in inches
+  window: 2
+  subplot: 247
+  outputs: ['out_window_id']
+
+display_recorder:
+  class:   'DisplayRecorder'
+  filename: "output.mp4"
+  fps: 30
+  inputs:
+    in_windows: ['pixel_disp.out_window_id',
+                 'modes_disp.out_window_id',
+                 'sc_disp.out_window_id',
+                 'sr_disp.out_window_id',
+                 'ph_disp.out_window_id',
+                 'dm_disp.out_window_id',
+                 'psf_disp.out_window_id',
+    ]
 
 data_store:
   class:             'DataStore'

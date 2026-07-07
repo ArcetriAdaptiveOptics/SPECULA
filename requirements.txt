@@ -10,3 +10,4 @@ python-socketio
 requests
 pytest
 scikit-image
+imageio-ffmpeg

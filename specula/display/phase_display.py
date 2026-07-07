@@ -10,11 +10,17 @@ from specula.data_objects.electric_field import ElectricField
 class PhaseDisplay(BaseDisplay):
     def __init__(self,
                  title='Phase Display',
-                 figsize=(8, 6)):  # Default size in inches
+                 figsize=(8, 6),
+                 window: int=None,
+                 subplot: int=111,
+                 ):
         super().__init__(
             title=title,
-            figsize=figsize            
+            figsize=figsize,
+            window=window,
+            subplot=subplot,
         )
+        self.img = None
 
         # Setup input
         self.input_key = 'phase'  # Used by base class
@@ -39,8 +45,7 @@ class PhaseDisplay(BaseDisplay):
 
         if self.img is None:
             self.img = self.ax.imshow(frame)
-            self._add_colorbar_if_needed(self.img)
+            self._add_colorbar_if_needed(self.img, unit='nm')
         else:
             self._update_image_data(self.img, frame)
 
-        self._safe_draw()
