@@ -29,6 +29,7 @@
 - Fixed output\_names in PhaseScreenCube
 - Fixed PhaseScreenCube crash on GPU due to np.searchsorted called on a cupy array
 - Fixed start\_time bug in WindowedIntegration
+- Fixed unclear/inconsistent overrides default value and type hint in Simul
 - Optimization of the compute\_ifs\_covmat function
 - ...
 

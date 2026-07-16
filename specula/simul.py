@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import re
 import inspect
 import itertools
@@ -32,7 +34,7 @@ class Simul():
     def __init__(self,
                  *param_files,
                  simul_idx=0,
-                 overrides=None,
+                 overrides: str | None = None,
                  stepping=False,
                  diagram=False,
                  diagram_title=None,
@@ -53,7 +55,7 @@ class Simul():
         self.simul_idx = simul_idx
         self.mainParams = None
         if overrides is None:
-            self.overrides = []
+            self.overrides = ""
         else:
             self.overrides = overrides
         self.stepping = stepping
