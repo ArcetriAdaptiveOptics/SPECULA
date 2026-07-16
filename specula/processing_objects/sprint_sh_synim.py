@@ -5,6 +5,7 @@ SPRINT Estimator for Shack-Hartmann WFS using SynIM for IM computation.
 import logging
 from specula.lib.synim_utils import compute_im_synim
 from specula.data_objects.slopes import Slopes
+from specula.data_objects.pupilstop import Pupilstop
 from specula.processing_objects.base_sprint_estimator import BaseSprintEstimator
 from specula.processing_objects.sh import SH
 from specula.processing_objects.sh_slopec import ShSlopec
@@ -47,6 +48,7 @@ class SprintShSynim(BaseSprintEstimator):
                  wfs,
                  modes_index,
                  carrier_frequencies,
+                 pupil_mask: Pupilstop = None,
                  enable_wpup_magn_xy=False,
                  estimation_dt=10.0,
                  max_iterations=10,
@@ -59,9 +61,13 @@ class SprintShSynim(BaseSprintEstimator):
                  precision=None):
         """
         Initialize SH SPRINT estimator with SynIM backend.
-        
+
         Parameters
         ----------
+        pupil_mask : Pupilstop, optional
+            WFS-side pupil mask (e.g. including spider obscuration not
+            present in the DM footprint). Defaults to dm.mask if not given
+            (see BaseSprintEstimator.setup()).
         enable_wpup_magn_xy : bool
             Enable separate X/Y magnification (future feature)
         """
@@ -80,6 +86,7 @@ class SprintShSynim(BaseSprintEstimator):
             wfs=wfs,
             modes_index=modes_index,
             carrier_frequencies=carrier_frequencies,
+            pupil_mask=pupil_mask,
             n_params=n_params,
             estimation_dt=estimation_dt,
             max_iterations=max_iterations,

@@ -9,6 +9,7 @@ from specula.data_objects.source import Source
 from specula.data_objects.ifunc import IFunc
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.subap_data import SubapData
+from specula.data_objects.pupilstop import Pupilstop
 from specula.processing_objects.dm import DM
 from specula.processing_objects.sh import SH
 from specula.processing_objects.ccd import CCD
@@ -307,6 +308,52 @@ class TestSprintShSynim(unittest.TestCase):
     def test_sprint_estimation_medium(self, target_device_idx, xp):
         """Test SPRINT estimation with medium mis-registration"""
         self._run_sprint_test(5.0, -3.0, 3.0, 0.05, target_device_idx, xp)
+
+    @cpu_and_gpu
+    def test_sprint_pupil_mask_is_forwarded(self, target_device_idx, xp):
+        """
+        pupil_mask passed to SprintShSynim must actually be used by SynIM,
+        not silently replaced by the BaseSprintEstimator fallback (dm.mask).
+
+        Regression test for a bug where SprintShSynim.__init__ did not
+        forward pupil_mask to BaseSprintEstimator.__init__ at all: with no
+        error raised, self.pupil_mask silently fell back to dm.mask in
+        setup(). Neither this test file nor test_sprint_pyr.py previously
+        caught this, because no case exercised a pupil_mask genuinely
+        different from dm.mask - here we build one with a central
+        obstruction that create_test_system()'s DM (obsratio=0.0) does not
+        have, mirroring the real WFS-sees-spider / DM-does-not case.
+        """
+        simul_params, source, dm, wfs, ccd, slopec = create_test_system()
+
+        pupil_mask = Pupilstop(
+            simul_params, mask_diam=1.0, obs_diam=0.3,
+            target_device_idx=target_device_idx, precision=1
+        )
+
+        sprint = SprintShSynim(
+            simul_params=simul_params,
+            dm=dm,
+            slopec=slopec,
+            source=source,
+            wfs=wfs,
+            modes_index=[0],
+            carrier_frequencies=[100.0],
+            pupil_mask=pupil_mask,
+            target_device_idx=target_device_idx,
+            precision=1
+        )
+        sprint.inputs['in_slopes'].set(slopec.outputs['out_slopes'])
+        sprint.setup()
+
+        pupil_mask_used = specula.cpuArray(sprint.pupil_mask)
+        np.testing.assert_array_equal(pupil_mask_used, specula.cpuArray(pupil_mask.A))
+        self.assertFalse(
+            np.array_equal(pupil_mask_used, specula.cpuArray(dm.mask)),
+            "pupil_mask fixture must differ from dm.mask, otherwise this "
+            "test cannot distinguish 'forwarded correctly' from 'silently "
+            "fell back to dm.mask'"
+        )
 
     def _run_sprint_test(self, shift_x, shift_y, rotation, magnification,
                         target_device_idx, xp):
