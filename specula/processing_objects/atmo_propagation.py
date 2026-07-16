@@ -76,8 +76,8 @@ class AtmoPropagation(BaseProcessingObj):
             (downwards).
         padding_factor : int [1], optional
             Factor for zero padding in Fresnel propagation to avoid numerical issues with FFTs.
-        beam_center : float [m], optional
-            Center of Gaussian uplink beam. Used for evaluating FFT window limit in Fraunhofer propagation.
+        beam_center : float [1], optional
+            Center of Gaussian uplink beam in pixel. Used for Fraunhofer propagation.
         target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
         precision : int [1], optional

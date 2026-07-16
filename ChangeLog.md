@@ -21,6 +21,7 @@
 - Added open\_loop\_estimate parameter to OpticalGainEstimator.
 - Enabled start and end time (start\_time and end\_time parameters) in FieldAnalyser.
 - Added "out_window_id" output to all displays to support video recording
+- Added "beam_center" for uplink beam in pixel. Used for Fresnel propagation to indicate if beam is not located in the center.
 
 ### Other
 
@@ -29,8 +30,8 @@
 - Fixed output\_names in PhaseScreenCube
 - Fixed PhaseScreenCube crash on GPU due to np.searchsorted called on a cupy array
 - Fixed start\_time bug in WindowedIntegration
-- Fixed unclear/inconsistent overrides default value and type hint in Simul
 - Optimization of the compute\_ifs\_covmat function
+- Added Fraunhofer far field propagation
 - ...
 
 ## [1.0.3] - 2026-05-18
