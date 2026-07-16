@@ -30,6 +30,7 @@
 - Fixed output\_names in PhaseScreenCube
 - Fixed PhaseScreenCube crash on GPU due to np.searchsorted called on a cupy array
 - Fixed start\_time bug in WindowedIntegration
+- Fixed SprintShSynim not forwarding pupil\_mask to BaseSprintEstimator (silently fell back to dm.mask instead of the WFS-side pupil, e.g. missing spider obscuration); added regression test in test\_sprint.py
 - Optimization of the compute\_ifs\_covmat function
 - Added Fraunhofer far field propagation
 - ...
