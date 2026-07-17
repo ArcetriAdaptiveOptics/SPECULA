@@ -187,6 +187,29 @@ class Simul():
             self.logger.warning(f'the following objects will not be triggered: {params.keys()}')
         return order, order_index
 
+    def validate_section_names(self, params):
+        '''
+        Reject section (object) names that use characters reserved by the
+        output-reference syntax parsed in split_output(): '.', '-' and ':'.
+
+        These characters separate an optional alias, the object name, the
+        output key and an optional delay/type suffix (e.g. "alias-obj.output:1").
+        An object name containing one of them makes output references
+        ambiguous: e.g. an object named "my-control" cannot be distinguished
+        from an alias "my" applied to an object named "control".
+        '''
+        reserved = {
+            '.': "separates 'obj_name' from 'output_key'",
+            '-': "separates an optional alias from 'obj_name.output_key'",
+            ':': "introduces an optional delay/type suffix",
+        }
+        for key in params.keys():
+            for ch, purpose in reserved.items():
+                if ch in key:
+                    raise ValueError(f"Invalid section name '{key}' in parameter file: "
+                                      f"character '{ch}' is reserved ({purpose}) and cannot "
+                                      "be used in object names")
+
     def setSimulParams(self, params):
         for key, pars in params.items():
             classname = pars['class']
@@ -805,6 +828,8 @@ class Simul():
 
         # Actual creation code
         self.apply_overrides(params)
+
+        self.validate_section_names(params)
 
         self.trigger_order, self.trigger_order_idx = self.build_trigger_order(params)
         self.logger.info(f'{self.trigger_order=}')

@@ -259,6 +259,29 @@ class TestSimul(unittest.TestCase):
         assert params['dm'] == original_params['dm']      # Unchanged
         assert 'dm2' not in params
 
+    def test_validate_section_names_accepts_clean_names(self):
+        simul = Simul('dummy.yaml')
+        params = {'main': {}, 'atmo_0': {}, 'dm2': {}}
+        simul.validate_section_names(params)  # Should not raise
+
+    def test_validate_section_names_rejects_dot(self):
+        simul = Simul('dummy.yaml')
+        params = {'my.control': {}}
+        with self.assertRaises(ValueError):
+            simul.validate_section_names(params)
+
+    def test_validate_section_names_rejects_dash(self):
+        simul = Simul('dummy.yaml')
+        params = {'my-control': {}}
+        with self.assertRaises(ValueError):
+            simul.validate_section_names(params)
+
+    def test_validate_section_names_rejects_colon(self):
+        simul = Simul('dummy.yaml')
+        params = {'my:control': {}}
+        with self.assertRaises(ValueError):
+            simul.validate_section_names(params)
+
     def test_unknown_parameter_raises_value_error(self):
         '''Test that a YAML parameter not present in the class constructor raises ValueError'''
         yml = '''
