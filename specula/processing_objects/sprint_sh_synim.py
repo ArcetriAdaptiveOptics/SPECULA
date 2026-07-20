@@ -194,9 +194,9 @@ class SprintShSynim(BaseSprintEstimator):
         self.logger.info(f"Mis-reg parameters: {cpuArray(self.misreg_params)}")
 
         plt.figure(figsize=(12, 5))
-        plt.plot(im_measured[:,0]/G_opt[0], label='Measured IM (demodulated)')
-        plt.plot(im_nominal[:,0], label='Nominal IM (current params)')
-        plt.plot(im_diff[:,0], label='IM Difference (corrected)')
+        plt.plot(cpuArray(im_measured[:,0]/G_opt[0]), label='Measured IM (demodulated)')
+        plt.plot(cpuArray(im_nominal[:,0]), label='Nominal IM (current params)')
+        plt.plot(cpuArray(im_diff[:,0]), label='IM Difference (corrected)')
         plt.legend()
         plt.title(f"Iteration {iteration+1}")
         plt.xlabel("Slope index")
