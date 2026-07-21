@@ -355,6 +355,62 @@ class TestSprintShSynim(unittest.TestCase):
             "fell back to dm.mask'"
         )
 
+    @cpu_and_gpu
+    def test_sprint_anamorphic_magnification_is_functional(self, target_device_idx, xp):
+        """
+        enable_wpup_magn_xy=True must actually make params [4]/[5]
+        (anamorphosis_90/anamorphosis_45) affect the computed nominal IM,
+        not silently be dead/no-op parameters.
+
+        Regression test motivated by SprintShSynim's own docstring
+        incorrectly claiming this was "not yet implemented in SynIM" - it
+        was in fact already implemented and functional (compute_im_synim
+        reads misreg_params[4]/[5] and passes them through to
+        synim.interaction_matrix's wfs_anamorphosis_90/wfs_anamorphosis_45,
+        which do affect the geometric resampling). Also guards against the
+        zero-vs-one default pitfall: unlike the isotropic magnification at
+        index [3] ("1.0 + delta" convention, correctly zero-initialized),
+        anamorphosis_90/45 are used as DIRECT values - starting them at 0.0
+        (the base class's default zero-init) is a degenerate anisotropy,
+        not "no anisotropy", so this test explicitly passes
+        initial_misreg=[...,1.0,1.0].
+        """
+        simul_params, source, dm, wfs, ccd, slopec = create_test_system()
+
+        sprint = SprintShSynim(
+            simul_params=simul_params,
+            dm=dm,
+            slopec=slopec,
+            source=source,
+            wfs=wfs,
+            modes_index=[0],
+            carrier_frequencies=[100.0],
+            enable_wpup_magn_xy=True,
+            initial_misreg=[0.0, 0.0, 0.0, 0.0, 1.0, 1.0],
+            target_device_idx=target_device_idx,
+            precision=1
+        )
+        sprint.inputs['in_slopes'].set(slopec.outputs['out_slopes'])
+        sprint.setup()
+
+        self.assertEqual(sprint.n_params, 6)
+
+        baseline = specula.cpuArray(sprint._compute_nominal_im()).copy()
+
+        sprint.misreg_params = sprint.to_xp([0.0, 0.0, 0.0, 0.0, 1.2, 1.0], dtype=sprint.dtype)
+        perturbed_90 = specula.cpuArray(sprint._compute_nominal_im())
+        self.assertFalse(
+            np.allclose(baseline, perturbed_90),
+            "anamorphosis_90 (index 4) must affect the nominal IM"
+        )
+
+        sprint.misreg_params = sprint.to_xp([0.0, 0.0, 0.0, 0.0, 1.0, 1.2], dtype=sprint.dtype)
+        perturbed_45 = specula.cpuArray(sprint._compute_nominal_im())
+        self.assertFalse(
+            np.allclose(baseline, perturbed_45),
+            "anamorphosis_45 (index 5) must affect the nominal IM"
+        )
+
     def _run_sprint_test(self, shift_x, shift_y, rotation, magnification,
                         target_device_idx, xp):
         """Helper method to run SPRINT test with given parameters"""

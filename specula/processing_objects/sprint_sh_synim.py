@@ -28,15 +28,21 @@ class SprintShSynim(BaseSprintEstimator):
     - [2]: rotation (degrees)
     - [3]: magnification (fractional, added to 1.0)
     
-    If enable_wpup_magn_xy=True (not yet implemented in SynIM):
-    - [4]: magn_x (fractional)
-    - [5]: magn_y (fractional)
-    
+    If enable_wpup_magn_xy=True (implemented in SynIM via
+    wfs_anamorphosis_90/wfs_anamorphosis_45, see compute_im_synim -
+    NOT independent per-axis magn_x/magn_y, but an anamorphic
+    decomposition: global magnification [3] + anisotropy along the
+    0/90deg axes [4] + anisotropy along the 45deg axes [5], together
+    spanning any symmetric anisotropic scaling, not just axis-aligned):
+    - [4]: anamorphosis_90 (fractional)
+    - [5]: anamorphosis_45 (fractional)
+
     Parameters
     ----------
     enable_wpup_magn_xy : bool
-        Enable separate X/Y magnification parameters (default: False)
-    
+        Enable anamorphic (anisotropic) magnification parameters, in
+        addition to the isotropic one at index [3] (default: False)
+
     All other parameters inherited from BaseSprintEstimator.
     """
 
@@ -69,7 +75,8 @@ class SprintShSynim(BaseSprintEstimator):
             present in the DM footprint). Defaults to dm.mask if not given
             (see BaseSprintEstimator.setup()).
         enable_wpup_magn_xy : bool
-            Enable separate X/Y magnification (future feature)
+            Enable anamorphic magnification (anamorphosis_90/anamorphosis_45,
+            see class docstring) - implemented and functional in SynIM.
         """
         # Store before calling super().__init__
         self.enable_wpup_magn_xy = enable_wpup_magn_xy
@@ -110,8 +117,8 @@ class SprintShSynim(BaseSprintEstimator):
         }
 
         if self.enable_wpup_magn_xy:
-            self.perturbations[4] = (0.01, 'magn_x')
-            self.perturbations[5] = (0.01, 'magn_y')
+            self.perturbations[4] = (0.01, 'anamorphosis_90')
+            self.perturbations[5] = (0.01, 'anamorphosis_45')
 
     def _validate_wfs(self):
         """Validate that WFS is Shack-Hartmann"""
@@ -139,7 +146,7 @@ class SprintShSynim(BaseSprintEstimator):
         self.logger.info(f"  FOV: {self.wfs.subap_wanted_fov:.2f} arcsec")
         self.logger.info(f"  Number of misreg params: {self.n_params}")
         if self.enable_wpup_magn_xy:
-            self.logger.info(f"  Using separate X/Y magnification")
+            self.logger.info(f"  Using anamorphic magnification (anamorphosis_90/anamorphosis_45)")
 
     def _compute_nominal_im(self):
         """Compute nominal IM using SynIM"""
