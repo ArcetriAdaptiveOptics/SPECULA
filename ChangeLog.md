@@ -33,6 +33,8 @@
 - Fixed SprintShSynim not forwarding pupil\_mask to BaseSprintEstimator (silently fell back to dm.mask instead of the WFS-side pupil, e.g. missing spider obscuration); added regression test in test\_sprint.py
 - Fixed SprintShSynim's \_plot\_debug\_info passing GPU (cupy) arrays directly to matplotlib without cpuArray() conversion, crashing on GPU
 - Corrected SprintShSynim's docstring/perturbation labels for enable\_wpup\_magn\_xy: params [4]/[5] are anamorphosis\_90/anamorphosis\_45 (functional in SynIM via compute\_im\_synim), not independent magn\_x/magn\_y as previously (incorrectly) documented as "not yet implemented"
+- Added regression test (test\_sprint\_anamorphic\_magnification\_is\_functional) verifying enable\_wpup\_magn\_xy's anamorphosis\_90/anamorphosis\_45 parameters actually affect the computed nominal IM
+- Bumped synim requirement to 1.2.2 (was 1.1.3)
 - Optimization of the compute\_ifs\_covmat function
 - Added Fraunhofer far field propagation
 - ...
