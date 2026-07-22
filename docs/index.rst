@@ -37,6 +37,7 @@ Tutorials
    Deformable Mirror actuator step response tutorial <tutorials/step_response_tutorial>
    Control stability and performance analysis tutorial <tutorials/control_stability_analysis>
    Field Analyser (deferred computation of PSF, modal analysis and phase cube) tutorial <tutorials/field_analyser_tutorial>
+   EfReplay (exact replay of existing electric field / layer outputs) tutorial <tutorials/ef_replay_tutorial>
    Pyramid WFS calibration in partial correction regime tutorial <tutorials/pwfs_calib_pc_tutorial>
    Generators for vibrations and time histories tutorial <tutorials/generators_tutorial>
 

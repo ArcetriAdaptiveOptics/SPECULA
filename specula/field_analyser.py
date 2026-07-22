@@ -2,15 +2,12 @@
 import numpy as np
 from pathlib import Path
 from typing import Dict, Optional, Tuple
-import yaml
 from astropy.io import fits
-import specula
 
-from specula.simul import Simul
+from specula.base_replay_analyser import BaseReplayAnalyser
 from specula.lib.calc_psf import calc_psf_geometry
-from specula.log import get_specula_logger
 
-class FieldAnalyser:
+class FieldAnalyser(BaseReplayAnalyser):
     """
     Class to analyze field PSF, modal analysis, and phase cubes
     for a given tracking number in the Specula framework.
@@ -37,47 +34,21 @@ class FieldAnalyser:
                  display: bool = False,
                  log_level: Optional[str] = None,):
 
-        self.data_dir = Path(data_dir)
-        self.tracking_number = tracking_number
+        super().__init__(data_dir, tracking_number, start_time, end_time, display, log_level)
+
         self.polar_coordinates = np.atleast_2d(polar_coordinates)
         self.wavelength_nm = wavelength_nm
-        self.start_time = start_time
-        self.end_time = end_time
-        self.display = display
-        self.logger = get_specula_logger(__name__)
-        if log_level is not None:
-            self.logger.setLevel(log_level)
 
         # Loaded parameters
-        self.params = None
         self.sources = []
         self.distances = []
-        self.replay_precision = None
-
-        # Paths - modify to create separate directories
-        self.tn_dir = self.data_dir / tracking_number
-        self.base_output_dir = self.data_dir  # Base directory for analysis results
 
         # Create separate directories for each analysis type
-        self.psf_output_dir = self.base_output_dir / f"{tracking_number}_PSF"
-        self.modal_output_dir = self.base_output_dir / f"{tracking_number}_MA"
-        self.cube_output_dir = self.base_output_dir / f"{tracking_number}_CUBE"
+        self.psf_output_dir = self._make_output_dir("PSF")
+        self.modal_output_dir = self._make_output_dir("MA")
+        self.cube_output_dir = self._make_output_dir("CUBE")
 
-        # Verify that the tracking number directory exists
-        if not self.tn_dir.exists():
-            raise FileNotFoundError(f"Tracking number directory not found: {self.tn_dir}")
-
-        self._load_simulation_params()
         self._setup_sources()
-
-    def _load_simulation_params(self):
-        """Load simulation parameters from tracking number"""
-        params_file = self.tn_dir / "params.yml"
-        if not params_file.exists():
-            raise FileNotFoundError(f"Parameters file not found: {params_file}")
-
-        with open(params_file, 'r') as f:
-            self.params = yaml.safe_load(f)
 
     def _setup_sources(self):
         """Setup field sources"""
@@ -105,7 +76,7 @@ class FieldAnalyser:
         Args:
             source_dict: source parameter dict
             pixel_size_mas: PSF pixel size in milliarcseconds
-            
+
         Returns:
             Tuple of (psf_filename, sr_filename) without .fits extension
         """
@@ -117,11 +88,11 @@ class FieldAnalyser:
     def _get_modal_filename(self, source_dict: dict, modal_params: dict) -> str:
         """
         Generate modal analysis filename for a given source
-        
+
         Args:
             source_dict: source parameter dict
             modal_params: Modal analysis parameters
-            
+
         Returns:
             Filename without .fits extension
         """
@@ -170,103 +141,12 @@ class FieldAnalyser:
         cube_filename = f"cube_r{r:.1f}t{theta:.1f}_wl{self.wavelength_nm:.0f}nm"
         return cube_filename
 
-    def _build_replay_params_from_datastore(self) -> dict:
-        """
-        Build replay params using the existing build_replay mechanism in Simul
-        but with modified DataStore input_list containing only DM commands
-        """
-        simul = Simul('dummy.yaml')
-        replay_params = simul.build_targeted_replay(self.params, 'prop', set_store_dir=str(self.tn_dir))
-        self._validate_replay_inputs_are_not_downsampled(replay_params)
-        replay_precision = self._get_saved_replay_precision()
-        self.replay_precision = replay_precision
-        if replay_precision is None:
-            self.logger.debug('FieldAnalyser did not find saved replay precision; using current SPECULA precision state')
-        else:
-            self.logger.debug(f'FieldAnalyser loaded replay precision={replay_precision} from replay_params.yml')
-        self._ensure_replay_precision(replay_precision)
-        return replay_params
-
-    def _get_saved_replay_precision(self) -> Optional[int]:
-        replay_params_file = self.tn_dir / 'replay_params.yml'
-        if not replay_params_file.exists():
-            return None
-
-        with open(replay_params_file, 'r', encoding='utf-8') as handle:
-            saved_replay_params = yaml.safe_load(handle) or {}
-
-        data_source_cfg = saved_replay_params.get('data_source', {})
-        if not isinstance(data_source_cfg, dict):
-            return None
-
-        precision = data_source_cfg.get('global_precision', None)
-        if precision is None:
-            return None
-
-        precision = int(precision)
-        if precision not in (0, 1):
-            self.logger.warning(f'invalid global_precision={precision} in replay_params.yml; ignoring it')
-            return None
-
-        return precision
-
-    def _validate_replay_inputs_are_not_downsampled(self, replay_params: dict):
-        data_source = replay_params.get('data_source')
-        if not data_source:
-            return
-
-        data_format = data_source.get('data_format', 'fits')
-        if data_format not in ('fits', 'pickle'):
-            return
-
-        store_dir = Path(data_source.get('store_dir', self.tn_dir))
-        extension = '.fits' if data_format == 'fits' else '.pickle'
-
-        for output_name in data_source.get('outputs', []):
-            file_path = store_dir / f'{output_name}{extension}'
-            if data_format == 'fits':
-                with fits.open(file_path) as hdul:
-                    header = hdul[0].header
-            else:
-                import pickle
-                with open(file_path, 'rb') as handle:
-                    payload = pickle.load(handle)
-                header = payload.get('hdr', {})
-
-            downsampling = int(header.get('DOWNSAMP', 1))
-            if downsampling > 1:
-                raise ValueError(
-                    f'FieldAnalyser does not support downsampled replay inputs: '
-                    f'{file_path.name} was saved with DOWNSAMP={downsampling}'
-                )
-
-            if 'DOWNSAMP' not in header:
-                self.logger.warning(f'replay input {file_path.name} has no DOWNSAMP metadata; assuming DOWNSAMP=1')
-
-    def _ensure_replay_precision(self, replay_precision: Optional[int]):
-        if replay_precision not in (0, 1):
-            return
-
-        if specula.global_precision == replay_precision:
-            return
-
-        if specula.default_target_device_idx is None:
-            self.logger.warning('SPECULA not initialized yet, cannot enforce replay precision automatically')
-            return
-
-        specula.init(
-            device_idx=specula.default_target_device_idx,
-            precision=replay_precision,
-            rank=specula.process_rank,
-            comm=specula.process_comm,
-        )
-
     def _build_replay_params_psf(self) -> dict:
         """
         Build replay_params for field PSF calculation using build_replay mechanism
         """
         # Get base replay params from DataStore mechanism
-        replay_params = self._build_replay_params_from_datastore()
+        replay_params = self._build_replay_params_from_datastore('prop')
 
         self.logger.debug(f"Base replay_params keys: {list(replay_params.keys())}")
 
@@ -320,7 +200,7 @@ class FieldAnalyser:
         Build replay_params for field modal analysis using build_replay mechanism
         """
         # Get base replay params from DataStore mechanism
-        replay_params = self._build_replay_params_from_datastore()
+        replay_params = self._build_replay_params_from_datastore('prop')
 
         # Add field sources to existing parameters
         self._add_field_sources_to_params(replay_params)
@@ -364,7 +244,7 @@ class FieldAnalyser:
         Build replay_params for field phase cubes using build_replay mechanism
         """
         # Get base replay params from DataStore mechanism
-        replay_params = self._build_replay_params_from_datastore()
+        replay_params = self._build_replay_params_from_datastore('prop')
 
         # Add field sources to existing parameters
         self._add_field_sources_to_params(replay_params)
@@ -434,7 +314,7 @@ class FieldAnalyser:
         self.logger.debug(f"  Sources: {source_refs}")
         self.logger.debug(f"  Outputs: {output_list}")
 
-    def _add_displays_to_params(self, replay_params: dict): # <--- NEW METHOD
+    def _add_displays_to_params(self, replay_params: dict):
         """
         Injects PhaseDisplay and DMDisplay objects into the YAML configuration
         if the display flag is set to True.
@@ -463,40 +343,8 @@ class FieldAnalyser:
                 'title': f'{dm_key.upper()} SHAPE'
             }
 
-    def _run_simulation_with_params(self, params_dict: dict, output_dir: Path) -> Simul:
-        """
-        Common simulation execution logic using minimal temporary file
-        """
-        import tempfile
-        import os
-
-        output_dir.mkdir(parents=True, exist_ok=True)
-
+    def _add_extra_objects_to_params(self, params_dict: dict):
         self._add_displays_to_params(params_dict)
-
-        self.logger.debug(f"Computing simulation with parameters to be saved by DataStore in: {output_dir}")
-
-        # Create minimal temporary YAML file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as temp_file:
-            yaml.dump(params_dict, temp_file, default_flow_style=False, sort_keys=False)
-            temp_params_file = temp_file.name
-
-        try:
-            # Create Simul instance normally (this initializes all required attributes)
-            simul = Simul(temp_params_file)
-            simul.run(start_time=self.start_time, end_time=self.end_time)
-            return simul
-        except Exception as e:
-            self.logger.error(f"Simulation failed: {e}")
-            self.logger.error(f"Check DataStore output in: {output_dir}")
-            self.logger.error(f"Temp params file for debugging: {temp_params_file}")
-            raise
-        finally:
-            # Clean up temporary file
-            try:
-                os.unlink(temp_params_file)
-            except:
-                pass  # File cleanup failure is not critical
 
     def compute_field_psf(self,
                         psf_sampling: Optional[float] = None,
@@ -504,12 +352,12 @@ class FieldAnalyser:
                         force_recompute: bool = False) -> Dict:
         """
         Calculate field PSF using SPECULA's replay system
-        
+
         Args:
             psf_sampling: PSF sampling factor (alternative to psf_pixel_size_mas)
             psf_pixel_size_mas: Desired PSF pixel size in milliarcseconds (alternative to psf_sampling)
             force_recompute: Force recomputation even if files exist
-            
+
         Note:
             Either psf_sampling or psf_pixel_size_mas must be specified, but not both.
         """
@@ -535,7 +383,7 @@ class FieldAnalyser:
                                     self.wavelength_nm,
                                     nd=psf_sampling,
                                     pixel_size_mas=psf_pixel_size_mas)
-        
+
         self.psf_sampling = psf_geometry.nd
         self.psf_pixel_size_mas = psf_geometry.pixel_size_mas
 
@@ -713,11 +561,10 @@ class FieldAnalyser:
             cube_filename = self._get_cube_filename(source_dict)
             cube_path = self.cube_output_dir / f"{cube_filename}.fits"
 
-            with fits.open(cube_path) as hdul:
-                results['phase_cubes'].append(hdul[0].data)   # pylint: disable=no-member
-
-                if results['times'] is None and len(hdul) > 1:
-                    results['times'] = hdul[1].data           # pylint: disable=no-member
+            data, times = self._read_fits_primary_and_times(cube_path)
+            results['phase_cubes'].append(data)
+            if results['times'] is None and times is not None:
+                results['times'] = times
 
         return results
 

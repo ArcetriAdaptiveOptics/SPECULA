@@ -759,11 +759,11 @@ class TestReplayPrecisionHandling(unittest.TestCase):
     def test_ensure_replay_precision_calls_specula_init_on_mismatch(self):
         from unittest.mock import patch
         analyzer, _ = self._make_analyzer('ensure_precision_mismatch')
-        with patch('specula.field_analyser.specula.init') as mock_init, \
-             patch('specula.field_analyser.specula.global_precision', 0), \
-             patch('specula.field_analyser.specula.default_target_device_idx', -1), \
-             patch('specula.field_analyser.specula.process_rank', None), \
-             patch('specula.field_analyser.specula.process_comm', None):
+        with patch('specula.base_replay_analyser.specula.init') as mock_init, \
+             patch('specula.base_replay_analyser.specula.global_precision', 0), \
+             patch('specula.base_replay_analyser.specula.default_target_device_idx', -1), \
+             patch('specula.base_replay_analyser.specula.process_rank', None), \
+             patch('specula.base_replay_analyser.specula.process_comm', None):
             analyzer._ensure_replay_precision(1)
 
         mock_init.assert_called_once_with(
@@ -776,8 +776,8 @@ class TestReplayPrecisionHandling(unittest.TestCase):
     def test_ensure_replay_precision_skips_if_already_matching(self):
         from unittest.mock import patch
         analyzer, _ = self._make_analyzer('ensure_precision_match')
-        with patch('specula.field_analyser.specula.init') as mock_init, \
-             patch('specula.field_analyser.specula.global_precision', 1):
+        with patch('specula.base_replay_analyser.specula.init') as mock_init, \
+             patch('specula.base_replay_analyser.specula.global_precision', 1):
             analyzer._ensure_replay_precision(1)
 
         mock_init.assert_not_called()
@@ -867,9 +867,9 @@ class TestFieldAnalyserWeakSpots(unittest.TestCase):
         from unittest.mock import patch
         analyzer = self._make_analyzer('precision_target_none')
 
-        with patch('specula.field_analyser.specula.init') as mock_init, \
-             patch('specula.field_analyser.specula.global_precision', 0), \
-             patch('specula.field_analyser.specula.default_target_device_idx', None):
+        with patch('specula.base_replay_analyser.specula.init') as mock_init, \
+             patch('specula.base_replay_analyser.specula.global_precision', 0), \
+             patch('specula.base_replay_analyser.specula.default_target_device_idx', None):
             analyzer._ensure_replay_precision(1)
 
         mock_init.assert_not_called()
@@ -985,7 +985,7 @@ class TestFieldAnalyserRunTiming(unittest.TestCase):
         output_dir = Path(self.datadir) / 'timing_output_pass'
         self._created_dirs.append(str(output_dir))
 
-        with patch('specula.field_analyser.Simul') as MockSimul:
+        with patch('specula.base_replay_analyser.Simul') as MockSimul:
             mock_instance = MockSimul.return_value
             analyzer._run_simulation_with_params({'dummy': 'params'}, output_dir)
 
@@ -997,7 +997,7 @@ class TestFieldAnalyserRunTiming(unittest.TestCase):
         output_dir = Path(self.datadir) / 'timing_output_none'
         self._created_dirs.append(str(output_dir))
 
-        with patch('specula.field_analyser.Simul') as MockSimul:
+        with patch('specula.base_replay_analyser.Simul') as MockSimul:
             mock_instance = MockSimul.return_value
             analyzer._run_simulation_with_params({'dummy': 'params'}, output_dir)
 
