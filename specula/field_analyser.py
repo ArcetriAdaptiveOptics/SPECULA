@@ -178,6 +178,7 @@ class FieldAnalyser:
         simul = Simul('dummy.yaml')
         replay_params = simul.build_targeted_replay(self.params, 'prop', set_store_dir=str(self.tn_dir))
         self._validate_replay_inputs_are_not_downsampled(replay_params)
+        simul.inject_recorded_seeds(replay_params, self._get_saved_replay_seeds())
         replay_precision = self._get_saved_replay_precision()
         self.replay_precision = replay_precision
         if replay_precision is None:
@@ -209,6 +210,24 @@ class FieldAnalyser:
             return None
 
         return precision
+
+    def _get_saved_replay_seeds(self) -> dict:
+        replay_params_file = self.tn_dir / 'replay_params.yml'
+        if not replay_params_file.exists():
+            return {}
+
+        with open(replay_params_file, 'r', encoding='utf-8') as handle:
+            saved_replay_params = yaml.safe_load(handle) or {}
+
+        data_source_cfg = saved_replay_params.get('data_source', {})
+        if not isinstance(data_source_cfg, dict):
+            return {}
+
+        random_seeds = data_source_cfg.get('random_seeds', None)
+        if not isinstance(random_seeds, dict):
+            return {}
+
+        return random_seeds
 
     def _validate_replay_inputs_are_not_downsampled(self, replay_params: dict):
         data_source = replay_params.get('data_source')

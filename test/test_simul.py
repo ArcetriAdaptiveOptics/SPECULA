@@ -632,6 +632,99 @@ class TestSimul(unittest.TestCase):
         assert 'src_a' in replay
         assert 'src_b' in replay
 
+    def test_inject_recorded_seeds_injects_when_absent(self):
+        target_params = {'gen': {'class': 'RandomGenerator', 'output_size': 3}}
+        Simul('dummy.yaml').inject_recorded_seeds(target_params, {'gen': 42})
+        assert target_params['gen']['seed'] == 42
+
+    def test_inject_recorded_seeds_explicit_seed_wins(self):
+        target_params = {'gen': {'class': 'RandomGenerator', 'seed': 7, 'output_size': 3}}
+        Simul('dummy.yaml').inject_recorded_seeds(target_params, {'gen': 42})
+        assert target_params['gen']['seed'] == 7
+
+    def test_inject_recorded_seeds_ignores_unknown_keys(self):
+        target_params = {'gen': {'class': 'RandomGenerator', 'output_size': 3}}
+        Simul('dummy.yaml').inject_recorded_seeds(target_params, {'other': 42})
+        assert 'seed' not in target_params['gen']
+
+    def test_random_generator_seed_reproducible_via_targeted_replay(self):
+        '''
+        End-to-end proof for SPECULA replay seed reproducibility, mirroring how
+        FieldAnalyser uses build_targeted_replay: an unseeded RandomGenerator
+        whose only consumer is the DataStore (so build_replay's generic
+        DataStore->DataSource shortcut would normally drop it entirely) must,
+        when targeted directly with build_targeted_replay and replayed, produce
+        the exact same values as the original run once the recorded seed
+        (from replay_params.yml) is injected.
+        '''
+        import shutil
+        from astropy.io import fits
+
+        orig_dir = tempfile.mkdtemp()
+        replay_dir = tempfile.mkdtemp()
+        try:
+            yml = f'''
+main:
+  class: SimulParams
+  root_dir: dummy
+  total_time: 0.005
+  time_step: 0.001
+
+gen:
+  class: RandomGenerator
+  output_size: 3
+  outputs: ['output']
+
+store:
+  class: DataStore
+  store_dir: {orig_dir}
+  create_tn: false
+  inputs:
+    input_list: ['val-gen.output']
+'''
+            fd, path = tempfile.mkstemp(suffix='.yml')
+            with os.fdopen(fd, 'w') as f:
+                f.write(yml)
+            try:
+                Simul(path).run()
+            finally:
+                os.unlink(path)
+
+            with open(os.path.join(orig_dir, 'params.yml'), encoding='utf-8') as f:
+                original_params = yaml.safe_load(f)
+            with open(os.path.join(orig_dir, 'replay_params.yml'), encoding='utf-8') as f:
+                saved_replay_params = yaml.safe_load(f)
+
+            recorded_seeds = saved_replay_params['data_source']['random_seeds']
+            self.assertIn('gen', recorded_seeds)
+
+            simul = Simul('dummy.yaml')
+            targeted_params = simul.build_targeted_replay(original_params, 'gen')
+            simul.inject_recorded_seeds(targeted_params, recorded_seeds)
+            self.assertEqual(targeted_params['gen']['seed'], recorded_seeds['gen'])
+
+            targeted_params['store2'] = {
+                'class': 'DataStore',
+                'store_dir': replay_dir,
+                'create_tn': False,
+                'inputs': {'input_list': ['val2-gen.output']}
+            }
+
+            fd2, replay_path = tempfile.mkstemp(suffix='.yml')
+            with os.fdopen(fd2, 'w') as f:
+                yaml.dump(targeted_params, f)
+            try:
+                Simul(replay_path).run()
+            finally:
+                os.unlink(replay_path)
+
+            original = fits.getdata(os.path.join(orig_dir, 'val.fits'))
+            replayed = fits.getdata(os.path.join(replay_dir, 'val2.fits'))
+            np.testing.assert_array_equal(original, replayed)
+        finally:
+            shutil.rmtree(orig_dir, ignore_errors=True)
+            shutil.rmtree(replay_dir, ignore_errors=True)
+
     def test_integration_simul_modalrec_with_list_object(self):
         '''
         Integration-style test: Simul builds ModalrecMultirate and injects

@@ -25,6 +25,7 @@
 
 ### Other
 
+- Fixed RandomGenerator objects with no explicit `seed` not being reproducible across a replay (e.g. via Simul.build\_targeted\_replay/FieldAnalyser): the actually-resolved seed is now recorded in replay\_params.yml at the end of a run and re-injected on replay (Simul.inject\_recorded\_seeds), leaving fresh, non-replay runs unaffected (still ambient-random by default). Added RandomGenerator.get\_resolved\_seed() / BaseProcessingObj.get\_resolved\_seed() hook and DataSource random\_seeds parameter; added tests in test\_generators.py, test\_simul.py and test\_field\_analyser.py
 - Fixed BaseOperation using stale/uninitialized input values when in\_value1 or in\_value2 had never been generated
 - Fixed vecWeiPixRadT extraction in ShSlopec
 - Fixed output\_names in PhaseScreenCube

@@ -656,12 +656,25 @@ class Simul():
 
         return replay_params
 
+    def inject_recorded_seeds(self, target_params, recorded_seeds):
+        '''
+        Mutate target_params in place: for every (key, seed) in recorded_seeds,
+        if key is present in target_params and it does not already declare an
+        explicit 'seed', inject the recorded value. This lets a replay reproduce
+        the exact values of a RandomGenerator (or similar) that had no explicit
+        seed in the original run, without changing the behavior of fresh runs
+        (which never have recorded_seeds to inject).
+        '''
+        for key, seed in recorded_seeds.items():
+            if key in target_params and 'seed' not in target_params[key]:
+                target_params[key]['seed'] = seed
+
     def build_targeted_replay(self, params, *target_object_names, set_store_dir=None):
         '''
         Build a replay file making sure that the target objects
         still exist, and therefore all their inputs are either loaded
         from disk or computed, recursively.
-        
+
         SimulParams parameters are replicated unchanged.
         DataStore parameters are converted to DataSource
         '''
@@ -838,12 +851,14 @@ class Simul():
         if not self.isReplay(params):
             replay_params = self.build_replay(params)
         else:
+            recorded_seeds = (params.get('data_source') or {}).get('random_seeds') or {}
+            self.inject_recorded_seeds(params, recorded_seeds)
             replay_params = None
 
         self.build_objects(params)
         self.create_input_list_inputs(params)
         self.connect_objects(params)
-        
+
         if (process_rank == 0 or process_rank is None) and self.diagram:
             self.diagram.build(trigger_order = self.trigger_order,
                                trigger_order_idx = self.trigger_order_idx,
@@ -852,6 +867,13 @@ class Simul():
                                is_dataobj = self.is_dataobj)
 
         if replay_params is not None:
+            recorded_seeds = {
+                key: obj.get_resolved_seed()
+                for key, obj in self.objs.items()
+                if isinstance(obj, BaseProcessingObj) and obj.get_resolved_seed() is not None
+            }
+            if recorded_seeds:
+                replay_params.setdefault('data_source', {})['random_seeds'] = recorded_seeds
             for obj in self.objs.values():
                 if type(obj) is DataStore:
                     obj.setReplayParams(replay_params)
