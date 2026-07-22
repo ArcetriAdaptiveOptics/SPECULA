@@ -632,6 +632,92 @@ class TestSimul(unittest.TestCase):
         assert 'src_a' in replay
         assert 'src_b' in replay
 
+    def _ef_combinator_shadowing_prop_params(self):
+        '''
+        Shape of SPECULA issue #696: a PhaseScreenCube summed via
+        ElectricFieldCombinator onto an AtmoPropagation source's output,
+        downstream of the propagation object. Targeting only 'prop' silently
+        drops the combinator/disturbance from the replay.
+        '''
+        return {
+            'main': {'class': 'SimulParams', 'root_dir': 'dummy'},
+            'prop': {'class': 'AtmoPropagation'},
+            'disturbance': {'class': 'PhaseScreenCube'},
+            'ef_combinator': {
+                'class': 'ElectricFieldCombinator',
+                'inputs': {'in_ef1': 'prop.out_ef', 'in_ef2': 'disturbance.out_layer'}
+            },
+        }
+
+    def test_build_targeted_replay_errors_on_dropped_ef_layer_consumer(self):
+        params = self._ef_combinator_shadowing_prop_params()
+
+        with self.assertRaises(ValueError) as ctx:
+            Simul('dummy.yaml').build_targeted_replay(params, 'prop')
+
+        self.assertIn('ef_combinator', str(ctx.exception))
+
+    def test_build_targeted_replay_ignore_mode_returns_cleanly(self):
+        params = self._ef_combinator_shadowing_prop_params()
+
+        replay = Simul('dummy.yaml').build_targeted_replay(
+            params, 'prop', on_missing_downstream_consumers='ignore')
+
+        assert 'prop' in replay
+        assert 'ef_combinator' not in replay
+
+    def test_build_targeted_replay_warn_mode_logs_without_raising(self):
+        params = self._ef_combinator_shadowing_prop_params()
+
+        with self.assertLogs('specula.simul', level='WARNING') as cm:
+            replay = Simul('dummy.yaml').build_targeted_replay(
+                params, 'prop', on_missing_downstream_consumers='warn')
+
+        assert 'prop' in replay
+        assert 'ef_combinator' not in replay
+        assert any('ef_combinator' in message for message in cm.output)
+
+    def test_build_targeted_replay_ignores_non_ef_layer_consumer(self):
+        '''
+        A consumer whose own output is not ElectricField/Layer (e.g. a WFS)
+        must never trip the check, even under the default 'error' mode -- this
+        is the routine, expected case (FieldAnalyser attaches new analysis
+        objects to 'prop' instead of the original WFS/PSF/ModalAnalysis chain).
+        '''
+        params = {
+            'main': {'class': 'SimulParams', 'root_dir': 'dummy'},
+            'prop': {'class': 'AtmoPropagation'},
+            'sh': {'class': 'SH', 'inputs': {'in_ef': 'prop.out_ef'}},
+        }
+
+        replay = Simul('dummy.yaml').build_targeted_replay(params, 'prop')
+
+        assert 'prop' in replay
+        assert 'sh' not in replay
+
+    def test_build_targeted_replay_excludes_datastore_from_check(self):
+        '''
+        A DataStore referencing a captured object's output must never be
+        flagged: its absence under its original key is the intentional
+        DataStore->DataSource conversion, not a silent drop. (DataStore
+        declares no outputs at all, so this is naturally excluded by the
+        EF/Layer output-type filter, with no special-casing needed.)
+        '''
+        params = {
+            'main': {'class': 'SimulParams', 'root_dir': 'dummy'},
+            'prop': {'class': 'AtmoPropagation'},
+            'store': {
+                'class': 'DataStore',
+                'store_dir': '/tmp',
+                'inputs': {'input_list': ['val-prop.out_ef']}
+            },
+        }
+
+        replay = Simul('dummy.yaml').build_targeted_replay(params, 'prop')
+
+        assert 'prop' in replay
+        assert 'store' not in replay
+
     def test_integration_simul_modalrec_with_list_object(self):
         '''
         Integration-style test: Simul builds ModalrecMultirate and injects

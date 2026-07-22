@@ -25,6 +25,7 @@
 
 ### Other
 
+- Fixed Simul.build\_targeted\_replay/FieldAnalyser silently dropping disturbances injected downstream of the replay target via ElectricFieldCombinator/PhaseScreenCube (SPECULA #696: e.g. a phase screen summed onto an AtmoPropagation source's output before the WFS), which could bias off-axis FieldAnalyser results with a spurious, direction-independent term. build\_targeted\_replay now raises ValueError by default (opt-out via on\_missing\_downstream\_consumers='warn'/'ignore') when such a silently-dropped ElectricField/Layer-producing consumer is detected; FieldAnalyser exposes the same on\_missing\_downstream\_consumers parameter (default 'error'). Added regression tests in test\_simul.py and test\_field\_analyser.py, and a new "Limitation" section in docs/tutorials/field\_analyser\_tutorial.rst
 - Fixed BaseOperation using stale/uninitialized input values when in\_value1 or in\_value2 had never been generated
 - Fixed vecWeiPixRadT extraction in ShSlopec
 - Fixed output\_names in PhaseScreenCube
