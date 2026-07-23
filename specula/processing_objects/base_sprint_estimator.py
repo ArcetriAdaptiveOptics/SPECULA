@@ -274,14 +274,14 @@ class BaseSprintEstimator(BaseProcessingObj):
         if self.pupil_mask is None:
             self.pupil_mask = cpuArray(self.dm.mask)
 
-        self.logger.info(f"  initialized:")
-        self.logger.info(f"  Number of modes: {self.nmodes}")
-        self.logger.info(f"  Number of slopes: {self.estimated_intmat.nslopes}")
-        self.logger.info(f"  Size of pupil: {self.pupil_mask.shape}")
-        self.logger.info(f"  Size of DM influence functions: {self.ifunc_3d.shape}")
-        self.logger.info(f"  Estimation interval: {self.t_to_seconds(self.estimation_dt):.2f}s")
-        self.logger.info(f"  Integration gain: {self.integration_gain}")
-        self.logger.info(f"  Forgetting factor: {self.forgetting_factor}")
+        self.logger.debug(f"  initialized:")
+        self.logger.debug(f"  Number of modes: {self.nmodes}")
+        self.logger.debug(f"  Number of slopes: {self.estimated_intmat.nslopes}")
+        self.logger.debug(f"  Size of pupil: {self.pupil_mask.shape}")
+        self.logger.debug(f"  Size of DM influence functions: {self.ifunc_3d.shape}")
+        self.logger.debug(f"  Estimation interval: {self.t_to_seconds(self.estimation_dt):.2f}s")
+        self.logger.debug(f"  Integration gain: {self.integration_gain}")
+        self.logger.debug(f"  Forgetting factor: {self.forgetting_factor}")
 
     def prepare_trigger(self, t):
         """Collect slopes for demodulation"""
@@ -339,15 +339,15 @@ class BaseSprintEstimator(BaseProcessingObj):
 
         sampling_freq = 1.0 / self.dt
 
-        self.logger.info(f"  Demodulating {len(self.slopes_history)} time samples")
-        self.logger.info(f"  Number of slopes: {nslopes}")
-        self.logger.info(f"  Number of modes: {self.nmodes}")
+        self.logger.debug(f"  Demodulating {len(self.slopes_history)} time samples")
+        self.logger.debug(f"  Number of slopes: {nslopes}")
+        self.logger.debug(f"  Number of modes: {self.nmodes}")
 
         # Demodulate each mode (vectorized across all slopes)
         for mode_idx in range(self.nmodes):
             carrier_freq = float(self.carrier_frequencies[mode_idx])
 
-            self.logger.info(f"  Mode {mode_idx}: carrier = {carrier_freq:.2f} Hz")
+            self.logger.debug(f"  Mode {mode_idx}: carrier = {carrier_freq:.2f} Hz")
 
             # Vectorized demodulation for all slopes at once
             # slopes_array shape: (nt, nslopes)
@@ -377,8 +377,8 @@ class BaseSprintEstimator(BaseProcessingObj):
         self.slopes_history = []
         self.time_history = []
 
-        self.logger.info(f"  Demodulated IM shape: {im_measured.shape}")
-        self.logger.info(f"  IM RMS: {float(self.xp.sqrt(self.xp.mean(im_measured**2))):.3e}")
+        self.logger.debug(f"  Demodulated IM shape: {im_measured.shape}")
+        self.logger.debug(f"  IM RMS: {float(self.xp.sqrt(self.xp.mean(im_measured**2))):.3e}")
 
         return im_measured
 
@@ -414,7 +414,7 @@ class BaseSprintEstimator(BaseProcessingObj):
             # Mean absolute gain (for error weighting)
             G_mean = float(self.xp.mean(self.xp.abs(G_opt)))
 
-            self.logger.info(f"    Optical gains: {cpuArray(G_opt)}, mean: {G_mean:.3f}")
+            self.logger.debug(f"    Optical gains: {cpuArray(G_opt)}, mean: {G_mean:.3f}")
 
             # Compute sensitivities (subclass-specific)
             sens_matrices = self._compute_sensitivity_matrices()
@@ -440,7 +440,7 @@ class BaseSprintEstimator(BaseProcessingObj):
             error_weighted = error_rel * G_mean  # Weight by mean gain
             self.current_error = error_rel
 
-            self.logger.info(f"    Iteration {iteration+1}: error_rel={error_rel:.3e}, "
+            self.logger.debug(f"    Iteration {iteration+1}: error_rel={error_rel:.3e}, "
                 f"error_weighted={error_weighted:.3e}, params={cpuArray(self.misreg_params)}")
 
             # Check convergence on weighted error
@@ -453,6 +453,8 @@ class BaseSprintEstimator(BaseProcessingObj):
 
         delta_total = self.misreg_params - params_before
         self.logger.info(f"  Final params: {cpuArray(self.misreg_params)}")
+        self.logger.info(f"  Final optical gains: {cpuArray(G_opt)}")
+        self.logger.info(f"  Final relative error: {self.current_error:.3e}")
         self.logger.info(f"  Total change: {cpuArray(delta_total)}")
 
     def _compute_optical_gains(self, im_measured, im_nominal):
