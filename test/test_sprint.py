@@ -306,7 +306,7 @@ def generate_sinusoidal_slopes(im, carrier_frequencies, duration, dt, noise_leve
 
 class TestSprintShSynim(unittest.TestCase):
 
-    verbose = True  # Set to True for detailed output during tests
+    verbose = False  # Set to True for detailed output during tests
 
     @cpu_and_gpu
     def test_sprint_estimation_small(self, target_device_idx, xp):
