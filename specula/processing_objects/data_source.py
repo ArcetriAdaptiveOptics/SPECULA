@@ -18,7 +18,8 @@ class DataSource(BaseProcessingObj):
                 outputs: list,
                 store_dir: str,
                 data_format: str='fits',
-                global_precision: int=None):
+                global_precision: int=None,
+                random_seeds: dict=None):
         super().__init__()
         self.items = {}
         self.storage = {}
@@ -26,6 +27,7 @@ class DataSource(BaseProcessingObj):
         self.tn_dir = store_dir
         self.data_format = data_format
         self.global_precision = global_precision
+        self.random_seeds = random_seeds
         self.headers = {}
         self.obj_type = {}
 

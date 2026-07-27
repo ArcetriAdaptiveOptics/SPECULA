@@ -783,6 +783,174 @@ class TestReplayPrecisionHandling(unittest.TestCase):
         mock_init.assert_not_called()
 
 
+class TestReplayCoverageCheck(unittest.TestCase):
+    """
+    Regression coverage for SPECULA #696: FieldAnalyser must not silently
+    replay off-axis phase without an ElectricFieldCombinator/PhaseScreenCube
+    disturbance that was summed onto prop's output downstream of the
+    propagation object -- it should error by default, with an explicit
+    opt-out available.
+    """
+    def setUp(self):
+        self.datadir = os.path.join(os.path.dirname(__file__), 'data')
+        self._created_tn_dirs = []
+
+    def tearDown(self):
+        for tn_dir in self._created_tn_dirs:
+            if os.path.isdir(tn_dir):
+                shutil.rmtree(tn_dir, ignore_errors=True)
+
+    def _make_analyzer_with_dropped_combinator(self, tn_name, **kwargs):
+        tn_dir = os.path.join(self.datadir, f'coverage_unit_{tn_name}')
+        os.makedirs(tn_dir, exist_ok=True)
+        self._created_tn_dirs.append(tn_dir)
+        params = {
+            'main': {'class': 'SimulParams', 'pixel_pupil': 8, 'pixel_pitch': 1.0},
+            'prop': {'class': 'AtmoPropagation'},
+            'disturbance': {'class': 'PhaseScreenCube'},
+            'ef_combinator': {
+                'class': 'ElectricFieldCombinator',
+                'inputs': {'in_ef1': 'prop.out_ef', 'in_ef2': 'disturbance.out_layer'}
+            },
+        }
+        with open(os.path.join(tn_dir, 'params.yml'), 'w', encoding='utf-8') as handle:
+            yaml.dump(params, handle)
+
+        return FieldAnalyser(
+            data_dir=self.datadir,
+            tracking_number=f'coverage_unit_{tn_name}',
+            polar_coordinates=np.array([[0.0, 0.0]]),
+            log_level=logging.INFO,
+            **kwargs
+        )
+
+    def test_default_is_error_and_raises_on_dropped_combinator(self):
+        analyzer = self._make_analyzer_with_dropped_combinator('default_error')
+        self.assertEqual(analyzer.on_missing_downstream_consumers, 'error')
+
+        with self.assertRaises(ValueError) as ctx:
+            analyzer._build_replay_params_from_datastore()
+
+        self.assertIn('ef_combinator', str(ctx.exception))
+
+    def test_ignore_mode_does_not_raise(self):
+        analyzer = self._make_analyzer_with_dropped_combinator(
+            'ignore_mode', on_missing_downstream_consumers='ignore')
+
+        replay_params = analyzer._build_replay_params_from_datastore()
+
+        self.assertIn('prop', replay_params)
+        self.assertNotIn('ef_combinator', replay_params)
+
+    def test_existing_psf_fixture_is_unaffected_by_default_error(self):
+        """
+        sh/psf/modal_analysis directly consume prop's output in the existing
+        params_field_analyser_test.yml-style fixture (see TestShSimulation),
+        exactly like ElectricFieldCombinator does in the #696 scenario -- but
+        their own outputs are not ElectricField/Layer, so the default 'error'
+        mode must not be tripped by them.
+        """
+        tn_dir = os.path.join(self.datadir, 'coverage_unit_psf_fixture')
+        os.makedirs(tn_dir, exist_ok=True)
+        self._created_tn_dirs.append(tn_dir)
+        params = {
+            'main': {'class': 'SimulParams', 'pixel_pupil': 8, 'pixel_pitch': 1.0},
+            'prop': {'class': 'AtmoPropagation'},
+            'sh': {'class': 'SH', 'inputs': {'in_ef': 'prop.out_ef'}},
+        }
+        with open(os.path.join(tn_dir, 'params.yml'), 'w', encoding='utf-8') as handle:
+            yaml.dump(params, handle)
+
+        analyzer = FieldAnalyser(
+            data_dir=self.datadir,
+            tracking_number='coverage_unit_psf_fixture',
+            polar_coordinates=np.array([[0.0, 0.0]]),
+            log_level=logging.INFO,
+        )
+
+        replay_params = analyzer._build_replay_params_from_datastore()
+        self.assertIn('prop', replay_params)
+        self.assertNotIn('sh', replay_params)
+
+    def test_invalid_on_missing_downstream_consumers_value_raises(self):
+        """
+        Constructor must reject anything other than 'error'/'warn'/'ignore'
+        immediately, rather than silently accepting a typo that would only
+        misbehave later inside build_targeted_replay.
+        """
+        with self.assertRaises(ValueError):
+            self._make_analyzer_with_dropped_combinator(
+                'invalid_value', on_missing_downstream_consumers='oops')
+
+
+class TestReplaySeedHandling(unittest.TestCase):
+    def setUp(self):
+        self.datadir = os.path.join(os.path.dirname(__file__), 'data')
+        self._created_tn_dirs = []
+
+    def tearDown(self):
+        for tn_dir in self._created_tn_dirs:
+            if os.path.isdir(tn_dir):
+                shutil.rmtree(tn_dir)
+
+    def _make_analyzer(self, tn_name):
+        tn_dir = os.path.join(self.datadir, f'seed_unit_{tn_name}')
+        os.makedirs(tn_dir, exist_ok=True)
+        self._created_tn_dirs.append(tn_dir)
+        params = {
+            'main': {'class': 'SimulParams', 'pixel_pupil': 8, 'pixel_pitch': 1.0},
+            'prop': {'class': 'AtmoPropagation'}
+        }
+        with open(os.path.join(tn_dir, 'params.yml'), 'w', encoding='utf-8') as handle:
+            yaml.dump(params, handle)
+
+        analyzer = FieldAnalyser(
+            data_dir=self.datadir,
+            tracking_number=f'seed_unit_{tn_name}',
+            polar_coordinates=np.array([[0.0, 0.0]]),
+            log_level=logging.INFO
+        )
+        return analyzer, tn_dir
+
+    def test_get_saved_replay_seeds_reads_random_seeds(self):
+        analyzer, tn_dir = self._make_analyzer('read_random_seeds')
+        replay_cfg = {
+            'data_source': {
+                'class': 'DataSource',
+                'random_seeds': {'gen1': 42, 'gen2': 7},
+            }
+        }
+        with open(os.path.join(tn_dir, 'replay_params.yml'), 'w', encoding='utf-8') as handle:
+            yaml.dump(replay_cfg, handle)
+
+        self.assertEqual(analyzer._get_saved_replay_seeds(), {'gen1': 42, 'gen2': 7})
+
+    def test_get_saved_replay_seeds_returns_empty_when_missing(self):
+        analyzer, _ = self._make_analyzer('missing_random_seeds')
+        self.assertEqual(analyzer._get_saved_replay_seeds(), {})
+
+    def test_build_replay_params_from_datastore_injects_saved_seeds(self):
+        analyzer, tn_dir = self._make_analyzer('injects_saved_seeds')
+        replay_cfg = {
+            'data_source': {
+                'class': 'DataSource',
+                'random_seeds': {'gen1': 99},
+            }
+        }
+        with open(os.path.join(tn_dir, 'replay_params.yml'), 'w', encoding='utf-8') as handle:
+            yaml.dump(replay_cfg, handle)
+
+        fake_replay_params = {
+            'main': {'class': 'SimulParams'},
+            'gen1': {'class': 'RandomGenerator', 'output_size': 3},
+            'prop': {'class': 'AtmoPropagation'},
+        }
+        with patch('specula.simul.Simul.build_targeted_replay', return_value=fake_replay_params):
+            replay_params = analyzer._build_replay_params_from_datastore()
+
+        self.assertEqual(replay_params['gen1']['seed'], 99)
+
+
 class TestFieldAnalyserWeakSpots(unittest.TestCase):
     def setUp(self):
         self.datadir = os.path.join(os.path.dirname(__file__), 'data')

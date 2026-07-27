@@ -119,6 +119,16 @@ class TestGenerators(unittest.TestCase):
         np.testing.assert_allclose(np.std(all_samples), amp, atol=0.2)
 
     @cpu_and_gpu
+    def test_random_generator_get_resolved_seed_explicit(self, target_device_idx, xp):
+        f = RandomGenerator(seed=42, output_size=5, target_device_idx=target_device_idx)
+        self.assertEqual(f.get_resolved_seed(), 42)
+
+    @cpu_and_gpu
+    def test_random_generator_get_resolved_seed_ambient(self, target_device_idx, xp):
+        f = RandomGenerator(output_size=5, target_device_idx=target_device_idx)
+        self.assertIsInstance(f.get_resolved_seed(), int)
+
+    @cpu_and_gpu
     def test_random_generator_uniform(self, target_device_idx, xp):
         amp = 2.0
         constant = 1.0

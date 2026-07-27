@@ -32,9 +32,11 @@ class FieldAnalyser(BaseReplayAnalyser):
                  start_time: float = 0.1,
                  end_time: Optional[float] = None,
                  display: bool = False,
-                 log_level: Optional[str] = None,):
+                 log_level: Optional[str] = None,
+                 on_missing_downstream_consumers: str = 'error',):
 
-        super().__init__(data_dir, tracking_number, start_time, end_time, display, log_level)
+        super().__init__(data_dir, tracking_number, start_time, end_time, display, log_level,
+                          on_missing_downstream_consumers)
 
         self.polar_coordinates = np.atleast_2d(polar_coordinates)
         self.wavelength_nm = wavelength_nm
