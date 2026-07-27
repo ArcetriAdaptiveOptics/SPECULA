@@ -348,6 +348,68 @@ When you call ``compute_field_psf()``, ``FieldAnalyser``:
 
 This speedup allows you to explore different wavelengths, field positions, and analysis parameters interactively!
 
+Limitation: Disturbances Injected via ``ElectricFieldCombinator``
+------------------------------------------------------------------
+
+``FieldAnalyser`` reconstructs off-axis phase/PSF by attaching new field points
+directly to your ``AtmoPropagation`` object (``prop`` in the examples above) and
+replaying only what feeds *into* it (atmosphere and captured DM commands).
+
+If your simulation adds a disturbance **downstream** of ``prop`` — for example a
+static or time-varying phase screen (``PhaseScreenCube``) summed onto a source's
+electric field via ``ElectricFieldCombinator`` before it reaches the WFS —
+``FieldAnalyser`` has no way to know about it: that disturbance was never an
+input of ``prop``, so it is outside the replay graph entirely.
+
+.. code-block:: yaml
+
+    # Disturbance injected AFTER prop, before the WFS: invisible to FieldAnalyser
+    ef_combinator:
+      class: 'ElectricFieldCombinator'
+      inputs:
+        in_ef_list: ['prop.out_source_lgs1_ef', 'disturbance.out_ef']
+      outputs: ['out_ef']
+
+    sh_lgs1:
+      class: 'SH'
+      inputs:
+        in_ef: 'ef_combinator.out_ef'   # WFS sees prop + disturbance, prop alone does not
+
+In a closed AO loop this is not just a missing contribution: whatever DM command
+the loop uses to cancel the disturbance **is** captured and replayed (since it's
+an input of ``prop``), so the replayed off-axis phase can end up containing a
+spurious, direction-independent "minus the disturbance" term — largest when the
+disturbance is ground-conjugated (height 0), since such a correction is applied
+identically to every field point regardless of direction.
+
+There is no general fix: a screen injected this way carries no notion of source
+direction or conjugation height, so there is no principled way to re-project it
+onto a *new*, arbitrary off-axis point. What ``FieldAnalyser`` does instead is
+refuse to silently produce a biased result: by default, it raises a
+``ValueError`` naming the exact object(s) that would be dropped whenever it
+detects that a captured node's output feeds an ``ElectricFieldCombinator`` or
+``PhaseScreenCube`` that was *not* included in the replay:
+
+.. code-block:: text
+
+    ValueError: build_targeted_replay: the following objects produce an
+    ElectricField/Layer output and consume a captured object's output, but were
+    not themselves captured -- their contribution is silently missing from the
+    replayed graph: 'ef_combinator' (input 'in_ef_list' -> 'prop.out_source_lgs1_ef')
+
+If this is expected for your use case (e.g. the combinator is purely a display
+tap with no effect on the control loop), you can relax this check:
+
+.. code-block:: python
+
+    analyser = FieldAnalyser(
+        data_dir="data",
+        tracking_number=os.path.basename(latest_data_dir),
+        polar_coordinates=polar_coords,
+        on_missing_downstream_consumers='warn',  # log instead of raising
+        # or 'ignore' to silently proceed
+    )
+
 Step 4: Visualizing the Results
 -------------------------------
 
