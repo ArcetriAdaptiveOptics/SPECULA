@@ -33,9 +33,9 @@ class EfReplay(BaseReplayAnalyser):
                  log_level: Optional[str] = None,
                  on_missing_downstream_consumers: str = 'error'):
 
-        super().__init__(data_dir, tracking_number, start_time, end_time, display, log_level)
+        super().__init__(data_dir, tracking_number, start_time, end_time, display, log_level,
+                          on_missing_downstream_consumers)
 
-        self.on_missing_downstream_consumers = on_missing_downstream_consumers
         self.output_refs = output_refs
         self._targets = sorted({ref.split('.')[0] for ref in output_refs})
 

@@ -829,7 +829,7 @@ class TestReplayCoverageCheck(unittest.TestCase):
         self.assertEqual(analyzer.on_missing_downstream_consumers, 'error')
 
         with self.assertRaises(ValueError) as ctx:
-            analyzer._build_replay_params_from_datastore()
+            analyzer._build_replay_params_from_datastore('prop')
 
         self.assertIn('ef_combinator', str(ctx.exception))
 
@@ -837,7 +837,7 @@ class TestReplayCoverageCheck(unittest.TestCase):
         analyzer = self._make_analyzer_with_dropped_combinator(
             'ignore_mode', on_missing_downstream_consumers='ignore')
 
-        replay_params = analyzer._build_replay_params_from_datastore()
+        replay_params = analyzer._build_replay_params_from_datastore('prop')
 
         self.assertIn('prop', replay_params)
         self.assertNotIn('ef_combinator', replay_params)
@@ -868,7 +868,7 @@ class TestReplayCoverageCheck(unittest.TestCase):
             log_level=logging.INFO,
         )
 
-        replay_params = analyzer._build_replay_params_from_datastore()
+        replay_params = analyzer._build_replay_params_from_datastore('prop')
         self.assertIn('prop', replay_params)
         self.assertNotIn('sh', replay_params)
 

@@ -27,13 +27,20 @@ class BaseReplayAnalyser:
                  start_time: float = 0.1,
                  end_time: Optional[float] = None,
                  display: bool = False,
-                 log_level: Optional[str] = None):
+                 log_level: Optional[str] = None,
+                 on_missing_downstream_consumers: str = 'error'):
 
         self.data_dir = Path(data_dir)
         self.tracking_number = tracking_number
         self.start_time = start_time
         self.end_time = end_time
         self.display = display
+        if on_missing_downstream_consumers not in ('error', 'warn', 'ignore'):
+            raise ValueError(
+                "on_missing_downstream_consumers must be one of 'error', 'warn', 'ignore', "
+                f"got {on_missing_downstream_consumers!r}"
+            )
+        self.on_missing_downstream_consumers = on_missing_downstream_consumers
         self.logger = get_specula_logger(__name__)
         if log_level is not None:
             self.logger.setLevel(log_level)
@@ -64,12 +71,15 @@ class BaseReplayAnalyser:
     def _build_replay_params_from_datastore(self, *target_object_names) -> dict:
         """
         Build replay params targeting the given object(s), using
-        Simul.build_targeted_replay, then apply the saved replay precision.
+        Simul.build_targeted_replay, then apply the saved replay precision
+        and re-inject any recorded RandomGenerator seeds.
         """
         simul = Simul('dummy.yaml')
         replay_params = simul.build_targeted_replay(
-            self.params, *target_object_names, set_store_dir=str(self.tn_dir))
+            self.params, *target_object_names, set_store_dir=str(self.tn_dir),
+            on_missing_downstream_consumers=self.on_missing_downstream_consumers)
         self._validate_replay_inputs_are_not_downsampled(replay_params)
+        simul.inject_recorded_seeds(replay_params, self._get_saved_replay_seeds())
         replay_precision = self._get_saved_replay_precision()
         self.replay_precision = replay_precision
         if replay_precision is None:
@@ -78,6 +88,24 @@ class BaseReplayAnalyser:
             self.logger.debug(f'Loaded replay precision={replay_precision} from replay_params.yml')
         self._ensure_replay_precision(replay_precision)
         return replay_params
+
+    def _get_saved_replay_seeds(self) -> dict:
+        replay_params_file = self.tn_dir / 'replay_params.yml'
+        if not replay_params_file.exists():
+            return {}
+
+        with open(replay_params_file, 'r', encoding='utf-8') as handle:
+            saved_replay_params = yaml.safe_load(handle) or {}
+
+        data_source_cfg = saved_replay_params.get('data_source', {})
+        if not isinstance(data_source_cfg, dict):
+            return {}
+
+        random_seeds = data_source_cfg.get('random_seeds', None)
+        if not isinstance(random_seeds, dict):
+            return {}
+
+        return random_seeds
 
     def _get_saved_replay_precision(self) -> Optional[int]:
         replay_params_file = self.tn_dir / 'replay_params.yml'
