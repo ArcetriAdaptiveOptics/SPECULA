@@ -2,7 +2,6 @@
 SPRINT Estimator for Shack-Hartmann WFS using SynIM for IM computation.
 """
 
-import logging
 from specula.lib.synim_utils import compute_im_synim
 from specula.data_objects.slopes import Slopes
 from specula.data_objects.pupilstop import Pupilstop
@@ -140,13 +139,13 @@ class SprintShSynim(BaseSprintEstimator):
         idx_j = display_map % nx
         self.idx_valid_sa = np.column_stack((idx_i, idx_j))
 
-        self.logger.info(f"  WFS type: Shack-Hartmann")
-        self.logger.info(f"  Subapertures: {self.wfs.subap_on_diameter}x{self.wfs.subap_on_diameter}")
-        self.logger.info(f"  Valid subapertures: {len(self.idx_valid_sa)}")
-        self.logger.info(f"  FOV: {self.wfs.subap_wanted_fov:.2f} arcsec")
-        self.logger.info(f"  Number of misreg params: {self.n_params}")
+        self.logger.debug(f"  WFS type: Shack-Hartmann")
+        self.logger.debug(f"  Subapertures: {self.wfs.subap_on_diameter}x{self.wfs.subap_on_diameter}")
+        self.logger.debug(f"  Valid subapertures: {len(self.idx_valid_sa)}")
+        self.logger.debug(f"  FOV: {self.wfs.subap_wanted_fov:.2f} arcsec")
+        self.logger.debug(f"  Number of misreg params: {self.n_params}")
         if self.enable_wpup_magn_xy:
-            self.logger.info(f"  Using anamorphic magnification (anamorphosis_90/anamorphosis_45)")
+            self.logger.debug(f"  Using anamorphic magnification (anamorphosis_90/anamorphosis_45)")
 
     def _compute_nominal_im(self):
         """Compute nominal IM using SynIM"""
@@ -162,7 +161,6 @@ class SprintShSynim(BaseSprintEstimator):
             wfs_fov_arcsec=self.wfs.subap_wanted_fov,
             idx_valid_sa=self.idx_valid_sa,
             apply_absolute_slopes=self.apply_absolute_slopes,
-            verbose=self.logger.level <= logging.DEBUG
         )
 
         return self.to_xp(im_nominal, dtype=self.dtype)

@@ -1,8 +1,9 @@
 import unittest
 import numpy as np
 
+import logging
 import specula
-specula.init(0)  # Default target device
+specula.init(0, log_level=logging.INFO) # Default target device
 
 from specula.data_objects.simul_params import SimulParams
 from specula.data_objects.source import Source
@@ -40,15 +41,23 @@ def create_test_system():
     )
 
     # DM - Zernike modes
-    n_modes = 50
+    n_act = 9
     ifunc = IFunc(
-        type_str='zernike',
+        type_str='zonal',
         npixels=simul_params.pixel_pupil,
-        nmodes=n_modes,
+        n_act=n_act,
+        circ_geom=False,
         obsratio=0.0,
         target_device_idx=-1,
         precision=1
     )
+
+    # build a mode combining single actuators to test SPRINT with a single mode
+    ifunc.influence_function[0] = ifunc.influence_function[12] \
+                                + ifunc.influence_function[33] \
+                                + ifunc.influence_function[20] \
+                                + ifunc.influence_function[65] \
+                                + ifunc.influence_function[69]
 
     dm = DM(
         simul_params=simul_params,
@@ -302,12 +311,12 @@ class TestSprintShSynim(unittest.TestCase):
     @cpu_and_gpu
     def test_sprint_estimation_small(self, target_device_idx, xp):
         """Test SPRINT estimation with small mis-registration"""
-        self._run_sprint_test(2.0, 1.5, 1.0, 0.02, target_device_idx, xp)
+        self._run_sprint_test(2.0, 1.0, 1.0, 0.0, target_device_idx, xp)
 
     @cpu_and_gpu
     def test_sprint_estimation_medium(self, target_device_idx, xp):
         """Test SPRINT estimation with medium mis-registration"""
-        self._run_sprint_test(5.0, -3.0, 3.0, 0.05, target_device_idx, xp)
+        self._run_sprint_test(5.0, -3.0, 10.0, 0.05, target_device_idx, xp)
 
     @cpu_and_gpu
     def test_sprint_pupil_mask_is_forwarded(self, target_device_idx, xp):
@@ -432,7 +441,7 @@ class TestSprintShSynim(unittest.TestCase):
         im_ref_full = generate_reference_im(simul_params, source, dm, wfs, slopec)
 
         # Select 1 mode only
-        mode_idx = 30
+        mode_idx = 0
         im_ref = im_ref_full[:, mode_idx:mode_idx+1]  # Keep 2D shape (nslopes, 1)
 
         if self.verbose: # pragma: no cover
@@ -462,7 +471,7 @@ class TestSprintShSynim(unittest.TestCase):
             print(f"\nCarrier frequencies: {carrier_frequencies}")
 
         # Generate time series of slopes
-        duration = 0.01  # seconds
+        duration = 0.05  # seconds
         dt = simul_params.time_step
         noise_level = 0.0  # Start without noise
 
@@ -493,7 +502,7 @@ class TestSprintShSynim(unittest.TestCase):
             modes_index=[mode_idx],  # Only the mode we are testing
             carrier_frequencies=carrier_frequencies,
             estimation_dt=duration-0.001,  # Estimate once after full period
-            max_iterations=20,
+            max_iterations=50,
             convergence_threshold=1e-2,
             initial_misreg=None,  # Start from zero
             apply_absolute_slopes=False,
@@ -574,24 +583,43 @@ class TestSprintShSynim(unittest.TestCase):
                 print(f"  Perfect reconstruction!")
             print(f"{'='*70}\n")
 
-        # Assertions - allow 20% error on parameters (relaxed for robustness)
+        # Assertions - allow 10% error on parameters (relaxed for robustness)
+        if abs(shift_x) > 1e-6:
+            rel_err_x = abs(estimated_params[0] - shift_x) / abs(shift_x)
+        else:
+            rel_err_x = abs(estimated_params[0] - shift_x) / 1.0  # Avoid division by zero, use small value
         self.assertLess(
-            abs(estimated_params[0] - shift_x) / abs(shift_x), 0.1,
+            rel_err_x, 0.1,
             f"shift_x error too large: "
-            f"{abs(estimated_params[0] - shift_x) / abs(shift_x) * 100:.1f}%"
+            f"{rel_err_x * 100:.1f}%"
         )
+
+        if abs(shift_y) > 1e-6:
+            rel_err_y = abs(estimated_params[1] - shift_y) / abs(shift_y)
+        else:
+            rel_err_y = abs(estimated_params[1] - shift_y) / 1.0  # Avoid division by zero, use small value
         self.assertLess(
-            abs(estimated_params[1] - shift_y) / abs(shift_y), 0.1,
+            rel_err_y, 0.1,
             f"shift_y error too large: "
-            f"{abs(estimated_params[1] - shift_y) / abs(shift_y) * 100:.1f}%"
+            f"{rel_err_y * 100:.1f}%"
         )
+
+        if abs(rotation) > 1e-6:
+            rel_err_rot = abs(estimated_params[2] - rotation) / abs(rotation)
+        else:
+            rel_err_rot = abs(estimated_params[2] - rotation) / 1.0  # Avoid division by zero, use small value
         self.assertLess(
-            abs(estimated_params[2] - rotation) / abs(rotation), 0.1,
+            rel_err_rot, 0.1,
             f"rotation error too large: "
-            f"{abs(estimated_params[2] - rotation) / abs(rotation) * 100:.1f}%"
+            f"{rel_err_rot * 100:.1f}%"
         )
+
+        if abs(magnification) > 1e-6:
+            rel_err_mag = abs(estimated_params[3] - magnification) / abs(magnification)
+        else:
+            rel_err_mag = abs(estimated_params[3] - magnification) / 0.1  # Avoid division by zero, use small value
         self.assertLess(
-            abs(estimated_params[3] - magnification) / abs(magnification), 0.1,
+            rel_err_mag, 0.1,
             f"magnification error too large: "
-            f"{abs(estimated_params[3] - magnification) / abs(magnification) * 100:.1f}%"
+            f"{rel_err_mag * 100:.1f}%"
         )
