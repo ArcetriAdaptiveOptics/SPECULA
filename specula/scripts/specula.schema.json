@@ -51,7 +51,7 @@
                     "heights",
                     "Cn2"
                 ],
-                "additionalProperites": false
+                "additionalProperties": false
             },
             {
                 "properties": {
@@ -109,7 +109,7 @@
                     "simul_params",
                     "height"
                 ],
-                "additionalProperites": false
+                "additionalProperties": false
             },
             {
                 "properties": {
@@ -130,7 +130,7 @@
                     "class",
                     "iir_filter_data"
                 ],
-                "additionalProperites": false
+                "additionalProperties": false
             },
             {
                 "properties": {
@@ -176,7 +176,7 @@
                     "simul_params",
                     "source_dict"
                 ],
-                "additionalProperites": false
+                "additionalProperties": false
             },
             {
                 "properties": {
@@ -197,7 +197,7 @@
                     "class",
                     "recmat"
                 ],
-                "additionalProperites": false
+                "additionalProperties": false
             },
             {
                 "properties": {
@@ -234,7 +234,7 @@
                     "simul_params",
                     "wavelengthInNm"
                 ],
-                "additionalProperites": false
+                "additionalProperties": false
             },
             {
                 "properties": {
@@ -281,7 +281,7 @@
                 "required": [
                     "class"
                 ],
-                "additionalProperites": false
+                "additionalProperties": false
             },
             {
                 "properties": {
@@ -377,7 +377,7 @@
                     "dt",
                     "bandw"
                 ],
-                "additionalProperites": false
+                "additionalProperties": false
             },
             {
                 "properties": {
@@ -468,7 +468,7 @@
                     "pup_diam",
                     "output_resolution"
                 ],
-                "additionalProperites": false
+                "additionalProperties": false
             },
             {
                 "properties": {
@@ -500,7 +500,7 @@
                 "required": [
                     "class"
                 ],
-                "additionalProperites": false
+                "additionalProperties": false
             },
             {
                 "properties": {
@@ -527,7 +527,7 @@
                     "class",
                     "int_gain"
                 ],
-                "additionalProperites": false
+                "additionalProperties": false
             },
             {
                 "properties": {
@@ -563,7 +563,7 @@
                     "class",
                     "store_dir"
                 ],
-                "additionalProperites": false
+                "additionalProperties": false
             },
             {
                 "properties": {
@@ -602,7 +602,7 @@
                     "class",
                     "simul_params"
                 ],
-                "additionalProperites": false
+                "additionalProperties": false
             },
             {
                 "properties": {
@@ -632,7 +632,7 @@
                     "class",
                     "pupdata"
                 ],
-                "additionalProperites": false
+                "additionalProperties": false
             }
         ]
     }
