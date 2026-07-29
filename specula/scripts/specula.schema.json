@@ -1,0 +1,639 @@
+{
+    "$schema": "https://json-schema.org",
+    "title": "Auto-Generated Simulation Schema",
+    "type": "object",
+    "additionalProperties": {
+        "type": "object",
+        "oneOf": [
+            {
+                "properties": {
+                    "class": {
+                        "const": "AtmoEvolution"
+                    },
+                    "simul_params": {
+                        "type": "string"
+                    },
+                    "L0": {
+                        "type": "string"
+                    },
+                    "heights": {
+                        "type": "string"
+                    },
+                    "Cn2": {
+                        "type": "string"
+                    },
+                    "data_dir": {
+                        "type": "string"
+                    },
+                    "fov": {
+                        "type": "number"
+                    },
+                    "pixel_phasescreens": {
+                        "type": "integer"
+                    },
+                    "seed": {
+                        "type": "integer"
+                    },
+                    "extra_delta_time": {
+                        "type": "number"
+                    },
+                    "fov_in_m": {
+                        "type": "number"
+                    },
+                    "pupil_position": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "class",
+                    "simul_params",
+                    "L0",
+                    "heights",
+                    "Cn2"
+                ],
+                "additionalProperites": false
+            },
+            {
+                "properties": {
+                    "class": {
+                        "const": "DM"
+                    },
+                    "simul_params": {
+                        "type": "string"
+                    },
+                    "height": {
+                        "type": "number"
+                    },
+                    "ifunc": {
+                        "type": "string"
+                    },
+                    "m2c": {
+                        "type": "string"
+                    },
+                    "type_str": {
+                        "type": "string"
+                    },
+                    "nmodes": {
+                        "type": "integer"
+                    },
+                    "nzern": {
+                        "type": "integer"
+                    },
+                    "start_mode": {
+                        "type": "integer"
+                    },
+                    "idx_modes": {
+                        "type": "string"
+                    },
+                    "npixels": {
+                        "type": "integer"
+                    },
+                    "obsratio": {
+                        "type": "number"
+                    },
+                    "diaratio": {
+                        "type": "number"
+                    },
+                    "pupilstop": {
+                        "type": "string"
+                    },
+                    "sign": {
+                        "type": "integer"
+                    },
+                    "stroke": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "class",
+                    "simul_params",
+                    "height"
+                ],
+                "additionalProperites": false
+            },
+            {
+                "properties": {
+                    "class": {
+                        "const": "IirFilter"
+                    },
+                    "iir_filter_data": {
+                        "type": "string"
+                    },
+                    "delay": {
+                        "type": "number"
+                    },
+                    "integration": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "class",
+                    "iir_filter_data"
+                ],
+                "additionalProperites": false
+            },
+            {
+                "properties": {
+                    "class": {
+                        "const": "AtmoPropagation"
+                    },
+                    "simul_params": {
+                        "type": "string"
+                    },
+                    "source_dict": {
+                        "type": "string"
+                    },
+                    "doFresnel": {
+                        "type": "boolean"
+                    },
+                    "wavelengthInNm": {
+                        "type": "number"
+                    },
+                    "telescope_altitude_m": {
+                        "type": "number"
+                    },
+                    "enable_chromatic_effect": {
+                        "type": "boolean"
+                    },
+                    "chromatic_reference_wavelengthInNm": {
+                        "type": "number"
+                    },
+                    "pupil_position": {
+                        "type": "string"
+                    },
+                    "mergeLayersContrib": {
+                        "type": "boolean"
+                    },
+                    "upwards": {
+                        "type": "boolean"
+                    },
+                    "padding_factor": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "class",
+                    "simul_params",
+                    "source_dict"
+                ],
+                "additionalProperites": false
+            },
+            {
+                "properties": {
+                    "class": {
+                        "const": "Modalrec"
+                    },
+                    "recmat": {
+                        "type": "string"
+                    },
+                    "nmodes": {
+                        "type": "integer"
+                    },
+                    "ncutmodes": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "class",
+                    "recmat"
+                ],
+                "additionalProperites": false
+            },
+            {
+                "properties": {
+                    "class": {
+                        "const": "PSF"
+                    },
+                    "simul_params": {
+                        "type": "string"
+                    },
+                    "wavelengthInNm": {
+                        "type": "number"
+                    },
+                    "nd": {
+                        "type": "number"
+                    },
+                    "pixel_size_mas": {
+                        "type": "number"
+                    },
+                    "start_time": {
+                        "type": "number"
+                    },
+                    "compute_profile_metrics": {
+                        "type": "boolean"
+                    },
+                    "compute_metrics_in_trigger": {
+                        "type": "boolean"
+                    },
+                    "ee_radius_in_lambda_d": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "class",
+                    "simul_params",
+                    "wavelengthInNm"
+                ],
+                "additionalProperites": false
+            },
+            {
+                "properties": {
+                    "class": {
+                        "const": "BaseOperation"
+                    },
+                    "constant_mul": {
+                        "type": "number"
+                    },
+                    "constant_div": {
+                        "type": "number"
+                    },
+                    "constant_sum": {
+                        "type": "number"
+                    },
+                    "constant_sub": {
+                        "type": "number"
+                    },
+                    "constant_max": {
+                        "type": "number"
+                    },
+                    "constant_min": {
+                        "type": "number"
+                    },
+                    "mul": {
+                        "type": "boolean"
+                    },
+                    "div": {
+                        "type": "boolean"
+                    },
+                    "sum": {
+                        "type": "boolean"
+                    },
+                    "sub": {
+                        "type": "boolean"
+                    },
+                    "concat": {
+                        "type": "boolean"
+                    },
+                    "value2_remap": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "class"
+                ],
+                "additionalProperites": false
+            },
+            {
+                "properties": {
+                    "class": {
+                        "const": "CCD"
+                    },
+                    "simul_params": {
+                        "type": "string"
+                    },
+                    "size": {
+                        "type": "string"
+                    },
+                    "dt": {
+                        "type": "number"
+                    },
+                    "bandw": {
+                        "type": "number"
+                    },
+                    "binning": {
+                        "type": "integer"
+                    },
+                    "photon_noise": {
+                        "type": "boolean"
+                    },
+                    "readout_noise": {
+                        "type": "boolean"
+                    },
+                    "excess_noise": {
+                        "type": "boolean"
+                    },
+                    "darkcurrent_noise": {
+                        "type": "boolean"
+                    },
+                    "background_noise": {
+                        "type": "boolean"
+                    },
+                    "cic_noise": {
+                        "type": "boolean"
+                    },
+                    "cte_noise": {
+                        "type": "boolean"
+                    },
+                    "readout_level": {
+                        "type": "number"
+                    },
+                    "darkcurrent_level": {
+                        "type": "number"
+                    },
+                    "background_level": {
+                        "type": "number"
+                    },
+                    "cic_level": {
+                        "type": "number"
+                    },
+                    "cte_mat": {
+                        "type": "string"
+                    },
+                    "quantum_eff": {
+                        "type": "number"
+                    },
+                    "pixelGains": {
+                        "type": "string"
+                    },
+                    "photon_seed": {
+                        "type": "integer"
+                    },
+                    "readout_seed": {
+                        "type": "integer"
+                    },
+                    "excess_seed": {
+                        "type": "integer"
+                    },
+                    "excess_delta": {
+                        "type": "number"
+                    },
+                    "start_time": {
+                        "type": "integer"
+                    },
+                    "ADU_gain": {
+                        "type": "number"
+                    },
+                    "ADU_bias": {
+                        "type": "integer"
+                    },
+                    "emccd_gain": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "class",
+                    "simul_params",
+                    "size",
+                    "dt",
+                    "bandw"
+                ],
+                "additionalProperites": false
+            },
+            {
+                "properties": {
+                    "class": {
+                        "const": "ModulatedPyramid"
+                    },
+                    "simul_params": {
+                        "type": "string"
+                    },
+                    "wavelengthInNm": {
+                        "type": "number"
+                    },
+                    "fov": {
+                        "type": "number"
+                    },
+                    "pup_diam": {
+                        "type": "integer"
+                    },
+                    "output_resolution": {
+                        "type": "integer"
+                    },
+                    "mod_amp": {
+                        "type": "number"
+                    },
+                    "mod_step": {
+                        "type": "integer"
+                    },
+                    "mod_type": {
+                        "type": "string"
+                    },
+                    "fov_errinf": {
+                        "type": "number"
+                    },
+                    "fov_errsup": {
+                        "type": "number"
+                    },
+                    "pup_dist": {
+                        "type": "integer"
+                    },
+                    "pup_margin": {
+                        "type": "integer"
+                    },
+                    "fft_res": {
+                        "type": "number"
+                    },
+                    "fp_obs": {
+                        "type": "number"
+                    },
+                    "pup_shifts": {
+                        "type": "string"
+                    },
+                    "pyr_tlt_coeff": {
+                        "type": "number"
+                    },
+                    "pyr_edge_def_ld": {
+                        "type": "number"
+                    },
+                    "pyr_tip_def_ld": {
+                        "type": "number"
+                    },
+                    "pyr_tip_maya_ld": {
+                        "type": "number"
+                    },
+                    "min_pup_dist": {
+                        "type": "number"
+                    },
+                    "rotAnglePhInDeg": {
+                        "type": "number"
+                    },
+                    "xShiftPhInPixel": {
+                        "type": "number"
+                    },
+                    "yShiftPhInPixel": {
+                        "type": "number"
+                    },
+                    "magnification": {
+                        "type": "number"
+                    },
+                    "force_extrapolation": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "class",
+                    "simul_params",
+                    "wavelengthInNm",
+                    "fov",
+                    "pup_diam",
+                    "output_resolution"
+                ],
+                "additionalProperites": false
+            },
+            {
+                "properties": {
+                    "class": {
+                        "const": "Slopec"
+                    },
+                    "sn": {
+                        "type": "string"
+                    },
+                    "recmat": {
+                        "type": "string"
+                    },
+                    "filt_intmat": {
+                        "type": "string"
+                    },
+                    "filt_recmat": {
+                        "type": "string"
+                    },
+                    "filtmat": {
+                        "type": "string"
+                    },
+                    "weight_int_pixel_dt": {
+                        "type": "number"
+                    },
+                    "interleave": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "class"
+                ],
+                "additionalProperites": false
+            },
+            {
+                "properties": {
+                    "class": {
+                        "const": "Integrator"
+                    },
+                    "int_gain": {
+                        "type": "string"
+                    },
+                    "ff": {
+                        "type": "string"
+                    },
+                    "n_modes": {
+                        "type": "string"
+                    },
+                    "delay": {
+                        "type": "number"
+                    },
+                    "integration": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "class",
+                    "int_gain"
+                ],
+                "additionalProperites": false
+            },
+            {
+                "properties": {
+                    "class": {
+                        "const": "DataStore"
+                    },
+                    "store_dir": {
+                        "type": "string"
+                    },
+                    "split_size": {
+                        "type": "integer"
+                    },
+                    "first_suffix": {
+                        "type": "integer"
+                    },
+                    "data_format": {
+                        "type": "string"
+                    },
+                    "start_time": {
+                        "type": "number"
+                    },
+                    "create_tn": {
+                        "type": "boolean"
+                    },
+                    "downsample_factor": {
+                        "type": "integer"
+                    },
+                    "downsample_factor_by_input": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "class",
+                    "store_dir"
+                ],
+                "additionalProperites": false
+            },
+            {
+                "properties": {
+                    "class": {
+                        "const": "AtmoInfiniteEvolution"
+                    },
+                    "simul_params": {
+                        "type": "string"
+                    },
+                    "L0": {
+                        "type": "string"
+                    },
+                    "heights": {
+                        "type": "string"
+                    },
+                    "Cn2": {
+                        "type": "string"
+                    },
+                    "fov": {
+                        "type": "number"
+                    },
+                    "seed": {
+                        "type": "integer"
+                    },
+                    "extra_delta_time": {
+                        "type": "number"
+                    },
+                    "fov_in_m": {
+                        "type": "number"
+                    },
+                    "pupil_position": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "class",
+                    "simul_params"
+                ],
+                "additionalProperites": false
+            },
+            {
+                "properties": {
+                    "class": {
+                        "const": "PyrSlopec"
+                    },
+                    "pupdata": {
+                        "type": "string"
+                    },
+                    "sn": {
+                        "type": "string"
+                    },
+                    "shlike": {
+                        "type": "boolean"
+                    },
+                    "norm_factor": {
+                        "type": "number"
+                    },
+                    "thr_value": {
+                        "type": "number"
+                    },
+                    "slopes_from_intensity": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "class",
+                    "pupdata"
+                ],
+                "additionalProperites": false
+            }
+        ]
+    }
+}

@@ -1,6 +1,9 @@
 import os
 import ast
 import sys
+import typing
+import logging
+import json
 
 # All the classes are:
 # AtmoEvolution.yml          BaseOperation.yml      DataStore.yml      FlaskServer.yml    ImRecCalibrator.yml           
@@ -19,14 +22,61 @@ exposed_classes = [ 'Source', 'Pupilstop',
                     'ModulatedPyramid', 'CCD', 'Slopec', 'PyrSlopec', 'Modalrec', 'Integrator', 'IirFilter', 'DM', 'PSF', 'DataStore'                
                   ]
 
+
+
+def map_python_type_to_json(py_type: str) -> dict:
+    """
+    Map Python-types to JSON-scheme types
+    """
+    if py_type is None:
+        return {"type": "string"}
+
+    if isinstance(py_type, str):
+        try:
+            py_type = eval(py_type)
+        except NameError:
+            logging.warning(f"Type {py_type} not understood")
+            return {"type": "string"}
+
+    # e.g Union[float, List[float]]
+    if typing.get_origin(py_type) is typing.Union:
+        return {"oneOf": [map_python_type_to_json(arg) for arg in get_args(py_type)]}
+
+    # e.g. List[str])
+    if typing.get_origin(py_type) is list:
+        args = typing.get_args(py_type)
+        item_type = map_python_type_to_json(args[0]) if args else {"type": "string"}
+        return {"type": "array", "items": item_type}
+
+    # e.g. list (without element type)
+    if py_type in (list, tuple):
+        logging.warning(f"list/tuple without element type hint")
+        return {"type": "array", "type": "string"}
+
+    # Standard types
+    mapping = {
+        str: {"type": "string"},
+        int: {"type": "integer"},
+        float: {"type": "number"},
+        bool: {"type": "boolean"}
+    }
+
+    if py_type in mapping:
+        return mapping[py_type]
+
+    logging.warning(f"Unhandled type {py_type}, fallback to string")
+    return {"type": "string"}
+
+
 class InitMethodVisitor(ast.NodeVisitor):
     """AST Visitor to extract parameters, inputs, and outputs from an __init__ method."""
     
-    def __init__(self):
+    def __init__(self, class_name: str):
         self.init_params = {}
         self.param_comments = {}
         self.inputs = {}
         self.outputs = []
+        self.scheme = {"properties": {"class": {"const": class_name}}, "required": ["class"], "additionalProperites": False, }
     
     def visit_FunctionDef(self, node):
         """Visit the __init__ method and extract parameters, inputs, and outputs."""
@@ -63,6 +113,13 @@ class InitMethodVisitor(ast.NodeVisitor):
                 self.init_params[param_name] = default_value
                 self.param_comments[param_name] = comment
 
+                if param_name not in (
+                    "self", "precision", "target_device_idx",
+                ):
+                    self.scheme["properties"][param_name] = map_python_type_to_json(param_type)
+                    if not is_optional:
+                        self.scheme["required"].append(param_name)
+
             # Visit the body of __init__ to extract inputs and outputs
             for statement in node.body:
                 self.visit(statement)
@@ -91,16 +148,16 @@ def extract_class_info(file_path):
         tree = ast.parse(file.read(), filename=file_path)
     
     class_data = []
-    
+
     for node in ast.walk(tree):
         if isinstance(node, ast.ClassDef):
             class_name = node.name
             if not class_name in exposed_classes:
                 continue
-            visitor = InitMethodVisitor()
+            visitor = InitMethodVisitor(class_name=class_name)
             visitor.visit(node)
-            
-            class_data.append((class_name, visitor.init_params, visitor.param_comments, visitor.inputs, visitor.outputs))
+
+            class_data.append((class_name, visitor.scheme, visitor.init_params, visitor.param_comments, visitor.inputs, visitor.outputs))
 
     return class_data
 
@@ -133,14 +190,30 @@ def process_python_files(input_folder, output_folder):
     """Processes all Python files in a directory and generates YAML files."""
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
-    
+
+
+    schema = {
+        "$schema": "https://json-schema.org",
+        "title": "Auto-Generated Simulation Schema",
+        "type": "object",
+        "additionalProperties": {
+            "type": "object",
+            "oneOf": []
+        }
+    }
+
     for file_name in os.listdir(input_folder):
         if file_name.endswith(".py"):
             file_path = os.path.join(input_folder, file_name)
             classes = extract_class_info(file_path)
             
-            for class_name, params, comments, inputs, outputs in classes:
+            for class_name, param_schema, params, comments, inputs, outputs in classes:
                 generate_yaml(class_name, params, comments, inputs, outputs, output_folder)
+                schema["additionalProperties"]["oneOf"].append(param_schema)
+
+    with open(output_folder + "/specula.schema.json", "w", encoding="utf-8") as f:
+        json.dump(schema, f, indent=4)
+
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
