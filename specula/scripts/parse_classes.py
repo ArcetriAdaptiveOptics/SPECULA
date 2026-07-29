@@ -76,7 +76,7 @@ class InitMethodVisitor(ast.NodeVisitor):
         self.param_comments = {}
         self.inputs = {}
         self.outputs = []
-        self.scheme = {"properties": {"class": {"const": class_name}}, "required": ["class"], "additionalProperites": False, }
+        self.scheme = {"properties": {"class": {"const": class_name}}, "required": ["class"], "additionalProperties": False, }
     
     def visit_FunctionDef(self, node):
         """Visit the __init__ method and extract parameters, inputs, and outputs."""
