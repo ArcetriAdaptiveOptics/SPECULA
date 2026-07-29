@@ -40,7 +40,7 @@ def map_python_type_to_json(py_type: str) -> dict:
 
     # e.g Union[float, List[float]]
     if typing.get_origin(py_type) is typing.Union:
-        return {"oneOf": [map_python_type_to_json(arg) for arg in get_args(py_type)]}
+        return {"oneOf": [map_python_type_to_json(arg) for arg in typing.get_args(py_type)]}
 
     # e.g. List[str])
     if typing.get_origin(py_type) is list:
