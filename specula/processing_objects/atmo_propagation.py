@@ -429,7 +429,7 @@ class AtmoPropagation(BaseProcessingObj):
                     output_ef.phaseInNm += self.prop_sign * self.ef_temp.phaseInNm
 
             if self.doFresnel:
-                output_ef.phaseInNm[:] = (self.prop_sign * self.phase_fresnel * self.wavelengthInNm / (2 * self.xp.pi))
+                output_ef.phaseInNm[:] = self.prop_sign * self.phase_fresnel
                 output_ef.A[:] = (abs(self.ef_fresnel[s_shifted[0]:s_shifted[0] + self.pixel_pupil, s_shifted[1]:s_shifted[1] + self.pixel_pupil]))
 
     def post_trigger(self):
