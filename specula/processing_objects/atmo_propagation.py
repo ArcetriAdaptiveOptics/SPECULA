@@ -1,9 +1,10 @@
+from specula.base_value import BaseValue
 from specula.lib.make_xy import make_xy
 from specula.lib.utils import local_mean_rebin
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.lib.interp2d import Interp2D
 from specula.data_objects.electric_field import ElectricField
-from specula.connections import InputList
+from specula.connections import InputList, InputValue
 from specula.data_objects.layer import Layer
 from specula.lib.air_refraction import MatharAirRefraction
 from specula import cpuArray, show_in_profiler
@@ -32,6 +33,7 @@ class AtmoPropagation(BaseProcessingObj):
                  mergeLayersContrib: bool=True,
                  upwards: bool=False,
                  padding_factor: int=1,
+                 beam_center=None,
                  target_device_idx=None,
                  precision=None):
         """
@@ -74,6 +76,8 @@ class AtmoPropagation(BaseProcessingObj):
             (downwards).
         padding_factor : int [1], optional
             Factor for zero padding in Fresnel propagation to avoid numerical issues with FFTs.
+        beam_center : float [1], optional
+            Center of Gaussian uplink beam in pixel. Used for Fraunhofer propagation.
         target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
         precision : int [1], optional
@@ -98,10 +102,12 @@ class AtmoPropagation(BaseProcessingObj):
                              ' is set to correctly simulate physical propagation.')
         if padding_factor < 1:
             raise ValueError('get_atmo_propagation: padding_factor must be greater than 1.')
-
+        self.padding_factor = padding_factor
         self.mergeLayersContrib = mergeLayersContrib
         self.prop_sign = -1 if upwards else 1
         self.pixel_pupil_size = self.pixel_pupil
+        self.beam_center = self.xp.array(beam_center if beam_center is not None else [0,0])
+        self.wavelengthInNm = wavelengthInNm
         self.source_dict = source_dict
         if pupil_position is not None:
             self.pupil_position = np.array(pupil_position, dtype=self.dtype)
@@ -126,9 +132,10 @@ class AtmoPropagation(BaseProcessingObj):
 
         self.doFresnel = doFresnel
         if self.doFresnel:
-            self.wavelengthInNm = wavelengthInNm
-            self.propagators = None
             self.ef_size_padded = self.pixel_pupil * padding_factor
+            self.propagators = None
+            self.ef_fresnel = self.xp.zeros([self.ef_size_padded, self.ef_size_padded], dtype=self.complex_dtype)
+            self.ft_ef1 = self.xp.zeros([self.ef_size_padded, self.ef_size_padded], dtype=self.complex_dtype)
 
         if self.enable_chromatic_effect:
             if self.chromatic_reference_wavelengthInNm is None:
@@ -159,6 +166,34 @@ class AtmoPropagation(BaseProcessingObj):
 
         self.airmass = 1. / np.cos(np.radians(self.simul_params.zenithAngleInDeg), dtype=self.dtype)
 
+    def fraunhofer_propagator(self, distanceInM):
+        """
+       Jason D. Schmidt, Numerical Simulation of Optical Wave Propagation with Examples in MATLAB
+       Computes the propagators used for Fraunhofer far-field propagation.
+
+       Parameters
+       ----------
+       distanceInM : float [m]
+           Propagation distance in meter.
+       """
+        k = 2 * np.pi / (self.wavelengthInNm * 1e-9)
+
+        spatial_in_out = (self.xp.arange(-self.ef_size_padded // 2, self.ef_size_padded // 2) + 0.5) * self.pixel_pitch
+        x_in_out, y_in_out = self.xp.meshgrid(spatial_in_out, spatial_in_out)
+
+        # Fraunhofer propagator
+        H_FR = (self.pixel_pitch ** 2 / (1j * self.wavelengthInNm * 1e-9 * distanceInM)) * self.xp.exp(
+            -1j * (k / (2 * distanceInM)) * (x_in_out ** 2 + y_in_out ** 2))
+
+        # Chirp Z-transform for performing DFT
+        row_idx = self.xp.arange(self.ef_size_padded) - (self.ef_size_padded // 2) + 0.5
+        col_idx = self.xp.arange(self.ef_size_padded) - (self.ef_size_padded // 2) + 0.5
+        H_FR_kernel = self.xp.exp(
+            -1j * k / distanceInM * self.xp.outer(row_idx * self.pixel_pitch, col_idx * self.pixel_pitch))
+        H_FR_in = self.xp.exp(1j * k / (2 * distanceInM) * (x_in_out ** 2 + y_in_out ** 2))
+
+        return [H_FR, H_FR_in, H_FR_kernel], x_in_out, y_in_out
+
     def asm_propagator(self, distanceInM, d_in, d_out):
         """
         Jason D. Schmidt, Numerical Simulation of Optical Wave Propagation with Examples in MATLAB
@@ -177,7 +212,7 @@ class AtmoPropagation(BaseProcessingObj):
         k = 2 * np.pi / (self.wavelengthInNm * 1e-9)
         df = 1 / (self.ef_size_padded * d_in)
 
-        coord = self.xp.arange(-self.ef_size_padded / 2, self.ef_size_padded / 2)
+        coord = self.xp.arange(-self.ef_size_padded // 2, self.ef_size_padded // 2) + 0.5
         x, y = self.xp.meshgrid(coord, coord)
 
         mag = 1
@@ -220,6 +255,41 @@ class AtmoPropagation(BaseProcessingObj):
             else:
                 self.source_height[source] = float(source.height) * self.airmass
 
+    def calc_propagators(self, z):
+        """Calculate propagators based on distance.
+
+        For far-field propagation Fraunhofer is used, otherwise angular spectrum propagation (ASM) method.
+        Propagation distance is automatically reduced to avoid numerical issues with FFTs.
+        """
+        far_field = False
+        if z in (0, self.xp.inf):
+            return None, far_field
+        z_in = z
+
+        z_far_field = 2 * ((self.pixel_pitch * self.pixel_pupil) ** 2) / (self.wavelengthInNm * 1e-9)
+        if z < z_far_field:
+            # Check if propagation distance exceed ASM limit
+            z_max_ASM = self.ef_size_padded * self.pixel_pitch ** 2 / (self.wavelengthInNm * 1e-9)
+            z = min(z, z_max_ASM)
+            propagator = self.asm_propagator(z, self.pixel_pitch, self.pixel_pitch)
+        else:
+            if self.xp.any(self.beam_center + self.pixel_pupil > self.ef_size_padded):
+                raise ValueError(
+                    "For Fraunhofer propagation the beam center is too far off-axis. Please increase zero padding.")
+            propagator, _, _ = self.fraunhofer_propagator(z)
+            far_field = True
+            self.logger.warning(
+                "For far-field Fraunhofer propagation is applied using Chirp Z-transform. If the propagated beam is"
+                " off-axis, please specify the beam center.")
+
+        if z != z_in:
+            self.logger.warning(
+                "For the current configuration the propagation distance is too large. "
+                "Thus it is reduced from " + str(z_in) + "m to " + str(z) +
+                "m. Consider increasing zero padding.")
+
+        return propagator, far_field
+
     def doFresnel_setup(self):
         layer_list = self.common_layer_list + self.atmo_layer_list
         height_layers = np.array([self.layer_height[layer] for layer in layer_list], dtype=self.dtype)
@@ -232,24 +302,23 @@ class AtmoPropagation(BaseProcessingObj):
         if not np.allclose(height_layers, sorted_heights):
             raise ValueError('Layers must be sorted from lowest to highest')
 
-        # set up fresnel propagator if height difference is not 0
         height_diffs = np.diff(height_layers, append=source_height)
-        self.propagators = [self.asm_propagator(diff, self.pixel_pitch, self.pixel_pitch) if (diff != 0 and diff != self.xp.inf) else None for
-                            diff in height_diffs]
+        self.propagators, self.far_field_propagation = map(list,
+                                                           zip(*[self.calc_propagators(diff) for diff in height_diffs]))
 
         # adapt for downwards propagation
         if self.prop_sign == 1:
             self.propagators = self.propagators[::-1]
+            self.far_field_propagation = self.far_field_propagation[::-1]
+
             # no propagation from the source downwards
             self.propagators.pop(0)
             self.propagators.append(None)
+            self.far_field_propagation.pop(0)
+            self.far_field_propagation.append(None)
 
         # pre-allocate arrays for propagation
         self.ef_padded = self.xp.zeros([self.ef_size_padded, self.ef_size_padded], dtype=self.complex_dtype)
-        self.ft_ef1 = self.xp.zeros([self.ef_size_padded, self.ef_size_padded], dtype=self.complex_dtype)
-        self.ef_fresnel_padded = self.xp.zeros([self.ef_size_padded, self.ef_size_padded],
-                                               dtype=self.complex_dtype)
-        self.ef_fresnel = self.xp.zeros([self.pixel_pupil, self.pixel_pupil], dtype=self.complex_dtype)
 
     @classmethod
     def input_names(cls):
@@ -282,22 +351,20 @@ class AtmoPropagation(BaseProcessingObj):
                 )
                 layer.phaseInNm[~mask_valid] = local_mean[~mask_valid]
 
-    def angular_spectrum_propagation(self, ef_in, propagator):
-        s = (self.ef_size_padded - self.pixel_pupil) // 2
-        self.ef_padded[s:s + self.pixel_pupil, s:s + self.pixel_pupil] = ef_in
+    def fraunhofer_far_field_propagation(self, ef_in, propagator):
+        self.ft_ef1[:] = propagator[2] @ (ef_in * propagator[1]) @ propagator[2].T
+        self.ef_fresnel[:] = propagator[0] * self.ft_ef1
 
+    def angular_spectrum_propagation(self, ef_in, propagator):
         if propagator[0] is not None:
-            self.ef_padded *= propagator[0]
-        self.ft_ef1[:] = self.xp.fft.fft2(self.xp.fft.fftshift(self.ef_padded, axes=(-2, -1)), axes=(-2, -1),
+            ef_in *= propagator[0]
+        self.ft_ef1[:] = self.xp.fft.fft2(self.xp.fft.fftshift(ef_in, axes=(-2, -1)), axes=(-2, -1),
                                           norm="ortho")
-        self.ef_fresnel_padded[:] = self.xp.fft.fftshift(
+        self.ef_fresnel[:] = self.xp.fft.fftshift(
             self.xp.fft.ifft2(self.ft_ef1 * self.xp.fft.fftshift(propagator[1], axes=(-2, -1)), norm="ortho",
                               axes=(-2, -1)), axes=(-2, -1))
         if propagator[2] is not None:
-            self.ef_fresnel_padded *= propagator[2]
-
-        # unpadding
-        self.ef_fresnel[:] = self.ef_fresnel_padded[s:s + self.pixel_pupil, s:s + self.pixel_pupil]
+            self.ef_fresnel[:] *= propagator[2]
 
     @show_in_profiler('atmo_propagation.trigger_code')
     def trigger_code(self):
@@ -309,7 +376,11 @@ class AtmoPropagation(BaseProcessingObj):
 
             # reset field
             if self.doFresnel:
-                self.ef_fresnel[:] = 1
+                s = (self.ef_size_padded - self.pixel_pupil_size) // 2
+                s_shifted = [s, s]
+
+                self.ef_fresnel[:] *= 0
+                self.ef_fresnel[s:s + self.pixel_pupil, s:s +  self.pixel_pupil] = 1 + 0j
 
             if self.mergeLayersContrib:
                 output_ef = self.outputs['out_' + source_name + '_ef']
@@ -335,17 +406,24 @@ class AtmoPropagation(BaseProcessingObj):
                     self.ef_temp.phaseInNm[:] = self.prop_sign * interpolator.interpolate(layer.phaseInNm)
 
                 if self.doFresnel:
-                    self.ef_fresnel *= self.ef_temp.ef_at_lambda(self.wavelengthInNm)
+                    self.ef_fresnel[s:s + self.pixel_pupil, s:s + self.pixel_pupil] *= self.ef_temp.ef_at_lambda(
+                        self.wavelengthInNm)
                     if self.propagators[li] is not None:
-                        self.angular_spectrum_propagation(self.ef_fresnel, self.propagators[li])
+                        if not self.far_field_propagation[li]:
+                            self.angular_spectrum_propagation(self.ef_fresnel, self.propagators[li])
+                        else:
+                            self.fraunhofer_far_field_propagation(self.ef_fresnel, self.propagators[li])
+                            s_shifted = s + self.beam_center
+
                 else:
                     output_ef.A *= self.ef_temp.A
                     output_ef.phaseInNm += self.prop_sign * self.ef_temp.phaseInNm
 
             if self.doFresnel:
-                output_ef.phaseInNm[:] = self.prop_sign * self.xp.angle(self.ef_fresnel) * self.wavelengthInNm / (
-                        2 * self.xp.pi)
-                output_ef.A[:] = abs(self.ef_fresnel)
+                output_ef.phaseInNm[:] = (self.prop_sign * self.xp.angle(
+                    self.ef_fresnel[s_shifted[0]:s_shifted[0] + self.pixel_pupil, s_shifted[1]:s_shifted[1] + self.pixel_pupil]) * self.wavelengthInNm / (
+                                                  2 * self.xp.pi))
+                output_ef.A[:] = (abs(self.ef_fresnel[s_shifted[0]:s_shifted[0] + self.pixel_pupil, s_shifted[1]:s_shifted[1] + self.pixel_pupil]))
 
     def post_trigger(self):
         super().post_trigger()
@@ -583,7 +661,8 @@ class AtmoPropagation(BaseProcessingObj):
         self.setup_interpolators()
         if self.doFresnel:
             self.doFresnel_setup()
-        self.build_stream()
+        else:
+            self.build_stream()
 
     def check_output_names(self):
         # AtmoPropagation outputs are created dynamically from stored data files;

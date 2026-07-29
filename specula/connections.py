@@ -12,29 +12,55 @@ Output = namedtuple('Output', 'obj_name output_key delay ref input_name type')
 def split_output(output_name, use_inputs=False, detect_types=False):
     '''
     Split the output name into object name and output key.
+
+    The expected syntax is (all parts except obj_name.output_key are optional):
+
+        [alias-]obj_name.output_key[:delay]
+
+    ':', '-' and '.' are reserved separator characters: the alias, object
+    name and output key must not contain them, or the string cannot be
+    parsed unambiguously.
     '''
+    original = output_name
+
     if ':' in output_name:
-        output_name, suffix = output_name.split(':')
+        output_name, suffix = output_name.rsplit(':', 1)
         if detect_types:
             if suffix in ['float', 'int', 'str']:
                 delay = 0
                 typ_ = suffix
             else:
-                raise ValueError(f'Unknown type {suffix}')
+                raise ValueError(f"Invalid output specification '{original}': "
+                                  f"suffix after ':' must be one of float/int/str, got '{suffix}'")
         else:
-            delay = int(suffix)
+            try:
+                delay = int(suffix)
+            except ValueError:
+                raise ValueError(f"Invalid output specification '{original}': "
+                                  f"expected an integer delay after ':', got '{suffix}'") from None
             typ_ = None
     else:
         delay = 0
         typ_ = None
 
     if '-' in output_name:
-        input_name, output_name = output_name.split('-')
+        parts = output_name.split('-')
+        if len(parts) != 2:
+            raise ValueError(f"Invalid output specification '{original}': found {len(parts) - 1} "
+                              "'-' character(s), but only one is allowed, to separate an optional "
+                              "alias from 'obj_name.output_key' (alias, object and output names "
+                              "must not contain '-')")
+        input_name, output_name = parts
     else:
         input_name = None
 
     if '.' in output_name:
-        obj_name, output_key = output_name.split('.')
+        parts = output_name.split('.')
+        if len(parts) != 2:
+            raise ValueError(f"Invalid output specification '{original}': found {len(parts) - 1} "
+                              "'.' character(s) in 'obj_name.output_key', but only one is allowed "
+                              "(object and output names must not contain '.')")
+        obj_name, output_key = parts
     else:
         obj_name = output_name
         output_key = None

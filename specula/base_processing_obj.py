@@ -279,6 +279,14 @@ class BaseProcessingObj(BaseTimeObj):
         '''
         pass
 
+    def get_resolved_seed(self):
+        '''
+        Override for objects that resolve a random seed at construction time,
+        so that a replay of this run can reproduce the same values.
+        Return None (default) if this object has no seed to record.
+        '''
+        return None
+
     def sanity_check(self):
         '''
         Check that all inputs and outputs have been setup correctly.

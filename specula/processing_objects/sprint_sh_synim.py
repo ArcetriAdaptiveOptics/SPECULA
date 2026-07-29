@@ -2,9 +2,9 @@
 SPRINT Estimator for Shack-Hartmann WFS using SynIM for IM computation.
 """
 
-import logging
 from specula.lib.synim_utils import compute_im_synim
 from specula.data_objects.slopes import Slopes
+from specula.data_objects.pupilstop import Pupilstop
 from specula.processing_objects.base_sprint_estimator import BaseSprintEstimator
 from specula.processing_objects.sh import SH
 from specula.processing_objects.sh_slopec import ShSlopec
@@ -27,15 +27,21 @@ class SprintShSynim(BaseSprintEstimator):
     - [2]: rotation (degrees)
     - [3]: magnification (fractional, added to 1.0)
     
-    If enable_wpup_magn_xy=True (not yet implemented in SynIM):
-    - [4]: magn_x (fractional)
-    - [5]: magn_y (fractional)
-    
+    If enable_wpup_magn_xy=True (implemented in SynIM via
+    wfs_anamorphosis_90/wfs_anamorphosis_45, see compute_im_synim -
+    NOT independent per-axis magn_x/magn_y, but an anamorphic
+    decomposition: global magnification [3] + anisotropy along the
+    0/90deg axes [4] + anisotropy along the 45deg axes [5], together
+    spanning any symmetric anisotropic scaling, not just axis-aligned):
+    - [4]: anamorphosis_90 (fractional)
+    - [5]: anamorphosis_45 (fractional)
+
     Parameters
     ----------
     enable_wpup_magn_xy : bool
-        Enable separate X/Y magnification parameters (default: False)
-    
+        Enable anamorphic (anisotropic) magnification parameters, in
+        addition to the isotropic one at index [3] (default: False)
+
     All other parameters inherited from BaseSprintEstimator.
     """
 
@@ -47,6 +53,7 @@ class SprintShSynim(BaseSprintEstimator):
                  wfs,
                  modes_index,
                  carrier_frequencies,
+                 pupil_mask: Pupilstop = None,
                  enable_wpup_magn_xy=False,
                  estimation_dt=10.0,
                  max_iterations=10,
@@ -59,11 +66,16 @@ class SprintShSynim(BaseSprintEstimator):
                  precision=None):
         """
         Initialize SH SPRINT estimator with SynIM backend.
-        
+
         Parameters
         ----------
+        pupil_mask : Pupilstop, optional
+            WFS-side pupil mask (e.g. including spider obscuration not
+            present in the DM footprint). Defaults to dm.mask if not given
+            (see BaseSprintEstimator.setup()).
         enable_wpup_magn_xy : bool
-            Enable separate X/Y magnification (future feature)
+            Enable anamorphic magnification (anamorphosis_90/anamorphosis_45,
+            see class docstring) - implemented and functional in SynIM.
         """
         # Store before calling super().__init__
         self.enable_wpup_magn_xy = enable_wpup_magn_xy
@@ -80,6 +92,7 @@ class SprintShSynim(BaseSprintEstimator):
             wfs=wfs,
             modes_index=modes_index,
             carrier_frequencies=carrier_frequencies,
+            pupil_mask=pupil_mask,
             n_params=n_params,
             estimation_dt=estimation_dt,
             max_iterations=max_iterations,
@@ -103,8 +116,8 @@ class SprintShSynim(BaseSprintEstimator):
         }
 
         if self.enable_wpup_magn_xy:
-            self.perturbations[4] = (0.01, 'magn_x')
-            self.perturbations[5] = (0.01, 'magn_y')
+            self.perturbations[4] = (0.01, 'anamorphosis_90')
+            self.perturbations[5] = (0.01, 'anamorphosis_45')
 
     def _validate_wfs(self):
         """Validate that WFS is Shack-Hartmann"""
@@ -126,13 +139,13 @@ class SprintShSynim(BaseSprintEstimator):
         idx_j = display_map % nx
         self.idx_valid_sa = np.column_stack((idx_i, idx_j))
 
-        self.logger.info(f"  WFS type: Shack-Hartmann")
-        self.logger.info(f"  Subapertures: {self.wfs.subap_on_diameter}x{self.wfs.subap_on_diameter}")
-        self.logger.info(f"  Valid subapertures: {len(self.idx_valid_sa)}")
-        self.logger.info(f"  FOV: {self.wfs.subap_wanted_fov:.2f} arcsec")
-        self.logger.info(f"  Number of misreg params: {self.n_params}")
+        self.logger.debug(f"  WFS type: Shack-Hartmann")
+        self.logger.debug(f"  Subapertures: {self.wfs.subap_on_diameter}x{self.wfs.subap_on_diameter}")
+        self.logger.debug(f"  Valid subapertures: {len(self.idx_valid_sa)}")
+        self.logger.debug(f"  FOV: {self.wfs.subap_wanted_fov:.2f} arcsec")
+        self.logger.debug(f"  Number of misreg params: {self.n_params}")
         if self.enable_wpup_magn_xy:
-            self.logger.info(f"  Using separate X/Y magnification")
+            self.logger.debug(f"  Using anamorphic magnification (anamorphosis_90/anamorphosis_45)")
 
     def _compute_nominal_im(self):
         """Compute nominal IM using SynIM"""
@@ -148,7 +161,6 @@ class SprintShSynim(BaseSprintEstimator):
             wfs_fov_arcsec=self.wfs.subap_wanted_fov,
             idx_valid_sa=self.idx_valid_sa,
             apply_absolute_slopes=self.apply_absolute_slopes,
-            verbose=self.logger.level <= logging.DEBUG
         )
 
         return self.to_xp(im_nominal, dtype=self.dtype)
@@ -187,9 +199,9 @@ class SprintShSynim(BaseSprintEstimator):
         self.logger.info(f"Mis-reg parameters: {cpuArray(self.misreg_params)}")
 
         plt.figure(figsize=(12, 5))
-        plt.plot(im_measured[:,0]/G_opt[0], label='Measured IM (demodulated)')
-        plt.plot(im_nominal[:,0], label='Nominal IM (current params)')
-        plt.plot(im_diff[:,0], label='IM Difference (corrected)')
+        plt.plot(cpuArray(im_measured[:,0]/G_opt[0]), label='Measured IM (demodulated)')
+        plt.plot(cpuArray(im_nominal[:,0]), label='Nominal IM (current params)')
+        plt.plot(cpuArray(im_diff[:,0]), label='IM Difference (corrected)')
         plt.legend()
         plt.title(f"Iteration {iteration+1}")
         plt.xlabel("Slope index")

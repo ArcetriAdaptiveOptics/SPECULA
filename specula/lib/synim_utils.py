@@ -4,6 +4,9 @@ Utility functions for SynIM-based interaction matrix computation.
 
 import synim.synim as synim
 from specula import cpuArray, np
+from specula.log import get_specula_logger
+
+logger = get_specula_logger(__name__)
 
 
 def compute_im_synim(misreg_params,
@@ -16,8 +19,7 @@ def compute_im_synim(misreg_params,
                      wfs_nsubaps,
                      wfs_fov_arcsec,
                      idx_valid_sa,
-                     apply_absolute_slopes=False,
-                     verbose=False):
+                     apply_absolute_slopes=False):
     """
     Compute interaction matrix using SynIM with mis-registration parameters.
     
@@ -46,9 +48,7 @@ def compute_im_synim(misreg_params,
         Valid subaperture indices
     apply_absolute_slopes : bool
         Apply absolute value to slopes
-    verbose : bool
-        Print debug info
-    
+
     Returns
     -------
     im : ndarray, shape (nslopes, nmodes)
@@ -71,13 +71,12 @@ def compute_im_synim(misreg_params,
     gs_pol_coo = tuple(cpuArray(source_polar_coords))
     gs_height = source_height if source_height != float('inf') else float('inf')
 
-    if verbose:
-        print(f"  Computing IM with SynIM:")
-        print(f"    shift_x={shift_x:.3f} px, shift_y={shift_y:.3f} px")
-        print(f"    rotation={rotation:.3f} deg, magnification={magnification:.6f}")
-        if len(misreg_params) == 6:
-            print(f"    anamorphosis_90={wfs_anamorphosis_90:.6f},"
-                  f"anamorphosis_45={wfs_anamorphosis_45:.6f}")
+    logger.debug(f"  Computing IM with SynIM:")
+    logger.debug(f"    shift_x={shift_x:.3f} px, shift_y={shift_y:.3f} px")
+    logger.debug(f"    rotation={rotation:.3f} deg, magnification={magnification:.6f}")
+    if len(misreg_params) == 6:
+        logger.debug(f"    anamorphosis_90={wfs_anamorphosis_90:.6f},"
+                     f"anamorphosis_45={wfs_anamorphosis_45:.6f}")
 
     # Compute IM with SynIM
     im = synim.interaction_matrix(

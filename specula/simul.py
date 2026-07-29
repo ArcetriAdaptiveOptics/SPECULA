@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import re
 import inspect
 import itertools
@@ -32,7 +34,7 @@ class Simul():
     def __init__(self,
                  *param_files,
                  simul_idx=0,
-                 overrides=None,
+                 overrides: str | None = None,
                  stepping=False,
                  diagram=False,
                  diagram_title=None,
@@ -53,7 +55,7 @@ class Simul():
         self.simul_idx = simul_idx
         self.mainParams = None
         if overrides is None:
-            self.overrides = []
+            self.overrides = ""
         else:
             self.overrides = overrides
         self.stepping = stepping
@@ -184,6 +186,29 @@ class Simul():
         if len(params) > 0:
             self.logger.warning(f'the following objects will not be triggered: {params.keys()}')
         return order, order_index
+
+    def validate_section_names(self, params):
+        '''
+        Reject section (object) names that use characters reserved by the
+        output-reference syntax parsed in split_output(): '.', '-' and ':'.
+
+        These characters separate an optional alias, the object name, the
+        output key and an optional delay/type suffix (e.g. "alias-obj.output:1").
+        An object name containing one of them makes output references
+        ambiguous: e.g. an object named "my-control" cannot be distinguished
+        from an alias "my" applied to an object named "control".
+        '''
+        reserved = {
+            '.': "separates 'obj_name' from 'output_key'",
+            '-': "separates an optional alias from 'obj_name.output_key'",
+            ':': "introduces an optional delay/type suffix",
+        }
+        for key in params.keys():
+            for ch, purpose in reserved.items():
+                if ch in key:
+                    raise ValueError(f"Invalid section name '{key}' in parameter file: "
+                                      f"character '{ch}' is reserved ({purpose}) and cannot "
+                                      "be used in object names")
 
     def setSimulParams(self, params):
         for key, pars in params.items():
@@ -631,14 +656,70 @@ class Simul():
 
         return replay_params
 
-    def build_targeted_replay(self, params, *target_object_names, set_store_dir=None):
+    def inject_recorded_seeds(self, target_params, recorded_seeds):
+        '''
+        Mutate target_params in place: for every (key, seed) in recorded_seeds,
+        if key is present in target_params and it does not already declare an
+        explicit 'seed', inject the recorded value. This lets a replay reproduce
+        the exact values of a RandomGenerator (or similar) that had no explicit
+        seed in the original run, without changing the behavior of fresh runs
+        (which never have recorded_seeds to inject).
+        '''
+        for key, seed in recorded_seeds.items():
+            if key in target_params and 'seed' not in target_params[key]:
+                target_params[key]['seed'] = seed
+
+    def _produces_ef_or_layer(self, class_name):
+        '''
+        True if the given class declares an ElectricField or Layer output.
+        Used to detect objects whose silent omission from a replay would drop
+        a phase-additive contribution (e.g. an ElectricFieldCombinator or
+        PhaseScreenCube feeding a WFS downstream of a captured AtmoPropagation).
+        '''
+        from specula.data_objects.electric_field import ElectricField
+        from specula.data_objects.layer import Layer
+        try:
+            outputs = import_class(class_name).output_names()
+        except Exception:
+            return False
+        return any(issubclass(desc.type, (ElectricField, Layer)) for desc in outputs.values())
+
+    def _find_dropped_ef_layer_consumers(self, params, replay_params):
+        '''
+        Objects present in the original params but not captured into replay_params,
+        that (a) consume an output of an object that IS captured, and (b) themselves
+        declare an ElectricField or Layer output -- i.e. objects whose omission
+        silently drops a phase-additive contribution from the replayed graph
+        (SPECULA #696: a PhaseScreenCube summed via ElectricFieldCombinator onto an
+        AtmoPropagation source's output, downstream of the propagation object, is
+        invisible to a replay targeted at that propagation object).
+        '''
+        dropped = {}
+        for key, pars in params.items():
+            if key in replay_params or not self._produces_ef_or_layer(pars.get('class')):
+                continue
+            hits = [(input_name, out) for input_name, out in self.iterate_inputs(pars)
+                    if self.output_owner(out) in replay_params]
+            if hits:
+                dropped[key] = hits
+        return dropped
+
+    def build_targeted_replay(self, params, *target_object_names, set_store_dir=None,
+                               on_missing_downstream_consumers='error'):
         '''
         Build a replay file making sure that the target objects
         still exist, and therefore all their inputs are either loaded
         from disk or computed, recursively.
-        
+
         SimulParams parameters are replicated unchanged.
         DataStore parameters are converted to DataSource
+
+        on_missing_downstream_consumers : str
+            What to do when an object present in params, that consumes a captured
+            object's output and itself declares an ElectricField or Layer output,
+            was not captured into the replay (see _find_dropped_ef_layer_consumers):
+            'error' (default) raises ValueError, 'warn' logs a warning, 'ignore'
+            does nothing.
         '''
         # Create new parameter dict and copy SimulParams without changes
         replay_params = {}
@@ -691,6 +772,22 @@ class Simul():
 
         for key in target_object_names:
             add_key(key)
+
+        dropped = self._find_dropped_ef_layer_consumers(params, replay_params)
+        if dropped and on_missing_downstream_consumers != 'ignore':
+            message = (
+                "build_targeted_replay: the following objects produce an ElectricField/Layer "
+                "output and consume a captured object's output, but were not themselves captured "
+                "-- their contribution is silently missing from the replayed graph: "
+                + '; '.join(f"'{k}' (input '{inp}' -> '{out}')"
+                            for k, hits in dropped.items() for inp, out in hits)
+                + ". Pass on_missing_downstream_consumers='warn' or 'ignore' if this is expected "
+                  "(e.g. a diagnostics-only branch), otherwise add the missing object(s) to "
+                  "target_object_names."
+            )
+            if on_missing_downstream_consumers == 'error':
+                raise ValueError(message)
+            self.logger.warning(message)
 
         return replay_params
 
@@ -804,6 +901,8 @@ class Simul():
         # Actual creation code
         self.apply_overrides(params)
 
+        self.validate_section_names(params)
+
         self.trigger_order, self.trigger_order_idx = self.build_trigger_order(params)
         self.logger.info(f'{self.trigger_order=}')
         self.logger.info(f'{self.trigger_order_idx=}')
@@ -811,12 +910,14 @@ class Simul():
         if not self.isReplay(params):
             replay_params = self.build_replay(params)
         else:
+            recorded_seeds = (params.get('data_source') or {}).get('random_seeds') or {}
+            self.inject_recorded_seeds(params, recorded_seeds)
             replay_params = None
 
         self.build_objects(params)
         self.create_input_list_inputs(params)
         self.connect_objects(params)
-        
+
         if (process_rank == 0 or process_rank is None) and self.diagram:
             self.diagram.build(trigger_order = self.trigger_order,
                                trigger_order_idx = self.trigger_order_idx,
@@ -825,6 +926,13 @@ class Simul():
                                is_dataobj = self.is_dataobj)
 
         if replay_params is not None:
+            recorded_seeds = {
+                key: obj.get_resolved_seed()
+                for key, obj in self.objs.items()
+                if isinstance(obj, BaseProcessingObj) and obj.get_resolved_seed() is not None
+            }
+            if recorded_seeds:
+                replay_params.setdefault('data_source', {})['random_seeds'] = recorded_seeds
             for obj in self.objs.values():
                 if type(obj) is DataStore:
                     obj.setReplayParams(replay_params)
