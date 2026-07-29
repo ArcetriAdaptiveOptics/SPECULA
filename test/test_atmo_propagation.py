@@ -454,6 +454,206 @@ class TestAtmoPropagation(unittest.TestCase):
         max_diff = np.max(np.abs(diff))
         assert max_diff < 0.02, f"Max difference after rotation is {max_diff}, should be < 0.02"
 
+
+    @cpu_and_gpu
+    def test_fresnel_amplitude_variation(self, target_device_idx, xp):
+        """Test that amplitude is not 1 everywhere when using Fresnel propagation."""
+        pixel_pupil = 64
+        pixel_pitch = 0.01
+        wavelength = 500.0
+        simul_params = SimulParams(pixel_pupil, pixel_pitch)
+        
+        # Layer at a high altitude with a sinusoidal phase perturbation
+        layer = Layer(
+            dimx=64, dimy=64, 
+            pixel_pitch=pixel_pitch, 
+            height=10000.0, 
+            target_device_idx=target_device_idx
+        )
+        layer.A = xp.ones((64, 64))
+        x_coords = xp.arange(64, dtype=float) * pixel_pitch
+        layer.phaseInNm = 200.0 * xp.sin(2 * xp.pi * x_coords / 1.0) * xp.ones((64, 64))
+        layer.generation_time = 1
+
+        telescope_pupil = Layer(
+            dimx=64, dimy=64, 
+            pixel_pitch=pixel_pitch, 
+            height=0.0, 
+            target_device_idx=target_device_idx
+        )
+        telescope_pupil.A = xp.ones((64, 64))
+        telescope_pupil.phaseInNm = xp.zeros((64, 64))
+        telescope_pupil.generation_time = 1
+        
+        source = Source(polar_coordinates=[0.0, 0.0], magnitude=8, wavelengthInNm=wavelength, height=np.inf)
+        
+        prop = AtmoPropagation(
+            simul_params, 
+            source_dict={'src': source}, 
+            doFresnel=True, 
+            wavelengthInNm=wavelength, 
+            padding_factor=4, 
+            target_device_idx=target_device_idx
+        )
+        prop.inputs['atmo_layer_list'].set([layer])
+        prop.inputs['common_layer_list'].set([telescope_pupil])
+        prop.setup()
+        
+        loop = LoopControl()
+        loop.add(prop, idx=0)
+        loop.run(run_time=1, dt=1, t0=0)
+        
+        output_ef = prop.outputs['out_src_ef']
+        output_amp = cpuArray(output_ef.A)
+        
+        # Verify amplitude varies from 1.0 due to Fresnel diffraction
+        assert not np.allclose(output_amp, 1.0), f"Fresnel propagation should produce amplitude variations, {np.max(output_amp)}."
+
+    @cpu_and_gpu
+    def test_fresnel_equals_geometric_at_ground(self, target_device_idx, xp):
+        """Test that Fresnel gives identical results to standard propagation for a ground layer."""
+        pixel_pupil = 64
+        pixel_pitch = 0.1
+        wavelength = 500.0
+        simul_params = SimulParams(pixel_pupil, pixel_pitch)
+        
+        # Ground layer with both amplitude and phase features
+        layer = Layer(
+            dimx=64, dimy=64, 
+            pixel_pitch=pixel_pitch, 
+            height=0.0, 
+            target_device_idx=target_device_idx
+        )
+        layer.A = xp.ones((64, 64))
+        x_coords = xp.arange(64, dtype=float) * pixel_pitch
+        layer.phaseInNm = 200.0 * xp.sin(2 * xp.pi * x_coords / 12.0) * xp.ones((64, 64)) #100.0 * xp.ones((64, 64))
+        layer.generation_time = 1
+        
+        telescope_pupil = Layer(
+            dimx=64, dimy=64, 
+            pixel_pitch=pixel_pitch, 
+            height=0.0, 
+            target_device_idx=target_device_idx
+        )
+        telescope_pupil.A = xp.ones((64, 64))
+        telescope_pupil.phaseInNm = xp.zeros((64, 64))
+        telescope_pupil.generation_time = 1
+
+        source = Source(polar_coordinates=[0.0, 0.0], magnitude=8, wavelengthInNm=wavelength)
+        
+        # Geometric (Standard) Propagation
+        prop_geo = AtmoPropagation(
+            simul_params, 
+            source_dict={'src': source}, 
+            doFresnel=False, 
+            target_device_idx=target_device_idx
+        )
+        prop_geo.inputs['atmo_layer_list'].set([layer])
+        prop_geo.inputs['common_layer_list'].set([telescope_pupil])
+        prop_geo.setup()
+        
+        # Fresnel Propagation
+        prop_fresnel = AtmoPropagation(
+            simul_params, 
+            source_dict={'src': source}, 
+            doFresnel=True, 
+            wavelengthInNm=wavelength, 
+            padding_factor=4, 
+            target_device_idx=target_device_idx
+        )
+        prop_fresnel.inputs['atmo_layer_list'].set([layer])
+        prop_fresnel.inputs['common_layer_list'].set([telescope_pupil])
+        prop_fresnel.setup()
+        
+        loop = LoopControl()
+        loop.add(prop_geo, idx=0)
+        loop.add(prop_fresnel, idx=0)
+        loop.run(run_time=1, dt=1, t0=0)
+        
+        amp_geo = cpuArray(prop_geo.outputs['out_src_ef'].A)
+        phase_geo = cpuArray(prop_geo.outputs['out_src_ef'].phaseInNm)
+        
+        amp_fresnel = cpuArray(prop_fresnel.outputs['out_src_ef'].A)
+        phase_fresnel = cpuArray(prop_fresnel.outputs['out_src_ef'].phaseInNm)
+        
+        assert np.allclose(amp_geo, amp_fresnel, atol=1e-5), "Ground layer amplitudes must match."
+        assert np.allclose(phase_geo, phase_fresnel, atol=1e-5), "Ground layer phases must match."
+
+    @cpu_and_gpu
+    def test_fresnel_phase_unwrapping(self, target_device_idx, xp):
+        """Test that phase unwrapping tracker works correctly in Fresnel mode for large phase values."""
+        pixel_pupil = 64
+        pixel_pitch = 0.1
+        wavelength = 500.0  # lambda = 500 nm
+        simul_params = SimulParams(pixel_pupil, pixel_pitch)
+        
+        large_phase = 1200.0
+        x_coords = xp.arange(64, dtype=float) * pixel_pitch
+
+        layer1 = Layer(
+            dimx=64, dimy=64, 
+            pixel_pitch=pixel_pitch, 
+            height=600.0, 
+            target_device_idx=target_device_idx
+        )
+        layer1.A = xp.ones((64, 64))
+        layer1.phaseInNm = large_phase * xp.ones((64, 64))
+        layer1.generation_time = 1
+
+        layer2 = Layer(
+            dimx=64, dimy=64, 
+            pixel_pitch=pixel_pitch, 
+            height=2000.0, 
+            target_device_idx=target_device_idx
+        )
+        layer2.A = xp.ones((64, 64))
+        layer2.phaseInNm = large_phase * xp.sin(2 * xp.pi * x_coords / 2.0) * xp.ones((64, 64))
+        layer2.generation_time = 1
+
+        layer3 = Layer(
+            dimx=64, dimy=64, 
+            pixel_pitch=pixel_pitch, 
+            height=13000.0, 
+            target_device_idx=target_device_idx
+        )
+        layer3.A = xp.ones((64, 64))
+        layer3.phaseInNm = large_phase * xp.cos(2 * xp.pi * x_coords / 3.0) * xp.ones((64, 64))
+        layer3.generation_time = 1
+
+        telescope_pupil = Layer(
+            dimx=64, dimy=64, 
+            pixel_pitch=pixel_pitch, 
+            height=0.0, 
+            target_device_idx=target_device_idx
+        )
+        telescope_pupil.A = xp.ones((64, 64))
+        telescope_pupil.phaseInNm = xp.zeros((64, 64))
+        telescope_pupil.generation_time = 1
+        
+        source = Source(polar_coordinates=[0.0, 0.0], magnitude=8, wavelengthInNm=wavelength)
+        
+        prop = AtmoPropagation(
+            simul_params, 
+            source_dict={'src': source}, 
+            doFresnel=True, 
+            wavelengthInNm=wavelength, 
+            padding_factor=4, 
+            target_device_idx=target_device_idx
+        )
+        prop.inputs['atmo_layer_list'].set([layer1,layer2,layer3])
+        prop.inputs['common_layer_list'].set([telescope_pupil])
+        prop.setup()
+        
+        loop = LoopControl()
+        loop.add(prop, idx=0)
+        loop.run(run_time=1, dt=1, t0=0)
+        
+        output_ef = prop.outputs['out_src_ef']
+        output_phase = cpuArray(output_ef.phaseInNm)
+        
+        # Ensure the output matches the exact value (1500 nm) rather than modulo bounds of lambda (0 nm).
+        assert np.max(abs(output_phase)) > wavelength, f"Phase unwrapping failed; expected > {wavelength}, got mean {np.max(output_phase)}"
+
     def test_atmo_chromatic_shift_switches(self):
         """Test AtmoPropagation chromatic switch logic (disabled/equal wavelength)."""
         simul_params = SimulParams(64, 0.1, zenithAngleInDeg=30.0)

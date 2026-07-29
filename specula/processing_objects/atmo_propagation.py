@@ -134,7 +134,8 @@ class AtmoPropagation(BaseProcessingObj):
         if self.doFresnel:
             self.ef_size_padded = self.pixel_pupil * padding_factor
             self.propagators = None
-            self.ef_fresnel = self.xp.zeros([self.ef_size_padded, self.ef_size_padded], dtype=self.complex_dtype)
+            self.ef_fresnel = self.xp.zeros([self.ef_size_padded, self.ef_size_padded], dtype=self.complex_dtype)        
+            self.phase_fresnel = self.xp.zeros([self.pixel_pupil, self.pixel_pupil], dtype=self.dtype)
             self.ft_ef1 = self.xp.zeros([self.ef_size_padded, self.ef_size_padded], dtype=self.complex_dtype)
 
         if self.enable_chromatic_effect:
@@ -360,11 +361,17 @@ class AtmoPropagation(BaseProcessingObj):
             ef_in *= propagator[0]
         self.ft_ef1[:] = self.xp.fft.fft2(self.xp.fft.fftshift(ef_in, axes=(-2, -1)), axes=(-2, -1),
                                           norm="ortho")
-        self.ef_fresnel[:] = self.xp.fft.fftshift(
+        ef_fresnel_new = self.xp.fft.fftshift(
             self.xp.fft.ifft2(self.ft_ef1 * self.xp.fft.fftshift(propagator[1], axes=(-2, -1)), norm="ortho",
                               axes=(-2, -1)), axes=(-2, -1))
         if propagator[2] is not None:
-            self.ef_fresnel[:] *= propagator[2]
+            ef_fresnel_new *= propagator[2]
+
+        s = (self.ef_size_padded - self.pixel_pupil_size) // 2
+        delta_phase_rad = self.xp.angle(ef_fresnel_new[s:s + self.pixel_pupil, s:s + self.pixel_pupil]
+                                         * self.xp.conj(ef_in[s:s + self.pixel_pupil, s:s + self.pixel_pupil]))
+        self.phase_fresnel += delta_phase_rad * self.wavelengthInNm / (2 * self.xp.pi)
+        self.ef_fresnel[:] = ef_fresnel_new
 
     @show_in_profiler('atmo_propagation.trigger_code')
     def trigger_code(self):
@@ -381,6 +388,7 @@ class AtmoPropagation(BaseProcessingObj):
 
                 self.ef_fresnel[:] *= 0
                 self.ef_fresnel[s:s + self.pixel_pupil, s:s +  self.pixel_pupil] = 1 + 0j
+                self.phase_fresnel[:] *= 0
 
             if self.mergeLayersContrib:
                 output_ef = self.outputs['out_' + source_name + '_ef']
@@ -408,6 +416,7 @@ class AtmoPropagation(BaseProcessingObj):
                 if self.doFresnel:
                     self.ef_fresnel[s:s + self.pixel_pupil, s:s + self.pixel_pupil] *= self.ef_temp.ef_at_lambda(
                         self.wavelengthInNm)
+                    self.phase_fresnel += self.ef_temp.phaseInNm
                     if self.propagators[li] is not None:
                         if not self.far_field_propagation[li]:
                             self.angular_spectrum_propagation(self.ef_fresnel, self.propagators[li])
@@ -420,9 +429,7 @@ class AtmoPropagation(BaseProcessingObj):
                     output_ef.phaseInNm += self.prop_sign * self.ef_temp.phaseInNm
 
             if self.doFresnel:
-                output_ef.phaseInNm[:] = (self.prop_sign * self.xp.angle(
-                    self.ef_fresnel[s_shifted[0]:s_shifted[0] + self.pixel_pupil, s_shifted[1]:s_shifted[1] + self.pixel_pupil]) * self.wavelengthInNm / (
-                                                  2 * self.xp.pi))
+                output_ef.phaseInNm[:] = (self.prop_sign * self.phase_fresnel * self.wavelengthInNm / (2 * self.xp.pi))
                 output_ef.A[:] = (abs(self.ef_fresnel[s_shifted[0]:s_shifted[0] + self.pixel_pupil, s_shifted[1]:s_shifted[1] + self.pixel_pupil]))
 
     def post_trigger(self):
