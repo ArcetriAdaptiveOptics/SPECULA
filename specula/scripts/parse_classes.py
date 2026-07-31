@@ -5,7 +5,7 @@ import os
 import sys
 import typing
 from pathlib import Path
-from typing import Type, Union, Callable
+from typing import Type, Union, Callable, List, Optional
 
 import numpy as np
 
@@ -47,6 +47,8 @@ def map_python_type_to_json(py_type: str | Type | None, *,
     - type itself (e.g. str, dict)
     - string (as returned by the AST parser)
     """
+    _dont_remove_imports_for_these = [List, Optional]
+
     # If we got a string, try to convert it to an actual type, except if it is a known class that is referenced
     # e.g. obj: SimulParams
     if isinstance(py_type, str):
