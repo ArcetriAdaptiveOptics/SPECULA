@@ -22,20 +22,17 @@ exposed_classes = [ 'Source', 'Pupilstop',
 class ClassData:
     def __init__(self, class_name: str):
         self.class_name: str = class_name
+    
         self.init_params = {}
         self.param_type = {}
         self.param_comments = {}
-        self.param_required = {}
         self.inputs = {}
         self.outputs = []
-
-
 class InitMethodVisitor(ast.NodeVisitor):
     """AST Visitor to extract parameters, inputs, and outputs from an __init__ method."""
-
     def __init__(self, class_name: str):
         self.data = ClassData(class_name=class_name)
-
+    
     def visit_FunctionDef(self, node):
         """Visit the __init__ method and extract parameters, inputs, and outputs."""
         if node.name == "__init__":
@@ -76,7 +73,7 @@ class InitMethodVisitor(ast.NodeVisitor):
             # Visit the body of __init__ to extract inputs and outputs
             for statement in node.body:
                 self.visit(statement)
-
+    
     def visit_Assign(self, node):
         """Extract input and output specifications from self.inputs and self.outputs assignments."""
         if isinstance(node.targets[0], ast.Subscript):
@@ -90,11 +87,10 @@ class InitMethodVisitor(ast.NodeVisitor):
                         if keyword.arg == "type":
                             input_type = ast.unparse(keyword.value)
                             self.data.inputs[key] = input_type
-
+                
                 elif target.value.attr == "outputs":
                     # Extract output from: self.outputs['out_value'] = self.out_value
                     self.data.outputs.append(key)
-
 
 def extract_class_info(file_path, allowed=None):
     """Extracts class name, __init__ method parameters, default values, and types from a Python file."""
@@ -113,6 +109,7 @@ def extract_class_info(file_path, allowed=None):
                 continue
             visitor = InitMethodVisitor(class_name=class_name)
             visitor.visit(node)
+            
             class_data.append(visitor.data)
 
     return class_data
@@ -120,10 +117,10 @@ def extract_class_info(file_path, allowed=None):
 def generate_yaml(data: ClassData, output_folder):
     """Generates a YAML file with class information, inputs, and outputs."""
     yaml_path = os.path.join(output_folder, f"{data.class_name}.yml")
-
+    
     with open(yaml_path, "w", encoding="utf-8") as yaml_file:
         yaml_file.write(f"{data.class_name}:\n")
-
+        
         # Write constructor parameters
         for param, value in data.init_params.items():
             # yaml_file.write(f"  {param}: {value}  # {comments[param]}\n")
@@ -140,6 +137,7 @@ def generate_yaml(data: ClassData, output_folder):
         if data.outputs:
             yaml_file.write(f"  outputs: {data.outputs}\n")
 
+    
     print(f"Generated YAML: {yaml_path}")
 
 def process_python_files(input_folder, output_folder):
@@ -151,10 +149,9 @@ def process_python_files(input_folder, output_folder):
         if file_name.endswith(".py"):
             file_path = os.path.join(input_folder, file_name)
             classes = extract_class_info(file_path)
-
+            
             for classdata in classes:
                 generate_yaml(classdata, output_folder)
-
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
