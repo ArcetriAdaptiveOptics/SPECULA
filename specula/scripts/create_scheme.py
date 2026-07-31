@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 import sys
 import typing
 from pathlib import Path
@@ -71,8 +70,8 @@ def map_python_type_to_json(py_type: str | Type | None, *,
     if py_type in (list, tuple):
         if warn_untyped:
             logging.warning(f"list/tuple without element type hint, default to number. {debug_info}")
-        return {"type": "array",
-                "items": "number"}  # number seems to be mostly correct, but propably the typing should be fixed
+        # number seems to be mostly correct, but propably the typing should be fixed
+        return {"type": "array", "items": "number"}
 
     if py_type is np.ndarray:
         return {"type": "array", "items": {"type": "number"}}
@@ -173,7 +172,7 @@ def create_scheme(out_file: Path):
     ]
 
     schema = {
-        "$schema": "https://json-schema.org",
+        "$schema": "http://json-schema.org/draft-07/schema#",
         "title": "Auto-Generated Simulation Schema",
         "type": "object",
         "additionalProperties": {
@@ -204,36 +203,54 @@ def create_scheme(out_file: Path):
             if param_name in ("self", "precision", "target_device_idx",):
                 continue
 
-            class_scheme["properties"][param_name] = map_python_type_to_json(
+            param_schemas = map_python_type_to_json(
                 classdata.param_type[param_name],
                 debug_info=f"{classdata.class_name}.{param_name}")
-            if classdata.param_required[param_name]:
-                class_scheme["required"].append(param_name)
 
-        if classdata.inputs:
-            class_scheme["required"].append("inputs")
-            class_scheme["properties"]["inputs"] = {
-                "type": "object",
-                "properties": {
-                    k: map_python_type_to_json(str) for k in classdata.inputs.keys()
+            postfixes = ["_ref", "_data", "_object"]
+
+            class_scheme["properties"][param_name] = param_schemas
+            for postfix in postfixes:
+                class_scheme["properties"][param_name + postfix] = {"type": "string"}
+
+            class_scheme["allOf"] = [
+                {
+                    "oneOf": [{"required": [param_name]} for postfix in postfixes + [""]]
                 },
-                "required": list(classdata.inputs.keys()),
-            }
+            ]
+            if classdata.param_required[param_name]:
+                class_scheme["allOf"][0]["oneOf"].append(
+                    {
+                        "not": {
+                            "anyOf": [{"required": [param_name + postfix]} for postfix in postfixes + [""]]
+                        }
+                    }
+                )
 
-        # Note: unconditionally add outputs.
-        #   Some (child) classes dont declare their own output,
-        #   and the AST parser does not detect outputs declared in parents.
-        if classdata.outputs or True:
-            # Filter out BinOp
-            classdata.outputs = [o for o in classdata.outputs if isinstance(o, str)]
-            assert all(isinstance(k, str) for k in classdata.outputs)
-            # class_scheme["required"].append("outputs")
-            class_scheme["properties"]["outputs"] = {
-                "type": "array",
-                "minItems": len(classdata.outputs),
-                "maxItems": len(classdata.outputs),
-                "items": {"type": "string"},
-            }
+            if classdata.inputs:
+                class_scheme["required"].append("inputs")
+                class_scheme["properties"]["inputs"] = {
+                    "type": "object",
+                    "properties": {
+                        k: {"type": "string"} for k in classdata.inputs.keys()
+                    },
+                    "required": list(classdata.inputs.keys()),
+                }
+
+            # Note: unconditionally add outputs.
+            #   Some (child) classes dont declare their own output,
+            #   and the AST parser does not detect outputs declared in parents.
+            if classdata.outputs or True:
+                # Filter out BinOp
+                classdata.outputs = [o for o in classdata.outputs if isinstance(o, str)]
+                assert all(isinstance(k, str) for k in classdata.outputs)
+                # class_scheme["required"].append("outputs")
+                class_scheme["properties"]["outputs"] = {
+                    "type": "array",
+                    "minItems": len(classdata.outputs),
+                    "maxItems": len(classdata.outputs),
+                    "items": {"type": "string"},
+                }
 
         schema["additionalProperties"]["oneOf"].append(class_scheme)
 
@@ -245,7 +262,7 @@ def create_scheme(out_file: Path):
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Usage: python parse_classes.py <input_folder> <output_folder>")
+        print("Usage: python create_scheme.py <output_file>")
         sys.exit(1)
 
     output_file = Path(sys.argv[1]).expanduser().resolve()

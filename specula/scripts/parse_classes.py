@@ -22,12 +22,13 @@ exposed_classes = [ 'Source', 'Pupilstop',
 class ClassData:
     def __init__(self, class_name: str):
         self.class_name: str = class_name
-    
         self.init_params = {}
         self.param_type = {}
         self.param_comments = {}
+        self.param_required = {}
         self.inputs = {}
         self.outputs = []
+
 class InitMethodVisitor(ast.NodeVisitor):
     """AST Visitor to extract parameters, inputs, and outputs from an __init__ method."""
     def __init__(self, class_name: str):
