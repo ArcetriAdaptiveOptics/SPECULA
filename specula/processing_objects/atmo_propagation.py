@@ -358,8 +358,10 @@ class AtmoPropagation(BaseProcessingObj):
 
     def angular_spectrum_propagation(self, ef_in, propagator):
         if propagator[0] is not None:
-            ef_in *= propagator[0]
-        self.ft_ef1[:] = self.xp.fft.fft2(self.xp.fft.fftshift(ef_in, axes=(-2, -1)), axes=(-2, -1),
+            ef_prop = ef_in * propagator[0]
+        else:
+            ef_prop = ef_in.copy()
+        self.ft_ef1[:] = self.xp.fft.fft2(self.xp.fft.fftshift(ef_prop, axes=(-2, -1)), axes=(-2, -1),
                                           norm="ortho")
         ef_fresnel_new = self.xp.fft.fftshift(
             self.xp.fft.ifft2(self.ft_ef1 * self.xp.fft.fftshift(propagator[1], axes=(-2, -1)), norm="ortho",

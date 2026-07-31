@@ -587,7 +587,7 @@ class TestAtmoPropagation(unittest.TestCase):
         wavelength = 500.0  # lambda = 500 nm
         simul_params = SimulParams(pixel_pupil, pixel_pitch)
         
-        large_phase = 1200.0
+        large_phase = 1500.0
         x_coords = xp.arange(64, dtype=float) * pixel_pitch
 
         layer1 = Layer(
@@ -597,7 +597,7 @@ class TestAtmoPropagation(unittest.TestCase):
             target_device_idx=target_device_idx
         )
         layer1.A = xp.ones((64, 64))
-        layer1.phaseInNm = large_phase * xp.ones((64, 64))
+        layer1.phaseInNm = large_phase * x_coords/xp.max(x_coords)
         layer1.generation_time = 1
 
         layer2 = Layer(
@@ -650,9 +650,16 @@ class TestAtmoPropagation(unittest.TestCase):
         
         output_ef = prop.outputs['out_src_ef']
         output_phase = cpuArray(output_ef.phaseInNm)
+
+        # Check the unwrapped phase gives the same EF as the wrapped one
+        s = (prop.ef_size_padded - prop.pixel_pupil_size) // 2
+        want = prop.xp.angle(prop.ef_fresnel[s:s + prop.pixel_pupil, s:s + prop.pixel_pupil])
+        got = prop.xp.angle(prop.xp.exp(1j*output_ef.phaseInNm * 2*np.pi / prop.wavelengthInNm,dtype=prop.complex_dtype))
+        assert np.allclose(want,got)      
         
-        # Ensure the output matches the exact value (1500 nm) rather than modulo bounds of lambda (0 nm).
-        assert np.max(abs(output_phase)) > wavelength, f"Phase unwrapping failed; expected > {wavelength}, got mean {np.max(output_phase)}"
+        # Ensure the output is not wrapped
+        assert np.max(abs(want)) < np.pi, f"Phase is not wrapped, the following test is not meaningful"
+        assert np.max(abs(output_phase/wavelength)*2*np.pi) > np.pi, f"Phase unwrapping failed; expected > {np.pi:1.2f} [rad], got {np.max(output_phase/wavelength)}"
 
     def test_atmo_chromatic_shift_switches(self):
         """Test AtmoPropagation chromatic switch logic (disabled/equal wavelength)."""
