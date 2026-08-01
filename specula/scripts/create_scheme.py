@@ -8,7 +8,7 @@ from typing import Type, Union, Callable, List, Optional
 import numpy as np
 
 from docs.scripts.generate_objects_summary import scan_package
-from specula.scripts.parse_classes import extract_class_info
+from specula.scripts.parse_classes import extract_class_info, ClassData
 
 known_referenced_classes: list[str] = ["BaseProcessingObj"]
 """
@@ -71,7 +71,7 @@ def map_python_type_to_json(py_type: str | Type | None, *,
         if warn_untyped:
             logging.warning(f"list/tuple without element type hint, default to number. {debug_info}")
         # number seems to be mostly correct, but propably the typing should be fixed
-        return {"type": "array", "items": "number"}
+        return {"type": "array", "items": {"type": "number"}}
 
     if py_type is np.ndarray:
         return {"type": "array", "items": {"type": "number"}}
@@ -96,6 +96,132 @@ def map_python_type_to_json(py_type: str | Type | None, *,
 
     logging.warning(f"Unhandled type {py_type}, fallback to string. {debug_info}")
     return {"type": "string"}
+
+
+def create_scheme(out_file: Path):
+    specula_path = Path(__file__).parent.parent.parent / 'specula'
+
+    categories = [
+        {
+            'path': specula_path / 'processing_objects',
+            'package': 'specula.processing_objects',
+        },
+        {
+            'path': specula_path / 'data_objects',
+            'package': 'specula.data_objects',
+        },
+    ]
+
+    schema = {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "Auto-Generated Simulation Schema",
+        "type": "object",
+        "additionalProperties": {
+            "type": "object",
+            "oneOf": []
+        }
+    }
+
+    all_class_infos: list[ClassData] = []
+    for cat in categories:
+        print(f"Scanning {cat['path']}...")
+        modules: list[tuple[str, Path]] = scan_package(cat['path'], cat['package'])
+        for modulename, modulepath in modules:
+            all_class_infos.extend(extract_class_info(modulepath, allowed=lambda _: True))
+
+    known_referenced_classes.extend([c.class_name for c in all_class_infos])
+
+    for classdata in all_class_infos:
+        class_scheme = {
+            "properties": {
+                "class": {"const": classdata.class_name},
+                "tag": {"type": "string"},
+            },
+            "required": ["class"],
+            "additionalProperties": False,
+        }
+
+        for param_name in classdata.param_type.keys():
+            if param_name in ("self", "precision", "target_device_idx",):
+                continue
+
+            # Normal parameter without special postfix
+            class_scheme["properties"][param_name] = map_python_type_to_json(
+                classdata.param_type[param_name],
+                debug_info=f"{classdata.class_name}.{param_name}")
+            class_scheme["properties"][param_name + "_ref"] = {"type": "string"}
+            class_scheme["properties"][param_name + "_data"] = {"type": "string"}
+            class_scheme["properties"][param_name + "_object"] = {"type": "string"}
+            if param_name.endswith("_dict"):
+                class_scheme["properties"][param_name + "_ref"] = {"oneOf": [
+                    {
+                        "type": "string"
+                    },
+                    {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                ]}
+
+            postfixes = ["", "_ref", "_data", "_object"]
+            if "allOf" not in class_scheme:
+                class_scheme["allOf"] = []
+
+            # Only one of the postfixes can be used, or a tag
+            class_scheme["allOf"].append(
+                {
+                    "oneOf": [{"required": [param_name + postfix]} for postfix in postfixes] + [{"required": ["tag"]}]
+                })
+            # If optional, also none of them can be uesd
+            if not classdata.param_required[param_name]:
+                class_scheme["allOf"][-1]["oneOf"].append({
+                    "not": {
+                        "anyOf": [{"required": [param_name + postfix]} for postfix in postfixes]
+                    }
+                })
+
+        if classdata.inputs:
+            class_scheme["required"].append("inputs")
+            class_scheme["properties"]["inputs"] = {
+                "type": "object",
+                "properties": {
+                    k: {
+                        False: {"type": "string"},
+                        # If the input name ends with _list it can also be a list of strings, otherwise a string
+                        True: {"oneOf": [
+                            {"type": "string"},
+                            {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            }]},
+                    }[k.endswith("_list")]
+                    for k in classdata.inputs.keys()
+                },
+                "required": list(classdata.inputs.keys()),
+            }
+
+        # Note: unconditionally add outputs.
+        #   Some (child) classes dont declare their own output,
+        #   and the AST parser does not detect outputs declared in parents.
+        if classdata.outputs or True:
+            # Filter out BinOp
+            classdata.outputs = [o for o in classdata.outputs if isinstance(o, str)]
+            assert all(isinstance(k, str) for k in classdata.outputs)
+            # class_scheme["required"].append("outputs")
+            class_scheme["properties"]["outputs"] = {
+                "type": "array",
+                # Size is a bit flakey, due to outputs declared in parent classes
+                # "minItems": len(classdata.outputs),
+                # "maxItems": len(classdata.outputs),
+                "items": {"type": "string"},
+            }
+
+        schema["additionalProperties"]["oneOf"].append(class_scheme)
+
+    txt = custom_json_dumps(schema)
+    out_file.open("w", encoding="utf-8").write(txt)
+    print(f"  -> Generated {out_file}")
+    print('\nDone.')
 
 
 def custom_json_dumps(obj, indent=4, max_line_len=60):
@@ -155,109 +281,6 @@ def custom_json_dumps(obj, indent=4, max_line_len=60):
 
     # Base case for primitive types (strings, numbers, booleans, None)
     return compact
-
-
-def create_scheme(out_file: Path):
-    specula_path = Path(__file__).parent.parent.parent / 'specula'
-
-    categories = [
-        {
-            'path': specula_path / 'processing_objects',
-            'package': 'specula.processing_objects',
-        },
-        {
-            'path': specula_path / 'data_objects',
-            'package': 'specula.data_objects',
-        },
-    ]
-
-    schema = {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "title": "Auto-Generated Simulation Schema",
-        "type": "object",
-        "additionalProperties": {
-            "type": "object",
-            "oneOf": []
-        }
-    }
-
-    all_class_infos: list[ClassData] = []
-    for cat in categories:
-        print(f"Scanning {cat['path']}...")
-        modules: list[tuple[str, Path]] = scan_package(cat['path'], cat['package'])
-        for modulename, modulepath in modules:
-            all_class_infos.extend(extract_class_info(modulepath, allowed=lambda _: True))
-
-    known_referenced_classes.extend([c.class_name for c in all_class_infos])
-
-    for classdata in all_class_infos:
-        class_scheme = {
-            "properties": {
-                "class": {"const": classdata.class_name},
-            },
-            "required": ["class"],
-            "additionalProperties": False,
-        }
-
-        for param_name in classdata.param_type.keys():
-            if param_name in ("self", "precision", "target_device_idx",):
-                continue
-
-            param_schemas = map_python_type_to_json(
-                classdata.param_type[param_name],
-                debug_info=f"{classdata.class_name}.{param_name}")
-
-            postfixes = ["_ref", "_data", "_object"]
-
-            class_scheme["properties"][param_name] = param_schemas
-            for postfix in postfixes:
-                class_scheme["properties"][param_name + postfix] = {"type": "string"}
-
-            class_scheme["allOf"] = [
-                {
-                    "oneOf": [{"required": [param_name]} for postfix in postfixes + [""]]
-                },
-            ]
-            if classdata.param_required[param_name]:
-                class_scheme["allOf"][0]["oneOf"].append(
-                    {
-                        "not": {
-                            "anyOf": [{"required": [param_name + postfix]} for postfix in postfixes + [""]]
-                        }
-                    }
-                )
-
-            if classdata.inputs:
-                class_scheme["required"].append("inputs")
-                class_scheme["properties"]["inputs"] = {
-                    "type": "object",
-                    "properties": {
-                        k: {"type": "string"} for k in classdata.inputs.keys()
-                    },
-                    "required": list(classdata.inputs.keys()),
-                }
-
-            # Note: unconditionally add outputs.
-            #   Some (child) classes dont declare their own output,
-            #   and the AST parser does not detect outputs declared in parents.
-            if classdata.outputs or True:
-                # Filter out BinOp
-                classdata.outputs = [o for o in classdata.outputs if isinstance(o, str)]
-                assert all(isinstance(k, str) for k in classdata.outputs)
-                # class_scheme["required"].append("outputs")
-                class_scheme["properties"]["outputs"] = {
-                    "type": "array",
-                    "minItems": len(classdata.outputs),
-                    "maxItems": len(classdata.outputs),
-                    "items": {"type": "string"},
-                }
-
-        schema["additionalProperties"]["oneOf"].append(class_scheme)
-
-    txt = custom_json_dumps(schema)
-    out_file.open("w", encoding="utf-8").write(txt)
-    print(f"  -> Generated {out_file}")
-    print('\nDone.')
 
 
 if __name__ == "__main__":
