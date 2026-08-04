@@ -212,6 +212,7 @@ class ElectricField(BaseDataObj):
             The electric field at the given wavelength. If out is provided, the result is
             both stored in out and and the same reference is returned.
         """
+        self._check_wavelength_compatibility(wavelengthInNm)
         if slicey is None:
             slicey = np.s_[:]
         if slicex is None:
