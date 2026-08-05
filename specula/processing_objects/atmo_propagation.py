@@ -134,9 +134,8 @@ class AtmoPropagation(BaseProcessingObj):
         if self.doFresnel:
             self.ef_size_padded = self.pixel_pupil * padding_factor
             self.propagators = None
-            self.ef_fresnel = self.xp.zeros([self.ef_size_padded, self.ef_size_padded], dtype=self.complex_dtype) 
+            self.ef_fresnel = self.xp.zeros([self.ef_size_padded, self.ef_size_padded], dtype=self.complex_dtype)
             self.ft_ef1 = self.xp.zeros([self.ef_size_padded, self.ef_size_padded], dtype=self.complex_dtype)
-
 
         if self.enable_chromatic_effect:
             if self.chromatic_reference_wavelengthInNm is None:
