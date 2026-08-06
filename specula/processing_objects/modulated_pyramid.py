@@ -366,27 +366,17 @@ class ModulatedPyramid(BaseProcessingObj):
         return result
 
     def get_pyr_tlt(self, p, c):
-        A = int((p + c) // 2)
+        A = int(self.xp.ceil((p + c) / 2.0))
         pyr_tlt = self.xp.zeros((2 * A, 2 * A), dtype=self.dtype)
         y, x = self.xp.mgrid[0:A,0:A]
 
         if self.pyr_tlt_coeff is not None:
-            raise NotImplementedError('pyr_tlt_coeff is not tested yet')
+            k = self.xp.array(self.pyr_tlt_coeff)
 
-            k = self.pyr_tlt_coeff
-
-            tlt_basis = y
-            tlt_basis -= self.xp.mean(tlt_basis)
-
-            pyr_tlt[0:A, 0:A] = k[0, 0] * tlt_basis + k[1, 0] * tlt_basis.T
-            pyr_tlt[A:2*A, 0:A] = k[0, 1] * tlt_basis + k[1, 1] * tlt_basis.T
-            pyr_tlt[A:2*A, A:2*A] = k[0, 2] * tlt_basis + k[1, 2] * tlt_basis.T
-            pyr_tlt[0:A, A:2*A] = k[0, 3] * tlt_basis + k[1, 3] * tlt_basis.T
-
-            pyr_tlt[0:A, 0:A] -= self.xp.min(pyr_tlt[0:A, 0:A])
-            pyr_tlt[A:2*A, 0:A] -= self.xp.min(pyr_tlt[A:2*A, 0:A])
-            pyr_tlt[A:2*A, A:2*A] -= self.xp.min(pyr_tlt[A:2*A, A:2*A])
-            pyr_tlt[0:A, A:2*A] -= self.xp.min(pyr_tlt[0:A, A:2*A])
+            pyr_tlt[:A, :A] = k[0,0] * x + k[1,0] * y
+            pyr_tlt[:A, A:] = k[0,1] * x[:,::-1] + k[1,1] * y
+            pyr_tlt[A:, :A] = k[0,2] * x + k[1,2] * y[::-1]
+            pyr_tlt[A:, A:] = k[0,3] * x[:,::-1] + k[1,3] * y[::-1]
 
         else:
             #pyr_tlt[0:A, 0:A] = tlt_basis + tlt_basis.T

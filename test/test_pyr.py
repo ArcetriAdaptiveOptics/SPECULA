@@ -7,6 +7,8 @@ from unittest.mock import MagicMock
 from specula import np
 from specula import cpuArray, RAD2ASEC
 
+from specula.loop_control import LoopControl
+from specula.processing_objects.pyr_pupdata_calibrator import PyrPupdataCalibrator
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.make_mask import make_mask
@@ -15,6 +17,122 @@ from test.specula_testlib import cpu_and_gpu
 
 
 class TestModulatedPyramid(unittest.TestCase):
+
+
+    @cpu_and_gpu
+    def test_pyramid_tilt_coeffs(self, target_device_idx, xp):
+        """Check that applying a tilt coefficient changes the pupil-center estimate for the affected face."""
+        pixel_pupil = 64
+        pixel_pitch = 0.1
+        wavelength_in_nm = 750
+        pup_diam = 24
+        pup_dist = 32
+        output_resolution = 64
+        fov = 2.0
+        mod_amp = 8.0
+
+        simul_params = SimulParams(
+            pixel_pupil=pixel_pupil,
+            pixel_pitch=pixel_pitch,
+        )
+
+        pyramid = ModulatedPyramid(
+            simul_params=simul_params,
+            wavelengthInNm=wavelength_in_nm,
+            fov=fov,
+            pup_diam=pup_diam,
+            pup_dist=pup_dist,
+            output_resolution=output_resolution,
+            mod_amp=mod_amp,
+            target_device_idx=target_device_idx,
+        )
+
+        tlt_x = 1.2
+        tlt_y = 0.9
+        tlt_coeffs = xp.ones([2,4])
+        tlt_coeffs[0,0] = tlt_y
+        tlt_coeffs[1,0] = tlt_x
+        pyramid_tlt = ModulatedPyramid(
+            simul_params=simul_params,
+            wavelengthInNm=wavelength_in_nm,
+            fov=fov,
+            pup_diam=pup_diam,
+            pup_dist=pup_dist,
+            output_resolution=output_resolution,
+            mod_amp=mod_amp,
+            pyr_tlt_coeff=tlt_coeffs.tolist(),
+            target_device_idx=target_device_idx,
+        )
+
+        ef = ElectricField(
+            pixel_pupil, pixel_pupil, pixel_pitch, S0=100, target_device_idx=target_device_idx
+        )
+        ef.A = make_mask(pixel_pupil)
+        ef.generation_time = 0
+
+        pyramid.inputs['in_ef'].set(ef)
+        pyramid_tlt.inputs['in_ef'].set(ef)
+
+        loop = LoopControl()
+        loop.add(pyramid, idx=0)
+        loop.add(pyramid_tlt, idx=1)
+        loop.run(run_time=1, dt=1, t0=0)
+
+        def _get_deviations(pyramid_obj):
+            pupcalib = PyrPupdataCalibrator(
+                data_dir="/tmp",
+                target_device_idx=target_device_idx,
+            )
+            pupcalib.local_inputs['in_i'] = pyramid_obj.outputs['out_i']
+            pupcalib.trigger_code()
+            dx = pupcalib.pupdata.cx - (pixel_pupil-1)/2
+            dy = pupcalib.pupdata.cy - (pixel_pupil-1)/2
+            return dx,dy
+
+        x_deviation, y_deviation = _get_deviations(pyramid)
+        x_deviation_tlt, y_deviation_tlt = _get_deviations(pyramid_tlt)
+
+        # Ensure the tilt is giving the expected pixel deviation
+        np.testing.assert_almost_equal(cpuArray(x_deviation_tlt[-1]),cpuArray(pup_dist/2*tlt_y),decimal=1)
+        np.testing.assert_almost_equal(cpuArray(y_deviation_tlt[-1]),cpuArray(pup_dist/2*tlt_x),decimal=1)
+
+        # Sanity check on the nominal pupil deviation
+        np.testing.assert_almost_equal(cpuArray(x_deviation[-1]),cpuArray(pup_dist/2),decimal=1)
+        np.testing.assert_almost_equal(cpuArray(y_deviation[-1]),cpuArray(pup_dist/2),decimal=1)
+
+        # Check all other pupil tilts are unaffected
+        np.testing.assert_allclose(cpuArray(x_deviation[:-1]),cpuArray(x_deviation_tlt[:-1]),atol=0.1)
+        np.testing.assert_allclose(cpuArray(y_deviation[:-1]),cpuArray(y_deviation_tlt[:-1]),atol=0.1) 
+
+
+    @cpu_and_gpu
+    def test_fft_grid_matches_fp_mask_shape(self, target_device_idx, xp):
+        """Regression test for odd FFT sizes where the pyramid phase map and mask must share the same dimensions."""
+        simul_params = SimulParams(
+            pixel_pupil=367,
+            pixel_pitch=0.1,
+        )
+
+        pyramid = ModulatedPyramid(
+            simul_params=simul_params,
+            wavelengthInNm=750,
+            fov=8.0,
+            pup_diam=40,
+            output_resolution=120,
+            target_device_idx=target_device_idx,
+        )
+
+        self.assertEqual(
+            pyramid.pyr_tlt.shape,
+            pyramid.fp_mask.shape,
+            f"Expected pyramid tilt map and focal plane mask to share shape, got {pyramid.pyr_tlt.shape} and {pyramid.fp_mask.shape}",
+        )
+        self.assertEqual(
+            pyramid.shifted_masked_exp.shape,
+            pyramid.fp_mask.shape,
+            f"Expected shifted masked exponential to match mask shape, got {pyramid.shifted_masked_exp.shape} and {pyramid.fp_mask.shape}",
+        )
+
 
     @cpu_and_gpu
     def test_flat_wavefront_output_size(self, target_device_idx, xp):
