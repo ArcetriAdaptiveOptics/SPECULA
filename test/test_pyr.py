@@ -141,66 +141,66 @@ class TestModulatedPyramid(unittest.TestCase):
             target_device_idx=target_device_idx,
         )
 
-        pupid = 1
-        pupids = xp.array([0,1,2,3],dtype=int)
-        pyrids = xp.array([2,3,1,0],dtype=int)
-        tlt_x = 1.2
-        tlt_y = 0.9
-        tlt_coeffs = xp.ones([2,4])
-        tlt_coeffs[0,pyrids[pupid]] = tlt_x
-        tlt_coeffs[1,pyrids[pupid]] = tlt_y
-        pyramid_tlt = ModulatedPyramid(
-            simul_params=simul_params,
-            wavelengthInNm=wavelength_in_nm,
-            fov=fov,
-            pup_diam=pup_diam,
-            pup_dist=pup_dist,
-            output_resolution=output_resolution,
-            mod_amp=mod_amp,
-            pyr_tlt_coeff=tlt_coeffs.tolist(),
-            target_device_idx=target_device_idx,
-        )
-
-        ef = ElectricField(
-            pixel_pupil, pixel_pupil, pixel_pitch, S0=100, target_device_idx=target_device_idx
-        )
-        ef.A = make_mask(pixel_pupil)
-        ef.generation_time = 0
-
-        pyramid.inputs['in_ef'].set(ef)
-        pyramid_tlt.inputs['in_ef'].set(ef)
-
-        loop = LoopControl()
-        loop.add(pyramid, idx=0)
-        loop.add(pyramid_tlt, idx=1)
-        loop.run(run_time=1, dt=1, t0=0)
-
-        def _get_deviations(pyramid_obj):
-            pupcalib = PyrPupdataCalibrator(
-                data_dir="/tmp",
+        for pupid in range(4):
+            pupids = xp.array([0,1,2,3],dtype=int)
+            pyrids = xp.array([2,3,1,0],dtype=int)
+            tlt_x = 1.2
+            tlt_y = 0.9
+            tlt_coeffs = xp.ones([2,4])
+            tlt_coeffs[0,pyrids[pupid]] = tlt_x
+            tlt_coeffs[1,pyrids[pupid]] = tlt_y
+            pyramid_tlt = ModulatedPyramid(
+                simul_params=simul_params,
+                wavelengthInNm=wavelength_in_nm,
+                fov=fov,
+                pup_diam=pup_diam,
+                pup_dist=pup_dist,
+                output_resolution=output_resolution,
+                mod_amp=mod_amp,
+                pyr_tlt_coeff=tlt_coeffs.tolist(),
                 target_device_idx=target_device_idx,
             )
-            pupcalib.local_inputs['in_i'] = pyramid_obj.outputs['out_i']
-            pupcalib.trigger_code()
-            dx = pupcalib.pupdata.cx - (pixel_pupil-1)/2
-            dy = pupcalib.pupdata.cy - (pixel_pupil-1)/2
-            return dx,dy
 
-        x_deviation, y_deviation = _get_deviations(pyramid)
-        x_deviation_tlt, y_deviation_tlt = _get_deviations(pyramid_tlt)
+            ef = ElectricField(
+                pixel_pupil, pixel_pupil, pixel_pitch, S0=100, target_device_idx=target_device_idx
+            )
+            ef.A = make_mask(pixel_pupil)
+            ef.generation_time = 0
 
-        # Ensure the tilt is giving the expected pixel deviation
-        np.testing.assert_almost_equal(cpuArray(abs(x_deviation_tlt[pupid])),cpuArray(pup_dist/2*tlt_x),decimal=1)
-        np.testing.assert_almost_equal(cpuArray(abs(y_deviation_tlt[pupid])),cpuArray(pup_dist/2*tlt_y),decimal=1)
+            pyramid.inputs['in_ef'].set(ef)
+            pyramid_tlt.inputs['in_ef'].set(ef)
 
-        # Sanity check on the nominal pupil deviation
-        np.testing.assert_almost_equal(cpuArray(x_deviation[-1]),cpuArray(pup_dist/2),decimal=1)
-        np.testing.assert_almost_equal(cpuArray(y_deviation[-1]),cpuArray(pup_dist/2),decimal=1)
+            loop = LoopControl()
+            loop.add(pyramid, idx=0)
+            loop.add(pyramid_tlt, idx=1)
+            loop.run(run_time=1, dt=1, t0=0)
 
-        # Check all other pupil tilts are unaffected
-        ids = (pupids!=pupid).astype(bool)
-        np.testing.assert_allclose(cpuArray(x_deviation[ids]),cpuArray(x_deviation_tlt[ids]),atol=0.1)
-        np.testing.assert_allclose(cpuArray(y_deviation[ids]),cpuArray(y_deviation_tlt[ids]),atol=0.1) 
+            def _get_deviations(pyramid_obj):
+                pupcalib = PyrPupdataCalibrator(
+                    data_dir="/tmp",
+                    target_device_idx=target_device_idx,
+                )
+                pupcalib.local_inputs['in_i'] = pyramid_obj.outputs['out_i']
+                pupcalib.trigger_code()
+                dx = pupcalib.pupdata.cx - (pixel_pupil-1)/2
+                dy = pupcalib.pupdata.cy - (pixel_pupil-1)/2
+                return dx,dy
+
+            x_deviation, y_deviation = _get_deviations(pyramid)
+            x_deviation_tlt, y_deviation_tlt = _get_deviations(pyramid_tlt)
+
+            # Ensure the tilt is giving the expected pixel deviation
+            np.testing.assert_almost_equal(cpuArray(abs(x_deviation_tlt[pupid])),cpuArray(pup_dist/2*tlt_x),decimal=1)
+            np.testing.assert_almost_equal(cpuArray(abs(y_deviation_tlt[pupid])),cpuArray(pup_dist/2*tlt_y),decimal=1)
+
+            # Sanity check on the nominal pupil deviation
+            np.testing.assert_almost_equal(cpuArray(x_deviation[-1]),cpuArray(pup_dist/2),decimal=1)
+            np.testing.assert_almost_equal(cpuArray(y_deviation[-1]),cpuArray(pup_dist/2),decimal=1)
+
+            # Check all other pupil tilts are unaffected
+            ids = (pupids!=pupid).astype(bool)
+            np.testing.assert_allclose(cpuArray(x_deviation[ids]),cpuArray(x_deviation_tlt[ids]),atol=0.1)
+            np.testing.assert_allclose(cpuArray(y_deviation[ids]),cpuArray(y_deviation_tlt[ids]),atol=0.1) 
 
 
     @cpu_and_gpu
