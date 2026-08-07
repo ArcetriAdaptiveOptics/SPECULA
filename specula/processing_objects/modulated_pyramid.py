@@ -72,7 +72,6 @@ class ModulatedPyramid(BaseProcessingObj):
         Static pupil shifts in pixels (x, y) (default: (0.0, 0.0))
     pyr_tlt_coeff : float [1], optional
         Pyramid tilt coefficients for custom face geometry (default: None)
-        WARNING: not implemented/tested yet
     pyr_edge_def_ld : float [lambda/D], optional
         Edge defect size in lambda/D units (default: 0.0)
     pyr_tip_def_ld : float [lambda/D], optional
