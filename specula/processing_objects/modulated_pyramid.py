@@ -13,6 +13,7 @@ from specula.lib.make_mask import make_mask
 from specula.lib.toccd import toccd
 from specula.lib.calc_geometry import calc_geometry
 from specula.lib.utils import make_subpixel_shift_phase
+from math import ceil
 
 @fuse(kernel_name='pyr1_fused')
 def pyr1_fused(u_fp, ffv, fpsf, masked_exp, xp):
@@ -70,8 +71,11 @@ class ModulatedPyramid(BaseProcessingObj):
         Focal plane central obstruction diameter in pixels (default: None)
     pup_shifts : tuple [pixels], optional
         Static pupil shifts in pixels (x, y) (default: (0.0, 0.0))
-    pyr_tlt_coeff : float [1], optional
-        Pyramid tilt coefficients for custom face geometry (default: None)
+    pyr_tlt_coeff : list [2,4], optional
+        Pyramid tilt coefficients for each face. (default: None)
+        The coefficient multiplies the x-tilt or y-tilt (rows) of
+        each of each of the 4 pyramid faces (columns).
+        By default, no deviation is applied to the nominal tilt.
     pyr_edge_def_ld : float [lambda/D], optional
         Edge defect size in lambda/D units (default: 0.0)
     pyr_tip_def_ld : float [lambda/D], optional
@@ -231,6 +235,11 @@ class ModulatedPyramid(BaseProcessingObj):
                 f'({self.xp.around(2 * self.xp.pi * mod_amp)})!'
             )
 
+        if self.pyr_tlt_coeff is not None:
+            self.pyr_tlt_coeff = self.xp.array(self.pyr_tlt_coeff)
+            if self.pyr_tlt_coeff.shape != (2,4):
+                raise ValueError(f'Unexpected pyr_tlt_coeff shape: expected shape is (2,4), input shape is {self.pyr_tlt_coeff.shape}')
+
         self.mod_steps = int(mod_step)
         self.mod_amp = mod_amp
         self.flux_factor_vector = None
@@ -365,13 +374,12 @@ class ModulatedPyramid(BaseProcessingObj):
         return result
 
     def get_pyr_tlt(self, p, c):
-        A = int(self.xp.ceil((p + c) / 2.0))
+        A = int(ceil((p + c) / 2.0))
         pyr_tlt = self.xp.zeros((2 * A, 2 * A), dtype=self.dtype)
         y, x = self.xp.mgrid[0:A,0:A]
 
         if self.pyr_tlt_coeff is not None:
-            k = self.xp.array(self.pyr_tlt_coeff)
-
+            k = self.pyr_tlt_coeff
             pyr_tlt[:A, :A] = k[0,0] * x + k[1,0] * y
             pyr_tlt[:A, A:] = k[0,1] * x[:,::-1] + k[1,1] * y
             pyr_tlt[A:, :A] = k[0,2] * x + k[1,2] * y[::-1]
