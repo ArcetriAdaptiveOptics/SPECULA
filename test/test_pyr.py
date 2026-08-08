@@ -19,14 +19,27 @@ from test.specula_testlib import cpu_and_gpu
 class TestModulatedPyramid(unittest.TestCase):
 
     @cpu_and_gpu
-    def test_incorrect_tilt_coeffs_shape_raises(self, target_device_idx, xp):
-        """Check that a wrong pyr_tlt_coeffs shape initialization raises an error"""
+    def test_incorrect_tilt_coeff_input_raises(self, target_device_idx, xp):
+        """Check that a wrong pyr_tlt_coeffs shape or sign raises an error during init"""
         simul_params = SimulParams(
             pixel_pupil=60,
             pixel_pitch=0.1,
         )
 
         tlt_coeffs = xp.ones([3,3]) # shape should be [2,4]
+        with self.assertRaises(ValueError):
+            ModulatedPyramid(
+                simul_params=simul_params,
+                wavelengthInNm=700,
+                pup_diam=20,
+                fov = 3.0,
+                output_resolution=60,
+                pyr_tlt_coeff=tlt_coeffs.tolist(),
+                target_device_idx=target_device_idx,
+            )
+
+        tlt_coeffs = xp.ones([2,4])
+        tlt_coeffs[1,2] = -0.5 # should be positive
         with self.assertRaises(ValueError):
             ModulatedPyramid(
                 simul_params=simul_params,

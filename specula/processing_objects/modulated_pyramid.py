@@ -73,8 +73,12 @@ class ModulatedPyramid(BaseProcessingObj):
         Static pupil shifts in pixels (x, y) (default: (0.0, 0.0))
     pyr_tlt_coeff : list [2,4], optional
         Pyramid tilt coefficients for each face. (default: None)
-        The coefficient multiplies the x-tilt or y-tilt (rows) of
-        each of each of the 4 pyramid faces (columns).
+        The coefficient multiplies the x-tilt or y-tilt (rows) of each of each of the 
+        4 pyramid faces (columns). A coefficient greater than 1 pushes the pupil outward,
+        away from the frame center, while a coefficient lower than 1 pulls it inward, 
+        towards the frame center, with respect to the nominal distance pup_dist.
+        The x coefficient (first row) shifts in the horizontal direction, 
+        the y coefficient (second row) shifts in the vertical direction.
         By default, no deviation is applied to the nominal tilt.
     pyr_edge_def_ld : float [lambda/D], optional
         Edge defect size in lambda/D units (default: 0.0)
@@ -239,6 +243,8 @@ class ModulatedPyramid(BaseProcessingObj):
             self.pyr_tlt_coeff = self.xp.array(self.pyr_tlt_coeff)
             if self.pyr_tlt_coeff.shape != (2,4):
                 raise ValueError(f'Unexpected pyr_tlt_coeff shape: expected shape is (2,4), input shape is {self.pyr_tlt_coeff.shape}')
+            if self.xp.min(self.pyr_tlt_coeff) < 0:
+                raise ValueError(f'Expected pyr_tlt_coeff to be positive to preserve pupil ordering, but the minimum is: {self.xp.min(self.pyr_tlt_coeff):1.2f}')
 
         self.mod_steps = int(mod_step)
         self.mod_amp = mod_amp
