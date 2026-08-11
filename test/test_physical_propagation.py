@@ -7,7 +7,7 @@ from specula import np
 from specula.data_objects.source import Source
 from specula.processing_objects.wave_generator import WaveGenerator
 from specula.processing_objects.atmo_infinite_evolution import AtmoInfiniteEvolution
-from specula.processing_objects.atmo_propagation import AtmoPropagation
+from specula.processing_objects.atmo_propagation import AtmoPropagation, fraunhofer_far_field_propagation, angular_spectrum_propagation
 from specula.data_objects.simul_params import SimulParams
 from test.specula_testlib import cpu_and_gpu
 from specula import cpuArray
@@ -249,9 +249,10 @@ class Test(unittest.TestCase):
 
         # Numerical propagation
         propagator = prop.asm_propagator(distanceInM, d_in, d_out)
-        ef_in = xp.zeros([N*2, N*2], dtype=complex)
+        ef_in = xp.zeros([N * 2, N * 2], dtype=complex)
+        buffer = xp.zeros([N * 2, N * 2], dtype=complex)
         ef_in[N // 2:N // 2 + N, N // 2:N // 2 + N] = layer.A * xp.exp(1j * layer.phaseInNm)
-        prop.angular_spectrum_propagation(ef_in, propagator)
+        ef_fresnel = angular_spectrum_propagation(ef_in, propagator, buffer, xp)[N // 2:N // 2 + N, N // 2:N // 2 + N]
 
         # Analytical propagation
         coord = xp.arange(-N/2, N/2)
@@ -376,9 +377,10 @@ class Test(unittest.TestCase):
         # Numerical propagation
         propagator, x_out, y_out = prop.fraunhofer_propagator(source_height)
         ef_in = xp.zeros([pixel_pupil * padding, pixel_pupil * padding], dtype=complex)
+        buffer = xp.zeros([pixel_pupil * padding, pixel_pupil * padding], dtype=complex)
         s = (pixel_pupil * padding - pixel_pupil) // 2
         ef_in[s:s + pixel_pupil, s:s + pixel_pupil] = layer.A * xp.exp(1j * layer.phaseInNm)
-        prop.fraunhofer_far_field_propagation(ef_in, propagator)
+        ef_fresnel = fraunhofer_far_field_propagation(ef_in, propagator, buffer)
 
         # jinc function
         x = D * xp.sqrt(x_out ** 2 + y_out ** 2) / (wavelength * source_height)
@@ -390,7 +392,7 @@ class Test(unittest.TestCase):
         ef_analytic = (xp.exp(1j * k / (2 * source_height) * (x_out ** 2 + y_out ** 2))
                    / (1j * wavelength * source_height) * (D ** 2 * np.pi / 4) * y)
 
-        rms = xp.sqrt(xp.mean((abs(prop.ef_fresnel) - abs(ef_analytic)) ** 2))
+        rms = xp.sqrt(xp.mean((abs(ef_fresnel) - abs(ef_analytic)) ** 2))
         self.assertTrue(rms < 2e-3)
 
     @cpu_and_gpu
@@ -442,9 +444,10 @@ class Test(unittest.TestCase):
         # Numerical propagation
         propagator, x_out, y_out = prop.fraunhofer_propagator(source_height)
         ef_in = xp.zeros([pixel_pupil * padding, pixel_pupil * padding], dtype=complex)
+        buffer = xp.zeros([pixel_pupil * padding, pixel_pupil * padding], dtype=complex)
         s = (pixel_pupil * padding - pixel_pupil) // 2
         ef_in[s:s + pixel_pupil, s:s + pixel_pupil] = layer.A * xp.exp(1j * layer.phaseInNm)
-        prop.fraunhofer_far_field_propagation(ef_in, propagator)
+        ef_fresnel = fraunhofer_far_field_propagation(ef_in, propagator, buffer)
 
         # jinc function
         x = D * xp.sqrt(x_out ** 2 + y_out ** 2) / (wavelength * source_height)
@@ -456,7 +459,7 @@ class Test(unittest.TestCase):
         ef_analytic = (xp.exp(1j * k / (2 * source_height) * (x_out ** 2 + y_out ** 2))
                        / (1j * wavelength * source_height) * (D ** 2 * np.pi / 4) * y)
 
-        prop_shifted = xp.roll(prop.ef_fresnel, -shift, axis=1)
+        prop_shifted = xp.roll(ef_fresnel, -shift, axis=1)
 
         rms1 = xp.sqrt(xp.mean((abs(prop.ef_fresnel[:, :pixel_pupil * padding - shift]) - abs(
             ef_analytic[:, :pixel_pupil * padding - shift])) ** 2))

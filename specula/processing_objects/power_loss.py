@@ -4,7 +4,7 @@ from specula.connections import InputValue
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.calc_psf import calc_psf
-from specula.processing_objects.atmo_propagation import AtmoPropagation
+from specula.processing_objects.atmo_propagation import AtmoPropagation, angular_spectrum_propagation, fraunhofer_far_field_propagation
 
 import numpy as np
 
@@ -23,12 +23,17 @@ class PowerLoss(BaseProcessingObj):
                  ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
+        if prop.prop_sign == 1:
+            raise ValueError('Power loss computation is only supported for upwards '
+                             'propagation.')
+
         self.first = True
         self.total_power_ref = 0
         self.pixel_pupil = simul_params.pixel_pupil
         self.pixel_pitch = simul_params.pixel_pitch
         self.pad_size = int(self.pixel_pupil * prop.padding_factor)
         self.prop_obj = prop
+        self.buffer = self.xp.zeros([self.pad_size, self.pad_size], dtype=self.complex_dtype)
         self.psf_ref = 0.0
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
@@ -53,6 +58,10 @@ class PowerLoss(BaseProcessingObj):
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
 
+        if not self.prop_obj.common_layer_list:
+            raise ValueError('At least one element in common_layer_list is required for'
+                             'power loss calculation.')
+
         if self.first:
             self.first = False
 
@@ -67,10 +76,11 @@ class PowerLoss(BaseProcessingObj):
                     for pi, propagator in enumerate(self.prop_obj.propagators):
                         if propagator is not None:
                             if not self.prop_obj.far_field_propagation[pi]:
-                                self.prop_obj.angular_spectrum_propagation(ef_in, propagator)
+                                ef_in[:] = angular_spectrum_propagation(ef_in, propagator, self.buffer, self.xp)
                             else:
-                                self.prop_obj.fraunhofer_far_field_propagation(ef_in, propagator)
-                            ef_in[:] = self.prop_obj.ef_fresnel
+                                ef_in[:] = fraunhofer_far_field_propagation(ef_in, propagator, self.buffer)
+                           # ef_in[:] = self.prop_obj.ef_fresnel
+
             tmp_ef = ef_in[s + self.prop_obj.beam_center[0]:s + self.prop_obj.beam_center[0] + self.pixel_pupil,
                      s + self.prop_obj.beam_center[1]:s + self.prop_obj.beam_center[1] + self.pixel_pupil]
             self.psf.value[:] = calc_psf(self.xp.angle(tmp_ef), abs(tmp_ef), xp=self.xp, imwidth=self.pad_size,

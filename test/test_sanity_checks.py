@@ -19,7 +19,7 @@ class TestPowerLossSanityCheck(unittest.TestCase):
         from specula.data_objects.source import Source
         sp = SimulParams(pixel_pupil=20, pixel_pitch=0.05)
         on_axis_source = Source(polar_coordinates=[0,0], magnitude=0.0, height=600000, wavelengthInNm=500.0)
-        prop = AtmoPropagation(simul_params=sp, source_dict={'on_axis': on_axis_source}, doFresnel=True,
+        prop = AtmoPropagation(simul_params=sp, source_dict={'on_axis': on_axis_source}, doFresnel=True, upwards=True,
                                wavelengthInNm=500.0, padding_factor=2)
         obj = PowerLoss(simul_params=sp, prop=prop, target_device_idx=target_device_idx)
         obj.sanity_check()
