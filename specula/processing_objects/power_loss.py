@@ -79,7 +79,6 @@ class PowerLoss(BaseProcessingObj):
                                 ef_in[:] = angular_spectrum_propagation(ef_in, propagator, self.buffer, self.xp)
                             else:
                                 ef_in[:] = fraunhofer_far_field_propagation(ef_in, propagator, self.buffer)
-                           # ef_in[:] = self.prop_obj.ef_fresnel
 
             tmp_ef = ef_in[s + self.prop_obj.beam_center[0]:s + self.prop_obj.beam_center[0] + self.pixel_pupil,
                      s + self.prop_obj.beam_center[1]:s + self.prop_obj.beam_center[1] + self.pixel_pupil]
