@@ -29,7 +29,7 @@ We'll simulate a simple Fresnel propagation with:
 * Storing the propagated electric fields
 
 
-System configuration
+System Configuration and Running the Simulation
 -----------------
 
 Create a YAML configuration file, for example ``params_fresnel_propagation.yml``:
