@@ -37,7 +37,7 @@ We'll simulate a simple bi-directional optical feeder link setting with:
 
 Part 1: System configuration
 -----------------
-In order to calculate the PAA, time delays, effective wind speeds and directions the SPECULA functions ``calc_paa``, ``calc_timing_uplink_downlink`` and ``calc_effective_wind_speed`` can be used. Those functions require as input atmospheric parameters, such as Cn2, wind speed and directions, as well as space object specific parameters such as height and speed.
+In order to calculate the PAA, time delays, effective wind speeds and directions the SPECULA functions ``calc_paa``, ``calc_timing_uplink_downlink`` and ``calc_effective_wind_speed`` in ``lib/fsco_lib.py`` can be used. Those functions require as input atmospheric parameters, such as Cn2, wind speed and directions, as well as space object specific parameters such as height and speed.
 
 The calculated PAA is used in ``polar_coordinates`` of the ``Source`` class. The effective wind speeds and directions are set as input for the ``AtmoInfiniteEvolutionUpDown`` class and the time delays are set via ``extra_delta_time_up`` and ``extra_delta_time_down`` for the ``AtmoInfiniteEvolutionUpDown`` class.
 
@@ -236,7 +236,7 @@ To set up the main SPECULA parameter file, create a YAML configuration file, for
       class:                'PSF'
       simul_params_ref:     'main'
       wavelengthInNm:       1064               # [nm] Imaging wavelength
-      nd:                   3                  # padding coefficient for PSF computation
+      nd:                   4                  # padding coefficient for PSF computation
       inputs:
         in_ef:              'prop_down.out_source_down_ef'
       outputs:              ['out_psf','out_sr']
@@ -253,7 +253,6 @@ To set up the main SPECULA parameter file, create a YAML configuration file, for
 
    # Data store for saving the simulation results.
    # The data will be stored in a directory named with a timestamp (TN) located in 'output'.
-   # In this case it saves the downwards and upwards propagated electric fields.
     data_store:
       class:                'DataStore'
       store_dir:            './results/'
@@ -275,7 +274,7 @@ Before running the full closed-loop simulation, we need to calibrate several com
 The calibration process has two main steps:
 
 Wavefront Sensor Geometry Calibration
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~
 We need to identify which part of the Pyramid WFS contains enough light from the guide star to provide reliable slope measurements, excluding those outside the pupil or with insufficient illumination.
 
 Create a YAML configuration file, for example ``calib_pyr_pupdata.yml``:
@@ -329,7 +328,7 @@ Now run the WFS calibration:
    specula params_leo_satellite.yml calib_pyr_pupdata.yml
 
 Interaction Matrix and Reconstructor Calibration
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~
 Create a YAML configuration file, for example ``calib_im_rec.yml``:
 
 .. code-block:: yaml

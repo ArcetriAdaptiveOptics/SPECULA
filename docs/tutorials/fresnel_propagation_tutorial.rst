@@ -156,7 +156,7 @@ Now run the full propagation simulation:
 
 .. code-block:: bash
 
-   specula params_leo_satellite.yml
+   specula params_fresnel_propagation.yml
 
 After running the simulation, you can analyze the results stored inside the directory specified in ``store_dir`` of the ``data_store`` block.
 Note that if you extract the phase from the electric field it will be wrapped due to Fresnel propagation.
