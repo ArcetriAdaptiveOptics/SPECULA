@@ -3,7 +3,6 @@ from specula import fuse
 from specula.processing_objects.modulated_pyramid import ModulatedPyramid
 from specula.lib.make_xy import make_xy
 from specula.data_objects.simul_params import SimulParams
-from math import ceil
 
 @fuse(kernel_name='pyr1_fused')
 def pyr1_fused(u_fp, ffv, fpsf, masked_exp, xp):
@@ -97,7 +96,7 @@ class ModulatedDoubleRoof(ModulatedPyramid):
         self.mid_w = self.fft_totsize // 2
 
     def get_pyr_tlt(self, p, c):
-        A = int(ceil((p + c) / 2.0))
+        A = int(round((p + c) / 2.0))
         # Create two separate roofs instead of a 4-faced pyramid
         roof1_tlt = self.xp.zeros((2 * A, 2 * A), dtype=self.dtype)
         roof2_tlt = self.xp.zeros((2 * A, 2 * A), dtype=self.dtype)

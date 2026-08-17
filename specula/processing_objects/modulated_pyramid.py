@@ -13,7 +13,6 @@ from specula.lib.make_mask import make_mask
 from specula.lib.toccd import toccd
 from specula.lib.calc_geometry import calc_geometry
 from specula.lib.utils import make_subpixel_shift_phase
-from math import ceil
 
 @fuse(kernel_name='pyr1_fused')
 def pyr1_fused(u_fp, ffv, fpsf, masked_exp, xp):
@@ -380,7 +379,7 @@ class ModulatedPyramid(BaseProcessingObj):
         return result
 
     def get_pyr_tlt(self, p, c):
-        A = int(ceil((p + c) / 2.0))
+        A = int(round((p + c) / 2.0))
         pyr_tlt = self.xp.zeros((2 * A, 2 * A), dtype=self.dtype)
         y, x = self.xp.mgrid[0:A,0:A]
 

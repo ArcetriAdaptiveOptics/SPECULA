@@ -52,7 +52,7 @@ class TestModulatedPyramid(unittest.TestCase):
             )
 
     @cpu_and_gpu
-    def test_pyramid_tilt_coeffs_equalt_to_one(self, target_device_idx, xp):
+    def test_pyramid_tilt_coeffs_equal_to_one(self, target_device_idx, xp):
         """ Check that applying a unit tilt coefficient produces the same result as the default (nominal) pyramid """
         pixel_pupil = 64
         pixel_pitch = 0.1
@@ -219,11 +219,11 @@ class TestModulatedPyramid(unittest.TestCase):
     @cpu_and_gpu
     def test_fft_grid_matches_fp_mask_shape(self, target_device_idx, xp):
         """Regression test for odd FFT sizes where the pyramid phase map and mask must share the same dimensions."""
+        # Case A
         simul_params = SimulParams(
             pixel_pupil=367,
             pixel_pitch=0.1,
         )
-
         pyramid = ModulatedPyramid(
             simul_params=simul_params,
             wavelengthInNm=750,
@@ -232,7 +232,30 @@ class TestModulatedPyramid(unittest.TestCase):
             output_resolution=120,
             target_device_idx=target_device_idx,
         )
+        self.assertEqual(
+            pyramid.pyr_tlt.shape,
+            pyramid.fp_mask.shape,
+            f"Expected pyramid tilt map and focal plane mask to share shape, got {pyramid.pyr_tlt.shape} and {pyramid.fp_mask.shape}",
+        )
+        self.assertEqual(
+            pyramid.shifted_masked_exp.shape,
+            pyramid.fp_mask.shape,
+            f"Expected shifted masked exponential to match mask shape, got {pyramid.shifted_masked_exp.shape} and {pyramid.fp_mask.shape}",
+        )
 
+        # Case B
+        simul_params = SimulParams(
+            pixel_pupil=197,
+            pixel_pitch=0.1,
+        )
+        pyramid = ModulatedPyramid(
+            simul_params=simul_params,
+            wavelengthInNm=750,
+            fov=2.0,
+            pup_diam=40,
+            output_resolution=120,
+            target_device_idx=target_device_idx,
+        )
         self.assertEqual(
             pyramid.pyr_tlt.shape,
             pyramid.fp_mask.shape,
