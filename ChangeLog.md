@@ -23,6 +23,7 @@
 - Added "out_window_id" output to all displays to support video recording
 - Added "beam_center" for uplink beam in pixel. Used for Fresnel propagation to indicate if beam is not located in the center.
 - Added pupil\_mask parameter to SprintShSynim, forwarded to BaseSprintEstimator as the WFS-side pupil (previously silently fell back to dm.mask, e.g. missing spider obscuration); added regression test in test\_sprint.py
+- Enabled pyr_tlt_coeffs for the modulated_pyramid, allowing to correctly set different tilt coefficients for the pyramid faces
 
 ### Other
 
@@ -41,6 +42,7 @@
 - Optimization of the compute\_ifs\_covmat function
 - Added Fraunhofer far field propagation
 - Fixed silent misparsing/confusing errors in split\_output() when an object, alias or output name contained a reserved '.', '-' or ':' character; added early validation of YAML section names in Simul
+- Fixed A size in get_pyr_tlt, adding a round (rather than flooring by default) to avoid cases where the pyramid tilt mask (pyr_tlt) and the focal plane mask (fp_mask) could be of different sizes when using an odd number of pixels across the pupil
 - ...
 
 ## [1.0.3] - 2026-05-18
