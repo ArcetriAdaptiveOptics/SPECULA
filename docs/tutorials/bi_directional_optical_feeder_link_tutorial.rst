@@ -9,7 +9,7 @@ This tutorial guides you through creating and running a bi-directional optical f
 
 * How to make a propagation from and to a LEO satellite including time-delays.
 * Applying a Point-Ahead-Angle (PAA) and telescope slewing.
-* Using the infinte phase screen method in SPECULA to deal with fast evolving turbulence due to telescope slewing.
+* Using the infinite phase screen method in SPECULA to deal with fast evolving turbulence due to telescope slewing.
 * Calibration of a Pyramid WFS and interaction and reconstruction matrices.
 * Post-compensation of the downlink IR laser using a Pyramid WFS, modal reconstruction and DM.
 * Pre-compensation of the uplink IR laser beam using the downlink.
@@ -27,7 +27,7 @@ Tutorial Overview
 We'll simulate a simple bi-directional optical feeder link setting with:
 
 * Circular pupil (1m class)
-* 3 atmospheric layer
+* 3 atmospheric layers
 * Upwards and downwards Fresnel propagation to and from a LEO satellite at 400 km with a PAA of 5 arcsec
 * Including telescope slewing via setting the effective wind speed of atmospheric layers
 * Post-compensation of the downlink and pre-compensation of the uplink
@@ -37,7 +37,7 @@ We'll simulate a simple bi-directional optical feeder link setting with:
 
 Part 1: System configuration
 -----------------
-In order to calculate the PAA, time delays, effective wind speeds and directions the SPECULA functions ``calc_paa``, ``calc_timing_uplink_downlink`` and ``calc_effective_wind_speed`` in ``lib/fsco_lib.py`` can be used. Those functions require as input atmospheric parameters, such as Cn2, wind speed and directions, as well as space object specific parameters such as height and speed.
+In order to calculate the PAA, time delays, effective wind speeds and directions the SPECULA functions ``calc_paa``, ``calc_timing_uplink_downlink`` and ``calc_effective_wind_speed`` in ``lib/fsoc_lib.py`` can be used. Those functions require as input atmospheric parameters, such as Cn2, wind speed and directions, as well as space object specific parameters such as height and speed.
 
 The calculated PAA is used in ``polar_coordinates`` of the ``Source`` class. The effective wind speeds and directions are set as input for the ``AtmoInfiniteEvolutionUpDown`` class and the time delays are set via ``extra_delta_time_up`` and ``extra_delta_time_down`` for the ``AtmoInfiniteEvolutionUpDown`` class.
 
@@ -94,8 +94,8 @@ To set up the main SPECULA parameter file, create a YAML configuration file, for
    # Here we define 3 atmospheric layer evolving using the infinite phase screen method.
    # The layer heights are defined in meters, and the Cn2 values must sum to 1.
    # The fov parameter defines the field-of-view in arcseconds.
-   # The extra_delta_time specifies the time delay between upwards and downwards propagation for each layer.
-   # a dedicated utility function for calculting this can be found in lib/fsoc_lib.py
+   # The extra_delta_time specifies the time delays between upwards and downwards propagation for each layer,
+   # which can be calculated using lib/fsoc_lib.py
    # The inputs are the seeing, wind speed, and wind direction defined above.
     atmo:
       class:                   'AtmoInfiniteEvolutionUpDown'
@@ -117,7 +117,7 @@ To set up the main SPECULA parameter file, create a YAML configuration file, for
    # through the atmosphere, and the pupil stop. It takes the source and the atmospheric layers
    # as inputs and outputs the electric field at the pupil plane in all the directions corresponding
    # to the source polar coordinates.
-   # To activate Fresnel propagation doFresnel is set to true. In this case also the wavelenghtInNm must be provided.
+   # To activate Fresnel propagation doFresnel is set to true. In this case also the wavelengthInNm must be provided.
    # In order to deal with the FFT and numerical issues a padding_factor is recommended.
    # To enable upwards propagation, the standard one is downwards, upwards has to be set to true.
    # The output is a list of electric fields, one for each source direction.
@@ -262,8 +262,8 @@ To set up the main SPECULA parameter file, create a YAML configuration file, for
 .. note::
     * **Pupilstop**: The pupilstop block defines a circular aperture mask for both paths, though alternative geometries, such as a Gaussian profile for simulating uplink laser beams, can also be configured. If the beam for upwards propagation is not centered, it is required to set the ``beam_center`` parameter for the ``AtmoPropagation`` class.
     * **Fresnel propagation**: When ``doFresnel=True`` SPECULA employs the Angular Spectrum Method (ASM) for step-by-step propagation between consecutive phase screens. When evaluating beam propagation across long vacuum distances such as from the top of the atmospheric turbulence layer to a GEO or LEO satellite receiver the propagation distance satisfies the far-field condition. In this regime, SPECULA transitions from ASM to Fraunhofer diffraction. In this case also ``wavelegnthInNm`` has to be set. If the output of the propagation is used as input for a WFS, make sure that the wavelengths match.
-    * **Phase wrapping**: While phase extraction following these propagation methods naturally yields a wrapped field, SPECULA incorporates a dedicated 2D phase unwrapping function ``unwrap_2d`` to reconstruct continuous, smooth phase maps in ``modal_analysis.py``. If you perform a modal analysis of a Fresnel propagated electric field, you have to set the ``wavelenghtInNm`` to perform an automatic unwrapping.
-    * **Zero padding**: To mitigate circular wrapping artifacts arising from the Fast Fourier Transforms (FFTs) inherent to ASM and Fraunhofer implementations, setting a large enough ``padding_factor`` is highly recommend. If the padding factor is too small, SPECULA will automatically reduce the propagation distance and output a warning.
+    * **Phase wrapping**: While phase extraction following these propagation methods naturally yields a wrapped field, SPECULA incorporates a dedicated 2D phase unwrapping function ``unwrap_2d`` to reconstruct continuous, smooth phase maps in ``modal_analysis.py``. If you perform a modal analysis of a Fresnel propagated electric field, you have to set the ``wavelengthInNm`` to perform an automatic unwrapping.
+    * **Zero padding**: To mitigate circular wrapping artifacts arising from the Fast Fourier Transforms (FFTs) inherent to ASM and Fraunhofer implementations, setting a large enough ``padding_factor`` is highly recommended. If the padding factor is too small, SPECULA will automatically reduce the propagation distance and output a warning.
     * **Power loss computation**: The ``power_loss`` block takes as input the upwards propagated electric field and computes the power loss in dB, normalized to the diffraction limited case, i.e., 0 dB is the diffraction limit. Negative values indicate a loss, i.e., smaller values correspond to a higher power loss.
 
 
@@ -463,7 +463,7 @@ Create a script ``analyse_data.py``:
         plt.stairs(counts, bins, color=colors[di], fill=True, alpha=0.7)
 
     plt.xlabel('Power loss in dB')
-    plt.ylabel('Propability density')
+    plt.ylabel('Probability density')
     plt.yscale('log')
     plt.legend(['no AO', 'AO'])
     plt.show()
