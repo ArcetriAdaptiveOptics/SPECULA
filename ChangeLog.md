@@ -10,6 +10,7 @@
 - Added Phasescreen data object.
 - Added Phase Extractor processing object.
 - Added CLOSE gain optimizer processing object.
+- Added RoundToMultiple processing object.
 
 ### Interface changes
 
