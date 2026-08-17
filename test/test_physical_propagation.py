@@ -7,7 +7,7 @@ from specula import np
 from specula.data_objects.source import Source
 from specula.processing_objects.wave_generator import WaveGenerator
 from specula.processing_objects.atmo_infinite_evolution import AtmoInfiniteEvolution
-from specula.processing_objects.atmo_propagation import AtmoPropagation
+from specula.processing_objects.atmo_propagation import AtmoPropagation, fraunhofer_far_field_propagation, angular_spectrum_propagation
 from specula.data_objects.simul_params import SimulParams
 from test.specula_testlib import cpu_and_gpu
 from specula import cpuArray
@@ -61,6 +61,9 @@ class Test(unittest.TestCase):
                 obj.post_trigger()
         downlink_phase = prop_down.outputs['out_downlink_source_ef'].phaseInNm
         uplink_phase = prop_up.outputs['out_uplink_source_ef'].phaseInNm
+
+        self.assertTrue(id(prop_down.ef_fresnel) != id(prop_down.ft_ef1))
+        self.assertTrue(id(prop_up.ef_fresnel) != id(prop_up.ft_ef1))
 
         rms = xp.sqrt(xp.mean((downlink_phase / np.max(downlink_phase) - uplink_phase / np.max(uplink_phase)) ** 2))
         self.assertTrue(rms < 0.1)
@@ -249,9 +252,10 @@ class Test(unittest.TestCase):
 
         # Numerical propagation
         propagator = prop.asm_propagator(distanceInM, d_in, d_out)
-        ef_in = xp.zeros([N*2, N*2], dtype=complex)
+        ef_in = xp.zeros([N * 2, N * 2], dtype=complex)
+        buffer = xp.zeros([N * 2, N * 2], dtype=complex)
         ef_in[N // 2:N // 2 + N, N // 2:N // 2 + N] = layer.A * xp.exp(1j * layer.phaseInNm)
-        prop.angular_spectrum_propagation(ef_in, propagator)
+        angular_spectrum_propagation(ef_in, propagator, buffer, xp)
 
         # Analytical propagation
         coord = xp.arange(-N/2, N/2)
@@ -376,9 +380,10 @@ class Test(unittest.TestCase):
         # Numerical propagation
         propagator, x_out, y_out = prop.fraunhofer_propagator(source_height)
         ef_in = xp.zeros([pixel_pupil * padding, pixel_pupil * padding], dtype=complex)
+        buffer = xp.zeros([pixel_pupil * padding, pixel_pupil * padding], dtype=complex)
         s = (pixel_pupil * padding - pixel_pupil) // 2
         ef_in[s:s + pixel_pupil, s:s + pixel_pupil] = layer.A * xp.exp(1j * layer.phaseInNm)
-        prop.fraunhofer_far_field_propagation(ef_in, propagator)
+        fraunhofer_far_field_propagation(ef_in, propagator, buffer)
 
         # jinc function
         x = D * xp.sqrt(x_out ** 2 + y_out ** 2) / (wavelength * source_height)
@@ -390,7 +395,7 @@ class Test(unittest.TestCase):
         ef_analytic = (xp.exp(1j * k / (2 * source_height) * (x_out ** 2 + y_out ** 2))
                    / (1j * wavelength * source_height) * (D ** 2 * np.pi / 4) * y)
 
-        rms = xp.sqrt(xp.mean((abs(prop.ef_fresnel) - abs(ef_analytic)) ** 2))
+        rms = xp.sqrt(xp.mean((abs(ef_in) - abs(ef_analytic)) ** 2))
         self.assertTrue(rms < 2e-3)
 
     @cpu_and_gpu
@@ -442,9 +447,10 @@ class Test(unittest.TestCase):
         # Numerical propagation
         propagator, x_out, y_out = prop.fraunhofer_propagator(source_height)
         ef_in = xp.zeros([pixel_pupil * padding, pixel_pupil * padding], dtype=complex)
+        buffer = xp.zeros([pixel_pupil * padding, pixel_pupil * padding], dtype=complex)
         s = (pixel_pupil * padding - pixel_pupil) // 2
         ef_in[s:s + pixel_pupil, s:s + pixel_pupil] = layer.A * xp.exp(1j * layer.phaseInNm)
-        prop.fraunhofer_far_field_propagation(ef_in, propagator)
+        fraunhofer_far_field_propagation(ef_in, propagator, buffer)
 
         # jinc function
         x = D * xp.sqrt(x_out ** 2 + y_out ** 2) / (wavelength * source_height)
@@ -456,7 +462,7 @@ class Test(unittest.TestCase):
         ef_analytic = (xp.exp(1j * k / (2 * source_height) * (x_out ** 2 + y_out ** 2))
                        / (1j * wavelength * source_height) * (D ** 2 * np.pi / 4) * y)
 
-        prop_shifted = xp.roll(prop.ef_fresnel, -shift, axis=1)
+        prop_shifted = xp.roll(ef_in, -shift, axis=1)
 
         rms1 = xp.sqrt(xp.mean((abs(prop.ef_fresnel[:, :pixel_pupil * padding - shift]) - abs(
             ef_analytic[:, :pixel_pupil * padding - shift])) ** 2))
@@ -464,3 +470,40 @@ class Test(unittest.TestCase):
             ef_analytic[:, :pixel_pupil * padding - shift])) ** 2))
 
         self.assertTrue(rms1 > rms2)
+
+    @cpu_and_gpu
+    def test_physicalProp_output_reference(self, target_device_idx, xp):
+        simul_params = SimulParams(zenithAngleInDeg=0.0, pixel_pupil=120, pixel_pitch=0.008333, time_step=1)
+        seeing = WaveGenerator(constant=0.7, target_device_idx=target_device_idx)
+        wind_speed = WaveGenerator(constant=[0, 0, 0], target_device_idx=target_device_idx)
+        wind_direction = WaveGenerator(constant=[0, 0, 0], target_device_idx=target_device_idx)
+        source = Source(polar_coordinates=[0.0, 0.0], magnitude=0, height=38000e3, wavelengthInNm=1550)
+        atmo = AtmoInfiniteEvolution(simul_params,
+                                     L0=20,
+                                     heights=[0., 40., 120.],
+                                     Cn2=[0.5, 0.4, 0.1],
+                                     fov=8.0,
+                                     target_device_idx=target_device_idx)
+        prop_down = AtmoPropagation(simul_params, source_dict={'downlink_source': source},
+                                    target_device_idx=target_device_idx, wavelengthInNm=1550, doFresnel=True,
+                                    padding_factor=3)
+
+        atmo.inputs['seeing'].set(seeing.output)
+        atmo.inputs['wind_direction'].set(wind_direction.output)
+        atmo.inputs['wind_speed'].set(wind_speed.output)
+        prop_down.inputs['atmo_layer_list'].set(atmo.outputs['layer_list'])
+
+        for objlist in [[seeing, wind_speed, wind_direction], [atmo], [prop_down]]:
+            for obj in objlist:
+                obj.setup()
+
+            for obj in objlist:
+                obj.check_ready(1)
+
+            for obj in objlist:
+                obj.trigger()
+
+            for obj in objlist:
+                obj.post_trigger()
+
+        self.assertTrue(id(prop_down.ef_fresnel) != id(prop_down.ft_ef1))
