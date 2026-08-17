@@ -400,9 +400,9 @@ class AtmoPropagation(BaseProcessingObj):
                         self.wavelengthInNm)
                     if self.propagators[li] is not None:
                         if not self.far_field_propagation[li]:
-                            self.ef_fresnel = angular_spectrum_propagation(self.ef_fresnel, self.propagators[li], self.ft_ef1, self.xp)
+                            angular_spectrum_propagation(self.ef_fresnel, self.propagators[li], self.ft_ef1, self.xp)
                         else:
-                            self.ef_fresnel = fraunhofer_far_field_propagation(self.ef_fresnel, self.propagators[li], self.ft_ef1)
+                            fraunhofer_far_field_propagation(self.ef_fresnel, self.propagators[li], self.ft_ef1)
                             s_shifted = s + self.beam_center
 
                 else:
@@ -660,20 +660,18 @@ class AtmoPropagation(BaseProcessingObj):
         pass
 
 
-def fraunhofer_far_field_propagation(ef_in, propagator, buffer):
-    buffer[:] = propagator[2] @ (ef_in * propagator[1]) @ propagator[2].T
-    return propagator[0] * buffer[:]
+def fraunhofer_far_field_propagation(ef, propagator, buffer):
+    buffer[:] = propagator[2] @ (ef * propagator[1]) @ propagator[2].T
+    ef[:] = propagator[0] * buffer[:]
 
 
-def angular_spectrum_propagation(ef_in, propagator, buffer, xp):
+def angular_spectrum_propagation(ef, propagator, buffer, xp):
     if propagator[0] is not None:
-        ef_in *= propagator[0]
-    buffer[:] = xp.fft.fft2(xp.fft.fftshift(ef_in, axes=(-2, -1)), axes=(-2, -1),
+        ef[:] *= propagator[0]
+    buffer[:] = xp.fft.fft2(xp.fft.fftshift(ef, axes=(-2, -1)), axes=(-2, -1),
                             norm="ortho")
-    buffer[:] = xp.fft.fftshift(
+    ef[:] = xp.fft.fftshift(
         xp.fft.ifft2(buffer * xp.fft.fftshift(propagator[1], axes=(-2, -1)), norm="ortho",
                      axes=(-2, -1)), axes=(-2, -1))
     if propagator[2] is not None:
-        buffer[:] *= propagator[2]
-
-    return buffer
+        ef[:] *= propagator[2]

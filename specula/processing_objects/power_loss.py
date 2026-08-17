@@ -76,9 +76,9 @@ class PowerLoss(BaseProcessingObj):
                     for pi, propagator in enumerate(self.prop_obj.propagators):
                         if propagator is not None:
                             if not self.prop_obj.far_field_propagation[pi]:
-                                ef_in[:] = angular_spectrum_propagation(ef_in, propagator, self.buffer, self.xp)
+                                angular_spectrum_propagation(ef_in, propagator, self.buffer, self.xp)
                             else:
-                                ef_in[:] = fraunhofer_far_field_propagation(ef_in, propagator, self.buffer)
+                                fraunhofer_far_field_propagation(ef_in, propagator, self.buffer)
 
             tmp_ef = ef_in[s + self.prop_obj.beam_center[0]:s + self.prop_obj.beam_center[0] + self.pixel_pupil,
                      s + self.prop_obj.beam_center[1]:s + self.prop_obj.beam_center[1] + self.pixel_pupil]
