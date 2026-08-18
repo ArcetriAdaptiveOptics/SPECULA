@@ -10,6 +10,7 @@
 - Added Phasescreen data object.
 - Added Phase Extractor processing object.
 - Added CLOSE gain optimizer processing object.
+- Added RoundToMultiple processing object.
 - Added EfReplay class (specula.ef_replay): replays a list of existing ElectricField/Layer outputs (e.g. an ElectricFieldCombinator or a DM's out_layer) exactly as they were in a past run, by targeting the existing object(s) directly with Simul.build_targeted_replay instead of synthesizing new off-axis sources like FieldAnalyser does. Complements FieldAnalyser for cases where a disturbance was injected downstream of AtmoPropagation (see FieldAnalyser's new "Limitation" tutorial section) and the exact original direction/sensor is what's needed. Added docs/tutorials/ef\_replay\_tutorial.rst and test\_ef\_replay.py
 
 ### Interface changes
