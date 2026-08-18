@@ -166,6 +166,7 @@ class AtmoPropagation(BaseProcessingObj):
 
         self.airmass = 1. / np.cos(np.radians(self.simul_params.zenithAngleInDeg), dtype=self.dtype)
 
+
     def fraunhofer_propagator(self, distanceInM):
         """
        Jason D. Schmidt, Numerical Simulation of Optical Wave Propagation with Examples in MATLAB
@@ -320,6 +321,10 @@ class AtmoPropagation(BaseProcessingObj):
         # pre-allocate arrays for propagation
         self.ef_padded = self.xp.zeros([self.ef_size_padded, self.ef_size_padded], dtype=self.complex_dtype)
 
+        # set wavelengthInNm field for all output EFs
+        for source_name in self.source_dict.keys():
+            self.outputs['out_'+source_name+'_ef'].wavelength_in_nm = self.wavelengthInNm
+
     @classmethod
     def input_names(cls):
         return {'atmo_layer_list': InputDesc(Layer, 'List of atmospheric turbulence layers (optional). Altitudes will be scaled by airmass.'),
@@ -350,21 +355,6 @@ class AtmoPropagation(BaseProcessingObj):
                     block_size=self._block_size[layer]
                 )
                 layer.phaseInNm[~mask_valid] = local_mean[~mask_valid]
-
-    def fraunhofer_far_field_propagation(self, ef_in, propagator):
-        self.ft_ef1[:] = propagator[2] @ (ef_in * propagator[1]) @ propagator[2].T
-        self.ef_fresnel[:] = propagator[0] * self.ft_ef1
-
-    def angular_spectrum_propagation(self, ef_in, propagator):
-        if propagator[0] is not None:
-            ef_in *= propagator[0]
-        self.ft_ef1[:] = self.xp.fft.fft2(self.xp.fft.fftshift(ef_in, axes=(-2, -1)), axes=(-2, -1),
-                                          norm="ortho")
-        self.ef_fresnel[:] = self.xp.fft.fftshift(
-            self.xp.fft.ifft2(self.ft_ef1 * self.xp.fft.fftshift(propagator[1], axes=(-2, -1)), norm="ortho",
-                              axes=(-2, -1)), axes=(-2, -1))
-        if propagator[2] is not None:
-            self.ef_fresnel[:] *= propagator[2]
 
     @show_in_profiler('atmo_propagation.trigger_code')
     def trigger_code(self):
@@ -410,9 +400,9 @@ class AtmoPropagation(BaseProcessingObj):
                         self.wavelengthInNm)
                     if self.propagators[li] is not None:
                         if not self.far_field_propagation[li]:
-                            self.angular_spectrum_propagation(self.ef_fresnel, self.propagators[li])
+                            angular_spectrum_propagation(self.ef_fresnel, self.propagators[li], self.ft_ef1, self.xp)
                         else:
-                            self.fraunhofer_far_field_propagation(self.ef_fresnel, self.propagators[li])
+                            fraunhofer_far_field_propagation(self.ef_fresnel, self.propagators[li], self.ft_ef1)
                             s_shifted = s + self.beam_center
 
                 else:
@@ -668,3 +658,20 @@ class AtmoPropagation(BaseProcessingObj):
         # AtmoPropagation outputs are created dynamically from stored data files;
         # skip the static output_names validation.
         pass
+
+
+def fraunhofer_far_field_propagation(ef, propagator, buffer):
+    buffer[:] = propagator[2] @ (ef * propagator[1]) @ propagator[2].T
+    ef[:] = propagator[0] * buffer[:]
+
+
+def angular_spectrum_propagation(ef, propagator, buffer, xp):
+    if propagator[0] is not None:
+        ef[:] *= propagator[0]
+    buffer[:] = xp.fft.fft2(xp.fft.fftshift(ef, axes=(-2, -1)), axes=(-2, -1),
+                            norm="ortho")
+    ef[:] = xp.fft.fftshift(
+        xp.fft.ifft2(buffer * xp.fft.fftshift(propagator[1], axes=(-2, -1)), norm="ortho",
+                     axes=(-2, -1)), axes=(-2, -1))
+    if propagator[2] is not None:
+        ef[:] *= propagator[2]
