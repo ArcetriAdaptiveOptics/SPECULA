@@ -67,7 +67,7 @@ class TestExtendedSource(unittest.TestCase):
         if self.debug_plot:
             src.plot_source()
         self.assertGreater(src.npoints, 1)
-        self.assertAlmostEqual(np.sum(src.coeff_flux), 1.0, places=6)
+        self.assertAlmostEqual(float(np.sum(src.coeff_flux)), 1.0, places=6)
 
     @cpu_and_gpu
     def test_gauss_cartesian(self, target_device_idx, xp):
@@ -84,7 +84,7 @@ class TestExtendedSource(unittest.TestCase):
         if self.debug_plot:
             src.plot_source()
         self.assertGreater(src.npoints, 1)
-        self.assertAlmostEqual(np.sum(src.coeff_flux), 1.0, places=6)
+        self.assertAlmostEqual(float(np.sum(src.coeff_flux)), 1.0, places=6)
 
     @cpu_and_gpu
     def test_gauss_cartesian_3d(self, target_device_idx, xp):
