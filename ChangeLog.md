@@ -5,6 +5,20 @@
 
 ### New processing and data objects
 
+- ...
+
+### Interface changes
+
+- ...
+
+### Other
+
+- ...
+
+## [1.0.4] - 2026-08-19
+
+### New processing and data objects
+
 - Added IntValue, FloatValue and StringValue as specialized containers for scalars and strings, to be used in place of BaseValue where needed.
 - Added DisplayRecorder processing object
 - Added Phasescreen data object.
@@ -47,7 +61,6 @@
 - Fixed silent misparsing/confusing errors in split\_output() when an object, alias or output name contained a reserved '.', '-' or ':' character; added early validation of YAML section names in Simul
 - Fixed A size in get_pyr_tlt, adding a round (rather than flooring by default) to avoid cases where the pyramid tilt mask (pyr_tlt) and the focal plane mask (fp_mask) could be of different sizes when using an odd number of pixels across the pupil
 - Updated calculation of power loss such that reference PSF also uses Fresnel propagation
-- ...
 
 ## [1.0.3] - 2026-05-18
 
