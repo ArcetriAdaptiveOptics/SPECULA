@@ -27,6 +27,7 @@
 - Added pupil\_mask parameter to SprintShSynim, forwarded to BaseSprintEstimator as the WFS-side pupil (previously silently fell back to dm.mask, e.g. missing spider obscuration); added regression test in test\_sprint.py
 - Enabled pyr_tlt_coeffs for the modulated_pyramid, allowing to correctly set different tilt coefficients for the pyramid faces
 - Extracted FieldAnalyser's shared replay machinery (params loading, replay precision/downsampling checks, temp-simulation execution) into a new BaseReplayAnalyser base class, reused by EfReplay; pure refactor, no behavior change (mock patch targets for Simul/specula in test\_field\_analyser.py moved to specula.base\_replay\_analyser accordingly)
+- Added "out_slopes_map" output to Slopec (and thus to all its subclasses, e.g. PyrSlopec, ShSlopec): a 2d remap of the slopes vector (shape (2, size\_x, size\_y) for a single subaperture, reusing the existing single\_mask/display\_map/get2d() machinery), useful to store slopes in DataStore with a (timesteps, 2, size\_x, size\_y) shape instead of a flat vector. Added "out_pixels_subap" (raw, pre-threshold pixel intensities of the 4 pyramid pupils, shape (4, size\_x, size\_y)) and "out_pixels_subap_sum" (their sum, shape (size\_x, size\_y), e.g. for scintillation analysis) outputs to PyrSlopec. Added PupData.local_display_map() helper. No changes needed to DataStore, which already saves whatever shape an output's get_value() returns.
 
 ### Other
 
