@@ -1062,6 +1062,77 @@ class TestModulatedPyramid(unittest.TestCase):
 
 
     @cpu_and_gpu
+    def test_pup_diam_matches_requested_diameter_for_large_pup_dist(self, target_device_idx, xp):
+        """Regression test for calc_pyr_geometry: toccd_side must be recomputed from the
+        final (possibly fft_res_min-bumped) fft_res, otherwise the sub-pupils shrink
+        below the requested pup_diam pixels once pup_dist is large enough to trigger
+        the fft_res_min constraint (roughly pup_dist > 1.73 * pup_diam with the
+        default pup_margin=2)."""
+
+        pixel_pupil = 160
+        pixel_pitch = 0.05
+        wavelength_in_nm = 750
+        fov = 2.0
+        pup_diam = 20
+        output_resolution = 80
+        mod_amp = 3.0
+
+        simul_params = SimulParams(
+            pixel_pupil=pixel_pupil,
+            pixel_pitch=pixel_pitch,
+        )
+
+        def _pupil_diameters(pup_dist):
+            pyramid = ModulatedPyramid(
+                simul_params=simul_params,
+                wavelengthInNm=wavelength_in_nm,
+                fov=fov,
+                pup_diam=pup_diam,
+                pup_dist=pup_dist,
+                output_resolution=output_resolution,
+                mod_amp=mod_amp,
+                target_device_idx=target_device_idx,
+            )
+
+            ef = ElectricField(
+                pixel_pupil, pixel_pupil, pixel_pitch, S0=100, target_device_idx=target_device_idx
+            )
+            ef.A = make_mask(pixel_pupil)
+            ef.generation_time = 0
+
+            pyramid.inputs['in_ef'].set(ef)
+
+            loop = LoopControl()
+            loop.add(pyramid, idx=0)
+            loop.run(run_time=1, dt=1, t0=0)
+
+            pupcalib = PyrPupdataCalibrator(
+                data_dir="/tmp",
+                target_device_idx=target_device_idx,
+            )
+            pupcalib.local_inputs['in_i'] = pyramid.outputs['out_i']
+            pupcalib.trigger_code()
+            return cpuArray(pupcalib.pupdata.radius) * 2
+
+        # pup_dist=50 triggers the fft_res_min bump: fft_res_min = (50+20)/20*1.1 = 3.85 > 3.0
+        diam_large_dist = _pupil_diameters(pup_dist=50)
+        np.testing.assert_allclose(
+            diam_large_dist, pup_diam, atol=2.0,
+            err_msg=f"Pupil diameters {diam_large_dist} should match requested pup_diam="
+                    f"{pup_diam} even when pup_dist is large enough to bump fft_res"
+        )
+
+        # Sanity check: pup_dist=30 stays below the bump threshold
+        # (fft_res_min = (30+20)/20*1.1 = 2.75 < 3.0) and should also match pup_diam,
+        # both before and after the fix, guarding against regressions in the normal case.
+        diam_small_dist = _pupil_diameters(pup_dist=30)
+        np.testing.assert_allclose(
+            diam_small_dist, pup_diam, atol=2.0,
+            err_msg=f"Pupil diameters {diam_small_dist} should match requested pup_diam="
+                    f"{pup_diam} when pup_dist is below the fft_res_min bump threshold"
+        )
+
+    @cpu_and_gpu
     def test_imperfect_edges(self, target_device_idx, xp):
         
         pixel_pupil = 100

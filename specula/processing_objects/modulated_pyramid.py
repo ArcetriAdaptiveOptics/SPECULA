@@ -368,14 +368,19 @@ class ModulatedPyramid(BaseProcessingObj):
 
         fft_res = result['fft_res']
 
+        # Recompute toccd_side from the final fft_res (not the pre-bump internal_ccd_side
+        # above): otherwise, whenever fft_res_min increased fft_res, the pupils come out
+        # smaller than pup_diam pixels after the toccd() rebin below.
+        toccd_side = int(self.xp.around(fft_res * pup_diam / 2) * 2)
+
         result.update(
             {
             'tilt_scale': fft_res / ((pup_dist / float(pup_diam)) / 2.0),
-            'toccd_side': internal_ccd_side,
+            'toccd_side': toccd_side,
             'final_ccd_side': ccd_side
             }
         )
-        
+
         return result
 
     def get_pyr_tlt(self, p, c):
