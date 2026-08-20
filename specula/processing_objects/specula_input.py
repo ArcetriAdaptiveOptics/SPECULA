@@ -76,7 +76,7 @@ class SpeculaInput(BaseProcessingObj):
                         self.outputs[name].value = cast_func(value)
                         self.outputs[name].generation_time = self.current_time
                     except Exception as e:
-                        self.logger.error('Rejected input {value} for output {name}: cannot convert to type {cast_func}')
+                        self.logger.error(f'Rejected input {value} for output {name}: cannot convert to type {cast_func}')
                 except KeyError:
                     self.logger.error(f'Unknown output: {name}')
         except queue.Empty:
