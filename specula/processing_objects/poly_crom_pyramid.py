@@ -32,6 +32,7 @@ class PolyCromPyramid(PolyChromWFS):
                  pyr_edge_def_ld: float = 0.0,
                  pyr_tip_def_ld: float = 0.0,
                  pyr_tip_maya_ld: float = 0.0,
+                 pyr_max_side_ld: float = 0.0,
                  min_pup_dist: float = None,
                  rotAnglePhInDeg: float = 0.0,
                  xShiftPhInPixel: float = 0.0,    # same as SH
@@ -73,6 +74,7 @@ class PolyCromPyramid(PolyChromWFS):
                 pyr_edge_def_ld=pyr_edge_def_ld,
                 pyr_tip_def_ld=pyr_tip_def_ld,
                 pyr_tip_maya_ld=pyr_tip_maya_ld,
+                pyr_max_side_ld=pyr_max_side_ld,
                 min_pup_dist=min_pup_dist,
                 rotAnglePhInDeg=rotAnglePhInDeg,
                 xShiftPhInPixel=xShiftPhInPixel,    # same as SH

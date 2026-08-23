@@ -12,6 +12,7 @@ from specula.processing_objects.pyr_pupdata_calibrator import PyrPupdataCalibrat
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.make_mask import make_mask
+from specula.lib.make_xy import make_xy
 from specula.processing_objects.modulated_pyramid import ModulatedPyramid
 from test.specula_testlib import cpu_and_gpu
 
@@ -1131,6 +1132,42 @@ class TestModulatedPyramid(unittest.TestCase):
             err_msg=f"Pupil diameters {diam_small_dist} should match requested pup_diam="
                     f"{pup_diam} when pup_dist is below the fft_res_min bump threshold"
         )
+
+    @cpu_and_gpu
+    def test_pyr_max_side_limits_support(self, target_device_idx, xp):
+        pixel_pupil = 80
+        pixel_pitch = 0.1
+        wavelength_nm = 750
+        pup_diam = 24
+        output_resolution = 80
+        fov = 2.0
+
+        simul_params = SimulParams(
+            pixel_pupil=pixel_pupil,
+            pixel_pitch=pixel_pitch,
+        )
+
+        pyramid = ModulatedPyramid(
+            simul_params=simul_params,
+            wavelengthInNm=wavelength_nm,
+            fov=fov,
+            pup_diam=pup_diam,
+            output_resolution=output_resolution,
+            mod_amp=0.0,
+            mod_type='circular',
+            pyr_max_side_ld=2.0,
+            target_device_idx=target_device_idx,
+        )
+
+        p = 8
+        c = 8
+        pyr_tlt = pyramid.get_pyr_tlt(p, c)
+        xx, yy = make_xy(pyr_tlt.shape[0], pyr_tlt.shape[0] // 2, xp=xp)
+        dist = xp.sqrt(xx ** 2 + yy ** 2)
+        max_dist = pyramid.pyr_max_side_ld * pyramid.fft_res / 2.0
+
+        self.assertTrue(xp.any(pyr_tlt[dist <= max_dist] != 0))
+        self.assertTrue(xp.all(pyr_tlt[dist > max_dist] == 0))
 
     @cpu_and_gpu
     def test_imperfect_edges(self, target_device_idx, xp):
