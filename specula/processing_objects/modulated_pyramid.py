@@ -127,7 +127,7 @@ class ModulatedPyramid(BaseProcessingObj):
                  mod_step: int = None,
                  mod_type: str = 'circular',  # 'circular', 'vertical', 'horizontal', 'alternating'
                  fov_errinf: float = 0.1,
-                 fov_errsup: float = 2,
+                 fov_errsup: float = 10,
                  pup_dist: int = None,
                  pup_margin: int = 2,
                  fft_res: float = 3.0,

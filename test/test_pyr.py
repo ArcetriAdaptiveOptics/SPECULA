@@ -1061,7 +1061,6 @@ class TestModulatedPyramid(unittest.TestCase):
                 f" → fov_res={pyramid_high.fov_res},"
                 f" fp_masking={pyramid_high.fp_masking:.3f}")
 
-
     @cpu_and_gpu
     def test_pup_diam_matches_requested_diameter_for_large_pup_dist(self, target_device_idx, xp):
         """Regression test for calc_pyr_geometry: toccd_side must be recomputed from the
@@ -1170,6 +1169,75 @@ class TestModulatedPyramid(unittest.TestCase):
         self.assertTrue(xp.all(pyr_tlt[dist > max_dist] == 0))
 
     @cpu_and_gpu
+    def test_pyr_max_side_limits_frame(self, target_device_idx, xp):
+        """"""
+
+        pixel_pupil = 64
+        pixel_pitch = 0.125
+        wavelength_in_nm = 750
+        fov = 1.0
+        pup_diam = 20
+        pup_dist = 40
+        output_resolution = 80
+        mod_amp = 4.0
+        pyr_max_side_ld = 16.0
+        # lambda / D = 750e-9 / (160 * 0.05) * RAD2ASEC = 19.3 mas
+        #    4 * 19.3 mas = 77.2 mas
+        #    16 * 19.3 mas = 308.8 mas
+
+        simul_params = SimulParams(
+            pixel_pupil=pixel_pupil,
+            pixel_pitch=pixel_pitch,
+        )
+
+        pyramid = ModulatedPyramid(
+            simul_params=simul_params,
+            wavelengthInNm=wavelength_in_nm,
+            fov=fov,
+            pup_diam=pup_diam,
+            pup_dist=pup_dist,
+            output_resolution=output_resolution,
+            mod_amp=mod_amp,
+            pyr_max_side_ld=pyr_max_side_ld,
+            target_device_idx=target_device_idx,
+        )
+
+        ef = ElectricField(
+            pixel_pupil, pixel_pupil, pixel_pitch, S0=100, target_device_idx=target_device_idx
+        )
+        ef.A = make_mask(pixel_pupil)
+        ef.generation_time = 0
+
+        pyramid.inputs['in_ef'].set(ef)
+
+        loop = LoopControl()
+        loop.add(pyramid, idx=0)
+        loop.run(run_time=1, dt=1, t0=0)
+
+        output_intensity = pyramid.outputs['out_i']
+
+        mask = make_mask(output_resolution, diaratio=30.0/80.0)
+        idx = xp.where(mask)
+
+        debug_plot = False
+        if debug_plot: #pragma: no cover
+            import matplotlib.pyplot as plt
+            plt.figure(figsize=[4,4])
+            plt.imshow(output_intensity.i)
+            plt.title(f"Output Intensity for pup_dist={pup_dist}")
+            plt.colorbar()
+            plt.figure(figsize=[4,4])
+            plt.imshow(output_intensity.i * mask)
+            plt.title(f"Masked Intensity for pup_dist={pup_dist}")
+            plt.colorbar()
+            plt.show()
+
+        self.assertTrue(xp.all(output_intensity.i[idx] > 0),
+                        "Output intensity should be positive within the mask region")
+        self.assertTrue(xp.max(output_intensity.i[idx] / xp.max(output_intensity.i)) > 0.1,
+                        "Output intensity should have significant values within the mask region")
+
+    @cpu_and_gpu
     def test_imperfect_edges(self, target_device_idx, xp):
         
         pixel_pupil = 100
@@ -1185,7 +1253,6 @@ class TestModulatedPyramid(unittest.TestCase):
             pixel_pupil=pixel_pupil,
             pixel_pitch=pixel_pitch
         )
-
 
         pyramid = ModulatedPyramid(
             simul_params=simul_params,
