@@ -1230,6 +1230,10 @@ class TestModulatedPyramid(unittest.TestCase):
             plt.imshow(output_intensity.i * mask)
             plt.title(f"Masked Intensity for pup_dist={pup_dist}")
             plt.colorbar()
+            plt.figure(figsize=[4,4])
+            plt.imshow(pyramid.pyr_tlt)
+            plt.title(f"Pyramid Prism")
+            plt.colorbar()
             plt.show()
 
         self.assertTrue(xp.all(output_intensity.i[idx] > 0),
