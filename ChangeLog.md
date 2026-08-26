@@ -9,7 +9,7 @@
 
 ### Interface changes
 
-- ...
+- Added `pyr_max_side_ld` to `ModulatedPyramid` and its derived classes to cap the radial support of the pyramid surface in lambda/D units, forcing values outside the support radius to zero and enabling a central fifth pupil.
 
 ### Other
 
