@@ -130,7 +130,7 @@ To set up the main SPECULA parameter file, create a YAML configuration file, for
       wavelengthInNm:    1064
       inputs:
         atmo_layer_list: ['atmo.layer_list']
-        common_layer_list: ['pupilstop', 'dm.out_layer:-1']
+        common_layer_list: ['pupilstop', 'dm.out_layer:-1']  # previous-step DM correction; 1-frame causal feedback lag, separate from the explicit block delay below
       outputs:           ['out_source_down_ef']
     prop_up:
       class:             'AtmoPropagation'
@@ -142,7 +142,7 @@ To set up the main SPECULA parameter file, create a YAML configuration file, for
       wavelengthInNm:    1550
       inputs:
         atmo_layer_list: ['atmo.layer_list']
-        common_layer_list: ['pupilstop', 'dm.out_layer:-1']
+        common_layer_list: ['pupilstop', 'dm.out_layer:-1']  # previous-step DM correction; 1-frame causal feedback lag, separate from the explicit block delay below
       outputs:           ['out_source_up_ef']
 
    # The Pyramid WFS block simulates the Pyramid wavefront sensor.
@@ -206,7 +206,7 @@ To set up the main SPECULA parameter file, create a YAML configuration file, for
    # The full list of parameters can be found in the init method of the Integrator class.
     control:
       class:                'Integrator'
-      delay:                1
+      delay:                1  # explicit controller/plant delay [frames]; this is additional to the 1-step causal feedback lag already introduced by dm.out_layer:-1
       int_gain:             [0.,0.]
       n_modes:              [2,28]
       inputs:

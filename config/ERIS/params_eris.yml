@@ -198,7 +198,7 @@ modalrec_lo:
 
 integrator_truth:
   class:        'Integrator'
-  delay:             2                      # Total temporal delay in time steps
+  delay:             2                      # explicit temporal delay in time steps; additional to the 1-step feedback lag from dm.out_layer:-1
   int_gain:          [0.0, 0.004]
   n_modes:           [2,8]
   inputs:
@@ -219,7 +219,7 @@ subtract_truth:
 
 integrator_lgs:
   class:             'Integrator'
-  delay:             2                      # Total temporal delay in time steps
+  delay:             2                      # explicit temporal delay in time steps; additional to the 1-step feedback lag from dm.out_layer:-1
   int_gain:          [0.0, 0.3]
   n_modes:           [2,   698]
   inputs:
@@ -237,7 +237,7 @@ slicer_lgs:
 
 integrator_lo:
   class:        'Integrator'
-  delay:             2                      # Total temporal delay in time steps
+  delay:             2                      # explicit temporal delay in time steps; additional to the 1-step feedback lag from dm.out_layer:-1
   int_gain:          [0.4]
   n_modes:           [2]
   inputs:
