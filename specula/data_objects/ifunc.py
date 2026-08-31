@@ -5,6 +5,7 @@ from astropy.io import fits
 
 from specula.lib.compute_zonal_ifunc import compute_zonal_ifunc
 from specula.lib.compute_zern_ifunc import compute_zern_ifunc
+from specula.lib.fast_pinv import fast_pinv
 
 
 def compute_kl_ifunc(*args, **kwargs):
@@ -184,7 +185,7 @@ class IFunc(BaseDataObj):
         if remove_piston:
             ifunc = ifunc - self.xp.mean(ifunc, axis=1, keepdims=True)
 
-        inv = self.xp.linalg.pinv(ifunc)
+        inv = fast_pinv(ifunc, self.xp)
         return IFuncInv(inv, mask=self._mask_inf_func, precision=self.precision,
                         target_device_idx=self.target_device_idx)
 
