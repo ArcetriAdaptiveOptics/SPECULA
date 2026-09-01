@@ -78,9 +78,9 @@ class ImCalibrator(BaseProcessingObj):
         if self.compute_single_im:
             self.single_im = [Intmat(nmodes=1, nslopes=0,
                                      target_device_idx=self.target_device_idx) for i in range(nmodes)]
-            self.outputs['out_single_im'] = self.single_im
         else:
-            self.single_im = None
+            self.single_im = []
+        self.outputs['out_single_im'] = self.single_im
 
     @classmethod
     def input_names(cls):

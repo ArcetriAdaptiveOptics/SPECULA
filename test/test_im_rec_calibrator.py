@@ -350,18 +350,21 @@ class TestImRecCalibrator(unittest.TestCase):
 
     @cpu_and_gpu
     def test_compute_single_im_false_skips_output(self, target_device_idx, xp):
-        """Test that compute_single_im=False skips building out_single_im
-        entirely, while out_intmat / file creation still work normally
-        (added when ANDES needed to skip the per-step O(nmodes) loop for a
-        4000-mode, 800000-step partial-correction IM calibration)."""
+        """Test that compute_single_im=False skips POPULATING out_single_im
+        (stays an empty list -- the output key itself must still be present,
+        the framework requires every name in output_names() to exist in
+        self.outputs, even when unused) while out_intmat / file creation
+        still work normally (added when ANDES needed to skip the per-step
+        O(nmodes) loop for a 4000-mode, 800000-step partial-correction IM
+        calibration)."""
         im_tag = 'test_im_single_false'
         nmodes = 4
 
         calibrator = ImCalibrator(nmodes=nmodes, data_dir=self.test_dir, im_tag=im_tag,
                                   overwrite=True, compute_single_im=False,
                                   target_device_idx=target_device_idx)
-        self.assertNotIn('out_single_im', calibrator.outputs)
-        self.assertIsNone(calibrator.single_im)
+        self.assertIn('out_single_im', calibrator.outputs)
+        self.assertEqual(calibrator.single_im, [])
 
         slopes = Slopes(6, target_device_idx=target_device_idx)
         slopes.generation_time = 1
