@@ -101,7 +101,8 @@ class CCD(BaseProcessingObj):
             Random seed for excess noise (default is 3).
         excess_delta : float [1], optional
             Excess noise factor (default is 1.0).
-            The excess noise factor is ENF = sqrt(2 - 1/excess_delta)
+            The excess noise factor (st. dev.) is ENF = sqrt(1 + 1/excess_delta)
+            and hence the variance is 1 + 1/excess_delta
         start_time : int [s], optional
             Time to start the CCD integration (default is 0).
         ADU_gain : float [1], optional
