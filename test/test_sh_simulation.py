@@ -179,7 +179,13 @@ class TestShSimulation(unittest.TestCase):
         ]
         print('running ', cmd)
         os.chdir(os.path.dirname(__file__))
-        _ = subprocess.run(cmd)
+        result = run_mpi_command(cmd)
+        self.assertEqual(
+            result.returncode,
+            0,
+            f"MPI simulation failed with exit code {result.returncode}\n"
+            f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}",
+        )
         self._assert_results()
 
     @unittest.skipIf(not MPI_AVAILABLE, "MPI not available")
@@ -242,3 +248,28 @@ class TestShSimulation(unittest.TestCase):
             with self.assertRaises(ImportError):
                 result = specula.main_simul('dummy.yml', mpi=True)
 
+
+def run_mpi_command(cmd):
+    """Run MPI command in an isolated process session to avoid signal spillover."""
+    return subprocess.run(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+
+
+class TestRunMpiCommand(unittest.TestCase):
+
+    def test_run_mpi_command_uses_isolated_session(self):
+        with patch.object(subprocess, "run") as mock_run:
+            mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+            run_mpi_command(["mpirun", "-n", "2", "python", "--version"])
+            mock_run.assert_called_once_with(
+                ["mpirun", "-n", "2", "python", "--version"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                start_new_session=True,
+            )
