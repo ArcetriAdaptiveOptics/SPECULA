@@ -11,7 +11,7 @@ class LowPassFilter(IirFilter):
     """
     def __init__(self,
                  simul_params: SimulParams,
-                 cutoff_freq: float,    # TODO =1.0, 
+                 cutoff_freq: float,
                  amplif_fact: float=None,
                  n_ord: int=None,
                  delay: float=0,

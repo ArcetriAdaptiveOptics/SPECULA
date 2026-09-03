@@ -90,13 +90,27 @@ class PupData(BaseDataObj):
             # pupils respectively. This is the order expected by PyrSlopec,
             # and it is the correct order for slopes_from_intensity.
             #     self.pupil_idx(0)[self.pupil_idx(0) >= 0],  # A
-            #     self.pupil_idx(1)[self.pupil_idx(1) >= 0],  # B  
+            #     self.pupil_idx(1)[self.pupil_idx(1) >= 0],  # B
             #     self.pupil_idx(2)[self.pupil_idx(2) >= 0],  # C
             #     self.pupil_idx(3)[self.pupil_idx(3) >= 0]   # D
             return self.xp.concatenate([self.pupil_idx(i)[self.pupil_idx(i) >= 0] for i in range(self.n_pupils)])
         else:
-            mask = self.single_mask()
-            return self.xp.ravel_multi_index(self.xp.where(mask), mask.shape)
+            return self.local_display_map()
+
+    def local_display_map(self):
+        '''
+        Flat index map into a single-subaperture-sized crop (the shape
+        returned by :meth:`single_mask`), independent of the
+        ``slopes_from_intensity`` setting.
+
+        Since every pupil shares the same local pattern (same radius,
+        only translated to a different quadrant), this same index map can
+        be used to remap any subaperture-length vector - not only slopes,
+        but also per-pupil pixel intensities (e.g. the A, B, C, D vectors
+        computed by PyrSlopec) - into a 2d image of shape ``single_mask().shape``.
+        '''
+        mask = self.single_mask()
+        return self.xp.ravel_multi_index(self.xp.where(mask), mask.shape)
 
     def single_mask(self):
         f = self.xp.zeros(self.framesize[0]*self.framesize[1], dtype=self.dtype)

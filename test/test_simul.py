@@ -3,6 +3,8 @@ from __future__ import annotations
 import specula
 specula.init(0)  # Default target device
 
+import os
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -13,6 +15,7 @@ from typing import Dict, List
 
 import numpy as np
 from specula.simul import Simul, computeTag
+from specula.loop_control import LoopControl
 from specula.connections import InputValue, InputList
 from specula.data_objects.recmat import Recmat
 from specula.base_data_obj import BaseDataObj
@@ -255,6 +258,29 @@ class TestSimul(unittest.TestCase):
         simul.combine_params(params, additional_params2)
         assert params['dm'] == original_params['dm']      # Unchanged
         assert 'dm2' not in params
+
+    def test_validate_section_names_accepts_clean_names(self):
+        simul = Simul('dummy.yaml')
+        params = {'main': {}, 'atmo_0': {}, 'dm2': {}}
+        simul.validate_section_names(params)  # Should not raise
+
+    def test_validate_section_names_rejects_dot(self):
+        simul = Simul('dummy.yaml')
+        params = {'my.control': {}}
+        with self.assertRaises(ValueError):
+            simul.validate_section_names(params)
+
+    def test_validate_section_names_rejects_dash(self):
+        simul = Simul('dummy.yaml')
+        params = {'my-control': {}}
+        with self.assertRaises(ValueError):
+            simul.validate_section_names(params)
+
+    def test_validate_section_names_rejects_colon(self):
+        simul = Simul('dummy.yaml')
+        params = {'my:control': {}}
+        with self.assertRaises(ValueError):
+            simul.validate_section_names(params)
 
     def test_unknown_parameter_raises_value_error(self):
         '''Test that a YAML parameter not present in the class constructor raises ValueError'''
@@ -606,6 +632,185 @@ class TestSimul(unittest.TestCase):
         assert 'src_a' in replay
         assert 'src_b' in replay
 
+    def _ef_combinator_shadowing_prop_params(self):
+        '''
+        Shape of SPECULA issue #696: a PhaseScreenCube summed via
+        ElectricFieldCombinator onto an AtmoPropagation source's output,
+        downstream of the propagation object. Targeting only 'prop' silently
+        drops the combinator/disturbance from the replay.
+        '''
+        return {
+            'main': {'class': 'SimulParams', 'root_dir': 'dummy'},
+            'prop': {'class': 'AtmoPropagation'},
+            'disturbance': {'class': 'PhaseScreenCube'},
+            'ef_combinator': {
+                'class': 'ElectricFieldCombinator',
+                'inputs': {'in_ef1': 'prop.out_ef', 'in_ef2': 'disturbance.out_layer'}
+            },
+        }
+
+    def test_build_targeted_replay_errors_on_dropped_ef_layer_consumer(self):
+        params = self._ef_combinator_shadowing_prop_params()
+
+        with self.assertRaises(ValueError) as ctx:
+            Simul('dummy.yaml').build_targeted_replay(params, 'prop')
+
+        self.assertIn('ef_combinator', str(ctx.exception))
+
+    def test_build_targeted_replay_ignore_mode_returns_cleanly(self):
+        params = self._ef_combinator_shadowing_prop_params()
+
+        replay = Simul('dummy.yaml').build_targeted_replay(
+            params, 'prop', on_missing_downstream_consumers='ignore')
+
+        assert 'prop' in replay
+        assert 'ef_combinator' not in replay
+
+    def test_build_targeted_replay_warn_mode_logs_without_raising(self):
+        params = self._ef_combinator_shadowing_prop_params()
+
+        with self.assertLogs('specula.simul', level='WARNING') as cm:
+            replay = Simul('dummy.yaml').build_targeted_replay(
+                params, 'prop', on_missing_downstream_consumers='warn')
+
+        assert 'prop' in replay
+        assert 'ef_combinator' not in replay
+        assert any('ef_combinator' in message for message in cm.output)
+
+    def test_build_targeted_replay_ignores_non_ef_layer_consumer(self):
+        '''
+        A consumer whose own output is not ElectricField/Layer (e.g. a WFS)
+        must never trip the check, even under the default 'error' mode -- this
+        is the routine, expected case (FieldAnalyser attaches new analysis
+        objects to 'prop' instead of the original WFS/PSF/ModalAnalysis chain).
+        '''
+        params = {
+            'main': {'class': 'SimulParams', 'root_dir': 'dummy'},
+            'prop': {'class': 'AtmoPropagation'},
+            'sh': {'class': 'SH', 'inputs': {'in_ef': 'prop.out_ef'}},
+        }
+
+        replay = Simul('dummy.yaml').build_targeted_replay(params, 'prop')
+
+        assert 'prop' in replay
+        assert 'sh' not in replay
+
+    def test_build_targeted_replay_excludes_datastore_from_check(self):
+        '''
+        A DataStore referencing a captured object's output must never be
+        flagged: its absence under its original key is the intentional
+        DataStore->DataSource conversion, not a silent drop. (DataStore
+        declares no outputs at all, so this is naturally excluded by the
+        EF/Layer output-type filter, with no special-casing needed.)
+        '''
+        params = {
+            'main': {'class': 'SimulParams', 'root_dir': 'dummy'},
+            'prop': {'class': 'AtmoPropagation'},
+            'store': {
+                'class': 'DataStore',
+                'store_dir': '/tmp',
+                'inputs': {'input_list': ['val-prop.out_ef']}
+            },
+        }
+
+        replay = Simul('dummy.yaml').build_targeted_replay(params, 'prop')
+
+        assert 'prop' in replay
+        assert 'store' not in replay
+
+    def test_inject_recorded_seeds_injects_when_absent(self):
+        target_params = {'gen': {'class': 'RandomGenerator', 'output_size': 3}}
+        Simul('dummy.yaml').inject_recorded_seeds(target_params, {'gen': 42})
+        assert target_params['gen']['seed'] == 42
+
+    def test_inject_recorded_seeds_explicit_seed_wins(self):
+        target_params = {'gen': {'class': 'RandomGenerator', 'seed': 7, 'output_size': 3}}
+        Simul('dummy.yaml').inject_recorded_seeds(target_params, {'gen': 42})
+        assert target_params['gen']['seed'] == 7
+
+    def test_inject_recorded_seeds_ignores_unknown_keys(self):
+        target_params = {'gen': {'class': 'RandomGenerator', 'output_size': 3}}
+        Simul('dummy.yaml').inject_recorded_seeds(target_params, {'other': 42})
+        assert 'seed' not in target_params['gen']
+
+    def test_random_generator_seed_reproducible_via_targeted_replay(self):
+        '''
+        End-to-end proof for SPECULA replay seed reproducibility, mirroring how
+        FieldAnalyser uses build_targeted_replay: an unseeded RandomGenerator
+        whose only consumer is the DataStore (so build_replay's generic
+        DataStore->DataSource shortcut would normally drop it entirely) must,
+        when targeted directly with build_targeted_replay and replayed, produce
+        the exact same values as the original run once the recorded seed
+        (from replay_params.yml) is injected.
+        '''
+        import shutil
+        from astropy.io import fits
+
+        orig_dir = tempfile.mkdtemp()
+        replay_dir = tempfile.mkdtemp()
+        try:
+            yml = f'''
+main:
+  class: SimulParams
+  root_dir: dummy
+  total_time: 0.005
+  time_step: 0.001
+
+gen:
+  class: RandomGenerator
+  output_size: 3
+  outputs: ['output']
+
+store:
+  class: DataStore
+  store_dir: {orig_dir}
+  create_tn: false
+  inputs:
+    input_list: ['val-gen.output']
+'''
+            fd, path = tempfile.mkstemp(suffix='.yml')
+            with os.fdopen(fd, 'w') as f:
+                f.write(yml)
+            try:
+                Simul(path).run()
+            finally:
+                os.unlink(path)
+
+            with open(os.path.join(orig_dir, 'params.yml'), encoding='utf-8') as f:
+                original_params = yaml.safe_load(f)
+            with open(os.path.join(orig_dir, 'replay_params.yml'), encoding='utf-8') as f:
+                saved_replay_params = yaml.safe_load(f)
+
+            recorded_seeds = saved_replay_params['data_source']['random_seeds']
+            self.assertIn('gen', recorded_seeds)
+
+            simul = Simul('dummy.yaml')
+            targeted_params = simul.build_targeted_replay(original_params, 'gen')
+            simul.inject_recorded_seeds(targeted_params, recorded_seeds)
+            self.assertEqual(targeted_params['gen']['seed'], recorded_seeds['gen'])
+
+            targeted_params['store2'] = {
+                'class': 'DataStore',
+                'store_dir': replay_dir,
+                'create_tn': False,
+                'inputs': {'input_list': ['val2-gen.output']}
+            }
+
+            fd2, replay_path = tempfile.mkstemp(suffix='.yml')
+            with os.fdopen(fd2, 'w') as f:
+                yaml.dump(targeted_params, f)
+            try:
+                Simul(replay_path).run()
+            finally:
+                os.unlink(replay_path)
+
+            original = fits.getdata(os.path.join(orig_dir, 'val.fits'))
+            replayed = fits.getdata(os.path.join(replay_dir, 'val2.fits'))
+            np.testing.assert_array_equal(original, replayed)
+        finally:
+            shutil.rmtree(orig_dir, ignore_errors=True)
+            shutil.rmtree(replay_dir, ignore_errors=True)
+
     def test_integration_simul_modalrec_with_list_object(self):
         '''
         Integration-style test: Simul builds ModalrecMultirate and injects
@@ -724,3 +929,67 @@ class TestSimul(unittest.TestCase):
         params = yaml.safe_load(yml)
         simul.build_objects(params)
         assert simul.objs['test'].target_device_idx == -1
+
+
+class TestSimulRunTiming(unittest.TestCase):
+    """Tests that Simul.run() translates start_time/end_time correctly to loop.run()"""
+
+    _MINIMAL_YML = '''\
+main:
+  class: SimulParams
+  root_dir: dummy
+  total_time: 1.0
+  time_step: 0.001
+'''
+
+    def _make_simul(self):
+        fd, path = tempfile.mkstemp(suffix='.yml')
+        try:
+            with os.fdopen(fd, 'w') as f:
+                f.write(self._MINIMAL_YML)
+            return Simul(path, speed_report=False), path
+        except Exception:
+            os.unlink(path)
+            raise
+
+    def _run_and_capture(self, simul, **run_kwargs):
+        captured = {}
+        original_run = LoopControl.run
+
+        def fake_run(self_loop, run_time, dt, t0=0, speed_report=False):
+            captured['run_time'] = run_time
+            captured['t0'] = t0
+
+        with patch.object(LoopControl, 'run', fake_run):
+            simul.run(**run_kwargs)
+        return captured
+
+    def test_default_call_passes_total_time_and_zero_t0(self):
+        """Default run() → run_time=total_time, t0=0"""
+        simul, path = self._make_simul()
+        try:
+            captured = self._run_and_capture(simul)
+        finally:
+            os.unlink(path)
+        self.assertAlmostEqual(captured['run_time'], 1.0)
+        self.assertAlmostEqual(captured['t0'], 0.0)
+
+    def test_start_time_reduces_run_time_and_sets_t0(self):
+        """start_time=0.1, no end_time → run_time=0.9, t0=0.1"""
+        simul, path = self._make_simul()
+        try:
+            captured = self._run_and_capture(simul, start_time=0.1)
+        finally:
+            os.unlink(path)
+        self.assertAlmostEqual(captured['run_time'], 0.9)
+        self.assertAlmostEqual(captured['t0'], 0.1)
+
+    def test_end_time_limits_run_time(self):
+        """start_time=0.1, end_time=0.8 → run_time=0.7, t0=0.1"""
+        simul, path = self._make_simul()
+        try:
+            captured = self._run_and_capture(simul, start_time=0.1, end_time=0.8)
+        finally:
+            os.unlink(path)
+        self.assertAlmostEqual(captured['run_time'], 0.7)
+        self.assertAlmostEqual(captured['t0'], 0.1)

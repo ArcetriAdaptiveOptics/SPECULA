@@ -15,9 +15,9 @@ class PolyCromPyramid(PolyChromWFS):
                  flux_factor: list,
                  # Pyramid parameters (shared by all instances)
                  simul_params: SimulParams,
-                 fov: float,            # TODO =2.0,
-                 pup_diam: int,         # TODO =30,
-                 output_resolution: int,# TODO =80,
+                 fov: float,
+                 pup_diam: int,
+                 output_resolution: int,
                  mod_amp: float = 3.0,
                  mod_step: int = None,
                  mod_type: str = 'circular',  # 'circular', 'vertical', 'horizontal', 'alternating'
@@ -32,6 +32,7 @@ class PolyCromPyramid(PolyChromWFS):
                  pyr_edge_def_ld: float = 0.0,
                  pyr_tip_def_ld: float = 0.0,
                  pyr_tip_maya_ld: float = 0.0,
+                 pyr_max_side_ld: float = 0.0,
                  min_pup_dist: float = None,
                  rotAnglePhInDeg: float = 0.0,
                  xShiftPhInPixel: float = 0.0,    # same as SH
@@ -73,6 +74,7 @@ class PolyCromPyramid(PolyChromWFS):
                 pyr_edge_def_ld=pyr_edge_def_ld,
                 pyr_tip_def_ld=pyr_tip_def_ld,
                 pyr_tip_maya_ld=pyr_tip_maya_ld,
+                pyr_max_side_ld=pyr_max_side_ld,
                 min_pup_dist=min_pup_dist,
                 rotAnglePhInDeg=rotAnglePhInDeg,
                 xShiftPhInPixel=xShiftPhInPixel,    # same as SH

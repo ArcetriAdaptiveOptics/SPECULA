@@ -4,7 +4,6 @@ from specula.processing_objects.modulated_pyramid import ModulatedPyramid
 from specula.lib.make_xy import make_xy
 from specula.data_objects.simul_params import SimulParams
 
-
 @fuse(kernel_name='pyr1_fused')
 def pyr1_fused(u_fp, ffv, fpsf, masked_exp, xp):
     psf = xp.real(u_fp * xp.conj(u_fp))
@@ -26,10 +25,10 @@ class ModulatedDoubleRoof(ModulatedPyramid):
     """
     def __init__(self,
                  simul_params: SimulParams,
-                 wavelengthInNm: float, # TODO =750,
-                 fov: float,            # TODO =2.0,
-                 pup_diam: int,         # TODO =30,
-                 output_resolution: int,# TODO =80,
+                 wavelengthInNm: float,
+                 fov: float,
+                 pup_diam: int,
+                 output_resolution: int,
                  mod_amp: float = 3.0,
                  mod_step: int = None,
                  fov_errinf: float = 0.5,
@@ -43,6 +42,7 @@ class ModulatedDoubleRoof(ModulatedPyramid):
                  pyr_edge_def_ld: float = 0.0,
                  pyr_tip_def_ld: float = 0.0,
                  pyr_tip_maya_ld: float = 0.0,
+                 pyr_max_side_ld: float = 0.0,
                  min_pup_dist: float = None,
                  rotAnglePhInDeg: float = 0.0,
                  xShiftPhInPixel: float = 0.0,    # same as SH
@@ -68,6 +68,7 @@ class ModulatedDoubleRoof(ModulatedPyramid):
                  pyr_edge_def_ld=pyr_edge_def_ld,
                  pyr_tip_def_ld=pyr_tip_def_ld,
                  pyr_tip_maya_ld=pyr_tip_maya_ld,
+                 pyr_max_side_ld=pyr_max_side_ld,
                  min_pup_dist=min_pup_dist,
                  rotAnglePhInDeg=rotAnglePhInDeg,
                  xShiftPhInPixel=xShiftPhInPixel,
@@ -97,7 +98,7 @@ class ModulatedDoubleRoof(ModulatedPyramid):
         self.mid_w = self.fft_totsize // 2
 
     def get_pyr_tlt(self, p, c):
-        A = int((p + c) // 2)
+        A = int(round((p + c) / 2.0))
         # Create two separate roofs instead of a 4-faced pyramid
         roof1_tlt = self.xp.zeros((2 * A, 2 * A), dtype=self.dtype)
         roof2_tlt = self.xp.zeros((2 * A, 2 * A), dtype=self.dtype)

@@ -11,6 +11,7 @@ from specula.loop_control import LoopControl
 from specula.base_data_obj import BaseDataObj
 from specula.data_objects.source import Source
 from specula.data_objects.pupilstop import Pupilstop
+from specula.processing_objects.modulated_pyramid import ModulatedPyramid
 from specula.data_objects.layer import Layer
 from specula.processing_objects.atmo_propagation import AtmoPropagation
 from specula.data_objects.simul_params import SimulParams
@@ -453,6 +454,234 @@ class TestAtmoPropagation(unittest.TestCase):
 
         max_diff = np.max(np.abs(diff))
         assert max_diff < 0.02, f"Max difference after rotation is {max_diff}, should be < 0.02"
+
+
+    @cpu_and_gpu
+    def test_fresnel_amplitude_variation(self, target_device_idx, xp):
+        """Test that amplitude is not 1 everywhere when using Fresnel propagation."""
+        pixel_pupil = 64
+        pixel_pitch = 0.01
+        wavelength = 500.0
+        simul_params = SimulParams(pixel_pupil, pixel_pitch)
+        
+        # Layer at a high altitude with a sinusoidal phase perturbation
+        layer = Layer(
+            dimx=64, dimy=64, 
+            pixel_pitch=pixel_pitch, 
+            height=10000.0, 
+            target_device_idx=target_device_idx
+        )
+        layer.A = xp.ones((64, 64))
+        x_coords = xp.arange(64, dtype=float) * pixel_pitch
+        layer.phaseInNm = 200.0 * xp.sin(2 * xp.pi * x_coords / 1.0) * xp.ones((64, 64))
+        layer.generation_time = 1
+
+        telescope_pupil = Layer(
+            dimx=64, dimy=64, 
+            pixel_pitch=pixel_pitch, 
+            height=0.0, 
+            target_device_idx=target_device_idx
+        )
+        telescope_pupil.A = xp.ones((64, 64))
+        telescope_pupil.phaseInNm = xp.zeros((64, 64))
+        telescope_pupil.generation_time = 1
+        
+        source = Source(polar_coordinates=[0.0, 0.0], magnitude=8, wavelengthInNm=wavelength, height=np.inf)
+        
+        prop = AtmoPropagation(
+            simul_params, 
+            source_dict={'src': source}, 
+            doFresnel=True, 
+            wavelengthInNm=wavelength, 
+            padding_factor=4, 
+            target_device_idx=target_device_idx
+        )
+        prop.inputs['atmo_layer_list'].set([layer])
+        prop.inputs['common_layer_list'].set([telescope_pupil])
+        prop.setup()
+        
+        loop = LoopControl()
+        loop.add(prop, idx=0)
+        loop.run(run_time=1, dt=1, t0=0)
+        
+        output_ef = prop.outputs['out_src_ef']
+        output_amp = cpuArray(output_ef.A)
+        
+        # Verify amplitude varies from 1.0 due to Fresnel diffraction
+        assert not np.allclose(output_amp, 1.0), f"Fresnel propagation should produce amplitude variations, {np.max(output_amp)}."
+
+    @cpu_and_gpu
+    def test_Fresnel_propagation_at_different_wavelengths_raises(self, target_device_idx, xp):
+        """Test that amplitude is not 1 everywhere when using Fresnel propagation."""
+        pixel_pupil = 64
+        pixel_pitch = 0.01
+        wavelengthA = 750.0
+        wavelengthB = 1250.0
+        simul_params = SimulParams(pixel_pupil, pixel_pitch)
+        
+        # Layer at a high altitude with a sinusoidal phase perturbation
+        layer = Layer(
+            dimx=64, dimy=64, 
+            pixel_pitch=pixel_pitch, 
+            height=10000.0, 
+            target_device_idx=target_device_idx
+        )
+        layer.A = xp.ones((64, 64))
+        x_coords = xp.arange(64, dtype=float) * pixel_pitch
+        layer.phaseInNm = 200.0 * xp.sin(2 * xp.pi * x_coords / 1.0) * xp.ones((64, 64))
+        layer.generation_time = 1
+        
+        source = Source(polar_coordinates=[0.0, 0.0], magnitude=8, wavelengthInNm=wavelengthA, height=np.inf)
+
+        # Fresnel propagation at wavelength A
+        prop_fresnelA = AtmoPropagation(
+            simul_params, 
+            source_dict={'src': source}, 
+            doFresnel=True, 
+            wavelengthInNm=wavelengthA, 
+            padding_factor=4, 
+            target_device_idx=target_device_idx
+        )
+        prop_fresnelA.inputs['atmo_layer_list'].set([layer])
+        prop_fresnelA.inputs['common_layer_list'].set([])
+        prop_fresnelA.setup()
+
+        # Fresnel propagation at wavelength B
+        prop_fresnelB = AtmoPropagation(
+            simul_params, 
+            source_dict={'src': source}, 
+            doFresnel=True, 
+            wavelengthInNm=wavelengthB, 
+            padding_factor=4, 
+            target_device_idx=target_device_idx
+        )
+        prop_fresnelB.inputs['atmo_layer_list'].set([layer])
+        prop_fresnelB.inputs['common_layer_list'].set([])
+        prop_fresnelB.setup()
+
+        # Geometric propagation at wavelength B
+        prop_geoB = AtmoPropagation(
+            simul_params, 
+            source_dict={'src': source}, 
+            doFresnel=False, 
+            wavelengthInNm=wavelengthB, 
+            target_device_idx=target_device_idx
+        )
+        prop_geoB.inputs['atmo_layer_list'].set([layer])
+        prop_geoB.inputs['common_layer_list'].set([])
+        prop_geoB.setup()
+
+        loop = LoopControl()
+        loop.add(prop_geoB, idx=0)
+        loop.add(prop_fresnelA, idx=1)
+        loop.add(prop_fresnelB, idx=2)
+        loop.run(run_time=1, dt=1, t0=0)
+
+        # Pyramid at wavelength A
+        fov = 6.0
+        pup_diam = 30
+        output_resolution = 80
+        pyramid = ModulatedPyramid(
+            simul_params=simul_params,
+            wavelengthInNm=wavelengthA,
+            fov=fov,
+            pup_diam=pup_diam,
+            output_resolution=output_resolution,
+            target_device_idx=target_device_idx
+        )
+
+        try: # should not raise
+            pyramid.inputs['in_ef'].set(prop_fresnelA.outputs['out_src_ef'])
+            loop.add(pyramid, idx=3)
+            loop.run(run_time=1, dt=1, t0=0)
+        except ValueError:
+            raise ValueError('Fresnel propagation at the same wavelength should not raise')
+
+        try: # should not raise
+            pyramid.inputs['in_ef'].set(prop_geoB.outputs['out_src_ef'])
+            loop.add(pyramid, idx=3)
+            loop.run(run_time=1, dt=1, t0=0)
+        except ValueError:
+            raise ValueError('Geometric should never raise when evaluated at a differen wavelength')
+
+
+        with self.assertRaises(ValueError):
+            pyramid.inputs['in_ef'].set(prop_fresnelB.outputs['out_src_ef'])
+            loop.add(pyramid, idx=3)
+            loop.run(run_time=1, dt=1, t0=0)
+
+
+
+    @cpu_and_gpu
+    def test_fresnel_equals_geometric_at_ground(self, target_device_idx, xp):
+        """Test that Fresnel gives identical results to standard propagation for a ground layer."""
+        pixel_pupil = 64
+        pixel_pitch = 0.1
+        wavelength = 500.0
+        simul_params = SimulParams(pixel_pupil, pixel_pitch)
+        
+        # Ground layer with both amplitude and phase features
+        layer = Layer(
+            dimx=64, dimy=64, 
+            pixel_pitch=pixel_pitch, 
+            height=0.0, 
+            target_device_idx=target_device_idx
+        )
+        layer.A = xp.ones((64, 64))
+        x_coords = xp.arange(64, dtype=float) * pixel_pitch
+        layer.phaseInNm = 200.0 * xp.sin(2 * xp.pi * x_coords / 12.0) * xp.ones((64, 64)) #100.0 * xp.ones((64, 64))
+        layer.generation_time = 1
+        
+        telescope_pupil = Layer(
+            dimx=64, dimy=64, 
+            pixel_pitch=pixel_pitch, 
+            height=0.0, 
+            target_device_idx=target_device_idx
+        )
+        telescope_pupil.A = xp.ones((64, 64))
+        telescope_pupil.phaseInNm = xp.zeros((64, 64))
+        telescope_pupil.generation_time = 1
+
+        source = Source(polar_coordinates=[0.0, 0.0], magnitude=8, wavelengthInNm=wavelength)
+        
+        # Geometric (Standard) Propagation
+        prop_geo = AtmoPropagation(
+            simul_params, 
+            source_dict={'src': source}, 
+            doFresnel=False, 
+            target_device_idx=target_device_idx
+        )
+        prop_geo.inputs['atmo_layer_list'].set([layer])
+        prop_geo.inputs['common_layer_list'].set([telescope_pupil])
+        prop_geo.setup()
+        
+        # Fresnel Propagation
+        prop_fresnel = AtmoPropagation(
+            simul_params, 
+            source_dict={'src': source}, 
+            doFresnel=True, 
+            wavelengthInNm=wavelength, 
+            padding_factor=4, 
+            target_device_idx=target_device_idx
+        )
+        prop_fresnel.inputs['atmo_layer_list'].set([layer])
+        prop_fresnel.inputs['common_layer_list'].set([telescope_pupil])
+        prop_fresnel.setup()
+        
+        loop = LoopControl()
+        loop.add(prop_geo, idx=0)
+        loop.add(prop_fresnel, idx=0)
+        loop.run(run_time=1, dt=1, t0=0)
+        
+        amp_geo = cpuArray(prop_geo.outputs['out_src_ef'].A)
+        phase_geo = cpuArray(prop_geo.outputs['out_src_ef'].phaseInNm)
+        
+        amp_fresnel = cpuArray(prop_fresnel.outputs['out_src_ef'].A)
+        phase_fresnel = cpuArray(prop_fresnel.outputs['out_src_ef'].phaseInNm)
+        
+        assert np.allclose(amp_geo, amp_fresnel, atol=1e-5), "Ground layer amplitudes must match."
+        assert np.allclose(phase_geo, phase_fresnel, atol=1e-5), "Ground layer phases must match."
+
 
     def test_atmo_chromatic_shift_switches(self):
         """Test AtmoPropagation chromatic switch logic (disabled/equal wavelength)."""

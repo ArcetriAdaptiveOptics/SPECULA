@@ -54,7 +54,7 @@ class RandomGenerator(BaseGenerator):
 
         if constant is None:
             constant = [0.0]
-            
+
         # Validate arrays and determine output size
         temp_amp = np.atleast_1d(amp)
         temp_const = np.atleast_1d(constant)
@@ -86,8 +86,12 @@ class RandomGenerator(BaseGenerator):
             seed = int(self.xp.around(self.xp.random.random() * 1e4))
 
         self.rng = self.xp.random.default_rng(seed)
+        self._resolved_seed = seed
         self.output_size_array = self.xp.ones(output_size, dtype=self.dtype)
         self.output_size = output_size
+
+    def get_resolved_seed(self):
+        return self._resolved_seed
 
     @staticmethod
     def _generate_scaled_amps(modal_rms: float,

@@ -34,7 +34,7 @@ sampHold:
 
 control:
   class:             'Integrator'
-  delay:             1                      # Total temporal delay in time steps
+  delay:             1                      # explicit temporal delay in time steps; additional to the 1-step feedback lag from dm.out_layer:-1
   int_gain:          [0.3]
   inputs:
       delta_comm: 'sampHold.output'
@@ -42,7 +42,7 @@ control:
 lowpass:
   class:             'LowPassFilter'
   simul_params_ref:  'main'
-  delay:             0                      # Total temporal delay in time steps
+  delay:             0                      # explicit temporal delay in time steps; additional to the 1-step feedback lag from dm.out_layer:-1
   cutoff_freq:       [1000]
   amplif_fact:       [3]
   inputs:

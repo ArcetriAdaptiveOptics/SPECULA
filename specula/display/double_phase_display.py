@@ -132,9 +132,6 @@ class DoublePhaseDisplay(BaseDisplay):
     def trigger_code(self):
         """Override to handle dual phase inputs"""
         try:
-            if not self._opened:
-                self._create_figure()
-
             # DoublePhaseDisplay handles dual inputs
             self._update_display()
         except Exception as e:

@@ -8,9 +8,60 @@ from specula import np, cp
 from specula import cpuArray
 
 from specula.base_value import BaseValue
-from specula.connections import InputList, InputValue, _InputItem
+from specula.connections import InputList, InputValue, _InputItem, split_output
 
 from test.specula_testlib import cpu_and_gpu
+
+
+class TestSplitOutput(unittest.TestCase):
+
+    def test_plain(self):
+        output = split_output('control.out_comm')
+        self.assertEqual(output.obj_name, 'control')
+        self.assertEqual(output.output_key, 'out_comm')
+        self.assertIsNone(output.input_name)
+        self.assertEqual(output.delay, 0)
+
+    def test_alias(self):
+        output = split_output('comm-control.out_comm')
+        self.assertEqual(output.obj_name, 'control')
+        self.assertEqual(output.output_key, 'out_comm')
+        self.assertEqual(output.input_name, 'comm')
+
+    def test_alias_with_dot_is_allowed(self):
+        # A dot in the alias (the part used as filename by DataStore/DataBuffer)
+        # does not conflict with the '-' and '.' used as syntax separators,
+        # because the alias is split off (on '-') before the object.output
+        # part is split (on '.').
+        output = split_output('sr.5000-slopec.out_slopes')
+        self.assertEqual(output.input_name, 'sr.5000')
+        self.assertEqual(output.obj_name, 'slopec')
+        self.assertEqual(output.output_key, 'out_slopes')
+
+    def test_delay_suffix(self):
+        output = split_output('control.out_comm:1')
+        self.assertEqual(output.delay, 1)
+
+    def test_object_name_with_dot_raises(self):
+        with self.assertRaises(ValueError):
+            split_output('my.control.out_comm')
+
+    def test_object_name_with_extra_dash_raises(self):
+        with self.assertRaises(ValueError):
+            split_output('comm-my-control.out_comm')
+
+    def test_alias_with_dash_raises(self):
+        with self.assertRaises(ValueError):
+            split_output('my-alias-control.out_comm')
+
+    def test_object_name_with_colon_raises(self):
+        with self.assertRaises(ValueError):
+            split_output('my:control.out_comm')
+
+    def test_invalid_delay_suffix_raises(self):
+        with self.assertRaises(ValueError):
+            split_output('control.out_comm:notanumber')
+
 
 class TestConnections(unittest.TestCase):
    

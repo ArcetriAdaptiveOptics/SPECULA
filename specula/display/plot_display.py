@@ -1,4 +1,5 @@
 import numpy as np
+
 import matplotlib.pyplot as plt
 
 from specula.display.base_display import BaseDisplay
@@ -13,11 +14,15 @@ class PlotDisplay(BaseDisplay):
                  histlen=200,
                  yrange=(0, 0),
                  x_axis='time',  # can be time or iteration
-                 labels=None):
-
+                 labels=None,
+                 window: int=None,
+                 subplot: int=111,
+                 ):
         super().__init__(
             title=title,
-            figsize=figsize
+            figsize=figsize,
+            window=window,
+            subplot=subplot,
         )
 
         self._histlen = histlen
@@ -151,5 +156,4 @@ class PlotDisplay(BaseDisplay):
             self.ax.legend(loc='best')
             self._legend_added = True
 
-        self._safe_draw()
         self._count += 1

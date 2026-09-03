@@ -70,15 +70,25 @@ class ModulatedPyramid(BaseProcessingObj):
         Focal plane central obstruction diameter in pixels (default: None)
     pup_shifts : tuple [pixels], optional
         Static pupil shifts in pixels (x, y) (default: (0.0, 0.0))
-    pyr_tlt_coeff : float [1], optional
-        Pyramid tilt coefficients for custom face geometry (default: None)
-        WARNING: not implemented/tested yet
+    pyr_tlt_coeff : list [2,4], optional
+        Pyramid tilt coefficients for each face. (default: None)
+        The coefficient multiplies the x-tilt or y-tilt (rows) of each of each of the 
+        4 pyramid faces (columns). A coefficient greater than 1 pushes the pupil outward,
+        away from the frame center, while a coefficient lower than 1 pulls it inward, 
+        towards the frame center, with respect to the nominal distance pup_dist.
+        The x coefficient (first row) shifts in the horizontal direction, 
+        the y coefficient (second row) shifts in the vertical direction.
+        By default, no deviation is applied to the nominal tilt.
     pyr_edge_def_ld : float [lambda/D], optional
         Edge defect size in lambda/D units (default: 0.0)
     pyr_tip_def_ld : float [lambda/D], optional
         Tip defect size in lambda/D units (default: 0.0)
     pyr_tip_maya_ld : float [lambda/D], optional
         Maya Pyramid (i.e. flat tip) defect size in lambda/D units (default: 0.0)
+    pyr_max_side_ld : float [lambda/D], optional
+        Maximum radial support of the pyramid from the tip in lambda/D units.
+        Outside this radius the pyramid surface is forced to 0.0; when 0.0 this
+        option is disabled (default: 0.0)
     min_pup_dist : float [pixels], optional
         Minimum pupil distance constraint (default: None)
     rotAnglePhInDeg : float [deg], optional
@@ -109,24 +119,25 @@ class ModulatedPyramid(BaseProcessingObj):
     """
     def __init__(self,
                  simul_params: SimulParams,
-                 wavelengthInNm: float, # TODO =750,
-                 fov: float,            # TODO =2.0,
-                 pup_diam: int,         # TODO =30,
-                 output_resolution: int,# TODO =80,
+                 wavelengthInNm: float,
+                 fov: float,
+                 pup_diam: int,
+                 output_resolution: int,
                  mod_amp: float = 3.0,
                  mod_step: int = None,
                  mod_type: str = 'circular',  # 'circular', 'vertical', 'horizontal', 'alternating'
                  fov_errinf: float = 0.1,
-                 fov_errsup: float = 2,
+                 fov_errsup: float = 10,
                  pup_dist: int = None,
                  pup_margin: int = 2,
                  fft_res: float = 3.0,
                  fp_obs: float = None,
                  pup_shifts = (0.0, 0.0),
-                 pyr_tlt_coeff: float = None,
+                 pyr_tlt_coeff: list = None,
                  pyr_edge_def_ld: float = 0.0,
                  pyr_tip_def_ld: float = 0.0,
                  pyr_tip_maya_ld: float = 0.0,
+                 pyr_max_side_ld: float = 0.0,
                  min_pup_dist: float = None,
                  rotAnglePhInDeg: float = 0.0,
                  xShiftPhInPixel: float = 0.0,
@@ -183,6 +194,7 @@ class ModulatedPyramid(BaseProcessingObj):
         self.pyr_edge_def_ld = pyr_edge_def_ld
         self.pyr_tip_def_ld = pyr_tip_def_ld
         self.pyr_tip_maya_ld = pyr_tip_maya_ld
+        self.pyr_max_side_ld = pyr_max_side_ld
         self.rotAnglePhInDeg = rotAnglePhInDeg
         self.xShiftPhInPixel = xShiftPhInPixel
         self.yShiftPhInPixel = yShiftPhInPixel
@@ -231,6 +243,13 @@ class ModulatedPyramid(BaseProcessingObj):
                 f'it must be at least 2*pi times the modulation amplitude '
                 f'({self.xp.around(2 * self.xp.pi * mod_amp)})!'
             )
+
+        if self.pyr_tlt_coeff is not None:
+            self.pyr_tlt_coeff = self.xp.array(self.pyr_tlt_coeff)
+            if self.pyr_tlt_coeff.shape != (2,4):
+                raise ValueError(f'Unexpected pyr_tlt_coeff shape: expected shape is (2,4), input shape is {self.pyr_tlt_coeff.shape}')
+            if self.xp.min(self.pyr_tlt_coeff) < 0:
+                raise ValueError(f'Expected pyr_tlt_coeff to be positive to preserve pupil ordering, but the minimum is: {self.xp.min(self.pyr_tlt_coeff):1.2f}')
 
         self.mod_steps = int(mod_step)
         self.mod_amp = mod_amp
@@ -355,38 +374,32 @@ class ModulatedPyramid(BaseProcessingObj):
 
         fft_res = result['fft_res']
 
+        # Recompute toccd_side from the final fft_res (not the pre-bump internal_ccd_side
+        # above): otherwise, whenever fft_res_min increased fft_res, the pupils come out
+        # smaller than pup_diam pixels after the toccd() rebin below.
+        toccd_side = int(self.xp.around(fft_res * pup_diam / 2) * 2)
+
         result.update(
             {
             'tilt_scale': fft_res / ((pup_dist / float(pup_diam)) / 2.0),
-            'toccd_side': internal_ccd_side,
+            'toccd_side': toccd_side,
             'final_ccd_side': ccd_side
             }
         )
-        
+
         return result
 
     def get_pyr_tlt(self, p, c):
-        A = int((p + c) // 2)
+        A = int(round((p + c) / 2.0))
         pyr_tlt = self.xp.zeros((2 * A, 2 * A), dtype=self.dtype)
         y, x = self.xp.mgrid[0:A,0:A]
 
         if self.pyr_tlt_coeff is not None:
-            raise NotImplementedError('pyr_tlt_coeff is not tested yet')
-
             k = self.pyr_tlt_coeff
-
-            tlt_basis = y
-            tlt_basis -= self.xp.mean(tlt_basis)
-
-            pyr_tlt[0:A, 0:A] = k[0, 0] * tlt_basis + k[1, 0] * tlt_basis.T
-            pyr_tlt[A:2*A, 0:A] = k[0, 1] * tlt_basis + k[1, 1] * tlt_basis.T
-            pyr_tlt[A:2*A, A:2*A] = k[0, 2] * tlt_basis + k[1, 2] * tlt_basis.T
-            pyr_tlt[0:A, A:2*A] = k[0, 3] * tlt_basis + k[1, 3] * tlt_basis.T
-
-            pyr_tlt[0:A, 0:A] -= self.xp.min(pyr_tlt[0:A, 0:A])
-            pyr_tlt[A:2*A, 0:A] -= self.xp.min(pyr_tlt[A:2*A, 0:A])
-            pyr_tlt[A:2*A, A:2*A] -= self.xp.min(pyr_tlt[A:2*A, A:2*A])
-            pyr_tlt[0:A, A:2*A] -= self.xp.min(pyr_tlt[0:A, A:2*A])
+            pyr_tlt[:A, :A] = k[0,0] * x + k[1,0] * y
+            pyr_tlt[:A, A:] = k[0,1] * x[:,::-1] + k[1,1] * y
+            pyr_tlt[A:, :A] = k[0,2] * x + k[1,2] * y[::-1]
+            pyr_tlt[A:, A:] = k[0,3] * x[:,::-1] + k[1,3] * y[::-1]
 
         else:
             #pyr_tlt[0:A, 0:A] = tlt_basis + tlt_basis.T
@@ -421,6 +434,17 @@ class ModulatedPyramid(BaseProcessingObj):
         if len(idx_tip_m[0]) > 0:
             pyr_tlt[idx_tip_m] = self.xp.min(pyr_tlt[idx_tip_m])
             self.logger.info(f'get_pyr_tlt: {len(idx_tip_m[0])} pixels set to 0 to consider pyramid imperfect tip')
+
+        # limit the pyramid support to a finite radial extent from the tip
+        if self.pyr_max_side_ld > 0:
+            max_side = self.pyr_max_side_ld * self.fft_res / 2
+            idx_max = self.xp.where(d > max_side)
+            if len(idx_max[0]) > 0:
+                pyr_tlt[idx_max] = 0.0
+                self.logger.info(
+                    f'get_pyr_tlt: {len(idx_max[0])} pixels outside the support radius '
+                    f'({self.pyr_max_side_ld} lambda/D) set to 0'
+                )
 
         return pyr_tlt / self.tilt_scale
 

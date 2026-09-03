@@ -81,6 +81,41 @@ class TestPupData(unittest.TestCase):
         np.testing.assert_array_equal(cpuArray(display_map), np.array([0, 1, 2, 3]))
 
     @cpu_and_gpu
+    def test_local_display_map_matches_display_map(self, target_device_idx, xp):
+        """local_display_map() must match display_map when slopes_from_intensity is False."""
+        # Realistic 4-quadrant pupil layout (pupil 0/A occupies the top-right
+        # quadrant of a 4x4 frame, at flat indices 2 and 7).
+        ind_pup = xp.array([[2, 0, 8, 10], [7, 5, 13, 15]], dtype=int)
+        framesize = [4, 4]
+        obj = PupData(ind_pup=ind_pup.copy(), framesize=framesize, target_device_idx=target_device_idx)
+
+        local_map = obj.local_display_map()
+        display_map = obj.display_map
+        np.testing.assert_array_equal(cpuArray(local_map), cpuArray(display_map))
+        np.testing.assert_array_equal(cpuArray(local_map), np.array([0, 3]))
+
+    @cpu_and_gpu
+    def test_local_display_map_unaffected_by_slopes_from_intensity(self, target_device_idx, xp):
+        """local_display_map() must stay the local/quadrant-cropped map even
+        when slopes_from_intensity is set to True (unlike display_map)."""
+        ind_pup = xp.array([[2, 0, 8, 10], [7, 5, 13, 15]], dtype=int)
+        framesize = [4, 4]
+        obj = PupData(ind_pup=ind_pup.copy(), framesize=framesize, target_device_idx=target_device_idx)
+
+        local_map_before = cpuArray(obj.local_display_map())
+
+        obj.set_slopes_from_intensity(True)
+        local_map_after = cpuArray(obj.local_display_map())
+
+        # local_display_map is not affected by slopes_from_intensity
+        np.testing.assert_array_equal(local_map_before, local_map_after)
+        np.testing.assert_array_equal(local_map_after, np.array([0, 3]))
+
+        # while display_map does change (full concatenated indices, not cropped)
+        display_map_full = cpuArray(obj.display_map)
+        self.assertFalse(np.array_equal(display_map_full, local_map_after))
+
+    @cpu_and_gpu
     def test_single_and_complete_mask(self, target_device_idx, xp):
         ind_pup = np.array([[0, 1, 2, 3]])
         framesize = [2, 2]

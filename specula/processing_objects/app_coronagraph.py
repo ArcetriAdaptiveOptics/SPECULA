@@ -26,7 +26,7 @@ class APPCoronagraph(Coronagraph):
                  max_its:int = 1000,
                  target_device_idx: int = None,
                  precision: int = None
-                ):
+                 ):
 
         fov = wavelengthInNm * 1e-9 / simul_params.pixel_pitch * RAD2ASEC
         if iwaInLambdaOverD is None:

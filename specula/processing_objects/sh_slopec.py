@@ -167,9 +167,10 @@ class ShSlopec(Slopec):
 
     def trigger_code(self):
         if self.vec_wei_pix_rad_t is not None:
-            idxW = self.xp.where(self.current_time_seconds > self.vec_wei_pix_rad_t[:, 1])[-1]
+            idxW = self.xp.where(self.current_time_seconds > self.vec_wei_pix_rad_t[:, 1])[0]
             if len(idxW) > 0:
-                self.weighted_pix_rad = self.vec_wei_pix_rad_t[idxW, 0]
+                i_last = idxW[-1]
+                self.weighted_pix_rad = self.xp.asarray(self.vec_wei_pix_rad_t[i_last, 0]).item()
                 self.logger.debug(f'self.weighted_pix_rad: {self.weighted_pix_rad}')
                 self.set_xy_weights()
 

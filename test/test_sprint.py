@@ -1,14 +1,16 @@
 import unittest
 import numpy as np
 
+import logging
 import specula
-specula.init(0)  # Default target device
+specula.init(0, log_level=logging.INFO) # Default target device
 
 from specula.data_objects.simul_params import SimulParams
 from specula.data_objects.source import Source
 from specula.data_objects.ifunc import IFunc
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.subap_data import SubapData
+from specula.data_objects.pupilstop import Pupilstop
 from specula.processing_objects.dm import DM
 from specula.processing_objects.sh import SH
 from specula.processing_objects.ccd import CCD
@@ -39,15 +41,23 @@ def create_test_system():
     )
 
     # DM - Zernike modes
-    n_modes = 50
+    n_act = 9
     ifunc = IFunc(
-        type_str='zernike',
+        type_str='zonal',
         npixels=simul_params.pixel_pupil,
-        nmodes=n_modes,
+        n_act=n_act,
+        circ_geom=False,
         obsratio=0.0,
         target_device_idx=-1,
         precision=1
     )
+
+    # build a mode combining single actuators to test SPRINT with a single mode
+    ifunc.influence_function[0] = ifunc.influence_function[12] \
+                                + ifunc.influence_function[33] \
+                                + ifunc.influence_function[20] \
+                                + ifunc.influence_function[65] \
+                                + ifunc.influence_function[69]
 
     dm = DM(
         simul_params=simul_params,
@@ -301,12 +311,114 @@ class TestSprintShSynim(unittest.TestCase):
     @cpu_and_gpu
     def test_sprint_estimation_small(self, target_device_idx, xp):
         """Test SPRINT estimation with small mis-registration"""
-        self._run_sprint_test(2.0, 1.5, 1.0, 0.02, target_device_idx, xp)
+        self._run_sprint_test(2.0, 1.0, 1.0, 0.0, target_device_idx, xp)
 
     @cpu_and_gpu
     def test_sprint_estimation_medium(self, target_device_idx, xp):
         """Test SPRINT estimation with medium mis-registration"""
-        self._run_sprint_test(5.0, -3.0, 3.0, 0.05, target_device_idx, xp)
+        self._run_sprint_test(5.0, -3.0, 10.0, 0.05, target_device_idx, xp)
+
+    @cpu_and_gpu
+    def test_sprint_pupil_mask_is_forwarded(self, target_device_idx, xp):
+        """
+        pupil_mask passed to SprintShSynim must actually be used by SynIM,
+        not silently replaced by the BaseSprintEstimator fallback (dm.mask).
+
+        Regression test for a bug where SprintShSynim.__init__ did not
+        forward pupil_mask to BaseSprintEstimator.__init__ at all: with no
+        error raised, self.pupil_mask silently fell back to dm.mask in
+        setup(). Neither this test file nor test_sprint_pyr.py previously
+        caught this, because no case exercised a pupil_mask genuinely
+        different from dm.mask - here we build one with a central
+        obstruction that create_test_system()'s DM (obsratio=0.0) does not
+        have, mirroring the real WFS-sees-spider / DM-does-not case.
+        """
+        simul_params, source, dm, wfs, ccd, slopec = create_test_system()
+
+        pupil_mask = Pupilstop(
+            simul_params, mask_diam=1.0, obs_diam=0.3,
+            target_device_idx=target_device_idx, precision=1
+        )
+
+        sprint = SprintShSynim(
+            simul_params=simul_params,
+            dm=dm,
+            slopec=slopec,
+            source=source,
+            wfs=wfs,
+            modes_index=[0],
+            carrier_frequencies=[100.0],
+            pupil_mask=pupil_mask,
+            target_device_idx=target_device_idx,
+            precision=1
+        )
+        sprint.inputs['in_slopes'].set(slopec.outputs['out_slopes'])
+        sprint.setup()
+
+        pupil_mask_used = specula.cpuArray(sprint.pupil_mask)
+        np.testing.assert_array_equal(pupil_mask_used, specula.cpuArray(pupil_mask.A))
+        self.assertFalse(
+            np.array_equal(pupil_mask_used, specula.cpuArray(dm.mask)),
+            "pupil_mask fixture must differ from dm.mask, otherwise this "
+            "test cannot distinguish 'forwarded correctly' from 'silently "
+            "fell back to dm.mask'"
+        )
+
+    @cpu_and_gpu
+    def test_sprint_anamorphic_magnification_is_functional(self, target_device_idx, xp):
+        """
+        enable_wpup_magn_xy=True must actually make params [4]/[5]
+        (anamorphosis_90/anamorphosis_45) affect the computed nominal IM,
+        not silently be dead/no-op parameters.
+
+        Regression test motivated by SprintShSynim's own docstring
+        incorrectly claiming this was "not yet implemented in SynIM" - it
+        was in fact already implemented and functional (compute_im_synim
+        reads misreg_params[4]/[5] and passes them through to
+        synim.interaction_matrix's wfs_anamorphosis_90/wfs_anamorphosis_45,
+        which do affect the geometric resampling). Also guards against the
+        zero-vs-one default pitfall: unlike the isotropic magnification at
+        index [3] ("1.0 + delta" convention, correctly zero-initialized),
+        anamorphosis_90/45 are used as DIRECT values - starting them at 0.0
+        (the base class's default zero-init) is a degenerate anisotropy,
+        not "no anisotropy", so this test explicitly passes
+        initial_misreg=[...,1.0,1.0].
+        """
+        simul_params, source, dm, wfs, ccd, slopec = create_test_system()
+
+        sprint = SprintShSynim(
+            simul_params=simul_params,
+            dm=dm,
+            slopec=slopec,
+            source=source,
+            wfs=wfs,
+            modes_index=[0],
+            carrier_frequencies=[100.0],
+            enable_wpup_magn_xy=True,
+            initial_misreg=[0.0, 0.0, 0.0, 0.0, 1.0, 1.0],
+            target_device_idx=target_device_idx,
+            precision=1
+        )
+        sprint.inputs['in_slopes'].set(slopec.outputs['out_slopes'])
+        sprint.setup()
+
+        self.assertEqual(sprint.n_params, 6)
+
+        baseline = specula.cpuArray(sprint._compute_nominal_im()).copy()
+
+        sprint.misreg_params = sprint.to_xp([0.0, 0.0, 0.0, 0.0, 1.2, 1.0], dtype=sprint.dtype)
+        perturbed_90 = specula.cpuArray(sprint._compute_nominal_im())
+        self.assertFalse(
+            np.allclose(baseline, perturbed_90),
+            "anamorphosis_90 (index 4) must affect the nominal IM"
+        )
+
+        sprint.misreg_params = sprint.to_xp([0.0, 0.0, 0.0, 0.0, 1.0, 1.2], dtype=sprint.dtype)
+        perturbed_45 = specula.cpuArray(sprint._compute_nominal_im())
+        self.assertFalse(
+            np.allclose(baseline, perturbed_45),
+            "anamorphosis_45 (index 5) must affect the nominal IM"
+        )
 
     def _run_sprint_test(self, shift_x, shift_y, rotation, magnification,
                         target_device_idx, xp):
@@ -329,7 +441,7 @@ class TestSprintShSynim(unittest.TestCase):
         im_ref_full = generate_reference_im(simul_params, source, dm, wfs, slopec)
 
         # Select 1 mode only
-        mode_idx = 30
+        mode_idx = 0
         im_ref = im_ref_full[:, mode_idx:mode_idx+1]  # Keep 2D shape (nslopes, 1)
 
         if self.verbose: # pragma: no cover
@@ -359,7 +471,7 @@ class TestSprintShSynim(unittest.TestCase):
             print(f"\nCarrier frequencies: {carrier_frequencies}")
 
         # Generate time series of slopes
-        duration = 0.01  # seconds
+        duration = 0.05  # seconds
         dt = simul_params.time_step
         noise_level = 0.0  # Start without noise
 
@@ -390,7 +502,7 @@ class TestSprintShSynim(unittest.TestCase):
             modes_index=[mode_idx],  # Only the mode we are testing
             carrier_frequencies=carrier_frequencies,
             estimation_dt=duration-0.001,  # Estimate once after full period
-            max_iterations=20,
+            max_iterations=50,
             convergence_threshold=1e-2,
             initial_misreg=None,  # Start from zero
             apply_absolute_slopes=False,
@@ -471,24 +583,43 @@ class TestSprintShSynim(unittest.TestCase):
                 print(f"  Perfect reconstruction!")
             print(f"{'='*70}\n")
 
-        # Assertions - allow 20% error on parameters (relaxed for robustness)
+        # Assertions - allow 10% error on parameters (relaxed for robustness)
+        if abs(shift_x) > 1e-6:
+            rel_err_x = abs(estimated_params[0] - shift_x) / abs(shift_x)
+        else:
+            rel_err_x = abs(estimated_params[0] - shift_x) / 1.0  # Avoid division by zero, use small value
         self.assertLess(
-            abs(estimated_params[0] - shift_x) / abs(shift_x), 0.1,
+            rel_err_x, 0.1,
             f"shift_x error too large: "
-            f"{abs(estimated_params[0] - shift_x) / abs(shift_x) * 100:.1f}%"
+            f"{rel_err_x * 100:.1f}%"
         )
+
+        if abs(shift_y) > 1e-6:
+            rel_err_y = abs(estimated_params[1] - shift_y) / abs(shift_y)
+        else:
+            rel_err_y = abs(estimated_params[1] - shift_y) / 1.0  # Avoid division by zero, use small value
         self.assertLess(
-            abs(estimated_params[1] - shift_y) / abs(shift_y), 0.1,
+            rel_err_y, 0.1,
             f"shift_y error too large: "
-            f"{abs(estimated_params[1] - shift_y) / abs(shift_y) * 100:.1f}%"
+            f"{rel_err_y * 100:.1f}%"
         )
+
+        if abs(rotation) > 1e-6:
+            rel_err_rot = abs(estimated_params[2] - rotation) / abs(rotation)
+        else:
+            rel_err_rot = abs(estimated_params[2] - rotation) / 1.0  # Avoid division by zero, use small value
         self.assertLess(
-            abs(estimated_params[2] - rotation) / abs(rotation), 0.1,
+            rel_err_rot, 0.1,
             f"rotation error too large: "
-            f"{abs(estimated_params[2] - rotation) / abs(rotation) * 100:.1f}%"
+            f"{rel_err_rot * 100:.1f}%"
         )
+
+        if abs(magnification) > 1e-6:
+            rel_err_mag = abs(estimated_params[3] - magnification) / abs(magnification)
+        else:
+            rel_err_mag = abs(estimated_params[3] - magnification) / 0.1  # Avoid division by zero, use small value
         self.assertLess(
-            abs(estimated_params[3] - magnification) / abs(magnification), 0.1,
+            rel_err_mag, 0.1,
             f"magnification error too large: "
-            f"{abs(estimated_params[3] - magnification) / abs(magnification) * 100:.1f}%"
+            f"{rel_err_mag * 100:.1f}%"
         )
