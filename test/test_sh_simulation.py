@@ -250,6 +250,7 @@ class TestShSimulation(unittest.TestCase):
 
 
 def run_mpi_command(cmd):
+    """Run MPI command in an isolated process session to avoid signal spillover."""
     return subprocess.run(
         cmd,
         stdout=subprocess.PIPE,
@@ -264,7 +265,7 @@ class TestRunMpiCommand(unittest.TestCase):
     def test_run_mpi_command_uses_isolated_session(self):
         with patch.object(subprocess, "run") as mock_run:
             mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
-            _ = run_mpi_command(["mpirun", "-n", "2", "python", "--version"])
+            run_mpi_command(["mpirun", "-n", "2", "python", "--version"])
             mock_run.assert_called_once_with(
                 ["mpirun", "-n", "2", "python", "--version"],
                 stdout=subprocess.PIPE,
