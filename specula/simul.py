@@ -319,8 +319,9 @@ class Simul():
             if 'tag' in pars and build_this_object:
                 if 'target_device_idx' in pars:
                     del pars['target_device_idx']
-                if len(pars) > 2:
-                    raise ValueError('Extra parameters with "tag" are not allowed')
+                extra_pars = set(pars.keys()) - {'class', 'tag', 'gui_pos'}
+                if extra_pars:
+                    raise ValueError(f'Extra parameters with "tag" are not allowed: {sorted(extra_pars)}')
                 filename = cm.filename(classname, pars['tag'])
                 # tags are restored into each process (multiple copies), target_rank is not checked
                 self.logger.info(f'Restoring: {filename}')

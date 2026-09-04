@@ -431,7 +431,7 @@ slicer3: { <<: *SLICER, slice_args: [5234,6258]} # 4519 + 720 - 5 + 1026 - 2
 
 # modal_integrator:
 #   class:        'Integrator'
-#   delay:             2                      # Total temporal delay in time steps
+#   delay:             2                      # explicit temporal delay in time steps; additional to the 1-step feedback lag from dm.out_layer:-1
 #   int_gain_data:     'g0.40_6258'
 #   inputs:
 #       delta_comm: 'modal_combination.out_vector'     

@@ -44,6 +44,15 @@ class Slopec(BaseProcessingObj):
         self.subap_counts = BaseValue(value=self.xp.zeros(1, dtype=self.dtype),
                                       target_device_idx=self.target_device_idx,
                                       precision=precision)
+        # 2d view of the slopes, e.g. shape (2, size_x, size_y) for a single
+        # subaperture-sized x/y slope map. Allocated lazily on the first
+        # post_trigger() call, once a derived class has set self.slopes.single_mask
+        # and self.slopes.display_map (see Slopes.get2d()). Its exact shape depends
+        # on those, and it is not duplicated data: it is recomputed from self.slopes
+        # at every step, not accumulated separately.
+        self.slopes_map = BaseValue(target_device_idx=self.target_device_idx,
+                                    precision=precision)
+        self._slopes_map_unavailable = False
         self.recmat = recmat
         if filtmat is not None:
             if filt_intmat:
@@ -73,6 +82,7 @@ class Slopec(BaseProcessingObj):
         self.outputs['out_flux_per_subaperture'] = self.flux_per_subaperture_vector
         self.outputs['out_total_counts'] = self.total_counts
         self.outputs['out_subap_counts'] = self.subap_counts
+        self.outputs['out_slopes_map'] = self.slopes_map
 
     @classmethod
     def input_names(cls):
@@ -83,7 +93,9 @@ class Slopec(BaseProcessingObj):
         return {'out_slopes': OutputDesc(Slopes, 'Computed wavefront slopes'),
                 'out_flux_per_subaperture': OutputDesc(BaseValue, 'Flux per subaperture'),
                 'out_total_counts': OutputDesc(BaseValue, 'Total photon counts'),
-                'out_subap_counts': OutputDesc(BaseValue, 'Counts per subaperture')}
+                'out_subap_counts': OutputDesc(BaseValue, 'Counts per subaperture'),
+                'out_slopes_map': OutputDesc(BaseValue, '2d view of the slopes '
+                                              '(e.g. shape (2, size_x, size_y)), see Slopes.get2d()')}
 
     # Derived classes must implement this method
     def nsubaps(self):
@@ -144,6 +156,24 @@ class Slopec(BaseProcessingObj):
             m = self.slopes.slopes @ self.filt_recmat.recmat
             sl0 = m @ self.filt_intmat.intmat.T
             self.slopes.slopes -= sl0
+
+        # Not duplicated storage: recomputed from self.slopes at every step
+        # via the existing single_mask/display_map machinery (see Slopes.get2d()).
+        # Some Slopec subclasses set up single_mask/display_map in a way that is
+        # not (yet) compatible with get2d(); rather than crashing the whole
+        # simulation, out_slopes_map is simply left unset for those, and a
+        # warning is logged once.
+        if self.slopes.single_mask is not None and self.slopes.display_map is not None:
+            if not self._slopes_map_unavailable:
+                try:
+                    self.slopes_map.set_value(self.slopes.get2d())
+                    self.outputs['out_slopes_map'].generation_time = self.current_time
+                except (IndexError, ValueError) as e:
+                    self._slopes_map_unavailable = True
+                    self.logger.warning(
+                        f'{self.__class__.__name__}: out_slopes_map could not be computed '
+                        f'({e}); this output will stay empty for this object.'
+                    )
 
         self.outputs['out_slopes'].generation_time = self.current_time
         self.outputs['out_flux_per_subaperture'].generation_time = self.current_time

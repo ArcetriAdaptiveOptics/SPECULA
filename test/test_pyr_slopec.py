@@ -6,6 +6,7 @@ import unittest
 from specula import np
 from specula import cpuArray
 
+from specula.base_value import BaseValue
 from specula.data_objects.pixels import Pixels
 from specula.data_objects.pupdata import PupData
 from specula.data_objects.slopes import Slopes
@@ -193,3 +194,113 @@ class TestSlopec(unittest.TestCase):
         expected_slopes = xp.concatenate([expected_sx, expected_sy])
 
         np.testing.assert_array_almost_equal(s1, cpuArray(expected_slopes), decimal=5)
+
+    def _make_quadrant_pupdata_and_pixels(self, target_device_idx, xp):
+        """
+        Build a small but *realistic* 4-quadrant pyramid pupil layout (unlike
+        the synthetic ind_pup used elsewhere in this file, whose indices do
+        not actually fall inside their nominal quadrant, so single_mask()/
+        local_display_map() would come out empty for it).
+
+        Pupil 0 (A) occupies the top-right quadrant of a 4x4 frame at flat
+        indices [2, 7]; pupils 1/2/3 (B/C/D) are the same local pattern
+        translated to the top-left, bottom-left and bottom-right quadrants
+        respectively.
+        """
+        pixels = Pixels(4, 4, target_device_idx=target_device_idx)
+        pixels.pixels = xp.arange(16, dtype=xp.uint16).reshape((4, 4))
+        pixels.generation_time = 1
+
+        pupdata = PupData(target_device_idx=target_device_idx)
+        pupdata.ind_pup = xp.array([[2, 0, 8, 10], [7, 5, 13, 15]], dtype=int)
+        pupdata.framesize = (4, 4)
+
+        return pixels, pupdata
+
+    @cpu_and_gpu
+    def test_out_pixels_subap_and_sum(self, target_device_idx, xp):
+        """
+        Test the new out_pixels_subap / out_pixels_subap_sum outputs of
+        PyrSlopec: raw (pre-threshold) per-pupil intensities remapped to
+        2d subaperture images, and their sum.
+        """
+        pixels, pupdata = self._make_quadrant_pupdata_and_pixels(target_device_idx, xp)
+
+        slopec = PyrSlopec(pupdata, norm_factor=None, target_device_idx=target_device_idx)
+        slopec.inputs['in_pixels'].set(pixels)
+        slopec.check_ready(1)
+        slopec.trigger()
+        slopec.post_trigger()
+
+        subap_shape = pupdata.single_mask().shape
+        self.assertEqual(subap_shape, (2, 2))
+
+        out_pixels_subap = slopec.outputs['out_pixels_subap']
+        out_pixels_subap_sum = slopec.outputs['out_pixels_subap_sum']
+
+        self.assertIsInstance(out_pixels_subap, BaseValue)
+        self.assertIsInstance(out_pixels_subap_sum, BaseValue)
+        self.assertEqual(out_pixels_subap.value.shape, (4,) + subap_shape)
+        self.assertEqual(out_pixels_subap_sum.value.shape, subap_shape)
+
+        # A (pupil 0) = pixels[[2, 7]] = [2, 7]
+        # B (pupil 1) = pixels[[0, 5]] = [0, 5]
+        # C (pupil 2) = pixels[[8, 13]] = [8, 13]
+        # D (pupil 3) = pixels[[10, 15]] = [10, 15]
+        # remapped at local positions (0,0) and (1,1)
+        expected_pixels_subap = np.array([
+            [[2, 0], [0, 7]],
+            [[0, 0], [0, 5]],
+            [[8, 0], [0, 13]],
+            [[10, 0], [0, 15]],
+        ])
+        expected_pixels_subap_sum = np.array([[20, 0], [0, 40]])
+
+        np.testing.assert_array_almost_equal(cpuArray(out_pixels_subap.value), expected_pixels_subap)
+        np.testing.assert_array_almost_equal(cpuArray(out_pixels_subap_sum.value), expected_pixels_subap_sum)
+
+        self.assertEqual(out_pixels_subap.generation_time, 1)
+        self.assertEqual(out_pixels_subap_sum.generation_time, 1)
+
+    @cpu_and_gpu
+    def test_out_slopes_map(self, target_device_idx, xp):
+        """
+        Test the new out_slopes_map output of Slopec (as inherited/populated
+        by PyrSlopec): a 2d remap of the flat slopes vector using the
+        single_mask/display_map machinery.
+        """
+        pixels, pupdata = self._make_quadrant_pupdata_and_pixels(target_device_idx, xp)
+
+        slopec = PyrSlopec(pupdata, norm_factor=None, target_device_idx=target_device_idx)
+        slopec.inputs['in_pixels'].set(pixels)
+        slopec.check_ready(1)
+        slopec.trigger()
+        slopec.post_trigger()
+
+        subap_shape = pupdata.single_mask().shape
+
+        out_slopes_map = slopec.outputs['out_slopes_map']
+        out_slopes = slopec.outputs['out_slopes']
+
+        self.assertIsInstance(out_slopes_map, BaseValue)
+        self.assertEqual(out_slopes_map.value.shape, (2,) + subap_shape)
+
+        # Reconstructing from out_slopes_map should recover the same slope
+        # values placed at the same subaperture positions as computed
+        # directly via slopec.slopes.get2d().
+        expected = cpuArray(slopec.slopes.get2d())
+        np.testing.assert_array_almost_equal(cpuArray(out_slopes_map.value), expected)
+
+        # The nonzero entries at local positions (0,0) and (1,1) must match
+        # the flat sx/sy values in out_slopes (2 subapertures: sx then sy).
+        slopes_flat = cpuArray(out_slopes.slopes)
+        n_subap = pupdata.n_subap
+        sx = slopes_flat[:n_subap]
+        sy = slopes_flat[n_subap:]
+        slopes_map = cpuArray(out_slopes_map.value)
+        np.testing.assert_array_almost_equal(
+            np.array([slopes_map[0, 0, 0], slopes_map[0, 1, 1]]), sx)
+        np.testing.assert_array_almost_equal(
+            np.array([slopes_map[1, 0, 0], slopes_map[1, 1, 1]]), sy)
+
+        self.assertEqual(out_slopes_map.generation_time, 1)

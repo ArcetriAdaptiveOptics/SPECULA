@@ -85,6 +85,10 @@ class ModulatedPyramid(BaseProcessingObj):
         Tip defect size in lambda/D units (default: 0.0)
     pyr_tip_maya_ld : float [lambda/D], optional
         Maya Pyramid (i.e. flat tip) defect size in lambda/D units (default: 0.0)
+    pyr_max_side_ld : float [lambda/D], optional
+        Maximum radial support of the pyramid from the tip in lambda/D units.
+        Outside this radius the pyramid surface is forced to 0.0; when 0.0 this
+        option is disabled (default: 0.0)
     min_pup_dist : float [pixels], optional
         Minimum pupil distance constraint (default: None)
     rotAnglePhInDeg : float [deg], optional
@@ -123,7 +127,7 @@ class ModulatedPyramid(BaseProcessingObj):
                  mod_step: int = None,
                  mod_type: str = 'circular',  # 'circular', 'vertical', 'horizontal', 'alternating'
                  fov_errinf: float = 0.1,
-                 fov_errsup: float = 2,
+                 fov_errsup: float = 10,
                  pup_dist: int = None,
                  pup_margin: int = 2,
                  fft_res: float = 3.0,
@@ -133,6 +137,7 @@ class ModulatedPyramid(BaseProcessingObj):
                  pyr_edge_def_ld: float = 0.0,
                  pyr_tip_def_ld: float = 0.0,
                  pyr_tip_maya_ld: float = 0.0,
+                 pyr_max_side_ld: float = 0.0,
                  min_pup_dist: float = None,
                  rotAnglePhInDeg: float = 0.0,
                  xShiftPhInPixel: float = 0.0,
@@ -189,6 +194,7 @@ class ModulatedPyramid(BaseProcessingObj):
         self.pyr_edge_def_ld = pyr_edge_def_ld
         self.pyr_tip_def_ld = pyr_tip_def_ld
         self.pyr_tip_maya_ld = pyr_tip_maya_ld
+        self.pyr_max_side_ld = pyr_max_side_ld
         self.rotAnglePhInDeg = rotAnglePhInDeg
         self.xShiftPhInPixel = xShiftPhInPixel
         self.yShiftPhInPixel = yShiftPhInPixel
@@ -368,14 +374,19 @@ class ModulatedPyramid(BaseProcessingObj):
 
         fft_res = result['fft_res']
 
+        # Recompute toccd_side from the final fft_res (not the pre-bump internal_ccd_side
+        # above): otherwise, whenever fft_res_min increased fft_res, the pupils come out
+        # smaller than pup_diam pixels after the toccd() rebin below.
+        toccd_side = int(self.xp.around(fft_res * pup_diam / 2) * 2)
+
         result.update(
             {
             'tilt_scale': fft_res / ((pup_dist / float(pup_diam)) / 2.0),
-            'toccd_side': internal_ccd_side,
+            'toccd_side': toccd_side,
             'final_ccd_side': ccd_side
             }
         )
-        
+
         return result
 
     def get_pyr_tlt(self, p, c):
@@ -423,6 +434,17 @@ class ModulatedPyramid(BaseProcessingObj):
         if len(idx_tip_m[0]) > 0:
             pyr_tlt[idx_tip_m] = self.xp.min(pyr_tlt[idx_tip_m])
             self.logger.info(f'get_pyr_tlt: {len(idx_tip_m[0])} pixels set to 0 to consider pyramid imperfect tip')
+
+        # limit the pyramid support to a finite radial extent from the tip
+        if self.pyr_max_side_ld > 0:
+            max_side = self.pyr_max_side_ld * self.fft_res / 2
+            idx_max = self.xp.where(d > max_side)
+            if len(idx_max[0]) > 0:
+                pyr_tlt[idx_max] = 0.0
+                self.logger.info(
+                    f'get_pyr_tlt: {len(idx_max[0])} pixels outside the support radius '
+                    f'({self.pyr_max_side_ld} lambda/D) set to 0'
+                )
 
         return pyr_tlt / self.tilt_scale
 

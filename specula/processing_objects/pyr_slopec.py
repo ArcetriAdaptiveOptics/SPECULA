@@ -1,6 +1,7 @@
 from specula import fuse
 from specula.processing_objects.slopec import Slopec
 from specula.base_processing_obj import OutputDesc
+from specula.base_value import BaseValue
 from specula.data_objects.pupdata import PupData
 from specula.data_objects.slopes import Slopes
 
@@ -61,7 +62,23 @@ class PyrSlopec(Slopec):
         self.pup_idx2 = pupil_idx(2)[pupil_idx(2) >= 0]   # Exclude -1 padding
         self.pup_idx3 = pupil_idx(3)[pupil_idx(3) >= 0]   # Exclude -1 padding
         self.outputs['out_pupdata'] = self.pupdata
-        
+
+        # Local (single-subaperture-sized) index map, shared by all 4 pupils since
+        # they only differ by a translation to their own quadrant. Used to remap
+        # the raw A, B, C, D pixel vectors (same length/order as pup_idx0..3) into
+        # 2d subaperture images, reusing the same geometry as Slopes.get2d()
+        # instead of duplicating index bookkeeping.
+        self.subap_map_idx = self.pupdata.local_display_map()
+        subap_shape = self.pupdata.single_mask().shape
+        self.pixels_subap = BaseValue(
+            value=self.xp.zeros((4,) + subap_shape, dtype=self.dtype),
+            target_device_idx=self.target_device_idx, precision=precision)
+        self.pixels_subap_sum = BaseValue(
+            value=self.xp.zeros(subap_shape, dtype=self.dtype),
+            target_device_idx=self.target_device_idx, precision=precision)
+        self.outputs['out_pixels_subap'] = self.pixels_subap
+        self.outputs['out_pixels_subap_sum'] = self.pixels_subap_sum
+
         if self.slopes_from_intensity:
             self.slopes.single_mask = self.pupdata.complete_mask()
         else:
@@ -73,6 +90,10 @@ class PyrSlopec(Slopec):
         result = super().output_names()
         result.update({
             'out_pupdata': OutputDesc(PupData, 'Pupil data with subaperture geometry'),
+            'out_pixels_subap': OutputDesc(BaseValue, 'Raw (pre-threshold) pixel intensities of the '
+                                            '4 pupils (A, B, C, D), shape (4, size_x, size_y)'),
+            'out_pixels_subap_sum': OutputDesc(BaseValue, 'Sum of the raw intensities of the 4 pupils, '
+                                                'shape (size_x, size_y); useful e.g. for scintillation analysis'),
         })
         return result
 
@@ -149,3 +170,28 @@ class PyrSlopec(Slopec):
         super().post_trigger()
 
         self.outputs['out_pupdata'].generation_time = self.current_time
+
+        # Raw (pre-threshold) 2d sub-images of the 4 pupils, and their sum.
+        # Deliberately NOT computed in trigger_code(): trigger_code may be
+        # captured once into a CUDA graph and then only replayed (see
+        # BaseProcessingObj.trigger_code docstring), so anything not on the
+        # critical path to out_slopes would be baked permanently into the
+        # replayed graph regardless of whether these outputs are actually
+        # used downstream. post_trigger() always runs in eager Python/GPU
+        # mode, once per step, so this is the right place for it. Reads
+        # directly from the (untouched) input pixels rather than
+        # self.flat_pixels, which trigger_code() has already thresholded
+        # and clamped in place by the time post_trigger() runs.
+        raw_pixels = self.local_inputs['in_pixels'].pixels.ravel()
+        raw_A = raw_pixels[self.pup_idx0].astype(self.xp.float32)
+        raw_B = raw_pixels[self.pup_idx1].astype(self.xp.float32)
+        raw_C = raw_pixels[self.pup_idx2].astype(self.xp.float32)
+        raw_D = raw_pixels[self.pup_idx3].astype(self.xp.float32)
+        self.xp.put(self.pixels_subap.value[0], self.subap_map_idx, raw_A)
+        self.xp.put(self.pixels_subap.value[1], self.subap_map_idx, raw_B)
+        self.xp.put(self.pixels_subap.value[2], self.subap_map_idx, raw_C)
+        self.xp.put(self.pixels_subap.value[3], self.subap_map_idx, raw_D)
+        self.xp.put(self.pixels_subap_sum.value, self.subap_map_idx, raw_A + raw_B + raw_C + raw_D)
+
+        self.outputs['out_pixels_subap'].generation_time = self.current_time
+        self.outputs['out_pixels_subap_sum'].generation_time = self.current_time

@@ -438,8 +438,41 @@ class Lift(BaseProcessingObj):
         lastAML = self.to_xp(total_A_MLs[-1], dtype=self.dtype, force_copy=True)
         lastAML[0 + self.nPistons] += self.ref_tip
         lastAML[1 + self.nPistons] += self.ref_tilt
+        
+        # *** Convert to physical units (microns) ***
+        final_coeffs = lastAML * self.wavelengthInNm / (2 * np.pi)
+        
+        # *** Wrap coefficients to [-lambda/2, +lambda/2] for all modes ***
+        final_coeffs = self._wrap_coefficients(final_coeffs, self.wavelengthInNm)
+        
+        return currentPhaseEstimates[-1], final_coeffs, len(total_A_MLs)
 
-        return currentPhaseEstimates[-1], lastAML * self.wavelengthInNm/(2*np.pi), len(total_A_MLs)
+    def _wrap_coefficients(self, coeffs, wavelengthInNm):
+        """
+        Wrap all modal coefficients to [-wavelength/2, +wavelength/2] range.
+        
+        This ensures estimates are always within one wavelength period,
+        which is critical for multi-wavelength phase unwrapping.
+        
+        Parameters
+        ----------
+        coeffs : ndarray
+            Modal coefficients in physical units (microns)
+        wavelengthInNm : float
+            Wavelength in nanometers
+            
+        Returns
+        -------
+        wrapped_coeffs : ndarray
+            Coefficients wrapped to [-lambda/2, +lambda/2]
+        """        
+        half_lambda = wavelengthInNm / 2.0
+        
+        # Wrap to [-lambda/2, +lambda/2)
+        wrapped = ((coeffs + half_lambda) % wavelengthInNm) - half_lambda
+        
+        return wrapped
+    
 
     def focalPlaneImageLIFT(self, phase, set_flux=None):
         '''

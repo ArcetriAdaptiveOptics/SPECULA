@@ -5,6 +5,21 @@
 
 ### New processing and data objects
 
+- ...
+
+### Interface changes
+
+- Added `pyr_max_side_ld` to `ModulatedPyramid` and its derived classes to cap the radial support of the pyramid surface in lambda/D units, forcing values outside the support radius to zero and enabling a central fifth pupil.
+- Added `compute_single_im` (bool, default True) to `ImCalibrator` to optionally skip populating the `out_single_im` per-mode output (the output itself is always present, empty when disabled). When True (default, unchanged behavior) this costs an O(nmodes) Python loop on every `trigger_code()` call (not just push-pull events) plus roughly double the fixed memory (one extra Intmat per mode); set to False to skip that loop/memory when nothing downstream consumes `out_single_im` (only `out_intmat` is used elsewhere in this codebase) -- needed for large-nmodes, long calibrations.
+
+### Other
+
+- `IFunc.inverse()` now computes the pseudoinverse via the smaller of the two Gram matrices (`specula.lib.fast_pinv`) instead of calling `xp.linalg.pinv` directly on the full influence-function matrix. Mathematically identical result (including in the rank-deficient case), but substantially faster for the typical case of many pixels and few modes -- measured 3x-8x on real KL/zonal influence-function bases, with the speedup growing with pixel count. Added test\_fast\_pinv.py.
+
+## [1.0.4] - 2026-08-19
+
+### New processing and data objects
+
 - Added IntValue, FloatValue and StringValue as specialized containers for scalars and strings, to be used in place of BaseValue where needed.
 - Added DisplayRecorder processing object
 - Added Phasescreen data object.
@@ -27,6 +42,7 @@
 - Added pupil\_mask parameter to SprintShSynim, forwarded to BaseSprintEstimator as the WFS-side pupil (previously silently fell back to dm.mask, e.g. missing spider obscuration); added regression test in test\_sprint.py
 - Enabled pyr_tlt_coeffs for the modulated_pyramid, allowing to correctly set different tilt coefficients for the pyramid faces
 - Extracted FieldAnalyser's shared replay machinery (params loading, replay precision/downsampling checks, temp-simulation execution) into a new BaseReplayAnalyser base class, reused by EfReplay; pure refactor, no behavior change (mock patch targets for Simul/specula in test\_field\_analyser.py moved to specula.base\_replay\_analyser accordingly)
+- Added "out_slopes_map" output to Slopec (and thus to all its subclasses, e.g. PyrSlopec, ShSlopec): a 2d remap of the slopes vector (shape (2, size\_x, size\_y) for a single subaperture, reusing the existing single\_mask/display\_map/get2d() machinery), useful to store slopes in DataStore with a (timesteps, 2, size\_x, size\_y) shape instead of a flat vector. Added "out_pixels_subap" (raw, pre-threshold pixel intensities of the 4 pyramid pupils, shape (4, size\_x, size\_y)) and "out_pixels_subap_sum" (their sum, shape (size\_x, size\_y), e.g. for scintillation analysis) outputs to PyrSlopec. Added PupData.local_display_map() helper. No changes needed to DataStore, which already saves whatever shape an output's get_value() returns.
 
 ### Other
 
@@ -47,7 +63,7 @@
 - Fixed silent misparsing/confusing errors in split\_output() when an object, alias or output name contained a reserved '.', '-' or ':' character; added early validation of YAML section names in Simul
 - Fixed A size in get_pyr_tlt, adding a round (rather than flooring by default) to avoid cases where the pyramid tilt mask (pyr_tlt) and the focal plane mask (fp_mask) could be of different sizes when using an odd number of pixels across the pupil
 - Updated calculation of power loss such that reference PSF also uses Fresnel propagation
-- ...
+- Fixed ModulatedPyramid/ModulatedDoubleRoof.calc\_pyr\_geometry producing pupils smaller than the requested pup\_diam pixels whenever pup\_dist was large enough to trigger the fft\_res\_min increase (roughly pup\_dist > 1.73 \* pup\_diam with default pup\_margin): fft\_totsize grew with the bumped fft\_res, but toccd\_side (the internal CCD side the FFT-plane pupils are rebinned to via toccd()) stayed frozen at the value computed from the pre-bump, nominal fft\_res, shrinking the sub-pupils after rebinning. toccd\_side is now recomputed from the final fft\_res returned by calc\_geometry. Added regression test in test\_pyr.py
 
 ## [1.0.3] - 2026-05-18
 

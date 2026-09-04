@@ -12,6 +12,7 @@ from specula.processing_objects.pyr_pupdata_calibrator import PyrPupdataCalibrat
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.make_mask import make_mask
+from specula.lib.make_xy import make_xy
 from specula.processing_objects.modulated_pyramid import ModulatedPyramid
 from test.specula_testlib import cpu_and_gpu
 
@@ -1060,6 +1061,185 @@ class TestModulatedPyramid(unittest.TestCase):
                 f" → fov_res={pyramid_high.fov_res},"
                 f" fp_masking={pyramid_high.fp_masking:.3f}")
 
+    @cpu_and_gpu
+    def test_pup_diam_matches_requested_diameter_for_large_pup_dist(self, target_device_idx, xp):
+        """Regression test for calc_pyr_geometry: toccd_side must be recomputed from the
+        final (possibly fft_res_min-bumped) fft_res, otherwise the sub-pupils shrink
+        below the requested pup_diam pixels once pup_dist is large enough to trigger
+        the fft_res_min constraint (roughly pup_dist > 1.73 * pup_diam with the
+        default pup_margin=2)."""
+
+        pixel_pupil = 160
+        pixel_pitch = 0.05
+        wavelength_in_nm = 750
+        fov = 2.0
+        pup_diam = 20
+        output_resolution = 80
+        mod_amp = 3.0
+
+        simul_params = SimulParams(
+            pixel_pupil=pixel_pupil,
+            pixel_pitch=pixel_pitch,
+        )
+
+        def _pupil_diameters(pup_dist):
+            pyramid = ModulatedPyramid(
+                simul_params=simul_params,
+                wavelengthInNm=wavelength_in_nm,
+                fov=fov,
+                pup_diam=pup_diam,
+                pup_dist=pup_dist,
+                output_resolution=output_resolution,
+                mod_amp=mod_amp,
+                target_device_idx=target_device_idx,
+            )
+
+            ef = ElectricField(
+                pixel_pupil, pixel_pupil, pixel_pitch, S0=100, target_device_idx=target_device_idx
+            )
+            ef.A = make_mask(pixel_pupil)
+            ef.generation_time = 0
+
+            pyramid.inputs['in_ef'].set(ef)
+
+            loop = LoopControl()
+            loop.add(pyramid, idx=0)
+            loop.run(run_time=1, dt=1, t0=0)
+
+            pupcalib = PyrPupdataCalibrator(
+                data_dir="/tmp",
+                target_device_idx=target_device_idx,
+            )
+            pupcalib.local_inputs['in_i'] = pyramid.outputs['out_i']
+            pupcalib.trigger_code()
+            return cpuArray(pupcalib.pupdata.radius) * 2
+
+        # pup_dist=50 triggers the fft_res_min bump: fft_res_min = (50+20)/20*1.1 = 3.85 > 3.0
+        diam_large_dist = _pupil_diameters(pup_dist=50)
+        np.testing.assert_allclose(
+            diam_large_dist, pup_diam, atol=2.0,
+            err_msg=f"Pupil diameters {diam_large_dist} should match requested pup_diam="
+                    f"{pup_diam} even when pup_dist is large enough to bump fft_res"
+        )
+
+        # Sanity check: pup_dist=30 stays below the bump threshold
+        # (fft_res_min = (30+20)/20*1.1 = 2.75 < 3.0) and should also match pup_diam,
+        # both before and after the fix, guarding against regressions in the normal case.
+        diam_small_dist = _pupil_diameters(pup_dist=30)
+        np.testing.assert_allclose(
+            diam_small_dist, pup_diam, atol=2.0,
+            err_msg=f"Pupil diameters {diam_small_dist} should match requested pup_diam="
+                    f"{pup_diam} when pup_dist is below the fft_res_min bump threshold"
+        )
+
+    @cpu_and_gpu
+    def test_pyr_max_side_limits_support(self, target_device_idx, xp):
+        pixel_pupil = 80
+        pixel_pitch = 0.1
+        wavelength_nm = 750
+        pup_diam = 24
+        output_resolution = 80
+        fov = 2.0
+
+        simul_params = SimulParams(
+            pixel_pupil=pixel_pupil,
+            pixel_pitch=pixel_pitch,
+        )
+
+        pyramid = ModulatedPyramid(
+            simul_params=simul_params,
+            wavelengthInNm=wavelength_nm,
+            fov=fov,
+            pup_diam=pup_diam,
+            output_resolution=output_resolution,
+            mod_amp=0.0,
+            mod_type='circular',
+            pyr_max_side_ld=2.0,
+            target_device_idx=target_device_idx,
+        )
+
+        p = 8
+        c = 8
+        pyr_tlt = pyramid.get_pyr_tlt(p, c)
+        xx, yy = make_xy(pyr_tlt.shape[0], pyr_tlt.shape[0] // 2, xp=xp)
+        dist = xp.sqrt(xx ** 2 + yy ** 2)
+        max_dist = pyramid.pyr_max_side_ld * pyramid.fft_res / 2.0
+
+        self.assertTrue(xp.any(pyr_tlt[dist <= max_dist] != 0))
+        self.assertTrue(xp.all(pyr_tlt[dist > max_dist] == 0))
+
+    @cpu_and_gpu
+    def test_pyr_max_side_limits_frame(self, target_device_idx, xp):
+        """"""
+
+        pixel_pupil = 64
+        pixel_pitch = 0.125
+        wavelength_in_nm = 750
+        fov = 1.0
+        pup_diam = 20
+        pup_dist = 40
+        output_resolution = 80
+        mod_amp = 4.0
+        pyr_max_side_ld = 16.0
+        # lambda / D = 750e-9 / (160 * 0.05) * RAD2ASEC = 19.3 mas
+        #    4 * 19.3 mas = 77.2 mas
+        #    16 * 19.3 mas = 308.8 mas
+
+        simul_params = SimulParams(
+            pixel_pupil=pixel_pupil,
+            pixel_pitch=pixel_pitch,
+        )
+
+        pyramid = ModulatedPyramid(
+            simul_params=simul_params,
+            wavelengthInNm=wavelength_in_nm,
+            fov=fov,
+            pup_diam=pup_diam,
+            pup_dist=pup_dist,
+            output_resolution=output_resolution,
+            mod_amp=mod_amp,
+            pyr_max_side_ld=pyr_max_side_ld,
+            target_device_idx=target_device_idx,
+        )
+
+        ef = ElectricField(
+            pixel_pupil, pixel_pupil, pixel_pitch, S0=100, target_device_idx=target_device_idx
+        )
+        ef.A = make_mask(pixel_pupil)
+        ef.generation_time = 0
+
+        pyramid.inputs['in_ef'].set(ef)
+
+        loop = LoopControl()
+        loop.add(pyramid, idx=0)
+        loop.run(run_time=1, dt=1, t0=0)
+
+        output_intensity = pyramid.outputs['out_i']
+
+        mask = make_mask(output_resolution, diaratio=30.0/80.0)
+        idx = xp.where(mask)
+
+        debug_plot = False
+        if debug_plot: #pragma: no cover
+            import matplotlib.pyplot as plt
+            plt.figure(figsize=[4,4])
+            plt.imshow(output_intensity.i)
+            plt.title(f"Output Intensity for pup_dist={pup_dist}")
+            plt.colorbar()
+            plt.figure(figsize=[4,4])
+            plt.imshow(output_intensity.i * mask)
+            plt.title(f"Masked Intensity for pup_dist={pup_dist}")
+            plt.colorbar()
+            plt.figure(figsize=[4,4])
+            plt.imshow(pyramid.pyr_tlt)
+            plt.title(f"Pyramid Prism")
+            plt.colorbar()
+            plt.show()
+
+        self.assertTrue(xp.all(output_intensity.i[idx] > 0),
+                        "Output intensity should be positive within the mask region")
+        self.assertTrue(xp.max(output_intensity.i[idx] / xp.max(output_intensity.i)) > 0.1,
+                        "Output intensity should have significant values within the mask region")
 
     @cpu_and_gpu
     def test_imperfect_edges(self, target_device_idx, xp):
@@ -1077,7 +1257,6 @@ class TestModulatedPyramid(unittest.TestCase):
             pixel_pupil=pixel_pupil,
             pixel_pitch=pixel_pitch
         )
-
 
         pyramid = ModulatedPyramid(
             simul_params=simul_params,
