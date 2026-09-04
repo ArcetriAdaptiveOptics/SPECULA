@@ -528,6 +528,9 @@ class Simul():
             self.objs[dest_object].inputs[input_name].append(output.ref)
 
         if send:
+            if not isinstance(self.objs[output.obj_name], BaseProcessingObj):
+                raise ValueError(f'Object {output.obj_name} is not a processing object')
+
             self.objs[output.obj_name].addRemoteOutput(output.output_key, (self.remote_objs_ranks[dest_object], 
                                                                             tag,
                                                                             output.delay))

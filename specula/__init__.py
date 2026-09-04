@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import logging
+import traceback
 import functools
 from functools import wraps
 
@@ -273,19 +274,25 @@ def main_simul(yml_files: list,
         pr = cProfile.Profile()
         pr.enable()
 
-    for simul_idx in range(nsimul):
-        logger.debug(f'{yml_files=}')
-        Simul(*yml_files,
-            simul_idx=simul_idx,
-            overrides=overrides,
-            stepping=stepping,
-            diagram=diagram,
-            diagram_filename=diagram_filename,
-            diagram_title=diagram_title,
-            diagram_colors_on=diagram_colors_on,
-            speed_report=not no_speed_report,
-            log_level=log_level,
-        ).run()
+    try:
+        for simul_idx in range(nsimul):
+            logger.debug(f'{yml_files=}')
+            Simul(*yml_files,
+                simul_idx=simul_idx,
+                overrides=overrides,
+                stepping=stepping,
+                diagram=diagram,
+                diagram_filename=diagram_filename,
+                diagram_title=diagram_title,
+                diagram_colors_on=diagram_colors_on,
+                speed_report=not no_speed_report,
+                log_level=log_level,
+            ).run()
+    except Exception:
+        if mpi:
+            traceback.print_exc()
+            MPI.COMM_WORLD.Abort(1)
+        raise
 
     if profile:
         pr.disable
