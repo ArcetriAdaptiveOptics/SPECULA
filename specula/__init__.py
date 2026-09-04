@@ -295,7 +295,8 @@ def main_simul(yml_files: list,
             # otherwise they might remain stuck indefinitely
             # waiting for input from this rank
             MPI.COMM_WORLD.Abort(1)
-        raise
+        else:
+            raise
 
     if profile:
         pr.disable
