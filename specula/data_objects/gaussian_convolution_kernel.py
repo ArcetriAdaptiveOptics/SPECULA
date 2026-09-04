@@ -15,7 +15,7 @@ class GaussianConvolutionKernel(ConvolutionKernel):
                  pxscale: float,
                  dimension: int,
                  spot_size: float,
-                 pupil_size_m: float = 0.0,
+                 pupil_size_m: 0.0=float,
                  oversampling: int=1,
                  return_fft: bool=True,
                  positive_shift_tt: bool=True,
