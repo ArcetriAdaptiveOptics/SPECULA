@@ -291,6 +291,9 @@ def main_simul(yml_files: list,
     except Exception:
         if mpi:
             traceback.print_exc()
+            # Force other ranks to abort as well,
+            # otherwise they might remain stuck indefinitely
+            # waiting for input from this rank
             MPI.COMM_WORLD.Abort(1)
         raise
 
