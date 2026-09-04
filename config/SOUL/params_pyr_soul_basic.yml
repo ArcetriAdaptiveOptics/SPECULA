@@ -32,6 +32,8 @@ pupilstop:                                 # Default parameters (circular pupil)
   class: 'Pupilstop'
   simul_params_ref: 'main'
 
+# Passing through a processing object allows
+# the pupilstop to be used with MPI as well
 pupilstop_ctrl:
   class: 'PupilstopController'
   pupilstop_ref: pupilstop
