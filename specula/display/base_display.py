@@ -19,7 +19,8 @@ class BaseDisplay(BaseProcessingObj):
                  title='',
                  window: int=None,
                  subplot: int=111,
-                 figsize=(8, 6)):
+                 figsize=(8, 6),
+                 window_xy=None):
         super().__init__()
 
         if window is None:
@@ -44,12 +45,35 @@ class BaseDisplay(BaseProcessingObj):
 
         if not self.onNotebook:
             self.fig.show()
+            if window_xy is not None:
+                self._set_window_position(window_xy)
         else:
             from IPython.display import display
             self.handle = display(self.fig, display_id=True)
 
         self.output_id = IntValue(value=-1)
         self.outputs['out_window_id'] = self.output_id
+
+    def _set_window_position(self, window_xy):
+        """Place the GUI window at screen pixel (x, y) if the backend allows it."""
+        try:
+            x, y = int(window_xy[0]), int(window_xy[1])
+        except (TypeError, ValueError, IndexError):
+            return
+        try:
+            manager = self.fig.canvas.manager
+            if hasattr(manager, 'window'):
+                win = manager.window
+                if hasattr(win, 'wm_geometry'):
+                    win.wm_geometry(f'+{x}+{y}')
+                elif hasattr(win, 'move'):
+                    win.move(x, y)
+                elif hasattr(win, 'setGeometry') and hasattr(self.fig, 'dpi'):
+                    w = int(self.figsize[0] * self.fig.dpi)
+                    h = int(self.figsize[1] * self.fig.dpi)
+                    win.setGeometry(x, y, w, h)
+        except Exception as e:
+            self.logger.debug(f'Could not set window position: {e}')
 
     @classmethod
     def output_names(cls):
