@@ -215,7 +215,9 @@ class TestImShSynimGenerator(unittest.TestCase):
             print(f"Reference IM shape: {im_ref.shape}")
             print(f"Reference IM RMS: {np.sqrt(np.mean(im_ref**2)):.3e}")
 
-        # Compare
+        # Compare (im_ref may live on GPU regardless of `xp`, since SynIM
+        # own backend is bound once at import time - see synim_utils.py)
+        im_ref = cpuArray(im_ref)
         im_diff = im_generated - im_ref
         rms_diff = np.sqrt(np.mean(im_diff**2))
         rel_diff = rms_diff / np.sqrt(np.mean(im_ref**2))
@@ -224,8 +226,10 @@ class TestImShSynimGenerator(unittest.TestCase):
             print(f"\nDifference RMS: {rms_diff:.3e}")
             print(f"Relative difference: {rel_diff*100:.3f}%")
 
-        # Should be essentially identical
-        self.assertLess(rel_diff, 1e-10, "Generated IM should match reference")
+        # trigger_code() casts the IM to self.dtype (float32 for precision=1),
+        # so it cannot match a float64 reference to 1e-10; float32 round-trip
+        # error is inherently ~1e-7.
+        self.assertLess(rel_diff, 1e-6, "Generated IM should match reference")
 
     @cpu_and_gpu
     def test_im_generator_with_misreg(self, target_device_idx, xp):
@@ -289,7 +293,9 @@ class TestImShSynimGenerator(unittest.TestCase):
                                             shift_x, shift_y, rotation, magnification,
                                             xp=xp)
 
-        # Compare
+        # Compare (im_ref may live on GPU regardless of `xp`, since SynIM
+        # own backend is bound once at import time - see synim_utils.py)
+        im_ref = cpuArray(im_ref)
         im_diff = im_generated - im_ref
         rms_diff = np.sqrt(np.mean(im_diff**2))
         rel_diff = rms_diff / np.sqrt(np.mean(im_ref**2))
@@ -301,7 +307,7 @@ class TestImShSynimGenerator(unittest.TestCase):
             print(f"Relative difference: {rel_diff*100:.3f}%")
 
         # Should match
-        self.assertLess(rel_diff, 1e-7,
+        self.assertLess(rel_diff, 1e-6,
                         "Generated IM should match reference with mis-registration")
 
     @cpu_and_gpu
@@ -420,7 +426,10 @@ class TestImShSynimGenerator(unittest.TestCase):
                 xp=xp
             )
 
-            # Compare
+            # Compare (im_ref may live on GPU regardless of `xp`, since SynIM
+            # own backend is bound once at import time - see synim_utils.py)
+            im_generated = cpuArray(im_generated)
+            im_ref = cpuArray(im_ref)
             im_diff = im_generated - im_ref
             rms_diff = np.sqrt(np.mean(im_diff**2))
             rel_diff = rms_diff / np.sqrt(np.mean(im_ref**2))
