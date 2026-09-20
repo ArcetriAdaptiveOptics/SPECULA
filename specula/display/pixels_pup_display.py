@@ -56,6 +56,7 @@ class PixelsPupDisplay(BaseDisplay):
         self.circles = []
         self.center_points = []
         self.text_block = None
+        self.img = None
 
 
     def _apply_crop(self, image):

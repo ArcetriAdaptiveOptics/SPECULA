@@ -71,6 +71,7 @@ class DynamicDarkCalibrator(BaseProcessingObj):
                  data_dir: str,      # Set by main Simul object
                  nframes: int,
                  overwrite: bool = False,
+                 dark_frame_tag: str = None,
                  target_device_idx: int = None,
                  precision: int = None):
         """
@@ -85,6 +86,8 @@ class DynamicDarkCalibrator(BaseProcessingObj):
         overwrite : bool
             If True, overwrite existing files when saving dark frames.
             Default is False.
+        dark_frame_tag : str
+            Tag of the dark frame to load at startup (optional)
         target_device_idx : int [1], optional
             Target device index for computation (e.g., CPU/GPU selection).
         precision : int [1], optional
@@ -123,6 +126,8 @@ class DynamicDarkCalibrator(BaseProcessingObj):
         self.outputs['out_darkframe'] = self.darkframe
         self.outputs['out_subtracted_pixels'] = self.subtracted_pixels
 
+        self.dark_frame_tag = dark_frame_tag
+
     @classmethod
     def input_names(cls):
         return {'in_pixels': InputDesc(Pixels, 'Input pixel frame to be dark-subtracted'),
@@ -153,6 +158,19 @@ class DynamicDarkCalibrator(BaseProcessingObj):
                                       in_pixels.bpp,
                                       in_pixels.signed)
         self.integrated_pixels = self.darkframe.pixels * 0
+
+        if self.dark_frame_tag is not None:
+            filename = self.dark_frame_tag
+            if not filename.endswith('.fits'):
+                filename += '.fits'
+            fullpath = os.path.join(self.data_dir, filename)
+            try:
+                self.darkframe = Pixels.restore(fullpath, target_device_idx=self.target_device_idx)
+                self.darkframe.generation_time = self.current_time
+                self.counter = 0  # Disable integration
+                self.logger.info(f'Loaded dark frame from {fullpath}')
+            except Exception as e:
+                self.logger.error(f'Exception: {e.__name__}: {e}')
 
     def trigger_code(self):
         """Main calibration function"""
