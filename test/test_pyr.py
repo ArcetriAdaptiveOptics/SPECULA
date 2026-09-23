@@ -1217,7 +1217,7 @@ class TestModulatedPyramid(unittest.TestCase):
         output_intensity = pyramid.outputs['out_i']
 
         mask = make_mask(output_resolution, diaratio=30.0/80.0)
-        idx = xp.where(mask)
+        idx = np.where(mask)
 
         debug_plot = False
         if debug_plot: #pragma: no cover
