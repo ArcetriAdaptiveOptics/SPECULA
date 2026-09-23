@@ -1,5 +1,4 @@
 import io
-import queue
 import logging
 import unittest
 from unittest.mock import patch
@@ -22,25 +21,30 @@ class TestTerminalInput(unittest.TestCase):
         a.finalize()
 
     def test_handle_line(self):
-        q = queue.Queue()
-        reader = TerminalReader(q)
+        received = []
+        reader = TerminalReader(lambda name, value: received.append((name, value)))
         reader._handle_line('gain 0.3\n')
         reader._handle_line('   ')
         reader._handle_line('stop')
         with patch('builtins.print') as mock_print:
             reader._handle_line('too many tokens')
             mock_print.assert_called_once_with('Input not recognized')
-        self.assertEqual(q.get_nowait(), ('gain', '0.3'))
-        self.assertEqual(q.get_nowait(), ('stop', False))
-        self.assertTrue(q.empty())
+        self.assertEqual(received, [('gain', '0.3'), ('stop', False)])
+
+    def test_rejected_input_is_reported(self):
+        def put(name, value):
+            raise ValueError(f'Rejected input {value} for output {name}')
+        reader = TerminalReader(put)
+        with patch('builtins.print') as mock_print:
+            reader._handle_line('gain abc')
+            mock_print.assert_called_once_with('Rejected input abc for output gain')
 
     def test_plain_input_from_pipe(self):
-        q = queue.Queue()
-        reader = TerminalReader(q)
+        received = []
+        reader = TerminalReader(lambda name, value: received.append((name, value)))
         with patch('sys.stdin', io.StringIO('a 1\nb 2\n')):
             reader._run()
-        self.assertEqual(q.get_nowait(), ('a', '1'))
-        self.assertEqual(q.get_nowait(), ('b', '2'))
+        self.assertEqual(received, [('a', '1'), ('b', '2')])
 
     def test_redirect_log_handlers(self):
         import sys

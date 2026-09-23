@@ -1,6 +1,5 @@
 
 import sys
-import queue
 import atexit
 import logging
 import threading
@@ -55,8 +54,7 @@ class TerminalInput(SpeculaInput):
                          precision=precision)
 
         output_list_for_help = output_list
-        self.q = queue.Queue()
-        self.reader = TerminalReader(self.q)
+        self.reader = TerminalReader(self.put_input)
         self.reader.start()
         atexit.register(self.reader.stop)
 
@@ -68,10 +66,11 @@ class TerminalInput(SpeculaInput):
 class TerminalReader:
     """
     Reads commands from the terminal in a daemon thread and
-    puts (name, value) tuples in a queue.
+    passes (name, value) pairs to the *put* callable, which may raise
+    KeyError or ValueError to reject them.
     """
-    def __init__(self, q):
-        self.q = q
+    def __init__(self, put):
+        self.put = put
         self.thread = None
         self._app = None
         self._stopping = False
@@ -158,15 +157,21 @@ class TerminalReader:
         tokens = line.split()
         if len(tokens) == 0:
             return
+        elif len(tokens) == 1 and tokens[0] == 'help':
+            print_help()
+            return
         elif len(tokens) == 1:
-            if tokens[0] == 'help':
-                print_help()
-            else:
-                self.q.put((tokens[0], False))
+            name, value = tokens[0], False
         elif len(tokens) == 2:
-            self.q.put((tokens[0], tokens[1]))
+            name, value = tokens
         else:
             print('Input not recognized')
+            return
+        try:
+            self.put(name, value)
+        except (KeyError, ValueError) as e:
+            # Reject bad input immediately, at the prompt
+            print(e.args[0])
 
 
 def _redirect_log_handlers(stream):
