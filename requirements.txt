@@ -8,6 +8,7 @@ synim == 1.3.0
 flask-socketio
 python-socketio
 requests
+prompt_toolkit
 pytest
 scikit-image
 imageio-ffmpeg
