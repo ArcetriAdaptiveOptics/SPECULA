@@ -61,6 +61,10 @@ class TerminalInput(SpeculaInput):
     def finalize(self):
         super().finalize()
         self.reader.stop()
+        atexit.unregister(self.reader.stop)
+        # Allow a new instance, e.g. for another simulation
+        # run in the same Python process
+        TerminalInput._instance = None
 
 
 class TerminalReader:
@@ -74,6 +78,7 @@ class TerminalReader:
         self.thread = None
         self._app = None
         self._stopping = False
+        self._interactive = False
 
     def start(self):
         self.thread = threading.Thread(target=self._run, name='TerminalInput', daemon=True)
@@ -91,16 +96,15 @@ class TerminalReader:
                 app.loop.call_soon_threadsafe(app.exit)
             except Exception:
                 pass
-        if self.thread is not None and self.thread is not threading.current_thread():
+        # In plain mode the thread is blocked reading stdin and cannot be
+        # interrupted: do not wait for it (it is a daemon thread anyway)
+        if self._interactive and self.thread is not None \
+                and self.thread is not threading.current_thread():
             self.thread.join(timeout=timeout)
 
     def _run(self):
-        try:
-            interactive = sys.stdin.isatty() and sys.stdout.isatty()
-        except (AttributeError, ValueError):
-            interactive = False
-
-        if interactive:
+        self._interactive = _isatty(sys.stdin) and _isatty(sys.stdout)
+        if self._interactive:
             self._run_prompt_toolkit()
         else:
             self._run_plain()
@@ -126,7 +130,14 @@ class TerminalReader:
         session = PromptSession()
         self._app = session.app
 
+        original_stderr = sys.stderr
         with patch_stdout(raw=True):
+            # patch_stdout() sends stderr to the terminal (stdout) as well.
+            # If stderr has been redirected away from the terminal
+            # (e.g. "2> log.txt"), keep it there, since it cannot
+            # interfere with the prompt.
+            if not _isatty(original_stderr):
+                sys.stderr = original_stderr
             redirected = _redirect_log_handlers(sys.stdout)
             try:
                 while not self._stopping:
@@ -138,6 +149,7 @@ class TerminalReader:
                         # forward it to the main thread to keep the usual
                         # behaviour of interrupting the simulation.
                         _thread.interrupt_main()
+                        print('Ctrl-C received: terminal input is no longer active')
                         break
                     except EOFError:
                         break
@@ -180,15 +192,25 @@ def _redirect_log_handlers(stream):
     with (sys.stderr by default), so replacing sys.stdout/sys.stderr is not
     enough to capture log messages. Point all console handlers of the
     root logger to *stream* and return their previous streams.
+    Handlers writing to a console stream that is not a terminal
+    (e.g. stderr redirected to a file) are left alone.
     '''
     console_streams = (sys.__stdout__, sys.__stderr__)
     redirected = []
     for handler in logging.getLogger().handlers:
         if isinstance(handler, logging.FileHandler):
             continue
-        if isinstance(handler, logging.StreamHandler) and handler.stream in console_streams:
+        if isinstance(handler, logging.StreamHandler) and handler.stream in console_streams \
+                and _isatty(handler.stream):
             redirected.append((handler, handler.setStream(stream)))
     return redirected
+
+
+def _isatty(stream):
+    try:
+        return stream.isatty()
+    except (AttributeError, ValueError):
+        return False
 
 
 def _restore_log_handlers(redirected):

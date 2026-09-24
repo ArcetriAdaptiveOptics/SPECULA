@@ -12,13 +12,23 @@ from specula.processing_objects.terminal_input import _redirect_log_handlers, _r
 
 class TestTerminalInput(unittest.TestCase):
 
-    def test_singleton(self):
+    # Do not start the reader thread, which would open a real
+    # prompt when running from a terminal with "pytest -s"
+    @patch.object(TerminalReader, 'start')
+    def test_singleton(self, _):
         a = TerminalInput(output_list=["a:int", "b:float"])
 
         with self.assertRaises(RuntimeError):
             b = TerminalInput(output_list=["a:int", "b:float"])
 
         a.finalize()
+
+    @patch.object(TerminalReader, 'start')
+    def test_new_instance_after_finalize(self, _):
+        a = TerminalInput(output_list=["a:int"])
+        a.finalize()
+        b = TerminalInput(output_list=["a:int"])
+        b.finalize()
 
     def test_handle_line(self):
         received = []
@@ -55,7 +65,8 @@ class TestTerminalInput(unittest.TestCase):
         root.addHandler(other)
         try:
             new_stream = io.StringIO()
-            redirected = _redirect_log_handlers(new_stream)
+            with patch('specula.processing_objects.terminal_input._isatty', return_value=True):
+                redirected = _redirect_log_handlers(new_stream)
             self.assertIs(console.stream, new_stream)
             self.assertIsNot(other.stream, new_stream)
             _restore_log_handlers(redirected)
@@ -63,3 +74,17 @@ class TestTerminalInput(unittest.TestCase):
         finally:
             root.removeHandler(console)
             root.removeHandler(other)
+
+    def test_redirect_log_handlers_skips_non_tty(self):
+        # e.g. stderr redirected to a file with "2> log.txt"
+        import sys
+        root = logging.getLogger()
+        console = logging.StreamHandler(sys.__stderr__)
+        root.addHandler(console)
+        try:
+            with patch('specula.processing_objects.terminal_input._isatty', return_value=False):
+                redirected = _redirect_log_handlers(io.StringIO())
+            self.assertEqual(redirected, [])
+            self.assertIs(console.stream, sys.__stderr__)
+        finally:
+            root.removeHandler(console)
