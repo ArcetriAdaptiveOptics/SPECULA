@@ -209,6 +209,8 @@ class ExtSourcePyramid(ModulatedPyramid):
         self._coeff_padded = None
         self._ffv_padded = None
         self._u_tlt_batch = None
+        self._coeff_valid = None
+        self._ffv_valid = None
 
         # Pre-allocate face center coefficients (4 points at pyramid face centers)
         # These will be used to redistribute filtered flux
@@ -231,7 +233,7 @@ class ExtSourcePyramid(ModulatedPyramid):
         """
         Calculate 4 points at the corners between pyramid faces, at a radius
         corresponding to the field of view of the extended source.
-        
+
         Returns
         -------
         face_angles_ttf : ndarray
@@ -375,16 +377,32 @@ class ExtSourcePyramid(ModulatedPyramid):
 
         self.factor = 1.0 / (self.xp.sum(self.flux_factor_vector) + 1e-20)
 
+        recapture_stream = False
         if self._n_chunks != n_chunks_needed:
             self._n_chunks = n_chunks_needed
             self._fpsf_buffer = self.xp.zeros((self._n_chunks, *self.fpsf.shape),
                                             dtype=self.dtype)
             self._pyr_image_buffer = self.xp.zeros((self._n_chunks, *self.pyr_image.shape),
-                                                dtype=self.dtype)
+                                                   dtype=self.dtype)
+            recapture_stream = True
         else:
             # Clear buffers
             self._fpsf_buffer[:] = 0
             self._pyr_image_buffer[:] = 0
+
+        coeff_valid = self.ext_source_coeff.value[self.valid_idx, :3]
+        ffv_valid = self.flux_factor_vector[self.valid_idx]
+        if getattr(self, '_coeff_valid', None) is None or self._coeff_valid.shape != coeff_valid.shape:
+            self._coeff_valid = self.xp.array(coeff_valid, dtype=self.dtype, copy=True)
+            self._ffv_valid = self.xp.array(ffv_valid, dtype=self.dtype, copy=True)
+            recapture_stream = True
+        else:
+            self._coeff_valid[:] = coeff_valid
+            self._ffv_valid[:] = ffv_valid
+
+        # Shapes changed after the CUDA graph was captured: capture it again
+        if recapture_stream and self.cuda_graph is not None:
+            self.build_stream()
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
@@ -404,9 +422,9 @@ class ExtSourcePyramid(ModulatedPyramid):
         u_tlt_const = self.ef * self.tlt_f
 
         # Get extended source coefficients for current frame (only valid points)
-        coeff_ttf = self.ext_source_coeff.value[self.valid_idx, :3]
-        ffv_valid = self.flux_factor_vector[self.valid_idx]
-        n_valid = self.valid_idx.shape[0]
+        coeff_ttf = self._coeff_valid
+        ffv_valid = self._ffv_valid
+        n_valid = coeff_ttf.shape[0]
 
         # Process in chunks
         for chunk_idx, start_idx in enumerate(range(0, n_valid, self.max_batch_size)):

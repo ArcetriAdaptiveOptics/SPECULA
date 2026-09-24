@@ -906,3 +906,71 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
         print(f"  - Radius: {mean_radius:.4f} lambda/D (FoV/2 = {fov/2:.2f} arcsec)")
         print(f"  - Angles: {angles_deg_sorted}° (face centers)")
         print(f"  - Points correctly positioned at pyramid FACE CENTERS")
+
+    @cpu_and_gpu
+    def test_cuda_stream_for_changing_source(self, target_device_idx, xp):
+        pixel_pupil = 40
+        pixel_pitch = 0.025
+        wavelength_nm = 589
+        simul_params = SimulParams(pixel_pupil=pixel_pupil, pixel_pitch=pixel_pitch)
+
+        # LGS-like spot moving and changing shape from frame to frame
+        npsf = 48
+        psf_scale = 0.04
+        yy, xx = (xp.mgrid[0:npsf, 0:npsf] - npsf / 2) * psf_scale
+        rng = xp.random.default_rng(1)
+        def lgs_psf(k):
+            cx = 0.4 * np.sin(1.3 * k)
+            cy = 0.3 * np.cos(0.9 * k)
+            spot = xp.exp(-((xx - cx) ** 2 + (yy - cy) ** 2) / (2 * 0.3 ** 2))
+            return spot * (1 + 0.5 * rng.random((npsf, npsf)))
+
+        src = ExtendedSource(
+            simul_params=simul_params,
+            wavelengthInNm=wavelength_nm,
+            source_type='FROM_PSF',
+            sampling_type='POLAR',
+            sampling_lambda_over_d=0.5,
+            initial_psf=lgs_psf(0),
+            pixel_scale_psf=psf_scale,
+            target_device_idx=target_device_idx,
+        )
+        src.compute()
+        pyr_graph = ExtSourcePyramid(simul_params=simul_params, wavelengthInNm=wavelength_nm, fov=4.0, pup_diam=10,
+                                     output_resolution=32, target_device_idx=target_device_idx, cuda_stream_enable=True)
+        pyr_ref = ExtSourcePyramid(simul_params=simul_params, wavelengthInNm=wavelength_nm, fov=4.0, pup_diam=10,
+                                   output_resolution=32, target_device_idx=target_device_idx, cuda_stream_enable=False,
+                                   max_flux_ratio_thr=1e-16)
+        ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        ef.A = make_mask(pixel_pupil)
+        for pyr in (pyr_graph, pyr_ref):
+            pyr.inputs['in_ef'].set(ef)
+            pyr.inputs['ext_source_coeff'].set(src.outputs['coeff'])
+
+        ef.generation_time = 0
+        src.outputs['coeff'].generation_time = 0
+        pyr_graph.setup()
+        pyr_ref.setup()
+
+        for k in (1, 2):
+            t = ef.seconds_to_t(k)
+            ef.phaseInNm = 10 * rng.standard_normal((pixel_pupil, pixel_pupil))
+            ef.generation_time = t
+
+            # new PSF
+            src.psf.set_value(lgs_psf(k))
+            src.compute()
+            src.outputs['coeff'].generation_time = t
+
+            outs = []
+            for pyr in (pyr_graph, pyr_ref):
+                pyr.check_ready(t)
+                pyr.trigger()
+                pyr.post_trigger()
+                outs.append(cpuArray(pyr.outputs['out_i'].i).copy())
+            out_graph, out_ref = outs
+
+            np.testing.assert_allclose(
+                out_graph, out_ref, rtol=0, atol=1e-5,
+                err_msg=f"At frame {k} ExtSourcePyramid with cuda_stream_enable=True is not equal to ExtSourcePyramid"
+                        f"with cuda_stream_enable=False.")
