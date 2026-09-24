@@ -1,4 +1,6 @@
+import os
 import sys
+import subprocess
 import logging
 import unittest
 from unittest.mock import MagicMock, patch
@@ -210,3 +212,30 @@ class TestBaseValue(unittest.TestCase):
         dt = obj.seconds_to_t(dt)
         time_step = obj.seconds_to_t(time_step)
         assert dt % time_step == 0
+
+    # ---------- SPECULA INITIALIZATION CHECKS ----------
+    # These run in a subprocess, since specula.init() has already been
+    # called in this process
+
+    def _run_python(self, code):
+        # Make sure the subprocess imports the same specula package as this process
+        env = os.environ.copy()
+        root = os.path.dirname(os.path.dirname(os.path.abspath(specula.__file__)))
+        env['PYTHONPATH'] = os.pathsep.join(filter(None, [root, env.get('PYTHONPATH')]))
+        return subprocess.run([sys.executable, '-c', code], capture_output=True, text=True, env=env)
+
+    def test_uninitialized_raises(self):
+        r = self._run_python('from specula.base_time_obj import BaseTimeObj; BaseTimeObj()')
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn('SPECULA is not initialized', r.stderr, r.stderr)
+
+    def test_init_after_import_raises(self):
+        r = self._run_python('import specula; from specula.base_time_obj import BaseTimeObj; '
+                             'specula.init(-1); BaseTimeObj()')
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn('called after importing', r.stderr, r.stderr)
+
+    def test_init_before_import_works(self):
+        r = self._run_python('import specula; specula.init(-1); '
+                             'from specula.base_time_obj import BaseTimeObj; BaseTimeObj()')
+        self.assertEqual(r.returncode, 0, r.stderr)
