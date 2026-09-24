@@ -30,7 +30,7 @@ See the documentation here: [specula.readthedocs.io](https://specula.readthedocs
 - flask-socketio
 - socketio
 - scikit-image
-- cupy (for GPU acceleration, optional)
+- cupy (for GPU acceleration, optional: `pip install "cupy-cuda13x[ctk]"` or `"cupy-cuda12x[ctk]"`, see the [installation docs](https://specula.readthedocs.io/en/latest/installation.html))
 - astro-seeing
 - symao
 - synim
