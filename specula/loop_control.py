@@ -4,6 +4,7 @@ from collections import defaultdict
 
 from specula.base_time_obj import BaseTimeObj
 from specula import process_comm, process_rank
+from specula.tracing import tracer
 
 
 class LoopControl(BaseTimeObj):
@@ -94,7 +95,9 @@ class LoopControl(BaseTimeObj):
                     self.logger.mpi_debug(f'' + str(element) + ' startMemUsageCount')
                     element.startMemUsageCount()
                     self.logger.mpi_debug(f'' + str(element) + ' setup')
+                    tracer.begin(element, 'setup')
                     element.setup()
+                    tracer.end(element, 'setup')
                     element.sanity_check()
                     self.logger.mpi_debug(f'' + str(element) + ' stopMemUsageCount')
                     element.stopMemUsageCount()
@@ -123,6 +126,9 @@ class LoopControl(BaseTimeObj):
         # set the last_iter flag based on several conditions
         last_iter = (self.iter_counter == self.niters()-1)
 
+        if tracer.recording:
+            tracer.begin_iteration(self.iter_counter, self.t_to_seconds(self.t))
+
         for i in sorted(self.trigger_lists.keys()):
             # all the objects having this trigger order could be remote
             self.logger.mpi_debug(f'before check_ready')
@@ -137,7 +143,9 @@ class LoopControl(BaseTimeObj):
             for element in self.trigger_lists[i]:
                 try:
                     if element.inputs_changed:
+                        tracer.begin(element, 'trigger')
                         element.trigger()
+                        tracer.end(element, 'trigger')
                 except:
                     self.logger.error(f'Exception in {element.name}')
                     raise
@@ -146,10 +154,17 @@ class LoopControl(BaseTimeObj):
             for element in self.trigger_lists[i]:
                 try:
                     if element.inputs_changed:
+                        tracer.begin(element, 'post_trigger')
                         element.post_trigger()
+                        tracer.end(element, 'post_trigger')
                     # Always send MPI outputs, regardless of whether
                     # an object was triggered or not
-                    element.send_outputs(skip_delayed=last_iter, first_mpi_send=False)
+                    if element.remote_outputs:
+                        tracer.begin(element, 'send_outputs')
+                        element.send_outputs(skip_delayed=last_iter, first_mpi_send=False)
+                        tracer.end(element, 'send_outputs')
+                    else:
+                        element.send_outputs(skip_delayed=last_iter, first_mpi_send=False)
                 except:
                     self.logger.error(f'Exception in {element.name}')
                     raise
@@ -162,6 +177,9 @@ class LoopControl(BaseTimeObj):
                 self.logger.info(f't={self.t_to_seconds(self.t):.6f} {msg}')
                 self.last_reported_time = cur_time
                 self.last_reported_counter = self.iter_counter
+
+        if tracer.recording:
+            tracer.end_iteration()
 
         self.t += self.dt
         self.iter_counter += 1

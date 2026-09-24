@@ -37,6 +37,19 @@ def main():
                         help='Disable speed report on standard output')
     parser.add_argument('--log-level', type=str, default='INFO',
                         help='Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL, MPI_DBG, MPI_SEND_DBG')
+    parser.add_argument('--trace-file', type=str, default=None,
+                        help='Write per-object timings of each phase (inputs, prepare_trigger, trigger, '
+                             'post_trigger, send_outputs) to this tab-separated file, plus a summary '
+                             'sorted by total time. With MPI, one file per rank is written.')
+    parser.add_argument('--trace-sync', action='store_true',
+                        help='With --trace-file, synchronize the GPU at the end of each phase, so that '
+                             'timings include GPU execution time (slows down the simulation)')
+    parser.add_argument('--trace-skip', type=int, default=0, metavar='N',
+                        help='With --trace-file, do not record the first N loop iterations, which include '
+                             'one-time costs (FFT plans, kernel compilation, ...). Setup is always recorded.')
+    parser.add_argument('--trace-gpu-events', action='store_true',
+                        help='With --trace-file, also measure the GPU time of each trigger with CUDA '
+                             'events, written as a "trigger_gpu" phase. Lighter than --trace-sync.')
     parser.add_argument('yml_files', nargs='+', type=str,
                         help='YAML parameter files')
 

@@ -4,7 +4,7 @@ import fnmatch
 import re
 
 from specula import cpuArray, default_target_device, cp
-from specula import show_in_profiler
+from specula.tracing import tracer
 from specula import process_comm
 from specula.base_time_obj import BaseTimeObj
 from specula.connections import InputList, InputValue
@@ -235,9 +235,14 @@ class BaseProcessingObj(BaseTimeObj):
         self.current_time = t
         if self.target_device_idx >= 0:
             self._target_device.use()
-        if self.checkInputTimes():
+        tracer.begin(self, 'inputs')
+        ready = self.checkInputTimes()
+        tracer.end(self, 'inputs')
+        if ready:
             self.inputs_changed = True  # Signal ready for trigger and post_trigger()
+            tracer.begin(self, 'prepare_trigger')
             self.prepare_trigger(t)
+            tracer.end(self, 'prepare_trigger')
         else:
             self.inputs_changed = False
             self.logger.debug('No inputs have been refreshed, skipping trigger')
@@ -248,13 +253,14 @@ class BaseProcessingObj(BaseTimeObj):
         if not self.inputs_changed:
             raise RuntimeError("trigger() called when the object's inputs have not changed")
 
-        with show_in_profiler(self.__class__.__name__+'.trigger'):
-            if self.target_device_idx >= 0:
-                self._target_device.use()
-            if self.target_device_idx >= 0 and self.cuda_graph:
-                self.cuda_graph.launch(stream=self.stream)
-            else:
-                self.trigger_code()
+        # NVTX range and timing for this phase are recorded by the caller
+        # (LoopControl), so that overridden trigger() methods are covered too.
+        if self.target_device_idx >= 0:
+            self._target_device.use()
+        if self.target_device_idx >= 0 and self.cuda_graph:
+            self.cuda_graph.launch(stream=self.stream)
+        else:
+            self.trigger_code()
 
     def setup(self):
         """

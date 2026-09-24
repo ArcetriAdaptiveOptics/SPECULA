@@ -171,7 +171,7 @@ class DummyDecoratorAndContextManager():
 def show_in_profiler(message=None, color_id=None, argb_color=None, sync=False):
     '''
     Decorator to allow using cupy's TimeRangeDecorator
-    in a safe way even when cupy is not installed
+    in a safe way even when cupy or NVTX are not available
     Parameters are the same as TimeRangeDecorator
     '''
     try:
@@ -182,7 +182,9 @@ def show_in_profiler(message=None, color_id=None, argb_color=None, sync=False):
                           argb_color=argb_color,
                           sync=sync)
 
-    except ImportError:
+    # ImportError: cupy is not installed.
+    # RuntimeError: cupy is installed, but NVTX is not available
+    except (ImportError, RuntimeError):
         return DummyDecoratorAndContextManager()
 
 
@@ -232,6 +234,10 @@ def main_simul(yml_files: list,
                diagram_colors_on: bool=False,
                no_speed_report: bool=False,
                log_level: str='INFO',
+               trace_file: str=None,
+               trace_sync: bool=False,
+               trace_skip: int=0,
+               trace_gpu_events: bool=False,
                ):
 
     # Set logging level for the "parent" specula logger
@@ -274,6 +280,14 @@ def main_simul(yml_files: list,
         pr = cProfile.Profile()
         pr.enable()
 
+    from specula.tracing import tracer
+    if trace_file:
+        tracer.open(trace_file, sync=trace_sync, rank=rank, skip=trace_skip,
+                    gpu_events=trace_gpu_events)
+    elif trace_sync or trace_skip or trace_gpu_events:
+        logger.warning('--trace-sync, --trace-skip and --trace-gpu-events '
+                       'have no effect without --trace-file')
+
     try:
         for simul_idx in range(nsimul):
             logger.debug(f'{yml_files=}')
@@ -297,9 +311,13 @@ def main_simul(yml_files: list,
             MPI.COMM_WORLD.Abort(1)
         else:
             raise
+    finally:
+        summary = tracer.close()
+        if summary:
+            logger.info('Timing summary:\n' + summary)
 
     if profile:
-        pr.disable
+        pr.disable()
         stats = pstats.Stats(pr).sort_stats("cumtime")
         stats.print_stats(r"\((?!\_).*\)$", 200)
         
