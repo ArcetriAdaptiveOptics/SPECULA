@@ -8,9 +8,6 @@ def phot_density_from_source_params(magnitude: float,
     """
     Compute the photon density of a source from its scalar parameters.
 
-    Same computation as :meth:`~specula.data_objects.source.Source.phot_density`
-    (which delegates here), usable without instantiating a Source.
-
     Parameters
     ----------
     magnitude : float [1]
