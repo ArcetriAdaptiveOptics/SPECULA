@@ -599,6 +599,56 @@ class Simul():
     def isReplay(self, params):
         return 'data_source' in params
 
+    def find_preroll_objects(self, params):
+        '''
+        Return the names of the processing objects that must be pre-rolled
+        from t=0 when a replay starts at t0 > 0.
+
+        These are the objects that do not depend (directly or through other
+        objects, delayed inputs included) on a DataSource, but feed at least one
+        object that does. Their inputs are the same as in the original run,
+        so pre-rolling them reproduces their state at t0 exactly (iteration
+        counters, RNG draws, phase screen positions...), whatever it is.
+        Objects that do not feed the replayed part (e.g. a display on a
+        generator) are excluded.
+
+        Replayed objects whose output is used as a delayed input by another
+        replayed object (e.g. 'dm.out_layer:-1' in the propagation), and their
+        replayed ancestors, are pre-rolled too: otherwise the first step at t0
+        would read an output that was never computed.
+        '''
+        producers = {
+            name: {self.output_owner(x) for _, x in self.iterate_inputs(pars)} & params.keys()
+            for name, pars in params.items()
+        }
+
+        def ancestors_of(names):
+            found = set()
+            frontier = set(names)
+            while frontier:
+                frontier = set().union(*(producers[n] for n in frontier)) - found
+                found |= frontier
+            return found
+
+        replayed = {name for name, pars in params.items() if pars.get('class') == 'DataSource'}
+        changed = True
+        while changed:
+            new = {name for name, srcs in producers.items()
+                   if name not in replayed and srcs & replayed}
+            replayed |= new
+            changed = bool(new)
+
+        delayed_sources = {
+            self.output_owner(x)
+            for name in replayed
+            for _, x in self.iterate_inputs(params[name])
+            if self.output_delay(x) < 0 and self.output_owner(x) in replayed
+        }
+
+        preroll = (ancestors_of(replayed) - replayed) | delayed_sources | ancestors_of(delayed_sources)
+        return [name for name in params
+                if name in preroll and not self.is_dataobj.get(name, False)]
+
     def data_store_to_data_source(self, datastore_pars, set_store_dir=None):
         '''
         Convert data store parameters to data source.
@@ -962,17 +1012,38 @@ class Simul():
             self.objs['display_server'] = disp
             self.loop.add(disp, idx+1)
 
+        preroll_objs = []
+        if start_time > 0 and self.isReplay(params):
+            preroll_objs = self.find_preroll_objects(params)
+            self._check_preroll_is_local(preroll_objs)
+
         # Run simulation loop
         total_time = self.mainParams['total_time']
         run_time = (end_time if end_time is not None else total_time) - start_time
         self.loop.run(run_time=run_time,
                       dt=self.mainParams['time_step'],
                       t0=start_time,
-                      speed_report=self.speed_report)
+                      speed_report=self.speed_report,
+                      preroll_objs=preroll_objs)
 
         self.logger.debug(f'Simulation finished')
 #        if data_store.has_key('sr'):
 #            self.logger.info(f"Mean Strehl Ratio (@{params['psf']['wavelengthInNm']}nm) : {store.mean('sr', init=min([50, 0.1 * self.mainParams['total_time'] / self.mainParams['time_step']])) * 100.}")
+
+    def _check_preroll_is_local(self, preroll_objs):
+        '''
+        Pre-roll triggers objects without the MPI send/receive of the main
+        loop, so it is only supported when no pre-rolled object talks to
+        another rank.
+        '''
+        remote = [name for name in preroll_objs if name in self.remote_objs_ranks]
+        remote += [name for name in preroll_objs
+                   if name in self.objs and getattr(self.objs[name], 'remote_outputs', None)]
+        if remote:
+            raise NotImplementedError(
+                f'Replay with start_time > 0 needs to pre-roll {sorted(set(remote))}, '
+                'which exchange data with other MPI ranks: not supported. '
+                'Use start_time=0 or keep these objects on the same rank.')
 
     def get_info(self):
         '''Quick info string intended for web interfaces'''

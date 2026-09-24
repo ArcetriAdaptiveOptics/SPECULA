@@ -41,7 +41,7 @@ class LoopControl(BaseTimeObj):
         """
         return int(self.run_time / self.dt) if self.dt != 0 else 0
 
-    def run(self, run_time, dt, t0=0, speed_report=False):
+    def run(self, run_time, dt, t0=0, speed_report=False, preroll_objs=None):
         """
         Run the loop control for a given run time, time step, and initial time.
 
@@ -50,8 +50,11 @@ class LoopControl(BaseTimeObj):
             dt (float): The time step in seconds.
             t0 (float): The initial time in seconds (default: 0).
             speed_report (bool): Whether to report the speed of the loop (default: False).
+            preroll_objs (list of str): Names of the objects to trigger from 0 to t0-dt
+                before the loop starts, so that their state at t0 is the same as in a
+                run started from 0 (default: None).
         """
-        self.start(run_time, dt, t0=t0, speed_report=speed_report)
+        self.start(run_time, dt, t0=t0, speed_report=speed_report, preroll_objs=preroll_objs)
         self.next_time_to_stop = 0
         while self.run_time < 0 or self.t < self.t0 + self.run_time:
             if not process_rank and self.stepping and self.t > self.next_time_to_stop:
@@ -67,7 +70,7 @@ class LoopControl(BaseTimeObj):
             self.iter()
         self.finish()
 
-    def start(self, run_time, dt, t0=0, speed_report=False):
+    def start(self, run_time, dt, t0=0, speed_report=False, preroll_objs=None):
         
         self.speed_report = speed_report
 
@@ -113,10 +116,43 @@ class LoopControl(BaseTimeObj):
         if process_comm is not None:
             process_comm.barrier()
         
+        if preroll_objs:
+            self.preroll(preroll_objs)
+
         self.t = self.t0
         self.last_reported_time = time.time()
         self.last_reported_counter = 0
         self.report_interval = 10
+
+    def preroll(self, preroll_objs):
+        """
+        Trigger the given objects at t = 0, dt, ..., t0-dt, in trigger order,
+        without MPI communication and without the other objects.
+        """
+        if self.t0 % self.dt != 0:
+            raise ValueError(f'Pre-roll needs t0 multiple of dt: '
+                             f't0={self.t_to_seconds(self.t0)} s, dt={self.t_to_seconds(self.dt)} s')
+
+        names = set(preroll_objs)
+        levels = [[el for el in self.trigger_lists[i] if el.name in names]
+                  for i in sorted(self.trigger_lists.keys())]
+        levels = [lev for lev in levels if lev]
+        n_steps = self.t0 // self.dt
+        self.logger.info(f'Pre-rolling {n_steps} steps up to t0={self.t_to_seconds(self.t0)} s: '
+                         f'{[el.name for lev in levels for el in lev]}')
+
+        for t in range(0, self.t0, self.dt):
+            for level in levels:
+                for element in level:
+                    element.check_ready(t)
+                for element in level:
+                    try:
+                        if element.inputs_changed:
+                            element.trigger()
+                            element.post_trigger()
+                    except:
+                        self.logger.error(f'Exception in {element.name} during pre-roll')
+                        raise
 
     def iter(self):
 
