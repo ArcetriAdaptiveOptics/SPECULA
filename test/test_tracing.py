@@ -137,18 +137,18 @@ class TestContextDecorator(unittest.TestCase):
         tracer = Tracer()
 
         class Foo(_Obj):
-            @tracer('trigger_code')
-            def trigger_code(self, x):
+            @tracer('compute')
+            def compute(self, x):
                 return x + 1
 
         foo = Foo('foo')
         tracer.open(self.filename)
-        self.assertEqual(foo.trigger_code(1), 2)
-        self.assertEqual(Foo.trigger_code.__name__, 'trigger_code')
+        self.assertEqual(foo.compute(1), 2)
+        self.assertEqual(Foo.compute.__name__, 'compute')
         tracer.close()
         rows = self._rows()
         self.assertEqual([(r['object'], r['class'], r['phase']) for r in rows],
-                         [('foo', 'Foo', 'trigger_code')])
+                         [('foo', 'Foo', 'compute')])
 
     def test_name_only(self):
         tracer = Tracer()

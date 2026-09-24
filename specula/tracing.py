@@ -81,8 +81,8 @@ class Tracer:
         with tracer('interpolation', self):
             ...
 
-        @tracer('trigger_code')
-        def trigger_code(self):
+        @tracer('compute_slopes')
+        def compute_slopes(self):
             ...
 
     begin()/end() pairs can be nested. Durations are inclusive:

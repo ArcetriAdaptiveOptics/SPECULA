@@ -280,8 +280,7 @@ def main_simul(yml_files: list,
             raise
     finally:
         summary = tracer.close()
-        if summary:
-            logger.info('Timing summary:\n' + summary)
+        logger.info('Timing summary:\n' + str(summary))
 
     if profile:
         pr.disable()
