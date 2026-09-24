@@ -155,37 +155,17 @@ def to_xp(xp, v, dtype=None, force_copy=False):
         return retval.astype(dtype, copy=force_copy)
 
 
-class DummyDecoratorAndContextManager():
-    def __init__(self):
-        pass
-    def __enter__(self):
-        pass
-    def __exit__(self, *args):
-        pass
-    def __call__(self, f):
-        def caller(*args, **kwargs):
-            return f(*args, **kwargs)
-        return caller
-
-
 def show_in_profiler(message=None, color_id=None, argb_color=None, sync=False):
     '''
-    Decorator to allow using cupy's TimeRangeDecorator
-    in a safe way even when cupy or NVTX are not available
-    Parameters are the same as TimeRangeDecorator
+    Mark a section of code as an NVTX range, as a decorator or context manager.
+    Kept for backward compatibility: it is the same as
+    ``specula.tracing.tracer(message, color_id=color_id)``, so the section
+    is also written to the trace file when one is open.
+    *argb_color* and *sync* are not supported anymore and are ignored:
+    use ``--trace-sync`` to synchronize the device at the end of each range.
     '''
-    try:
-        from cupyx.profiler import time_range
-
-        return time_range(message=message,
-                          color_id=color_id,
-                          argb_color=argb_color,
-                          sync=sync)
-
-    # ImportError: cupy is not installed.
-    # RuntimeError: cupy is installed, but NVTX is not available
-    except (ImportError, RuntimeError):
-        return DummyDecoratorAndContextManager()
+    from specula.tracing import tracer
+    return tracer(message, color_id=color_id)
 
 
 def fuse(kernel_name=None):

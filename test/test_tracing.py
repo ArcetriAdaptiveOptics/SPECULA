@@ -109,38 +109,108 @@ class TestTracer(unittest.TestCase):
         self.assertIn('skipped iterations: 2', summary)
 
 
-class TestShowInProfiler(unittest.TestCase):
+class TestContextDecorator(unittest.TestCase):
 
-    def _check_dummy(self, cm):
-        from specula import DummyDecoratorAndContextManager
-        self.assertIsInstance(cm, DummyDecoratorAndContextManager)
-        with cm:
+    def setUp(self):
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.filename = os.path.join(self.tmpdir.name, 'trace.tsv')
+
+    def tearDown(self):
+        self.tmpdir.cleanup()
+
+    def _rows(self):
+        return TestTracer._read_rows(self, self.filename)[1]
+
+    def test_context_manager(self):
+        tracer = Tracer()
+        tracer.open(self.filename)
+        obj = _Obj('a')
+        with tracer(obj=obj, phase='interpolation'):
+            with tracer('toccd', obj):
+                pass
+        tracer.close()
+        rows = self._rows()
+        self.assertEqual([(r['object'], r['phase']) for r in rows],
+                         [('a', 'toccd'), ('a', 'interpolation')])
+
+    def test_decorator_uses_self(self):
+        tracer = Tracer()
+
+        class Foo(_Obj):
+            @tracer('trigger_code')
+            def trigger_code(self, x):
+                return x + 1
+
+        foo = Foo('foo')
+        tracer.open(self.filename)
+        self.assertEqual(foo.trigger_code(1), 2)
+        self.assertEqual(Foo.trigger_code.__name__, 'trigger_code')
+        tracer.close()
+        rows = self._rows()
+        self.assertEqual([(r['object'], r['class'], r['phase']) for r in rows],
+                         [('foo', 'Foo', 'trigger_code')])
+
+    def test_name_only(self):
+        tracer = Tracer()
+
+        @tracer('plain_function')
+        def f(x):
+            return x * 2
+
+        tracer.open(self.filename)
+        self.assertEqual(f(3), 6)
+        with tracer('section'):
             pass
-        self.assertEqual(cm(lambda x: x + 1)(1), 2)
+        tracer.close()
+        rows = self._rows()
+        self.assertEqual([(r['object'], r['phase']) for r in rows],
+                         [('-', 'plain_function'), ('-', 'section')])
 
-    def test_nvtx_not_available(self):
-        # cupy installed, but NVTX not available: time_range() raises RuntimeError
-        import sys
-        import types
-        from unittest.mock import patch
+    def test_exception_closes_range(self):
+        tracer = Tracer()
+        tracer.open(self.filename)
+        obj = _Obj('a')
+
+        @tracer('bad')
+        def bad(self):
+            raise ValueError
+
+        with self.assertRaises(ValueError):
+            with tracer('section', obj):
+                raise ValueError
+        with self.assertRaises(ValueError):
+            bad(obj)
+        self.assertEqual(tracer._stack, [])
+        tracer.close()
+        self.assertEqual([r['phase'] for r in self._rows()], ['section', 'bad'])
+
+    def test_nvtx_ranges(self):
+        from unittest.mock import MagicMock
+        tracer = Tracer()
+        tracer._nvtx = MagicMock()
+        with tracer('trigger', _Obj('a')):
+            pass
+        with tracer('section', color_id=7):
+            pass
+        push = tracer._nvtx.RangePush.call_args_list
+        self.assertEqual([c.args for c in push], [('a.trigger', 3), ('section', 7)])
+        self.assertEqual(tracer._nvtx.RangePop.call_count, 2)
+
+    def test_show_in_profiler_alias(self):
         from specula import show_in_profiler
+        from specula.tracing import tracer
+        tracer.open(self.filename)
+        try:
+            with show_in_profiler('section'):
+                pass
 
-        def time_range(**kwargs):
-            raise RuntimeError('nvtx is not installed')
-
-        fake_profiler = types.ModuleType('cupyx.profiler')
-        fake_profiler.time_range = time_range
-        fake_cupyx = types.ModuleType('cupyx')
-        fake_cupyx.profiler = fake_profiler
-        with patch.dict(sys.modules, {'cupyx': fake_cupyx, 'cupyx.profiler': fake_profiler}):
-            self._check_dummy(show_in_profiler('test'))
-
-    def test_cupy_not_installed(self):
-        import sys
-        from unittest.mock import patch
-        from specula import show_in_profiler
-        with patch.dict(sys.modules, {'cupyx': None, 'cupyx.profiler': None}):
-            self._check_dummy(show_in_profiler('test'))
+            @show_in_profiler('decorated')
+            def f():
+                return 1
+            self.assertEqual(f(), 1)
+        finally:
+            tracer.close()
+        self.assertEqual([r['phase'] for r in self._rows()], ['section', 'decorated'])
 
 
 class _FakeEvent:
@@ -166,14 +236,27 @@ class _FakeDevice:
         pass
 
 
+class _FakeStream:
+    def __init__(self):
+        self.capturing = False
+
+    def is_capturing(self):
+        return self.capturing
+
+
 def _make_fake_cp(elapsed_ms=0.25):
     from types import SimpleNamespace
-    current_stream = object()
+    current_stream = _FakeStream()
+    runtime = SimpleNamespace(n_sync=0)
+
+    def deviceSynchronize():
+        runtime.n_sync += 1
+    runtime.deviceSynchronize = deviceSynchronize
     cuda = SimpleNamespace(
         Event=_FakeEvent,
         get_current_stream=lambda: current_stream,
         get_elapsed_time=lambda start, end: elapsed_ms,
-        runtime=SimpleNamespace(deviceSynchronize=lambda: None),
+        runtime=runtime,
     )
     return SimpleNamespace(cuda=cuda), current_stream
 
@@ -284,3 +367,23 @@ class TestGpuEvents(unittest.TestCase):
             tracer.close()
         gpu_rows = [r for r in self._rows() if r[4] == 'trigger_gpu']
         self.assertEqual([r[0] for r in gpu_rows], ['2', '3'])
+
+
+class TestSync(unittest.TestCase):
+
+    def test_no_sync_during_capture(self):
+        from unittest.mock import patch
+        fake_cp, stream = _make_fake_cp()
+        with tempfile.TemporaryDirectory() as tmpdir, patch('specula.tracing.cp', fake_cp):
+            tracer = Tracer()
+            tracer.open(os.path.join(tmpdir, 'trace.tsv'), sync=True)
+            obj = _GpuObj('a')
+            with tracer('toccd', obj):
+                pass
+            self.assertEqual(fake_cp.cuda.runtime.n_sync, 1)
+            stream.capturing = True
+            with tracer('toccd', obj):
+                pass
+            self.assertEqual(fake_cp.cuda.runtime.n_sync, 1)
+            tracer.close()
+

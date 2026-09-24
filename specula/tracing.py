@@ -27,11 +27,14 @@ time taken by that segment of the stream, which includes any time the
 GPU spends waiting for the host to launch the next kernel.
 
 The module-level :data:`tracer` instance is used by the simulation loop.
+It can also be used as a context manager or decorator, to mark additional
+sections of code (see :meth:`Tracer.__call__`).
 '''
 
 import os
 import time
 import logging
+import functools
 
 from specula import cp
 
@@ -72,6 +75,15 @@ class Tracer:
         tracer.begin(obj, 'trigger')
         obj.trigger()
         tracer.end(obj, 'trigger')
+
+    or, as a context manager or decorator::
+
+        with tracer('interpolation', self):
+            ...
+
+        @tracer('trigger_code')
+        def trigger_code(self):
+            ...
 
     begin()/end() pairs can be nested. Durations are inclusive:
     the time of a nested phase is also counted in the enclosing one.
@@ -164,9 +176,26 @@ class Tracer:
         if self._gpu_pending:
             self._flush_gpu_events()
 
-    def begin(self, obj, phase):
+    def __call__(self, phase, obj=None, color_id=None):
+        '''
+        Return a context manager and decorator that marks a section of code
+        as *phase* of *obj*, like a begin()/end() pair. The range is closed
+        even if the section raises an exception.
+
+        As a decorator with no *obj*, the range is attributed to the first
+        argument of the decorated function if it has a ``name`` (typically
+        ``self`` of a processing object), so that it is named
+        "<object name>.<phase>". Otherwise, the range is named *phase* and
+        written to the text file with no object.
+        '''
+        return _Range(self, phase, obj, color_id)
+
+    def begin(self, obj, phase, color_id=None):
         if self._nvtx is not None:
-            self._nvtx.RangePush(f'{obj.name}.{phase}', PHASE_COLORS.get(phase, -1))
+            if color_id is None:
+                color_id = PHASE_COLORS.get(phase, -1)
+            name = phase if obj is None else f'{obj.name}.{phase}'
+            self._nvtx.RangePush(name, color_id)
         if self._file is not None and self._active:
             if self._gpu_events and phase == 'trigger' and self._is_gpu_obj(obj) and self.iteration >= 0:
                 obj._target_device.use()
@@ -178,7 +207,9 @@ class Tracer:
 
     def end(self, obj, phase):
         if self._file is not None and self._active:
-            if self._sync and self._is_gpu_obj(obj):
+            # No sync while a CUDA graph is being captured: it is not allowed,
+            # and the captured work does not run until the graph is launched.
+            if self._sync and self._is_gpu_obj(obj) and not cp.cuda.get_current_stream().is_capturing():
                 cp.cuda.runtime.deviceSynchronize()
             t_end = time.perf_counter_ns()
             t_start = self._stack.pop()
@@ -198,10 +229,13 @@ class Tracer:
             self._nvtx.RangePop()
 
     def _record(self, iteration, sim_time, obj, phase, t_start, dur):
-        cls = obj.__class__.__name__
-        self._file.write(f'{iteration}\t{sim_time:.6f}\t{obj.name}\t{cls}\t{phase}\t'
+        if obj is None:
+            name, cls = '-', '-'
+        else:
+            name, cls = obj.name, obj.__class__.__name__
+        self._file.write(f'{iteration}\t{sim_time:.6f}\t{name}\t{cls}\t{phase}\t'
                          f'{(t_start - self._t_open) / 1000:.1f}\t{dur / 1000:.1f}\n')
-        key = (obj.name, cls, phase)
+        key = (name, cls, phase)
         st = self._stats.get(key)
         if st is None:
             self._stats[key] = [1, dur, dur]
@@ -280,6 +314,39 @@ class Tracer:
                          f'{total / 1e6:10.2f} {total / count / 1e3:10.1f} {tmax / 1e3:10.1f} '
                          f'{100 * total / loop_ns:6.1f}')
         return '\n'.join(lines) + '\n'
+
+
+class _Range:
+    '''Context manager and decorator returned by :meth:`Tracer.__call__`'''
+
+    def __init__(self, tracer, phase, obj, color_id):
+        self._tracer = tracer
+        self._phase = phase
+        self._obj = obj
+        self._color_id = color_id
+
+    def __enter__(self):
+        self._tracer.begin(self._obj, self._phase, self._color_id)
+        return self
+
+    def __exit__(self, *exc):
+        self._tracer.end(self._obj, self._phase)
+        return False
+
+    def __call__(self, f):
+        tracer, phase, obj, color_id = self._tracer, self._phase, self._obj, self._color_id
+
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            o = obj
+            if o is None and args and isinstance(getattr(args[0], 'name', None), str):
+                o = args[0]
+            tracer.begin(o, phase, color_id)
+            try:
+                return f(*args, **kwargs)
+            finally:
+                tracer.end(o, phase)
+        return wrapper
 
 
 tracer = Tracer()

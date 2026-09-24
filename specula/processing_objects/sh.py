@@ -1,6 +1,7 @@
 import numpy as np
 
-from specula import fuse, show_in_profiler, RAD2ASEC
+from specula import fuse, RAD2ASEC
+from specula.tracing import tracer
 from specula.lib.extrapolation_2d import EFInterpolator
 from specula.lib.toccd import toccd
 from specula.lib.make_mask import make_mask
@@ -430,7 +431,7 @@ class SH(BaseProcessingObj):
         super().prepare_trigger(t)
 
         # Interpolation of input array if needed
-        with show_in_profiler('interpolation'):
+        with tracer('interpolation', self):
             self.ef_interpolator.interpolate()
 
         if self._kernelobj is not None:
@@ -520,7 +521,7 @@ class SH(BaseProcessingObj):
             assert psf_cut_view.base is not None
             assert subap_cube_view.base is not None
 
-        with show_in_profiler('toccd'):
+        with tracer('toccd', self):
             self._out_i.i[:] = toccd(self._psfimage, (self._ccd_side, self._ccd_side), xp=self.xp)
 
 

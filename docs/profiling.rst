@@ -57,14 +57,24 @@ host timeline, and the CUDA rows show the kernels they launch.
 
 If CuPy is not installed, or NVTX is not available, ranges are silently disabled.
 To mark additional sections of code in a processing object, use
-:func:`specula.show_in_profiler` as a decorator or context manager:
+:data:`specula.tracing.tracer` as a context manager or decorator:
 
 .. code-block:: python
 
-    from specula import show_in_profiler
+    from specula.tracing import tracer
 
-    with show_in_profiler('my_object.interpolation'):
-        ...
+    class MyObject(BaseProcessingObj):
+
+        @tracer('trigger_code')          # range "<object name>.trigger_code"
+        def trigger_code(self):
+            with tracer('interpolation', self):   # range "<object name>.interpolation"
+                ...
+
+As a decorator, the range is attributed to ``self``. These sections are also written to the
+trace file (see below), where their durations are included in those of the enclosing phase.
+Sections inside a ``trigger_code()`` captured in a CUDA graph only run during setup, when
+the graph is built, so they appear only there. :func:`specula.show_in_profiler` is kept as
+an alias for backward compatibility.
 
 Trace file
 ----------
