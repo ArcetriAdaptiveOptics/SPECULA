@@ -46,6 +46,10 @@ def flux_per_pixel(magnitude: float,
     """
     Estimate the detected flux per pixel.
 
+    Standalone utility, not called by the simulation pipeline: it gives the
+    flux expected in a simulation (e.g. to size detector parameters or check
+    a configuration) without running it.
+
     Simple scalar estimate: detector noise, gain, non-linearity, saturation
     and atmospheric extinction are not modeled. The photon density at
     ``wavelengthInNm`` is assumed flat over ``bandwidth_nm``, and the
