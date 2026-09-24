@@ -213,17 +213,23 @@ class TestContextDecorator(unittest.TestCase):
         self.assertEqual([r['phase'] for r in self._rows()], ['section', 'decorated'])
 
 
+# Index of the current (fake) device, changed only by _FakeDevice as a context manager
+_current_device = [None]
+
+
 class _FakeEvent:
     created = 0
 
     def __init__(self):
         _FakeEvent.created += 1
         self.stream = None
+        self.device = None
         self.done = False
         self.synchronized = False
 
     def record(self, stream=None):
         self.stream = stream
+        self.device = _current_device[0]
         self.done = False
 
     def synchronize(self):
@@ -232,8 +238,19 @@ class _FakeEvent:
 
 
 class _FakeDevice:
-    def use(self):
-        pass
+    # No use(): the tracer must not change the current device
+    def __init__(self, idx=0):
+        self.idx = idx
+        self._prev = []
+
+    def __enter__(self):
+        self._prev.append(_current_device[0])
+        _current_device[0] = self.idx
+        return self
+
+    def __exit__(self, *exc):
+        _current_device[0] = self._prev.pop()
+        return False
 
 
 class _FakeStream:
@@ -247,10 +264,11 @@ class _FakeStream:
 def _make_fake_cp(elapsed_ms=0.25):
     from types import SimpleNamespace
     current_stream = _FakeStream()
-    runtime = SimpleNamespace(n_sync=0)
+    runtime = SimpleNamespace(n_sync=0, sync_devices=[])
 
     def deviceSynchronize():
         runtime.n_sync += 1
+        runtime.sync_devices.append(_current_device[0])
     runtime.deviceSynchronize = deviceSynchronize
     cuda = SimpleNamespace(
         Event=_FakeEvent,
@@ -387,3 +405,24 @@ class TestSync(unittest.TestCase):
             self.assertEqual(fake_cp.cuda.runtime.n_sync, 1)
             tracer.close()
 
+    def test_current_device_unchanged(self):
+        from unittest.mock import patch
+        fake_cp, _ = _make_fake_cp()
+        with tempfile.TemporaryDirectory() as tmpdir, patch('specula.tracing.cp', fake_cp):
+            tracer = Tracer()
+            tracer.open(os.path.join(tmpdir, 'trace.tsv'), sync=True, gpu_events=True)
+            obj = _GpuObj('a')
+            obj._target_device = _FakeDevice(1)
+            _current_device[0] = 0
+            try:
+                tracer.begin_iteration(0, 0.0)
+                with tracer('trigger', obj):
+                    self.assertEqual(_current_device[0], 0)
+                self.assertEqual(_current_device[0], 0)
+                tracer.end_iteration()
+                ev_start, ev_end = tracer._gpu_pending[0][4:6]
+                self.assertEqual((ev_start.device, ev_end.device), (1, 1))
+                self.assertEqual(fake_cp.cuda.runtime.sync_devices, [1])
+                tracer.close()
+            finally:
+                _current_device[0] = None

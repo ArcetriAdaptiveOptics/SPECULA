@@ -235,14 +235,12 @@ class BaseProcessingObj(BaseTimeObj):
         self.current_time = t
         if self.target_device_idx >= 0:
             self._target_device.use()
-        tracer.begin(self, 'inputs')
-        ready = self.checkInputTimes()
-        tracer.end(self, 'inputs')
+        with tracer('inputs', self):
+            ready = self.checkInputTimes()
         if ready:
             self.inputs_changed = True  # Signal ready for trigger and post_trigger()
-            tracer.begin(self, 'prepare_trigger')
-            self.prepare_trigger(t)
-            tracer.end(self, 'prepare_trigger')
+            with tracer('prepare_trigger', self):
+                self.prepare_trigger(t)
         else:
             self.inputs_changed = False
             self.logger.debug('No inputs have been refreshed, skipping trigger')
@@ -253,8 +251,6 @@ class BaseProcessingObj(BaseTimeObj):
         if not self.inputs_changed:
             raise RuntimeError("trigger() called when the object's inputs have not changed")
 
-        # NVTX range and timing for this phase are recorded by the caller
-        # (LoopControl), so that overridden trigger() methods are covered too.
         if self.target_device_idx >= 0:
             self._target_device.use()
         if self.target_device_idx >= 0 and self.cuda_graph:

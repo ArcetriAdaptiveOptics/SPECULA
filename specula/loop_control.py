@@ -98,9 +98,8 @@ class LoopControl(BaseTimeObj):
                     self.logger.mpi_debug(f'' + str(element) + ' startMemUsageCount')
                     element.startMemUsageCount()
                     self.logger.mpi_debug(f'' + str(element) + ' setup')
-                    tracer.begin(element, 'setup')
-                    element.setup()
-                    tracer.end(element, 'setup')
+                    with tracer('setup', element):
+                        element.setup()
                     element.sanity_check()
                     self.logger.mpi_debug(f'' + str(element) + ' stopMemUsageCount')
                     element.stopMemUsageCount()
@@ -179,9 +178,8 @@ class LoopControl(BaseTimeObj):
             for element in self.trigger_lists[i]:
                 try:
                     if element.inputs_changed:
-                        tracer.begin(element, 'trigger')
-                        element.trigger()
-                        tracer.end(element, 'trigger')
+                        with tracer('trigger', element):
+                            element.trigger()
                 except:
                     self.logger.error(f'Exception in {element.name}')
                     raise
@@ -190,15 +188,13 @@ class LoopControl(BaseTimeObj):
             for element in self.trigger_lists[i]:
                 try:
                     if element.inputs_changed:
-                        tracer.begin(element, 'post_trigger')
-                        element.post_trigger()
-                        tracer.end(element, 'post_trigger')
+                        with tracer('post_trigger', element):
+                            element.post_trigger()
                     # Always send MPI outputs, regardless of whether
                     # an object was triggered or not
                     if element.remote_outputs:
-                        tracer.begin(element, 'send_outputs')
-                        element.send_outputs(skip_delayed=last_iter, first_mpi_send=False)
-                        tracer.end(element, 'send_outputs')
+                        with tracer('send_outputs', element):
+                            element.send_outputs(skip_delayed=last_iter, first_mpi_send=False)
                     else:
                         element.send_outputs(skip_delayed=last_iter, first_mpi_send=False)
                 except:

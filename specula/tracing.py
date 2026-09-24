@@ -198,10 +198,12 @@ class Tracer:
             self._nvtx.RangePush(name, color_id)
         if self._file is not None and self._active:
             if self._gpu_events and phase == 'trigger' and self._is_gpu_obj(obj) and self.iteration >= 0:
-                obj._target_device.use()
-                stream = self._obj_stream(obj)
-                ev_start = self._get_event(obj.target_device_idx)
-                ev_start.record(stream)
+                # Events and streams belong to the current device. The device context
+                # restores the previous one, so that tracing does not change it.
+                with obj._target_device:
+                    stream = self._obj_stream(obj)
+                    ev_start = self._get_event(obj.target_device_idx)
+                    ev_start.record(stream)
                 self._gpu_stack.append((obj, ev_start, stream))
             self._stack.append(time.perf_counter_ns())
 
@@ -209,8 +211,10 @@ class Tracer:
         if self._file is not None and self._active:
             # No sync while a CUDA graph is being captured: it is not allowed,
             # and the captured work does not run until the graph is launched.
-            if self._sync and self._is_gpu_obj(obj) and not cp.cuda.get_current_stream().is_capturing():
-                cp.cuda.runtime.deviceSynchronize()
+            if self._sync and self._is_gpu_obj(obj):
+                with obj._target_device:
+                    if not cp.cuda.get_current_stream().is_capturing():
+                        cp.cuda.runtime.deviceSynchronize()
             t_end = time.perf_counter_ns()
             t_start = self._stack.pop()
             dur = t_end - t_start
@@ -220,9 +224,9 @@ class Tracer:
 
             if self._gpu_stack and self._gpu_stack[-1][0] is obj and phase == 'trigger':
                 _, ev_start, stream = self._gpu_stack.pop()
-                obj._target_device.use()
-                ev_end = self._get_event(obj.target_device_idx)
-                ev_end.record(stream)
+                with obj._target_device:
+                    ev_end = self._get_event(obj.target_device_idx)
+                    ev_end.record(stream)
                 self._gpu_pending.append((self.iteration, self.sim_time, obj, t_start,
                                           ev_start, ev_end))
         if self._nvtx is not None:
