@@ -1054,5 +1054,5 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
                         f"cuda_stream_enable=True does not follow the changing source")
 
         if target_device_idx >= 0:
-            # re-caputre has to be done twice (2->3 and 3->2)
+            # recapturing has to be done twice (2->3 and 3->2)
             self.assertEqual(n_captures[0], 2)

@@ -398,7 +398,7 @@ class ExtSourcePyramid(ModulatedPyramid):
         self._ffv_valid[n_valid:] = 0
 
         if recapture_stream and self.cuda_graph is not None:
-            self.logger.info(f'Recapturing CUDA graph as number of chunks have changed.')
+            self.logger.info('Recapturing CUDA graph as number of chunks have changed.')
             self.build_stream()
 
     def prepare_trigger(self, t):
