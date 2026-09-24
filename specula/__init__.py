@@ -155,19 +155,6 @@ def to_xp(xp, v, dtype=None, force_copy=False):
         return retval.astype(dtype, copy=force_copy)
 
 
-def show_in_profiler(message=None, color_id=None, argb_color=None, sync=False):
-    '''
-    Mark a section of code as an NVTX range, as a decorator or context manager.
-    Kept for backward compatibility: it is the same as
-    ``specula.tracing.tracer(message, color_id=color_id)``, so the section
-    is also written to the trace file when one is open.
-    *argb_color* and *sync* are not supported anymore and are ignored:
-    use ``--trace-sync`` to synchronize the device at the end of each range.
-    '''
-    from specula.tracing import tracer
-    return tracer(message, color_id=color_id)
-
-
 def fuse(kernel_name=None):
     '''
     Replacement of cupy.fuse() allowing runtime

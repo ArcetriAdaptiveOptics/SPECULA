@@ -196,22 +196,6 @@ class TestContextDecorator(unittest.TestCase):
         self.assertEqual([c.args for c in push], [('a.trigger', 3), ('section', 7)])
         self.assertEqual(tracer._nvtx.RangePop.call_count, 2)
 
-    def test_show_in_profiler_alias(self):
-        from specula import show_in_profiler
-        from specula.tracing import tracer
-        tracer.open(self.filename)
-        try:
-            with show_in_profiler('section'):
-                pass
-
-            @show_in_profiler('decorated')
-            def f():
-                return 1
-            self.assertEqual(f(), 1)
-        finally:
-            tracer.close()
-        self.assertEqual([r['phase'] for r in self._rows()], ['section', 'decorated'])
-
 
 # Index of the current (fake) device, changed only by _FakeDevice as a context manager
 _current_device = [None]

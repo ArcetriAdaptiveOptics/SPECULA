@@ -73,8 +73,7 @@ To mark additional sections of code in a processing object, use
 As a decorator, the range is attributed to ``self``. These sections are also written to the
 trace file (see below), where their durations are included in those of the enclosing phase.
 Sections inside a ``trigger_code()`` captured in a CUDA graph only run during setup, when
-the graph is built, so they appear only there. :func:`specula.show_in_profiler` is kept as
-an alias for backward compatibility.
+the graph is built, so they appear only there.
 
 Trace file
 ----------
