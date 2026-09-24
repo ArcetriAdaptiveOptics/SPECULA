@@ -37,6 +37,7 @@ These arguments are similar to the ones used by ``specula`` itself, whose implem
 
 Examples of the diagram can be found in :doc:`simul_diagrams` page.
 A tutorial for running SCAO simulations is available in the :doc:`tutorials/scao_tutorial` page.
+To find out where the simulation time is spent, see the :doc:`profiling` page.
 
 Output logging
 ==============

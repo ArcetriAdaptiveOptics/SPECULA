@@ -14,6 +14,7 @@
 
 ### Other
 
+- Added per-object timing of all trigger phases: NVTX ranges for Nsight Systems, and new `--trace-file`, `--trace-skip`, `--trace-sync` and `--trace-gpu-events` options to write them to a text file with a summary (see docs/profiling.rst). Also fixed `--profile` and `show_in_profiler()` failing when NVTX is not available.
 - `IFunc.inverse()` now computes the pseudoinverse via the smaller of the two Gram matrices (`specula.lib.fast_pinv`) instead of calling `xp.linalg.pinv` directly on the full influence-function matrix. Mathematically identical result (including in the rank-deficient case), but substantially faster for the typical case of many pixels and few modes -- measured 3x-8x on real KL/zonal influence-function bases, with the speedup growing with pixel count. Added test\_fast\_pinv.py.
 - Fixed test\_im\_sh\_synim\_generator.py: on a machine with a GPU, the reference IM computed directly via `synim.interaction_matrix()` came back as a cupy array regardless of the test's own `target_device_idx`/`xp` (SynIM's backend is bound once at process start, see synim\_utils.py), crashing the comparison against the always-numpy generated IM with a cupy TypeError; also loosened test\_im\_generator\_no\_misreg/test\_im\_generator\_with\_misreg tolerances from 1e-10/1e-7 to 1e-6, since those paths go through `ImShSynimGenerator`'s float32 (`precision=1`) cast and cannot match a float64 reference to 1e-10 (CI failure was a real ~2.7e-8 relative mismatch, not a fluke).
 
