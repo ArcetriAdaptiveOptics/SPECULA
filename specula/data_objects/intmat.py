@@ -61,7 +61,7 @@ class Intmat(BaseDataObj):
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         if intmat is not None:
-            self.intmat = self.to_xp(intmat)
+            self.intmat = self.to_xp(intmat, dtype=self.dtype)
         else:
             if nmodes is None or nslopes is None:
                 raise ValueError('nmode sand nslopes must set if intmat is not passed')
