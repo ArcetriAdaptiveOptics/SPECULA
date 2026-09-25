@@ -81,6 +81,9 @@ class TerminalReader:
         self._interactive = False
 
     def start(self):
+        # Decided here, before the thread starts, so that stop() knows
+        # whether to wait for it even if called before _run() begins
+        self._interactive = _isatty(sys.stdin) and _isatty(sys.stdout)
         self.thread = threading.Thread(target=self._run, name='TerminalInput', daemon=True)
         self.thread.start()
 
@@ -103,7 +106,8 @@ class TerminalReader:
             self.thread.join(timeout=timeout)
 
     def _run(self):
-        self._interactive = _isatty(sys.stdin) and _isatty(sys.stdout)
+        if self._stopping:
+            return
         if self._interactive:
             self._run_prompt_toolkit()
         else:
