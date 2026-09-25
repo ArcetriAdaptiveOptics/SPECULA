@@ -226,6 +226,7 @@ class ModalAnalysis(BaseProcessingObj):
 
                 m = self.xp.dot(ph, self.phase2modes.ifunc_inv)
 
+            # This also sets self.out_modes in case of a non-list input
             output_list[li].value[:] = m
             output_list[li].generation_time = self.current_time
 
