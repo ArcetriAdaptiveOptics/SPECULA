@@ -217,10 +217,9 @@ class TestBaseValue(unittest.TestCase):
     # These run in a subprocess, since specula.init() has already been
     # called in this process
 
-    def _run_python(self, code, extra_env=None):
+    def _run_python(self, code):
         # Make sure the subprocess imports the same specula package as this process
         env = os.environ.copy()
-        env.update(extra_env or {})
         root = os.path.dirname(os.path.dirname(os.path.abspath(specula.__file__)))
         env['PYTHONPATH'] = os.pathsep.join(filter(None, [root, env.get('PYTHONPATH')]))
         return subprocess.run([sys.executable, '-c', code], capture_output=True, text=True, env=env)
@@ -241,10 +240,19 @@ class TestBaseValue(unittest.TestCase):
                              'from specula.base_time_obj import BaseTimeObj; BaseTimeObj()')
         self.assertEqual(r.returncode, 0, r.stderr)
 
+    # Same checks in-process, simulating the uninitialized globals with patch
+
+    def test_uninitialized_raises_inprocess(self):
+        with patch('specula.global_precision', None):
+            with self.assertRaisesRegex(RuntimeError, 'SPECULA is not initialized'):
+                BaseTimeObj()
+
+    def test_init_after_import_raises_inprocess(self):
+        with patch('specula.base_time_obj.global_precision', None):
+            with self.assertRaisesRegex(RuntimeError, 'called after importing'):
+                BaseTimeObj()
+
     def test_gpu_without_cupy_raises(self):
-        r = self._run_python('import specula; specula.init(-1); '
-                             'from specula.base_time_obj import BaseTimeObj; '
-                             'BaseTimeObj(target_device_idx=0)',
-                             extra_env={'SPECULA_DISABLE_GPU': 'TRUE'})
-        self.assertNotEqual(r.returncode, 0)
-        self.assertIn('cupy is not available', r.stderr, r.stderr)
+        with patch('specula.base_time_obj.cp', None):
+            with self.assertRaisesRegex(RuntimeError, 'cupy is not available'):
+                BaseTimeObj(target_device_idx=0)
