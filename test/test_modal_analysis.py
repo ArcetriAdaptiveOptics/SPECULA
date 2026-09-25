@@ -187,19 +187,12 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
 
         inverse_mock.assert_called_once_with(nmodes=None, remove_piston=True)
 
-    @cpu_and_gpu
-    def test_modal_analysis_list_mode_only(self, target_device_idx, xp):
-        """List mode with only in_ef_list connected (in_ef left unset)"""
-        npixels = 32
-        nmodes = 5
-        t = 1
-
-        ifunc, mask = compute_zern_ifunc(npixels, nzern=nmodes, obsratio=0.0, diaratio=1.0,
-                                         xp=xp, dtype=xp.float64)
+    def _zernike_efs(self, coeffs, npixels, t, target_device_idx, xp):
+        """Build one ElectricField per coefficient vector, with the phase set
+        to the corresponding combination of Zernike modes"""
+        ifunc, mask = compute_zern_ifunc(npixels, nzern=len(coeffs[0]), obsratio=0.0,
+                                         diaratio=1.0, xp=xp, dtype=xp.float64)
         idx = xp.where(mask)
-
-        coeffs = [xp.array([10.0, -20.0, 30.0, 0.0, 5.0]),
-                  xp.array([-7.0, 0.0, 15.0, 40.0, -3.0])]
         efs = []
         for c in coeffs:
             ef = ElectricField(npixels, npixels, 0.1, target_device_idx=target_device_idx)
@@ -208,19 +201,66 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
             ef.phaseInNm[:] = phase
             ef.generation_time = t
             efs.append(ef)
+        return efs
+
+    def _run_once(self, obj, t):
+        obj.setup()
+        obj.check_ready(t)
+        obj.trigger()
+        obj.post_trigger()
+
+    @cpu_and_gpu
+    def test_modal_analysis_list_mode_only(self, target_device_idx, xp):
+        """List mode with only in_ef_list connected (in_ef left unset)"""
+        npixels = 32
+        nmodes = 5
+        t = 1
+
+        coeffs = [xp.array([10.0, -20.0, 30.0, 0.0, 5.0]),
+                  xp.array([-7.0, 0.0, 15.0, 40.0, -3.0])]
+        efs = self._zernike_efs(coeffs, npixels, t, target_device_idx, xp)
 
         modal_analysis = ModalAnalysis(type_str='zernike', npixels=npixels, nmodes=nmodes,
                                        obsratio=0.0, diaratio=1.0, n_inputs=2,
                                        target_device_idx=target_device_idx)
         modal_analysis.inputs['in_ef_list'].set(efs)
-
-        modal_analysis.setup()
-        modal_analysis.check_ready(t)
-        modal_analysis.trigger()
-        modal_analysis.post_trigger()
+        self._run_once(modal_analysis, t)
 
         out_list = modal_analysis.outputs['out_modes_list']
         self.assertEqual(len(out_list), 2)
         for out, c in zip(out_list, coeffs):
             self.assertEqual(out.generation_time, t)
             np.testing.assert_allclose(cpuArray(out.value), cpuArray(c), rtol=1e-4, atol=1e-3)
+
+    @cpu_and_gpu
+    def test_modal_analysis_debug_log(self, target_device_idx, xp):
+        """post_trigger() logs one line per output, plus the RMS if dorms is set"""
+        npixels = 32
+        nmodes = 5
+        t = 1
+
+        coeffs = [xp.array([10.0, -20.0, 30.0, 0.0, 5.0]),
+                  xp.array([-7.0, 0.0, 15.0, 40.0, -3.0])]
+        efs = self._zernike_efs(coeffs, npixels, t, target_device_idx, xp)
+
+        # Single input with RMS
+        single = ModalAnalysis(type_str='zernike', npixels=npixels, nmodes=nmodes,
+                               obsratio=0.0, diaratio=1.0, dorms=True,
+                               target_device_idx=target_device_idx)
+        single.inputs['in_ef'].set(efs[0])
+        with self.assertLogs('specula.ModalAnalysis', level='DEBUG') as cm:
+            self._run_once(single, t)
+        msgs = [r.getMessage() for r in cm.records]
+        self.assertEqual(sum('First residual values' in m for m in msgs), 1)
+        self.assertEqual(sum('Phase RMS' in m for m in msgs), 1)
+
+        # List mode without RMS
+        multi = ModalAnalysis(type_str='zernike', npixels=npixels, nmodes=nmodes,
+                              obsratio=0.0, diaratio=1.0, n_inputs=2,
+                              target_device_idx=target_device_idx)
+        multi.inputs['in_ef_list'].set(efs)
+        with self.assertLogs('specula.ModalAnalysis', level='DEBUG') as cm:
+            self._run_once(multi, t)
+        msgs = [r.getMessage() for r in cm.records]
+        self.assertEqual(sum('First residual values' in m for m in msgs), 2)
+        self.assertEqual(sum('Phase RMS' in m for m in msgs), 0)
