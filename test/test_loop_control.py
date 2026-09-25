@@ -116,6 +116,23 @@ class TestLoopControlTiming(unittest.TestCase):
         assert times_seen[0] == loop.seconds_to_t(0.5)
         assert len(times_seen) == 2  # run_time/dt = 0.2/0.1
 
+    def test_speed_report_handles_zero_elapsed_time(self):
+        loop = LoopControl()
+        loop.logger = MagicMock()
+        loop.speed_report = True
+        loop.iter_counter = 10
+        loop.last_reported_counter = 0
+        loop.report_interval = 10
+        loop.last_reported_time = 123.0
+        loop.run_time = loop.seconds_to_t(2.0)
+        loop.t = loop.seconds_to_t(0.0)
+        loop.dt = loop.seconds_to_t(0.1)
+
+        with patch('specula.loop_control.time.time', return_value=123.0):
+            loop.iter()
+
+        loop.logger.info.assert_called_once_with('t=0.000000 0.00 Hz,  0.000 ms')
+
 
 class TestSteppingFeature(unittest.TestCase):
 
@@ -217,4 +234,3 @@ class TestSteppingFeature(unittest.TestCase):
 
         # should have updated threshold
         self.assertNotEqual(self.obj.next_time_to_stop, 0)
-

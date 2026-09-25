@@ -210,7 +210,10 @@ class LoopControl(BaseTimeObj):
             if self.iter_counter == self.last_reported_counter + self.report_interval:
                 cur_time = time.time()
                 elapsed_time = cur_time - self.last_reported_time
-                msg = f"{self.report_interval / elapsed_time:.2f} Hz,  {1000 * elapsed_time / self.report_interval :.3f} ms"
+                if elapsed_time > 0:
+                    msg = f"{self.report_interval / elapsed_time:.2f} Hz,  {1000 * elapsed_time / self.report_interval :.3f} ms"
+                else:
+                    msg = "0.00 Hz,  0.000 ms"
                 self.logger.info(f't={self.t_to_seconds(self.t):.6f} {msg}')
                 self.last_reported_time = cur_time
                 self.last_reported_counter = self.iter_counter
@@ -230,5 +233,4 @@ class LoopControl(BaseTimeObj):
                 except:
                     self.logger.error(f'Exception in {element.name}')
                     raise
-
 

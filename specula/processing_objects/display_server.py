@@ -144,9 +144,10 @@ class DisplayServer(BaseProcessingObj):
     def trigger(self):
         t1 = time.time()
         self.counter += 1
-        if t1 - self.t0 >= 1:
+        elapsed_time = t1 - self.t0
+        if elapsed_time >= 1:
             niters = self.counter - self.c0
-            speed = niters / (t1 - self.t0)
+            speed = niters / elapsed_time if elapsed_time > 0 else 0.0
             self.c0 = self.counter
             self.t0 = t1
             name, status = self.info_getter()

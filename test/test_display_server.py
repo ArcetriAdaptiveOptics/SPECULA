@@ -366,6 +366,35 @@ class TestDisplayServerTrigger(unittest.TestCase):
         two_tuples = [i for i in items if isinstance(i, tuple) and len(i) == 2]
         self.assertTrue(len(two_tuples) >= 1)
 
+    def test_trigger_reuses_elapsed_time_for_speed_report(self):
+        class FlakyT0DisplayServer(DisplayServer):
+            def __getattribute__(self, name):
+                if name == 't0':
+                    values = object.__getattribute__(self, '_t0_values')
+                    if values:
+                        return values.pop(0)
+                return object.__getattribute__(self, name)
+
+        server = FlakyT0DisplayServer.__new__(FlakyT0DisplayServer)
+        server.mode = 'image'
+        server.qin = _queue_module.Queue()
+        server.qout = _queue_module.Queue()
+        server.params_dict = {}
+        server.counter = 0
+        server._t0_values = [99.0, 100.0]
+        server.c0 = 0
+        server.speed_report = ''
+        server.info_getter = lambda: ('sim', 'running')
+        server.logger = get_specula_logger('test_logger')
+        server._trigger_image_mode = MagicMock()
+        server._trigger_data_mode = MagicMock()
+
+        with patch('specula.processing_objects.display_server.time.time', return_value=100.0):
+            server.trigger()
+
+        self.assertEqual(server.qout.get_nowait(), ('sim', 'running - 1.00 Hz'))
+        server._trigger_image_mode.assert_called_once()
+
     def test_trigger_dispatch_calls_correct_mode(self):
         """trigger() delegates to the right private method based on self.mode."""
         server = self._make_server('image')
@@ -1788,4 +1817,3 @@ class TestDisplayServerExceptions(unittest.TestCase):
 
         mock_proc.terminate.assert_called()
         mock_proc.join.assert_called()
-
