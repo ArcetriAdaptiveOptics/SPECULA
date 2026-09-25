@@ -52,6 +52,11 @@ class BaseTimeObj:
         else:
             self.target_device_idx = target_device_idx
 
+        if self.target_device_idx >= 0 and cp is None:
+            raise RuntimeError(
+                f'target_device_idx={self.target_device_idx} requested, but cupy is not available '
+                '(not installed, failed to import, or disabled by SPECULA_DISABLE_GPU)')
+
         if self.target_device_idx >= 0:
             self._target_device = cp.cuda.Device(self.target_device_idx)      # GPU case
             self.dtype = gpu_float_dtype_list[self.precision]

@@ -217,9 +217,10 @@ class TestBaseValue(unittest.TestCase):
     # These run in a subprocess, since specula.init() has already been
     # called in this process
 
-    def _run_python(self, code):
+    def _run_python(self, code, extra_env=None):
         # Make sure the subprocess imports the same specula package as this process
         env = os.environ.copy()
+        env.update(extra_env or {})
         root = os.path.dirname(os.path.dirname(os.path.abspath(specula.__file__)))
         env['PYTHONPATH'] = os.pathsep.join(filter(None, [root, env.get('PYTHONPATH')]))
         return subprocess.run([sys.executable, '-c', code], capture_output=True, text=True, env=env)
@@ -239,3 +240,11 @@ class TestBaseValue(unittest.TestCase):
         r = self._run_python('import specula; specula.init(-1); '
                              'from specula.base_time_obj import BaseTimeObj; BaseTimeObj()')
         self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_gpu_without_cupy_raises(self):
+        r = self._run_python('import specula; specula.init(-1); '
+                             'from specula.base_time_obj import BaseTimeObj; '
+                             'BaseTimeObj(target_device_idx=0)',
+                             extra_env={'SPECULA_DISABLE_GPU': 'TRUE'})
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn('cupy is not available', r.stderr, r.stderr)
