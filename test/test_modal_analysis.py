@@ -16,6 +16,8 @@ from specula.processing_objects.modal_analysis import ModalAnalysis
 from specula.data_objects.ifunc import IFunc
 from specula.data_objects.ifunc_inv import IFuncInv
 from specula.data_objects.simul_params import SimulParams
+from specula.data_objects.electric_field import ElectricField
+from specula.lib.compute_zern_ifunc import compute_zern_ifunc
 from test.specula_testlib import cpu_and_gpu
 from skimage.restoration import unwrap_phase
 
@@ -184,3 +186,41 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
             ModalAnalysis(ifunc=ifunc, target_device_idx=target_device_idx)
 
         inverse_mock.assert_called_once_with(nmodes=None, remove_piston=True)
+
+    @cpu_and_gpu
+    def test_modal_analysis_list_mode_only(self, target_device_idx, xp):
+        """List mode with only in_ef_list connected (in_ef left unset)"""
+        npixels = 32
+        nmodes = 5
+        t = 1
+
+        ifunc, mask = compute_zern_ifunc(npixels, nzern=nmodes, obsratio=0.0, diaratio=1.0,
+                                         xp=xp, dtype=xp.float64)
+        idx = xp.where(mask)
+
+        coeffs = [xp.array([10.0, -20.0, 30.0, 0.0, 5.0]),
+                  xp.array([-7.0, 0.0, 15.0, 40.0, -3.0])]
+        efs = []
+        for c in coeffs:
+            ef = ElectricField(npixels, npixels, 0.1, target_device_idx=target_device_idx)
+            phase = xp.zeros((npixels, npixels), dtype=ef.dtype)
+            phase[idx] = xp.dot(c, ifunc)
+            ef.phaseInNm[:] = phase
+            ef.generation_time = t
+            efs.append(ef)
+
+        modal_analysis = ModalAnalysis(type_str='zernike', npixels=npixels, nmodes=nmodes,
+                                       obsratio=0.0, diaratio=1.0, n_inputs=2,
+                                       target_device_idx=target_device_idx)
+        modal_analysis.inputs['in_ef_list'].set(efs)
+
+        modal_analysis.setup()
+        modal_analysis.check_ready(t)
+        modal_analysis.trigger()
+        modal_analysis.post_trigger()
+
+        out_list = modal_analysis.outputs['out_modes_list']
+        self.assertEqual(len(out_list), 2)
+        for out, c in zip(out_list, coeffs):
+            self.assertEqual(out.generation_time, t)
+            np.testing.assert_allclose(cpuArray(out.value), cpuArray(c), rtol=1e-4, atol=1e-3)
