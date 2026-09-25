@@ -210,22 +210,6 @@ class ModalAnalysis(BaseProcessingObj):
         else:
             ef_list = self.in_ef_list
             output_list = self.out_modes_list
-        if self.phase2modes._doZeroPad:
-            m = self.xp.dot(self.in_ef.phaseInNm, self.phase2modes.ifunc_inv)
-        else:
-            if self.wavelengthInNm > 0:
-                phase_in_rad = self.in_ef.phaseInNm * (2 * self.xp.pi / self.wavelengthInNm)
-                phase_in_rad *= self.phase2modes.mask_inf_func.astype(float)
-                phase_in_rad = self.unwrap_2d(phase_in_rad)
-                phase_in_nm = phase_in_rad * (self.wavelengthInNm / (2 * self.xp.pi))
-                ph = phase_in_nm[self.phase2modes.idx_inf_func]
-            else:
-                ph = self.in_ef.phaseInNm[self.phase2modes.idx_inf_func]
-
-            m = self.xp.dot(ph, self.phase2modes.ifunc_inv)
-
-        self.out_modes.value[:] = m
-        self.out_modes.generation_time = self.current_time
 
         for li, current_ef in enumerate(ef_list):
             if self.phase2modes._doZeroPad:
