@@ -23,6 +23,7 @@
 - Removed duplicated calculation in `ModalAnalysis.trigger_code()`
 - Fixed ExtSourcePyramid with cuda_stream_enable=True: the CUDA graphs kept reading the data from frame 0, but with FROM_PSF a coeff array is computed for every new PSF. Now a recapturing is performed if necessary.
 - Fixed constructor type hints narrower than what the code accepts (#709):
+- Fixed a bug in ModalAnalysis that was forcing a 64-bit computation even when SPECULA is running with 32 bit precision
 
 ## [1.0.4] - 2026-08-19
 
