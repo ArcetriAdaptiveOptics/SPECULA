@@ -38,6 +38,12 @@ At every iteration, each processing object goes through these phases, in this or
 
 In addition, the ``setup`` phase of each object is traced once, before the loop starts.
 
+When replaying a simulation from a time ``t0 > 0``, some objects may be pre-rolled from 0 to
+``t0`` before the loop starts. The whole pre-roll is traced as a single ``preroll`` range, with no
+object, and iteration ``-1``, like setup. The phases of the pre-rolled objects are shown in
+Nsight Systems, but are not written to the trace file, so that they are not mixed with the
+phases of the loop.
+
 Phases are marked where the simulation loop calls them, so methods overridden in derived
 classes are fully included.
 
@@ -124,6 +130,16 @@ This writes two files:
 With MPI, each rank writes its own files, with the rank number added to the name
 (``run.rank0.tsv``, ``run.rank0.summary.txt``, ...).
 
+With ``nsimul > 1``, all simulations are written to the same file and to a single summary.
+Iteration numbers restart from 0 at each simulation, so the summary totals combine all of
+them. To analyze the simulations separately, run them one at a time.
+
+Each line of the trace file is about 55 bytes, and there are a few lines per object and
+iteration. A small SCAO system with 13 objects writes about 50 lines per iteration, or
+2.7 kB per iteration: 27 MB for 10,000 iterations. A large system with 200 lines per iteration
+would write about 110 MB over 10,000 iterations. For long runs, consider limiting the number of
+iterations, or using ``--trace-skip`` to exclude the first ones.
+
 The trace file is easy to analyze with pandas:
 
 .. code-block:: python
@@ -154,6 +170,8 @@ The following options modify the trace file. They have no effect without ``--tra
 
 ``--trace-gpu-events``
     Measure the GPU time of each ``trigger`` with CUDA events, without synchronizing the GPU.
+    This is usually lighter than ``--trace-sync``, but the difference is small when the loop is
+    limited by the host, because then synchronizing costs little.
     Results are written as an additional ``trigger_gpu`` phase, a few iterations later, when the
     events have completed. Only objects running on a GPU get ``trigger_gpu`` lines.
 
@@ -183,6 +201,8 @@ Option                  Measures                               Cost
 Comparing ``trigger`` and ``trigger_gpu`` for the same object is a quick way to see what limits it:
 
 - ``trigger_gpu`` close to ``trigger``: the object is limited by Python and kernel launch overhead.
+  The GPU is mostly waiting for the host to launch the next kernel, so in this case
+  ``trigger_gpu`` is **not** the GPU compute time, which can be much lower.
   Reducing the number of CuPy calls (fusing operations, avoiding temporaries) helps more than
   faster kernels.
 - ``trigger_gpu`` much larger than ``trigger``: the object is limited by GPU execution.

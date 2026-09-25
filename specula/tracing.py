@@ -17,7 +17,7 @@ the GPU takes to execute it. :meth:`Tracer.open` with ``sync=True``
 that times include GPU execution. This serializes host and device, so
 the total run time will be higher than in a normal run.
 
-A lighter alternative is ``gpu_events=True`` (``--trace-gpu-events``):
+A usually lighter alternative is ``gpu_events=True`` (``--trace-gpu-events``):
 the trigger phase of GPU objects is bracketed by two CUDA events,
 recorded on the stream where the object's work runs (its own stream if
 it uses a CUDA graph, the current stream otherwise). The elapsed time
@@ -35,6 +35,7 @@ import os
 import time
 import logging
 import functools
+import contextlib
 
 from specula import cp
 
@@ -42,6 +43,7 @@ from specula import cp
 # easy to tell apart in the Nsight Systems timeline.
 PHASE_COLORS = {
     'setup': 0,
+    'preroll': 0,
     'inputs': 1,
     'prepare_trigger': 2,
     'trigger': 3,
@@ -189,6 +191,20 @@ class Tracer:
         written to the text file with no object.
         '''
         return _Range(self, phase, obj, color_id)
+
+    @contextlib.contextmanager
+    def no_record(self):
+        '''
+        Context manager that stops writing phases to the text file inside
+        its block. NVTX ranges are still emitted. Ranges must not cross the
+        block boundary.
+        '''
+        active = self._active
+        self._active = False
+        try:
+            yield
+        finally:
+            self._active = active
 
     def begin(self, obj, phase, color_id=None):
         if self._nvtx is not None:

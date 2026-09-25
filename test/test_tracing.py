@@ -108,6 +108,53 @@ class TestTracer(unittest.TestCase):
         self.assertIn('Iterations: 3', summary)
         self.assertIn('skipped iterations: 2', summary)
 
+    def test_no_record(self):
+        from unittest.mock import MagicMock
+        tracer = Tracer()
+        tracer._nvtx = MagicMock()
+        tracer.open(self.filename)
+        obj = _Obj('a')
+        with tracer('preroll'), tracer.no_record():
+            with tracer('trigger', obj):
+                pass
+        self.assertTrue(tracer._active)
+        tracer.close()
+        _, rows = self._read_rows(self.filename)
+        self.assertEqual([(r['iter'], r['object'], r['phase']) for r in rows],
+                         [('-1', '-', 'preroll')])
+        push = tracer._nvtx.RangePush.call_args_list
+        self.assertEqual([c.args[0] for c in push], ['preroll', 'a.trigger'])
+
+    def test_loop_preroll(self):
+        from unittest.mock import patch
+        from specula.loop_control import LoopControl
+        tracer = Tracer()
+
+        class _Element(_Obj):
+            remote_outputs = None
+            inputs_changed = False
+
+            def check_ready(self, t):
+                with tracer('inputs', self):
+                    self.inputs_changed = True
+            def trigger(self):
+                pass
+            def post_trigger(self):
+                pass
+
+        loop = LoopControl()
+        loop.add(_Element('a'), 0)
+        loop.dt = loop.seconds_to_t(0.001)
+        loop.t0 = loop.seconds_to_t(0.003)
+        tracer.open(self.filename)
+        with patch('specula.loop_control.tracer', tracer):
+            loop.preroll(['a'])
+        summary = tracer.close()
+        _, rows = self._read_rows(self.filename)
+        self.assertEqual([(r['iter'], r['object'], r['phase']) for r in rows],
+                         [('-1', '-', 'preroll')])
+        self.assertIn('preroll', summary)
+
 
 class TestContextDecorator(unittest.TestCase):
 

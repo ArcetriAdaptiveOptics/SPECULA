@@ -49,7 +49,7 @@ def main():
                              'one-time costs (FFT plans, kernel compilation, ...). Setup is always recorded.')
     parser.add_argument('--trace-gpu-events', action='store_true',
                         help='With --trace-file, also measure the GPU time of each trigger with CUDA '
-                             'events, written as a "trigger_gpu" phase. Lighter than --trace-sync.')
+                             'events, written as a "trigger_gpu" phase. Usually lighter than --trace-sync.')
     parser.add_argument('yml_files', nargs='+', type=str,
                         help='YAML parameter files')
 
