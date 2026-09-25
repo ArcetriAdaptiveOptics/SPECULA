@@ -7,6 +7,7 @@ from specula.data_objects.ifunc import IFunc
 from specula.data_objects.ifunc_inv import IFuncInv
 from specula.lib.compute_zern_ifunc import compute_zern_ifunc
 
+import logging
 import numpy as np
 
 class ModalAnalysis(BaseProcessingObj):
@@ -234,6 +235,11 @@ class ModalAnalysis(BaseProcessingObj):
             self.rms.value[:] = self.xp.std(ph)
             self.rms.generation_time = self.current_time
 
-        self.logger.debug(f"First residual values: {m[:min(6, len(m))]}")
-        if self.dorms:
-            self.logger.debug(f"Phase RMS: {self.rms.value}")
+    def post_trigger(self):
+        super().post_trigger()
+        if self.logger.isEnabledFor(logging.DEBUG):
+            outputs = [self.out_modes] if self.in_ef is not None else self.out_modes_list
+            for out in outputs:
+                self.logger.debug(f'First residual values: {out.value[:6]}')
+            if self.dorms:
+                self.logger.debug(f'Phase RMS: {self.rms.value}')
