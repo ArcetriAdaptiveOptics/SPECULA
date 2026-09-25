@@ -63,8 +63,10 @@ class Slopec(BaseProcessingObj):
             self.filt_recmat = Recmat(filtmat[1], target_device_idx=self.target_device_idx)
         else:
             if bool(filt_intmat) != bool(filt_recmat):
+                missing = 'filt_intmat' if filt_intmat is None else 'filt_recmat'
                 raise ValueError(
-                    'Both filt_intmat and filt_recmat must be set for slopes filtering'
+                    'Both filt_intmat and filt_recmat must be set for slopes filtering. '
+                    f'You provided one, but missing: {missing}'
                 )
             self.filt_intmat = filt_intmat
             self.filt_recmat = filt_recmat
