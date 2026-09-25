@@ -60,6 +60,10 @@ class TestSpeculaInput:
 
         assert obj.outputs["x"].value == 2
 
+    def test_output_without_type_rejected(self):
+        with pytest.raises(ValueError, match="Unsupported type"):
+            SpeculaInput(output_list=["x"])
+
     def test_unknown_output_rejected(self):
         obj = SpeculaInput(output_list=["x:int"])
 
