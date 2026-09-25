@@ -16,14 +16,14 @@ class PolyCromPyramid(PolyChromWFS):
                  # Pyramid parameters (shared by all instances)
                  simul_params: SimulParams,
                  fov: float,
-                 pup_diam: int,
+                 pup_diam: float,
                  output_resolution: int,
                  mod_amp: float = 3.0,
                  mod_step: int = None,
                  mod_type: str = 'circular',  # 'circular', 'vertical', 'horizontal', 'alternating'
                  fov_errinf: float = 0.5,
                  fov_errsup: float = 2,
-                 pup_dist: int = None,
+                 pup_dist: float = None,
                  pup_margin: int = 2,
                  fft_res: float = 3.0,
                  fp_obs: float = None,

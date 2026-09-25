@@ -1,3 +1,4 @@
+from typing import List, Union
 from specula.processing_objects.integrator import Integrator
 from specula.base_processing_obj import InputDesc
 from specula.connections import InputValue
@@ -21,9 +22,9 @@ class DynamicIntegrator(Integrator):
         Trigger to reset the internal integrator state.
     """
     def __init__(self,
-                 int_gain: float,
-                 ff: list=None,
-                 n_modes: int=None,
+                 int_gain: list,
+                 ff: Union[float, List[float]]=None,
+                 n_modes: Union[int, List[int]]=None,
                  delay: float=0,
                  integration: bool=True,
                  target_device_idx: int=None,
@@ -32,11 +33,11 @@ class DynamicIntegrator(Integrator):
         """
         Parameters
         ----------
-        int_gain : float [1]
-            Initial integrator gain.
-        ff : list [1], optional
+        int_gain : list [1]
+            Initial integrator gain(s).
+        ff : float or list [1], optional
             Feedforward coefficients for the IIR filter.
-        n_modes : int [1], optional
+        n_modes : int or list [1], optional
             Number of modes for modal integration.
         delay : float [1], optional
             Delay applied to the integrator (in simulation time units).

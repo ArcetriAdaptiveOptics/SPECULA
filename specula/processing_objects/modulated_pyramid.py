@@ -44,7 +44,7 @@ class ModulatedPyramid(BaseProcessingObj):
         Working wavelength in nanometers
     fov : float [arcsec]
         Field of view in arcseconds (a field stop may be applied in the focal plane to limit FoV)
-    pup_diam : int [pixels]
+    pup_diam : float [pixels]
         Pupil diameter in pixels
     output_resolution : int [pixels]
         Output CCD side length in pixels
@@ -60,7 +60,7 @@ class ModulatedPyramid(BaseProcessingObj):
         Accepted error in reducing FoV (default: 0.1, i.e., -10%)
     fov_errsup : float [1], optional
         Accepted error in enlarging FoV (default: 2.0, i.e., +100%)
-    pup_dist : int [pixels], optional
+    pup_dist : float [pixels], optional
         Pupil distance in pixels. If None, calculated from pup_diam and pup_margin
     pup_margin : int [pixels], optional
         Margin around pupils in pixels (default: 2)
@@ -121,14 +121,14 @@ class ModulatedPyramid(BaseProcessingObj):
                  simul_params: SimulParams,
                  wavelengthInNm: float,
                  fov: float,
-                 pup_diam: int,
+                 pup_diam: float,
                  output_resolution: int,
                  mod_amp: float = 3.0,
                  mod_step: int = None,
                  mod_type: str = 'circular',  # 'circular', 'vertical', 'horizontal', 'alternating'
                  fov_errinf: float = 0.1,
                  fov_errsup: float = 10,
-                 pup_dist: int = None,
+                 pup_dist: float = None,
                  pup_margin: int = 2,
                  fft_res: float = 3.0,
                  fp_obs: float = None,

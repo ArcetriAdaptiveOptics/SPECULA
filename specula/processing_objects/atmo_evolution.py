@@ -1,3 +1,4 @@
+from typing import List, Union
 from specula import cpuArray, ASEC2RAD, np
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
@@ -19,7 +20,7 @@ class AtmoEvolution(BaseProcessingObj):
     """
     def __init__(self,
                  simul_params: SimulParams,
-                 L0: list,
+                 L0: Union[float, List[float]],
                  heights: list,
                  Cn2: list,
                  data_dir: str = "",
@@ -40,7 +41,7 @@ class AtmoEvolution(BaseProcessingObj):
         ----------
         simul_params : SimulParams
             Simulation parameters object containing global simulation settings.
-        L0 : list [m]
+        L0 : float or list [m]
             Outer scale(s) of turbulence for each layer in meters.
         heights : list [m]
             Heights of the atmospheric layers in meters (at zenith).
