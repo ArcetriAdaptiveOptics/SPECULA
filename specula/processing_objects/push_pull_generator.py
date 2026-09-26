@@ -9,9 +9,8 @@ class PushPullGenerator(BaseGenerator):
     Push-Pull Generator processing object.
     Generates push-pull signals for modal calibration.
 
-    The output sequence is the same as `modal_pushpull_signal`, but each step
-    is computed on the fly instead of storing the full (nsteps, nmodes) time
-    history, which is mostly zeros and grows as nmodes**2 * ncycles * nsamples.
+    Each step is computed on the fly instead of storing the full (nsteps, nmodes)
+    time history, which is mostly zeros and grows as nmodes**2 * ncycles * nsamples.
     """
     def __init__(self,
                  nmodes: int,

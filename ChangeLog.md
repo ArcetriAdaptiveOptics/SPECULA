@@ -11,6 +11,7 @@
 
 - Added `pyr_max_side_ld` to `ModulatedPyramid` and its derived classes to cap the radial support of the pyramid surface in lambda/D units, forcing values outside the support radius to zero and enabling a central fifth pupil.
 - Added `compute_single_im` (bool, default True) to `ImCalibrator` to optionally skip populating the `out_single_im` per-mode output (the output itself is always present, empty when disabled). When True (default, unchanged behavior) this costs an O(nmodes) Python loop on every `trigger_code()` call (not just push-pull events) plus roughly double the fixed memory (one extra Intmat per mode); set to False to skip that loop/memory when nothing downstream consumes `out_single_im` (only `out_intmat` is used elsewhere in this codebase) -- needed for large-nmodes, long calibrations.
+- Removed `specula.lib.modal_pushpull_signal.modal_pushpull_signal()`, which duplicated the step ordering of `PushPullGenerator` and was only used by tests (it is kept in test\_generators.py as a reference implementation). Per-mode amplitudes are available from `modal_pushpull_amplitudes()`.
 - `TerminalInput` now keeps the input prompt on the last line of the terminal while log output scrolls above it (using `prompt_toolkit`, new dependency). `SpeculaInput` now reads input in a background thread instead of a separate process: `set_input_task()` is replaced by the thread-safe `put_input()`, which validates values immediately.
 
 ### Other
@@ -23,7 +24,7 @@
 - Removed duplicated calculation in `ModalAnalysis.trigger_code()`
 - Fixed ExtSourcePyramid with cuda_stream_enable=True: the CUDA graphs kept reading the data from frame 0, but with FROM_PSF a coeff array is computed for every new PSF. Now a recapturing is performed if necessary.
 - Fixed a bug in ModalAnalysis that was forcing a 64-bit computation even when SPECULA is running with 32 bit precision
-- `PushPullGenerator` no longer allocates the full `(n_steps, nmodes)` push-pull time history (mostly zeros, growing as nmodes^2 * ncycles * nsamples, e.g. ~40 GB for 5000 modes and 100 cycles): each step is now computed on the fly from the per-mode amplitudes and the pattern, producing the same sequence as `modal_pushpull_signal`. The `time_hist` attribute has been removed (the sequence length is available as `nsteps`), and triggering past the end of the sequence raises an explicit `IndexError`. The amplitude computation has been factored out as `specula.lib.modal_pushpull_signal.modal_pushpull_amplitudes()`.
+- `PushPullGenerator` no longer allocates the full `(n_steps, nmodes)` push-pull time history (mostly zeros, growing as nmodes^2 * ncycles * nsamples, e.g. ~40 GB for 5000 modes and 100 cycles): each step is now computed on the fly from the per-mode amplitudes and the pattern. The `time_hist` attribute has been removed (the sequence length is available as `nsteps`), and triggering past the end of the sequence raises an explicit `IndexError`. The amplitude computation has been factored out as `specula.lib.modal_pushpull_signal.modal_pushpull_amplitudes()`, and `modal_pushpull_signal()` has been removed (see Interface changes).
 
 ## [1.0.4] - 2026-08-19
 

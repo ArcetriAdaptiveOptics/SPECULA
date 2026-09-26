@@ -7,7 +7,7 @@ from specula import np
 from specula import cpuArray
 
 from specula.data_objects.simul_params import SimulParams
-from specula.lib.modal_pushpull_signal import modal_pushpull_signal
+from specula.lib.modal_pushpull_signal import modal_pushpull_amplitudes
 from specula.processing_objects.push_pull_generator import PushPullGenerator
 from specula.processing_objects.random_generator import RandomGenerator
 from specula.processing_objects.schedule_generator import ScheduleGenerator
@@ -17,6 +17,54 @@ from specula.processing_objects.vibration_generator import VibrationGenerator
 from specula.processing_objects.wave_generator import WaveGenerator
 
 from test.specula_testlib import cpu_and_gpu
+
+
+def _reference_pushpull_signal(n_modes, first_mode=0, amplitude=None, vect_amplitude=None,
+                               linear=False, constant=False, min_amplitude=None,
+                               only_push=False, pattern=[1, -1], ncycles=1,
+                               repeat_ncycles=False, nsamples=1, repeat_full_sequence=False):
+    """
+    Full (nsteps, n_modes) push-pull time history, built with the loop-based
+    algorithm of the former specula.lib.modal_pushpull_signal function. Kept here
+    as an independent reference for the on-the-fly index arithmetic of PushPullGenerator.
+    """
+    if only_push:
+        pattern = [1]
+    vect_amplitude = modal_pushpull_amplitudes(
+        n_modes, first_mode=first_mode, amplitude=amplitude, vect_amplitude=vect_amplitude,
+        linear=linear, constant=constant, min_amplitude=min_amplitude, xp=np)
+
+    n_pokes = len(pattern)
+    local_cycles = 1 if repeat_full_sequence else ncycles
+    real_n_modes = n_modes - first_mode
+    time_hist = np.zeros((n_pokes * real_n_modes * local_cycles, n_modes))
+    for mode in range(first_mode, n_modes):
+        hist_idx = mode - first_mode
+        poke_pattern = vect_amplitude[mode] * np.array(pattern)
+        # Local repetition (+ + - -) or alternating (+ - + -)
+        if repeat_ncycles and not repeat_full_sequence:
+            time_hist[n_pokes*hist_idx*local_cycles:n_pokes*(hist_idx+1)*local_cycles, mode] = \
+                np.repeat(poke_pattern, local_cycles)
+        else:
+            for j in range(local_cycles):
+                time_hist[n_pokes*(local_cycles*hist_idx+j):n_pokes*(local_cycles*hist_idx+j+1), mode] = poke_pattern
+
+    if repeat_full_sequence:
+        time_hist = np.tile(time_hist, [ncycles, 1])
+
+    return np.repeat(time_hist, nsamples, axis=0)
+
+
+def _run_pushpull(generator):
+    """Trigger a PushPullGenerator over its whole sequence and return the (nsteps, nmodes) outputs."""
+    generator.setup()
+    outputs = []
+    for i in range(generator.nsteps):
+        generator.check_ready(i)
+        generator.trigger()
+        generator.post_trigger()
+        outputs.append(cpuArray(generator.outputs['output'].value).copy())
+    return np.array(outputs)
 
 class TestGenerators(unittest.TestCase):
 
@@ -376,7 +424,7 @@ class TestGenerators(unittest.TestCase):
             outputs.append(f.outputs['output'].value.copy())
 
         # Check agains reference signal
-        hist = modal_pushpull_signal(n_modes=nmodes, amplitude=amp, ncycles=ncycles, xp=np)
+        hist = _reference_pushpull_signal(n_modes=nmodes, amplitude=amp, ncycles=ncycles)
         for i in range(10):
             np.testing.assert_array_equal(cpuArray(outputs[i]), hist[i])
 
@@ -408,13 +456,14 @@ class TestGenerators(unittest.TestCase):
             outputs.append(f.outputs['output'].value.copy())
 
         # Check agains reference signal
-        hist = modal_pushpull_signal(n_modes=nmodes, first_mode=first_mode, amplitude=amp, constant=constant_amp, ncycles=ncycles, xp=np)
+        hist = _reference_pushpull_signal(n_modes=nmodes, first_mode=first_mode, amplitude=amp,
+                                          constant=constant_amp, ncycles=ncycles)
         for i in range(10):
             np.testing.assert_array_equal(cpuArray(outputs[i]), hist[i])
 
     @cpu_and_gpu
     def test_push_pull_generator_full_sequence(self, target_device_idx, xp):
-        """Compare the full on-the-fly generated sequence against modal_pushpull_signal
+        """Compare the full on-the-fly generated sequence against the reference implementation
         for a variety of configurations (patterns, repeat modes, first_mode, nsamples,
         ncycles, explicit vect_amplitude and PUSH-only type)."""
         configs = [
@@ -444,8 +493,7 @@ class TestGenerators(unittest.TestCase):
                     signal_kwargs['amplitude'] = signal_kwargs.pop('amp')
                 if 'push_pull_type' in signal_kwargs:
                     signal_kwargs['only_push'] = signal_kwargs.pop('push_pull_type') == 'PUSH'
-                signal_kwargs['xp'] = np
-                hist = modal_pushpull_signal(**signal_kwargs)
+                hist = _reference_pushpull_signal(**signal_kwargs)
 
                 self.assertEqual(f.nsteps, hist.shape[0])
 
@@ -483,6 +531,52 @@ class TestGenerators(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             _ = PushPullGenerator(nmodes=1, push_pull_type='INVALID')
+
+    @cpu_and_gpu
+    def test_push_pull_generator_explicit_sequences(self, target_device_idx, xp):
+        """Check the step ordering against hand-written sequences (rows are steps, columns are modes)."""
+        cases = [
+            dict(name='push_only',
+                 cfg=dict(nmodes=2, push_pull_type='PUSH', vect_amplitude=[3.0, 4.0], ncycles=2),
+                 expected=[[3, 0], [3, 0], [0, 4], [0, 4]]),
+            dict(name='push_only_ignores_pattern',
+                 cfg=dict(nmodes=2, push_pull_type='PUSH', pattern=[-1, 1], vect_amplitude=[3.0, 4.0]),
+                 expected=[[3, 0], [0, 4]]),
+            dict(name='alternating_ncycles',
+                 cfg=dict(nmodes=2, vect_amplitude=[2.0, 3.0], ncycles=2),
+                 expected=[[2, 0], [-2, 0], [2, 0], [-2, 0], [0, 3], [0, -3], [0, 3], [0, -3]]),
+            dict(name='repeat_ncycles',
+                 cfg=dict(nmodes=1, vect_amplitude=[2.0], ncycles=2, repeat_ncycles=True),
+                 expected=[[2], [2], [-2], [-2]]),
+            dict(name='repeat_full_sequence',
+                 cfg=dict(nmodes=2, vect_amplitude=[2.0, 3.0], ncycles=3, repeat_full_sequence=True),
+                 expected=[[2, 0], [-2, 0], [0, 3], [0, -3]] * 3),
+            dict(name='nsamples',
+                 cfg=dict(nmodes=1, vect_amplitude=[1.0], nsamples=3),
+                 expected=[[1], [1], [1], [-1], [-1], [-1]]),
+            dict(name='repeat_ncycles_and_nsamples',
+                 cfg=dict(nmodes=1, vect_amplitude=[1.0], ncycles=2, repeat_ncycles=True, nsamples=2),
+                 expected=[[1]] * 4 + [[-1]] * 4),
+            dict(name='first_mode_and_nsamples',
+                 cfg=dict(nmodes=3, first_mode=1, vect_amplitude=[2.0, 3.0], nsamples=2),
+                 expected=[[0, 2, 0], [0, 2, 0], [0, -2, 0], [0, -2, 0],
+                           [0, 0, 3], [0, 0, 3], [0, 0, -3], [0, 0, -3]]),
+            dict(name='first_mode_and_repeat_full_sequence',
+                 cfg=dict(nmodes=3, first_mode=1, vect_amplitude=[2.0, 3.0], ncycles=2,
+                          repeat_full_sequence=True),
+                 expected=[[0, 2, 0], [0, -2, 0], [0, 0, 3], [0, 0, -3]] * 2),
+            dict(name='custom_pattern_three_elements',
+                 cfg=dict(nmodes=2, vect_amplitude=[2.0, 3.0], pattern=[1, -1, 1], ncycles=2),
+                 expected=[[2, 0], [-2, 0], [2, 0], [2, 0], [-2, 0], [2, 0],
+                           [0, 3], [0, -3], [0, 3], [0, 3], [0, -3], [0, 3]]),
+            dict(name='custom_pattern_negative_first',
+                 cfg=dict(nmodes=2, vect_amplitude=[3.0, 4.0], pattern=[-1, 1]),
+                 expected=[[-3, 0], [3, 0], [0, -4], [0, 4]]),
+        ]
+        for case in cases:
+            with self.subTest(case=case['name']):
+                f = PushPullGenerator(target_device_idx=target_device_idx, **case['cfg'])
+                np.testing.assert_array_equal(_run_pushpull(f), np.array(case['expected'], dtype=float))
 
     @cpu_and_gpu
     def test_func_generator_float(self, target_device_idx, xp):
