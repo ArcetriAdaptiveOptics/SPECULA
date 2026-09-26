@@ -3,6 +3,43 @@ from typing import Optional, Sequence
 
 from specula.lib.zernike_generator import ZernikeGenerator
 
+def modal_pushpull_amplitudes(
+    n_modes: int,
+    first_mode: Optional[int] = 0,
+    amplitude: Optional[float] = None,
+    vect_amplitude: Optional[Sequence[float]] = None,
+    linear: bool = False,
+    constant: bool = False,
+    min_amplitude: Optional[float] = None,
+    xp=np,
+) -> np.ndarray:
+    """
+    Compute the per-mode amplitudes used by `modal_pushpull_signal`.
+
+    Parameters have the same meaning as in `modal_pushpull_signal`.
+
+    Returns
+    -------
+    vect_amplitude : np.ndarray
+        Amplitudes of length `n_modes`, zero for the first `first_mode` modes.
+    """
+    if vect_amplitude is None:
+        radorder = xp.array([ZernikeGenerator.degree(x)[0] for x in xp.arange(first_mode, n_modes) + 2])
+        if linear:
+            vect_amplitude = amplitude/radorder
+        elif constant:
+            vect_amplitude = xp.repeat(amplitude, len(radorder))
+        else:
+            vect_amplitude = amplitude/xp.sqrt(radorder)
+        if min_amplitude is not None:
+            vect_amplitude = xp.minimum(vect_amplitude, min_amplitude)
+
+    # Prepend zero values equal to the number of skipped modes
+    return xp.hstack((
+        xp.repeat(0, first_mode), vect_amplitude
+    ))
+
+
 def modal_pushpull_signal(
     n_modes: int,
     first_mode: Optional[int] = 0,
@@ -87,21 +124,10 @@ def modal_pushpull_signal(
     if only_push:
         pattern = [1]
 
-    if vect_amplitude is None:
-        radorder = xp.array([ZernikeGenerator.degree(x)[0] for x in xp.arange(first_mode, n_modes) + 2])
-        if linear:
-            vect_amplitude = amplitude/radorder
-        elif constant:
-            vect_amplitude = xp.repeat(amplitude, len(radorder))
-        else:
-            vect_amplitude = amplitude/xp.sqrt(radorder)
-        if min_amplitude is not None:
-            vect_amplitude = xp.minimum(vect_amplitude, min_amplitude)
-
-    # Prepend zero values equal to the number of skipped modes
-    vect_amplitude = xp.hstack((
-        xp.repeat(0, first_mode), vect_amplitude
-    ))
+    vect_amplitude = modal_pushpull_amplitudes(
+        n_modes, first_mode=first_mode, amplitude=amplitude, vect_amplitude=vect_amplitude,
+        linear=linear, constant=constant, min_amplitude=min_amplitude, xp=xp
+    )
 
     n_pokes = len(pattern)
 

@@ -413,6 +413,72 @@ class TestGenerators(unittest.TestCase):
             np.testing.assert_array_equal(cpuArray(outputs[i]), hist[i])
 
     @cpu_and_gpu
+    def test_push_pull_generator_full_sequence(self, target_device_idx, xp):
+        """Compare the full on-the-fly generated sequence against modal_pushpull_signal
+        for a variety of configurations (patterns, repeat modes, first_mode, nsamples,
+        ncycles, explicit vect_amplitude and PUSH-only type)."""
+        configs = [
+            dict(name='default_alternating', nmodes=4, amp=0.5),
+            dict(name='repeat_ncycles', nmodes=3, amp=0.5, ncycles=2, repeat_ncycles=True),
+            dict(name='repeat_full_sequence', nmodes=3, amp=0.5, ncycles=2, repeat_full_sequence=True),
+            dict(name='repeat_ncycles_and_full_sequence', nmodes=3, amp=0.5, ncycles=2,
+                 repeat_ncycles=True, repeat_full_sequence=True),
+            dict(name='first_mode', nmodes=5, first_mode=2, amp=0.5),
+            dict(name='nsamples', nmodes=3, amp=0.5, nsamples=2),
+            dict(name='ncycles', nmodes=3, amp=0.5, ncycles=3),
+            dict(name='custom_pattern', nmodes=3, amp=0.5, pattern=[1, -1, 0.5]),
+            dict(name='push_only', nmodes=3, amp=0.5, push_pull_type='PUSH'),
+            dict(name='explicit_vect_amplitude', nmodes=4, vect_amplitude=[0.1, 0.2, 0.3, 0.4]),
+        ]
+
+        for raw_cfg in configs:
+            cfg = dict(raw_cfg)
+            name = cfg.pop('name')
+            with self.subTest(config=name):
+                f = PushPullGenerator(target_device_idx=target_device_idx, **cfg)
+                f.setup()
+
+                signal_kwargs = dict(cfg)
+                signal_kwargs['n_modes'] = signal_kwargs.pop('nmodes')
+                if 'amp' in signal_kwargs:
+                    signal_kwargs['amplitude'] = signal_kwargs.pop('amp')
+                if 'push_pull_type' in signal_kwargs:
+                    signal_kwargs['only_push'] = signal_kwargs.pop('push_pull_type') == 'PUSH'
+                signal_kwargs['xp'] = np
+                hist = modal_pushpull_signal(**signal_kwargs)
+
+                self.assertEqual(f.nsteps, hist.shape[0])
+
+                for i in range(f.nsteps):
+                    f.check_ready(i)
+                    f.trigger()
+                    f.post_trigger()
+                    value = cpuArray(f.outputs['output'].value)
+                    np.testing.assert_array_equal(value, hist[i], err_msg=f'config={name}, step={i}')
+
+    @cpu_and_gpu
+    def test_push_pull_generator_beyond_end_raises(self, target_device_idx, xp):
+        nmodes = 3
+        amp = 0.5
+
+        f = PushPullGenerator(
+            nmodes=nmodes,
+            push_pull_type='PUSHPULL',
+            amp=amp,
+            target_device_idx=target_device_idx
+        )
+        f.setup()
+
+        for i in range(f.nsteps):
+            f.check_ready(i)
+            f.trigger()
+            f.post_trigger()
+
+        with self.assertRaises(IndexError):
+            f.check_ready(f.nsteps)
+            f.trigger()
+
+    @cpu_and_gpu
     def test_push_pull_invalid_type(self, target_device_idx, xp):
 
         with self.assertRaises(ValueError):

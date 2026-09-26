@@ -6,7 +6,7 @@ from unittest.mock import patch
 import specula
 specula.init(0)  # Default target device
 
-from specula.lib.modal_pushpull_signal import modal_pushpull_signal
+from specula.lib.modal_pushpull_signal import modal_pushpull_signal, modal_pushpull_amplitudes
 
 
 class TestModalPushPullSignal(unittest.TestCase):
@@ -280,6 +280,57 @@ class TestModalPushPullSignal(unittest.TestCase):
             x1 = mode * len(pattern)*ncycles
             x2 = (mode+1) * len(pattern)*ncycles
             np.testing.assert_array_equal(result[x1:x2, mode], expected_block)
+
+    def test_amplitudes_length_and_default_sqrt(self):
+        """Test that modal_pushpull_amplitudes returns a vector of length n_modes,
+        using amplitude / sqrt(radorder) by default (radorder mocked to 2)."""
+        n_modes = 5
+        amplitude = 10.0
+        result = modal_pushpull_amplitudes(n_modes, amplitude=amplitude)
+
+        self.assertEqual(result.shape, (n_modes,))
+        expected = amplitude / np.sqrt(2)
+        np.testing.assert_allclose(result, expected)
+
+    def test_amplitudes_leading_zeros_for_first_mode(self):
+        """Test that the first `first_mode` entries are zero and the rest are non-zero."""
+        n_modes = 5
+        first_mode = 2
+        amplitude = 10.0
+        result = modal_pushpull_amplitudes(n_modes, first_mode=first_mode, amplitude=amplitude)
+
+        self.assertEqual(result.shape, (n_modes,))
+        np.testing.assert_array_equal(result[:first_mode], 0)
+        expected = amplitude / np.sqrt(2)
+        np.testing.assert_allclose(result[first_mode:], expected)
+
+    def test_amplitudes_constant(self):
+        """Test that constant=True yields the same amplitude for every mode."""
+        n_modes = 4
+        amplitude = 5.0
+        result = modal_pushpull_amplitudes(n_modes, amplitude=amplitude, constant=True)
+
+        self.assertEqual(result.shape, (n_modes,))
+        np.testing.assert_allclose(result, amplitude)
+
+    def test_amplitudes_linear(self):
+        """Test that linear=True yields amplitude / radorder (radorder mocked to 2)."""
+        n_modes = 3
+        amplitude = 6.0
+        result = modal_pushpull_amplitudes(n_modes, amplitude=amplitude, linear=True)
+
+        self.assertEqual(result.shape, (n_modes,))
+        np.testing.assert_allclose(result, amplitude / 2)
+
+    def test_amplitudes_explicit_vect_amplitude_with_first_mode(self):
+        """Test that an explicit vect_amplitude is simply prepended with first_mode zeros."""
+        n_modes = 4
+        first_mode = 1
+        vect_amplitude = np.array([1.0, 2.0, 3.0])
+        result = modal_pushpull_amplitudes(n_modes, first_mode=first_mode, vect_amplitude=vect_amplitude)
+
+        expected = np.array([0.0, 1.0, 2.0, 3.0])
+        np.testing.assert_array_equal(result, expected)
 
     @patch("specula.lib.modal_pushpull_signal.ZernikeGenerator.degree", return_value=(1,))
     def test_only_push_overrides_pattern(self, mock_degree):
