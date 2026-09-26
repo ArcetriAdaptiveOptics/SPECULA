@@ -1,3 +1,4 @@
+from typing import List, Union
 
 from specula.processing_objects.iir_filter import IirFilter
 from specula.data_objects.iir_filter_data import IirFilterData
@@ -11,8 +12,8 @@ class LowPassFilter(IirFilter):
     """
     def __init__(self,
                  simul_params: SimulParams,
-                 cutoff_freq: float,
-                 amplif_fact: float=None,
+                 cutoff_freq: Union[float, List[float]],
+                 amplif_fact: Union[float, List[float]]=None,
                  n_ord: int=None,
                  delay: float=0,
                  target_device_idx: int=None,

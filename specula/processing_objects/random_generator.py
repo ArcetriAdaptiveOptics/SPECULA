@@ -1,6 +1,6 @@
 import numpy as np
 from specula.processing_objects.base_generator import BaseGenerator
-from typing import List
+from typing import List, Union
 
 class RandomGenerator(BaseGenerator):
     """
@@ -24,8 +24,8 @@ class RandomGenerator(BaseGenerator):
     """
     def __init__(self,
                  distribution='NORMAL',  # 'NORMAL' or 'UNIFORM'
-                 amp: List [float] = None,
-                 constant: List[float] = None,
+                 amp: Union[float, List[float]] = None,
+                 constant: Union[float, List[float]] = None,
                  seed: int = None,
                  output_size: int = 0,
                  modal_rms: float = None, # Modal amplitude scaling arguments

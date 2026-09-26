@@ -38,6 +38,19 @@ class TestIirFilter(unittest.TestCase):
                          - np.array([0.5,0.5,0.4,0.4,0.4,0.3,0.3,0.3,0.3]))),0)
 
     @cpu_and_gpu
+    def test_integrator_scalar_ff(self, target_device_idx, xp):
+        # A scalar ff must give the same filter as a list with the same value for each gain
+        for n_modes in [None, [2,3,4]]:
+            integrator_scalar = Integrator(int_gain=[0.5,0.4,0.3], ff=0.99, n_modes=n_modes,
+                                           target_device_idx=target_device_idx)
+            integrator_list = Integrator(int_gain=[0.5,0.4,0.3], ff=[0.99,0.99,0.99], n_modes=n_modes,
+                                         target_device_idx=target_device_idx)
+            np.testing.assert_array_equal(cpuArray(integrator_scalar.iir_filter_data.num),
+                                          cpuArray(integrator_list.iir_filter_data.num))
+            np.testing.assert_array_equal(cpuArray(integrator_scalar.iir_filter_data.den),
+                                          cpuArray(integrator_list.iir_filter_data.den))
+
+    @cpu_and_gpu
     def test_integrator_with_value_schedule_gain_mod(self, target_device_idx, xp):
         """
         Test integrator with VALUE_SCHEDULE gain_mod:

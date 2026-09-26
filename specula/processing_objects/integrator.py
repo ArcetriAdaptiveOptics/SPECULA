@@ -1,3 +1,4 @@
+from typing import List, Union
 
 from specula.processing_objects.iir_filter import IirFilter
 from specula.base_processing_obj import InputDesc, OutputDesc
@@ -8,8 +9,8 @@ from specula.data_objects.iir_filter_data import IirFilterData
 class Integrator(IirFilter):
     def __init__(self,
                  int_gain: list,
-                 ff: list=None,
-                 n_modes: list=None, # list[int]
+                 ff: Union[float, List[float]]=None,
+                 n_modes: Union[int, List[int]]=None,
                  delay: float=0,
                  integration: bool=True,
                  target_device_idx: int=None,
@@ -28,9 +29,12 @@ class Integrator(IirFilter):
         # - Each int_gain[i] is expanded into a block of size n_modes[i].
         #   Example: n_modes=[2,3], int_gain=[0.5, 1.0] -> int_gain = [0.5, 0.5, 1.0, 1.0, 1.0]
         # - If ff is provided, it is expanded in the same way as int_gain.
+        # - A scalar ff is applied to all elements of int_gain.
         # - Raises ValueError if the lengths do not match.
         # Note: this behaviour (repeat each element of int_gain and ff by the corresponding
         #       number in n_modes) is the same as numpy.repeat
+        if isinstance(ff, (int, float)):
+            ff = [ff] * len(int_gain)
         if n_modes is not None:
             if isinstance(n_modes, int):
                 n_modes = [n_modes]
@@ -39,8 +43,6 @@ class Integrator(IirFilter):
                                  f" match length of int_gain {len(int_gain)}")
             int_gain = [val for i, val in enumerate(int_gain) for _ in range(n_modes[i])]
             if ff is not None:
-                if isinstance(ff, int):
-                    ff = [ff]
                 if len(n_modes) != len(ff):
                     raise ValueError(f"When n_modes is a list, length of n_modes {len(n_modes)}"
                                      f" must match length of ff {len(ff)}")
