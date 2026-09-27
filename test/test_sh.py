@@ -149,8 +149,7 @@ class TestSH(unittest.TestCase):
 
         # Test 1: sh1 and sh2 should share arrays (same geometry, same rank)
         assert id(sh1._wf3) == id(sh2._wf3), "sh1 and sh2 should share _wf3"
-        assert id(sh1.psf) == id(sh2.psf), "sh1 and sh2 should share psf"
-        assert id(sh1.psf_shifted) == id(sh2.psf_shifted), "sh1 and sh2 should share psf_shifted"
+        assert id(sh1._psfimage) == id(sh2._psfimage), "sh1 and sh2 should share _psfimage"
         assert id(sh1.ef_row) == id(sh2.ef_row), "sh1 and sh2 should share ef_row"
 
         # Test 2: sh3 should NOT share with sh1/sh2 (different geometry)
@@ -163,10 +162,10 @@ class TestSH(unittest.TestCase):
         # We should have entries for:
         # - sh1/sh2 (shared, rank 0, geometry 20)
         # - sh3 (separate, rank 0, geometry 30)
-        # Each geometry allocates 4 arrays
-        #  (_wf3, psf==psf_shifted, ef_row, _psfimage, _psf_reshaped_2d)
-        # So expected: 2 geometries × 5 arrays = 10 entries
-        assert cache_size == 10
+        # Each geometry allocates 3 arrays (_wf3, ef_row, _psfimage),
+        # psf_shifted is only allocated when a convolution kernel is used.
+        # So expected: 2 geometries × 3 arrays = 6 entries
+        assert cache_size == 6
         print(f"Cache has {cache_size} entries")
 
     @cpu_and_gpu
