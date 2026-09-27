@@ -209,9 +209,7 @@ class TestSH(unittest.TestCase):
                                msg=f"Expected 120 total pixels, got {calculated_size}")
 
         # 3. Verify internal pixel count
-        # With Lenslet diameter normalization = 2.0 (standard implied by 12!=6):
-        # lens[2] = 2/n_lenses = 0.2
-        # _ovs_np_sub = round(120 * 0.2 * 0.5) = round(12.0) = 12
+        # _ovs_np_sub = 120 // 10 = 12
         # This represents the full subaperture width in pixels (120 pixels / 10 subaps).
         self.assertEqual(sh._ovs_np_sub, 12,
                          "Internal subap pixel count should match total/n_lenses")
@@ -394,3 +392,33 @@ class TestSH(unittest.TestCase):
         out_b = run(sh_b)
         run(sh_a)
         np.testing.assert_array_equal(run(sh_b), out_b)
+
+    @cpu_and_gpu
+    def test_oversampled_size_not_truncated(self, target_device_idx, xp):
+        '''
+        Test that the oversampled size is not truncated by float rounding:
+        with 4 subaps and a 47 pixel pupil, the oversampled size is 96,
+        but int(47 * (96 / 47)) == 95.
+        '''
+        t = 1
+        ref_S0 = 100
+        sh = SH(wavelengthInNm=500,
+                subap_wanted_fov=3,
+                sensor_pxscale=0.5,
+                subap_on_diameter=4,
+                subap_npx=6,
+                target_device_idx=target_device_idx)
+
+        ef = ElectricField(47, 47, 0.05, S0=ref_S0, target_device_idx=target_device_idx)
+        ef.generation_time = t
+        sh.inputs['in_ef'].set(ef)
+
+        sh.setup()
+        self.assertEqual(sh._ovs_ef_size, 96)
+        self.assertEqual(sh.ef_row.shape[1], 96)
+
+        sh.check_ready(t)
+        sh.trigger()
+        sh.post_trigger()
+        intensity = sh.outputs['out_i']
+        np.testing.assert_almost_equal(xp.sum(intensity.i), ref_S0 * ef.masked_area(), decimal=3)
