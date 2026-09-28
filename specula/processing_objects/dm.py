@@ -132,6 +132,9 @@ class DM(BaseProcessingObj):
             self.n_valid_modes = len(range(start_mode, nmodes))
 
         if m2c is not None:
+            if m2c.m2c.shape[0] != self._ifunc.nmodes():
+                raise ValueError(f'm2c has {m2c.m2c.shape[0]} rows, but the influence function '
+                                 f'has {self._ifunc.nmodes()} modes')
             self.m2c = m2c.m2c
             nmodes_m2c = m2c.m2c[:, self._valid_modes].shape[1]
             self.m2c_commands = self.xp.zeros(nmodes_m2c, dtype=self.dtype)

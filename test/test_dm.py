@@ -261,3 +261,12 @@ class TestDM(unittest.TestCase):
                     if stroke is not None:
                         self.assertEqual(cpuArray(dm.stroke).dtype, expected_dtype)
 
+
+    @cpu_and_gpu
+    def test_dm_m2c_rows_must_match_ifunc_modes(self, target_device_idx, xp):
+        '''m2c with a number of rows different from the ifunc modes raises ValueError'''
+        simul_params = SimulParams(time_step=1, pixel_pupil=16, pixel_pitch=1)
+        ifunc = IFunc(type_str='zernike', npixels=16, nmodes=6, target_device_idx=target_device_idx)
+        m2c = M2C(np.ones((5, 4)), target_device_idx=target_device_idx)
+        with self.assertRaises(ValueError):
+            DM(simul_params, height=0, ifunc=ifunc, m2c=m2c, target_device_idx=target_device_idx)
