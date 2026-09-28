@@ -1,5 +1,6 @@
 import numpy as np
 
+from specula import cpuArray
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.layer import Layer
@@ -21,7 +22,8 @@ class PhaseScreenCube(BaseProcessingObj):
                  source_dict: dict=None,
                  layer_height: float=0.0,
                  scale_factor: float=1.0,
-                 target_device_idx=None):
+                 target_device_idx=None,
+                 precision=None):
         """
         Parameters
         ----------
@@ -44,8 +46,11 @@ class PhaseScreenCube(BaseProcessingObj):
             to adjust the amplitude of the phase screens if needed.
         target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
+        precision : int [1], optional
+            Precision for computation (0 for double, 1 for single). Default is None
+            (uses global setting).
         """
-        super().__init__(target_device_idx=target_device_idx)
+        super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         self.cube = cube
 
@@ -64,9 +69,9 @@ class PhaseScreenCube(BaseProcessingObj):
             ef_output_name = 'out_ef' if name is None else 'out_'+name+'_ef'
 
             layer = Layer(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, layer_height,
-                          target_device_idx=self.target_device_idx)
+                          target_device_idx=self.target_device_idx, precision=self.precision)
             ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
-                               target_device_idx=self.target_device_idx)
+                               target_device_idx=self.target_device_idx, precision=self.precision)
             # The electric field output shares the same array as the layer output
             ef.field = layer.field
             if source is not None:
@@ -84,41 +89,47 @@ class PhaseScreenCube(BaseProcessingObj):
         Computes the scaling factor to map the cube spatial dimensions to the pupil grid.
         """
         self.phasescreens = self.to_xp(self.cube.array, dtype=self.dtype)
-        self.time_vector = self.to_xp(self.cube.time_vector)
+        # Host float64: only used to find the interpolation indices and weights
+        self.time_vector = np.asarray(cpuArray(self.cube.time_vector), dtype=np.float64)
 
         dim = self.phasescreens.shape
         self.bin_fact = dim[1]/self.pixel_pupil*self.pixel_scale/self.pixel_pitch
 
+        # Built once: the interpolator keeps a reference to in_ef and reads it at each
+        # interpolate(), and the edge extrapolation data (amplitude only) never change
+        self.in_ef = ElectricField(dim[1], dim[2], self.pixel_scale,
+                                   target_device_idx=self.target_device_idx, precision=self.precision)
+        self.cur_screen = self.in_ef.phaseInNm
+        self.ef_interpolator = EFInterpolator(
+            self.in_ef,
+            (self.pixel_pupil, self.pixel_pupil),
+            magnification=self.bin_fact,
+            target_device_idx=self.target_device_idx,
+            precision=self.precision,
+            use_out_ef_cache=False,  # a cached output could be overwritten by another interpolator
+        )
+
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
 
-        if self.t_to_seconds(t) > np.max(self.time_vector):
+        t_seconds = self.t_to_seconds(t)
+        if t_seconds > self.time_vector[-1]:
             raise ValueError('Error: the simulation is too long with respect to the input phase screen cube!')
+        if t_seconds < self.time_vector[0]:
+            raise ValueError('Error: the simulation starts before the input phase screen cube!')
 
-        dt = self.time_vector-self.t_to_seconds(t)
-        idx_first_positive = int(self.xp.searchsorted(dt, 0, side='right'))
+        dt = self.time_vector - t_seconds
+        idx_first_positive = int(np.searchsorted(dt, 0, side='right'))
         if idx_first_positive >= len(dt):
             idx_first_positive = len(dt)-1
         idx_last_non_positive = idx_first_positive - 1
 
-        # Linear interpolation between two time steps
+        # Linear interpolation between two time steps, with Python float weights
         time_step = self.time_vector[idx_first_positive] - self.time_vector[idx_last_non_positive]
-        self.cur_screen = self.scale_factor/time_step*(dt[idx_first_positive]*self.phasescreens[idx_last_non_positive, :, :] + 
-                        np.abs(dt[idx_last_non_positive])*self.phasescreens[idx_first_positive, :, :])
-
-        in_ef = ElectricField(self.cur_screen.shape[0], self.cur_screen.shape[1], self.pixel_scale,
-                               target_device_idx=self.target_device_idx)
-
-        in_ef.phaseInNm = self.cur_screen
-
-        self.ef_interpolator = EFInterpolator(
-            in_ef,
-            (self.pixel_pupil,self.pixel_pupil),
-            magnification = self.bin_fact,
-            target_device_idx=self.target_device_idx,
-            use_out_ef_cache=False, # we cannot reuse the cache here because the interpolated array
-                                    # is computed in prepare_trigger, but is used in trigger_code
-        )
+        w_last = float(self.scale_factor * dt[idx_first_positive] / time_step)
+        w_first = float(self.scale_factor * abs(dt[idx_last_non_positive]) / time_step)
+        self.cur_screen[:] = w_last * self.phasescreens[idx_last_non_positive, :, :] + \
+                             w_first * self.phasescreens[idx_first_positive, :, :]
 
         self.ef_interpolator.interpolate()
 
