@@ -30,6 +30,8 @@ class DM(BaseProcessingObj):
                  pupilstop: Pupilstop=None,
                  sign: int=-1,
                  stroke=None,
+                 stiffness=None,
+                 max_force=None,
                  target_device_idx: int=None,
                  precision: int=None
                  ):
@@ -75,6 +77,22 @@ class DM(BaseProcessingObj):
             The maximum amplitude (in NANOMETERS) to which commands are clipped at. 
             If a list is given, this is the maximum amplitude that can be applied per mode.
             Default is None (no clipping applied).
+        stiffness : array [force/command unit], optional
+            Stiffness matrix (nact x nact), with nact the number of m2c rows: forces are
+            computed as ``stiffness @ command``, with the command after m2c. Units are up to
+            the user (e.g. N per command unit); in a YAML file use ``stiffness_data``.
+            Requires m2c. If given, the forces of the applied command are output
+            as ``out_forces``. Default is None (no force computation).
+        max_force : float or list [force], optional
+            Maximum absolute force per actuator (scalar or one value per actuator).
+            Requires stiffness. If the forces exceed it, the highest-order modes are
+            discarded: the largest number of modes (starting from the first one) whose
+            forces are within the limit is kept, down to a zero command.
+            This assumes that the modes are sorted by increasing spatial frequency
+            (e.g. KL modes). Force limiting is applied before the stroke clipping:
+            if both are active, the stroke clipping changes the actuator positions and
+            the resulting forces may slightly exceed max_force.
+            Default is None (no force limiting).
         target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
         precision : int [1], optional
@@ -167,12 +185,47 @@ class DM(BaseProcessingObj):
             else:
                 self.stroke = self.xp.ones(out_comm_len, dtype=self.dtype) * self.xp.asarray(stroke, dtype=self.dtype)
         
+        self.stiffness = None
+        self.max_force = None
+        if stiffness is not None:
+            if self.m2c is None:
+                raise ValueError('stiffness requires m2c')
+            self.stiffness = self.to_xp(stiffness, dtype=self.dtype)
+            if self.stiffness.shape != (out_comm_len, out_comm_len):
+                raise ValueError(f'stiffness has shape {self.stiffness.shape}, '
+                                 f'but ({out_comm_len}, {out_comm_len}) is expected')
+        if max_force is not None:
+            if self.stiffness is None:
+                raise ValueError('max_force requires stiffness')
+            if isinstance(max_force, list) and len(max_force) != out_comm_len:
+                raise ValueError(f'max_force is a list of {len(max_force)} elements, '
+                                 f'but {out_comm_len} actuators are expected')
+            self.max_force = self.xp.ones(out_comm_len, dtype=self.dtype) * \
+                             self.xp.asarray(max_force, dtype=self.dtype)
+            # Force of each mode for a unit coefficient, one column per mode
+            self._mode_forces = self.stiffness @ self.m2c[:, self._valid_modes]
+            self._mode_idx = self.xp.arange(len(self.m2c_commands))
+
+        self.forces = BaseValue(
+            target_device_idx=target_device_idx,
+            precision=precision,
+            value=self.xp.zeros(out_comm_len if self.stiffness is not None else 0, dtype=self.dtype)
+        )
+        # All modes are kept unless the force limiting discards some
+        nmodes_cmd = len(self.m2c_commands) if self.m2c is not None else self.n_valid_modes
+        self.force_nmodes = BaseValue(
+            target_device_idx=target_device_idx,
+            value=self.xp.full(1, nmodes_cmd, dtype=self.xp.int64)
+        )
+
         self.clip_command = BaseValue(
             target_device_idx=target_device_idx,
             precision=precision,
             value=self.xp.zeros(out_comm_len, dtype=self.dtype)
         )
         self.outputs['out_clipped_command'] = self.clip_command
+        self.outputs['out_forces'] = self.forces
+        self.outputs['out_force_nmodes'] = self.force_nmodes
         self.inputs['in_command'] = InputValue(type=BaseValue)
         self.outputs['out_layer'] = self.layer
 
@@ -183,13 +236,17 @@ class DM(BaseProcessingObj):
     @classmethod
     def output_names(cls):
         return {'out_layer': OutputDesc(Layer, 'Output wavefront layer produced by the DM'),
-                'out_clipped_command': OutputDesc(BaseValue, 'DM applied command, after (optional) clipping')}
+                'out_clipped_command': OutputDesc(BaseValue, 'DM applied command, after (optional) clipping'),
+                'out_forces': OutputDesc(BaseValue, 'Actuator forces of the applied command (empty without stiffness)'),
+                'out_force_nmodes': OutputDesc(BaseValue, 'Number of modes kept by the force limiting')}
 
     def trigger_code(self):
         input_commands = self.local_inputs['in_command'].value[:self.nmodes]
 
         if self.m2c is not None:
             self.m2c_commands[:len(input_commands)] = input_commands
+            if self.max_force is not None:
+                self._limit_forces()
             cmd = self.m2c[:, self._valid_modes] @ self.m2c_commands
         else:
             cmd = input_commands
@@ -206,6 +263,24 @@ class DM(BaseProcessingObj):
         self.layer.generation_time = self.current_time
         self.clip_command.value[:len(cmd)] = cmd
         self.clip_command.generation_time = self.current_time
+        if self.stiffness is not None:
+            self.forces.value[:] = self.stiffness @ self.clip_command.value
+            self.forces.generation_time = self.current_time
+
+    def _limit_forces(self):
+        '''
+        Discard the highest-order modes of self.m2c_commands until the forces
+        are within max_force. The cumulative sum gives the forces of all the
+        possible truncations at once, without iterations or host synchronization.
+        '''
+        forces = self.xp.cumsum(self._mode_forces * self.m2c_commands, axis=1)
+        ok = self.xp.all(self.xp.abs(forces) <= self.max_force[:, None], axis=0)
+        # ok[n-1]: forces within limits keeping n modes. Keeping 0 modes is always ok.
+        ok = self.xp.concatenate((self.xp.ones(1, dtype=bool), ok))
+        n_keep = len(ok) - 1 - self.xp.argmax(ok[::-1])
+        self.m2c_commands *= self._mode_idx < n_keep
+        self.force_nmodes.value[0] = n_keep
+        self.force_nmodes.generation_time = self.current_time
 
     # Getters and Setters for the attributes
     @property
