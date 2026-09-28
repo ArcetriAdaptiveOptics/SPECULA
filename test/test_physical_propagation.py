@@ -507,3 +507,142 @@ class Test(unittest.TestCase):
                 obj.post_trigger()
 
         self.assertTrue(id(prop_down.ef_fresnel) != id(prop_down.ft_ef1))
+
+    def _build_deterministic_propagation(self, target_device_idx, precision, pixel_pupil,
+                                         pixel_pitch, wavelengthInNm, layer_height, padding_factor,
+                                         phase_pattern, pupil_pattern):
+        """Build an AtmoPropagation with fixed, non-random Layers (smooth phase screen
+        + circular pupil) so that propagator precision/accuracy can be checked deterministically."""
+        simul_params = SimulParams(pixel_pupil, pixel_pitch)
+        source = Source(polar_coordinates=[0.0, 0.0], magnitude=0, wavelengthInNm=wavelengthInNm)
+
+        atmo_layer = Layer(pixel_pupil, pixel_pupil, pixel_pitch, layer_height,
+                           target_device_idx=target_device_idx, precision=precision)
+        atmo_layer.phaseInNm[:] = atmo_layer.to_xp(phase_pattern, dtype=atmo_layer.dtype)
+        atmo_layer.generation_time = 1  # marks the input as refreshed for checkInputTimes
+
+        pupil_layer = Layer(pixel_pupil, pixel_pupil, pixel_pitch, 0.0,
+                            target_device_idx=target_device_idx, precision=precision)
+        pupil_layer.A[:] = pupil_layer.to_xp(pupil_pattern, dtype=pupil_layer.dtype)
+        pupil_layer.generation_time = 1
+
+        prop = AtmoPropagation(simul_params, source_dict={'src': source},
+                               wavelengthInNm=wavelengthInNm, doFresnel=True,
+                               padding_factor=padding_factor,
+                               target_device_idx=target_device_idx, precision=precision)
+        prop.inputs['atmo_layer_list'].set([atmo_layer])
+        prop.inputs['common_layer_list'].set([pupil_layer])
+        prop.setup()
+        return prop
+
+    def _check_propagator_dtypes(self, prop, expected_complex_dtype):
+        """Check that all stored propagator arrays have the expected complex dtype,
+        and that non-far-field (ASM) propagators carry the pre-fftshifted 4th flag."""
+        for prop_elem, far_field in zip(prop.propagators, prop.far_field_propagation):
+            if prop_elem is None:
+                continue
+            for arr in prop_elem[:3]:
+                if arr is not None:
+                    self.assertEqual(cpuArray(arr).dtype, expected_complex_dtype)
+            if not far_field:
+                self.assertEqual(len(prop_elem), 4)
+                self.assertTrue(prop_elem[3])
+            else:
+                self.assertEqual(len(prop_elem), 3)
+
+    @cpu_and_gpu
+    def test_propagator_precision_and_accuracy_near_field(self, target_device_idx, xp):
+        '''ASM (near-field) propagators: check storage dtype/flag, and that a precision=1
+        run matches a precision=0 run of the same deterministic setup.'''
+        pixel_pupil = 64
+        pixel_pitch = 0.01
+        wavelengthInNm = 1550.0
+        layer_height = 300.0
+        padding_factor = 2
+
+        yy, xx = np.meshgrid(np.arange(pixel_pupil), np.arange(pixel_pupil), indexing='ij')
+        phase_pattern = 400.0 * np.sin(2 * np.pi * xx / pixel_pupil) * np.cos(2 * np.pi * yy / pixel_pupil)
+        rr = np.sqrt((xx - pixel_pupil / 2 + 0.5) ** 2 + (yy - pixel_pupil / 2 + 0.5) ** 2)
+        pupil_pattern = (rr < pixel_pupil / 2).astype(float)
+
+        prop0 = self._build_deterministic_propagation(target_device_idx, 0, pixel_pupil, pixel_pitch,
+                                                       wavelengthInNm, layer_height, padding_factor,
+                                                       phase_pattern, pupil_pattern)
+        prop1 = self._build_deterministic_propagation(target_device_idx, 1, pixel_pupil, pixel_pitch,
+                                                       wavelengthInNm, layer_height, padding_factor,
+                                                       phase_pattern, pupil_pattern)
+
+        # z=300m is well below z_far_field for this pitch/pupil: ASM branch, not far field
+        self.assertFalse(any(ff for ff in prop0.far_field_propagation if ff is not None))
+        self._check_propagator_dtypes(prop0, np.complex128)
+        self._check_propagator_dtypes(prop1, np.complex64)
+
+        for prop in (prop0, prop1):
+            prop.check_ready(1)
+            prop.trigger()
+            prop.post_trigger()
+
+        phase0 = cpuArray(prop0.outputs['out_src_ef'].phaseInNm)
+        phase1 = cpuArray(prop1.outputs['out_src_ef'].phaseInNm)
+        rel = np.sqrt(np.mean((phase1 - phase0) ** 2)) / np.max(np.abs(phase0))
+        self.assertLess(rel, 1e-5)
+
+    @cpu_and_gpu
+    def test_propagator_precision_and_accuracy_far_field(self, target_device_idx, xp):
+        '''Fraunhofer (far-field) propagators: check storage dtype (no pre-shift flag),
+        and that a precision=1 run matches a precision=0 run of the same deterministic setup.'''
+        pixel_pupil = 64
+        pixel_pitch = 0.001
+        wavelengthInNm = 1550.0
+        layer_height = 10000.0  # 10 km: exceeds z_far_field for this pitch/pupil/padding
+        padding_factor = 3
+
+        yy, xx = np.meshgrid(np.arange(pixel_pupil), np.arange(pixel_pupil), indexing='ij')
+        phase_pattern = 400.0 * np.sin(2 * np.pi * xx / pixel_pupil) * np.cos(2 * np.pi * yy / pixel_pupil)
+        rr = np.sqrt((xx - pixel_pupil / 2 + 0.5) ** 2 + (yy - pixel_pupil / 2 + 0.5) ** 2)
+        pupil_pattern = (rr < pixel_pupil / 2).astype(float)
+
+        prop0 = self._build_deterministic_propagation(target_device_idx, 0, pixel_pupil, pixel_pitch,
+                                                       wavelengthInNm, layer_height, padding_factor,
+                                                       phase_pattern, pupil_pattern)
+        prop1 = self._build_deterministic_propagation(target_device_idx, 1, pixel_pupil, pixel_pitch,
+                                                       wavelengthInNm, layer_height, padding_factor,
+                                                       phase_pattern, pupil_pattern)
+
+        self.assertTrue(any(ff for ff in prop0.far_field_propagation if ff is not None))
+        self._check_propagator_dtypes(prop0, np.complex128)
+        self._check_propagator_dtypes(prop1, np.complex64)
+
+        for prop in (prop0, prop1):
+            prop.check_ready(1)
+            prop.trigger()
+            prop.post_trigger()
+
+        phase0 = cpuArray(prop0.outputs['out_src_ef'].phaseInNm)
+        phase1 = cpuArray(prop1.outputs['out_src_ef'].phaseInNm)
+        rel = np.sqrt(np.mean((phase1 - phase0) ** 2)) / np.max(np.abs(phase0))
+        self.assertLess(rel, 1e-5)
+
+    @cpu_and_gpu
+    def test_angular_spectrum_propagation_preshifted_kernel_equivalence(self, target_device_idx, xp):
+        '''A 3-element (unshifted) ASM propagator must give the same result as the
+        4-element propagator with a pre-fftshifted kernel (see AtmoPropagation.calc_propagators).'''
+        n = 32
+        coord = xp.arange(n) - n // 2
+        x, y = xp.meshgrid(coord, coord)
+
+        H_ASM = xp.exp(-1j * 0.01 * (x ** 2 + y ** 2)).astype(complex)
+        ef_init = xp.exp(1j * 0.02 * (x + y)).astype(complex)
+
+        propagator_unshifted = [None, H_ASM, None]
+        propagator_preshifted = [None, xp.fft.fftshift(H_ASM, axes=(-2, -1)), None, True]
+
+        ef_a = ef_init.copy()
+        ef_b = ef_init.copy()
+        buffer_a = xp.zeros_like(ef_a)
+        buffer_b = xp.zeros_like(ef_b)
+
+        angular_spectrum_propagation(ef_a, propagator_unshifted, buffer_a, xp)
+        angular_spectrum_propagation(ef_b, propagator_preshifted, buffer_b, xp)
+
+        xp.testing.assert_allclose(cpuArray(ef_a), cpuArray(ef_b), rtol=1e-10, atol=1e-12)
