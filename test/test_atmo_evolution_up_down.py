@@ -130,11 +130,11 @@ class TestAtmoEvolutionUpDown(unittest.TestCase):
         wind_speed_values = cpuArray(wind_speed.output.value)
 
         # Down should have no extra offset
-        np.testing.assert_allclose(atmo.last_position, 0.0, atol=1e-6)
+        np.testing.assert_allclose(cpuArray(atmo.last_position), 0.0, atol=1e-6)
 
         # Up should have extra offset
         expected_extra_offset_up = wind_speed_values * extra_delta_time_up / atmo.pixel_pitch
-        np.testing.assert_allclose(atmo.last_position_up, 0.0, atol=1e-6)
+        np.testing.assert_allclose(cpuArray(atmo.last_position_up), 0.0, atol=1e-6)
 
         # The phase screens should be different due to different sampling positions
         # (we can't directly compare phases because they're sampled from the same screens
@@ -181,19 +181,19 @@ class TestAtmoEvolutionUpDown(unittest.TestCase):
 
         # Both should have accumulated the same delta_position
         expected_position = wind_speed_values * delta_time / atmo.pixel_pitch
-        np.testing.assert_allclose(atmo.last_position, expected_position, rtol=1e-8)
-        np.testing.assert_allclose(atmo.last_position_up, expected_position, rtol=1e-8)
+        np.testing.assert_allclose(cpuArray(atmo.last_position), expected_position, rtol=1e-8)
+        np.testing.assert_allclose(cpuArray(atmo.last_position_up), expected_position, rtol=1e-8)
 
         # But the effective positions should differ by the extra_delta_time offset
         # (note: we can't directly test effective_position as it's computed in _update_layer_list,
         # but we can verify the stored extra_delta_time arrays)
         np.testing.assert_allclose(
-            atmo.extra_delta_time_down,
+            cpuArray(atmo.extra_delta_time_down),
             [extra_delta_time_down, extra_delta_time_down],
             rtol=1e-8
         )
         np.testing.assert_allclose(
-            atmo.extra_delta_time_up,
+            cpuArray(atmo.extra_delta_time_up),
             [extra_delta_time_up, extra_delta_time_up],
             rtol=1e-8
         )
@@ -235,12 +235,12 @@ class TestAtmoEvolutionUpDown(unittest.TestCase):
 
         # Check that extra_delta_time arrays are correctly set
         np.testing.assert_allclose(
-            atmo.extra_delta_time_down,
+            cpuArray(atmo.extra_delta_time_down),
             extra_delta_time_down,
             rtol=1e-8
         )
         np.testing.assert_allclose(
-            atmo.extra_delta_time_up,
+            cpuArray(atmo.extra_delta_time_up),
             extra_delta_time_up,
             rtol=1e-8
         )
@@ -345,12 +345,12 @@ class TestAtmoEvolutionUpDown(unittest.TestCase):
         # The downlink should have a significant phase screen offset compared to uplink
         # We can verify this by checking the stored extra_delta_time values
         np.testing.assert_allclose(
-            atmo.extra_delta_time_down[0],
+            cpuArray(atmo.extra_delta_time_down)[0],
             light_travel_time,
             rtol=1e-8
         )
         np.testing.assert_allclose(
-            atmo.extra_delta_time_up[0],
+            cpuArray(atmo.extra_delta_time_up)[0],
             0.0,
             atol=1e-10
         )

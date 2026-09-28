@@ -45,7 +45,6 @@ class IFunc(BaseDataObj):
                 ):
         super().__init__(precision=precision, target_device_idx=target_device_idx)
         self.type_str = type_str
-        self._doZeroPad = False
 
         if ifunc is None:
             if type_str is None:
@@ -98,21 +97,6 @@ class IFunc(BaseDataObj):
 
     @influence_function.setter
     def influence_function(self, ifunc):
-        if self._doZeroPad:
-            raise NotImplementedError("zeroPad is not implemented")
-            if self._mask_inf_func is None:
-                raise ValueError("if doZeroPad is set, mask_inf_func must be set before setting ifunc.")
-            sIfunc = ifunc.shape
-
-            if sIfunc[0] < sIfunc[1]:
-                ifuncPad = self.xp.zeros((sIfunc[0], len(self._mask_inf_func)), dtype=ifunc.dtype)
-                ifuncPad[:, self._idx_inf_func] = ifunc
-            else:
-                ifuncPad = self.xp.zeros((len(self._mask_inf_func), sIfunc[1]), dtype=ifunc.dtype)
-                ifuncPad[self._idx_inf_func, :] = ifunc
-
-            ifunc = ifuncPad
-
         self._influence_function = self.to_xp(ifunc, dtype=self.dtype)
 
     @property

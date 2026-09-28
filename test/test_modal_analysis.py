@@ -1,6 +1,7 @@
 import os
 import sys
 import unittest
+import warnings
 import matplotlib.pyplot as plt
 
 import specula
@@ -76,7 +77,7 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
         wrapped_phase = xp.angle(ef)
 
         # unwrap phase again
-        modal_analysis = ModalAnalysis(npixels=120, nmodes=10, type_str='zernike', wavelengthInNm=1550, dorms=True)
+        modal_analysis = ModalAnalysis(npixels=120, nmodes=10, type_str='zernike', wavelengthInNm=1550)
         unwrapped_phase = modal_analysis.unwrap_2d(wrapped_phase)
         unwrapped_phase_skimage = unwrap_phase(cpuArray(wrapped_phase), rng=1)
 
@@ -113,8 +114,8 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
 
         # Modal analysis
         modal_analsis_phys = ModalAnalysis(npixels=120, nmodes=10,
-                                           type_str='zernike', wavelengthInNm=1550, dorms=True)
-        modal_analsis_geom = ModalAnalysis(npixels=120, nmodes=10, type_str='zernike', dorms=True)
+                                           type_str='zernike', wavelengthInNm=1550)
+        modal_analsis_geom = ModalAnalysis(npixels=120, nmodes=10, type_str='zernike')
 
         atmo.inputs['seeing'].set(seeing.output)
         atmo.inputs['wind_direction'].set(wind_direction.output)
@@ -235,7 +236,7 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
 
     @cpu_and_gpu
     def test_modal_analysis_debug_log(self, target_device_idx, xp):
-        """post_trigger() logs one line per output, plus the RMS if dorms is set"""
+        """post_trigger() logs the modes and the RMS of each output"""
         npixels = 32
         nmodes = 5
         t = 1
@@ -244,9 +245,9 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
                   xp.array([-7.0, 0.0, 15.0, 40.0, -3.0])]
         efs = self._zernike_efs(coeffs, npixels, t, target_device_idx, xp)
 
-        # Single input with RMS
+        # Single input
         single = ModalAnalysis(type_str='zernike', npixels=npixels, nmodes=nmodes,
-                               obsratio=0.0, diaratio=1.0, dorms=True,
+                               obsratio=0.0, diaratio=1.0,
                                target_device_idx=target_device_idx)
         single.inputs['in_ef'].set(efs[0])
         with self.assertLogs('specula.ModalAnalysis', level='DEBUG') as cm:
@@ -255,7 +256,7 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
         self.assertEqual(sum('First residual values' in m for m in msgs), 1)
         self.assertEqual(sum('Phase RMS' in m for m in msgs), 1)
 
-        # List mode without RMS
+        # List mode
         multi = ModalAnalysis(type_str='zernike', npixels=npixels, nmodes=nmodes,
                               obsratio=0.0, diaratio=1.0, n_inputs=2,
                               target_device_idx=target_device_idx)
@@ -264,4 +265,115 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
             self._run_once(multi, t)
         msgs = [r.getMessage() for r in cm.records]
         self.assertEqual(sum('First residual values' in m for m in msgs), 2)
-        self.assertEqual(sum('Phase RMS' in m for m in msgs), 0)
+        self.assertEqual(sum('Phase RMS' in m for m in msgs), 2)
+
+    # -- Helpers for the precision / RMS tests below -----------
+
+    def _zern_basis(self, npixels, nmodes, xp):
+        """Zernike influence functions and pupil pixel indices (double precision,
+        independent of the ModalAnalysis object's own dtype)."""
+        ifunc, mask = compute_zern_ifunc(npixels, nzern=nmodes, obsratio=0.0,
+                                         diaratio=1.0, xp=xp, dtype=xp.float64)
+        idx = xp.where(mask)
+        return ifunc, idx
+
+    def _set_phase(self, ef, coeffs, ifunc, idx, t):
+        """Write a Zernike combination into ef's phase buffer in place."""
+        phase = ef.xp.zeros(ef.field[1].shape, dtype=ef.dtype)
+        phase[idx] = ef.xp.dot(coeffs, ifunc)
+        ef.phaseInNm[:] = phase
+        ef.generation_time = t
+
+    def _make_ma(self, npixels, nmodes, target_device_idx,
+                n_inputs=1, wavelengthInNm=0.0, precision=None):
+        return ModalAnalysis(type_str='zernike', npixels=npixels, nmodes=nmodes,
+                             obsratio=0.0, diaratio=1.0, n_inputs=n_inputs,
+                             wavelengthInNm=wavelengthInNm,
+                             target_device_idx=target_device_idx, precision=precision)
+
+    @cpu_and_gpu
+    def test_modal_analysis_precision_dtypes(self, target_device_idx, xp):
+        """precision=0/1 must propagate to all outputs and to unwrap_2d()."""
+        npixels, nmodes = 20, 4
+        ifunc, idx = self._zern_basis(npixels, nmodes, xp)
+
+        for precision in (0, 1):
+            expected_dtype = xp.float64 if precision == 0 else xp.float32
+
+            ef = ElectricField(npixels, npixels, 0.1, target_device_idx=target_device_idx)
+            self._set_phase(ef, xp.array([1.0, -2.0, 3.0, 0.5]), ifunc, idx, t=1)
+
+            single = self._make_ma(npixels, nmodes, target_device_idx,
+                                   precision=precision)
+            single.inputs['in_ef'].set(ef)
+
+            ef_list = [ElectricField(npixels, npixels, 0.1, target_device_idx=target_device_idx)
+                      for _ in range(2)]
+            for e in ef_list:
+                self._set_phase(e, xp.array([1.0, -2.0, 3.0, 0.5]), ifunc, idx, t=1)
+            multi = self._make_ma(npixels, nmodes, target_device_idx,
+                                  n_inputs=2, precision=precision)
+            multi.inputs['in_ef_list'].set(ef_list)
+
+            self._run_once(single, 1)
+            self._run_once(multi, 1)
+
+            self.assertEqual(single.outputs['out_modes'].value.dtype, expected_dtype)
+            self.assertEqual(single.outputs['rms'].value.dtype, expected_dtype)
+            for v in multi.outputs['out_modes_list']:
+                self.assertEqual(v.value.dtype, expected_dtype)
+            for v in multi.outputs['rms_list']:
+                self.assertEqual(v.value.dtype, expected_dtype)
+
+            unwrapped = single.unwrap_2d(xp.zeros((npixels, npixels), dtype=expected_dtype))
+            self.assertEqual(unwrapped.dtype, expected_dtype)
+
+    @cpu_and_gpu
+    def test_modal_analysis_rms_values(self, target_device_idx, xp):
+        """rms must equal xp.std() of the (unwrapped, if applicable) phase over
+        the mask pixels; in list mode each input has its own, generally
+        different, RMS."""
+        npixels, nmodes = 20, 4
+        ifunc, idx = self._zern_basis(npixels, nmodes, xp)
+
+        efs = [ElectricField(npixels, npixels, 0.1, target_device_idx=target_device_idx)
+              for _ in range(2)]
+        coeffs_list = [xp.array([10.0, -5.0, 3.0, 1.0]), xp.array([-2.0, 8.0, 0.0, -4.0])]
+        for ef, coeffs in zip(efs, coeffs_list):
+            self._set_phase(ef, coeffs, ifunc, idx, t=1)
+
+        multi = self._make_ma(npixels, nmodes, target_device_idx, n_inputs=2)
+        multi.inputs['in_ef_list'].set(efs)
+        self._run_once(multi, 1)
+
+        rms_list = [cpuArray(v.value)[0] for v in multi.outputs['rms_list']]
+        self.assertEqual(len(multi.outputs['rms_list']), 2)
+
+        expected = [float(cpuArray(xp.std(ef.phaseInNm[idx]))) for ef in efs]
+        np.testing.assert_allclose(rms_list, expected, rtol=1e-5, atol=1e-6)
+        # Different phases must give different RMS values.
+        self.assertNotAlmostEqual(rms_list[0], rms_list[1], places=3)
+
+        single = self._make_ma(npixels, nmodes, target_device_idx)
+        single.inputs['in_ef'].set(efs[0])
+        self._run_once(single, 1)
+        rms_single = float(cpuArray(single.outputs['rms'].value)[0])
+        self.assertAlmostEqual(rms_single, expected[0], places=3)
+
+    @cpu_and_gpu
+    def test_modal_analysis_dorms_deprecation(self, target_device_idx, xp):
+        """Passing dorms (True or False) must emit a FutureWarning; omitting
+        it must not emit any FutureWarning."""
+        with self.assertWarns(FutureWarning):
+            ModalAnalysis(type_str='zernike', npixels=16, nmodes=3, obsratio=0.0, diaratio=1.0,
+                          dorms=True, target_device_idx=target_device_idx)
+        with self.assertWarns(FutureWarning):
+            ModalAnalysis(type_str='zernike', npixels=16, nmodes=3, obsratio=0.0, diaratio=1.0,
+                          dorms=False, target_device_idx=target_device_idx)
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter('always')
+            ModalAnalysis(type_str='zernike', npixels=16, nmodes=3, obsratio=0.0, diaratio=1.0,
+                          target_device_idx=target_device_idx)
+        future_warnings = [w for w in caught if issubclass(w.category, FutureWarning)]
+        self.assertEqual(len(future_warnings), 0)

@@ -205,7 +205,6 @@ Below is an example script that loads the latest simulation output and computes 
             'nmodes': 50,           # Number of modes
             'obsratio': 0.0,        # Pupil obstruction ratio
             'diaratio': 1.0,        # Pupil diameter ratio
-            'dorms': True           # Compute RMS and not standard deviation
         }
     )
     modes = modal_results['modal_coeffs'][0]
@@ -252,7 +251,6 @@ parameters explicitly:
             'npixels': 160,         # pupil sampling (required if no ifunc/ifunc_ref/ifunc_object is used)
             'obsratio': 0.12,       # central obstruction ratio
             'diaratio': 1.0,        # pupil diameter ratio
-            'dorms': True,          # output RMS instead of std
             'wavelengthInNm': 1650.0,
         }
     )
@@ -270,7 +268,6 @@ SPECULA object-reference mechanism:
         modal_params={
             'ifunc_ref': 'my_ifunc',   # key of the IFunc object in params.yml
             'nmodes': 50,              # optionally restrict to fewer modes
-            'dorms': True,
         }
     )
 
@@ -301,7 +298,6 @@ SPECULA to restore the calibration object from the calibration repository:
         modal_params={
             'ifunc_object': 'my_ifunc_tag',
             # or: 'ifunc_inv_object': 'my_ifunc_inv_tag',
-            'dorms': True,
         }
     )
 
