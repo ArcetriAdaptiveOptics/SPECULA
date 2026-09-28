@@ -160,9 +160,9 @@ class DM(BaseProcessingObj):
             if isinstance(stroke,list):
                 if out_comm_len != len(stroke):
                     raise ValueError(f'Stroke is a list of {len(stroke)} elements, but {out_comm_len} coefficients are expected')
-                self.stroke = self.xp.array(stroke)
+                self.stroke = self.xp.array(stroke, dtype=self.dtype)
             else:
-                self.stroke = self.xp.ones(out_comm_len)*stroke
+                self.stroke = self.xp.ones(out_comm_len, dtype=self.dtype) * self.xp.asarray(stroke, dtype=self.dtype)
         
         self.clip_command = BaseValue(
             target_device_idx=target_device_idx,
@@ -183,10 +183,7 @@ class DM(BaseProcessingObj):
                 'out_clipped_command': OutputDesc(BaseValue, 'DM applied command, after (optional) clipping')}
 
     def trigger_code(self):
-        input_commands = self.local_inputs['in_command'].value
-
-        if self.nmodes is not None:
-            input_commands = input_commands[:self.nmodes]
+        input_commands = self.local_inputs['in_command'].value[:self.nmodes]
 
         if self.m2c is not None:
             self.m2c_commands[:len(input_commands)] = input_commands
