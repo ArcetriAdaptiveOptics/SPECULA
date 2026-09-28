@@ -66,7 +66,6 @@ class IFuncInv(BaseDataObj):
         The inverse influence function is used to compute a modal/zonal vector from a wavefront.
         """
         super().__init__(precision=precision, target_device_idx=target_device_idx)
-        self._doZeroPad = False
 
         self.ifunc_inv = self.to_xp(ifunc_inv, dtype=self.dtype)
         self.mask_inf_func = self.to_xp(mask)

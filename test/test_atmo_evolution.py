@@ -13,6 +13,8 @@ from specula.data_objects.source import Source
 from specula.base_time_obj import BaseTimeObj
 from specula.processing_objects.wave_generator import WaveGenerator
 from specula.processing_objects.atmo_evolution import AtmoEvolution
+from specula.processing_objects.atmo_evolution_up_down import AtmoEvolutionUpDown
+from specula.processing_objects.base_slicer import BaseSlicer
 from specula.processing_objects.atmo_propagation import AtmoPropagation
 from specula.data_objects.layer import Layer
 from specula.data_objects.simul_params import SimulParams
@@ -272,13 +274,13 @@ class TestAtmoEvolution(unittest.TestCase):
         loop.iter()
 
         # After first trigger, last_position should be approximately zero
-        np.testing.assert_allclose(atmo.last_position, 0.0, atol=1e-6)
+        np.testing.assert_allclose(cpuArray(atmo.last_position), 0.0, atol=1e-6)
 
         # last_effective_position should contain the extra_offset
         wind_speed_values = cpuArray(wind_speed.output.value)
         expected_extra_offset = wind_speed_values * extra_delta_time / atmo.pixel_pitch
         np.testing.assert_allclose(
-            atmo.last_effective_position, expected_extra_offset, rtol=1e-8
+            cpuArray(atmo.last_effective_position), expected_extra_offset, rtol=1e-8
         )
 
         # Second trigger
@@ -286,18 +288,18 @@ class TestAtmoEvolution(unittest.TestCase):
 
         # After second trigger, verify that:
         # 1. delta_time does not contain extra_delta_time
-        assert atmo.delta_time[0] == delta_time
+        assert atmo.delta_time == delta_time
 
         # 2. last_position has accumulated only delta_position (not extra_offset)
         expected_last_position = wind_speed_values * delta_time / atmo.pixel_pitch
         np.testing.assert_allclose(
-            atmo.last_position, expected_last_position, rtol=1e-8
+            cpuArray(atmo.last_position), expected_last_position, rtol=1e-8
         )
 
         # 3. last_effective_position = last_position + extra_offset
         expected_effective_position = expected_last_position + expected_extra_offset
         np.testing.assert_allclose(
-            atmo.last_effective_position, expected_effective_position, rtol=1e-8
+            cpuArray(atmo.last_effective_position), expected_effective_position, rtol=1e-8
         )
 
     @cpu_and_gpu
@@ -337,31 +339,31 @@ class TestAtmoEvolution(unittest.TestCase):
         loop.iter()
 
         # After first trigger, last_position should be approximately zero
-        np.testing.assert_allclose(atmo.last_position, 0.0, atol=1e-6)
+        np.testing.assert_allclose(cpuArray(atmo.last_position), 0.0, atol=1e-6)
         
         # last_effective_position should contain the extra_offset
         wind_speed_values = cpuArray(wind_speed.output.value)
         expected_extra_offset = wind_speed_values * np.array(extra_delta_time) / atmo.pixel_pitch
         np.testing.assert_allclose(
-            atmo.last_effective_position, expected_extra_offset, rtol=1e-8
+            cpuArray(atmo.last_effective_position), expected_extra_offset, rtol=1e-8
         )
 
         loop.iter()
 
         # After second trigger, verify that:
         # 1. delta_time does not contain extra_delta_time
-        assert np.all(atmo.delta_time == delta_time)
+        assert atmo.delta_time == delta_time
         
         # 2. last_position has accumulated only delta_position (not extra_offset)
         expected_last_position = wind_speed_values * delta_time / atmo.pixel_pitch
         np.testing.assert_allclose(
-            atmo.last_position, expected_last_position, rtol=1e-8
+            cpuArray(atmo.last_position), expected_last_position, rtol=1e-8
         )
         
         # 3. last_effective_position = last_position + extra_offset
         expected_effective_position = expected_last_position + expected_extra_offset
         np.testing.assert_allclose(
-            atmo.last_effective_position, expected_effective_position, rtol=1e-8
+            cpuArray(atmo.last_effective_position), expected_effective_position, rtol=1e-8
         )
 
     @cpu_and_gpu
@@ -385,3 +387,205 @@ class TestAtmoEvolution(unittest.TestCase):
                              target_device_idx=target_device_idx)
         expected = cpuArray(heights) * airmass
         np.testing.assert_allclose(atmo.pupil_distances, expected, rtol=1e-8)
+
+    @unittest.skipIf(specula.cp is None, 'GPU not available')
+    def test_cuda_graph_matches_cpu(self):
+        """
+        Test that on GPU the evolution is captured in a CUDA graph and gives the
+        same layers as the CPU implementation, including rotations and screen cycling,
+        for AtmoEvolution and for both layer lists of AtmoEvolutionUpDown
+        """
+        simul_params = SimulParams(pixel_pupil=32, pixel_pitch=0.05, time_step=0.01)
+        classes = {AtmoEvolution: dict(extra_delta_time=0.013),
+                   AtmoEvolutionUpDown: dict(extra_delta_time_down=0.013,
+                                             extra_delta_time_up=[0.0, 0.03])}
+        for cls, kwargs in classes.items():
+            layers = {}
+            for target_device_idx in [-1, 0]:
+                seeing = WaveGenerator(constant=0.8, amp=0.3, freq=5.0,
+                                       target_device_idx=target_device_idx)
+                wind_speed = WaveGenerator(constant=[25.5, 30.0], amp=[5.0, 5.0], freq=[3.0, 3.0],
+                                           target_device_idx=target_device_idx)
+                wind_direction = WaveGenerator(constant=[90, -212.7], amp=[20.0, 20.0],
+                                               freq=[2.0, 2.0], target_device_idx=target_device_idx)
+                atmo = cls(simul_params, L0=23, data_dir=self.data_dir,
+                           heights=[0, 10000], Cn2=[0.5, 0.5], fov=60.0,
+                           pixel_phasescreens=256, **kwargs,
+                           target_device_idx=target_device_idx, precision=0)
+                atmo.inputs['seeing'].set(seeing.output)
+                atmo.inputs['wind_speed'].set(wind_speed.output)
+                atmo.inputs['wind_direction'].set(wind_direction.output)
+
+                loop = LoopControl()
+                for obj in [seeing, wind_speed, wind_direction]:
+                    loop.add(obj, idx=0)
+                loop.add(atmo, idx=1)
+                loop.start(run_time=0.4, dt=simul_params.time_step)
+                layers[target_device_idx] = []
+                for _ in range(40):
+                    loop.iter()
+                    layers[target_device_idx] += [cpuArray(l.phaseInNm).copy()
+                                                  for layer_list in atmo.layer_lists
+                                                  for l in layer_list]
+                    # The scale coefficient must follow the current (time-varying) seeing
+                    expected_scale = cpuArray(seeing.output.value)[0]**(5/6) * atmo.seeing_scale_factor
+                    np.testing.assert_allclose(cpuArray(atmo.scale_coef), expected_scale, rtol=1e-10)
+                    # Rotation matrices must follow the current (time-varying) wind direction
+                    theta = np.radians(cpuArray(wind_direction.output.value))
+                    np.testing.assert_allclose(cpuArray(atmo.rot_matrix[:, 0, 0]), np.cos(theta), atol=1e-10)
+                    np.testing.assert_allclose(cpuArray(atmo.rot_matrix[:, 0, 1]), np.sin(theta), atol=1e-10)
+                assert (atmo.cuda_graph is not None) == (target_device_idx >= 0)
+                assert len(atmo.layer_lists) == (2 if cls is AtmoEvolutionUpDown else 1)
+                if cls is AtmoEvolutionUpDown:
+                    # Different extra delta times: the up list is at a different position
+                    assert not np.allclose(cpuArray(atmo.win_matrix[0, :, 1, 2]),
+                                           cpuArray(atmo.win_matrix[1, :, 1, 2]))
+
+            for gpu_layer, cpu_layer in zip(layers[0], layers[-1]):
+                np.testing.assert_allclose(gpu_layer, cpu_layer, rtol=1e-10, atol=1e-8)
+
+    @cpu_and_gpu
+    def test_zero_and_negative_seeing(self, target_device_idx, xp):
+        """Test that seeing <= 0 gives zero layers, without NaNs"""
+        simul_params = SimulParams(pixel_pupil=32, pixel_pitch=0.05, time_step=0.01)
+        for seeing_value in [0.0, -1.0]:
+            seeing = WaveGenerator(constant=seeing_value, target_device_idx=target_device_idx)
+            wind_speed = WaveGenerator(constant=[10.0], target_device_idx=target_device_idx)
+            wind_direction = WaveGenerator(constant=[33.3], target_device_idx=target_device_idx)
+            atmo = AtmoEvolution(simul_params, L0=23, data_dir=self.data_dir, heights=[0],
+                                 Cn2=[1.0], pixel_phasescreens=256,
+                                 target_device_idx=target_device_idx)
+            atmo.inputs['seeing'].set(seeing.output)
+            atmo.inputs['wind_speed'].set(wind_speed.output)
+            atmo.inputs['wind_direction'].set(wind_direction.output)
+
+            loop = LoopControl()
+            for obj in [seeing, wind_speed, wind_direction]:
+                loop.add(obj, idx=0)
+            loop.add(atmo, idx=1)
+            loop.start(run_time=0.02, dt=simul_params.time_step)
+            loop.iter()
+            np.testing.assert_array_equal(cpuArray(atmo.layer_list[0].phaseInNm), 0)
+
+    @cpu_and_gpu
+    def test_fov_in_m(self, target_device_idx, xp):
+        """Test that fov_in_m sets the size of all layers, ignoring fov, and that
+        the evolution runs with it (captured in a CUDA graph on GPU)"""
+        simul_params = SimulParams(pixel_pupil=32, pixel_pitch=0.05, time_step=0.01)
+        fov_in_m = 4.03
+        expected_size = int(fov_in_m / simul_params.pixel_pitch / 2.0) * 2
+        kwargs = dict(L0=23, data_dir=self.data_dir, heights=[0, 10000], Cn2=[0.5, 0.5],
+                      fov=60.0, pixel_phasescreens=256, target_device_idx=target_device_idx)
+
+        # With fov only, the layer sizes depend on the height
+        atmo_fov = AtmoEvolution(simul_params, **kwargs)
+        assert len(set(atmo_fov.pixel_layer)) == 2
+
+        atmo = AtmoEvolution(simul_params, fov_in_m=fov_in_m, **kwargs)
+        np.testing.assert_array_equal(atmo.pixel_layer, expected_size)
+        for layer in atmo.layer_list:
+            assert layer.phaseInNm.shape == (expected_size, expected_size)
+
+        seeing = WaveGenerator(constant=0.8, target_device_idx=target_device_idx)
+        wind_speed = WaveGenerator(constant=[25.5, 30.0], target_device_idx=target_device_idx)
+        wind_direction = WaveGenerator(constant=[90, 33.3], target_device_idx=target_device_idx)
+        atmo.inputs['seeing'].set(seeing.output)
+        atmo.inputs['wind_speed'].set(wind_speed.output)
+        atmo.inputs['wind_direction'].set(wind_direction.output)
+        loop = LoopControl()
+        for obj in [seeing, wind_speed, wind_direction]:
+            loop.add(obj, idx=0)
+        loop.add(atmo, idx=1)
+        loop.start(run_time=0.03, dt=simul_params.time_step)
+        for _ in range(3):
+            loop.iter()
+        assert (atmo.cuda_graph is not None) == (target_device_idx >= 0)
+        for layer in atmo.layer_list:
+            phase = cpuArray(layer.phaseInNm)
+            assert np.all(np.isfinite(phase)) and np.any(phase != 0)
+
+    @cpu_and_gpu
+    def test_matches_original_algorithm(self, target_device_idx, xp):
+        """Regression test of positions, seeing scale and rotation convention: the layers
+        must match the original algorithm (window slicing with linear interpolation,
+        rot90() and ndimage rotate()) for fractional, negative, multiple of 90 degrees
+        and larger than 360 degrees wind directions, with layers of different sizes"""
+        from scipy.ndimage import rotate
+        simul_params = SimulParams(pixel_pupil=32, pixel_pitch=0.05, time_step=0.01)
+        directions = [0.0, 90.0, 33.3, -212.7, 405.5]
+        speeds = [10.3, 7.1, 12.9, 5.55, 9.0]
+        seeing_value = 0.8
+        n = len(directions)
+        atmo = AtmoEvolution(simul_params, L0=23, data_dir=self.data_dir,
+                             heights=[2000.0 * i for i in range(n)], Cn2=[1.0 / n] * n,
+                             fov=60.0, pixel_phasescreens=256,
+                             target_device_idx=target_device_idx, precision=0)
+        assert len(set(atmo.pixel_layer)) > 1
+        seeing = WaveGenerator(constant=seeing_value, target_device_idx=target_device_idx)
+        wind_speed = WaveGenerator(constant=speeds, target_device_idx=target_device_idx)
+        wind_direction = WaveGenerator(constant=directions, target_device_idx=target_device_idx)
+        atmo.inputs['seeing'].set(seeing.output)
+        atmo.inputs['wind_speed'].set(wind_speed.output)
+        atmo.inputs['wind_direction'].set(wind_direction.output)
+        loop = LoopControl()
+        for obj in [seeing, wind_speed, wind_direction]:
+            loop.add(obj, idx=0)
+        loop.add(atmo, idx=1)
+        n_steps = 5
+        loop.start(run_time=simul_params.time_step * n_steps, dt=simul_params.time_step)
+        for _ in range(n_steps):
+            loop.iter()
+
+        # Original seeing scale coefficient, no zenith angle
+        r0 = 0.9759 * 0.5 / (seeing_value * 4.848)
+        scale = (simul_params.pixel_pitch / r0) ** (5. / 6.)
+        for ii, layer in enumerate(atmo.layer_list):
+            # The first step has zero delta time
+            position = speeds[ii] * simul_params.time_step * (n_steps - 1) / simul_params.pixel_pitch
+            pos = int(np.floor(position))
+            rem = position - pos
+            size = layer.phaseInNm.shape[0]
+            screen = cpuArray(atmo.phasescreens[ii])
+            expected = (1.0 - rem) * screen[0:size, pos:pos + size] \
+                       + rem * screen[0:size, pos + 1:pos + size + 1]
+            wdf, wdi = np.modf(directions[ii] / 90.0)
+            expected = np.rot90(expected, int(wdi))
+            if wdf != 0:
+                expected = rotate(expected, wdf * 90, reshape=False, order=1)
+            expected *= scale
+            np.testing.assert_allclose(cpuArray(layer.phaseInNm), expected, rtol=1e-10,
+                                       atol=1e-10 * np.abs(expected).max())
+
+    @cpu_and_gpu
+    def test_reallocated_input_raises_with_cuda_graph(self, target_device_idx, xp):
+        """With a CUDA graph, an input reallocated by its producer (here BaseSlicer,
+        which rebinds its output value at each step) raises an error, instead of
+        being silently ignored. Without a graph (CPU) it works."""
+        simul_params = SimulParams(pixel_pupil=32, pixel_pitch=0.05, time_step=0.01)
+        seeing = WaveGenerator(constant=0.8, target_device_idx=target_device_idx)
+        all_speeds = WaveGenerator(constant=[25.5, 30.0, 12.0], target_device_idx=target_device_idx)
+        wind_speed = BaseSlicer(indices=[0, 1], target_device_idx=target_device_idx)
+        wind_direction = WaveGenerator(constant=[90, 33.3], target_device_idx=target_device_idx)
+        wind_speed.inputs['in_value'].set(all_speeds.output)
+        atmo = AtmoEvolution(simul_params, L0=23, data_dir=self.data_dir, heights=[0, 10000],
+                             Cn2=[0.5, 0.5], pixel_phasescreens=256,
+                             target_device_idx=target_device_idx)
+        atmo.inputs['seeing'].set(seeing.output)
+        atmo.inputs['wind_speed'].set(wind_speed.outputs['out_value'])
+        atmo.inputs['wind_direction'].set(wind_direction.output)
+
+        loop = LoopControl()
+        for obj in [seeing, all_speeds, wind_direction]:
+            loop.add(obj, idx=0)
+        loop.add(wind_speed, idx=1)
+        loop.add(atmo, idx=2)
+        loop.start(run_time=0.03, dt=simul_params.time_step)
+        if atmo.cuda_graph:
+            with self.assertRaisesRegex(RuntimeError, 'wind_speed has been reallocated'):
+                for _ in range(3):
+                    loop.iter()
+        else:
+            for _ in range(3):
+                loop.iter()
+            self.assertTrue(np.any(cpuArray(atmo.layer_list[0].phaseInNm) != 0))
+        self.assertEqual(atmo.cuda_graph is not None, target_device_idx >= 0)

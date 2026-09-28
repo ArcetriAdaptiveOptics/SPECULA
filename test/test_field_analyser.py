@@ -3,6 +3,7 @@ import unittest
 import os
 import shutil
 import glob
+import tempfile
 import pickle
 import yaml
 import specula
@@ -464,13 +465,13 @@ class TestModalParamsHandling(unittest.TestCase):
     """Unit tests for the simplified modal_params pass-through to ModalAnalysis."""
 
     def setUp(self):
-        self.datadir = os.path.join(os.path.dirname(__file__), 'data')
+        # Local temp dir: on NFS, rmtree can fail on just-written files (stale directory cache)
+        self._tmp = tempfile.TemporaryDirectory()
+        self.datadir = self._tmp.name
         self._created_tn_dirs = []
 
     def tearDown(self):
-        for tn_dir in self._created_tn_dirs:
-            if os.path.isdir(tn_dir):
-                shutil.rmtree(tn_dir)
+        self._tmp.cleanup()
 
     def _make_analyzer(self, tn_name, pixel_pupil=8):
         tn_dir = os.path.join(self.datadir, f'modal_unit_{tn_name}')
@@ -712,13 +713,13 @@ class TestModalParamsHandling(unittest.TestCase):
 
 class TestReplayPrecisionHandling(unittest.TestCase):
     def setUp(self):
-        self.datadir = os.path.join(os.path.dirname(__file__), 'data')
+        # Local temp dir: on NFS, rmtree can fail on just-written files (stale directory cache)
+        self._tmp = tempfile.TemporaryDirectory()
+        self.datadir = self._tmp.name
         self._created_tn_dirs = []
 
     def tearDown(self):
-        for tn_dir in self._created_tn_dirs:
-            if os.path.isdir(tn_dir):
-                shutil.rmtree(tn_dir)
+        self._tmp.cleanup()
 
     def _make_analyzer(self, tn_name):
         tn_dir = os.path.join(self.datadir, f'precision_unit_{tn_name}')
@@ -792,13 +793,13 @@ class TestReplayCoverageCheck(unittest.TestCase):
     opt-out available.
     """
     def setUp(self):
-        self.datadir = os.path.join(os.path.dirname(__file__), 'data')
+        # Local temp dir: on NFS, rmtree can fail on just-written files (stale directory cache)
+        self._tmp = tempfile.TemporaryDirectory()
+        self.datadir = self._tmp.name
         self._created_tn_dirs = []
 
     def tearDown(self):
-        for tn_dir in self._created_tn_dirs:
-            if os.path.isdir(tn_dir):
-                shutil.rmtree(tn_dir, ignore_errors=True)
+        self._tmp.cleanup()
 
     def _make_analyzer_with_dropped_combinator(self, tn_name, **kwargs):
         tn_dir = os.path.join(self.datadir, f'coverage_unit_{tn_name}')
@@ -885,13 +886,13 @@ class TestReplayCoverageCheck(unittest.TestCase):
 
 class TestReplaySeedHandling(unittest.TestCase):
     def setUp(self):
-        self.datadir = os.path.join(os.path.dirname(__file__), 'data')
+        # Local temp dir: on NFS, rmtree can fail on just-written files (stale directory cache)
+        self._tmp = tempfile.TemporaryDirectory()
+        self.datadir = self._tmp.name
         self._created_tn_dirs = []
 
     def tearDown(self):
-        for tn_dir in self._created_tn_dirs:
-            if os.path.isdir(tn_dir):
-                shutil.rmtree(tn_dir)
+        self._tmp.cleanup()
 
     def _make_analyzer(self, tn_name):
         tn_dir = os.path.join(self.datadir, f'seed_unit_{tn_name}')
@@ -953,13 +954,13 @@ class TestReplaySeedHandling(unittest.TestCase):
 
 class TestFieldAnalyserWeakSpots(unittest.TestCase):
     def setUp(self):
-        self.datadir = os.path.join(os.path.dirname(__file__), 'data')
+        # Local temp dir: on NFS, rmtree can fail on just-written files (stale directory cache)
+        self._tmp = tempfile.TemporaryDirectory()
+        self.datadir = self._tmp.name
         self._created_tn_dirs = []
 
     def tearDown(self):
-        for tn_dir in self._created_tn_dirs:
-            if os.path.isdir(tn_dir):
-                shutil.rmtree(tn_dir, ignore_errors=True)
+        self._tmp.cleanup()
 
     def _make_analyzer(self, tn_name, polar_coordinates=None, display=False, params=None):
         if polar_coordinates is None:
