@@ -33,6 +33,7 @@ class ShSlopec(Slopec):
                  subapdata: SubapData,
                  sn: Slopes=None,
                  thr_value: float = -1,
+                 thr_ratio_value: float = 0.0,
                  exp_weight: float = 1.0,
                  filtmat=None,
                  weightedPixRad: float = 0.0,
@@ -66,7 +67,8 @@ class ShSlopec(Slopec):
         self.weighted_pix_rad = weightedPixRad
         self.vec_wei_pix_rad_t = vecWeiPixRadT
         self.windowing = windowing
-        self.thr_ratio_value = 0.0
+        # Per-subaperture threshold, as a fraction of the brightest pixel of each subaperture
+        self.thr_ratio_value = thr_ratio_value
         self.thr_pedestal = False
         self.mult_factor = 0.0
         self.quadcell_mode = False
@@ -249,12 +251,11 @@ class ShSlopec(Slopec):
 
         # Calculate flux and max flux per subaperture
         flux_per_subaperture_vector = self.xp.sum(pixels, axis=0)
-        max_flux_per_subaperture = self.xp.max(flux_per_subaperture_vector)
 
         # Thresholding logic
         if self.thr_ratio_value > 0:
-            thr = self.thr_ratio_value * max_flux_per_subaperture
-            thr = thr[:, self.xp.newaxis] * self.xp.ones((1, np_sub * np_sub))
+            # pixels is (np_sub*np_sub, n_subaps): one threshold per subaperture (column)
+            thr = self.thr_ratio_value * self.xp.max(pixels, axis=0, keepdims=True)
         elif self.thr_pedestal or self.thr_value > 0:
             thr = self.thr_value
         else:

@@ -9,6 +9,7 @@
 
 ### Interface changes
 
+- Added `thr_ratio_value` to `ShSlopec`: per-subaperture threshold, as a fraction of the brightest pixel of each subaperture (as in PASSATA). The code path existed but was unreachable and broken (it used the maximum flux over all subapertures).
 - Added `pyr_max_side_ld` to `ModulatedPyramid` and its derived classes to cap the radial support of the pyramid surface in lambda/D units, forcing values outside the support radius to zero and enabling a central fifth pupil.
 - Added `compute_single_im` (bool, default True) to `ImCalibrator` to optionally skip populating the `out_single_im` per-mode output (the output itself is always present, empty when disabled). When True (default, unchanged behavior) this costs an O(nmodes) Python loop on every `trigger_code()` call (not just push-pull events) plus roughly double the fixed memory (one extra Intmat per mode); set to False to skip that loop/memory when nothing downstream consumes `out_single_im` (only `out_intmat` is used elsewhere in this codebase) -- needed for large-nmodes, long calibrations.
 - Removed `specula.lib.modal_pushpull_signal.modal_pushpull_signal()`, which duplicated the step ordering of `PushPullGenerator` and was only used by tests (it is kept in test\_generators.py as a reference implementation). Per-mode amplitudes are available from `modal_pushpull_amplitudes()`.
