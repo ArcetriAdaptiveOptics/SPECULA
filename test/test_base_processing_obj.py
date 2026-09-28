@@ -235,6 +235,52 @@ class TestBaseProcessingObj(unittest.TestCase):
 
         mock_stream.end_capture.assert_not_called()
 
+    @unittest.skipIf(cp is None, 'GPU not available')
+    def test_trigger_recaptures_graph_when_dependencies_change(self):
+        '''
+        A Python scalar used in trigger_code() is frozen in the CUDA graph.
+        The graph must be captured again when a dependency version changes,
+        or after invalidate_graph(), and only then.
+        '''
+        class Dependency:
+            def __init__(self):
+                self.version = 0
+                self.value = 1.0
+
+        class GraphObj(BaseProcessingObj):
+            def __init__(self, dep):
+                super().__init__(target_device_idx=0)
+                self.dep = dep
+                self.buf = cp.zeros(4, dtype=cp.float32)
+                self.graph_dependencies = [dep]
+
+            def trigger_code(self):
+                self.buf[:] = self.dep.value
+
+        def run(obj):
+            obj.inputs_changed = True
+            obj.trigger()
+            obj.stream.synchronize()
+            return float(obj.buf[0])
+
+        dep = Dependency()
+        obj = GraphObj(dep)
+        obj.build_stream(allow_parallel=False)
+        self.assertEqual(run(obj), 1.0)
+
+        # Not tracked: the graph keeps the old value
+        dep.value = 2.0
+        self.assertEqual(run(obj), 1.0)
+
+        # Version change: captured again
+        dep.version += 1
+        self.assertEqual(run(obj), 2.0)
+
+        # Explicit invalidation
+        dep.value = 3.0
+        obj.invalidate_graph()
+        self.assertEqual(run(obj), 3.0)
+
     # --- CUDA SYNCHRONIZATION TESTS ---
 
     @cpu_and_gpu

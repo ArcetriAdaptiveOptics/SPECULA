@@ -260,6 +260,101 @@ class TestSH(unittest.TestCase):
         self.assertAlmostEqual(final_size % 20, 0, places=5,
                                msg="Final size must be divisible by 20")
 
+    @unittest.skipIf(specula.cp is None, 'GPU not available')
+    def test_shared_interpolated_ef_in_cuda_graph(self):
+        '''
+        Two GPU SH objects with the same geometry share the interpolated
+        field, which is computed inside their CUDA graphs. Over several steps
+        with a changing input, each must give the same result as a CPU SH
+        (no graph) running alone.
+        '''
+        n = 40
+        yy, xx = np.mgrid[:n, :n] - (n - 1) / 2
+        pupil = (np.hypot(xx, yy) < n / 2).astype(float)
+        rng = np.random.default_rng(1)
+        phases = [rng.normal(size=(n, n)) * 80 for _ in range(3)]
+
+        def make(target_device_idx, rot):
+            sh = SH(wavelengthInNm=589, subap_wanted_fov=4.0, sensor_pxscale=0.5,
+                    subap_on_diameter=5, subap_npx=8, rotAnglePhInDeg=rot,
+                    target_device_idx=target_device_idx)
+            return sh
+
+        def run(shs, ef):
+            out = []
+            for sh in shs:
+                sh.inputs['in_ef'].set(ef)
+                sh.setup()
+            for t, phase in enumerate(phases):
+                ef.A[:] = ef.to_xp(pupil)
+                ef.phaseInNm[:] = ef.to_xp(phase)
+                ef.generation_time = t
+                for sh in shs:
+                    sh.check_ready(t)
+                    sh.trigger()
+                    sh.post_trigger()
+                    out.append(cpuArray(sh.outputs['out_i'].i).copy())
+            return out
+
+        gpu_shs = [make(0, 0.0), make(0, 7.0)]
+        gpu_ef = ElectricField(n, n, 0.1, S0=10, target_device_idx=0)
+        gpu_out = run(gpu_shs, gpu_ef)
+
+        assert gpu_shs[0].ef_interpolator.interpolated_ef() is \
+               gpu_shs[1].ef_interpolator.interpolated_ef()
+        assert all(sh.cuda_graph is not None for sh in gpu_shs)
+
+        for k, rot in enumerate([0.0, 7.0]):
+            cpu_ef = ElectricField(n, n, 0.1, S0=10, target_device_idx=-1)
+            cpu_out = run([make(-1, rot)], cpu_ef)
+            for t in range(len(phases)):
+                np.testing.assert_allclose(gpu_out[t * 2 + k], cpu_out[t],
+                                           rtol=1e-4, atol=1e-6 * cpu_out[t].max())
+
+    @unittest.skipIf(specula.cp is None, 'GPU not available')
+    def test_cuda_graph_recaptured_after_interpolator_update(self):
+        '''
+        The interpolation parameters are frozen in the CUDA graph: after
+        EFInterpolator.update_parameters(), the GPU SH must give the same result
+        as a CPU SH (no graph) created with the new parameters.
+        '''
+        n = 40
+        yy, xx = np.mgrid[:n, :n] - (n - 1) / 2
+        pupil = (np.hypot(xx, yy) < n / 2).astype(float)
+        phase = np.random.default_rng(2).normal(size=(n, n)) * 80
+
+        def make(target_device_idx, rot):
+            sh = SH(wavelengthInNm=589, subap_wanted_fov=4.0, sensor_pxscale=0.5,
+                    subap_on_diameter=5, subap_npx=8, rotAnglePhInDeg=rot,
+                    target_device_idx=target_device_idx)
+            ef = ElectricField(n, n, 0.1, S0=10, target_device_idx=target_device_idx)
+            ef.A[:] = ef.to_xp(pupil)
+            ef.phaseInNm[:] = ef.to_xp(phase)
+            sh.inputs['in_ef'].set(ef)
+            sh.setup()
+            return sh, ef
+
+        def step(sh, ef, t):
+            ef.generation_time = t
+            sh.check_ready(t)
+            sh.trigger()
+            sh.post_trigger()
+            return cpuArray(sh.outputs['out_i'].i).copy()
+
+        gpu_sh, gpu_ef = make(0, 0.0)
+        out_before = step(gpu_sh, gpu_ef, 0)
+        step(gpu_sh, gpu_ef, 1)
+
+        gpu_sh.ef_interpolator.update_parameters(xShiftPhInPixel=0, yShiftPhInPixel=0,
+                                                 rotAnglePhInDeg=7.0, magnification=1.0)
+        out_after = step(gpu_sh, gpu_ef, 2)
+
+        cpu_sh, cpu_ef = make(-1, 7.0)
+        out_ref = step(cpu_sh, cpu_ef, 0)
+
+        np.testing.assert_allclose(out_after, out_ref, rtol=1e-4, atol=1e-6 * out_ref.max())
+        assert not np.allclose(out_before, out_ref, rtol=1e-4, atol=1e-6 * out_ref.max())
+
     @cpu_and_gpu
     def test_wf3_not_shared_with_different_subap_size(self, target_device_idx, xp):
         '''

@@ -165,6 +165,7 @@ class SH(BaseProcessingObj):
         self._psfimage_views = None
         self._kernelobj = None
         self._kernel_fn = None
+        self._stream_built = False
 
         # TODO these are fixed but should become parameters
         self._fov_ovs = 1
@@ -462,12 +463,18 @@ class SH(BaseProcessingObj):
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
 
-        # Interpolation of input array if needed
-        with tracer('interpolation', self):
-            self.ef_interpolator.interpolate()
-
         if self._kernelobj is not None:
             self._prepare_kernels()
+
+        # The input field interpolation is done in trigger_code(), so that it is
+        # part of the CUDA graph. Its extrapolation data depends on the pupil,
+        # which is only valid from the first step on (it is set by the upstream
+        # objects in their trigger), so the graph is captured here at the first
+        # step, and not in setup().
+        if not self._stream_built:
+            self.ef_interpolator.initialize_extrapolation()
+            super().build_stream(allow_parallel=False)
+            self._stream_built = True
 
     def _prepare_kernels(self):
         if len(self._laser_launch_tel.tel_pos) != 0:
@@ -495,7 +502,12 @@ class SH(BaseProcessingObj):
         oversampled field can reach 8k x 8k pixels: memory usage is as
         important as speed here, so no full-frame temporaries must be added.
 
-        For each row of dimx subapertures:
+        The input field is first interpolated to the oversampled resolution.
+        This is done here rather than in prepare_trigger(), so that it is part
+        of the CUDA graph, and so that SH objects with the same geometry can
+        share the interpolated field (use_out_ef_cache=True).
+
+        Then, for each row of dimx subapertures:
 
         1. the row of the oversampled electric field, viewed as a (dimx, n, n)
            subap cube, is multiplied by the half-pixel tilt and written into
@@ -508,6 +520,10 @@ class SH(BaseProcessingObj):
 
         Finally, _psfimage is rebinned to the CCD pixels with toccd().
         The flux normalization is done in post_trigger().
+
+        The CUDA graph is captured at the first prepare_trigger(), because the
+        interpolation needs the pupil, and captured again if the interpolation
+        parameters change (the interpolator is in self.graph_dependencies).
 
         Main performance points:
 
@@ -523,6 +539,10 @@ class SH(BaseProcessingObj):
         dimx = self._lenslet.dimx
         rows = self.subap_rows_slice
         n = self._ovs_np_sub
+
+        # Interpolation of the input field, if needed
+        with tracer('interpolation', self):
+            self.ef_interpolator.interpolate()
         wf1 = self.ef_interpolator.interpolated_ef()
 
         for i, psfimage_view in zip(range(rows.start, rows.stop), self._psfimage_views):
@@ -600,8 +620,8 @@ class SH(BaseProcessingObj):
             xShiftPhInPixel=self._xShiftPhInPixel,
             yShiftPhInPixel=self._yShiftPhInPixel,
             mask_threshold=self._mask_threshold,
-            use_out_ef_cache=False, # we cannot reuse the cache here because the interpolated array
-                                    # is computed in prepare_trigger, but is used in trigger_code
+            use_out_ef_cache=True,  # the interpolated field is computed and used in trigger_code(),
+                                    # so SH objects with the same geometry can share it
             target_device_idx=self.target_device_idx,
             precision=self.precision
         )
@@ -639,8 +659,10 @@ class SH(BaseProcessingObj):
         for view in [self._wf3_view, self._subap_cube_view] + self._psfimage_views:
             assert view.base is not None
 
-
-        super().build_stream(allow_parallel=False)
+        # The CUDA graph is captured at the first prepare_trigger(), and again
+        # if the interpolation parameters change (see EFInterpolator.update_parameters())
+        self._stream_built = False
+        self.graph_dependencies = [self.ef_interpolator]
 
     def _get_tlt_f(self, p, c):
         '''

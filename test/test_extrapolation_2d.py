@@ -504,3 +504,24 @@ class TestExtrapolation2D(unittest.TestCase):
         # Do a dummy interpolation to ensure it doesn't crash with the updated object
         interp.interpolate()
         self.assertEqual(interp.interpolated_ef().size, (64, 64))
+
+    @cpu_and_gpu
+    def test_initialize_extrapolation(self, target_device_idx, xp):
+        '''
+        initialize_extrapolation() computes the extrapolation data only once,
+        and the binary amplitude flag is a Python bool (testing a GPU array
+        at every interpolate() would be a host synchronization)
+        '''
+        ef_in = ElectricField(32, 32, 0.1, target_device_idx=target_device_idx)
+        mask = CircularMask((32, 32), 14, xp.array((32, 32)) / 2.0, xp=xp)
+        ef_in.A[:] = xp.asarray(mask.mask() == 0, dtype=ef_in.A.dtype)
+        interp = EFInterpolator(ef_in, (64, 64), target_device_idx=target_device_idx)
+
+        self.assertFalse(interp.extrapolation_initialized)
+        interp.initialize_extrapolation()
+        self.assertTrue(interp.extrapolation_initialized)
+        self.assertIs(interp.amplitude_is_binary, True)
+
+        edge_pixels = interp.edge_pixels
+        interp.interpolate()
+        self.assertIs(interp.edge_pixels, edge_pixels)
