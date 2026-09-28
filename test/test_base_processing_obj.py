@@ -10,6 +10,7 @@ from specula.base_value import BaseValue
 from specula.connections import InputList, InputValue
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_processing_obj import InputDesc, OutputDesc
+from specula.log import MPI_DBG_LEVEL
 
 from test.specula_testlib import cpu_and_gpu
 
@@ -124,6 +125,35 @@ class TestBaseProcessingObj(unittest.TestCase):
 
         obj.current_time = 2
         self.assertFalse(obj.checkInputTimes())
+
+    @cpu_and_gpu
+    def test_get_all_inputs_formats_inputs_only_when_mpi_debug_enabled(self, target_device_idx, xp):
+        '''
+        Inputs must only be converted to strings when MPI debug logging is
+        enabled, since this is expensive (GPU arrays are copied to the host)
+        '''
+        n_str_calls = []
+
+        class CountingValue(BaseValue):
+            def __str__(self):
+                n_str_calls.append(1)
+                return 'CountingValue'
+
+        obj = BaseProcessingObj(target_device_idx=target_device_idx)
+        obj.inputs['test'] = InputValue(type=BaseValue)
+        obj.inputs['test'].set(CountingValue(target_device_idx=target_device_idx))
+
+        # Default: the logger's own level is NOTSET, effective level is higher
+        obj.get_all_inputs()
+        self.assertEqual(len(n_str_calls), 0)
+
+        orig_level = obj.logger.logger.level
+        try:
+            obj.logger.logger.setLevel(MPI_DBG_LEVEL)
+            obj.get_all_inputs()
+            self.assertGreater(len(n_str_calls), 0)
+        finally:
+            obj.logger.logger.setLevel(orig_level)
 
     @cpu_and_gpu
     def test_post_trigger_resets_inputs_changed(self, target_device_idx, xp):

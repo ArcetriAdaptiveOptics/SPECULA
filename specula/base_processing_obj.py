@@ -1,4 +1,3 @@
-import logging
 from collections import defaultdict, namedtuple
 import fnmatch
 import re
@@ -9,6 +8,7 @@ from specula import process_comm
 from specula.base_time_obj import BaseTimeObj
 from specula.connections import InputList, InputValue
 from specula.data_objects.layer import Layer
+from specula.log import MPI_DBG_LEVEL
 
 
 InputDesc = namedtuple('InputDesc', 'type desc')
@@ -106,7 +106,9 @@ class BaseProcessingObj(BaseTimeObj):
             input_obj.input_name = input_name
             self.local_inputs[input_name] = input_obj.get(self.target_device_idx)
 
-        if self.logger.level <= logging.DEBUG:
+        # Check the effective level: the logger's own level is usually NOTSET (0),
+        # and formatting the inputs is expensive (GPU arrays are copied to the host)
+        if self.logger.isEnabledFor(MPI_DBG_LEVEL):
             self.logger.mpi_debug(f'My inputs are:')
             for in_name, in_value in self.local_inputs.items():
                 if type(in_value) is list:
