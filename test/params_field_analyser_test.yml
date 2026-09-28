@@ -135,7 +135,6 @@ modal_analysis:
   npixels:          64
   nmodes:           40
   obsratio:         0.1
-  dorms:            True
   inputs:
     in_ef: 'prop.out_on_axis_source_ef'
   outputs: ['out_modes']

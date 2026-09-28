@@ -428,7 +428,7 @@ class FieldAnalyser(BaseReplayAnalyser):
                         Typical keys: ifunc_ref, ifunc_inv_ref, ifunc_object,
                         ifunc_inv_object, type_str,
                         nmodes/nzern, npixels, obsratio, diaratio,
-                        wavelengthInNm, dorms.
+                        wavelengthInNm.
                         If None, attempts to extract from DM configuration.
             force_recompute: Force recomputation even if files exist
         """

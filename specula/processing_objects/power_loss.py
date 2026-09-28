@@ -37,12 +37,12 @@ class PowerLoss(BaseProcessingObj):
         self.psf_ref = 0.0
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
-        self.power_loss = BaseValue(target_device_idx=self.target_device_idx)
+        self.power_loss = BaseValue(target_device_idx=self.target_device_idx, precision=self.precision)
         self.outputs['out_power_loss'] = self.power_loss
-        self.sr = BaseValue(target_device_idx=self.target_device_idx)
+        self.sr = BaseValue(target_device_idx=self.target_device_idx, precision=self.precision)
         self.outputs['out_sr'] = self.sr
-        self.psf = BaseValue(target_device_idx=self.target_device_idx)
-        self.psf.value = self.xp.zeros([self.pad_size, self.pad_size])
+        self.psf = BaseValue(target_device_idx=self.target_device_idx, precision=self.precision)
+        self.psf.value = self.xp.zeros([self.pad_size, self.pad_size], dtype=self.dtype)
         self.outputs['out_psf'] = self.psf
 
     @classmethod
