@@ -16,6 +16,7 @@
 
 ### Other
 
+- `BaseValue.restore()`: float arrays now follow the object precision (they kept the FITS dtype); other types, scalars and the host location are unchanged.
 - `PhaseScreenCube`: fixed crash on GPU; the interpolator and its input ElectricField are built once instead of at every step (about 2x faster on CPU); added the `precision` parameter; raises a `ValueError` if the simulation starts before the first cube time (it silently used the last screen).
 - `AtmoPropagation` with `doFresnel`: propagators are still computed in float64 but stored in the object precision, so the per-step FFTs and products are no longer in double (-35% time per step measured on a 1536x1536 padded case, same accuracy); the ASM kernel is stored already fftshifted.
 - Added per-object timing of all trigger phases: NVTX ranges for Nsight Systems, and new `--trace-file`, `--trace-skip`, `--trace-sync` and `--trace-gpu-events` options to write them to a text file with a summary (see docs/profiling.rst). The tracer can also be used as a context manager or decorator to mark more sections of code; `show_in_profiler()` has been removed. Also fixed `--profile` failing.

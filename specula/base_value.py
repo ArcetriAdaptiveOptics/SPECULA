@@ -56,7 +56,12 @@ class BaseValue(BaseDataObj):
         v = BaseValue(target_device_idx=target_device_idx)
 
         if hdr['NDARRAY']:
-            v.value = data.copy()
+            # Float arrays follow the object precision; other types and the
+            # (host) location are left unchanged
+            if np.issubdtype(data.dtype, np.floating):
+                v.value = data.astype(v.dtype)
+            else:
+                v.value = data.copy()
         else:
             value_str = hdr.get('VALUE', None)
             if value_str is not None:
