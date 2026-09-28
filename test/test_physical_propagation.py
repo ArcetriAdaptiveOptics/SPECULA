@@ -536,23 +536,18 @@ class Test(unittest.TestCase):
         return prop
 
     def _check_propagator_dtypes(self, prop, expected_complex_dtype):
-        """Check that all stored propagator arrays have the expected complex dtype,
-        and that non-far-field (ASM) propagators carry the pre-fftshifted 4th flag."""
-        for prop_elem, far_field in zip(prop.propagators, prop.far_field_propagation):
+        """Check that all stored propagator arrays have the expected complex dtype."""
+        for prop_elem in prop.propagators:
             if prop_elem is None:
                 continue
-            for arr in prop_elem[:3]:
+            self.assertEqual(len(prop_elem), 3)
+            for arr in prop_elem:
                 if arr is not None:
                     self.assertEqual(cpuArray(arr).dtype, expected_complex_dtype)
-            if not far_field:
-                self.assertEqual(len(prop_elem), 4)
-                self.assertTrue(prop_elem[3])
-            else:
-                self.assertEqual(len(prop_elem), 3)
 
     @cpu_and_gpu
     def test_propagator_precision_and_accuracy_near_field(self, target_device_idx, xp):
-        '''ASM (near-field) propagators: check storage dtype/flag, and that a precision=1
+        '''ASM (near-field) propagators: check storage dtype, and that a precision=1
         run matches a precision=0 run of the same deterministic setup.'''
         pixel_pupil = 64
         pixel_pitch = 0.01
@@ -589,7 +584,7 @@ class Test(unittest.TestCase):
 
     @cpu_and_gpu
     def test_propagator_precision_and_accuracy_far_field(self, target_device_idx, xp):
-        '''Fraunhofer (far-field) propagators: check storage dtype (no pre-shift flag),
+        '''Fraunhofer (far-field) propagators: check storage dtype,
         and that a precision=1 run matches a precision=0 run of the same deterministic setup.'''
         pixel_pupil = 64
         pixel_pitch = 0.001
@@ -622,27 +617,3 @@ class Test(unittest.TestCase):
         phase1 = cpuArray(prop1.outputs['out_src_ef'].phaseInNm)
         rel = np.sqrt(np.mean((phase1 - phase0) ** 2)) / np.max(np.abs(phase0))
         self.assertLess(rel, 1e-5)
-
-    @cpu_and_gpu
-    def test_angular_spectrum_propagation_preshifted_kernel_equivalence(self, target_device_idx, xp):
-        '''A 3-element (unshifted) ASM propagator must give the same result as the
-        4-element propagator with a pre-fftshifted kernel (see AtmoPropagation.calc_propagators).'''
-        n = 32
-        coord = xp.arange(n) - n // 2
-        x, y = xp.meshgrid(coord, coord)
-
-        H_ASM = xp.exp(-1j * 0.01 * (x ** 2 + y ** 2)).astype(complex)
-        ef_init = xp.exp(1j * 0.02 * (x + y)).astype(complex)
-
-        propagator_unshifted = [None, H_ASM, None]
-        propagator_preshifted = [None, xp.fft.fftshift(H_ASM, axes=(-2, -1)), None, True]
-
-        ef_a = ef_init.copy()
-        ef_b = ef_init.copy()
-        buffer_a = xp.zeros_like(ef_a)
-        buffer_b = xp.zeros_like(ef_b)
-
-        angular_spectrum_propagation(ef_a, propagator_unshifted, buffer_a, xp)
-        angular_spectrum_propagation(ef_b, propagator_preshifted, buffer_b, xp)
-
-        xp.testing.assert_allclose(cpuArray(ef_a), cpuArray(ef_b), rtol=1e-10, atol=1e-12)

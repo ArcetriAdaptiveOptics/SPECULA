@@ -292,11 +292,6 @@ class AtmoPropagation(BaseProcessingObj):
         # Phases are computed in float64 (they can be large); only the result is stored
         # in the object precision, so that the per-step FFTs and products are not in double.
         propagator = [None if p is None else p.astype(self.complex_dtype) for p in propagator]
-        if not far_field:
-            # Store the ASM kernel already fftshifted, flagged by a 4th element,
-            # so that angular_spectrum_propagation() skips the per-step fftshift
-            propagator[1] = self.xp.fft.fftshift(propagator[1], axes=(-2, -1))
-            propagator.append(True)
 
         return propagator, far_field
 
@@ -678,12 +673,8 @@ def angular_spectrum_propagation(ef, propagator, buffer, xp):
         ef[:] *= propagator[0]
     buffer[:] = xp.fft.fft2(xp.fft.fftshift(ef, axes=(-2, -1)), axes=(-2, -1),
                             norm="ortho")
-    # A 4th element flags a kernel already fftshifted (see AtmoPropagation.calc_propagators)
-    if len(propagator) > 3 and propagator[3]:
-        kernel = propagator[1]
-    else:
-        kernel = xp.fft.fftshift(propagator[1], axes=(-2, -1))
     ef[:] = xp.fft.fftshift(
-        xp.fft.ifft2(buffer * kernel, norm="ortho", axes=(-2, -1)), axes=(-2, -1))
+        xp.fft.ifft2(buffer * xp.fft.fftshift(propagator[1], axes=(-2, -1)), norm="ortho",
+                     axes=(-2, -1)), axes=(-2, -1))
     if propagator[2] is not None:
         ef[:] *= propagator[2]

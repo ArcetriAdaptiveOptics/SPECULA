@@ -95,13 +95,12 @@ class PhaseScreenCube(BaseProcessingObj):
         dim = self.phasescreens.shape
         self.bin_fact = dim[1]/self.pixel_pupil*self.pixel_scale/self.pixel_pitch
 
-        # Built once: the interpolator keeps a reference to in_ef and reads it at each
+        # Built once: the interpolator keeps a reference to cur_screen and reads it at each
         # interpolate(), and the edge extrapolation data (amplitude only) never change
-        self.in_ef = ElectricField(dim[1], dim[2], self.pixel_scale,
-                                   target_device_idx=self.target_device_idx, precision=self.precision)
-        self.cur_screen = self.in_ef.phaseInNm
+        self.cur_screen = ElectricField(dim[1], dim[2], self.pixel_scale,
+                                        target_device_idx=self.target_device_idx, precision=self.precision)
         self.ef_interpolator = EFInterpolator(
-            self.in_ef,
+            self.cur_screen,
             (self.pixel_pupil, self.pixel_pupil),
             magnification=self.bin_fact,
             target_device_idx=self.target_device_idx,
@@ -128,8 +127,8 @@ class PhaseScreenCube(BaseProcessingObj):
         time_step = self.time_vector[idx_first_positive] - self.time_vector[idx_last_non_positive]
         w_last = float(self.scale_factor * dt[idx_first_positive] / time_step)
         w_first = float(self.scale_factor * abs(dt[idx_last_non_positive]) / time_step)
-        self.cur_screen[:] = w_last * self.phasescreens[idx_last_non_positive, :, :] + \
-                             w_first * self.phasescreens[idx_first_positive, :, :]
+        self.cur_screen.phaseInNm[:] = w_last * self.phasescreens[idx_last_non_positive, :, :] + \
+                                       w_first * self.phasescreens[idx_first_positive, :, :]
 
         self.ef_interpolator.interpolate()
 

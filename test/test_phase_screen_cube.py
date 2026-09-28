@@ -87,9 +87,9 @@ class TestPhaseScreenCube(unittest.TestCase):
         self.cube_scaled.trigger()
         self.cube_scaled.post_trigger()
 
-        answer0 = self.cube.cur_screen
+        answer0 = self.cube.cur_screen.phaseInNm
         answer1 = self.cube.outputs['out_on_axis_source_ef'].phaseInNm
-        answer2 = self.cube_scaled.cur_screen
+        answer2 = self.cube_scaled.cur_screen.phaseInNm
         answer3 = self.cube_scaled.outputs['out_on_axis_source_ef'].phaseInNm
 
         assert 'out_on_axis_source_layer' in self.cube.outputs
@@ -161,7 +161,7 @@ class TestPhaseScreenCube(unittest.TestCase):
             phase_cube.check_ready(phase_cube.seconds_to_t(t))
             phase_cube.trigger()
             phase_cube.post_trigger()
-            np.testing.assert_array_almost_equal(cpuArray(phase_cube.cur_screen),
+            np.testing.assert_array_almost_equal(cpuArray(phase_cube.cur_screen.phaseInNm),
                                                  expected_screen(t))
 
     @cpu_and_gpu
@@ -203,7 +203,7 @@ class TestPhaseScreenCube(unittest.TestCase):
             phase_cube.trigger()
             phase_cube.post_trigger()
 
-            self.assertEqual(cpuArray(phase_cube.cur_screen).dtype, expected_dtype)
+            self.assertEqual(cpuArray(phase_cube.cur_screen.phaseInNm).dtype, expected_dtype)
             self.assertEqual(cpuArray(phase_cube.outputs['out_layer'].phaseInNm).dtype, expected_dtype)
             self.assertEqual(cpuArray(phase_cube.outputs['out_ef'].phaseInNm).dtype, expected_dtype)
 
