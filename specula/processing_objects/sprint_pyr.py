@@ -148,7 +148,7 @@ class SprintPyr(BaseSprintEstimator):
             target_device_idx=self.target_device_idx,
             precision=self.precision
         )
-        self.internal_command = BaseValue(self.xp.zeros(self.dm.nmodes, dtype=self.dtype),
+        self.internal_command = BaseValue(value=self.xp.zeros(self.dm.nmodes, dtype=self.dtype),
                                           target_device_idx=self.target_device_idx)
         self.internal_dm.inputs['in_command'].set(self.internal_command)
         self.internal_dm.setup()

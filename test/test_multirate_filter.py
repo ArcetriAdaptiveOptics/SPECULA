@@ -226,6 +226,23 @@ class TestMultirateFilter(unittest.TestCase):
                                            " does not match the LTI difference equation.")
 
     @cpu_and_gpu
+    def test_c_yf_0_is_plain_python_float(self, target_device_idx, xp):
+        """
+        c_yf_0 must be a plain Python float, not a NumPy scalar: under NumPy 2's
+        value-based casting rules a NumPy float64 scalar would silently promote
+        float32 arrays to float64 when multiplied together.
+        """
+        engine = build_double_integrator(0.1, target_device_idx)
+        filt = MultirateComplementaryFilter(engine, g_track=0.1, weights=[0.5, 0.5], N_list=[3],
+                                            precision=1, target_device_idx=target_device_idx)
+
+        self.assertIs(type(filt.c_yf_0), float)
+
+        yf32 = xp.array([1.0], dtype=xp.float32)
+        mixed = filt.c_yf_0 * yf32
+        self.assertEqual(mixed.dtype, xp.float32)
+
+    @cpu_and_gpu
     def test_vector_input_routing(self, target_device_idx, xp):
         """Test that the vector input routing produces the exact same result as separate inputs."""
         g_f = 0.1

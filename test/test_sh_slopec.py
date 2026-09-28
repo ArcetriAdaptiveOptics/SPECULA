@@ -260,6 +260,39 @@ class TestShSlopec(unittest.TestCase):
         np.testing.assert_equal(cpuArray(last_weights_2d), cpuArray(expected_weights), err_msg="Weight map does not match expected values.")
 
     @cpu_and_gpu
+    def test_xy_weights_dtype_follows_precision(self, target_device_idx, xp):
+        """
+        Test that mask_weighted/xweights/yweights/xcweights/ycweights follow the
+        object's own dtype, in both the default (weighted CoG) mode and quadcell mode.
+        """
+        # Minimal subap data: 1 subaperture, 4x4 pixels, no dependency on a real SH.
+        np_sub = 4
+        idxs = xp.arange(np_sub * np_sub).reshape(1, np_sub * np_sub)
+        display_map = xp.array([0])
+        subapdata = SubapData(idxs=idxs, display_map=display_map, nx=1, ny=1,
+                              target_device_idx=target_device_idx)
+
+        slopec32 = ShSlopec(subapdata, weightedPixRad=1.0, precision=1,
+                            target_device_idx=target_device_idx)
+        for name in ('mask_weighted', 'xweights', 'yweights', 'xcweights', 'ycweights'):
+            self.assertEqual(getattr(slopec32, name).dtype, xp.float32,
+                             f"{name} dtype does not match precision=1")
+
+        # quadcell mode uses a different branch in computeXYweights
+        slopec32.quadcell_mode = True
+        slopec32.set_xy_weights()
+        for name in ('mask_weighted', 'xweights', 'yweights', 'xcweights', 'ycweights'):
+            self.assertEqual(getattr(slopec32, name).dtype, xp.float32,
+                             f"{name} dtype does not match precision=1 (quadcell mode)")
+
+        # precision=0 (double) must stay float64
+        slopec64 = ShSlopec(subapdata, weightedPixRad=1.0, precision=0,
+                            target_device_idx=target_device_idx)
+        for name in ('mask_weighted', 'xweights', 'yweights', 'xcweights', 'ycweights'):
+            self.assertEqual(getattr(slopec64, name).dtype, xp.float64,
+                             f"{name} dtype does not match precision=0")
+
+    @cpu_and_gpu
     def test_vec_wei_pix_rad_t_uses_last_valid_time(self, target_device_idx, xp):
         """
         Test that vecWeiPixRadT selects the last valid row based on time.
@@ -448,6 +481,133 @@ class TestShSlopec(unittest.TestCase):
         self.assertEqual(slopec.outputs['out_flux_per_subaperture'].generation_time, t)
         self.assertEqual(slopec.outputs['out_total_counts'].generation_time, t)
         self.assertEqual(slopec.outputs['out_subap_counts'].generation_time, t)
+
+    def _build_multi_subap_pixels(self, blocks, target_device_idx, xp):
+        """
+        Build a Pixels/SubapData pair from a list of 2D numpy blocks, one per
+        subaperture, laid out side by side in a single row (no gaps, no overlap).
+        Returns (subapdata, pixels).
+        """
+        np_sub = blocks[0].shape[0]
+        n_subaps = len(blocks)
+        dimy = np_sub
+        dimx = np_sub * n_subaps
+
+        full = np.zeros((dimy, dimx))
+        idxs_list = []
+        display_map = []
+        for i, block in enumerate(blocks):
+            full[:, i * np_sub:(i + 1) * np_sub] = block
+            mask = np.zeros((dimy, dimx))
+            mask[:, i * np_sub:(i + 1) * np_sub] = 1
+            idx = np.where(mask == 1)
+            idxs_list.append(np.ravel_multi_index(idx, full.shape))
+            display_map.append(i)
+
+        idxs_arr = np.array(idxs_list)
+        display_map = np.array(display_map)
+
+        subapdata = SubapData(idxs=idxs_arr, display_map=display_map, nx=n_subaps, ny=1,
+                              target_device_idx=target_device_idx)
+
+        pixels = Pixels(dimx, dimy, target_device_idx=target_device_idx)
+        pixels.pixels = xp.array(full)
+        pixels.generation_time = 1
+
+        return subapdata, pixels
+
+    @cpu_and_gpu
+    def test_thr_ratio_value_per_subaperture(self, target_device_idx, xp):
+        """
+        Test that thr_ratio_value applies an independent threshold to each
+        subaperture (thr_ratio_value * subap.max()), as opposed to thr_value
+        which applies a single absolute threshold to all subapertures.
+        """
+        # Three subapertures with different brightness, background pedestal
+        # and spot shape/location, so that each one gets a different absolute
+        # threshold from the same thr_ratio_value.
+        block0 = np.array([[10., 10., 10., 10.],
+                            [10., 100., 80., 10.],
+                            [10., 90., 70., 10.],
+                            [10., 10., 10., 10.]])
+        block1 = np.array([[20., 20., 20., 20.],
+                            [20., 20., 20., 20.],
+                            [20., 20., 50., 45.],
+                            [20., 20., 55., 40.]])
+        block2 = np.array([[5., 5., 5., 5.],
+                            [5., 5., 5., 5.],
+                            [5., 5., 5., 200.],
+                            [5., 5., 150., 120.]])
+        blocks = [block0, block1, block2]
+
+        subapdata, pixels = self._build_multi_subap_pixels(blocks, target_device_idx, xp)
+
+        thr_ratio_value = 0.3
+        slopec = ShSlopec(subapdata, thr_ratio_value=thr_ratio_value,
+                          target_device_idx=target_device_idx)
+        slopec.inputs['in_pixels'].set(pixels)
+        slopec.check_ready(1)
+        slopec.trigger()
+        slopec.post_trigger()
+        slopes = slopec.outputs['out_slopes']
+
+        # Weights are pure geometry (unrelated to thresholding), reuse them
+        # from the object itself instead of re-deriving make_xy/exp_weight.
+        xweights = cpuArray(slopec.xweights)
+        yweights = cpuArray(slopec.yweights)
+        mask_weighted = cpuArray(slopec.mask_weighted)
+
+        expected_sx = np.zeros(len(blocks))
+        expected_sy = np.zeros(len(blocks))
+        subap_tot_list = np.zeros(len(blocks))
+        for i, block in enumerate(blocks):
+            thr = thr_ratio_value * block.max()
+            clipped = np.clip(block - thr, 0, None)
+            subap_tot = np.sum(clipped * mask_weighted)
+            subap_tot_list[i] = subap_tot
+            expected_sx[i] = np.sum(clipped * xweights) / subap_tot
+            expected_sy[i] = np.sum(clipped * yweights) / subap_tot
+
+        # Sanity check: none of the subapertures falls under the low-flux
+        # clamp in trigger_code (factor forced to 0), otherwise the reference
+        # formula above would not apply.
+        mean_tot = subap_tot_list.mean()
+        self.assertTrue(np.all(subap_tot_list > mean_tot * 1e-3))
+
+        np.testing.assert_allclose(cpuArray(slopes.xslopes), expected_sx, rtol=1e-5, atol=1e-6)
+        np.testing.assert_allclose(cpuArray(slopes.yslopes), expected_sy, rtol=1e-5, atol=1e-6)
+
+        # A single absolute threshold (thr_value) equal to subaperture 0's own
+        # per-subap threshold must give a different result overall: subap 0
+        # matches (same absolute threshold), but subaps 1 and 2 do not, since
+        # their own max (hence their ratio-based threshold) differs.
+        thr_abs = thr_ratio_value * block0.max()
+        slopec_abs = ShSlopec(subapdata, thr_value=thr_abs, target_device_idx=target_device_idx)
+        slopec_abs.inputs['in_pixels'].set(pixels)
+        slopec_abs.check_ready(1)
+        slopec_abs.trigger()
+        slopec_abs.post_trigger()
+        slopes_abs = slopec_abs.outputs['out_slopes']
+
+        np.testing.assert_allclose(cpuArray(slopes_abs.xslopes)[0], expected_sx[0], rtol=1e-5, atol=1e-6)
+        self.assertFalse(np.allclose(cpuArray(slopes_abs.xslopes), expected_sx))
+
+    @cpu_and_gpu
+    def test_thr_value_and_thr_ratio_value_raises(self, target_device_idx, xp):
+        """
+        Test that setting both thr_value > 0 and thr_ratio_value > 0 raises
+        ValueError when the object is triggered.
+        """
+        np_sub = 4
+        block = np.ones((np_sub, np_sub)) * 10.0
+        subapdata, pixels = self._build_multi_subap_pixels([block], target_device_idx, xp)
+
+        slopec = ShSlopec(subapdata, thr_value=1.0, thr_ratio_value=0.3,
+                          target_device_idx=target_device_idx)
+        slopec.inputs['in_pixels'].set(pixels)
+        slopec.check_ready(1)
+        with self.assertRaises(ValueError):
+            slopec.trigger()
 
     @cpu_and_gpu
     def test_slopec_interleave(self, target_device_idx, xp):

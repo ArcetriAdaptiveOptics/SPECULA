@@ -90,6 +90,28 @@ class TestPowerloss(unittest.TestCase):
         xp.testing.assert_array_equal(xp.array(power_loss_psf) < xp.array(power_loss_loop), True)
 
     @cpu_and_gpu
+    def test_psf_dtype_follows_precision(self, target_device_idx, xp):
+        """out_psf must be allocated in the object's own dtype, not always float64."""
+        wavelength = 500
+        pixel_pupil = 16
+        pixel_pitch = 1 / 16.
+
+        simul_params = SimulParams(pixel_pupil=pixel_pupil, pixel_pitch=pixel_pitch)
+        on_axis_source = Source(polar_coordinates=[0, 0], magnitude=0.0, height=500,
+                                wavelengthInNm=wavelength, target_device_idx=target_device_idx)
+        prop = AtmoPropagation(simul_params=simul_params, source_dict={'on_axis': on_axis_source},
+                               doFresnel=False, upwards=True, wavelengthInNm=wavelength,
+                               padding_factor=2, target_device_idx=target_device_idx)
+
+        power_loss32 = PowerLoss(simul_params=simul_params, prop=prop, precision=1,
+                                 target_device_idx=target_device_idx)
+        self.assertEqual(power_loss32.psf.value.dtype, xp.float32)
+
+        power_loss64 = PowerLoss(simul_params=simul_params, prop=prop, precision=0,
+                                 target_device_idx=target_device_idx)
+        self.assertEqual(power_loss64.psf.value.dtype, xp.float64)
+
+    @cpu_and_gpu
     def test_power_loss_calculation(self, target_device_idx, xp):
         """Test power loss calculation with geometrical propagation"""
         power_loss_psf, power_loss_loop = self.get_basic_setup(target_device_idx, xp, doFresnel=False)

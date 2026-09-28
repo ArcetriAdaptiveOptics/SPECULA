@@ -421,6 +421,80 @@ class TestLift(unittest.TestCase):
         np.testing.assert_allclose(coeffs_out[defocus_idx], 0.0, atol=5.0)
 
     @cpu_and_gpu
+    def test_tlt_f_and_complexfield_follow_object_precision(self, target_device_idx, xp):
+        """
+        _get_tlt_f (half-pixel tilt) must be cast to self.dtype, otherwise
+        complexField() and self.padded (allocated with x.dtype in ft_ft2)
+        silently run in double precision even when precision=1.
+
+        Note: complexFieldFFT (the FFT output) is not checked here since
+        numpy's CPU FFT backend always promotes to complex128 regardless
+        of input dtype (only cupy preserves complex64) - that behavior is
+        independent of the fix under test.
+        """
+        for precision, expected_float, expected_complex in (
+            (1, np.float32, np.complex64),
+            (0, np.float64, np.complex128),
+        ):
+            lift = build_lift(target_device_idx=target_device_idx, precision=precision)
+
+            tlt_f = lift._get_tlt_f(lift.gridSize, lift.settings.fft_size)
+            self.assertEqual(tlt_f.dtype, expected_float)
+
+            phase = lift.xp.zeros((lift.gridSize, lift.gridSize), dtype=lift.dtype)
+            complex_field, _ = lift.complexField(phase)
+            self.assertEqual(complex_field.dtype, expected_complex)
+            self.assertEqual(lift.padded.dtype, expected_complex)
+
+    @cpu_and_gpu
+    def test_trigger_sets_padded_and_outputs_with_object_precision(self, target_device_idx, xp):
+        """
+        End-to-end check (real trigger, not mocked phaseEstimation): after a
+        full LIFT iteration, self.padded and the modal coefficient outputs
+        must match the object's precision.
+        """
+        for precision, expected_float, expected_complex in (
+            (1, np.float32, np.complex64),
+            (0, np.float64, np.complex128),
+        ):
+            lift = build_lift(target_device_idx=target_device_idx, precision=precision)
+            fake_psf = np.ones((lift.gridSize, lift.gridSize), dtype=np.float32)
+            lift.local_inputs['in_pixels'] = type('_', (), {'get_value': lambda self: fake_psf})()
+            lift.current_time = 1
+
+            lift.trigger()
+
+            self.assertEqual(lift.padded.dtype, expected_complex)
+            self.assertEqual(cpuArray(lift.outputs['out_zern'].value).dtype, expected_float)
+
+    @cpu_and_gpu
+    def test_precision_1_matches_precision_0_within_single_precision_tolerance(self, target_device_idx, xp):
+        """
+        Run the same synthetic defocus PSF through precision=0 (reference)
+        and precision=1 Lift instances and check the recovered coefficients
+        agree within single-precision tolerance.
+
+        Observed on this configuration (gridSize=8, 3-mode Zernike basis,
+        0.3 rad defocus -> ~35.8 nm): abs diff ~1.2e-5 nm on tip/tilt
+        (near-zero values) and ~8e-6 nm on the defocus estimate, i.e. well
+        within the tolerances used below.
+        """
+        lift0 = build_lift(target_device_idx=target_device_idx, precision=0)
+        lift1 = build_lift(target_device_idx=target_device_idx, precision=1)
+
+        known_coeffs = np.zeros(lift0.nmodes, dtype=np.float64)
+        known_coeffs[2] = 0.3  # defocus, rad
+        phase = lift0.phaseFromCoeffs(known_coeffs)
+        psf = cpuArray(lift0.focalPlaneImageLIFT(phase, set_flux=1e6))
+
+        _, coeffs0, _ = lift0.phaseEstimation(psf)
+        _, coeffs1, _ = lift1.phaseEstimation(psf.astype(np.float32))
+
+        coeffs0 = cpuArray(coeffs0)
+        coeffs1 = cpuArray(coeffs1)
+        np.testing.assert_allclose(coeffs1, coeffs0, rtol=1e-4, atol=1e-3)
+
+    @cpu_and_gpu
     def test_set_modalbase_mask_dtype_invariance(self, target_device_idx, xp):
         """
         Test that set_modalbase produces the identical modesCube whether 

@@ -127,6 +127,18 @@ class TestIFuncInv(unittest.TestCase):
         self.assertEqual(obj.ifunc_inv.shape, expected_shape)
 
     @cpu_and_gpu
+    def test_ifunc_inv_dtype_follows_precision(self, target_device_idx, xp):
+        """ifunc_inv array must be cast to the object's own dtype, not keep the input's dtype."""
+        ifunc_inv = xp.random.rand(*self.shape).astype(xp.float64)
+        mask = xp.random.choice([0, 1], size=self.shape).astype(xp.uint8)
+
+        obj32 = IFuncInv(ifunc_inv, mask, precision=1, target_device_idx=target_device_idx)
+        self.assertEqual(obj32.ifunc_inv.dtype, xp.float32)
+
+        obj64 = IFuncInv(ifunc_inv, mask, precision=0, target_device_idx=target_device_idx)
+        self.assertEqual(obj64.ifunc_inv.dtype, xp.float64)
+
+    @cpu_and_gpu
     def test_cut_with_start_mode_and_nmodes(self, target_device_idx, xp):
         ifunc_inv = xp.random.rand(*self.shape).astype(xp.float32)
         mask = xp.random.choice([0, 1], size=self.shape).astype(xp.uint8)

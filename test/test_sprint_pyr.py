@@ -220,6 +220,33 @@ class TestSprintPyr(unittest.TestCase):
     verbose = False  # Set to True for detailed output during tests
 
     @cpu_and_gpu
+    def test_internal_command_base_value_construction(self, target_device_idx, xp):
+        """
+        internal_command must be built with BaseValue(value=...), not a positional
+        argument (which would land in `description` and leave `value` at None).
+        """
+        simul_params, pupil_mask, source, dm, wfs, ccd, slopec = create_test_system()
+
+        sprint = SprintPyr(
+            simul_params=simul_params,
+            dm=dm,
+            slopec=slopec,
+            source=source,
+            wfs=wfs,
+            pupil_mask=pupil_mask,
+            modes_index=[0],
+            carrier_frequencies=[10],
+            target_device_idx=target_device_idx,
+            precision=1
+        )
+        slopes = Slopes(2, target_device_idx=target_device_idx, precision=1)
+        sprint.inputs['in_slopes'].set(slopes)
+        sprint.setup()
+
+        self.assertIsInstance(sprint.internal_command.description, str)
+        self.assertEqual(sprint.internal_command.value.shape, (dm.nmodes,))
+
+    @cpu_and_gpu
     def test_sprint_estimation_small(self, target_device_idx, xp):
         """Test SPRINT estimation with small mis-registration"""
         self._run_sprint_test(1.0, 0.5, 1.0, 0.02, target_device_idx, xp)
