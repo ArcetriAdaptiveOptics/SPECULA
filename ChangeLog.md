@@ -26,7 +26,7 @@
 - Fixed ExtSourcePyramid with cuda_stream_enable=True: the CUDA graphs kept reading the data from frame 0, but with FROM_PSF a coeff array is computed for every new PSF. Now a recapturing is performed if necessary.
 - Fixed constructor type hints narrower than what the code accepts (#709):
 - Fixed a bug in ModalAnalysis that was forcing a 64-bit computation even when SPECULA is running with 32 bit precision
-- Fixed remaining 64-bit promotions in `ModalAnalysis` phase unwrapping (Poisson right-hand side, Laplacian eigenvalues, pupil mask) and missing `precision` in the `out_modes_list` outputs. Removed the unreachable zero-padding branch of `ModalAnalysis.trigger_code()`.
+- Fixed remaining 64-bit promotions in `ModalAnalysis` phase unwrapping (Poisson right-hand side, Laplacian eigenvalues, pupil mask) and missing `precision` in the `out_modes_list` outputs. Removed the unreachable zero-padding branch of `ModalAnalysis.trigger_code()`, and the never-set `_doZeroPad` attribute (with its dead code) from `IFunc` and `IFuncInv`.
 - `PushPullGenerator` no longer allocates the full `(n_steps, nmodes)` push-pull time history (mostly zeros, growing as nmodes^2 * ncycles * nsamples, e.g. ~40 GB for 5000 modes and 100 cycles): each step is now computed on the fly from the per-mode amplitudes and the pattern. The `time_hist` attribute has been removed (the sequence length is available as `nsteps`), and triggering past the end of the sequence raises an explicit `IndexError`. The amplitude computation has been factored out as `specula.lib.modal_pushpull_signal.modal_pushpull_amplitudes()`, and `modal_pushpull_signal()` has been removed (see Interface changes).
 
 ## [1.0.4] - 2026-08-19
