@@ -168,11 +168,12 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
         modal_analysis = ModalAnalysis(ifunc_inv=ifunc_inv, nmodes=None,
                                        target_device_idx=target_device_idx)
 
+        # IFuncInv may cast the input to its own dtype: compare with its internal array
         phase2modes_data = modal_analysis.phase2modes.ifunc_inv
         if hasattr(xp, 'may_share_memory'):
-            self.assertTrue(xp.may_share_memory(phase2modes_data, ifunc_inv_data))
+            self.assertTrue(xp.may_share_memory(phase2modes_data, ifunc_inv.ifunc_inv))
         else:
-            self.assertEqual(phase2modes_data.data.ptr, ifunc_inv_data.data.ptr)
+            self.assertEqual(phase2modes_data.data.ptr, ifunc_inv.ifunc_inv.data.ptr)
 
     @cpu_and_gpu
     def test_modal_analysis_forwards_remove_piston_default(self, target_device_idx, xp):

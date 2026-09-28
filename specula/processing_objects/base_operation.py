@@ -207,7 +207,7 @@ class BaseOperation(BaseProcessingObj):
 
         # Allocate output value
         if self.concat:
-            self.out_value.value = self.xp.empty(len(value1.value) + len(value2.value))
+            self.out_value.value = self.xp.empty(len(value1.value) + len(value2.value), dtype=self.dtype)
         else:
             self.out_value.value = self.xp.empty_like(value1.value)
 

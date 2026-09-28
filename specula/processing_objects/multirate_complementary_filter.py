@@ -78,7 +78,8 @@ class MultirateComplementaryFilter(BaseFilter):
         w_slow = w_array[1:]
 
         # LTI approximation coefficients
-        self.c_yf_0 = 1.0 + (g_track * w_fast)
+        # Python float: a NumPy float64 scalar would promote float32 data under NumPy 2
+        self.c_yf_0 = float(1.0 + (g_track * w_fast))
         self.c_yf_1 = -1.0
         c_ys_list = [g_track * w_slow[i] * N_list[i] for i in range(self.n_slow_sensors)]
 

@@ -24,7 +24,7 @@ class MirrorCommandsCombinator(BaseProcessingObj):
         super().__init__(target_device_idx=target_device_idx, precision=precision)        
                 
         self.A_matrix = recmat
-        self.k_vector = self.xp.asarray(k_vector)
+        self.k_vector = self.xp.asarray(k_vector, dtype=self.dtype)
         
         self.dims_LO = np.array(dims_LO, dtype=np.int32)    # 2, 0, 3
         self.dims_P = dims_P                
