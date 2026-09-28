@@ -1,3 +1,6 @@
+from typing import List, Union
+
+import numpy as np
 
 from specula.base_value import BaseValue
 from specula.connections import InputValue
@@ -30,8 +33,8 @@ class DM(BaseProcessingObj):
                  pupilstop: Pupilstop=None,
                  sign: int=-1,
                  stroke=None,
-                 stiffness=None,
-                 max_force=None,
+                 stiffness: np.ndarray=None,
+                 max_force: Union[float, List[float]]=None,
                  target_device_idx: int=None,
                  precision: int=None
                  ):
@@ -78,13 +81,14 @@ class DM(BaseProcessingObj):
             If a list is given, this is the maximum amplitude that can be applied per mode.
             Default is None (no clipping applied).
         stiffness : array [force/command unit], optional
-            Stiffness matrix (nact x nact), with nact the number of m2c rows: forces are
+            Stiffness matrix (nact x nact), with nact equal to the number of m2c rows: forces are
             computed as ``stiffness @ command``, with the command after m2c. Units are up to
             the user (e.g. N per command unit); in a YAML file use ``stiffness_data``.
             Requires m2c. If given, the forces of the applied command are output
             as ``out_forces``. Default is None (no force computation).
         max_force : float or list [force], optional
-            Maximum absolute force per actuator (scalar or one value per actuator).
+            Maximum absolute force per actuator (scalar or one value per actuator),
+            in the same force unit as stiffness.
             Requires stiffness. If the forces exceed it, the highest-order modes are
             discarded: the largest number of modes (starting from the first one) whose
             forces are within the limit is kept, down to a zero command.
@@ -246,7 +250,10 @@ class DM(BaseProcessingObj):
         if self.m2c is not None:
             self.m2c_commands[:len(input_commands)] = input_commands
             if self.max_force is not None:
-                self._limit_forces()
+                limited_commands, n_keep = self._limit_forces(self.m2c_commands)
+                self.m2c_commands[:] = limited_commands
+                self.force_nmodes.value[0] = n_keep
+                self.force_nmodes.generation_time = self.current_time
             cmd = self.m2c[:, self._valid_modes] @ self.m2c_commands
         else:
             cmd = input_commands
@@ -267,20 +274,19 @@ class DM(BaseProcessingObj):
             self.forces.value[:] = self.stiffness @ self.clip_command.value
             self.forces.generation_time = self.current_time
 
-    def _limit_forces(self):
+    def _limit_forces(self, commands):
         '''
-        Discard the highest-order modes of self.m2c_commands until the forces
-        are within max_force. The cumulative sum gives the forces of all the
-        possible truncations at once, without iterations or host synchronization.
+        Return the modal commands with the highest-order modes discarded until the
+        forces are within max_force, and the number of modes kept. The cumulative sum
+        gives the forces of all the possible truncations at once, without iterations
+        or host synchronization.
         '''
-        forces = self.xp.cumsum(self._mode_forces * self.m2c_commands, axis=1)
+        forces = self.xp.cumsum(self._mode_forces * commands, axis=1)
         ok = self.xp.all(self.xp.abs(forces) <= self.max_force[:, None], axis=0)
         # ok[n-1]: forces within limits keeping n modes. Keeping 0 modes is always ok.
         ok = self.xp.concatenate((self.xp.ones(1, dtype=bool), ok))
         n_keep = len(ok) - 1 - self.xp.argmax(ok[::-1])
-        self.m2c_commands *= self._mode_idx < n_keep
-        self.force_nmodes.value[0] = n_keep
-        self.force_nmodes.generation_time = self.current_time
+        return commands * (self._mode_idx < n_keep), n_keep
 
     # Getters and Setters for the attributes
     @property
