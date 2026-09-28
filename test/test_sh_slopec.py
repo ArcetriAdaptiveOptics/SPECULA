@@ -260,6 +260,39 @@ class TestShSlopec(unittest.TestCase):
         np.testing.assert_equal(cpuArray(last_weights_2d), cpuArray(expected_weights), err_msg="Weight map does not match expected values.")
 
     @cpu_and_gpu
+    def test_xy_weights_dtype_follows_precision(self, target_device_idx, xp):
+        """
+        Test that mask_weighted/xweights/yweights/xcweights/ycweights follow the
+        object's own dtype, in both the default (weighted CoG) mode and quadcell mode.
+        """
+        # Minimal subap data: 1 subaperture, 4x4 pixels, no dependency on a real SH.
+        np_sub = 4
+        idxs = xp.arange(np_sub * np_sub).reshape(1, np_sub * np_sub)
+        display_map = xp.array([0])
+        subapdata = SubapData(idxs=idxs, display_map=display_map, nx=1, ny=1,
+                              target_device_idx=target_device_idx)
+
+        slopec32 = ShSlopec(subapdata, weightedPixRad=1.0, precision=1,
+                            target_device_idx=target_device_idx)
+        for name in ('mask_weighted', 'xweights', 'yweights', 'xcweights', 'ycweights'):
+            self.assertEqual(getattr(slopec32, name).dtype, xp.float32,
+                             f"{name} dtype does not match precision=1")
+
+        # quadcell mode uses a different branch in computeXYweights
+        slopec32.quadcell_mode = True
+        slopec32.set_xy_weights()
+        for name in ('mask_weighted', 'xweights', 'yweights', 'xcweights', 'ycweights'):
+            self.assertEqual(getattr(slopec32, name).dtype, xp.float32,
+                             f"{name} dtype does not match precision=1 (quadcell mode)")
+
+        # precision=0 (double) must stay float64
+        slopec64 = ShSlopec(subapdata, weightedPixRad=1.0, precision=0,
+                            target_device_idx=target_device_idx)
+        for name in ('mask_weighted', 'xweights', 'yweights', 'xcweights', 'ycweights'):
+            self.assertEqual(getattr(slopec64, name).dtype, xp.float64,
+                             f"{name} dtype does not match precision=0")
+
+    @cpu_and_gpu
     def test_vec_wei_pix_rad_t_uses_last_valid_time(self, target_device_idx, xp):
         """
         Test that vecWeiPixRadT selects the last valid row based on time.

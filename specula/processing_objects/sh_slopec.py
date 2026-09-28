@@ -108,11 +108,11 @@ class ShSlopec(Slopec):
         if self.subapdata:
             out = self.computeXYweights(self.subapdata.np_sub, self.exp_weight, self.weighted_pix_rad,
                                           self.quadcell_mode, self.windowing)
-            self.mask_weighted = self.to_xp(out['mask_weighted'])
-            self.xweights = self.to_xp(out['x'])
-            self.yweights = self.to_xp(out['y'])
-            self.xcweights = self.to_xp(out['xc'])
-            self.ycweights = self.to_xp(out['yc'])
+            self.mask_weighted = self.to_xp(out['mask_weighted'], dtype=self.dtype)
+            self.xweights = self.to_xp(out['x'], dtype=self.dtype)
+            self.yweights = self.to_xp(out['y'], dtype=self.dtype)
+            self.xcweights = self.to_xp(out['xc'], dtype=self.dtype)
+            self.ycweights = self.to_xp(out['yc'], dtype=self.dtype)
             self.xweights_flat = self.xweights.reshape(self.subapdata.np_sub * self.subapdata.np_sub, 1)
             self.yweights_flat = self.yweights.reshape(self.subapdata.np_sub * self.subapdata.np_sub, 1)
             self.mask_weighted_flat = self.mask_weighted.reshape(self.subapdata.np_sub * self.subapdata.np_sub, 1)

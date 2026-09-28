@@ -60,7 +60,7 @@ class PolyChromWFS(BaseProcessingObj):
     def _create_unit_tilts(self, in_ef_size, in_ef_pixel_pitch):
         """Create unit tilt phase arrays (1 pixel tilt) in nm."""
         # Create coordinate arrays in meters
-        xx, yy = make_xy(in_ef_size, in_ef_pixel_pitch, xp=self.xp)
+        xx, yy = make_xy(in_ef_size, in_ef_pixel_pitch, xp=self.xp, dtype=self.dtype)
 
         # Calculate pupil diameter in meters
         pupil_diameter = in_ef_size * in_ef_pixel_pitch
