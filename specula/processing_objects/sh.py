@@ -165,7 +165,6 @@ class SH(BaseProcessingObj):
         self._psfimage_views = None
         self._kernelobj = None
         self._kernel_fn = None
-        self._stream_built = False
 
         # TODO these are fixed but should become parameters
         self._fov_ovs = 1
@@ -469,12 +468,9 @@ class SH(BaseProcessingObj):
         # The input field interpolation is done in trigger_code(), so that it is
         # part of the CUDA graph. Its extrapolation data depends on the pupil,
         # which is only valid from the first step on (it is set by the upstream
-        # objects in their trigger), so the graph is captured here at the first
-        # step, and not in setup().
-        if not self._stream_built:
-            self.ef_interpolator.initialize_extrapolation()
-            super().build_stream(allow_parallel=False)
-            self._stream_built = True
+        # objects in their trigger): it is computed here, before the graph is
+        # captured at the first trigger(). Does nothing after the first call.
+        self.ef_interpolator.initialize_extrapolation()
 
     def _prepare_kernels(self):
         if len(self._laser_launch_tel.tel_pos) != 0:
@@ -521,7 +517,7 @@ class SH(BaseProcessingObj):
         Finally, _psfimage is rebinned to the CCD pixels with toccd().
         The flux normalization is done in post_trigger().
 
-        The CUDA graph is captured at the first prepare_trigger(), because the
+        The CUDA graph is captured at the first trigger(), because the
         interpolation needs the pupil, and captured again if the interpolation
         parameters are changed with update_interpolator_parameters().
 
@@ -660,6 +656,9 @@ class SH(BaseProcessingObj):
         # Assert that our views are actually views and not temporary allocations
         for view in [self._wf3_view, self._subap_cube_view] + self._psfimage_views:
             assert view.base is not None
+
+        # The CUDA graph is captured at the first trigger(), see prepare_trigger()
+        super().build_stream(allow_parallel=False, capture=False)
 
     def update_interpolator_parameters(self, xShiftPhInPixel=None, yShiftPhInPixel=None,
                                        rotAnglePhInDeg=None, magnification=None):

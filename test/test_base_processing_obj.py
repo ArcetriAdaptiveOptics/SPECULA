@@ -307,6 +307,48 @@ class TestBaseProcessingObj(unittest.TestCase):
         self.assertFalse(obj._cuda_graph_invalid)
         self.assertEqual(run(obj), 3.0)
 
+    @unittest.skipIf(cp is None, 'GPU not available')
+    def test_trigger_code_runs_once_per_trigger_when_capturing(self):
+        '''
+        With a stateful trigger_code() (like an integrator), each trigger() must
+        advance the state exactly once, also in the steps where the CUDA graph
+        is captured: at the first trigger() with build_stream(capture=False),
+        and after invalidate_graph().
+        '''
+        class Integrator(BaseProcessingObj):
+            def __init__(self):
+                super().__init__(target_device_idx=0)
+                self.state = cp.zeros(4, dtype=cp.float32)
+
+            def trigger_code(self):
+                self.state += 1
+
+        def run(obj):
+            obj.inputs_changed = True
+            obj.trigger()
+            obj.stream.synchronize()
+            return float(obj.state[0])
+
+        obj = Integrator()
+        obj.build_stream(allow_parallel=False, capture=False)
+        self.assertIsNone(obj.cuda_graph)
+        self.assertEqual(run(obj), 1.0)     # captured here
+        self.assertIsNotNone(obj.cuda_graph)
+        self.assertEqual(run(obj), 2.0)     # graph launch
+        obj.invalidate_graph()
+        self.assertEqual(run(obj), 3.0)     # captured again
+        self.assertEqual(run(obj), 4.0)     # graph launch
+
+    @cpu_and_gpu
+    def test_invalidate_graph_without_stream_does_nothing(self, target_device_idx, xp):
+        obj = BaseProcessingObj(target_device_idx=target_device_idx)
+        obj.trigger_code = MagicMock()
+        obj.invalidate_graph()
+        obj.inputs_changed = True
+        obj.trigger()
+        obj.trigger_code.assert_called_once()
+        self.assertIsNone(obj.cuda_graph)
+
     # --- CUDA SYNCHRONIZATION TESTS ---
 
     @cpu_and_gpu
