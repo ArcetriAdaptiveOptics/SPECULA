@@ -1,5 +1,5 @@
 from specula import fuse
-from specula.lib.calc_psf import calc_psf_geometry, psf_abs2
+from specula.lib.calc_psf import calc_psf, calc_psf_geometry
 from specula.lib.radial_profile import (
     compute_radial_profile,
     compute_fwhm_from_profile,
@@ -108,7 +108,6 @@ class PSF(BaseProcessingObj):
         self.count = 0
         self.total_psf = None
         self._ref_peak = None       # Peak of the diffraction-limited PSF, set at the first trigger
-        self._ef_pad = None         # Zero-padded electric field, also used as in-place FFT buffer
         # Strehl ratio being copied to the host for the log: (buffer, event)
         self._sr_log = None
         self._sr_buffer = None
@@ -162,34 +161,12 @@ class PSF(BaseProcessingObj):
         self._sum_psf_squared = self.xp.zeros(self.out_size, dtype=self.dtype)
         self.std_psf.value = self.xp.zeros(self.out_size, dtype=self.dtype)
         self.int_sr.value = 0
-        self._ef_pad = self.xp.zeros((imwidth, imwidth), dtype=self.complex_dtype)
 
-        if self.target_device_idx >= 0:
-            from cupyx.scipy.fft import fft2
-            self._fft2_inplace = lambda x: fft2(x, overwrite_x=True)
-        else:
-            self._fft2_inplace = lambda x: np.fft.fft2(x, out=x)
-
-    def _compute_psf(self):
-        """
-        Compute the normalized PSF of the electric field stored in the
-        top-left corner of self._ef_pad (the rest must be zero).
-        The result is written into self.psf.value and self._ef_pad is overwritten.
-        Returns the total PSF intensity before normalization.
-        """
-        fp = self._fft2_inplace(self._ef_pad)
-
-        # Square modulus and fftshift into the preallocated output buffer,
-        # one quadrant at a time to limit temporaries (the PSF size is always even)
-        h = fp.shape[0] // 2
-        psf = self.psf.value
-        psf[:h, :h] = psf_abs2(fp[h:, h:], xp=self.xp)
-        psf[:h, h:] = psf_abs2(fp[h:, :h], xp=self.xp)
-        psf[h:, :h] = psf_abs2(fp[:h, h:], xp=self.xp)
-        psf[h:, h:] = psf_abs2(fp[:h, :h], xp=self.xp)
-
-        total_psf = self.xp.sum(psf)
-        psf /= total_psf
+    def _calc_psf(self, phase, amp):
+        """Compute the normalized PSF into self.psf.value, returns the PSF total before normalization"""
+        _, total_psf = calc_psf(phase, amp, imwidth=self.out_size[0], normalize=True,
+                                xp=self.xp, complex_dtype=self.complex_dtype,
+                                return_total=True, out=self.psf.value)
         return total_psf
 
     def prepare_trigger(self, t):
@@ -198,18 +175,12 @@ class PSF(BaseProcessingObj):
         # First time, calculate the diffraction-limited PSF peak.
         if self._ref_peak is None:
             in_ef = self.local_inputs['in_ef']
-            sy, sx = in_ef.A.shape
-            self._ef_pad.fill(0)
-            self._ef_pad[:sy, :sx] = in_ef.A
-            self._compute_psf()
+            self._calc_psf(self.xp.zeros_like(in_ef.A), in_ef.A)
             self._ref_peak = self.psf.value[self.out_size[0] // 2, self.out_size[1] // 2].copy()
 
     def trigger_code(self):
         in_ef = self.local_inputs['in_ef']
-        sy, sx = in_ef.A.shape
-        self._ef_pad.fill(0)
-        in_ef.ef_at_lambda(self.wavelengthInNm, out=self._ef_pad[:sy, :sx])
-        self.total_psf = self._compute_psf()
+        self.total_psf = self._calc_psf(in_ef.phi_at_lambda(self.wavelengthInNm), in_ef.A)
         # 0-d array division, stays on the device
         self.sr.value = self.psf.value[self.out_size[0] // 2, self.out_size[1] // 2] / self._ref_peak
 

@@ -1,21 +1,16 @@
 
 import logging
 
-from specula import fuse
-from specula.processing_objects.psf import PSF
+from specula.lib.calc_psf import calc_psf_from_ef
+from specula.processing_objects.psf import PSF, psf_accumulate
 from specula.base_processing_obj import OutputDesc
 from specula.base_value import BaseValue
 from specula.data_objects.simul_params import SimulParams
 
 
-@fuse(kernel_name='psf_abs2')
-def psf_abs2(v, xp):
-    return xp.real(v * xp.conj(v))
-
-
 class PsfCoronagraph(PSF):
     """
-    Perfect coronagraph processing object..
+    Perfect coronagraph processing object.
     The implementation includes the standard PSF calculation as it inherits from the PSF class.
 
     Parameters
@@ -96,8 +91,6 @@ class PsfCoronagraph(PSF):
         self.outputs['out_int_coronagraph_psf_profile'] = self.int_coronagraph_psf_profile
         self.outputs['out_std_coronagraph_psf_profile'] = self.std_coronagraph_psf_profile
 
-        # Reference complex amplitude for perfect coronagraph
-        self.ref_complex_amplitude = None
         self._sum_coronagraph_psf_squared = None # For std dev calculation
 
     @classmethod
@@ -115,12 +108,13 @@ class PsfCoronagraph(PSF):
 
     def setup(self):
         super().setup()
+        self.coronagraph_psf.value = self.xp.zeros_like(self.psf.value)
         # Initialize integrated coronagraph PSF
         self.int_coronagraph_psf.value = self.xp.zeros_like(self.int_psf.value)
         self._sum_coronagraph_psf_squared = self.xp.zeros_like(self.int_psf.value)
         self.std_coronagraph_psf.value = self.xp.zeros_like(self.std_psf.value)
 
-    def calc_coronagraph_psf(self, phase, amp, imwidth=None, normalize=False, nocenter=False):
+    def calc_coronagraph_psf(self, phase, amp, imwidth=None, normalize=False, nocenter=False, out=None):
         """
         Calculate coronagraph PSF using perfect coronagraph theory.
         The perfect coronagraph subtracts the average electric field over the pupil.
@@ -136,7 +130,9 @@ class PsfCoronagraph(PSF):
             If True, normalize PSF
         nocenter : bool, optional
             If True, don't center the PSF
-            
+        out : ndarray, optional
+            Real array where the PSF is stored. If not given, a new array is allocated.
+
         Returns:
         coronagraph_psf : ndarray
             2D coronagraph PSF
@@ -171,15 +167,8 @@ class PsfCoronagraph(PSF):
         else:
             u_ef = electric_field_corrected
 
-        # Step 3: Optical Fourier transform to focal plane
-        focal_field = self.fft.fft2(u_ef)
-
-        # Center if required
-        if not nocenter:
-            focal_field = self.fft.fftshift(focal_field)
-
-        # Calculate PSF as square modulus
-        coronagraph_psf = psf_abs2(focal_field, xp=self.xp)
+        # Step 3: Optical Fourier transform to focal plane and PSF as square modulus
+        coronagraph_psf = calc_psf_from_ef(u_ef, xp=self.xp, out=out, nocenter=nocenter)
 
         # Normalize if required
         if normalize:
@@ -202,15 +191,16 @@ class PsfCoronagraph(PSF):
             in_ef.phi_at_lambda(self.wavelengthInNm),
             in_ef.A,
             imwidth=self.out_size[0],
-            normalize=True
+            normalize=True,
+            out=self.coronagraph_psf.value,
         )
 
     def post_trigger(self):
         super().post_trigger()
 
         if self.current_time_seconds >= self.start_time:
-            self.int_coronagraph_psf.value += self.coronagraph_psf.value
-            self._sum_coronagraph_psf_squared += self.coronagraph_psf.value ** 2
+            psf_accumulate(self.coronagraph_psf.value, self.int_coronagraph_psf.value,
+                           self._sum_coronagraph_psf_squared, xp=self.xp)
 
         self.coronagraph_psf.generation_time = self.current_time
 
