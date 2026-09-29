@@ -7,7 +7,7 @@ from specula import np
 from specula import cpuArray
 
 from specula.data_objects.electric_field import ElectricField
-from specula.processing_objects.sh import SH
+from specula.processing_objects.sh import SH, choose_fov_resolution
 from test.specula_testlib import cpu_and_gpu
 
 
@@ -422,3 +422,48 @@ class TestSH(unittest.TestCase):
         sh.post_trigger()
         intensity = sh.outputs['out_i']
         np.testing.assert_almost_equal(xp.sum(intensity.i), ref_S0 * ef.masked_area(), decimal=3)
+
+    def test_sensor_pxscale_effective(self):
+        '''
+        The simulated sensor pixel scale is available in arcsec, and a warning
+        is logged when it differs from the requested one by more than 1%
+        '''
+        def make(sensor_pxscale):
+            sh = SH(wavelengthInNm=500,
+                    subap_wanted_fov=6 * sensor_pxscale,
+                    sensor_pxscale=sensor_pxscale,
+                    subap_on_diameter=10,
+                    subap_npx=6,
+                    target_device_idx=-1)
+            return sh, ElectricField(80, 80, 0.05, S0=1, target_device_idx=-1)
+
+        # 0.27% difference: no warning
+        sh, ef = make(0.3)
+        with self.assertNoLogs('specula.SH', level='WARNING'):
+            sh._set_in_ef(ef)
+        self.assertAlmostEqual(sh.sensor_pxscale_effective, 0.3, delta=0.3 * 0.01)
+        self.assertAlmostEqual(sh.subap_real_fov_arcsec, 6 * sh.sensor_pxscale_effective)
+
+        # 1.8% difference: warning
+        sh, ef = make(0.7)
+        with self.assertLogs('specula.SH', level='WARNING') as logs:
+            sh._set_in_ef(ef)
+        self.assertGreater(abs(sh.sensor_pxscale_effective - 0.7) / 0.7, 0.01)
+        self.assertTrue(any('Effective sensor pixel scale' in line for line in logs.output))
+
+    def test_choose_fov_resolution(self):
+        '''
+        The resolution is turbulence_pxscale / k. Here all candidates k = 3...12
+        give the exact FoV: with 6 pixels the first one (k=3) has the smallest
+        L.C.M. / k ratio and is chosen, while with 8 pixels the L.C.M. criterion
+        prefers k=4 (L.C.M. 16 instead of 24).
+        '''
+        turb = 0.5
+        self.assertEqual(choose_fov_resolution(turb, 0.2, 2.0, 6), turb / 3)
+        self.assertEqual(choose_fov_resolution(turb, 0.2, 2.0, 8), turb / 4)
+
+        # The resolution is always finer than the sensor pixel scale
+        for sensor_pxscale in (0.1, 0.2, 0.3, 0.45):
+            res = choose_fov_resolution(turb, sensor_pxscale, 2.0, 8)
+            self.assertLess(res, sensor_pxscale)
+            self.assertAlmostEqual(turb / res, round(turb / res))

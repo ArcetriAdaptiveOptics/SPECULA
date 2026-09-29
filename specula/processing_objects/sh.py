@@ -130,6 +130,16 @@ class SH(BaseProcessingObj):
         Target device index for GPU processing. Default is None (CPU).
     precision : int [1], optional
         Numerical precision (e.g., 32 or 64). Default is None (use default precision).
+
+    Attributes
+    ----------
+    sensor_pxscale_effective : float [arcsec/pixel]
+        Sensor pixel scale actually simulated, set by setup(). The subaperture FoV
+        is rounded to an even number of FFT pixels, so it can differ from
+        sensor_pxscale: a warning is logged if the difference is larger than 1%.
+    subap_real_fov_arcsec : float [arcsec]
+        Subaperture FoV actually simulated (subap_npx * sensor_pxscale_effective),
+        set by setup().
     """
 
     __zeros_cache = {}
@@ -190,6 +200,8 @@ class SH(BaseProcessingObj):
         self._fov_ovs_coeff = fov_ovs_coeff
         self._squaremask = squaremask
         self._fov_resolution_arcsec = None
+        self.sensor_pxscale_effective = None
+        self.subap_real_fov_arcsec = None
         self._rotAnglePhInDeg = rotAnglePhInDeg
         self._xShiftPhInPixel = xShiftPhInPixel
         self._yShiftPhInPixel = yShiftPhInPixel
@@ -254,7 +266,8 @@ class SH(BaseProcessingObj):
         All angles are in arcsec.
 
         Sets _fov_resolution_arcsec, _fov_ovs, _ovs_ef_size, _ovs_np_sub,
-        _fft_size, _cutsize and _cutpixels.
+        _fft_size, _cutsize, _cutpixels, sensor_pxscale_effective and
+        subap_real_fov_arcsec.
         '''
         n_lenses = self._lenslet.n_lenses
         ef_size = in_ef.size[0]
@@ -284,9 +297,16 @@ class SH(BaseProcessingObj):
         scale_ovs = round(turbulence_pxscale / self._fov_resolution_arcsec)
         fft_pxscale = turbulence_pxscale / scale_ovs
 
-        # Sensor subaperture FoV, as an even number of FFT pixels
+        # Sensor subaperture FoV, as an even number of FFT pixels.
+        # The resulting sensor pixel scale can differ from the requested one.
         subap_real_fov_pix = round(sensor_pxscale * self._subap_npx / fft_pxscale / 2.0) * 2
-        subap_real_fov_arcsec = subap_real_fov_pix * fft_pxscale
+        self.subap_real_fov_arcsec = subap_real_fov_pix * fft_pxscale
+        self.sensor_pxscale_effective = self.subap_real_fov_arcsec / self._subap_npx
+        pxscale_error = abs(self.sensor_pxscale_effective - sensor_pxscale) / sensor_pxscale
+        if pxscale_error > 0.01:
+            self.logger.warning(f'Effective sensor pixel scale {self.sensor_pxscale_effective:.4f} arcsec'
+                                f' differs by {pxscale_error * 100:.1f}% from the requested'
+                                f' {sensor_pxscale} arcsec')
 
         # Oversampling of the electric field. We take the maximum of three constraints:
         # - 1.0: do not downsample (loss of quality);
@@ -315,7 +335,7 @@ class SH(BaseProcessingObj):
         self.logger.info('-->     FoV over sampl.,       {}'.format(self._fov_ovs))
         self.logger.info('-->     FFT pix. sc. [asec],   {}'.format(fft_pxscale))
         self.logger.info('-->     no. elements FoV,      {}'.format(subap_real_fov_pix))
-        self.logger.info('-->     sensor pix. sc. [asec],{}'.format(subap_real_fov_arcsec / self._subap_npx))
+        self.logger.info('-->     sensor pix. sc. [asec],{}'.format(self.sensor_pxscale_effective))
         self.logger.info('-->     FFT size (turb. FoV),  {}'.format(self._fft_size))
         self.logger.info('-->     L.C.M. for toccd,      {}'.format(np.lcm(self._subap_npx, subap_real_fov_pix)))
         self.logger.info('-->     oversampled np_sub,    {}'.format(self._ovs_np_sub))
