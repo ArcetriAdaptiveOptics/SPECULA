@@ -58,8 +58,8 @@ class TestKernel(unittest.TestCase):
         kernel_fn = kernel.build()
         kernel.calculate_lgs_map()
 
-        # Check kernel shape and dimensions
-        self.assertEqual(kernel.kernels.shape, (dimx*dimy, dimension, dimension))
+        # Check kernel shape and dimensions (FFT kernels: half spectrum only)
+        self.assertEqual(kernel.kernels.shape, (dimx*dimy, dimension, dimension // 2 + 1))
 
         # Check that all values are finite
         self.assertTrue(xp.all(xp.isfinite(kernel.kernels)))
@@ -159,8 +159,8 @@ class TestKernel(unittest.TestCase):
         kernel_fn = kernel.build()
         kernel.calculate_lgs_map()
 
-        # Check kernel shape and dimensions again
-        self.assertEqual(kernel.kernels.shape, (dimx*dimy, dimension, dimension))
+        # Check kernel shape and dimensions again (FFT kernels: half spectrum only)
+        self.assertEqual(kernel.kernels.shape, (dimx*dimy, dimension, dimension // 2 + 1))
 
         # Check that all values are finite
         self.assertTrue(xp.all(xp.isfinite(kernel.kernels)))
@@ -776,3 +776,82 @@ class TestKernel(unittest.TestCase):
         finally:
             if os.path.exists(temp_dir):
                 shutil.rmtree(temp_dir)
+
+    @cpu_and_gpu
+    def test_fft_kernels_are_half_spectrum(self, target_device_idx, xp):
+        '''
+        With return_fft=True only the non-redundant half of each kernel FFT
+        is stored, and a convolution done with rfft2/irfft2 on it gives the
+        same result as one done with the full spectrum.
+        '''
+        dimx = dimy = 3
+        dimension = 16
+        kernel = ConvolutionKernel(dimx=dimx, dimy=dimy, pxscale=0.1, pupil_size_m=8.0,
+                                   dimension=dimension, return_fft=True,
+                                   target_device_idx=target_device_idx, precision=0)
+        rng = np.random.default_rng(0)
+        real = rng.random((dimx * dimy, dimension, dimension))
+        kernel.set_value(real)
+
+        kernels = cpuArray(kernel.kernels)
+        self.assertEqual(kernels.shape, (dimx * dimy, dimension, dimension // 2 + 1))
+
+        psf = rng.random((dimension, dimension))
+        for i in range(dimx):
+            for j in range(dimy):
+                k = real[i * dimx + j] / real[i * dimx + j].sum()
+                full = np.fft.ifft2(k)
+                half = kernels[j * dimx + i]
+                np.testing.assert_allclose(half, full[:, :dimension // 2 + 1], rtol=1e-10, atol=1e-14)
+
+                conv_full = np.real(np.fft.ifft2(np.fft.fft2(psf) * full))
+                conv_half = np.fft.irfft2(np.fft.rfft2(psf) * half, s=(dimension, dimension))
+                np.testing.assert_allclose(conv_half, conv_full, rtol=1e-10, atol=1e-14)
+
+    @cpu_and_gpu
+    def test_process_kernels_keeps_array_for_same_layout(self, target_device_idx, xp):
+        '''
+        self.kernels must not be reallocated when the layout does not change,
+        since users like SH keep references to it in their CUDA graphs.
+        A different layout (here return_fft=False) reallocates it.
+        '''
+        dimx = dimy = 2
+        dimension = 8
+        kernel = ConvolutionKernel(dimx=dimx, dimy=dimy, pxscale=0.1, pupil_size_m=8.0,
+                                   dimension=dimension, return_fft=True,
+                                   target_device_idx=target_device_idx)
+        rng = np.random.default_rng(1)
+        kernels_before = kernel.kernels
+        kernel.set_value(rng.random((dimx * dimy, dimension, dimension)))
+        self.assertIs(kernel.kernels, kernels_before)
+        kernel.set_value(rng.random((dimx * dimy, dimension, dimension)))
+        self.assertIs(kernel.kernels, kernels_before)
+
+        kernel.process_kernels(return_fft=False)
+        self.assertEqual(kernel.kernels.shape, (dimx * dimy, dimension, dimension))
+        self.assertEqual(kernel.kernels.dtype, kernel.dtype)
+
+    @cpu_and_gpu
+    def test_restore_without_fft_gives_full_real_kernels(self, target_device_idx, xp):
+        dimx = dimy = 2
+        dimension = 8
+        kernel = ConvolutionKernel(dimx=dimx, dimy=dimy, pxscale=0.1, pupil_size_m=8.0,
+                                   dimension=dimension, return_fft=True,
+                                   target_device_idx=target_device_idx)
+        kernel.set_value(np.random.default_rng(2).random((dimx * dimy, dimension, dimension)))
+        kernel.spot_size = 1.0
+        temp_dir = tempfile.mkdtemp()
+        try:
+            filename = os.path.join(temp_dir, 'kernel.fits')
+            kernel.save(filename)
+            restored = ConvolutionKernel.restore(filename, target_device_idx=target_device_idx,
+                                                 return_fft=False)
+            self.assertEqual(restored.kernels.shape, (dimx * dimy, dimension, dimension))
+            self.assertEqual(restored.kernels.dtype, restored.dtype)
+            restored_fft = ConvolutionKernel.restore(filename, target_device_idx=target_device_idx,
+                                                     return_fft=True)
+            self.assertEqual(restored_fft.kernels.shape, (dimx * dimy, dimension, dimension // 2 + 1))
+            np.testing.assert_allclose(cpuArray(restored_fft.kernels), cpuArray(kernel.kernels),
+                                       rtol=1e-5, atol=1e-7)
+        finally:
+            shutil.rmtree(temp_dir)

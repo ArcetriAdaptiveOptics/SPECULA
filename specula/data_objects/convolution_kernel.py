@@ -166,9 +166,20 @@ class ConvolutionKernel(BaseDataObj):
             dtype = self.dtype
         self.real_kernels = self.xp.zeros((self.dimx*self.dimy, self.dimension, self.dimension),
                                           dtype=self.dtype)
-        self.kernels = self.xp.zeros((self.dimx*self.dimy, self.dimension, self.dimension),
-                                     dtype=dtype)
+        self.kernels = self.xp.zeros(self._kernels_shape(self.return_fft), dtype=dtype)
         self._kernel_fn = None
+
+    def _kernels_shape(self, return_fft):
+        '''
+        Shape of self.kernels. The kernels are real, so their FFT is Hermitian:
+        with return_fft, only its first dimension // 2 + 1 columns are stored,
+        as needed by rfft2()/irfft2(). The other ones are redundant.
+        '''
+        n_kernels = self.dimx * self.dimy
+        if return_fft:
+            return (n_kernels, self.dimension, self.dimension // 2 + 1)
+        else:
+            return (n_kernels, self.dimension, self.dimension)
 
     def build(self):
         if len(self.zlayer) != len(self.zprofile):
@@ -279,6 +290,13 @@ class ConvolutionKernel(BaseDataObj):
         if self.xp.any(~self.xp.isfinite(self.real_kernels)):
             raise ValueError("Kernel contains non-finite values!")
 
+        # Reallocate only if the requested layout is different from the current one,
+        # since users may keep references to self.kernels (e.g. in CUDA graphs)
+        shape = self._kernels_shape(return_fft)
+        dtype = self.complex_dtype if return_fft else self.dtype
+        if self.kernels is None or self.kernels.shape != shape or self.kernels.dtype != dtype:
+            self.kernels = self.xp.zeros(shape, dtype=dtype)
+
         # Process the kernels - apply FFT if needed
         for i in range(self.dimx):
             for j in range(self.dimy):
@@ -287,7 +305,8 @@ class ConvolutionKernel(BaseDataObj):
                 if total > 0:  # Avoid division by zero
                     subap_kern /= total
                 if return_fft:
-                    subap_kern_fft = self.xp.fft.ifft2(subap_kern)
+                    # Non-redundant half of the FFT, see _kernels_shape()
+                    subap_kern_fft = self.xp.fft.ifft2(subap_kern)[:, :self.dimension // 2 + 1]
                     self.kernels[j * self.dimx + i, :, :] = subap_kern_fft
                 else:
                     self.kernels[j * self.dimx + i, :, :] = subap_kern

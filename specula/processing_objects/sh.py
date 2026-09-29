@@ -528,7 +528,7 @@ class SH(BaseProcessingObj):
         - the mask is only applied to the pixels kept by the FoV cut, and is
           skipped when it is all ones there;
         - the kernel convolution uses rfft2/irfft2, since both the PSF and
-          the kernels are real;
+          the kernels are real, and the kernels are stored as half spectra;
         - all views on the preallocated buffers are built once in setup().
         """
         xp = self.xp
@@ -563,9 +563,9 @@ class SH(BaseProcessingObj):
             else:
                 abs2(fp4, self.psf_shifted, xp=xp)
 
-                # Full resolution kernel (real in direct space: use half spectrum)
-                subap_kern_fft = self._kernelobj.kernels[i * dimx: (i + 1) * dimx,
-                                                         :, :self._fft_size // 2 + 1]
+                # Full resolution kernel (real in direct space: ConvolutionKernel
+                # stores only the half spectrum used by rfft2/irfft2)
+                subap_kern_fft = self._kernelobj.kernels[i * dimx: (i + 1) * dimx]
                 psf_fft = xp.fft.rfft2(self.psf_shifted)
                 psf_fft *= subap_kern_fft
                 psf = xp.fft.irfft2(psf_fft, s=(self._fft_size, self._fft_size), norm='forward')
