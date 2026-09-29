@@ -1,4 +1,5 @@
 from collections import defaultdict, namedtuple
+import contextlib
 import fnmatch
 import re
 
@@ -41,6 +42,9 @@ class BaseProcessingObj(BaseTimeObj):
 
         # Set by invalidate_graph(): the CUDA graph is captured again at the next trigger()
         self._cuda_graph_invalid = False
+
+        # Memory pool for the arrays allocated while capturing the CUDA graph
+        self._graph_mempool = None
 
         # Will be populated by derived class
         self.inputs = {}
@@ -238,7 +242,23 @@ class BaseProcessingObj(BaseTimeObj):
             default_target_device.use()
 
     def capture_stream(self):
-        with self.stream:
+        # The temporary arrays allocated by trigger_code() are released when it
+        # returns, but the CUDA graph keeps using their memory at each launch.
+        # Taken from the default memory pool, that memory could be given to other
+        # arrays (overwritten by the graph) or freed (illegal address at launch).
+        # It is taken instead from a pool used only for this graph.
+        if cp is not None:
+            if self._graph_mempool is None:
+                self._graph_mempool = cp.cuda.MemoryPool()
+            else:
+                # Recapture: the old graph is not launched anymore
+                self.cuda_graph = None
+                self._graph_mempool.free_all_blocks()
+            allocator = cp.cuda.using_allocator(self._graph_mempool.malloc)
+        else:
+            allocator = contextlib.nullcontext()
+
+        with self.stream, allocator:
             # First execution is needed to build the FFT plan cache
             # See for example https://github.com/cupy/cupy/issues/7559
             self.trigger_code()

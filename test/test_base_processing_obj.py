@@ -308,6 +308,45 @@ class TestBaseProcessingObj(unittest.TestCase):
         self.assertEqual(run(obj), 3.0)
 
     @unittest.skipIf(cp is None, 'GPU not available')
+    def test_graph_temporaries_are_not_reused(self):
+        '''
+        Temporary arrays allocated by trigger_code() during the capture are
+        released when it returns, but the CUDA graph keeps using them at each
+        launch: they must not be given to other arrays, which the graph would
+        overwrite, nor freed, which would make the launch fail.
+        '''
+        n = 1024 * 1024
+
+        class TempObj(BaseProcessingObj):
+            def __init__(self):
+                super().__init__(target_device_idx=0)
+                self.inp = cp.arange(n, dtype=cp.float32)
+                self.out = cp.zeros(n, dtype=cp.float32)
+
+            def trigger_code(self):
+                self.out[:] = self.inp * 2 + 1  # allocates temporaries
+
+        def run(obj):
+            obj.out[:] = 0
+            obj.inputs_changed = True
+            obj.trigger()
+            obj.stream.synchronize()
+            np.testing.assert_array_equal(cpuArray(obj.out), np.arange(n) * 2 + 1)
+
+        obj = TempObj()
+        obj.build_stream(allow_parallel=False)
+
+        with obj.stream:
+            others = [cp.full(n, -1, dtype=cp.float32) for _ in range(4)]
+        run(obj)
+        for other in others:
+            np.testing.assert_array_equal(cpuArray(other), -1)
+
+        del others
+        cp.get_default_memory_pool().free_all_blocks()
+        run(obj)
+
+    @unittest.skipIf(cp is None, 'GPU not available')
     def test_trigger_code_runs_once_per_trigger_when_capturing(self):
         '''
         With a stateful trigger_code() (like an integrator), each trigger() must
