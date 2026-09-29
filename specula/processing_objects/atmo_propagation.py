@@ -412,8 +412,8 @@ class AtmoPropagation(BaseProcessingObj):
 
                 else:
                     output_ef.A *= self.ef_temp.A
-                    # prop_sign would be applied twice, to the layer phase and to its
-                    # contribution, and cancels out
+                    # The geometric phase does not depend on the propagation direction
+                    # (reciprocity): the same phase map is accumulated upwards and downwards
                     output_ef.phaseInNm += self.ef_temp.phaseInNm
 
             if self.doFresnel:
