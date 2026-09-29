@@ -159,7 +159,7 @@ class DynamicPyrPupdataCalibrator(PyrPupdataCalibrator):
             try:
                 self._save(self.filename)
             except Exception as e:
-                print(f'Exception: {e.__name__}: {e}')
+                self.logger.error(f'Exception: {type(e).__name__}: {e}')
 
         # Update output params with current values
         params_str = '\n'.join(f'{k}: {v}' for k, v in

@@ -34,12 +34,14 @@ class PixelsPupDisplay(BaseDisplay):
                  crop_mode="slice",
                  window: int=None,
                  subplot: int=111,
+                 window_xy=None,
                  ):
 
         super().__init__(title=title,
                          figsize=figsize,
                          window=window,
                          subplot=subplot,
+                         window_xy=window_xy,
                          )
 
         self._log_scale = log_scale

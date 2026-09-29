@@ -67,19 +67,15 @@ class BaseDisplay(BaseProcessingObj):
         try:
             x, y = int(window_xy[0]), int(window_xy[1])
         except (TypeError, ValueError, IndexError):
+            self.logger.warning(f'Ignoring window_xy={window_xy!r}: expected [x, y] in screen pixels')
             return
+        # Non-GUI backends (e.g. Agg) have no window: nothing to move
+        win = getattr(self.fig.canvas.manager, 'window', None)
         try:
-            manager = self.fig.canvas.manager
-            if hasattr(manager, 'window'):
-                win = manager.window
-                if hasattr(win, 'wm_geometry'):
-                    win.wm_geometry(f'+{x}+{y}')
-                elif hasattr(win, 'move'):
-                    win.move(x, y)
-                elif hasattr(win, 'setGeometry') and hasattr(self.fig, 'dpi'):
-                    w = int(self.figsize[0] * self.fig.dpi)
-                    h = int(self.figsize[1] * self.fig.dpi)
-                    win.setGeometry(x, y, w, h)
+            if hasattr(win, 'wm_geometry'):     # Tk
+                win.wm_geometry(f'+{x}+{y}')
+            elif hasattr(win, 'move'):          # Qt, GTK
+                win.move(x, y)
         except Exception as e:
             self.logger.debug(f'Could not set window position: {e}')
 

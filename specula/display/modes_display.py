@@ -14,6 +14,7 @@ class ModesDisplay(BaseDisplay):
                  yrange=(-500, 500),
                  window: int=None,
                  subplot: int=111,
+                 window_xy=None,
                  ):
 
         super().__init__(
@@ -21,6 +22,7 @@ class ModesDisplay(BaseDisplay):
             figsize=figsize,
             window=window,
             subplot=subplot,
+            window_xy=window_xy,
         )
 
         self._xrange = xrange

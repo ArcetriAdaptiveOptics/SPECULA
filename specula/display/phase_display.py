@@ -13,12 +13,14 @@ class PhaseDisplay(BaseDisplay):
                  figsize=(8, 6),
                  window: int=None,
                  subplot: int=111,
+                 window_xy=None,
                  ):
         super().__init__(
             title=title,
             figsize=figsize,
             window=window,
             subplot=subplot,
+            window_xy=window_xy,
         )
         self.img = None
 

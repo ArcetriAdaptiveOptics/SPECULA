@@ -43,7 +43,6 @@ class CalibManager():
             'intmat': 'im/',
             'Intmat': 'im/',
             'ImCalibrator': 'im/',
-            'OpticalibPushPullImCalibrator': 'im/',
             'MultiImCalibrator': 'im/',
             'projmat': 'rec/',
             'RecCalibrator': 'rec/',

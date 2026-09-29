@@ -86,8 +86,9 @@ class DynamicDarkCalibrator(BaseProcessingObj):
         overwrite : bool
             If True, overwrite existing files when saving dark frames.
             Default is False.
-        dark_frame_tag : str
-            Tag of the dark frame to load at startup (optional)
+        dark_frame_tag : str, optional
+            Dark frame file in data_dir (as written by save()) loaded in setup().
+            An error is raised if it cannot be loaded. Default is None.
         target_device_idx : int [1], optional
             Target device index for computation (e.g., CPU/GPU selection).
         precision : int [1], optional
@@ -159,18 +160,24 @@ class DynamicDarkCalibrator(BaseProcessingObj):
                                       in_pixels.signed)
         self.integrated_pixels = self.darkframe.pixels * 0
 
+        # An explicitly configured dark frame must exist: errors are raised
         if self.dark_frame_tag is not None:
-            filename = self.dark_frame_tag
-            if not filename.endswith('.fits'):
-                filename += '.fits'
-            fullpath = os.path.join(self.data_dir, filename)
-            try:
-                self.darkframe = Pixels.restore(fullpath, target_device_idx=self.target_device_idx)
-                self.darkframe.generation_time = self.current_time
-                self.counter = 0  # Disable integration
-                self.logger.info(f'Loaded dark frame from {fullpath}')
-            except Exception as e:
-                self.logger.error(f'Exception: {e.__name__}: {e}')
+            self._load_darkframe(self.dark_frame_tag)
+
+    def _load_darkframe(self, filename):
+        """Load a dark frame from data_dir into the existing darkframe object,
+        so that the out_darkframe output keeps referencing it, and stop integration."""
+        if not filename.endswith('.fits'):
+            filename += '.fits'
+        fullpath = os.path.join(self.data_dir, filename)
+        restored = Pixels.restore(fullpath, target_device_idx=self.target_device_idx)
+        if restored.pixels.shape != self.darkframe.pixels.shape:
+            raise ValueError(f'Dark frame {fullpath} has shape {restored.pixels.shape}, '
+                             f'expected {self.darkframe.pixels.shape}')
+        self.darkframe.pixels[:] = restored.pixels
+        self.darkframe.generation_time = self.current_time
+        self.counter = 0  # Disable integration
+        self.logger.info(f'Loaded dark frame from {fullpath}')
 
     def trigger_code(self):
         """Main calibration function"""
@@ -213,16 +220,11 @@ class DynamicDarkCalibrator(BaseProcessingObj):
 
         input_load = self.local_inputs['in_load']
         if input_load is not None and input_load.generation_time == self.current_time:
-            filename = input_load.value
-            if not filename.endswith('.fits'):
-                filename += '.fits'
-            fullpath = os.path.join(self.data_dir, filename)
+            # Runtime command: a failed load is logged and the current dark frame is kept
             try:
-                self.darkframe = Pixels.restore(fullpath, target_device_idx=self.target_device_idx)
-                self.darkframe.generation_time = self.current_time
-                self.counter = 0  # Disable integration
+                self._load_darkframe(input_load.value)
             except Exception as e:
-                self.logger.error(f'Exception: {e.__name__}: {e}')
+                self.logger.error(f'Exception: {type(e).__name__}: {e}')
 
     def post_trigger(self):
         super().post_trigger()
@@ -232,7 +234,7 @@ class DynamicDarkCalibrator(BaseProcessingObj):
             try:
                 self.save(input_save.value)
             except Exception as e:
-                self.logger.error(f'Exception: {e.__name__}: {e}')
+                self.logger.error(f'Exception: {type(e).__name__}: {e}')
 
     def save(self, filename=None):
         """Save dark frame data to disk as a FITS file"""
