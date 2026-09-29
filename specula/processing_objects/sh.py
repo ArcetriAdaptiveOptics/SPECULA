@@ -622,6 +622,8 @@ class SH(BaseProcessingObj):
             mask_threshold=self._mask_threshold,
             use_out_ef_cache=True,  # the interpolated field is computed and used in trigger_code(),
                                     # so SH objects with the same geometry can share it
+                                    # It also needs the allow_parallel=False flag in build_stream()
+                                    # to avoid race conditions on the cache.
             target_device_idx=self.target_device_idx,
             precision=self.precision
         )
