@@ -485,59 +485,33 @@ class SH(BaseProcessingObj):
     def trigger_code(self):
         """
         Compute the SH focal plane image, one row of subapertures at a time.
-        Single-subap code is too inefficient, while processing the whole
-        lenslet array at once would use too much memory: the oversampled
-        field can reach 8k x 8k pixels. Memory usage is as important as speed
-        here, so no full-frame temporaries must be introduced in this method.
+        Processing the whole lenslet array at once would be faster, but the
+        oversampled field can reach 8k x 8k pixels: memory usage is as
+        important as speed here, so no full-frame temporaries must be added.
 
-        Pipeline for each row of dimx subapertures:
+        For each row of dimx subapertures:
 
-        1. take the row of the oversampled electric field, viewed as a
-           (dimx, n, n) subap cube, multiply it by the half-pixel tilt and
-           write it into the top-left corner of the zero-padded cube _wf3;
-        2. batched 2D FFT of _wf3;
-        3a. without kernel: |FFT|^2, cut to the subap FoV and multiplied by
-            the focal plane mask, written directly into _psfimage;
-        3b. with kernel (LGS): |FFT|^2, convolved with the subap kernels in
-            Fourier space, then cut and masked into _psfimage.
+        1. the row of the oversampled electric field, viewed as a (dimx, n, n)
+           subap cube, is multiplied by the half-pixel tilt and written into
+           the top-left corner of the zero-padded cube _wf3;
+        2. a batched 2D FFT gives the focal plane field of each subap;
+        3. without a convolution kernel, |FFT|^2 is cut to the sensor FoV,
+           multiplied by the focal plane mask and written directly into the
+           row of _psfimage, all in a single fused kernel. With a kernel (LGS),
+           |FFT|^2 is first convolved with the subap kernels in Fourier space.
 
-        After the loop, _psfimage is rebinned to the CCD pixels with toccd().
-        Flux normalization is done in post_trigger().
+        Finally, _psfimage is rebinned to the CCD pixels with toccd().
+        The flux normalization is done in post_trigger().
 
-        Implementation notes (performance rework; the previous, more
-        straightforward version of this method can be found in the history
-        of this file):
+        Main performance points:
 
-        - The electric field is still computed one row at a time into the
-          small self.ef_row buffer: computing it for all rows in a single call
-          would be faster, but needs a full-frame complex buffer.
-        - The tilt is applied with xp.multiply(..., out=) directly into the
-          _wf3 view, without an intermediate temporary.
-        - Memory: the psf, psf_shifted (except in the kernel path) and
-          _psf_reshaped_2d buffers are gone, and the kernel path uses half
-          spectra, so there are fewer and smaller per-row arrays. Overall
-          memory is dominated by the full-frame arrays (interpolated field,
-          kernels) and is unchanged (measured on GPU with 68x68 subaps).
-        - No fftshift: without kernel, the shift is folded into _tltf as a
-          (-1)^(m+n) checkerboard (see _calc_geometry()), so the FFT output is
-          already centered. This removed the psf_shifted -> psf copy.
-        - The FoV cut is done *before* masking, and |FFT|^2, mask and cut are a
-          single fused kernel (abs2_masked) writing straight into a view of
-          _psfimage. The mask is skipped when it is all ones over the cut region.
-          This replaced abs2 + fftshift + full-size mask + crop + reshape into
-          _psf_reshaped_2d + copy into _psfimage.
-        - All views that do not change between calls (_wf3 corner, subap cube
-          of ef_row, _psfimage rows) are built once in setup(), where it is also checked
-          that they are real views and not copies.
-        - Kernel path: the PSF and the kernels are real in direct space, so
-          rfft2/irfft2 are used instead of fft2/ifft2 (half the FFT work, and
-          no .real copy). The kernels are stored as full complex FFTs by
-          ConvolutionKernel, so only their first fft_size//2+1 columns are used.
-        - toccd() is called with set_total=0 to skip its internal normalization,
-          which is redundant with the one in post_trigger().
-        - Fixed: the number of subapertures in a row is dimx (was dimy), and
-          the kernel for subap (row i, column j) is kernels[i * dimx + j]
-          (was i * dimy + j). Both were harmless with square lenslet arrays.
+        - no fftshift: without kernel, it is folded into _tltf as a
+          (-1)^(m+n) checkerboard (see _calc_geometry());
+        - the mask is only applied to the pixels kept by the FoV cut, and is
+          skipped when it is all ones there;
+        - the kernel convolution uses rfft2/irfft2, since both the PSF and
+          the kernels are real;
+        - all views on the preallocated buffers are built once in setup().
         """
         xp = self.xp
         dimx = self._lenslet.dimx
