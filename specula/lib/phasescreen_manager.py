@@ -48,7 +48,12 @@ def phasescreens_manager(L0, dimension, pixel_pitch, directory, xp, precision, s
             # Calculate the phase screen if it does not exist
             logger.info('Calculating phasescreen...')
             phasescreen = calc_phasescreen(L0i, dimension, pixel_pitch, seed=element, precision=precision, xp=xp)
-            fits.writeto(os.path.join(directory, phasescreen_name), cpuArray(phasescreen), overwrite=True)
+            # Write to a temporary file and rename it, so that concurrent
+            # processes never read a partially written file
+            filename = os.path.join(directory, phasescreen_name)
+            tmp_filename = f'{filename}.{os.getpid()}.tmp'
+            fits.writeto(tmp_filename, cpuArray(phasescreen), overwrite=True)
+            os.replace(tmp_filename, filename)
             logger.info('Done')
         
         # Add the phase screen to the list
