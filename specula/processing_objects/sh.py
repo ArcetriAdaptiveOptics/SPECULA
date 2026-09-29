@@ -78,7 +78,7 @@ class SH(BaseProcessingObj):
 
     __zeros_cache = {}
 
-    def _zeros_common(self, shape, dtype):
+    def _zeros_common(self, shape, dtype, key_extra=None):
         """
         Wrapper around self.xp.zeros to enable reuse cache.
         None of the arrays allocated here should be used in 
@@ -90,13 +90,16 @@ class SH(BaseProcessingObj):
             Array shape
         dtype : dtype
             Data type
+        key_extra : hashable, optional
+            Additional cache key, for arrays that can only be shared
+            by objects that also agree on something else than the shape
             
         Returns
         -------
         array : ndarray
             Array from cache
         """
-        key = (self.target_device_idx, shape, dtype)
+        key = (self.target_device_idx, shape, dtype, key_extra)
         if key not in self.__zeros_cache:
             self.__zeros_cache[key] = self.xp.zeros(shape, dtype=dtype)
         return self.__zeros_cache[key]
@@ -370,10 +373,13 @@ class SH(BaseProcessingObj):
         fft_size = self._fft_size
 
         # Padded subaperture cube extracted from full pupil (one row of subapertures,
-        # i.e. dimx of them). Only the top-left corner of each subap is ever written,
-        # so the zero padding is set here once and never touched again.
+        # i.e. dimx of them). Only the top-left _ovs_np_sub x _ovs_np_sub corner of each
+        # subap is ever written, so the zero padding is set here once and never touched
+        # again. The corner size is part of the cache key: an SH with the same fft_size
+        # but a larger corner would otherwise write into the padding of this one.
         self._wf3 = self._zeros_common((self._lenslet.dimx, fft_size, fft_size),
-                                       dtype=self.complex_dtype)
+                                       dtype=self.complex_dtype,
+                                       key_extra=self._ovs_np_sub)
 
         # Focal plane result from FFT
         fp4_pixel_pitch = self.wavelength_in_nm / 1e9 / (ovs_pixel_pitch * fft_size)

@@ -259,3 +259,44 @@ class TestSH(unittest.TestCase):
         final_size = pixel_pupil * sh._fov_ovs
         self.assertAlmostEqual(final_size % 20, 0, places=5,
                                msg="Final size must be divisible by 20")
+
+    @cpu_and_gpu
+    def test_wf3_not_shared_with_different_subap_size(self, target_device_idx, xp):
+        '''
+        Two SH with the same number of subaps and FFT size, but a different
+        number of pixels per subap, must not share the padded _wf3 buffer:
+        the one with the larger subaps would write into the padding of the other.
+        '''
+        t = 1
+
+        def make(pixel_pupil, fov_ovs_coeff):
+            sh = SH(wavelengthInNm=589,
+                    subap_wanted_fov=3.0,
+                    sensor_pxscale=0.5,
+                    subap_on_diameter=10,
+                    subap_npx=6,
+                    fov_ovs_coeff=fov_ovs_coeff,
+                    target_device_idx=target_device_idx)
+            ef = ElectricField(pixel_pupil, pixel_pupil, 0.05, S0=1,
+                               target_device_idx=target_device_idx)
+            ef.generation_time = t
+            sh.inputs['in_ef'].set(ef)
+            sh.setup()
+            return sh
+
+        def run(sh):
+            sh.check_ready(t)
+            sh.trigger()
+            sh.post_trigger()
+            return cpuArray(sh.outputs['out_i'].i).copy()
+
+        SH._SH__zeros_cache.clear()
+        sh_a = make(40, 3.0)
+        sh_b = make(60, 1.0)
+        assert sh_a._fft_size == sh_b._fft_size
+        assert sh_a._ovs_np_sub > sh_b._ovs_np_sub
+        assert sh_a._wf3 is not sh_b._wf3
+
+        out_b = run(sh_b)
+        run(sh_a)
+        np.testing.assert_array_equal(run(sh_b), out_b)
