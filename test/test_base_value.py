@@ -139,3 +139,57 @@ class TestBaseValue(unittest.TestCase):
         self.assertAlmostEqual(bv.value, 3.14, places=6)
         bv64 = BaseValue(value=3.14, target_device_idx=target_device_idx, precision=0)
         self.assertEqual(str(type(bv64.value)), "<class 'numpy.float64'>")
+
+    @cpu_and_gpu
+    def test_restore_float_array_cast_to_object_precision(self, target_device_idx, xp):
+        """restore() must cast float arrays to the restoring object's dtype
+        (global precision here is 0/float64), regardless of the dtype stored on disk."""
+        try:
+            os.unlink(self.filename)
+        except FileNotFoundError:
+            pass
+
+        # Bypass the constructor's precision cast to store a float32 array on disk
+        v = BaseValue(value=None, target_device_idx=target_device_idx)
+        v.value = xp.arange(6, dtype=xp.float32).reshape((2, 3))
+        v.save(self.filename)
+
+        v2 = BaseValue.restore(self.filename)
+
+        self.assertEqual(v2.value.dtype, np.float64)
+        np.testing.assert_array_equal(v2.value, cpuArray(v.value).astype(np.float64))
+
+    @cpu_and_gpu
+    def test_restore_int_array_preserves_dtype_and_values(self, target_device_idx, xp):
+        """Non-float (integer) arrays must be restored unchanged, not cast to
+        the object's float dtype."""
+        try:
+            os.unlink(self.filename)
+        except FileNotFoundError:
+            pass
+
+        v = BaseValue(value=None, target_device_idx=target_device_idx)
+        v.value = xp.arange(5)  # default integer dtype
+        v.save(self.filename)
+
+        v2 = BaseValue.restore(self.filename)
+
+        self.assertTrue(np.issubdtype(v2.value.dtype, np.integer))
+        np.testing.assert_array_equal(v2.value, np.arange(5))
+
+    @cpu_and_gpu
+    def test_restore_value_is_host_array(self, target_device_idx, xp):
+        """The restored array is always a host numpy array, even when
+        target_device_idx requests a GPU device (restore never calls to_xp)."""
+        try:
+            os.unlink(self.filename)
+        except FileNotFoundError:
+            pass
+
+        data = xp.arange(9).reshape((3, 3))
+        v = BaseValue(value=data, target_device_idx=target_device_idx)
+        v.save(self.filename)
+
+        v2 = BaseValue.restore(self.filename, target_device_idx=target_device_idx)
+
+        self.assertIsInstance(v2.value, np.ndarray)

@@ -289,6 +289,10 @@ class AtmoPropagation(BaseProcessingObj):
                 "Thus it is reduced from " + str(z_in) + "m to " + str(z) +
                 "m. Consider increasing zero padding.")
 
+        # Phases are computed in float64 (they can be large); only the result is stored
+        # in the object precision, so that the per-step FFTs and products are not in double.
+        propagator = [None if p is None else p.astype(self.complex_dtype) for p in propagator]
+
         return propagator, far_field
 
     def doFresnel_setup(self):
