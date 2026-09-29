@@ -565,9 +565,7 @@ class SH(BaseProcessingObj):
 
         in_ef = self.local_inputs['in_ef']
         phot = in_ef.S0 * in_ef.masked_area()
-       # self.logger.debug(self.name, f'{in_ef.S0=} {self._out_i.i.sum()=}')
         self._out_i.i *= phot / self._out_i.i.sum()
-        # self._out_i.i = self.xp.nan_to_num(self._out_i.i, copy=False)
         self._out_i.generation_time = self.current_time
 
         debug_figures = False
