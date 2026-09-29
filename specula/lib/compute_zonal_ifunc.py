@@ -193,6 +193,7 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
     grid_x_np = cpuArray(grid_x)
     grid_y_np = cpuArray(grid_y)
 
+    # Equivalent to n_act <= 18
     if min_distance_norm >= dim/2:
         # All actuators are nodes of every fit: the thin plate spline system
         # (same as scipy Rbf 'thin_plate', smooth=0) is shared, so it is solved
