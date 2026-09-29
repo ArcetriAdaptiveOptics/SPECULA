@@ -10,8 +10,10 @@ class Interp2D():
             __device__ TYPE bilinear_interp(TYPE *g_in, int in_dx, int in_dy, TYPE xcoord, TYPE ycoord) {
                 int xin = floor(xcoord);
                 int yin = floor(ycoord);
-                int xin2 = xin + 1;
-                int yin2 = yin + 1;
+                // Clamp neighbours at the last row/column: they get zero weight there,
+                // but reading past the edge would wrap to the next row or out of bounds.
+                int xin2 = min(xin + 1, in_dx - 1);
+                int yin2 = min(yin + 1, in_dy - 1);
 
                 TYPE xdist = xcoord - xin;
                 TYPE ydist = ycoord - yin;
@@ -21,17 +23,10 @@ class Interp2D():
                 int idx_c = yin2 * in_dx + xin;
                 int idx_d = yin2 * in_dx + xin2;
 
-                TYPE value;
-                if (yin2 < in_dy) {
-                    value = g_in[idx_a] * (1 - xdist) * (1 - ydist) +
-                            g_in[idx_b] * xdist * (1 - ydist) +
-                            g_in[idx_c] * ydist * (1 - xdist) +
-                            g_in[idx_d] * xdist * ydist;
-                } else {
-                    value = g_in[idx_a] * (1 - xdist) * (1 - ydist) +
-                            g_in[idx_b] * xdist * (1 - ydist);
-                }
-                return value;
+                return g_in[idx_a] * (1 - xdist) * (1 - ydist) +
+                       g_in[idx_b] * xdist * (1 - ydist) +
+                       g_in[idx_c] * ydist * (1 - xdist) +
+                       g_in[idx_d] * xdist * ydist;
             }
             '''
 

@@ -1,6 +1,9 @@
 from specula.log import get_specula_logger
 
 from scipy.interpolate import Rbf
+from scipy import linalg
+from scipy.spatial.distance import cdist, pdist, squareform
+from scipy.special import xlogy
 import numpy as np
 
 from specula.lib.make_mask import make_mask
@@ -187,44 +190,50 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
     # Minimum distance between points
     min_distance_norm = 9*dim/n_act
 
-    for i in range(n_act_tot):
-        z = xp.zeros(n_act_tot, dtype=dtype)
-        z[i] = 1.0  # Set the central actuator
+    grid_x_np = cpuArray(grid_x)
+    grid_y_np = cpuArray(grid_y)
 
-        if min_distance_norm >= dim/2:
-            x_close, y_close, z_close = x, y, z
-            idx_far_grid = None
-        else:
+    # Equivalent to n_act <= 18
+    if min_distance_norm >= dim/2:
+        # All actuators are nodes of every fit: the thin plate spline system
+        # (same as scipy Rbf 'thin_plate', smooth=0) is shared, so it is solved
+        # once for all the unit vectors. Evaluation is chunked over grid rows.
+        xi = np.vstack((cpuArray(x), cpuArray(y))).astype(np.float64).T
+        r = squareform(pdist(xi))
+        weights = linalg.solve(xlogy(r**2, r), np.eye(n_act_tot))
+        rows_per_chunk = max(1, 2**18 // (dim * n_act_tot))
+        for r0 in range(0, dim, rows_per_chunk):
+            r1 = min(r0 + rows_per_chunk, dim)
+            pts = np.column_stack((grid_x_np[r0:r1].ravel(),
+                                   grid_y_np[r0:r1].ravel())).astype(np.float64)
+            r = cdist(pts, xi)
+            z_interp_np = xlogy(r**2, r) @ weights
+            ifs_cube[:, r0:r1, :] = xp.asarray(
+                z_interp_np.reshape(r1 - r0, dim, n_act_tot), dtype=dtype).transpose(2, 0, 1)
+            logger.debug(f"Compute IFs: {int((r1 / dim) * 100)}% done")
+    else:
+        for i in range(n_act_tot):
+            z = xp.zeros(n_act_tot, dtype=dtype)
+            z[i] = 1.0  # Set the central actuator
+
             distance = xp.sqrt((x - x[i]) ** 2 + (y - y[i]) ** 2)
             idx_close = xp.where(distance <= min_distance_norm)[0]
             x_close, y_close, z_close = x[idx_close], y[idx_close], z[idx_close]
 
-            # Compute the distance grid
+            # Grid points farther than 0.8*min_distance_norm are left to zero
             distance_grid = xp.sqrt((grid_x.ravel() - x[i]) ** 2 + (grid_y.ravel() - y[i]) ** 2)
-            idx_far_grid = xp.where(distance_grid > 0.8*min_distance_norm)[0]
+            idx_near_grid = cpuArray(xp.where(distance_grid <= 0.8*min_distance_norm)[0])
 
-        # Convert to NumPy arrays for Rbf interpolation (required)
-        x_close_np = cpuArray(x_close)
-        y_close_np = cpuArray(y_close)
-        z_close_np = cpuArray(z_close)
-        grid_x_np = cpuArray(grid_x)
-        grid_y_np = cpuArray(grid_y)
+            # Interpolation using Thin Plate Splines (using NumPy arrays, required)
+            rbf = Rbf(cpuArray(x_close), cpuArray(y_close), cpuArray(z_close),
+                      function='thin_plate')
 
-        # Interpolation using Thin Plate Splines (using NumPy arrays)
-        rbf = Rbf(x_close_np, y_close_np, z_close_np, function='thin_plate')
+            # Perform interpolation only where the IF is not zeroed
+            z_interp_np = rbf(grid_x_np.ravel()[idx_near_grid], grid_y_np.ravel()[idx_near_grid])
 
-        # Perform interpolation
-        z_interp_np = rbf(grid_x_np, grid_y_np)
+            ifs_cube[i].ravel()[xp.asarray(idx_near_grid)] = xp.asarray(z_interp_np)
 
-        # Convert back to xp array
-        z_interp = xp.asarray(z_interp_np)
-
-        if idx_far_grid is not None:
-            z_interp.ravel()[idx_far_grid] = 0
-
-        ifs_cube[i, :, :] = z_interp
-
-        logger.debug(f"Compute IFs: {int((i / n_act_tot) * 100)}% done")
+            logger.debug(f"Compute IFs: {int((i / n_act_tot) * 100)}% done")
 
     if do_mech_coupling:
         logger.info("Applying mechanical coupling...")
