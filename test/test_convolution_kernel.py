@@ -362,14 +362,13 @@ class TestKernel(unittest.TestCase):
             kernel2.zlayer = zlayer.tolist()
             kernel2.zprofile = zprofile.tolist()
 
-            original_kernels = cpuArray(kernel2.real_kernels.copy())
-
             # First call: should calculate and save
             kernel2.prepare_for_sh(
                 sodium_altitude=zlayer.tolist(),
                 sodium_intensity=zprofile.tolist(),
                 current_time=1
             )
+            original_kernels = cpuArray(kernel2.kernels.copy())
 
             kernel_fn = kernel2.build()
             expected_file = os.path.join(temp_dir, kernel_fn + '.fits')
@@ -388,13 +387,12 @@ class TestKernel(unittest.TestCase):
             kernel3.zlayer = zlayer.tolist()
             kernel3.zprofile = zprofile.tolist()
 
-            new_kernels = cpuArray(kernel3.real_kernels.copy())
-
             kernel3.prepare_for_sh(
                 sodium_altitude=zlayer.tolist(),
                 sodium_intensity=zprofile.tolist(),
                 current_time=2
             )
+            new_kernels = cpuArray(kernel3.kernels.copy())
 
             # Verify loaded data matches
             np.testing.assert_allclose(
@@ -853,5 +851,33 @@ class TestKernel(unittest.TestCase):
             self.assertEqual(restored_fft.kernels.shape, (dimx * dimy, dimension, dimension // 2 + 1))
             np.testing.assert_allclose(cpuArray(restored_fft.kernels), cpuArray(kernel.kernels),
                                        rtol=1e-5, atol=1e-7)
+        finally:
+            shutil.rmtree(temp_dir)
+
+    @cpu_and_gpu
+    def test_real_kernels_allocated_only_when_needed(self, target_device_idx, xp):
+        '''
+        real_kernels is not allocated at construction, and a kernel loaded from
+        a file by prepare_for_sh() into a fresh object is the same as the computed one
+        '''
+        temp_dir = tempfile.mkdtemp()
+        try:
+            def make():
+                return GaussianConvolutionKernel(dimx=4, dimy=4, pxscale=0.2, dimension=16,
+                                                 spot_size=1.0, pupil_size_m=8.0,
+                                                 data_dir=temp_dir,
+                                                 target_device_idx=target_device_idx)
+            computed = make()
+            self.assertIsNone(computed.real_kernels)
+            computed.prepare_for_sh(current_time=1)     # computes and saves the file
+            self.assertIsNone(computed.real_kernels)
+
+            loaded = make()
+            self.assertIsNone(loaded.real_kernels)
+            loaded.prepare_for_sh(current_time=1)       # loads the file
+            self.assertIsNone(loaded.real_kernels)
+            np.testing.assert_allclose(cpuArray(loaded.kernels), cpuArray(computed.kernels),
+                                       rtol=1e-5, atol=1e-7)
+            self.assertGreater(float(cpuArray(xp.abs(loaded.kernels).sum())), 0)
         finally:
             shutil.rmtree(temp_dir)

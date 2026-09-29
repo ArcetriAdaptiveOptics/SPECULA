@@ -164,8 +164,9 @@ class ConvolutionKernel(BaseDataObj):
             dtype = self.complex_dtype
         else:
             dtype = self.dtype
-        self.real_kernels = self.xp.zeros((self.dimx*self.dimy, self.dimension, self.dimension),
-                                          dtype=self.dtype)
+        # Real space kernels: only allocated when the kernels are computed, restored
+        # from a file or set with set_value(), and freed again by prepare_for_sh()
+        self.real_kernels = None
         self.kernels = self.xp.zeros(self._kernels_shape(self.return_fft), dtype=dtype)
         self._kernel_fn = None
 
@@ -332,11 +333,11 @@ class ConvolutionKernel(BaseDataObj):
             hdr (fits.Header, optional): Additional header information
 
         Raises:
-            ValueError: If real_kernels has been deallocated
+            ValueError: If real_kernels is not allocated
         """
         if self.real_kernels is None:
             raise ValueError(
-                "real_kernels has been deallocated. "
+                "real_kernels is not allocated (not computed yet, or deallocated). "
                 "Cannot save to file. Use restore() to reload from existing file, "
                 "or recalculate with calculate_lgs_map()."
             )
@@ -427,14 +428,8 @@ class ConvolutionKernel(BaseDataObj):
             kernel_obj.positive_shift_tt = hdr['POSTT']
             kernel_obj.spot_size = hdr['SPOTSIZE']
 
-        # Reallocate real_kernels if it was deallocated
-        if kernel_obj.real_kernels is None:
-            kernel_obj.real_kernels = kernel_obj.xp.zeros(
-                (kernel_obj.dimx * kernel_obj.dimy, kernel_obj.dimension, kernel_obj.dimension),
-                dtype=kernel_obj.dtype
-            )
-
-        kernel_obj.real_kernels[:] = kernel_obj.to_xp(fits.getdata(filename, ext=1))
+        kernel_obj.real_kernels = kernel_obj.to_xp(fits.getdata(filename, ext=1),
+                                                   dtype=kernel_obj.dtype)
         kernel_obj.process_kernels(return_fft=return_fft)
         return kernel_obj
 
@@ -461,11 +456,11 @@ class ConvolutionKernel(BaseDataObj):
 
     def get_value(self):
         '''Get current kernels.
-        If real_kernels was deallocated, raise an error.'''
+        If real_kernels is not allocated, raise an error.'''
 
         if self.real_kernels is None:
             raise ValueError(
-                "real_kernels has been deallocated. "
+                "real_kernels is not allocated (not computed yet, or deallocated). "
                 "Use set_value() to recreate or restore() from file."
             )
 
@@ -474,11 +469,11 @@ class ConvolutionKernel(BaseDataObj):
     def set_value(self, v):
         '''Set new kernels.
         Arrays are not reallocated if real_kernels exists.
-        If real_kernels was deallocated, it will be recreated.'''
+        If real_kernels is not allocated, it will be created.'''
 
-        # Check if real_kernels was deallocated
+        # Check if real_kernels is allocated
         if self.real_kernels is None:
-            # Recreate real_kernels with the expected shape
+            # Create real_kernels with the expected shape
             expected_shape = (self.dimx * self.dimy, self.dimension, self.dimension)
             if v.shape != expected_shape:
                 raise ValueError(
