@@ -162,12 +162,14 @@ class PSF(BaseProcessingObj):
         self.std_psf.value = self.xp.zeros(self.out_size, dtype=self.dtype)
         self.int_sr.value = 0
 
-    def _calc_psf(self, phase, amp):
-        """Compute the normalized PSF into self.psf.value, returns the PSF total before normalization"""
-        _, total_psf = calc_psf(phase, amp, imwidth=self.out_size[0], normalize=True,
-                                xp=self.xp, complex_dtype=self.complex_dtype,
-                                return_total=True, out=self.psf.value)
-        return total_psf
+    def _calc_psf(self, phase, amp, out=None):
+        """
+        Compute the normalized PSF, stored in *out* if given.
+        Returns a (psf, total) tuple, where total is the PSF total before normalization
+        """
+        return calc_psf(phase, amp, imwidth=self.out_size[0], normalize=True,
+                        xp=self.xp, complex_dtype=self.complex_dtype,
+                        return_total=True, out=out)
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
@@ -175,14 +177,16 @@ class PSF(BaseProcessingObj):
         # First time, calculate the diffraction-limited PSF peak.
         if self._ref_peak is None:
             in_ef = self.local_inputs['in_ef']
-            self._calc_psf(self.xp.zeros_like(in_ef.A), in_ef.A)
-            self._ref_peak = self.psf.value[self.out_size[0] // 2, self.out_size[1] // 2].copy()
+            # self.psf.value is used as scratch buffer, overwritten in trigger_code()
+            ref_psf, _ = self._calc_psf(self.xp.zeros_like(in_ef.A), in_ef.A, out=self.psf.value)
+            self._ref_peak = ref_psf[self.out_size[0] // 2, self.out_size[1] // 2].copy()
 
     def trigger_code(self):
         in_ef = self.local_inputs['in_ef']
-        self.total_psf = self._calc_psf(in_ef.phi_at_lambda(self.wavelengthInNm), in_ef.A)
+        psf, self.total_psf = self._calc_psf(in_ef.phi_at_lambda(self.wavelengthInNm), in_ef.A,
+                                             out=self.psf.value)
         # 0-d array division, stays on the device
-        self.sr.value = self.psf.value[self.out_size[0] // 2, self.out_size[1] // 2] / self._ref_peak
+        self.sr.value = psf[self.out_size[0] // 2, self.out_size[1] // 2] / self._ref_peak
 
     def can_accelerate(self):
         # trigger_code() only launches GPU work (the Strehl ratio is logged in post_trigger())
