@@ -246,6 +246,80 @@ class TestInterp2D(unittest.TestCase):
         else:
             self.skipTest("This test only runs on GPU with CuPy")
 
+    @staticmethod
+    def _with_nan_sentinel(xp, data):
+        '''
+        Return a contiguous copy of data followed in memory by a NaN, so that
+        any kernel read past the end of the array poisons the result.
+        '''
+        buf = xp.full(data.size + 1, xp.nan, dtype=data.dtype)
+        buf[:-1] = data.ravel()
+        return buf[:-1].reshape(data.shape)
+
+    @cpu_and_gpu
+    @unittest.skipIf(cp is None, "This test requires CuPy (GPU)")
+    def test_precomputed_corner_no_out_of_bounds_read(self, target_device_idx, xp):
+        '''
+        Sampling the last row and column exactly must not read past the end
+        of the input array (bottom-right corner).
+        '''
+        if xp == cp: # pragma: no cover
+            input_shape = (20, 30)
+            for dtype in (xp.float32, xp.float64):
+                with self.subTest(dtype=dtype):
+                    data = xp.arange(input_shape[0] * input_shape[1], dtype=dtype).reshape(input_shape)
+                    phase_in = self._with_nan_sentinel(xp, data)
+                    yy, xx = xp.mgrid[0:input_shape[0], 0:input_shape[1]].astype(dtype)
+                    interp = Interp2D(input_shape, input_shape, xx=xx, yy=yy, xp=xp, dtype=dtype)
+                    output = interp.interpolate(phase_in)
+                    np.testing.assert_array_equal(cpuArray(output), cpuArray(data))
+        else:
+            self.skipTest("This test only runs on GPU with CuPy")
+
+    @cpu_and_gpu
+    @unittest.skipIf(cp is None, "This test requires CuPy (GPU)")
+    def test_onthefly_corner_no_out_of_bounds_read(self, target_device_idx, xp):
+        '''
+        A shift clamping all coordinates to the bottom-right corner must not
+        read past the end of the input array.
+        '''
+        if xp == cp: # pragma: no cover
+            input_shape = (20, 30)
+            for dtype in (xp.float32, xp.float64):
+                with self.subTest(dtype=dtype):
+                    data = xp.arange(input_shape[0] * input_shape[1], dtype=dtype).reshape(input_shape)
+                    phase_in = self._with_nan_sentinel(xp, data)
+                    interp = Interp2D(input_shape, input_shape,
+                                      rowShiftInPixels=1000, colShiftInPixels=1000,
+                                      xp=xp, dtype=dtype)
+                    assert not interp.use_precomputed
+                    output = cpuArray(interp.interpolate(phase_in))
+                    np.testing.assert_array_equal(output, np.full(input_shape, cpuArray(data[-1, -1])))
+        else:
+            self.skipTest("This test only runs on GPU with CuPy")
+
+    @cpu_and_gpu
+    @unittest.skipIf(cp is None, "This test requires CuPy (GPU)")
+    def test_right_edge_no_row_wraparound(self, target_device_idx, xp):
+        '''
+        Sampling the last column must not pick up the first element of the
+        next row, even with zero weight: a NaN there would leak into the output.
+        '''
+        if xp == cp: # pragma: no cover
+            input_shape = (20, 30)
+            for dtype in (xp.float32, xp.float64):
+                with self.subTest(dtype=dtype):
+                    data = xp.arange(input_shape[0] * input_shape[1], dtype=dtype).reshape(input_shape)
+                    data[:, 0] = xp.nan
+                    yy = xp.repeat(xp.arange(input_shape[0], dtype=dtype)[:, None], 5, axis=1)
+                    xx = xp.full_like(yy, input_shape[1] - 1)
+                    interp = Interp2D(input_shape, yy.shape, xx=xx, yy=yy, xp=xp, dtype=dtype)
+                    output = cpuArray(interp.interpolate(data))
+                    expected = np.repeat(cpuArray(data[:, -1])[:, None], 5, axis=1)
+                    np.testing.assert_array_equal(output, expected)
+        else:
+            self.skipTest("This test only runs on GPU with CuPy")
+
     @cpu_and_gpu
     @unittest.skipIf(cp is None, "This test requires CuPy (GPU)")
     def test_onthefly_float64(self, target_device_idx, xp):
