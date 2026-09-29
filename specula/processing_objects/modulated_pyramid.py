@@ -709,10 +709,12 @@ class ModulatedPyramid(BaseProcessingObj):
         '''
         Change the misregistration parameters of the input field interpolation.
 
-        The interpolation is done in prepare_trigger(), outside the CUDA graph,
-        so the graph does not need to be captured again.
-        Always use this method instead of calling ef_interpolator.update_parameters()
-        directly.
+        The interpolation is currently done in prepare_trigger(), outside the
+        CUDA graph, so the graph would not need to be captured again. It is
+        invalidated anyway as a safeguard, in case the interpolation is moved
+        into trigger_code(): parameter changes are rare, and the cost is a
+        single new capture. Always use this method instead of calling
+        ef_interpolator.update_parameters() directly.
 
         Parameters are the same as EFInterpolator.update_parameters();
         the ones set to None are left unchanged.
@@ -721,3 +723,4 @@ class ModulatedPyramid(BaseProcessingObj):
                                                yShiftPhInPixel=yShiftPhInPixel,
                                                rotAnglePhInDeg=rotAnglePhInDeg,
                                                magnification=magnification)
+        self.invalidate_graph()
