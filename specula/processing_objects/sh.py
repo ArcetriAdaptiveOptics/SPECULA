@@ -659,9 +659,6 @@ class SH(BaseProcessingObj):
         for view in [self._wf3_view, self._subap_cube_view] + self._psfimage_views:
             assert view.base is not None
 
-        # The CUDA graph is captured at the first prepare_trigger()
-        self._stream_built = False
-
     def update_interpolator_parameters(self, xShiftPhInPixel=None, yShiftPhInPixel=None,
                                        rotAnglePhInDeg=None, magnification=None):
         '''
