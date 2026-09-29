@@ -1,7 +1,8 @@
 import specula
+specula.init(0)  # Default target device
+
 from specula.connections import InputValue
 from specula.data_objects.simul_params import SimulParams
-specula.init(0)  # Default target device
 
 import unittest
 

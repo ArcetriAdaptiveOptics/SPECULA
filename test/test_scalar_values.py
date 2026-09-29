@@ -1,3 +1,6 @@
+import specula
+specula.init(0)  # Default target device
+
 import unittest
 import tempfile
 import os
