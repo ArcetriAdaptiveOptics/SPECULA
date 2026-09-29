@@ -3,6 +3,9 @@ specula.init(0)  # Default target device
 
 import pytest
 import unittest
+import inspect
+from types import SimpleNamespace
+from unittest import mock
 
 import numpy as np
 import matplotlib
@@ -17,11 +20,22 @@ from specula.data_objects.slopes import Slopes
 from specula.display.base_display import BaseDisplay
 from specula.display.phase_display import PhaseDisplay
 from specula.display.pixels_display import PixelsDisplay
+from specula.display.pixels_pup_display import PixelsPupDisplay
 from specula.display.slopec_display import SlopecDisplay
 from specula.display.psf_display import PsfDisplay
+from specula.display.plot_display import PlotDisplay
+from specula.display.modes_display import ModesDisplay
 from specula.display.plot_vector_display import PlotVectorDisplay
+from specula.display.double_phase_display import DoublePhaseDisplay
 from specula.base_value import BaseValue
 from test.specula_testlib import cpu_and_gpu
+
+# Classes that accept a window_xy constructor argument (all BaseDisplay
+# subclasses except DoublePhaseDisplay)
+DISPLAY_CLASSES_WITH_WINDOW_XY = [
+    PixelsDisplay, PixelsPupDisplay, PlotDisplay, SlopecDisplay,
+    PhaseDisplay, PsfDisplay, ModesDisplay, PlotVectorDisplay,
+]
 
 
 matplotlib.use('Agg')  # Use non-interactive backend for GitHub CI
@@ -825,3 +839,99 @@ class TestDisplays(unittest.TestCase):
         self.assertIsNone(legend)
 
         matplotlib.pyplot.close(display.fig)
+
+    def test_window_xy_signature_present(self):
+        """All BaseDisplay subclasses except DoublePhaseDisplay accept window_xy"""
+        for cls in DISPLAY_CLASSES_WITH_WINDOW_XY:
+            with self.subTest(cls=cls.__name__):
+                sig = inspect.signature(cls.__init__)
+                self.assertIn('window_xy', sig.parameters)
+
+        # DoublePhaseDisplay is explicitly excluded from this feature
+        sig = inspect.signature(DoublePhaseDisplay.__init__)
+        self.assertNotIn('window_xy', sig.parameters)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    def test_construct_with_valid_window_xy_does_not_raise(self):
+        """Constructing with a valid window_xy must not raise, even though the
+        Agg backend used in tests has no real window to move"""
+        figs_to_close = []
+        try:
+            for cls in DISPLAY_CLASSES_WITH_WINDOW_XY:
+                with self.subTest(cls=cls.__name__):
+                    display = cls(window_xy=(100, 200))
+                    figs_to_close.append(display.fig)
+        finally:
+            for fig in figs_to_close:
+                matplotlib.pyplot.close(fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    def test_invalid_window_xy_logs_warning_and_does_not_raise(self):
+        """Invalid window_xy values must be rejected with a warning, not an exception"""
+        invalid_values = ['abc', [1], (1, 'x'), 5]
+        for value in invalid_values:
+            with self.subTest(value=value):
+                with self.assertLogs('specula.PhaseDisplay', level='WARNING') as log:
+                    display = PhaseDisplay(window_xy=value)
+                self.assertTrue(any('window_xy' in msg for msg in log.output))
+                matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    def test_set_window_position_tk_backend(self):
+        """_set_window_position uses wm_geometry() when available (Tk-like manager)"""
+        display = PhaseDisplay()
+        try:
+            fake_window = SimpleNamespace(wm_geometry=mock.MagicMock())
+            display.fig.canvas.manager.window = fake_window
+
+            display._set_window_position([10, 20])
+
+            fake_window.wm_geometry.assert_called_once_with('+10+20')
+        finally:
+            matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    def test_set_window_position_qt_backend(self):
+        """_set_window_position uses move() when wm_geometry is not available (Qt/GTK-like manager)"""
+        display = PhaseDisplay()
+        try:
+            fake_window = SimpleNamespace(move=mock.MagicMock())
+            display.fig.canvas.manager.window = fake_window
+
+            display._set_window_position((10, 20))
+
+            fake_window.move.assert_called_once_with(10, 20)
+        finally:
+            matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    def test_set_window_position_swallows_window_manager_exceptions(self):
+        """An exception raised while moving the window must not propagate"""
+        display = PhaseDisplay()
+        try:
+            class RaisingWindow:
+                def wm_geometry(self, *args, **kwargs):
+                    raise RuntimeError('boom')
+
+            display.fig.canvas.manager.window = RaisingWindow()
+
+            # Should not raise
+            display._set_window_position([10, 20])
+        finally:
+            matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    def test_pixels_pup_display_img_is_none_after_init(self):
+        """PixelsPupDisplay.img must be initialized to None (it used to be read
+        before being assigned)"""
+        display = PixelsPupDisplay()
+        try:
+            self.assertIsNone(display.img)
+        finally:
+            matplotlib.pyplot.close(display.fig)

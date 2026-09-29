@@ -34,12 +34,14 @@ class PixelsPupDisplay(BaseDisplay):
                  crop_mode="slice",
                  window: int=None,
                  subplot: int=111,
+                 window_xy=None,
                  ):
 
         super().__init__(title=title,
                          figsize=figsize,
                          window=window,
                          subplot=subplot,
+                         window_xy=window_xy,
                          )
 
         self._log_scale = log_scale
@@ -56,6 +58,7 @@ class PixelsPupDisplay(BaseDisplay):
         self.circles = []
         self.center_points = []
         self.text_block = None
+        self.img = None
 
 
     def _apply_crop(self, image):

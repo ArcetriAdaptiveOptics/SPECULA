@@ -9,6 +9,8 @@
 
 ### Interface changes
 
+- Added `window_xy` ([x, y] screen pixels) to all displays except `DoublePhaseDisplay`, to place the window on screen with GUI backends that allow it (Tk, Qt, GTK); ignored on the others.
+- Added `dark_frame_tag` to `DynamicDarkCalibrator`: dark frame file in `data_dir` loaded in `setup()` (an error is raised if it cannot be loaded).
 - Added force limiting to `DM`: new `stiffness` (matrix, `stiffness_data` in YAML, requires `m2c`) and `max_force` parameters. If the forces exceed `max_force`, the highest-order modes are discarded (modes are assumed sorted by increasing spatial frequency), before the position `stroke` clipping. New outputs `out_forces` (forces of the applied command, empty without `stiffness`) and `out_force_nmodes` (number of modes kept).
 - `AtmoEvolution`/`AtmoEvolutionUpDown` (#530): on GPU the trigger is captured in a CUDA graph, so their inputs must be updated in place by the producers (a reallocated input now raises an error). `airmass` is no longer an attribute, `scale_coeff` is now `scale_coef` (device array), `delta_time` is a scalar, and `last_position(s)`, `extra_delta_time(s)` and `last_effective_position` are device arrays.
 - Added `thr_ratio_value` to `ShSlopec`: per-subaperture threshold, as a fraction of the brightest pixel of each subaperture (as in PASSATA). The code path existed but was unreachable and broken (it used the maximum flux over all subapertures).
@@ -20,6 +22,7 @@
 
 ### Other
 
+- Fixed `DynamicDarkCalibrator`: a dark frame loaded with `in_load` replaced the dark frame object, so the `out_darkframe` output kept the old one (it is now copied in place, with a shape check), and failed loads/saves raised an `AttributeError` while logging the error (also fixed in `DynamicPyrPupdataCalibrator` saves, now logged instead of printed). Fixed `PixelsPupDisplay` failing at the first update (`img` was not initialized).
 - `BaseValue.restore()`: float arrays now follow the object precision (they kept the FITS dtype); other types, scalars and the host location are unchanged.
 - `PhaseScreenCube`: fixed crash on GPU; the interpolator and its input ElectricField are built once instead of at every step (about 2x faster on CPU); added the `precision` parameter; raises a `ValueError` if the simulation starts before the first cube time (it silently used the last screen).
 - `AtmoPropagation` with `doFresnel`: propagators are still computed in float64 but stored in the object precision, so the per-step FFTs and products are no longer in double (-35% time per step measured on a 1536x1536 padded case, same accuracy).

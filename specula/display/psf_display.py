@@ -17,12 +17,14 @@ class PsfDisplay(BaseDisplay):
                  image_p2v=0.0,
                  window: int=None,
                  subplot :int=111,
+                 window_xy=None,
                  ):
         super().__init__(
             title=title,
             figsize=figsize,
             window=window,
             subplot=subplot,
+            window_xy=window_xy,
         )
         self.img = None
 

@@ -48,13 +48,15 @@ class PlotVectorDisplay(BaseDisplay):
                  legend_labels=None,
                  max_elements=20,
                  window: int=None,
-                 subplot: int=111):
+                 subplot: int=111,
+                 window_xy=None):
 
         super().__init__(
             title=title,
             figsize=figsize,
             window=window,
             subplot=subplot,
+            window_xy=window_xy,
         )
 
         # Validate that indices and slice_args are not both set

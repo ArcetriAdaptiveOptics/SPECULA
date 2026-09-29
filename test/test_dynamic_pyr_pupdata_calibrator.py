@@ -4,6 +4,7 @@ specula.init(0)
 import os
 import shutil
 import unittest
+from unittest import mock
 import numpy as np
 from specula.base_value import BaseValue
 from specula.scalar_values import StringValue, IntValue
@@ -111,4 +112,33 @@ class TestDynamicPyrPupdataCalibrator(unittest.TestCase):
         fname = os.path.join(self.tmp_dir, 'pupils.fits')
         assert os.path.exists(fname)
 
+    @cpu_and_gpu
+    def test_save_failure_logs_error(self, target_device_idx, xp):
+        """A failed in_save is logged with the exception class name and does not raise"""
 
+        calibrator = DynamicPyrPupdataCalibrator(
+            data_dir=self.tmp_dir,
+            dt=1,
+            auto_detect_obstruction=True,
+            overwrite=True,
+            target_device_idx=target_device_idx
+        )
+
+        image_data, _, _ = TestPyrPupdataCalibrator()._create_synthetic_pupils(xp, shape=(128, 128), radius=20)
+        in_i = Intensity(128, 128, target_device_idx=target_device_idx)
+        in_i.i = image_data
+        calibrator.inputs['in_i'].set(in_i)
+        trigger = IntValue(1)
+        calibrator.inputs['in_save'].set(trigger)
+
+        loop = LoopControl()
+        loop.add(calibrator, idx=0)
+        loop.start(run_time=1, dt=1)
+        in_i.generation_time = in_i.seconds_to_t(0)
+        trigger.generation_time = trigger.seconds_to_t(0)
+
+        with mock.patch.object(calibrator, '_save', side_effect=OSError('disk full')), \
+             self.assertLogs(calibrator.logger.logger, level='ERROR') as log:
+            loop.iter()
+
+        self.assertTrue(any('OSError: disk full' in msg for msg in log.output))
