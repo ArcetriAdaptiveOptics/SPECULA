@@ -788,12 +788,12 @@ class IirFilterData(BaseDataObj):
             tuple: (num, den) - numerator and denominator coefficients
         """
 
-        if delay - np.fix(delay) != 0:
+        if delay - np.trunc(delay) != 0:
             d_m = np.ceil(delay)
             den = np.zeros(int(d_m)+1)
             den[int(d_m)] = 1
             num = den*0
-            num[0] = delay - np.fix(delay)
+            num[0] = delay - np.trunc(delay)
             num[1] = 1. - num[0]
         else:
             d_m = delay
