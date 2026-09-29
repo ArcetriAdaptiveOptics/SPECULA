@@ -147,7 +147,7 @@ class TestAtmoSimulation(unittest.TestCase):
         # Create a minimal override YAML file with the two lines you want
         override_dict = {
             'main_override': {
-                'total_time': 10.0  # seconds
+                'total_time': 2.0  # seconds
             },
             'data_store_override': {
                 'inputs': {
