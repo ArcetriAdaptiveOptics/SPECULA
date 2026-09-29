@@ -236,26 +236,24 @@ class TestBaseProcessingObj(unittest.TestCase):
         mock_stream.end_capture.assert_not_called()
 
     @unittest.skipIf(cp is None, 'GPU not available')
-    def test_trigger_recaptures_graph_when_dependencies_change(self):
+    def test_trigger_recaptures_graph_after_invalidate_graph(self):
         '''
         A Python scalar used in trigger_code() is frozen in the CUDA graph.
-        The graph must be captured again when a dependency version changes,
-        or after invalidate_graph(), and only then.
+        The graph must be captured again at the next trigger() after
+        invalidate_graph(), and only then.
         '''
-        class Dependency:
-            def __init__(self):
-                self.version = 0
-                self.value = 1.0
-
         class GraphObj(BaseProcessingObj):
-            def __init__(self, dep):
+            def __init__(self):
                 super().__init__(target_device_idx=0)
-                self.dep = dep
+                self.value = 1.0
                 self.buf = cp.zeros(4, dtype=cp.float32)
-                self.graph_dependencies = [dep]
+
+            def set_value(self, value):
+                self.value = value
+                self.invalidate_graph()
 
             def trigger_code(self):
-                self.buf[:] = self.dep.value
+                self.buf[:] = self.value
 
         def run(obj):
             obj.inputs_changed = True
@@ -263,22 +261,20 @@ class TestBaseProcessingObj(unittest.TestCase):
             obj.stream.synchronize()
             return float(obj.buf[0])
 
-        dep = Dependency()
-        obj = GraphObj(dep)
+        obj = GraphObj()
         obj.build_stream(allow_parallel=False)
         self.assertEqual(run(obj), 1.0)
 
-        # Not tracked: the graph keeps the old value
-        dep.value = 2.0
+        # Changed without invalidating: the graph keeps the old value
+        obj.value = 2.0
         self.assertEqual(run(obj), 1.0)
 
-        # Version change: captured again
-        dep.version += 1
-        self.assertEqual(run(obj), 2.0)
+        # Changed through a method that invalidates the graph: captured again
+        obj.set_value(3.0)
+        self.assertEqual(run(obj), 3.0)
 
-        # Explicit invalidation
-        dep.value = 3.0
-        obj.invalidate_graph()
+        # The flag is reset by the new capture
+        self.assertFalse(obj._cuda_graph_invalid)
         self.assertEqual(run(obj), 3.0)
 
     # --- CUDA SYNCHRONIZATION TESTS ---

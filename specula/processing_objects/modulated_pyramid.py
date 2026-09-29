@@ -703,3 +703,21 @@ class ModulatedPyramid(BaseProcessingObj):
 
         if self.stream_enable:
             super().build_stream()
+
+    def update_interpolator_parameters(self, xShiftPhInPixel=None, yShiftPhInPixel=None,
+                                       rotAnglePhInDeg=None, magnification=None):
+        '''
+        Change the misregistration parameters of the input field interpolation.
+
+        The interpolation is done in prepare_trigger(), outside the CUDA graph,
+        so the graph does not need to be captured again.
+        Always use this method instead of calling ef_interpolator.update_parameters()
+        directly.
+
+        Parameters are the same as EFInterpolator.update_parameters();
+        the ones set to None are left unchanged.
+        '''
+        self.ef_interpolator.update_parameters(xShiftPhInPixel=xShiftPhInPixel,
+                                               yShiftPhInPixel=yShiftPhInPixel,
+                                               rotAnglePhInDeg=rotAnglePhInDeg,
+                                               magnification=magnification)

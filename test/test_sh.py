@@ -315,7 +315,7 @@ class TestSH(unittest.TestCase):
     def test_cuda_graph_recaptured_after_interpolator_update(self):
         '''
         The interpolation parameters are frozen in the CUDA graph: after
-        EFInterpolator.update_parameters(), the GPU SH must give the same result
+        update_interpolator_parameters(), the GPU SH must give the same result
         as a CPU SH (no graph) created with the new parameters.
         '''
         n = 40
@@ -345,8 +345,7 @@ class TestSH(unittest.TestCase):
         out_before = step(gpu_sh, gpu_ef, 0)
         step(gpu_sh, gpu_ef, 1)
 
-        gpu_sh.ef_interpolator.update_parameters(xShiftPhInPixel=0, yShiftPhInPixel=0,
-                                                 rotAnglePhInDeg=7.0, magnification=1.0)
+        gpu_sh.update_interpolator_parameters(rotAnglePhInDeg=7.0)
         out_after = step(gpu_sh, gpu_ef, 2)
 
         cpu_sh, cpu_ef = make(-1, 7.0)

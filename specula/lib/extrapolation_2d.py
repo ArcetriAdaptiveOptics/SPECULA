@@ -279,10 +279,6 @@ class EFInterpolator():
         self.target_device_idx = target_device_idx
         self.use_out_ef_cache = use_out_ef_cache
 
-        # Incremented when the interpolation parameters change, so that
-        # processing objects can detect that their CUDA graph must be captured again
-        self.version = 0
-
         if (in_ef.size == out_shape and
             rotAnglePhInDeg == 0 and
             xShiftPhInPixel == 0 and
@@ -351,7 +347,7 @@ class EFInterpolator():
                           rotAnglePhInDeg=None, magnification=None):
         """Re-initialize the internal Interp2D object with new misalignment parameters."""
 
-        if magnification < 1e-6:
+        if magnification is not None and magnification < 1e-6:
             raise ValueError("Magnification must be greater than 1e-6 to avoid numerical issues.")
 
         # Retrieve current parameters if not provided
@@ -374,7 +370,6 @@ class EFInterpolator():
             xp=self.xp
         )
         self.do_interpolation = True
-        self.version += 1
 
     def interpolated_ef(self):
         '''

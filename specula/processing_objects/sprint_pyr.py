@@ -223,7 +223,7 @@ class SprintPyr(BaseSprintEstimator):
         """Compute nominal IM using a push-pull sequence on the internal pipeline."""
 
         # 1. Update mis-registration parameters on the interpolator
-        self.internal_wfs.ef_interpolator.update_parameters(
+        self.internal_wfs.update_interpolator_parameters(
                             xShiftPhInPixel=float(self.misreg_params[0]),
                             yShiftPhInPixel=float(self.misreg_params[1]),
                             rotAnglePhInDeg=float(self.misreg_params[2]),

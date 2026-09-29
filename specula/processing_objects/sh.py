@@ -523,7 +523,7 @@ class SH(BaseProcessingObj):
 
         The CUDA graph is captured at the first prepare_trigger(), because the
         interpolation needs the pupil, and captured again if the interpolation
-        parameters change (the interpolator is in self.graph_dependencies).
+        parameters are changed with update_interpolator_parameters().
 
         Main performance points:
 
@@ -659,10 +659,27 @@ class SH(BaseProcessingObj):
         for view in [self._wf3_view, self._subap_cube_view] + self._psfimage_views:
             assert view.base is not None
 
-        # The CUDA graph is captured at the first prepare_trigger(), and again
-        # if the interpolation parameters change (see EFInterpolator.update_parameters())
+        # The CUDA graph is captured at the first prepare_trigger()
         self._stream_built = False
-        self.graph_dependencies = [self.ef_interpolator]
+
+    def update_interpolator_parameters(self, xShiftPhInPixel=None, yShiftPhInPixel=None,
+                                       rotAnglePhInDeg=None, magnification=None):
+        '''
+        Change the misregistration parameters of the input field interpolation.
+
+        The interpolation is part of the CUDA graph, with its parameters
+        frozen at capture time, so the graph is invalidated and captured
+        again at the next trigger(). Always use this method instead of
+        calling ef_interpolator.update_parameters() directly.
+
+        Parameters are the same as EFInterpolator.update_parameters();
+        the ones set to None are left unchanged.
+        '''
+        self.ef_interpolator.update_parameters(xShiftPhInPixel=xShiftPhInPixel,
+                                               yShiftPhInPixel=yShiftPhInPixel,
+                                               rotAnglePhInDeg=rotAnglePhInDeg,
+                                               magnification=magnification)
+        self.invalidate_graph()
 
     def _get_tlt_f(self, p, c):
         '''

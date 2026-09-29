@@ -39,12 +39,8 @@ class BaseProcessingObj(BaseTimeObj):
         self.inputs_changed = False
         self.cuda_graph = None
 
-        # Objects whose state is frozen in the CUDA graph when it is captured
-        # (for example kernel parameters passed by value). Each one must have
-        # an integer "version" attribute, incremented at every relevant change:
-        # if any version changes, the graph is captured again by trigger().
-        self.graph_dependencies = []
-        self._graph_dependencies_versions = None
+        # Set by invalidate_graph(): the CUDA graph is captured again at the next trigger()
+        self._cuda_graph_invalid = False
 
         # Will be populated by derived class
         self.inputs = {}
@@ -237,18 +233,15 @@ class BaseProcessingObj(BaseTimeObj):
             self.stream.begin_capture()
             self.trigger_code()
             self.cuda_graph = self.stream.end_capture()
-        self._graph_dependencies_versions = self._current_graph_dependencies_versions()
-
-    def _current_graph_dependencies_versions(self):
-        return tuple(dep.version for dep in self.graph_dependencies)
+        self._cuda_graph_invalid = False
 
     def invalidate_graph(self):
         '''
-        Force a new capture of the CUDA graph at the next trigger().
-        Use this after a change that affects the graph and is not tracked
-        by the versions of self.graph_dependencies.
+        Mark the CUDA graph as invalid, so that it is captured again at the next trigger().
+        To be called by the methods that change something frozen in the graph
+        at capture time, like kernel parameters passed by value.
         '''
-        self._graph_dependencies_versions = None
+        self._cuda_graph_invalid = True
 
     def check_ready(self, t):
         self.current_time = t
@@ -273,9 +266,8 @@ class BaseProcessingObj(BaseTimeObj):
         if self.target_device_idx >= 0:
             self._target_device.use()
         if self.target_device_idx >= 0 and self.cuda_graph:
-            # Capture again if anything frozen in the graph has changed
-            if self._graph_dependencies_versions != self._current_graph_dependencies_versions():
-                self.logger.debug('Graph dependencies have changed, capturing the CUDA graph again')
+            if self._cuda_graph_invalid:
+                self.logger.debug('CUDA graph invalidated, capturing it again')
                 self.capture_stream()
             self.cuda_graph.launch(stream=self.stream)
         else:
