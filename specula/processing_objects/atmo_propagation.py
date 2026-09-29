@@ -393,12 +393,14 @@ class AtmoPropagation(BaseProcessingObj):
                     x2 = topleft[0] + output_ef.size[0]
                     y2 = topleft[1] + output_ef.size[1]
                     self.ef_temp.A[:] = layer.A[topleft[0]: x2, topleft[1]: y2]
-                    self.ef_temp.phaseInNm[:] = self.prop_sign * layer.phaseInNm[topleft[0]: x2, topleft[1]: y2]
+                    self.ef_temp.phaseInNm[:] = layer.phaseInNm[topleft[0]: x2, topleft[1]: y2]
                 else:
-                    self.ef_temp.A[:] = interpolator.interpolate(layer.A)
-                    self.ef_temp.phaseInNm[:] = self.prop_sign * interpolator.interpolate(layer.phaseInNm)
+                    interpolator.interpolate(layer.A, out=self.ef_temp.A)
+                    interpolator.interpolate(layer.phaseInNm, out=self.ef_temp.phaseInNm)
 
                 if self.doFresnel:
+                    if self.prop_sign == -1:
+                        self.ef_temp.phaseInNm *= -1
                     self.ef_fresnel[s:s + self.pixel_pupil, s:s + self.pixel_pupil] *= self.ef_temp.ef_at_lambda(
                         self.wavelengthInNm)
                     if self.propagators[li] is not None:
@@ -410,7 +412,9 @@ class AtmoPropagation(BaseProcessingObj):
 
                 else:
                     output_ef.A *= self.ef_temp.A
-                    output_ef.phaseInNm += self.prop_sign * self.ef_temp.phaseInNm
+                    # prop_sign would be applied twice, to the layer phase and to its
+                    # contribution, and cancels out
+                    output_ef.phaseInNm += self.ef_temp.phaseInNm
 
             if self.doFresnel:
                 output_ef.phaseInNm[:] = (self.prop_sign * self.xp.angle(
