@@ -7,7 +7,7 @@ from specula.data_objects.electric_field import ElectricField
 from specula.connections import InputList, InputValue
 from specula.data_objects.layer import Layer
 from specula.lib.air_refraction import MatharAirRefraction
-from specula import cpuArray, show_in_profiler
+from specula import cpuArray
 from specula.data_objects.simul_params import SimulParams
 
 import numpy as np
@@ -289,6 +289,10 @@ class AtmoPropagation(BaseProcessingObj):
                 "Thus it is reduced from " + str(z_in) + "m to " + str(z) +
                 "m. Consider increasing zero padding.")
 
+        # Phases are computed in float64 (they can be large); only the result is stored
+        # in the object precision, so that the per-step FFTs and products are not in double.
+        propagator = [None if p is None else p.astype(self.complex_dtype) for p in propagator]
+
         return propagator, far_field
 
     def doFresnel_setup(self):
@@ -356,7 +360,6 @@ class AtmoPropagation(BaseProcessingObj):
                 )
                 layer.phaseInNm[~mask_valid] = local_mean[~mask_valid]
 
-    @show_in_profiler('atmo_propagation.trigger_code')
     def trigger_code(self):
         layer_list = self.common_layer_list + self.atmo_layer_list
         if self.prop_sign == 1:  # reverse layers for downwards propagation

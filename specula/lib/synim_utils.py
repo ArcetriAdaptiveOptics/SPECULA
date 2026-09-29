@@ -2,6 +2,31 @@
 Utility functions for SynIM-based interaction matrix computation.
 """
 
+import synim as _synim_pkg
+import specula as _specula_pkg
+
+# SynIM has its own array-library backend (xp = numpy or cupy), completely
+# independent of SPECULA's. Its submodules (synim.synim, synim.synpm, ...)
+# bind their own `xp` name via `from synim import xp` AT IMPORT TIME, so
+# calling synim.init() *after* they have already been imported has no
+# effect on them (same class of bug as SPECULA's own "specula.init() must
+# come before submodule imports" rule - verified empirically). SynIM's
+# package __init__ also unconditionally self-initializes to CPU
+# (device_idx=-1) as a side effect of the very first `import synim...`,
+# regardless of which device SPECULA itself is using. Re-init here -
+# mirroring SPECULA's own already-selected device - BEFORE importing
+# synim.synim below, so GPU actually propagates into SynIM's computations
+# (e.g. the raytracing inside interaction_matrix()).
+_synim_precision = 1 if _specula_pkg.global_precision is None else _specula_pkg.global_precision
+_synim_device_idx = _specula_pkg.default_target_device_idx
+if _synim_device_idx is None:
+    # specula.init() has not run yet (this module was imported too early) -
+    # fall back to CPU rather than crashing; SynIM stays CPU-only until
+    # whoever imports this module also calls specula.init() first, per the
+    # codebase's own established import-order convention.
+    _synim_device_idx = -1
+_synim_pkg.init(device_idx=_synim_device_idx, precision=_synim_precision)
+
 import synim.synim as synim
 from specula import cpuArray, np
 from specula.log import get_specula_logger

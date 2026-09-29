@@ -34,12 +34,46 @@ Create a dedicated conda environment for SPECULA (here with python 3.11):
 Step 2: GPU Support (Optional but Recommended)
 ----------------------------------------------
 
-If you have a CUDA-compatible GPU and want to benefit from GPU acceleration, install CuPy:
+If you have a CUDA-compatible GPU and want to benefit from GPU acceleration, install CuPy.
+
+First check your NVIDIA driver version with ``nvidia-smi`` (top right, "Driver Version")
+and choose the matching CuPy package:
+
+* driver 580 or newer: ``cupy-cuda13x``
+* driver 525 or newer: ``cupy-cuda12x``
+
+Then install it with pip:
 
 .. code-block:: bash
 
-   # Install CuPy for GPU acceleration
+   # CUDA 13.x (driver >= 580)
+   pip install "cupy-cuda13x[ctk]"
+
+   # or CUDA 12.x (driver >= 525)
+   pip install "cupy-cuda12x[ctk]"
+
+The ``[ctk]`` extra also installs the CUDA libraries (cuBLAS, cuFFT, NVRTC, ...)
+as pip packages, so no system-wide CUDA Toolkit is needed.
+
+.. note::
+
+   * Do **not** use ``pip install cupy``: it builds CuPy from source, which is slow
+     and requires a local CUDA Toolkit with ``nvcc``.
+   * Install only one CuPy package per environment (e.g. not both ``cupy-cuda12x``
+     and ``cupy-cuda13x``), and do not mix a pip CuPy with a conda CuPy.
+   * CuPy is not a dependency of SPECULA and is never installed automatically:
+     it must always be installed manually as shown here.
+
+**Alternative: conda.** CuPy can also be installed from conda-forge, which selects the
+CUDA version automatically:
+
+.. code-block:: bash
+
    conda install -c conda-forge cupy
+
+If you use conda for CuPy, install it *before* SPECULA: conda silently replaces
+packages previously installed by pip (e.g. numpy), which can leave the environment
+in an inconsistent state.
 
 **GPU Benefits:**
    * 10-100× faster simulations

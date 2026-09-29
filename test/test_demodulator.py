@@ -502,6 +502,32 @@ class TestDemodulateSignal(unittest.TestCase):
         # Both should give similar results for clean signal
         self.assertAlmostEqual(amp_cum, amp_sim, delta=0.1)
 
+    def test_demodulate_cumulated_dtype_follows_argument(self):
+        """
+        With cumulated=True, the internal qa/pa arrays (and thus the output) must
+        follow the requested `dtype`, not be hardcoded to float32.
+        """
+        duration = 0.05
+        dt = 0.001
+        sampling_freq = 1.0 / dt
+        carrier_freq = 10.0
+
+        time = np.arange(0, duration, dt)
+        nsignals = 2
+        signals_2d = np.zeros((len(time), nsignals))
+        for i in range(nsignals):
+            signals_2d[:, i] = (i + 1) * np.sin(2 * np.pi * carrier_freq * time)
+
+        amp64, phase64 = demodulate_signal(signals_2d, carrier_freq, sampling_freq,
+                                          cumulated=True, xp=np, dtype=np.float64)
+        self.assertEqual(amp64.dtype, np.float64)
+        self.assertEqual(phase64.dtype, np.float64)
+
+        amp32, phase32 = demodulate_signal(signals_2d, carrier_freq, sampling_freq,
+                                          cumulated=True, xp=np, dtype=np.float32)
+        self.assertEqual(amp32.dtype, np.float32)
+        self.assertEqual(phase32.dtype, np.float32)
+
     def test_demodulate_multiple_modes(self):
         """Demodulate 2d vectors"""
 

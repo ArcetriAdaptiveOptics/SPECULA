@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+from numbers import Integral
 
 from specula.scalar_values import IntValue
 from specula.base_processing_obj import BaseProcessingObj
@@ -23,8 +24,15 @@ class BaseDisplay(BaseProcessingObj):
                  window_xy=None):
         super().__init__()
 
-        if window is None:
-            window = id(self)
+        if isinstance(window, Integral) and not isinstance(window, bool) and window >= 1:
+            window = int(window)
+            if window in self.__plot_completed.keys():
+                raise ValueError(f'window {window} already exists')
+        elif window is None:
+            # Find an unused window number
+            window = max(self.__plot_completed.keys(), default=0) + 1
+        else:
+            raise ValueError('window must be a positive integer')
 
         self.window = window
         self.figsize = figsize

@@ -1,5 +1,5 @@
+from typing import List, Union
 import numpy as np
-from specula import show_in_profiler
 
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
@@ -18,7 +18,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
     """
     def __init__(self,
                  simul_params: SimulParams,
-                 L0: list=[1.0],
+                 L0: Union[float, List[float]]=[1.0],
                  heights: list=[0.0],
                  Cn2: list=[1.0],
                  fov: float=0.0,
@@ -37,7 +37,7 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         ----------
         simul_params : SimulParams
             Simulation parameters object containing global simulation settings.
-        L0 : list [m]
+        L0 : float or list [m]
             Outer scale(s) of turbulence for each layer in meters.
         heights : list [m]
             Heights of the atmospheric layers in meters (at zenith).
@@ -221,7 +221,6 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         scale_wvl = self.ref_wavelengthInNm / (2 * np.pi)
         self.scale_coeff = scale_r0 * scale_wvl
 
-    @show_in_profiler('atmo_evolution.trigger_code')
     def trigger_code(self):
         wind_speed = cpuArray(self.local_inputs['wind_speed'].value)
         wind_direction = cpuArray(self.local_inputs['wind_direction'].value)

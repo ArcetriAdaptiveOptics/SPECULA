@@ -72,6 +72,7 @@ Each **section** in the YAML file corresponds to a specific object (or "block") 
 - **Special Notes:**  
   
   - In the propagation block (``prop``), the input ``common_layer_list`` often includes ``dm.out_layer:-1``. This is a SPECULA convention to handle feedback in the simulation loop. The ``-1`` index is used to resolve an ambiguity in closed-loop simulations: not all the elements of the loop can perform their operations at the same time, at least one must happen at the following time step. In an Adaptive Optics context the DM output is computed during the current time step, but it is applied in the next time step.
+  - This is a one-step causal lag imposed by the loop structure. It is different from the controller latency parameter ``delay``. In other words, ``dm.out_layer:-1`` means "use the DM command from the previous step", while ``control.delay`` is the additional delay introduced by the integrator/controller itself. The total loop delay is therefore not only the controller delay: it includes the unavoidable one-step feedback lag plus the controller latency.
 
 **Example:**
 
@@ -236,7 +237,7 @@ Create a YAML configuration file, for example ``params_scao_pyr_basic.yml``:
    # The full list of parameters can be found in the init method of the Integrator class.
    control:
      class:             'Integrator'
-     delay:             2                      # Total temporal delay in time steps
+     delay:             2                      # Controller delay in time steps, additional to the 1-step causal feedback lag from dm.out_layer:-1
      int_gain:          [0.5]                  # Integrator gain (for 'INT' control)
      n_modes:           [54]                   # This means we use 54 modes with the same gain
      inputs:

@@ -25,6 +25,7 @@ class ImCalibrator(BaseProcessingObj):
                  im_tag: str='',
                  first_mode: int = 0,
                  overwrite: bool = False,
+                 compute_single_im: bool = True,
                  pupilstop: Pupilstop = None,
                  dm: DM = None,
                  source: Source = None,
@@ -33,10 +34,24 @@ class ImCalibrator(BaseProcessingObj):
                  target_device_idx: int = None,
                  precision: int = None
                 ):
+        """
+        compute_single_im : bool
+            If True (default, backward-compatible), also builds the
+            'out_single_im' per-mode IM list. This costs an O(nmodes) pure
+            -Python loop INSIDE trigger_code() (so it runs every step, not
+            just on push-pull events) plus roughly double the fixed memory
+            (nmodes separate Intmat objects). For large nmodes/long
+            calibrations (e.g. ANDES: 4000 modes x 800000 steps) this
+            dominates runtime; set to False to skip it entirely if nothing
+            downstream consumes 'out_single_im' (only 'out_intmat' is used
+            by RecCalibrator and by every other project currently in this
+            codebase, verified 2026-08-31).
+        """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         self.nmodes = nmodes
         self.first_mode = first_mode
         self.data_dir = data_dir
+        self.compute_single_im = compute_single_im
 
         if im_tag is None or im_tag == 'auto':
             im_tag = ImCalibrator.generate_im_tag(pupilstop, source, dm, sensor,
@@ -60,8 +75,11 @@ class ImCalibrator(BaseProcessingObj):
         self.intmat = Intmat(nmodes=nmodes, nslopes=0, target_device_idx=self.target_device_idx)
         self.outputs['out_intmat'] = self.intmat
 
-        self.single_im = [Intmat(nmodes=1, nslopes=0,
-                                 target_device_idx=self.target_device_idx) for i in range(nmodes)]
+        if self.compute_single_im:
+            self.single_im = [Intmat(nmodes=1, nslopes=0,
+                                     target_device_idx=self.target_device_idx) for i in range(nmodes)]
+        else:
+            self.single_im = []
         self.outputs['out_single_im'] = self.single_im
 
     @classmethod
@@ -171,8 +189,9 @@ class ImCalibrator(BaseProcessingObj):
         if self.intmat.nslopes == 0:
             self.intmat.set_nslopes(len(slopes))
             self.logger.debug(f"Initialized interaction matrix: {self.intmat.get_value().shape}")
-            for i in range(self.nmodes):
-                self.single_im[i].set_nslopes(len(slopes))
+            if self.compute_single_im:
+                for i in range(self.nmodes):
+                    self.single_im[i].set_nslopes(len(slopes))
 
         idx = self.xp.nonzero(commands)[0]
 
@@ -184,11 +203,12 @@ class ImCalibrator(BaseProcessingObj):
 
         in_slopes_object = self.local_inputs['in_slopes']
 
-        for mode in range(self.nmodes):
-            self.single_im[mode].modes[0] = self.intmat.modes[mode]
-            self.single_im[mode].single_mask = in_slopes_object.single_mask
-            self.single_im[mode].display_map = in_slopes_object.display_map
-            self.single_im[mode].generation_time = self.current_time
+        if self.compute_single_im:
+            for mode in range(self.nmodes):
+                self.single_im[mode].modes[0] = self.intmat.modes[mode]
+                self.single_im[mode].single_mask = in_slopes_object.single_mask
+                self.single_im[mode].display_map = in_slopes_object.display_map
+                self.single_im[mode].generation_time = self.current_time
 
         self.intmat.single_mask = in_slopes_object.single_mask
         self.intmat.display_map = in_slopes_object.display_map

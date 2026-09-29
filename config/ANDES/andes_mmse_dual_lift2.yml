@@ -1,0 +1,669 @@
+main:
+  class: SimulParams
+  gui_pos:
+  - -164
+  - -451
+  pixel_pupil: 400
+  pixel_pitch: 0.0975
+  root_dir: /raid2/gcarla/git/ANDES/andes/PASSATA_scripts/data/
+  total_time: 5.0
+  time_step: 0.002
+  zenithAngleInDeg: 30.0
+seeing:
+  class: WaveGenerator
+  gui_pos:
+  - -170
+  - -217
+  constant:
+  - 0.65
+wind_speed:
+  class: WaveGenerator
+  gui_pos:
+  - -166
+  - -104
+  constant:
+  - 8.0
+  - 8.0
+  - 8.0
+wind_direction:
+  class: WaveGenerator
+  gui_pos:
+  - -166
+  - 4
+  constant:
+  - -19.57
+  - -174.84
+  - 29.13
+wfs_source:
+  class: Source
+  gui_pos:
+  - -157
+  - -320
+  polar_coordinates:
+  - 0.0
+  - 0.0
+  magnitude: 8
+  wavelengthInNm: 800
+pupilstop:
+  class: Pupilstop
+  gui_pos:
+  - 175
+  - -106
+  tag: EELT400pp0.0963m_spider2023_hexObstr
+atmo:
+  class: AtmoEvolution
+  gui_pos:
+  - 207
+  - -364
+  L0: 50
+  heights:
+  - 528.0
+  - 9015.0
+  - 16824.0
+  Cn2:
+  - 0.7954
+  - 0.154
+  - 0.0506
+  fov: 120.0
+  seed: 2
+  inputs:
+    seeing: seeing.output
+    wind_speed: wind_speed.output
+    wind_direction: wind_direction.output
+  simul_params_ref: main
+disturbance_petals:
+  class: WaveGenerator
+  gui_pos:
+  - -168
+  - 253
+  wave_type: SQUARE
+  amp:
+  - 1600
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  freq:
+  - 1
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  constant:
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+dm_petals:
+  class: DM
+  gui_pos:
+  - 168
+  - 146
+  height: 0
+  ifunc_object: ANDES_400pix_all_modes
+  sign: 1
+  inputs:
+    in_command: disturbance_petals.output
+  simul_params_ref: main
+static_disturbance:
+  class: WaveGenerator
+  gui_pos:
+  - 507
+  - 281
+  constant:
+  - 0.0
+  - 0.0
+  - 330.0
+  - 0.0
+  - 0.0
+static_aber_LIFT:
+  class: DM
+  gui_pos:
+  - 522
+  - 411
+  height: 0
+  type_str: zernike
+  nmodes: 5
+  obsratio: 0.28
+  inputs:
+    in_command: static_disturbance.output
+  simul_params_ref: main
+static_aber_M1:
+  class: Layer
+  gui_pos:
+  - -168
+  - 133
+  tag: M1stat_ps400_layer
+disturbance_M1:
+  class: TimeHistoryGenerator
+  gui_pos:
+  - -154
+  - 373
+  time_hist_object: M1wind2mps_backstructure+hardpact_Optical2022_specula
+dm_M1:
+  class: DM
+  gui_pos:
+  - 182
+  - 295
+  height: 0
+  ifunc_object: M1_400pix_ifunc
+  nmodes: 2394
+  sign: 1
+  inputs:
+    in_command: disturbance_M1.output
+  simul_params_ref: main
+windshake_M2:
+  class: TimeHistoryGenerator
+  gui_pos:
+  - -136
+  - 487
+  time_hist_object: M2windShake500HzT30.0s_2022_startFrom0_s0_specula
+dm_M2:
+  class: DM
+  gui_pos:
+  - 204
+  - 452
+  height: 0
+  type_str: zernike
+  nmodes: 2
+  obsratio: 0.2
+  sign: 1
+  inputs:
+    in_command: windshake_M2.output
+  simul_params_ref: main
+DefAstComas_M2:
+  class: TimeHistoryGenerator
+  gui_pos:
+  - -92
+  - 607
+  time_hist_object: M2lowOrders500HzT30.0s_2022_s0_specula
+dm_DefAstComas_M2:
+  class: DM
+  gui_pos:
+  - 243
+  - 598
+  height: 0
+  type_str: zernike
+  nmodes: 7
+  start_mode: 2
+  obsratio: 0.2
+  sign: 1
+  inputs:
+    in_command: DefAstComas_M2.output
+  simul_params_ref: main
+prop:
+  class: AtmoPropagation
+  gui_pos:
+  - 538
+  - -105
+  outputs:
+  - out_wfs_source_ef
+  inputs:
+    atmo_layer_list:
+    - atmo.layer_list
+    common_layer_list:
+    - pupilstop
+    - dm_petals.out_layer
+    - dm.out_layer:-1
+    - aDM0.out_layer:-1
+    - static_aber_M1
+    - dm_M2.out_layer
+    - dm_DefAstComas_M2.out_layer
+    - dm_M1.out_layer
+  simul_params_ref: main
+  source_dict_ref:
+  - wfs_source
+pyramid:
+  class: ModulatedPyramid
+  gui_pos:
+  - 869
+  - 122
+  wavelengthInNm: 800
+  fov: 2.1
+  pup_diam: 100.0
+  output_resolution: 240
+  fov_errsup: 9.0
+  pup_dist: 120.0
+  fft_res: 4.0
+  rotAnglePhInDeg: 15.0
+  inputs:
+    in_ef: prop.out_wfs_source_ef
+  simul_params_ref: main
+detector:
+  class: CCD
+  gui_pos:
+  - 1204
+  - 97
+  size:
+  - 240
+  - 240
+  dt: 0.002
+  bandw: 400
+  photon_noise: true
+  readout_noise: true
+  excess_noise: true
+  readout_level: 0.5
+  photon_seed: 2
+  excess_seed: 2
+  inputs:
+    in_i: pyramid.out_i
+  simul_params_ref: main
+slopec:
+  class: PyrSlopec
+  gui_pos:
+  - 1519
+  - 84
+  pupdata_object: OOMAOSubPupilsSelection_hexObstr_rot15
+  slopes_from_intensity: true
+  inputs:
+    in_pixels: detector.out_pixels
+modalrec:
+  class: Modalrec
+  gui_pos:
+  - 1872
+  - -47
+  recmat_object: andes_ps400p0.097_pyr100x100_wl850_fv2.1_ft4.0_slInten_ma3_bn1_th_mn4000_noSlaving_hexObstr_spider2023_OOMAO_rot15
+  nmodes: 4000
+  inputs:
+    in_slopes: slopec.out_slopes
+temporal_filter:
+  class: IirFilterData
+  gui_pos:
+  - 1898
+  - 221
+  ordnum:
+  - 3
+  - 2
+  - 2
+  - 2
+  - 2
+  - 2
+  ordden:
+  - 3
+  - 2
+  - 2
+  - 2
+  - 2
+  - 2
+  num:
+  - - 0.19125
+    - -0.65
+    - 0.5
+  - - 0.0
+    - 0.5
+    - 0.0
+  - - 0.0
+    - 0.5
+    - 0.0
+  - - 0.0
+    - 0.5
+    - 0.0
+  - - 0.0
+    - 0.5
+    - 0.0
+  - - 0.0
+    - 0.5
+    - 0.0
+  den:
+  - - 0.995
+    - -1.995
+    - 1.0
+  - - -1.0
+    - 1.0
+    - 0.0
+  - - -0.99
+    - 1.0
+    - 0.0
+  - - -0.98
+    - 1.0
+    - 0.0
+  - - -0.95
+    - 1.0
+    - 0.0
+  - - -0.9
+    - 1.0
+    - 0.0
+  n_modes:
+  - 2
+  - 98
+  - 900
+  - 1000
+  - 1000
+  - 1000
+control:
+  class: IirFilter
+  gui_pos:
+  - 2164
+  - 45
+  outputs:
+  - out_comm
+  - out_comm_no_delay
+  delay: 2
+  inputs:
+    delta_comm: modalrec.out_modes
+    in_ost: unwrapper.out_ost:-1
+  iir_filter_data_ref: temporal_filter
+recmat1:
+  class: Recmat
+  gui_pos:
+  - 1859
+  - -303
+  tag: mmse_recmat_ELT_400pix_modes_to_petals
+recmat2:
+  class: Recmat
+  gui_pos:
+  - 1861
+  - -197
+  tag: mmse_recmat_ELT_400pix_petals_to_modes
+unwrapper:
+  class: SoftLimiter
+  gui_pos:
+  - 2095
+  - -195
+  gain: 0.05
+  inputs:
+    in_comm: control.out_comm
+  recmat_list_ref:
+  - recmat1
+  - recmat2
+ifunc_m4:
+  class: IFunc
+  gui_pos:
+  - 2225
+  - 323
+  tag: ANDES_400pix_79nacts_cir__5zern_10000.0cn_OOMAO_hexObstr
+dm:
+  class: DM
+  gui_pos:
+  - 2608
+  - -45
+  height: 0
+  nmodes: 4000
+  inputs:
+    in_command: aBaseOperation0.out_value
+  simul_params_ref: main
+  ifunc_ref: ifunc_m4
+ef_reflection:
+  class: ElectricFieldReflection
+  gui_pos:
+  - 2598
+  - 170
+  inputs:
+    in_ef: dm.out_layer
+ef_combinator:
+  class: ElectricFieldCombinator
+  gui_pos:
+  - 2890
+  - 54
+  inputs:
+    in_ef1: prop.out_wfs_source_ef
+    in_ef2: ef_reflection.out_ef
+ifunc_inv_object:
+  class: IFuncInv
+  gui_pos:
+  - 490
+  - -437
+  tag: base_400px_81acts_4643modes_inv
+modal_analysis:
+  class: ModalAnalysis
+  gui_pos:
+  - 772
+  - -479
+  inputs:
+    in_ef: prop.out_wfs_source_ef
+  ifunc_inv_ref: ifunc_inv_object
+modal_analysis_input:
+  class: ModalAnalysis
+  gui_pos:
+  - 2972
+  - -209
+  inputs:
+    in_ef: ef_combinator.out_ef
+  ifunc_inv_ref: ifunc_inv_object
+ifunc_petals:
+  class: IFunc
+  gui_pos:
+  - 170
+  - 49
+  tag: ifunc_400p_6petals_ELT_mask
+psf:
+  class: PSF
+  gui_pos:
+  - 1052
+  - -339
+  wavelengthInNm: 2200
+  nd: 3
+  start_time: 0.05
+  inputs:
+    in_ef: prop.out_wfs_source_ef
+  simul_params_ref: main
+data_store:
+  class: DataStore
+  gui_pos:
+  - 2958
+  - -388
+  store_dir: ./output/andesUnwrap/
+  inputs:
+    input_list:
+    - resMod-modal_analysis.out_modes
+    - inMod-modal_analysis_input.out_modes
+    - deltaComm-modalrec.out_modes
+    - comm-control.out_comm
+    - srRes-psf.out_sr
+sh_pfs1:
+  class: SH
+  gui_pos:
+  - 999
+  - 374
+  wavelengthInNm: 1150
+  subap_wanted_fov: 0.8
+  sensor_pxscale: 0.004
+  subap_on_diameter: 1
+  subap_npx: 200
+  inputs:
+    in_ef: aElectricFieldCombinator0.out_ef
+detector1:
+  class: CCD
+  gui_pos:
+  - 1206
+  - 350
+  size:
+  - 200
+  - 200
+  dt: 0.1
+  bandw: 20
+  photon_noise: true
+  readout_noise: true
+  photon_seed: 2
+  excess_seed: 2
+  inputs:
+    in_i: sh_pfs1.out_i
+  simul_params_ref: main
+liftestimator1:
+  class: Lift
+  gui_pos:
+  - 1428
+  - 358
+  nPistons: 5
+  nZern: 5
+  wavelengthInNm: 1150
+  pix_scale: 0.004
+  cropped_size: 20
+  ifunc_object: ANDES_400pix_all_modes
+  ref_zern_amp:
+  - 0
+  - 0
+  - 1.8
+  npix_side: 200
+  inputs:
+    in_pixels: detector1.out_pixels
+  simul_params_ref: main
+sh_pfs2:
+  class: SH
+  gui_pos:
+  - 1010
+  - 553
+  wavelengthInNm: 1255
+  subap_wanted_fov: 0.8
+  sensor_pxscale: 0.004
+  subap_on_diameter: 1
+  subap_npx: 200
+  inputs:
+    in_ef: aElectricFieldCombinator0.out_ef
+detector2:
+  class: CCD
+  gui_pos:
+  - 1219
+  - 575
+  size:
+  - 200
+  - 200
+  dt: 0.1
+  bandw: 20
+  photon_noise: true
+  readout_noise: true
+  photon_seed: 2
+  excess_seed: 2
+  inputs:
+    in_i: sh_pfs2.out_i
+  simul_params_ref: main
+liftestimator2:
+  class: Lift
+  gui_pos:
+  - 1427
+  - 546
+  nPistons: 5
+  nZern: 5
+  wavelengthInNm: 1255
+  pix_scale: 0.004
+  cropped_size: 20
+  ifunc_object: ANDES_400pix_all_modes
+  ref_zern_amp:
+  - 0
+  - 0
+  - 1.65
+  npix_side: 200
+  fft_res: 3
+  inputs:
+    in_pixels: detector2.out_pixels
+  simul_params_ref: main
+aPhaseUnwrapper0:
+  class: PhaseUnwrapper
+  gui_pos:
+  - 1667
+  - 444
+  lambda_1: 1150.0
+  lambda_2: 1255.0
+  confidence_threshold: 0.5
+  outlier_residual_threshold: 0.5
+  temporal_window_size: 8
+  residual_threshold_fraction: 0.04
+  inputs:
+    in_pistons_1: liftestimator1.out_pistons
+    in_pistons_2: liftestimator2.out_pistons
+aIntegrator0:
+  class: Integrator
+  gui_pos:
+  - 1906
+  - 405
+  outputs:
+  - out_comm
+  - out_comm_no_delay
+  int_gain:
+  - 0.1
+  ff:
+  - 1.0
+  n_modes:
+  - 5
+  delay: 1.0
+  inputs:
+    delta_comm: aPhaseUnwrapper0.out_pistons
+aBaseOperation1:
+  class: BaseOperation
+  gui_pos:
+  - 2187
+  - 474
+  sum: true
+  inputs:
+    in_value1: aIntegrator0.out_comm
+    in_value2: aIntegrator1.out_comm
+aElectricFieldCombinator0:
+  class: ElectricFieldCombinator
+  gui_pos:
+  - 726
+  - 451
+  inputs:
+    in_ef2: static_aber_LIFT.out_layer
+    in_ef1: prop.out_wfs_source_ef
+aModalAnalysis0:
+  class: ModalAnalysis
+  gui_pos:
+  - 1597
+  - -135
+  ifunc_object: ANDES_400pix_all_modes.fits
+  nmodes: 5
+  inputs:
+    in_ef: prop.out_wfs_source_ef
+aDM0:
+  class: DM
+  gui_pos:
+  - 2444
+  - 436
+  height: 0.0
+  ifunc_object: ANDES_400pix_all_modes
+  nmodes: 5
+  inputs:
+    in_command: aBaseOperation1.out_value
+  simul_params_ref: main
+aScheduleGenerator0:
+  class: ScheduleGenerator
+  gui_pos:
+  - 1649
+  - 699
+  scheduled_values:
+  - - 0
+  - - 1
+  scheduled_times:
+  - 0.5
+  modes_per_group:
+  - 5
+aIntegrator1:
+  class: Integrator
+  gui_pos:
+  - 1901
+  - 607
+  outputs:
+  - out_comm
+  - out_comm_no_delay
+  int_gain:
+  - 1
+  ff:
+  - 1
+  n_modes:
+  - 5
+  inputs:
+    delta_comm: aPhaseUnwrapper0.out_pistonsU
+aBaseOperation0:
+  class: BaseOperation
+  gui_pos:
+  - 2397
+  - -209
+  constant_mul: 1.0
+  inputs:
+    in_value1: unwrapper.out_comm

@@ -87,9 +87,9 @@ class TestPhaseScreenCube(unittest.TestCase):
         self.cube_scaled.trigger()
         self.cube_scaled.post_trigger()
 
-        answer0 = self.cube.cur_screen
+        answer0 = self.cube.cur_screen.phaseInNm
         answer1 = self.cube.outputs['out_on_axis_source_ef'].phaseInNm
-        answer2 = self.cube_scaled.cur_screen
+        answer2 = self.cube_scaled.cur_screen.phaseInNm
         answer3 = self.cube_scaled.outputs['out_on_axis_source_ef'].phaseInNm
 
         assert 'out_on_axis_source_layer' in self.cube.outputs
@@ -133,3 +133,106 @@ class TestPhaseScreenCube(unittest.TestCase):
         assert 'out_ef' in phase_screen_cube.outputs
         assert 'out_layer' in phase_screen_cube.outputs
         assert phase_screen_cube.outputs['out_layer'].field is phase_screen_cube.outputs['out_ef'].field
+
+    @cpu_and_gpu
+    def test_screen_cube_multi_time(self, target_device_idx, xp):
+        '''Test linear time interpolation of cur_screen at several times, including
+        the exact first/last cube time samples (built with target_device_idx directly,
+        so that GPU is actually exercised, unlike setUp which always ends up on CPU).'''
+        fits_file = os.path.join(self.data_dir, 'phase_screen_cube_test.fits')
+        cube = self.load_cube_from_fits(fits_file, target_device_idx=target_device_idx)
+
+        phase_cube = PhaseScreenCube(self.simul_params,
+                                     cube=cube,
+                                     pixel_scale=0.1,
+                                     target_device_idx=target_device_idx)
+
+        raw_screens = cpuArray(phase_cube.phasescreens)
+        time_vector = cpuArray(phase_cube.time_vector)
+
+        def expected_screen(t):
+            # Standard linear interpolation, independent of the implementation under test
+            i0 = int(np.clip(np.searchsorted(time_vector, t, side='right') - 1,
+                              0, len(time_vector) - 2))
+            w1 = (t - time_vector[i0]) / (time_vector[i0 + 1] - time_vector[i0])
+            return raw_screens[i0] * (1 - w1) + raw_screens[i0 + 1] * w1
+
+        for t in (0.0, 2.5, 13.7, 20.0):
+            phase_cube.check_ready(phase_cube.seconds_to_t(t))
+            phase_cube.trigger()
+            phase_cube.post_trigger()
+            np.testing.assert_array_almost_equal(cpuArray(phase_cube.cur_screen.phaseInNm),
+                                                 expected_screen(t))
+
+    @cpu_and_gpu
+    def test_ef_interpolator_built_once(self, target_device_idx, xp):
+        '''The EFInterpolator (and the out_ef it wraps) must be built once in
+        initScreens and reused unchanged across triggers.'''
+        fits_file = os.path.join(self.data_dir, 'phase_screen_cube_test.fits')
+        cube = self.load_cube_from_fits(fits_file, target_device_idx=target_device_idx)
+
+        phase_cube = PhaseScreenCube(self.simul_params,
+                                     cube=cube,
+                                     pixel_scale=0.1,
+                                     target_device_idx=target_device_idx)
+
+        interpolator = phase_cube.ef_interpolator
+        out_ef = interpolator.interpolated_ef()
+
+        for t in (0.0, 4.0, 13.7):
+            phase_cube.check_ready(phase_cube.seconds_to_t(t))
+            phase_cube.trigger()
+            phase_cube.post_trigger()
+            self.assertIs(phase_cube.ef_interpolator, interpolator)
+            self.assertIs(interpolator.interpolated_ef(), out_ef)
+
+    @cpu_and_gpu
+    def test_screen_cube_precision(self, target_device_idx, xp):
+        '''precision=1 must produce float32 outputs, precision=0 float64,
+        regardless of the global precision set at module import (precision=0).'''
+        fits_file = os.path.join(self.data_dir, 'phase_screen_cube_test.fits')
+        cube = self.load_cube_from_fits(fits_file, target_device_idx=target_device_idx)
+
+        for precision, expected_dtype in ((1, np.float32), (0, np.float64)):
+            phase_cube = PhaseScreenCube(self.simul_params,
+                                         cube=cube,
+                                         pixel_scale=0.1,
+                                         target_device_idx=target_device_idx,
+                                         precision=precision)
+            phase_cube.check_ready(phase_cube.seconds_to_t(4.0))
+            phase_cube.trigger()
+            phase_cube.post_trigger()
+
+            self.assertEqual(cpuArray(phase_cube.cur_screen.phaseInNm).dtype, expected_dtype)
+            self.assertEqual(cpuArray(phase_cube.outputs['out_layer'].phaseInNm).dtype, expected_dtype)
+            self.assertEqual(cpuArray(phase_cube.outputs['out_ef'].phaseInNm).dtype, expected_dtype)
+
+    @cpu_and_gpu
+    def test_screen_cube_time_before_first_raises(self, target_device_idx, xp):
+        fits_file = os.path.join(self.data_dir, 'phase_screen_cube_test.fits')
+        with fits.open(fits_file) as hdul:
+            cube_data = hdul[0].data.T.astype(np.float64)
+        # Cube time samples start at 5s: any earlier simulation time is invalid
+        time_vector = 5.0 + np.arange(cube_data.shape[2]) * 10
+        cube = SpatioTempArray(cube_data, time_vector, target_device_idx=target_device_idx)
+
+        phase_cube = PhaseScreenCube(self.simul_params,
+                                     cube=cube,
+                                     pixel_scale=0.1,
+                                     target_device_idx=target_device_idx)
+
+        with self.assertRaises(ValueError):
+            phase_cube.check_ready(phase_cube.seconds_to_t(1.0))
+
+    @cpu_and_gpu
+    def test_screen_cube_time_after_last_raises(self, target_device_idx, xp):
+        fits_file = os.path.join(self.data_dir, 'phase_screen_cube_test.fits')
+        cube = self.load_cube_from_fits(fits_file, target_device_idx=target_device_idx)
+
+        phase_cube = PhaseScreenCube(self.simul_params,
+                                     cube=cube,
+                                     pixel_scale=0.1,
+                                     target_device_idx=target_device_idx)
+
+        with self.assertRaises(ValueError):
+            phase_cube.check_ready(phase_cube.seconds_to_t(20.001))

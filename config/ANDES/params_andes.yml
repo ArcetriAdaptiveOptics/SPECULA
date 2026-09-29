@@ -214,7 +214,7 @@ temporal_filter:
 
 control:
   class:                'IirFilter'
-  delay:                2                      # Total temporal delay in time steps
+  delay:                2                      # explicit temporal delay in time steps; additional to the 1-step feedback lag from dm.out_layer:-1
   iir_filter_data_ref:  'temporal_filter'
   inputs:
     delta_comm: 'modalrec.out_modes'

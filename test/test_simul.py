@@ -956,7 +956,7 @@ main:
         captured = {}
         original_run = LoopControl.run
 
-        def fake_run(self_loop, run_time, dt, t0=0, speed_report=False):
+        def fake_run(self_loop, run_time, dt, t0=0, speed_report=False, preroll_objs=None):
             captured['run_time'] = run_time
             captured['t0'] = t0
 

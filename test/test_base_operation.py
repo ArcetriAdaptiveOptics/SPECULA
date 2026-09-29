@@ -105,6 +105,30 @@ class TestBaseOperation(unittest.TestCase):
         np.testing.assert_array_almost_equal(output_value, [1,2,3])
 
     @cpu_and_gpu
+    def test_concat_output_dtype_follows_precision(self, target_device_idx, xp):
+        """concat output must follow the object's own dtype, not always be float64."""
+
+        # Inputs at default (global, float64) precision
+        value1 = BaseValue(value=xp.array([1.0, 2.0]), target_device_idx=target_device_idx)
+        value2 = BaseValue(value=xp.array([3.0]), target_device_idx=target_device_idx)
+        value1.generation_time = value1.seconds_to_t(1)
+        value2.generation_time = value1.seconds_to_t(1)
+
+        op32 = BaseOperation(concat=True, precision=1, target_device_idx=target_device_idx)
+        op32.inputs['in_value1'].set(value1)
+        op32.inputs['in_value2'].set(value2)
+        op32.setup()
+
+        self.assertEqual(op32.out_value.value.dtype, xp.float32)
+
+        op64 = BaseOperation(concat=True, precision=0, target_device_idx=target_device_idx)
+        op64.inputs['in_value1'].set(value1)
+        op64.inputs['in_value2'].set(value2)
+        op64.setup()
+
+        self.assertEqual(op64.out_value.value.dtype, xp.float64)
+
+    @cpu_and_gpu
     def test_const_sum(self, target_device_idx, xp):
 
         value1 = BaseValue(value=xp.array([6.0]), target_device_idx=target_device_idx)

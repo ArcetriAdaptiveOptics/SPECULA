@@ -179,7 +179,13 @@ class TestShSimulation(unittest.TestCase):
         ]
         print('running ', cmd)
         os.chdir(os.path.dirname(__file__))
-        _ = subprocess.run(cmd)
+        result = run_mpi_command(cmd)
+        self.assertEqual(
+            result.returncode,
+            0,
+            f"MPI simulation failed with exit code {result.returncode}\n"
+            f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}",
+        )
         self._assert_results()
 
     @unittest.skipIf(not MPI_AVAILABLE, "MPI not available")
@@ -242,3 +248,52 @@ class TestShSimulation(unittest.TestCase):
             with self.assertRaises(ImportError):
                 result = specula.main_simul('dummy.yml', mpi=True)
 
+    @unittest.skipIf(not MPI_AVAILABLE, "MPI not available")
+    def test_mpi_communication_with_data_objects_fails(self):
+        """Test that trying to connect via MPI a data object
+        to a processing object won't work
+        """
+
+        # We need to call specula directly, and cannot wrap with pytest,
+        # because MPI is handled in specula/__init__.py with a command-line option.
+        # As a bonus, that code is tested as well. Codecov might not detect this.
+        root = Path(__file__).resolve().parents[1]
+        specula_main_path = root / 'specula' / 'scripts' / 'specula_main.py'
+
+        cmd = [
+            "mpirun",
+            "-n", "2",
+            specula_main_path,
+            'params_scao_sh_test.yml', 'params_ov_scao_mpi_fail.yml',
+            "--mpi", "--log-level=mpi_send_dbg"
+        ]
+        print('running ', cmd)
+        os.chdir(os.path.dirname(__file__))
+        ret = subprocess.run(cmd)
+        assert ret.returncode != 0
+
+
+def run_mpi_command(cmd):
+    """Run MPI command in an isolated process session to avoid signal spillover."""
+    return subprocess.run(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+
+
+class TestRunMpiCommand(unittest.TestCase):
+
+    def test_run_mpi_command_uses_isolated_session(self):
+        with patch.object(subprocess, "run") as mock_run:
+            mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+            run_mpi_command(["mpirun", "-n", "2", "python", "--version"])
+            mock_run.assert_called_once_with(
+                ["mpirun", "-n", "2", "python", "--version"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                start_new_session=True,
+            )

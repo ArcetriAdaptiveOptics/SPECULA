@@ -67,7 +67,6 @@ modal_analysis1:
   type_str:         'zernike'
   npixels:          80
   nmodes:           100
-  dorms:            True
   inputs:
     in_ef: 'prop1.out_on_axis_source_ef'
   outputs: ['out_modes']
@@ -103,7 +102,6 @@ modal_analysis2:
   type_str:         'zernike'
   npixels:          80
   nmodes:           100
-  dorms:            True
   inputs:
     in_ef: 'prop2.out_on_axis_source_ef'
   outputs: ['out_modes']

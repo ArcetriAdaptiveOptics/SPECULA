@@ -50,7 +50,10 @@ Create a configuration file, for example ``params_control_lpf.yml``:
      sub:               True
      inputs:
          in_value1: 'disturbance.output'
-         in_value2: 'lowpass.out_comm:-1'
+         in_value2: 'lowpass.out_comm:-1'  # previous-step feedback: one-frame loop lag
+
+   # ``:-1`` and ``delay`` are different: the former enforces the causal feedback delay,
+   # while the latter is the controller/filter latency itself.
 
    sampHold:
      class:             'WindowedIntegration'
@@ -62,7 +65,7 @@ Create a configuration file, for example ``params_control_lpf.yml``:
 
    control:
      class:             'Integrator'
-     delay:             1
+     delay:             1  # controller latency [frames]; the loop also already has the 1-step feedback lag from lowpass.out_comm:-1
      int_gain:          [0.3]
      inputs:
          delta_comm: 'sampHold.output'

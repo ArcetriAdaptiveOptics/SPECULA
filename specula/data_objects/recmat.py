@@ -22,7 +22,7 @@ class Recmat(BaseDataObj):
         Initialize a :class:`~specula.data_objects.recmat.Recmat` object.
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
-        self.recmat = self.to_xp(recmat)
+        self.recmat = self.to_xp(recmat, dtype=self.dtype)
         self.norm_factor = norm_factor
         self.proj_list = []
         self.modes2recLayer = None

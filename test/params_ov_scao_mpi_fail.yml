@@ -1,0 +1,9 @@
+
+# Set pupilstop and propagation on different ranks
+#
+pupilstop_override:
+  target_rank: 0
+
+prop_override:
+  target_rank: 1
+

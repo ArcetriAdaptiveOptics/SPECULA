@@ -1,5 +1,6 @@
 import os
 import unittest
+from unittest.mock import patch
 import numpy as np
 
 import specula
@@ -126,6 +127,27 @@ class TestRecmat(unittest.TestCase):
         restored = Recmat.restore(self.filename)
         np.testing.assert_array_equal(cpuArray(restored.recmat), recmat_data)
         np.testing.assert_array_equal(restored.modes2recLayer, None)  # TODO not initialized in Recmat yet
+
+
+    @cpu_and_gpu
+    def test_init_casts_to_precision(self, target_device_idx, xp):
+        """Recmat data must follow the object precision, not the input dtype"""
+        data64 = xp.ones((4, 4), dtype=xp.float64)
+        obj = Recmat(data64, target_device_idx=target_device_idx, precision=1)
+        self.assertEqual(obj.recmat.dtype, xp.float32)
+        data32 = xp.ones((4, 4), dtype=xp.float32)
+        obj = Recmat(data32, target_device_idx=target_device_idx, precision=0)
+        self.assertEqual(obj.recmat.dtype, xp.float64)
+
+    @cpu_and_gpu
+    def test_restore_float64_file_with_single_precision(self, target_device_idx, xp):
+        """A float64 recmat file restored with single global precision must be float32"""
+        data = np.arange(6, dtype=np.float64).reshape((3, 2))
+        Recmat(data, target_device_idx=-1, precision=0).save(self.filename, overwrite=True)
+        with patch("specula.base_time_obj.global_precision", 1):
+            restored = Recmat.restore(self.filename, target_device_idx=target_device_idx)
+        self.assertEqual(restored.recmat.dtype, xp.float32)
+        np.testing.assert_array_equal(cpuArray(restored.recmat), data)
 
 
 if __name__ == "__main__":

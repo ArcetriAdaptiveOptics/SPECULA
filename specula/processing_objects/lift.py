@@ -367,7 +367,7 @@ class Lift(BaseProcessingObj):
         psf = self.xp.array(psf)
         center = self.computeCoG(psf)
         frame = self.crop_or_enlarge_around_peak(psf, int(self.npix_side),
-                                                 peak_index=(self.xp.round(center[0]).astype(int), self.xp.round(center[1]).astype(int)))
+                                               peak_index=(self.xp.round(center[0]).astype(int), self.xp.round(center[1]).astype(int)))
         return self.xp.array(frame)
 
     def phaseEstimation(self, psf_orig, relTol=1e-3, absTol=1e-3):
@@ -439,7 +439,40 @@ class Lift(BaseProcessingObj):
         lastAML[0 + self.nPistons] += self.ref_tip
         lastAML[1 + self.nPistons] += self.ref_tilt
 
-        return currentPhaseEstimates[-1], lastAML * self.wavelengthInNm/(2*np.pi), len(total_A_MLs)
+        # *** Convert to physical units (microns) ***
+        final_coeffs = lastAML * self.wavelengthInNm / (2 * np.pi)
+
+        # *** Wrap coefficients to [-lambda/2, +lambda/2] for all modes ***
+        final_coeffs = self._wrap_coefficients(final_coeffs, self.wavelengthInNm)
+
+        return currentPhaseEstimates[-1], final_coeffs, len(total_A_MLs)
+
+    def _wrap_coefficients(self, coeffs, wavelengthInNm):
+        """
+        Wrap all modal coefficients to [-wavelength/2, +wavelength/2] range.
+        
+        This ensures estimates are always within one wavelength period,
+        which is critical for multi-wavelength phase unwrapping.
+        
+        Parameters
+        ----------
+        coeffs : ndarray
+            Modal coefficients in physical units (microns)
+        wavelengthInNm : float
+            Wavelength in nanometers
+            
+        Returns
+        -------
+        wrapped_coeffs : ndarray
+            Coefficients wrapped to [-lambda/2, +lambda/2]
+        """  
+        half_lambda = wavelengthInNm / 2.0
+
+        # Wrap to [-lambda/2, +lambda/2)
+        wrapped = ((coeffs + half_lambda) % wavelengthInNm) - half_lambda
+
+        return wrapped
+
 
     def focalPlaneImageLIFT(self, phase, set_flux=None):
         '''
@@ -482,7 +515,7 @@ class Lift(BaseProcessingObj):
                                     (padding_col, padding_col + extra_col)),
                             'constant', constant_values=0)
         return cropped
-    
+
     @lru_cache
     def _get_tlt_f(self, pupil_size, fft_size):
         '''
@@ -492,7 +525,8 @@ class Lift(BaseProcessingObj):
         xx, yy = self.xp.meshgrid(self.xp.arange(-pupil_size // 2, pupil_size // 2), self.xp.arange(-pupil_size // 2, pupil_size // 2))
         tlt_g = xx + yy
         tlt_f = -2 * self.xp.pi * tlt_g / (2*fft_size)
-        return tlt_f
+        # Object precision, otherwise the whole LIFT iteration runs in complex128
+        return tlt_f.astype(self.dtype)
 
     def trigger(self):
 

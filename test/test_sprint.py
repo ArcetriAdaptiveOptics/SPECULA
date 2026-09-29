@@ -204,7 +204,7 @@ def generate_reference_im(simul_params, source, dm, wfs, slopec):
         specula_convention=True
     )
 
-    return im_ref
+    return specula.cpuArray(im_ref)
 
 
 def generate_misregistered_im(simul_params, source, dm, wfs, slopec,
@@ -249,7 +249,7 @@ def generate_misregistered_im(simul_params, source, dm, wfs, slopec,
         specula_convention=True
     )
 
-    return im_misreg
+    return specula.cpuArray(im_misreg)
 
 
 def generate_sinusoidal_slopes(im, carrier_frequencies, duration, dt, noise_level=0.0):

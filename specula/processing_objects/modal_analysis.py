@@ -7,6 +7,8 @@ from specula.data_objects.ifunc import IFunc
 from specula.data_objects.ifunc_inv import IFuncInv
 from specula.lib.compute_zern_ifunc import compute_zern_ifunc
 
+import logging
+import warnings
 import numpy as np
 
 class ModalAnalysis(BaseProcessingObj):
@@ -25,7 +27,7 @@ class ModalAnalysis(BaseProcessingObj):
                 pupilstop: Pupilstop=None,
                 nmodes: int=None,
                 wavelengthInNm: float=0.0,
-                dorms: bool=False,
+                dorms: bool=None,
                 n_inputs: int=1,
                 remove_piston: bool=True,
                 target_device_idx: int=None,
@@ -56,7 +58,8 @@ class ModalAnalysis(BaseProcessingObj):
             Wavelength in nanometers for phase to mode conversion
             (default: 0.0, meaning no conversion)
         dorms : bool, optional
-            Whether to compute and output the RMS of the wavefront (default: False)
+            Deprecated and ignored: the RMS of the wavefront is always computed.
+            Kept for backward compatibility, a FutureWarning is issued if set.
         n_inputs : int, optional
             Number of input electric fields to process (default: 1).
             If greater than 1, the in_ef_list input will be used instead of in_ef.
@@ -112,7 +115,9 @@ class ModalAnalysis(BaseProcessingObj):
                              target_device_idx=target_device_idx,
                              precision=precision)
         self.rms.value = self.xp.zeros(1, dtype=self.dtype)
-        self.dorms = dorms
+        if dorms is not None:
+            warnings.warn('ModalAnalysis: dorms is deprecated and ignored, '
+                          'the RMS is always computed', FutureWarning, stacklevel=2)
         self.wavelengthInNm = wavelengthInNm
 
         if nmodes is None:
@@ -130,9 +135,14 @@ class ModalAnalysis(BaseProcessingObj):
         self.outputs['out_modes'] = self.out_modes
         self.outputs['rms'] = self.rms
         self.outputs['out_modes_list'] = []
+        self.outputs['rms_list'] = []
         for _ in range(self._n_inputs):
-            self.outputs['out_modes_list'].append(BaseValue('modes', target_device_idx=self.target_device_idx))
+            self.outputs['out_modes_list'].append(BaseValue('modes', target_device_idx=self.target_device_idx,
+                                                            precision=precision))
+            self.outputs['rms_list'].append(BaseValue('phase RMS', target_device_idx=self.target_device_idx,
+                                                      precision=precision))
         self.out_modes_list = self.outputs['out_modes_list']
+        self.rms_list = self.outputs['rms_list']
 
     @classmethod
     def input_names(cls):
@@ -142,8 +152,9 @@ class ModalAnalysis(BaseProcessingObj):
     @classmethod
     def output_names(cls):
         return {'out_modes': OutputDesc(BaseValue, 'Modal coefficients from the combined/single input electric field'),
-                'rms': OutputDesc(BaseValue, 'RMS of the wavefront'),
-                'out_modes_list': OutputDesc(list, 'Per-input modal coefficient vectors (list, one per connected input)')}
+                'rms': OutputDesc(BaseValue, 'RMS of the wavefront of the single input electric field'),
+                'out_modes_list': OutputDesc(list, 'Per-input modal coefficient vectors (list, one per connected input)'),
+                'rms_list': OutputDesc(list, 'Per-input wavefront RMS (list, one per connected input)')}
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
@@ -163,7 +174,7 @@ class ModalAnalysis(BaseProcessingObj):
 
         # Calculate the Divergence (right-hand side of Poisson equation)
         rows, cols = phase_wrap.shape
-        rho = self.xp.zeros((rows, cols))
+        rho = self.xp.zeros((rows, cols), dtype=self.dtype)
         rho[:, 1:-1] = self.xp.diff(dx, axis=1)
         rho[1:-1, :] += self.xp.diff(dy, axis=0)
 
@@ -177,8 +188,8 @@ class ModalAnalysis(BaseProcessingObj):
         dct_rho = self.dct(self.dct(rho, axis=0, norm='ortho'), axis=1, norm='ortho')
 
         # Create the Eigenvalues of the Laplacian in DCT domain
-        v = self.xp.cos(np.pi * self.xp.arange(rows) / rows)
-        u = self.xp.cos(np.pi * self.xp.arange(cols) / cols)
+        v = self.xp.cos(np.pi * self.xp.arange(rows, dtype=self.dtype) / rows)
+        u = self.xp.cos(np.pi * self.xp.arange(cols, dtype=self.dtype) / cols)
 
         # Finite difference Laplacian
         denom = 2 * (v.reshape(-1, 1) + u - 2)
@@ -202,53 +213,43 @@ class ModalAnalysis(BaseProcessingObj):
                 raise ValueError(f"Number of inputs ({len(input_list)}) does not match expected number ({self._n_inputs})")
             for i in range(len(input_list)):
                 self.outputs['out_modes_list'][i].value = self.xp.zeros(self._n_modes, dtype=self.dtype)
+                self.outputs['rms_list'][i].value = self.xp.zeros(1, dtype=self.dtype)
 
     def trigger_code(self):
         if self.in_ef:
             ef_list = [self.in_ef]
             output_list = [self.out_modes]
+            rms_list = [self.rms]
         else:
             ef_list = self.in_ef_list
             output_list = self.out_modes_list
-        if self.phase2modes._doZeroPad:
-            m = self.xp.dot(self.in_ef.phaseInNm, self.phase2modes.ifunc_inv)
-        else:
+            rms_list = self.rms_list
+
+        for li, current_ef in enumerate(ef_list):
             if self.wavelengthInNm > 0:
-                phase_in_rad = self.in_ef.phaseInNm * (2 * self.xp.pi / self.wavelengthInNm)
-                phase_in_rad *= self.phase2modes.mask_inf_func.astype(float)
+                phase_in_rad = current_ef.phaseInNm * (2 * self.xp.pi / self.wavelengthInNm)
+                phase_in_rad *= self.phase2modes.mask_inf_func.astype(self.dtype)
                 phase_in_rad = self.unwrap_2d(phase_in_rad)
                 phase_in_nm = phase_in_rad * (self.wavelengthInNm / (2 * self.xp.pi))
                 ph = phase_in_nm[self.phase2modes.idx_inf_func]
             else:
-                ph = self.in_ef.phaseInNm[self.phase2modes.idx_inf_func]
+                ph = current_ef.phaseInNm[self.phase2modes.idx_inf_func]
 
             m = self.xp.dot(ph, self.phase2modes.ifunc_inv)
 
-        self.out_modes.value[:] = m
-        self.out_modes.generation_time = self.current_time
-
-        for li, current_ef in enumerate(ef_list):
-            if self.phase2modes._doZeroPad:
-                m = self.xp.dot(current_ef.phaseInNm, self.phase2modes.ifunc_inv)
-            else:
-                if self.wavelengthInNm > 0:
-                    phase_in_rad = current_ef.phaseInNm * (2 * self.xp.pi / self.wavelengthInNm)
-                    phase_in_rad *= self.phase2modes.mask_inf_func.astype(float)
-                    phase_in_rad = self.unwrap_2d(phase_in_rad)
-                    phase_in_nm = phase_in_rad * (self.wavelengthInNm / (2 * self.xp.pi))
-                    ph = phase_in_nm[self.phase2modes.idx_inf_func]
-                else:
-                    ph = current_ef.phaseInNm[self.phase2modes.idx_inf_func]
-
-                m = self.xp.dot(ph, self.phase2modes.ifunc_inv)
-
+            # This also sets self.out_modes in case of a non-list input
             output_list[li].value[:] = m
             output_list[li].generation_time = self.current_time
+            rms_list[li].value[:] = self.xp.std(ph)
+            rms_list[li].generation_time = self.current_time
 
-        if self.dorms:
-            self.rms.value[:] = self.xp.std(ph)
-            self.rms.generation_time = self.current_time
-
-        self.logger.debug(f"First residual values: {m[:min(6, len(m))]}")
-        if self.dorms:
-            self.logger.debug(f"Phase RMS: {self.rms.value}")
+    def post_trigger(self):
+        super().post_trigger()
+        if self.logger.isEnabledFor(logging.DEBUG):
+            if self.in_ef is not None:
+                outputs = zip([self.out_modes], [self.rms])
+            else:
+                outputs = zip(self.out_modes_list, self.rms_list)
+            for out, rms in outputs:
+                self.logger.debug(f'First residual values: {out.value[:6]}')
+                self.logger.debug(f'Phase RMS: {rms.value}')

@@ -3,6 +3,7 @@ specula.init(0)  # Default target device
 
 import os
 import unittest
+from unittest.mock import patch
 
 from specula import np
 from specula import cpuArray
@@ -35,6 +36,26 @@ class TestIntmat(unittest.TestCase):
         im2 = Intmat.restore(self.filename)
 
         np.testing.assert_array_equal(cpuArray(im.intmat), cpuArray(im2.intmat))
+
+    @cpu_and_gpu
+    def test_init_casts_to_precision(self, target_device_idx, xp):
+        """Intmat data must follow the object precision, not the input dtype"""
+        data64 = xp.arange(6, dtype=xp.float64).reshape((3, 2))
+        im = Intmat(data64, target_device_idx=target_device_idx, precision=1)
+        assert im.intmat.dtype == xp.float32
+        data32 = xp.arange(6, dtype=xp.float32).reshape((3, 2))
+        im = Intmat(data32, target_device_idx=target_device_idx, precision=0)
+        assert im.intmat.dtype == xp.float64
+
+    @cpu_and_gpu
+    def test_restore_float64_file_with_single_precision(self, target_device_idx, xp):
+        """A float64 intmat file restored with single global precision must be float32"""
+        im = Intmat(np.arange(6, dtype=np.float64).reshape((3, 2)), target_device_idx=-1, precision=0)
+        im.save(self.filename, overwrite=True)
+        with patch("specula.base_time_obj.global_precision", 1):
+            im2 = Intmat.restore(self.filename, target_device_idx=target_device_idx)
+        assert im2.intmat.dtype == xp.float32
+        np.testing.assert_array_equal(cpuArray(im2.intmat), cpuArray(im.intmat))
 
     def tearDown(self):
         try:

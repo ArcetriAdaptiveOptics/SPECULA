@@ -1,15 +1,11 @@
-import time
-import queue
-import multiprocessing as mp
-from unittest.mock import MagicMock
+import threading
 
+import pytest
+
+import specula
+specula.init(-1)  # Default target device
 
 from specula.processing_objects.specula_input import SpeculaInput
-from specula.scalar_values import FloatValue, IntValue, StringValue
-
-
-def _dummy_task(q):
-    q.put(("x", 99))
 
 
 class TestSpeculaInput:
@@ -24,72 +20,70 @@ class TestSpeculaInput:
         assert len(obj.outputs) == 3
 
     def test_trigger_updates_output_value(self):
-        output_list = ["x:int"]
-        obj = SpeculaInput(output_list=output_list)
-        obj.q = mp.Queue()
+        obj = SpeculaInput(output_list=["x:int"])
 
         obj.current_time = 42
-        obj.q.put(("x", 123))
-        time.sleep(0.001)  # Allow task switch
-
+        obj.put_input("x", "123")
         obj.trigger_code()
 
         assert obj.outputs["x"].value == 123
         assert obj.outputs["x"].generation_time == 42
 
+    def test_value_applied_only_at_trigger(self):
+        obj = SpeculaInput(output_list=["x:float"])
+
+        obj.put_input("x", "0.5")
+        assert obj.outputs["x"].value == 0.0
+
+        obj.current_time = 7
+        obj.trigger_code()
+        assert obj.outputs["x"].value == 0.5
+        assert obj.outputs["x"].generation_time == 7
+
     def test_trigger_handles_multiple_values(self):
-        output_list = ["x:int", "y:int"]
-        obj = SpeculaInput(output_list=output_list)
-        obj.q = mp.Queue()
+        obj = SpeculaInput(output_list=["x:int", "y:int"])
 
         obj.current_time = 10
-        obj.q.put(("x", 1))
-        obj.q.put(("y", 2))
-        time.sleep(0.001)  # Allow task switch
-
+        obj.put_input("x", 1)
+        obj.put_input("y", 2)
         obj.trigger_code()
 
         assert obj.outputs["x"].value == 1
         assert obj.outputs["y"].value == 2
 
-    # capfd is a pytest fixture, handled automatically
-    # when running tests
-
-    def test_trigger_ignores_unknown_output(self):
+    def test_last_value_wins(self):
         obj = SpeculaInput(output_list=["x:int"])
-        obj.q = mp.Queue()
 
-        obj.q.put(("dummy", 5))
-        time.sleep(0.001)    # Allow task switch
-
-        obj.logger.log = MagicMock()  # Mock logger to capture error messages
-
+        obj.put_input("x", 1)
+        obj.put_input("x", 2)
         obj.trigger_code()
 
-        assert "Unknown output" in obj.logger.log.call_args[0][1]  # Check that error was logged
+        assert obj.outputs["x"].value == 2
 
-    def test_set_input_task_process(self):
+    def test_output_without_type_rejected(self):
+        with pytest.raises(ValueError, match="Unsupported type"):
+            SpeculaInput(output_list=["x"])
+
+    def test_unknown_output_rejected(self):
         obj = SpeculaInput(output_list=["x:int"])
 
-        obj.set_input_task(_dummy_task)
+        with pytest.raises(KeyError, match="Unknown output"):
+            obj.put_input("dummy", 5)
+        assert obj.q.empty()
 
-        long_timeout = 10
-        name = None
-        start = time.time()
+    def test_bad_value_rejected(self):
+        obj = SpeculaInput(output_list=["x:int"])
 
-        # wait briefly for process to enqueue value
-        while time.time() < start + long_timeout:
-            try:
-                name, value = obj.q.get(timeout=1)
-                break
-            except queue.Empty:
-                pass
+        with pytest.raises(ValueError, match="cannot convert to type int"):
+            obj.put_input("x", "abc")
+        assert obj.q.empty()
 
-        if name is None:
-            raise TimeoutError(f'Value from input task not received after {long_timeout} seconds')
+    def test_put_input_from_thread(self):
+        obj = SpeculaInput(output_list=["x:int"])
 
-        assert name == "x"
-        assert value == 99
+        t = threading.Thread(target=obj.put_input, args=("x", 99))
+        t.start()
+        t.join()
+        obj.trigger_code()
 
-        obj.p.terminate()
-        obj.p.join()
+        assert obj.outputs["x"].value == 99

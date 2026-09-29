@@ -47,7 +47,7 @@ To apply the vibration, add the new DM to the propagation step:
       inputs:
         atmo_layer_list: ['atmo.layer_list']
         common_layer_list: ['pupilstop',
-                            'dm.out_layer:-1',
+                            'dm.out_layer:-1',  # use the previous-step DM correction; 1-frame causal feedback lag, separate from any explicit block delay
                             'dm_vibration.out_layer']
       ...
 

@@ -13,6 +13,7 @@ from specula.data_objects.electric_field import ElectricField
 from specula.processing_objects.extended_source import ExtendedSource
 from specula.processing_objects.modulated_pyramid import ModulatedPyramid
 from specula.processing_objects.ext_source_pyramid import ExtSourcePyramid
+from specula.base_value import BaseValue
 from test.specula_testlib import cpu_and_gpu
 
 class TestExtSourcePyramidComparison(unittest.TestCase):
@@ -906,3 +907,152 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
         print(f"  - Radius: {mean_radius:.4f} lambda/D (FoV/2 = {fov/2:.2f} arcsec)")
         print(f"  - Angles: {angles_deg_sorted}° (face centers)")
         print(f"  - Points correctly positioned at pyramid FACE CENTERS")
+
+    @cpu_and_gpu
+    def test_cuda_stream_for_changing_source(self, target_device_idx, xp):
+        pixel_pupil = 40
+        pixel_pitch = 0.025
+        wavelength_nm = 589
+        simul_params = SimulParams(pixel_pupil=pixel_pupil, pixel_pitch=pixel_pitch)
+
+        # LGS-like spot moving and changing shape from frame to frame
+        npsf = 48
+        psf_scale = 0.04
+        yy, xx = (xp.mgrid[0:npsf, 0:npsf] - npsf / 2) * psf_scale
+        rng = xp.random.default_rng(1)
+        def lgs_psf(k):
+            cx = 0.4 * np.sin(1.3 * k)
+            cy = 0.3 * np.cos(0.9 * k)
+            spot = xp.exp(-((xx - cx) ** 2 + (yy - cy) ** 2) / (2 * 0.3 ** 2))
+            return spot * (1 + 0.5 * rng.random((npsf, npsf)))
+
+        src = ExtendedSource(
+            simul_params=simul_params,
+            wavelengthInNm=wavelength_nm,
+            source_type='FROM_PSF',
+            sampling_type='POLAR',
+            sampling_lambda_over_d=0.5,
+            initial_psf=lgs_psf(0),
+            pixel_scale_psf=psf_scale,
+            target_device_idx=target_device_idx,
+        )
+        src.compute()
+        pyr_graph = ExtSourcePyramid(simul_params=simul_params, wavelengthInNm=wavelength_nm, fov=4.0, pup_diam=10,
+                                     output_resolution=32, target_device_idx=target_device_idx, cuda_stream_enable=True)
+        pyr_ref = ExtSourcePyramid(simul_params=simul_params, wavelengthInNm=wavelength_nm, fov=4.0, pup_diam=10,
+                                   output_resolution=32, target_device_idx=target_device_idx, cuda_stream_enable=False,
+                                   max_flux_ratio_thr=1e-16)
+        ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1, target_device_idx=target_device_idx)
+        ef.A = make_mask(pixel_pupil)
+        for pyr in (pyr_graph, pyr_ref):
+            pyr.inputs['in_ef'].set(ef)
+            pyr.inputs['ext_source_coeff'].set(src.outputs['coeff'])
+
+        ef.generation_time = 0
+        src.outputs['coeff'].generation_time = 0
+        pyr_graph.setup()
+        pyr_ref.setup()
+
+        for k in (1, 2):
+            t = ef.seconds_to_t(k)
+            ef.phaseInNm = 50 * rng.standard_normal((pixel_pupil, pixel_pupil))
+            ef.generation_time = t
+
+            # new PSF
+            src.psf.set_value(lgs_psf(k))
+            src.compute()
+            src.outputs['coeff'].generation_time = t
+
+            outs = []
+            for pyr in (pyr_graph, pyr_ref):
+                pyr.check_ready(t)
+                pyr.trigger()
+                pyr.post_trigger()
+                outs.append(cpuArray(pyr.outputs['out_i'].i).copy())
+            out_graph, out_ref = outs
+
+            np.testing.assert_allclose(
+                out_graph, out_ref, rtol=0, atol=1e-5 * np.abs(outs[1]).max(),
+                err_msg=f"At frame {k} ExtSourcePyramid with cuda_stream_enable=True is not equal to ExtSourcePyramid "
+                        f"with cuda_stream_enable=False.")
+
+    @cpu_and_gpu
+    def test_changing_source_and_number_of_points(self, target_device_idx, xp):
+        pixel_pupil = 40
+        pixel_pitch = 0.025
+        simul_params = SimulParams(pixel_pupil=pixel_pupil, pixel_pitch=pixel_pitch)
+        batch_size = 64
+
+        # number of points per frame -> chunks: 2, 2 (fewer points), 3, 2
+        n_points_per_frame = [100, 90, 150, 110]
+        expected_chunks = [2, 2, 3, 2]
+        rng = np.random.default_rng(5)
+
+        def make_coeff(n):
+            coeff = np.zeros((n, 4))
+            coeff[:, 0:2] = rng.uniform(-8, 8, (n, 2))   # tip, tilt
+            coeff[:, 3] = rng.uniform(0.5, 1.0, n)       # flux
+            return coeff / np.array([1, 1, 1, coeff[:, 3].sum()])
+
+        pyr_graph = ExtSourcePyramid(simul_params=simul_params, wavelengthInNm=589, fov=4.0,
+                      pup_diam=10, output_resolution=32, max_batch_size=batch_size,
+                      target_device_idx=target_device_idx, cuda_stream_enable=True)
+        pyr_ref = ExtSourcePyramid(simul_params=simul_params, wavelengthInNm=589, fov=4.0,
+                      pup_diam=10, output_resolution=32, max_batch_size=batch_size,
+                      target_device_idx=target_device_idx, cuda_stream_enable=False,
+                                   max_flux_ratio_thr=1e-16)
+
+        ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1,
+                           target_device_idx=target_device_idx)
+        ef.A = make_mask(pixel_pupil)
+
+        coeff0 = make_coeff(n_points_per_frame[0])
+        src_graph = BaseValue(value=coeff0.copy(), target_device_idx=target_device_idx)
+        src_ref = BaseValue(value=coeff0.copy(), target_device_idx=target_device_idx)
+        pyr_graph.inputs['in_ef'].set(ef)
+        pyr_graph.inputs['ext_source_coeff'].set(src_graph)
+        pyr_ref.inputs['in_ef'].set(ef)
+        pyr_ref.inputs['ext_source_coeff'].set(src_ref)
+
+        ef.generation_time = 0
+        src_graph.generation_time = 0
+        src_ref.generation_time = 0
+        pyr_graph.setup()
+        pyr_ref.setup()
+
+        n_captures = [0]
+        build_stream = pyr_graph.build_stream
+
+        def counting_build_stream(*args, **kwargs):
+            n_captures[0] += 1
+            return build_stream(*args, **kwargs)
+        pyr_graph.build_stream = counting_build_stream
+
+        for k, (n_points, n_chunks) in enumerate(zip(n_points_per_frame, expected_chunks), start=1):
+            t = ef.seconds_to_t(k)
+            ef.phaseInNm = 50 * rng.standard_normal((pixel_pupil, pixel_pupil))
+            ef.generation_time = t
+            coeff = make_coeff(n_points)
+
+            src_graph.value = pyr_graph.to_xp(coeff.copy())
+            src_ref.value = pyr_ref.to_xp(coeff.copy())
+            src_graph.generation_time = t
+            src_ref.generation_time = t
+
+            outs = []
+            for pyr in (pyr_graph, pyr_ref):
+                pyr.check_ready(t)
+                pyr.trigger()
+                pyr.post_trigger()
+                outs.append(cpuArray(pyr.outputs['out_i'].i).copy())
+
+            self.assertEqual(pyr_graph._n_chunks, n_chunks)
+            self.assertEqual(pyr_graph._coeff_valid.shape[0], n_chunks * batch_size)
+            np.testing.assert_allclose(
+                outs[0], outs[1], rtol=0, atol=1e-5 * np.abs(outs[1]).max(),
+                err_msg=f"At frame {k} ({n_points} points ExtSourcePyramid with "
+                        f"cuda_stream_enable=True does not follow the changing source")
+
+        if target_device_idx >= 0:
+            # recapturing has to be done twice (2->3 and 3->2)
+            self.assertEqual(n_captures[0], 2)

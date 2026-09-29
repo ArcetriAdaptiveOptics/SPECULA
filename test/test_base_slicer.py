@@ -1,6 +1,7 @@
 import specula
-from specula.loop_control import LoopControl
 specula.init(0)
+
+from specula.loop_control import LoopControl
 
 import unittest
 from specula import cpuArray, np

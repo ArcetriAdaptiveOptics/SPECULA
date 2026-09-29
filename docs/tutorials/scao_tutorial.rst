@@ -446,8 +446,11 @@ Create ``config/scao_tutorial.yml``:
      inputs:
        atmo_layer_list: ['atmo.layer_list']
        common_layer_list: ['pupilstop',       # Pupil
-                          'dm.out_layer:-1']  # DM correction from last step
+                          'dm.out_layer:-1']  # One-step feedback lag: use the DM correction from the previous step
      outputs:           ['out_source_science_ef', 'out_source_ngs_ef']
+
+   # The ``:-1`` suffix is a causal loop convention. It is not the same as the controller delay below:
+   # ``dm.out_layer:-1`` enforces the 1-frame feedback lag, while ``integrator.delay`` models the controller's own latency.
    
    # Shack-Hartmann wavefront sensor
    sh:
@@ -499,7 +502,7 @@ Create ``config/scao_tutorial.yml``:
    # Integrator controller
    integrator:
      class:             'Integrator'
-     delay:             1                     # 1 frame delay (realistic)
+     delay:             1                     # Additional controller delay [frames]. The loop itself already has a 1-step lag from dm.out_layer:-1.
      int_gain:          [0.30]
      n_modes:           [800]                 # Number of modes to control
      inputs:
