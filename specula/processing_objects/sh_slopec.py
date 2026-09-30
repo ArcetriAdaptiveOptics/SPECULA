@@ -314,9 +314,10 @@ class ShSlopec(Slopec):
                 self.xp.subtract(pixels, thr, out=pixels)
             self.xp.maximum(pixels, 0, out=pixels)
 
-        # Denominator, x and y weighted sums, shape (3, n_subaps)
-        sums = sum_product(pixels[None, :, :], self._weights[:, None, :], xp=self.xp)
-        mean_subap_tot = self.xp.mean(sums[0])
+        # Denominator, x and y weighted sums, computed together
+        subap_tot, sx_raw, sy_raw = sum_product(pixels[None, :, :], self._weights[:, None, :],
+                                                xp=self.xp)
+        mean_subap_tot = self.xp.mean(subap_tot)
 
         if self.mult_factor != 0:
             mult_factor = self.mult_factor
@@ -333,10 +334,10 @@ class ShSlopec(Slopec):
         if self.xp is np:
             # Dark subapertures are expected, and set to zero
             with np.errstate(divide='ignore'):
-                sh_slopes_normalize(sums[0], sums[1], sums[2], mean_subap_tot, mult_factor,
+                sh_slopes_normalize(subap_tot, sx_raw, sy_raw, mean_subap_tot, mult_factor,
                                     sx, sy, xp=self.xp)
         else:
-            sh_slopes_normalize(sums[0], sums[1], sums[2], mean_subap_tot, mult_factor,
+            sh_slopes_normalize(subap_tot, sx_raw, sy_raw, mean_subap_tot, mult_factor,
                                 sx, sy, xp=self.xp)
 
         self.xp.sum(flux_per_subaperture_vector, keepdims=True, out=self.total_counts.value)
