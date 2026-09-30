@@ -4,9 +4,9 @@ Development
 Python version
 --------------
 
-* Python 3.8 or later
+* Python 3.10 or later
 
-Builds on github automatically run all tests on Python versions from 3.8 to 3.13.
+Builds on github automatically run all tests on Python versions from 3.10 to 3.14.
 
 (human) Language
 ----------------
