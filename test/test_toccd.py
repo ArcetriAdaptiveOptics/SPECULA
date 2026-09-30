@@ -127,3 +127,38 @@ class TestToccd(unittest.TestCase):
             assert out.shape == (2, 2)
             assert xp.isclose(out.sum(), arr.sum(), rtol=1e-6)
 
+
+    @staticmethod
+    def _lcm_reference(a, newshape):
+        '''oaalib's toccd() in float64: upsample to the L.C.M. and average'''
+        from math import lcm
+        (iny, inx), (outy, outx) = a.shape, newshape
+        ly, lx = lcm(iny, outy), lcm(inx, outx)
+        up = np.repeat(np.repeat(a.astype(np.float64), ly // iny, axis=0), lx // inx, axis=1)
+        out = up.reshape(outy, ly // outy, outx, lx // outx).mean(axis=(1, 3))
+        return out * a.sum() / out.sum()
+
+    @cpu_and_gpu
+    def test_toccd_matches_lcm_reference(self, target_device_idx, xp):
+        """Non-square arrays, non-integer and prime size ratios, up and downsampling"""
+        rng = np.random.default_rng(1)
+        cases = [((80, 40), (20, 10)), ((40, 80), (10, 20)), ((60, 30), (40, 20)),
+                 ((30, 60), (20, 40)), ((101, 101), (7, 7)), ((40, 40), (14, 14)),
+                 ((7, 9), (20, 16))]
+        for dtype, rtol in [(np.float32, 1e-5), (np.float64, 1e-12)]:
+            for in_shape, out_shape in cases:
+                with self.subTest(dtype=dtype, in_shape=in_shape, out_shape=out_shape):
+                    a = rng.random(in_shape).astype(dtype)
+                    out = toccd(xp.asarray(a), out_shape, xp=xp)
+                    assert out.shape == out_shape
+                    assert out.dtype == dtype
+                    np.testing.assert_allclose(cpuArray(out), self._lcm_reference(a, out_shape),
+                                               rtol=rtol)
+
+    @cpu_and_gpu
+    def test_toccd_strided_input(self, target_device_idx, xp):
+        """A non-contiguous view gives the same result as its contiguous copy"""
+        a = xp.asarray(np.random.default_rng(2).random((100, 100)), dtype=xp.float32)
+        view = a[10:70, 10:70]
+        np.testing.assert_allclose(cpuArray(toccd(view, (20, 20), xp=xp)),
+                                   cpuArray(toccd(view.copy(), (20, 20), xp=xp)), rtol=1e-6)
