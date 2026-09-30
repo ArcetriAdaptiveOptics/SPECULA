@@ -25,6 +25,9 @@ def main():
                         help='Use MPI for parallel execution')
     parser.add_argument('--stepping', action='store_true',
                         help='Allow simulation stepping')
+    parser.add_argument('--async-displays', action='store_true',
+                        help='Run the displays in a separate process, so that slow drawing does not '
+                             'slow down the simulation. Displays may skip updates to keep up.')
     parser.add_argument('--diagram', action='store_true',
                         help='Save image block diagram')
     parser.add_argument('--diagram-title', type=str, default=None,

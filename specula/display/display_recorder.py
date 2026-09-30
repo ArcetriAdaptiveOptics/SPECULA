@@ -6,6 +6,7 @@ from specula.connections import InputList
 from specula.scalar_values import IntValue
 from specula.base_processing_obj import InputDesc
 from specula.base_processing_obj import BaseProcessingObj
+from specula.display import display_process
 
 class DisplayRecorder(BaseProcessingObj):
 
@@ -16,6 +17,8 @@ class DisplayRecorder(BaseProcessingObj):
                  ):
 
         super().__init__()
+        if display_process.enabled():
+            raise ValueError('DisplayRecorder cannot record displays running in a separate process (--async-displays)')
         self.writer = imageio.get_writer(
             filename,
             fps=fps,

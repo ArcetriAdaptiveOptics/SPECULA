@@ -17,6 +17,7 @@ from specula.data_objects.electric_field import ElectricField
 from specula.processing_objects.psf import PSF
 from specula.data_objects.pixels import Pixels
 from specula.data_objects.slopes import Slopes
+from specula.display import display_process
 from specula.display.base_display import BaseDisplay
 from specula.display.phase_display import PhaseDisplay
 from specula.display.pixels_display import PixelsDisplay
@@ -118,6 +119,34 @@ class TestDisplays(unittest.TestCase):
         self.assertIsNotNone(display.fig)
 
         matplotlib.pyplot.close(display.fig)
+
+    @cpu_and_gpu
+    def test_phase_display_in_display_process(self, target_device_idx, xp):
+        """With async displays, drawing happens in the display process"""
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
+                          S0=self.S0, target_device_idx=target_device_idx)
+        ef.generation_time = ef.seconds_to_t(1)
+
+        display_process.init(True)
+        try:
+            display = PhaseDisplay(title='Async Phase Display')
+            display.inputs['phase'].set(ef)
+            self.assertIsNone(display.fig)
+
+            # The display process inherits the environment: no GUI windows
+            with mock.patch.dict('os.environ', {'MPLBACKEND': 'Agg'}):
+                display_process.start(precision=specula.global_precision, log_level='INFO')
+            process = display_process._process
+
+            loop = LoopControl()
+            loop.add(display, idx=0)
+            loop.run(run_time=1, dt=1)
+            self.assertEqual(display.outputs['out_window_id'].value, display.window)
+        finally:
+            display_process.stop(display.logger)
+            display_process.init(False)
+
+        self.assertEqual(process.exitcode, 0)
 
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
