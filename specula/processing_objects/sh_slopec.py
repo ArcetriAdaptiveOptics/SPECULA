@@ -2,7 +2,7 @@ import logging
 
 import numpy as np
 
-from specula import cp
+from specula import fuse
 from specula.base_processing_obj import InputDesc, OutputDesc
 from specula.data_objects.pixels import Pixels
 from specula.data_objects.slopes import Slopes
@@ -10,140 +10,21 @@ from specula.data_objects.subap_data import SubapData
 from specula.lib.make_mask import make_mask
 from specula.lib.make_xy import make_xy
 
-from specula.processing_objects.slopec import Slopec
-
-# Threshold modes of the sh_subap_sums kernel
-THR_SUBTRACT = 0    # pixels -= thr, then negative pixels are set to zero
-THR_PEDESTAL = 1    # pixels below thr are set to zero
-THR_RATIO = 2       # like THR_SUBTRACT, with thr = thr_ratio * subaperture max
-
-# GPU kernels computing the slopes in two launches, so that the per-subaperture
-# pixel cube is never allocated. Reductions are done in a fixed order,
-# so that results are reproducible.
-_sh_kernels_src = r'''
-#define BLOCK 256
-
-// Tree reduction of N values over the block, result in v[] of all threads
-template<int N, typename T, bool MAX>
-__device__ void block_reduce(T (&v)[N], T (*sh)[BLOCK]) {
-    int tid = threadIdx.x;
-    for (int k = 0; k < N; k++)
-        sh[k][tid] = v[k];
-    __syncthreads();
-    for (int s = BLOCK / 2; s > 0; s >>= 1) {
-        if (tid < s)
-            for (int k = 0; k < N; k++)
-                sh[k][tid] = MAX ? max(sh[k][tid], sh[k][tid + s]) : sh[k][tid] + sh[k][tid + s];
-        __syncthreads();
-    }
-    for (int k = 0; k < N; k++)
-        v[k] = sh[k][0];
-    __syncthreads();
-}
-
-// One block per subaperture. For subaperture s, writes into sums[s, :]:
-// flux (before thresholding), and the sums of the thresholded pixels
-// weighted by the three rows of weights (denominator, x and y).
-template<typename F, typename T>
-__global__ void sh_subap_sums(const F *frame, const long long *idx,
-                              const T *pix_weight, int use_pix_weight,
-                              const T *weights, int np2,
-                              T thr_value, T thr_ratio, int thr_mode, T *sums) {
-    __shared__ T sh[3][BLOCK];
-    const long long s = blockIdx.x;
-    const long long *sidx = idx + s * np2;
-    const T *spw = pix_weight + s * np2;
-
-    T flux[1] = {0};
-    T vmax[1] = {-3.0e38};
-    for (int p = threadIdx.x; p < np2; p += BLOCK) {
-        T v = T(frame[sidx[p]]);
-        if (use_pix_weight) v *= spw[p];
-        flux[0] += v;
-        vmax[0] = max(vmax[0], v);
-    }
-    block_reduce<1, T, false>(flux, sh);
-
-    T thr = thr_value;
-    if (thr_mode == 2) {
-        block_reduce<1, T, true>(vmax, sh);
-        thr = thr_ratio * vmax[0];
-    }
-
-    T acc[3] = {0, 0, 0};
-    for (int p = threadIdx.x; p < np2; p += BLOCK) {
-        T v = T(frame[sidx[p]]);
-        if (use_pix_weight) v *= spw[p];
-        if (thr_mode == 1) {
-            v = v < thr ? T(0) : v;
-        } else {
-            v -= thr;
-            v = v < 0 ? T(0) : v;
-        }
-        for (int k = 0; k < 3; k++)
-            acc[k] += v * weights[k * np2 + p];
-    }
-    block_reduce<3, T, false>(acc, sh);
-
-    if (threadIdx.x == 0) {
-        sums[s * 4 + 0] = flux[0];
-        sums[s * 4 + 1] = acc[0];
-        sums[s * 4 + 2] = acc[1];
-        sums[s * 4 + 3] = acc[2];
-    }
-}
-
-// Single block. Normalizes the slopes by the subaperture denominator, setting
-// to zero those with a denominator below 1e-3 times the average. Slopes are
-// written at sx[i * stride] and sy[i * stride]. Also writes the flux outputs.
-template<typename T>
-__global__ void sh_slopes_normalize(const T *sums, int n_subaps, T mult_factor,
-                                    T *sx, T *sy, int stride,
-                                    T *flux, T *total_counts, T *subap_counts) {
-    __shared__ T sh[2][BLOCK];
-    T tot[2] = {0, 0};
-    for (int i = threadIdx.x; i < n_subaps; i += BLOCK) {
-        tot[0] += sums[i * 4 + 0];
-        tot[1] += sums[i * 4 + 1];
-    }
-    block_reduce<2, T, false>(tot, sh);
-
-    T mean_subap_tot = tot[1] / T(n_subaps);
-    T max_factor = T(1) / (mean_subap_tot * T(1e-3));
-    for (int i = threadIdx.x; i < n_subaps; i += BLOCK) {
-        T factor = T(1) / sums[i * 4 + 1];
-        factor = factor > max_factor ? T(0) : factor;
-        factor *= mult_factor;
-        sx[i * stride] = sums[i * 4 + 2] * factor;
-        sy[i * stride] = sums[i * 4 + 3] * factor;
-        flux[i] = sums[i * 4 + 0];
-    }
-    if (threadIdx.x == 0) {
-        total_counts[0] = tot[0];
-        subap_counts[0] = tot[0] / T(n_subaps);
-    }
-}
-'''
-_SH_BLOCK = 256
-
-_ctypes = {np.dtype(np.float32): 'float', np.dtype(np.float64): 'double',
-           np.dtype(np.int16): 'short', np.dtype(np.uint16): 'unsigned short',
-           np.dtype(np.int32): 'int', np.dtype(np.uint32): 'unsigned int',
-           np.dtype(np.int64): 'long long', np.dtype(np.uint64): 'unsigned long long'}
-_sh_kernels = {}
+from specula.processing_objects.slopec import Slopec, sum_product
 
 
-def _sh_kernel(name, *dtypes):
-    '''
-    Kernel *name* for the given template dtypes, compiled at first use.
-    Kernels are loaded separately for each device.
-    '''
-    expr = f"{name}<{', '.join(_ctypes[np.dtype(d)] for d in dtypes)}>"
-    key = (expr, cp.cuda.Device().id)
-    if key not in _sh_kernels:
-        module = cp.RawModule(code=_sh_kernels_src, options=('-std=c++14',), name_expressions=[expr])
-        _sh_kernels[key] = module.get_function(expr)
-    return _sh_kernels[key]
+@fuse(kernel_name='clamp_generic_less')
+def clamp_generic_less(x, c, y, xp):
+    y[:] = xp.where(y < x, c, y)
+
+
+@fuse(kernel_name='sh_slopes_normalize')
+def sh_slopes_normalize(subap_tot, sx_raw, sy_raw, mean_subap_tot, mult_factor, sx, sy, xp):
+    # Subapertures with a denominator below 1e-3 times the average get zero slopes
+    factor = 1.0 / subap_tot
+    factor = xp.where(factor > 1.0 / (mean_subap_tot * 1e-3), 0, factor) * mult_factor
+    sx[:] = sx_raw * factor
+    sy[:] = sy_raw * factor
 
 
 class ShSlopec(Slopec):
@@ -400,19 +281,42 @@ class ShSlopec(Slopec):
 
         in_pixels = self.local_inputs['in_pixels'].pixels
 
+        n_subaps = self.subapdata.n_subaps
+
         if self.thr_value > 0 and self.thr_ratio_value > 0:
             raise ValueError("Only one between _thr_value and _thr_ratio_value can be set.")
 
+        # Subaperture pixels, shape (n_subaps, np_sub*np_sub)
+        pixels = self.xp.take(in_pixels, self.subap_idx).astype(self.dtype, copy=False)
+
+        if self.weight_int_pixel:
+            # Weights are updated by prepare_trigger()
+            pixels *= self._int_pixels_weight
+
+        # Calculate flux per subaperture
+        flux_per_subaperture_vector = self.flux_per_subaperture_vector.value
+        self.xp.sum(pixels, axis=1, out=flux_per_subaperture_vector)
+
         # Thresholding logic
         if self.thr_ratio_value > 0:
-            # One threshold per subaperture, as a fraction of its brightest pixel
-            thr_mode, thr = THR_RATIO, 0
-        elif self.thr_pedestal:
-            thr_mode, thr = THR_PEDESTAL, self.thr_value
-        elif self.thr_value > 0:
-            thr_mode, thr = THR_SUBTRACT, self.thr_value
+            # One threshold per subaperture (row)
+            thr = self.thr_ratio_value * self.xp.max(pixels, axis=1, keepdims=True)
+        elif self.thr_pedestal or self.thr_value > 0:
+            thr = self.thr_value
         else:
-            thr_mode, thr = THR_SUBTRACT, 0
+            thr = 0
+
+        if self.thr_pedestal:
+            clamp_generic_less(thr, 0, pixels, xp=self.xp)
+        else:
+            # In place, with ufuncs: on these large arrays they are faster than fused kernels
+            if self.thr_ratio_value > 0 or thr != 0:
+                self.xp.subtract(pixels, thr, out=pixels)
+            self.xp.maximum(pixels, 0, out=pixels)
+
+        # Denominator, x and y weighted sums, shape (3, n_subaps)
+        sums = sum_product(pixels[None, :, :], self._weights[:, None, :], xp=self.xp)
+        mean_subap_tot = self.xp.mean(sums[0])
 
         if self.mult_factor != 0:
             mult_factor = self.mult_factor
@@ -421,78 +325,22 @@ class ShSlopec(Slopec):
             mult_factor = 1.0
 
         # Write the slopes directly into the slopes vector, using views
-        n_subaps = self.subapdata.n_subaps
         slopes = self.slopes.slopes
         if self.slopes.interleave:
             sx, sy = slopes[0::2], slopes[1::2]
         else:
             sx, sy = slopes[:n_subaps], slopes[n_subaps:]
-
-        if self.target_device_idx >= 0:
-            self._calc_slopes_gpu(in_pixels, thr_mode, thr, mult_factor, sx, sy)
+        if self.xp is np:
+            # Dark subapertures are expected, and set to zero
+            with np.errstate(divide='ignore'):
+                sh_slopes_normalize(sums[0], sums[1], sums[2], mean_subap_tot, mult_factor,
+                                    sx, sy, xp=self.xp)
         else:
-            self._calc_slopes_cpu(in_pixels, thr_mode, thr, mult_factor, sx, sy)
+            sh_slopes_normalize(sums[0], sums[1], sums[2], mean_subap_tot, mult_factor,
+                                sx, sy, xp=self.xp)
 
-    def _calc_slopes_gpu(self, in_pixels, thr_mode, thr, mult_factor, sx, sy):
-        """GPU version of calc_slopes_nofor(), with two kernel launches"""
-        n_subaps = self.subapdata.n_subaps
-        np2 = self._weights.shape[1]
-        if not in_pixels.flags.c_contiguous:
-            in_pixels = self.xp.ascontiguousarray(in_pixels)
-
-        # Columns are flux, denominator, x and y weighted sums
-        sums = self.xp.empty((n_subaps, 4), dtype=self.dtype)
-        if self.weight_int_pixel:
-            pix_weight = self._int_pixels_weight    # Updated by prepare_trigger()
-        else:
-            pix_weight = self._weights              # Not used
-        subap_sums = _sh_kernel('sh_subap_sums', in_pixels.dtype, self.dtype)
-        subap_sums((n_subaps,), (_SH_BLOCK,),
-                   (in_pixels, self.subap_idx, pix_weight, np.int32(self.weight_int_pixel),
-                    self._weights, np.int32(np2),
-                    self.dtype(thr), self.dtype(self.thr_ratio_value), np.int32(thr_mode), sums))
-
-        stride = 2 if self.slopes.interleave else 1
-        normalize = _sh_kernel('sh_slopes_normalize', self.dtype)
-        normalize((1,), (_SH_BLOCK,),
-                  (sums, np.int32(n_subaps), self.dtype(mult_factor), sx, sy, np.int32(stride),
-                   self.flux_per_subaperture_vector.value, self.total_counts.value,
-                   self.subap_counts.value))
-
-    def _calc_slopes_cpu(self, in_pixels, thr_mode, thr, mult_factor, sx, sy):
-        """CPU version of calc_slopes_nofor(), same algorithm as the GPU kernels"""
-        # Subaperture pixels, shape (n_subaps, np_sub*np_sub)
-        pixels = np.take(in_pixels, self.subap_idx).astype(self.dtype)
-
-        if self.weight_int_pixel:
-            # Weights are updated by prepare_trigger()
-            pixels *= self._int_pixels_weight
-
-        flux_per_subaperture_vector = pixels.sum(axis=1)
-
-        if thr_mode == THR_RATIO:
-            thr = self.thr_ratio_value * pixels.max(axis=1, keepdims=True)
-
-        if thr_mode == THR_PEDESTAL:
-            pixels[pixels < thr] = 0
-        else:
-            pixels -= thr
-            pixels[pixels < 0] = 0
-
-        # Denominator, x and y weighted sums
-        subap_tot, sx_raw, sy_raw = self._weights @ pixels.T
-
-        # Subapertures with too little flux get zero slopes
-        with np.errstate(divide='ignore'):
-            factor = 1.0 / subap_tot
-        factor[factor > 1.0 / (np.mean(subap_tot) * 1e-3)] = 0
-        factor *= mult_factor
-        sx[:] = sx_raw * factor
-        sy[:] = sy_raw * factor
-
-        self.flux_per_subaperture_vector.value[:] = flux_per_subaperture_vector
-        self.total_counts.value[0] = np.sum(flux_per_subaperture_vector)
-        self.subap_counts.value[0] = np.mean(flux_per_subaperture_vector)
+        self.xp.sum(flux_per_subaperture_vector, keepdims=True, out=self.total_counts.value)
+        self.xp.mean(flux_per_subaperture_vector, keepdims=True, out=self.subap_counts.value)
 
     def psf_gaussian(self, np_sub, fwhm):
         """Generates a 2D Gaussian PSF.

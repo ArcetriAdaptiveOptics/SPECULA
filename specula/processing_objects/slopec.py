@@ -1,5 +1,5 @@
 
-from specula import cp
+from specula import cp, np
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.connections import InputValue
@@ -8,11 +8,21 @@ from specula.data_objects.slopes import Slopes
 from specula.data_objects.intmat import Intmat
 from specula.data_objects.recmat import Recmat
 
-# Vector-matrix product v @ m, called as _vecmat(v[:, None], m, axis=0).
-# Used instead of cuBLAS inside CUDA graphs, since CuPy does not allow
-# cuBLAS calls during stream capture.
 if cp is not None:
-    _vecmat = cp.ReductionKernel('T v, T m', 'T y', 'v * m', 'a + b', 'y = a', '0', 'slopec_vecmat')
+    @cp.fuse(kernel_name='sum_product')
+    def _sum_product_gpu(a, b):
+        return cp.sum(a * b, axis=-1)
+
+
+def sum_product(a, b, xp):
+    '''
+    xp.sum(a * b, axis=-1), with broadcasting, without allocating a * b.
+    Used instead of matrix products inside CUDA graphs, since CuPy does not
+    allow cuBLAS calls during stream capture.
+    '''
+    if xp is np:
+        return np.einsum('...i,...i->...', a, b)
+    return _sum_product_gpu(a, b)
 
 
 class Slopec(BaseProcessingObj):
@@ -160,10 +170,10 @@ class Slopec(BaseProcessingObj):
     def vecmat(self, v, m):
         '''
         Vector-matrix product v @ m. If apply_slopes_corrections() is part of
-        a CUDA graph, a reduction kernel is used on GPU instead of cuBLAS.
+        a CUDA graph, cuBLAS cannot be used, and sum_product() is used instead.
         '''
-        if self.corrections_in_trigger and self.target_device_idx >= 0:
-            return _vecmat(v[:, None], m, axis=0)
+        if self.corrections_in_trigger:
+            return sum_product(m.T, v, xp=self.xp)
         return v @ m
 
     def apply_slopes_corrections(self):
