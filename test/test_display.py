@@ -4,6 +4,7 @@ specula.init(0)  # Default target device
 import pytest
 import unittest
 import inspect
+import time
 from types import SimpleNamespace
 from unittest import mock
 
@@ -147,6 +148,31 @@ class TestDisplays(unittest.TestCase):
             display_process.init(False)
 
         self.assertEqual(process.exitcode, 0)
+
+    def test_display_process_dead(self):
+        """If the display process dies, the simulation goes on and stop() does not wait"""
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
+                          S0=self.S0, target_device_idx=-1)
+        ef.generation_time = ef.seconds_to_t(1)
+
+        display_process.init(True)
+        try:
+            display = PhaseDisplay(title='Async Phase Display')
+            display.inputs['phase'].set(ef)
+            with mock.patch.dict('os.environ', {'MPLBACKEND': 'Agg'}):
+                display_process.start(precision=specula.global_precision, log_level='INFO')
+            display_process._process.kill()
+            display_process._process.join()
+
+            loop = LoopControl()
+            loop.add(display, idx=0)
+            loop.run(run_time=3, dt=1)
+        finally:
+            t0 = time.time()
+            display_process.stop(display.logger, timeout=30)
+            display_process.init(False)
+
+        self.assertLess(time.time() - t0, 5)
 
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')

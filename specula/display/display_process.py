@@ -33,15 +33,17 @@ _displays = []
 _queue = None
 _history_queue = None
 _process = None
+_dead = False
 _dropped = 0
 
 
 def init(enable):
     '''If *enable* is True, displays built from now on will run in the display process'''
-    global _enabled, _displays, _dropped
+    global _enabled, _displays, _dropped, _dead
     _enabled = enable
     _displays = []
     _dropped = 0
+    _dead = False
 
 
 def enabled():
@@ -92,8 +94,13 @@ def start(precision, log_level):
 
 def send(display):
     '''Send the current inputs of *display* to the display process'''
-    global _dropped
-    if _queue is None:
+    global _dropped, _dead
+    if _queue is None or _dead:
+        return
+    if not _process.is_alive():
+        display.logger.error(f'Async displays: the display process has exited (exit code {_process.exitcode}), '
+                             'displays will not be updated')
+        _dead = True
         return
     if display.skip_updates and _queue.full():
         _dropped += 1
@@ -117,16 +124,22 @@ def stop(logger, timeout=30):
     if _process is not None:
         if _dropped:
             logger.info(f'Async displays: {_dropped} updates skipped because the display process was busy')
-        _history_queue.put(None)
-        try:
-            _queue.put(None, timeout=timeout)
-        except queue.Full:
-            pass
-        _process.join(timeout)
         if _process.is_alive():
-            _process.terminate()
-        _queue.close()
-        _history_queue.close()
+            _history_queue.put(None)
+            try:
+                _queue.put(None, timeout=timeout)
+            except queue.Full:
+                pass
+            _process.join(timeout)
+            if _process.is_alive():
+                _process.terminate()
+        else:
+            logger.error(f'Async displays: the display process exited early (exit code {_process.exitcode})')
+        # Do not wait at exit for data that a dead process will never read
+        for qq in [_queue, _history_queue]:
+            if qq is not None:
+                qq.cancel_join_thread()
+                qq.close()
     _queue = None
     _history_queue = None
     _process = None
@@ -150,6 +163,10 @@ def _worker_loop(q, history_q, specs, precision, log_level):
         d.name = name
         d.init_logging(log_level)
         displays[name] = d
+
+    # Each display runs its setup() before its first update,
+    # when its inputs are available
+    not_setup = set(displays)
 
     # Each queue ends with a None terminator
     open_queues = [q, history_q]
@@ -180,9 +197,18 @@ def _worker_loop(q, history_q, specs, precision, log_level):
             d = displays[name]
             d.current_time = t
             d.current_time_seconds = d.t_to_seconds(t)
-            d.local_inputs = inputs
+            for k, v in inputs.items():
+                d.inputs[k].set([] if v is None else v)
+            if name in not_setup:
+                d.setup()   # also gets the inputs
+                not_setup.remove(name)
+            else:
+                d.get_all_inputs()
             d.trigger_code()
             figs[id(d.fig)] = d
 
         for d in figs.values():
             d._safe_draw()
+
+    for d in displays.values():
+        d.finalize()

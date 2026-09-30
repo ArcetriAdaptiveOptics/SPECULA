@@ -67,6 +67,10 @@ class BaseDisplay(BaseProcessingObj):
                 self._init_kwargs = {**self._init_kwargs, 'window': window}
             self.fig = None
             self.ax = None
+            # Only the input checks here: setup() and finalize() of derived classes
+            # run in the display process, where the figure is
+            self.setup = lambda: BaseProcessingObj.setup(self)
+            self.finalize = lambda: BaseProcessingObj.finalize(self)
             display_process.register(self)
             return
 

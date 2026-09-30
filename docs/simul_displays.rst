@@ -96,7 +96,19 @@ simulation time. The ``--async-displays`` command line flag moves all displays t
     specula params.yml --async-displays
 
 When embedding SPECULA in a Python program, the same behavior is selected with the
-``async_displays=True`` argument of :class:`specula.simul.Simul`.
+``async_displays=True`` argument of :class:`specula.simul.Simul` or :func:`specula.main_simul`.
+The display process is started with the multiprocessing *spawn* method, which imports the main
+script again in the new process, so the script must protect its top-level code with the usual guard:
+
+.. code-block:: python
+
+    import specula
+
+    if __name__ == '__main__':
+        specula.main_simul(['params.yml'], async_displays=True)
+
+Without the guard, the display process fails at startup. The simulation still runs, and an error
+is logged saying that the displays will not be updated.
 
 With this flag:
 
@@ -119,6 +131,8 @@ This mode has some limitations:
 
 * a slow display still delays the other displays, since they share the same process (but not the simulation).
 * the displays show data with some delay with respect to the simulation.
+* image displays that average over time, like the PSD average of ``DoublePhaseDisplay``, average only
+  the frames that they receive. Their data is too large to be queued without limits.
 * ``DisplayRecorder`` is not supported, since the windows it records live in another process:
   an error is raised if it is used together with ``--async-displays``.
 
@@ -131,8 +145,11 @@ Custom displays that accumulate data over time, and so must receive every update
 
         skip_updates = False   # keep every point of the history
 
-In the display process, the display code runs as usual: ``trigger_code()`` is called
-with ``local_inputs`` set to CPU copies of the inputs, and ``current_time`` set to the simulation time.
+All the display code runs in the display process, where the figure is. There, the inputs of each
+display are set to CPU copies of the simulation data. ``setup()`` is called before the first update,
+when the inputs are available, then ``trigger_code()`` is called at each update as usual,
+and ``finalize()`` at the end of the simulation. In the simulation process, the display object only
+checks its inputs in ``setup()``, and ``setup()`` and ``finalize()`` of derived classes are not called.
 
 Display grouping
 ----------------
