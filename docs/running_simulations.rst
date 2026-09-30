@@ -104,6 +104,19 @@ Notes
 - ``MPI_DBG`` and ``MPI_SEND_DBG`` are application-specific logging levels and are not part of the standard Python logging levels.
 - Lower verbosity levels (e.g., DEBUG) may produce large volumes of output.
 
+Asynchronous Displays
+=====================
+
+Drawing displays is often much slower than a simulation step. With the ``--async-displays`` flag
+all displays run in a separate process, and the simulation never waits for them:
+
+.. code-block:: bash
+
+    specula params.yml --async-displays
+
+Image displays may skip updates to keep up, while plots with a time history receive every point.
+See :ref:`async_displays` for details.
+
 Interactive Stepping Mode
 ==========================
 
