@@ -451,7 +451,8 @@ class SH(BaseProcessingObj):
 
         # Avoid recomputing kernels if the sodium layer parameters
         # have not changed since the last call. Their values are compared,
-        # because generators update the generation time at every step.
+        # because generators update the generation time at every step,
+        # even if the actual values are unchanged.
         if self._last_sodium_values is not None:
             # Accumulated on the device, so that there is a single sync
             equal = True
