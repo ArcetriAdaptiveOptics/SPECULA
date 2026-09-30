@@ -43,6 +43,7 @@
 - Fixed remaining 64-bit promotions in `ModalAnalysis` phase unwrapping (Poisson right-hand side, Laplacian eigenvalues, pupil mask) and missing `precision` in the `out_modes_list` outputs. Removed the unreachable zero-padding branch of `ModalAnalysis.trigger_code()`, and the never-set `_doZeroPad` attribute (with its dead code) from `IFunc` and `IFuncInv`.
 - `PushPullGenerator` no longer allocates the full `(n_steps, nmodes)` push-pull time history (mostly zeros, growing as nmodes^2 * ncycles * nsamples, e.g. ~40 GB for 5000 modes and 100 cycles): each step is now computed on the fly from the per-mode amplitudes and the pattern. The `time_hist` attribute has been removed (the sequence length is available as `nsteps`), and triggering past the end of the sequence raises an explicit `IndexError`. The amplitude computation has been factored out as `specula.lib.modal_pushpull_signal.modal_pushpull_amplitudes()`, and `modal_pushpull_signal()` has been removed (see Interface changes).
 - Fixed an out-of-bounds read in the `Interp2D` bilinear CUDA kernel: on the last column it read the first element of the next row, and at the bottom-right corner one element past the end of the input array. The weight was zero, but NaN/Inf in that memory propagated to the output. Added GPU regression tests in test\_interp2d.py.
+- Removed support for Python 3.8 and 3.9, minimum required version is now 3.10.
 
 ## [1.0.4] - 2026-08-19
 

@@ -22,7 +22,7 @@ See the documentation here: [specula.readthedocs.io](https://specula.readthedocs
 
 ## Requirements
 
-- Python 3.8+
+- Python 3.10+
 - numpy
 - scipy
 - matplotlib
