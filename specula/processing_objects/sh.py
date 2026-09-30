@@ -1,6 +1,6 @@
 import numpy as np
 
-from specula import fuse, RAD2ASEC
+from specula import fuse, RAD2ASEC, cpuArray
 from specula.tracing import tracer
 from specula.lib.extrapolation_2d import EFInterpolator
 from specula.lib.toccd import toccd
@@ -453,14 +453,16 @@ class SH(BaseProcessingObj):
         # have not changed since the last call. Their values are compared,
         # because generators update the generation time at every step,
         # even if the actual values are unchanged.
-        if self._last_sodium_values is not None:
-            # Accumulated on the device, so that there is a single sync
-            equal = True
-            for v, last in zip(values, self._last_sodium_values):
-                equal = equal & self.xp.array_equal(v, last)
-            if bool(equal):
-                return
-        self._last_sodium_values = tuple(self.xp.array(v) for v in values)
+        # The arrays are small: comparing them on the host is faster than
+        # launching several comparison kernels on the device.
+        host_values = tuple(cpuArray(v) for v in values)
+        if self._last_sodium_values is not None and \
+                all(np.array_equal(v, last)
+                    for v, last in zip(host_values, self._last_sodium_values)):
+            return
+        # Copies, because cpuArray() does not copy on the CPU and
+        # generators update their output in place
+        self._last_sodium_values = tuple(np.array(v) for v in host_values)
 
         if values:
             sodium_altitude = sodium_altitude.value * self._laser_launch_tel.airmass
