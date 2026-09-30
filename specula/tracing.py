@@ -49,6 +49,7 @@ PHASE_COLORS = {
     'trigger': 3,
     'post_trigger': 4,
     'send_outputs': 5,
+    'cuda_graph': 6,
 }
 
 # GPU event results are read this many iterations after being recorded,

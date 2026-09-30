@@ -352,7 +352,9 @@ class BaseProcessingObj(BaseTimeObj):
             self.capture_stream()
         elif self.target_device_idx >= 0 and self.cuda_graph:
             self.check_input_ptrs()
-            self.cuda_graph.launch(stream=self.stream)
+            # NVTX range only, to mark the graph kernels in Nsight Systems
+            with tracer.no_record(), tracer('cuda_graph', self):
+                self.cuda_graph.launch(stream=self.stream)
         else:
             self.trigger_code()
 
