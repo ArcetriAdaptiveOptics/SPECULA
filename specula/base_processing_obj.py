@@ -49,10 +49,6 @@ class BaseProcessingObj(BaseTimeObj):
         # Addresses of the input arrays when the CUDA graph was captured
         self._captured_input_ptrs = {}
 
-        # Names of the inputs only read outside the CUDA graph (for example
-        # copied by prepare_trigger()), that producers may reallocate
-        self.inputs_not_in_graph = set()
-
         # Will be populated by derived class
         self.inputs = {}
         self.local_inputs = {}
@@ -273,17 +269,18 @@ class BaseProcessingObj(BaseTimeObj):
             self.trigger_code()
             self.cuda_graph = self.stream.end_capture()
         self._cuda_graph_invalid = False
-        self._captured_input_ptrs = self._input_array_ptrs()
+        self._captured_input_ptrs = self.graph_input_ptrs()
 
-    def _input_array_ptrs(self):
+    def graph_input_ptrs(self):
         '''
         Addresses of the GPU arrays of the local inputs, as a dictionary
-        {(input name, list index, attribute name): address}
+        {(input name, list index, attribute name): address}, checked by
+        check_input_ptrs(). Derived classes whose CUDA graph does not read
+        some inputs (for example copied by prepare_trigger()) can override
+        this method to exclude them.
         '''
         ptrs = {}
         for name, value in self.local_inputs.items():
-            if name in self.inputs_not_in_graph:
-                continue
             values = value if type(value) is list else [value]
             for i, obj in enumerate(values):
                 if obj is None:
@@ -301,7 +298,7 @@ class BaseProcessingObj(BaseTimeObj):
         '''
         if not self._captured_input_ptrs:
             return
-        current = self._input_array_ptrs()
+        current = self.graph_input_ptrs()
         for key, ptr in self._captured_input_ptrs.items():
             if current.get(key) != ptr:
                 name, i, attr = key
