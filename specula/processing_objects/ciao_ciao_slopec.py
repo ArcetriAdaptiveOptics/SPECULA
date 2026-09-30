@@ -131,7 +131,7 @@ class CiaoCiaoSlopec(Slopec):
 
         self._window = window.astype(self.complex_dtype)
 
-    def trigger_code(self):
+    def compute_slopes(self):
         # 1. Retrieve the interferogram (current pixels from the CCD)
         pixels = self.local_inputs['in_pixels'].pixels
 

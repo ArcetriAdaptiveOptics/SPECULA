@@ -218,6 +218,8 @@ class ExtSourcePyramid(ModulatedPyramid):
 
         # Add dedicated input for extended source coefficients
         self.inputs['ext_source_coeff'] = InputValue(type=BaseValue)
+        # Copied into _coeff_valid by cache_ttexp(), outside the CUDA graph
+        self.inputs_not_in_graph.add('ext_source_coeff')
 
     @classmethod
     def input_names(cls):

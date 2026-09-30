@@ -33,15 +33,19 @@ class ShSlopec(Slopec):
     Computes Shack-Hartmann slopes from pixel data using the subaperture intensities.
 
     On GPU, trigger_code() is captured in a CUDA graph (see setup()), which
-    also includes the slope corrections of the base class (slope null,
-    filtering, slopes map). The pixel accumulation for weight_int_pixel_dt
-    and the other operations that change from step to step, or that need
-    a CPU-GPU synchronization, are done in prepare_trigger() instead.
-    Scalar parameters (thr_value, thr_ratio_value, thr_pedestal, mult_factor)
-    are frozen in the graph: call invalidate_graph() after changing them.
-    """
+    includes compute_slopes() and the slope corrections of the base class
+    (slope null, filtering, slopes map). The pixel accumulation for
+    weight_int_pixel_dt and the other operations that change from step to
+    step, or that need a CPU-GPU synchronization, are done in prepare_trigger()
+    instead. Scalar parameters (thr_value, thr_ratio_value, thr_pedestal,
+    mult_factor) are frozen in the graph: call invalidate_graph() after
+    changing them. The inputs must be updated in place by their producers
+    (a reallocated input raises an error).
 
-    corrections_in_trigger = True
+    Derived classes do not use a CUDA graph, since their compute_slopes()
+    may have host-side logic. Those with GPU-only code can opt in calling
+    self.build_stream(capture=False) in their setup().
+    """
 
     def __init__(self,
                  subapdata: SubapData,
@@ -130,8 +134,10 @@ class ShSlopec(Slopec):
     def setup(self):
         super().setup()
         # The CUDA graph is captured at the first trigger(), since the input
-        # pixels are only available then
-        self.build_stream(capture=False)
+        # pixels are only available then. Derived classes must opt in, see
+        # the class docstring.
+        if type(self) is ShSlopec:
+            self.build_stream(capture=False)
 
     def set_xy_weights(self):
         if self.subapdata:
@@ -266,9 +272,8 @@ class ShSlopec(Slopec):
 
         self.logger.debug(f"Weights mask has been applied to {n_weight_applied} sub-apertures")
 
-    def trigger_code(self):
+    def compute_slopes(self):
         self.calc_slopes_nofor()
-        self.apply_slopes_corrections()
 
     def calc_slopes_nofor(self):
         """

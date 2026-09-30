@@ -159,20 +159,36 @@ class Slopec(BaseProcessingObj):
             self.int_pixels.generation_time = t
             self.do_reset_accumulation = True
 
-    def trigger_code(self):
-        raise NotImplementedError(f'{self.__class__.__name__}: please implement trigger_code() in your derived class!')
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if 'trigger_code' in cls.__dict__:
+            raise TypeError(f'{cls.__name__}: Slopec-derived classes must implement compute_slopes()'
+                            f' instead of trigger_code(), so that the slope corrections'
+                            f' (slope null, filtering) are applied')
 
-    # Derived classes that call apply_slopes_corrections() at the end of their
-    # trigger_code(), so that it becomes part of their CUDA graph, set this to True.
-    # Otherwise it is called by post_trigger().
-    corrections_in_trigger = False
+    def trigger_code(self):
+        '''
+        Computes the slopes with compute_slopes(), implemented by derived
+        classes, then applies the slope corrections. Derived classes must not
+        override this method. If a derived class uses a CUDA graph, both are
+        part of the graph.
+        '''
+        self.compute_slopes()
+        self.apply_slopes_corrections()
+
+    def compute_slopes(self):
+        '''
+        Derived classes must implement this method, computing self.slopes
+        and the flux outputs from the input pixels.
+        '''
+        raise NotImplementedError(f'{self.__class__.__name__}: please implement compute_slopes() in your derived class!')
 
     def vecmat(self, v, m):
         '''
-        Vector-matrix product v @ m. If apply_slopes_corrections() is part of
-        a CUDA graph, cuBLAS cannot be used, and sum_product() is used instead.
+        Vector-matrix product v @ m. cuBLAS cannot be used in a CUDA graph,
+        so objects using one use sum_product() instead.
         '''
-        if self.corrections_in_trigger:
+        if self.stream is not None:
             return sum_product(m.T, v, xp=self.xp)
         return v @ m
 
@@ -245,9 +261,6 @@ class Slopec(BaseProcessingObj):
 
     def post_trigger(self):
         super().post_trigger()
-
-        if not self.corrections_in_trigger:
-            self.apply_slopes_corrections()
 
         if self.slopes_map.value is not None and not self._slopes_map_unavailable:
             self.outputs['out_slopes_map'].generation_time = self.current_time

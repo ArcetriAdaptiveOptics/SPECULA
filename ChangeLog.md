@@ -9,6 +9,7 @@
 
 ### Interface changes
 
+- `ShSlopec` (#776): on GPU the trigger is captured in a CUDA graph, together with the slope corrections of `Slopec` (slope null, filtering, slopes map), about 9x faster per step. `Slopec`-derived classes now implement `compute_slopes()` instead of `trigger_code()` (overriding `trigger_code()` raises a `TypeError`): `Slopec.trigger_code()` calls it and then applies the slope corrections, which are no longer applied in `post_trigger()`. Classes derived from `ShSlopec` do not use the CUDA graph unless they call `build_stream()` in their `setup()`. The unused `ShSlopec.thr_mask_cube` output has been removed.
 - Added `window_xy` ([x, y] screen pixels) to all displays except `DoublePhaseDisplay`, to place the window on screen with GUI backends that allow it (Tk, Qt, GTK); ignored on the others.
 - Added `dark_frame_tag` to `DynamicDarkCalibrator`: dark frame file in `data_dir` loaded in `setup()` (an error is raised if it cannot be loaded).
 - Added force limiting to `DM`: new `stiffness` (matrix, `stiffness_data` in YAML, requires `m2c`) and `max_force` parameters. If the forces exceed `max_force`, the highest-order modes are discarded (modes are assumed sorted by increasing spatial frequency), before the position `stroke` clipping. New outputs `out_forces` (forces of the applied command, empty without `stiffness`) and `out_force_nmodes` (number of modes kept).
@@ -22,6 +23,7 @@
 
 ### Other
 
+- Objects using a CUDA graph now raise an error if an input array is reallocated by its producer after the graph capture (it was silently read at the old address), a check previously done only by `AtmoEvolution`; inputs only read outside the graph can be listed in `inputs_not_in_graph`. `DynamicDarkCalibrator` now updates `out_subtracted_pixels` in place.
 - Fixed `DynamicDarkCalibrator`: a dark frame loaded with `in_load` replaced the dark frame object, so the `out_darkframe` output kept the old one (it is now copied in place, with a shape check), and failed loads/saves raised an `AttributeError` while logging the error (also fixed in `DynamicPyrPupdataCalibrator` saves, now logged instead of printed). Fixed `PixelsPupDisplay` failing at the first update (`img` was not initialized).
 - `BaseValue.restore()`: float arrays now follow the object precision (they kept the FITS dtype); other types, scalars and the host location are unchanged.
 - `PhaseScreenCube`: fixed crash on GPU; the interpolator and its input ElectricField are built once instead of at every step (about 2x faster on CPU); added the `precision` parameter; raises a `ValueError` if the simulation starts before the first cube time (it silently used the last screen).
