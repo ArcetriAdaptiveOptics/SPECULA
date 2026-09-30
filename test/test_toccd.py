@@ -190,3 +190,26 @@ class TestToccd(unittest.TestCase):
         if xp is cp:
             with self.assertRaises(TypeError):
                 toccd(a, (14, 9), xp=xp, out=xp.empty((14, 9), dtype=xp.float64))
+
+    @unittest.skipIf(cp is None, 'GPU not available')
+    def test_toccd_out_no_allocation_in_cuda_graph(self):
+        '''
+        With out and set_total=0 (as in SH), toccd() allocates nothing when captured
+        in a CUDA graph, after a first call that builds the weights (the warm-up of
+        BaseProcessingObj.capture_stream()), and the graph gives the same result.
+        '''
+        a = cp.asarray(np.random.default_rng(4).random((150, 120)), dtype=cp.float32)
+        expected = cpuArray(toccd(a, (14, 11), set_total=0, xp=cp))
+        out = cp.zeros((14, 11), dtype=cp.float32)
+
+        pool = cp.cuda.MemoryPool()
+        stream = cp.cuda.Stream(non_blocking=True)
+        with stream, cp.cuda.using_allocator(pool.malloc):
+            stream.begin_capture()
+            toccd(a, (14, 11), set_total=0, xp=cp, out=out)
+            graph = stream.end_capture()
+            graph.launch(stream)
+            stream.synchronize()
+
+        self.assertEqual(pool.total_bytes(), 0)
+        np.testing.assert_allclose(cpuArray(out), expected, rtol=1e-6)
