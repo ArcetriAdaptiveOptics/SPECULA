@@ -4,6 +4,7 @@ specula.init(0)  # Default target device
 import unittest
 
 from specula import np
+from specula import cpuArray
 
 from specula.data_objects.intmat import Intmat
 from specula.data_objects.recmat import Recmat
@@ -62,3 +63,23 @@ class TestSlopec(unittest.TestCase):
         slopec = _TestSlopec(filtmat=filtmat, target_device_idx=target_device_idx)
         self.assertIsInstance(slopec.filt_intmat, Intmat)
         self.assertIsInstance(slopec.filt_recmat, Recmat)
+
+    @cpu_and_gpu
+    def test_compute_slopes_not_implemented(self, target_device_idx, xp):
+        """Derived classes must implement compute_slopes()"""
+        slopec = _TestSlopec(target_device_idx=target_device_idx)
+        with self.assertRaisesRegex(NotImplementedError, '_TestSlopec'):
+            slopec.trigger_code()
+
+    @cpu_and_gpu
+    def test_recmat_applied_to_slopes(self, target_device_idx, xp):
+        """With a recmat, apply_slopes_corrections() replaces the slopes with slopes @ recmat"""
+        rng = np.random.default_rng(0)
+        recmat = rng.normal(size=(NSLOPES, NSLOPES))
+        slopes = rng.normal(size=NSLOPES)
+        slopec = _TestSlopec(recmat=Recmat(recmat, target_device_idx=target_device_idx),
+                             target_device_idx=target_device_idx)
+        slopec.slopes.slopes[:] = xp.asarray(slopes)
+        slopec.apply_slopes_corrections()
+        np.testing.assert_allclose(cpuArray(slopec.slopes.slopes), slopes @ recmat,
+                                   rtol=1e-5, atol=1e-6)
