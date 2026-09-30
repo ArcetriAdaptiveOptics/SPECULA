@@ -311,7 +311,9 @@ class BaseProcessingObj(BaseTimeObj):
             self.logger.debug('Capturing the CUDA graph')
             self.capture_stream()
         elif self.target_device_idx >= 0 and self.cuda_graph:
-            self.cuda_graph.launch(stream=self.stream)
+            # NVTX range only, to mark the graph kernels in Nsight Systems
+            with tracer.no_record(), tracer('cuda_graph', self):
+                self.cuda_graph.launch(stream=self.stream)
         else:
             self.trigger_code()
 

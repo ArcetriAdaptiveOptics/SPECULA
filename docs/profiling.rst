@@ -67,6 +67,10 @@ kernels do not appear in the GPU timeline or in the kernel statistics. Node trac
 more than the default: in both modes, CUDA tracing makes each graph launch take longer on the
 host, by about 0.25 us per graph node.
 
+Each graph launch is marked with an NVTX range named ``<object name>.cuda_graph``, which is not
+written to the trace file. Nsight Systems projects NVTX ranges on the GPU rows, so the range is
+also shown above the kernels of the graph, on the row of the object's stream.
+
 If CuPy is not installed, or NVTX is not available, ranges are silently disabled.
 
 All the phases above are already marked for every object, so there is no need to mark
