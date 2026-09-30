@@ -56,16 +56,14 @@ Each phase has its own color. No command line option is needed:
 
 .. code-block:: bash
 
-    nsys profile -t cuda,nvtx --cuda-graph-trace=node -o my_run specula params.yml
+    nsys profile -t cuda,nvtx --cuda-graph-trace=graph -o my_run specula params.yml
 
 Open ``my_run.nsys-rep`` in Nsight Systems: the NVTX row shows the phases of each object on the
 host timeline, and the CUDA rows show the kernels they launch.
 
-``--cuda-graph-trace=node`` is needed to see the kernels of objects that use a CUDA graph.
-With the default (``graph``), each graph launch is recorded only as a single range, and its
-kernels do not appear in the GPU timeline or in the kernel statistics. Node tracing costs no
-more than the default: in both modes, CUDA tracing makes each graph launch take longer on the
-host, by about 0.25 us per graph node.
+``--cuda-graph-trace=graph`` will show each CUDA graph as a single block. In order
+to see the individual kernels of objects that use a CUDA graph, use ``--cuda-graph-trace=node``.
+In either case, tracing of CUDA graphs adds a small overhead to each graph launch.
 
 Each graph launch is marked with an NVTX range named ``<object name>.cuda_graph``, which is not
 written to the trace file. Nsight Systems projects NVTX ranges on the GPU rows, so the range is
