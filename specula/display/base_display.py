@@ -18,6 +18,10 @@ class BaseDisplay(BaseProcessingObj):
 
     __plot_completed = {}
 
+    # With --async-displays, updates can be skipped when the display process is busy.
+    # Displays that accumulate a history set this to False
+    skip_updates = True
+
     def __new__(cls, *args, **kwargs):
         # Constructor arguments, used to build a replica in the display process
         obj = super().__new__(cls)

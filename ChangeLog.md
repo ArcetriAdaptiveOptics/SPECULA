@@ -9,7 +9,7 @@
 
 ### Interface changes
 
-- Added the `--async-displays` command-line flag (`async_displays` in `main_simul()` and `Simul`): all displays run in a separate process, so that slow drawing does not slow down the simulation. Data is copied to the CPU and sent through a bounded queue, and updates are skipped while the display process is busy. Not compatible with `DisplayRecorder`.
+- Added the `--async-displays` command-line flag (`async_displays` in `main_simul()` and `Simul`): all displays run in a separate process, so that slow drawing does not slow down the simulation. Data is copied to the CPU and sent through a bounded queue, and updates are skipped while the display process is busy, except for displays with a history (`PlotDisplay`, `PlotVectorDisplay`, or any display with `skip_updates = False`), which never lose points. Not compatible with `DisplayRecorder`.
 - Added `window_xy` ([x, y] screen pixels) to all displays except `DoublePhaseDisplay`, to place the window on screen with GUI backends that allow it (Tk, Qt, GTK); ignored on the others.
 - Added `dark_frame_tag` to `DynamicDarkCalibrator`: dark frame file in `data_dir` loaded in `setup()` (an error is raised if it cannot be loaded).
 - Added force limiting to `DM`: new `stiffness` (matrix, `stiffness_data` in YAML, requires `m2c`) and `max_force` parameters. If the forces exceed `max_force`, the highest-order modes are discarded (modes are assumed sorted by increasing spatial frequency), before the position `stroke` clipping. New outputs `out_forces` (forces of the applied command, empty without `stiffness`) and `out_force_nmodes` (number of modes kept).
