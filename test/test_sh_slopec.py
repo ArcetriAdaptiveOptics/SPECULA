@@ -893,3 +893,4 @@ class TestShSlopec(unittest.TestCase):
         with self.assertLogs(level='WARNING') as logs:
             slopec.calc_slopes_nofor()
         self.assertTrue(any('subapdata is not valid' in line for line in logs.output))
+
