@@ -1,12 +1,16 @@
 import specula
 specula.init(0)  # Default target device
 
+import tempfile
 import unittest
 
 from specula import np
 from specula import cpuArray
 
+from specula.base_value import BaseValue
 from specula.data_objects.electric_field import ElectricField
+from specula.data_objects.laser_launch_telescope import LaserLaunchTelescope
+from specula.data_objects.simul_params import SimulParams
 from specula.processing_objects.sh import SH, choose_fov_resolution
 from test.specula_testlib import cpu_and_gpu
 
@@ -450,6 +454,50 @@ class TestSH(unittest.TestCase):
             sh._set_in_ef(ef)
         self.assertGreater(abs(sh.sensor_pxscale_effective - 0.7) / 0.7, 0.01)
         self.assertTrue(any('Effective sensor pixel scale' in line for line in logs.output))
+
+    @cpu_and_gpu
+    def test_kernels_follow_in_place_sodium_update(self, target_device_idx, xp):
+        '''
+        Generators update the sodium profile in place at every step. The SH must
+        detect the new values and recompute its kernels. On CPU, cpuArray() does
+        not copy: the SH must keep its own copy of the last profile to compare with.
+        '''
+        llt = LaserLaunchTelescope(simul_params=SimulParams(zenithAngleInDeg=30.0),
+                                   spot_size=1.0, tel_position=[5.0, 0.0, 0.0],
+                                   target_device_idx=target_device_idx)
+        altitude = BaseValue(value=xp.array([85e3, 90e3, 95e3], dtype=xp.float32),
+                             target_device_idx=target_device_idx)
+        intensity = BaseValue(value=xp.array([0.2, 0.6, 0.2], dtype=xp.float32),
+                              target_device_idx=target_device_idx)
+        ef = ElectricField(80, 80, 0.1, S0=100, target_device_idx=target_device_idx)
+
+        with tempfile.TemporaryDirectory() as data_dir:
+            sh = SH(wavelengthInNm=589,
+                    subap_wanted_fov=6,
+                    sensor_pxscale=0.5,
+                    subap_on_diameter=10,
+                    subap_npx=12,
+                    laser_launch_tel=llt,
+                    data_dir=data_dir,
+                    target_device_idx=target_device_idx)
+            sh.inputs['in_ef'].set(ef)
+            sh.inputs['sodium_altitude'].set(altitude)
+            sh.inputs['sodium_intensity'].set(intensity)
+            sh.setup()
+
+            def step(t):
+                for obj in (ef, altitude, intensity):
+                    obj.generation_time = t
+                sh.check_ready(t)
+                sh.trigger()
+                sh.post_trigger()
+                return cpuArray(sh._kernelobj.kernels).copy()
+
+            kernels1 = step(1)
+            intensity.value[:] = xp.array([0.5, 0.3, 0.2], dtype=xp.float32)
+            kernels2 = step(2)
+
+        self.assertFalse(np.allclose(kernels1, kernels2))
 
     def test_choose_fov_resolution(self):
         '''
