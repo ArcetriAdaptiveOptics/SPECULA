@@ -880,7 +880,8 @@ class TestShSlopec(unittest.TestCase):
     def test_debug_log_slopes_statistics(self, target_device_idx, xp):
         """With DEBUG logging, post_trigger() logs the slopes statistics"""
         subapdata, _, frames = self._frames_and_subapdata(target_device_idx, xp)
-        with self.assertLogs(level='DEBUG') as logs:
+        # The logger of the class, since other tests may set the level of the 'specula' logger
+        with self.assertLogs('specula.ShSlopec', level='DEBUG') as logs:
             self._run_slopec_steps(subapdata, frames, target_device_idx, True)
         self.assertTrue(any('Slopes min, max and rms' in line for line in logs.output))
 
