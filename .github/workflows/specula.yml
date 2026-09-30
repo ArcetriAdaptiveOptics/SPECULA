@@ -26,10 +26,6 @@ jobs:
         # MacOS does not have intelmpi.
         # Windows does not seem to have any valid mpi distribution.
         exclude:
-          - python-version: "3.9"
-            mpi: mpich
-          - python-version: "3.9"
-            mpi: intelmpi
           - os: macos-latest
             mpi: intelmpi
           - os: windows-latest
