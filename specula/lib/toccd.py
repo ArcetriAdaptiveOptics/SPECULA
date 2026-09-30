@@ -17,7 +17,7 @@ import specula
 from specula import cpuArray
 
 
-def toccd(a, newshape, set_total=None, xp=None):
+def toccd(a, newshape, set_total=None, xp=None, out=None):
     '''
     Clone of oaalib's toccd() function: rebin an array by area weighting,
     similar to openvc's INTER_AREA interpolation.
@@ -39,16 +39,25 @@ def toccd(a, newshape, set_total=None, xp=None):
         if not set, the same total count as the input array is used.
     xp : module
         numpy or cupy module
+    out : array, optional
+        output array (or view) with shape newshape. On GPU, it must have the same
+        dtype as a, and it is written directly by the kernel.
 
     Returns
     -------
     array
-        resized array
+        resized array (out, if given)
     '''
     newshape = tuple(int(n) for n in cpuArray(newshape))  # Works for lists, tuples and any cupy/numpy array
 
+    if out is not None and out.shape != newshape:
+        raise ValueError(f'out has shape {out.shape} instead of {newshape}')
+
     if a.shape == newshape:
-        return a
+        if out is None:
+            return a
+        out[:] = a
+        return out
 
     if len(a.shape) != 2:
         raise ValueError('Input array has shape %s, cannot continue' % str(a.shape))
@@ -61,14 +70,21 @@ def toccd(a, newshape, set_total=None, xp=None):
         if a.dtype not in (cp.float32, cp.float64):
             raise TypeError(f'toccd(): unsupported dtype {a.dtype} on GPU.'
                             f' Valid dtypes are float32 and float64')
+        if out is None:
+            out = cp.empty(newshape, dtype=a.dtype)
+        elif out.dtype != a.dtype:
+            raise TypeError(f'toccd(): out has dtype {out.dtype} instead of {a.dtype}')
         ix, wx, iy, wy = _device_weights(a.shape, newshape, a.dtype, cp.cuda.Device().id)
-        out = cp.empty(newshape, dtype=a.dtype)
         _toccd_kernel()(a, ix, wx, iy, wy, a.shape[1], newshape[1], ix.shape[1], iy.shape[1], out)
     else:
         dtype = np.result_type(a.dtype, np.float32)
         wy = _sparse_weights(a.shape[0], newshape[0], dtype)
         wx = _sparse_weights(a.shape[1], newshape[1], dtype)
-        out = np.ascontiguousarray((wx @ (wy @ a).T).T)
+        rebinned = (wx @ (wy @ a).T).T
+        if out is None:
+            out = np.ascontiguousarray(rebinned)
+        else:
+            out[:] = rebinned
 
     eps = xp.finfo(out.dtype).eps
     if set_total is None:

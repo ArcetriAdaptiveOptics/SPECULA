@@ -193,12 +193,8 @@ class CurvatureSensor(BaseProcessingObj):
 
         # Bin/Resample to the exact requested output_resolution using toccd
         # toccd handles the exact re-binning/interpolation preserving flux
-        self._out_i1.i[:] = toccd(i1_fov,
-                                  (self.number_px, self.number_px),
-                                  xp=self.xp)
-        self._out_i2.i[:] = toccd(i2_fov,
-                                  (self.number_px, self.number_px),
-                                  xp=self.xp)
+        toccd(i1_fov, (self.number_px, self.number_px), xp=self.xp, out=self._out_i1.i)
+        toccd(i2_fov, (self.number_px, self.number_px), xp=self.xp, out=self._out_i2.i)
 
     def post_trigger(self):
         super().post_trigger()

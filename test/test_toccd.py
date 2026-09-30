@@ -162,3 +162,31 @@ class TestToccd(unittest.TestCase):
         view = a[10:70, 10:70]
         np.testing.assert_allclose(cpuArray(toccd(view, (20, 20), xp=xp)),
                                    cpuArray(toccd(view.copy(), (20, 20), xp=xp)), rtol=1e-6)
+
+    @cpu_and_gpu
+    def test_toccd_out(self, target_device_idx, xp):
+        """The result is written in out (also a view), with the same values"""
+        a = xp.asarray(np.random.default_rng(3).random((60, 45)), dtype=xp.float32)
+        for set_total in [None, 0, 10.0]:
+            with self.subTest(set_total=set_total):
+                expected = cpuArray(toccd(a, (14, 9), set_total=set_total, xp=xp))
+                out = xp.empty((14, 9), dtype=xp.float32)
+                assert toccd(a, (14, 9), set_total=set_total, xp=xp, out=out) is out
+                np.testing.assert_allclose(cpuArray(out), expected, rtol=1e-6)
+
+                frame = xp.zeros((20, 15), dtype=xp.float32)
+                toccd(a, (14, 9), set_total=set_total, xp=xp, out=frame[3:17, 2:11])
+                np.testing.assert_allclose(cpuArray(frame[3:17, 2:11]), expected, rtol=1e-6)
+                frame[3:17, 2:11] = 0
+                assert not frame.any()
+
+        # Same shape: copied to out
+        out = xp.empty((60, 45), dtype=xp.float32)
+        toccd(a, (60, 45), xp=xp, out=out)
+        np.testing.assert_array_equal(cpuArray(out), cpuArray(a))
+
+        with self.assertRaises(ValueError):
+            toccd(a, (14, 9), xp=xp, out=xp.empty((9, 14), dtype=xp.float32))
+        if xp is cp:
+            with self.assertRaises(TypeError):
+                toccd(a, (14, 9), xp=xp, out=xp.empty((14, 9), dtype=xp.float64))
