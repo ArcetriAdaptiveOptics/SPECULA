@@ -659,3 +659,81 @@ class TestShSlopec(unittest.TestCase):
                                       cpuArray(xp.arange(0, len(m))))
         np.testing.assert_array_equal(cpuArray(slopec_int.slopes.indx()),
                                       cpuArray(xp.arange(0, len(m)*2, 2)))
+
+    def _run_slopec_steps(self, subapdata, frames, target_device_idx, use_setup, **kwargs):
+        """Run a ShSlopec over *frames* and return the outputs of each step"""
+        pixels = Pixels(frames[0].shape[1], frames[0].shape[0], target_device_idx=target_device_idx)
+        slopec = ShSlopec(subapdata, target_device_idx=target_device_idx, **kwargs)
+        slopec.inputs['in_pixels'].set(pixels)
+        if use_setup:
+            slopec.setup()
+        results = []
+        for i, frame in enumerate(frames):
+            t = slopec.seconds_to_t(i + 1)
+            # Written in place: the CUDA graph always reads the same input array
+            pixels.pixels[:] = pixels.xp.asarray(frame)
+            pixels.generation_time = t
+            slopec.check_ready(t)
+            slopec.trigger()
+            slopec.post_trigger()
+            results.append([cpuArray(x).copy() for x in (
+                slopec.slopes.slopes, slopec.flux_per_subaperture_vector.value,
+                slopec.total_counts.value, slopec.subap_counts.value, slopec.slopes_map.value)])
+        return slopec, results
+
+    def test_cuda_graph_matches_eager_and_cpu(self):
+        """
+        The CUDA graph built by setup() must give the same results as
+        the eager GPU execution, and the GPU results must match the CPU ones,
+        with changing input pixels and all the slope corrections.
+        """
+        rng = np.random.default_rng(0)
+        np_sub = 6
+        n_blocks = 5
+        blocks = [np.zeros((np_sub, np_sub)) for _ in range(n_blocks)]
+        subapdata_cpu, pixels = self._build_multi_subap_pixels(blocks, -1, np)
+        n_subaps = subapdata_cpu.n_subaps
+        frames = [rng.poisson(20, pixels.pixels.shape).astype(np.float32) for _ in range(6)]
+        # One dark subaperture, whose slopes must be set to zero
+        for frame in frames:
+            frame[:, :np_sub] = 0
+
+        filtmat = [rng.normal(size=(2 * n_subaps, 2)), rng.normal(size=(2 * n_subaps, 2)) * 0.1]
+        configs = [
+            dict(),
+            dict(thr_value=15, interleave=True),
+            dict(thr_ratio_value=0.5, weightedPixRad=2),
+            dict(weight_int_pixel_dt=2, window_int_pixel=True, window_int_threshold=10, filtmat=filtmat),
+            dict(weight_int_pixel_dt=3, filtmat=filtmat, interleave=True),
+            dict(thr_value=5, filtmat=filtmat, precision=0),
+        ]
+        targets = [-1] if specula.cp is None else [-1, 0]
+        for kwargs in configs:
+            for interleave_sn in [False, True]:
+                results = {}
+                for target_device_idx in targets:
+                    subapdata = SubapData(idxs=subapdata_cpu.idxs, display_map=subapdata_cpu.display_map,
+                                          nx=n_blocks, ny=1, target_device_idx=target_device_idx)
+                    sn = Slopes(slopes=rng.normal(size=2 * n_subaps) * 0.01 if target_device_idx < 0
+                                else results['sn'], interleave=interleave_sn,
+                                target_device_idx=target_device_idx)
+                    results['sn'] = cpuArray(sn.slopes)
+                    for use_setup in ([False] if target_device_idx < 0 else [False, True]):
+                        slopec, res = self._run_slopec_steps(subapdata, frames, target_device_idx,
+                                                             use_setup, sn=sn, **kwargs)
+                        results[(target_device_idx, use_setup)] = res
+                        if use_setup:
+                            self.assertIsNotNone(slopec.cuda_graph)
+
+                msg = f'{kwargs=} {interleave_sn=}'
+                for step_cpu, step_eager, step_graph in zip(results[(-1, False)],
+                                                            results.get((0, False), results[(-1, False)]),
+                                                            results.get((0, True), results[(-1, False)])):
+                    for cpu_value, eager_value, graph_value in zip(step_cpu, step_eager, step_graph):
+                        np.testing.assert_array_equal(eager_value, graph_value, err_msg=msg)
+                        np.testing.assert_allclose(cpu_value, eager_value, rtol=1e-5, atol=1e-6, err_msg=msg)
+                slopes = results[(-1, False)][-1][0]
+                self.assertFalse(np.any(np.isnan(slopes)), msg)
+                self.assertTrue(np.any(slopes != 0), msg)
+                # Dark subaperture
+                self.assertEqual(results[(-1, False)][-1][1][0], 0)
