@@ -22,6 +22,7 @@
 
 ### Other
 
+- Fixed `AtmoPropagation` with `doFresnel` and `upwards` (#770): the field was conjugated before the propagation and after it, which amounts to propagating it backwards, so beam wander and scintillation came out mirrored with respect to the phase (the beam drifted towards -grad(phase) instead of +grad(phase)). The output phase and downwards propagation are unchanged; single realizations of upwards propagated fields change, their ensemble statistics do not. The docstring now states that in the Fresnel path the lowest layer is the pupil plane.
 - Fixed `DynamicDarkCalibrator`: a dark frame loaded with `in_load` replaced the dark frame object, so the `out_darkframe` output kept the old one (it is now copied in place, with a shape check), and failed loads/saves raised an `AttributeError` while logging the error (also fixed in `DynamicPyrPupdataCalibrator` saves, now logged instead of printed). Fixed `PixelsPupDisplay` failing at the first update (`img` was not initialized).
 - `BaseValue.restore()`: float arrays now follow the object precision (they kept the FITS dtype); other types, scalars and the host location are unchanged.
 - `PhaseScreenCube`: fixed crash on GPU; the interpolator and its input ElectricField are built once instead of at every step (about 2x faster on CPU); added the `precision` parameter; raises a `ValueError` if the simulation starts before the first cube time (it silently used the last screen).
