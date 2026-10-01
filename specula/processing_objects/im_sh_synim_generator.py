@@ -20,7 +20,6 @@ from specula.processing_objects.dm import DM
 from specula.processing_objects.sh import SH
 from specula.processing_objects.sh_slopec import ShSlopec
 from specula import cpuArray, np
-from typing import Union
 
 
 class ImShSynimGenerator(BaseProcessingObj):
@@ -118,7 +117,7 @@ class ImShSynimGenerator(BaseProcessingObj):
                  mmse: bool = False,
                  r0: float = 0.15,
                  L0: float = 25.0,
-                 noise_cov: Union[float, np.ndarray, list] = None,
+                 noise_cov: float | np.ndarray | list = None,
                  target_device_idx: int = None,
                  precision: int = None):
 

@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List
 
 import numpy as np
 
@@ -34,7 +34,7 @@ class DM(BaseProcessingObj):
                  sign: int=-1,
                  stroke=None,
                  stiffness: np.ndarray=None,
-                 max_force: Union[float, List[float]]=None,
+                 max_force: float | List[float]=None,
                  target_device_idx: int=None,
                  precision: int=None
                  ):

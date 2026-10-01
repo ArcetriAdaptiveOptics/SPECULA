@@ -1,8 +1,7 @@
-from typing import List, Union
+from typing import List
 from specula.processing_objects.integrator import Integrator
 from specula.base_processing_obj import InputDesc
 from specula.connections import InputValue
-from specula.base_value import BaseValue
 from specula.scalar_values import FloatValue, IntValue
 
 
@@ -23,8 +22,8 @@ class DynamicIntegrator(Integrator):
     """
     def __init__(self,
                  int_gain: list,
-                 ff: Union[float, List[float]]=None,
-                 n_modes: Union[int, List[int]]=None,
+                 ff: float | List[float]=None,
+                 n_modes: int | List[int]=None,
                  delay: float=0,
                  integration: bool=True,
                  target_device_idx: int=None,
