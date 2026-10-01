@@ -145,17 +145,20 @@ def stop(logger, timeout=30):
     _process = None
 
 
-def _worker(q, history_q, specs, precision, log_level):
+# Runs only in the spawned display process, which coverage does not follow:
+# the display loop is in _worker_loop(), tested directly
+def _worker(q, history_q, specs, precision, log_level):  # pragma: no cover
     try:
-        _worker_loop(q, history_q, specs, precision, log_level)
+        import specula
+        specula.init(-1, precision=precision)
+        _worker_loop(q, history_q, specs, log_level)
     except KeyboardInterrupt:
         pass
 
 
-def _worker_loop(q, history_q, specs, precision, log_level):
+def _worker_loop(q, history_q, specs, log_level):
+    '''Display loop, run in the display process (or directly by tests)'''
     import time
-    import specula
-    specula.init(-1, precision=precision)
 
     displays = {}
     for name, klass, args, kwargs in pickle.loads(specs):

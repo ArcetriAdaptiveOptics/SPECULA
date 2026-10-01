@@ -5,6 +5,8 @@ import pytest
 import unittest
 import inspect
 import time
+import queue
+import threading
 from types import SimpleNamespace
 from unittest import mock
 
@@ -29,6 +31,7 @@ from specula.display.plot_display import PlotDisplay
 from specula.display.modes_display import ModesDisplay
 from specula.display.plot_vector_display import PlotVectorDisplay
 from specula.display.double_phase_display import DoublePhaseDisplay
+from specula.display.display_recorder import DisplayRecorder
 from specula.base_value import BaseValue
 from test.specula_testlib import cpu_and_gpu
 
@@ -41,6 +44,22 @@ DISPLAY_CLASSES_WITH_WINDOW_XY = [
 
 
 matplotlib.use('Agg')  # Use non-interactive backend for GitHub CI
+
+
+class _RecordingPhaseDisplay(PhaseDisplay):
+    '''PhaseDisplay that records the calls made by the display loop'''
+    calls = []
+
+    def setup(self):
+        super().setup()
+        self.calls.append('setup')
+
+    def _update_display(self, phase):
+        super()._update_display(phase)
+        self.calls.append('update')
+
+    def finalize(self):
+        self.calls.append('finalize')
 
 
 class TestDisplays(unittest.TestCase):
@@ -128,11 +147,16 @@ class TestDisplays(unittest.TestCase):
                           S0=self.S0, target_device_idx=target_device_idx)
         ef.generation_time = ef.seconds_to_t(1)
 
+        value = BaseValue(value=xp.array(1.0), target_device_idx=target_device_idx)
+        value.generation_time = value.seconds_to_t(1)
+
         display_process.init(True)
         try:
             display = PhaseDisplay(title='Async Phase Display')
             display.inputs['phase'].set(ef)
             self.assertIsNone(display.fig)
+            plot = PlotDisplay(title='Async Plot Display')
+            plot.inputs['value_list'].set([value])   # 'value' input left unset
 
             # The display process inherits the environment: no GUI windows
             with mock.patch.dict('os.environ', {'MPLBACKEND': 'Agg'}):
@@ -141,13 +165,71 @@ class TestDisplays(unittest.TestCase):
 
             loop = LoopControl()
             loop.add(display, idx=0)
+            loop.add(plot, idx=0)
             loop.run(run_time=1, dt=1)
             self.assertEqual(display.outputs['out_window_id'].value, display.window)
+
+            # More updates than the queue can hold: phase updates are skipped,
+            # history plot updates never
+            for _ in range(10):
+                display_process.send(display)
+                display_process.send(plot)
+            self.assertGreater(display_process._dropped, 0)
+            self.assertLessEqual(display_process._dropped, 10)
         finally:
             display_process.stop(display.logger)
             display_process.init(False)
 
         self.assertEqual(process.exitcode, 0)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    def test_display_worker_loop(self):
+        """Display loop of the display process, run here to check the display calls"""
+        saved_plot_completed = dict(BaseDisplay._BaseDisplay__plot_completed)
+        BaseDisplay._BaseDisplay__plot_completed = {}
+        _RecordingPhaseDisplay.calls = []
+
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
+                           S0=self.S0, target_device_idx=-1)
+        value = BaseValue(value=np.array(1.0), target_device_idx=-1)
+        specs = display_process._dumps([('phase_disp', _RecordingPhaseDisplay, (), {'title': 'Phase'}),
+                                        ('plot_disp', PlotDisplay, (), {'title': 'Plot'})])
+        q = queue.Queue()
+        history_q = queue.Queue()
+        for t in [1, 2]:
+            q.put(display_process._dumps(('phase_disp', t, {'phase': ef})))
+            history_q.put(display_process._dumps(('plot_disp', t, {'value': value, 'value_list': None})))
+
+        # Terminators arrive later: the loop also waits on empty queues
+        timer = threading.Timer(0.1, lambda: (q.put(None), history_q.put(None)))
+        timer.start()
+        try:
+            display_process._worker_loop(q, history_q, specs, log_level='INFO')
+        finally:
+            timer.join()
+            BaseDisplay._BaseDisplay__plot_completed = saved_plot_completed
+            matplotlib.pyplot.close('all')
+
+        self.assertEqual(_RecordingPhaseDisplay.calls, ['setup', 'update', 'update', 'finalize'])
+
+    def test_display_process_not_started_without_displays(self):
+        display_process.init(True)
+        try:
+            display_process.start(precision=specula.global_precision, log_level='INFO')
+            self.assertIsNone(display_process._process)
+            self.assertFalse(display_process.enabled())
+        finally:
+            display_process.stop(None)
+            display_process.init(False)
+
+    def test_display_recorder_with_async_displays(self):
+        display_process.init(True)
+        try:
+            with self.assertRaises(ValueError):
+                DisplayRecorder(filename='unused.mp4')
+        finally:
+            display_process.init(False)
 
     def test_display_process_dead(self):
         """If the display process dies, the simulation goes on and stop() does not wait"""
