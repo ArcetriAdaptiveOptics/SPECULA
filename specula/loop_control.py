@@ -23,6 +23,9 @@ class LoopControl(BaseTimeObj):
         self.max_global_order = -1
         self.iter_counter = 0
         self.stepping = stepping
+        self.mem_report = None
+        self._mem_pending = set()
+        self._mem_first_trigger_report = False
 
     def add(self, obj, idx):
         """
@@ -98,14 +101,14 @@ class LoopControl(BaseTimeObj):
                 try:
                     self.logger.mpi_debug(f'' + str(element) + ' startMemUsageCount')
                     element.startMemUsageCount()
-                    self.logger.mpi_debug(f'' + str(element) + ' setup')
-                    with tracer('setup', element):
-                        element.setup()
-                    element.sanity_check()
-                    self.logger.mpi_debug(f'' + str(element) + ' stopMemUsageCount')
-                    element.stopMemUsageCount()
-                    self.logger.mpi_debug(f'' + str(element) + ' printMemUsage')
-                    element.printMemUsage()
+                    try:
+                        self.logger.mpi_debug(f'' + str(element) + ' setup')
+                        with tracer('setup', element):
+                            element.setup()
+                        element.sanity_check()
+                    finally:
+                        self.logger.mpi_debug(f'' + str(element) + ' stopMemUsageCount')
+                        element.stopMemUsageCount()
                     self.logger.mpi_debug(f'setup '+str(element))
                     #  workaround for objects that need to send outputs
                     # before the first iter() call
@@ -116,11 +119,17 @@ class LoopControl(BaseTimeObj):
                     raise
         
         self.logger.debug(f'Setups DONE')
+        self._report_mem('after setup')
+        self._mem_pending = {el for lst in self.trigger_lists.values() for el in lst}
+        self._mem_first_trigger_report = True
         if process_comm is not None:
             process_comm.barrier()
         
         if preroll_objs:
             self.preroll(preroll_objs)
+        if self._mem_first_trigger_report and not self._mem_pending:
+            self._report_mem('after the first trigger of all objects')
+            self._mem_first_trigger_report = False
 
         self.t = self.t0
         self.last_reported_time = time.time()
@@ -151,14 +160,15 @@ class LoopControl(BaseTimeObj):
             for t in range(0, self.t0, self.dt):
                 for level in levels:
                     for element in level:
-                        element.check_ready(t)
+                        self._counted(element, element.check_ready, t)
                     for element in level:
                         try:
                             if element.inputs_changed:
                                 with tracer('trigger', element):
-                                    element.trigger()
+                                    self._counted(element, element.trigger)
                                 with tracer('post_trigger', element):
-                                    element.post_trigger()
+                                    self._counted(element, element.post_trigger)
+                                self._mem_pending.discard(element)
                         except:
                             self.logger.error(f'Exception in {element.name} during pre-roll')
                             raise
@@ -176,7 +186,7 @@ class LoopControl(BaseTimeObj):
             self.logger.mpi_debug(f'before check_ready')
             for element in self.trigger_lists[i]:
                 try:
-                    element.check_ready(self.t)
+                    self._counted(element, element.check_ready, self.t)
                 except:
                     self.logger.error(f'Exception in {element.name}')
                     raise
@@ -186,7 +196,7 @@ class LoopControl(BaseTimeObj):
                 try:
                     if element.inputs_changed:
                         with tracer('trigger', element):
-                            element.trigger()
+                            self._counted(element, element.trigger)
                 except:
                     self.logger.error(f'Exception in {element.name}')
                     raise
@@ -196,7 +206,8 @@ class LoopControl(BaseTimeObj):
                 try:
                     if element.inputs_changed:
                         with tracer('post_trigger', element):
-                            element.post_trigger()
+                            self._counted(element, element.post_trigger)
+                        self._mem_pending.discard(element)
                     # Always send MPI outputs, regardless of whether
                     # an object was triggered or not
                     # Only traced with remote outputs, otherwise it does nothing
@@ -218,13 +229,35 @@ class LoopControl(BaseTimeObj):
                 self.last_reported_time = cur_time
                 self.last_reported_counter = self.iter_counter
 
+        if self._mem_first_trigger_report and not self._mem_pending:
+            self._report_mem('after the first trigger of all objects')
+            self._mem_first_trigger_report = False
         if tracer.recording:
             tracer.end_iteration()
 
         self.t += self.dt
         self.iter_counter += 1
 
+    def _counted(self, element, method, *args):
+        '''Call a method while counting memory until the element's first trigger.'''
+        if element not in self._mem_pending:
+            return method(*args)
+        element.startMemUsageCount()
+        try:
+            return method(*args)
+        finally:
+            element.stopMemUsageCount()
+
+    def _report_mem(self, title):
+        if self.mem_report is not None:
+            self.mem_report(title)
+
     def finish(self):
+        if self._mem_pending:
+            never = sorted(el.name for el in self._mem_pending)
+            self._report_mem(f'at the end (never triggered: {", ".join(never)})')
+        self._mem_pending = set()
+        self._mem_first_trigger_report = False
 
         for i in sorted(self.trigger_lists.keys()):
             for element in self.trigger_lists[i]:
@@ -233,4 +266,3 @@ class LoopControl(BaseTimeObj):
                 except:
                     self.logger.error(f'Exception in {element.name}')
                     raise
-
