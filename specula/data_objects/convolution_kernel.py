@@ -299,12 +299,12 @@ class ConvolutionKernel(BaseDataObj):
             self.kernels = self.xp.zeros(shape, dtype=dtype)
 
         # Process the kernels - apply FFT if needed.
-        # One row of subapertures at a time: real_kernels[i * dimx + j] goes
-        # to kernels[j * dimx + i] for all i, and the strided slice is a view,
+        # One row of subapertures at a time: real_kernels is x-major
+        # (see lgs_map_sh()), so real_kernels[i * dimy + j] goes to
+        # kernels[j * dimx + i] for all i, and the strided slice is a view,
         # so that real_kernels is normalized in place.
-        last = (self.dimx - 1) * self.dimx + 1
         for j in range(self.dimy):
-            subap_kern = self.to_xp(self.real_kernels[j:j + last:self.dimx])
+            subap_kern = self.to_xp(self.real_kernels[j::self.dimy])
             total = self.xp.sum(subap_kern, axis=(1, 2), keepdims=True)
             subap_kern /= self.xp.where(total > 0, total, 1)  # Avoid division by zero
             dst = slice(j * self.dimx, (j + 1) * self.dimx)
