@@ -26,8 +26,9 @@ class BaseDisplay(BaseProcessingObj):
 
         if isinstance(window, Integral) and not isinstance(window, bool) and window >= 1:
             window = int(window)
-            if window in self.__plot_completed.keys():
-                raise ValueError(f'window {window} already exists')
+            # Displays can share a window, each one in its own subplot
+            if subplot in self.__plot_completed.get(window, {}):
+                raise ValueError(f'subplot {subplot} of window {window} already exists')
         elif window is None:
             # Find an unused window number
             window = max(self.__plot_completed.keys(), default=0) + 1
@@ -44,7 +45,11 @@ class BaseDisplay(BaseProcessingObj):
         if window not in self.__plot_completed:
             self.__plot_completed[window] = {}
 
-        self.fig = plt.figure(num=self.window, figsize=self.figsize)
+        if plt.fignum_exists(self.window):
+            # Window shared with another display: figsize was set by the first one
+            self.fig = plt.figure(num=self.window)
+        else:
+            self.fig = plt.figure(num=self.window, figsize=self.figsize)
         self.ax = self.fig.add_subplot(self.subplot)
         self.__plot_completed[self.window][self.subplot] = False
 

@@ -97,6 +97,56 @@ class TestDisplays(unittest.TestCase):
 
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    def test_displays_grouped_in_one_window(self):
+        saved_plot_completed = dict(BaseDisplay._BaseDisplay__plot_completed)
+        BaseDisplay._BaseDisplay__plot_completed = {}
+
+        try:
+            d1 = PhaseDisplay(title='Left', window=3, subplot=121)
+            d2 = PlotDisplay(title='Right', window=3, subplot=122)
+            with self.assertRaises(ValueError):
+                PhaseDisplay(title='Same subplot', window=3, subplot=122)
+            d4 = PhaseDisplay(title='Next free window')
+
+            self.assertIs(d1.fig, d2.fig)
+            self.assertIsNot(d1.ax, d2.ax)
+            self.assertEqual(len(d1.fig.axes), 2)
+            self.assertEqual(d4.window, 4)
+        finally:
+            BaseDisplay._BaseDisplay__plot_completed = saved_plot_completed
+            matplotlib.pyplot.close('all')
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_double_phase_display_trigger(self, target_device_idx, xp):
+        """DoublePhaseDisplay draws both phases and accumulates the PSD"""
+        ef1 = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
+                            S0=self.S0, target_device_idx=target_device_idx)
+        ef2 = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
+                            S0=self.S0, target_device_idx=target_device_idx)
+        ef1.phaseInNm[:] = xp.arange(self.pixel_pupil)[None, :]
+        ef2.phaseInNm[:] = xp.arange(self.pixel_pupil)[:, None]
+        ef1.generation_time = ef1.seconds_to_t(1)
+        ef2.generation_time = ef2.seconds_to_t(1)
+
+        display = DoublePhaseDisplay()
+        display.inputs['phase1'].set(ef1)
+        display.inputs['phase2'].set(ef2)
+
+        loop = LoopControl()
+        loop.add(display, idx=0)
+        loop.run(run_time=1, dt=1)
+
+        self.assertEqual(display.nframes, 1)
+        self.assertIsNotNone(display.img1)
+        self.assertIsNotNone(display.img2)
+        self.assertEqual(display.ax4.get_title(), 'PSD Average (n=1)')
+
+        matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
     @cpu_and_gpu
     def test_phase_display_init_and_trigger(self, target_device_idx, xp):
         """Test PhaseDisplay initialization and trigger"""
