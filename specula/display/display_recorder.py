@@ -17,7 +17,7 @@ class DisplayRecorder(BaseProcessingObj):
                  ):
 
         super().__init__()
-        if display_process.enabled():
+        if display_process.enabled:
             raise ValueError('DisplayRecorder cannot record displays running in a separate process (--async-displays)')
         self.writer = imageio.get_writer(
             filename,

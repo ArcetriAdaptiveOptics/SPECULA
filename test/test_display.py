@@ -196,29 +196,33 @@ class TestDisplays(unittest.TestCase):
         specs = display_process._dumps([('phase_disp', _RecordingPhaseDisplay, (), {'title': 'Phase'}),
                                         ('plot_disp', PlotDisplay, (), {'title': 'Plot'})])
         q = queue.Queue()
-        history_q = queue.Queue()
+        slots = threading.Semaphore(0)
         for t in [1, 2]:
-            q.put(display_process._dumps(('phase_disp', t, {'phase': ef})))
-            history_q.put(display_process._dumps(('plot_disp', t, {'value': value, 'value_list': None})))
+            q.put((True, display_process._dumps(('phase_disp', t, {'phase': ef}))))
+            q.put((False, display_process._dumps(('plot_disp', t, {'value': value, 'value_list': None}))))
 
-        # Terminators arrive later: the loop also waits on empty queues
-        timer = threading.Timer(0.1, lambda: (q.put(None), history_q.put(None)))
+        # The terminator arrives later: the loop also waits on an empty queue
+        timer = threading.Timer(0.1, lambda: q.put(None))
         timer.start()
         try:
-            display_process._worker_loop(q, history_q, specs, log_level='INFO')
+            display_process._worker_loop(q, slots, specs, log_level='INFO')
         finally:
             timer.join()
             BaseDisplay._BaseDisplay__plot_completed = saved_plot_completed
             matplotlib.pyplot.close('all')
 
         self.assertEqual(_RecordingPhaseDisplay.calls, ['setup', 'update', 'update', 'finalize'])
+        # A queue slot is freed for each phase update, not for the history plot updates
+        self.assertTrue(slots.acquire(blocking=False))
+        self.assertTrue(slots.acquire(blocking=False))
+        self.assertFalse(slots.acquire(blocking=False))
 
     def test_display_process_not_started_without_displays(self):
         display_process.init(True)
         try:
             display_process.start(precision=specula.global_precision, log_level='INFO')
             self.assertIsNone(display_process._process)
-            self.assertFalse(display_process.enabled())
+            self.assertFalse(display_process.enabled)
         finally:
             display_process.stop(None)
             display_process.init(False)

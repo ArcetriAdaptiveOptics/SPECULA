@@ -1,4 +1,3 @@
-import inspect
 import matplotlib.pyplot as plt
 from numbers import Integral
 
@@ -60,18 +59,16 @@ class BaseDisplay(BaseProcessingObj):
         self.output_id = IntValue(value=-1)
         self.outputs['out_window_id'] = self.output_id
 
-        # Drawing happens in the display process: no figure here
-        self.async_mode = display_process.enabled()
+        # Drawing happens in the display process: no figure here.
+        # The display code, including setup() and finalize() of derived classes,
+        # runs there: here setup() only checks the inputs
+        self.async_mode = display_process.enabled
         if self.async_mode:
-            if 'window' in inspect.signature(type(self).__init__).parameters:
-                self._init_kwargs = {**self._init_kwargs, 'window': window}
-            self.fig = None
-            self.ax = None
-            # Only the input checks here: setup() and finalize() of derived classes
-            # run in the display process, where the figure is
+            self.fig = self.ax = None
             self.setup = lambda: BaseProcessingObj.setup(self)
-            self.finalize = lambda: BaseProcessingObj.finalize(self)
-            display_process.register(self)
+            self.finalize = lambda: None
+            self.trigger = lambda: display_process.send(self)
+            display_process.displays.append(self)
             return
 
         self.fig = plt.figure(num=self.window, figsize=self.figsize)
@@ -122,12 +119,6 @@ class BaseDisplay(BaseProcessingObj):
             self._show_error(f"No {self.input_key} data available")
             return
         return data
-
-    def trigger(self):
-        if self.async_mode:
-            display_process.send(self)
-        else:
-            super().trigger()
 
     def trigger_code(self):
         try:

@@ -123,7 +123,7 @@ With this flag:
   to be drawn. This keeps the memory used by the queue bounded even with large arrays.
   The number of skipped updates is logged at the end of the simulation.
 * displays that build a time history (``PlotDisplay``, ``PlotVectorDisplay``) never skip updates, so that no
-  point is lost. Their data goes through a separate queue with no size limit: it is usually small
+  point is lost. There is no limit to their pending updates: their data is usually small
   (a few values per step), and the display process catches up by applying all pending points before redrawing.
 * at the end of the simulation, the display process draws the pending data and exits.
 
