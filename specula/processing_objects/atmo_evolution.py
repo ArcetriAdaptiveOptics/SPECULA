@@ -326,25 +326,12 @@ class AtmoEvolution(BaseProcessingObj):
         self.layer_center_xp = (self.pixel_layer_xp - 1) / 2
         self.screen_size_xp = self.to_xp(self.phasescreens_sizes_array, dtype=self.dtype)
 
+        # Reallocated inputs raise an error, see BaseProcessingObj.check_input_ptrs()
         self.build_stream()
-        # The CUDA graph reads the inputs at the addresses they had when it was captured
-        if self.cuda_graph:
-            self.captured_input_ptrs = {name: self.local_inputs[name].value.data.ptr
-                                        for name in self.inputs}
 
     def prepare_trigger(self, t):
-        """Update the device time step, only when it changes (no transfers).
-
-        With a CUDA graph, also check that the input arrays have not been reallocated
-        by their producers (host-side check, no synchronization).
-        """
+        """Update the device time step, only when it changes (no transfers)."""
         super().prepare_trigger(t)
-        if self.cuda_graph:
-            for name, ptr in self.captured_input_ptrs.items():
-                if self.local_inputs[name].value.data.ptr != ptr:
-                    raise RuntimeError(f'{self.name}: input {name} has been reallocated after the'
-                                       f' CUDA graph capture, its producer must update its value'
-                                       f' in place')
         delta_time = np.float64(self.t_to_seconds(self.current_time - self.last_t))
         if delta_time != self.delta_time:
             self.delta_time = delta_time

@@ -181,8 +181,19 @@ class BaseDisplay(BaseProcessingObj):
                     transform=self.ax.transAxes, color='red', fontsize=12)
         self._safe_draw()
 
+    def _has_gui_window(self):
+        """True if the figure is shown in an open GUI window"""
+        return self.fig.canvas.required_interactive_framework is not None and \
+               plt.fignum_exists(self.fig.number)
+
     def _safe_draw(self):
         """Thread-safe drawing method"""
+        # Without a GUI window (non-interactive backend like the Agg fallback
+        # when $DISPLAY is not set, or a closed window) nobody will see the
+        # figure, so skip the expensive rendering. DisplayRecorder renders
+        # the figure itself when it needs the pixels.
+        if not self.onNotebook and not self._has_gui_window():
+            return
         try:
             if self.fig and self.fig.canvas:
                 self.fig.canvas.draw_idle()

@@ -1,6 +1,6 @@
 import numpy as np
 
-from specula import fuse, RAD2ASEC
+from specula import fuse, RAD2ASEC, cpuArray
 from specula.tracing import tracer
 from specula.lib.extrapolation_2d import EFInterpolator
 from specula.lib.toccd import toccd
@@ -229,6 +229,7 @@ class SH(BaseProcessingObj):
         self._subap_cube_view = None
         self._psfimage_views = None
         self._kernelobj = None
+        self._last_sodium_values = None
         self._fov_ovs = 1
 
         self._ccd_side = self._subap_npx * self._lenslet.n_lenses
@@ -444,6 +445,26 @@ class SH(BaseProcessingObj):
             sodium_intensity = self.local_inputs['sodium_intensity']
             if sodium_altitude is None or sodium_intensity is None:
                 raise ValueError('sodium_altitude and sodium_intensity must be provided')
+            values = (sodium_altitude.value, sodium_intensity.value)
+        else:
+            values = ()
+
+        # Avoid recomputing kernels if the sodium layer parameters
+        # have not changed since the last call. Their values are compared,
+        # because generators update the generation time at every step,
+        # even if the actual values are unchanged.
+        # The arrays are small: comparing them on the host is faster than
+        # launching several comparison kernels on the device.
+        host_values = tuple(cpuArray(v) for v in values)
+        if self._last_sodium_values is not None and \
+                all(np.array_equal(v, last)
+                    for v, last in zip(host_values, self._last_sodium_values)):
+            return
+        # Copies, because cpuArray() does not copy on the CPU and
+        # generators update their output in place
+        self._last_sodium_values = tuple(np.array(v) for v in host_values)
+
+        if values:
             sodium_altitude = sodium_altitude.value * self._laser_launch_tel.airmass
             sodium_intensity = sodium_intensity.value
         else:

@@ -1000,3 +1000,53 @@ class TestDisplays(unittest.TestCase):
             self.assertIsNone(display.img)
         finally:
             matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    def test_safe_draw_skipped_with_non_interactive_backend(self):
+        """With a non-interactive backend (Agg) nobody sees the figure,
+        so it must not be rendered"""
+        display = PhaseDisplay()
+        try:
+            with mock.patch.object(display.fig.canvas, 'draw_idle') as draw_idle:
+                display._safe_draw()
+            draw_idle.assert_not_called()
+        finally:
+            matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    def test_safe_draw_done_with_open_interactive_window(self):
+        """An open GUI window must be redrawn"""
+        display = PhaseDisplay()
+        try:
+            display.fig.canvas.required_interactive_framework = 'tk'
+            with mock.patch.object(display.fig.canvas, 'draw_idle') as draw_idle:
+                display._safe_draw()
+            draw_idle.assert_called_once()
+        finally:
+            matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    def test_safe_draw_skipped_with_closed_window(self):
+        """A GUI window closed by the user must not be redrawn"""
+        display = PhaseDisplay()
+        display.fig.canvas.required_interactive_framework = 'tk'
+        matplotlib.pyplot.close(display.fig)
+        with mock.patch.object(display.fig.canvas, 'draw_idle') as draw_idle:
+            display._safe_draw()
+        draw_idle.assert_not_called()
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    def test_safe_draw_done_on_notebook(self):
+        """On notebooks the figure is drawn even with a non-interactive backend"""
+        display = PhaseDisplay()
+        try:
+            display.onNotebook = True
+            with mock.patch.object(display.fig.canvas, 'draw_idle') as draw_idle:
+                display._safe_draw()
+            draw_idle.assert_called_once()
+        finally:
+            matplotlib.pyplot.close(display.fig)

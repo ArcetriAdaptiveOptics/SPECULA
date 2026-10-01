@@ -36,6 +36,9 @@ class DisplayRecorder(BaseProcessingObj):
         frames = []
         for window in windows:
             fig = plt.figure(num=window.value)
+            # Displays do not render non-interactive canvases (e.g. Agg)
+            if fig.canvas.required_interactive_framework is None:
+                fig.canvas.draw()
             buffer = np.asarray(fig.canvas.buffer_rgba())
             frames.append(buffer[:, :, :3])
 

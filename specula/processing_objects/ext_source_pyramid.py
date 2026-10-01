@@ -213,7 +213,6 @@ class ExtSourcePyramid(ModulatedPyramid):
         # Pre-allocate face center coefficients (4 points at pyramid face centers)
         # These will be used to redistribute filtered flux
         self._face_centers_idx = None  # Indices where face centers are stored in coeff array
-        self._value_with_face_centers = None  # Input array to which face centers were appended
         self._face_centers_ttf = None  # Pre-computed TTF coordinates (initialized in cache_ttexp)
 
         # Add dedicated input for extended source coefficients
@@ -261,6 +260,13 @@ class ExtSourcePyramid(ModulatedPyramid):
         return face_angles_ttf, mean_radius
 
 
+    def graph_input_ptrs(self):
+        # ext_source_coeff is copied into _coeff_valid by cache_ttexp(), outside
+        # the CUDA graph, and its producer reallocates it when the number of
+        # points changes
+        ptrs = super().graph_input_ptrs()
+        return {key: ptr for key, ptr in ptrs.items() if key[0] != 'ext_source_coeff'}
+
     def cache_ttexp(self):
         # set ext_source_coeff if not already set
         if self.ext_source_coeff is None:
@@ -289,38 +295,24 @@ class ExtSourcePyramid(ModulatedPyramid):
                 (self.max_batch_size, self.fft_totsize, self.fft_totsize),
                 dtype=self.complex_dtype)
 
-        # Always update face centers when stream disabled (in case source was updated)
-        if not self.stream_enable:
-            # Check if we need to append face centers
-            # (either first time or source was updated and lost them)
-            current_size = self.ext_source_coeff.value.shape[0]
-            if self._face_centers_idx is None or self.ext_source_coeff.value is not self._value_with_face_centers:
-                # Create face centers with flux initialized to zero
-                face_centers_with_flux = self.xp.hstack([
-                    self._face_centers_ttf,
-                    self.xp.zeros((4, 1), dtype=self.dtype)  # Initial flux = 0
-                ])
+        # Source coefficients, only read: the input belongs to its producer
+        # and must not be modified
+        coeff = self.ext_source_coeff.value
 
-                # Append face centers
-                self.ext_source_coeff.value = self.xp.vstack([
-                    self.ext_source_coeff.value,
-                    face_centers_with_flux
-                ])
-                self._value_with_face_centers = self.ext_source_coeff.value
-                self._face_centers_idx = self.xp.arange(current_size, current_size + 4)
-                self.mod_steps = current_size + 4
-            else:
-                # Face centers already exist, just reset their flux to zero
-                # (TTF coordinates are constant, no need to update)
-                self.ext_source_coeff.value[self._face_centers_idx, 3] = 0.0
-                self.mod_steps = self.ext_source_coeff.value.shape[0]
-        else:
-            # Stream enabled: just update mod_steps
-            self.mod_steps = int(self.ext_source_coeff.value.shape[0])
+        if not self.stream_enable:
+            # Local copy of the coefficients with the 4 face centers appended,
+            # with flux initialized to zero (set below with the filtered flux)
+            current_size = coeff.shape[0]
+            face_centers_with_flux = self.xp.hstack([
+                self._face_centers_ttf,
+                self.xp.zeros((4, 1), dtype=self.dtype)
+            ])
+            coeff = self.xp.vstack([coeff, face_centers_with_flux])
+            self._face_centers_idx = self.xp.arange(current_size, current_size + 4)
+        self.mod_steps = int(coeff.shape[0])
 
         # Set flux factor vector from source (will be updated in trigger if PSF changes)
-        coeff_flux  = self.ext_source_coeff.value[:, 3]
-        self.flux_factor_vector = self.to_xp(coeff_flux)
+        self.flux_factor_vector = self.to_xp(coeff[:, 3])
 
         # Clean up very small flux values (only if stream disabled)
         # When stream_enable=True, we need constant n_valid for CUDA graph
@@ -347,12 +339,12 @@ class ExtSourcePyramid(ModulatedPyramid):
 
             # Redistribute lost flux to 4 face centers
             if n_filtered > 0 and lost_flux > 0:
-                self.ext_source_coeff.value[self._face_centers_idx, 3] = lost_flux / 4.0
+                coeff[self._face_centers_idx, 3] = lost_flux / 4.0
             else:
-                self.ext_source_coeff.value[self._face_centers_idx, 3] = 0.0
+                coeff[self._face_centers_idx, 3] = 0.0
 
             # Update flux factor vector after redistribution
-            self.flux_factor_vector = self.ext_source_coeff.value[:, 3]
+            self.flux_factor_vector = coeff[:, 3]
 
             self.valid_idx = self.xp.where(self.flux_factor_vector > 0.0)[0]
 
@@ -392,7 +384,7 @@ class ExtSourcePyramid(ModulatedPyramid):
             self._fpsf_buffer[:] = 0
             self._pyr_image_buffer[:] = 0
 
-        self._coeff_valid[:n_valid] = self.ext_source_coeff.value[self.valid_idx, :3]
+        self._coeff_valid[:n_valid] = coeff[self.valid_idx, :3]
         self._coeff_valid[n_valid:] = 0
         self._ffv_valid[:n_valid] = self.flux_factor_vector[self.valid_idx]
         self._ffv_valid[n_valid:] = 0
